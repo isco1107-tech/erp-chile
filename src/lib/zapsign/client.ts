@@ -2,19 +2,33 @@
  * Cliente mínimo sobre `fetch` para la API de ZapSign — sin SDK externo, solo
  * las 2 llamadas que necesita el flujo de firma del contrato de candidatas.
  *
- * `ZAPSIGN_API_TOKEN` está guardado como variable de entorno (Sandbox por
- * ahora). La base URL apunta a Sandbox mientras se prueba la integración;
- * cambiar a producción es una decisión explícita de negocio (más
- * documentos "reales", con costo), no algo que este código decida solo —
- * ver `ZAPSIGN_BASE_URL` abajo.
+ * `ZAPSIGN_API_TOKEN` y `ZAPSIGN_BASE_URL` están configurados en producción
+ * apuntando a la API real de ZapSign (`https://api.zapsign.com.br`) — ya no
+ * al Sandbox. Si `ZAPSIGN_BASE_URL` faltara como variable de entorno, el
+ * default de abajo cae a Sandbox, que no envía correos reales a la
+ * candidata (así se manifestó el bug original: sin error visible, pero el
+ * correo nunca llegaba).
  */
 
-const ZAPSIGN_BASE_URL = process.env.ZAPSIGN_BASE_URL || 'https://sandbox.api.zapsign.com.br';
+/**
+ * Un valor de variable de entorno pegado desde un archivo guardado con BOM
+ * (ej. UTF-8 con BOM de Notepad clásico, o `vercel env add` alimentado desde
+ * un archivo así) arrastra un `﻿` invisible al inicio o espacios/saltos
+ * de línea al final. `fetch` revienta al construir el header `Authorization`
+ * con "Cannot convert argument to a ByteString" — un error que no dice nada
+ * sobre la causa real. Se sanea acá, en el único lugar donde se leen estas
+ * env vars, en vez de confiar en que quien las cargue nunca cometa este error.
+ */
+function cleanEnvValue(value: string): string {
+  return value.replace(/^﻿/, '').trim();
+}
+
+const ZAPSIGN_BASE_URL = cleanEnvValue(process.env.ZAPSIGN_BASE_URL || 'https://sandbox.api.zapsign.com.br');
 
 function requireToken(): string {
   const token = process.env.ZAPSIGN_API_TOKEN;
   if (!token) throw new Error('ZAPSIGN_API_TOKEN no está configurado');
-  return token;
+  return cleanEnvValue(token);
 }
 
 export interface CreateDocumentInput {
