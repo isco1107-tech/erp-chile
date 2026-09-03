@@ -1,0 +1,121 @@
+'use server';
+
+import { redirect } from 'next/navigation';
+import { prisma } from '@/lib/prisma';
+import { getAuthContext, AuthError } from '@/lib/auth/guards';
+import { createSessionToken, setSessionCookieServer } from '@/lib/auth/session';
+import { toFeatureFlags } from '@/lib/auth/modules';
+import { createAuditLog } from '@/lib/auth/audit';
+
+export type ActionResult<T> =
+  | { success: true; data: T; message?: string }
+  | { success: false; error: string };
+
+/** Empresa que este usuario puede activar: la hogar, o cualquiera con una `CompanyMembership` vigente. */
+export interface SwitchableCompany {
+  id: string;
+  name: string;
+  isHome: boolean;
+  isActive: boolean;
+}
+
+/**
+ * Lista para el selector de empresa — separado de `getAuthContext()` a
+ * propósito: esa función ya resuelve la empresa ACTIVA (para el resto del
+ * sistema), esta resuelve TODAS las que el usuario podría activar, así que
+ * consulta la base aparte en vez de sobrecargar el contexto de cada request.
+ */
+export async function listSwitchableCompaniesAction(): Promise<ActionResult<SwitchableCompany[]>> {
+  try {
+    const session = await getAuthContext();
+
+    const user = await prisma.user.findUnique({
+      where: { id: session.id },
+      select: { companyId: true, company: { select: { id: true, businessName: true } } },
+    });
+    if (!user || !user.company) return { success: false, error: 'Sesión sin empresa asociada' };
+
+    const memberships = await prisma.companyMembership.findMany({
+      where: { userId: session.id },
+      include: { company: { select: { id: true, businessName: true, features: true } } },
+    });
+
+    const companies: SwitchableCompany[] = [
+      { id: user.company.id, name: user.company.businessName, isHome: true, isActive: session.companyId === user.company.id },
+    ];
+    for (const membership of memberships) {
+      if (!toFeatureFlags(membership.company.features).hasMultiCompany) continue;
+      companies.push({
+        id: membership.company.id,
+        name: membership.company.businessName,
+        isHome: false,
+        isActive: session.companyId === membership.company.id,
+      });
+    }
+    return { success: true, data: companies };
+  } catch (error) {
+    return { success: false, error: error instanceof AuthError ? error.message : 'No se pudo cargar la lista de empresas' };
+  }
+}
+
+/**
+ * Cambia la empresa activa de la sesión sin pedir contraseña de nuevo.
+ * Reemite el JWT (mismo mecanismo que el login, `createSessionToken`) con
+ * `activeCompanyId` apuntando a la empresa destino — nunca confía en el rol
+ * actual del cliente: valida de nuevo contra la base que el destino sea la
+ * empresa hogar o una `CompanyMembership` vigente con `hasMultiCompany`
+ * activo antes de emitir la cookie nueva.
+ *
+ * Devuelve `ActionResult<null>` en el camino de error (Sección 4 del
+ * CLAUDE.md) — `redirect()` de Next.js lanza internamente para cortar el
+ * render, así que va DESPUÉS del `try/catch`, nunca dentro: atraparlo ahí
+ * lo convertiría en un error genérico y el redirect nunca ocurriría.
+ */
+export async function switchActiveCompanyAction(targetCompanyId: string): Promise<ActionResult<null>> {
+  const session = await getAuthContext();
+
+  const user = await prisma.user.findUnique({
+    where: { id: session.id },
+    select: { id: true, role: true, email: true, companyId: true, isSuperAdmin: true, sessionVersion: true },
+  });
+  if (!user) return { success: false, error: 'Sesión inválida o expirada' };
+
+  let targetCompanyName: string | undefined;
+  let allowed = targetCompanyId === user.companyId;
+  if (allowed) {
+    targetCompanyName = session.companyId === user.companyId ? session.companyName : undefined;
+  } else {
+    const membership = await prisma.companyMembership.findUnique({
+      where: { userId_companyId: { userId: user.id, companyId: targetCompanyId } },
+      include: { company: { select: { businessName: true, features: true } } },
+    });
+    allowed = !!membership && toFeatureFlags(membership.company.features).hasMultiCompany;
+    targetCompanyName = membership?.company.businessName;
+  }
+  if (!allowed) return { success: false, error: 'No tienes acceso a esa empresa' };
+
+  const token = await createSessionToken({
+    id: user.id,
+    role: user.role,
+    email: user.email,
+    companyId: user.companyId ?? undefined,
+    activeCompanyId: targetCompanyId,
+    isSuperAdmin: user.isSuperAdmin,
+    sessionVersion: user.sessionVersion,
+  });
+  await setSessionCookieServer(token);
+
+  // Auditado en la empresa DESTINO (no en la de origen): es donde alguien
+  // revisando "quién entró a mi empresa" va a buscarlo.
+  await createAuditLog({
+    companyId: targetCompanyId,
+    userId: user.id,
+    userEmail: user.email,
+    action: 'UPDATE',
+    entity: 'CompanyMembership',
+    entityId: user.id,
+    metadata: { reason: 'active_company_switch', targetCompanyName },
+  });
+
+  redirect('/dashboard');
+}

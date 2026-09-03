@@ -1,0 +1,4 @@
+# Cliente de escritorio (Tauri) — proyecto Rust separado, no forma parte del
+# deploy de Next.js. Su carpeta target/ pesa varios GB de artefactos de build
+# y hacía fallar el deploy por el límite de 100 MB por archivo.
+desktop-client

@@ -1,0 +1,107 @@
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { jwtVerify } from 'jose';
+
+/**
+ * Rutas alcanzables sin sesión. `forgot-password` y `reset-password` tienen que
+ * estar acá por definición: quien las necesita es justamente alguien que no
+ * puede iniciar sesión.
+ */
+const PUBLIC_ROUTES = [
+  '/login',
+  '/favicon.ico',
+  // Convención de ícono de Next.js 16 (src/app/icon.png) — el navegador la
+  // pide directo, sin sesión, igual que /favicon.ico.
+  '/icon.png',
+  '/api/auth/login',
+  '/api/auth/signin',
+  '/api/auth/signout',
+  '/accept-invitation',
+  '/forgot-password',
+  '/reset-password',
+  // Acceso de jurado por link con token — el jurado no tiene cuenta ni sesión
+  // ERP (ver JudgeAssignment.accessToken); la ruta valida el token ella misma.
+  '/judging',
+  // Portal público de la marca auspiciadora por link con token — mismo
+  // criterio que /judging (ver SponsorshipContract.portalToken).
+  '/sponsors',
+  // Verificación pública de credenciales de staff/proveedores por QR — quien
+  // controla el ingreso no tiene cuenta ERP; la ruta valida el token ella
+  // misma (ver StaffAccreditation.qrToken).
+  '/verify',
+  // Auto-inscripción pública de candidatas por link de certamen — la
+  // postulante no tiene cuenta ni contraseña ERP; la ruta valida el token
+  // ella misma (ver Project.candidateRegistrationToken).
+  '/register',
+  // Venta pública de entradas y votación pagada del público, cada una por su
+  // propio link de certamen — mismo criterio que `/register` (el comprador no
+  // tiene cuenta ni sesión ERP; la ruta valida el token ella misma contra
+  // `Project.ticketSalesToken` / `Project.voteSalesToken`).
+  '/tickets',
+  '/votar',
+  // Activos estáticos de marca (logo/ícono de Aether ERP en `public/branding`)
+  // — deben verse en TODA la superficie del producto, incluida la pantalla de
+  // login, que por definición no tiene sesión.
+  '/branding',
+  // Políticas de privacidad públicas: la de la empresa cliente (enlazada
+  // desde el formulario público de postulación, sin sesión ERP) y la de la
+  // propia plataforma Aether (enlazada desde `AetherBadge`, visible en toda
+  // la app, login incluido).
+  '/politica-privacidad',
+  '/aether',
+];
+
+export async function proxy(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+
+  if (
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/static') ||
+    PUBLIC_ROUTES.some((route) => pathname.startsWith(route))
+  ) {
+    return NextResponse.next();
+  }
+
+  const token = req.cookies.get('session')?.value;
+
+  if (!token) {
+    const loginUrl = new URL('/login', req.url);
+    loginUrl.searchParams.set('callbackUrl', pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  try {
+    if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET is not set');
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+    const { payload } = await jwtVerify(token, secret);
+    // Defensa en profundidad: el token de challenge de 2FA (totp-challenge.ts)
+    // ya está firmado con una clave distinta y por eso falla `jwtVerify` acá
+    // mismo, pero este chequeo explícito no depende de que esa separación de
+    // claves se mantenga para siempre.
+    if (payload.purpose !== 'session') throw new Error('Token de sesión inválido');
+
+    // Descarte temprano del portal de plataforma. Es solo una primera barrera:
+    // el token podría ser anterior a una revocación, así que `requireSuperAdmin()`
+    // vuelve a comprobar la bandera contra la base de datos en cada página.
+    if (pathname.startsWith('/superadmin') && payload.isSuperAdmin !== true) {
+      return NextResponse.redirect(new URL('/dashboard', req.url));
+    }
+
+    return NextResponse.next();
+  } catch {
+    const loginUrl = new URL('/login', req.url);
+    loginUrl.searchParams.set('callbackUrl', pathname);
+    const response = NextResponse.redirect(loginUrl);
+    response.cookies.delete('session');
+    return response;
+  }
+}
+
+export const config = {
+  // `/api` queda fuera a propósito: un 307 hacia el HTML de /login es una
+  // respuesta inútil para un cliente que espera JSON. Cada route handler bajo
+  // src/app/api/** DEBE llamar `requireAuthWithPermission()` (o `requireSuperAdmin()`)
+  // por su cuenta y devolver 401/403 con cuerpo JSON. Si agregas una ruta API
+  // nueva, ese guard no es opcional.
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+};

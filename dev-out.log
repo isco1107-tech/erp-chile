@@ -1,0 +1,24 @@
+﻿
+> erp@0.1.0 dev
+> next dev
+
+▲ Next.js 16.3.1 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.50.220:3000
+- Environments: .env.local, .env
+✓ Ready in 11.7s
+✓ Running next.config.js took 77ms
+node.exe : ⚠ Slow filesystem detected. The benchmark took 3441ms. If \\?\D:\ERP\.next\dev is a network drive, consider 
+moving it to a local folder.
+En C:\Program Files\nodejs\npm.ps1: 29 Carácter: 3
++   & $NODE_EXE $NPM_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (⚠ Slow filesyst...a local folder.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+See more: https://nextjs.org/docs/app/guides/local-development
+○ Compiling proxy ...
+
+○ Compiling /politica-privacidad ...
+✓ Finished filesystem cache database compaction in 18.7s
+✓ Finished filesystem cache database compaction in 11.6s

@@ -1,0 +1,2588 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  SALES
+  WAREHOUSE
+  ACCOUNTANT
+}
+
+/// Estado comercial del tenant. Solo ACTIVE y TRIAL permiten operar; SUSPENDED
+/// y CANCELLED cortan el acceso de todos los usuarios de la empresa.
+enum TenantStatus {
+  ACTIVE
+  TRIAL
+  SUSPENDED
+  CANCELLED
+}
+
+enum IndustryType {
+  SERVICES
+  COMMERCE
+  DISTRIBUTION
+  RETAIL
+  LIGHT_MANUFACTURING
+}
+
+/// Los 4 roles del motor de agentes de inteligencia de negocio. Es un equipo
+/// ejecutivo virtual (CEO/CFO/COO/Ventas) que analiza datos REALES ya
+/// existentes en el ERP (ventas, compras, inventario, tesorería) y propone
+/// recomendaciones para que el dueño las lea — ninguno hace scraping externo
+/// ni gestiona leads/marketing/comunicación con terceros.
+enum AgentRole {
+  CEO
+  CFO
+  COO
+  SALES
+}
+
+enum AgentRunStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+/// Todas las tareas de este módulo son recomendaciones informativas (ningún
+/// rol dispara una acción externa real): `PENDING` -> `DONE` cuando el dueño
+/// la marca como revisada, o `PENDING` -> `REJECTED` si la descarta.
+/// `APPROVED` queda en el enum por si un rol futuro sí necesita un paso de
+/// aprobación con una acción externa detrás.
+enum AgentTaskStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  DONE
+}
+
+model Company {
+  id                        String                     @id @default(cuid())
+  rut                       String                     @unique
+  businessName              String
+  address                   String?
+  phone                     String?
+  email                     String?
+  giro                      String?
+  comuna                    String?
+  ciudad                    String?
+  logoUrl                   String?
+  /// Imagen de fondo del dashboard, subida por la empresa (Vercel Blob).
+  backgroundUrl             String?
+  /// Hasta 3 colores extraídos del logo (#rrggbb), usados para personalizar el tema del panel. Vacío = tema por defecto.
+  brandPalette              String[]                   @default([])
+  actividadEconomicaCodigo  String?
+  status                    TenantStatus               @default(ACTIVE)
+  planName                  String                     @default("Starter")
+  maxUsers                  Int                        @default(3)
+  maxWarehouses             Int                        @default(1)
+  features                  CompanyFeatures?
+  settings                  CompanySettings?
+  taxPeriods                TaxPeriod[]
+  customRoles               CustomRole[]
+  createdAt                 DateTime                   @default(now())
+  users                     User[]
+  contacts                  Contact[]
+  categories                Category[]
+  warehouses                Warehouse[]
+  products                  Product[]
+  stocks                    Stock[]
+  inventoryMovements        InventoryMovement[]
+  folioSequences            FolioSequence[]
+  internalDocumentSequences InternalDocumentSequence[]
+  salesDocuments            SalesDocument[]
+  salesDocumentItems        SalesDocumentItem[]
+  purchaseDocuments         PurchaseDocument[]
+  purchaseDocumentItems     PurchaseDocumentItem[]
+  purchaseOrders            PurchaseOrder[]
+  purchaseOrderItems        PurchaseOrderItem[]
+  goodsReceipts             GoodsReceipt[]
+  goodsReceiptItems         GoodsReceiptItem[]
+  payments                  Payment[]
+  invitations               Invitation[]
+  auditLogs                 AuditLog[]
+  cashRegisters             CashRegister[]
+  cashShifts                CashShift[]
+  cashMovements             CashMovement[]
+  accounts                  Account[]
+  accountMappings           AccountMapping[]
+  accountingPeriods         AccountingPeriod[]
+  journalEntrySequences     JournalEntrySequence[]
+  journalEntries            JournalEntry[]
+  journalLines              JournalLine[]
+  costCenters               CostCenter[]
+  userSessions              UserSession[]
+  agentTasks                AgentTask[]
+  agentRuns                 AgentRun[]
+  projects                  Project[]
+  sponsorshipContracts      SponsorshipContract[]
+  sponsorshipDeliverables   SponsorshipDeliverable[]
+  feeDocuments              FeeDocument[]
+  candidates                Candidate[]
+  candidateAttendances      CandidateAttendance[]
+  candidateDocuments        CandidateDocument[]
+  candidateSessions         CandidateSession[]
+  stageTimelineItems        StageTimelineItem[]
+  wardrobeItems             WardrobeItem[]
+  staffAccreditations       StaffAccreditation[]
+  badgeTemplates            BadgeTemplate[]
+  judgingCategories         JudgingCategory[]
+  judgeAssignments          JudgeAssignment[]
+  scoreSheets               ScoreSheet[]
+  competitionRounds         CompetitionRound[]
+  roundContestants          RoundContestant[]
+  documentTemplates         DocumentTemplate[]
+  jobPositions              JobPosition[]
+  companyMemberships        CompanyMembership[]
+  budgets                   Budget[]
+  budgetLines               BudgetLine[]
+  promissoryNotes           PromissoryNote[]
+  paymentPlans              PaymentPlan[]
+  paymentPlanInstallments   PaymentPlanInstallment[]
+  ticketTypes               TicketType[]
+  ticketSales               TicketSale[]
+  voteOrders                VoteOrder[]
+
+  // El panel de plataforma agrupa por estado y por plan en cada carga.
+  @@index([status])
+  @@index([planName])
+}
+
+model User {
+  id                               String               @id @default(cuid())
+  email                            String               @unique
+  passwordHash                     String
+  name                             String
+  /// Teléfono personal (con código de país, ej. +56912345678). Editable solo
+  /// por el propio usuario desde "Mi Perfil" — sirve para el botón de WhatsApp
+  /// que ve el dueño/administrador en el directorio de equipo.
+  phone                            String?
+  role                             Role                 @default(SALES)
+  companyId                        String?
+  company                          Company?             @relation(fields: [companyId], references: [id])
+  /// Rol personalizado de la empresa. Cuando está presente, su lista de permisos
+  /// reemplaza a la matriz del rol base (salvo para OWNER, que nunca se limita).
+  customRoleId                     String?
+  customRole                       CustomRole?          @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
+  /// Foto de perfil (Vercel Blob) para el organigrama (módulo `hasOrgChart`).
+  /// Estrictamente autoservicio: solo el propio usuario la sube, ver
+  /// src/app/api/org-chart/photo-upload/route.ts.
+  photoUrl                         String?
+  /// Cargo elegido de `JobPosition` (catálogo por empresa). `SetNull`: mismo
+  /// criterio que `customRoleId` — borrar un cargo del catálogo no debe dejar
+  /// una FK huérfana, es metadata menor, no pérdida de estructura.
+  jobPositionId                    String?
+  jobPosition                      JobPosition?         @relation(fields: [jobPositionId], references: [id], onDelete: SetNull)
+  /// Jefe directo en el organigrama. `Restrict` a propósito, a diferencia de
+  /// `customRoleId`: es una relación ESTRUCTURAL activa (como `Account.parentId`
+  /// en el plan de cuentas), no un dato de atribución histórica — borrar a
+  /// alguien no debe desprender en silencio a sus reportes del árbol.
+  /// `deleteUser` bloquea explícitamente si `managerId` de otros lo referencia
+  /// (ver src/lib/services/users.service.ts); la baja cotidiana es desactivar
+  /// la cuenta (`isActive`), que no toca esta FK.
+  managerId                        String?
+  manager                          User?                @relation("OrgChartHierarchy", fields: [managerId], references: [id], onDelete: Restrict)
+  reports                          User[]               @relation("OrgChartHierarchy")
+  /// Bandera global de plataforma: acceso al portal /superadmin. No pertenece a
+  /// ninguna empresa y no se puede otorgar desde el panel del cliente.
+  isSuperAdmin                     Boolean              @default(false)
+  isActive                         Boolean              @default(true)
+  sessionVersion                   Int                  @default(0)
+  /// Fuerza el flujo de "nueva contraseña" en el próximo login. Se activa al
+  /// crear una cuenta con contraseña temporal generada por un administrador;
+  /// se apaga al completar el cambio, nunca por otra vía.
+  mustChangePassword               Boolean              @default(false)
+  /// Secreto TOTP cifrado en reposo (AES-256-GCM, ver src/lib/auth/totp-crypto.ts)
+  /// — nunca en texto plano en la base. `null` mientras 2FA no está configurado
+  /// o mientras el usuario está a mitad del flujo de activación.
+  totpSecret                       String?
+  /// Recién en `true` cuando el usuario confirma el primer código válido al
+  /// activar — así nunca queda "medio activado" con un secreto sin verificar
+  /// que le bloquearía su propio acceso.
+  totpEnabled                      Boolean              @default(false)
+  /// Intentos fallidos consecutivos de código TOTP/respaldo en el segundo
+  /// paso del login. Se resetea a 0 en cualquier intento exitoso; al llegar
+  /// al umbral (ver verify-totp/route.ts) se bloquea temporalmente en vez de
+  /// seguir aceptando intentos — sin esto, un código de 6 dígitos es
+  /// fuerza-bruteable dentro de la ventana de 5 minutos del challenge token.
+  totpFailedAttempts               Int                  @default(0)
+  totpLockedUntil                  DateTime?
+  totpBackupCodes                  TotpBackupCode[]
+  /// Intentos fallidos consecutivos de contraseña en el primer paso del login
+  /// (antes de llegar siquiera al TOTP). Mismo mecanismo que `totpFailedAttempts`:
+  /// sin esto, la contraseña es fuerza-bruteable sin límite — solo el costo de
+  /// bcrypt(12) frena a un atacante, y eso no alcanza contra intentos paralelos.
+  failedLoginAttempts              Int                  @default(0)
+  loginLockedUntil                 DateTime?
+  createdAt                        DateTime             @default(now())
+  auditLogs                        AuditLog[]
+  cashShifts                       CashShift[]
+  passwordResetTokens              PasswordResetToken[]
+  closedAccountingPeriods          AccountingPeriod[]
+  createdJournalEntries            JournalEntry[]
+  approvedPurchaseDocuments        PurchaseDocument[]   @relation("PurchaseApprovals")
+  matchOverriddenPurchaseDocuments PurchaseDocument[]   @relation("PurchaseMatchOverrides")
+  sessions                         UserSession[]
+  /// Empresas ADICIONALES a `companyId` (la "hogar") que este usuario puede
+  /// activar sin iniciar sesión de nuevo — ver `CompanyMembership` y
+  /// `src/lib/auth/actions/switch-company.actions.ts`.
+  companyMemberships               CompanyMembership[]
+
+  @@index([companyId])
+  @@index([customRoleId])
+  @@index([jobPositionId])
+  @@index([managerId])
+}
+
+/// Sesión de inicio de sesión, para la pantalla "Dispositivos activos". El
+/// sistema de autenticación es JWT sin estado por diseño; esto NO reemplaza
+/// eso, es un registro paralelo — cada login/aceptar-invitación/cambio de
+/// contraseña crea una fila acá además de emitir el token, y cada request
+/// verifica que su fila siga sin `revokedAt` (ver `getAuthContext`).
+model UserSession {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId  String
+  company    Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// SHA-256 del JWT, nunca el token en claro — mismo principio que
+  /// `PasswordResetToken.tokenHash`.
+  tokenHash  String    @unique
+  userAgent  String?
+  ipAddress  String?
+  createdAt  DateTime  @default(now())
+  lastSeenAt DateTime  @default(now())
+  revokedAt  DateTime?
+  expiresAt  DateTime
+
+  @@index([userId, revokedAt])
+  @@index([companyId])
+}
+
+/// Token de recuperación de contraseña.
+///
+/// Se guarda el HASH del token, nunca el token en claro: quien acceda a una
+/// copia de la base no debe poder tomar el control de ninguna cuenta. El valor
+/// original solo existe dentro del correo que recibe el usuario.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// SHA-256 del token enviado por correo.
+  tokenHash String    @unique
+  expiresAt DateTime
+  /// Marca de un solo uso: una vez canjeado el enlace deja de servir.
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+/// Código de respaldo de un solo uso para 2FA/TOTP (recuperar el acceso si se
+/// pierde el dispositivo). Hasheado con bcrypt igual que `passwordHash` —
+/// nunca en texto plano. Tabla relacionada en vez de array embebido en
+/// `User` para que "consumir" un código sea un solo `UPDATE ... WHERE
+/// usedAt IS NULL` atómico, sin condición de carrera entre dos canjes
+/// concurrentes del mismo código.
+model TotpBackupCode {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, usedAt])
+}
+
+/// Empresa adicional que un usuario puede activar como "empresa actual" sin
+/// crear una cuenta separada (ej. la misma dueña administrando "Mi Universo"
+/// y su academia). Rol/permiso propios de ESTA empresa, independientes del
+/// `role`/`customRoleId` que el usuario tiene en su `User.companyId` hogar —
+/// switch-company.actions.ts nunca confía en el rol del JWT, siempre relee
+/// esta fila. Requiere que la empresa destino tenga `hasMultiCompany` activo
+/// (ver `getEffectiveIdentity` en guards.ts); si no, la membresía queda
+/// guardada pero inactiva hasta que el superadmin prenda el módulo.
+model CompanyMembership {
+  id           String      @id @default(cuid())
+  userId       String
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId    String
+  company      Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  role         Role
+  customRoleId String?
+  customRole   CustomRole? @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
+  createdAt    DateTime    @default(now())
+
+  @@unique([userId, companyId])
+  @@index([companyId])
+}
+
+/// Feature flags contratados por cada empresa. Fila 1:1 con Company: si falta,
+/// el sistema asume el plan mínimo (ver DEFAULT_FEATURES en src/lib/auth/modules.ts).
+model CompanyFeatures {
+  id                    String   @id @default(cuid())
+  companyId             String   @unique
+  company               Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  hasInventory          Boolean  @default(true)
+  hasPmpCosting         Boolean  @default(true)
+  hasDteBilling         Boolean  @default(false)
+  hasPurchases          Boolean  @default(false)
+  hasTreasury           Boolean  @default(false)
+  hasAdvancedReports    Boolean  @default(false)
+  hasMultipleWarehouses Boolean  @default(false)
+  hasPos                Boolean  @default(false)
+  hasAccounting         Boolean  @default(false)
+  /// Módulo nuevo, apagado por defecto: Inteligencia de Negocio (Agentes) —
+  /// equipo ejecutivo virtual (CEO/CFO/COO/Ventas) que analiza datos reales
+  /// del ERP y propone recomendaciones. El nombre interno del campo
+  /// (`hasCrm`) quedó de una iteración anterior del alcance; no se renombró
+  /// para no sumar otra migración solo por eso — el label visible en
+  /// MODULES/superadmin ya dice "Inteligencia de Negocio (Agentes)". Ninguna
+  /// empresa lo tiene activo hasta que el superadmin lo prenda a propósito.
+  hasCrm                Boolean  @default(false)
+  /// Módulos de producción de certámenes/eventos (franquicias tipo Miss
+  /// Universe), todos apagados por defecto — mismo criterio que `hasCrm`:
+  /// nadie los recibe activados hasta que el superadmin los prenda a
+  /// propósito. Ver src/lib/auth/modules.ts.
+  hasEventProjects      Boolean  @default(false)
+  hasSponsorships       Boolean  @default(false)
+  hasFeeDocuments       Boolean  @default(false)
+  hasCandidates         Boolean  @default(false)
+  /// Ficha de staff (foto/cargo autoservicio) + jerarquía de reporte +
+  /// organigrama visual, con sugerencia de IA editable. Apagado por defecto,
+  /// mismo criterio que el resto de módulos nuevos.
+  hasOrgChart           Boolean  @default(false)
+  /// Escaleta en vivo, asignación de vestuario y acreditación de staff por
+  /// certamen. Apagado por defecto, mismo criterio que el resto de módulos
+  /// de producción de eventos.
+  hasLiveProduction     Boolean  @default(false)
+  /// Votación/escrutinio en vivo: categorías, jurados externos por link y
+  /// planillas de puntuación con bloqueo anti-edición. Apagado por defecto.
+  hasJudging            Boolean  @default(false)
+  /// Permite que un usuario administre esta empresa Y otra(s) con el mismo
+  /// login, cambiando de "empresa activa" sin volver a iniciar sesión — ver
+  /// `CompanyMembership`. Apagado por defecto, mismo criterio que el resto.
+  hasMultiCompany       Boolean  @default(false)
+  /// Presupuesto operativo general por categoría (arriendo, sueldos, flores,
+  /// etc.), independiente del presupuesto por certamen que ya cubre
+  /// `Project.budgetedIncome`/`budgetedExpense`. Ver `Budget`/`BudgetLine`.
+  hasBudgets            Boolean  @default(false)
+  /// Pagarés: documento de deuda con un contacto (o candidata/alumna),
+  /// autocontenido (no depende de `hasTreasury`). Ver `PromissoryNote`.
+  hasPromissoryNotes    Boolean  @default(false)
+  /// Planes de cuotas/mensualidades con vencimientos, multa por atraso y
+  /// recordatorio automático por correo. Ver `PaymentPlan`.
+  hasInstallmentPlans   Boolean  @default(false)
+  /// Venta de entradas a la gala final, con confirmación manual de pago y
+  /// QR de acceso. Ver `TicketType`/`TicketSale`.
+  hasTicketing          Boolean  @default(false)
+  /// Votación pagada del público por su candidata favorita, con confirmación
+  /// manual de pago. Ver `VoteOrder`.
+  hasPublicVoting       Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model CompanySettings {
+  id                        String       @id @default(cuid())
+  companyId                 String       @unique
+  company                   Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  industryType              IndustryType @default(COMMERCE)
+  allowNegativeStock        Boolean      @default(false)
+  ppmRateBasisPoints        Int          @default(100)
+  /// Retención de honorarios (2ª categoría) en basis points. Sube ~0.75pp cada
+  /// año por cronograma legal (Ley 21.133): 1375 = 13.75% fue el valor de
+  /// 2024; el default se actualiza periódicamente, revisar vigencia anual.
+  honorariumRetentionBps    Int          @default(1525)
+  fiscalYear                Int          @default(2026)
+  /// Restringe el login (contraseña Y 2FA) a IPs o rangos CIDR configurados.
+  /// `false` por defecto: activarlo sin haber agregado la propia IP a la
+  /// lista deja a toda la empresa (incluido el Dueño) sin poder entrar.
+  ipAllowlistEnabled        Boolean      @default(false)
+  /// Cada entrada es una IPv4 exacta ("203.0.113.5") o un rango CIDR
+  /// ("203.0.113.0/24"). Ver src/lib/auth/ip-allowlist.ts.
+  ipAllowlist               String[]     @default([])
+  /// CLP entero. `null` = sin umbral configurado (ninguna compra requiere
+  /// aprobación). Compras emitidas por sobre este monto quedan `PENDING` en
+  /// vez de emitirse directo — ver `PurchaseDocument.approvalStatus`.
+  purchaseApprovalThreshold Int?
+  /// Token único para la suscripción de eventos y cumpleaños en Google Calendar
+  calendarSyncToken         String?      @unique
+  /// Texto libre con los datos de transferencia (banco, tipo de cuenta,
+  /// número, titular, RUT) que se muestra al comprador en los flujos públicos
+  /// de pago manual (entradas, votación) — no hay pasarela de pago integrada,
+  /// así que el comprador transfiere fuera del sistema y el staff confirma.
+  bankTransferInfo          String?
+  createdAt                 DateTime     @default(now())
+  updatedAt                 DateTime     @updatedAt
+}
+
+enum InternalDocumentKind {
+  PURCHASE_ORDER
+  GOODS_RECEIPT
+  CANDIDATE_APPLICATION
+}
+
+/// Correlativos internos (no folio SII) para documentos sin relevancia
+/// tributaria — Orden de Compra, Recepción de Mercadería. Mismo patrón que
+/// `FolioSequence` (una fila por contador, no una columna compartida): así
+/// crear una OC y confirmar una Recepción no compiten por el lock de la
+/// misma fila.
+model InternalDocumentSequence {
+  id           String               @id @default(cuid())
+  companyId    String
+  company      Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  kind         InternalDocumentKind
+  currentFolio Int                  @default(0)
+
+  @@unique([companyId, kind])
+}
+
+model TaxPeriod {
+  id                        String   @id @default(cuid())
+  companyId                 String
+  company                   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  year                      Int
+  month                     Int
+  debitVat                  Int      @default(0)
+  creditVat                 Int      @default(0)
+  previousRemanent          Int      @default(0)
+  remanentCredit            Int      @default(0)
+  ppmAmount                 Int      @default(0)
+  determinedTax             Int      @default(0)
+  /// Retención de honorarios (2ª categoría) sobre las boletas emitidas en el
+  /// período — obligación separada del IVA/PPM, NO se suma a `determinedTax`.
+  /// Ver src/lib/chile/f29.ts.
+  honorariumRetentionAmount Int      @default(0)
+  calculatedAt              DateTime @default(now())
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  @@unique([companyId, year, month])
+  @@index([companyId, year, month])
+}
+
+/// Rol a medida creado por el Administrador de la empresa. `permissions` guarda
+/// claves de la matriz PERMISSIONS; las claves desconocidas se ignoran al
+/// resolver, así que revocar un módulo nunca deja un permiso colgando.
+model CustomRole {
+  id          String              @id @default(cuid())
+  companyId   String
+  company     Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  permissions String[]
+  users       User[]
+  invitations Invitation[]
+  memberships CompanyMembership[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
+/// Catálogo de cargos de la empresa (módulo `hasOrgChart`) — controlado por el
+/// admin, no texto libre por persona, para que el organigrama sea consistente
+/// (evita "Vendedor" vs "Ejecutivo de Ventas" como cargos distintos para lo
+/// mismo). No participa en RBAC (eso lo hace `CustomRole`, que es un
+/// contenedor de permisos, no una posición jerárquica) — es puramente
+/// descriptivo/organizacional.
+model JobPosition {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name      String
+  /// Metadata visual/orden (ej. "Gerencia", "Jefatura", "Analista") — no
+  /// participa en la lógica de reporte, eso lo define `User.managerId`.
+  level     String?
+  users     User[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
+model Contact {
+  id                     String                @id @default(cuid())
+  companyId              String
+  company                Company               @relation(fields: [companyId], references: [id])
+  rut                    String
+  rutClean               String
+  razonSocial            String
+  nombreFantasia         String?
+  giro                   String?
+  email                  String?
+  phone                  String?
+  address                String?
+  comuna                 String?
+  region                 String?
+  isCustomer             Boolean               @default(true)
+  isSupplier             Boolean               @default(false)
+  /// CLP entero. `null` = sin límite configurado (no se bloquean ventas a
+  /// crédito para este cliente). Se valida solo al EMITIR una venta con
+  /// `paymentMethod: CREDITO_30`: deuda vigente + total del documento nuevo
+  /// no puede superar este monto.
+  creditLimit            Int?
+  /// Días de crédito pactados (0 = contado). Hoy es informativo — sugiere el
+  /// vencimiento en el formulario de venta — no es en sí un límite duro.
+  creditDays             Int                   @default(0)
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+  salesDocuments         SalesDocument[]
+  purchaseDocuments      PurchaseDocument[]
+  purchaseOrders         PurchaseOrder[]
+  payments               Payment[]
+  journalLinesAsCustomer JournalLine[]         @relation("JournalLineCustomer")
+  journalLinesAsSupplier JournalLine[]         @relation("JournalLineSupplier")
+  sponsorshipContracts   SponsorshipContract[]
+  feeDocuments           FeeDocument[]
+  promissoryNotes        PromissoryNote[]
+  paymentPlans           PaymentPlan[]
+
+  @@unique([companyId, rutClean])
+  @@index([companyId, razonSocial])
+}
+
+enum MovementType {
+  PURCHASE_IN
+  SALE_OUT
+  ADJUSTMENT_IN
+  ADJUSTMENT_OUT
+  TRANSFER
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  name        String
+  description String?
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([companyId, name])
+}
+
+model Warehouse {
+  id             String                 @id @default(cuid())
+  companyId      String
+  company        Company                @relation(fields: [companyId], references: [id])
+  name           String
+  code           String
+  isDefault      Boolean                @default(false)
+  address        String?
+  stocks         Stock[]
+  movements      InventoryMovement[]
+  salesDocuments SalesDocument[]
+  purchaseItems  PurchaseDocumentItem[]
+  goodsReceipts  GoodsReceipt[]
+  cashRegisters  CashRegister[]
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  @@unique([companyId, code])
+}
+
+model Product {
+  id                 String                 @id @default(cuid())
+  companyId          String
+  company            Company                @relation(fields: [companyId], references: [id])
+  categoryId         String?
+  category           Category?              @relation(fields: [categoryId], references: [id])
+  sku                String
+  name               String
+  description        String?
+  unit               String                 @default("UN")
+  isTrackable        Boolean                @default(true)
+  /// Producto exento de IVA. Sin este campo el POS no tenía forma de saberlo y
+  /// cobraba 19% sobre todo, sobrecobrando al cliente y distorsionando el F29.
+  isExempt           Boolean                @default(false)
+  costPricePMP       Float                  @default(0)
+  netPrice           Int                    @default(0)
+  grossPrice         Int                    @default(0)
+  minStock           Int                    @default(0)
+  stocks             Stock[]
+  movements          InventoryMovement[]
+  salesDocumentItems SalesDocumentItem[]
+  purchaseItems      PurchaseDocumentItem[]
+  purchaseOrderItems PurchaseOrderItem[]
+  goodsReceiptItems  GoodsReceiptItem[]
+  journalLines       JournalLine[]
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  @@unique([companyId, sku])
+  @@index([companyId, name])
+}
+
+model Stock {
+  id          String    @id @default(cuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id])
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  quantity    Float     @default(0)
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([companyId, productId, warehouseId])
+  @@index([companyId, productId])
+}
+
+model InventoryMovement {
+  id            String       @id @default(cuid())
+  companyId     String
+  company       Company      @relation(fields: [companyId], references: [id])
+  productId     String
+  product       Product      @relation(fields: [productId], references: [id])
+  warehouseId   String
+  warehouse     Warehouse    @relation(fields: [warehouseId], references: [id])
+  type          MovementType
+  quantity      Float
+  unitCost      Float
+  totalCost     Int
+  previousStock Float
+  newStock      Float
+  previousPmp   Float
+  newPmp        Float
+  reference     String?
+  notes         String?
+  createdAt     DateTime     @default(now())
+
+  @@index([companyId, productId, createdAt])
+}
+
+enum DteType {
+  COTIZACION
+  FACTURA_33
+  FACTURA_EXENTA_34
+  BOLETA_39
+  BOLETA_EXENTA_41
+  GUIA_DESPACHO_52
+  NOTA_CREDITO_61
+  NOTA_DEBITO_56
+}
+
+enum DocumentStatus {
+  DRAFT
+  ISSUED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+}
+
+enum PaymentMethodType {
+  EFECTIVO
+  TRANSFERENCIA
+  TARJETA_DEBITO
+  TARJETA_CREDITO
+  CHEQUE
+  OTRO
+}
+
+enum PaymentDirection {
+  INCOME
+  EXPENSE
+}
+
+enum PurchaseDocumentType {
+  FACTURA
+  BOLETA
+  NOTA_CREDITO
+  NOTA_DEBITO
+  GUIA_DESPACHO
+  OTRO
+}
+
+model FolioSequence {
+  id           String  @id @default(cuid())
+  companyId    String
+  company      Company @relation(fields: [companyId], references: [id])
+  dteType      DteType
+  currentFolio Int     @default(0)
+
+  @@unique([companyId, dteType])
+}
+
+model SalesDocument {
+  id             String              @id @default(cuid())
+  companyId      String
+  company        Company             @relation(fields: [companyId], references: [id])
+  contactId      String
+  contact        Contact             @relation(fields: [contactId], references: [id])
+  warehouseId    String
+  warehouse      Warehouse           @relation(fields: [warehouseId], references: [id])
+  dteType        DteType
+  folio          Int?
+  status         DocumentStatus      @default(DRAFT)
+  issueDate      DateTime            @default(now())
+  dueDate        DateTime?
+  paymentMethod  String
+  netAmount      Int                 @default(0)
+  exemptAmount   Int                 @default(0)
+  ivaAmount      Int                 @default(0)
+  totalAmount    Int                 @default(0)
+  paidAmount     Int                 @default(0)
+  paymentStatus  PaymentStatus       @default(UNPAID)
+  referenceFolio Int?
+  referenceType  DteType?
+  notes          String?
+  /// Clave de idempotencia para prevenir duplicados por doble clic o reintentos de red.
+  idempotencyKey String?
+  /// Turno de caja que originó la venta. Solo lo llena el POS; es lo que
+  /// permite que el arqueo sepa qué ventas cuentan para esta caja y este turno.
+  cashShiftId    String?
+  cashShift      CashShift?          @relation(fields: [cashShiftId], references: [id])
+  /// Centro de costo/evento opcional (módulo `hasEventProjects`). Permite
+  /// agregar ingresos reales de un proyecto sin que el resto del sistema
+  /// dependa de que ese módulo esté contratado.
+  projectId      String?
+  project        Project?            @relation(fields: [projectId], references: [id])
+  items          SalesDocumentItem[]
+  payments       Payment[]
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@unique([companyId, dteType, folio])
+  @@unique([companyId, idempotencyKey])
+  @@index([companyId, status])
+  @@index([companyId, dteType])
+  @@index([companyId, paymentStatus])
+  @@index([cashShiftId])
+  @@index([companyId, projectId])
+  /// Cubre el filtro de deuda vigente por cliente (límite de crédito) y sirve
+  /// también para un futuro "estado de cuenta" en la ficha de Contact.
+  @@index([companyId, contactId, status, paymentStatus])
+}
+
+model SalesDocumentItem {
+  id              String        @id @default(cuid())
+  companyId       String
+  company         Company       @relation(fields: [companyId], references: [id])
+  documentId      String
+  document        SalesDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  productId       String?
+  product         Product?      @relation(fields: [productId], references: [id])
+  sku             String?
+  description     String
+  quantity        Float
+  unitPrice       Int
+  isExempt        Boolean       @default(false)
+  discountPercent Float         @default(0)
+  subtotal        Int
+  iva             Int
+  total           Int
+  unitCostPMP     Float         @default(0)
+
+  @@index([companyId, documentId])
+}
+
+model PurchaseDocument {
+  id                      String                 @id @default(cuid())
+  companyId               String
+  company                 Company                @relation(fields: [companyId], references: [id])
+  contactId               String
+  contact                 Contact                @relation(fields: [contactId], references: [id])
+  documentType            PurchaseDocumentType
+  folio                   String
+  status                  DocumentStatus         @default(DRAFT)
+  issueDate               DateTime               @default(now())
+  dueDate                 DateTime?
+  paymentMethod           String?
+  netAmount               Int                    @default(0)
+  exemptAmount            Int                    @default(0)
+  ivaAmount               Int                    @default(0)
+  totalAmount             Int                    @default(0)
+  paidAmount              Int                    @default(0)
+  paymentStatus           PaymentStatus          @default(UNPAID)
+  /// Folio del documento original que esta Nota de Crédito/Débito corrige,
+  /// dentro del mismo proveedor (`contactId`). Sin esto no había forma de
+  /// validar que una NC de proveedor correspondiera a una compra real, ni de
+  /// aplicar su efecto contra el saldo de esa compra en vez de quedar como
+  /// una cuenta por pagar propia y duplicada.
+  referenceFolio          String?
+  notes                   String?
+  /// `NOT_REQUIRED` para la inmensa mayoría de documentos (bajo el umbral
+  /// configurado, o compras sin umbral configurado). Solo pasa a `PENDING`
+  /// cuando el total supera `CompanySettings.purchaseApprovalThreshold` al
+  /// intentar EMITIR — en ese caso el documento se guarda como `DRAFT` (sin
+  /// tocar stock/PMP todavía) hasta que alguien con `purchases:approve` lo
+  /// apruebe o rechace. Las Notas de Crédito nunca quedan pendientes: reducen
+  /// deuda, no la generan (mismo criterio que el límite de crédito de Ventas).
+  approvalStatus          PurchaseApprovalStatus @default(NOT_REQUIRED)
+  approvedByUserId        String?
+  /// `SetNull`: perder de vista quién aprobó una compra al eliminar ese
+  /// usuario es un desgaste menor de auditoría, no una pérdida de valor
+  /// legal/financiero — `deleteUser` no bloquea por esto.
+  approvedByUser          User?                  @relation("PurchaseApprovals", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  approvedAt              DateTime?
+  approvalNotes           String?
+  /// Vínculo opcional a una Orden de Compra: la inmensa mayoría de compras NO
+  /// la tiene y se comportan exactamente como antes (factura mueve stock
+  /// directo). Cuando SÍ está presente, el stock ya se movió al confirmar la
+  /// Recepción de Mercadería correspondiente — esta factura no vuelve a
+  /// tocar stock/PMP, solo formaliza tributariamente y dispara el matching
+  /// de 3 vías (OC ↔ Recepción ↔ Factura) contra `matchStatus`.
+  purchaseOrderId         String?
+  /// `Restrict` explícito, a propósito: una OC que ya tiene facturas
+  /// referenciándola nunca debe poder borrarse, solo cancelarse — mismo
+  /// criterio que `JournalEntry.reversalOf`.
+  purchaseOrder           PurchaseOrder?         @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
+  matchStatus             PurchaseMatchStatus    @default(NOT_APPLICABLE)
+  matchNotes              String?
+  matchOverriddenByUserId String?
+  /// `SetNull`: mismo criterio que `approvedByUser` — perder de vista quién
+  /// forzó un pago con mismatch es un desgaste de auditoría, no de valor legal.
+  matchOverriddenByUser   User?                  @relation("PurchaseMatchOverrides", fields: [matchOverriddenByUserId], references: [id], onDelete: SetNull)
+  matchOverriddenAt       DateTime?
+  /// Centro de costo/evento opcional (módulo `hasEventProjects`).
+  projectId               String?
+  project                 Project?               @relation(fields: [projectId], references: [id])
+  items                   PurchaseDocumentItem[]
+  payments                Payment[]
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
+
+  @@unique([companyId, contactId, folio])
+  @@index([companyId, status])
+  @@index([companyId, paymentStatus])
+  @@index([companyId, approvalStatus])
+  @@index([companyId, purchaseOrderId])
+  @@index([companyId, matchStatus])
+  @@index([companyId, projectId])
+}
+
+enum PurchaseApprovalStatus {
+  NOT_REQUIRED
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+/// Resultado del matching de 3 vías (OC ↔ Recepción ↔ Factura), solo se
+/// calcula cuando la factura referencia una `PurchaseOrder`.
+enum PurchaseMatchStatus {
+  /// La factura no referencia ninguna Orden de Compra — la inmensa mayoría.
+  NOT_APPLICABLE
+  /// Cantidad y costo facturados coinciden con lo recibido/pactado.
+  MATCHED
+  /// Hay diferencia de cantidad o costo — bloquea `registerPurchasePayment`
+  /// hasta que alguien con `purchases:override_match` la fuerce.
+  MISMATCHED
+  /// Tenía diferencia, pero un Dueño/Administrador la forzó explícitamente.
+  OVERRIDDEN
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  SENT
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CLOSED
+  CANCELLED
+}
+
+/// Documento interno de solicitud al proveedor, ANTES de que despache o
+/// facture nada — no existía ningún concepto de "pre-compra" en el sistema.
+/// Es el ancla del matching de 3 vías: sus líneas (cantidad/costo pactados)
+/// son contra lo que se comparan la Recepción física y la Factura.
+model PurchaseOrder {
+  id                String              @id @default(cuid())
+  companyId         String
+  company           Company             @relation(fields: [companyId], references: [id])
+  contactId         String
+  contact           Contact             @relation(fields: [contactId], references: [id])
+  /// Correlativo interno por empresa (ver `InternalDocumentSequence`) — no es
+  /// folio SII, es solo un número de referencia interno.
+  folio             Int
+  status            PurchaseOrderStatus @default(DRAFT)
+  issueDate         DateTime            @default(now())
+  expectedDate      DateTime?
+  notes             String?
+  items             PurchaseOrderItem[]
+  goodsReceipts     GoodsReceipt[]
+  purchaseDocuments PurchaseDocument[]
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@unique([companyId, folio])
+  @@index([companyId, status])
+}
+
+model PurchaseOrderItem {
+  id                String             @id @default(cuid())
+  companyId         String
+  company           Company            @relation(fields: [companyId], references: [id])
+  orderId           String
+  order             PurchaseOrder      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId         String?
+  product           Product?           @relation(fields: [productId], references: [id])
+  description       String
+  quantity          Float
+  unitCost          Int
+  /// Acumulado desde `GoodsReceiptItem` — cuánto de esta línea ya entró
+  /// físicamente a bodega. Nunca puede superar `quantity`.
+  receivedQuantity  Float              @default(0)
+  /// Acumulado desde facturas que referencian esta OC — para permitir
+  /// facturación parcial de una recepción sin perder el rastro de cuánto
+  /// ya se facturó contra cuánto se recibió.
+  invoicedQuantity  Float              @default(0)
+  goodsReceiptItems GoodsReceiptItem[]
+
+  @@index([companyId, orderId])
+}
+
+enum GoodsReceiptStatus {
+  CONFIRMED
+  CANCELLED
+}
+
+/// Recepción física de mercadería contra una Orden de Compra. Es el paso que
+/// realmente mueve stock/PMP en el flujo de 3 vías — la factura que llega
+/// después ya no vuelve a tocarlo, solo formaliza y dispara el matching.
+model GoodsReceipt {
+  id          String             @id @default(cuid())
+  companyId   String
+  company     Company            @relation(fields: [companyId], references: [id])
+  orderId     String
+  /// `Restrict` explícito: una OC ya recibida nunca debe poder borrarse
+  /// (perdería el rastro de qué movió stock/PMP), solo cancelarse.
+  order       PurchaseOrder      @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  warehouseId String
+  warehouse   Warehouse          @relation(fields: [warehouseId], references: [id])
+  /// Correlativo interno por empresa (ver `InternalDocumentSequence`).
+  folio       Int
+  status      GoodsReceiptStatus @default(CONFIRMED)
+  receivedAt  DateTime           @default(now())
+  notes       String?
+  items       GoodsReceiptItem[]
+  createdAt   DateTime           @default(now())
+
+  @@unique([companyId, folio])
+  @@index([companyId, orderId])
+}
+
+model GoodsReceiptItem {
+  id          String            @id @default(cuid())
+  companyId   String
+  company     Company           @relation(fields: [companyId], references: [id])
+  receiptId   String
+  receipt     GoodsReceipt      @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  orderItemId String
+  /// `Restrict` explícito: mismo criterio que `GoodsReceipt.order` — una
+  /// línea de OC ya recibida no debe poder borrarse.
+  orderItem   PurchaseOrderItem @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  productId   String?
+  product     Product?          @relation(fields: [productId], references: [id])
+  description String
+  quantity    Float
+  /// Copiado del `PurchaseOrderItem` al confirmar — el costo pactado en la OC,
+  /// no uno nuevo tecleado en la recepción, para que el matching compare
+  /// contra el mismo número en las 3 vías.
+  unitCost    Int
+
+  @@index([companyId, orderItemId])
+  @@index([companyId, receiptId])
+}
+
+model PurchaseDocumentItem {
+  id          String           @id @default(cuid())
+  companyId   String
+  company     Company          @relation(fields: [companyId], references: [id])
+  documentId  String
+  document    PurchaseDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  // Opcionales a propósito: una factura de compra también incluye servicios,
+  // fletes y gastos que no son inventario. Solo las líneas que enlazan producto
+  // Y bodega mueven stock y recalculan el PMP.
+  productId   String?
+  product     Product?         @relation(fields: [productId], references: [id])
+  warehouseId String?
+  warehouse   Warehouse?       @relation(fields: [warehouseId], references: [id])
+  description String
+  quantity    Float
+  unitCost    Int
+  isExempt    Boolean          @default(false)
+  subtotal    Int
+  iva         Int
+  total       Int
+
+  @@index([companyId, documentId])
+  @@index([companyId, productId])
+}
+
+model Payment {
+  id                 String            @id @default(cuid())
+  companyId          String
+  company            Company           @relation(fields: [companyId], references: [id])
+  type               PaymentDirection
+  contactId          String
+  contact            Contact           @relation(fields: [contactId], references: [id])
+  salesDocumentId    String?
+  salesDocument      SalesDocument?    @relation(fields: [salesDocumentId], references: [id])
+  purchaseDocumentId String?
+  purchaseDocument   PurchaseDocument? @relation(fields: [purchaseDocumentId], references: [id])
+  /// Centro de costo/evento opcional (módulo `hasEventProjects`) — permite
+  /// etiquetar un pago suelto de tesorería directo a un proyecto (ej. gasto
+  /// de producción pagado en efectivo) sin pasar por un documento.
+  projectId          String?
+  project            Project?          @relation(fields: [projectId], references: [id])
+  /// Etiqueta opcional a una línea de presupuesto operativo (módulo
+  /// `hasBudgets`) — así el "real" de `Budget`/`BudgetLine` se suma solo
+  /// desde los pagos ya registrados en Tesorería, sin duplicar agregación.
+  budgetLineId       String?
+  budgetLine         BudgetLine?       @relation(fields: [budgetLineId], references: [id], onDelete: SetNull)
+  amount             Int
+  paymentMethod      PaymentMethodType
+  paymentDate        DateTime          @default(now())
+  referenceNumber    String?
+  bankAccount        String?
+  notes              String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@index([companyId, type])
+  @@index([companyId, paymentDate])
+  @@index([companyId, salesDocumentId])
+  @@index([companyId, purchaseDocumentId])
+  @@index([companyId, projectId])
+  @@index([companyId, budgetLineId])
+}
+
+/// Caja física del local. Se ata a una bodega porque toda venta del POS
+/// descuenta stock desde ella.
+model CashRegister {
+  id          String      @id @default(cuid())
+  companyId   String
+  company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  warehouseId String
+  warehouse   Warehouse   @relation(fields: [warehouseId], references: [id])
+  name        String
+  isActive    Boolean     @default(true)
+  shifts      CashShift[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
+enum CashShiftStatus {
+  OPEN
+  CLOSED
+}
+
+/// Turno de caja (arqueo). Los montos son CLP entero, como el resto del sistema.
+///
+/// `expectedAmount`, `actualAmount` y `difference` se llenan solo al cerrar: un
+/// turno abierto no tiene esperado "congelado", se calcula en vivo desde las
+/// ventas en efectivo y los movimientos del turno.
+model CashShift {
+  id             String          @id @default(cuid())
+  companyId      String
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  cashRegisterId String
+  cashRegister   CashRegister    @relation(fields: [cashRegisterId], references: [id])
+  /// Nullable + `SetNull`: eliminar definitivamente al usuario no debe
+  /// bloquearse por un turno de caja viejo. El turno (montos, descuadre)
+  /// sobrevive intacto; solo se pierde el nombre de quién lo hizo.
+  userId         String?
+  user           User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  openedAt       DateTime        @default(now())
+  closedAt       DateTime?
+  initialAmount  Int
+  expectedAmount Int?
+  actualAmount   Int?
+  difference     Int?
+  status         CashShiftStatus @default(OPEN)
+  openingNotes   String?
+  closingNotes   String?
+  movements      CashMovement[]
+  salesDocuments SalesDocument[]
+
+  @@index([companyId, status])
+  @@index([companyId, cashRegisterId, openedAt])
+  @@index([userId])
+}
+
+enum CashMovementType {
+  INFLOW
+  OUTFLOW
+}
+
+/// Entrada o salida de efectivo ajena a una venta: fondo de cambio adicional,
+/// retiro parcial, pago de un gasto menor con dinero de la caja.
+model CashMovement {
+  id          String           @id @default(cuid())
+  companyId   String
+  company     Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  cashShiftId String
+  cashShift   CashShift        @relation(fields: [cashShiftId], references: [id], onDelete: Cascade)
+  type        CashMovementType
+  amount      Int
+  reason      String
+  userId      String?
+  createdAt   DateTime         @default(now())
+
+  @@index([companyId, cashShiftId])
+}
+
+model Invitation {
+  id           String      @id @default(cuid())
+  companyId    String
+  company      Company     @relation(fields: [companyId], references: [id])
+  email        String
+  role         Role        @default(SALES)
+  /// Rol personalizado asignado en la invitación; se copia al User al aceptarla.
+  /// La FK con SetNull evita que borrar el rol deje la invitación apuntando a un
+  /// id inexistente: al aceptarla, el INSERT en User violaría su propia FK.
+  customRoleId String?
+  customRole   CustomRole? @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
+  token        String      @unique
+  expiresAt    DateTime
+  acceptedAt   DateTime?
+  createdAt    DateTime    @default(now())
+
+  @@unique([companyId, email])
+  @@index([customRoleId])
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  ISSUE_DTE
+  CANCEL_DTE
+  STOCK_ADJUSTMENT
+  EXPORT
+  /// Descarga de un archivo sensible (ej. fotografía de una postulante) por un
+  /// usuario del ERP — exigido por Ley 19.628/21.719 para trazar quién accedió
+  /// a una imagen de una titular de datos, no solo quién la subió.
+  DOWNLOAD
+}
+
+model AuditLog {
+  id        String      @id @default(cuid())
+  companyId String
+  company   Company     @relation(fields: [companyId], references: [id])
+  userId    String?
+  /// `SetNull`: el registro de auditoría es el que debe sobrevivir a la
+  /// eliminación definitiva de un usuario, no al revés — `userEmail` ya queda
+  /// como snapshot legible aunque el vínculo se pierda.
+  user      User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userEmail String
+  action    AuditAction
+  entity    String
+  entityId  String
+  metadata  Json?
+  ipAddress String?
+  createdAt DateTime    @default(now())
+
+  @@index([companyId, createdAt])
+  @@index([companyId, entity, entityId])
+}
+
+// ============================================================================
+// Núcleo contable (PROMPT_ERP_V2.md, Fase B)
+//
+// Principio rector: un hecho económico se registra una vez. El asiento y el
+// documento nacen juntos, dentro de la misma `$transaction`, o no nace
+// ninguno. Ningún saldo contable es un campo que se actualiza: todo saldo se
+// agrega desde `JournalLine`. Un asiento POSTED no se edita ni se borra jamás
+// — se corrige con reverso. Los invariantes de cuadratura, signos e
+// inmutabilidad se fuerzan con triggers SQL (ver migración de Fase B.2),
+// porque Prisma no puede expresarlos.
+// ============================================================================
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  COST
+  EXPENSE
+}
+
+enum AccountNature {
+  DEBIT
+  CREDIT
+}
+
+enum CostBehavior {
+  FIXED
+  VARIABLE
+  NONE
+}
+
+enum CashFlowCategory {
+  OPERATING
+  INVESTING
+  FINANCING
+  NONE
+}
+
+/// Plan de cuentas de la empresa. Autorelación para la jerarquía
+/// agrupadora/hoja: solo las hojas (`isPostable = true`) reciben líneas de
+/// asiento, las agrupadoras solo suman para el balance.
+model Account {
+  id               String           @id @default(cuid())
+  companyId        String
+  company          Company          @relation(fields: [companyId], references: [id])
+  code             String
+  name             String
+  parentId         String?
+  /// `Restrict`, no el `SetNull` implícito de una relación opcional: borrar una
+  /// cuenta agrupadora no debe desprender en silencio a sus hijas del árbol
+  /// del plan de cuentas.
+  parent           Account?         @relation("AccountHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children         Account[]        @relation("AccountHierarchy")
+  type             AccountType
+  nature           AccountNature
+  /// Solo las cuentas hoja pueden recibir líneas de asiento (forzado también por trigger).
+  isPostable       Boolean          @default(true)
+  /// Corriente / no corriente. Nulo en cuentas de resultado, donde no aplica.
+  isCurrent        Boolean?
+  costBehavior     CostBehavior     @default(NONE)
+  cashFlowCategory CashFlowCategory @default(NONE)
+  isActive         Boolean          @default(true)
+  mappings         AccountMapping[]
+  journalLines     JournalLine[]
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@unique([companyId, code])
+  @@index([companyId, type])
+  @@index([companyId, parentId])
+}
+
+/// Puente entre la semántica que usa el motor de asientos (`CAJA`, `CLIENTES`,
+/// `IVA_DEBITO`, ...) y el plan de cuentas real de cada empresa. Esto es lo
+/// que permite que las reglas de asiento (Fase C) no tengan códigos de cuenta
+/// incrustados: cada empresa mapea su propio plan y el motor sigue funcionando.
+model AccountMapping {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  key       String
+  accountId String
+  account   Account  @relation(fields: [accountId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, key])
+  @@index([companyId])
+}
+
+enum AccountingPeriodStatus {
+  OPEN
+  CLOSED
+  LOCKED
+}
+
+model AccountingPeriod {
+  id             String                 @id @default(cuid())
+  companyId      String
+  company        Company                @relation(fields: [companyId], references: [id])
+  year           Int
+  month          Int
+  status         AccountingPeriodStatus @default(OPEN)
+  closedAt       DateTime?
+  closedByUserId String?
+  /// `SetNull`: `deleteUser` (src/lib/services/users.service.ts) nunca
+  /// bloquea por historial — solo por auto-eliminación o ser el último
+  /// OWNER — así que perder este vínculo al eliminar un usuario es
+  /// esperado, no un bug (mismo criterio que `CashShift.user`).
+  closedByUser   User?                  @relation(fields: [closedByUserId], references: [id], onDelete: SetNull)
+  entries        JournalEntry[]
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  @@unique([companyId, year, month])
+  @@index([companyId, status])
+}
+
+/// Correlativo de `entryNumber` por empresa y año, sin huecos. Mismo patrón
+/// que `FolioSequence`: `upsert` dentro de la `$transaction` del asiento, con
+/// `LOCKING_TX_OPTIONS`.
+model JournalEntrySequence {
+  id            String  @id @default(cuid())
+  companyId     String
+  company       Company @relation(fields: [companyId], references: [id])
+  year          Int
+  currentNumber Int     @default(0)
+
+  @@unique([companyId, year])
+}
+
+enum JournalEntryStatus {
+  DRAFT
+  POSTED
+  REVERSED
+}
+
+enum JournalSourceType {
+  SALES_DOCUMENT
+  PURCHASE_DOCUMENT
+  PAYMENT
+  INVENTORY_MOVEMENT
+  CASH_SHIFT
+  MANUAL
+  OPENING
+  CLOSING
+}
+
+/// Cabecera del asiento contable. Nunca se edita ni se borra en estado
+/// POSTED (forzado por trigger) — se corrige con `reverseEntry`, que crea un
+/// asiento nuevo enlazado vía `reversalOfId`.
+model JournalEntry {
+  id              String             @id @default(cuid())
+  companyId       String
+  company         Company            @relation(fields: [companyId], references: [id])
+  entryNumber     Int
+  year            Int
+  date            DateTime
+  description     String
+  periodId        String
+  period          AccountingPeriod   @relation(fields: [periodId], references: [id])
+  status          JournalEntryStatus @default(DRAFT)
+  sourceType      JournalSourceType
+  /// Trazabilidad al documento origen (SalesDocument.id, PurchaseDocument.id, Payment.id, etc).
+  /// Sin FK tipada porque el origen varía según `sourceType`.
+  sourceId        String?
+  /// Si este asiento reversa a otro, apunta al original. Único: un asiento
+  /// original tiene a lo sumo un reverso.
+  reversalOfId    String?            @unique
+  /// `Restrict` como defensa en profundidad: el trigger de inmutabilidad (Fase
+  /// B.2) protege los asientos POSTED, pero uno en DRAFT no. Perder el vínculo
+  /// de reverso en silencio (el `SetNull` implícito) rompería la auditoría.
+  reversalOf      JournalEntry?      @relation("EntryReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversedBy      JournalEntry?      @relation("EntryReversal")
+  lines           JournalLine[]
+  postedAt        DateTime?
+  createdByUserId String?
+  /// `SetNull`: `deleteUser` nunca bloquea por historial — perder este
+  /// vínculo al eliminar un usuario es esperado, no un bug (mismo criterio
+  /// que `CashShift.user`/`AccountingPeriod.closedByUser`).
+  createdByUser   User?              @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@unique([companyId, year, entryNumber])
+  @@index([companyId, status])
+  @@index([companyId, sourceType, sourceId])
+  @@index([companyId, date])
+  @@index([periodId])
+}
+
+/// Línea de asiento. Restricción de negocio (forzada por trigger, no solo por
+/// la aplicación): exactamente uno de `debit`/`credit` es mayor que cero, el
+/// otro es cero. Nunca ambos, nunca negativos.
+model JournalLine {
+  id           String       @id @default(cuid())
+  companyId    String
+  company      Company      @relation(fields: [companyId], references: [id])
+  entryId      String
+  entry        JournalEntry @relation(fields: [entryId], references: [id])
+  accountId    String
+  account      Account      @relation(fields: [accountId], references: [id])
+  debit        Int          @default(0)
+  credit       Int          @default(0)
+  description  String?
+  lineNumber   Int
+  /// Referencias opcionales para reportes auxiliares (mayor por cliente, por producto, por centro de costo).
+  customerId   String?
+  customer     Contact?     @relation("JournalLineCustomer", fields: [customerId], references: [id])
+  supplierId   String?
+  supplier     Contact?     @relation("JournalLineSupplier", fields: [supplierId], references: [id])
+  productId    String?
+  product      Product?     @relation(fields: [productId], references: [id])
+  costCenterId String?
+  costCenter   CostCenter?  @relation(fields: [costCenterId], references: [id])
+  createdAt    DateTime     @default(now())
+
+  @@index([companyId, entryId])
+  @@index([companyId, accountId])
+  @@index([companyId, customerId])
+  @@index([companyId, supplierId])
+  @@index([companyId, costCenterId])
+}
+
+/// Unidad de negocio para abrir el estado de resultados. No mueve dinero por
+/// sí sola, es solo una etiqueta sobre `JournalLine`.
+model CostCenter {
+  id        String        @id @default(cuid())
+  companyId String
+  company   Company       @relation(fields: [companyId], references: [id])
+  code      String
+  name      String
+  isActive  Boolean       @default(true)
+  lines     JournalLine[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@unique([companyId, code])
+  @@index([companyId])
+}
+
+// ============================================================================
+// Producción de Eventos: Proyectos, Auspicios, Boletas de Honorarios,
+// Candidatas (módulos `hasEventProjects`/`hasSponsorships`/`hasFeeDocuments`/
+// `hasCandidates`, todos apagados por defecto)
+//
+// Pensado para franquicias de certámenes (tipo Miss Universe) y productoras
+// de eventos: cada `Project` es un centro de costo/evento al que se pueden
+// enlazar (opcionalmente) documentos de venta/compra/pagos ya existentes,
+// más auspicios, boletas de honorarios y candidatas propias de este dominio.
+// Los 4 flags son independientes entre sí (ninguno obliga a activar otro),
+// pero `Candidate.projectId` es requerido: sin un proyecto creado no se
+// pueden cargar candidatas.
+// ============================================================================
+
+enum ProjectStatus {
+  PLANNING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum SponsorshipTier {
+  TITULAR_MAIN_SPONSOR
+  GOLD
+  SILVER
+  /// Planes reales de esquema de auspicio de certámenes, bajo plata —
+  /// agregados junto al resto de módulos de esta pasada (antes solo existían
+  /// plata/oro/titular hacia arriba, sin cobre/bronce).
+  COPPER
+  BRONZE
+  OFFICIAL_SPONSOR
+  MEDIA_PARTNER
+  CANJE_BARTER
+}
+
+enum SponsorshipStatus {
+  PROPOSAL
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+enum CandidateStatus {
+  APPLICANT
+  /// El equipo de casting está revisando la ficha/fotos antes de decidir si
+  /// avanza — paso intermedio entre `APPLICANT` y el resto del pipeline.
+  UNDER_REVIEW
+  /// Convocada a la instancia presencial de casting.
+  CALLED_TO_CASTING
+  OFFICIAL_CANDIDATE
+  FINALIST
+  WINNER
+  /// La propia postulante se retira del proceso — distinto de `REJECTED`
+  /// (decisión de la organización), cada uno con su propio significado para
+  /// reportes y para la purga por retención (Sección 7 del módulo).
+  WITHDRAWN
+  /// Descartada por la organización; el motivo va en `motivoDescarte`.
+  REJECTED
+}
+
+/// Centro de costo/evento (ej. "Gala Final Miss Universe Temuco 2026").
+/// `budgetedIncome`/`budgetedExpense` son el presupuesto inicial; el real se
+/// agrega desde los documentos/pagos/auspicios/boletas vinculados (ver
+/// src/lib/services/projects.ts).
+model Project {
+  id                         String                      @id @default(cuid())
+  companyId                  String
+  company                    Company                     @relation(fields: [companyId], references: [id])
+  code                       String
+  name                       String
+  budgetedIncome             Int                         @default(0)
+  budgetedExpense            Int                         @default(0)
+  startDate                  DateTime
+  endDate                    DateTime?
+  status                     ProjectStatus               @default(PLANNING)
+  notes                      String?
+  salesDocuments             SalesDocument[]
+  purchaseDocuments          PurchaseDocument[]
+  payments                   Payment[]
+  sponsorshipContracts       SponsorshipContract[]
+  feeDocuments               FeeDocument[]
+  candidates                 Candidate[]
+  candidateSessions          CandidateSession[]
+  stageTimelineItems         StageTimelineItem[]
+  wardrobeItems              WardrobeItem[]
+  staffAccreditations        StaffAccreditation[]
+  badgeTemplates             BadgeTemplate[]
+  judgingCategories          JudgingCategory[]
+  judgeAssignments           JudgeAssignment[]
+  competitionRounds          CompetitionRound[]
+  createdAt                  DateTime                    @default(now())
+  updatedAt                  DateTime                    @updatedAt
+  /// Token de acceso al formulario público de auto-inscripción de candidatas
+  /// (mismo concepto que `SponsorshipContract.portalToken`): sin cuenta ni
+  /// contraseña, un solo link por certamen que cualquier postulante puede usar
+  /// para cargar su propia ficha. `null` hasta que alguien del equipo lo genera.
+  candidateRegistrationToken String?                     @unique
+  /// Ventana de postulación pública, independiente del ciclo de vida completo
+  /// del proyecto (`status`/`startDate`/`endDate`, que describen el evento en
+  /// sí). Un `Project` YA ES la "convocatoria" de una edición del certamen —
+  /// no se creó un modelo `Convocatoria` aparte para no duplicar la entidad
+  /// que ya cumple ese rol (ver nota de arquitectura en el módulo Candidatas).
+  registrationStatus         CandidateRegistrationStatus @default(DRAFT)
+  registrationOpensAt        DateTime?
+  registrationClosesAt       DateTime?
+  /// Edad mínima exigida al momento del envío del formulario público.
+  minCandidateAge            Int                         @default(18)
+  /// Cupo máximo de postulaciones aceptadas; `null` = sin límite.
+  maxCandidates              Int?
+  /// Costo pagado a la franquicia matriz por candidata aceptada (CLP), y lo
+  /// que se le cobra a ella por el programa de preparación — insumos del
+  /// reporte "Rentabilidad de candidatas" (`hasAdvancedReports`). `null` =
+  /// no configurado, el reporte omite este proyecto.
+  franchiseCost              Int?
+  candidateProgramFee        Int?
+  /// Token de acceso a la página pública de venta de entradas (`hasTicketing`)
+  /// y de votación pagada (`hasPublicVoting`) — mismo concepto que
+  /// `candidateRegistrationToken`: sin cuenta, un solo link por certamen.
+  ticketSalesToken           String?                     @unique
+  voteSalesToken             String?                     @unique
+  ticketTypes                TicketType[]
+  ticketSales                TicketSale[]
+  voteOrders                 VoteOrder[]
+
+  @@unique([companyId, code])
+  @@index([companyId, status])
+}
+
+enum CandidateRegistrationStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  ARCHIVED
+}
+
+/// Contrato de auspicio/patrocinio con una marca (`Contact`), en efectivo,
+/// canje (barter) o ambos. `paidAmount`/`paymentStatus` son autocontenidos en
+/// V1 (no pasan por el libro de Tesorería) para que el módulo funcione sin
+/// depender de `hasTreasury`.
+model SponsorshipContract {
+  id                   String                   @id @default(cuid())
+  companyId            String
+  company              Company                  @relation(fields: [companyId], references: [id])
+  projectId            String
+  project              Project                  @relation(fields: [projectId], references: [id])
+  contactId            String
+  contact              Contact                  @relation(fields: [contactId], references: [id])
+  tier                 SponsorshipTier
+  isBarter             Boolean                  @default(false)
+  cashAmount           Int                      @default(0)
+  barterValuation      Int                      @default(0)
+  barterDescription    String?
+  status               SponsorshipStatus        @default(PROPOSAL)
+  paidAmount           Int                      @default(0)
+  paymentStatus        PaymentStatus            @default(UNPAID)
+  notes                String?
+  /// Token de acceso al portal público de la marca auspiciadora (mismo
+  /// concepto que `JudgeAssignment.accessToken`): sin cuenta ni sesión ERP, la
+  /// marca ve su propio cumplimiento/pago solo con este link. `null` hasta que
+  /// alguien del equipo lo genera desde el panel interno — no se crea uno por
+  /// defecto al crear el contrato para no filtrar links no solicitados.
+  portalToken          String?                  @unique
+  /// Carta de compromiso generada desde `DocumentTemplate` (tipo
+  /// `SPONSOR_COMMITMENT_LETTER`). El estado (no generada / pendiente de
+  /// firma / firmada) se deriva en el servicio a partir de estos 3 campos,
+  /// nunca se guarda un status mutable — mismo criterio que
+  /// `CandidateDocument.status`. Regenerar solo se permite mientras
+  /// `agreementSignedAt` sea `null`.
+  agreementFileUrl     String?
+  agreementGeneratedAt DateTime?
+  agreementSignedAt    DateTime?
+  deliverables         SponsorshipDeliverable[]
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+
+  @@index([companyId, projectId])
+  @@index([companyId, contactId])
+  @@index([companyId, status])
+  @@index([companyId, paymentStatus])
+}
+
+/// Checklist de compromisos entregables a la marca auspiciadora (logo en
+/// backdrop, mención en vivo, reel en redes, etc).
+model SponsorshipDeliverable {
+  id          String                     @id @default(cuid())
+  companyId   String
+  company     Company                    @relation(fields: [companyId], references: [id])
+  contractId  String
+  contract    SponsorshipContract        @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  title       String
+  /// Tipificación del entregable (mención, backstage, pauta, otro). Default
+  /// `OTRO` para no romper los entregables ya cargados antes de este campo.
+  type        SponsorshipDeliverableType @default(OTRO)
+  dueDate     DateTime?
+  isCompleted Boolean                    @default(false)
+  completedAt DateTime?
+  proofUrl    String?
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
+
+  @@index([companyId, contractId])
+}
+
+enum SponsorshipDeliverableType {
+  MENCION
+  BACKSTAGE
+  PAUTA
+  OTRO
+}
+
+enum DocumentTemplateType {
+  SPONSOR_COMMITMENT_LETTER
+  CANDIDATE_CONTRACT
+}
+
+/// Plantilla estándar de un documento generado (carta de compromiso de
+/// sponsors, contrato de imagen de candidatas). `bodyText` es texto plano con
+/// placeholders `{{variable}}` sustituidos al generar el PDF — sin motor de
+/// scripting. Una sola plantilla vigente por tipo por empresa: guardar sobre
+/// ella actualiza el "formato estipulado", no crea una versión nueva.
+model DocumentTemplate {
+  id        String               @id @default(cuid())
+  companyId String
+  company   Company              @relation(fields: [companyId], references: [id])
+  type      DocumentTemplateType
+  name      String
+  bodyText  String
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  @@unique([companyId, type])
+}
+
+/// Boleta de Honorarios Electrónica (BHE) de un prestador de servicios
+enum BudgetStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+}
+
+/// Presupuesto operativo general por período (ej. "Presupuesto 2027"),
+/// independiente de `Project.budgetedIncome`/`budgetedExpense` (ese es
+/// presupuesto POR CERTAMEN; este es el gasto/ingreso general de la empresa
+/// por categoría — arriendo, sueldos, flores y coronas, etc). Módulo
+/// `hasBudgets`.
+model Budget {
+  id          String       @id @default(cuid())
+  companyId   String
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  name        String
+  periodStart DateTime
+  periodEnd   DateTime
+  status      BudgetStatus @default(DRAFT)
+  notes       String?
+  lines       BudgetLine[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([companyId, status])
+}
+
+/// Línea de presupuesto por categoría de texto libre (no un plan de cuentas
+/// formal — a propósito, para no exigir `hasAccounting`). El "real" se suma
+/// desde `Payment.budgetLineId` de los pagos que el staff etiquete a esta
+/// línea al registrarlos en Tesorería.
+model BudgetLine {
+  id            String    @id @default(cuid())
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  budgetId      String
+  budget        Budget    @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  category      String
+  plannedAmount Int
+  notes         String?
+  payments      Payment[]
+  createdAt     DateTime  @default(now())
+
+  @@index([companyId, budgetId])
+}
+
+enum PromissoryNoteStatus {
+  ACTIVE
+  PAID
+  PROTESTED
+  CANCELLED
+}
+
+/// Pagaré firmado por un deudor (`Contact`, opcionalmente vinculado a una
+/// `Candidate` para verlo desde su ficha). `paidAmount`/`paymentStatus`
+/// autocontenidos, mismo patrón que `SponsorshipContract` — funciona sin
+/// depender de `hasTreasury`. Módulo `hasPromissoryNotes`.
+model PromissoryNote {
+  id            String               @id @default(cuid())
+  companyId     String
+  company       Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  contactId     String
+  contact       Contact              @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  candidateId   String?
+  candidate     Candidate?           @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+  amount        Int
+  issueDate     DateTime             @default(now())
+  dueDate       DateTime
+  /// Blob del pagaré firmado (imagen o PDF), mismo criterio de storage que
+  /// `CandidateDocument.fileUrl`. Opcional: puede registrarse antes de
+  /// escanear el papel.
+  documentUrl   String?
+  paidAmount    Int                  @default(0)
+  paymentStatus PaymentStatus        @default(UNPAID)
+  status        PromissoryNoteStatus @default(ACTIVE)
+  notes         String?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  @@index([companyId, status, dueDate])
+  @@index([companyId, contactId])
+  @@index([companyId, candidateId])
+}
+
+enum PaymentPlanFrequency {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
+enum PaymentPlanStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+/// Plan de cuotas/mensualidades (ej. "6 cuotas de $150.000 por preparación de
+/// candidata"). Genera sus `PaymentPlanInstallment` al crearse — ver
+/// `createPaymentPlan` en `payment-plans.service.ts`. Módulo `hasInstallmentPlans`.
+model PaymentPlan {
+  id               String                   @id @default(cuid())
+  companyId        String
+  company          Company                  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  contactId        String
+  contact          Contact                  @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  candidateId      String?
+  candidate        Candidate?               @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+  totalAmount      Int
+  installmentCount Int
+  frequency        PaymentPlanFrequency     @default(MONTHLY)
+  startDate        DateTime
+  /// Multa por cuota vencida, en basis points sobre el monto de ESA cuota
+  /// (1000 = 10%). `0` = sin cláusula de penalización.
+  penaltyBps       Int                      @default(0)
+  status           PaymentPlanStatus        @default(ACTIVE)
+  notes            String?
+  installments     PaymentPlanInstallment[]
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+
+  @@index([companyId, status])
+  @@index([companyId, contactId])
+  @@index([companyId, candidateId])
+}
+
+/// Cuota individual de un `PaymentPlan`. `paidAmount`/`paymentStatus`
+/// autocontenidos, mismo patrón que el resto de los documentos financieros
+/// nuevos de este módulo.
+model PaymentPlanInstallment {
+  id                String        @id @default(cuid())
+  companyId         String
+  company           Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  paymentPlanId     String
+  /// `Restrict`, no `Cascade`: una cuota puede tener `paidAmount &gt; 0` (dinero
+  /// efectivamente cobrado). Un `PaymentPlan` no se borra — se cancela
+  /// (`status: CANCELLED`) — así nunca se pierde en cascada el historial de
+  /// cobro de sus cuotas ya pagadas.
+  paymentPlan       PaymentPlan   @relation(fields: [paymentPlanId], references: [id], onDelete: Restrict)
+  installmentNumber Int
+  dueDate           DateTime
+  amount            Int
+  paidAmount        Int           @default(0)
+  paymentStatus     PaymentStatus @default(UNPAID)
+  /// Multa ya aplicada sobre esta cuota (CLP) — el cron de vencidas la aplica
+  /// una sola vez, este campo es el guardia contra doble aplicación.
+  penaltyApplied    Int           @default(0)
+  paidAt            DateTime?
+  createdAt         DateTime      @default(now())
+
+  @@unique([paymentPlanId, installmentNumber])
+  @@index([companyId, paymentStatus, dueDate])
+}
+
+/// Boleta de honorarios de un prestador de servicios (staff/proveedor)
+/// freelance (`Contact`). La emite el prestador vía el SII — acá solo se
+/// REGISTRA para efectos de retención y F29, por eso `folioNumber` es texto
+/// libre (no un correlativo propio) y único por prestador, no por empresa.
+/// `retentionRateBps`/`retentionAmount`/`netToPay` quedan congelados como
+/// snapshot al emitir: si la tasa de la empresa cambia después, las boletas
+/// ya emitidas no se recalculan.
+model FeeDocument {
+  id                 String         @id @default(cuid())
+  companyId          String
+  company            Company        @relation(fields: [companyId], references: [id])
+  projectId          String?
+  project            Project?       @relation(fields: [projectId], references: [id])
+  contactId          String
+  contact            Contact        @relation(fields: [contactId], references: [id])
+  folioNumber        String
+  status             DocumentStatus @default(ISSUED)
+  issueDate          DateTime       @default(now())
+  serviceDescription String
+  grossAmount        Int
+  /// Tasa de retención en basis points (1375 = 13.75%), copiada de
+  /// `CompanySettings.honorariumRetentionBps` al crear.
+  retentionRateBps   Int
+  retentionAmount    Int
+  netToPay           Int
+  paidAmount         Int            @default(0)
+  paymentStatus      PaymentStatus  @default(UNPAID)
+  paymentDate        DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  @@unique([companyId, contactId, folioNumber])
+  @@index([companyId, projectId])
+  @@index([companyId, status])
+  @@index([companyId, paymentStatus])
+  @@index([companyId, issueDate])
+}
+
+/// Ficha de candidata/staff de un certamen concreto — a diferencia de los
+/// otros 3 modelos, `projectId` es REQUERIDO: una candidata siempre
+/// pertenece a una edición específica del evento. Datos sensibles (RUT,
+/// fecha de nacimiento, contacto de emergencia): RBAC restringido a
+/// OWNER/ADMIN (ver src/lib/auth/permissions.ts).
+model Candidate {
+  id                    String                @id @default(cuid())
+  companyId             String
+  company               Company               @relation(fields: [companyId], references: [id])
+  projectId             String
+  project               Project               @relation(fields: [projectId], references: [id])
+  rut                   String
+  rutClean              String
+  fullName              String
+  stageName             String?
+  email                 String?
+  phone                 String?
+  birthDate             DateTime
+  dressSize             String?
+  shoeSize              String?
+  heightCm              Int?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  /// Nombre/RUT del padre, madre o representante legal — solo se completa si
+  /// la candidata es menor de edad. El contrato de imagen incluye un tercer
+  /// bloque de firma para el tutor únicamente cuando `guardianName` está
+  /// cargado (ver `contract-pdf.service.ts`); si es null, ese bloque se omite
+  /// en vez de dejarse en blanco sin sentido.
+  guardianName          String?
+  guardianRut           String?
+  status                CandidateStatus       @default(APPLICANT)
+  photoUrl              String?
+  notes                 String?
+  /// Folio público entregado a la postulante al enviar el formulario
+  /// (`{Project.code}-{año}-{correlativo}`, ver `InternalDocumentSequence`
+  /// con `kind = CANDIDATE_APPLICATION`). `null` en fichas creadas a mano
+  /// desde el panel interno, que no pasan por auto-inscripción.
+  folio                 String?
+  // ── Campos del formulario público de postulación (Sección 5 del módulo) ──
+  comuna                String?
+  direccion             String?
+  ocupacion             String?
+  instagram             String?
+  idiomas               String?
+  experiencia           String?
+  motivacion            String?
+  causaSocial           String?
+  /// Alergias o condiciones médicas relevantes declaradas por la propia
+  /// candidata (ej. alergia a un maquillaje, condición que el equipo de
+  /// producción deba conocer para ensayos/pasarela). Texto libre, no
+  /// reemplaza un certificado médico real — para eso existe el documento
+  /// `MEDICAL_CERTIFICATE` en `CandidateDocument`.
+  condicionesMedicas    String?
+  aceptaMarketing       Boolean               @default(false)
+  /// Motivo obligatorio al pasar a `REJECTED` — no se usa para `WITHDRAWN`.
+  motivoDescarte        String?
+  /// Metadatos de origen del envío público, solo para envíos que llegaron por
+  /// `submitCandidateRegistration` — nunca para fichas creadas a mano.
+  ipOrigen              String?
+  userAgent             String?
+  attendances           CandidateAttendance[]
+  documents             CandidateDocument[]
+  wardrobeItems         WardrobeItem[]
+  stageTimelineItems    StageTimelineItem[]
+  scoreSheets           ScoreSheet[]
+  roundEntries          RoundContestant[]
+  promissoryNotes       PromissoryNote[]
+  paymentPlans          PaymentPlan[]
+  voteOrders            VoteOrder[]
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+
+  @@unique([companyId, projectId, rutClean])
+  // Folio único por empresa, no global: cada empresa tiene su propio
+  // correlativo (`InternalDocumentSequence` es per-company), así que dos
+  // empresas distintas del mismo SaaS pueden legítimamente compartir folio.
+  @@unique([companyId, folio])
+  @@index([companyId, projectId, status])
+  @@index([companyId, comuna])
+  @@index([companyId, createdAt])
+}
+
+enum CandidateActivityType {
+  PASARELA
+  ORATORIA
+  ENSAYO
+  TALLER
+  EVENTO
+  OTRO
+}
+
+/// Una fecha agendada de taller/ensayo/evento para todas las candidatas de un
+/// proyecto. Se genera en lote (ej. "martes y jueves entre tal y tal fecha")
+/// para poder pasar lista una sola vez por sesión en vez de ficha por ficha.
+model CandidateSession {
+  id           String                @id @default(cuid())
+  companyId    String
+  company      Company               @relation(fields: [companyId], references: [id])
+  projectId    String
+  project      Project               @relation(fields: [projectId], references: [id])
+  activityType CandidateActivityType
+  title        String?
+  date         DateTime
+  time         String?
+  location     String?
+  notes        String?
+  createdAt    DateTime              @default(now())
+  attendance   CandidateAttendance[]
+
+  @@index([companyId, projectId, date])
+}
+
+/// Registro de asistencia a un taller/ensayo/actividad de preparación. Una
+/// fila por actividad, no un acumulado — así se puede armar el detalle de
+/// inasistencias, no solo el conteo. `sessionId` es nulo para registros
+/// puntuales cargados desde la ficha individual (no vienen de una sesión
+/// masiva); onDelete SetNull para no perder el histórico si se borra la sesión.
+model CandidateAttendance {
+  id           String                @id @default(cuid())
+  companyId    String
+  company      Company               @relation(fields: [companyId], references: [id])
+  candidateId  String
+  candidate    Candidate             @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  sessionId    String?
+  session      CandidateSession?     @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  activityType CandidateActivityType
+  activityDate DateTime
+  attended     Boolean               @default(true)
+  notes        String?
+  createdAt    DateTime              @default(now())
+
+  @@unique([sessionId, candidateId])
+  @@index([companyId, candidateId])
+}
+
+enum CandidateDocumentStatus {
+  PENDING
+  SIGNED
+  EXPIRED
+}
+
+enum CandidateDocumentType {
+  CONTRACT_IMAGE
+  OTHER
+  /// Fotografía de rostro enviada con el formulario público de postulación.
+  PHOTO_FACE
+  /// Fotografía de cuerpo entero enviada con el formulario público de postulación.
+  PHOTO_FULL_BODY
+  /// Certificado médico (imagen o PDF) subido opcionalmente con el
+  /// formulario público de postulación.
+  MEDICAL_CERTIFICATE
+}
+
+/// Contrato de imagen u otro documento que la candidata debe firmar.
+/// `status` se recalcula en la app (nunca se confía en lo que mande el
+/// cliente) comparando `expiresAt` contra la fecha actual, mismo criterio que
+/// el resto del sistema para estados derivados. `documentType` identifica el
+/// contrato generado desde plantilla (`CONTRACT_IMAGE`) — default `OTHER`
+/// para no romper los documentos ya cargados antes de este campo, mismo
+/// criterio que `SponsorshipDeliverable.type`. Solo puede existir una fila
+/// `CONTRACT_IMAGE` sin firmar por candidata a la vez; la regla se valida en
+/// `services/documents.service.ts`, no se puede expresar como unique parcial
+/// en Prisma.
+model CandidateDocument {
+  id               String                  @id @default(cuid())
+  companyId        String
+  company          Company                 @relation(fields: [companyId], references: [id])
+  candidateId      String
+  candidate        Candidate               @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  title            String
+  documentType     CandidateDocumentType   @default(OTHER)
+  fileUrl          String
+  signedAt         DateTime?
+  expiresAt        DateTime?
+  status           CandidateDocumentStatus @default(PENDING)
+  /// Token del documento en ZapSign — correlaciona el webhook de firma con
+  /// esta fila. `null` para documentos subidos a mano (sin firma electrónica).
+  zapsignDocToken  String?                 @unique
+  /// Link de firma de ZapSign, guardado como respaldo por si el correo
+  /// automático no llega — mismo criterio que `SponsorshipContract.portalToken`,
+  /// salvo que este link lo emite y controla ZapSign, no nosotros.
+  zapsignSignUrl   String?
+  /// Metadatos capturados al recibir el archivo — solo poblados para
+  /// `PHOTO_FACE`/`PHOTO_FULL_BODY` subidas por el formulario público
+  /// (tipo MIME real leído de los primeros bytes, tamaño y hash SHA-256).
+  /// `null` en documentos previos a este campo y en los subidos a mano.
+  mimeType         String?
+  fileSizeBytes    Int?
+  sha256Hash       String?
+  originalFileName String?
+  createdAt        DateTime                @default(now())
+
+  @@index([companyId, candidateId])
+}
+
+// ============================================================================
+// Producción y Escaleta en Vivo (módulo `hasLiveProduction`, apagado por
+// defecto): escaleta minuto a minuto, asignación de vestuario y acreditación
+// de staff/proveedores por certamen (`Project`). Sin dependencia de
+// Candidatas/Auspicios — un certamen puede contratar solo este módulo.
+// ============================================================================
+
+enum StageItemStatus {
+  PENDING
+  IN_PROGRESS
+  DONE
+  SKIPPED
+}
+
+/// Un bloque de la escaleta (ej. "Traje de baño — Bloque 3"). `blockOrder` es
+/// el orden real en vivo — se reordena moviendo el número, nunca reordenando
+/// filas por fecha de creación.
+model StageTimelineItem {
+  id              String          @id @default(cuid())
+  companyId       String
+  company         Company         @relation(fields: [companyId], references: [id])
+  projectId       String
+  project         Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  blockOrder      Int
+  startTime       DateTime
+  durationMinutes Int
+  title           String
+  description     String?
+  status          StageItemStatus @default(PENDING)
+  candidateId     String?
+  candidate       Candidate?      @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+  wardrobeItems   WardrobeItem[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@unique([projectId, blockOrder])
+  @@index([companyId, projectId])
+}
+
+enum WardrobeStatus {
+  PENDING
+  READY
+  ISSUED
+  RETURNED
+}
+
+/// Prenda/accesorio asignado a una candidata para un bloque de la escaleta.
+model WardrobeItem {
+  id                  String             @id @default(cuid())
+  companyId           String
+  company             Company            @relation(fields: [companyId], references: [id])
+  projectId           String
+  project             Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name                String
+  designer            String?
+  stageTimelineItemId String?
+  stageTimelineItem   StageTimelineItem? @relation(fields: [stageTimelineItemId], references: [id], onDelete: SetNull)
+  candidateId         String?
+  candidate           Candidate?         @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+  status              WardrobeStatus     @default(PENDING)
+  notes               String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@index([companyId, projectId])
+  @@index([companyId, stageTimelineItemId])
+}
+
+enum AccreditationLevel {
+  GENERAL
+  BACKSTAGE
+  VIP
+  STAFF
+}
+
+enum BadgeBackgroundMode {
+  COLOR
+  IMAGE
+}
+
+enum BadgeImageDisplayMode {
+  SOLID
+  WATERMARK
+}
+
+/// Plantilla de diseño visual para credenciales de staff de un proyecto/evento
+/// (fondo sólido o imagen subida, modo "marca de agua" u "opaco", colores de
+/// acento/texto). Varias por proyecto (ej. una para VIP, otra para GENERAL);
+/// `isDefault` marca la que se usa cuando una acreditación no elige una
+/// explícitamente. Que solo haya una `isDefault=true` por proyecto se aplica en
+/// la capa de servicio (transacción) — Prisma no soporta índice único parcial
+/// (`WHERE isDefault = true`), mismo caso que `CandidateDocument`.
+model BadgeTemplate {
+  id                  String                @id @default(cuid())
+  companyId           String
+  company             Company               @relation(fields: [companyId], references: [id])
+  projectId           String
+  project             Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name                String
+  backgroundMode      BadgeBackgroundMode   @default(COLOR)
+  backgroundColor     String                @default("#1e3a5f")
+  backgroundImageUrl  String?
+  imageDisplayMode    BadgeImageDisplayMode @default(SOLID)
+  /// Opacidad de la imagen de fondo en basis points (0-10000), solo relevante si imageDisplayMode = WATERMARK.
+  watermarkOpacityBps Int                   @default(2000)
+  accentColor         String                @default("#1e3a5f")
+  textColor           String                @default("#0f172a")
+  isDefault           Boolean               @default(false)
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  accreditations      StaffAccreditation[]
+
+  @@index([companyId, projectId])
+}
+
+/// Acreditación de staff/proveedor externo (no es un `User` del ERP —
+/// cámaras, seguridad, catering, etc.). `badgeCode` es lo que se escanea/
+/// digita en la puerta para hacer `checkedInAt`.
+model StaffAccreditation {
+  id            String             @id @default(cuid())
+  companyId     String
+  company       Company            @relation(fields: [companyId], references: [id])
+  projectId     String
+  project       Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fullName      String
+  role          String
+  organization  String?
+  email         String?
+  accessLevel   AccreditationLevel @default(GENERAL)
+  badgeCode     String
+  /// Token opaco y no adivinable (no correlativo como badgeCode) que identifica la credencial en la página pública de verificación / el QR. Nunca se expone el id interno ni companyId en esa URL.
+  qrToken       String             @unique @default(cuid())
+  qrEmailSentAt DateTime?
+  checkedInAt   DateTime?
+  createdAt     DateTime           @default(now())
+  /// Plantilla de diseño elegida para esta credencial. `SetNull` al borrar la
+  /// plantilla: la acreditación ya emitida no debe romperse, solo vuelve al
+  /// estilo por defecto.
+  templateId    String?
+  template      BadgeTemplate?     @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, badgeCode])
+  @@index([companyId, projectId])
+  @@index([templateId])
+}
+
+// ============================================================================
+// Votación y Escrutinio en Vivo (módulo `hasJudging`, apagado por defecto):
+// categorías/criterios, jurados externos (acceso por link con token, no son
+// `User` del ERP) y planillas de puntuación con bloqueo anti-edición
+// post-envío. El resultado ponderado nunca se persiste — se recalcula en cada
+// consulta desde los `ScoreSheet` en estado SUBMITTED, mismo principio que el
+// balance de comprobación contable: ningún saldo es un campo que se
+// actualiza.
+// ============================================================================
+
+/// Categoría/criterio de evaluación (ej. "Traje de Baño", "Entrevista") de
+/// una ronda concreta. `weightBps` es la ponderación en basis points; la app
+/// valida que las categorías de una misma ronda sumen 10000 al marcarla
+/// lista — no se fuerza a nivel de base porque Prisma no puede expresar una
+/// restricción de suma entre filas. `projectId` queda denormalizado (se
+/// valida en el servicio que sea el mismo de `round.projectId`) para no
+/// tener que resolver la ronda en cada consulta que ya filtraba por proyecto.
+model JudgingCategory {
+  id          String           @id @default(cuid())
+  companyId   String
+  company     Company          @relation(fields: [companyId], references: [id])
+  projectId   String
+  project     Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  roundId     String
+  round       CompetitionRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  name        String
+  weightBps   Int
+  maxScore    Int              @default(10)
+  order       Int              @default(0)
+  scoreSheets ScoreSheet[]
+  createdAt   DateTime         @default(now())
+
+  @@unique([roundId, name])
+  @@index([companyId, projectId])
+  @@index([companyId, roundId])
+}
+
+enum RoundStatus {
+  DRAFT
+  READY
+  VOTING
+  VOTING_CLOSED
+  COMPLETED
+}
+
+/// Una ronda eliminatoria del certamen (ej. "Preliminar", "Top 10", "Top 5",
+/// "Final"). `cutOffCount` es cuántas candidatas clasifican a la siguiente
+/// ronda — null en la ronda final, donde no hay corte sino posiciones 1/2/3.
+/// El estado de una ronda solo avanza hacia adelante (`RoundStatus`), nunca
+/// se retrocede: cerrar/completar una ronda es una decisión de producción en
+/// vivo, no un borrador editable.
+model CompetitionRound {
+  id           String      @id @default(cuid())
+  companyId    String
+  company      Company     @relation(fields: [companyId], references: [id])
+  projectId    String
+  project      Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  order        Int
+  name         String
+  cutOffCount  Int?
+  isFinalRound Boolean     @default(false)
+  status       RoundStatus @default(DRAFT)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  categories  JudgingCategory[]
+  contestants RoundContestant[]
+  scoreSheets ScoreSheet[]
+
+  @@unique([projectId, order])
+  @@index([companyId, projectId])
+}
+
+/// Participación de una candidata en una ronda concreta. `qualified` es la
+/// fuente de verdad de "sigue en competencia" para esa ronda — no se toca
+/// `Candidate.status` hasta la ronda final (ver `completeRound` en
+/// `rounds.service.ts`), así una candidata eliminada en el Top 10 sigue
+/// siendo `OFFICIAL_CANDIDATE`/`FINALIST` en su ficha, solo que no aparece en
+/// las rondas siguientes. `finalScore`/`rank` se escriben una única vez, al
+/// cerrar la ronda (`closeRound`) — el guard vive en el servicio con el mismo
+/// patrón `updateMany` + `where: { round: { status: 'VOTING' } }` que usa
+/// `ScoreSheet` para impedir reescribir un puntaje ya enviado.
+model RoundContestant {
+  id          String           @id @default(cuid())
+  companyId   String
+  company     Company          @relation(fields: [companyId], references: [id])
+  roundId     String
+  round       CompetitionRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  candidateId String
+  candidate   Candidate        @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  finalScore  Float?
+  rank        Int?
+  qualified   Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+
+  @@unique([roundId, candidateId])
+  @@index([companyId, roundId])
+}
+
+/// Jurado externo de un certamen. No es un `User` del ERP: se le da acceso
+/// por `accessToken` (mismo concepto que `Invitation.token`), sin cuenta ni
+/// contraseña — un jurado de una gala no necesita ni debe tener acceso al
+/// resto del sistema.
+model JudgeAssignment {
+  id          String       @id @default(cuid())
+  companyId   String
+  company     Company      @relation(fields: [companyId], references: [id])
+  projectId   String
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  judgeName   String
+  judgeEmail  String?
+  accessToken String       @unique
+  scoreSheets ScoreSheet[]
+  createdAt   DateTime     @default(now())
+
+  @@index([companyId, projectId])
+}
+
+enum ScoreSheetStatus {
+  DRAFT
+  SUBMITTED
+}
+
+/// Puntuación de un jurado a una candidata en una categoría. Inmutable una vez
+/// `SUBMITTED` — el guard vive en la capa de aplicación (`updateMany` con
+/// `where: { status: 'DRAFT' }`, mismo patrón que `journal.service.ts` para un
+/// período cerrado), no hay trigger SQL para esto todavía. `roundId` queda
+/// denormalizado de `category.roundId` para filtrar resultados por ronda sin
+/// join. `auditHash`/`ipAddress`/`userAgent` se completan solo al enviar
+/// (`submitScore`), nunca en el borrador — son el sello de integridad del
+/// voto final, no de cada edición intermedia.
+model ScoreSheet {
+  id                String           @id @default(cuid())
+  companyId         String
+  company           Company          @relation(fields: [companyId], references: [id])
+  judgeAssignmentId String
+  judgeAssignment   JudgeAssignment  @relation(fields: [judgeAssignmentId], references: [id], onDelete: Cascade)
+  candidateId       String
+  candidate         Candidate        @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  categoryId        String
+  category          JudgingCategory  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  roundId           String
+  round             CompetitionRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  score             Int
+  status            ScoreSheetStatus @default(DRAFT)
+  submittedAt       DateTime?
+  /// Sello SHA-256 sobre (jurado, candidata, categoría, puntaje, submittedAt)
+  /// calculado en `submitScore` — prueba de que el valor guardado es el que
+  /// el jurado efectivamente envió, no una edición posterior directa en BD.
+  auditHash         String?
+  ipAddress         String?
+  userAgent         String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@unique([judgeAssignmentId, candidateId, categoryId])
+  @@index([companyId, candidateId])
+  @@index([companyId, categoryId])
+  @@index([companyId, roundId])
+}
+
+// ============================================================================
+// Entradas y votación pública de la gala (módulos `hasTicketing` /
+// `hasPublicVoting`, apagados por defecto).
+//
+// V1 sin pasarela de pago: no hay integración con Webpay/Flow/Mercadopago en
+// este repo. El comprador paga por transferencia fuera del sistema (datos en
+// `CompanySettings.bankTransferInfo`) y el staff confirma el pago a mano
+// desde el panel — mismo criterio "autocontenido" que `SponsorshipContract`.
+// `paymentStatus` es el mismo campo que usaría un futuro webhook de pasarela,
+// así que integrarla después no exige rediseñar este modelo.
+// ============================================================================
+
+/// Tipo de entrada de un certamen (General, VIP, etc). `quantityAvailable
+/// null` = sin límite de cupo.
+model TicketType {
+  id                String       @id @default(cuid())
+  companyId         String
+  company           Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  projectId         String
+  project           Project      @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  name              String
+  price             Int
+  quantityAvailable Int?
+  salesOpen         Boolean      @default(true)
+  sales             TicketSale[]
+  createdAt         DateTime     @default(now())
+
+  @@index([companyId, projectId])
+}
+
+/// Orden de compra de entrada(s), creada desde `/tickets/[token]` sin login.
+/// `qrCode` es el control de acceso el día del evento — se genera solo al
+/// confirmar el pago (`checkedInAt` marca el ingreso real).
+model TicketSale {
+  id            String        @id @default(cuid())
+  companyId     String
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  projectId     String
+  project       Project       @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  ticketTypeId  String
+  ticketType    TicketType    @relation(fields: [ticketTypeId], references: [id], onDelete: Restrict)
+  buyerName     String
+  buyerEmail    String
+  buyerPhone    String?
+  quantity      Int
+  totalAmount   Int
+  /// `PARTIAL` no aplica en la práctica (venta manual de monto fijo, todo o
+  /// nada) pero se guarda igual por si el staff confirma un abono parcial.
+  paidAmount    Int           @default(0)
+  paymentStatus PaymentStatus @default(UNPAID)
+  qrCode        String        @unique
+  checkedInAt   DateTime?
+  createdAt     DateTime      @default(now())
+
+  @@index([companyId, projectId])
+  @@index([companyId, paymentStatus])
+}
+
+/// Orden de votos pagados por una candidata, creada desde `/votar/[token]`
+/// sin login. Solo cuenta para el conteo público (`getVoteLeaderboard`) si
+/// `paymentStatus === 'PAID'` — una orden `UNPAID` no es un voto real todavía.
+model VoteOrder {
+  id            String        @id @default(cuid())
+  companyId     String
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  projectId     String
+  project       Project       @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  candidateId   String
+  candidate     Candidate     @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+  buyerEmail    String
+  buyerPhone    String?
+  voteCount     Int
+  pricePerVote  Int
+  totalAmount   Int
+  /// Ver nota equivalente en `TicketSale.paidAmount`.
+  paidAmount    Int           @default(0)
+  paymentStatus PaymentStatus @default(UNPAID)
+  createdAt     DateTime      @default(now())
+
+  @@index([companyId, projectId])
+  @@index([companyId, candidateId])
+  @@index([companyId, paymentStatus])
+}
+
+// ============================================================================
+// Inteligencia de Negocio: Agentes (módulo `hasCrm`, apagado por defecto)
+//
+// Equipo ejecutivo virtual (CEO/CFO/COO/Ventas) que analiza datos REALES ya
+// existentes en el ERP (ventas, compras, inventario, tesorería, todos ya
+// relacionados entre sí por `companyId`) y propone recomendaciones para que
+// el dueño las lea. Ningún agente hace scraping externo, gestiona leads ni
+// envía comunicación a terceros — todo el resultado de una corrida es texto
+// informativo guardado en `AgentTask`, nunca una acción fuera del sistema.
+// `requiresApproval` queda en el modelo por si un rol futuro sí necesita un
+// paso de aprobación con una acción externa detrás; en este módulo todos los
+// roles lo dejan en `false`.
+// ============================================================================
+
+/// Tarea/recomendación generada por un agente para que un humano la lea. Es
+/// el único canal por el que un agente "actúa": crear una fila acá, nunca
+/// ejecutar ninguna acción externa directamente.
+model AgentTask {
+  id               String          @id @default(cuid())
+  companyId        String
+  company          Company         @relation(fields: [companyId], references: [id])
+  role             AgentRole
+  title            String
+  description      String
+  status           AgentTaskStatus @default(PENDING)
+  /// Datos de respaldo de la recomendación (ej. el resumen de métricas en que
+  /// se basó). Sin tipar a propósito: cada rol define su propia forma.
+  payload          Json?
+  requiresApproval Boolean         @default(false)
+  approvedByUserId String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([companyId, role, status])
+}
+
+/// Una fila por corrida de un agente (cron o manual). Nunca queda colgada en
+/// `RUNNING`: `runAgent()` (src/modules/agents/engine.ts) la cierra en
+/// `COMPLETED` o `FAILED` sin importar cómo termine `fn()`.
+model AgentRun {
+  id         String         @id @default(cuid())
+  companyId  String
+  company    Company        @relation(fields: [companyId], references: [id])
+  role       AgentRole
+  status     AgentRunStatus @default(RUNNING)
+  summary    String?
+  error      String?
+  startedAt  DateTime       @default(now())
+  finishedAt DateTime?
+
+  @@index([companyId, role, startedAt])
+}
+
+// ============================================================================
+// Bitácora de plataforma (superadmin)
+// ============================================================================
+
+/// Bitácora de acciones destructivas a nivel de plataforma (hoy: borrado
+/// permanente de un tenant). A propósito NO tiene relación FK hacia `Company`:
+/// todos los campos que identifican a la empresa son snapshots de texto plano
+/// tomados ANTES de borrarla, así que esta fila sobrevive para siempre,
+/// independiente del ciclo de vida de cualquier tenant — si tuviera FK, sería
+/// imposible dejar constancia de que una empresa fue eliminada (la propia
+/// bitácora de la empresa, `AuditLog`, vive dentro del tenant y se borra junto
+/// con él).
+model PlatformAuditLog {
+  id                  String   @id @default(cuid())
+  action              String
+  companyId           String
+  companyRut          String
+  companyBusinessName String
+  performedByUserId   String
+  performedByEmail    String
+  metadata            Json?
+  ipAddress           String?
+  createdAt           DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([companyId])
+}
+
+// ============================================================================
+// Bitácora de seguridad (transversal a toda la plataforma)
+//
+// A diferencia de `AuditLog` (acciones de negocio por tenant) y
+// `PlatformAuditLog` (superadmin), esta tabla registra eventos de seguridad
+// que no pertenecen a ningún tenant en particular — un intento de login
+// fallido con un email inexistente no tiene `companyId`. Sin FK a User ni a
+// Company a propósito: debe funcionar para cualquier evento, exista o no el
+// actor en el sistema.
+// ============================================================================
+
+/// Evento de seguridad: intentos de login, lockouts, rate limits, resets de
+/// contraseña, revocación de sesiones. Nunca almacena contraseñas ni PII
+/// sensible — solo email, IP y metadatos descriptivos del evento.
+model SecurityEvent {
+  id        String   @id @default(cuid())
+  type      String // LOGIN_SUCCESS, LOGIN_FAILED, LOGIN_LOCKED, TOTP_FAILED,
+  // TOTP_LOCKED, PASSWORD_RESET_REQUESTED, PASSWORD_CHANGED,
+  // RATE_LIMITED, SESSION_REVOKED, etc.
+  email     String?
+  ip        String?
+  userAgent String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([type, createdAt])
+  @@index([email, createdAt])
+  @@index([ip, createdAt])
+}
+
+// ============================================================================
+// Idempotencia de Webhooks externos
+// ============================================================================
+
+/// Registro de deduplicación para webhooks externos (Stripe, Transbank, SII, etc).
+/// Previene la ejecución múltiple de un mismo evento ante reintentos automáticos de la pasarela.
+model ProcessedWebhookEvent {
+  id          String   @id @default(cuid())
+  companyId   String?
+  provider    String // 'stripe' | 'transbank' | 'sii' | 'custom'
+  eventId     String
+  eventType   String
+  payload     Json?
+  status      String   @default("PROCESSED") // 'PROCESSED' | 'FAILED' | 'IGNORED'
+  processedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@unique([provider, eventId])
+  @@index([companyId, provider])
+  @@index([createdAt])
+}

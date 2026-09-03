@@ -1,0 +1,20 @@
+node_modules
+# Keep environment variables out of version control
+.env
+.env.local
+.env*.local
+
+/generated/prisma
+.next
+.vercel
+
+.vercel
+.env*
+!.env.example
+
+# Preferencias locales de Claude Code (permission allowlist por desarrollador)
+.claude/settings.local.json
+
+# Artefactos de build / instaladores sueltos que no son parte del código
+*.exe
+*.tsbuildinfo

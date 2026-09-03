@@ -1,0 +1,247 @@
+import type { Role } from '@prisma/client';
+
+/**
+ * Catálogo de permisos: datos puros, sin dependencias de servidor.
+ *
+ * Lo importan tanto Server Actions como componentes de cliente (constructor de
+ * roles, panel de módulos), así que aquí no puede entrar Prisma ni
+ * `next/headers`. La escritura de auditoría vive en `./audit`.
+ */
+
+const ALL_ROLES: Role[] = ['OWNER', 'ADMIN', 'SALES', 'WAREHOUSE', 'ACCOUNTANT'];
+
+/**
+ * Matriz de permisos por rol. Fuente única de verdad para las restricciones
+ * de acceso de cada Server Action y de la visibilidad condicional en la UI.
+ */
+export const PERMISSIONS = {
+  'contacts:read': ALL_ROLES,
+  'contacts:write': ['OWNER', 'ADMIN', 'SALES', 'WAREHOUSE'],
+
+  'sales:read': ['OWNER', 'ADMIN', 'SALES', 'ACCOUNTANT'],
+  'sales:write': ['OWNER', 'ADMIN', 'SALES'],
+  'sales:cancel': ['OWNER', 'ADMIN'],
+
+  'purchases:read': ['OWNER', 'ADMIN', 'WAREHOUSE', 'ACCOUNTANT'],
+  'purchases:write': ['OWNER', 'ADMIN', 'WAREHOUSE'],
+  'purchases:cancel': ['OWNER', 'ADMIN'],
+  // Aprobar una compra que superó el umbral configurado: nivel gerencial,
+  // fuera a propósito de WAREHOUSE aunque tenga purchases:write.
+  'purchases:approve': ['OWNER', 'ADMIN'],
+  // Crear/enviar/anular Órdenes de Compra y registrar Recepciones de
+  // Mercadería: mismo nivel que purchases:write, es la misma operación de
+  // bodega/compras solo que en dos pasos en vez de uno.
+  'purchases:orders': ['OWNER', 'ADMIN', 'WAREHOUSE'],
+  // Forzar el pago de una factura que no cuadra con su Orden de Compra
+  // (matching de 3 vías): nivel gerencial, igual que purchases:approve.
+  'purchases:override_match': ['OWNER', 'ADMIN'],
+
+  'products:read': ALL_ROLES,
+  'products:write': ['OWNER', 'ADMIN', 'WAREHOUSE'],
+  'products:costs': ['OWNER', 'ADMIN', 'WAREHOUSE', 'ACCOUNTANT'],
+
+  'inventory:write': ['OWNER', 'ADMIN', 'WAREHOUSE'],
+
+  'pos:operate': ['OWNER', 'ADMIN', 'SALES'],
+  // Cerrar la caja es el control sobre el propio cajero: quien vende no debería
+  // ser quien declara cuánto había. Por defecto queda fuera de SALES.
+  'pos:close': ['OWNER', 'ADMIN'],
+
+  'treasury:read': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
+  'treasury:write': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
+
+  'reports:read': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
+
+  'settings:company': ['OWNER', 'ADMIN'],
+  'settings:users': ['OWNER', 'ADMIN'],
+  'audit:read': ['OWNER', 'ADMIN'],
+  // La importación masiva crea productos y contactos de golpe: es una operación
+  // de administrador, no algo que deba poder disparar un vendedor.
+  'import:data': ['OWNER', 'ADMIN'],
+
+  'accounting:view': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
+  'accounting:post': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
+  'accounting:manual_entry': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
+  // Cerrar un período exige revisar cuadraturas y es difícil de deshacer:
+  // ADMIN queda fuera a propósito, solo Dueño y Contador lo tienen.
+  'accounting:close_period': ['OWNER', 'ACCOUNTANT'],
+  'accounting:manage_accounts': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
+  'reports:financial': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
+
+  // Inteligencia de Negocio (Agentes): ver el panel de recomendaciones y
+  // marcarlas como revisadas/descartadas es nivel gerencial a propósito
+  // (cruza ventas, márgenes, tesorería e inventario de toda la empresa) —
+  // mismo criterio que purchases:approve, fuera de SALES/ACCOUNTANT/WAREHOUSE.
+  'agents:view': ['OWNER', 'ADMIN'],
+  'agents:approve': ['OWNER', 'ADMIN'],
+
+  // Producción de Eventos (franquicias de certámenes): Proyectos y Auspicios
+  // los opera el equipo comercial/producción, igual criterio que sales:write.
+  'projects:read': ['OWNER', 'ADMIN', 'SALES', 'ACCOUNTANT'],
+  'projects:write': ['OWNER', 'ADMIN', 'SALES'],
+  'sponsorships:read': ['OWNER', 'ADMIN', 'SALES', 'ACCOUNTANT'],
+  'sponsorships:write': ['OWNER', 'ADMIN', 'SALES'],
+  // Boletas de Honorarios son documentos tributarios con retención: nivel
+  // administración/contabilidad, fuera de SALES a propósito (mismo criterio
+  // que accounting:*).
+  'fees:read': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
+  'fees:write': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
+  // Candidatas: dato sensible (RUT, fecha de nacimiento, contacto de
+  // emergencia) — restringido a OWNER/ADMIN a propósito, más estricto que el
+  // resto del sistema. Una empresa que quiera dar acceso a su equipo de
+  // casting sin volverlo ADMIN completo puede crear un CustomRole con estos
+  // dos permisos sueltos.
+  'candidates:read': ['OWNER', 'ADMIN'],
+  'candidates:write': ['OWNER', 'ADMIN'],
+  // Datos de contacto (RUT, dirección, teléfono, email) y fotografías de la
+  // postulación pública: permiso DISTINTO de `candidates:read` (Sección 6 —
+  // "acceso a datos de contacto y fotografías debe requerir un permiso
+  // distinto del de solo lectura del listado"), no necesariamente más
+  // restrictivo entre los roles base. Se mantiene en OWNER+ADMIN (igual que
+  // `candidates:write`, del que ya dependen el envío de contratos de imagen
+  // y el resto de la ficha) para no quitarle a ADMIN una capacidad que ya
+  // tenía; el valor de tener un permiso separado es para un `CustomRole` que
+  // reciba solo `candidates:read` (ej. un equipo de casting externo) y por
+  // eso NO vea RUT/contacto/fotos, no para restringir a ADMIN.
+  'candidates:sensitive': ['OWNER', 'ADMIN'],
+  'production:read': ['OWNER', 'ADMIN', 'SALES', 'WAREHOUSE'],
+  'production:write': ['OWNER', 'ADMIN', 'SALES', 'WAREHOUSE'],
+  // Diseño de credencial (fondo, colores, marca de agua): a diferencia de
+  // production:write, restringido a OWNER/ADMIN — es branding/identidad
+  // visual de la empresa, no una tarea operativa del día del evento.
+  'production:design': ['OWNER', 'ADMIN'],
+  'judging:read': ['OWNER', 'ADMIN'],
+  'judging:write': ['OWNER', 'ADMIN'],
+
+  // Organigrama: ver la estructura de la empresa no es dato sensible (sin
+  // RUT/sueldo) — a diferencia de candidatas, no hay razón para restringirlo.
+  'orgchart:read': ALL_ROLES,
+  // Asignar cargo/jefe de OTRA persona y aplicar la sugerencia de IA es nivel
+  // gerencial, mismo criterio que settings:users.
+  'orgchart:write': ['OWNER', 'ADMIN'],
+  // Generar la sugerencia (consume cuota de Gemini) separado de :write a
+  // propósito: son acciones distintas (proponer vs. aplicar), mismo criterio
+  // que agents:view / agents:approve.
+  'orgchart:ai': ['OWNER', 'ADMIN'],
+
+  // Presupuestos, pagarés y cuotas: dato financiero, mismo criterio que
+  // treasury:* — fuera de SALES/WAREHOUSE.
+  'budgets:read': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
+  'budgets:write': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
+  'promissorynotes:read': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
+  'promissorynotes:write': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
+  'paymentplans:read': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
+  'paymentplans:write': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
+
+  // Entradas y votación: venta/atención de público, mismo criterio que
+  // sales:*/production:* — el equipo comercial/producción también opera esto,
+  // no solo administración.
+  'ticketing:read': ['OWNER', 'ADMIN', 'SALES'],
+  'ticketing:write': ['OWNER', 'ADMIN', 'SALES'],
+  'publicvoting:read': ['OWNER', 'ADMIN', 'SALES'],
+  'publicvoting:write': ['OWNER', 'ADMIN', 'SALES'],
+} satisfies Record<string, Role[]>;
+
+export type Permission = keyof typeof PERMISSIONS;
+
+export const ALL_PERMISSIONS = Object.keys(PERMISSIONS) as Permission[];
+
+export function isPermission(value: string): value is Permission {
+  return Object.prototype.hasOwnProperty.call(PERMISSIONS, value);
+}
+
+export function checkPermission(userRole: Role, requiredPermission: Permission): boolean {
+  return (PERMISSIONS[requiredPermission] as Role[]).includes(userRole);
+}
+
+export function rolesWithPermission(permission: Permission): Role[] {
+  return PERMISSIONS[permission] as Role[];
+}
+
+/** Permisos que otorga un rol base, derivados de la misma matriz. */
+export function permissionsForRole(role: Role): Permission[] {
+  return ALL_PERMISSIONS.filter((permission) => checkPermission(role, permission));
+}
+
+/**
+ * Etiquetas en lenguaje de negocio para el constructor de roles personalizados.
+ * El dueño de la empresa marca casillas, no claves técnicas.
+ */
+export const PERMISSION_LABELS: Record<Permission, string> = {
+  'contacts:read': 'Ver clientes y proveedores',
+  'contacts:write': 'Crear y editar clientes y proveedores',
+  'sales:read': 'Ver ventas y documentos emitidos',
+  'sales:write': 'Crear ventas y cotizaciones',
+  'sales:cancel': 'Anular facturas emitidas',
+  'purchases:read': 'Ver compras y facturas de proveedor',
+  'purchases:write': 'Registrar compras y recepción de mercadería',
+  'purchases:cancel': 'Anular compras',
+  'purchases:approve': 'Aprobar compras que superan el límite configurado',
+  'purchases:orders': 'Crear órdenes de compra y registrar recepción de mercadería',
+  'purchases:override_match': 'Forzar pago de facturas que no cuadran con su orden de compra',
+  'products:read': 'Ver catálogo de productos',
+  'products:write': 'Crear y editar productos',
+  'products:costs': 'Ver costos de compra y PMP',
+  'inventory:write': 'Ajustar stock en bodega',
+  'pos:operate': 'Vender en el Punto de Venta y abrir caja',
+  'pos:close': 'Cerrar caja y hacer el arqueo',
+  'treasury:read': 'Ver cuentas por cobrar y pagar',
+  'treasury:write': 'Registrar pagos y cobranzas',
+  'reports:read': 'Descargar reportes y libro Excel',
+  'settings:company': 'Editar datos de la empresa',
+  'settings:users': 'Gestionar equipo y roles',
+  'audit:read': 'Ver bitácora de auditoría',
+  'import:data': 'Importación masiva: productos, clientes, stock inicial y documentos históricos (Excel o fotos con IA)',
+  'accounting:view': 'Ver plan de cuentas, asientos y libro mayor',
+  'accounting:post': 'Contabilizar asientos generados por documentos',
+  'accounting:manual_entry': 'Crear asientos contables manuales',
+  'accounting:close_period': 'Cerrar y reabrir períodos contables',
+  'accounting:manage_accounts': 'Editar el plan de cuentas y sus mapeos',
+  'reports:financial': 'Ver estados financieros y ratios',
+  'agents:view': 'Ver el panel de agentes de inteligencia de negocio y sus recomendaciones',
+  'agents:approve': 'Marcar como revisadas o descartar las recomendaciones de los agentes',
+  'projects:read': 'Ver proyectos/eventos y su rentabilidad',
+  'projects:write': 'Crear y editar proyectos/eventos',
+  'sponsorships:read': 'Ver contratos de auspicio y su checklist de entregables',
+  'sponsorships:write': 'Crear y editar contratos de auspicio y su checklist',
+  'fees:read': 'Ver boletas de honorarios de staff freelance',
+  'fees:write': 'Registrar boletas de honorarios y marcarlas como pagadas',
+  'candidates:read': 'Ver fichas de candidatas y staff',
+  'candidates:write': 'Crear y editar fichas de candidatas y staff',
+  'candidates:sensitive': 'Ver datos de contacto y fotografías de postulaciones',
+  'production:read': 'Ver acreditaciones de staff y proveedores',
+  'production:write': 'Acreditar staff y proveedores y validar accesos',
+  'production:design': 'Personalizar el diseño (fondo, colores, marca de agua) de las credenciales',
+  'judging:read': 'Ver categorías de evaluación y resultados de escrutinio',
+  'judging:write': 'Configurar categorías, jurados y exportar el acta de escrutinio',
+  'orgchart:read': 'Ver el organigrama de la empresa',
+  'orgchart:write': 'Asignar cargos y jefes, y aplicar sugerencias de IA',
+  'orgchart:ai': 'Generar una sugerencia de organigrama con IA',
+  'budgets:read': 'Ver presupuestos y su avance real vs. planificado',
+  'budgets:write': 'Crear y editar presupuestos y sus líneas por categoría',
+  'promissorynotes:read': 'Ver pagarés registrados',
+  'promissorynotes:write': 'Registrar pagarés y sus pagos',
+  'paymentplans:read': 'Ver planes de cuotas/mensualidades',
+  'paymentplans:write': 'Crear planes de cuotas y registrar pagos de cuotas',
+  'ticketing:read': 'Ver ventas de entradas de la gala',
+  'ticketing:write': 'Configurar tipos de entrada, confirmar pagos y hacer control de acceso',
+  'publicvoting:read': 'Ver órdenes y ranking de votación pagada',
+  'publicvoting:write': 'Confirmar pagos de votación pagada',
+};
+
+/**
+ * Permisos transversales al plan: no dependen de ningún módulo contratado y por
+ * eso no aparecen en el registro de `modules.ts`.
+ */
+export const CORE_PERMISSION_GROUP = {
+  label: 'General',
+  permissions: [
+    'contacts:read',
+    'contacts:write',
+    'settings:company',
+    'settings:users',
+    'audit:read',
+    'import:data',
+  ] as Permission[],
+};
+

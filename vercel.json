@@ -1,0 +1,32 @@
+{
+  "crons": [
+    {
+      "path": "/api/agents/run?role=CFO",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/agents/run?role=COO",
+      "schedule": "15 8 * * *"
+    },
+    {
+      "path": "/api/agents/run?role=SALES",
+      "schedule": "30 8 * * *"
+    },
+    {
+      "path": "/api/agents/run?role=CEO",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/calendar/reminders/cron",
+      "schedule": "0 11 * * *"
+    },
+    {
+      "path": "/api/candidates/purge-retention/cron",
+      "schedule": "0 4 1 * *"
+    },
+    {
+      "path": "/api/payment-plans/overdue-reminder/cron",
+      "schedule": "0 10 * * *"
+    }
+  ]
+}

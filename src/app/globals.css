@@ -1,0 +1,389 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+
+
+@custom-variant dark (&:is(.dark *));
+
+
+html, body, #__next {
+  height: 100%;
+}
+
+body {
+  @apply bg-background text-foreground;
+  font-feature-settings: "cv11", "tnum";
+  background-image: radial-gradient(circle at 8% 0%, rgb(6 182 212 / 0.12), transparent 28rem),
+    radial-gradient(circle at 92% 0%, rgb(99 102 241 / 0.12), transparent 30rem),
+    linear-gradient(135deg, #08090d 0%, #0b0d13 52%, #08090d 100%);
+  background-attachment: fixed;
+}
+
+/* El <select> nativo hereda el color de texto claro del tema oscuro, pero el
+   navegador dibuja el popup de opciones con su propio fondo (blanco en la
+   mayoría de los navegadores/SO) que ningún `bg-*` de Tailwind controla —
+   texto claro sobre fondo blanco quedaba invisible. Fijar ambos explícitos
+   en <option> es la única forma confiable cross-browser de arreglarlo. */
+select option {
+  color: #0a0a0a;
+  background-color: #ffffff;
+}
+
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+  /* Mapeos nuevos, usados solo por los componentes del tema claro
+     (KpiCard/ChartCard/StatusBadge/etc, todos dentro de `.theme-saas-light`).
+     Aditivos: no existían antes de ese rediseño y nada fuera de él los usa,
+     así que no hay riesgo de que una pantalla vieja herede un valor no definido. */
+  --color-text-secondary: var(--text-secondary);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-hover: var(--accent-hover);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-chart-6: var(--chart-6);
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+  --shadow-hover: 0 4px 12px rgba(16, 24, 40, 0.08);
+  --shadow-popover: 0 12px 24px rgba(16, 24, 40, 0.1);
+}
+
+:root {
+  --background: #08090d;
+  --foreground: #e7edf3;
+  --card: rgb(24 27 34 / 0.72);
+  --card-foreground: #e7edf3;
+  --popover: #11141b;
+  --popover-foreground: #e7edf3;
+  --primary: #22d3ee;
+  --primary-foreground: #061014;
+  --secondary: #171b23;
+  --secondary-foreground: #d9e2ea;
+  --muted: #12151c;
+  --muted-foreground: #84909e;
+  --accent: #17232a;
+  --accent-foreground: #67e8f9;
+  --destructive: #fb7185;
+  --border: rgb(255 255 255 / 0.09);
+  --input: rgb(255 255 255 / 0.11);
+  --ring: #22d3ee;
+  --chart-1: #22d3ee;
+  --chart-2: #34d399;
+  --chart-3: #fbbf24;
+  --chart-4: #818cf8;
+  --chart-5: #fb7185;
+  --radius: 0.625rem;
+  --sidebar: rgb(17 20 27 / 0.78);
+  --sidebar-foreground: #e7edf3;
+  --sidebar-primary: #22d3ee;
+  --sidebar-primary-foreground: #061014;
+  --sidebar-accent: #17232a;
+  --sidebar-accent-foreground: #67e8f9;
+  --sidebar-border: rgb(255 255 255 / 0.1);
+  --sidebar-ring: #22d3ee;
+}
+
+/*
+ * Tema claro tipo dashboard SaaS moderno: fondo gris muy claro, tarjetas
+ * blancas, sombras suaves, acento emerald. A propósito NO vive en `:root`
+ * (eso rompía login/POS/el resto de la app, que comparten las mismas
+ * utilidades `bg-background`/`bg-card` de shadcn — un cambio en `:root` es
+ * global e ineludible). Vive en esta clase de scope, aplicada solo al div
+ * raíz de `src/app/(dashboard)/layout.tsx` — así el AppShell y el Dashboard
+ * se ven en este tema claro, y todo lo demás (login, POS, el resto de los
+ * módulos hasta que se apruebe replicar el patrón) sigue viendo exactamente
+ * los valores de `:root` de arriba, sin cambios.
+ */
+.theme-saas-light {
+  --background: #f6f7f9;
+  --foreground: #101828;
+  --card: #ffffff;
+  --card-foreground: #101828;
+  --popover: #ffffff;
+  --popover-foreground: #101828;
+  --primary: #10b981;
+  --primary-foreground: #ffffff;
+  --secondary: #f2f4f7;
+  --secondary-foreground: #101828;
+  --muted: #f2f4f7;
+  --muted-foreground: #667085;
+  --accent: #ecfdf5;
+  --accent-foreground: #059669;
+  --destructive: #f04438;
+  --border: #eaecf0;
+  --input: #eaecf0;
+  --ring: #10b981;
+  --chart-1: #10b981;
+  --chart-2: #6366f1;
+  --chart-3: #f59e0b;
+  --chart-4: #ec4899;
+  --chart-5: #06b6d4;
+  --chart-6: #8b5cf6;
+  --radius: 1rem;
+  /* Override directo en vez de la fórmula compartida de `@theme inline`
+     (calc(var(--radius) * 0.6/0.8), pensada para el radio del tema oscuro):
+     así este scope da exactamente 8px/12px como pide el brief, sin tocar esa
+     fórmula compartida con el resto de la app. */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --sidebar: #0b0f14;
+  --sidebar-foreground: #98a2b3;
+  --sidebar-primary: #10b981;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(255 255 255 / 0.06);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgb(255 255 255 / 0.08);
+  --sidebar-ring: #10b981;
+
+  /* Tokens del brief sin variable shadcn equivalente 1:1. Solo existen (y solo
+     se usan) dentro de este scope — ver nota en `@theme inline` de arriba. */
+  --text-secondary: #475467;
+  --accent-soft: #ecfdf5;
+  --accent-hover: #059669;
+  --success: #12b76a;
+  --success-soft: #ecfdf3;
+  --warning: #f79009;
+  --warning-soft: #fffaeb;
+  --danger: #f04438;
+  --danger-soft: #fef3f2;
+  --info: #6366f1;
+  --info-soft: #eef2ff;
+
+  /* El div raíz del AppShell pinta un fondo opaco encima del gradiente HUD del
+     <body> (que sigue existiendo para el resto de la app) — sin esto el
+     rediseño se vería sobre el fondo oscuro del body en vez del gris claro. */
+  background-color: var(--background);
+  color: var(--foreground);
+  min-height: 100%;
+}
+
+.theme-saas-light ::selection {
+  background: rgb(16 185 129 / 0.18);
+  color: #065f46;
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 1.5cm;
+  }
+
+  body {
+    background: white;
+  }
+}
+
+/*
+ * Ticket térmico de 80mm.
+ *
+ * Se activa poniendo `pos-printing` en el <html> justo antes de `print()`. Sin
+ * ese interruptor, `@page { size: 80mm }` afectaría también a la impresión de
+ * facturas y reportes, que sí van en tamaño carta.
+ *
+ * El ancho útil es 72mm: las térmicas de 80mm reservan unos 4mm por lado, y sin
+ * ese margen la última columna de importes sale cortada.
+ */
+@media print {
+  html.pos-printing {
+    background: white;
+  }
+
+  html.pos-printing body * {
+    visibility: hidden;
+  }
+
+  html.pos-printing .pos-ticket,
+  html.pos-printing .pos-ticket * {
+    visibility: visible;
+  }
+
+  html.pos-printing .pos-ticket {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 72mm;
+    padding: 0;
+    color: #000;
+    background: #fff;
+    font-family: ui-monospace, "Cascadia Mono", "Courier New", monospace;
+    font-size: 11px;
+    line-height: 1.35;
+  }
+}
+
+@page pos-ticket-page {
+  size: 80mm auto;
+  margin: 2mm;
+}
+
+html.pos-printing {
+  page: pos-ticket-page;
+}
+
+.pos-ticket .ticket-center {
+  text-align: center;
+}
+
+.pos-ticket .ticket-strong {
+  font-weight: 700;
+}
+
+.pos-ticket .ticket-small {
+  font-size: 9px;
+}
+
+.pos-ticket .ticket-divider {
+  border-top: 1px dashed #000;
+  margin: 4px 0;
+}
+
+.pos-ticket .ticket-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pos-ticket .ticket-line {
+  margin-bottom: 2px;
+}
+
+.pos-ticket .ticket-total {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+
+  ::selection {
+    background: rgb(34 211 238 / 0.25);
+    color: #cffafe;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  .hud-surface {
+    @apply border border-border bg-card text-card-foreground shadow-2xl shadow-black/50 backdrop-blur-xl;
+  }
+
+  .hud-label {
+    @apply font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground;
+  }
+
+  /* Scrollbar delgado y oscuro para superficies HUD (sidebar, paneles): el
+     scrollbar por defecto del SO rompe el efecto de vidrio. */
+  .hud-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(255 255 255 / 0.15) transparent;
+  }
+  .hud-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+  .hud-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .hud-scroll::-webkit-scrollbar-thumb {
+    background-color: rgb(255 255 255 / 0.15);
+    border-radius: 9999px;
+  }
+  .hud-scroll::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(255 255 255 / 0.25);
+  }
+}
