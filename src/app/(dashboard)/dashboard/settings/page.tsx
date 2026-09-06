@@ -4,6 +4,7 @@ import { Building2, KeyRound, Laptop, Lock, ShieldCheck, Upload, UserCircle, Use
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AuthError, TenantInactiveError, can, getAuthContext } from '@/lib/auth/guards';
 import type { Permission } from '@/lib/auth/permissions';
+import ReopenOnboardingButton from '@/components/onboarding/ReopenOnboardingButton';
 
 export const metadata = { title: 'Configuración' };
 
@@ -83,7 +84,10 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Configuración</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold">Configuración</h1>
+        {context.role === 'OWNER' && <ReopenOnboardingButton />}
+      </div>
       {sections.length === 0 && (
         <p className="text-sm text-muted-foreground">No tienes secciones de configuración disponibles para tu rol.</p>
       )}

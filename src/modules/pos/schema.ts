@@ -60,7 +60,7 @@ export const posSaleItemSchema = z.object({
 export const posSaleSchema = z
   .object({
     items: z.array(posSaleItemSchema).min(1, 'Agregue al menos un producto'),
-    paymentMethod: z.enum(POS_PAYMENT_METHODS),
+    paymentMethod: z.enum(POS_PAYMENT_METHODS, 'Selecciona una forma de pago'),
     /** Efectivo entregado por el cliente; sirve para calcular el vuelto. */
     cashReceived: z.number().int().min(0).optional(),
     /** RUT opcional del cliente. Sin él la boleta va al receptor genérico del SII. */

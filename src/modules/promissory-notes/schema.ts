@@ -50,7 +50,7 @@ const promissoryNoteUpdateShape = z.object({
   issueDate: z.coerce.date(),
   dueDate: z.coerce.date(),
   documentUrl: z.string().optional(),
-  status: z.enum(PROMISSORY_NOTE_STATUSES),
+  status: z.enum(PROMISSORY_NOTE_STATUSES, 'Selecciona un estado'),
   notes: z.string().optional(),
 });
 

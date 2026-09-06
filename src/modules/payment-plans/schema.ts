@@ -52,7 +52,7 @@ export const PAYMENT_PLAN_CLIENT_TYPE_LABELS: Record<(typeof PAYMENT_PLAN_CLIENT
 
 export const paymentPlanCreateSchema = z
   .object({
-    clientType: z.enum(PAYMENT_PLAN_CLIENT_TYPES),
+    clientType: z.enum(PAYMENT_PLAN_CLIENT_TYPES, 'Selecciona un tipo de cliente'),
     contactId: z.string().optional(),
     candidateId: z.string().optional(),
     totalAmount: z.number().int('El monto debe ser un número entero').positive('El monto debe ser mayor a cero'),
@@ -61,7 +61,7 @@ export const paymentPlanCreateSchema = z
       .int('El número de cuotas debe ser un entero')
       .min(1, 'Debe haber al menos 1 cuota')
       .max(60, 'No se admiten más de 60 cuotas'),
-    frequency: z.enum(PAYMENT_PLAN_FREQUENCIES),
+    frequency: z.enum(PAYMENT_PLAN_FREQUENCIES, 'Selecciona una frecuencia de pago'),
     startDate: z.coerce.date(),
     penaltyBps: z
       .number()
@@ -88,14 +88,14 @@ export type PaymentPlanCreateInput = z.infer<typeof paymentPlanCreateSchema>;
 // permite editar sus datos administrativos (notas) o su estado (ej. cancelarlo).
 export const paymentPlanUpdateSchema = z.object({
   notes: z.string().optional(),
-  status: z.enum(PAYMENT_PLAN_STATUSES).optional(),
+  status: z.enum(PAYMENT_PLAN_STATUSES, 'Selecciona un estado').optional(),
 });
 
 export type PaymentPlanUpdateInput = z.infer<typeof paymentPlanUpdateSchema>;
 
 export const installmentPaymentSchema = z.object({
   amount: z.number().int('El monto debe ser un número entero').positive('El monto debe ser mayor a cero'),
-  method: z.enum(PAYMENT_METHOD_TYPES),
+  method: z.enum(PAYMENT_METHOD_TYPES, 'Selecciona una forma de pago'),
   date: z.coerce.date().optional(),
 });
 

@@ -54,7 +54,7 @@ export const purchaseDocumentCreateSchema = z.object({
   contactId: z.string().min(1, 'Seleccione un proveedor'),
   // Bodega de recepción: destino de las líneas que sí enlazan producto.
   warehouseId: z.string().optional(),
-  documentType: z.enum(PURCHASE_DOCUMENT_TYPES),
+  documentType: z.enum(PURCHASE_DOCUMENT_TYPES, 'Selecciona un tipo de documento'),
   folio: z.string().min(1, 'Ingrese el folio del documento del proveedor'),
   // Folio del documento original que esta NC/ND corrige, del mismo proveedor.
   referenceFolio: z.string().optional(),

@@ -41,7 +41,7 @@ export const SPONSORSHIP_STATUS_LABELS: Record<(typeof SPONSORSHIP_STATUSES)[num
 const sponsorshipContractShape = z.object({
   projectId: z.string().min(1, 'Seleccione un proyecto'),
   contactId: z.string().min(1, 'Seleccione una marca'),
-  tier: z.enum(SPONSORSHIP_TIERS),
+  tier: z.enum(SPONSORSHIP_TIERS, 'Selecciona un tier de auspicio'),
   isBarter: z.boolean().default(false),
   cashAmount: z.number().int('El monto debe ser un número entero').nonnegative('El monto no puede ser negativo').default(0),
   barterValuation: z

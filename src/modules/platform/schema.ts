@@ -135,7 +135,7 @@ export const companyCreateSchema = z.object({
   planName: z.string().min(1, 'Seleccione un plan'),
   maxUsers: z.number().int().min(1, 'Debe permitir al menos 1 usuario'),
   maxWarehouses: z.number().int().min(1, 'Debe permitir al menos 1 bodega'),
-  status: z.enum(TENANT_STATUSES),
+  status: z.enum(TENANT_STATUSES, 'Selecciona un estado de cuenta'),
   features: companyFeaturesSchema,
   // Primer usuario administrador del tenant. Sin él la empresa nace inaccesible.
   adminName: z.string().min(1, 'Ingrese el nombre del administrador'),
@@ -155,7 +155,7 @@ export const companyPlanUpdateSchema = z.object({
 export type CompanyPlanUpdateInput = z.infer<typeof companyPlanUpdateSchema>;
 
 export const companyStatusSchema = z.object({
-  status: z.enum(TENANT_STATUSES),
+  status: z.enum(TENANT_STATUSES, 'Selecciona un estado de cuenta'),
 });
 
 /** Confirmación del borrado permanente de un tenant: solo el código TOTP de 6 dígitos del propio superadmin. */

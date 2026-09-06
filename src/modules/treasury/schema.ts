@@ -13,7 +13,7 @@ export const PAYMENT_METHOD_TYPE_LABELS: Record<(typeof PAYMENT_METHOD_TYPES)[nu
 
 export const registerPaymentSchema = z.object({
   amount: z.number().int('El monto debe ser un número entero').positive('El monto debe ser mayor a cero'),
-  paymentMethod: z.enum(PAYMENT_METHOD_TYPES),
+  paymentMethod: z.enum(PAYMENT_METHOD_TYPES, 'Selecciona una forma de pago'),
   paymentDate: z.string().optional(),
   referenceNumber: z.string().optional(),
   bankAccount: z.string().optional(),

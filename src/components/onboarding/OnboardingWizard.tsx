@@ -39,7 +39,12 @@ interface OnboardingWizardProps {
   companyId: string;
   hasPos: boolean;
   defaultWarehouseId: string | null;
+  /** Si se auto-abre al montar (empresa "elegible" según `getOnboardingStatus` + no descartado antes). Reabrir a mano (evento `REOPEN_EVENT`) funciona siempre, sin importar esto. */
+  autoOpen: boolean;
 }
+
+/** Nombre del evento para reabrir la guía a mano desde cualquier otra pantalla — ver `ReopenOnboardingButton.tsx` (Configuración). */
+export const REOPEN_ONBOARDING_EVENT = 'erp:reopen-onboarding';
 
 /**
  * No hay campo "onboarding completado" en el schema (ver plan): la
@@ -48,12 +53,19 @@ interface OnboardingWizardProps {
  * recuerda, por navegador, que el usuario ya lo cerró — así no reaparece en
  * cada carga del dashboard mientras la empresa siga "vacía" según esa misma
  * heurística.
+ *
+ * Reabrir a mano es independiente de esa heurística: una vez que la empresa
+ * deja de ser "elegible" (ya cargó un producto, invitó a alguien, etc.), la
+ * única forma de volver a ver la guía era borrar `localStorage` a mano — acá
+ * "Ver guía de configuración" en Configuración funciona siempre, sin
+ * importar la elegibilidad ni lo que haya en `localStorage`.
  */
-export default function OnboardingWizard({ companyId, hasPos, defaultWarehouseId }: OnboardingWizardProps) {
+export default function OnboardingWizard({ companyId, hasPos, defaultWarehouseId, autoOpen }: OnboardingWizardProps) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(1);
 
   useEffect(() => {
+    if (!autoOpen) return;
     let dismissed = false;
     try {
       dismissed = window.localStorage.getItem(storageKey(companyId)) === '1';
@@ -61,7 +73,16 @@ export default function OnboardingWizard({ companyId, hasPos, defaultWarehouseId
       // Storage no disponible (navegación privada estricta, etc): mejor mostrar el wizard que reventar.
     }
     if (!dismissed) setOpen(true);
-  }, [companyId]);
+  }, [autoOpen, companyId]);
+
+  useEffect(() => {
+    function handleReopen() {
+      setStep(1);
+      setOpen(true);
+    }
+    window.addEventListener(REOPEN_ONBOARDING_EVENT, handleReopen);
+    return () => window.removeEventListener(REOPEN_ONBOARDING_EVENT, handleReopen);
+  }, []);
 
   function dismiss() {
     try {
@@ -328,6 +349,9 @@ function StepInvite({ onDone }: { onDone: () => void }) {
         <Button type="button" onClick={handleInvite} disabled={sending}>{sending ? 'Enviando...' : 'Enviar invitación'}</Button>
         <Button type="button" variant="outline" onClick={onDone}>Terminar sin invitar</Button>
       </div>
+      <p className="border-t border-border pt-3 text-sm text-muted-foreground">
+        ¿Dudas más adelante? Usa el botón de ayuda flotante (ícono de interrogación, abajo a la izquierda) — te explica cómo hacer algo paso a paso, o lo hace por ti si se lo pides.
+      </p>
     </div>
   );
 }

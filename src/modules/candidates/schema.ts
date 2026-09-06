@@ -147,7 +147,7 @@ export type CandidateSelfRegistrationInput = z.infer<typeof candidateSelfRegistr
  * pasar a `REJECTED` (Sección 6 — "motivo obligatorio al descartar"). */
 export const candidateStatusChangeSchema = z
   .object({
-    status: z.enum(CANDIDATE_ASSIGNABLE_STATUSES),
+    status: z.enum(CANDIDATE_ASSIGNABLE_STATUSES, 'Selecciona un estado'),
     motivoDescarte: z.string().max(255, 'Máximo 255 caracteres').optional(),
   })
   .refine((data) => data.status !== 'REJECTED' || Boolean(data.motivoDescarte?.trim()), {
@@ -161,7 +161,7 @@ export type CandidateStatusChangeInput = z.infer<typeof candidateStatusChangeSch
  * ("convocatoria" — ver nota de arquitectura en `services/candidates.service.ts`). */
 export const registrationSettingsSchema = z
   .object({
-    registrationStatus: z.enum(CANDIDATE_REGISTRATION_STATUSES),
+    registrationStatus: z.enum(CANDIDATE_REGISTRATION_STATUSES, 'Selecciona un estado de convocatoria'),
     registrationOpensAt: z.coerce.date('Fecha de apertura inválida').nullable().optional(),
     registrationClosesAt: z.coerce.date('Fecha de cierre inválida').nullable().optional(),
     minCandidateAge: z.number().int().min(1).max(99).default(18),
@@ -186,7 +186,7 @@ export const CANDIDATE_ACTIVITY_TYPE_LABELS: Record<(typeof CANDIDATE_ACTIVITY_T
 };
 
 export const attendanceCreateSchema = z.object({
-  activityType: z.enum(CANDIDATE_ACTIVITY_TYPES),
+  activityType: z.enum(CANDIDATE_ACTIVITY_TYPES, 'Selecciona un tipo de actividad'),
   activityDate: z.coerce.date('Fecha inválida'),
   attended: z.boolean().default(true),
   notes: z.string().optional(),
@@ -205,7 +205,7 @@ export const WEEKDAY_LABELS: Record<0 | 1 | 2 | 3 | 4 | 5 | 6, string> = {
 export const sessionSeriesCreateSchema = z
   .object({
     projectId: z.string().min(1, 'Debe seleccionar un proyecto/certamen'),
-    activityType: z.enum(CANDIDATE_ACTIVITY_TYPES),
+    activityType: z.enum(CANDIDATE_ACTIVITY_TYPES, 'Selecciona un tipo de actividad'),
     title: z.string().max(150, 'Máximo 150 caracteres').optional(),
     location: z.string().max(150, 'Máximo 150 caracteres').optional(),
     notes: z.string().max(1000, 'Máximo 1000 caracteres').optional(),

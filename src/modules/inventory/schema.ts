@@ -44,7 +44,7 @@ export const stockMovementSchema = z
   .object({
     productId: z.string().min(1, 'Seleccione un producto'),
     warehouseId: z.string().min(1, 'Seleccione una bodega'),
-    type: z.enum(MOVEMENT_TYPES),
+    type: z.enum(MOVEMENT_TYPES, 'Selecciona un tipo de movimiento'),
     quantity: z.number().positive('La cantidad debe ser mayor a cero'),
     unitCost: z.number().min(0, 'El costo unitario no puede ser negativo').optional(),
     targetWarehouseId: z.string().optional(),

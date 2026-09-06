@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState } from 'react';
 import {
   Home,
   ScanBarcode,
@@ -32,6 +33,7 @@ import {
   Ticket,
   Vote,
   HelpCircle,
+  ChevronDown,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -88,6 +90,8 @@ export interface SidebarLinkItem {
 export interface SidebarNavGroup {
   label: string;
   links: SidebarLinkItem[];
+  /** Colapsado por defecto (ej. plantillas/cumplimiento — configuración ocasional, no uso diario). Se auto-expande igual si la ruta activa cae adentro. */
+  collapsedByDefault?: boolean;
 }
 
 /**
@@ -95,46 +99,74 @@ export interface SidebarNavGroup {
  * actual (`usePathname`). El layout que la envuelve sigue siendo un Server
  * Component: solo esta lista necesita ser cliente para saber en qué ruta
  * está el usuario.
+ *
+ * Grupos marcados `collapsedByDefault` arrancan colapsados — con módulos de
+ * certámenes activos, "Producción de Eventos" solo puede superar 10 ítems
+ * con el mismo peso visual que el resto; separar lo ocasional
+ * (plantillas/cumplimiento) del uso diario y colapsarlo por defecto reduce
+ * esa pared de texto para un usuario nuevo sin esconder nada de forma
+ * permanente (un clic lo despliega, y si la ruta activa cae adentro se
+ * autoexpande solo).
  */
 export function SidebarNav({ groups }: { groups: SidebarNavGroup[] }) {
   const pathname = usePathname();
+  const isLinkActive = (link: SidebarLinkItem) =>
+    link.exact ? pathname === link.href : pathname === link.href || pathname.startsWith(`${link.href}/`);
+
+  const [manualState, setManualState] = useState<Record<string, boolean>>({});
 
   return (
     <nav className="hud-scroll -mr-2 flex-1 space-y-5 overflow-y-auto pr-2">
-      {groups.map((group) => (
-        <div key={group.label}>
-          <p className="px-3 pb-1 text-[11px] font-medium tracking-[0.06em] text-sidebar-foreground/60 uppercase">
-            {group.label}
-          </p>
-          <div className="space-y-0.5">
-            {group.links.map((link) => {
-              const Icon = ICONS[link.icon];
-              const active = link.exact
-                ? pathname === link.href
-                : pathname === link.href || pathname.startsWith(`${link.href}/`);
+      {groups.map((group) => {
+        const groupHasActiveLink = group.links.some(isLinkActive);
+        const expanded = manualState[group.label] ?? (!group.collapsedByDefault || groupHasActiveLink);
 
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={cn(
-                    'flex h-10 items-center gap-3 rounded-[10px] border-l-[3px] pr-3 pl-[9px] text-sm transition-colors duration-150',
-                    active
-                      ? 'border-l-sidebar-primary bg-sidebar-accent text-white'
-                      : 'border-l-transparent text-sidebar-foreground hover:bg-white/[0.04] hover:text-white'
-                  )}
-                >
-                  <Icon
-                    className={cn('size-[18px] shrink-0', active ? 'text-sidebar-primary' : 'text-sidebar-foreground')}
-                    strokeWidth={1.75}
-                  />
-                  <span className="truncate">{link.label}</span>
-                </Link>
-              );
-            })}
+        return (
+          <div key={group.label}>
+            {group.collapsedByDefault ? (
+              <button
+                type="button"
+                onClick={() => setManualState((prev) => ({ ...prev, [group.label]: !expanded }))}
+                className="flex w-full items-center justify-between px-3 pb-1 text-[11px] font-medium tracking-[0.06em] text-sidebar-foreground/60 uppercase"
+              >
+                {group.label}
+                <ChevronDown className={cn('size-3.5 transition-transform', expanded ? 'rotate-180' : '')} />
+              </button>
+            ) : (
+              <p className="px-3 pb-1 text-[11px] font-medium tracking-[0.06em] text-sidebar-foreground/60 uppercase">
+                {group.label}
+              </p>
+            )}
+            {expanded && (
+              <div className="space-y-0.5">
+                {group.links.map((link) => {
+                  const Icon = ICONS[link.icon];
+                  const active = isLinkActive(link);
+
+                  return (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      className={cn(
+                        'flex h-10 items-center gap-3 rounded-[10px] border-l-[3px] pr-3 pl-[9px] text-sm transition-colors duration-150',
+                        active
+                          ? 'border-l-sidebar-primary bg-sidebar-accent text-white'
+                          : 'border-l-transparent text-sidebar-foreground hover:bg-white/[0.04] hover:text-white'
+                      )}
+                    >
+                      <Icon
+                        className={cn('size-[18px] shrink-0', active ? 'text-sidebar-primary' : 'text-sidebar-foreground')}
+                        strokeWidth={1.75}
+                      />
+                      <span className="truncate">{link.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        </div>
-      ))}
+        );
+      })}
     </nav>
   );
 }

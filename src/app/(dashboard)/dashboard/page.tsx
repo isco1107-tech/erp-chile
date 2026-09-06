@@ -8,6 +8,8 @@ import {
   PackageSearch,
   PackagePlus,
   ShoppingCart,
+  Crown,
+  CalendarRange,
 } from 'lucide-react';
 import { getAuthContext, can } from '@/lib/auth/guards';
 import { MODULES } from '@/lib/auth/modules';
@@ -233,11 +235,48 @@ export default async function DashboardPage() {
     });
   }
 
-  const hasActionCard =
-    (criticalStock.length > 0 && hasInventoryModule && can(context, 'inventory:write')) ||
-    (context.features.hasDteBilling && can(context, 'sales:write'));
+  // Acción sugerida: una sola tarjeta, la más relevante para esta empresa en
+  // este momento. Antes solo consideraba Ventas/Inventario — una empresa de
+  // certámenes (Candidatas, Proyectos) sin esos dos módulos nunca veía nada
+  // acá, cayendo directo al estado "activa un módulo" aunque sí tuviera
+  // módulos contratados y pagados.
+  type SuggestedAction = { title: string; description: string; actionLabel: string; href: string; icon: typeof ShoppingCart };
+  let suggestedAction: SuggestedAction | null = null;
+  if (criticalStock.length > 0 && hasInventoryModule && can(context, 'inventory:write')) {
+    suggestedAction = {
+      title: 'Reponer stock crítico',
+      description: `${criticalStock.length} productos bajo el mínimo de bodega`,
+      actionLabel: 'Ir a inventario',
+      href: '/dashboard/inventory?openStockForm=1',
+      icon: PackagePlus,
+    };
+  } else if (context.features.hasDteBilling && can(context, 'sales:write')) {
+    suggestedAction = {
+      title: 'Emitir nueva venta',
+      description: 'Generar una factura o boleta electrónica',
+      actionLabel: 'Nueva venta',
+      href: '/dashboard/sales/new',
+      icon: ShoppingCart,
+    };
+  } else if (context.features.hasCandidates && can(context, 'candidates:write')) {
+    suggestedAction = {
+      title: 'Registrar una candidata',
+      description: 'Crear la ficha de una nueva postulante',
+      actionLabel: 'Nueva candidata',
+      href: '/dashboard/candidates/new',
+      icon: Crown,
+    };
+  } else if (context.features.hasEventProjects && can(context, 'projects:write')) {
+    suggestedAction = {
+      title: 'Crear un proyecto',
+      description: 'Armar el centro de costo de tu próximo certamen o evento',
+      actionLabel: 'Nuevo proyecto',
+      href: '/dashboard/projects/new',
+      icon: CalendarRange,
+    };
+  }
 
-  const hasAnyContent = kpis.length > 0 || hasSalesModule || hasInventoryModule || hasActionCard;
+  const hasAnyContent = contracted.length > 0;
 
   return (
     <div className="space-y-6">
@@ -256,8 +295,8 @@ export default async function DashboardPage() {
       {!hasAnyContent && (
         <div className="rounded-lg border border-border bg-card shadow-card">
           <EmptyState
-            title="Activa un módulo para ver tu dashboard"
-            description="Todavía no tenés módulos operativos contratados (ventas, inventario). Contacta a tu administrador para activarlos."
+            title="Todavía no tienes ningún módulo contratado"
+            description="Contacta a tu administrador o a soporte para activar los módulos que tu empresa necesita."
             className="py-16"
           />
         </div>
@@ -323,29 +362,19 @@ export default async function DashboardPage() {
 
       {/* Acción destacada + módulos contratados */}
       <section className="grid grid-cols-12 gap-5">
-        {hasActionCard && (
+        {suggestedAction && (
           <div className="col-span-12 md:col-span-4">
-            {criticalStock.length > 0 && hasInventoryModule && can(context, 'inventory:write') ? (
-              <ActionCard
-                title="Reponer stock crítico"
-                description={`${criticalStock.length} productos bajo el mínimo de bodega`}
-                actionLabel="Ir a inventario"
-                href="/dashboard/inventory?openStockForm=1"
-                icon={PackagePlus}
-              />
-            ) : (
-              <ActionCard
-                title="Emitir nueva venta"
-                description="Generar una factura o boleta electrónica"
-                actionLabel="Nueva venta"
-                href="/dashboard/sales/new"
-                icon={ShoppingCart}
-              />
-            )}
+            <ActionCard
+              title={suggestedAction.title}
+              description={suggestedAction.description}
+              actionLabel={suggestedAction.actionLabel}
+              href={suggestedAction.href}
+              icon={suggestedAction.icon}
+            />
           </div>
         )}
 
-        <div className={hasActionCard ? 'col-span-12 md:col-span-8' : 'col-span-12'}>
+        <div className={suggestedAction ? 'col-span-12 md:col-span-8' : 'col-span-12'}>
           <div className="rounded-lg border border-border bg-card p-5 shadow-card">
             <h3 className="text-base font-semibold text-foreground">Módulos contratados</h3>
             {contracted.length > 0 ? (

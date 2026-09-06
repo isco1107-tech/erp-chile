@@ -121,16 +121,23 @@ export default async function DashboardLayout({ children }: { children: React.Re
     });
   }
 
+  // Separado en dos grupos a propósito: con varios módulos de certámenes
+  // activos, todo junto pasaba de 10 ítems con el mismo peso visual — sin
+  // distinción entre lo que se usa a diario (candidatas, auspicios, entradas)
+  // y lo que se toca una vez cada tanto (plantillas, tableros de
+  // cumplimiento). El segundo grupo arranca colapsado (`collapsedByDefault`
+  // en SidebarNav) pero se autoexpande si la ruta activa cae adentro.
   const eventosLinks: SidebarNavGroup['links'] = [];
+  const eventosConfigLinks: SidebarNavGroup['links'] = [];
   if (features.hasEventProjects && allow('projects:read')) {
     eventosLinks.push({ href: '/dashboard/projects', label: 'Eventos & Proyectos', icon: 'projects' });
     eventosLinks.push({ href: '/dashboard/calendar', label: 'Calendario & Google Sync', icon: 'calendar' });
   }
   if (features.hasSponsorships && allow('sponsorships:read')) {
     eventosLinks.push({ href: '/dashboard/sponsorships', label: 'Auspicios & Marcas', icon: 'sponsorships' });
-    eventosLinks.push({ href: '/dashboard/sponsorships/compliance', label: 'Cumplimiento de Auspicios', icon: 'sponsorships' });
+    eventosConfigLinks.push({ href: '/dashboard/sponsorships/compliance', label: 'Cumplimiento de Auspicios', icon: 'sponsorships' });
     if (allow('sponsorships:write')) {
-      eventosLinks.push({ href: '/dashboard/sponsorships/template', label: 'Plantilla: Carta de Compromiso', icon: 'sponsorships' });
+      eventosConfigLinks.push({ href: '/dashboard/sponsorships/template', label: 'Plantilla: Carta de Compromiso', icon: 'sponsorships' });
     }
   }
   if (features.hasFeeDocuments && allow('fees:read')) {
@@ -139,9 +146,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (features.hasCandidates && allow('candidates:read')) {
     eventosLinks.push({ href: '/dashboard/candidates', label: 'Candidatas & Staff', icon: 'candidates' });
     eventosLinks.push({ href: '/dashboard/candidates/attendance', label: 'Asistencia', icon: 'candidates' });
-    eventosLinks.push({ href: '/dashboard/candidates/compliance', label: 'Cumplimiento de Candidatas', icon: 'candidates' });
+    eventosConfigLinks.push({ href: '/dashboard/candidates/compliance', label: 'Cumplimiento de Candidatas', icon: 'candidates' });
     if (allow('candidates:write')) {
-      eventosLinks.push({ href: '/dashboard/candidates/template', label: 'Plantilla: Contrato de Imagen', icon: 'candidates' });
+      eventosConfigLinks.push({ href: '/dashboard/candidates/template', label: 'Plantilla: Contrato de Imagen', icon: 'candidates' });
     }
   }
   if (features.hasLiveProduction && allow('production:read')) {
@@ -157,6 +164,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
     eventosLinks.push({ href: '/dashboard/voting', label: 'Votación Pagada', icon: 'voting' });
   }
   if (eventosLinks.length > 0) groups.push({ label: 'Producción de Eventos', links: eventosLinks });
+  if (eventosConfigLinks.length > 0) {
+    groups.push({ label: 'Plantillas y Cumplimiento', links: eventosConfigLinks, collapsedByDefault: true });
+  }
 
   if (features.hasOrgChart && allow('orgchart:read')) {
     groups.push({ label: 'Equipo', links: [{ href: '/dashboard/org-chart', label: 'Organigrama', icon: 'orgchart' }] });
@@ -307,8 +317,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </div>
       </MobileNavProvider>
 
-      {onboardingEligible && (
-        <OnboardingWizard companyId={context.companyId} hasPos={features.hasPos} defaultWarehouseId={defaultWarehouseId} />
+      {context.role === 'OWNER' && (
+        <OnboardingWizard
+          companyId={context.companyId}
+          hasPos={features.hasPos}
+          defaultWarehouseId={defaultWarehouseId}
+          autoOpen={onboardingEligible}
+        />
       )}
       {features.hasCrm && allow('agents:view') && <AiCopilotDrawer />}
       <ManualAssistantWidget />

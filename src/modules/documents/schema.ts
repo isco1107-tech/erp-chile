@@ -8,7 +8,7 @@ export const DOCUMENT_TEMPLATE_VARIABLES: Record<(typeof DOCUMENT_TEMPLATE_TYPES
 };
 
 export const documentTemplateUpsertSchema = z.object({
-  type: z.enum(DOCUMENT_TEMPLATE_TYPES),
+  type: z.enum(DOCUMENT_TEMPLATE_TYPES, 'Selecciona un tipo de plantilla'),
   name: z.string().min(1, 'El nombre de la plantilla es obligatorio'),
   bodyText: z.string().min(1, 'El contenido de la plantilla es obligatorio'),
 });
