@@ -99,6 +99,7 @@ export async function listFeeDocuments(
       companyId,
       paymentStatus: filter?.paymentStatus,
       projectId: filter?.projectId,
+      contactId: filter?.contactId,
     },
     include: { contact: true, project: true },
     orderBy: { issueDate: 'desc' },

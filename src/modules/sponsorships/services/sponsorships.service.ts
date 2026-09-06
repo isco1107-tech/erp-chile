@@ -161,10 +161,11 @@ export async function updateSponsorshipPayment(
 
 export async function listSponsorshipContracts(
   companyId: string,
-  projectId?: string
+  projectId?: string,
+  contactId?: string
 ): Promise<SponsorshipContractWithRelations[]> {
   return prisma.sponsorshipContract.findMany({
-    where: { companyId, projectId: projectId || undefined },
+    where: { companyId, projectId: projectId || undefined, contactId: contactId || undefined },
     include: { contact: true, deliverables: { orderBy: { createdAt: 'asc' } } },
     orderBy: { createdAt: 'desc' },
   });
@@ -341,6 +342,7 @@ export interface SponsorshipPortalView {
   deliverables: Pick<SponsorshipDeliverable, 'id' | 'title' | 'type' | 'dueDate' | 'isCompleted' | 'completedAt'>[];
   projectName: string;
   companyName: string;
+  companyLogoUrl: string | null;
 }
 
 /**
@@ -358,7 +360,7 @@ export async function getSponsorshipPortalByToken(portalToken: string): Promise<
       contact: { select: { razonSocial: true } },
       deliverables: { orderBy: { createdAt: 'asc' } },
       project: { select: { name: true } },
-      company: { select: { businessName: true } },
+      company: { select: { businessName: true, logoUrl: true } },
     },
   });
   if (!contract) return null;
@@ -387,6 +389,7 @@ export async function getSponsorshipPortalByToken(portalToken: string): Promise<
     })),
     projectName: contract.project.name,
     companyName: contract.company.businessName,
+    companyLogoUrl: contract.company.logoUrl,
   };
 }
 

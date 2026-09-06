@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { formatCurrency } from '@/lib/chile/tax';
 import type {
   Company,
   Contact,
@@ -439,7 +440,7 @@ export async function enrichPurchaseDocumentWithItems(
       const tolerance = Math.max(50, Math.round(doc.totalAmount * 0.02));
       if (Math.abs(totalAmount - doc.totalAmount) > tolerance) {
         throw new Error(
-          `Este documento ya tiene un pago registrado ($${doc.paidAmount.toLocaleString('es-CL')}) pero el total recalculado desde el detalle ($${totalAmount.toLocaleString('es-CL')}) difiere demasiado del anterior ($${doc.totalAmount.toLocaleString('es-CL')}). Revisa el detalle antes de confirmar.`
+          `Este documento ya tiene un pago registrado (${formatCurrency(doc.paidAmount)}) pero el total recalculado desde el detalle (${formatCurrency(totalAmount)}) difiere demasiado del anterior (${formatCurrency(doc.totalAmount)}). Revisa el detalle antes de confirmar.`
         );
       }
     }
@@ -951,10 +952,11 @@ const PURCHASE_DOCUMENTS_DEFAULT_PAGE_SIZE = 25;
 
 export async function listPurchaseDocuments(
   companyId: string,
-  options?: { status?: DocumentStatus; query?: string; page?: number; pageSize?: number }
+  options?: { status?: DocumentStatus; query?: string; contactId?: string; page?: number; pageSize?: number }
 ): Promise<ListPurchaseDocumentsResult> {
   const where: Prisma.PurchaseDocumentWhereInput = { companyId };
   if (options?.status) where.status = options.status;
+  if (options?.contactId) where.contactId = options.contactId;
   const trimmed = options?.query?.trim();
   if (trimmed) {
     where.contact = {

@@ -39,7 +39,8 @@ export async function listSalesDocumentsAction(
   page = 1,
   pageSize = 25,
   sortField?: 'issueDate' | 'totalAmount',
-  sortDir?: 'asc' | 'desc'
+  sortDir?: 'asc' | 'desc',
+  contactId?: string
 ): Promise<ActionResult<ListSalesDocumentsResult>> {
   try {
     const session = await requireAuthWithPermission('sales:read');
@@ -51,6 +52,7 @@ export async function listSalesDocumentsAction(
       pageSize,
       sortField,
       sortDir,
+      contactId,
     });
     return { success: true, data };
   } catch (error) {

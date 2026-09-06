@@ -20,6 +20,7 @@ export interface AuthSession {
   id: string;
   role: Role;
   email: string;
+  name: string;
   companyId: string;
   isSuperAdmin: boolean;
 }
@@ -163,6 +164,7 @@ const loadContext = cache(async (userId: string, activeCompanyId?: string): Prom
     id: user.id,
     role: effectiveRole,
     email: user.email,
+    name: user.name,
     companyId: effectiveCompanyId,
     isSuperAdmin: user.isSuperAdmin,
     companyName: effectiveCompany.businessName,
@@ -242,7 +244,7 @@ export async function requireSuperAdmin(): Promise<AuthSession> {
   // empresa a la que pertenece esté suspendida.
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, role: true, email: true, companyId: true, isSuperAdmin: true, isActive: true, sessionVersion: true },
+    select: { id: true, role: true, email: true, name: true, companyId: true, isSuperAdmin: true, isActive: true, sessionVersion: true },
   });
 
   if (!user || !user.isActive || (payload.sessionVersion ?? 0) !== user.sessionVersion) throw new AuthError('Sesión inválida o expirada', 401);
@@ -252,6 +254,7 @@ export async function requireSuperAdmin(): Promise<AuthSession> {
     id: user.id,
     role: user.role,
     email: user.email,
+    name: user.name,
     companyId: user.companyId ?? '',
     isSuperAdmin: true,
   };

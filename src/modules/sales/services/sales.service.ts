@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { formatCurrency } from '@/lib/chile/tax';
 import type {
   Company,
   Contact,
@@ -89,7 +90,7 @@ export async function createSalesDocument(
       if (exceedsCreditLimit({ creditLimit: contact.creditLimit, outstandingBalance: outstanding, documentTotal: totalAmount })) {
         const projected = outstanding + totalAmount;
         throw new Error(
-          `Venta rechazada: supera el límite de crédito del cliente. Deuda actual $${outstanding.toLocaleString('es-CL')} + esta venta $${totalAmount.toLocaleString('es-CL')} = $${projected.toLocaleString('es-CL')}, límite $${contact.creditLimit.toLocaleString('es-CL')}`
+          `Venta rechazada: supera el límite de crédito del cliente. Deuda actual ${formatCurrency(outstanding)} + esta venta ${formatCurrency(totalAmount)} = ${formatCurrency(projected)}, límite ${formatCurrency(contact.creditLimit ?? 0)}`
         );
       }
     }
@@ -487,6 +488,7 @@ export async function listSalesDocuments(
     dteTypes?: DteType[];
     status?: DocumentStatus;
     query?: string;
+    contactId?: string;
     page?: number;
     pageSize?: number;
     sortField?: 'issueDate' | 'totalAmount';
@@ -496,6 +498,7 @@ export async function listSalesDocuments(
   const where: Prisma.SalesDocumentWhereInput = { companyId };
   if (options?.dteTypes && options.dteTypes.length > 0) where.dteType = { in: options.dteTypes };
   if (options?.status) where.status = options.status;
+  if (options?.contactId) where.contactId = options.contactId;
   const trimmed = options?.query?.trim();
   if (trimmed) {
     where.contact = {

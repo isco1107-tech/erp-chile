@@ -199,7 +199,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     defaultWarehouseId = defaultWarehouse?.id ?? null;
   }
 
-  const displayName = context.email.split('@')[0];
+  const displayName = context.name;
   const roleLabel = context.customRoleName ?? ROLE_LABELS[context.role];
 
   // Tema de marca: si el logo tiene una paleta útil (`brandPalette`, hasta 3
@@ -286,7 +286,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
                   {displayName.slice(0, 1).toUpperCase()}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-medium text-white">{context.email}</p>
+                  <p className="truncate text-xs font-medium text-white">{displayName}</p>
                   <p className="truncate text-[11px] text-sidebar-foreground">{roleLabel}</p>
                 </div>
               </div>
@@ -306,9 +306,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
               className="hidden items-center gap-2 rounded-[10px] px-2 py-1.5 text-sm text-foreground transition-colors duration-150 hover:bg-muted sm:flex"
             >
               <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-accent-foreground">
-                {context.email.slice(0, 1).toUpperCase()}
+                {context.name.slice(0, 1).toUpperCase()}
               </span>
-              <span className="max-w-[14rem] truncate text-muted-foreground">{context.email}</span>
+              <span className="max-w-[14rem] truncate text-muted-foreground">{context.name}</span>
             </Link>
           </header>
 

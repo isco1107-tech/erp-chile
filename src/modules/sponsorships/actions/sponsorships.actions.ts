@@ -32,11 +32,12 @@ function revalidateSponsorships(id?: string) {
 }
 
 export async function listSponsorshipContractsAction(
-  projectId?: string
+  projectId?: string,
+  contactId?: string
 ): Promise<ActionResult<SponsorshipContractWithRelations[]>> {
   try {
     const session = await requireAuthWithPermission('sponsorships:read');
-    const data = await sponsorshipsService.listSponsorshipContracts(session.companyId, projectId);
+    const data = await sponsorshipsService.listSponsorshipContracts(session.companyId, projectId, contactId);
     return { success: true, data };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };

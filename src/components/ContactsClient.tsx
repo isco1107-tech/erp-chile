@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -209,6 +210,9 @@ export default function ContactsClient() {
                 <td className="p-2">{c.phone}</td>
                 <td className="p-2">
                   <div className="flex gap-2">
+                    <Link href={`/dashboard/contacts/${c.id}`} className="inline-flex h-8 items-center rounded-lg border border-input px-3 text-sm hover:bg-muted">
+                      Ver ficha
+                    </Link>
                     <Button type="button" size="sm" variant="outline" onClick={() => handleEdit(c)}>Editar</Button>
                     <Button type="button" size="sm" variant="destructive" onClick={() => handleDelete(c)}>Eliminar</Button>
                   </div>

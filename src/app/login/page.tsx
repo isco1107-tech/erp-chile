@@ -13,8 +13,8 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
 const loginSchema = z.object({
-  username: z.string().min(1, { message: 'Username is required' }),
-  password: z.string().min(8, { message: 'Password must be at least 8 characters long' }),
+  username: z.string().min(1, { message: 'Ingresa tu usuario o correo' }),
+  password: z.string().min(8, { message: 'La contraseña debe tener al menos 8 caracteres' }),
 });
 
 export default function LoginPage() {
@@ -127,6 +127,10 @@ export default function LoginPage() {
   return (
     <div className="flex items-center justify-center min-h-screen p-4">
       <Card className="w-full max-w-md p-6">
+        <div className="mb-6 flex flex-col items-center gap-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/branding/aether-logo-full.png" alt="Aether ERP Solutions" className="h-10 w-auto object-contain" />
+        </div>
         <h2 className="text-2xl font-bold mb-4">Iniciar sesión</h2>
         {error && <div className="text-red-600 mb-3">{error}</div>}
 

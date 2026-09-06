@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { ParagraphWriter, fillTemplate } from '@/lib/pdf/paragraph-writer';
 import { requireTemplate } from '@/modules/documents/services/document-template.service';
+import { formatCurrency } from '@/lib/chile/tax';
 
 const TIER_LABEL: Record<string, string> = {
   TITULAR_MAIN_SPONSOR: 'Auspiciador Titular',
@@ -10,10 +11,6 @@ const TIER_LABEL: Record<string, string> = {
   MEDIA_PARTNER: 'Media Partner',
   CANJE_BARTER: 'Canje',
 };
-
-function formatClp(amount: number): string {
-  return new Intl.NumberFormat('es-CL').format(amount);
-}
 
 /**
  * Genera la carta de compromiso de un contrato de auspicio a partir de la
@@ -35,7 +32,7 @@ export async function renderCommitmentLetterPdf(companyId: string, contractId: s
     sponsorRut: contract.contact.rut,
     projectName: contract.project.name,
     tier: TIER_LABEL[contract.tier] ?? contract.tier,
-    cashAmount: contract.isBarter ? '—' : `$ ${formatClp(contract.cashAmount)}`,
+    cashAmount: contract.isBarter ? '—' : formatCurrency(contract.cashAmount),
     barterDescription: contract.barterDescription ?? '—',
     date: new Date().toLocaleDateString('es-CL'),
   });

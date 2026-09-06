@@ -149,9 +149,9 @@ export async function registerPromissoryNotePayment(
   return updated;
 }
 
-export async function listPromissoryNotes(companyId: string): Promise<PromissoryNoteWithRelations[]> {
+export async function listPromissoryNotes(companyId: string, contactId?: string): Promise<PromissoryNoteWithRelations[]> {
   return prisma.promissoryNote.findMany({
-    where: { companyId },
+    where: { companyId, contactId: contactId || undefined },
     include: { contact: true, candidate: { select: { id: true, fullName: true, stageName: true } } },
     orderBy: { dueDate: 'asc' },
   });

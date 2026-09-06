@@ -40,7 +40,17 @@ export default function SponsorPortalClient({ token }: { token: string }) {
     })();
   }, [token]);
 
-  if (loading) return <p className="p-8 text-center text-muted-foreground">Cargando...</p>;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background p-4 sm:p-8">
+        <div className="mx-auto max-w-2xl animate-pulse space-y-5">
+          <div className="h-24 rounded-xl border border-border bg-card" />
+          <div className="h-28 rounded-xl border border-border bg-card" />
+          <div className="h-32 rounded-xl border border-border bg-card" />
+        </div>
+      </div>
+    );
+  }
   if (notFound || !data) {
     return (
       <p className="p-8 text-center text-destructive">

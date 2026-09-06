@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 import type { DteType } from '@prisma/client';
 import {
   CircleDollarSign,
@@ -10,6 +11,7 @@ import {
   ShoppingCart,
   Crown,
   CalendarRange,
+  AlertTriangle,
 } from 'lucide-react';
 import { getAuthContext, can } from '@/lib/auth/guards';
 import { MODULES } from '@/lib/auth/modules';
@@ -115,6 +117,38 @@ export default async function DashboardPage() {
       : Promise.resolve(0),
   ]);
 
+  // Cobros pendientes de certámenes: sin esto, una cuota o un pagaré vencido
+  // no aparece en NINGÚN lado del panel para el staff interno (el único
+  // aviso hoy es el correo automático al cliente/candidata, ver
+  // `overdue-reminder-cron.service.ts`) — el dashboard principal solo
+  // miraba ventas/inventario.
+  const [overdueInstallments, overduePromissoryNotes] = await Promise.all([
+    context.features.hasInstallmentPlans && can(context, 'paymentplans:read')
+      ? prisma.paymentPlanInstallment.aggregate({
+          where: { companyId: context.companyId, paymentStatus: { not: 'PAID' }, dueDate: { lt: now }, paymentPlan: { status: 'ACTIVE' } },
+          _count: { _all: true },
+          _sum: { amount: true, paidAmount: true },
+        })
+      : Promise.resolve(null),
+    context.features.hasPromissoryNotes && can(context, 'promissorynotes:read')
+      ? prisma.promissoryNote.aggregate({
+          where: { companyId: context.companyId, status: 'ACTIVE', dueDate: { lt: now } },
+          _count: { _all: true },
+          _sum: { amount: true, paidAmount: true },
+        })
+      : Promise.resolve(null),
+  ]);
+
+  const overdueInstallmentsAmount = overdueInstallments
+    ? (overdueInstallments._sum.amount ?? 0) - (overdueInstallments._sum.paidAmount ?? 0)
+    : 0;
+  const overdueInstallmentsCount = overdueInstallments?._count._all ?? 0;
+  const overduePromissoryAmount = overduePromissoryNotes
+    ? (overduePromissoryNotes._sum.amount ?? 0) - (overduePromissoryNotes._sum.paidAmount ?? 0)
+    : 0;
+  const overduePromissoryCount = overduePromissoryNotes?._count._all ?? 0;
+  const showOverdueCard = overdueInstallments !== null || overduePromissoryNotes !== null;
+
   const monthlyBuckets = Array.from({ length: 12 }, (_, index) => {
     const date = new Date(Date.UTC(trendStart.getUTCFullYear(), trendStart.getUTCMonth() + index, 1));
     return { key: monthKey(date), label: monthLabel(date), netSales: 0, costOfSales: 0 };
@@ -177,8 +211,10 @@ export default async function DashboardPage() {
     color: MIX_COLORS[index % MIX_COLORS.length],
   }));
 
-  const displayName = context.email.split('@')[0];
-  const capitalizedName = displayName.charAt(0).toUpperCase() + displayName.slice(1);
+  // Primer nombre de pila para el saludo — un nombre legal completo ("Ana
+  // María Pérez Soto") se siente robótico repetido entero cada vez que se
+  // entra al dashboard.
+  const capitalizedName = context.name.trim().split(/\s+/)[0] || context.email.split('@')[0];
 
   const hasSalesModule = canReadSales && context.features.hasDteBilling;
   const hasInventoryModule = canReadInventory && context.features.hasInventory;
@@ -308,6 +344,39 @@ export default async function DashboardPage() {
           {kpis.map((kpi) => (
             <React.Fragment key={kpi.key}>{kpi.node}</React.Fragment>
           ))}
+        </section>
+      )}
+
+      {/* Cobros pendientes de certámenes (cuotas/pagarés vencidos) — visible
+          para cualquier empresa con esos módulos, tenga o no ventas/inventario. */}
+      {showOverdueCard && (
+        <section className="rounded-lg border border-border bg-card p-5 shadow-card">
+          <div className="mb-3 flex items-center gap-2">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-danger-soft">
+              <AlertTriangle className="size-4 text-danger" strokeWidth={1.75} />
+            </span>
+            <h3 className="text-sm font-semibold text-foreground">Cobros vencidos</h3>
+          </div>
+          {overdueInstallmentsCount === 0 && overduePromissoryCount === 0 ? (
+            <p className="text-sm text-muted-foreground">Sin cuotas ni pagarés vencidos por ahora.</p>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {overdueInstallments !== null && (
+                <Link href="/dashboard/payment-plans" className="rounded-lg border border-border p-3 hover:bg-muted/50">
+                  <p className="text-xs text-muted-foreground">Cuotas vencidas</p>
+                  <p className="text-lg font-semibold text-foreground">{formatCurrency(overdueInstallmentsAmount)}</p>
+                  <p className="text-xs text-muted-foreground">{overdueInstallmentsCount} cuota{overdueInstallmentsCount === 1 ? '' : 's'}</p>
+                </Link>
+              )}
+              {overduePromissoryNotes !== null && (
+                <Link href="/dashboard/promissory-notes" className="rounded-lg border border-border p-3 hover:bg-muted/50">
+                  <p className="text-xs text-muted-foreground">Pagarés vencidos</p>
+                  <p className="text-lg font-semibold text-foreground">{formatCurrency(overduePromissoryAmount)}</p>
+                  <p className="text-xs text-muted-foreground">{overduePromissoryCount} pagaré{overduePromissoryCount === 1 ? '' : 's'}</p>
+                </Link>
+              )}
+            </div>
+          )}
         </section>
       )}
 

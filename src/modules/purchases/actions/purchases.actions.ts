@@ -33,11 +33,12 @@ export async function listPurchaseDocumentsAction(
   status?: DocumentStatus,
   query?: string,
   page = 1,
-  pageSize = 25
+  pageSize = 25,
+  contactId?: string
 ): Promise<ActionResult<ListPurchaseDocumentsResult>> {
   try {
     const session = await requireAuthWithPermission('purchases:read');
-    const data = await purchasesService.listPurchaseDocuments(session.companyId, { status, query, page, pageSize });
+    const data = await purchasesService.listPurchaseDocuments(session.companyId, { status, query, page, pageSize, contactId });
     return { success: true, data };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };

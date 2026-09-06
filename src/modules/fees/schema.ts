@@ -32,6 +32,7 @@ export type MarkFeeDocumentPaidInput = z.infer<typeof markFeeDocumentPaidSchema>
 export const listFeeDocumentsFilterSchema = z.object({
   paymentStatus: z.enum(['UNPAID', 'PARTIAL', 'PAID']).optional(),
   projectId: z.string().optional(),
+  contactId: z.string().optional(),
 });
 
 export type ListFeeDocumentsFilter = z.infer<typeof listFeeDocumentsFilterSchema>;

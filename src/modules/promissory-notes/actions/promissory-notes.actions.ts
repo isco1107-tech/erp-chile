@@ -33,10 +33,10 @@ function revalidatePromissoryNotes(id?: string) {
   if (id) revalidatePath(`/dashboard/promissory-notes/${id}`);
 }
 
-export async function listPromissoryNotesAction(): Promise<ActionResult<PromissoryNoteWithRelations[]>> {
+export async function listPromissoryNotesAction(contactId?: string): Promise<ActionResult<PromissoryNoteWithRelations[]>> {
   try {
     const session = await requireAuthWithPermission('promissorynotes:read');
-    const data = await promissoryNotesService.listPromissoryNotes(session.companyId);
+    const data = await promissoryNotesService.listPromissoryNotes(session.companyId, contactId);
     return { success: true, data };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
