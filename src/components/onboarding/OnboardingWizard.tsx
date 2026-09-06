@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ProgressRow } from '@/components/ui/ProgressRow';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { updateCompanyProfileAction, updateCompanySettingsAction, getCompanySettingsAction } from '@/lib/actions/company';
 import { createWarehouseAction } from '@/modules/inventory/actions/inventory.actions';
 import { createCashRegisterAction } from '@/modules/pos/actions/pos.actions';
@@ -28,6 +29,12 @@ const ROLE_OPTIONS: { value: Role; label: string }[] = [
   { value: 'SALES', label: 'Ventas' },
   { value: 'WAREHOUSE', label: 'Bodega' },
 ];
+
+// `items` (valor -> etiqueta) es lo que le permite a `Select.Value` mostrar
+// el texto correcto ANTES de que el usuario abra el desplegable — sin esto
+// muestra el valor crudo del enum (ej. "COMMERCE" en vez de "Comercio").
+const INDUSTRY_ITEMS = Object.fromEntries(INDUSTRY_OPTIONS.map((o) => [o.value, o.label]));
+const ROLE_ITEMS = Object.fromEntries(ROLE_OPTIONS.map((o) => [o.value, o.label]));
 
 const STEP_LABELS = ['Datos tributarios', 'Bodega y POS', 'Catálogo', 'Invitar equipo'];
 
@@ -180,16 +187,16 @@ function StepTaxData({ onDone }: { onDone: () => void }) {
       </div>
       <div>
         <Label htmlFor="onb-industry">Industria</Label>
-        <select
-          id="onb-industry"
-          className="h-10 w-full rounded-xl border border-input bg-muted px-3 text-sm text-foreground"
-          value={industryType}
-          onChange={(e) => setIndustryType(e.target.value as IndustryType)}
-        >
-          {INDUSTRY_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>{option.label}</option>
-          ))}
-        </select>
+        <Select items={INDUSTRY_ITEMS} value={industryType} onValueChange={(value) => setIndustryType(value as IndustryType)}>
+          <SelectTrigger id="onb-industry">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {INDUSTRY_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <Button type="button" onClick={handleSave} disabled={saving || !loaded}>{saving ? 'Guardando...' : 'Guardar y continuar'}</Button>
     </div>
@@ -333,16 +340,16 @@ function StepInvite({ onDone }: { onDone: () => void }) {
         </div>
         <div>
           <Label htmlFor="onb-invite-role">Rol</Label>
-          <select
-            id="onb-invite-role"
-            className="h-10 w-full rounded-xl border border-input bg-muted px-3 text-sm text-foreground"
-            value={role}
-            onChange={(e) => setRole(e.target.value as Role)}
-          >
-            {ROLE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
+          <Select items={ROLE_ITEMS} value={role} onValueChange={(value) => setRole(value as Role)}>
+            <SelectTrigger id="onb-invite-role">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ROLE_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
       <div className="flex gap-2">

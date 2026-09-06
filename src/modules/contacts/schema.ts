@@ -4,7 +4,7 @@ import { cleanRut, validateRut } from '@/lib/chile/rut';
 const rutField = z
   .string()
   .min(3, 'El RUT es obligatorio')
-  .refine((val) => validateRut(cleanRut(val)), 'RUT inválido (verifique el dígito verificador)');
+  .refine((val) => validateRut(cleanRut(val)), 'RUT inválido. Verifica que esté bien escrito, ej: 12.345.678-K');
 
 export const contactCreateSchema = z.object({
   rut: rutField,

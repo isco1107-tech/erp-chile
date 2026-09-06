@@ -7,7 +7,7 @@ import { isAllowedBlobUrl } from '@/lib/security/blob-url';
 const rutField = z
   .string()
   .min(3, 'El RUT es obligatorio')
-  .refine((val) => validateRut(cleanRut(val)), 'RUT inválido (verifique el dígito verificador)');
+  .refine((val) => validateRut(cleanRut(val)), 'RUT inválido. Verifica que esté bien escrito, ej: 12.345.678-K');
 
 /** Comunas de La Araucanía, únicas exigidas en el formulario público de este
  * certamen (residir en la región es un requisito de bases, Sección 5). */

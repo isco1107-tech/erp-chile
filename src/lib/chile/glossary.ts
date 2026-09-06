@@ -21,4 +21,6 @@ export const TAX_GLOSSARY = {
   notaCreditoDebito: 'Documento que corrige una factura o boleta ya emitida, para anular o modificar parte de un monto.',
   cxc: 'Cuentas por Cobrar: el dinero que tus clientes te deben.',
   cxp: 'Cuentas por Pagar: el dinero que tú le debes a tus proveedores.',
+  remanente: 'Crédito de IVA que te sobró el mes pasado (pagaste más IVA del que cobraste) y se arrastra para descontarlo este mes.',
+  retencionHonorarios: 'Un porcentaje que le descuentas a quien te emite una boleta de honorarios, y que tú (no él) declaras y pagas al SII.',
 } as const;

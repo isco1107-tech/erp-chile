@@ -120,68 +120,82 @@ export default function CandidateListClient({ canWrite, canExport }: { canWrite:
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-wrap items-end gap-3">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Convocatoria</label>
-            <select className={selectClass} value={projectId} onChange={(e) => updateFilter(setProjectId)(e.target.value)}>
-              <option value="">Todas las convocatorias</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>{p.name} ({p.code})</option>
-              ))}
-            </select>
+      {projects.length > 0 ? (
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Convocatoria</label>
+              <select className={selectClass} value={projectId} onChange={(e) => updateFilter(setProjectId)(e.target.value)}>
+                <option value="">Todas las convocatorias</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name} ({p.code})</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Estado</label>
+              <select className={selectClass} value={status} onChange={(e) => updateFilter(setStatus)(e.target.value)}>
+                <option value="">Todos los estados</option>
+                {CANDIDATE_STATUSES.map((s) => (
+                  <option key={s} value={s}>{CANDIDATE_STATUS_LABELS[s]}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Comuna</label>
+              <select className={selectClass} value={comuna} onChange={(e) => updateFilter(setComuna)(e.target.value)}>
+                <option value="">Todas las comunas</option>
+                {ARAUCANIA_COMUNAS.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Edad mín.</label>
+              <Input type="number" min={0} className="h-8 w-20" value={minAge} onChange={(e) => updateFilter(setMinAge)(e.target.value)} />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Edad máx.</label>
+              <Input type="number" min={0} className="h-8 w-20" value={maxAge} onChange={(e) => updateFilter(setMaxAge)(e.target.value)} />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Buscar</label>
+              <Input
+                className="h-8 w-48"
+                placeholder="Nombre, RUT o folio"
+                value={search}
+                onChange={(e) => updateFilter(setSearch)(e.target.value)}
+              />
+            </div>
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Estado</label>
-            <select className={selectClass} value={status} onChange={(e) => updateFilter(setStatus)(e.target.value)}>
-              <option value="">Todos los estados</option>
-              {CANDIDATE_STATUSES.map((s) => (
-                <option key={s} value={s}>{CANDIDATE_STATUS_LABELS[s]}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Comuna</label>
-            <select className={selectClass} value={comuna} onChange={(e) => updateFilter(setComuna)(e.target.value)}>
-              <option value="">Todas las comunas</option>
-              {ARAUCANIA_COMUNAS.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Edad mín.</label>
-            <Input type="number" min={0} className="h-8 w-20" value={minAge} onChange={(e) => updateFilter(setMinAge)(e.target.value)} />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Edad máx.</label>
-            <Input type="number" min={0} className="h-8 w-20" value={maxAge} onChange={(e) => updateFilter(setMaxAge)(e.target.value)} />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Buscar</label>
-            <Input
-              className="h-8 w-48"
-              placeholder="Nombre, RUT o folio"
-              value={search}
-              onChange={(e) => updateFilter(setSearch)(e.target.value)}
-            />
+          <div className="flex items-center gap-2">
+            {canExport && (
+              <a href={exportUrl()} className={buttonVariants({ variant: 'outline' })}>
+                <Download /> Exportar
+              </a>
+            )}
+            {canWrite && projectId && <RegistrationSettingsButton projectId={projectId} />}
+            {canWrite && projectId && <CandidateRegistrationLinkButton projectId={projectId} />}
+            {canWrite && (
+              <Link href="/dashboard/candidates/new" className={buttonVariants({ variant: 'default' })}>
+                Nueva Candidata
+              </Link>
+            )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {canExport && (
-            <a href={exportUrl()} className={buttonVariants({ variant: 'outline' })}>
-              <Download /> Exportar
-            </a>
-          )}
-          {canWrite && projectId && <RegistrationSettingsButton projectId={projectId} />}
-          {canWrite && projectId && <CandidateRegistrationLinkButton projectId={projectId} />}
-          {canWrite && (
-            <Link href="/dashboard/candidates/new" className={buttonVariants({ variant: 'default' })}>
-              Nueva Candidata
+      ) : (
+        // Sin proyectos/certámenes todavía no hay nada que filtrar — mostrar
+        // 6 controles de filtro sobre una tabla vacía solo confunde a un
+        // usuario nuevo. Se oculta la barra completa hasta que exista al
+        // menos un proyecto (el EmptyState de abajo ya lo explica).
+        canWrite && (
+          <div className="flex justify-end">
+            <Link href="/dashboard/projects/new" className={buttonVariants({ variant: 'default' })}>
+              Crear proyecto/certamen
             </Link>
-          )}
-        </div>
-      </div>
+          </div>
+        )
+      )}
 
       {loading ? (
         <p className="text-sm text-muted-foreground">Cargando…</p>

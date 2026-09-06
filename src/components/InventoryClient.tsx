@@ -17,6 +17,8 @@ import { listProductsAction } from '@/modules/inventory/actions/products.actions
 import type { StockByWarehouseRow } from '@/modules/inventory/services/stock.service';
 import type { ProductWithStock } from '@/modules/inventory/services/products.service';
 import { formatCurrency } from '@/lib/chile/tax';
+import { InfoTooltip } from '@/components/ui/InfoTooltip';
+import { TAX_GLOSSARY } from '@/lib/chile/glossary';
 
 const MOVEMENT_LABELS: Record<InventoryMovement['type'], string> = {
   PURCHASE_IN: 'Entrada por Compra',
@@ -178,7 +180,10 @@ export default function InventoryClient() {
               <th className="p-2 font-medium">Producto</th>
               <th className="p-2 font-medium">Bodega</th>
               <th className="p-2 font-medium">Cantidad</th>
-              <th className="p-2 font-medium">PMP</th>
+              <th className="p-2 font-medium">
+                PMP
+                <InfoTooltip text={TAX_GLOSSARY.pmp} />
+              </th>
               <th className="p-2 font-medium">Valorizado</th>
             </tr>
           </thead>
@@ -225,7 +230,10 @@ export default function InventoryClient() {
                   <th className="p-2 font-medium">Cantidad</th>
                   <th className="p-2 font-medium">Costo Unit.</th>
                   <th className="p-2 font-medium">Stock (antes → después)</th>
-                  <th className="p-2 font-medium">PMP (antes → después)</th>
+                  <th className="p-2 font-medium">
+                    PMP (antes → después)
+                    <InfoTooltip text={TAX_GLOSSARY.pmp} />
+                  </th>
                   <th className="p-2 font-medium">Referencia</th>
                 </tr>
               </thead>

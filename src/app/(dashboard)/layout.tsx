@@ -95,6 +95,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   }
   if (features.hasAdvancedReports && allow('reports:read')) {
     finanzasLinks.push({ href: '/dashboard/reports', label: 'Reportes Excel', icon: 'reports' });
+    finanzasLinks.push({ href: '/dashboard/reports/f29', label: 'Formulario 29 (F29)', icon: 'reports' });
   }
   if (features.hasBudgets && allow('budgets:read')) {
     finanzasLinks.push({ href: '/dashboard/budgets', label: 'Presupuestos', icon: 'budgets' });

@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import ContactForm from './ContactForm';
 import { listContactsAction } from '@/modules/contacts/actions/contacts.actions';
 import { listWarehousesAction } from '@/modules/inventory/actions/inventory.actions';
@@ -43,9 +44,6 @@ interface LineItemDraft {
 }
 
 const REFERENCE_DTE_TYPES = new Set(['NOTA_CREDITO_61', 'NOTA_DEBITO_56', 'GUIA_DESPACHO_52']);
-
-const selectClass =
-  'h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30';
 
 export default function SalesDocumentForm() {
   const router = useRouter();
@@ -229,30 +227,48 @@ export default function SalesDocumentForm() {
             Tipo de Documento
             <InfoTooltip text={TAX_GLOSSARY.dte} />
           </Label>
-          <select id="dteType" value={dteType} onChange={(e) => setDteType(e.target.value as (typeof DTE_TYPES)[number])} className={selectClass}>
-            {DTE_TYPES.map((t) => (
-              <option key={t} value={t}>{DTE_TYPE_LABELS[t]}</option>
-            ))}
-          </select>
+          <Select items={DTE_TYPE_LABELS} value={dteType} onValueChange={(value) => setDteType(value as (typeof DTE_TYPES)[number])}>
+            <SelectTrigger id="dteType">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {DTE_TYPES.map((t) => (
+                <SelectItem key={t} value={t}>{DTE_TYPE_LABELS[t]}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div>
           <Label htmlFor="warehouse">Bodega de salida</Label>
-          <select id="warehouse" value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} className={selectClass}>
-            <option value="">Seleccione bodega</option>
-            {warehouses.map((w) => (
-              <option key={w.id} value={w.id}>{w.name}</option>
-            ))}
-          </select>
+          <Select
+            items={Object.fromEntries(warehouses.map((w) => [w.id, w.name]))}
+            value={warehouseId}
+            onValueChange={(value) => setWarehouseId(value as string)}
+          >
+            <SelectTrigger id="warehouse">
+              <SelectValue placeholder="Seleccione bodega" />
+            </SelectTrigger>
+            <SelectContent>
+              {warehouses.map((w) => (
+                <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div>
           <Label htmlFor="paymentMethod">Forma de pago</Label>
-          <select id="paymentMethod" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as (typeof PAYMENT_METHODS)[number])} className={selectClass}>
-            {PAYMENT_METHODS.map((p) => (
-              <option key={p} value={p}>{PAYMENT_METHOD_LABELS[p]}</option>
-            ))}
-          </select>
+          <Select items={PAYMENT_METHOD_LABELS} value={paymentMethod} onValueChange={(value) => setPaymentMethod(value as (typeof PAYMENT_METHODS)[number])}>
+            <SelectTrigger id="paymentMethod">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PAYMENT_METHODS.map((p) => (
+                <SelectItem key={p} value={p}>{PAYMENT_METHOD_LABELS[p]}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="sm:col-span-2 lg:col-span-3">
@@ -325,12 +341,16 @@ export default function SalesDocumentForm() {
             </div>
             <div>
               <Label htmlFor="referenceType">Tipo de documento referenciado</Label>
-              <select id="referenceType" value={referenceType} onChange={(e) => setReferenceType(e.target.value)} className={selectClass}>
-                <option value="">Seleccione</option>
-                {DTE_TYPES.map((t) => (
-                  <option key={t} value={t}>{DTE_TYPE_LABELS[t]}</option>
-                ))}
-              </select>
+              <Select items={DTE_TYPE_LABELS} value={referenceType} onValueChange={(value) => setReferenceType(value as string)}>
+                <SelectTrigger id="referenceType">
+                  <SelectValue placeholder="Seleccione" />
+                </SelectTrigger>
+                <SelectContent>
+                  {DTE_TYPES.map((t) => (
+                    <SelectItem key={t} value={t}>{DTE_TYPE_LABELS[t]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </>
         )}
