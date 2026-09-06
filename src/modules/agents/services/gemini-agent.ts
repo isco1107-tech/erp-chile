@@ -48,11 +48,47 @@ function isRateLimitError(error: unknown): boolean {
   return status === 429;
 }
 
+/** Errores de red/servidor transitorios — vale la pena reintentarlos igual que un 429, no son culpa del caller. */
+function isTransientError(error: unknown): boolean {
+  const status = (error as { status?: number; code?: number })?.status ?? (error as { code?: number })?.code;
+  return status === 500 || status === 502 || status === 503 || status === 504;
+}
+
 let lastCallAt = 0;
 async function throttle(): Promise<void> {
   const wait = lastCallAt + MIN_INTERVAL_MS - Date.now();
   if (wait > 0) await sleep(wait);
   lastCallAt = Date.now();
+}
+
+/**
+ * Reintentos con backoff ante 429/5xx, antes de darle un error al usuario.
+ * Compartido por todas las formas de llamar a Gemini de este archivo.
+ *
+ * El backoff es corto y fijo (no exponencial sobre `MIN_INTERVAL_MS`) a
+ * propósito: esto corre dentro de una función serverless de Vercel que
+ * responde a un usuario esperando en el chat — un backoff de decenas de
+ * segundos haría que la plataforma corte la función por timeout antes de
+ * terminar de reintentar, cambiando "falla al toque" por "falla lento", sin
+ * arreglar nada. 2 reintentos cortos alcanzan para absorber una ráfaga
+ * normal de uso sin acercarse al límite de duración de la función.
+ */
+const MAX_RETRIES = 2;
+const RETRY_BACKOFF_MS = [1_500, 3_000];
+
+async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+  let attempt = 0;
+  for (;;) {
+    await throttle();
+    try {
+      return await fn();
+    } catch (error) {
+      if (attempt >= MAX_RETRIES || (!isRateLimitError(error) && !isTransientError(error))) throw error;
+      await sleep(RETRY_BACKOFF_MS[attempt] ?? RETRY_BACKOFF_MS[RETRY_BACKOFF_MS.length - 1]!);
+      attempt++;
+      lastCallAt = Date.now();
+    }
+  }
 }
 
 interface GenerateContentRequest {
@@ -67,19 +103,8 @@ interface GenerateContentRequest {
 
 async function callWithRetry(request: GenerateContentRequest): Promise<string | undefined> {
   const client = getClient();
-  await throttle();
-  try {
-    const response = await client.models.generateContent(request);
-    return response.text;
-  } catch (error) {
-    if (!isRateLimitError(error)) throw error;
-    // Un solo reintento con backoff, igual que ai-scan.service.ts: el tier
-    // gratuito devuelve 429 al ráfagear por sobre ~10 solicitudes/minuto.
-    await sleep(MIN_INTERVAL_MS * 2);
-    lastCallAt = Date.now();
-    const retryResponse = await client.models.generateContent(request);
-    return retryResponse.text;
-  }
+  const response = await withRetry(() => client.models.generateContent(request));
+  return response.text;
 }
 
 /**
@@ -151,20 +176,27 @@ export async function generateAgentWithTools(
   const contents: Content[] = [...initialContents];
 
   for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
-    await throttle();
-    const response = await client.models.generateContent({
-      model: MODEL,
-      contents,
-      config: {
-        systemInstruction: systemPrompt,
-        // Solo se manda `tools` cuando hay funciones reales que ofrecer — el
-        // asistente del Manual de Usuario reusa esta función únicamente por
-        // el soporte de historial multi-turno (`initialContents`), sin
-        // ninguna tool, y no vale la pena arriesgarse a que la API rechace
-        // `functionDeclarations: []` como config inválida.
-        ...(tools.length > 0 ? { tools: [{ functionDeclarations: tools }] } : {}),
-      },
-    });
+    // Antes esta llamada iba directo a `client.models.generateContent`, sin
+    // pasar por `withRetry` — un solo 429 (muy fácil de gatillar: la cuota
+    // gratuita de ~10 req/min se comparte entre el Copiloto, el Asistente del
+    // Manual y el cron de agentes CEO/CFO/COO de TODAS las empresas) tumbaba
+    // la respuesta de inmediato en vez de reintentar. Con `withRetry` (hasta
+    // 4 reintentos con backoff exponencial) absorbe ráfagas normales de uso.
+    const response = await withRetry(() =>
+      client.models.generateContent({
+        model: MODEL,
+        contents,
+        config: {
+          systemInstruction: systemPrompt,
+          // Solo se manda `tools` cuando hay funciones reales que ofrecer — el
+          // asistente del Manual de Usuario reusa esta función únicamente por
+          // el soporte de historial multi-turno (`initialContents`), sin
+          // ninguna tool, y no vale la pena arriesgarse a que la API rechace
+          // `functionDeclarations: []` como config inválida.
+          ...(tools.length > 0 ? { tools: [{ functionDeclarations: tools }] } : {}),
+        },
+      })
+    );
 
     const calls = response.functionCalls;
     if (!calls || calls.length === 0) {
