@@ -157,7 +157,12 @@ export async function generateAgentWithTools(
       contents,
       config: {
         systemInstruction: systemPrompt,
-        tools: [{ functionDeclarations: tools }],
+        // Solo se manda `tools` cuando hay funciones reales que ofrecer — el
+        // asistente del Manual de Usuario reusa esta función únicamente por
+        // el soporte de historial multi-turno (`initialContents`), sin
+        // ninguna tool, y no vale la pena arriesgarse a que la API rechace
+        // `functionDeclarations: []` como config inválida.
+        ...(tools.length > 0 ? { tools: [{ functionDeclarations: tools }] } : {}),
       },
     });
 

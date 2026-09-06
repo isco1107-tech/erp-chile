@@ -18,6 +18,7 @@ import { SidebarNav, type SidebarNavGroup } from '@/components/shared/SidebarNav
 import { CompanySwitcher } from '@/components/shared/CompanySwitcher';
 import OnboardingWizard from '@/components/onboarding/OnboardingWizard';
 import AiCopilotDrawer from '@/components/shared/AiCopilotDrawer';
+import ManualAssistantWidget from '@/components/shared/ManualAssistantWidget';
 import { getOnboardingStatus } from '@/lib/services/onboarding.service';
 import { prisma } from '@/lib/prisma';
 
@@ -160,6 +161,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (features.hasOrgChart && allow('orgchart:read')) {
     groups.push({ label: 'Equipo', links: [{ href: '/dashboard/org-chart', label: 'Organigrama', icon: 'orgchart' }] });
   }
+
+  // Manual de Usuario: sin gate de módulo ni permiso — cualquier usuario
+  // autenticado debería poder consultar cómo usar lo que sí tiene disponible.
+  groups.push({ label: 'Ayuda', links: [{ href: '/dashboard/manual', label: 'Manual de Usuario', icon: 'help' }] });
 
   if (canSeeSettings) {
     groups.push({ label: 'Configuración', links: [{ href: '/dashboard/settings', label: 'Configuración', icon: 'settings' }] });
@@ -306,6 +311,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <OnboardingWizard companyId={context.companyId} hasPos={features.hasPos} defaultWarehouseId={defaultWarehouseId} />
       )}
       {features.hasCrm && allow('agents:view') && <AiCopilotDrawer />}
+      <ManualAssistantWidget />
     </div>
   );
 }

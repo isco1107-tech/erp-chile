@@ -187,3 +187,20 @@ export const VOTE_PURCHASE_RATE_LIMIT: RateLimitConfig = {
   limit: 5,
   windowMs: 60 * 60_000,
 };
+
+/**
+ * Asistente del Manual de Usuario (`/api/ai/manual-assistant`): a diferencia
+ * del Copiloto Financiero, este endpoint no exige ningún módulo contratado
+ * ni permiso puntual — cualquier usuario autenticado de cualquier empresa
+ * puede llamarlo. Todos los endpoints de IA comparten la misma cuota
+ * gratuita de Gemini (~10 req/min para TODA la plataforma, ver
+ * `gemini-agent.ts`), así que sin un límite por usuario acá, un solo usuario
+ * de bajo privilegio podría acaparar esa cuota y dejar sin respuesta al
+ * Copiloto/agentes de otras empresas. Por identificador de usuario
+ * (`session.id`), no por IP: es una ruta autenticada.
+ */
+export const MANUAL_ASSISTANT_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'manual-assistant-user',
+  limit: 5,
+  windowMs: 60_000,
+};

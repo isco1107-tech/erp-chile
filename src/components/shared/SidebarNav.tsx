@@ -31,6 +31,7 @@ import {
   CalendarClock,
   Ticket,
   Vote,
+  HelpCircle,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -71,6 +72,7 @@ const ICONS = {
   paymentPlans: CalendarClock,
   ticketing: Ticket,
   voting: Vote,
+  help: HelpCircle,
 } satisfies Record<string, LucideIcon>;
 
 export type SidebarIconKey = keyof typeof ICONS;
