@@ -1,8 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Sparkles, X, Send } from 'lucide-react';
-import { Dialog, DialogPortal, DialogBackdrop } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { parseChatResponse } from '@/lib/ai/chat-response';
 
@@ -17,17 +16,30 @@ interface ChatMessage {
  * superficie flotante de baja densidad, no una tabla de datos — el criterio de
  * `docs/DISENO.md`/PROMPT_ERP_V2 §G.1 para cuándo aplica cada tema.
  *
- * No hay Sheet de shadcn en el proyecto: el panel reusa el patrón
- * `fixed inset-y-0 ... translate-x-full` de `MobileNav.tsx`, envuelto en el
- * backdrop/focus-trap de `DialogPortal`/`DialogBackdrop` (base-ui) que ya usa
- * `dialog.tsx`. Sin streaming ni persistencia: el historial vive en `useState`
- * y se pierde al cerrar la pestaña — a propósito, ver el plan.
+ * Overlay/panel montados a mano (sin `Dialog`/`DialogPortal` de base-ui):
+ * ese primitivo espera que su contenido sea un `Popup` real para poder
+ * detectar cuándo termina la animación de salida antes de liberar el
+ * `inert`/bloqueo de clics que aplica al resto de la página mientras el
+ * modal está abierto. Acá el panel es un `div` con su propia transición CSS,
+ * no un `Popup` — ese desajuste dejaba la página bloqueada (sin poder hacer
+ * clic en nada) después de cerrar el panel. Sin streaming ni persistencia:
+ * el historial vive en `useState` y se pierde al cerrar la pestaña — a
+ * propósito, ver el plan.
  */
 export default function AiCopilotDrawer() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [open]);
 
   async function handleSend() {
     const content = input.trim();
@@ -67,14 +79,14 @@ export default function AiCopilotDrawer() {
         <Sparkles className="size-6" strokeWidth={1.75} />
       </button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogPortal>
-          <DialogBackdrop />
+      {open && (
+        <>
+          <div role="presentation" onClick={() => setOpen(false)} className="fixed inset-0 z-50 bg-black/50" />
           <div
-            className={cn(
-              'hud-surface fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col transition-transform duration-200 ease-out',
-              open ? 'translate-x-0' : 'translate-x-full'
-            )}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Copiloto Financiero"
+            className={cn('hud-surface fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col')}
           >
             <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
               <div>
@@ -137,8 +149,8 @@ export default function AiCopilotDrawer() {
               </form>
             </div>
           </div>
-        </DialogPortal>
-      </Dialog>
+        </>
+      )}
     </>
   );
 }

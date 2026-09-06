@@ -1,8 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { HelpCircle, X, Send } from 'lucide-react';
-import { Dialog, DialogPortal, DialogBackdrop } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { parseChatResponse } from '@/lib/ai/chat-response';
 
@@ -13,18 +12,36 @@ interface ChatMessage {
 
 /**
  * Botón flotante + panel deslizante del asistente del Manual de Usuario.
- * Mismo patrón/estilo que `AiCopilotDrawer.tsx` (superficie flotante de baja
+ * Mismo estilo que `AiCopilotDrawer.tsx` (superficie flotante de baja
  * densidad → mismo criterio "Obsidian HUD" de `PROMPT_ERP_V2.md` §G.1), pero
- * en la esquina opuesta (`left-5`) para que ambos widgets convivan sin
- * superponerse en una empresa que además tenga `hasCrm`. Disponible siempre,
- * sin depender de ningún módulo contratado — es ayuda de uso de la app, no
- * una feature de negocio.
+ * a la izquierda para que ambos widgets convivan sin superponerse en una
+ * empresa que además tenga `hasCrm`. Disponible siempre, sin depender de
+ * ningún módulo contratado — es ayuda de uso de la app, no una feature de
+ * negocio.
+ *
+ * Overlay/panel montados a mano (sin `Dialog`/`DialogPortal` de base-ui):
+ * ese primitivo espera que su contenido sea un `Popup` real para poder
+ * detectar cuándo termina la animación de salida antes de liberar el
+ * `inert`/bloqueo de clics que aplica al resto de la página mientras el
+ * modal está abierto. Acá el panel es un `div` con su propia transición CSS,
+ * no un `Popup` — ese desajuste dejaba la página bloqueada (sin poder hacer
+ * clic en nada) después de cerrar el panel. Con un overlay propio no hay
+ * ninguna lógica de "esperar a que un elemento anime" de la que depender.
  */
 export default function ManualAssistantWidget() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [open]);
 
   async function handleSend() {
     const content = input.trim();
@@ -59,19 +76,23 @@ export default function ManualAssistantWidget() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Abrir asistente del manual"
-        className="hud-surface fixed bottom-5 left-5 z-40 flex size-14 items-center justify-center rounded-full text-cyan-300 shadow-[0_0_24px_-8px_rgba(34,211,238,0.8)] transition-transform duration-150 hover:scale-105 print:hidden"
+        className="hud-surface fixed bottom-5 left-5 z-40 flex size-14 items-center justify-center rounded-full text-cyan-300 shadow-[0_0_24px_-8px_rgba(34,211,238,0.8)] transition-transform duration-150 hover:scale-105 print:hidden lg:left-[280px]"
       >
         <HelpCircle className="size-6" strokeWidth={1.75} />
       </button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogPortal>
-          <DialogBackdrop />
+      {open && (
+        <>
           <div
-            className={cn(
-              'hud-surface fixed inset-y-0 left-0 z-50 flex w-full max-w-md flex-col transition-transform duration-200 ease-out',
-              open ? 'translate-x-0' : '-translate-x-full'
-            )}
+            role="presentation"
+            onClick={() => setOpen(false)}
+            className="fixed inset-0 z-50 bg-black/50"
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Asistente del Manual"
+            className={cn('hud-surface fixed inset-y-0 left-0 z-50 flex w-full max-w-md flex-col')}
           >
             <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
               <div>
@@ -135,8 +156,8 @@ export default function ManualAssistantWidget() {
               </form>
             </div>
           </div>
-        </DialogPortal>
-      </Dialog>
+        </>
+      )}
     </>
   );
 }
