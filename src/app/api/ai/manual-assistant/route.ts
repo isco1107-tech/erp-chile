@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import type { Content } from '@google/genai';
+import type { Content, FunctionDeclaration } from '@google/genai';
 import { AuthError, TenantInactiveError, getAuthContext } from '@/lib/auth/guards';
 import { generateAgentWithTools } from '@/modules/agents/services/gemini-agent';
 import { buildManualSystemPrompt } from '@/modules/manual/prompt';
 import { checkRateLimit, MANUAL_ASSISTANT_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { getAgentAction } from '@/modules/agent-actions/registry';
+import { signPendingAction } from '@/modules/agent-actions/token';
 
 /**
  * Endpoint del asistente del Manual de Usuario. A diferencia del Copiloto
@@ -13,6 +15,12 @@ import { checkRateLimit, MANUAL_ASSISTANT_RATE_LIMIT } from '@/lib/security/rate
  * cualquier usuario autenticado de cualquier rol. El proxy no intercepta
  * `/api` (ver `src/proxy.ts`), así que la autorización vive acá, mismo
  * patrón que el resto de rutas bajo `src/app/api/ai/`.
+ *
+ * Además de explicar, puede PROPONER acciones concretas (crear un contacto,
+ * una candidata, etc. — ver `src/modules/agent-actions/registry.ts`) vía la
+ * tool `proposeAction`, que nunca escribe nada por sí sola: valida, revisa
+ * permiso, y devuelve un token firmado que el usuario debe confirmar
+ * explícitamente contra `/api/ai/manual-assistant/confirm`.
  *
  * Sin streaming ni persistencia de conversación, mismo criterio que el
  * Copiloto: el cliente manda el historial completo en cada request.
@@ -33,6 +41,20 @@ function toGeminiContents(messages: z.infer<typeof requestSchema>['messages']): 
     parts: [{ text: message.content }],
   }));
 }
+
+const PROPOSE_ACTION_TOOL: FunctionDeclaration = {
+  name: 'proposeAction',
+  description:
+    'Propone ejecutar una acción concreta listada en ACCIONES DISPONIBLES. Nunca ejecuta nada de inmediato: valida los datos y devuelve un resumen para que el usuario confirme con un botón.',
+  parametersJsonSchema: {
+    type: 'object',
+    properties: {
+      actionType: { type: 'string', description: 'Uno de los tipos exactos listados en ACCIONES DISPONIBLES' },
+      payload: { type: 'object', description: 'Los campos de esa acción, según la lista de "Campos del payload"' },
+    },
+    required: ['actionType', 'payload'],
+  },
+};
 
 export async function POST(req: Request) {
   try {
@@ -56,14 +78,44 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' }, { status: 400 });
     }
 
-    const systemPrompt = buildManualSystemPrompt(session.features);
-    // Sin tools: el asistente del manual solo necesita el texto del manual ya
-    // incluido en el system prompt, pero se reusa `generateAgentWithTools`
-    // (en vez de `generateAgentText`) para poder mandarle el historial
-    // completo de la conversación, no solo el último mensaje.
-    const reply = await generateAgentWithTools(systemPrompt, toGeminiContents(parsed.data.messages), [], {});
+    const systemPrompt = buildManualSystemPrompt(session.features, session.permissions);
 
-    return NextResponse.json({ success: true, data: { reply } });
+    // El resultado de una `proposeAction` exitosa (token + resumen) no puede
+    // viajar de vuelta al cliente dentro del texto que redacta el modelo —
+    // se captura acá, fuera de la conversación, y se manda aparte en la
+    // respuesta HTTP para que el widget renderice los botones de confirmar.
+    let pendingAction: { token: string; summary: string } | null = null;
+
+    const executors: Record<string, (args: Record<string, unknown>) => Promise<unknown>> = {
+      proposeAction: async (args) => {
+        const actionType = typeof args.actionType === 'string' ? args.actionType : '';
+        const action = getAgentAction(actionType);
+        if (!action) return { error: `No existe la acción "${actionType}".` };
+        if (!session.permissions.includes(action.requiredPermission)) {
+          return { error: 'El usuario no tiene permiso para realizar esta acción.' };
+        }
+
+        const rawPayload = args.payload && typeof args.payload === 'object' ? (args.payload as Record<string, unknown>) : {};
+        try {
+          const resolved = await action.resolve(session.companyId, rawPayload);
+          const token = signPendingAction({
+            actionType,
+            payload: resolved.payload,
+            companyId: session.companyId,
+            userId: session.id,
+            requiredPermission: action.requiredPermission,
+          });
+          pendingAction = { token, summary: resolved.summary };
+          return { ok: true, summary: resolved.summary };
+        } catch (error) {
+          return { error: error instanceof Error ? error.message : 'No se pudo procesar la acción' };
+        }
+      },
+    };
+
+    const reply = await generateAgentWithTools(systemPrompt, toGeminiContents(parsed.data.messages), [PROPOSE_ACTION_TOOL], executors);
+
+    return NextResponse.json({ success: true, data: { reply, pendingAction } });
   } catch (error) {
     if (error instanceof AuthError) {
       return NextResponse.json({ success: false, error: error.message }, { status: error.status });

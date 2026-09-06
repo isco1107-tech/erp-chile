@@ -204,3 +204,13 @@ export const MANUAL_ASSISTANT_RATE_LIMIT: RateLimitConfig = {
   limit: 5,
   windowMs: 60_000,
 };
+
+/** Confirmación de una acción propuesta por el asistente — límite aparte del
+ * de `MANUAL_ASSISTANT_RATE_LIMIT` (que cubre las consultas al modelo), para
+ * frenar reintentos automatizados contra el endpoint que sí escribe en la
+ * base de datos. */
+export const MANUAL_ASSISTANT_CONFIRM_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'manual-assistant-confirm-user',
+  limit: 10,
+  windowMs: 60_000,
+};

@@ -1,13 +1,18 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { HelpCircle, X, Send } from 'lucide-react';
+import { HelpCircle, X, Send, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { parseChatResponse } from '@/lib/ai/chat-response';
+import { parseChatResponse, parseConfirmResponse } from '@/lib/ai/chat-response';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
+}
+
+interface PendingAction {
+  token: string;
+  summary: string;
 }
 
 /**
@@ -33,6 +38,8 @@ export default function ManualAssistantWidget() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -50,6 +57,7 @@ export default function ManualAssistantWidget() {
     const nextMessages: ChatMessage[] = [...messages, { role: 'user', content }];
     setMessages(nextMessages);
     setInput('');
+    setPendingAction(null);
     setSending(true);
     try {
       const res = await fetch('/api/ai/manual-assistant', {
@@ -63,11 +71,36 @@ export default function ManualAssistantWidget() {
         return;
       }
       setMessages([...nextMessages, { role: 'assistant', content: json.data.reply }]);
+      setPendingAction(json.data.pendingAction ?? null);
     } catch {
       setMessages([...nextMessages, { role: 'assistant', content: '⚠️ No se pudo conectar con el asistente.' }]);
     } finally {
       setSending(false);
     }
+  }
+
+  async function handleConfirm() {
+    if (!pendingAction || confirming) return;
+    setConfirming(true);
+    try {
+      const res = await fetch('/api/ai/manual-assistant/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: pendingAction.token }),
+      });
+      const json = parseConfirmResponse(await res.json());
+      setMessages((prev) => [...prev, { role: 'assistant', content: json.success ? `✅ ${json.data.message}` : `⚠️ ${json.error}` }]);
+    } catch {
+      setMessages((prev) => [...prev, { role: 'assistant', content: '⚠️ No se pudo confirmar la acción.' }]);
+    } finally {
+      setPendingAction(null);
+      setConfirming(false);
+    }
+  }
+
+  function handleCancel() {
+    setPendingAction(null);
+    setMessages((prev) => [...prev, { role: 'assistant', content: 'Acción cancelada, no se guardó nada.' }]);
   }
 
   return (
@@ -96,8 +129,8 @@ export default function ManualAssistantWidget() {
           >
             <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
               <div>
-                <p className="hud-label">Asistente del Manual</p>
-                <p className="text-sm text-muted-foreground">Pregúntame cómo hacer algo en el sistema</p>
+                <p className="hud-label">Asistente</p>
+                <p className="text-sm text-muted-foreground">Te explico cómo hacer algo, o lo hago yo si me lo pides</p>
               </div>
               <button
                 type="button"
@@ -112,7 +145,7 @@ export default function ManualAssistantWidget() {
             <div className="hud-scroll flex-1 space-y-3 overflow-y-auto px-4 py-4">
               {messages.length === 0 && (
                 <p className="text-sm text-muted-foreground">
-                  Pregúntame por ejemplo: &ldquo;¿Cómo emito una boleta?&rdquo;, &ldquo;¿Cómo paso asistencia a una sesión?&rdquo; o &ldquo;¿Cómo creo un plan de pago?&rdquo;
+                  Pregúntame por ejemplo: &ldquo;¿Cómo emito una boleta?&rdquo;, o pídeme directamente &ldquo;Créame un contacto para Juan Pérez, RUT 12.345.678-9, es cliente&rdquo;.
                 </p>
               )}
               {messages.map((message, index) => (
@@ -127,6 +160,30 @@ export default function ManualAssistantWidget() {
                 </div>
               ))}
               {sending && <p className="hud-label">Pensando...</p>}
+
+              {pendingAction && (
+                <div className="rounded-xl border border-cyan-300/40 bg-cyan-950/20 p-3">
+                  <p className="mb-2 text-sm text-foreground">{pendingAction.summary}</p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleConfirm()}
+                      disabled={confirming}
+                      className="flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
+                    >
+                      <Check className="size-3.5" /> {confirming ? 'Guardando…' : 'Confirmar'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCancel}
+                      disabled={confirming}
+                      className="rounded-lg border border-input px-3 py-1.5 text-xs font-medium text-foreground disabled:opacity-50"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="shrink-0 border-t border-border p-3">
