@@ -10,11 +10,11 @@ export default async function ManualPage() {
 
   return (
     <div>
-      <h1 className="mb-1 text-2xl font-bold">Manual de Usuario</h1>
-      <p className="mb-4 text-sm text-muted-foreground">
+      <h1 className="mb-1 text-2xl font-bold print:hidden">Manual de Usuario</h1>
+      <p className="mb-4 text-sm text-muted-foreground print:hidden">
         Solo se muestran los módulos incluidos en tu plan actual. ¿No encuentras lo que buscas? Usa el asistente flotante (abajo a la izquierda).
       </p>
-      <ManualClient sections={sections} />
+      <ManualClient sections={sections} companyName={context.companyName} />
     </div>
   );
 }

@@ -11,6 +11,8 @@ export interface ManualSection {
   key: FeatureKey | 'always';
   title: string;
   route: string;
+  /** Ruta pública (`/manual/screenshots/<archivo>.png`) de una captura representativa del módulo. Generada una vez con `scripts/capture-manual-screenshots.ts`, no en cada build. */
+  screenshot?: string;
   topics: ManualTopic[];
 }
 
@@ -29,6 +31,7 @@ export const MANUAL_SECTIONS: ManualSection[] = [
     key: 'always',
     title: 'Primeros pasos',
     route: '/dashboard',
+    screenshot: '/manual/screenshots/dashboard.png',
     topics: [
       {
         id: 'navegacion',
@@ -49,12 +52,38 @@ export const MANUAL_SECTIONS: ManualSection[] = [
           'Si te falta acceso a algo que sí deberías ver, pide al administrador de tu empresa que revise tus permisos en Configuración → Equipo.',
         ],
       },
+      {
+        id: 'buscador-global',
+        title: 'Buscar rápido con el buscador (Ctrl+K)',
+        steps: [
+          'Presiona Ctrl+K (Cmd+K en Mac) en cualquier pantalla para abrir el buscador rápido.',
+          'Escribe el nombre de un módulo, una pantalla, o un atajo para saltar directo sin usar el menú.',
+        ],
+      },
+      {
+        id: 'notificaciones',
+        title: 'Ver notificaciones del sistema',
+        steps: [
+          'La campanita arriba a la derecha muestra avisos relevantes (recordatorios de cobranza, cuotas vencidas, etc.).',
+          'Hacer clic en una notificación te lleva directo a la pantalla relacionada.',
+        ],
+      },
+      {
+        id: 'asistente-ia',
+        title: 'Pedir ayuda al Asistente',
+        steps: [
+          'El botón flotante con el ícono de interrogación (abajo a la izquierda) abre el Asistente, disponible para cualquier usuario.',
+          'Puedes preguntarle "¿cómo hago X?" y te explica paso a paso, o pedirle directamente que haga algo por ti (ej. "créame un contacto para..." o "regístrame la asistencia de...") — te va a pedir confirmar con un botón antes de guardar nada de verdad.',
+          'El Asistente solo puede hacer lo que tu propio usuario tiene permiso de hacer — si te falta un permiso, te lo va a decir en vez de intentarlo igual.',
+        ],
+      },
     ],
   },
   {
     key: 'always',
     title: 'Contactos (Clientes y Proveedores)',
     route: '/dashboard/contacts',
+    screenshot: '/manual/screenshots/contacts.png',
     topics: [
       {
         id: 'crear-contacto',
@@ -68,12 +97,29 @@ export const MANUAL_SECTIONS: ManualSection[] = [
           'Guarda — ya queda disponible para usarlo en ventas, compras o planes de pago.',
         ],
       },
+      {
+        id: 'buscar-contacto',
+        title: 'Buscar un contacto existente',
+        steps: [
+          'Usa el buscador de la lista de Clientes & Proveedores — busca por RUT o por Razón Social.',
+          'Este mismo buscador lo vas a ver replicado dentro de los formularios de venta, compra y plan de pago, para no tener que salir de ahí a crear el contacto primero.',
+        ],
+      },
+      {
+        id: 'limite-credito',
+        title: 'Cómo funciona el límite de crédito',
+        steps: [
+          'Si le defines un límite de crédito a un cliente, el sistema bloquea emitir una nueva venta a crédito (30 días) si la deuda vigente más el nuevo documento superan ese límite.',
+          'Los días de crédito son informativos: sugieren la fecha de vencimiento al vender, pero no son un límite duro por sí solos.',
+        ],
+      },
     ],
   },
   {
     key: 'always',
     title: 'Configuración y Equipo',
     route: '/dashboard/settings',
+    screenshot: '/manual/screenshots/settings.png',
     topics: [
       {
         id: 'invitar-usuario',
@@ -102,6 +148,29 @@ export const MANUAL_SECTIONS: ManualSection[] = [
           'Ahí editas razón social, RUT, logo, y los parámetros tributarios (tasa de PPM, retención de honorarios, si permites stock negativo, etc.).',
         ],
       },
+      {
+        id: 'desactivar-usuario',
+        title: 'Desactivar a alguien que ya no trabaja contigo',
+        steps: [
+          'Ve a Configuración → Equipo, busca a la persona y usa la opción de desactivar su cuenta.',
+          'Una cuenta desactivada pierde el acceso de inmediato, sin esperar a que expire su sesión — no borres al usuario si tiene historial (ventas, documentos) asociado, solo desactívalo.',
+        ],
+      },
+      {
+        id: 'auditoria',
+        title: 'Revisar quién hizo qué (auditoría)',
+        steps: [
+          'Si tu rol tiene acceso a auditoría, en Configuración vas a encontrar el registro de acciones importantes (quién creó, editó o eliminó qué, y cuándo).',
+        ],
+      },
+      {
+        id: 'dos-factores',
+        title: 'Activar verificación en dos pasos (2FA)',
+        steps: [
+          'Desde tu perfil (arriba a la derecha) puedes activar la verificación en dos pasos con una app de autenticación (Google Authenticator, Authy, etc.).',
+          'Una vez activada, cada inicio de sesión va a pedir además el código de 6 dígitos de la app.',
+        ],
+      },
     ],
   },
   {
@@ -117,12 +186,20 @@ export const MANUAL_SECTIONS: ManualSection[] = [
           'Al cambiar de empresa activa, todo el panel (menú, datos, permisos) se actualiza a esa empresa — no hace falta cerrar sesión.',
         ],
       },
+      {
+        id: 'datos-separados',
+        title: 'Los datos de cada empresa están totalmente separados',
+        steps: [
+          'Ventas, contactos, inventario, usuarios y todo lo demás son independientes por empresa — nada se mezcla entre ellas aunque las administre la misma persona.',
+        ],
+      },
     ],
   },
   {
     key: 'hasPos',
     title: 'Punto de Venta (POS)',
     route: '/dashboard/pos',
+    screenshot: '/manual/screenshots/pos.png',
     topics: [
       {
         id: 'abrir-turno',
@@ -151,12 +228,21 @@ export const MANUAL_SECTIONS: ManualSection[] = [
           'Cuenta el efectivo real y anótalo — el sistema te muestra la diferencia contra lo esperado según las ventas del turno.',
         ],
       },
+      {
+        id: 'anular-venta-pos',
+        title: 'Anular una venta hecha por error',
+        steps: [
+          'Una venta del POS no se borra: se anula igual que cualquier documento de venta, generando una Nota de Crédito.',
+          'Solo un usuario con permiso de anular ventas puede hacerlo.',
+        ],
+      },
     ],
   },
   {
     key: 'hasInventory',
     title: 'Inventario y Catálogo',
     route: '/dashboard/products',
+    screenshot: '/manual/screenshots/inventory.png',
     topics: [
       {
         id: 'crear-producto',
@@ -184,12 +270,28 @@ export const MANUAL_SECTIONS: ManualSection[] = [
           'Si tu plan tiene Multibodega, puedes transferir stock entre bodegas desde la misma sección.',
         ],
       },
+      {
+        id: 'stock-negativo',
+        title: 'Qué pasa si intento vender sin stock',
+        steps: [
+          'Por defecto, el sistema bloquea vender un producto sin stock suficiente.',
+          'Si tu empresa necesita permitirlo igual (venta contra pedido), el dueño de la cuenta puede activar "permitir stock negativo" en Configuración → Empresa.',
+        ],
+      },
+      {
+        id: 'categorias-producto',
+        title: 'Organizar productos por categoría',
+        steps: [
+          'Al crear o editar un producto, asígnale una categoría — te sirve después para filtrar el catálogo y para los reportes de márgenes por categoría.',
+        ],
+      },
     ],
   },
   {
     key: 'hasDteBilling',
     title: 'Ventas y Facturación',
     route: '/dashboard/sales',
+    screenshot: '/manual/screenshots/sales.png',
     topics: [
       {
         id: 'emitir-documento',
@@ -209,12 +311,29 @@ export const MANUAL_SECTIONS: ManualSection[] = [
           'Desde el detalle del documento original, usa la opción de generar Nota de Crédito.',
         ],
       },
+      {
+        id: 'cotizacion',
+        title: 'Crear una cotización antes de vender',
+        steps: [
+          'Si el cliente todavía no confirma la compra, genera una Cotización en vez de un documento definitivo.',
+          'Cuando el cliente confirma, conviertes esa cotización en una boleta/factura sin tener que volver a cargar los productos.',
+        ],
+      },
+      {
+        id: 'venta-credito',
+        title: 'Vender a crédito (30 días)',
+        steps: [
+          'Al emitir el documento, elige "Crédito 30 días" como forma de pago.',
+          'El documento queda pendiente de cobro en Tesorería → Cuentas por Cobrar hasta que se registre el pago.',
+        ],
+      },
     ],
   },
   {
     key: 'hasPurchases',
     title: 'Compras y Proveedores',
     route: '/dashboard/purchases',
+    screenshot: '/manual/screenshots/purchases.png',
     topics: [
       {
         id: 'registrar-compra',
@@ -233,12 +352,21 @@ export const MANUAL_SECTIONS: ManualSection[] = [
           'Cuando llega la mercadería, conviértela en una recepción/factura de compra vinculada a esa orden.',
         ],
       },
+      {
+        id: 'aprobacion-compra',
+        title: 'Aprobar una compra antes de pagarla',
+        steps: [
+          'Si tu empresa exige aprobación, la compra queda en estado pendiente hasta que alguien con el permiso correspondiente la apruebe.',
+          'Una vez aprobada, ya puede pagarse desde Tesorería → Cuentas por Pagar.',
+        ],
+      },
     ],
   },
   {
     key: 'hasTreasury',
     title: 'Tesorería y Cobranzas',
     route: '/dashboard/treasury/cxc',
+    screenshot: '/manual/screenshots/treasury.png',
     topics: [
       {
         id: 'cxc',
@@ -263,6 +391,13 @@ export const MANUAL_SECTIONS: ManualSection[] = [
           'Ve a Flujo de Caja para ver entradas y salidas esperadas según los vencimientos de CxC y CxP.',
         ],
       },
+      {
+        id: 'pago-parcial',
+        title: 'Registrar un pago parcial',
+        steps: [
+          'Un cliente/proveedor no tiene que pagar el total de una vez — registra el monto que efectivamente pagó y el documento queda "parcialmente pagado" con el saldo restante visible.',
+        ],
+      },
     ],
   },
   {
@@ -276,6 +411,14 @@ export const MANUAL_SECTIONS: ManualSection[] = [
         steps: [
           'Ve a Reportes Excel.',
           'Elige el período (mes/año) y descarga el Excel — incluye libro de ventas, compras, Kardex valorizado y una estimación de F29 calculada sobre tus documentos reales del período.',
+        ],
+      },
+      {
+        id: 'f29-estimado',
+        title: 'Qué tan confiable es el F29 estimado',
+        steps: [
+          'Se calcula sobre tus documentos ya emitidos/recibidos en el sistema (débito fiscal, crédito fiscal, PPM), no es un número inventado.',
+          'Sirve como estimación de apoyo — la declaración formal ante el SII la sigue haciendo tu contador con su propio sistema.',
         ],
       },
     ],
@@ -300,12 +443,20 @@ export const MANUAL_SECTIONS: ManualSection[] = [
           'Elige las cuentas del plan de cuentas, el debe y el haber deben cuadrar para poder guardarlo.',
         ],
       },
+      {
+        id: 'cerrar-periodo',
+        title: 'Cerrar un período contable',
+        steps: [
+          'Solo un usuario con el permiso de cierre puede cerrar un período — una vez cerrado, no se pueden agregar ni modificar asientos de ese mes.',
+        ],
+      },
     ],
   },
   {
     key: 'hasCrm',
     title: 'Inteligencia de Negocio (Agentes)',
     route: '/dashboard/agents',
+    screenshot: '/manual/screenshots/agents.png',
     topics: [
       {
         id: 'agentes-ejecutivos',
@@ -329,6 +480,7 @@ export const MANUAL_SECTIONS: ManualSection[] = [
     key: 'hasEventProjects',
     title: 'Eventos y Proyectos',
     route: '/dashboard/projects',
+    screenshot: '/manual/screenshots/projects.png',
     topics: [
       {
         id: 'crear-proyecto',
@@ -346,12 +498,20 @@ export const MANUAL_SECTIONS: ManualSection[] = [
           'Ve a Calendario & Google Sync para ver las etapas del proyecto y los cumpleaños de candidatas en una vista de calendario, y sincronizarlo con Google Calendar si lo necesitas.',
         ],
       },
+      {
+        id: 'rentabilidad-proyecto',
+        title: 'Ver cuánto está ganando o perdiendo un proyecto',
+        steps: [
+          'Entra al detalle del proyecto para ver el presupuesto vs. lo real: ingresos (ventas, auspicios) menos gastos (compras, honorarios) vinculados a ese proyecto específico.',
+        ],
+      },
     ],
   },
   {
     key: 'hasSponsorships',
     title: 'Auspicios y Marcas',
     route: '/dashboard/sponsorships',
+    screenshot: '/manual/screenshots/sponsorships.png',
     topics: [
       {
         id: 'crear-auspicio',
@@ -367,6 +527,13 @@ export const MANUAL_SECTIONS: ManualSection[] = [
         title: 'Revisar qué entregables faltan',
         steps: [
           'Ve a Cumplimiento de Auspicios para ver, por marca, qué porcentaje de entregables ya se completó.',
+        ],
+      },
+      {
+        id: 'plantilla-carta',
+        title: 'Editar la plantilla de la carta de compromiso',
+        steps: [
+          'Ve a Plantilla: Carta de Compromiso para ajustar el texto que se usa al generar el documento de cada nuevo contrato de auspicio.',
         ],
       },
     ],
@@ -390,6 +557,7 @@ export const MANUAL_SECTIONS: ManualSection[] = [
     key: 'hasCandidates',
     title: 'Candidatas y Staff',
     route: '/dashboard/candidates',
+    screenshot: '/manual/screenshots/candidates.png',
     topics: [
       {
         id: 'ficha-candidata',
@@ -397,6 +565,14 @@ export const MANUAL_SECTIONS: ManualSection[] = [
         steps: [
           'Ve a Candidatas & Staff → "Nueva candidata", o comparte el link público de postulación (Configuración de convocatoria) para que ella misma cargue sus datos.',
           'Desde la ficha puedes cambiar su estado (postulante, preseleccionada, finalista, etc.), subir documentos y generar el contrato de imagen.',
+        ],
+      },
+      {
+        id: 'firma-contrato',
+        title: 'Enviar el contrato a firmar por correo',
+        steps: [
+          'Desde la ficha de la candidata, genera el contrato de imagen y usa "Solicitar firma por correo".',
+          'A la candidata le llega un correo con un link para firmar electrónicamente — cuando firma, el contrato queda marcado como firmado automáticamente, sin que tengas que hacer nada más.',
         ],
       },
       {
@@ -414,6 +590,22 @@ export const MANUAL_SECTIONS: ManualSection[] = [
         title: 'Ver el cumplimiento general',
         steps: [
           'Ve a Cumplimiento de Candidatas para ver, por candidata, su % de asistencia y el estado de sus documentos/contrato.',
+        ],
+      },
+      {
+        id: 'convocatoria',
+        title: 'Abrir/cerrar la convocatoria de postulaciones',
+        steps: [
+          'Desde el proyecto, configura la convocatoria: fecha de apertura/cierre, edad mínima y cupo máximo.',
+          'Mientras esté "Abierta", el link público de postulación permite que nuevas candidatas se registren solas.',
+        ],
+      },
+      {
+        id: 'descartar-candidata',
+        title: 'Descartar una postulación',
+        steps: [
+          'Al cambiar el estado de una candidata a "Descartada", el sistema exige indicar el motivo — queda registrado para trazabilidad.',
+          'Las candidatas descartadas se purgan automáticamente después de un tiempo configurado (retención de datos), no quedan guardadas para siempre.',
         ],
       },
     ],
@@ -500,6 +692,7 @@ export const MANUAL_SECTIONS: ManualSection[] = [
     key: 'hasInstallmentPlans',
     title: 'Cuotas y Mensualidades',
     route: '/dashboard/payment-plans',
+    screenshot: '/manual/screenshots/payment-plans.png',
     topics: [
       {
         id: 'crear-plan-pago',
@@ -517,6 +710,21 @@ export const MANUAL_SECTIONS: ManualSection[] = [
         steps: [
           'Entra al plan de pago y, en la cuota correspondiente, registra el monto pagado y el medio de pago.',
           'Si pasan todas las cuotas del plan a pagadas, el plan se marca automáticamente como Completado.',
+        ],
+      },
+      {
+        id: 'recordatorio-mora',
+        title: 'Recordatorios automáticos de cuotas vencidas',
+        steps: [
+          'El sistema envía un recordatorio por correo automáticamente cuando una cuota vence y sigue impaga — no tienes que estar revisando manualmente todos los días.',
+          'Si definiste una multa por atraso, se aplica automáticamente sobre las cuotas vencidas.',
+        ],
+      },
+      {
+        id: 'cancelar-plan',
+        title: 'Cancelar un plan de pago',
+        steps: [
+          'Si el cliente/candidata deja de pagar o se cancela el acuerdo, puedes marcar el plan como Cancelado desde su detalle — las cuotas ya pagadas quedan en el historial igual.',
         ],
       },
     ],
