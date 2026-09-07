@@ -152,6 +152,9 @@ model Company {
   ticketTypes               TicketType[]
   ticketSales               TicketSale[]
   voteOrders                VoteOrder[]
+  conversations             Conversation[]
+  messages                  Message[]
+  messageAttachments        MessageAttachment[]
 
   // El panel de plataforma agrupa por estado y por plan en cada carga.
   @@index([status])
@@ -159,21 +162,21 @@ model Company {
 }
 
 model User {
-  id                               String               @id @default(cuid())
-  email                            String               @unique
+  id                               String                    @id @default(cuid())
+  email                            String                    @unique
   passwordHash                     String
   name                             String
   /// Teléfono personal (con código de país, ej. +56912345678). Editable solo
   /// por el propio usuario desde "Mi Perfil" — sirve para el botón de WhatsApp
   /// que ve el dueño/administrador en el directorio de equipo.
   phone                            String?
-  role                             Role                 @default(SALES)
+  role                             Role                      @default(SALES)
   companyId                        String?
-  company                          Company?             @relation(fields: [companyId], references: [id])
+  company                          Company?                  @relation(fields: [companyId], references: [id])
   /// Rol personalizado de la empresa. Cuando está presente, su lista de permisos
   /// reemplaza a la matriz del rol base (salvo para OWNER, que nunca se limita).
   customRoleId                     String?
-  customRole                       CustomRole?          @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
+  customRole                       CustomRole?               @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
   /// Foto de perfil (Vercel Blob) para el organigrama (módulo `hasOrgChart`).
   /// Estrictamente autoservicio: solo el propio usuario la sube, ver
   /// src/app/api/org-chart/photo-upload/route.ts.
@@ -182,7 +185,7 @@ model User {
   /// criterio que `customRoleId` — borrar un cargo del catálogo no debe dejar
   /// una FK huérfana, es metadata menor, no pérdida de estructura.
   jobPositionId                    String?
-  jobPosition                      JobPosition?         @relation(fields: [jobPositionId], references: [id], onDelete: SetNull)
+  jobPosition                      JobPosition?              @relation(fields: [jobPositionId], references: [id], onDelete: SetNull)
   /// Jefe directo en el organigrama. `Restrict` a propósito, a diferencia de
   /// `customRoleId`: es una relación ESTRUCTURAL activa (como `Account.parentId`
   /// en el plan de cuentas), no un dato de atribución histórica — borrar a
@@ -191,17 +194,17 @@ model User {
   /// (ver src/lib/services/users.service.ts); la baja cotidiana es desactivar
   /// la cuenta (`isActive`), que no toca esta FK.
   managerId                        String?
-  manager                          User?                @relation("OrgChartHierarchy", fields: [managerId], references: [id], onDelete: Restrict)
-  reports                          User[]               @relation("OrgChartHierarchy")
+  manager                          User?                     @relation("OrgChartHierarchy", fields: [managerId], references: [id], onDelete: Restrict)
+  reports                          User[]                    @relation("OrgChartHierarchy")
   /// Bandera global de plataforma: acceso al portal /superadmin. No pertenece a
   /// ninguna empresa y no se puede otorgar desde el panel del cliente.
-  isSuperAdmin                     Boolean              @default(false)
-  isActive                         Boolean              @default(true)
-  sessionVersion                   Int                  @default(0)
+  isSuperAdmin                     Boolean                   @default(false)
+  isActive                         Boolean                   @default(true)
+  sessionVersion                   Int                       @default(0)
   /// Fuerza el flujo de "nueva contraseña" en el próximo login. Se activa al
   /// crear una cuenta con contraseña temporal generada por un administrador;
   /// se apaga al completar el cambio, nunca por otra vía.
-  mustChangePassword               Boolean              @default(false)
+  mustChangePassword               Boolean                   @default(false)
   /// Secreto TOTP cifrado en reposo (AES-256-GCM, ver src/lib/auth/totp-crypto.ts)
   /// — nunca en texto plano en la base. `null` mientras 2FA no está configurado
   /// o mientras el usuario está a mitad del flujo de activación.
@@ -209,34 +212,39 @@ model User {
   /// Recién en `true` cuando el usuario confirma el primer código válido al
   /// activar — así nunca queda "medio activado" con un secreto sin verificar
   /// que le bloquearía su propio acceso.
-  totpEnabled                      Boolean              @default(false)
+  totpEnabled                      Boolean                   @default(false)
   /// Intentos fallidos consecutivos de código TOTP/respaldo en el segundo
   /// paso del login. Se resetea a 0 en cualquier intento exitoso; al llegar
   /// al umbral (ver verify-totp/route.ts) se bloquea temporalmente en vez de
   /// seguir aceptando intentos — sin esto, un código de 6 dígitos es
   /// fuerza-bruteable dentro de la ventana de 5 minutos del challenge token.
-  totpFailedAttempts               Int                  @default(0)
+  totpFailedAttempts               Int                       @default(0)
   totpLockedUntil                  DateTime?
   totpBackupCodes                  TotpBackupCode[]
   /// Intentos fallidos consecutivos de contraseña en el primer paso del login
   /// (antes de llegar siquiera al TOTP). Mismo mecanismo que `totpFailedAttempts`:
   /// sin esto, la contraseña es fuerza-bruteable sin límite — solo el costo de
   /// bcrypt(12) frena a un atacante, y eso no alcanza contra intentos paralelos.
-  failedLoginAttempts              Int                  @default(0)
+  failedLoginAttempts              Int                       @default(0)
   loginLockedUntil                 DateTime?
-  createdAt                        DateTime             @default(now())
+  createdAt                        DateTime                  @default(now())
   auditLogs                        AuditLog[]
   cashShifts                       CashShift[]
   passwordResetTokens              PasswordResetToken[]
   closedAccountingPeriods          AccountingPeriod[]
   createdJournalEntries            JournalEntry[]
-  approvedPurchaseDocuments        PurchaseDocument[]   @relation("PurchaseApprovals")
-  matchOverriddenPurchaseDocuments PurchaseDocument[]   @relation("PurchaseMatchOverrides")
+  approvedPurchaseDocuments        PurchaseDocument[]        @relation("PurchaseApprovals")
+  matchOverriddenPurchaseDocuments PurchaseDocument[]        @relation("PurchaseMatchOverrides")
   sessions                         UserSession[]
   /// Empresas ADICIONALES a `companyId` (la "hogar") que este usuario puede
   /// activar sin iniciar sesión de nuevo — ver `CompanyMembership` y
   /// `src/lib/auth/actions/switch-company.actions.ts`.
   companyMemberships               CompanyMembership[]
+  /// Mensajería interna — ver sección "Mensajería interna" al final del schema.
+  sentMessages                     Message[]
+  conversationParticipations       ConversationParticipant[]
+  createdConversations             Conversation[]            @relation("MessagingConversationCreator")
+  uploadedMessageAttachments       MessageAttachment[]
 
   @@index([companyId])
   @@index([customRoleId])
@@ -2585,4 +2593,114 @@ model ProcessedWebhookEvent {
   @@unique([provider, eventId])
   @@index([companyId, provider])
   @@index([createdAt])
+}
+
+// ============================================================================
+// Mensajería interna
+// ============================================================================
+
+/// Chat interno de la empresa (equivalente a un Slack/WhatsApp propio). Es
+/// capacidad transversal (permiso `messaging:use`, ver `src/lib/auth/permissions.ts`),
+/// NO un módulo de `CompanyFeatures`: cualquier empresa contratada, sin
+/// importar el plan, puede usarlo entre su propio equipo — no se vende por
+/// separado.
+enum ConversationType {
+  DIRECT
+  GROUP
+}
+
+model Conversation {
+  id          String           @id @default(cuid())
+  companyId   String
+  company     Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  type        ConversationType @default(DIRECT)
+  /// Solo GROUP: nombre visible del canal. Un DIRECT muestra el nombre del
+  /// otro participante, resuelto en el servicio, nunca guardado acá.
+  name        String?
+  /// Solo DIRECT: par de userIds ordenado ("idA:idB") para no crear dos
+  /// conversaciones 1 a 1 entre las mismas dos personas. `null` en GROUP.
+  directKey   String?
+  createdById String
+  createdBy   User             @relation("MessagingConversationCreator", fields: [createdById], references: [id])
+  createdAt   DateTime         @default(now())
+  /// Se toca en cada mensaje nuevo — así "Conversaciones" se puede ordenar
+  /// por actividad reciente con un solo `orderBy`, sin agregar sobre `Message`.
+  updatedAt   DateTime         @updatedAt
+
+  participants ConversationParticipant[]
+  messages     Message[]
+  attachments  MessageAttachment[]
+
+  @@unique([companyId, directKey])
+  @@index([companyId])
+}
+
+model ConversationParticipant {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Hasta dónde leyó esta persona — la base del contador de "no leídos" en
+  /// el sidebar (mensajes de la conversación con `createdAt > lastReadAt`).
+  lastReadAt     DateTime?
+  joinedAt       DateTime     @default(now())
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+}
+
+/// Cuerpo del mensaje cifrado en reposo (AES-256-GCM, `src/lib/messaging/crypto.ts`):
+/// nadie con acceso directo a la base (o un respaldo filtrado) puede leer el
+/// contenido sin la llave del servidor. `ciphertext` es `null` cuando el
+/// mensaje es solo adjunto(s), sin texto.
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  /// Denormalizado a propósito: permite filtrar por `companyId` en consultas
+  /// de auditoría/soporte sin tener que unir contra `Conversation` primero —
+  /// mismo criterio que otros modelos transversales del proyecto.
+  companyId      String
+  company        Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User         @relation(fields: [senderId], references: [id])
+  ciphertext     String?
+  /// Baja lógica: "Eliminar mensaje" solo lo oculta (mismo criterio que el
+  /// resto del sistema), nunca se sobrescribe el historial de otros.
+  deletedAt      DateTime?
+  createdAt      DateTime     @default(now())
+
+  attachments MessageAttachment[]
+
+  @@index([conversationId, createdAt])
+  @@index([companyId])
+}
+
+/// El archivo se cifra completo (IV + authTag + ciphertext concatenados) antes
+/// de subirse a Vercel Blob — el blob en sí nunca contiene el contenido en
+/// claro, y su URL jamás se entrega al navegador: siempre se descarga a
+/// través de `/api/messaging/attachments/[id]`, que valida membresía en la
+/// conversación y descifra en el servidor. `messageId` nace `null` (el
+/// archivo se sube antes de que exista el mensaje que lo va a llevar) y se
+/// fija recién cuando `sendMessageAction` lo asocia.
+model MessageAttachment {
+  id             String       @id @default(cuid())
+  companyId      String
+  company        Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  uploadedById   String
+  uploadedBy     User         @relation(fields: [uploadedById], references: [id])
+  messageId      String?
+  message        Message?     @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  fileName       String
+  mimeType       String
+  /// Tamaño original del archivo (antes de cifrar), para mostrarlo en la UI.
+  sizeBytes      Int
+  blobUrl        String
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId])
+  @@index([messageId])
 }

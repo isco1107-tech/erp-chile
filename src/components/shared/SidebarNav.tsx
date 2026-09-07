@@ -33,6 +33,7 @@ import {
   Ticket,
   Vote,
   HelpCircle,
+  MessageSquare,
   ChevronDown,
   type LucideIcon,
 } from 'lucide-react';
@@ -75,6 +76,7 @@ const ICONS = {
   ticketing: Ticket,
   voting: Vote,
   help: HelpCircle,
+  messaging: MessageSquare,
 } satisfies Record<string, LucideIcon>;
 
 export type SidebarIconKey = keyof typeof ICONS;

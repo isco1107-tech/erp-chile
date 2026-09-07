@@ -140,6 +140,11 @@ export const PERMISSIONS = {
   'ticketing:write': ['OWNER', 'ADMIN', 'SALES'],
   'publicvoting:read': ['OWNER', 'ADMIN', 'SALES'],
   'publicvoting:write': ['OWNER', 'ADMIN', 'SALES'],
+
+  // Mensajería interna: entorno de productividad transversal, no un módulo
+  // vertical del negocio — todo el equipo puede usarla, mismo criterio que
+  // contacts:read.
+  'messaging:use': ALL_ROLES,
 } satisfies Record<string, Role[]>;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -227,6 +232,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'ticketing:write': 'Configurar tipos de entrada, confirmar pagos y hacer control de acceso',
   'publicvoting:read': 'Ver órdenes y ranking de votación pagada',
   'publicvoting:write': 'Confirmar pagos de votación pagada',
+  'messaging:use': 'Usar la mensajería interna de la empresa',
 };
 
 /**
@@ -242,6 +248,7 @@ export const CORE_PERMISSION_GROUP = {
     'settings:users',
     'audit:read',
     'import:data',
+    'messaging:use',
   ] as Permission[],
 };
 

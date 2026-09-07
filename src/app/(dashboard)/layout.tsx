@@ -60,6 +60,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (features.hasPos && allow('pos:operate')) {
     principalLinks.push({ href: '/dashboard/pos', label: 'Punto de Venta', icon: 'pos' });
   }
+  // Mensajería: capacidad transversal (permiso `messaging:use`, no un módulo
+  // de `CompanyFeatures`) — no se vende por separado, cualquier empresa
+  // contratada puede usarla entre su propio equipo.
+  if (allow('messaging:use')) {
+    principalLinks.push({ href: '/dashboard/messaging', label: 'Mensajería', icon: 'messaging' });
+  }
   groups.push({ label: 'Principal', links: principalLinks });
 
   if (showInventorySection) {
