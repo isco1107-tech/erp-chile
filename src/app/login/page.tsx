@@ -209,7 +209,7 @@ function LoginShell({ children }: { children: React.ReactNode }) {
         <div className="hidden flex-col justify-between p-12 lg:flex lg:w-1/2 xl:p-16">
           <div className="flex items-center gap-2.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/branding/aether-icon.png" alt="" aria-hidden="true" className="size-7 object-contain" />
+            <img src="/branding/logo.png" alt="" aria-hidden="true" className="size-7 object-contain" />
             <span className="text-sm font-semibold tracking-wide text-foreground">AETHER ERP</span>
           </div>
 
@@ -244,24 +244,27 @@ function LoginShell({ children }: { children: React.ReactNode }) {
 
 /**
  * El isotipo de Aether de fondo, a color real (estrella dorada, azul marino
- * — el logo tal cual es, no una silueta). `aether-logo-full.png` no tiene
- * transparencia (fondo claro sólido horneado en el PNG, confirmado: color
- * type 2, RGB sin canal alfa) — usarlo con `object-contain` dejaba un
- * recuadro claro con bordes duros flotando sobre el fondo oscuro (feedback
- * real). Se cubre toda la pantalla (`bg-cover`, sin recuadro ni margen) y se
- * difumina levemente + oscurece con una capa semitransparente encima para
- * que el fondo claro del PNG se integre al tema oscuro en vez de competir
- * con él, y el texto siga siendo legible sobre cualquier parte de la imagen.
+ * — el ícono tal cual es). `logo.png` es la versión transparente del ícono
+ * (sin el fondo claro horneado que traía `aether-logo-full.png`, que dejaba
+ * un recuadro con bordes duros u obligaba a oscurecerlo tanto que casi no se
+ * veía) — con transparencia real se puede mostrar centrado y grande, sin
+ * caja ni overlay pesado, y sigue leyéndose "claro" en vez de apagado.
  */
 function BackgroundMark() {
   return (
     <>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/branding/logo.png"
+        alt=""
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 m-auto h-auto w-[min(85vw,1250px)] object-contain opacity-80 select-none lg:w-[min(58vw,1000px)]"
+      />
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 scale-105 bg-cover bg-center blur-[2px]"
-        style={{ backgroundImage: 'url(/branding/aether-logo-full.png)' }}
+        className="pointer-events-none absolute inset-0"
+        style={{ background: 'radial-gradient(ellipse at center, transparent 0%, transparent 60%, var(--background) 96%)' }}
       />
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-background/85" />
     </>
   );
 }

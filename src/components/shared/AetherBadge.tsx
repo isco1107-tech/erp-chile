@@ -24,7 +24,7 @@ export default function AetherBadge() {
       className="fixed right-4 bottom-20 z-30 flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/90 px-2.5 py-1.5 text-[11px] font-medium text-slate-500 opacity-70 shadow-sm backdrop-blur-sm transition-opacity duration-150 hover:opacity-100 print:hidden"
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/branding/aether-icon.png" alt="" aria-hidden="true" className="h-3.5 w-3.5 shrink-0 object-contain" />
+      <img src="/branding/logo.png" alt="" aria-hidden="true" className="h-3.5 w-3.5 shrink-0 object-contain" />
       Hecho con Aether ERP
     </Link>
   );
