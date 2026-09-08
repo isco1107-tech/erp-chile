@@ -121,8 +121,13 @@ export default function NewConversationDialog({
                   {isGroup && (
                     <input type="checkbox" checked={selected} onChange={() => toggleSelected(u.id)} className="size-4 shrink-0" />
                   )}
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-foreground">
-                    {u.name.slice(0, 1).toUpperCase()}
+                  <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-semibold text-foreground">
+                    {u.photoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={u.photoUrl} alt={u.name} className="size-full object-cover" />
+                    ) : (
+                      u.name.slice(0, 1).toUpperCase()
+                    )}
                   </span>
                   <span className="min-w-0">
                     <span className="block truncate font-medium text-foreground">{u.name}</span>

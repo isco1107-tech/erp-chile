@@ -104,6 +104,20 @@ function emptyToNull(value: string | undefined): string | null | undefined {
   return value === '' ? null : value;
 }
 
+/**
+ * Formato "suave" para un RUT opcional/informativo (ej. `employerRut`): a
+ * diferencia del RUT propio de la candidata (`rutField` en el schema, que
+ * exige dígito verificador válido), este dato puede venir de una búsqueda
+ * web imperfecta o completarse a mano sin certeza total — se normaliza el
+ * formato visual (`12.345.678-K`) para que no quede desparejo con el resto
+ * de la ficha, pero nunca bloquea el guardado si el dígito verificador no
+ * calza.
+ */
+function formatOptionalRut(value: string | undefined): string | undefined {
+  if (!value) return value;
+  return formatRut(cleanRut(value));
+}
+
 export async function createCandidate(companyId: string, data: CandidateCreateInput): Promise<CandidateWithProject> {
   await assertProjectOwnership(companyId, data.projectId);
 
@@ -139,6 +153,9 @@ export async function createCandidate(companyId: string, data: CandidateCreateIn
       motivacion: data.motivacion || undefined,
       causaSocial: data.causaSocial || undefined,
       condicionesMedicas: data.condicionesMedicas || undefined,
+      employerName: data.employerName || undefined,
+      employerRut: formatOptionalRut(data.employerRut) || undefined,
+      employerAddress: data.employerAddress || undefined,
     },
     include: { project: { select: PROJECT_SELECT } },
   });
@@ -180,6 +197,9 @@ export async function updateCandidate(
     motivacion: emptyToNull(data.motivacion),
     causaSocial: emptyToNull(data.causaSocial),
     condicionesMedicas: emptyToNull(data.condicionesMedicas),
+    employerName: emptyToNull(data.employerName),
+    employerRut: emptyToNull(formatOptionalRut(data.employerRut)),
+    employerAddress: emptyToNull(data.employerAddress),
   };
 
   // El RUT es editable (ej. corregir un dígito mal tipeado al ingresar), pero

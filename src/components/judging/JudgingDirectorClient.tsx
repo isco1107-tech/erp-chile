@@ -421,7 +421,7 @@ export default function JudgingDirectorClient({ canWrite }: { canWrite: boolean 
                         type="button"
                         size="icon-xs"
                         variant="ghost"
-                        className="text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100"
+                        className="text-muted-foreground opacity-100 hover:text-destructive sm:opacity-0 sm:group-hover:opacity-100"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleDeleteRound(round.id);

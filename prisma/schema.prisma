@@ -1818,10 +1818,15 @@ model PaymentPlanInstallment {
   companyId         String
   company           Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
   paymentPlanId     String
-  /// `Restrict`, no `Cascade`: una cuota puede tener `paidAmount &gt; 0` (dinero
-  /// efectivamente cobrado). Un `PaymentPlan` no se borra — se cancela
-  /// (`status: CANCELLED`) — así nunca se pierde en cascada el historial de
-  /// cobro de sus cuotas ya pagadas.
+  /// `Restrict`, no `Cascade`: protege contra un borrado accidental en
+  /// cascada por fuera de la lógica de aplicación. El borrado deliberado y
+  /// explícito de un `PaymentPlan` SÍ está soportado (`deletePaymentPlan` en
+  /// `payment-plans.service.ts`, decisión de negocio: "no dejar dato
+  /// estorbando" aunque haya pagos) — ese flujo borra primero las cuotas
+  /// dentro de la misma transacción para sortear este `Restrict`. El uso
+  /// cotidiano de dar de baja un plan sigue siendo cancelarlo
+  /// (`status: CANCELLED`), que conserva el historial; borrar es la
+  /// excepción explícita, no la regla.
   paymentPlan       PaymentPlan   @relation(fields: [paymentPlanId], references: [id], onDelete: Restrict)
   installmentNumber Int
   dueDate           DateTime
@@ -1936,6 +1941,13 @@ model Candidate {
   /// `submitCandidateRegistration` — nunca para fichas creadas a mano.
   ipOrigen              String?
   userAgent             String?
+  /// Datos del empleador (texto libre, completado a mano o vía búsqueda web
+  /// en `lookupCompaniesByName` — ver `src/modules/contacts/services/company-lookup.service.ts`).
+  /// No hay relación estructurada con `Contact`: es solo un dato informativo
+  /// de la ficha, no un cliente/proveedor de la empresa.
+  employerName          String?
+  employerRut           String?
+  employerAddress       String?
   attendances           CandidateAttendance[]
   documents             CandidateDocument[]
   wardrobeItems         WardrobeItem[]
@@ -2645,9 +2657,16 @@ model ConversationParticipant {
   /// el sidebar (mensajes de la conversación con `createdAt > lastReadAt`).
   lastReadAt     DateTime?
   joinedAt       DateTime     @default(now())
+  /// "Borrar conversación" es ocultarla para quien la borra, no destruir el
+  /// historial de la otra persona (mismo criterio que `Message.deletedAt`:
+  /// nunca hard-delete de mensajería). `listConversationsAction` filtra las
+  /// filas con `hiddenAt` seteado; llega un mensaje nuevo y vuelve a aparecer
+  /// (se limpia al enviar/recibir, ver `messaging.service.ts`).
+  hiddenAt       DateTime?
 
   @@unique([conversationId, userId])
   @@index([userId])
+  @@index([userId, hiddenAt])
 }
 
 /// Cuerpo del mensaje cifrado en reposo (AES-256-GCM, `src/lib/messaging/crypto.ts`):

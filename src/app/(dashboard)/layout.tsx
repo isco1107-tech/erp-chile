@@ -13,6 +13,8 @@ import { deriveThemeFromPalette } from '@/lib/branding/theme-from-color';
 import LogoutButton from '@/components/LogoutButton';
 import CommandMenu from '@/components/shared/CommandMenu';
 import NotificationBell from '@/components/shared/NotificationBell';
+import MessagingBell from '@/components/shared/MessagingBell';
+import WhatsAppWebButton from '@/components/shared/WhatsAppWebButton';
 import { MobileNavProvider, MobileNavToggle, MobileNavBackdrop, MobileNavDrawer } from '@/components/shared/MobileNav';
 import { SidebarNav, type SidebarNavGroup } from '@/components/shared/SidebarNav';
 import { CompanySwitcher } from '@/components/shared/CompanySwitcher';
@@ -207,6 +209,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const displayName = context.name;
   const roleLabel = context.customRoleName ?? ROLE_LABELS[context.role];
+  // Solo se consulta acá (no se agrega a `AuthContext`/JWT) para no tocar el
+  // contrato de sesión por un dato puramente cosmético del header.
+  const currentUser = await prisma.user.findUnique({ where: { id: context.id }, select: { photoUrl: true } });
 
   // Tema de marca: si el logo tiene una paleta útil (`brandPalette`, hasta 3
   // colores extraídos en el navegador al subirlo), se sobreescriben acá las
@@ -288,8 +293,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
             <div className="shrink-0 border-t border-white/[0.06] px-4 py-4">
               <div className="mb-3 flex items-center gap-2.5">
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-semibold text-white">
-                  {displayName.slice(0, 1).toUpperCase()}
+                <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/10 text-xs font-semibold text-white">
+                  {currentUser?.photoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={currentUser.photoUrl} alt={displayName} className="size-full object-cover" />
+                  ) : (
+                    displayName.slice(0, 1).toUpperCase()
+                  )}
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-xs font-medium text-white">{displayName}</p>
@@ -306,13 +316,20 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <MobileNavToggle />
             <CommandMenu permissions={context.permissions} features={features} isSuperAdmin={context.isSuperAdmin} />
             <div className="flex-1" />
+            {allow('messaging:whatsapp_personal') && <WhatsAppWebButton />}
+            {allow('messaging:use') && <MessagingBell />}
             <NotificationBell />
             <Link
               href="/dashboard/settings/profile"
               className="hidden items-center gap-2 rounded-[10px] px-2 py-1.5 text-sm text-foreground transition-colors duration-150 hover:bg-muted sm:flex"
             >
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-accent-foreground">
-                {context.name.slice(0, 1).toUpperCase()}
+              <span className="flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent text-xs font-semibold text-accent-foreground">
+                {currentUser?.photoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={currentUser.photoUrl} alt={context.name} className="size-full object-cover" />
+                ) : (
+                  context.name.slice(0, 1).toUpperCase()
+                )}
               </span>
               <span className="max-w-[14rem] truncate text-muted-foreground">{context.name}</span>
             </Link>

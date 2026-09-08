@@ -5,6 +5,12 @@ import { z } from 'zod';
  * simple, código de país incluido (`+56912345678`). Es el mismo string que
  * alimenta el link de WhatsApp (`wa.me/<dígitos>`), así que validar el
  * formato acá evita generar un link roto más adelante.
+ *
+ * NO usar para el teléfono de una candidata (`Candidate.phone`): ese campo es
+ * texto libre sin validación de formato (puede venir sin `+56`, con espacios,
+ * etc.) — para ese caso usar `normalizeToWhatsappFormat`/`buildWhatsappLink`
+ * de `src/lib/chile/phone.ts`, que intenta reconocer y completar el código de
+ * país en vez de exigirlo de entrada.
  */
 const PHONE_REGEX = /^\+\d{8,15}$/;
 

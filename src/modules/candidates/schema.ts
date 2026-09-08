@@ -84,6 +84,12 @@ export const candidateCreateSchema = z.object({
   motivacion: z.string().max(2000, 'Máximo 2000 caracteres').optional(),
   causaSocial: z.string().max(1000, 'Máximo 1000 caracteres').optional(),
   condicionesMedicas: z.string().max(1000, 'Máximo 1000 caracteres').optional(),
+  // Datos del empleador (texto libre, sin relación estructurada con Contact —
+  // ver comentario en prisma/schema.prisma). Se completan a mano o vía
+  // `lookupEmployerAction` (buscador web reusado de contactos).
+  employerName: z.string().max(180, 'Máximo 180 caracteres').optional(),
+  employerRut: z.string().max(12, 'Máximo 12 caracteres').optional(),
+  employerAddress: z.string().max(200, 'Máximo 200 caracteres').optional(),
 });
 
 export type CandidateCreateInput = z.infer<typeof candidateCreateSchema>;

@@ -10,6 +10,7 @@ import {
   listMessagesSchema,
   markConversationReadSchema,
   deleteMessageSchema,
+  deleteConversationSchema,
 } from '../schema';
 import * as messagingService from '../services/messaging.service';
 import type {
@@ -131,6 +132,19 @@ export async function markConversationReadAction(input: unknown): Promise<Action
     const parsed = markConversationReadSchema.safeParse(input);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
     await messagingService.markConversationRead(session.companyId, session.id, parsed.data.conversationId);
+    return { success: true, data: null };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+export async function deleteConversationAction(input: unknown): Promise<ActionResult<null>> {
+  try {
+    const session = await requireAuthWithPermission('messaging:use');
+    const parsed = deleteConversationSchema.safeParse(input);
+    if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
+    await messagingService.deleteConversation(session.companyId, session.id, parsed.data.conversationId);
+    revalidatePath('/dashboard/messaging');
     return { success: true, data: null };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };

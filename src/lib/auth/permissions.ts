@@ -145,6 +145,11 @@ export const PERMISSIONS = {
   // vertical del negocio — todo el equipo puede usarla, mismo criterio que
   // contacts:read.
   'messaging:use': ALL_ROLES,
+  // Acceso a WhatsApp Web personal (ventana popup) desde el header — mismo
+  // criterio que otras acciones sensibles de administración (sales:cancel,
+  // purchases:approve): solo OWNER/ADMIN, nunca por chequeo de rol crudo en
+  // el componente (así un CustomRole equivalente también puede verlo).
+  'messaging:whatsapp_personal': ['OWNER', 'ADMIN'],
 } satisfies Record<string, Role[]>;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -233,6 +238,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'publicvoting:read': 'Ver órdenes y ranking de votación pagada',
   'publicvoting:write': 'Confirmar pagos de votación pagada',
   'messaging:use': 'Usar la mensajería interna de la empresa',
+  'messaging:whatsapp_personal': 'Abrir WhatsApp Web personal desde el header del ERP',
 };
 
 /**
@@ -249,6 +255,7 @@ export const CORE_PERMISSION_GROUP = {
     'audit:read',
     'import:data',
     'messaging:use',
+    'messaging:whatsapp_personal',
   ] as Permission[],
 };
 

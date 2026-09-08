@@ -248,6 +248,56 @@ export async function applyOverduePenalties(companyId: string): Promise<number> 
   return processed;
 }
 
+/**
+ * Solo se permite eliminar una cuota que todavía no registra pago —
+ * mismo criterio que `deletePromissoryNote`: una cuota con `paidAmount > 0`
+ * no se borra (perdería el rastro del cobro ya hecho), se deja como está.
+ */
+export async function deleteInstallment(companyId: string, installmentId: string): Promise<void> {
+  const installment = await prisma.paymentPlanInstallment.findFirst({ where: { id: installmentId, companyId } });
+  if (!installment) throw new Error('Cuota no encontrada');
+  if (installment.paidAmount > 0) {
+    throw new Error('No se puede eliminar: esta cuota ya registra un pago. El historial de cobro no se puede perder.');
+  }
+
+  const result = await prisma.paymentPlanInstallment.deleteMany({ where: { id: installmentId, companyId } });
+  if (result.count === 0) throw new Error('Cuota no encontrada');
+}
+
+/**
+ * Elimina el plan de pago COMPLETO y todas sus cuotas — a diferencia de
+ * `cancelPaymentPlan` (que solo cambia el estado y conserva el historial),
+ * esto es borrado real, sin vuelta atrás, INCLUSO si ya tiene cuotas con
+ * pagos registrados (decisión explícita del negocio: cuando alguien deja de
+ * pertenecer al sistema, no debe quedar dato "estorbando" aunque haya tenido
+ * pagos). El único rastro que sobrevive es el `AuditLog` de la Server Action
+ * (quién, cuándo, cuánto se borró) — la fila operativa desaparece de verdad.
+ *
+ * `PaymentPlanInstallment.paymentPlan` usa `onDelete: Restrict` a nivel de
+ * BD, así que las cuotas se borran primero y el plan después, dentro de la
+ * misma transacción, con lock explícito para que un cobro registrado a mitad
+ * de camino no quede en un estado inconsistente (mismo criterio que
+ * `registerInstallmentPayment`).
+ */
+export async function deletePaymentPlan(companyId: string, id: string): Promise<{ totalPaid: number }> {
+  return prisma.$transaction(async (tx) => {
+    const installments = await tx.$queryRaw<Array<{ paidAmount: number }>>`
+      SELECT "paidAmount" FROM "PaymentPlanInstallment"
+      WHERE "paymentPlanId" = ${id} AND "companyId" = ${companyId}
+      FOR UPDATE
+    `;
+
+    const plan = await tx.paymentPlan.findFirst({ where: { id, companyId } });
+    if (!plan) throw new Error('Plan de pago no encontrado');
+
+    const totalPaid = installments.reduce((sum, i) => sum + i.paidAmount, 0);
+
+    await tx.paymentPlanInstallment.deleteMany({ where: { paymentPlanId: id, companyId } });
+    await tx.paymentPlan.deleteMany({ where: { id, companyId } });
+    return { totalPaid };
+  }, LOCKING_TX_OPTIONS);
+}
+
 export interface OverdueInstallmentGroup {
   paymentPlanId: string;
   contactId: string;

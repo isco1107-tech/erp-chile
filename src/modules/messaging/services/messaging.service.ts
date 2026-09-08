@@ -12,6 +12,7 @@ export interface ConversationSummary {
   subtitle: string | null;
   /** Solo DIRECT: el otro participante, para mostrar su iniciales/estado. */
   otherUserId: string | null;
+  otherUserPhotoUrl: string | null;
   updatedAt: Date;
   unreadCount: number;
 }
@@ -66,7 +67,7 @@ async function computeUnreadCounts(
 
 export async function listConversations(companyId: string, userId: string): Promise<ConversationSummary[]> {
   const participations = await prisma.conversationParticipant.findMany({
-    where: { userId, conversation: { companyId } },
+    where: { userId, hiddenAt: null, conversation: { companyId } },
     select: {
       conversationId: true,
       lastReadAt: true,
@@ -76,7 +77,7 @@ export async function listConversations(companyId: string, userId: string): Prom
           type: true,
           name: true,
           updatedAt: true,
-          participants: { select: { userId: true, user: { select: { id: true, name: true } } } },
+          participants: { select: { userId: true, user: { select: { id: true, name: true, photoUrl: true } } } },
           messages: {
             orderBy: { createdAt: 'desc' },
             take: 1,
@@ -123,6 +124,7 @@ export async function listConversations(companyId: string, userId: string): Prom
       title,
       subtitle,
       otherUserId: other?.id ?? null,
+      otherUserPhotoUrl: other?.photoUrl ?? null,
       updatedAt: conv.updatedAt,
       unreadCount: unreadCounts.get(conv.id) ?? 0,
     };
@@ -293,6 +295,13 @@ export async function sendMessage(companyId: string, senderId: string, input: Se
       where: { conversationId: input.conversationId, userId: senderId },
       data: { lastReadAt: created.createdAt },
     });
+    // "Borrar conversación" es ocultarla solo para quien la borra (`hiddenAt`
+    // en su propia fila) — un mensaje nuevo la vuelve a hacer relevante para
+    // TODOS los participantes, incluso quien la había ocultado.
+    await tx.conversationParticipant.updateMany({
+      where: { conversationId: input.conversationId, hiddenAt: { not: null } },
+      data: { hiddenAt: null },
+    });
 
     return created.id;
   });
@@ -323,9 +332,26 @@ export async function deleteMessage(companyId: string, userId: string, messageId
   if (result.count === 0) throw new Error('Mensaje no encontrado');
 }
 
+/**
+ * "Borrar conversación" oculta la conversación solo para quien la borra
+ * (`hiddenAt` en su propia fila de `ConversationParticipant`) — nunca destruye
+ * el historial de la otra persona, mismo criterio que `Message.deletedAt`.
+ * Vuelve a aparecer automáticamente si llega un mensaje nuevo (ver `sendMessage`).
+ */
+export async function deleteConversation(companyId: string, userId: string, conversationId: string): Promise<void> {
+  await assertParticipant(companyId, conversationId, userId);
+  await prisma.conversationParticipant.updateMany({
+    where: { conversationId, userId, conversation: { companyId } },
+    data: { hiddenAt: new Date() },
+  });
+}
+
 export async function getTotalUnreadCount(companyId: string, userId: string): Promise<number> {
+  // `hiddenAt: null` a propósito, igual que `listConversations`: una
+  // conversación borrada (oculta) no debe seguir inflando el badge global —
+  // el usuario no tiene forma de "leerla" si ya no aparece en su lista.
   const participations = await prisma.conversationParticipant.findMany({
-    where: { userId, conversation: { companyId } },
+    where: { userId, hiddenAt: null, conversation: { companyId } },
     select: { conversationId: true, lastReadAt: true },
   });
   const counts = await computeUnreadCounts(participations);

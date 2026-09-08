@@ -35,6 +35,10 @@ export const deleteMessageSchema = z.object({
   messageId: z.string().min(1),
 });
 
+export const deleteConversationSchema = z.object({
+  conversationId: z.string().min(1),
+});
+
 export type StartDirectConversationInput = z.infer<typeof startDirectConversationSchema>;
 export type StartGroupConversationInput = z.infer<typeof startGroupConversationSchema>;
 export type SendMessageInput = z.infer<typeof sendMessageSchema>;

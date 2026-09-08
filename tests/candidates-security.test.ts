@@ -114,6 +114,9 @@ describe('Redacción de campos sensibles en las Server Actions de candidatas', (
     ipOrigen: '190.12.34.56',
     userAgent: 'Mozilla/5.0',
     photoUrl: 'https://x.public.blob.vercel-storage.com/foto.jpg',
+    employerName: 'Empresa Empleadora SpA',
+    employerRut: '76.543.210-9',
+    employerAddress: 'Av. Alemania 456, Temuco',
     status: 'APPLICANT',
     project: { id: 'proj-1', name: 'Miss Test 2027', code: 'MT' },
   } as unknown as import('../src/modules/candidates/services/candidates.service').CandidateWithProject;
@@ -131,6 +134,9 @@ describe('Redacción de campos sensibles en las Server Actions de candidatas', (
     'ipOrigen',
     'userAgent',
     'photoUrl',
+    'employerName',
+    'employerRut',
+    'employerAddress',
   ] as const;
 
   let mockRequireAuthWithPermission: jest.Mock;
@@ -206,6 +212,8 @@ describe('Redacción de campos sensibles en las Server Actions de candidatas', (
     expect(result.data.rut).toBe('12.345.678-5');
     expect(result.data.email).toBe('candidata@correo.cl');
     expect(result.data.photoUrl).toBe('https://x.public.blob.vercel-storage.com/foto.jpg');
+    expect(result.data.employerName).toBe('Empresa Empleadora SpA');
+    expect(result.data.employerRut).toBe('76.543.210-9');
   });
 
   it('listCandidatesAction redacta cada elemento del listado, no solo el primero', async () => {

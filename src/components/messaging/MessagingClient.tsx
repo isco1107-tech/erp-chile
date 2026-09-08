@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { MessageSquarePlus, Paperclip, Send, X, FileText, Lock } from 'lucide-react';
+import { toast } from 'sonner';
+import { MessageSquarePlus, Paperclip, Send, X, FileText, Lock, ArrowLeft, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   listConversationsAction,
@@ -10,8 +11,10 @@ import {
   sendMessageAction,
   markConversationReadAction,
   deleteMessageAction,
+  deleteConversationAction,
 } from '@/modules/messaging/actions/messaging.actions';
 import type { ConversationSummary, MessageView, MessageAttachmentView } from '@/modules/messaging/services/messaging.service';
+import { ConfirmDialog } from '@/components/ui/alert-dialog';
 import NewConversationDialog from './NewConversationDialog';
 
 const POLL_MS = 4000;
@@ -41,6 +44,7 @@ export default function MessagingClient({
   currentUserName: string;
 }) {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [loadingConversations, setLoadingConversations] = useState(true);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageView[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -50,17 +54,38 @@ export default function MessagingClient({
   const [sending, setSending] = useState(false);
   const [showNewChat, setShowNewChat] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleteConversationTarget, setDeleteConversationTarget] = useState<{ id: string; title: string } | null>(null);
+  const [deletingConversation, setDeletingConversation] = useState(false);
 
+  // Refs sincronizados en un efecto, no durante el render: el polling
+  // (setInterval de más abajo) necesita el valor más reciente de `activeId`/
+  // `messages` sin recrear el interval en cada cambio, pero mutar `.current`
+  // en el cuerpo del componente rompe la garantía de que el render sea puro.
   const activeIdRef = useRef(activeId);
-  activeIdRef.current = activeId;
   const messagesRef = useRef(messages);
-  messagesRef.current = messages;
+  useEffect(() => {
+    activeIdRef.current = activeId;
+  }, [activeId]);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // El polling reintenta cada POLL_MS: sin este flag, una falla sostenida
+  // (sesión vencida, red inestable) dispararía un toast nuevo cada 4s de
+  // forma indefinida. Solo avisa una vez, hasta que vuelva a funcionar.
+  const conversationsErrorShownRef = useRef(false);
 
   const refreshConversations = useCallback(async () => {
     const result = await listConversationsAction();
-    if (result.success) setConversations(result.data);
+    if (result.success) {
+      setConversations(result.data);
+      conversationsErrorShownRef.current = false;
+    } else if (!conversationsErrorShownRef.current) {
+      toast.error(result.error);
+      conversationsErrorShownRef.current = true;
+    }
+    setLoadingConversations(false);
   }, []);
 
   useEffect(() => {
@@ -152,12 +177,36 @@ export default function MessagingClient({
     }
   }
 
+  function openDeleteConversation(conversationId: string, title: string, event?: React.MouseEvent) {
+    event?.stopPropagation();
+    setDeleteConversationTarget({ id: conversationId, title });
+  }
+
+  async function handleDeleteConversation() {
+    if (!deleteConversationTarget) return;
+    const { id: conversationId } = deleteConversationTarget;
+    setDeletingConversation(true);
+    const result = await deleteConversationAction({ conversationId });
+    setDeletingConversation(false);
+    if (!result.success) {
+      toast.error(result.error);
+      return;
+    }
+    setDeleteConversationTarget(null);
+    setConversations((prev) => prev.filter((c) => c.id !== conversationId));
+    if (activeIdRef.current === conversationId) {
+      setActiveId(null);
+      setMessages([]);
+    }
+  }
+
   const activeConversation = conversations.find((c) => c.id === activeId) ?? null;
 
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-card">
-      {/* Lista de conversaciones */}
-      <div className="flex w-72 shrink-0 flex-col border-r border-border">
+      {/* Lista de conversaciones — en móvil ocupa toda la pantalla y se oculta
+          al abrir un hilo (una sola columna visible a la vez bajo `sm`). */}
+      <div className={cn('flex w-full shrink-0 flex-col border-r border-border sm:w-72', activeId && 'hidden sm:flex')}>
         <div className="flex items-center justify-between border-b border-border p-3">
           <span className="text-sm font-semibold text-foreground">Conversaciones</span>
           <button
@@ -170,42 +219,60 @@ export default function MessagingClient({
           </button>
         </div>
         <div className="hud-scroll flex-1 space-y-0.5 overflow-y-auto p-2">
-          {conversations.length === 0 && (
+          {loadingConversations && (
+            <p className="p-4 text-center text-sm text-muted-foreground">Cargando conversaciones...</p>
+          )}
+          {!loadingConversations && conversations.length === 0 && (
             <p className="p-4 text-center text-sm text-muted-foreground">Sin conversaciones todavía</p>
           )}
-          {conversations.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => openConversation(c.id)}
-              className={cn(
-                'flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2.5 text-left transition-colors hover:bg-muted',
-                activeId === c.id && 'bg-muted'
-              )}
-            >
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-accent-foreground">
-                {c.title.slice(0, 1).toUpperCase()}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="flex items-center justify-between gap-1">
-                  <span className="truncate text-sm font-medium text-foreground">{c.title}</span>
-                  {c.unreadCount > 0 && (
-                    <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
-                      {c.unreadCount > 9 ? '9+' : c.unreadCount}
-                    </span>
+          {!loadingConversations && conversations.map((c) => (
+            <div key={c.id} className="group/row relative">
+              <button
+                type="button"
+                onClick={() => openConversation(c.id)}
+                className={cn(
+                  'flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2.5 pr-8 text-left transition-colors hover:bg-muted',
+                  activeId === c.id && 'bg-muted'
+                )}
+              >
+                <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent text-xs font-semibold text-accent-foreground">
+                  {c.otherUserPhotoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={c.otherUserPhotoUrl} alt={c.title} className="size-full object-cover" />
+                  ) : (
+                    c.title.slice(0, 1).toUpperCase()
                   )}
                 </span>
-                <span className="block truncate text-xs text-muted-foreground">{c.subtitle ?? 'Sin mensajes aún'}</span>
-              </span>
-            </button>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center justify-between gap-1">
+                    <span className="truncate text-sm font-medium text-foreground">{c.title}</span>
+                    {c.unreadCount > 0 && (
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
+                        {c.unreadCount > 9 ? '9+' : c.unreadCount}
+                      </span>
+                    )}
+                  </span>
+                  <span className="block truncate text-xs text-muted-foreground">{c.subtitle ?? 'Sin mensajes aún'}</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={(e) => openDeleteConversation(c.id, c.title, e)}
+                aria-label={`Eliminar conversación con ${c.title}`}
+                title="Eliminar conversación"
+                className="absolute top-2 right-1.5 rounded-lg p-1.5 text-muted-foreground opacity-100 hover:bg-destructive/10 hover:text-destructive sm:opacity-0 sm:group-hover/row:opacity-100"
+              >
+                <Trash2 className="size-3.5" />
+              </button>
+            </div>
           ))}
         </div>
       </div>
 
-      {/* Hilo activo */}
-      <div className="flex min-w-0 flex-1 flex-col">
+      {/* Hilo activo — oculto en móvil hasta elegir una conversación. */}
+      <div className={cn('flex min-w-0 flex-1 flex-col', !activeId && 'hidden sm:flex')}>
         {!activeId && (
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center text-muted-foreground">
+          <div className="hidden flex-1 flex-col items-center justify-center gap-3 text-center text-muted-foreground sm:flex">
             <MessageSquarePlus className="size-10 opacity-40" />
             <p className="text-sm">Selecciona una conversación o crea una nueva</p>
           </div>
@@ -214,10 +281,35 @@ export default function MessagingClient({
         {activeId && (
           <>
             <div className="flex items-center gap-2 border-b border-border p-3">
-              <span className="text-sm font-semibold text-foreground">{activeConversation?.title ?? '...'}</span>
-              <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+              <button
+                type="button"
+                onClick={() => setActiveId(null)}
+                aria-label="Volver a conversaciones"
+                className="-ml-1.5 flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground sm:hidden"
+              >
+                <ArrowLeft className="size-4.5" />
+              </button>
+              {activeConversation?.otherUserPhotoUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={activeConversation.otherUserPhotoUrl}
+                  alt={activeConversation.title}
+                  className="size-7 shrink-0 rounded-full object-cover"
+                />
+              )}
+              <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{activeConversation?.title ?? '...'}</span>
+              <span className="hidden shrink-0 items-center gap-1 text-[11px] text-muted-foreground sm:flex">
                 <Lock className="size-3" /> cifrado
               </span>
+              <button
+                type="button"
+                onClick={() => openDeleteConversation(activeId, activeConversation?.title ?? 'esta conversación')}
+                aria-label="Eliminar conversación"
+                title="Eliminar conversación"
+                className="flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+              >
+                <Trash2 className="size-4" />
+              </button>
             </div>
 
             <div className="hud-scroll flex-1 space-y-3 overflow-y-auto p-4">
@@ -358,6 +450,20 @@ export default function MessagingClient({
           refreshConversations();
           openConversation(id);
         }}
+      />
+
+      <ConfirmDialog
+        open={deleteConversationTarget !== null}
+        onOpenChange={(open) => !open && setDeleteConversationTarget(null)}
+        title="Eliminar conversación"
+        description={
+          deleteConversationTarget
+            ? `¿Eliminar la conversación con "${deleteConversationTarget.title}"? Solo desaparece de tu bandeja — si llega un mensaje nuevo, vuelve a aparecer.`
+            : ''
+        }
+        confirmLabel="Eliminar"
+        loading={deletingConversation}
+        onConfirm={handleDeleteConversation}
       />
     </div>
   );

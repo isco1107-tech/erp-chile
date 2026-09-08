@@ -6,6 +6,7 @@ import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import { formatCurrency } from '@/lib/chile/tax';
 import { getCxCSummary } from '@/modules/treasury/services/treasury.service';
 import { listPendingApprovals } from '@/modules/purchases/services/purchases.service';
+import { getTotalUnreadCount } from '@/modules/messaging/services/messaging.service';
 
 export type ActionResult<T> =
   | { success: true; data: T; message?: string }
@@ -86,6 +87,19 @@ export async function getNotificationSummaryAction(): Promise<ActionResult<Notif
           title: 'Compras pendientes de aprobación',
           description: `${pending.length} documento(s) esperando aprobación`,
           href: '/dashboard/purchases',
+        });
+      }
+    }
+
+    if (can(context, 'messaging:use')) {
+      const unread = await getTotalUnreadCount(context.companyId, context.id);
+      if (unread > 0) {
+        items.push({
+          id: 'messaging-unread',
+          severity: 'info',
+          title: 'Mensajes sin leer',
+          description: `${unread} mensaje(s) nuevo(s) en tu mensajería interna`,
+          href: '/dashboard/messaging',
         });
       }
     }

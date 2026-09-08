@@ -6,6 +6,7 @@ import { can, requireAuthWithPermission, authErrorMessage } from '@/lib/auth/gua
 import { createAuditLog } from '@/lib/auth/audit';
 import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import { sendEmail } from '@/lib/email/mailer';
+import { lookupCompaniesByName, type CompanyLookupCandidate } from '@/modules/contacts/services/company-lookup.service';
 import { buildCandidateStatusChangeEmail } from '@/lib/email/templates';
 import {
   attendanceCreateSchema,
@@ -66,7 +67,21 @@ function redactSensitiveFields(candidate: CandidateWithProject, canSeeSensitive:
     ipOrigen: null,
     userAgent: null,
     photoUrl: null,
+    employerName: null,
+    employerRut: null,
+    employerAddress: null,
   };
+}
+
+/** Reusa el buscador web de empresas de `contacts` (DuckDuckGo + regex de RUT) para completar los datos del empleador de una candidata — no duplica esa lógica de scraping. */
+export async function lookupEmployerAction(query: string): Promise<ActionResult<CompanyLookupCandidate[]>> {
+  try {
+    await requireAuthWithPermission('candidates:write');
+    const data = await lookupCompaniesByName(query);
+    return { success: true, data };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
 }
 
 export async function createCandidateAction(input: unknown): Promise<ActionResult<CandidateWithProject>> {

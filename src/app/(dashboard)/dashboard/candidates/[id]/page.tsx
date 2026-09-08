@@ -16,6 +16,7 @@ import { buttonVariants } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import type { Tone } from '@/components/ui/tone';
 import DeleteCandidateButton from '@/components/candidates/DeleteCandidateButton';
+import WhatsAppButton from '@/components/candidates/WhatsAppButton';
 import AttendanceSection from '@/components/candidates/AttendanceSection';
 import DocumentsSection from '@/components/candidates/DocumentsSection';
 import ContractSignatureSection from '@/components/candidates/ContractSignatureSection';
@@ -119,14 +120,19 @@ export default async function CandidateDetailPage({ params }: { params: Promise<
     <div className="mx-auto max-w-5xl space-y-5">
       <div className="flex items-center justify-between">
         <Link href="/dashboard/candidates" className={buttonVariants({ variant: 'outline' })}>← Volver al listado</Link>
-        {canWrite && (
-          <div className="flex items-center gap-2">
-            <Link href={`/dashboard/candidates/${candidate.id}/edit`} className={buttonVariants({ variant: 'default' })}>
-              Editar ficha
-            </Link>
-            <DeleteCandidateButton candidateId={candidate.id} candidateName={candidate.stageName || candidate.fullName} />
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {canSeeSensitive && (
+            <WhatsAppButton phone={candidate.phone} candidateName={candidate.stageName || candidate.fullName} />
+          )}
+          {canWrite && (
+            <>
+              <Link href={`/dashboard/candidates/${candidate.id}/edit`} className={buttonVariants({ variant: 'default' })}>
+                Editar ficha
+              </Link>
+              <DeleteCandidateButton candidateId={candidate.id} candidateName={candidate.stageName || candidate.fullName} />
+            </>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-col items-center gap-5 rounded-xl border border-border bg-card p-8 text-center shadow-card sm:flex-row sm:text-left">
@@ -190,6 +196,13 @@ export default async function CandidateDetailPage({ params }: { params: Promise<
             <Field label="Idiomas" value={candidate.idiomas} />
             {canSeeSensitive && <Field label="Dirección" value={candidate.direccion} />}
           </div>
+          {canSeeSensitive && (candidate.employerName || candidate.employerRut || candidate.employerAddress) && (
+            <div className="mt-4 grid grid-cols-2 gap-4 border-t border-border pt-3">
+              <Field label="Empleador" value={candidate.employerName} />
+              <Field label="RUT empleador" value={candidate.employerRut} />
+              <Field label="Dirección empleador" value={candidate.employerAddress} />
+            </div>
+          )}
           {(candidate.motivacion || candidate.causaSocial || candidate.experiencia) && (
             <div className="mt-4 space-y-3 border-t border-border pt-3">
               {candidate.motivacion && <Field label="Motivación" value={candidate.motivacion} />}

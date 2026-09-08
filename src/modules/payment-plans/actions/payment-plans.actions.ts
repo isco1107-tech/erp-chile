@@ -118,6 +118,48 @@ export async function cancelPaymentPlanAction(id: string): Promise<ActionResult<
   }
 }
 
+export async function deletePaymentPlanAction(id: string): Promise<ActionResult<null>> {
+  try {
+    const session = await requireAuthWithPermission('paymentplans:write');
+    const { totalPaid } = await paymentPlansService.deletePaymentPlan(session.companyId, id);
+    // El monto pagado que se borró queda registrado acá aunque la fila
+    // operativa ya no exista — es el único rastro que sobrevive de un plan
+    // eliminado con pagos, para trazabilidad ante una auditoría posterior.
+    await createAuditLog({
+      companyId: session.companyId,
+      userId: session.id,
+      userEmail: session.email,
+      action: 'DELETE',
+      entity: 'PaymentPlan',
+      entityId: id,
+      metadata: { totalPaidAtDeletion: totalPaid },
+    });
+    revalidatePaymentPlans(id);
+    return { success: true, data: null, message: 'Plan de pago eliminado correctamente' };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+export async function deleteInstallmentAction(installmentId: string, planId: string): Promise<ActionResult<null>> {
+  try {
+    const session = await requireAuthWithPermission('paymentplans:write');
+    await paymentPlansService.deleteInstallment(session.companyId, installmentId);
+    await createAuditLog({
+      companyId: session.companyId,
+      userId: session.id,
+      userEmail: session.email,
+      action: 'DELETE',
+      entity: 'PaymentPlanInstallment',
+      entityId: installmentId,
+    });
+    revalidatePaymentPlans(planId);
+    return { success: true, data: null, message: 'Cuota eliminada correctamente' };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
 export async function registerInstallmentPaymentAction(
   installmentId: string,
   planId: string,

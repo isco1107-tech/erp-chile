@@ -17,9 +17,11 @@ import {
 import {
   createCandidateAction,
   listCandidateProjectOptionsAction,
+  lookupEmployerAction,
   updateCandidateAction,
 } from '@/modules/candidates/actions/candidates.actions';
 import type { CandidateProjectOption, CandidateWithProject } from '@/modules/candidates/services/candidates.service';
+import type { CompanyLookupCandidate } from '@/modules/contacts/services/company-lookup.service';
 
 const selectClass =
   'h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm dark:bg-input/30';
@@ -56,6 +58,9 @@ const EMPTY_FORM = {
   motivacion: '',
   causaSocial: '',
   condicionesMedicas: '',
+  employerName: '',
+  employerRut: '',
+  employerAddress: '',
 };
 
 type FormState = typeof EMPTY_FORM;
@@ -85,6 +90,43 @@ export default function CandidateForm({ editingCandidate }: CandidateFormProps) 
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState(editingCandidate?.photoUrl ?? '');
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
+
+  const [employerQuery, setEmployerQuery] = useState('');
+  const [searchingEmployer, setSearchingEmployer] = useState(false);
+  const [employerCandidates, setEmployerCandidates] = useState<CompanyLookupCandidate[] | null>(null);
+
+  async function handleEmployerSearch() {
+    if (!employerQuery.trim()) return;
+    setSearchingEmployer(true);
+    setEmployerCandidates(null);
+    try {
+      const result = await lookupEmployerAction(employerQuery);
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+      if (result.data.length === 0) toast.info('No se encontraron resultados — completa los datos manualmente');
+      setEmployerCandidates(result.data);
+    } finally {
+      setSearchingEmployer(false);
+    }
+  }
+
+  function applyEmployerCandidate(candidate: CompanyLookupCandidate) {
+    setForm((prev) => ({
+      ...prev,
+      employerName: candidate.razonSocial || prev.employerName,
+      employerRut: candidate.rut || prev.employerRut,
+      employerAddress: candidate.address || prev.employerAddress,
+    }));
+    setEmployerCandidates(null);
+    setEmployerQuery('');
+    toast.success(
+      candidate.rutVerified
+        ? 'Datos precargados — revisa antes de guardar'
+        : 'Datos precargados, pero no se confirmó el RUT — complétalo o verifícalo manualmente'
+    );
+  }
 
   useEffect(() => {
     return () => {
@@ -129,6 +171,9 @@ export default function CandidateForm({ editingCandidate }: CandidateFormProps) 
         motivacion: editingCandidate.motivacion ?? '',
         causaSocial: editingCandidate.causaSocial ?? '',
         condicionesMedicas: editingCandidate.condicionesMedicas ?? '',
+        employerName: editingCandidate.employerName ?? '',
+        employerRut: editingCandidate.employerRut ?? '',
+        employerAddress: editingCandidate.employerAddress ?? '',
       });
       setPhotoUrl(editingCandidate.photoUrl ?? '');
       setPhotoPreviewUrl(editingCandidate.photoUrl ?? '');
@@ -470,6 +515,68 @@ export default function CandidateForm({ editingCandidate }: CandidateFormProps) 
           <div>
             <Label htmlFor="guardianRut">RUT</Label>
             <Input id="guardianRut" value={form.guardianRut} onChange={(e) => update('guardianRut', e.target.value)} />
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-dashed border-border p-3">
+        <p className="mb-3 text-xs font-semibold text-muted-foreground uppercase">Empleador</p>
+        <div className="mb-3 space-y-2">
+          <Label htmlFor="employerQuery">Buscar empresa en la web</Label>
+          <div className="flex gap-2">
+            <Input
+              id="employerQuery"
+              value={employerQuery}
+              onChange={(e) => setEmployerQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleEmployerSearch();
+                }
+              }}
+              placeholder="Ej: Coca-Cola, Arauco, Falabella..."
+            />
+            <Button type="button" variant="outline" disabled={searchingEmployer} onClick={handleEmployerSearch}>
+              {searchingEmployer ? 'Buscando...' : 'Buscar'}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Busca en internet razón social, RUT y dirección para precargar los datos del empleador. Siempre revisa antes de guardar.
+          </p>
+          {employerCandidates && employerCandidates.length > 0 && (
+            <ul className="space-y-1.5">
+              {employerCandidates.map((c, i) => (
+                <li key={i} className="rounded-lg border border-border p-2.5 text-sm">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-medium">{c.razonSocial}</p>
+                      <p className="text-xs text-muted-foreground">{c.rut ? c.rut : 'RUT no confirmado'}</p>
+                      {c.address && <p className="text-xs text-muted-foreground">{c.address}</p>}
+                      {!c.rutVerified && (
+                        <p className="text-xs text-amber-600 dark:text-amber-500">RUT sin confirmar — verifícalo antes de guardar</p>
+                      )}
+                    </div>
+                    <Button type="button" size="xs" onClick={() => applyEmployerCandidate(c)}>
+                      Usar
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="employerName">Nombre / razón social</Label>
+            <Input id="employerName" value={form.employerName} onChange={(e) => update('employerName', e.target.value)} />
+          </div>
+          <div>
+            <Label htmlFor="employerRut">RUT</Label>
+            <RutInput id="employerRut" value={form.employerRut} onChange={(value) => update('employerRut', value)} />
+          </div>
+          <div className="sm:col-span-2">
+            <Label htmlFor="employerAddress">Dirección</Label>
+            <Input id="employerAddress" value={form.employerAddress} onChange={(e) => update('employerAddress', e.target.value)} />
           </div>
         </div>
       </div>

@@ -122,7 +122,9 @@ export function DataTable<T>({
                   ))}
                   {rowActions && (
                     <td className="px-4 text-right">
-                      <div className="opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 focus-within:opacity-100">
+                      {/* Visible siempre bajo `sm` (no hay hover real en touch) — el
+                          hover-reveal solo aplica desde `sm:` en adelante. */}
+                      <div className="opacity-100 transition-opacity duration-150 sm:opacity-0 sm:group-hover/row:opacity-100 sm:focus-within:opacity-100">
                         {rowActions(row)}
                       </div>
                     </td>
