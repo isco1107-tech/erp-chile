@@ -243,39 +243,28 @@ function LoginShell({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * El isotipo de Aether de fondo, en vez del negro plano del tema por
- * defecto. En vez de `invert` (que sobre negro daba gris apagado, casi
- * invisible — feedback real tras el primer intento), se usa el SVG como
- * `mask-image` sobre un degradé cian/índigo (los mismos acentos de marca que
- * ya usa el fondo del resto de la app en `globals.css`) — mismo isotipo,
- * mucho más contraste y con color, sin perder nitidez a ningún tamaño de
- * pantalla (sigue siendo vectorial). Viñeta radial encima para que se
- * difumine hacia los bordes en vez de cortarse en seco.
+ * El isotipo de Aether de fondo, a color real (estrella dorada, azul marino
+ * — el logo tal cual es, no una silueta). `aether-mark.svg` se descartó:
+ * era una versión en negro sólido sin los colores del logo real, así que
+ * cualquier técnica sobre ese archivo (invert, mask-image) perdía la
+ * estrella dorada — el propio PNG a color (`aether-logo-full.png`) es la
+ * única fuente que tiene el diseño completo. Viñeta radial encima para que
+ * se difumine hacia los bordes en vez de cortarse en seco.
  */
 function BackgroundMark() {
-  const maskStyle: React.CSSProperties = {
-    WebkitMaskImage: 'url(/branding/aether-mark.svg)',
-    maskImage: 'url(/branding/aether-mark.svg)',
-    WebkitMaskRepeat: 'no-repeat',
-    maskRepeat: 'no-repeat',
-    WebkitMaskPosition: 'center',
-    maskPosition: 'center',
-    WebkitMaskSize: 'contain',
-    maskSize: 'contain',
-    aspectRatio: '1280 / 698',
-  };
-
   return (
     <>
-      <div
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/branding/aether-logo-full.png"
+        alt=""
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 m-auto h-auto w-[min(88vw,1300px)] bg-gradient-to-br from-cyan-400 via-cyan-500 to-indigo-500 opacity-80 select-none lg:w-[min(62vw,1100px)]"
-        style={maskStyle}
+        className="pointer-events-none absolute inset-0 m-auto h-auto w-[min(78vw,1150px)] object-contain opacity-90 select-none lg:w-[min(52vw,950px)]"
       />
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
-        style={{ background: 'radial-gradient(ellipse at center, transparent 0%, transparent 55%, var(--background) 92%)' }}
+        style={{ background: 'radial-gradient(ellipse at center, transparent 0%, transparent 42%, var(--background) 88%)' }}
       />
     </>
   );
