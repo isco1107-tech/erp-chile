@@ -209,7 +209,7 @@ function LoginShell({ children }: { children: React.ReactNode }) {
         <div className="hidden flex-col justify-between p-12 lg:flex lg:w-1/2 xl:p-16">
           <div className="flex items-center gap-2.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/branding/logo.png" alt="" aria-hidden="true" className="size-7 object-contain" />
+            <img src="/branding/logo-on-dark.png" alt="" aria-hidden="true" className="size-7 object-contain" />
             <span className="text-sm font-semibold tracking-wide text-foreground">AETHER ERP</span>
           </div>
 
@@ -243,19 +243,19 @@ function LoginShell({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * El isotipo de Aether de fondo, a color real (estrella dorada, azul marino
- * — el ícono tal cual es). `logo.png` es la versión transparente del ícono
- * (sin el fondo claro horneado que traía `aether-logo-full.png`, que dejaba
- * un recuadro con bordes duros u obligaba a oscurecerlo tanto que casi no se
- * veía) — con transparencia real se puede mostrar centrado y grande, sin
- * caja ni overlay pesado, y sigue leyéndose "claro" en vez de apagado.
+ * El isotipo de Aether de fondo. `logo-on-dark.png` es `logo.png` con el
+ * azul marino recoloreado a blanco (script de un solo uso sobre los canales
+ * RGB, la estrella dorada queda intacta) — sobre el fondo oscuro el azul
+ * original tenía casi el mismo tono que `--background` y se perdía (feedback
+ * real: "la parte azul hazla blanca"). Transparencia real, sin caja ni
+ * overlay pesado.
  */
 function BackgroundMark() {
   return (
     <>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/branding/logo.png"
+        src="/branding/logo-on-dark.png"
         alt=""
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 m-auto h-auto w-[min(85vw,1250px)] object-contain opacity-80 select-none lg:w-[min(58vw,1000px)]"
