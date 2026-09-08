@@ -244,28 +244,24 @@ function LoginShell({ children }: { children: React.ReactNode }) {
 
 /**
  * El isotipo de Aether de fondo, a color real (estrella dorada, azul marino
- * — el logo tal cual es, no una silueta). `aether-mark.svg` se descartó:
- * era una versión en negro sólido sin los colores del logo real, así que
- * cualquier técnica sobre ese archivo (invert, mask-image) perdía la
- * estrella dorada — el propio PNG a color (`aether-logo-full.png`) es la
- * única fuente que tiene el diseño completo. Viñeta radial encima para que
- * se difumine hacia los bordes en vez de cortarse en seco.
+ * — el logo tal cual es, no una silueta). `aether-logo-full.png` no tiene
+ * transparencia (fondo claro sólido horneado en el PNG, confirmado: color
+ * type 2, RGB sin canal alfa) — usarlo con `object-contain` dejaba un
+ * recuadro claro con bordes duros flotando sobre el fondo oscuro (feedback
+ * real). Se cubre toda la pantalla (`bg-cover`, sin recuadro ni margen) y se
+ * difumina levemente + oscurece con una capa semitransparente encima para
+ * que el fondo claro del PNG se integre al tema oscuro en vez de competir
+ * con él, y el texto siga siendo legible sobre cualquier parte de la imagen.
  */
 function BackgroundMark() {
   return (
     <>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/branding/aether-logo-full.png"
-        alt=""
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 m-auto h-auto w-[min(78vw,1150px)] object-contain opacity-90 select-none lg:w-[min(52vw,950px)]"
-      />
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0"
-        style={{ background: 'radial-gradient(ellipse at center, transparent 0%, transparent 42%, var(--background) 88%)' }}
+        className="pointer-events-none absolute inset-0 scale-110 bg-cover bg-center blur-md"
+        style={{ backgroundImage: 'url(/branding/aether-logo-full.png)' }}
       />
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-background/85" />
     </>
   );
 }
