@@ -148,10 +148,7 @@ export default function LoginPage() {
   return (
     <LoginShell>
       <Card className="w-full max-w-md border-white/10 bg-card/70 p-8 shadow-2xl backdrop-blur-xl">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/branding/aether-logo-full.png" alt="Aether ERP Solutions" className="h-9 w-auto object-contain" />
-
-        <div className="mt-7 mb-6">
+        <div className="mb-6">
           <h2 className="text-2xl font-bold text-foreground">Bienvenido de vuelta</h2>
           <p className="mt-1 text-sm text-muted-foreground">Ingresa tus credenciales para acceder a tu panel.</p>
         </div>
@@ -246,27 +243,39 @@ function LoginShell({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * El isotipo de Aether (vector, nunca se ve pixelado a ningún tamaño de
- * pantalla) grande de fondo, en vez del negro plano del tema por defecto.
- * `invert` porque el SVG fuente viene con `fill="#000000"` (pensado para
- * fondo claro) — sobre el tema oscuro se vería invisible sin esto. Viñeta
- * radial encima para que el logo se difumine hacia los bordes en vez de
- * cortarse en seco contra el borde de la pantalla.
+ * El isotipo de Aether de fondo, en vez del negro plano del tema por
+ * defecto. En vez de `invert` (que sobre negro daba gris apagado, casi
+ * invisible — feedback real tras el primer intento), se usa el SVG como
+ * `mask-image` sobre un degradé cian/índigo (los mismos acentos de marca que
+ * ya usa el fondo del resto de la app en `globals.css`) — mismo isotipo,
+ * mucho más contraste y con color, sin perder nitidez a ningún tamaño de
+ * pantalla (sigue siendo vectorial). Viñeta radial encima para que se
+ * difumine hacia los bordes en vez de cortarse en seco.
  */
 function BackgroundMark() {
+  const maskStyle: React.CSSProperties = {
+    WebkitMaskImage: 'url(/branding/aether-mark.svg)',
+    maskImage: 'url(/branding/aether-mark.svg)',
+    WebkitMaskRepeat: 'no-repeat',
+    maskRepeat: 'no-repeat',
+    WebkitMaskPosition: 'center',
+    maskPosition: 'center',
+    WebkitMaskSize: 'contain',
+    maskSize: 'contain',
+    aspectRatio: '1280 / 698',
+  };
+
   return (
     <>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/branding/aether-mark.svg"
-        alt=""
+      <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 m-auto h-auto w-[min(85vw,1300px)] object-contain opacity-[0.16] invert select-none lg:w-[min(60vw,1100px)]"
+        className="pointer-events-none absolute inset-0 m-auto h-auto w-[min(88vw,1300px)] bg-gradient-to-br from-cyan-400 via-cyan-500 to-indigo-500 opacity-80 select-none lg:w-[min(62vw,1100px)]"
+        style={maskStyle}
       />
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
-        style={{ background: 'radial-gradient(ellipse at center, transparent 0%, var(--background) 75%)' }}
+        style={{ background: 'radial-gradient(ellipse at center, transparent 0%, transparent 55%, var(--background) 92%)' }}
       />
     </>
   );
