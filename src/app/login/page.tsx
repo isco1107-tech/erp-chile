@@ -258,7 +258,7 @@ function BackgroundMark() {
     <>
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 scale-110 bg-cover bg-center blur-md"
+        className="pointer-events-none absolute inset-0 scale-105 bg-cover bg-center blur-[2px]"
         style={{ backgroundImage: 'url(/branding/aether-logo-full.png)' }}
       />
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-background/85" />
