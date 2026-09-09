@@ -124,7 +124,7 @@ export default function PurchaseHistoryClient({ canApprove }: { canApprove: bool
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 duration-500 animate-in fade-in slide-in-from-bottom-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Input
           placeholder="Buscar por RUT o Razón Social"
@@ -142,19 +142,19 @@ export default function PurchaseHistoryClient({ canApprove }: { canApprove: bool
         </div>
       </div>
 
-      <div className="rounded-xl border border-border">
+      <div className="rounded-lg border border-border bg-card shadow-card">
         <div className="max-h-[65vh] scroll-smooth overflow-auto">
         <table className="w-full min-w-[920px] table-auto text-sm">
           <thead className="sticky top-0 z-10 bg-muted/95 text-left backdrop-blur-sm">
             <tr>
-              <th className="p-2 font-medium">Folio</th>
-              <th className="p-2 font-medium">Tipo</th>
-              <th className="p-2 font-medium">Fecha</th>
-              <th className="p-2 font-medium">Proveedor</th>
-              <th className="p-2 font-medium">Total</th>
-              <th className="p-2 font-medium">Saldo</th>
-              <th className="p-2 font-medium">Estado</th>
-              <th className="p-2 font-medium">Acciones</th>
+              <th scope="col" className="p-2 font-medium">Folio</th>
+              <th scope="col" className="p-2 font-medium">Tipo</th>
+              <th scope="col" className="p-2 font-medium">Fecha</th>
+              <th scope="col" className="p-2 font-medium">Proveedor</th>
+              <th scope="col" className="p-2 font-medium">Total</th>
+              <th scope="col" className="p-2 font-medium">Saldo</th>
+              <th scope="col" className="p-2 font-medium">Estado</th>
+              <th scope="col" className="p-2 font-medium">Acciones</th>
             </tr>
           </thead>
           <tbody>

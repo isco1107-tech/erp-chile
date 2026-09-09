@@ -137,7 +137,7 @@ export default function SalesHistoryClient() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 duration-500 animate-in fade-in slide-in-from-bottom-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           {TABS.map((t) => (
@@ -158,28 +158,28 @@ export default function SalesHistoryClient() {
         </Link>
       </div>
 
-      <div className="rounded-xl border border-border">
+      <div className="rounded-lg border border-border bg-card shadow-card">
         <div className="max-h-[65vh] scroll-smooth overflow-auto">
           <table className="w-full min-w-[880px] table-auto text-sm">
             <thead className="sticky top-0 z-10 bg-muted/95 text-left backdrop-blur-sm">
               <tr>
-                <th className="p-2 font-medium">Folio</th>
-                <th className="p-2 font-medium">Tipo DTE</th>
-                <th className="p-2 font-medium">
+                <th scope="col" className="p-2 font-medium">Folio</th>
+                <th scope="col" className="p-2 font-medium">Tipo DTE</th>
+                <th scope="col" className="p-2 font-medium">
                   <button type="button" className="flex items-center gap-1 font-medium" onClick={() => toggleSort('issueDate')}>
                     Fecha
                     {sortField === 'issueDate' && (sortDir === 'asc' ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />)}
                   </button>
                 </th>
-                <th className="p-2 font-medium">Cliente</th>
-                <th className="p-2 font-medium">
+                <th scope="col" className="p-2 font-medium">Cliente</th>
+                <th scope="col" className="p-2 font-medium">
                   <button type="button" className="flex items-center gap-1 font-medium" onClick={() => toggleSort('totalAmount')}>
                     Total
                     {sortField === 'totalAmount' && (sortDir === 'asc' ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />)}
                   </button>
                 </th>
-                <th className="p-2 font-medium">Estado</th>
-                <th className="p-2 font-medium">Acciones</th>
+                <th scope="col" className="p-2 font-medium">Estado</th>
+                <th scope="col" className="p-2 font-medium">Acciones</th>
               </tr>
             </thead>
             <tbody>

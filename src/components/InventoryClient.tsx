@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import type { InventoryMovement, Warehouse } from '@prisma/client';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/input';
 import StockMovementForm from './StockMovementForm';
 import {
@@ -118,7 +119,7 @@ export default function InventoryClient() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 duration-500 animate-in fade-in slide-in-from-bottom-2">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-wrap items-center gap-2">
           <Input
@@ -173,18 +174,18 @@ export default function InventoryClient() {
         />
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-border">
+      <div className="overflow-x-auto rounded-lg border border-border bg-card shadow-card">
         <table className="w-full min-w-[760px] table-auto text-sm">
           <thead className="bg-muted/50 text-left">
             <tr>
-              <th className="p-2 font-medium">Producto</th>
-              <th className="p-2 font-medium">Bodega</th>
-              <th className="p-2 font-medium">Cantidad</th>
-              <th className="p-2 font-medium">
+              <th scope="col" className="p-2 font-medium">Producto</th>
+              <th scope="col" className="p-2 font-medium">Bodega</th>
+              <th scope="col" className="p-2 font-medium">Cantidad</th>
+              <th scope="col" className="p-2 font-medium">
                 PMP
                 <InfoTooltip text={TAX_GLOSSARY.pmp} />
               </th>
-              <th className="p-2 font-medium">Valorizado</th>
+              <th scope="col" className="p-2 font-medium">Valorizado</th>
             </tr>
           </thead>
           <tbody>
@@ -195,7 +196,23 @@ export default function InventoryClient() {
             )}
             {!loading && rows.length === 0 && (
               <tr>
-                <td className="p-4 text-center text-muted-foreground" colSpan={5}>Sin existencias para mostrar</td>
+                <td colSpan={5}>
+                  <EmptyState
+                    title={query || warehouseId ? 'Sin existencias para tu búsqueda' : 'Todavía no hay existencias registradas'}
+                    description={
+                      query || warehouseId
+                        ? 'Prueba con otro SKU, nombre o bodega.'
+                        : 'Registra una entrada de stock o una compra para ver existencias aquí.'
+                    }
+                    action={
+                      !query && !warehouseId && (
+                        <Button type="button" size="sm" onClick={() => setShowMovementForm(true)}>
+                          Ajuste de Stock / Entrada Directa
+                        </Button>
+                      )
+                    }
+                  />
+                </td>
               </tr>
             )}
             {!loading && rows.map((row) => (
@@ -216,7 +233,7 @@ export default function InventoryClient() {
       </div>
 
       {selectedProduct && (
-        <div className="rounded-xl border border-border p-4">
+        <div className="rounded-lg border border-border bg-card p-5 shadow-card">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="font-medium">Kardex — {selectedProduct.label}</h3>
             <Button type="button" size="sm" variant="ghost" onClick={() => setSelectedProduct(null)}>Cerrar</Button>
@@ -225,16 +242,16 @@ export default function InventoryClient() {
             <table className="w-full min-w-[760px] table-auto text-sm">
               <thead className="bg-muted/50 text-left">
                 <tr>
-                  <th className="p-2 font-medium">Fecha</th>
-                  <th className="p-2 font-medium">Tipo</th>
-                  <th className="p-2 font-medium">Cantidad</th>
-                  <th className="p-2 font-medium">Costo Unit.</th>
-                  <th className="p-2 font-medium">Stock (antes → después)</th>
-                  <th className="p-2 font-medium">
+                  <th scope="col" className="p-2 font-medium">Fecha</th>
+                  <th scope="col" className="p-2 font-medium">Tipo</th>
+                  <th scope="col" className="p-2 font-medium">Cantidad</th>
+                  <th scope="col" className="p-2 font-medium">Costo Unit.</th>
+                  <th scope="col" className="p-2 font-medium">Stock (antes → después)</th>
+                  <th scope="col" className="p-2 font-medium">
                     PMP (antes → después)
                     <InfoTooltip text={TAX_GLOSSARY.pmp} />
                   </th>
-                  <th className="p-2 font-medium">Referencia</th>
+                  <th scope="col" className="p-2 font-medium">Referencia</th>
                 </tr>
               </thead>
               <tbody>
@@ -245,7 +262,12 @@ export default function InventoryClient() {
                 )}
                 {!loadingMovements && movements.length === 0 && (
                   <tr>
-                    <td className="p-4 text-center text-muted-foreground" colSpan={7}>Sin movimientos registrados</td>
+                    <td colSpan={7}>
+                      <EmptyState
+                        title="Sin movimientos registrados"
+                        description="Este producto todavía no tiene entradas ni salidas de kardex."
+                      />
+                    </td>
                   </tr>
                 )}
                 {!loadingMovements && movements.map((m) => (
