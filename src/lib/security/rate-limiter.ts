@@ -188,6 +188,18 @@ export const VOTE_PURCHASE_RATE_LIMIT: RateLimitConfig = {
   windowMs: 60 * 60_000,
 };
 
+/** Webhook entrante de automatización externa (`POST /api/webhooks`):
+ * clave por companyId (no por IP) porque n8n/Zapier suele correr desde IPs
+ * fijas de infraestructura compartida entre muchos clientes de ese
+ * proveedor — limitar por IP ahí penalizaría a todas las empresas que usan
+ * el mismo proveedor de automatización. 60/min alcanza sobrado para
+ * conciliación bancaria real y frena un loop de reintentos descontrolado. */
+export const N8N_WEBHOOK_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'n8n-webhook-company',
+  limit: 60,
+  windowMs: 60_000,
+};
+
 /**
  * Asistente del Manual de Usuario (`/api/ai/manual-assistant`): a diferencia
  * del Copiloto Financiero, este endpoint no exige ningún módulo contratado

@@ -1,12 +1,19 @@
 import { getAuthContext } from '@/lib/auth/guards';
 import { getVisibleManualSections } from '@/modules/manual/content';
+import { getKnowledgeAsManualSections } from '@/modules/manual/knowledge';
 import ManualClient from '@/components/manual/ManualClient';
 
 export const metadata = { title: 'Manual de Usuario' };
 
 export default async function ManualPage() {
   const context = await getAuthContext();
-  const sections = getVisibleManualSections(context.features);
+  // Los módulos primero, y al final el conocimiento transversal (flujos que
+  // cruzan módulos, problemas frecuentes, glosario): es lo mismo que sabe el
+  // asistente, para que también se pueda leer, buscar e imprimir.
+  const sections = [
+    ...getVisibleManualSections(context.features, context.permissions),
+    ...getKnowledgeAsManualSections(context.features, context.permissions),
+  ];
 
   return (
     <div>

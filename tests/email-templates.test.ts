@@ -1,4 +1,4 @@
-import { buildInvitationEmail, buildPasswordResetEmail } from '@/lib/email/templates';
+import { buildInvitationEmail, buildPasswordResetEmail, buildOperationalAlertEmail } from '@/lib/email/templates';
 
 /**
  * Las plantillas incrustan datos que vienen de la base (razón social, nombre
@@ -83,5 +83,63 @@ describe('Correo de recuperación de contraseña', () => {
   it('no filtra el token en el asunto', () => {
     // El asunto queda en previsualizaciones y notificaciones de escritorio.
     expect(buildPasswordResetEmail(base).subject).not.toContain('xyz789');
+  });
+});
+
+describe('Correo de alerta operativa (stock bajo + compras pendientes)', () => {
+  const base = {
+    companyName: 'Comercial Ejemplo SpA',
+    lowStock: [{ sku: 'SKU-1', name: 'Producto Uno', totalStock: 2, minStock: 5 }],
+    pendingApprovals: [{ folio: 'F-100', contactName: 'Proveedor Uno', totalAmount: 150000, daysPending: 3 }],
+    dashboardUrl: 'https://erp.ejemplo.cl/dashboard',
+  };
+
+  it('cuenta ambos tipos de alerta en el asunto', () => {
+    expect(buildOperationalAlertEmail(base).subject).toBe('Alerta operativa — 2 puntos que revisar');
+  });
+
+  it('usa singular cuando hay un solo punto', () => {
+    const email = buildOperationalAlertEmail({ ...base, pendingApprovals: [] });
+    expect(email.subject).toBe('Alerta operativa — 1 punto que revisar');
+  });
+
+  it('incluye SKU, stock actual y mínimo en HTML y texto', () => {
+    const email = buildOperationalAlertEmail(base);
+    expect(email.html).toContain('SKU-1');
+    expect(email.text).toContain('SKU-1');
+    expect(email.text).toContain('2 disponibles');
+    expect(email.text).toContain('mínimo 5');
+  });
+
+  it('incluye folio, proveedor y monto formateado de las compras pendientes', () => {
+    const email = buildOperationalAlertEmail(base);
+    expect(email.html).toContain('F-100');
+    expect(email.text).toContain('Proveedor Uno');
+    expect(email.text).toContain('3 día(s) esperando');
+  });
+
+  it('omite la sección de stock si no hay productos bajo mínimo', () => {
+    const email = buildOperationalAlertEmail({ ...base, lowStock: [] });
+    expect(email.html).not.toContain('Stock bajo el mínimo');
+    expect(email.text).not.toContain('Stock bajo el mínimo');
+  });
+
+  it('omite la sección de aprobaciones si no hay compras pendientes', () => {
+    const email = buildOperationalAlertEmail({ ...base, pendingApprovals: [] });
+    expect(email.html).not.toContain('esperando aprobación');
+  });
+
+  it('escapa HTML en el nombre del producto y del proveedor', () => {
+    const email = buildOperationalAlertEmail({
+      ...base,
+      lowStock: [{ ...base.lowStock[0]!, name: '<script>alert(1)</script>' }],
+      pendingApprovals: [{ ...base.pendingApprovals[0]!, contactName: '<img src=x onerror=alert(1)>' }],
+    });
+    expect(email.html).not.toContain('<script>alert(1)</script>');
+    expect(email.html).not.toContain('<img src=x');
+  });
+
+  it('incluye el link al panel', () => {
+    expect(buildOperationalAlertEmail(base).text).toContain(base.dashboardUrl);
   });
 });

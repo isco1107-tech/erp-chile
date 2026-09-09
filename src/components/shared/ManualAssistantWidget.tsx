@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { HelpCircle, X, Send, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { parseChatResponse, parseConfirmResponse } from '@/lib/ai/chat-response';
@@ -14,6 +15,19 @@ interface PendingAction {
   token: string;
   summary: string;
 }
+
+/**
+ * Arranques sugeridos para la pantalla en blanco. Deliberadamente amplios (no
+ * "¿cómo emito una boleta?"): el asistente ahora sabe orientar sobre cualquier
+ * pantalla, resolver trabas y armar flujos completos, y la mayoría de la gente
+ * no descubre eso si el ejemplo que ve es siempre el mismo caso puntual.
+ */
+const SUGGESTIONS = [
+  '¿Qué puedo hacer en esta pantalla?',
+  '¿Por dónde empiezo a usar el sistema?',
+  '¿Qué tengo que revisar para cerrar el mes?',
+  'No me deja hacer algo, ¿por qué?',
+];
 
 /**
  * Botón flotante + panel deslizante del asistente del Manual de Usuario.
@@ -40,6 +54,9 @@ export default function ManualAssistantWidget() {
   const [sending, setSending] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [confirming, setConfirming] = useState(false);
+  // Le da al asistente la pantalla desde la que se abrió, para que "¿cómo hago
+  // esto?" no obligue al usuario a explicar dónde está parado.
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!open) return;
@@ -50,8 +67,8 @@ export default function ManualAssistantWidget() {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [open]);
 
-  async function handleSend() {
-    const content = input.trim();
+  async function sendMessage(rawContent: string) {
+    const content = rawContent.trim();
     if (!content || sending) return;
 
     const nextMessages: ChatMessage[] = [...messages, { role: 'user', content }];
@@ -63,7 +80,7 @@ export default function ManualAssistantWidget() {
       const res = await fetch('/api/ai/manual-assistant', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: nextMessages }),
+        body: JSON.stringify({ messages: nextMessages, currentPath: pathname }),
       });
       const json = parseChatResponse(await res.json());
       if (!json.success) {
@@ -77,6 +94,10 @@ export default function ManualAssistantWidget() {
     } finally {
       setSending(false);
     }
+  }
+
+  function handleSend() {
+    void sendMessage(input);
   }
 
   async function handleConfirm() {
@@ -144,9 +165,25 @@ export default function ManualAssistantWidget() {
 
             <div className="hud-scroll flex-1 space-y-3 overflow-y-auto px-4 py-4">
               {messages.length === 0 && (
-                <p className="text-sm text-muted-foreground">
-                  Pregúntame por ejemplo: &ldquo;¿Cómo emito una boleta?&rdquo;, o pídeme directamente &ldquo;Créame un contacto para Juan Pérez, RUT 12.345.678-9, es cliente&rdquo;.
-                </p>
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Pregúntame lo que necesites hacer en el sistema: te explico paso a paso, te digo a qué pantalla ir, o lo hago yo
+                    por ti (por ejemplo &ldquo;créame un contacto para Juan Pérez, RUT 12.345.678-9, es cliente&rdquo;).
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {SUGGESTIONS.map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        onClick={() => void sendMessage(suggestion)}
+                        disabled={sending}
+                        className="rounded-full border border-input px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/60 hover:text-foreground disabled:opacity-50"
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               )}
               {messages.map((message, index) => (
                 <div
@@ -190,7 +227,7 @@ export default function ManualAssistantWidget() {
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  void handleSend();
+                  handleSend();
                 }}
                 className="flex gap-2"
               >

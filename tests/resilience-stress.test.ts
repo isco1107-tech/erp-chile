@@ -9,7 +9,7 @@ import {
   buildSalesRevenueLines,
   buildCostOfSalesLines,
 } from '@/modules/accounting/posting-rules/sales-posting';
-import { recordWebhookEvent } from '@/modules/webhooks/services/webhook-idempotency.service';
+import { claimWebhookEvent, markWebhookEventFailed, recordWebhookEvent } from '@/modules/webhooks/services/webhook-idempotency.service';
 import { prisma } from '@/lib/prisma';
 
 describe('1. Idempotencia y Concurrencia Transaccional', () => {
@@ -18,8 +18,8 @@ describe('1. Idempotencia y Concurrencia Transaccional', () => {
 
     type CreateFn = typeof prisma.processedWebhookEvent.create;
     jest.spyOn(prisma.processedWebhookEvent, 'create').mockImplementation((async (args: unknown) => {
-      const { data } = args as { data: { provider: string; eventId: string; eventType: string; payload?: unknown } };
-      const key = `${data.provider}_${data.eventId}`;
+      const { data } = args as { data: { provider: string; companyId: string; eventId: string; eventType: string; payload?: unknown } };
+      const key = `${data.provider}_${data.companyId}_${data.eventId}`;
       if (mockStore.has(key)) {
         const error = new Error('Unique constraint failed') as Error & { code: string };
         error.code = 'P2002';
@@ -27,7 +27,7 @@ describe('1. Idempotencia y Concurrencia Transaccional', () => {
       }
       const record = {
         id: 'webhook-123',
-        companyId: null,
+        companyId: data.companyId,
         status: 'PROCESSED',
         payload: data.payload ?? null,
         provider: data.provider,
@@ -42,17 +42,20 @@ describe('1. Idempotencia y Concurrencia Transaccional', () => {
 
     type FindUniqueFn = typeof prisma.processedWebhookEvent.findUnique;
     jest.spyOn(prisma.processedWebhookEvent, 'findUnique').mockImplementation((async (args: unknown) => {
-      const { where } = args as { where: { provider_eventId: { provider: string; eventId: string } } };
-      const key = `${where.provider_eventId.provider}_${where.provider_eventId.eventId}`;
+      const { where } = args as { where: { provider_companyId_eventId: { provider: string; companyId: string; eventId: string } } };
+      const { provider, companyId, eventId } = where.provider_companyId_eventId;
+      const key = `${provider}_${companyId}_${eventId}`;
       return mockStore.get(key) ?? null;
     }) as unknown as FindUniqueFn);
 
     const testEventId = 'evt_test_12345';
     const provider = 'stripe';
+    const companyId = 'company-1';
 
     // Primer procesamiento
     const firstResult = await recordWebhookEvent({
       provider,
+      companyId,
       eventId: testEventId,
       eventType: 'payment_intent.succeeded',
       payload: { amount: 10000, currency: 'clp' },
@@ -65,6 +68,7 @@ describe('1. Idempotencia y Concurrencia Transaccional', () => {
     // Segundo procesamiento (duplicado/reintento)
     const secondResult = await recordWebhookEvent({
       provider,
+      companyId,
       eventId: testEventId,
       eventType: 'payment_intent.succeeded',
       payload: { amount: 10000, currency: 'clp' },
@@ -72,6 +76,59 @@ describe('1. Idempotencia y Concurrencia Transaccional', () => {
 
     expect(secondResult.alreadyProcessed).toBe(true);
     expect(secondResult.event?.id).toBe(firstResult.event?.id);
+
+    jest.restoreAllMocks();
+  });
+
+  it('Webhook Claim: evita doble ejecución concurrente y permite reintentar fallos auditados', async () => {
+    const mockStore = new Map<string, { status: string; provider: string; companyId: string; eventId: string; eventType: string; payload?: unknown }>();
+
+    type CreateFn = typeof prisma.processedWebhookEvent.create;
+    jest.spyOn(prisma.processedWebhookEvent, 'create').mockImplementation((async (args: unknown) => {
+      const { data } = args as { data: { provider: string; companyId: string; eventId: string; eventType: string; status: string; payload?: unknown } };
+      const key = `${data.provider}_${data.companyId}_${data.eventId}`;
+      if (mockStore.has(key)) {
+        const error = new Error('Unique constraint failed') as Error & { code: string };
+        error.code = 'P2002';
+        throw error;
+      }
+      mockStore.set(key, { ...data });
+      return {
+        id: 'webhook-claim-1',
+        companyId: data.companyId,
+        status: data.status,
+        payload: data.payload ?? null,
+        provider: data.provider,
+        eventId: data.eventId,
+        eventType: data.eventType,
+        processedAt: new Date(),
+        createdAt: new Date(),
+      };
+    }) as unknown as CreateFn);
+
+    type UpdateManyFn = typeof prisma.processedWebhookEvent.updateMany;
+    jest.spyOn(prisma.processedWebhookEvent, 'updateMany').mockImplementation((async (args: unknown) => {
+      const { where, data } = args as {
+        where: { provider: string; companyId: string; eventId: string; status?: string };
+        data: { status?: string; eventType?: string; payload?: unknown };
+      };
+      const key = `${where.provider}_${where.companyId}_${where.eventId}`;
+      const current = mockStore.get(key);
+      if (!current || (where.status && current.status !== where.status)) return { count: 0 };
+      mockStore.set(key, { ...current, ...data });
+      return { count: 1 };
+    }) as unknown as UpdateManyFn);
+
+    const event = { provider: 'n8n', companyId: 'company-1', eventId: 'payment-123', eventType: 'payment.confirmed' };
+
+    await expect(claimWebhookEvent(event)).resolves.toEqual({ claimed: true });
+    await expect(claimWebhookEvent(event)).resolves.toEqual({ claimed: false });
+
+    await markWebhookEventFailed({ provider: event.provider, companyId: event.companyId, eventId: event.eventId, payload: { reason: 'deadlock' } });
+    expect(mockStore.get('n8n_company-1_payment-123')?.status).toBe('FAILED');
+
+    await expect(claimWebhookEvent(event)).resolves.toEqual({ claimed: true });
+    expect(mockStore.get('n8n_company-1_payment-123')?.status).toBe('CLAIMED');
 
     jest.restoreAllMocks();
   });
@@ -273,4 +330,3 @@ describe('3. Políticas de Inmutabilidad y Auditoría', () => {
     expect(signForPurchaseDocumentType('NOTA_CREDITO')).toBe(-1); // Resta crédito fiscal
   });
 });
-

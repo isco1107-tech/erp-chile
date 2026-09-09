@@ -534,6 +534,142 @@ export function buildInstallmentReminderEmail(input: InstallmentReminderEmailInp
   return { subject, html, text };
 }
 
+export interface OperationalAlertLowStockRow {
+  sku: string;
+  name: string;
+  totalStock: number;
+  minStock: number;
+}
+
+export interface OperationalAlertPendingApprovalRow {
+  folio: string;
+  contactName: string;
+  totalAmount: number;
+  daysPending: number;
+}
+
+export interface OperationalAlertEmailInput {
+  companyName: string;
+  lowStock: OperationalAlertLowStockRow[];
+  pendingApprovals: OperationalAlertPendingApprovalRow[];
+  dashboardUrl: string;
+}
+
+/** Correo diario de operación: productos bajo su stock mínimo y compras que
+ * llevan días esperando aprobación (`PurchaseDocument.approvalStatus ===
+ * 'PENDING'`). Pensado como destino de `runOperationalAlertsCron` — ver
+ * `src/modules/alerts/services/operational-alerts.service.ts` — pero el
+ * mismo endpoint que lo dispara también devuelve los datos crudos en JSON,
+ * así que una automatización externa (n8n) puede reusarlos para postear en
+ * Slack en vez de (o además de) este correo. */
+export function buildOperationalAlertEmail(input: OperationalAlertEmailInput): { subject: string; html: string; text: string } {
+  const issueCount = input.lowStock.length + input.pendingApprovals.length;
+  const subject = `Alerta operativa — ${issueCount} punto${issueCount === 1 ? '' : 's'} que revisar`;
+
+  const stockRows = input.lowStock
+    .map(
+      (row) => `<tr>
+        <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">${escapeHtml(row.sku)}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">${escapeHtml(row.name)}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right;">${row.totalStock}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right;">${row.minStock}</td>
+      </tr>`
+    )
+    .join('');
+
+  const approvalRows = input.pendingApprovals
+    .map(
+      (row) => `<tr>
+        <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">${escapeHtml(row.folio)}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">${escapeHtml(row.contactName)}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right;">${escapeHtml(formatCurrency(row.totalAmount))}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right;">${row.daysPending} día${row.daysPending === 1 ? '' : 's'}</td>
+      </tr>`
+    )
+    .join('');
+
+  const html = `<!doctype html>
+<html lang="es">
+<body style="margin:0;padding:0;background:#f4f6f8;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:24px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
+          <tr>
+            <td style="background:${BRAND};padding:20px 24px;">
+              <p style="margin:0;color:#ffffff;font-size:18px;font-weight:700;">${escapeHtml(input.companyName)}</p>
+              <p style="margin:2px 0 0;color:#cbd5e1;font-size:12px;">Alerta operativa diaria</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px;color:#1f2933;font-size:15px;line-height:1.6;">
+              ${
+                input.lowStock.length > 0
+                  ? `<p style="margin:0 0 8px;font-weight:600;">Stock bajo el mínimo (${input.lowStock.length})</p>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:13px;margin-bottom:20px;">
+                <tr style="background:#f8fafc;">
+                  <th style="padding:6px 8px;text-align:left;color:#64748b;">SKU</th>
+                  <th style="padding:6px 8px;text-align:left;color:#64748b;">Producto</th>
+                  <th style="padding:6px 8px;text-align:right;color:#64748b;">Stock actual</th>
+                  <th style="padding:6px 8px;text-align:right;color:#64748b;">Mínimo</th>
+                </tr>
+                ${stockRows}
+              </table>`
+                  : ''
+              }
+              ${
+                input.pendingApprovals.length > 0
+                  ? `<p style="margin:0 0 8px;font-weight:600;">Compras esperando aprobación (${input.pendingApprovals.length})</p>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:13px;">
+                <tr style="background:#f8fafc;">
+                  <th style="padding:6px 8px;text-align:left;color:#64748b;">Folio</th>
+                  <th style="padding:6px 8px;text-align:left;color:#64748b;">Proveedor</th>
+                  <th style="padding:6px 8px;text-align:right;color:#64748b;">Monto</th>
+                  <th style="padding:6px 8px;text-align:right;color:#64748b;">Esperando</th>
+                </tr>
+                ${approvalRows}
+              </table>`
+                  : ''
+              }
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 24px;background:#f8fafc;border-top:1px solid #e2e8f0;color:#64748b;font-size:12px;line-height:1.5;">
+              Alerta automática diaria de ${escapeHtml(input.companyName)}. <a href="${input.dashboardUrl}" style="color:${BRAND};">Ir al panel</a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  const text = [
+    `${input.companyName} — Alerta operativa diaria`,
+    '',
+    ...(input.lowStock.length > 0
+      ? [
+          `Stock bajo el mínimo (${input.lowStock.length}):`,
+          ...input.lowStock.map((row) => `- ${row.sku} ${row.name}: ${row.totalStock} disponibles (mínimo ${row.minStock})`),
+          '',
+        ]
+      : []),
+    ...(input.pendingApprovals.length > 0
+      ? [
+          `Compras esperando aprobación (${input.pendingApprovals.length}):`,
+          ...input.pendingApprovals.map(
+            (row) => `- Folio ${row.folio} — ${row.contactName} — ${formatCurrency(row.totalAmount)} — ${row.daysPending} día(s) esperando`
+          ),
+          '',
+        ]
+      : []),
+    `Panel: ${input.dashboardUrl}`,
+  ].join('\n');
+
+  return { subject, html, text };
+}
+
 export interface CandidateStatusChangeEmailInput {
   fullName: string;
   projectName: string;

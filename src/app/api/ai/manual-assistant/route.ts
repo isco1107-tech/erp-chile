@@ -33,6 +33,17 @@ const messageSchema = z.object({
 
 const requestSchema = z.object({
   messages: z.array(messageSchema).min(1).max(30),
+  /**
+   * Ruta del dashboard donde está parado el usuario. Solo se usa para darle
+   * contexto al prompt ("está en Cuentas por Cobrar"), nunca para decidir
+   * acceso — por eso basta con validar la forma y no hace falta cruzarla con
+   * los permisos: el mapa de pantallas del prompt ya viene filtrado.
+   */
+  currentPath: z
+    .string()
+    .max(200)
+    .refine((value) => value.startsWith('/'), 'Ruta inválida')
+    .optional(),
 });
 
 function toGeminiContents(messages: z.infer<typeof requestSchema>['messages']): Content[] {
@@ -78,7 +89,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' }, { status: 400 });
     }
 
-    const systemPrompt = buildManualSystemPrompt(session.features, session.permissions);
+    const systemPrompt = buildManualSystemPrompt({
+      features: session.features,
+      permissions: session.permissions,
+      companyName: session.companyName,
+      userName: session.name,
+      currentPath: parsed.data.currentPath,
+    });
 
     // El resultado de una `proposeAction` exitosa (token + resumen) no puede
     // viajar de vuelta al cliente dentro del texto que redacta el modelo —

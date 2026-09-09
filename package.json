@@ -5,9 +5,12 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
+    "typecheck": "tsc --noEmit",
     "test": "jest --runInBand",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
+    "prisma:validate": "prisma validate",
+    "ci": "npm run prisma:validate && npm run typecheck && npm run lint && npm test",
     "seed": "ts-node prisma/seed.ts",
     "postinstall": "prisma generate"
   },

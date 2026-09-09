@@ -1,4 +1,5 @@
 import type { FeatureKey, CompanyFeatureFlags } from '@/lib/auth/modules';
+import type { Permission } from '@/lib/auth/permissions';
 
 export interface ManualTopic {
   id: string;
@@ -9,6 +10,12 @@ export interface ManualTopic {
 export interface ManualSection {
   /** `'always'` = visible sin importar el plan contratado (navegación, contactos, configuración). */
   key: FeatureKey | 'always';
+  /**
+   * Capacidad transversal que no es un módulo comercializable (mensajería,
+   * importación masiva): la sección solo se muestra si el usuario tiene ese
+   * permiso. Sin este campo la sección depende únicamente de `key`.
+   */
+  permission?: Permission;
   title: string;
   route: string;
   /** Ruta pública (`/manual/screenshots/<archivo>.png`) de una captura representativa del módulo. Generada una vez con `scripts/capture-manual-screenshots.ts`, no en cada build. */
@@ -279,6 +286,25 @@ export const MANUAL_SECTIONS: ManualSection[] = [
         ],
       },
       {
+        id: 'ver-kardex',
+        title: 'Revisar el Kardex de un producto (qué entró y qué salió)',
+        steps: [
+          'Ve a Inventario (/dashboard/inventory) — es la pantalla de existencias y Kardex, distinta del Catálogo de Productos.',
+          'Busca el producto por SKU o nombre y haz clic en su fila: abajo se abre el Kardex con fecha, tipo de movimiento, cantidad, costo y el documento de referencia que lo originó.',
+          'Cada compra, venta, ajuste y transferencia deja una línea ahí — si el stock no cuadra, esta es la pantalla donde se ve en qué movimiento se descuadró.',
+          'La columna Valorizado muestra el stock a costo PMP vigente, que es el valor de inventario que después aparece en los reportes.',
+        ],
+      },
+      {
+        id: 'filtrar-por-bodega',
+        title: 'Ver el stock de una bodega en particular',
+        steps: [
+          'En Inventario usa el selector "Todas las bodegas" para dejar solo la bodega que te interesa.',
+          'Si tu plan incluye Multibodega, desde ahí mismo puedes crear una bodega nueva indicando nombre y código.',
+          'Sin Multibodega trabajas con una sola bodega y el selector no te sirve de mucho.',
+        ],
+      },
+      {
         id: 'categorias-producto',
         title: 'Organizar productos por categoría',
         steps: [
@@ -411,6 +437,16 @@ export const MANUAL_SECTIONS: ManualSection[] = [
         steps: [
           'Ve a Reportes Excel.',
           'Elige el período (mes/año) y descarga el Excel — incluye libro de ventas, compras, Kardex valorizado y una estimación de F29 calculada sobre tus documentos reales del período.',
+        ],
+      },
+      {
+        id: 'pantalla-f29',
+        title: 'Ver el F29 del mes en pantalla (sin descargar Excel)',
+        steps: [
+          'Ve a Formulario 29 (F29) en el menú de Finanzas (/dashboard/reports/f29).',
+          'Elige el período y verás el IVA débito, el IVA crédito, el remanente que viene del mes anterior, el PPM y el impuesto determinado.',
+          'El cálculo corre sobre tus documentos reales emitidos y recibidos del período, no sobre estimaciones.',
+          'Si un número te parece raro, revisa primero que todos los documentos del mes estén emitidos (no en borrador) y que las compras del mes estén registradas.',
         ],
       },
       {
@@ -759,9 +795,144 @@ export const MANUAL_SECTIONS: ManualSection[] = [
       },
     ],
   },
+  {
+    key: 'always',
+    title: 'Trabajar con listados, filtros y exportaciones',
+    route: '/dashboard',
+    topics: [
+      {
+        id: 'usar-tablas',
+        title: 'Buscar, filtrar y ordenar en cualquier listado',
+        steps: [
+          'Casi todas las pantallas de listado (contactos, productos, ventas, compras, cuotas) usan la misma tabla: arriba a la izquierda está el buscador y al lado los filtros de esa pantalla (estado, fecha, bodega, etc.).',
+          'El buscador filtra sobre lo que ya está cargado en la pantalla; si buscas algo antiguo, primero amplía el filtro de fecha o estado y después busca.',
+          'Abajo está la paginación: si no encuentras un registro, revisa que no esté en otra página antes de volver a crearlo (duplicar un cliente o un producto ensucia el histórico).',
+          'Cuando la pantalla permite exportar, el botón está arriba a la derecha de la tabla y baja exactamente las filas que estás viendo con los filtros aplicados.',
+        ],
+      },
+      {
+        id: 'imprimir-pantalla',
+        title: 'Imprimir o guardar como PDF lo que estoy viendo',
+        steps: [
+          'Usa Ctrl+P (Cmd+P en Mac) y elige "Guardar como PDF" en el destino de impresión.',
+          'Las pantallas están preparadas para imprimirse sin el menú lateral ni los botones — sale solo el contenido.',
+          'El Manual de Usuario tiene además su propio botón "Descargar / Imprimir Manual", que imprime todas las secciones expandidas.',
+        ],
+      },
+    ],
+  },
+  {
+    key: 'always',
+    title: 'Mi cuenta: perfil, contraseña y dispositivos',
+    route: '/dashboard/settings/profile',
+    topics: [
+      {
+        id: 'mi-perfil',
+        title: 'Actualizar mis datos y ver mi actividad',
+        steps: [
+          'Ve a Configuración → Mi Perfil (/dashboard/settings/profile).',
+          'Ahí actualizas tus datos de contacto y ves tu actividad reciente en la plataforma.',
+        ],
+      },
+      {
+        id: 'dispositivos-activos',
+        title: 'Cerrar sesiones abiertas en otros dispositivos',
+        steps: [
+          'Ve a Configuración → Dispositivos Activos (/dashboard/settings/sessions).',
+          'Cada fila es un inicio de sesión vigente. Si no reconoces uno, ciérralo desde ahí.',
+          'Cerrar una sesión desconecta ese dispositivo de inmediato, no cuando expire el token.',
+          'Si sospechas que alguien entró a tu cuenta: cierra todas las sesiones, cambia tu contraseña y activa la verificación en dos pasos.',
+        ],
+      },
+      {
+        id: 'seguridad-2fa',
+        title: 'Activar la verificación en dos pasos (2FA)',
+        steps: [
+          'Ve a Configuración → Seguridad (/dashboard/settings/security).',
+          'Sigue el asistente para vincular tu app de autenticación (Google Authenticator, Authy o similar).',
+          'Guarda los códigos de respaldo en un lugar seguro: sin ellos y sin el teléfono, quedas fuera de tu cuenta.',
+        ],
+      },
+    ],
+  },
+  {
+    key: 'always',
+    permission: 'import:data',
+    title: 'Importación Masiva (Excel y fotos)',
+    route: '/dashboard/settings/import',
+    topics: [
+      {
+        id: 'importar-excel',
+        title: 'Cargar catálogo, clientes o stock inicial desde Excel',
+        steps: [
+          'Ve a Configuración → Importación Masiva (/dashboard/settings/import).',
+          'Elige qué vas a importar: productos, contactos, stock inicial, ventas históricas o compras históricas. Solo aparecen los tipos que tienes permiso de crear.',
+          'Descarga la plantilla que te ofrece el asistente y llena tus datos ahí — así las columnas calzan y no tienes que mapearlas a mano.',
+          'Sube el archivo y revisa la vista previa: te marca fila por fila lo que está bien, lo que se corrigió solo y lo que tiene error.',
+          'Nada se guarda hasta que confirmas la vista previa. Si hay filas con error, corrígelas en el archivo y vuelve a subirlo.',
+          'Máximo 2.000 filas por importación: si tienes más, divide el archivo en partes.',
+        ],
+      },
+      {
+        id: 'importar-fotos',
+        title: 'Cargar facturas desde fotos (escaneo con IA)',
+        steps: [
+          'En la misma pantalla de Importación Masiva está la opción de escanear facturas por foto, disponible si puedes registrar tanto ventas como compras históricas.',
+          'Sube las imágenes (hasta 8 por tanda) y la IA extrae los datos de cada documento.',
+          'Revisa fila por fila lo que extrajo antes de confirmar: la IA se equivoca con fotos borrosas, cortadas o con reflejos.',
+          'Igual que con Excel, no se guarda nada hasta que confirmas.',
+        ],
+      },
+    ],
+  },
+  {
+    key: 'always',
+    permission: 'messaging:use',
+    title: 'Mensajería Interna',
+    route: '/dashboard/messaging',
+    topics: [
+      {
+        id: 'chat-interno',
+        title: 'Conversar con tu equipo dentro del sistema',
+        steps: [
+          'Entra a Mensajería en el menú lateral (/dashboard/messaging).',
+          'Crea una conversación nueva y elige a la persona o personas de tu empresa con las que quieres hablar.',
+          'Los mensajes se guardan cifrados: nadie fuera de la conversación puede leerlos.',
+          'La campanita de mensajes, arriba a la derecha, te avisa cuando tienes mensajes sin leer.',
+          'Solo puedes escribirle a gente de tu misma empresa — no es un canal para clientes.',
+        ],
+      },
+    ],
+  },
+  {
+    key: 'hasEventProjects',
+    title: 'Calendario y Google Calendar',
+    route: '/dashboard/calendar',
+    topics: [
+      {
+        id: 'sincronizar-google',
+        title: 'Sincronizar certámenes y cumpleaños con Google Calendar',
+        steps: [
+          'Ve a Calendario & Google Sync (/dashboard/calendar).',
+          'Conecta tu cuenta de Google desde esa pantalla; se sincroniza con el correo con el que iniciaste sesión.',
+          'Se envían al calendario los certámenes y galas, y los cumpleaños de las candidatas, con recordatorios automáticos.',
+          'Necesitas permiso de escritura sobre proyectos para modificar la sincronización; con solo lectura la ves pero no la cambias.',
+        ],
+      },
+    ],
+  },
 ];
 
-/** Solo las secciones de módulos que la empresa tiene contratados (+ las siempre visibles). */
-export function getVisibleManualSections(features: CompanyFeatureFlags): ManualSection[] {
-  return MANUAL_SECTIONS.filter((section) => section.key === 'always' || features[section.key]);
+/**
+ * Solo las secciones de módulos que la empresa tiene contratados (+ las
+ * siempre visibles), y — si se pasan `permissions` — sin las secciones de
+ * capacidades transversales que este usuario no tiene habilitadas. Omitir
+ * `permissions` devuelve todo lo contratado, sin filtrar por permiso.
+ */
+export function getVisibleManualSections(features: CompanyFeatureFlags, permissions?: Permission[]): ManualSection[] {
+  return MANUAL_SECTIONS.filter((section) => {
+    if (section.key !== 'always' && !features[section.key]) return false;
+    if (section.permission && permissions && !permissions.includes(section.permission)) return false;
+    return true;
+  });
 }

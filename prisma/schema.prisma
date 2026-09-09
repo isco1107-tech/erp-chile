@@ -428,6 +428,14 @@ model CompanySettings {
   purchaseApprovalThreshold Int?
   /// Token único para la suscripción de eventos y cumpleaños en Google Calendar
   calendarSyncToken         String?      @unique
+  /// Token único para que una automatización externa (n8n, Zapier, un script
+  /// propio) llame `POST /api/webhooks` en nombre de esta empresa —
+  /// `Authorization: Bearer <token>`. El token ES la identidad de la empresa
+  /// en ese endpoint (mismo patrón que `calendarSyncToken`): el companyId
+  /// NUNCA se acepta del payload que manda el cliente, siempre se resuelve
+  /// buscando este token. `null` hasta que alguien lo genera desde
+  /// Configuración → Empresa.
+  n8nWebhookSecret          String?      @unique
   /// Texto libre con los datos de transferencia (banco, tipo de cuenta,
   /// número, titular, RUT) que se muestra al comprador en los flujos públicos
   /// de pago manual (entradas, votación) — no hay pasarela de pago integrada,
@@ -2602,7 +2610,14 @@ model ProcessedWebhookEvent {
   processedAt DateTime @default(now())
   createdAt   DateTime @default(now())
 
-  @@unique([provider, eventId])
+  /// `companyId` va en la clave de unicidad (no solo `provider`+`eventId`):
+  /// dos empresas distintas pueden coincidir en el mismo `eventId` si su
+  /// automatización externa genera el hash sin incluir la empresa (ej. un
+  /// mismo workflow de n8n reusado por varios clientes con
+  /// fecha+monto+glosa). Sin `companyId` acá, el evento de la segunda
+  /// empresa se descartaría en silencio como "duplicado" del de la
+  /// primera — el pago de la segunda empresa nunca se registraría.
+  @@unique([provider, companyId, eventId])
   @@index([companyId, provider])
   @@index([createdAt])
 }
