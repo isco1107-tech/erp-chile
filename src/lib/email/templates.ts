@@ -1005,6 +1005,68 @@ export function buildAgentDigestEmail(input: AgentDigestEmailInput): { subject: 
   return { subject, html, text };
 }
 
+export interface NewLoginNoticeEmailInput {
+  userName: string;
+  ipAddress: string;
+  userAgent: string | null;
+  loginAt: Date;
+}
+
+/** Aviso al propio usuario de un inicio de sesión desde una IP que su cuenta
+ * nunca había usado — antes `UserSession` guardaba `ipAddress`/`userAgent`
+ * solo para que la persona los viera si entraba manualmente a "Dispositivos
+ * activos"; nadie se enteraba de un acceso nuevo salvo que fuera a mirar. */
+export function buildNewLoginNoticeEmail(input: NewLoginNoticeEmailInput): { subject: string; html: string; text: string } {
+  const subject = 'Nuevo inicio de sesión en tu cuenta';
+  const when = input.loginAt.toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' });
+
+  const html = `<!doctype html>
+<html lang="es">
+<body style="margin:0;padding:0;background:#f4f6f8;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:24px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
+          <tr>
+            <td style="background:${BRAND};padding:20px 24px;">
+              <p style="margin:0;color:#ffffff;font-size:18px;font-weight:700;">Aviso de seguridad</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px;color:#1f2933;font-size:15px;line-height:1.6;">
+              <p style="margin:0 0 12px;">Hola <strong>${escapeHtml(input.userName)}</strong>, detectamos un inicio de sesión en tu cuenta
+              desde una ubicación que no habíamos visto antes.</p>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;border-collapse:collapse;margin-bottom:12px;">
+                <tr><td style="padding:4px 0;color:#64748b;width:30%;">Fecha</td><td style="padding:4px 0;font-weight:600;">${escapeHtml(when)}</td></tr>
+                <tr><td style="padding:4px 0;color:#64748b;">Dirección IP</td><td style="padding:4px 0;font-weight:600;">${escapeHtml(input.ipAddress)}</td></tr>
+                ${input.userAgent ? `<tr><td style="padding:4px 0;color:#64748b;">Dispositivo</td><td style="padding:4px 0;font-weight:600;">${escapeHtml(input.userAgent)}</td></tr>` : ''}
+              </table>
+              <p style="margin:0;color:#64748b;font-size:13px;">Si fuiste tú, puedes ignorar este mensaje. Si no reconoces este acceso, cambia tu
+              contraseña de inmediato y revisa "Dispositivos activos" en tu configuración de cuenta.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  const text = [
+    'Aviso de seguridad — nuevo inicio de sesión',
+    '',
+    `Hola ${input.userName}, detectamos un inicio de sesión en tu cuenta desde una ubicación que no habíamos visto antes.`,
+    '',
+    `Fecha: ${when}`,
+    `Dirección IP: ${input.ipAddress}`,
+    ...(input.userAgent ? [`Dispositivo: ${input.userAgent}`] : []),
+    '',
+    'Si fuiste tú, ignora este mensaje. Si no reconoces este acceso, cambia tu contraseña de inmediato.',
+  ].join('\n');
+
+  return { subject, html, text };
+}
+
 export interface CandidateStatusChangeEmailInput {
   fullName: string;
   projectName: string;

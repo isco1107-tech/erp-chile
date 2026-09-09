@@ -8,6 +8,7 @@ import {
   buildSponsorshipPaymentConfirmationEmail,
   buildAccountLockedNoticeEmail,
   buildAgentDigestEmail,
+  buildNewLoginNoticeEmail,
 } from '@/lib/email/templates';
 
 /**
@@ -401,6 +402,35 @@ describe('Correo de resumen ejecutivo diario (agente CEO)', () => {
 
   it('escapa HTML en una prioridad', () => {
     const email = buildAgentDigestEmail({ ...base, priorities: ['<script>alert(1)</script>'] });
+    expect(email.html).not.toContain('<script>alert(1)</script>');
+  });
+});
+
+describe('Aviso de nuevo inicio de sesión', () => {
+  const base = { userName: 'Ana Pérez', ipAddress: '200.1.2.3', userAgent: 'Mozilla/5.0 (Windows NT 10.0)', loginAt: new Date('2026-08-01T12:00:00Z') };
+
+  it('incluye la IP y el asunto de seguridad', () => {
+    const email = buildNewLoginNoticeEmail(base);
+    expect(email.subject).toBe('Nuevo inicio de sesión en tu cuenta');
+    expect(email.text).toContain('200.1.2.3');
+  });
+
+  it('incluye el dispositivo cuando viene informado', () => {
+    const email = buildNewLoginNoticeEmail(base);
+    expect(email.text).toContain('Mozilla/5.0 (Windows NT 10.0)');
+  });
+
+  it('omite la línea de dispositivo cuando no hay userAgent', () => {
+    const email = buildNewLoginNoticeEmail({ ...base, userAgent: null });
+    expect(email.text).not.toContain('Dispositivo:');
+  });
+
+  it('advierte qué hacer si no fue la persona', () => {
+    expect(buildNewLoginNoticeEmail(base).text).toContain('cambia tu contraseña de inmediato');
+  });
+
+  it('escapa HTML en el nombre del usuario', () => {
+    const email = buildNewLoginNoticeEmail({ ...base, userName: '<script>alert(1)</script>' });
     expect(email.html).not.toContain('<script>alert(1)</script>');
   });
 });

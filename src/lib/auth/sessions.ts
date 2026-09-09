@@ -1,5 +1,7 @@
 import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
+import { sendEmail } from '@/lib/email/mailer';
+import { buildNewLoginNoticeEmail } from '@/lib/email/templates';
 
 /**
  * Registro paralelo de sesiones para la pantalla "Dispositivos activos".
@@ -34,18 +36,57 @@ export interface RecordSessionInput {
 /** Crea la fila de sesión. Nunca debe poder tumbar el login si falla — se traga cualquier error. */
 export async function recordSession(input: RecordSessionInput): Promise<void> {
   try {
+    const ipAddress = input.ipAddress?.slice(0, 100) || null;
+
+    // Antes de crear la fila: ¿esta IP ya inició sesión con esta cuenta
+    // alguna vez? Si nunca (y la cuenta ya tenía sesiones previas, para no
+    // avisar en el login de bienvenida de una cuenta recién creada), es una
+    // señal de seguridad real — se avisa por correo fuera de este await
+    // para no demorar el login por un problema de SMTP.
+    if (ipAddress) {
+      void checkAndNotifyNewLoginLocation(input.userId, ipAddress, input.userAgent ?? null);
+    }
+
     await prisma.userSession.create({
       data: {
         userId: input.userId,
         companyId: input.companyId,
         tokenHash: hashSessionToken(input.token),
         userAgent: input.userAgent?.slice(0, 300) || null,
-        ipAddress: input.ipAddress?.slice(0, 100) || null,
+        ipAddress,
         expiresAt: sessionExpiryFromNow(),
       },
     });
   } catch (error) {
     console.error('No se pudo registrar la sesión para "Dispositivos activos":', error);
+  }
+}
+
+/**
+ * Aviso de seguridad: nuevo inicio de sesión desde una IP que esta cuenta
+ * nunca había usado. Corre ANTES de crear la fila nueva a propósito —
+ * necesita que la ausencia de coincidencias sea real, no un artefacto de
+ * haber creado la fila un instante antes en la misma llamada. `isFirstLogin`
+ * (cuenta sin ninguna sesión previa) se excluye a propósito: el primer login
+ * de una cuenta nueva siempre es "una IP nunca vista", y avisar ahí sería
+ * ruido, no una señal de seguridad.
+ */
+async function checkAndNotifyNewLoginLocation(userId: string, ipAddress: string, userAgent: string | null): Promise<void> {
+  try {
+    const [priorSessionCount, sameIpCount] = await Promise.all([
+      prisma.userSession.count({ where: { userId } }),
+      prisma.userSession.count({ where: { userId, ipAddress } }),
+    ]);
+    const isFirstLoginEver = priorSessionCount === 0;
+    if (isFirstLoginEver || sameIpCount > 0) return;
+
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } });
+    if (!user) return;
+
+    const email = buildNewLoginNoticeEmail({ userName: user.name, ipAddress, userAgent, loginAt: new Date() });
+    await sendEmail({ to: user.email, subject: email.subject, html: email.html, text: email.text });
+  } catch (error) {
+    console.error('checkAndNotifyNewLoginLocation: fallo al enviar aviso de nuevo inicio de sesión:', error);
   }
 }
 
