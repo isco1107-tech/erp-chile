@@ -548,22 +548,52 @@ export interface OperationalAlertPendingApprovalRow {
   daysPending: number;
 }
 
+export interface OperationalAlertOverdueReceivableRow {
+  folio: string;
+  contactName: string;
+  pendingAmount: number;
+  daysOverdue: number;
+}
+
+export interface OperationalAlertExpiringContractRow {
+  candidateName: string;
+  documentTitle: string;
+  /** Negativo si ya venció. */
+  daysUntilExpiry: number;
+}
+
+export interface OperationalAlertMismatchedPurchaseRow {
+  folio: string;
+  contactName: string;
+  totalAmount: number;
+  matchNotes: string;
+}
+
 export interface OperationalAlertEmailInput {
   companyName: string;
   lowStock: OperationalAlertLowStockRow[];
   pendingApprovals: OperationalAlertPendingApprovalRow[];
+  overdueReceivables: OperationalAlertOverdueReceivableRow[];
+  expiringContracts: OperationalAlertExpiringContractRow[];
+  mismatchedPurchases: OperationalAlertMismatchedPurchaseRow[];
   dashboardUrl: string;
 }
 
-/** Correo diario de operación: productos bajo su stock mínimo y compras que
- * llevan días esperando aprobación (`PurchaseDocument.approvalStatus ===
- * 'PENDING'`). Pensado como destino de `runOperationalAlertsCron` — ver
+/** Correo diario de operación: productos bajo su stock mínimo, compras que
+ * llevan días esperando aprobación o con mismatch de 3 vías sin resolver,
+ * cuentas por cobrar vencidas y contratos de imagen por vencer. Pensado como
+ * destino de `runOperationalAlertsCron` — ver
  * `src/modules/alerts/services/operational-alerts.service.ts` — pero el
  * mismo endpoint que lo dispara también devuelve los datos crudos en JSON,
  * así que una automatización externa (n8n) puede reusarlos para postear en
  * Slack en vez de (o además de) este correo. */
 export function buildOperationalAlertEmail(input: OperationalAlertEmailInput): { subject: string; html: string; text: string } {
-  const issueCount = input.lowStock.length + input.pendingApprovals.length;
+  const issueCount =
+    input.lowStock.length +
+    input.pendingApprovals.length +
+    input.overdueReceivables.length +
+    input.expiringContracts.length +
+    input.mismatchedPurchases.length;
   const subject = `Alerta operativa — ${issueCount} punto${issueCount === 1 ? '' : 's'} que revisar`;
 
   const stockRows = input.lowStock
@@ -584,6 +614,38 @@ export function buildOperationalAlertEmail(input: OperationalAlertEmailInput): {
         <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">${escapeHtml(row.contactName)}</td>
         <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right;">${escapeHtml(formatCurrency(row.totalAmount))}</td>
         <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right;">${row.daysPending} día${row.daysPending === 1 ? '' : 's'}</td>
+      </tr>`
+    )
+    .join('');
+
+  const receivableRows = input.overdueReceivables
+    .map(
+      (row) => `<tr>
+        <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">${escapeHtml(row.folio)}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">${escapeHtml(row.contactName)}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right;">${escapeHtml(formatCurrency(row.pendingAmount))}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right;">${row.daysOverdue} día${row.daysOverdue === 1 ? '' : 's'}</td>
+      </tr>`
+    )
+    .join('');
+
+  const contractRows = input.expiringContracts
+    .map(
+      (row) => `<tr>
+        <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">${escapeHtml(row.candidateName)}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">${escapeHtml(row.documentTitle)}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right;">${row.daysUntilExpiry < 0 ? `Vencido hace ${-row.daysUntilExpiry} día(s)` : `En ${row.daysUntilExpiry} día(s)`}</td>
+      </tr>`
+    )
+    .join('');
+
+  const mismatchRows = input.mismatchedPurchases
+    .map(
+      (row) => `<tr>
+        <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">${escapeHtml(row.folio)}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">${escapeHtml(row.contactName)}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right;">${escapeHtml(formatCurrency(row.totalAmount))}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">${escapeHtml(row.matchNotes)}</td>
       </tr>`
     )
     .join('');
@@ -631,6 +693,47 @@ export function buildOperationalAlertEmail(input: OperationalAlertEmailInput): {
               </table>`
                   : ''
               }
+              ${
+                input.mismatchedPurchases.length > 0
+                  ? `<p style="margin:0 0 8px;font-weight:600;">Compras con diferencia sin resolver (${input.mismatchedPurchases.length})</p>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:13px;margin-bottom:20px;">
+                <tr style="background:#f8fafc;">
+                  <th style="padding:6px 8px;text-align:left;color:#64748b;">Folio</th>
+                  <th style="padding:6px 8px;text-align:left;color:#64748b;">Proveedor</th>
+                  <th style="padding:6px 8px;text-align:right;color:#64748b;">Monto</th>
+                  <th style="padding:6px 8px;text-align:left;color:#64748b;">Diferencia</th>
+                </tr>
+                ${mismatchRows}
+              </table>`
+                  : ''
+              }
+              ${
+                input.overdueReceivables.length > 0
+                  ? `<p style="margin:0 0 8px;font-weight:600;">Cuentas por cobrar vencidas (${input.overdueReceivables.length})</p>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:13px;margin-bottom:20px;">
+                <tr style="background:#f8fafc;">
+                  <th style="padding:6px 8px;text-align:left;color:#64748b;">Folio</th>
+                  <th style="padding:6px 8px;text-align:left;color:#64748b;">Cliente</th>
+                  <th style="padding:6px 8px;text-align:right;color:#64748b;">Saldo</th>
+                  <th style="padding:6px 8px;text-align:right;color:#64748b;">Vencido hace</th>
+                </tr>
+                ${receivableRows}
+              </table>`
+                  : ''
+              }
+              ${
+                input.expiringContracts.length > 0
+                  ? `<p style="margin:0 0 8px;font-weight:600;">Contratos de imagen por vencer (${input.expiringContracts.length})</p>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:13px;">
+                <tr style="background:#f8fafc;">
+                  <th style="padding:6px 8px;text-align:left;color:#64748b;">Candidata</th>
+                  <th style="padding:6px 8px;text-align:left;color:#64748b;">Documento</th>
+                  <th style="padding:6px 8px;text-align:right;color:#64748b;">Vencimiento</th>
+                </tr>
+                ${contractRows}
+              </table>`
+                  : ''
+              }
             </td>
           </tr>
           <tr>
@@ -664,7 +767,67 @@ export function buildOperationalAlertEmail(input: OperationalAlertEmailInput): {
           '',
         ]
       : []),
+    ...(input.mismatchedPurchases.length > 0
+      ? [
+          `Compras con diferencia sin resolver (${input.mismatchedPurchases.length}):`,
+          ...input.mismatchedPurchases.map(
+            (row) => `- Folio ${row.folio} — ${row.contactName} — ${formatCurrency(row.totalAmount)} — ${row.matchNotes}`
+          ),
+          '',
+        ]
+      : []),
+    ...(input.overdueReceivables.length > 0
+      ? [
+          `Cuentas por cobrar vencidas (${input.overdueReceivables.length}):`,
+          ...input.overdueReceivables.map(
+            (row) => `- Folio ${row.folio} — ${row.contactName} — ${formatCurrency(row.pendingAmount)} — vencido hace ${row.daysOverdue} día(s)`
+          ),
+          '',
+        ]
+      : []),
+    ...(input.expiringContracts.length > 0
+      ? [
+          `Contratos de imagen por vencer (${input.expiringContracts.length}):`,
+          ...input.expiringContracts.map(
+            (row) =>
+              `- ${row.candidateName} — ${row.documentTitle} — ${row.daysUntilExpiry < 0 ? `vencido hace ${-row.daysUntilExpiry} día(s)` : `en ${row.daysUntilExpiry} día(s)`}`
+          ),
+          '',
+        ]
+      : []),
     `Panel: ${input.dashboardUrl}`,
+  ].join('\n');
+
+  return { subject, html, text };
+}
+
+export interface ContractSignedNoticeEmailInput {
+  candidateName: string;
+  documentTitle: string;
+  dashboardUrl: string;
+}
+
+/** Aviso al staff de que una firma electrónica (ZapSign) se completó — antes
+ * el webhook de ZapSign actualizaba el documento y ahí terminaba, sin avisar
+ * a nadie; había que entrar al panel a enterarse. */
+export function buildContractSignedNoticeEmail(input: ContractSignedNoticeEmailInput): { subject: string; html: string; text: string } {
+  const subject = `Firma completada — ${input.documentTitle} de ${input.candidateName}`;
+
+  const html = layout({
+    title: 'Firma electrónica completada',
+    body: `<p style="margin:0 0 12px;"><strong>${escapeHtml(input.candidateName)}</strong> firmó electrónicamente el documento
+    <strong>${escapeHtml(input.documentTitle)}</strong>. El PDF firmado ya quedó guardado en su ficha.</p>`,
+    ctaLabel: 'Ver ficha de la candidata',
+    ctaUrl: input.dashboardUrl,
+    footer: 'Aviso automático al completarse una firma electrónica.',
+  });
+
+  const text = [
+    `Firma completada — ${input.documentTitle} de ${input.candidateName}`,
+    '',
+    `${input.candidateName} firmó electrónicamente "${input.documentTitle}". El PDF firmado ya quedó guardado en su ficha.`,
+    '',
+    `Ver ficha: ${input.dashboardUrl}`,
   ].join('\n');
 
   return { subject, html, text };
@@ -964,6 +1127,146 @@ export function buildTicketConfirmationEmail(input: TicketConfirmationEmailInput
     `Total pagado: ${formatCurrency(input.totalAmount)}`,
     '',
     'Presenta el código QR adjunto (revisa la versión HTML de este correo) al ingresar.',
+  ].join('\n');
+
+  return { subject, html, text };
+}
+
+export interface MonthlyClosingCheckRow {
+  label: string;
+  expected: number;
+  actual: number;
+  difference: number;
+  inBalance: boolean;
+}
+
+export interface MonthlyClosingEmailInput {
+  companyName: string;
+  year: number;
+  month: number;
+  netSales: number;
+  debitVat: number;
+  creditVat: number;
+  previousRemanent: number;
+  remanentCredit: number;
+  ppmAmount: number;
+  determinedTax: number;
+  honorariumRetentionAmount: number;
+  checks: MonthlyClosingCheckRow[];
+  dashboardUrl: string;
+}
+
+const MONTH_NAMES_ES = [
+  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+];
+
+/**
+ * Cierre mensual: resumen del F29 del período recién cerrado más las
+ * cuadraturas contables (`runReconciliationWithF29` en
+ * `reconciliation.service.ts`) — antes ambos motores existían pero nadie los
+ * disparaba salvo corriendo un test a mano; este correo es el punto de
+ * entrega. Las cuadraturas fuera de rango se destacan en rojo: una
+ * diferencia entre el libro mayor y la fuente operativa (kardex, CxC/CxP,
+ * F29) es evidencia de un error real en alguno de los dos cálculos.
+ */
+export function buildMonthlyClosingEmail(input: MonthlyClosingEmailInput): { subject: string; html: string; text: string } {
+  const periodLabel = `${MONTH_NAMES_ES[input.month - 1]} ${input.year}`;
+  const outOfBalance = input.checks.filter((c) => !c.inBalance);
+  const subject =
+    outOfBalance.length > 0
+      ? `Cierre de ${periodLabel} — ${outOfBalance.length} cuadratura${outOfBalance.length === 1 ? '' : 's'} con diferencia`
+      : `Cierre de ${periodLabel} — F29 calculado, todo cuadrado`;
+
+  const checkRows = input.checks
+    .map(
+      (c) => `<tr>
+        <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">${escapeHtml(c.label)}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right;">${escapeHtml(formatCurrency(c.expected))}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right;">${escapeHtml(formatCurrency(c.actual))}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right;color:${c.inBalance ? '#16a34a' : '#dc2626'};font-weight:${c.inBalance ? '400' : '700'};">${c.inBalance ? 'OK' : escapeHtml(formatCurrency(c.difference))}</td>
+      </tr>`
+    )
+    .join('');
+
+  const html = `<!doctype html>
+<html lang="es">
+<body style="margin:0;padding:0;background:#f4f6f8;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:24px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
+          <tr>
+            <td style="background:${BRAND};padding:20px 24px;">
+              <p style="margin:0;color:#ffffff;font-size:18px;font-weight:700;">${escapeHtml(input.companyName)}</p>
+              <p style="margin:2px 0 0;color:#cbd5e1;font-size:12px;">Cierre de ${periodLabel}</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px;color:#1f2933;font-size:15px;line-height:1.6;">
+              <p style="margin:0 0 8px;font-weight:600;">Formulario 29 (${periodLabel})</p>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;border-collapse:collapse;margin-bottom:20px;">
+                <tr><td style="padding:4px 0;color:#64748b;width:60%;">Ventas netas</td><td style="padding:4px 0;text-align:right;font-weight:600;">${escapeHtml(formatCurrency(input.netSales))}</td></tr>
+                <tr><td style="padding:4px 0;color:#64748b;">Débito fiscal (IVA ventas)</td><td style="padding:4px 0;text-align:right;font-weight:600;">${escapeHtml(formatCurrency(input.debitVat))}</td></tr>
+                <tr><td style="padding:4px 0;color:#64748b;">Crédito fiscal (IVA compras)</td><td style="padding:4px 0;text-align:right;font-weight:600;">${escapeHtml(formatCurrency(input.creditVat))}</td></tr>
+                <tr><td style="padding:4px 0;color:#64748b;">Remanente mes anterior</td><td style="padding:4px 0;text-align:right;font-weight:600;">${escapeHtml(formatCurrency(input.previousRemanent))}</td></tr>
+                <tr><td style="padding:4px 0;color:#64748b;">Remanente a próximo mes</td><td style="padding:4px 0;text-align:right;font-weight:600;">${escapeHtml(formatCurrency(input.remanentCredit))}</td></tr>
+                <tr><td style="padding:4px 0;color:#64748b;">PPM</td><td style="padding:4px 0;text-align:right;font-weight:600;">${escapeHtml(formatCurrency(input.ppmAmount))}</td></tr>
+                <tr><td style="padding:4px 0;color:#64748b;">Retención de honorarios</td><td style="padding:4px 0;text-align:right;font-weight:600;">${escapeHtml(formatCurrency(input.honorariumRetentionAmount))}</td></tr>
+                <tr><td style="padding:8px 0 0;font-weight:700;">Impuesto determinado</td><td style="padding:8px 0 0;text-align:right;font-weight:700;font-size:15px;">${escapeHtml(formatCurrency(input.determinedTax))}</td></tr>
+              </table>
+              ${
+                input.checks.length > 0
+                  ? `<p style="margin:0 0 8px;font-weight:600;">Cuadraturas contables${outOfBalance.length > 0 ? ` — ${outOfBalance.length} con diferencia` : ''}</p>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:13px;">
+                <tr style="background:#f8fafc;">
+                  <th style="padding:6px 8px;text-align:left;color:#64748b;">Cuenta</th>
+                  <th style="padding:6px 8px;text-align:right;color:#64748b;">Esperado</th>
+                  <th style="padding:6px 8px;text-align:right;color:#64748b;">Libro mayor</th>
+                  <th style="padding:6px 8px;text-align:right;color:#64748b;">Diferencia</th>
+                </tr>
+                ${checkRows}
+              </table>`
+                  : `<p style="margin:0;color:#64748b;font-size:13px;">Sin cuentas contables mapeadas todavía — el F29 de arriba se calculó igual, pero las cuadraturas contables requieren configurar el plan de cuentas.</p>`
+              }
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 24px;background:#f8fafc;border-top:1px solid #e2e8f0;color:#64748b;font-size:12px;line-height:1.5;">
+              Cierre automático mensual de ${escapeHtml(input.companyName)}. <a href="${input.dashboardUrl}" style="color:${BRAND};">Ir al panel</a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  const text = [
+    `${input.companyName} — Cierre de ${periodLabel}`,
+    '',
+    'Formulario 29:',
+    `- Ventas netas: ${formatCurrency(input.netSales)}`,
+    `- Débito fiscal: ${formatCurrency(input.debitVat)}`,
+    `- Crédito fiscal: ${formatCurrency(input.creditVat)}`,
+    `- Remanente mes anterior: ${formatCurrency(input.previousRemanent)}`,
+    `- Remanente a próximo mes: ${formatCurrency(input.remanentCredit)}`,
+    `- PPM: ${formatCurrency(input.ppmAmount)}`,
+    `- Retención de honorarios: ${formatCurrency(input.honorariumRetentionAmount)}`,
+    `- Impuesto determinado: ${formatCurrency(input.determinedTax)}`,
+    '',
+    ...(input.checks.length > 0
+      ? [
+          `Cuadraturas contables${outOfBalance.length > 0 ? ` — ${outOfBalance.length} con diferencia` : ' — todo cuadrado'}:`,
+          ...input.checks.map(
+            (c) =>
+              `- ${c.label}: esperado ${formatCurrency(c.expected)}, libro mayor ${formatCurrency(c.actual)}${c.inBalance ? ' (OK)' : ` — DIFERENCIA de ${formatCurrency(c.difference)}`}`
+          ),
+          '',
+        ]
+      : ['Sin cuentas contables mapeadas todavía — configura el plan de cuentas para activar las cuadraturas.', '']),
+    `Panel: ${input.dashboardUrl}`,
   ].join('\n');
 
   return { subject, html, text };

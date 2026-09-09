@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { calculateAndStoreF29 } from '@/lib/chile/f29';
+import type { F29Result } from '@/lib/chile/f29';
 import { getAccountBalance } from './ledger.service';
 
 /**
@@ -88,7 +89,20 @@ export interface RunReconciliationOptions {
   month?: number;
 }
 
-export async function runReconciliation(companyId: string, options: RunReconciliationOptions = {}): Promise<ReconciliationCheck[]> {
+export interface ReconciliationResult {
+  f29: F29Result;
+  checks: ReconciliationCheck[];
+}
+
+/**
+ * Devuelve tanto el F29 del período (ya calculado y guardado por
+ * `calculateAndStoreF29`) como las cuadraturas — pensado para
+ * `monthly-closing-cron.service.ts`, que necesita ambos para el correo de
+ * cierre mensual sin recalcular el F29 dos veces. Sin otros llamadores hoy
+ * (`runReconciliation` de abajo era el único consumidor, y era él mismo sin
+ * usar fuera de este archivo), así que este es el punto de entrada real.
+ */
+export async function runReconciliationWithF29(companyId: string, options: RunReconciliationOptions = {}): Promise<ReconciliationResult> {
   const now = new Date();
   const year = options.year ?? now.getUTCFullYear();
   const month = options.month ?? now.getUTCMonth() + 1;
@@ -106,5 +120,12 @@ export async function runReconciliation(companyId: string, options: RunReconcili
     checkAccount('CAJA', 'Caja', companyId, await cajaExpected(companyId)),
   ]);
 
-  return checks.filter((check): check is ReconciliationCheck => check !== null);
+  return { f29, checks: checks.filter((check): check is ReconciliationCheck => check !== null) };
+}
+
+/** Solo las cuadraturas, sin el detalle del F29 — mantiene el punto de
+ * entrada original para quien solo necesite `ReconciliationCheck[]`. */
+export async function runReconciliation(companyId: string, options: RunReconciliationOptions = {}): Promise<ReconciliationCheck[]> {
+  const { checks } = await runReconciliationWithF29(companyId, options);
+  return checks;
 }

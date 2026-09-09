@@ -1,4 +1,11 @@
-import { buildInvitationEmail, buildPasswordResetEmail, buildOperationalAlertEmail, buildVoteConfirmationEmail } from '@/lib/email/templates';
+import {
+  buildInvitationEmail,
+  buildPasswordResetEmail,
+  buildOperationalAlertEmail,
+  buildVoteConfirmationEmail,
+  buildMonthlyClosingEmail,
+  buildContractSignedNoticeEmail,
+} from '@/lib/email/templates';
 
 /**
  * Las plantillas incrustan datos que vienen de la base (razón social, nombre
@@ -91,6 +98,9 @@ describe('Correo de alerta operativa (stock bajo + compras pendientes)', () => {
     companyName: 'Comercial Ejemplo SpA',
     lowStock: [{ sku: 'SKU-1', name: 'Producto Uno', totalStock: 2, minStock: 5 }],
     pendingApprovals: [{ folio: 'F-100', contactName: 'Proveedor Uno', totalAmount: 150000, daysPending: 3 }],
+    overdueReceivables: [] as { folio: string; contactName: string; pendingAmount: number; daysOverdue: number }[],
+    expiringContracts: [] as { candidateName: string; documentTitle: string; daysUntilExpiry: number }[],
+    mismatchedPurchases: [] as { folio: string; contactName: string; totalAmount: number; matchNotes: string }[],
     dashboardUrl: 'https://erp.ejemplo.cl/dashboard',
   };
 
@@ -127,6 +137,55 @@ describe('Correo de alerta operativa (stock bajo + compras pendientes)', () => {
   it('omite la sección de aprobaciones si no hay compras pendientes', () => {
     const email = buildOperationalAlertEmail({ ...base, pendingApprovals: [] });
     expect(email.html).not.toContain('esperando aprobación');
+  });
+
+  it('cuenta cuentas por cobrar vencidas, mismatch y contratos por vencer en el asunto', () => {
+    const email = buildOperationalAlertEmail({
+      ...base,
+      overdueReceivables: [{ folio: '55', contactName: 'Cliente Uno', pendingAmount: 30000, daysOverdue: 5 }],
+      mismatchedPurchases: [{ folio: 'F-200', contactName: 'Proveedor Dos', totalAmount: 90000, matchNotes: 'Cantidad no coincide' }],
+      expiringContracts: [{ candidateName: 'Ana', documentTitle: 'Contrato de imagen', daysUntilExpiry: 3 }],
+    });
+    expect(email.subject).toBe('Alerta operativa — 5 puntos que revisar');
+  });
+
+  it('incluye cuentas por cobrar vencidas con días de atraso', () => {
+    const email = buildOperationalAlertEmail({
+      ...base,
+      overdueReceivables: [{ folio: '55', contactName: 'Cliente Uno', pendingAmount: 30000, daysOverdue: 5 }],
+    });
+    expect(email.html).toContain('Cliente Uno');
+    expect(email.text).toContain('vencido hace 5 día(s)');
+  });
+
+  it('incluye compras con mismatch sin resolver y el detalle de la diferencia', () => {
+    const email = buildOperationalAlertEmail({
+      ...base,
+      mismatchedPurchases: [{ folio: 'F-200', contactName: 'Proveedor Dos', totalAmount: 90000, matchNotes: 'Cantidad no coincide' }],
+    });
+    expect(email.html).toContain('F-200');
+    expect(email.text).toContain('Cantidad no coincide');
+  });
+
+  it('incluye contratos por vencer, distinguiendo vencidos de próximos a vencer', () => {
+    const proximo = buildOperationalAlertEmail({
+      ...base,
+      expiringContracts: [{ candidateName: 'Ana', documentTitle: 'Contrato de imagen', daysUntilExpiry: 3 }],
+    });
+    expect(proximo.text).toContain('en 3 día(s)');
+
+    const vencido = buildOperationalAlertEmail({
+      ...base,
+      expiringContracts: [{ candidateName: 'Ana', documentTitle: 'Contrato de imagen', daysUntilExpiry: -2 }],
+    });
+    expect(vencido.text).toContain('vencido hace 2 día(s)');
+  });
+
+  it('omite las secciones nuevas cuando vienen vacías', () => {
+    const email = buildOperationalAlertEmail(base);
+    expect(email.html).not.toContain('Cuentas por cobrar vencidas');
+    expect(email.html).not.toContain('diferencia sin resolver');
+    expect(email.html).not.toContain('Contratos de imagen por vencer');
   });
 
   it('escapa HTML en el nombre del producto y del proveedor', () => {
@@ -171,5 +230,76 @@ describe('Correo de confirmación de voto pagado', () => {
 
   it('trae versión de texto plano no vacía', () => {
     expect(buildVoteConfirmationEmail(base).text.trim().length).toBeGreaterThan(30);
+  });
+});
+
+describe('Correo de cierre mensual (F29 + cuadraturas)', () => {
+  const base = {
+    companyName: 'Comercial Ejemplo SpA',
+    year: 2026,
+    month: 8,
+    netSales: 1000000,
+    debitVat: 190000,
+    creditVat: 50000,
+    previousRemanent: 0,
+    remanentCredit: 0,
+    ppmAmount: 10000,
+    determinedTax: 150000,
+    honorariumRetentionAmount: 0,
+    checks: [
+      { label: 'Existencias', expected: 500000, actual: 500000, difference: 0, inBalance: true },
+      { label: 'Caja', expected: 100000, actual: 95000, difference: 5000, inBalance: false },
+    ],
+    dashboardUrl: 'https://erp.ejemplo.cl/dashboard/reports/f29',
+  };
+
+  it('nombra el mes y avisa cuando hay cuadraturas con diferencia', () => {
+    expect(buildMonthlyClosingEmail(base).subject).toBe('Cierre de agosto 2026 — 1 cuadratura con diferencia');
+  });
+
+  it('dice que todo cuadró cuando no hay diferencias', () => {
+    const email = buildMonthlyClosingEmail({ ...base, checks: base.checks.map((c) => ({ ...c, difference: 0, inBalance: true })) });
+    expect(email.subject).toBe('Cierre de agosto 2026 — F29 calculado, todo cuadrado');
+  });
+
+  it('incluye el impuesto determinado y las cuentas con diferencia', () => {
+    const email = buildMonthlyClosingEmail(base);
+    expect(email.text).toContain('Impuesto determinado');
+    expect(email.text).toContain('150.000');
+    expect(email.text).toContain('Caja: esperado');
+    expect(email.text).toContain('DIFERENCIA de $5.000');
+  });
+
+  it('avisa cuando no hay cuentas mapeadas en vez de mostrar una tabla vacía', () => {
+    const email = buildMonthlyClosingEmail({ ...base, checks: [] });
+    expect(email.text).toContain('configura el plan de cuentas');
+  });
+
+  it('escapa HTML en el nombre de la empresa', () => {
+    const email = buildMonthlyClosingEmail({ ...base, companyName: '<script>alert(1)</script>' });
+    expect(email.html).not.toContain('<script>alert(1)</script>');
+  });
+});
+
+describe('Aviso de firma electrónica completada', () => {
+  const base = {
+    candidateName: 'Ana',
+    documentTitle: 'Contrato de imagen',
+    dashboardUrl: 'https://erp.ejemplo.cl/dashboard/candidates/c1',
+  };
+
+  it('nombra a la candidata y el documento en el asunto', () => {
+    expect(buildContractSignedNoticeEmail(base).subject).toBe('Firma completada — Contrato de imagen de Ana');
+  });
+
+  it('incluye el link a la ficha de la candidata', () => {
+    const email = buildContractSignedNoticeEmail(base);
+    expect(email.html).toContain(base.dashboardUrl);
+    expect(email.text).toContain(base.dashboardUrl);
+  });
+
+  it('escapa HTML en el nombre de la candidata', () => {
+    const email = buildContractSignedNoticeEmail({ ...base, candidateName: '<script>alert(1)</script>' });
+    expect(email.html).not.toContain('<script>alert(1)</script>');
   });
 });

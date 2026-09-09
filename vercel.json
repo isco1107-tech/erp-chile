@@ -31,6 +31,10 @@
     {
       "path": "/api/alerts/operational/cron",
       "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/accounting/monthly-closing/cron",
+      "schedule": "0 8 5 * *"
     }
   ]
 }

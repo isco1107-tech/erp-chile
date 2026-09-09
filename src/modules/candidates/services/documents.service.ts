@@ -131,10 +131,16 @@ export async function saveZapsignRequest(
  * `companyId`, no hace falta que el webhook lo conozca de antemano. Idempotente:
  * si la fila ya tiene `signedAt`, no hace nada.
  */
-export async function markContractSignedByZapsignToken(zapsignDocToken: string, fileUrl: string): Promise<CandidateDocument | null> {
+export async function markContractSignedByZapsignToken(
+  zapsignDocToken: string,
+  fileUrl: string
+): Promise<{ document: CandidateDocument; justSigned: boolean } | null> {
   const existing = await prisma.candidateDocument.findUnique({ where: { zapsignDocToken } });
   if (!existing) return null;
-  if (existing.signedAt) return withComputedStatus(existing);
+  // `justSigned: false` acá: el webhook de ZapSign puede reintentar el mismo
+  // evento — el caller (route.ts) usa esta bandera para no reenviar el aviso
+  // de firma completada dos veces.
+  if (existing.signedAt) return { document: withComputedStatus(existing), justSigned: false };
 
   const signedAt = new Date();
   await prisma.candidateDocument.updateMany({
@@ -143,5 +149,5 @@ export async function markContractSignedByZapsignToken(zapsignDocToken: string, 
   });
   const updated = await prisma.candidateDocument.findUnique({ where: { zapsignDocToken } });
   if (!updated) return null;
-  return withComputedStatus(updated);
+  return { document: withComputedStatus(updated), justSigned: true };
 }

@@ -1,6 +1,13 @@
 import { prisma } from '@/lib/prisma';
 import { sendEmail, getAppUrl } from '@/lib/email/mailer';
-import { buildOperationalAlertEmail, type OperationalAlertLowStockRow, type OperationalAlertPendingApprovalRow } from '@/lib/email/templates';
+import {
+  buildOperationalAlertEmail,
+  type OperationalAlertLowStockRow,
+  type OperationalAlertPendingApprovalRow,
+  type OperationalAlertOverdueReceivableRow,
+  type OperationalAlertExpiringContractRow,
+  type OperationalAlertMismatchedPurchaseRow,
+} from '@/lib/email/templates';
 import { createAuditLog } from '@/lib/auth/audit';
 
 const OPERATIONAL_STATUSES = ['ACTIVE', 'TRIAL'] as const;
@@ -9,6 +16,10 @@ const OPERATIONAL_STATUSES = ['ACTIVE', 'TRIAL'] as const;
  * todavía — evita ruido el mismo día que alguien las emite; recién al día
  * siguiente sin resolución se considera una demora real. */
 const APPROVAL_ALERT_MIN_DAYS_PENDING = 1;
+
+/** Contratos de imagen que vencen dentro de esta ventana entran en el aviso
+ * — bastante margen para gestionar la renovación antes de que expire. */
+const CONTRACT_EXPIRY_ALERT_WINDOW_DAYS = 14;
 
 function daysSince(date: Date): number {
   return Math.floor((Date.now() - date.getTime()) / (24 * 60 * 60 * 1000));
@@ -44,18 +55,94 @@ export async function findPendingPurchaseApprovals(companyId: string): Promise<O
     .filter((row) => row.daysPending >= APPROVAL_ALERT_MIN_DAYS_PENDING);
 }
 
+/** Ventas emitidas y no pagadas cuya fecha de vencimiento ya pasó — misma
+ * exclusión de Guía de Despacho que `listReceivables`/
+ * `getContactOutstandingBalance` en `treasury.service.ts` (la guía nunca
+ * queda pagada por sí sola cuando se factura después, así que sumarla
+ * duplicaría la deuda). Requiere `dueDate` seteado: un documento sin fecha
+ * de vencimiento no puede estar "vencido". */
+export async function findOverdueReceivables(companyId: string): Promise<OperationalAlertOverdueReceivableRow[]> {
+  const documents = await prisma.salesDocument.findMany({
+    where: {
+      companyId,
+      status: 'ISSUED',
+      paymentStatus: { not: 'PAID' },
+      dteType: { not: 'GUIA_DESPACHO_52' },
+      dueDate: { lt: new Date() },
+    },
+    select: { folio: true, totalAmount: true, paidAmount: true, dueDate: true, contact: { select: { razonSocial: true } } },
+    orderBy: { dueDate: 'asc' },
+  });
+
+  return documents.map((doc) => ({
+    folio: String(doc.folio ?? '—'),
+    contactName: doc.contact.razonSocial,
+    pendingAmount: doc.totalAmount - doc.paidAmount,
+    daysOverdue: daysSince(doc.dueDate!),
+  }));
+}
+
+/** Contratos de imagen de candidatas (`CandidateDocumentType.CONTRACT_IMAGE`)
+ * que vencen dentro de `CONTRACT_EXPIRY_ALERT_WINDOW_DAYS` o que ya vencieron
+ * y quedaron sin renovar — hoy `EXPIRED` solo se calcula al leer la ficha
+ * (`documents.service.ts`), sin ningún aviso proactivo antes de que ocurra. */
+export async function findExpiringCandidateContracts(companyId: string): Promise<OperationalAlertExpiringContractRow[]> {
+  const windowEnd = new Date(Date.now() + CONTRACT_EXPIRY_ALERT_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+  const documents = await prisma.candidateDocument.findMany({
+    where: {
+      companyId,
+      documentType: 'CONTRACT_IMAGE',
+      status: { in: ['SIGNED', 'PENDING'] },
+      expiresAt: { not: null, lt: windowEnd },
+      candidate: { status: { notIn: ['WITHDRAWN', 'REJECTED'] } },
+    },
+    select: { title: true, expiresAt: true, candidate: { select: { fullName: true, stageName: true } } },
+    orderBy: { expiresAt: 'asc' },
+  });
+
+  const now = Date.now();
+  return documents.map((doc) => ({
+    candidateName: doc.candidate.stageName ?? doc.candidate.fullName,
+    documentTitle: doc.title,
+    daysUntilExpiry: Math.ceil((doc.expiresAt!.getTime() - now) / (24 * 60 * 60 * 1000)),
+  }));
+}
+
+/** Compras `MISMATCHED` (factura vs. Orden de Compra vs. Recepción) que
+ * siguen bloqueadas sin que nadie las haya forzado (`OVERRIDDEN`) ni
+ * corregido — hoy solo se ve entrando al detalle del documento. */
+export async function findMismatchedPurchases(companyId: string): Promise<OperationalAlertMismatchedPurchaseRow[]> {
+  const documents = await prisma.purchaseDocument.findMany({
+    where: { companyId, matchStatus: 'MISMATCHED' },
+    select: { folio: true, totalAmount: true, matchNotes: true, contact: { select: { razonSocial: true } } },
+    orderBy: { folio: 'asc' },
+  });
+
+  return documents.map((doc) => ({
+    folio: doc.folio,
+    contactName: doc.contact.razonSocial,
+    totalAmount: doc.totalAmount,
+    matchNotes: doc.matchNotes ?? 'Sin detalle',
+  }));
+}
+
 export interface CompanyOperationalAlerts {
   companyId: string;
   companyName: string;
   lowStock: OperationalAlertLowStockRow[];
   pendingApprovals: OperationalAlertPendingApprovalRow[];
+  overdueReceivables: OperationalAlertOverdueReceivableRow[];
+  expiringContracts: OperationalAlertExpiringContractRow[];
+  mismatchedPurchases: OperationalAlertMismatchedPurchaseRow[];
 }
 
 /**
- * Corre para cada empresa operativa con `hasInventory` o `hasPurchases`
- * activo: junta stock bajo mínimo y compras atascadas en aprobación, manda
- * un correo a Dueños/Administradores si hay algo que revisar, y siempre
- * devuelve los datos crudos por empresa — así el mismo endpoint que dispara
+ * Corre para cada empresa operativa con `hasInventory`, `hasPurchases`,
+ * `hasTreasury` o `hasCandidates` activo: junta stock bajo mínimo, compras
+ * atascadas en aprobación o con mismatch de 3 vías sin resolver, cuentas por
+ * cobrar vencidas y contratos de imagen por vencer. Manda un correo a
+ * Dueños/Administradores si hay algo que revisar, y siempre devuelve los
+ * datos crudos por empresa — así el mismo endpoint que dispara
  * este cron (`GET /api/alerts/operational/cron`) le sirve tanto a Vercel
  * Cron (que solo necesita que el correo salga) como a un workflow de n8n
  * que quiera leer el JSON y postearlo en Slack en vez de/además de correo.
@@ -67,9 +154,13 @@ export async function runOperationalAlertsCron(): Promise<{ processedCompanies: 
   const companies = await prisma.company.findMany({
     where: {
       status: { in: [...OPERATIONAL_STATUSES] },
-      features: { OR: [{ hasInventory: true }, { hasPurchases: true }] },
+      features: { OR: [{ hasInventory: true }, { hasPurchases: true }, { hasTreasury: true }, { hasCandidates: true }] },
     },
-    select: { id: true, businessName: true, features: { select: { hasInventory: true, hasPurchases: true } } },
+    select: {
+      id: true,
+      businessName: true,
+      features: { select: { hasInventory: true, hasPurchases: true, hasTreasury: true, hasCandidates: true } },
+    },
   });
 
   let processedCompanies = 0;
@@ -78,14 +169,19 @@ export async function runOperationalAlertsCron(): Promise<{ processedCompanies: 
 
   for (const company of companies) {
     try {
-      const [lowStock, pendingApprovals] = await Promise.all([
+      const [lowStock, pendingApprovals, overdueReceivables, expiringContracts, mismatchedPurchases] = await Promise.all([
         company.features?.hasInventory ? findLowStockProducts(company.id) : Promise.resolve([]),
         company.features?.hasPurchases ? findPendingPurchaseApprovals(company.id) : Promise.resolve([]),
+        company.features?.hasTreasury ? findOverdueReceivables(company.id) : Promise.resolve([]),
+        company.features?.hasCandidates ? findExpiringCandidateContracts(company.id) : Promise.resolve([]),
+        company.features?.hasPurchases ? findMismatchedPurchases(company.id) : Promise.resolve([]),
       ]);
 
-      results.push({ companyId: company.id, companyName: company.businessName, lowStock, pendingApprovals });
+      results.push({ companyId: company.id, companyName: company.businessName, lowStock, pendingApprovals, overdueReceivables, expiringContracts, mismatchedPurchases });
 
-      if (lowStock.length > 0 || pendingApprovals.length > 0) {
+      const totalIssues = lowStock.length + pendingApprovals.length + overdueReceivables.length + expiringContracts.length + mismatchedPurchases.length;
+
+      if (totalIssues > 0) {
         const recipients = await prisma.user.findMany({
           where: { companyId: company.id, role: { in: ['OWNER', 'ADMIN'] }, isActive: true },
           select: { email: true },
@@ -95,6 +191,9 @@ export async function runOperationalAlertsCron(): Promise<{ processedCompanies: 
           companyName: company.businessName,
           lowStock,
           pendingApprovals,
+          overdueReceivables,
+          expiringContracts,
+          mismatchedPurchases,
           dashboardUrl: `${getAppUrl()}/dashboard`,
         });
 
@@ -109,7 +208,14 @@ export async function runOperationalAlertsCron(): Promise<{ processedCompanies: 
           action: 'CREATE',
           entity: 'OperationalAlert',
           entityId: company.id,
-          metadata: { lowStockCount: lowStock.length, pendingApprovalsCount: pendingApprovals.length, recipientCount: recipients.length },
+          metadata: {
+            lowStockCount: lowStock.length,
+            pendingApprovalsCount: pendingApprovals.length,
+            overdueReceivablesCount: overdueReceivables.length,
+            expiringContractsCount: expiringContracts.length,
+            mismatchedPurchasesCount: mismatchedPurchases.length,
+            recipientCount: recipients.length,
+          },
         });
       }
 
