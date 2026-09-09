@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Building2, KeyRound, Laptop, Lock, ShieldCheck, Upload, UserCircle, Users } from 'lucide-react';
+import { Building2, KeyRound, Laptop, Lock, ShieldCheck, Upload, UserCircle, Users, Zap } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AuthError, TenantInactiveError, can, getAuthContext } from '@/lib/auth/guards';
 import type { Permission } from '@/lib/auth/permissions';
@@ -36,6 +36,13 @@ const SECTIONS: Array<{ href: string; icon: typeof Building2; title: string; des
     title: 'Importación Masiva',
     description: 'Carga productos y contactos desde Excel o CSV, con validación previa fila por fila.',
     permission: 'import:data',
+  },
+  {
+    href: '/dashboard/settings/automations',
+    icon: Zap,
+    title: 'Automatizaciones',
+    description: 'Qué corre solo, con qué frecuencia, y cuándo fue la última vez que corrió cada una.',
+    permission: 'settings:company',
   },
   {
     href: '/dashboard/settings/audit',

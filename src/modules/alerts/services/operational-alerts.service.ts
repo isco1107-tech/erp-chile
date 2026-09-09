@@ -213,12 +213,14 @@ export async function runOperationalAlertsCron(): Promise<{ processedCompanies: 
       results.push({ companyId: company.id, companyName: company.businessName, lowStock, pendingApprovals, overdueReceivables, expiringContracts, mismatchedPurchases });
 
       const totalIssues = lowStock.length + pendingApprovals.length + overdueReceivables.length + expiringContracts.length + mismatchedPurchases.length;
+      let recipientCount = 0;
 
       if (totalIssues > 0) {
         const recipients = await prisma.user.findMany({
           where: { companyId: company.id, role: { in: ['OWNER', 'ADMIN'] }, isActive: true },
           select: { email: true },
         });
+        recipientCount = recipients.length;
 
         const email = buildOperationalAlertEmail({
           companyName: company.businessName,
@@ -234,23 +236,28 @@ export async function runOperationalAlertsCron(): Promise<{ processedCompanies: 
           const delivery = await sendEmail({ to: recipient.email, subject: email.subject, html: email.html, text: email.text });
           if (delivery.status !== 'failed') alertsSent++;
         }
-
-        await createAuditLog({
-          companyId: company.id,
-          userEmail: 'operational-alerts-cron',
-          action: 'CREATE',
-          entity: 'OperationalAlert',
-          entityId: company.id,
-          metadata: {
-            lowStockCount: lowStock.length,
-            pendingApprovalsCount: pendingApprovals.length,
-            overdueReceivablesCount: overdueReceivables.length,
-            expiringContractsCount: expiringContracts.length,
-            mismatchedPurchasesCount: mismatchedPurchases.length,
-            recipientCount: recipients.length,
-          },
-        });
       }
+
+      // Se registra SIEMPRE, con o sin incidentes — no solo cuando hay algo
+      // que avisar. Sin esto, el panel de "Automatizaciones" (Configuración
+      // → Automatizaciones) no puede distinguir "corrió y no encontró nada"
+      // de "no ha corrido hace semanas": ambos se verían idénticos, sin
+      // ninguna fila en el historial.
+      await createAuditLog({
+        companyId: company.id,
+        userEmail: 'operational-alerts-cron',
+        action: 'CREATE',
+        entity: 'OperationalAlert',
+        entityId: company.id,
+        metadata: {
+          lowStockCount: lowStock.length,
+          pendingApprovalsCount: pendingApprovals.length,
+          overdueReceivablesCount: overdueReceivables.length,
+          expiringContractsCount: expiringContracts.length,
+          mismatchedPurchasesCount: mismatchedPurchases.length,
+          recipientCount,
+        },
+      });
 
       processedCompanies++;
     } catch (err) {
