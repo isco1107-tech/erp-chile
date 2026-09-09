@@ -833,6 +833,165 @@ export function buildContractSignedNoticeEmail(input: ContractSignedNoticeEmailI
   return { subject, html, text };
 }
 
+export interface SponsorshipPaymentConfirmationEmailInput {
+  contactName: string;
+  projectName: string;
+  companyName: string;
+  tierLabel: string;
+  paidAmount: number;
+  isBarter: boolean;
+}
+
+/** Confirmación de pago de un contrato de auspicio — mismo criterio que
+ * `buildTicketConfirmationEmail`/`buildVoteConfirmationEmail`: se dispara al
+ * confirmar el pago (`updateSponsorshipPayment`), no al crear el contrato.
+ * Puramente informativo (sin botón de acción), por eso no usa `layout()`. */
+export function buildSponsorshipPaymentConfirmationEmail(
+  input: SponsorshipPaymentConfirmationEmailInput
+): { subject: string; html: string; text: string } {
+  const subject = `Confirmamos el pago de tu auspicio — ${input.projectName}`;
+
+  const html = `<!doctype html>
+<html lang="es">
+<body style="margin:0;padding:0;background:#f4f6f8;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:24px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
+          <tr>
+            <td style="background:${BRAND};padding:20px 24px;">
+              <p style="margin:0;color:#ffffff;font-size:18px;font-weight:700;">${escapeHtml(input.companyName)}</p>
+              <p style="margin:2px 0 0;color:#cbd5e1;font-size:12px;">${escapeHtml(input.projectName)}</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px;color:#1f2933;font-size:15px;line-height:1.6;">
+              <p style="margin:0 0 16px;">Hola <strong>${escapeHtml(input.contactName)}</strong>, confirmamos la recepción del pago de tu
+              auspicio a <strong>${escapeHtml(input.projectName)}</strong>. ¡Gracias por tu apoyo!</p>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;border-collapse:collapse;">
+                <tr><td style="padding:4px 0;color:#64748b;width:40%;">Nivel de auspicio</td><td style="padding:4px 0;font-weight:600;">${escapeHtml(input.tierLabel)}</td></tr>
+                <tr><td style="padding:4px 0;color:#64748b;">Monto pagado</td><td style="padding:4px 0;font-weight:600;">${escapeHtml(formatCurrency(input.paidAmount))}</td></tr>
+                ${input.isBarter ? '<tr><td style="padding:4px 0;color:#64748b;">Canje</td><td style="padding:4px 0;font-weight:600;">Incluye componente en canje, según lo acordado</td></tr>' : ''}
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 24px;background:#f8fafc;border-top:1px solid #e2e8f0;color:#64748b;font-size:12px;line-height:1.5;">
+              Si no reconoces este auspicio, contáctanos respondiendo este correo.
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  const text = [
+    `Pago de auspicio confirmado — ${input.projectName} (${input.companyName})`,
+    '',
+    `Contacto: ${input.contactName}`,
+    `Nivel de auspicio: ${input.tierLabel}`,
+    `Monto pagado: ${formatCurrency(input.paidAmount)}`,
+    ...(input.isBarter ? ['Incluye componente en canje, según lo acordado en el contrato.'] : []),
+    '',
+    'Gracias por tu apoyo.',
+  ].join('\n');
+
+  return { subject, html, text };
+}
+
+export interface AccountLockedNoticeEmailInput {
+  lockedUserName: string;
+  lockedUserEmail: string;
+  lockoutMinutes: number;
+  maxAttempts: number;
+}
+
+/** Aviso a Dueños/Administradores cuando una cuenta del equipo se bloquea
+ * por 5 intentos de contraseña seguidos — antes esto solo quedaba en
+ * `User.loginLockedUntil`, invisible salvo revisando la base a mano. No es
+ * necesariamente un ataque (puede ser la propia persona olvidando su
+ * contraseña), por eso el tono es informativo, no de alarma. */
+export function buildAccountLockedNoticeEmail(input: AccountLockedNoticeEmailInput): { subject: string; html: string; text: string } {
+  const subject = `Cuenta bloqueada por intentos fallidos — ${input.lockedUserEmail}`;
+
+  const html = `<!doctype html>
+<html lang="es">
+<body style="margin:0;padding:0;background:#f4f6f8;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:24px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
+          <tr>
+            <td style="background:${BRAND};padding:20px 24px;">
+              <p style="margin:0;color:#ffffff;font-size:18px;font-weight:700;">Aviso de seguridad</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px;color:#1f2933;font-size:15px;line-height:1.6;">
+              <p style="margin:0 0 12px;">La cuenta de <strong>${escapeHtml(input.lockedUserName)}</strong>
+              (${escapeHtml(input.lockedUserEmail)}) quedó bloqueada por ${input.maxAttempts} intentos de contraseña incorrecta seguidos.
+              Se desbloquea sola en ${input.lockoutMinutes} minutos.</p>
+              <p style="margin:0;color:#64748b;font-size:13px;">Si esta persona no reconoce estos intentos, podría ser alguien tratando de
+              adivinar su contraseña — conviene avisarle y, si tiene dudas, cambiarla apenas se desbloquee.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  const text = [
+    `Aviso de seguridad`,
+    '',
+    `La cuenta de ${input.lockedUserName} (${input.lockedUserEmail}) quedó bloqueada por ${input.maxAttempts} intentos de contraseña incorrecta seguidos.`,
+    `Se desbloquea sola en ${input.lockoutMinutes} minutos.`,
+    '',
+    'Si esta persona no reconoce estos intentos, podría ser alguien tratando de adivinar su contraseña.',
+  ].join('\n');
+
+  return { subject, html, text };
+}
+
+export interface AgentDigestEmailInput {
+  companyName: string;
+  priorities: string[];
+  dashboardUrl: string;
+}
+
+/** Resumen ejecutivo diario del agente CEO virtual (módulo `hasCrm`) — antes
+ * de esto, las 2-3 prioridades que el CEO condensa del trabajo de
+ * CFO/COO/Ventas solo se veían entrando al dashboard de agentes; si nadie
+ * entraba, ese trabajo quedaba invisible. */
+export function buildAgentDigestEmail(input: AgentDigestEmailInput): { subject: string; html: string; text: string } {
+  const subject = `Prioridades de hoy — ${input.companyName}`;
+
+  const items = input.priorities.map((p) => `<li style="margin:0 0 8px;">${escapeHtml(p)}</li>`).join('');
+
+  const html = layout({
+    title: 'Resumen ejecutivo del día',
+    body: `<p style="margin:0 0 12px;">Tu equipo ejecutivo virtual (CFO, COO, Ventas y CEO) revisó los datos del negocio y
+    priorizó lo siguiente:</p>
+    <ol style="margin:0 0 16px;padding-left:20px;">${items}</ol>`,
+    ctaLabel: 'Ver todas las recomendaciones',
+    ctaUrl: input.dashboardUrl,
+    footer: 'Resumen automático diario del módulo de Inteligencia de Negocio.',
+  });
+
+  const text = [
+    `Prioridades de hoy — ${input.companyName}`,
+    '',
+    ...input.priorities.map((p, i) => `${i + 1}. ${p}`),
+    '',
+    `Ver todas las recomendaciones: ${input.dashboardUrl}`,
+  ].join('\n');
+
+  return { subject, html, text };
+}
+
 export interface CandidateStatusChangeEmailInput {
   fullName: string;
   projectName: string;

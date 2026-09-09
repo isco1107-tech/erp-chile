@@ -5,6 +5,9 @@ import {
   buildVoteConfirmationEmail,
   buildMonthlyClosingEmail,
   buildContractSignedNoticeEmail,
+  buildSponsorshipPaymentConfirmationEmail,
+  buildAccountLockedNoticeEmail,
+  buildAgentDigestEmail,
 } from '@/lib/email/templates';
 
 /**
@@ -300,6 +303,86 @@ describe('Aviso de firma electrónica completada', () => {
 
   it('escapa HTML en el nombre de la candidata', () => {
     const email = buildContractSignedNoticeEmail({ ...base, candidateName: '<script>alert(1)</script>' });
+    expect(email.html).not.toContain('<script>alert(1)</script>');
+  });
+});
+
+describe('Correo de confirmación de pago de auspicio', () => {
+  const base = {
+    contactName: 'Marca Uno SpA',
+    projectName: 'Miss Ejemplo 2026',
+    companyName: 'Comercial Ejemplo SpA',
+    tierLabel: 'Oro',
+    paidAmount: 500000,
+    isBarter: false,
+  };
+
+  it('nombra el proyecto en el asunto', () => {
+    expect(buildSponsorshipPaymentConfirmationEmail(base).subject).toBe('Confirmamos el pago de tu auspicio — Miss Ejemplo 2026');
+  });
+
+  it('incluye el nivel y el monto pagado', () => {
+    const email = buildSponsorshipPaymentConfirmationEmail(base);
+    expect(email.text).toContain('Nivel de auspicio: Oro');
+    expect(email.text).toContain('500.000');
+  });
+
+  it('menciona el canje solo cuando corresponde', () => {
+    const conCanje = buildSponsorshipPaymentConfirmationEmail({ ...base, isBarter: true });
+    expect(conCanje.text).toContain('canje');
+
+    const sinCanje = buildSponsorshipPaymentConfirmationEmail(base);
+    expect(sinCanje.text).not.toContain('canje');
+  });
+
+  it('escapa HTML en el nombre del contacto', () => {
+    const email = buildSponsorshipPaymentConfirmationEmail({ ...base, contactName: '<script>alert(1)</script>' });
+    expect(email.html).not.toContain('<script>alert(1)</script>');
+  });
+});
+
+describe('Aviso de cuenta bloqueada por intentos fallidos', () => {
+  const base = { lockedUserName: 'Ana Pérez', lockedUserEmail: 'ana@ejemplo.cl', lockoutMinutes: 15, maxAttempts: 5 };
+
+  it('nombra el correo de la cuenta bloqueada en el asunto', () => {
+    expect(buildAccountLockedNoticeEmail(base).subject).toBe('Cuenta bloqueada por intentos fallidos — ana@ejemplo.cl');
+  });
+
+  it('incluye la cantidad de intentos y los minutos de bloqueo', () => {
+    const email = buildAccountLockedNoticeEmail(base);
+    expect(email.text).toContain('5 intentos');
+    expect(email.text).toContain('15 minutos');
+  });
+
+  it('escapa HTML en el nombre del usuario', () => {
+    const email = buildAccountLockedNoticeEmail({ ...base, lockedUserName: '<script>alert(1)</script>' });
+    expect(email.html).not.toContain('<script>alert(1)</script>');
+  });
+});
+
+describe('Correo de resumen ejecutivo diario (agente CEO)', () => {
+  const base = {
+    companyName: 'Comercial Ejemplo SpA',
+    priorities: ['Renegociar plazo con el proveedor Uno', 'Revisar el stock crítico de la línea Dos'],
+    dashboardUrl: 'https://erp.ejemplo.cl/dashboard/agents',
+  };
+
+  it('nombra la empresa en el asunto', () => {
+    expect(buildAgentDigestEmail(base).subject).toBe('Prioridades de hoy — Comercial Ejemplo SpA');
+  });
+
+  it('numera cada prioridad en el texto plano', () => {
+    const email = buildAgentDigestEmail(base);
+    expect(email.text).toContain('1. Renegociar plazo con el proveedor Uno');
+    expect(email.text).toContain('2. Revisar el stock crítico de la línea Dos');
+  });
+
+  it('incluye el link al dashboard de agentes', () => {
+    expect(buildAgentDigestEmail(base).text).toContain(base.dashboardUrl);
+  });
+
+  it('escapa HTML en una prioridad', () => {
+    const email = buildAgentDigestEmail({ ...base, priorities: ['<script>alert(1)</script>'] });
     expect(email.html).not.toContain('<script>alert(1)</script>');
   });
 });

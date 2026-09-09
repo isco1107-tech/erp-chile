@@ -6,6 +6,8 @@ import { runCeoAgent } from '@/modules/agents/roles/ceo';
 import { runCfoAgent } from '@/modules/agents/roles/cfo';
 import { runCooAgent } from '@/modules/agents/roles/coo';
 import { runSalesAgent } from '@/modules/agents/roles/sales';
+import { sendEmail, getAppUrl } from '@/lib/email/mailer';
+import { buildAgentDigestEmail } from '@/lib/email/templates';
 
 /**
  * Cron de agentes de inteligencia de negocio, invocado por Vercel Cron (ver
@@ -57,12 +59,20 @@ export async function GET(request: NextRequest) {
   const startedAt = new Date();
   const companies = await prisma.company.findMany({
     where: { features: { hasCrm: true } },
-    select: { id: true },
+    select: { id: true, businessName: true },
   });
 
   // En secuencia, no en paralelo (ver comentario de cabecera).
   for (const company of companies) {
-    await runAgent(company.id, role, () => runner(company.id));
+    const companyRunStartedAt = new Date();
+    const result = await runAgent(company.id, role, () => runner(company.id));
+
+    // Solo el CEO dispara el correo: es el único rol que lee y condensa el
+    // trabajo de los otros tres (ver roles/ceo.ts) — antes de esto, las
+    // recomendaciones de los 4 agentes solo se veían entrando al dashboard.
+    if (role === 'CEO' && result.status === 'COMPLETED' && result.summary) {
+      await sendCeoDigestEmail(company.id, company.businessName, companyRunStartedAt);
+    }
   }
 
   const failedCount = await prisma.agentRun.count({
@@ -74,4 +84,47 @@ export async function GET(request: NextRequest) {
     companiesProcessed: companies.length,
     failed: failedCount,
   });
+}
+
+/**
+ * El `summary` que devuelve `runCeoAgent` es solo un meta-texto ("Se
+ * generaron 3 prioridad(es) a partir de N recomendación(es)..."), no las
+ * prioridades en sí — esas quedan como filas `AgentTask` (`role: 'CEO'`,
+ * `title: 'Prioridad de la semana'`) creadas dentro de esa misma corrida.
+ * Por eso el digest las relee desde ahí en vez de mandar el `summary` tal
+ * cual. Si `runCeoAgent` no generó ninguna prioridad nueva (nada que
+ * priorizar, o Gemini no está configurado), no manda correo — un correo
+ * diario vacío entrena a la gente a ignorarlo.
+ */
+async function sendCeoDigestEmail(companyId: string, companyName: string, since: Date): Promise<void> {
+  try {
+    const priorities = await prisma.agentTask.findMany({
+      where: { companyId, role: 'CEO', title: 'Prioridad de la semana', createdAt: { gte: since } },
+      orderBy: { createdAt: 'asc' },
+      select: { description: true },
+    });
+    if (priorities.length === 0) return;
+
+    const recipients = await prisma.user.findMany({
+      where: { companyId, role: { in: ['OWNER', 'ADMIN'] }, isActive: true },
+      select: { email: true },
+    });
+    if (recipients.length === 0) return;
+
+    const email = buildAgentDigestEmail({
+      companyName,
+      priorities: priorities.map((p) => p.description),
+      dashboardUrl: `${getAppUrl()}/dashboard/agents`,
+    });
+
+    await Promise.all(
+      recipients.map((r) =>
+        sendEmail({ to: r.email, subject: email.subject, html: email.html, text: email.text }).catch((error) =>
+          console.error(`sendCeoDigestEmail: fallo al enviar a ${r.email}:`, error)
+        )
+      )
+    );
+  } catch (error) {
+    console.error(`sendCeoDigestEmail: fallo para empresa ${companyId}:`, error);
+  }
 }

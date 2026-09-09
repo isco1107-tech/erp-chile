@@ -15,7 +15,19 @@ import { prisma } from '@/lib/prisma';
  * diagnosticar, y quien necesite saber cuántas corridas fallaron puede
  * consultarlo después (ver el propio route handler).
  */
-export async function runAgent(companyId: string, role: AgentRole, fn: () => Promise<string>): Promise<void> {
+export interface AgentRunResult {
+  status: 'COMPLETED' | 'FAILED';
+  summary: string | null;
+}
+
+/**
+ * Devuelve `{status, summary}` — antes esto era `void` porque nada consumía
+ * el resultado. `/api/agents/run/route.ts` ahora lo usa para el correo
+ * diario de resumen ejecutivo (ver `sendCeoDigestEmail` ahí mismo): sin este
+ * cambio, el trabajo del agente CEO (2-3 prioridades de la semana) solo
+ * quedaba visible entrando al dashboard de agentes.
+ */
+export async function runAgent(companyId: string, role: AgentRole, fn: () => Promise<string>): Promise<AgentRunResult> {
   const run = await prisma.agentRun.create({
     data: { companyId, role, status: 'RUNNING' },
   });
@@ -26,6 +38,7 @@ export async function runAgent(companyId: string, role: AgentRole, fn: () => Pro
       where: { id: run.id },
       data: { status: 'COMPLETED', summary, finishedAt: new Date() },
     });
+    return { status: 'COMPLETED', summary };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Error desconocido';
     console.error(`[agents:${role}] companyId=${companyId} falló:`, error);
@@ -33,5 +46,6 @@ export async function runAgent(companyId: string, role: AgentRole, fn: () => Pro
       where: { id: run.id },
       data: { status: 'FAILED', error: message, finishedAt: new Date() },
     });
+    return { status: 'FAILED', summary: null };
   }
 }

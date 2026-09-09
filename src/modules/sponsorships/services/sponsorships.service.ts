@@ -9,6 +9,9 @@ import type {
   SponsorshipStatus,
   SponsorshipTier,
 } from '@prisma/client';
+import { sendEmail } from '@/lib/email/mailer';
+import { buildSponsorshipPaymentConfirmationEmail } from '@/lib/email/templates';
+import { SPONSORSHIP_TIER_LABELS } from '../schema';
 import type {
   DeliverableCreateInput,
   SponsorshipContractCreateInput,
@@ -119,12 +122,22 @@ export async function deleteSponsorshipContract(companyId: string, id: string): 
  * servidor — nunca se confía en un status que mande el cliente, mismo
  * criterio que `treasury.service.ts` al registrar cobros/pagos.
  */
+/**
+ * Al pasar a `PAID` por primera vez dispara el correo de confirmación al
+ * contacto de la marca auspiciadora — mismo patrón que
+ * `confirmTicketPayment`/`confirmVotePayment`: fuera de la transacción (un
+ * fallo de SMTP no debe revertir el pago ya confirmado) y solo si
+ * `wasAlreadyPaid` es falso. Antes esta función no avisaba a nadie.
+ */
 export async function updateSponsorshipPayment(
   companyId: string,
   id: string,
   data: SponsorshipPaymentInput
 ): Promise<SponsorshipContract> {
-  const contract = await prisma.sponsorshipContract.findFirst({ where: { id, companyId } });
+  const contract = await prisma.sponsorshipContract.findFirst({
+    where: { id, companyId },
+    include: { contact: true, project: { select: { name: true } } },
+  });
   if (!contract) throw new Error('Contrato de auspicio no encontrado');
   // Repetido server-side: la UI ya deshabilita el botón sobre el tope, pero
   // esto también corre si se llama la Server Action directo.
@@ -145,6 +158,8 @@ export async function updateSponsorshipPayment(
     paymentStatus = 'PARTIAL';
   }
 
+  const wasAlreadyPaid = contract.paymentStatus === 'PAID';
+
   await prisma.sponsorshipContract.updateMany({
     where: { id, companyId },
     data: {
@@ -156,6 +171,22 @@ export async function updateSponsorshipPayment(
 
   const updated = await prisma.sponsorshipContract.findFirst({ where: { id, companyId } });
   if (!updated) throw new Error('Contrato de auspicio no encontrado');
+
+  if (paymentStatus === 'PAID' && !wasAlreadyPaid && contract.contact.email) {
+    const company = await prisma.company.findUnique({ where: { id: companyId }, select: { businessName: true } });
+    void sendEmail({
+      to: contract.contact.email,
+      ...buildSponsorshipPaymentConfirmationEmail({
+        contactName: contract.contact.razonSocial,
+        projectName: contract.project.name,
+        companyName: company?.businessName ?? '',
+        tierLabel: SPONSORSHIP_TIER_LABELS[contract.tier],
+        paidAmount: data.paidAmount,
+        isBarter: contract.isBarter,
+      }),
+    }).catch((error) => console.error('updateSponsorshipPayment: fallo al enviar correo de confirmación:', error));
+  }
+
   return updated;
 }
 
