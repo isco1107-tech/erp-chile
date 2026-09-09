@@ -32,13 +32,46 @@ function daysSince(date: Date): number {
 export async function findLowStockProducts(companyId: string): Promise<OperationalAlertLowStockRow[]> {
   const products = await prisma.product.findMany({
     where: { companyId, minStock: { gt: 0 }, isTrackable: true },
-    select: { sku: true, name: true, minStock: true, stocks: { select: { quantity: true } } },
+    select: { id: true, sku: true, name: true, minStock: true, stocks: { select: { quantity: true } } },
   });
 
-  return products
-    .map((p) => ({ sku: p.sku, name: p.name, minStock: p.minStock, totalStock: p.stocks.reduce((sum, s) => sum + s.quantity, 0) }))
+  const belowMinimum = products
+    .map((p) => ({ id: p.id, sku: p.sku, name: p.name, minStock: p.minStock, totalStock: p.stocks.reduce((sum, s) => sum + s.quantity, 0) }))
     .filter((p) => p.totalStock <= p.minStock)
     .sort((a, b) => a.totalStock - b.totalStock);
+
+  if (belowMinimum.length === 0) return [];
+
+  // Enriquece cada línea con el último proveedor y costo unitario con que se
+  // compró ese producto — antes la alerta solo decía "esto está bajo", sin
+  // ninguna pista de a quién comprarle ni cuánto pedir. Sin esto, reponer
+  // stock era 100% trabajo manual: alguien tenía que abrir el kardex del
+  // producto, revisar el historial de compras y armar la orden a mano.
+  const suggestions = await Promise.all(
+    belowMinimum.map(async (p) => {
+      const lastPurchase = await prisma.purchaseDocumentItem.findFirst({
+        where: { companyId, productId: p.id, document: { status: 'ISSUED' } },
+        orderBy: { document: { issueDate: 'desc' } },
+        select: { unitCost: true, document: { select: { contact: { select: { razonSocial: true } } } } },
+      });
+      // Sugiere reponer hasta el doble del mínimo configurado — margen
+      // simple para no volver a caer bajo el umbral apenas llegue la
+      // próxima venta, sin depender de un pronóstico de demanda que este
+      // sistema no calcula.
+      const suggestedQuantity = Math.max(Math.round(p.minStock * 2 - p.totalStock), 1);
+      return {
+        sku: p.sku,
+        name: p.name,
+        minStock: p.minStock,
+        totalStock: p.totalStock,
+        suggestedQuantity,
+        suggestedSupplier: lastPurchase?.document.contact.razonSocial ?? null,
+        lastUnitCost: lastPurchase?.unitCost ?? null,
+      };
+    })
+  );
+
+  return suggestions;
 }
 
 /** Compras que llevan `APPROVAL_ALERT_MIN_DAYS_PENDING` días o más esperando

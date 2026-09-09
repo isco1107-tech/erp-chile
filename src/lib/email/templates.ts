@@ -539,6 +539,11 @@ export interface OperationalAlertLowStockRow {
   name: string;
   totalStock: number;
   minStock: number;
+  /** Cantidad sugerida a reponer (hasta el doble del mínimo) — `undefined` si no se pudo calcular. */
+  suggestedQuantity?: number;
+  /** Último proveedor al que se le compró este producto, o `null` si nunca se ha comprado. */
+  suggestedSupplier?: string | null;
+  lastUnitCost?: number | null;
 }
 
 export interface OperationalAlertPendingApprovalRow {
@@ -603,6 +608,8 @@ export function buildOperationalAlertEmail(input: OperationalAlertEmailInput): {
         <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">${escapeHtml(row.name)}</td>
         <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right;">${row.totalStock}</td>
         <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right;">${row.minStock}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right;">${row.suggestedQuantity ?? '—'}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">${row.suggestedSupplier ? escapeHtml(row.suggestedSupplier) : '<span style="color:#94a3b8;">sin compras previas</span>'}</td>
       </tr>`
     )
     .join('');
@@ -674,6 +681,8 @@ export function buildOperationalAlertEmail(input: OperationalAlertEmailInput): {
                   <th style="padding:6px 8px;text-align:left;color:#64748b;">Producto</th>
                   <th style="padding:6px 8px;text-align:right;color:#64748b;">Stock actual</th>
                   <th style="padding:6px 8px;text-align:right;color:#64748b;">Mínimo</th>
+                  <th style="padding:6px 8px;text-align:right;color:#64748b;">Sugerido</th>
+                  <th style="padding:6px 8px;text-align:left;color:#64748b;">Proveedor habitual</th>
                 </tr>
                 ${stockRows}
               </table>`
@@ -754,7 +763,11 @@ export function buildOperationalAlertEmail(input: OperationalAlertEmailInput): {
     ...(input.lowStock.length > 0
       ? [
           `Stock bajo el mínimo (${input.lowStock.length}):`,
-          ...input.lowStock.map((row) => `- ${row.sku} ${row.name}: ${row.totalStock} disponibles (mínimo ${row.minStock})`),
+          ...input.lowStock.map(
+            (row) =>
+              `- ${row.sku} ${row.name}: ${row.totalStock} disponibles (mínimo ${row.minStock})` +
+              (row.suggestedQuantity ? ` — reponer ${row.suggestedQuantity}${row.suggestedSupplier ? ` a ${row.suggestedSupplier}` : ' (sin compras previas)'}` : '')
+          ),
           '',
         ]
       : []),

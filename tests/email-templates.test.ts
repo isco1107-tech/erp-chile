@@ -137,6 +137,24 @@ describe('Correo de alerta operativa (stock bajo + compras pendientes)', () => {
     expect(email.text).not.toContain('Stock bajo el mínimo');
   });
 
+  it('incluye la cantidad sugerida y el proveedor habitual cuando vienen calculados', () => {
+    const email = buildOperationalAlertEmail({
+      ...base,
+      lowStock: [{ sku: 'SKU-1', name: 'Producto Uno', totalStock: 2, minStock: 5, suggestedQuantity: 8, suggestedSupplier: 'Proveedor Habitual SpA', lastUnitCost: 1000 }],
+    });
+    expect(email.html).toContain('Proveedor Habitual SpA');
+    expect(email.text).toContain('reponer 8 a Proveedor Habitual SpA');
+  });
+
+  it('avisa que no hay compras previas cuando no hay proveedor sugerido', () => {
+    const email = buildOperationalAlertEmail({
+      ...base,
+      lowStock: [{ sku: 'SKU-1', name: 'Producto Uno', totalStock: 2, minStock: 5, suggestedQuantity: 8, suggestedSupplier: null }],
+    });
+    expect(email.text).toContain('reponer 8 (sin compras previas)');
+    expect(email.html).toContain('sin compras previas');
+  });
+
   it('omite la sección de aprobaciones si no hay compras pendientes', () => {
     const email = buildOperationalAlertEmail({ ...base, pendingApprovals: [] });
     expect(email.html).not.toContain('esperando aprobación');
