@@ -834,6 +834,71 @@ export function buildCandidateStatusChangeEmail(
   return null;
 }
 
+export interface VoteConfirmationEmailInput {
+  projectName: string;
+  companyName: string;
+  candidateName: string;
+  voteCount: number;
+  totalAmount: number;
+}
+
+/** Confirmación de pago de votos — mismo criterio que
+ * `buildTicketConfirmationEmail` (se dispara al confirmar el pago, no al
+ * enviar el formulario: una orden `UNPAID` no es un voto real todavía, ver
+ * `getVoteLeaderboard`), pero sin QR porque un voto no es una entrada física
+ * que alguien deba presentar. */
+export function buildVoteConfirmationEmail(input: VoteConfirmationEmailInput): { subject: string; html: string; text: string } {
+  const subject = `Confirmamos tu voto por ${input.candidateName} — ${input.projectName}`;
+
+  const html = `<!doctype html>
+<html lang="es">
+<body style="margin:0;padding:0;background:#f4f6f8;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:24px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:420px;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
+          <tr>
+            <td style="background:${BRAND};padding:20px 24px;">
+              <p style="margin:0;color:#ffffff;font-size:18px;font-weight:700;">${escapeHtml(input.companyName)}</p>
+              <p style="margin:2px 0 0;color:#cbd5e1;font-size:12px;">${escapeHtml(input.projectName)}</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px;color:#1f2933;font-size:15px;line-height:1.6;">
+              <p style="margin:0 0 16px;">Confirmamos tu pago. ¡Gracias por apoyar a
+              <strong>${escapeHtml(input.candidateName)}</strong>!</p>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;border-collapse:collapse;">
+                <tr><td style="padding:4px 0;color:#64748b;width:40%;">Candidata</td><td style="padding:4px 0;font-weight:600;">${escapeHtml(input.candidateName)}</td></tr>
+                <tr><td style="padding:4px 0;color:#64748b;">Votos</td><td style="padding:4px 0;font-weight:600;">${input.voteCount}</td></tr>
+                <tr><td style="padding:4px 0;color:#64748b;">Total pagado</td><td style="padding:4px 0;font-weight:600;">${escapeHtml(formatCurrency(input.totalAmount))}</td></tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 24px;background:#f8fafc;border-top:1px solid #e2e8f0;color:#64748b;font-size:12px;line-height:1.5;">
+              Si no realizaste esta compra, ignora este mensaje.
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  const text = [
+    `Voto confirmado — ${input.projectName} (${input.companyName})`,
+    '',
+    `Candidata: ${input.candidateName}`,
+    `Votos: ${input.voteCount}`,
+    `Total pagado: ${formatCurrency(input.totalAmount)}`,
+    '',
+    'Si no realizaste esta compra, ignora este mensaje.',
+  ].join('\n');
+
+  return { subject, html, text };
+}
+
 export interface TicketConfirmationEmailInput {
   buyerName: string;
   projectName: string;

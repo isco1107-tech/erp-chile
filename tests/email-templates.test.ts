@@ -1,4 +1,4 @@
-import { buildInvitationEmail, buildPasswordResetEmail, buildOperationalAlertEmail } from '@/lib/email/templates';
+import { buildInvitationEmail, buildPasswordResetEmail, buildOperationalAlertEmail, buildVoteConfirmationEmail } from '@/lib/email/templates';
 
 /**
  * Las plantillas incrustan datos que vienen de la base (razón social, nombre
@@ -141,5 +141,35 @@ describe('Correo de alerta operativa (stock bajo + compras pendientes)', () => {
 
   it('incluye el link al panel', () => {
     expect(buildOperationalAlertEmail(base).text).toContain(base.dashboardUrl);
+  });
+});
+
+describe('Correo de confirmación de voto pagado', () => {
+  const base = {
+    projectName: 'Miss Ejemplo 2026',
+    companyName: 'Comercial Ejemplo SpA',
+    candidateName: 'Ana',
+    voteCount: 50,
+    totalAmount: 25000,
+  };
+
+  it('nombra a la candidata en el asunto', () => {
+    expect(buildVoteConfirmationEmail(base).subject).toBe('Confirmamos tu voto por Ana — Miss Ejemplo 2026');
+  });
+
+  it('incluye cantidad de votos y monto total', () => {
+    const email = buildVoteConfirmationEmail(base);
+    expect(email.text).toContain('Votos: 50');
+    expect(email.text).toContain('25.000');
+  });
+
+  it('escapa HTML en el nombre de la candidata', () => {
+    const email = buildVoteConfirmationEmail({ ...base, candidateName: '<script>alert(1)</script>' });
+    expect(email.html).not.toContain('<script>alert(1)</script>');
+    expect(email.html).toContain('&lt;script&gt;');
+  });
+
+  it('trae versión de texto plano no vacía', () => {
+    expect(buildVoteConfirmationEmail(base).text.trim().length).toBeGreaterThan(30);
   });
 });

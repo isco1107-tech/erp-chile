@@ -1,6 +1,8 @@
 import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
 import { Prisma, type PaymentStatus, type VoteOrder } from '@prisma/client';
+import { sendEmail } from '@/lib/email/mailer';
+import { buildVoteConfirmationEmail } from '@/lib/email/templates';
 import { decodeVoteToken, encodeVoteToken } from '../schema';
 import type { ConfirmVotePaymentInput, PublicVotePurchaseInput } from '../schema';
 
@@ -169,9 +171,18 @@ export async function listVoteOrders(companyId: string, filters: VoteOrderListFi
  * Registra el monto pagado y recalcula `paymentStatus` en el servidor — mismo
  * patrón que `confirmTicketPayment`/`updateSponsorshipPayment`. Una orden
  * `UNPAID` no cuenta para `getVoteLeaderboard`; al quedar `PAID` sí.
+ *
+ * Al pasar a `PAID` por primera vez dispara el correo de confirmación al
+ * comprador — mismo criterio que `confirmTicketPayment`: fuera de la
+ * transacción (un fallo de SMTP no debe revertir el pago ya confirmado) y
+ * solo si `wasAlreadyPaid` es falso (para no reenviarlo si alguien vuelve a
+ * guardar el mismo monto).
  */
 export async function confirmVotePayment(companyId: string, id: string, data: ConfirmVotePaymentInput): Promise<VoteOrder> {
-  const order = await prisma.voteOrder.findFirst({ where: { id, companyId } });
+  const order = await prisma.voteOrder.findFirst({
+    where: { id, companyId },
+    include: { project: { select: { name: true } }, candidate: { select: { fullName: true, stageName: true } } },
+  });
   if (!order) throw new Error('Orden de votos no encontrada');
   if (data.paidAmount > order.totalAmount) throw new Error('El monto pagado supera el total de la orden');
 
@@ -180,9 +191,26 @@ export async function confirmVotePayment(companyId: string, id: string, data: Co
   else if (data.paidAmount >= order.totalAmount) paymentStatus = 'PAID';
   else paymentStatus = 'PARTIAL';
 
+  const wasAlreadyPaid = order.paymentStatus === 'PAID';
+
   await prisma.voteOrder.updateMany({ where: { id, companyId }, data: { paidAmount: data.paidAmount, paymentStatus } });
   const updated = await prisma.voteOrder.findFirst({ where: { id, companyId } });
   if (!updated) throw new Error('Orden de votos no encontrada');
+
+  if (paymentStatus === 'PAID' && !wasAlreadyPaid) {
+    const company = await prisma.company.findUnique({ where: { id: companyId }, select: { businessName: true } });
+    void sendEmail({
+      to: order.buyerEmail,
+      ...buildVoteConfirmationEmail({
+        projectName: order.project.name,
+        companyName: company?.businessName ?? '',
+        candidateName: order.candidate.stageName ?? order.candidate.fullName,
+        voteCount: order.voteCount,
+        totalAmount: order.totalAmount,
+      }),
+    }).catch((error) => console.error('confirmVotePayment: fallo al enviar correo de confirmación:', error));
+  }
+
   return updated;
 }
 
