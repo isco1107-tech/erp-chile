@@ -25,20 +25,30 @@ function daysSince(date: Date): number {
   return Math.floor((Date.now() - date.getTime()) / (24 * 60 * 60 * 1000));
 }
 
-/** Productos cuyo stock total (sumado entre todas las bodegas) cayó a su
- * mínimo configurado o por debajo. Solo considera productos con `minStock >
- * 0` — el default es 0, que significa "sin umbral configurado", no "avisar
- * si llega a cero". */
-export async function findLowStockProducts(companyId: string): Promise<OperationalAlertLowStockRow[]> {
+/** La parte barata de `findLowStockProducts`: un solo query, sin el N+1 de
+ * enriquecer cada línea con su último proveedor (eso vive en
+ * `findLowStockProducts`, pensado para el correo diario, no para un conteo
+ * en vivo). */
+async function findProductsBelowMinimum(
+  companyId: string
+): Promise<Array<{ id: string; sku: string; name: string; minStock: number; totalStock: number }>> {
   const products = await prisma.product.findMany({
     where: { companyId, minStock: { gt: 0 }, isTrackable: true },
     select: { id: true, sku: true, name: true, minStock: true, stocks: { select: { quantity: true } } },
   });
 
-  const belowMinimum = products
+  return products
     .map((p) => ({ id: p.id, sku: p.sku, name: p.name, minStock: p.minStock, totalStock: p.stocks.reduce((sum, s) => sum + s.quantity, 0) }))
     .filter((p) => p.totalStock <= p.minStock)
     .sort((a, b) => a.totalStock - b.totalStock);
+}
+
+/** Productos cuyo stock total (sumado entre todas las bodegas) cayó a su
+ * mínimo configurado o por debajo. Solo considera productos con `minStock >
+ * 0` — el default es 0, que significa "sin umbral configurado", no "avisar
+ * si llega a cero". */
+export async function findLowStockProducts(companyId: string): Promise<OperationalAlertLowStockRow[]> {
+  const belowMinimum = await findProductsBelowMinimum(companyId);
 
   if (belowMinimum.length === 0) return [];
 

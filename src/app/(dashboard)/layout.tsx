@@ -312,7 +312,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </MobileNavDrawer>
 
         <div className="flex min-h-screen flex-col lg:pl-[260px]">
-          <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-3 border-b border-border bg-card px-4 print:hidden lg:px-8">
+          <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-3 border-b border-border bg-card/85 px-4 backdrop-blur-md print:hidden lg:px-8">
             <MobileNavToggle />
             <CommandMenu permissions={context.permissions} features={features} isSuperAdmin={context.isSuperAdmin} />
             <div className="flex-1" />

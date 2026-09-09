@@ -45,7 +45,7 @@ export function KpiCard({ label, labelExtra, value, icon: Icon, tone = 'accent',
   return (
     <article
       className={cn(
-        'group rounded-lg border border-border bg-card p-5 shadow-card transition-shadow duration-150 hover:shadow-hover',
+        'group rounded-lg border border-border bg-card p-5 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-hover',
         className
       )}
     >
