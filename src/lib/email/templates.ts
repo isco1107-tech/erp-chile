@@ -1067,6 +1067,42 @@ export function buildNewLoginNoticeEmail(input: NewLoginNoticeEmailInput): { sub
   return { subject, html, text };
 }
 
+export interface WeeklyReportEmailInput {
+  companyName: string;
+  from: Date;
+  to: Date;
+  dashboardUrl: string;
+}
+
+/** Aviso de entrega semanal del libro Excel — el archivo va como adjunto
+ * (ver `weekly-report-cron.service.ts`), este correo es solo el mensaje que
+ * lo acompaña. Antes el reporte solo existía si alguien entraba a la
+ * pantalla de Reportes y hacía clic. */
+export function buildWeeklyReportEmail(input: WeeklyReportEmailInput): { subject: string; html: string; text: string } {
+  const fromLabel = input.from.toLocaleDateString('es-CL');
+  const toLabel = input.to.toLocaleDateString('es-CL');
+  const subject = `Reporte semanal — ${fromLabel} al ${toLabel}`;
+
+  const html = layout({
+    title: input.companyName,
+    body: `<p style="margin:0;">Adjuntamos el libro Excel con ventas, compras, inventario y kardex valorizado del
+    <strong>${escapeHtml(fromLabel)}</strong> al <strong>${escapeHtml(toLabel)}</strong>.</p>`,
+    ctaLabel: 'Ver reportes en el panel',
+    ctaUrl: input.dashboardUrl,
+    footer: 'Entrega automática semanal del módulo de Reportes Avanzados.',
+  });
+
+  const text = [
+    `Reporte semanal — ${fromLabel} al ${toLabel}`,
+    '',
+    'Adjuntamos el libro Excel con ventas, compras, inventario y kardex valorizado del período.',
+    '',
+    `Panel: ${input.dashboardUrl}`,
+  ].join('\n');
+
+  return { subject, html, text };
+}
+
 export interface CandidateStatusChangeEmailInput {
   fullName: string;
   projectName: string;

@@ -9,6 +9,7 @@ import {
   buildAccountLockedNoticeEmail,
   buildAgentDigestEmail,
   buildNewLoginNoticeEmail,
+  buildWeeklyReportEmail,
 } from '@/lib/email/templates';
 
 /**
@@ -432,5 +433,26 @@ describe('Aviso de nuevo inicio de sesión', () => {
   it('escapa HTML en el nombre del usuario', () => {
     const email = buildNewLoginNoticeEmail({ ...base, userName: '<script>alert(1)</script>' });
     expect(email.html).not.toContain('<script>alert(1)</script>');
+  });
+});
+
+describe('Correo de entrega del reporte semanal', () => {
+  const base = {
+    companyName: 'Comercial Ejemplo SpA',
+    from: new Date('2026-08-01T00:00:00-04:00'),
+    to: new Date('2026-08-08T00:00:00-04:00'),
+    dashboardUrl: 'https://erp.ejemplo.cl/dashboard/reports',
+  };
+
+  it('incluye el rango de fechas en el asunto', () => {
+    expect(buildWeeklyReportEmail(base).subject).toContain('Reporte semanal');
+  });
+
+  it('menciona que el libro va adjunto', () => {
+    expect(buildWeeklyReportEmail(base).text).toContain('Adjuntamos el libro Excel');
+  });
+
+  it('incluye el link al panel', () => {
+    expect(buildWeeklyReportEmail(base).text).toContain(base.dashboardUrl);
   });
 });

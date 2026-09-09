@@ -19,11 +19,19 @@ import 'server-only';
  * enlace se puede copiar a mano desde el panel de Equipo.
  */
 
+export interface EmailAttachment {
+  filename: string;
+  /** Contenido binario crudo — cada proveedor lo codifica a base64 recién al armar su request. */
+  content: Buffer;
+  contentType?: string;
+}
+
 export interface SendEmailInput {
   to: string;
   subject: string;
   html: string;
   text: string;
+  attachments?: EmailAttachment[];
 }
 
 export type EmailDeliveryStatus = 'sent' | 'logged' | 'failed';
@@ -78,6 +86,9 @@ async function sendViaBrevo(input: SendEmailInput, apiKey: string): Promise<Emai
       subject: input.subject,
       htmlContent: input.html,
       textContent: input.text,
+      ...(input.attachments && input.attachments.length > 0
+        ? { attachment: input.attachments.map((a) => ({ name: a.filename, content: a.content.toString('base64') })) }
+        : {}),
     }),
   });
 
@@ -99,6 +110,9 @@ async function sendViaResend(input: SendEmailInput, apiKey: string): Promise<Ema
       subject: input.subject,
       html: input.html,
       text: input.text,
+      ...(input.attachments && input.attachments.length > 0
+        ? { attachments: input.attachments.map((a) => ({ filename: a.filename, content: a.content.toString('base64') })) }
+        : {}),
     }),
   });
 
