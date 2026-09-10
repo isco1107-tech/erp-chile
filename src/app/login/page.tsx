@@ -5,8 +5,8 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useForm } from '@mantine/form';
 import { z } from 'zod';
-import { CreditCard, KeyRound, Mail, MessageSquareText, Package, ShieldCheck, Users } from 'lucide-react';
-import { Card } from '@/components/ui/card';
+import { KeyRound, Mail, ShieldCheck } from 'lucide-react';
+import { AuthCard, AuthCardHeader, AuthError, AuthShell } from '@/components/auth/AuthShell';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/PasswordInput';
 import { Label } from '@/components/ui/label';
@@ -17,13 +17,6 @@ const loginSchema = z.object({
   username: z.string().min(1, { message: 'Ingresa tu usuario o correo' }),
   password: z.string().min(8, { message: 'La contraseña debe tener al menos 8 caracteres' }),
 });
-
-const HIGHLIGHTS = [
-  { icon: Package, label: 'Inventario y ventas en tiempo real' },
-  { icon: Users, label: 'Candidatas, staff y equipo en un solo lugar' },
-  { icon: CreditCard, label: 'Cuotas, cobros y flujo de caja' },
-  { icon: MessageSquareText, label: 'Mensajería interna cifrada' },
-];
 
 export default function LoginPage() {
   const router = useRouter();
@@ -102,20 +95,14 @@ export default function LoginPage() {
 
   if (challengeToken) {
     return (
-      <LoginShell>
-        <Card className="w-full max-w-md border-white/10 bg-card/70 p-8 shadow-2xl backdrop-blur-xl">
-          <div className="mb-5 flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-            <ShieldCheck className="size-5.5" strokeWidth={1.75} />
-          </div>
-          <h2 className="text-xl font-bold">Verificación en dos pasos</h2>
-          <p className="mt-1.5 mb-6 text-sm text-muted-foreground">
-            Ingresa el código de 6 dígitos de tu app de autenticación, o uno de tus códigos de respaldo.
-          </p>
-          {error && (
-            <div className="mb-4 rounded-xl border border-destructive/20 bg-destructive/10 px-3.5 py-2.5 text-sm text-destructive">
-              {error}
-            </div>
-          )}
+      <AuthShell>
+        <AuthCard>
+          <AuthCardHeader
+            icon={<ShieldCheck className="size-5.5" strokeWidth={1.75} />}
+            title="Verificación en dos pasos"
+            description="Ingresa el código de 6 dígitos de tu app de autenticación, o uno de tus códigos de respaldo."
+          />
+          {error && <AuthError>{error}</AuthError>}
           <form onSubmit={handleVerifyTotp} className="space-y-5">
             <div>
               <Label htmlFor="totpCode">Código</Label>
@@ -140,24 +127,20 @@ export default function LoginPage() {
               Volver
             </Button>
           </form>
-        </Card>
-      </LoginShell>
+        </AuthCard>
+      </AuthShell>
     );
   }
 
   return (
-    <LoginShell>
-      <Card className="w-full max-w-md border-white/10 bg-card/70 p-8 shadow-2xl backdrop-blur-xl">
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-foreground">Bienvenido de vuelta</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Ingresa tus credenciales para acceder a tu panel.</p>
-        </div>
+    <AuthShell>
+      <AuthCard>
+        <AuthCardHeader
+          title="Bienvenido de vuelta"
+          description="Ingresa tus credenciales para acceder a tu panel."
+        />
 
-        {error && (
-          <div className="mb-5 rounded-xl border border-destructive/20 bg-destructive/10 px-3.5 py-2.5 text-sm text-destructive">
-            {error}
-          </div>
-        )}
+        {error && <AuthError>{error}</AuthError>}
 
         <form onSubmit={form.onSubmit((values) => handleSubmit(values))} className="space-y-4">
           <div>
@@ -188,83 +171,7 @@ export default function LoginPage() {
             ¿Olvidaste tu contraseña?
           </Link>
         </p>
-      </Card>
-    </LoginShell>
-  );
-}
-
-/**
- * Layout de dos paneles (estándar en SaaS moderno) en vez de una tarjeta
- * suelta sobre negro plano: a la izquierda la marca + propuesta de valor
- * (solo en pantallas grandes, `lg:flex`), a la derecha el formulario. Ambos
- * comparten el mismo fondo de marca (`BackgroundMark`) para que la
- * transición entre paneles no se sienta como dos pantallas distintas.
- */
-function LoginShell({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="relative flex min-h-screen overflow-hidden">
-      <BackgroundMark />
-
-      <div className="relative z-10 flex w-full flex-col lg:flex-row">
-        <div className="hidden flex-col justify-between p-12 lg:flex lg:w-1/2 xl:p-16">
-          <div className="flex items-center gap-2.5">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/branding/logo-on-dark.png" alt="" aria-hidden="true" className="size-7 object-contain" />
-            <span className="text-sm font-semibold tracking-wide text-foreground">AETHER ERP</span>
-          </div>
-
-          <div className="max-w-md space-y-7">
-            <h1 className="text-4xl leading-[1.15] font-bold text-balance text-foreground">
-              Todo tu negocio, en un solo panel.
-            </h1>
-            <p className="text-base text-muted-foreground">
-              Ventas, inventario, cobros, candidatas y mensajería interna — sin planillas sueltas ni sistemas que no se
-              hablan entre sí.
-            </p>
-            <ul className="space-y-3.5">
-              {HIGHLIGHTS.map(({ icon: Icon, label }) => (
-                <li key={label} className="flex items-center gap-3 text-sm text-foreground/90">
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <Icon className="size-4" strokeWidth={1.75} />
-                  </span>
-                  {label}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} Aether ERP Solutions</p>
-        </div>
-
-        <div className="flex flex-1 items-center justify-center p-4">{children}</div>
-      </div>
-    </div>
-  );
-}
-
-/**
- * El isotipo de Aether de fondo. `logo-on-dark.png` es `logo.png` con el
- * azul marino recoloreado a blanco (script de un solo uso sobre los canales
- * RGB, la estrella dorada queda intacta) — sobre el fondo oscuro el azul
- * original tenía casi el mismo tono que `--background` y se perdía (feedback
- * real: "la parte azul hazla blanca"). Transparencia real, sin caja ni
- * overlay pesado.
- */
-function BackgroundMark() {
-  return (
-    <>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/branding/logo-on-dark.png"
-        alt=""
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 m-auto h-auto w-[min(85vw,1250px)] object-contain opacity-80 select-none lg:w-[min(58vw,1000px)]"
-      />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0"
-        style={{ background: 'radial-gradient(ellipse at center, transparent 0%, transparent 60%, var(--background) 96%)' }}
-      />
-    </>
+      </AuthCard>
+    </AuthShell>
   );
 }
