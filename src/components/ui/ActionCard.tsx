@@ -32,7 +32,7 @@ export function ActionCard({ title, description, actionLabel, href, onAction, ic
         )}
         <div className="min-w-0">
           <h3 className="text-base font-semibold">{title}</h3>
-          <p className="mt-0.5 text-sm leading-relaxed text-primary-foreground/80">{description}</p>
+          <p className="mt-0.5 truncate text-sm text-primary-foreground/80">{description}</p>
         </div>
       </div>
 

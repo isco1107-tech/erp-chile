@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
-import { CreditCard, MessageSquareText, Package, Users, Orbit, ArrowUpRight } from 'lucide-react';
-import { WorkspaceTheme } from '@/components/shared/WorkspaceTheme';
+import { CreditCard, MessageSquareText, Package, Users } from 'lucide-react';
 
 /**
  * Marco compartido de las pantallas de autenticación (login, recuperar
@@ -23,34 +22,33 @@ const HIGHLIGHTS = [
 
 export function AuthShell({ children }: { children: ReactNode }) {
   return (
-    <WorkspaceTheme>
-    <div className="theme-saas-light aether-auth relative flex min-h-screen overflow-hidden">
+    <div className="relative flex min-h-screen overflow-hidden">
+      <AuthBackdrop />
 
       <div className="relative z-10 flex w-full flex-col lg:flex-row">
-        <div className="relative hidden overflow-hidden bg-[#203a31] p-12 text-[#f5f6ee] lg:flex lg:w-[52%] lg:flex-col lg:justify-between xl:p-16">
-          <AuthBackdrop />
-          <div className="relative z-1 flex items-center gap-3">
+        <div className="hidden flex-col justify-between p-12 lg:flex lg:w-1/2 xl:p-16">
+          <div className="flex items-center gap-2.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/branding/logo-on-dark.png" alt="" aria-hidden="true" className="size-10 object-contain" />
-            <span className="text-base font-semibold tracking-[0.22em]">AETHER<span className="ml-2 text-xs font-normal tracking-normal text-[#b5c3bf]">ERP</span></span>
+            <img src="/branding/logo-on-dark.png" alt="" aria-hidden="true" className="size-7 object-contain" />
+            <span className="text-sm font-semibold tracking-[0.18em] text-foreground">AETHER ERP</span>
           </div>
 
-          <div className="relative z-1 my-16 max-w-lg space-y-7">
-            <p className="flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.22em] text-[#d7e9b4]"><Orbit className="size-4" /> Un universo de posibilidades</p>
-            <h1 className="text-[clamp(2.75rem,4.5vw,4.5rem)] leading-[1.04] font-medium tracking-[-0.055em] text-balance">
-              Tu negocio.
+          <div className="max-w-md space-y-7">
+            <h1 className="text-[2.75rem] leading-[1.08] font-bold tracking-tight text-balance text-foreground">
+              Todo tu negocio,
               <br />
-              <span className="text-[#d7e9b4]">
-                Una nueva perspectiva.
+              <span className="bg-gradient-to-r from-primary via-cyan-200 to-indigo-300 bg-clip-text text-transparent">
+                en un solo panel.
               </span>
             </h1>
-            <p className="max-w-sm text-base leading-relaxed text-[#b5c3bf]">
-              Conecta tu operación. Encuentra claridad en tus números. Haz espacio para lo que viene.
+            <p className="text-base leading-relaxed text-muted-foreground">
+              Ventas, inventario, cobros, candidatas y mensajería interna — sin planillas sueltas ni sistemas que no se
+              hablan entre sí.
             </p>
-            <ul className="space-y-3.5 border-t border-white/15 pt-7">
+            <ul className="space-y-3.5">
               {HIGHLIGHTS.map(({ icon: Icon, label }) => (
-                <li key={label} className="flex items-center gap-3 text-sm text-[#e4e9df]">
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full border border-white/15 text-[#d7e9b4]">
+                <li key={label} className="flex items-center gap-3 text-sm text-foreground/90">
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
                     <Icon className="size-4" strokeWidth={1.75} />
                   </span>
                   {label}
@@ -59,25 +57,20 @@ export function AuthShell({ children }: { children: ReactNode }) {
             </ul>
           </div>
 
-          <div className="relative z-1 flex items-center justify-between text-[11px] text-[#b5c3bf]"><span>© {new Date().getFullYear()} Aether ERP Solutions</span><ArrowUpRight className="size-5" aria-hidden /></div>
+          <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} Aether ERP Solutions</p>
         </div>
 
-        <div className="flex min-w-0 flex-1 flex-col items-center justify-center px-5 py-12 sm:px-10">
-          <div className="mb-10 flex items-center gap-2 text-sm font-semibold tracking-[0.2em] text-foreground lg:hidden"><Orbit className="size-6 text-primary" /> AETHER ERP</div>
-          {children}
-          <p className="mt-8 text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Conecta · Gestiona · Crece</p>
-        </div>
+        <div className="flex flex-1 items-center justify-center p-4">{children}</div>
       </div>
     </div>
-    </WorkspaceTheme>
   );
 }
 
-/** Superficie del flujo de autenticación. */
+/** Tarjeta de vidrio del flujo de autenticación. */
 export function AuthCard({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
     <div
-      className={`w-full max-w-md rounded-3xl border border-border bg-card p-6 shadow-[0_16px_64px_-32px_rgba(35,59,52,0.2)] sm:p-9 ${className}`}
+      className={`w-full max-w-md rounded-2xl border border-white/10 bg-card/70 p-8 shadow-[0_32px_80px_-40px_rgba(0,0,0,0.95)] backdrop-blur-xl ${className}`}
     >
       {children}
     </div>
@@ -101,7 +94,7 @@ export function AuthCardHeader({
           {icon}
         </div>
       )}
-      <h2 className="text-2xl font-semibold tracking-[-0.04em] text-foreground">{title}</h2>
+      <h2 className="text-2xl font-bold tracking-tight text-foreground">{title}</h2>
       {description && <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{description}</p>}
     </div>
   );
@@ -119,12 +112,38 @@ export function AuthError({ children }: { children: ReactNode }) {
   );
 }
 
-/** Órbitas decorativas compartidas con el centro de operaciones. */
+/**
+ * El isotipo de Aether de fondo más el resplandor de marca.
+ *
+ * `logo-on-dark.png` es `logo.png` con el azul marino recoloreado a blanco
+ * (script de un solo uso sobre los canales RGB; la estrella dorada queda
+ * intacta) — sobre el fondo oscuro el azul original tenía casi el mismo tono
+ * que `--background` y se perdía. Transparencia real, sin caja ni overlay
+ * pesado.
+ */
 function AuthBackdrop() {
   return (
     <div aria-hidden="true" className="pointer-events-none absolute inset-0 select-none">
-      <div className="aether-orbits !-right-64 !-top-28 !size-[680px] opacity-60"><i /><i /><i /><span /></div>
-      <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-[#192e28] to-transparent" />
+      <div className="absolute -top-40 -left-32 size-[38rem] rounded-full bg-primary/12 blur-[120px]" />
+      <div className="absolute -top-24 -right-40 size-[34rem] rounded-full bg-indigo-500/12 blur-[120px]" />
+
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/branding/logo-on-dark.png"
+        alt=""
+        className="absolute inset-0 m-auto h-auto w-[min(85vw,1250px)] object-contain opacity-80 lg:w-[min(58vw,1000px)]"
+      />
+      <div
+        className="absolute inset-0"
+        style={{ background: 'radial-gradient(ellipse at center, transparent 0%, transparent 60%, var(--background) 96%)' }}
+      />
+      <div
+        className="absolute inset-0 opacity-[0.03]"
+        style={{
+          backgroundImage:
+            "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E\")",
+        }}
+      />
     </div>
   );
 }

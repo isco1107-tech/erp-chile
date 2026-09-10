@@ -147,18 +147,18 @@ export default function LoginPage() {
             <Label htmlFor="username">Usuario</Label>
             <div className="relative mt-1.5">
               <Mail className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" strokeWidth={1.75} />
-              <Input id="username" autoComplete="username" placeholder="Tu usuario o correo" aria-invalid={!!form.errors.username} aria-describedby={form.errors.username ? 'username-error' : undefined} className="h-11 pl-9" {...form.getInputProps('username')} />
+              <Input id="username" className="pl-9" {...form.getInputProps('username')} />
             </div>
-            {form.errors.username && <div id="username-error" className="mt-1 text-sm text-destructive">{form.errors.username}</div>}
+            {form.errors.username && <div className="mt-1 text-sm text-destructive">{form.errors.username}</div>}
           </div>
 
           <div>
             <Label htmlFor="password">Contraseña</Label>
             <div className="relative mt-1.5">
               <KeyRound className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" strokeWidth={1.75} />
-              <PasswordInput id="password" autoComplete="current-password" aria-invalid={!!form.errors.password} aria-describedby={form.errors.password ? 'password-error' : undefined} className="h-11 pl-9" {...form.getInputProps('password')} />
+              <PasswordInput id="password" className="pl-9" {...form.getInputProps('password')} />
             </div>
-            {form.errors.password && <div id="password-error" className="mt-1 text-sm text-destructive">{form.errors.password}</div>}
+            {form.errors.password && <div className="mt-1 text-sm text-destructive">{form.errors.password}</div>}
           </div>
 
           <Button type="submit" className="w-full" size="lg" disabled={loading}>

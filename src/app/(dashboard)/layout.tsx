@@ -18,8 +18,6 @@ import WhatsAppWebButton from '@/components/shared/WhatsAppWebButton';
 import { MobileNavProvider, MobileNavToggle, MobileNavBackdrop, MobileNavDrawer } from '@/components/shared/MobileNav';
 import { SidebarNav, type SidebarNavGroup } from '@/components/shared/SidebarNav';
 import { CompanySwitcher } from '@/components/shared/CompanySwitcher';
-import { WorkspaceBreadcrumb } from '@/components/shared/WorkspaceBreadcrumb';
-import { WorkspaceTheme } from '@/components/shared/WorkspaceTheme';
 import OnboardingWizard from '@/components/onboarding/OnboardingWizard';
 import AiCopilotDrawer from '@/components/shared/AiCopilotDrawer';
 import ManualAssistantWidget from '@/components/shared/ManualAssistantWidget';
@@ -60,7 +58,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // Ventas, Compras, Finanzas, Configuración.
   const groups: SidebarNavGroup[] = [];
 
-  const principalLinks: SidebarNavGroup['links'] = [{ href: '/dashboard', label: 'Centro de operaciones', icon: 'home', exact: true }];
+  const principalLinks: SidebarNavGroup['links'] = [{ href: '/dashboard', label: 'Dashboard', icon: 'home', exact: true }];
   if (features.hasPos && allow('pos:operate')) {
     principalLinks.push({ href: '/dashboard/pos', label: 'Punto de Venta', icon: 'pos' });
   }
@@ -220,16 +218,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // variables CSS de `.theme-saas-light` con `style` inline — gana por
   // cascada sobre la clase, resuelto en el server component antes de enviar
   // HTML (sin flash del tema por defecto). `[]` (logo en blanco y negro, o
-  // sin logo) conserva la paleta base de Aether.
+  // sin logo) deja el tema emerald de siempre intacto.
   const brandTheme = deriveThemeFromPalette(context.companyBrandPalette);
   const brandThemeStyle = brandTheme
     ? (Object.fromEntries(Object.entries(brandTheme).map(([key, value]) => [`--${key}`, value])) as React.CSSProperties)
     : undefined;
 
   return (
-    <WorkspaceTheme style={brandThemeStyle}>
     <div className="theme-saas-light min-h-screen bg-background text-foreground" style={brandThemeStyle}>
-      <a href="#workspace-main" className="aether-skip-link">Saltar al contenido</a>
       {/*
         Marca de agua del logo de la empresa (`Company.logoUrl` — el mismo que
         sube la empresa en Configuración; el propio texto de ayuda de esa
@@ -251,7 +247,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         // ya lo deja detrás de todo lo que viene después.
         <div
           aria-hidden
-          className="pointer-events-none fixed right-8 bottom-8 size-64 bg-contain bg-center bg-no-repeat opacity-[0.025] print:hidden"
+          className="pointer-events-none fixed inset-0 bg-contain bg-center bg-no-repeat opacity-[0.06] print:hidden"
           style={{ backgroundImage: `url(${context.companyLogoUrl})` }}
         />
       )}
@@ -259,7 +255,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <MobileNavBackdrop />
         <MobileNavDrawer>
           {/* Sidebar: única superficie oscura del tema claro, a propósito (acento de marca). */}
-          <aside className="aether-sidebar flex h-full w-full flex-col overflow-hidden bg-sidebar print:hidden">
+          <aside className="flex h-full w-full flex-col overflow-hidden bg-sidebar print:hidden">
             <div className="shrink-0 px-4 pt-5 pb-4">
               <div className="flex items-center gap-2.5">
                 {context.companyLogoUrl ? (
@@ -270,9 +266,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
                     className="size-9 shrink-0 rounded-[10px] object-contain"
                   />
                 ) : (
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-[#d7e9b4]/20 bg-[#d7e9b4]/10">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="/branding/logo-on-dark.png" alt="" className="size-7 object-contain" />
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-white/10 text-sm font-bold text-white">
+                    {context.companyName.slice(0, 1).toUpperCase()}
                   </div>
                 )}
                 <div className="min-w-0">
@@ -280,7 +275,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
                     {context.companyLogoUrl ? context.companyName : 'Aether ERP'}
                   </h3>
                   <p className="truncate text-xs text-sidebar-foreground">
-                    {context.companyLogoUrl ? 'Impulsado por Aether' : context.companyName}
+                    {context.companyLogoUrl ? 'Panel de gestión' : context.companyName}
                   </p>
                 </div>
               </div>
@@ -317,11 +312,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </MobileNavDrawer>
 
         <div className="flex min-h-screen flex-col lg:pl-[260px]">
-          <header className="sticky top-0 z-10 flex h-[72px] shrink-0 items-center gap-3 border-b border-border bg-background/95 px-4 backdrop-blur-md print:hidden lg:px-8">
+          <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-3 border-b border-border bg-card/85 px-4 backdrop-blur-md print:hidden lg:px-8">
             <MobileNavToggle />
-            <WorkspaceBreadcrumb groups={groups} />
-            <div className="flex-1" />
             <CommandMenu permissions={context.permissions} features={features} isSuperAdmin={context.isSuperAdmin} />
+            <div className="flex-1" />
             {allow('messaging:whatsapp_personal') && <WhatsAppWebButton />}
             {allow('messaging:use') && <MessagingBell />}
             <NotificationBell />
@@ -337,12 +331,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
                   context.name.slice(0, 1).toUpperCase()
                 )}
               </span>
-              <span className="hidden max-w-[8rem] truncate text-muted-foreground xl:inline">{context.name}</span>
+              <span className="max-w-[14rem] truncate text-muted-foreground">{context.name}</span>
             </Link>
           </header>
 
-          <main id="workspace-main" tabIndex={-1} className="min-w-0 flex-1 outline-none print:p-0">
-            <div className="mx-auto max-w-[1600px] px-4 py-6 pb-28 sm:px-6 lg:p-8 lg:pb-28">{children}</div>
+          <main className="flex-1 print:p-0">
+            <div className="mx-auto max-w-[1440px] p-6 lg:p-8">{children}</div>
           </main>
         </div>
       </MobileNavProvider>
@@ -358,6 +352,5 @@ export default async function DashboardLayout({ children }: { children: React.Re
       {features.hasCrm && allow('agents:view') && <AiCopilotDrawer />}
       <ManualAssistantWidget />
     </div>
-    </WorkspaceTheme>
   );
 }

@@ -11,7 +11,6 @@
  */
 
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { useState } from 'react';
 import { ChartCard, ChartLegendItem, ChartTooltip } from '@/components/ui/ChartCard';
 import { EmptyState } from '@/components/ui/EmptyState';
 
@@ -54,33 +53,23 @@ interface DashboardChartsProps {
 }
 
 export function DashboardCharts({ monthlyBuckets, mixData, currentMonthDocCount }: DashboardChartsProps) {
-  const [months, setMonths] = useState<6 | 12>(12);
-  const visibleBuckets = monthlyBuckets.slice(-months);
-  const hasActivity = visibleBuckets.some((bucket) => bucket.netSales !== 0 || bucket.costOfSales !== 0);
   return (
     <section className="grid grid-cols-12 gap-5">
       <div className="col-span-12 lg:col-span-8">
         <ChartCard
-          title="El ritmo de tu negocio"
-          subtitle={`Ventas netas y costo PMP · últimos ${months} meses`}
-          action={
-            <div className="flex shrink-0 gap-1 rounded-full bg-muted p-1" aria-label="Período del gráfico">
-              {([6, 12] as const).map((period) => (
-                <button key={period} type="button" aria-pressed={months === period} onClick={() => setMonths(period)} className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${months === period ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>{period}m</button>
-              ))}
-            </div>
-          }
+          title="Ventas vs costo PMP"
+          subtitle="Últimos 12 meses"
           height={280}
           legend={
             <>
               <ChartLegendItem color="var(--primary)" label="Ventas netas" />
-              <ChartLegendItem color="var(--chart-2)" label="Costo PMP" />
+              <ChartLegendItem color="#E4E7EC" label="Costo PMP" />
             </>
           }
         >
-          {hasActivity ? <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={visibleBuckets} barGap={4} accessibilityLayer>
-              <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 5" />
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={monthlyBuckets} barGap={4}>
+              <CartesianGrid vertical={false} stroke="#EAECF0" strokeDasharray="4 4" />
               <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }} />
               <YAxis
                 axisLine={false}
@@ -91,9 +80,9 @@ export function DashboardCharts({ monthlyBuckets, mixData, currentMonthDocCount 
               />
               <Tooltip content={ChartTooltip} cursor={{ fill: 'var(--muted)' }} />
               <Bar dataKey="netSales" name="Ventas netas" fill="var(--primary)" radius={[6, 6, 0, 0]} maxBarSize={24} />
-              <Bar dataKey="costOfSales" name="Costo PMP" fill="var(--chart-2)" radius={[6, 6, 0, 0]} maxBarSize={24} />
+              <Bar dataKey="costOfSales" name="Costo PMP" fill="#E4E7EC" radius={[6, 6, 0, 0]} maxBarSize={24} />
             </BarChart>
-          </ResponsiveContainer> : <EmptyState title="Aún no hay actividad en este período" description="Las ventas emitidas y sus costos aparecerán aquí." className="h-full" />}
+          </ResponsiveContainer>
         </ChartCard>
       </div>
 
