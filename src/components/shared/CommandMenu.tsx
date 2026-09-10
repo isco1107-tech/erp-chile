@@ -387,12 +387,13 @@ export default function CommandMenu({ permissions, features, isSuperAdmin }: Com
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex h-10 w-full max-w-[360px] items-center gap-2 rounded-[10px] border-none bg-muted px-3 text-sm text-muted-foreground transition-colors duration-150 hover:bg-muted/80"
+        aria-label="Buscar módulos, clientes, productos o acciones"
+        className="flex h-10 min-w-10 items-center gap-2 rounded-full border border-border bg-card px-3 text-sm text-muted-foreground transition-colors duration-150 hover:bg-muted sm:w-full sm:max-w-[300px]"
       >
         <Search className="size-4 shrink-0" strokeWidth={1.75} />
-        <span className="hidden truncate sm:inline">Buscar clientes, productos, módulos...</span>
+        <span className="hidden truncate sm:inline">¿Qué necesitas encontrar?</span>
         <kbd className="ml-auto hidden shrink-0 rounded-md border border-border bg-card px-1.5 py-0.5 font-mono text-[0.7rem] text-muted-foreground sm:inline-block">
-          ⌘K
+          Ctrl / ⌘ K
         </kbd>
       </button>
 

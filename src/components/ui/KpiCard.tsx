@@ -45,21 +45,21 @@ export function KpiCard({ label, labelExtra, value, icon: Icon, tone = 'accent',
   return (
     <article
       className={cn(
-        'group rounded-lg border border-border bg-card p-5 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-hover',
+        'aether-kpi group h-full min-w-0 rounded-lg border border-border bg-card p-5 shadow-card transition-shadow duration-200 hover:shadow-hover',
         className
       )}
     >
       <div className="flex items-start justify-between gap-3">
-        <p className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
+        <p className="flex items-center gap-1.5 text-[13px] font-medium text-text-secondary">
           {label}
           {labelExtra}
         </p>
-        <span className={cn('flex size-10 shrink-0 items-center justify-center rounded-md', TONE_SOFT_BG[tone])}>
-          <Icon className={cn('size-5', TONE_TEXT[tone])} strokeWidth={1.75} />
+        <span className={cn('flex size-8 shrink-0 items-center justify-center rounded-full', TONE_SOFT_BG[tone])}>
+          <Icon className={cn('size-4', TONE_TEXT[tone])} strokeWidth={1.75} />
         </span>
       </div>
 
-      <p className="mt-3 text-3xl font-bold tracking-[-0.02em] tabular-nums text-foreground">{value}</p>
+      <p className="mt-5 break-words text-[clamp(1.35rem,2.1vw,2rem)] leading-tight font-semibold tracking-[-0.045em] tabular-nums text-foreground">{value}</p>
 
       {trend && (
         <div className="mt-4 flex items-center gap-2">

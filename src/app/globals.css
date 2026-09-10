@@ -127,83 +127,174 @@ select option {
   --sidebar-ring: #22d3ee;
 }
 
-/*
- * Tema claro tipo dashboard SaaS moderno: fondo gris muy claro, tarjetas
- * blancas, sombras suaves, acento emerald. A propósito NO vive en `:root`
- * (eso rompía login/POS/el resto de la app, que comparten las mismas
- * utilidades `bg-background`/`bg-card` de shadcn — un cambio en `:root` es
- * global e ineludible). Vive en esta clase de scope, aplicada solo al div
- * raíz de `src/app/(dashboard)/layout.tsx` — así el AppShell y el Dashboard
- * se ven en este tema claro, y todo lo demás (login, POS, el resto de los
- * módulos hasta que se apruebe replicar el patrón) sigue viendo exactamente
- * los valores de `:root` de arriba, sin cambios.
- */
+/* Tema del espacio de trabajo y autenticación; admite la paleta de cada empresa. */
 .theme-saas-light {
-  --background: #f6f7f9;
-  --foreground: #101828;
+  --background: #f5f4ef;
+  --foreground: #233b34;
   --card: #ffffff;
-  --card-foreground: #101828;
+  --card-foreground: #233b34;
   --popover: #ffffff;
-  --popover-foreground: #101828;
-  --primary: #10b981;
+  --popover-foreground: #233b34;
+  --primary: #326553;
   --primary-foreground: #ffffff;
-  --secondary: #f2f4f7;
-  --secondary-foreground: #101828;
-  --muted: #f2f4f7;
-  --muted-foreground: #667085;
-  --accent: #ecfdf5;
-  --accent-foreground: #059669;
-  --destructive: #f04438;
-  --border: #eaecf0;
-  --input: #eaecf0;
-  --ring: #10b981;
-  --chart-1: #10b981;
-  --chart-2: #6366f1;
-  --chart-3: #f59e0b;
-  --chart-4: #ec4899;
-  --chart-5: #06b6d4;
-  --chart-6: #8b5cf6;
-  --radius: 1rem;
+  --secondary: #eeeee7;
+  --secondary-foreground: #233b34;
+  --muted: #eeeee7;
+  --muted-foreground: #66736c;
+  --accent: #edf2e5;
+  --accent-foreground: #32604b;
+  --destructive: #be4239;
+  --border: #e0e3d9;
+  --input: #d6dcd2;
+  --ring: #326553;
+  --chart-1: #326553;
+  --chart-2: #9cae84;
+  --chart-3: #c29451;
+  --chart-4: #97776b;
+  --chart-5: #5c8998;
+  --chart-6: #867899;
+  --radius: 1.125rem;
   /* Override directo en vez de la fórmula compartida de `@theme inline`
      (calc(var(--radius) * 0.6/0.8), pensada para el radio del tema oscuro):
      así este scope da exactamente 8px/12px como pide el brief, sin tocar esa
      fórmula compartida con el resto de la app. */
   --radius-sm: 0.5rem;
   --radius-md: 0.75rem;
-  --sidebar: #0b0f14;
-  --sidebar-foreground: #98a2b3;
-  --sidebar-primary: #10b981;
-  --sidebar-primary-foreground: #ffffff;
+  --sidebar: #192e28;
+  --sidebar-foreground: #adbbb2;
+  --sidebar-primary: #d7e9b4;
+  --sidebar-primary-foreground: #233b34;
   --sidebar-accent: rgb(255 255 255 / 0.06);
   --sidebar-accent-foreground: #ffffff;
   --sidebar-border: rgb(255 255 255 / 0.08);
-  --sidebar-ring: #10b981;
+  --sidebar-ring: #d7e9b4;
 
   /* Tokens del brief sin variable shadcn equivalente 1:1. Solo existen (y solo
      se usan) dentro de este scope — ver nota en `@theme inline` de arriba. */
-  --text-secondary: #475467;
-  --accent-soft: #ecfdf5;
-  --accent-hover: #059669;
-  --success: #12b76a;
-  --success-soft: #ecfdf3;
-  --warning: #f79009;
-  --warning-soft: #fffaeb;
-  --danger: #f04438;
-  --danger-soft: #fef3f2;
-  --info: #6366f1;
-  --info-soft: #eef2ff;
+  --text-secondary: #4c6056;
+  --accent-soft: #edf2e5;
+  --accent-hover: #254e3e;
+  --success: #27704a;
+  --success-soft: #edf5ed;
+  --warning: #94601c;
+  --warning-soft: #fbf3e3;
+  --danger: #be4239;
+  --danger-soft: #fbefeb;
+  --info: #436b8b;
+  --info-soft: #edf3f8;
 
   /* El div raíz del AppShell pinta un fondo opaco encima del gradiente HUD del
      <body> (que sigue existiendo para el resto de la app) — sin esto el
      rediseño se vería sobre el fondo oscuro del body en vez del gris claro. */
   background-color: var(--background);
   color: var(--foreground);
-  min-height: 100%;
+  min-height: 100vh;
 }
 
 .theme-saas-light ::selection {
-  background: rgb(16 185 129 / 0.18);
-  color: #065f46;
+  background: #d7e9b4;
+  color: #233b34;
+}
+
+/* Aether: superficies de papel, tinta verde y órbitas como firma visual.
+   Las variables inline de cada empresa mantienen prioridad sobre la paleta. */
+.aether-sidebar {
+  background-image: radial-gradient(ellipse at 0% 0%, rgb(215 233 180 / 0.07), transparent 55%);
+}
+
+.aether-overview {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 245px;
+  gap: 2rem;
+  overflow: hidden;
+  padding: 2rem;
+  border-radius: 1.5rem;
+  background: #203a31;
+  color: #f5f6ee;
+}
+
+.aether-overview-status {
+  align-self: end;
+  padding: 1.25rem;
+  border: 1px solid rgb(215 233 180 / 0.18);
+  border-radius: 1rem;
+  background: rgb(21 43 35 / 0.82);
+  backdrop-filter: blur(8px);
+}
+
+.aether-orbits {
+  position: absolute;
+  width: 480px;
+  height: 480px;
+  right: -20px;
+  top: -160px;
+  border: 1px solid rgb(215 233 180 / 0.14);
+  border-radius: 50%;
+  pointer-events: none;
+  transform: rotate(-25deg);
+}
+.aether-orbits i {
+  position: absolute;
+  inset: 45px;
+  border: 1px solid rgb(215 233 180 / 0.2);
+  border-radius: 50%;
+}
+.aether-orbits i:nth-child(2) { inset: 95px; }
+.aether-orbits i:nth-child(3) { inset: 145px; background: rgb(215 233 180 / 0.04); }
+.aether-orbits span {
+  position: absolute;
+  top: 88px;
+  left: 53px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #d7e9b4;
+  box-shadow: 0 0 0 8px rgb(215 233 180 / 0.08);
+}
+
+.aether-section-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.13em;
+}
+.aether-section-label::after { content: ''; height: 1px; flex: 1; background: var(--border); }
+.aether-kpi { box-shadow: 0 2px 4px rgb(35 59 52 / 0.025); }
+.theme-saas-light :where(a, button, input, select, textarea):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+.aether-sidebar :where(a, button):focus-visible { outline-color: var(--sidebar-ring); }
+.aether-overview a:focus-visible { outline-color: #d7e9b4; }
+.aether-skip-link {
+  position: fixed;
+  top: -100px;
+  left: 1rem;
+  z-index: 100;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--card);
+  color: var(--foreground);
+}
+.aether-skip-link:focus { top: 1rem; }
+
+@media (max-width: 767px) {
+  .aether-overview { grid-template-columns: minmax(0, 1fr); padding: 1.5rem; gap: 1.5rem; }
+  .aether-overview-status { padding: 1rem; }
+  .aether-orbits { right: -240px; opacity: 0.6; }
+}
+
+@media print {
+  .aether-overview { background: white; color: #233b34; border: 1px solid #d6dcd2; }
+  .aether-overview :is(p, h2, span, a) { color: #233b34; }
+  .aether-overview-status { background: white; }
+  .aether-orbits, .aether-skip-link { display: none; }
 }
 
 .dark {

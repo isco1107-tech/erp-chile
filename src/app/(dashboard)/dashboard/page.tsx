@@ -33,7 +33,7 @@ import { KpiCard, type TrendDirection } from '@/components/ui/KpiCard';
 import { InfoTooltip } from '@/components/ui/InfoTooltip';
 import { TAX_GLOSSARY } from '@/lib/chile/glossary';
 import { ProgressRow } from '@/components/ui/ProgressRow';
-import { ActionCard } from '@/components/ui/ActionCard';
+import { OperationsOverview } from '@/components/dashboard/OperationsOverview';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { DashboardCharts } from '@/components/dashboard/DashboardCharts';
 import { RecentSalesTable } from '@/components/dashboard/RecentSalesTable';
@@ -553,32 +553,36 @@ export default async function DashboardPage() {
   if (expiringContracts.length > 0) {
     todayAlerts.push({ key: 'contracts', count: expiringContracts.length, label: `contrato${expiringContracts.length === 1 ? '' : 's'} de imagen por vencer`, href: '/dashboard/candidates', icon: BadgeAlert, tone: 'warning' });
   }
+  if (overdueInstallmentsCount > 0) {
+    todayAlerts.push({ key: 'installments', count: overdueInstallmentsCount, label: `cuota${overdueInstallmentsCount === 1 ? '' : 's'} vencida${overdueInstallmentsCount === 1 ? '' : 's'}`, href: '/dashboard/payment-plans', icon: Wallet, tone: 'warning' });
+  }
+  if (overduePromissoryCount > 0) {
+    todayAlerts.push({ key: 'promissory', count: overduePromissoryCount, label: `pagaré${overduePromissoryCount === 1 ? '' : 's'} vencido${overduePromissoryCount === 1 ? '' : 's'}`, href: '/dashboard/promissory-notes', icon: FileWarning, tone: 'warning' });
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4 duration-500 animate-in fade-in slide-in-from-top-2">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">
-            {greeting()}, {capitalizedName}
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {context.companyName} · Plan {context.planName}
-            {context.companyStatus === 'TRIAL' ? ' · período de prueba' : ''}
-          </p>
-        </div>
-      </div>
+    <div className="aether-dashboard space-y-7">
+      <OperationsOverview
+        greeting={`${greeting()}, ${capitalizedName}`}
+        companyName={context.companyName}
+        date={now.toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Santiago' })}
+        moduleCount={contracted.length}
+        alertCount={todayAlerts.length}
+        action={suggestedAction ? { href: suggestedAction.href, label: suggestedAction.actionLabel } : undefined}
+      />
 
       {/* Alertas de hoy: mismo dato que el correo diario, en vivo — ver
           `todayAlerts` más arriba. Ausente por completo si no hay nada que
           avisar, para no acostumbrar a la gente a ignorar la fila. */}
       {todayAlerts.length > 0 && (
         <div
-          className="flex flex-wrap items-center gap-2.5 rounded-lg border border-warning/25 bg-warning-soft/40 p-3 pl-4 duration-500 animate-in fade-in slide-in-from-top-2"
+          id="operational-priorities"
+          className="scroll-mt-24 flex flex-wrap items-center gap-3 rounded-lg border border-warning/25 bg-warning-soft/40 p-4 duration-500 animate-in fade-in slide-in-from-top-2"
           style={{ animationDelay: '75ms', animationFillMode: 'backwards' }}
         >
           <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-foreground">
             <AlertTriangle className="size-3.5 text-warning" strokeWidth={2} />
-            Hoy
+            Por resolver
           </span>
           <div className="flex flex-1 flex-wrap gap-2">
             {todayAlerts.map((alert) => (
@@ -616,9 +620,9 @@ export default async function DashboardPage() {
           {kpiGroups.map((group) => (
             <section key={group.label} className="space-y-2.5">
               {showKpiGroupHeaders && (
-                <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group.label}</h2>
+                <h2 className="aether-section-label">{group.label}</h2>
               )}
-              <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 {group.items.map((kpi) => (
                   <div
                     key={kpi.key}
@@ -716,23 +720,13 @@ export default async function DashboardPage() {
         </section>
       )}
 
-      {/* Acción destacada + módulos contratados */}
-      <section className="grid grid-cols-12 gap-5">
-        {suggestedAction && (
-          <div className="col-span-12 md:col-span-4">
-            <ActionCard
-              title={suggestedAction.title}
-              description={suggestedAction.description}
-              actionLabel={suggestedAction.actionLabel}
-              href={suggestedAction.href}
-              icon={suggestedAction.icon}
-            />
-          </div>
-        )}
-
-        <div className={suggestedAction ? 'col-span-12 md:col-span-8' : 'col-span-12'}>
-          <div className="rounded-lg border border-border bg-card p-5 shadow-card">
-            <h3 className="text-base font-semibold text-foreground">Módulos contratados</h3>
+      <section>
+        <div>
+          <div className="rounded-lg border border-dashed border-border bg-card/40 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold text-foreground">Tu ecosistema Aether</h3>
+              <p className="text-xs text-muted-foreground">Plan {context.planName}{context.companyStatus === 'TRIAL' ? ' · período de prueba' : ''}</p>
+            </div>
             {contracted.length > 0 ? (
               <div className="mt-3 flex flex-wrap gap-2">
                 {contracted.map((mod) => (

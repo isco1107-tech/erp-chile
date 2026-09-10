@@ -4,6 +4,7 @@ import * as React from 'react';
 import { Select as SelectPrimitive } from '@base-ui/react/select';
 import { Check, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PortalTheme } from '@/components/shared/WorkspaceTheme';
 
 /**
  * Select estilizado sobre `@base-ui/react/select` (mismo paquete que ya usa
@@ -43,6 +44,7 @@ function SelectValue(props: React.ComponentProps<typeof SelectPrimitive.Value>) 
 function SelectContent({ className, children, ...props }: React.ComponentProps<typeof SelectPrimitive.Popup>) {
   return (
     <SelectPrimitive.Portal>
+      <PortalTheme>
       <SelectPrimitive.Positioner className="z-50" sideOffset={4}>
         <SelectPrimitive.Popup
           data-slot="select-content"
@@ -55,6 +57,7 @@ function SelectContent({ className, children, ...props }: React.ComponentProps<t
           {children}
         </SelectPrimitive.Popup>
       </SelectPrimitive.Positioner>
+      </PortalTheme>
     </SelectPrimitive.Portal>
   );
 }

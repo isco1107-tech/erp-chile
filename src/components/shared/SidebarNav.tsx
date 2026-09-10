@@ -114,58 +114,58 @@ export function SidebarNav({ groups }: { groups: SidebarNavGroup[] }) {
   const pathname = usePathname();
   const isLinkActive = (link: SidebarLinkItem) =>
     link.exact ? pathname === link.href : pathname === link.href || pathname.startsWith(`${link.href}/`);
+  const activeHref = groups.flatMap((group) => group.links).filter(isLinkActive)
+    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
 
   const [manualState, setManualState] = useState<Record<string, boolean>>({});
 
   return (
-    <nav className="hud-scroll -mr-2 flex-1 space-y-5 overflow-y-auto pr-2">
-      {groups.map((group) => {
+    <nav aria-label="Navegación principal" className="hud-scroll min-h-0 flex-1 space-y-4 overflow-y-auto px-3 pb-5">
+      {groups.map((group, groupIndex) => {
         const groupHasActiveLink = group.links.some(isLinkActive);
-        const expanded = manualState[group.label] ?? (!group.collapsedByDefault || groupHasActiveLink);
+        const stateKey = `${pathname}:${group.label}`;
+        const expanded = manualState[stateKey] ?? (!group.collapsedByDefault || groupHasActiveLink);
 
         return (
           <div key={group.label}>
-            {group.collapsedByDefault ? (
               <button
                 type="button"
-                onClick={() => setManualState((prev) => ({ ...prev, [group.label]: !expanded }))}
-                className="flex w-full items-center justify-between px-3 pb-1 text-[11px] font-medium tracking-[0.06em] text-sidebar-foreground/60 uppercase"
+                aria-expanded={expanded}
+                aria-controls={`nav-group-${groupIndex}`}
+                onClick={() => setManualState((prev) => ({ ...prev, [stateKey]: !expanded }))}
+                className="flex min-h-8 w-full items-center justify-between gap-2 px-3 pb-1 text-left text-[10px] font-semibold tracking-[0.13em] text-sidebar-foreground uppercase transition-colors hover:text-white"
               >
                 {group.label}
                 <ChevronDown className={cn('size-3.5 transition-transform', expanded ? 'rotate-180' : '')} />
               </button>
-            ) : (
-              <p className="px-3 pb-1 text-[11px] font-medium tracking-[0.06em] text-sidebar-foreground/60 uppercase">
-                {group.label}
-              </p>
-            )}
-            {expanded && (
-              <div className="space-y-0.5">
+              <div id={`nav-group-${groupIndex}`} hidden={!expanded} className="space-y-1">
                 {group.links.map((link) => {
                   const Icon = ICONS[link.icon];
-                  const active = isLinkActive(link);
+                  const active = link.href === activeHref;
 
                   return (
                     <Link
                       key={link.href}
                       href={link.href}
+                      aria-current={active ? 'page' : undefined}
+                      title={link.label}
                       className={cn(
-                        'flex h-10 items-center gap-3 rounded-[10px] border-l-[3px] pr-3 pl-[9px] text-sm transition-colors duration-150',
+                        'flex min-h-10 items-center gap-3 rounded-xl px-3 py-2 text-[13px] transition-colors duration-150',
                         active
-                          ? 'border-l-sidebar-primary bg-sidebar-accent text-white'
-                          : 'border-l-transparent text-sidebar-foreground hover:bg-white/[0.04] hover:text-white'
+                          ? 'bg-sidebar-primary font-semibold text-sidebar-primary-foreground shadow-sm'
+                          : 'text-sidebar-foreground hover:bg-white/[0.06] hover:text-white'
                       )}
                     >
                       <Icon
-                        className={cn('size-[18px] shrink-0', active ? 'text-sidebar-primary' : 'text-sidebar-foreground')}
+                        className="size-[18px] shrink-0"
+                        aria-hidden
                         strokeWidth={1.75}
                       />
-                      <span className="truncate">{link.label}</span>
+                      <span className="min-w-0">{link.label}</span>
                     </Link>
                   );
                 })}
               </div>
-            )}
           </div>
         );
       })}
