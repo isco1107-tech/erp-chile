@@ -4,11 +4,17 @@ import { MessageCircle } from 'lucide-react';
 import { buttonVariants } from '@/components/ui/button';
 import { buildWhatsappLink } from '@/lib/chile/phone';
 
-/** Botón "Enviar WhatsApp" para la ficha de candidata — abre wa.me con el teléfono guardado. */
-export default function WhatsAppButton({ phone, candidateName }: { phone: string | null; candidateName: string }) {
+/**
+ * Botón "Enviar WhatsApp" reutilizable para cualquier ficha (candidata,
+ * contacto cliente/proveedor, etc.) — abre `wa.me` en una pestaña nueva con
+ * el teléfono guardado, precargando un saludo. No usa la app de WhatsApp
+ * Business ni ninguna API: es el mismo link "click to chat" público de
+ * WhatsApp, así que basta con que el destinatario tenga WhatsApp instalado.
+ */
+export default function WhatsAppButton({ phone, name }: { phone: string | null; name: string }) {
   if (!phone) return null;
 
-  const result = buildWhatsappLink(phone, `Hola ${candidateName}, te escribo desde el equipo.`);
+  const result = buildWhatsappLink(phone, `Hola ${name}, te escribo desde el equipo.`);
 
   if (!result.ok) {
     return (
