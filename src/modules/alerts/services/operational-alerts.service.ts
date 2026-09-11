@@ -9,6 +9,8 @@ import {
   type OperationalAlertMismatchedPurchaseRow,
 } from '@/lib/email/templates';
 import { createAuditLog } from '@/lib/auth/audit';
+import { getLowFolioWarnings } from '@/modules/dte/services/caf.service';
+import { emitWorkflowEvent } from '@/lib/workflows/engine';
 
 const OPERATIONAL_STATUSES = ['ACTIVE', 'TRIAL'] as const;
 
@@ -197,12 +199,12 @@ export async function runOperationalAlertsCron(): Promise<{ processedCompanies: 
   const companies = await prisma.company.findMany({
     where: {
       status: { in: [...OPERATIONAL_STATUSES] },
-      features: { OR: [{ hasInventory: true }, { hasPurchases: true }, { hasTreasury: true }, { hasCandidates: true }] },
+      features: { OR: [{ hasInventory: true }, { hasPurchases: true }, { hasTreasury: true }, { hasCandidates: true }, { hasDteBilling: true }] },
     },
     select: {
       id: true,
       businessName: true,
-      features: { select: { hasInventory: true, hasPurchases: true, hasTreasury: true, hasCandidates: true } },
+      features: { select: { hasInventory: true, hasPurchases: true, hasTreasury: true, hasCandidates: true, hasDteBilling: true } },
     },
   });
 
@@ -212,15 +214,42 @@ export async function runOperationalAlertsCron(): Promise<{ processedCompanies: 
 
   for (const company of companies) {
     try {
-      const [lowStock, pendingApprovals, overdueReceivables, expiringContracts, mismatchedPurchases] = await Promise.all([
+      const [lowStock, pendingApprovals, overdueReceivables, expiringContracts, mismatchedPurchases, lowFolios] = await Promise.all([
         company.features?.hasInventory ? findLowStockProducts(company.id) : Promise.resolve([]),
         company.features?.hasPurchases ? findPendingPurchaseApprovals(company.id) : Promise.resolve([]),
         company.features?.hasTreasury ? findOverdueReceivables(company.id) : Promise.resolve([]),
         company.features?.hasCandidates ? findExpiringCandidateContracts(company.id) : Promise.resolve([]),
         company.features?.hasPurchases ? findMismatchedPurchases(company.id) : Promise.resolve([]),
+        company.features?.hasDteBilling ? getLowFolioWarnings(company.id) : Promise.resolve([]),
       ]);
 
       results.push({ companyId: company.id, companyName: company.businessName, lowStock, pendingApprovals, overdueReceivables, expiringContracts, mismatchedPurchases });
+
+      // Automatizaciones personalizadas (Configuración → Automatizaciones):
+      // estas 3 señales ya se calculaban para el correo diario de arriba; acá
+      // solo se reutilizan para que una empresa pueda armar SU propia regla
+      // sobre el mismo evento, sin esperar a que este cron le mande un correo
+      // fijo. Fire-and-forget: el motor nunca lanza, y esta función ya corre
+      // fuera de cualquier transacción de negocio.
+      for (const product of lowStock) {
+        void emitWorkflowEvent(company.id, 'STOCK_BELOW_MINIMUM', {
+          sku: product.sku,
+          productName: product.name,
+          totalStock: product.totalStock,
+          minStock: product.minStock,
+        });
+      }
+      for (const receivable of overdueReceivables) {
+        void emitWorkflowEvent(company.id, 'RECEIVABLE_OVERDUE', {
+          folio: receivable.folio,
+          contactName: receivable.contactName,
+          pendingAmount: receivable.pendingAmount,
+          daysOverdue: receivable.daysOverdue,
+        });
+      }
+      for (const folio of lowFolios) {
+        void emitWorkflowEvent(company.id, 'DTE_FOLIOS_LOW', { dteType: folio.dteType, remaining: folio.remaining });
+      }
 
       const totalIssues = lowStock.length + pendingApprovals.length + overdueReceivables.length + expiringContracts.length + mismatchedPurchases.length;
       let recipientCount = 0;

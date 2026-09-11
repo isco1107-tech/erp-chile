@@ -11,6 +11,13 @@ import { Button } from '@/components/ui/button';
  * página — sin esto, cualquier excepción no controlada en cualquiera de las
  * rutas del dashboard rompía a la pantalla de error genérica de Next.js,
  * fuera de la experiencia de la app.
+ *
+ * El reporte al servicio de errores NO se hace acá: el servidor ya capturó
+ * esta excepción en `src/instrumentation.ts` (`onRequestError`) con el stack
+ * real, antes de que React la enviara al cliente. Lo que sí aporta esta
+ * pantalla es mostrar el `digest`, que es el único identificador compartido
+ * entre lo que ve el usuario y el evento registrado del lado servidor: sin
+ * él, "me salió un error" es imposible de cruzar con un stack concreto.
  */
 export default function DashboardError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
@@ -23,11 +30,18 @@ export default function DashboardError({ error, reset }: { error: Error & { dige
       <EmptyState
         icon={<AlertTriangle className="size-16 text-destructive/70" strokeWidth={1.5} />}
         title="Algo salió mal"
-        description="Ocurrió un error inesperado al cargar esta pantalla. Puedes intentar de nuevo; si el problema persiste, avisa al equipo técnico."
+        description="Ocurrió un error inesperado al cargar esta pantalla. Puedes intentar de nuevo; si el problema persiste, avisa al equipo técnico con el código de abajo."
         action={
-          <Button type="button" size="sm" onClick={reset}>
-            Intentar de nuevo
-          </Button>
+          <div className="flex flex-col items-center gap-3">
+            <Button type="button" size="sm" onClick={reset}>
+              Intentar de nuevo
+            </Button>
+            {error.digest ? (
+              <p className="text-xs text-muted-foreground">
+                Código de error: <code className="font-mono">{error.digest}</code>
+              </p>
+            ) : null}
+          </div>
         }
       />
     </div>

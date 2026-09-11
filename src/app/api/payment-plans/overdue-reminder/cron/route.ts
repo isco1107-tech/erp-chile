@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { runOverdueInstallmentsReminderCron } from '@/modules/payment-plans/services/overdue-reminder-cron.service';
 import { isCronAuthorized } from '@/lib/security/cron-auth';
+import { captureExceptionAndFlush } from '@/lib/observability';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,7 +20,7 @@ export async function GET(req: Request) {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Error in payment plans overdue reminder cron:', error);
+    await captureExceptionAndFlush(error, { module: 'cron:overdue-installments' });
     return NextResponse.json({ success: false, error: 'Error al ejecutar cron de cuotas vencidas' }, { status: 500 });
   }
 }

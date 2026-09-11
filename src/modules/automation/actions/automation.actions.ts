@@ -10,7 +10,7 @@ export type ActionResult<T> =
 
 export async function getScheduledAutomationsHealthAction(): Promise<ActionResult<ScheduledAutomationRow[]>> {
   try {
-    const session = await requireAuthWithPermission('settings:company');
+    const session = await requireAuthWithPermission('automation:manage');
     const data = await automationHealthService.getScheduledAutomationsHealth(session.companyId);
     return { success: true, data };
   } catch (error) {

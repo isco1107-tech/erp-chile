@@ -3,6 +3,7 @@ import { buttonVariants } from '@/components/ui/button';
 import CompanyProfileForm from '@/components/settings/CompanyProfileForm';
 import IpAllowlistForm from '@/components/settings/IpAllowlistForm';
 import N8nWebhookForm from '@/components/settings/N8nWebhookForm';
+import CompanyBackupCard from '@/components/settings/CompanyBackupCard';
 import { getCompanyProfileAction, getCompanySettingsAction } from '@/lib/actions/company';
 import { getN8nWebhookSecretAction } from '@/modules/webhooks/actions/n8n-secret.actions';
 import { can, getAuthContext } from '@/lib/auth/guards';
@@ -36,6 +37,7 @@ export default async function CompanySettingsPage() {
           <CompanyProfileForm company={result.data} settings={settingsResult.data} />
           <IpAllowlistForm settings={settingsResult.data} />
           <N8nWebhookForm initialSecret={webhookSecretResult?.success ? webhookSecretResult.data : null} />
+          {can(context, 'company:export') && <CompanyBackupCard />}
         </>
       )}
     </div>

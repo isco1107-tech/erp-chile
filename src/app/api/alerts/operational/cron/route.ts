@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { runOperationalAlertsCron } from '@/modules/alerts/services/operational-alerts.service';
 import { isCronAuthorized } from '@/lib/security/cron-auth';
+import { captureExceptionAndFlush } from '@/lib/observability';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,7 +31,7 @@ export async function GET(req: Request) {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Error in operational alerts cron:', error);
+    await captureExceptionAndFlush(error, { module: 'cron:operational-alerts' });
     return NextResponse.json({ success: false, error: 'Error al ejecutar cron de alertas operativas' }, { status: 500 });
   }
 }

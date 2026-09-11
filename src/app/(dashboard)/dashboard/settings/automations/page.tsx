@@ -5,6 +5,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { can, getAuthContext } from '@/lib/auth/guards';
 import { getScheduledAutomationsHealthAction } from '@/modules/automation/actions/automation.actions';
 import type { AutomationRunStatus } from '@/modules/automation/services/automation-health.service';
+import WorkflowRulesClient from '@/components/automation/WorkflowRulesClient';
 
 export const metadata = { title: 'Automatizaciones' };
 
@@ -32,7 +33,7 @@ const EVENT_NOTIFICATIONS = [
 
 export default async function AutomationsSettingsPage() {
   const context = await getAuthContext();
-  const allowed = can(context, 'settings:company');
+  const allowed = can(context, 'automation:manage');
   const result = allowed ? await getScheduledAutomationsHealthAction() : null;
 
   return (
@@ -54,6 +55,8 @@ export default async function AutomationsSettingsPage() {
 
       {allowed && result?.success && (
         <>
+          <WorkflowRulesClient />
+
           <div className="rounded-xl border border-border">
             <div className="border-b border-border p-4">
               <h2 className="font-semibold">Tareas programadas</h2>

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { runMonthlyClosingCron } from '@/modules/accounting/services/monthly-closing-cron.service';
 import { isCronAuthorized } from '@/lib/security/cron-auth';
+import { captureExceptionAndFlush } from '@/lib/observability';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,7 +26,7 @@ export async function GET(req: Request) {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Error in monthly closing cron:', error);
+    await captureExceptionAndFlush(error, { module: 'cron:monthly-closing' });
     return NextResponse.json({ success: false, error: 'Error al ejecutar cron de cierre mensual' }, { status: 500 });
   }
 }

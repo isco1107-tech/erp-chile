@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { runWeeklyReportCron } from '@/modules/reports/services/weekly-report-cron.service';
 import { isCronAuthorized } from '@/lib/security/cron-auth';
+import { captureExceptionAndFlush } from '@/lib/observability';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +25,7 @@ export async function GET(req: Request) {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Error in weekly report cron:', error);
+    await captureExceptionAndFlush(error, { module: 'cron:weekly-report' });
     return NextResponse.json({ success: false, error: 'Error al ejecutar cron de reporte semanal' }, { status: 500 });
   }
 }

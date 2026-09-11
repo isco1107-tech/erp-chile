@@ -4,6 +4,7 @@ import { Prisma, type PaymentStatus, type TicketSale, type TicketType } from '@p
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { sendEmail, getAppUrl } from '@/lib/email/mailer';
 import { buildTicketConfirmationEmail } from '@/lib/email/templates';
+import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import type { ConfirmTicketPaymentInput, PublicTicketPurchaseInput, TicketTypeCreateInput, TicketTypeUpdateInput } from '../schema';
 
 // ---------------------------------------------------------------------------
@@ -322,6 +323,15 @@ export async function confirmTicketPayment(companyId: string, id: string, data: 
         qrImageUrl: `${getAppUrl()}/api/verify/ticket/${sale.qrCode}/qr`,
       }),
     }).catch((error) => console.error('confirmTicketPayment: fallo al enviar correo con QR:', error));
+
+    void emitWorkflowEvent(companyId, 'TICKET_PURCHASE_CONFIRMED', {
+      saleId: sale.id,
+      buyerName: sale.buyerName,
+      buyerEmail: sale.buyerEmail,
+      ticketTypeName: sale.ticketType.name,
+      quantity: sale.quantity,
+      totalAmount: sale.totalAmount,
+    });
   }
 
   return updated;

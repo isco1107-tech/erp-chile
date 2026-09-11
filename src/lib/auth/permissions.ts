@@ -22,6 +22,12 @@ export const PERMISSIONS = {
   'sales:write': ['OWNER', 'ADMIN', 'SALES'],
   'sales:cancel': ['OWNER', 'ADMIN'],
 
+  // Cargar un CAF habilita un rango de folios autorizados por el SII y trae
+  // consigo la llave privada que timbra los documentos de ese rango. Es una
+  // acción tributaria, no comercial: queda fuera de SALES a propósito, aunque
+  // SALES sí pueda emitir documentos que consuman esos folios.
+  'dte:manage_caf': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
+
   'purchases:read': ['OWNER', 'ADMIN', 'WAREHOUSE', 'ACCOUNTANT'],
   'purchases:write': ['OWNER', 'ADMIN', 'WAREHOUSE'],
   'purchases:cancel': ['OWNER', 'ADMIN'],
@@ -53,6 +59,16 @@ export const PERMISSIONS = {
   'reports:read': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
 
   'settings:company': ['OWNER', 'ADMIN'],
+  // Descargar el respaldo completo de la empresa. Separado de
+  // `settings:company` a propósito: editar la razón social y llevarse TODO el
+  // dato del tenant en un archivo (incluidos RUT y contacto de candidatas) no
+  // son el mismo nivel de riesgo. Mismo criterio que `candidates:sensitive`.
+  'company:export': ['OWNER', 'ADMIN'],
+  // Una regla de automatización puede enviar correos a nombre de la empresa y
+  // llamar webhooks externos con datos del negocio — mismo nivel de riesgo
+  // que administrar el token saliente de n8n, así que mismo criterio de
+  // acceso que `settings:company`.
+  'automation:manage': ['OWNER', 'ADMIN'],
   'settings:users': ['OWNER', 'ADMIN'],
   'audit:read': ['OWNER', 'ADMIN'],
   // La importación masiva crea productos y contactos de golpe: es una operación
@@ -183,6 +199,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'sales:read': 'Ver ventas y documentos emitidos',
   'sales:write': 'Crear ventas y cotizaciones',
   'sales:cancel': 'Anular facturas emitidas',
+  'dte:manage_caf': 'Cargar y administrar folios autorizados del SII (CAF)',
   'purchases:read': 'Ver compras y facturas de proveedor',
   'purchases:write': 'Registrar compras y recepción de mercadería',
   'purchases:cancel': 'Anular compras',
@@ -199,6 +216,8 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'treasury:write': 'Registrar pagos y cobranzas',
   'reports:read': 'Descargar reportes y libro Excel',
   'settings:company': 'Editar datos de la empresa',
+  'company:export': 'Descargar el respaldo completo de la empresa',
+  'automation:manage': 'Crear y administrar reglas de automatización (flujos de trabajo)',
   'settings:users': 'Gestionar equipo y roles',
   'audit:read': 'Ver bitácora de auditoría',
   'import:data': 'Importación masiva: productos, clientes, stock inicial y documentos históricos (Excel o fotos con IA)',
@@ -251,6 +270,8 @@ export const CORE_PERMISSION_GROUP = {
     'contacts:read',
     'contacts:write',
     'settings:company',
+    'company:export',
+    'automation:manage',
     'settings:users',
     'audit:read',
     'import:data',

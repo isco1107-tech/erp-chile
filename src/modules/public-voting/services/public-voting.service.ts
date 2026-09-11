@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { Prisma, type PaymentStatus, type VoteOrder } from '@prisma/client';
 import { sendEmail } from '@/lib/email/mailer';
 import { buildVoteConfirmationEmail } from '@/lib/email/templates';
+import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import { decodeVoteToken, encodeVoteToken } from '../schema';
 import type { ConfirmVotePaymentInput, PublicVotePurchaseInput } from '../schema';
 
@@ -209,6 +210,13 @@ export async function confirmVotePayment(companyId: string, id: string, data: Co
         totalAmount: order.totalAmount,
       }),
     }).catch((error) => console.error('confirmVotePayment: fallo al enviar correo de confirmación:', error));
+
+    void emitWorkflowEvent(companyId, 'VOTE_ORDER_PAID', {
+      orderId: order.id,
+      candidateName: order.candidate.stageName ?? order.candidate.fullName,
+      voteCount: order.voteCount,
+      totalAmount: order.totalAmount,
+    });
   }
 
   return updated;

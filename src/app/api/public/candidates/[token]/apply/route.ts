@@ -16,6 +16,7 @@ import { extractClientIp } from '@/lib/auth/ip-allowlist';
 import { checkRateLimit, CANDIDATE_APPLICATION_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { sendEmail, getAppUrl } from '@/lib/email/mailer';
 import { buildCandidateApplicationConfirmationEmail, buildNewCandidateApplicationNoticeEmail } from '@/lib/email/templates';
+import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import crypto from 'crypto';
 
 /**
@@ -231,6 +232,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       console.error('candidate-application: fallo al encolar correos:', error)
     );
 
+    void emitCandidateRegisteredEvent(candidate, projectExists.companyId);
+
     return NextResponse.json({ success: true, data: { folio } });
   } catch (error) {
     // La candidata NUNCA se creó (la transacción de la DB falló o fue
@@ -275,4 +278,14 @@ async function sendConfirmationEmails(
     dashboardUrl: `${getAppUrl()}/dashboard/candidates`,
   });
   await Promise.all(owners.map((owner) => sendEmail({ to: owner.email, ...notice })));
+}
+
+async function emitCandidateRegisteredEvent(candidate: { id: string; fullName: string; projectId: string }, companyId: string): Promise<void> {
+  const project = await prisma.project.findUnique({ where: { id: candidate.projectId }, select: { name: true } });
+  await emitWorkflowEvent(companyId, 'CANDIDATE_REGISTERED', {
+    candidateId: candidate.id,
+    fullName: candidate.fullName,
+    projectId: candidate.projectId,
+    projectName: project?.name ?? null,
+  });
 }
