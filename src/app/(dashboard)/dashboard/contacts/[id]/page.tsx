@@ -16,6 +16,7 @@ import { PAYMENT_STATUS_LABELS as INSTALLMENT_PAYMENT_STATUS_LABELS } from '@/mo
 import { DTE_TYPE_LABELS } from '@/modules/sales/schema';
 import { formatCurrency } from '@/lib/chile/tax';
 import { formatRut } from '@/lib/chile/rut';
+import WhatsAppButton from '@/components/shared/WhatsAppButton';
 
 export const metadata = { title: 'Ficha de Contacto' };
 
@@ -102,9 +103,12 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
           <h1 className="mt-1 text-2xl font-bold text-foreground">{contact.razonSocial}</h1>
           <p className="text-sm text-muted-foreground">{formatRut(contact.rut)}</p>
         </div>
-        <div className="flex gap-1.5">
-          {contact.isCustomer && <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium">Cliente</span>}
-          {contact.isSupplier && <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium">Proveedor</span>}
+        <div className="flex flex-wrap items-center gap-2">
+          <WhatsAppButton phone={contact.phone} name={contact.razonSocial} />
+          <div className="flex gap-1.5">
+            {contact.isCustomer && <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium">Cliente</span>}
+            {contact.isSupplier && <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium">Proveedor</span>}
+          </div>
         </div>
       </div>
 

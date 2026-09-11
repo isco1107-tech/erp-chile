@@ -21,6 +21,8 @@ import { CompanySwitcher } from '@/components/shared/CompanySwitcher';
 import OnboardingWizard from '@/components/onboarding/OnboardingWizard';
 import AiCopilotDrawer from '@/components/shared/AiCopilotDrawer';
 import ManualAssistantWidget from '@/components/shared/ManualAssistantWidget';
+import ModuleTutorial from '@/components/tutorial/ModuleTutorial';
+import HowToUseButton from '@/components/tutorial/HowToUseButton';
 import { getOnboardingStatus } from '@/lib/services/onboarding.service';
 import { prisma } from '@/lib/prisma';
 
@@ -316,6 +318,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <MobileNavToggle />
             <CommandMenu permissions={context.permissions} features={features} isSuperAdmin={context.isSuperAdmin} />
             <div className="flex-1" />
+            <HowToUseButton />
             {allow('messaging:whatsapp_personal') && <WhatsAppWebButton />}
             {allow('messaging:use') && <MessagingBell />}
             <NotificationBell />
@@ -351,6 +354,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       )}
       {features.hasCrm && allow('agents:view') && <AiCopilotDrawer />}
       <ManualAssistantWidget />
+      <ModuleTutorial userId={context.id} />
     </div>
   );
 }

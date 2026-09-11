@@ -16,7 +16,7 @@ import { buttonVariants } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import type { Tone } from '@/components/ui/tone';
 import DeleteCandidateButton from '@/components/candidates/DeleteCandidateButton';
-import WhatsAppButton from '@/components/candidates/WhatsAppButton';
+import WhatsAppButton from '@/components/shared/WhatsAppButton';
 import AttendanceSection from '@/components/candidates/AttendanceSection';
 import DocumentsSection from '@/components/candidates/DocumentsSection';
 import ContractSignatureSection from '@/components/candidates/ContractSignatureSection';
@@ -122,7 +122,7 @@ export default async function CandidateDetailPage({ params }: { params: Promise<
         <Link href="/dashboard/candidates" className={buttonVariants({ variant: 'outline' })}>← Volver al listado</Link>
         <div className="flex flex-wrap items-center gap-2">
           {canSeeSensitive && (
-            <WhatsAppButton phone={candidate.phone} candidateName={candidate.stageName || candidate.fullName} />
+            <WhatsAppButton phone={candidate.phone} name={candidate.stageName || candidate.fullName} />
           )}
           {canWrite && (
             <>
