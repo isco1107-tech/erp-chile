@@ -182,7 +182,12 @@ const NAV_ITEMS: StaticEntry[] = [
     href: '/dashboard/settings',
     icon: Settings,
     visible: (ctx) =>
-      hasPermission(ctx, 'settings:company') || hasPermission(ctx, 'settings:users') || hasPermission(ctx, 'audit:read'),
+      hasPermission(ctx, 'settings:company') ||
+      hasPermission(ctx, 'settings:users') ||
+      hasPermission(ctx, 'audit:read') ||
+      hasPermission(ctx, 'dte:manage_caf') ||
+      hasPermission(ctx, 'automation:manage') ||
+      hasPermission(ctx, 'import:data'),
   },
   {
     id: 'nav-superadmin',

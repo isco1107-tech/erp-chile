@@ -52,7 +52,17 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const allow = (permission: Parameters<typeof can>[1]) => can(context, permission);
   const { features } = context;
-  const canSeeSettings = allow('settings:company') || allow('settings:users') || allow('audit:read');
+  // Debe cubrir TODO permiso que gatee alguna sección de /dashboard/settings
+  // (ver settings/page.tsx), no solo los 3 "generales" — de lo contrario un
+  // rol al que solo se le otorgó, por ejemplo, `dte:manage_caf` tiene permiso
+  // real para administrar Folios del SII pero nunca ve el link para llegar.
+  const canSeeSettings =
+    allow('settings:company') ||
+    allow('settings:users') ||
+    allow('audit:read') ||
+    allow('dte:manage_caf') ||
+    allow('automation:manage') ||
+    allow('import:data');
   const showInventorySection = features.hasInventory && allow('products:read');
 
   // Mismos módulos y condiciones que antes (no se toca la lógica de acceso),
