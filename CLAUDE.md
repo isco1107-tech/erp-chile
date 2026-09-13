@@ -44,7 +44,7 @@ Este archivo contiene las reglas arquitectónicas, estándares de seguridad y l�
 
 ## 3. Localización Chilena & Reglas Tributarias (SII)
 
-- **Moneda:** CLP en enteros (sin decimales). Formato estándar: `$ 1.250.000`.
+- **Moneda:** CLP en enteros (sin decimales). Formato estándar: `$1.250.000` (sin espacio tras el `$` — así lo produce `formatCurrency` en `src/lib/chile/tax.ts`, usado consistentemente en toda la app).
 - **RUT Chileno:** Validación estricta mediante algoritmo Módulo 11 en `src/lib/chile/rut.ts`. Formato canónico: `12.345.678-K`.
 - **Impuestos (IVA 19%):**
   - IVA General: 19% aplicado sobre líneas afectas. Helpers simples en `src/lib/chile/tax.ts` (`calculateIva`, `calculateTotal`); redondeo con `Math.round` (aritmético estándar, no bancario) de forma consistente en todo el código.

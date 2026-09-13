@@ -5,23 +5,19 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { buttonVariants } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { PaymentStatusBadge, StatusBadge } from '@/components/ui/StatusBadge';
+import type { Tone } from '@/components/ui/tone';
 import { listPromissoryNotesAction } from '@/modules/promissory-notes/actions/promissory-notes.actions';
-import { PROMISSORY_NOTE_STATUS_LABELS, PROMISSORY_NOTE_STATUSES, PAYMENT_STATUS_LABELS } from '@/modules/promissory-notes/schema';
+import { PROMISSORY_NOTE_STATUS_LABELS, PROMISSORY_NOTE_STATUSES } from '@/modules/promissory-notes/schema';
 import type { PromissoryNoteWithRelations } from '@/modules/promissory-notes/services/promissory-notes.service';
 import { formatCurrency } from '@/lib/chile/tax';
 import DeletePromissoryNoteButton from './DeletePromissoryNoteButton';
 
-const STATUS_BADGE: Record<string, string> = {
-  ACTIVE: 'bg-blue-600/10 text-blue-600',
-  PAID: 'bg-green-600/10 text-green-600',
-  PROTESTED: 'bg-destructive/10 text-destructive',
-  CANCELLED: 'bg-muted text-muted-foreground',
-};
-
-const PAYMENT_STATUS_BADGE: Record<string, string> = {
-  UNPAID: 'bg-destructive/10 text-destructive',
-  PARTIAL: 'bg-amber-500/10 text-amber-600',
-  PAID: 'bg-green-600/10 text-green-600',
+const STATUS_TONE: Record<string, Tone> = {
+  ACTIVE: 'info',
+  PAID: 'success',
+  PROTESTED: 'danger',
+  CANCELLED: 'neutral',
 };
 
 const selectClass =
@@ -119,14 +115,10 @@ export default function PromissoryNoteListClient({ canWrite }: { canWrite: boole
                     {isOverdue(note) && ' (vencido)'}
                   </td>
                   <td className="px-3 py-2">
-                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${STATUS_BADGE[note.status]}`}>
-                      {PROMISSORY_NOTE_STATUS_LABELS[note.status]}
-                    </span>
+                    <StatusBadge tone={STATUS_TONE[note.status] ?? 'neutral'}>{PROMISSORY_NOTE_STATUS_LABELS[note.status]}</StatusBadge>
                   </td>
                   <td className="px-3 py-2">
-                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${PAYMENT_STATUS_BADGE[note.paymentStatus]}`}>
-                      {PAYMENT_STATUS_LABELS[note.paymentStatus]}
-                    </span>
+                    <PaymentStatusBadge status={note.paymentStatus} />
                   </td>
                   <td className="px-3 py-2 text-right">
                     {canWrite && (

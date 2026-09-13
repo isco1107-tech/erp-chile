@@ -55,7 +55,15 @@ export default function TicketingLinkButton({ projectId }: { projectId: string }
         <Link2 />
         {busy === 'get' ? 'Copiando...' : 'Copiar link de venta'}
       </Button>
-      <Button type="button" variant="ghost" size="icon-sm" title="Regenerar link (invalida el anterior)" disabled={busy !== null} onClick={handleRegenerate}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        title="Regenerar link (invalida el anterior)"
+        aria-label="Regenerar link (invalida el anterior)"
+        disabled={busy !== null}
+        onClick={handleRegenerate}
+      >
         <RefreshCw />
       </Button>
     </div>

@@ -7,6 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CurrencyInput } from '@/components/ui/CurrencyInput';
+import { StatusBadge } from '@/components/ui/StatusBadge';
+import type { Tone } from '@/components/ui/tone';
+import { ConfirmDialog } from '@/components/ui/alert-dialog';
 import {
   addBudgetLineAction,
   deleteBudgetLineAction,
@@ -16,10 +19,10 @@ import { BUDGET_STATUS_LABELS } from '@/modules/budgets/schema';
 import type { BudgetVsActual } from '@/modules/budgets/services/budgets.service';
 import { formatCurrency } from '@/lib/chile/tax';
 
-const STATUS_BADGE: Record<string, string> = {
-  DRAFT: 'bg-muted text-muted-foreground',
-  ACTIVE: 'bg-blue-600/10 text-blue-600',
-  CLOSED: 'bg-green-600/10 text-green-600',
+const STATUS_TONE: Record<string, Tone> = {
+  DRAFT: 'neutral',
+  ACTIVE: 'info',
+  CLOSED: 'success',
 };
 
 interface Props {
@@ -34,6 +37,8 @@ export default function BudgetDetailClient({ initialData, canWrite }: Props) {
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [showAddLine, setShowAddLine] = useState(false);
+  const [deletingLineId, setDeletingLineId] = useState<string | null>(null);
+  const [deleteLineTarget, setDeleteLineTarget] = useState<{ id: string; category: string } | null>(null);
 
   async function reload() {
     const result = await getBudgetVsActualAction(data.budget.id);
@@ -73,15 +78,22 @@ export default function BudgetDetailClient({ initialData, canWrite }: Props) {
     }
   }
 
-  async function handleDeleteLine(lineId: string, categoryName: string) {
-    if (!confirm(`¿Eliminar la línea "${categoryName}"? Esta acción no se puede deshacer.`)) return;
-    const result = await deleteBudgetLineAction(lineId, data.budget.id);
-    if (!result.success) {
-      toast.error(result.error);
-      return;
+  async function handleDeleteLine() {
+    if (!deleteLineTarget) return;
+    const { id } = deleteLineTarget;
+    setDeletingLineId(id);
+    try {
+      const result = await deleteBudgetLineAction(id, data.budget.id);
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(result.message ?? 'Línea eliminada');
+      setDeleteLineTarget(null);
+      await reload();
+    } finally {
+      setDeletingLineId(null);
     }
-    toast.success(result.message ?? 'Línea eliminada');
-    await reload();
   }
 
   return (
@@ -96,9 +108,7 @@ export default function BudgetDetailClient({ initialData, canWrite }: Props) {
             </p>
             {data.budget.notes && <p className="mt-1 text-xs text-muted-foreground">{data.budget.notes}</p>}
           </div>
-          <span className={`rounded-full px-3 py-1 text-xs font-medium ${STATUS_BADGE[data.budget.status]}`}>
-            {BUDGET_STATUS_LABELS[data.budget.status]}
-          </span>
+          <StatusBadge tone={STATUS_TONE[data.budget.status] ?? 'neutral'}>{BUDGET_STATUS_LABELS[data.budget.status]}</StatusBadge>
         </div>
 
         <div className="grid grid-cols-1 gap-4 rounded border border-border p-3 sm:grid-cols-3">
@@ -112,7 +122,7 @@ export default function BudgetDetailClient({ initialData, canWrite }: Props) {
           </div>
           <div>
             <p className="text-xs font-medium text-muted-foreground">Desviación</p>
-            <p className={`text-base font-semibold ${data.totals.deviation > 0 ? 'text-destructive' : 'text-green-600'}`}>
+            <p className={`text-base font-semibold ${data.totals.deviation > 0 ? 'text-destructive' : 'text-success'}`}>
               {data.totals.deviation > 0 ? '+' : ''}
               {formatCurrency(data.totals.deviation)}
             </p>
@@ -180,14 +190,14 @@ export default function BudgetDetailClient({ initialData, canWrite }: Props) {
                         </td>
                         <td className="px-3 py-2 text-right">{formatCurrency(line.plannedAmount)}</td>
                         <td className="px-3 py-2 text-right">{formatCurrency(line.actualAmount)}</td>
-                        <td className={`px-3 py-2 text-right font-medium ${overBudget ? 'text-destructive' : 'text-green-600'}`}>
+                        <td className={`px-3 py-2 text-right font-medium ${overBudget ? 'text-destructive' : 'text-success'}`}>
                           {overBudget ? '+' : ''}
                           {formatCurrency(line.deviation)}
                         </td>
                         <td className="px-3 py-2">
                           <div className="h-2 w-32 overflow-hidden rounded-full bg-muted">
                             <div
-                              className={`h-full rounded-full ${overBudget ? 'bg-destructive' : 'bg-green-600'}`}
+                              className={`h-full rounded-full ${overBudget ? 'bg-destructive' : 'bg-success'}`}
                               style={{ width: `${percent}%` }}
                             />
                           </div>
@@ -196,10 +206,11 @@ export default function BudgetDetailClient({ initialData, canWrite }: Props) {
                           <td className="px-3 py-2 text-right">
                             <button
                               type="button"
-                              onClick={() => handleDeleteLine(line.id, line.category)}
+                              disabled={deletingLineId === line.id}
+                              onClick={() => setDeleteLineTarget({ id: line.id, category: line.category })}
                               aria-label={`Eliminar línea ${line.category}`}
                               title="Eliminar línea"
-                              className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                              className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
                             >
                               <Trash2 className="size-3.5" />
                             </button>
@@ -214,6 +225,18 @@ export default function BudgetDetailClient({ initialData, canWrite }: Props) {
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={deleteLineTarget !== null}
+        onOpenChange={(open) => !open && setDeleteLineTarget(null)}
+        title="Eliminar línea"
+        description={
+          deleteLineTarget ? `¿Eliminar la línea "${deleteLineTarget.category}"? Esta acción no se puede deshacer.` : ''
+        }
+        confirmLabel="Eliminar"
+        loading={deletingLineId !== null}
+        onConfirm={handleDeleteLine}
+      />
     </div>
   );
 }

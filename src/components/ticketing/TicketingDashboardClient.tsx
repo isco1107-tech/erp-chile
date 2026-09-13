@@ -6,11 +6,13 @@ import { QrCode, Plus, Trash2, Ticket, TicketCheck, Wallet, ScanLine } from 'luc
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { CurrencyInput } from '@/components/ui/CurrencyInput';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { KpiCard } from '@/components/ui/KpiCard';
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
 import { PaymentStatusBadge, StatusBadge } from '@/components/ui/StatusBadge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { ConfirmDialog } from '@/components/ui/alert-dialog';
 import { formatCurrency } from '@/lib/chile/tax';
 import TicketingLinkButton from './TicketingLinkButton';
 import {
@@ -27,7 +29,7 @@ import {
 import type { ProjectSelectOption, TicketingSummaryRow, TicketSaleWithType } from '@/modules/ticketing/services/ticketing.service';
 import type { TicketType } from '@prisma/client';
 
-const EMPTY_TYPE_FORM = { name: '', price: '', quantityAvailable: '' };
+const EMPTY_TYPE_FORM = { name: '', price: 0, quantityAvailable: '' };
 
 export default function TicketingDashboardClient({ canWrite }: { canWrite: boolean }) {
   const [projects, setProjects] = useState<ProjectSelectOption[]>([]);
@@ -38,8 +40,10 @@ export default function TicketingDashboardClient({ canWrite }: { canWrite: boole
   const [loading, setLoading] = useState(true);
   const [typeForm, setTypeForm] = useState(EMPTY_TYPE_FORM);
   const [savingType, setSavingType] = useState(false);
+  const [deletingTypeId, setDeletingTypeId] = useState<string | null>(null);
+  const [deleteTypeTarget, setDeleteTypeTarget] = useState<TicketType | null>(null);
   const [paymentSale, setPaymentSale] = useState<TicketSaleWithType | null>(null);
-  const [paidAmountInput, setPaidAmountInput] = useState('');
+  const [paidAmount, setPaidAmount] = useState(0);
   const [savingPayment, setSavingPayment] = useState(false);
   const [checkInCode, setCheckInCode] = useState('');
   const [checkingIn, setCheckingIn] = useState(false);
@@ -84,7 +88,7 @@ export default function TicketingDashboardClient({ canWrite }: { canWrite: boole
       const result = await createTicketTypeAction({
         projectId,
         name: typeForm.name,
-        price: Number(typeForm.price) || 0,
+        price: typeForm.price,
         quantityAvailable: typeForm.quantityAvailable ? Number(typeForm.quantityAvailable) : null,
         salesOpen: true,
       });
@@ -109,27 +113,34 @@ export default function TicketingDashboardClient({ canWrite }: { canWrite: boole
     loadProjectData(projectId);
   }
 
-  async function handleDeleteType(tt: TicketType) {
-    if (!confirm(`¿Eliminar el tipo de entrada "${tt.name}"?`)) return;
-    const result = await deleteTicketTypeAction(tt.id);
-    if (!result.success) {
-      toast.error(result.error);
-      return;
+  async function handleDeleteType() {
+    if (!deleteTypeTarget) return;
+    const { id } = deleteTypeTarget;
+    setDeletingTypeId(id);
+    try {
+      const result = await deleteTicketTypeAction(id);
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(result.message);
+      setDeleteTypeTarget(null);
+      loadProjectData(projectId);
+    } finally {
+      setDeletingTypeId(null);
     }
-    toast.success(result.message);
-    loadProjectData(projectId);
   }
 
   function openPaymentDialog(sale: TicketSaleWithType) {
     setPaymentSale(sale);
-    setPaidAmountInput(String(sale.totalAmount));
+    setPaidAmount(sale.totalAmount);
   }
 
   async function handleConfirmPayment() {
     if (!paymentSale) return;
     setSavingPayment(true);
     try {
-      const result = await confirmTicketPaymentAction(paymentSale.id, { paidAmount: Number(paidAmountInput) || 0 });
+      const result = await confirmTicketPaymentAction(paymentSale.id, { paidAmount });
       if (!result.success) {
         toast.error(result.error);
         return;
@@ -232,7 +243,16 @@ export default function TicketingDashboardClient({ canWrite }: { canWrite: boole
                         <Button size="sm" variant="outline" onClick={() => handleToggleOpen(tt)}>
                           {tt.salesOpen ? 'Cerrar venta' : 'Abrir venta'}
                         </Button>
-                        <Button size="icon-sm" variant="ghost" onClick={() => handleDeleteType(tt)}><Trash2 className="size-4" /></Button>
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          onClick={() => setDeleteTypeTarget(tt)}
+                          disabled={deletingTypeId === tt.id}
+                          aria-label={`Eliminar tipo de entrada ${tt.name}`}
+                          title="Eliminar tipo de entrada"
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
                       </div>
                     )}
                   </div>
@@ -247,7 +267,7 @@ export default function TicketingDashboardClient({ canWrite }: { canWrite: boole
                   </div>
                   <div className="w-32">
                     <Label htmlFor="tt-price">Precio</Label>
-                    <Input id="tt-price" type="number" min={0} value={typeForm.price} onChange={(e) => setTypeForm((f) => ({ ...f, price: e.target.value }))} required />
+                    <CurrencyInput id="tt-price" value={typeForm.price} onChange={(value) => setTypeForm((f) => ({ ...f, price: value }))} />
                   </div>
                   <div className="w-32">
                     <Label htmlFor="tt-qty">Cupo (opcional)</Label>
@@ -296,15 +316,25 @@ export default function TicketingDashboardClient({ canWrite }: { canWrite: boole
             <p className="text-sm text-muted-foreground">Total de la orden: {paymentSale ? formatCurrency(paymentSale.totalAmount) : ''}</p>
             <div className="space-y-1.5">
               <Label htmlFor="paid-amount">Monto pagado (CLP)</Label>
-              <Input id="paid-amount" type="number" min={0} value={paidAmountInput} onChange={(e) => setPaidAmountInput(e.target.value)} />
+              <CurrencyInput id="paid-amount" value={paidAmount} onChange={setPaidAmount} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPaymentSale(null)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setPaymentSale(null)} disabled={savingPayment}>Cancelar</Button>
             <Button onClick={handleConfirmPayment} disabled={savingPayment}>Confirmar pago</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={deleteTypeTarget !== null}
+        onOpenChange={(open) => !open && setDeleteTypeTarget(null)}
+        title="Eliminar tipo de entrada"
+        description={deleteTypeTarget ? `¿Eliminar el tipo de entrada "${deleteTypeTarget.name}"? Esta acción no se puede deshacer.` : ''}
+        confirmLabel="Eliminar"
+        loading={deletingTypeId !== null}
+        onConfirm={handleDeleteType}
+      />
     </div>
   );
 }

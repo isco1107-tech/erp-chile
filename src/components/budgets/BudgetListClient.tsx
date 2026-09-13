@@ -5,16 +5,18 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { buttonVariants } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { StatusBadge } from '@/components/ui/StatusBadge';
+import type { Tone } from '@/components/ui/tone';
 import { listBudgetsAction } from '@/modules/budgets/actions/budgets.actions';
 import { BUDGET_STATUS_LABELS } from '@/modules/budgets/schema';
 import type { BudgetWithLines } from '@/modules/budgets/services/budgets.service';
 import { formatCurrency } from '@/lib/chile/tax';
 import DeleteBudgetButton from './DeleteBudgetButton';
 
-const STATUS_BADGE: Record<string, string> = {
-  DRAFT: 'bg-muted text-muted-foreground',
-  ACTIVE: 'bg-blue-600/10 text-blue-600',
-  CLOSED: 'bg-green-600/10 text-green-600',
+const STATUS_TONE: Record<string, Tone> = {
+  DRAFT: 'neutral',
+  ACTIVE: 'info',
+  CLOSED: 'success',
 };
 
 export default function BudgetListClient({ canWrite }: { canWrite: boolean }) {
@@ -87,9 +89,7 @@ export default function BudgetListClient({ canWrite }: { canWrite: boolean }) {
                       {new Date(budget.periodEnd).toLocaleDateString('es-CL')}
                     </td>
                     <td className="px-3 py-2">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_BADGE[budget.status]}`}>
-                        {BUDGET_STATUS_LABELS[budget.status]}
-                      </span>
+                      <StatusBadge tone={STATUS_TONE[budget.status] ?? 'neutral'}>{BUDGET_STATUS_LABELS[budget.status]}</StatusBadge>
                     </td>
                     <td className="px-3 py-2 text-right">{formatCurrency(totalPlanned)}</td>
                     <td className="px-3 py-2 text-right text-muted-foreground">{budget.lines.length}</td>

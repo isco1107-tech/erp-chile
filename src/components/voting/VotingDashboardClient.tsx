@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Trophy, Vote, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { CurrencyInput } from '@/components/ui/CurrencyInput';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { KpiCard } from '@/components/ui/KpiCard';
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
@@ -30,7 +30,7 @@ export default function VotingDashboardClient({ canWrite }: { canWrite: boolean 
   const [orders, setOrders] = useState<VoteOrderWithCandidate[]>([]);
   const [loading, setLoading] = useState(true);
   const [paymentOrder, setPaymentOrder] = useState<VoteOrderWithCandidate | null>(null);
-  const [paidAmountInput, setPaidAmountInput] = useState('');
+  const [paidAmount, setPaidAmount] = useState(0);
   const [savingPayment, setSavingPayment] = useState(false);
 
   useEffect(() => {
@@ -67,14 +67,14 @@ export default function VotingDashboardClient({ canWrite }: { canWrite: boolean 
 
   function openPaymentDialog(order: VoteOrderWithCandidate) {
     setPaymentOrder(order);
-    setPaidAmountInput(String(order.totalAmount));
+    setPaidAmount(order.totalAmount);
   }
 
   async function handleConfirmPayment() {
     if (!paymentOrder) return;
     setSavingPayment(true);
     try {
-      const result = await confirmVotePaymentAction(paymentOrder.id, { paidAmount: Number(paidAmountInput) || 0 });
+      const result = await confirmVotePaymentAction(paymentOrder.id, { paidAmount });
       if (!result.success) {
         toast.error(result.error);
         return;
@@ -172,11 +172,11 @@ export default function VotingDashboardClient({ canWrite }: { canWrite: boolean 
             <p className="text-sm text-muted-foreground">Total de la orden: {paymentOrder ? formatCurrency(paymentOrder.totalAmount) : ''}</p>
             <div className="space-y-1.5">
               <Label htmlFor="paid-amount">Monto pagado (CLP)</Label>
-              <Input id="paid-amount" type="number" min={0} value={paidAmountInput} onChange={(e) => setPaidAmountInput(e.target.value)} />
+              <CurrencyInput id="paid-amount" value={paidAmount} onChange={setPaidAmount} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPaymentOrder(null)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setPaymentOrder(null)} disabled={savingPayment}>Cancelar</Button>
             <Button onClick={handleConfirmPayment} disabled={savingPayment}>Confirmar pago</Button>
           </DialogFooter>
         </DialogContent>
