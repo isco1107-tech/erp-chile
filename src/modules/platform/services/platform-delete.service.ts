@@ -10,13 +10,23 @@ import { BATCH_TX_OPTIONS } from '@/lib/prisma-tx';
  * Borrado PERMANENTE (hard delete, sin papelera) de un tenant completo:
  * usuarios, ventas, compras, inventario, contabilidad — todo.
  *
- * `Company` tiene ~34 modelos relacionados; solo 9 cascadean automáticamente
- * (ver comentarios en schema.prisma). El resto usan el default de
- * Prisma/Postgres, que es RESTRICT — a propósito, se mantiene así en el
- * schema como protección general del sistema. Por eso este service borra
- * explícitamente cada tabla hija en el orden topológico correcto dentro de
- * una única transacción, en vez de depender de un `Cascade` general que
- * debilitaría esa protección para el resto de la aplicación.
+ * `Company` tiene ~70 relaciones; solo una parte cascadea automáticamente
+ * (ver comentarios en schema.prisma — `onDelete: Cascade` explícito modelo
+ * por modelo). El resto usan el default de Prisma/Postgres, que es RESTRICT
+ * — a propósito, se mantiene así en el schema como protección general del
+ * sistema. Por eso este service borra explícitamente cada tabla hija en el
+ * orden topológico correcto dentro de una única transacción, en vez de
+ * depender de un `Cascade` general que debilitaría esa protección para el
+ * resto de la aplicación.
+ *
+ * Un modelo nuevo con `companyId` NO entra acá solo — a diferencia del
+ * respaldo (`src/modules/backup/`), que sí se deriva del DMMF, esta función
+ * es una lista escrita a mano. Ya pasó una vez: ~15 tablas de los módulos de
+ * eventos/producción/agentes de IA se agregaron al schema en sesiones
+ * posteriores sin que nadie las sumara acá, y borrar cualquier empresa que
+ * las usara hacía rollback completo contra la primera FK RESTRICT que
+ * encontrara. Al agregar un modelo con `companyId` que no cascadea desde
+ * `Company` u otro padre ya cubierto, agregar su `deleteMany` acá también.
  *
  * El orden de los `deleteMany` de abajo fue derivado y verificado a mano
  * contra cada FK de schema.prisma. NO reordenar ni agrupar en Promise.all sin
@@ -69,6 +79,36 @@ async function hardDeleteTenant(tx: Prisma.TransactionClient, companyId: string)
   await tx.cashShift.deleteMany({ where: { companyId } });
   await tx.accountingPeriod.deleteMany({ where: { companyId } });
   await tx.purchaseOrder.deleteMany({ where: { companyId } });
+
+  // Paso 2b: módulos de producción de eventos/certámenes y agentes de IA.
+  // Los hijos que SÍ cascadean en schema.prisma (`onDelete: Cascade` hacia
+  // `Project`/`Candidate`/`SponsorshipContract`/`Budget`/`JudgeAssignment`)
+  // no necesitan `deleteMany` acá — se van solos al borrar su padre:
+  // `ScoreSheet`, `RoundContestant`, `JudgingCategory`, `CompetitionRound`,
+  // `JudgeAssignment`, `StaffAccreditation`, `StageTimelineItem`,
+  // `WardrobeItem`, `BadgeTemplate`, `CandidateAttendance`,
+  // `CandidateDocument`, `SponsorshipDeliverable` y `BudgetLine`. El orden
+  // de abajo respeta cada FK RESTRICT real: `VoteOrder` antes de
+  // `Candidate` y `Project`, `TicketSale` antes de `TicketType`,
+  // `PaymentPlanInstallment` antes de `PaymentPlan`, y todo lo que
+  // referencia `Contact` (`PaymentPlan`, `PromissoryNote`, `FeeDocument`,
+  // `SponsorshipContract`) antes del `contact.deleteMany` de abajo.
+  await tx.agentTask.deleteMany({ where: { companyId } });
+  await tx.agentRun.deleteMany({ where: { companyId } });
+  await tx.voteOrder.deleteMany({ where: { companyId } });
+  await tx.ticketSale.deleteMany({ where: { companyId } });
+  await tx.ticketType.deleteMany({ where: { companyId } });
+  await tx.paymentPlanInstallment.deleteMany({ where: { companyId } });
+  await tx.paymentPlan.deleteMany({ where: { companyId } });
+  await tx.promissoryNote.deleteMany({ where: { companyId } });
+  await tx.feeDocument.deleteMany({ where: { companyId } });
+  await tx.sponsorshipContract.deleteMany({ where: { companyId } });
+  await tx.candidateSession.deleteMany({ where: { companyId } });
+  await tx.candidate.deleteMany({ where: { companyId } });
+  await tx.documentTemplate.deleteMany({ where: { companyId } });
+  await tx.budget.deleteMany({ where: { companyId } });
+  await tx.project.deleteMany({ where: { companyId } });
+
   await tx.contact.deleteMany({ where: { companyId } });
   await tx.cashRegister.deleteMany({ where: { companyId } });
   await tx.product.deleteMany({ where: { companyId } });
