@@ -127,6 +127,7 @@ export default function PurchaseHistoryClient({ canApprove }: { canApprove: bool
     <div className="space-y-4 duration-500 animate-in fade-in slide-in-from-bottom-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Input
+          data-tutorial="module-search"
           placeholder="Buscar por RUT o Razón Social"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -136,7 +137,7 @@ export default function PurchaseHistoryClient({ canApprove }: { canApprove: bool
           <Link href="/dashboard/purchases/orders" className={buttonVariants({ variant: 'outline' })}>
             Órdenes de Compra
           </Link>
-          <Link href="/dashboard/purchases/new" className={buttonVariants({ variant: 'default' })}>
+          <Link href="/dashboard/purchases/new" className={buttonVariants({ variant: 'default' })} data-tutorial="module-primary-action">
             Nueva Factura de Proveedor
           </Link>
         </div>

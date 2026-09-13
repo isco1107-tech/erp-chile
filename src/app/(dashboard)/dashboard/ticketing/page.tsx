@@ -9,7 +9,7 @@ export default async function TicketingPage() {
 
   return (
     <div>
-      <h1 className="mb-4 text-2xl font-bold">Venta de Entradas</h1>
+      <h1 className="mb-4 text-2xl font-bold" data-tutorial="module-header">Venta de Entradas</h1>
       <TicketingDashboardClient canWrite={canWrite} />
     </div>
   );

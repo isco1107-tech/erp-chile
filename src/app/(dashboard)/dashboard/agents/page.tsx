@@ -8,7 +8,7 @@ export default function AgentsPage() {
     <div className="space-y-6">
       <div>
         <p className="hud-label mb-1">Business intelligence / agents</p>
-        <h1 className="text-2xl font-semibold text-foreground">Agentes de Inteligencia de Negocio</h1>
+        <h1 className="text-2xl font-semibold text-foreground" data-tutorial="module-header">Agentes de Inteligencia de Negocio</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
           Equipo ejecutivo virtual (CEO, CFO, COO, Ventas) que analiza tus datos reales de ventas, compras,
           inventario y tesorería, y deja recomendaciones para que las leas. Ningún agente envía comunicación

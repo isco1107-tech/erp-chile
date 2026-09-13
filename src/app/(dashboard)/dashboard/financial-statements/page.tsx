@@ -7,7 +7,7 @@ export default function FinancialStatementsPage() {
   return (
     <ModuleGate moduleKey="hasAccounting" permission="reports:financial">
       <div className="space-y-4">
-        <h1 className="text-2xl font-bold">Estados Financieros</h1>
+        <h1 className="text-2xl font-bold" data-tutorial="module-header">Estados Financieros</h1>
         <FinancialStatementsClient />
       </div>
     </ModuleGate>

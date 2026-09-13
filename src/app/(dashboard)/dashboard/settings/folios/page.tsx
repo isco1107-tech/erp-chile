@@ -21,7 +21,7 @@ export default async function FoliosSettingsPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Folios del SII</h1>
+        <h1 className="text-2xl font-bold" data-tutorial="module-header">Folios del SII</h1>
         <Link href="/dashboard/settings" className={buttonVariants({ variant: 'outline' })}>
           ← Volver
         </Link>

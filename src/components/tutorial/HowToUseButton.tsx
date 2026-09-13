@@ -24,7 +24,14 @@ export default function HowToUseButton() {
   }
 
   return (
-    <Button type="button" variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={handleClick}>
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      className="gap-1.5 text-muted-foreground"
+      data-tutorial="module-help-button"
+      onClick={handleClick}
+    >
       <HelpCircle className="size-4" />
       <span className="hidden sm:inline">Cómo usar</span>
     </Button>

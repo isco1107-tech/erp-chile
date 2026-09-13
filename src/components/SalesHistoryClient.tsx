@@ -146,6 +146,7 @@ export default function SalesHistoryClient() {
             </Button>
           ))}
           <Input
+            data-tutorial="module-search"
             placeholder="Buscar por RUT o Razón Social"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -153,7 +154,7 @@ export default function SalesHistoryClient() {
           />
         </div>
 
-        <Link href="/dashboard/sales/new" className={buttonVariants({ variant: 'default' })}>
+        <Link href="/dashboard/sales/new" className={buttonVariants({ variant: 'default' })} data-tutorial="module-primary-action">
           Nueva Venta
         </Link>
       </div>

@@ -82,7 +82,7 @@ export default function SponsorshipListClient({ canWrite }: { canWrite: boolean 
     <div className="space-y-4">
       <div className="flex items-center justify-end">
         {canWrite && (
-          <Link href="/dashboard/sponsorships/new" className={buttonVariants({ variant: 'default' })}>
+          <Link href="/dashboard/sponsorships/new" className={buttonVariants({ variant: 'default' })} data-tutorial="module-primary-action">
             Nuevo Contrato de Auspicio
           </Link>
         )}

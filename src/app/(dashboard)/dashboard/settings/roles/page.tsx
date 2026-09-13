@@ -48,7 +48,7 @@ export default async function RolesSettingsPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-bold">Roles Personalizados</h1>
+          <h1 className="text-2xl font-bold" data-tutorial="module-header">Roles Personalizados</h1>
           <p className="text-sm text-muted-foreground">
             Define qué puede hacer cada función dentro de los módulos de tu plan {context.planName}.
           </p>

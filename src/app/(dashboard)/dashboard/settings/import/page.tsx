@@ -39,7 +39,7 @@ export default async function ImportPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-bold">Importación Masiva</h1>
+          <h1 className="text-2xl font-bold" data-tutorial="module-header">Importación Masiva</h1>
           <p className="text-sm text-muted-foreground">
             Carga tu catálogo o tu cartera desde Excel. Nada se guarda hasta que revises la vista previa.
           </p>

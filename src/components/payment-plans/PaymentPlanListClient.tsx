@@ -56,7 +56,7 @@ export default function PaymentPlanListClient({ canWrite }: { canWrite: boolean 
     <div className="space-y-4">
       <div className="flex items-center justify-end">
         {canWrite && (
-          <Link href="/dashboard/payment-plans/new" className={buttonVariants({ variant: 'default' })}>
+          <Link href="/dashboard/payment-plans/new" className={buttonVariants({ variant: 'default' })} data-tutorial="module-primary-action">
             Nuevo Plan de Pago
           </Link>
         )}

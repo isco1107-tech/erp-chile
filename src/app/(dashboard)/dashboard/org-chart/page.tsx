@@ -11,7 +11,7 @@ export default async function OrgChartPage() {
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold">Organigrama</h1>
+        <h1 className="text-2xl font-bold" data-tutorial="module-header">Organigrama</h1>
         {canWrite && (
           <Link
             href="/dashboard/org-chart/manage"

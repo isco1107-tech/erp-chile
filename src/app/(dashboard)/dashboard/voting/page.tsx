@@ -9,7 +9,7 @@ export default async function VotingPage() {
 
   return (
     <div>
-      <h1 className="mb-4 text-2xl font-bold">Votación Pagada del Público</h1>
+      <h1 className="mb-4 text-2xl font-bold" data-tutorial="module-header">Votación Pagada del Público</h1>
       <VotingDashboardClient canWrite={canWrite} />
     </div>
   );

@@ -66,7 +66,7 @@ export default function PromissoryNoteListClient({ canWrite }: { canWrite: boole
         </select>
 
         {canWrite && (
-          <Link href="/dashboard/promissory-notes/new" className={buttonVariants({ variant: 'default' })}>
+          <Link href="/dashboard/promissory-notes/new" className={buttonVariants({ variant: 'default' })} data-tutorial="module-primary-action">
             Nuevo Pagaré
           </Link>
         )}

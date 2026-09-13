@@ -100,7 +100,7 @@ export default function FeeDocumentListClient({ canWrite }: { canWrite: boolean 
     <div className="space-y-4">
       <div className="flex justify-end">
         {canWrite && (
-          <Link href="/dashboard/fees/new" className={buttonVariants({ variant: 'default' })}>
+          <Link href="/dashboard/fees/new" className={buttonVariants({ variant: 'default' })} data-tutorial="module-primary-action">
             Registrar Boleta de Honorarios
           </Link>
         )}

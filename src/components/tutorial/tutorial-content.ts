@@ -9,6 +9,15 @@
 export interface TutorialStep {
   title: string;
   description: string;
+  /**
+   * `data-tutorial` del elemento real a resaltar en pantalla (ver
+   * `ModuleTutorial.tsx`). Un paso sin `target` (o cuyo elemento no está
+   * montado — ej. queda oculto por un permiso) se muestra como tarjeta
+   * centrada, sin recorte de foco.
+   */
+  target?: string;
+  /** Lado preferido del globo respecto al elemento; se auto-ajusta si no cabe. Por defecto 'bottom'. */
+  placement?: 'top' | 'bottom' | 'left' | 'right';
 }
 
 export interface TutorialModuleContent {
@@ -24,6 +33,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Tu resumen del día',
         description: 'Ventas, compras, IVA y stock crítico en un vistazo, con la tendencia respecto al período anterior.',
+        target: 'module-header',
       },
       {
         title: 'Accesos rápidos',
@@ -33,10 +43,6 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
         title: 'Gráficos y ventas recientes',
         description: 'Más abajo encuentras la evolución de ventas y las últimas boletas o facturas emitidas.',
       },
-      {
-        title: 'Ayuda en cualquier momento',
-        description: 'El botón "Cómo usar" (arriba, junto a las notificaciones) te vuelve a mostrar este tutorial cuando quieras, módulo por módulo.',
-      },
     ],
   },
   pos: {
@@ -45,6 +51,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Abre tu turno',
         description: 'Antes de vender, elige la caja y la bodega, y registra el monto inicial en efectivo.',
+        target: 'module-header',
       },
       {
         title: 'Arma la venta',
@@ -66,6 +73,12 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Crea o importa productos',
         description: 'Da de alta cada producto con su precio, si es exento de IVA y su bodega. Para cargas grandes usa el Importador Masivo.',
+        target: 'module-header',
+      },
+      {
+        title: 'Botón "Nuevo producto"',
+        description: 'Abre el formulario para crear un producto. Vuelve a hacer clic para cerrarlo.',
+        target: 'module-primary-action',
       },
       {
         title: 'Exento de IVA',
@@ -75,6 +88,11 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
         title: 'Costo y kardex',
         description: 'El costo de cada producto se actualiza solo, al Precio Medio Ponderado (PMP), cada vez que registras una compra.',
       },
+      {
+        title: 'Búscalo por SKU o nombre',
+        description: 'Encuentra cualquier producto de tu catálogo sin tener que revisar toda la lista.',
+        target: 'module-search',
+      },
     ],
   },
   inventory: {
@@ -83,6 +101,12 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Existencias por bodega',
         description: 'Consulta el stock disponible de cada producto en cada una de tus bodegas.',
+        target: 'module-header',
+      },
+      {
+        title: 'Búscalo por SKU o nombre',
+        description: 'Encuentra el stock de cualquier producto sin recorrer toda la lista.',
+        target: 'module-search',
       },
       {
         title: 'Kardex de movimientos',
@@ -104,6 +128,12 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Cotización o venta directa',
         description: 'Arma una cotización sin validez tributaria, o emite boleta/factura directamente.',
+        target: 'module-header',
+      },
+      {
+        title: 'Botón "Nueva Venta"',
+        description: 'Aquí arrancas cualquier documento nuevo: cotización, boleta o factura, en unos pocos clics.',
+        target: 'module-primary-action',
       },
       {
         title: 'Documentos electrónicos',
@@ -115,7 +145,8 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       },
       {
         title: 'Historial y filtros',
-        description: 'Filtra por cliente, estado o rango de fechas para encontrar cualquier documento emitido.',
+        description: 'Busca por cliente, estado o rango de fechas para encontrar cualquier documento emitido.',
+        target: 'module-search',
       },
     ],
   },
@@ -125,6 +156,12 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Ficha única',
         description: 'Cada contacto guarda su RUT (validado con Módulo 11), sus datos y su historial de compras o ventas.',
+        target: 'module-header',
+      },
+      {
+        title: 'Botón "Nuevo contacto"',
+        description: 'Abre el formulario para crear un cliente o proveedor. Vuelve a hacer clic para cerrarlo.',
+        target: 'module-primary-action',
       },
       {
         title: 'Autocompletado por RUT',
@@ -134,6 +171,11 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
         title: 'Cuentas pendientes',
         description: 'Desde la ficha ves los documentos por cobrar o por pagar de ese contacto, sin salir de la pantalla.',
       },
+      {
+        title: 'Búscalo por RUT o razón social',
+        description: 'Encuentra cualquier cliente o proveedor ya registrado, y filtra entre clientes y proveedores.',
+        target: 'module-search',
+      },
     ],
   },
   purchases: {
@@ -142,6 +184,12 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Registra la recepción',
         description: 'Ingresa lo que compraste — el costo actualiza el PMP del producto automáticamente.',
+        target: 'module-header',
+      },
+      {
+        title: 'Botón "Nueva Factura de Proveedor"',
+        description: 'Desde aquí registras la recepción de mercadería y la factura asociada del proveedor.',
+        target: 'module-primary-action',
       },
       {
         title: 'Factura de proveedor',
@@ -151,6 +199,11 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
         title: 'Aprobación',
         description: 'Si tu empresa lo exige, las compras sobre el monto configurado quedan pendientes hasta que alguien con permiso las apruebe.',
       },
+      {
+        title: 'Busca cualquier compra',
+        description: 'Filtra por proveedor (RUT o razón social) para encontrar una recepción o factura anterior.',
+        target: 'module-search',
+      },
     ],
   },
   treasury: {
@@ -159,6 +212,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Cuentas por Cobrar (CxC)',
         description: 'Ve qué clientes te deben, cuánto y desde cuándo, y registra sus pagos.',
+        target: 'module-header',
       },
       {
         title: 'Cuentas por Pagar (CxP)',
@@ -176,6 +230,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Exporta todo a Excel',
         description: 'Descarga productos, inventario y finanzas en un libro con panel de indicadores, listo para tu contador.',
+        target: 'module-header',
       },
       {
         title: 'Formulario 29 (F29)',
@@ -189,6 +244,12 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Define un presupuesto',
         description: 'Fija los montos que esperas vender o gastar por categoría o período.',
+        target: 'module-header',
+      },
+      {
+        title: 'Botón "Nuevo Presupuesto"',
+        description: 'Crea un presupuesto nuevo por categoría o período desde aquí.',
+        target: 'module-primary-action',
       },
       {
         title: 'Compara contra lo real',
@@ -202,6 +263,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Se arma sola',
         description: 'La contabilidad se genera a partir de tus documentos de venta, compra y pagos — no necesitas ingresar asientos a mano.',
+        target: 'module-header',
       },
       {
         title: 'Balance y resultado',
@@ -219,6 +281,12 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Registra un pagaré',
         description: 'Deja constancia de un compromiso de pago firmado por un cliente, con su fecha de vencimiento.',
+        target: 'module-header',
+      },
+      {
+        title: 'Botón "Nuevo Pagaré"',
+        description: 'Registra un pagaré nuevo con su monto, cliente y fecha de vencimiento desde aquí.',
+        target: 'module-primary-action',
       },
       {
         title: 'Seguimiento de vencimientos',
@@ -232,6 +300,12 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Crea un plan de cuotas',
         description: 'Divide un monto en cuotas con sus fechas de vencimiento.',
+        target: 'module-header',
+      },
+      {
+        title: 'Botón "Nuevo Plan de Pago"',
+        description: 'Arma un plan de cuotas nuevo para un cliente desde aquí.',
+        target: 'module-primary-action',
       },
       {
         title: 'Marca pagos',
@@ -245,6 +319,12 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Emite una boleta de honorarios',
         description: 'Para pagos a personas naturales (jurado, animadores, staff externo) sujetos a retención.',
+        target: 'module-header',
+      },
+      {
+        title: 'Botón "Registrar Boleta de Honorarios"',
+        description: 'Emite una boleta nueva a un prestador de servicios desde aquí.',
+        target: 'module-primary-action',
       },
       {
         title: 'Retención automática',
@@ -258,6 +338,12 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Crea tu certamen o evento',
         description: 'Cada proyecto agrupa candidatas, escaleta, auspicios y entradas relacionadas.',
+        target: 'module-header',
+      },
+      {
+        title: 'Botón "Nuevo Proyecto"',
+        description: 'Crea un nuevo certamen o evento desde aquí — todo lo demás se organiza dentro de él.',
+        target: 'module-primary-action',
       },
       {
         title: 'Estado y fechas clave',
@@ -271,6 +357,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Sincroniza con Google Calendar',
         description: 'Conecta tu cuenta para ver certámenes, galas y cumpleaños de candidatas directo en tu calendario.',
+        target: 'module-header',
       },
       {
         title: 'Recordatorios automáticos',
@@ -284,6 +371,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Visualiza la jerarquía',
         description: 'Ve la estructura de cargos de tu equipo en forma de árbol.',
+        target: 'module-header',
       },
       {
         title: 'Gestiona cargos',
@@ -297,6 +385,12 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Ficha de candidata',
         description: 'Datos personales, documentos, contrato de imagen y estado de cumplimiento en un solo lugar.',
+        target: 'module-header',
+      },
+      {
+        title: 'Botón "Nueva Candidata"',
+        description: 'Registra a una nueva candidata o integrante de staff desde aquí.',
+        target: 'module-primary-action',
       },
       {
         title: 'Firma electrónica del contrato',
@@ -318,6 +412,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Rondas de votación',
         description: 'Define las rondas y criterios que el jurado calificará en vivo.',
+        target: 'module-header',
       },
       {
         title: 'Panel del jurado',
@@ -335,6 +430,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Acredita a staff y proveedores',
         description: 'Registra a cada persona que necesita acceso al evento, con su rol.',
+        target: 'module-header',
       },
       {
         title: 'Diseña la credencial',
@@ -352,6 +448,12 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Registra una marca auspiciadora',
         description: 'Guarda el acuerdo, el monto comprometido y los entregables pactados (logo en escenario, mención, etc.).',
+        target: 'module-header',
+      },
+      {
+        title: 'Botón "Nuevo Contrato de Auspicio"',
+        description: 'Registra un nuevo acuerdo de auspicio con su marca, monto y entregables desde aquí.',
+        target: 'module-primary-action',
       },
       {
         title: 'Carta de compromiso',
@@ -369,6 +471,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Configura tus entradas',
         description: 'Define tipos de entrada, precios y cupos disponibles para tu evento.',
+        target: 'module-header',
       },
       {
         title: 'Ventas y pagos',
@@ -382,6 +485,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Habilita la votación del público',
         description: 'Define las candidatas o participantes y el precio por voto.',
+        target: 'module-header',
       },
       {
         title: 'Pagos y resultados',
@@ -395,6 +499,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Tu equipo ejecutivo virtual',
         description: 'CEO, CFO, COO y Ventas analizan tus datos reales de ventas, compras, inventario y tesorería.',
+        target: 'module-header',
       },
       {
         title: 'Solo texto informativo',
@@ -408,6 +513,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Chat interno de tu equipo',
         description: 'Conversaciones cifradas, solo visibles para quienes participan en ellas.',
+        target: 'module-header',
       },
       {
         title: 'Nueva conversación',
@@ -421,6 +527,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Datos y parámetros tributarios',
         description: 'Giro, tipo de industria, tasa de PPM y de retención de honorarios.',
+        target: 'module-header',
       },
       {
         title: 'IP permitidas y webhook n8n',
@@ -438,6 +545,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Invita colaboradores',
         description: 'Envía una invitación por correo con el rol que le corresponde.',
+        target: 'module-header',
       },
       {
         title: 'Roles base o personalizados',
@@ -451,6 +559,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Crea un rol a medida',
         description: 'Arma una lista de permisos específica en vez de usar los roles base predefinidos.',
+        target: 'module-header',
       },
       {
         title: 'No aplica al Dueño',
@@ -464,6 +573,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Carga tu CAF',
         description: 'Sube el archivo que te entrega el SII con el rango de folios autorizado para cada tipo de documento.',
+        target: 'module-header',
       },
       {
         title: 'Folios y timbre automáticos',
@@ -481,6 +591,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Arma una regla',
         description: 'Elige un disparador (venta emitida, stock bajo mínimo, folios por agotarse, etc.), condiciones opcionales y una o más acciones.',
+        target: 'module-header',
       },
       {
         title: 'Acciones disponibles',
@@ -498,6 +609,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Sube tu Excel o CSV',
         description: 'Importa productos, contactos u otras entidades en bloque en vez de crearlos uno por uno.',
+        target: 'module-header',
       },
       {
         title: 'Solo lo que puedes crear',
@@ -515,6 +627,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Verificación en dos pasos (2FA)',
         description: 'Actívala para proteger tu cuenta con un segundo factor además de la contraseña.',
+        target: 'module-header',
       },
       {
         title: 'Dispositivos activos',
@@ -528,6 +641,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       {
         title: 'Registro de trazabilidad',
         description: 'Cada acción sensible (crear, editar, eliminar) queda registrada con quién, cuándo y qué cambió.',
+        target: 'module-header',
       },
       {
         title: 'Filtra por usuario o módulo',

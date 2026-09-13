@@ -10,7 +10,7 @@ export default async function CandidatesPage() {
 
   return (
     <div>
-      <h1 className="mb-4 text-2xl font-bold">Candidatas & Staff</h1>
+      <h1 className="mb-4 text-2xl font-bold" data-tutorial="module-header">Candidatas & Staff</h1>
       <CandidateListClient canWrite={canWrite} canExport={canExport} />
     </div>
   );

@@ -9,7 +9,7 @@ export default async function FeesPage() {
 
   return (
     <div>
-      <h1 className="mb-4 text-2xl font-bold">Boletas de Honorarios</h1>
+      <h1 className="mb-4 text-2xl font-bold" data-tutorial="module-header">Boletas de Honorarios</h1>
       <FeeDocumentListClient canWrite={canWrite} />
     </div>
   );

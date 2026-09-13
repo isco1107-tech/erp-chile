@@ -9,7 +9,7 @@ export default function SecurityPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Seguridad</h1>
+          <h1 className="text-2xl font-bold" data-tutorial="module-header">Seguridad</h1>
           <p className="text-sm text-muted-foreground">
             Verificación en dos pasos (2FA) para tu cuenta.
           </p>

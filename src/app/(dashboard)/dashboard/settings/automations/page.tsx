@@ -39,7 +39,7 @@ export default async function AutomationsSettingsPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Automatizaciones</h1>
+        <h1 className="text-2xl font-bold" data-tutorial="module-header">Automatizaciones</h1>
         <Link href="/dashboard/settings" className={buttonVariants({ variant: 'outline' })}>← Volver</Link>
       </div>
 

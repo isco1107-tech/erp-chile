@@ -37,7 +37,7 @@ export default function BudgetListClient({ canWrite }: { canWrite: boolean }) {
     <div className="space-y-4">
       <div className="flex items-center justify-end">
         {canWrite && (
-          <Link href="/dashboard/budgets/new" className={buttonVariants({ variant: 'default' })}>
+          <Link href="/dashboard/budgets/new" className={buttonVariants({ variant: 'default' })} data-tutorial="module-primary-action">
             Nuevo Presupuesto
           </Link>
         )}

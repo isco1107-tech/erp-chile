@@ -123,6 +123,7 @@ export default function ContactsClient() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <Input
+            data-tutorial="module-search"
             placeholder="Buscar por RUT o Razón Social"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -143,6 +144,7 @@ export default function ContactsClient() {
 
         <Button
           type="button"
+          data-tutorial="module-primary-action"
           onClick={() => {
             setEditingContact(null);
             setShowForm((s) => !s);

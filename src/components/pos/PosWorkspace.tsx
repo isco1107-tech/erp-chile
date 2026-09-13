@@ -32,7 +32,7 @@ export default function PosWorkspace(props: Props) {
       <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
         <div>
           <p className="hud-label mb-1">Point of sale / terminal</p>
-          <h1 className="text-2xl font-semibold text-foreground">Punto de Venta</h1>
+          <h1 className="text-2xl font-semibold text-foreground" data-tutorial="module-header">Punto de Venta</h1>
           <p className="font-mono text-xs text-muted-foreground">
             {props.cashRegisterName} · turno abierto {new Date(props.openedAt).toLocaleString('es-CL')}
           </p>

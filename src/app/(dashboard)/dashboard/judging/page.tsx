@@ -9,7 +9,7 @@ export default async function JudgingPage() {
 
   return (
     <div>
-      <h1 className="mb-4 text-2xl font-bold">Votación & Escrutinio en Vivo</h1>
+      <h1 className="mb-4 text-2xl font-bold" data-tutorial="module-header">Votación & Escrutinio en Vivo</h1>
       <JudgingDirectorClient canWrite={canWrite} />
     </div>
   );

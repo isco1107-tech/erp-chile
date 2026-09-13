@@ -9,7 +9,7 @@ export default async function ProjectsPage() {
 
   return (
     <div>
-      <h1 className="mb-4 text-2xl font-bold">Eventos & Proyectos</h1>
+      <h1 className="mb-4 text-2xl font-bold" data-tutorial="module-header">Eventos & Proyectos</h1>
       <ProjectListClient canWrite={canWrite} />
     </div>
   );

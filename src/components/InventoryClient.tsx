@@ -123,6 +123,7 @@ export default function InventoryClient() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-wrap items-center gap-2">
           <Input
+            data-tutorial="module-search"
             placeholder="Buscar por SKU o Nombre"
             value={query}
             onChange={(e) => setQuery(e.target.value)}

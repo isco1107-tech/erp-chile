@@ -122,6 +122,7 @@ export default function ProductsClient() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <Input
+            data-tutorial="module-search"
             placeholder="Buscar por SKU o Nombre"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -141,6 +142,7 @@ export default function ProductsClient() {
 
         <Button
           type="button"
+          data-tutorial="module-primary-action"
           onClick={() => {
             setEditingProduct(null);
             setShowForm((s) => !s);

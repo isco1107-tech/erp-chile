@@ -107,7 +107,7 @@ export default function OpenShiftPanel({ canManageRegisters, warehouses }: Props
         <div className="flex size-14 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10 shadow-[0_0_24px_-8px_rgba(34,211,238,0.8)]">
           <Lock className="size-6 text-cyan-300" />
         </div>
-        <h1 className="text-2xl font-bold">Abrir caja</h1>
+        <h1 className="text-2xl font-bold" data-tutorial="module-header">Abrir caja</h1>
         <p className="text-sm text-muted-foreground">
           No tienes un turno abierto. Declara el fondo de cambio con el que partes para poder vender.
         </p>
