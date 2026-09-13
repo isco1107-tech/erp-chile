@@ -253,6 +253,8 @@ model User {
   /// folios, que es una acción tributariamente sensible.
   uploadedDteCafs                  DteCaf[]
   createdWorkflowRules             WorkflowRule[]
+  cashMovements                    CashMovement[]
+  approvedAgentTasks               AgentTask[]
 
   @@index([companyId])
   @@index([customRoleId])
@@ -1186,9 +1188,11 @@ model CashMovement {
   amount      Int
   reason      String
   userId      String?
+  user        User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
   createdAt   DateTime         @default(now())
 
   @@index([companyId, cashShiftId])
+  @@index([userId])
 }
 
 model Invitation {
@@ -2483,6 +2487,7 @@ model TicketSale {
 
   @@index([companyId, projectId])
   @@index([companyId, paymentStatus])
+  @@index([companyId, ticketTypeId])
 }
 
 /// Orden de votos pagados por una candidata, creada desde `/votar/[token]`
@@ -2509,6 +2514,7 @@ model VoteOrder {
   @@index([companyId, projectId])
   @@index([companyId, candidateId])
   @@index([companyId, paymentStatus])
+  @@index([companyId, candidateId, paymentStatus])
 }
 
 // ============================================================================
@@ -2541,10 +2547,12 @@ model AgentTask {
   payload          Json?
   requiresApproval Boolean         @default(false)
   approvedByUserId String?
+  approvedByUser   User?           @relation(fields: [approvedByUserId], references: [id], onDelete: SetNull)
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
   @@index([companyId, role, status])
+  @@index([approvedByUserId])
 }
 
 /// Una fila por corrida de un agente (cron o manual). Nunca queda colgada en
