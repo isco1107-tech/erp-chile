@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { put } from '@vercel/blob';
+import { put } from '@/lib/storage/blob';
 import { getDocumentStatus } from '@/lib/zapsign/client';
 import { markContractSignedByZapsignToken } from '@/modules/candidates/services/documents.service';
 import { createAuditLog } from '@/lib/auth/audit';

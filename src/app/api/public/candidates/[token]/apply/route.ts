@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { put, del } from '@vercel/blob';
+import { put, del } from '@/lib/storage/blob';
 import { prisma } from '@/lib/prisma';
 import { candidateSelfRegistrationSchema, CANDIDATE_HONEYPOT_FIELD } from '@/modules/candidates/schema';
 import {

@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { put } from '@vercel/blob';
+import { put } from '@/lib/storage/blob';
 import { AuthError, ModuleNotEnabledError, TenantInactiveError, requireAuthWithPermission } from '@/lib/auth/guards';
 
 /**
- * Sube el pagaré firmado (foto o PDF) a Vercel Blob. Va en un Route Handler,
+ * Sube el pagaré firmado (foto o PDF) a Cloudflare R2. Va en un Route Handler,
  * no en una Server Action, por el límite de 1 MB de cuerpo de las Server
  * Actions — mismo motivo que `candidates/photo-upload`.
  *

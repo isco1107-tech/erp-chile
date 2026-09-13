@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { put } from '@vercel/blob';
+import { put } from '@/lib/storage/blob';
 import { AuthError, TenantInactiveError, getAuthContext } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 import { prisma } from '@/lib/prisma';
 
 /**
- * Sube la foto de perfil del organigrama a Vercel Blob y la guarda en
+ * Sube la foto de perfil del organigrama a Cloudflare R2 y la guarda en
  * `User.photoUrl`. Va en un Route Handler, no en una Server Action, por el
  * límite de 1 MB de cuerpo de las Server Actions (mismo motivo que
  * `candidates/photo-upload`).

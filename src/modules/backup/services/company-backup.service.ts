@@ -39,6 +39,13 @@ const EXCLUDED_MODELS = new Set([
   'ProcessedWebhookEvent',
   // Auditoría del panel de plataforma: es del operador del SaaS, no del tenant.
   'PlatformAuditLog',
+  // Contiene `encryptedXml`: el CAF cifrado, con la llave privada RSA que
+  // timbra los DTE de la empresa. El nombre del campo no matchea
+  // SENSITIVE_FIELD_PATTERN (no dice "secret"/"token"/etc.), así que sin esta
+  // exclusión explícita salía íntegro en el respaldo — quien lo descargue no
+  // debe llevarse material que permite forjar documentos tributarios a nombre
+  // de la empresa si alguna vez se compromete DTE_ENCRYPTION_KEY.
+  'DteCaf',
 ]);
 
 /**

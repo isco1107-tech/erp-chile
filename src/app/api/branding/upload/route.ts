@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { put } from '@vercel/blob';
+import { put } from '@/lib/storage/blob';
 import { AuthError, ModuleNotEnabledError, TenantInactiveError, requireAuthWithPermission } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 import { prisma } from '@/lib/prisma';
 
 /**
- * Sube el logo o el fondo de la empresa a Vercel Blob y guarda la URL en
+ * Sube el logo o el fondo de la empresa a Cloudflare R2 y guarda la URL en
  * `Company`. Va en un Route Handler, no en una Server Action, por el mismo
  * motivo que la importación masiva: el límite de cuerpo de una Server Action
  * es de 1 MB, insuficiente para una imagen.

@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { put } from '@vercel/blob';
+import { put } from '@/lib/storage/blob';
 import { AuthError, ModuleNotEnabledError, TenantInactiveError, requireAuthWithPermission } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 
 /**
- * Sube la imagen de fondo de una plantilla de credencial a Vercel Blob y
+ * Sube la imagen de fondo de una plantilla de credencial a Cloudflare R2 y
  * devuelve su URL pública. Va en un Route Handler, no en una Server Action,
  * por el mismo motivo que `branding/upload`: el límite de cuerpo de una
  * Server Action es de 1 MB, insuficiente para una imagen.

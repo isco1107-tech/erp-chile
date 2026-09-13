@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { put } from '@vercel/blob';
+import { put } from '@/lib/storage/blob';
 import { AuthError, ModuleNotEnabledError, TenantInactiveError, requireAuthWithPermission } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 import { prisma } from '@/lib/prisma';
 
 /**
- * Sube la foto de una candidata a Vercel Blob y guarda la URL en `Candidate`.
+ * Sube la foto de una candidata a Cloudflare R2 y guarda la URL en `Candidate`.
  * Va en un Route Handler, no en una Server Action, por el límite de 1 MB de
  * cuerpo de las Server Actions (mismo motivo que `branding/upload`).
  */

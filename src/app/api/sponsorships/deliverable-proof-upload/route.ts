@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { put } from '@vercel/blob';
+import { put } from '@/lib/storage/blob';
 import { AuthError, ModuleNotEnabledError, TenantInactiveError, requireAuthWithPermission } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 import { prisma } from '@/lib/prisma';
 
 /**
  * Sube la evidencia (foto, captura o PDF) de un `SponsorshipDeliverable` a
- * Vercel Blob y guarda la URL en `proofUrl`. Va en un Route Handler, no en
+ * Cloudflare R2 y guarda la URL en `proofUrl`. Va en un Route Handler, no en
  * una Server Action, por el mismo motivo que `branding/upload`: el límite de
  * cuerpo de una Server Action es de 1 MB, insuficiente para una imagen o PDF.
  */

@@ -16,7 +16,7 @@ describe('Selección de tablas del respaldo', () => {
       .filter((modelo) => modelo.fields.some((campo) => campo.name === 'companyId'))
       .map((modelo) => modelo.name);
 
-    const excluidas = ['UserSession', 'TotpBackupCode', 'ProcessedWebhookEvent', 'PlatformAuditLog'];
+    const excluidas = ['UserSession', 'TotpBackupCode', 'ProcessedWebhookEvent', 'PlatformAuditLog', 'DteCaf'];
     const esperadas = conCompanyId.filter((nombre) => !excluidas.includes(nombre));
 
     // Si alguien agrega un modelo nuevo con companyId, entra solo. Ese es el
@@ -36,6 +36,15 @@ describe('Selección de tablas del respaldo', () => {
     for (const tabla of ['UserSession', 'TotpBackupCode', 'ProcessedWebhookEvent', 'PlatformAuditLog']) {
       expect(nombres.has(tabla)).toBe(false);
     }
+  });
+
+  it('excluye DteCaf: su encryptedXml contiene la llave que timbra los DTE de la empresa', () => {
+    // El nombre del campo no matchea el patrón de campos sensibles (no dice
+    // "secret"/"token"/etc.), así que sin esta exclusión explícita el CAF
+    // cifrado salía íntegro en el respaldo — material suficiente para forjar
+    // documentos tributarios a nombre de la empresa si alguna vez se
+    // compromete la clave de cifrado de la aplicación.
+    expect(nombres.has('DteCaf')).toBe(false);
   });
 
   it('no exporta ningún campo de credenciales', () => {

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { put } from '@vercel/blob';
+import { put } from '@/lib/storage/blob';
 import { AuthError, ModuleNotEnabledError, TenantInactiveError, requireAuthWithPermission } from '@/lib/auth/guards';
 import { encryptFileBuffer } from '@/lib/messaging/crypto';
 import { createPendingAttachment } from '@/modules/messaging/services/messaging.service';
