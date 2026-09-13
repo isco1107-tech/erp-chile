@@ -16,7 +16,7 @@ import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import type { WorkflowEventPayload } from '@/lib/workflows/types';
 import { postCreditNoteIssued, postSalesDocumentIssued, reverseSalesDocumentPosting } from '@/modules/accounting/posting-rules/sales-posting';
-import { siiCode } from '@/lib/chile/dte/codes';
+import { isExemptDocument, siiCode } from '@/lib/chile/dte/codes';
 import { assignSalesFolio, stampDocument, type FolioAssignment } from '@/modules/dte/services/stamping.service';
 import { computeDocument, exceedsCreditLimit } from '../calc';
 import { CASH_ELIGIBLE_DTE_TYPES, DTE_TYPE_LABELS, NON_FOLIO_DTE_TYPES, STOCK_AFFECTING_DTE_TYPES } from '../schema';
@@ -81,6 +81,17 @@ export async function createSalesDocument(
 
     const { items: computedItems, totals } = computeDocument(withCost);
     const { netAmount, exemptAmount, ivaAmount, totalAmount } = totals;
+
+    // Una Factura/Boleta Exenta no puede llevar líneas afectas: el propio
+    // TipoDTE del SII declara el documento entero como exento de IVA. Sin este
+    // chequeo, una línea con un producto no marcado exento en el catálogo
+    // calculaba IVA igual, dejando un documento tipo 34/41 con `IVA` > 0 —
+    // inconsistente con su propia naturaleza y candidato a rechazo del SII.
+    if (isExemptDocument(input.dteType) && netAmount > 0) {
+      throw new Error(
+        `${DTE_TYPE_LABELS[input.dteType]} no puede incluir líneas afectas a IVA: revisa que todos los productos de esta venta estén marcados como exentos en el catálogo`
+      );
+    }
 
     let folio: number | null = null;
     const dteLabel = DTE_TYPE_LABELS[input.dteType];

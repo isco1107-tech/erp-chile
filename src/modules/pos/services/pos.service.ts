@@ -6,6 +6,9 @@ import { postSalesDocumentIssued } from '@/modules/accounting/posting-rules/sale
 import { computeDocument } from '@/modules/sales/calc';
 import { DTE_TYPE_LABELS } from '@/modules/sales/schema';
 import { cleanRut, formatRut, validateRut } from '@/lib/chile/rut';
+import { assignSalesFolio, stampDocument } from '@/modules/dte/services/stamping.service';
+import { emitWorkflowEvent } from '@/lib/workflows/engine';
+import type { WorkflowEventPayload } from '@/lib/workflows/types';
 import { CASH_PAYMENT_METHODS, type PosSaleInput } from '../schema';
 
 /**
@@ -85,7 +88,14 @@ export async function createPosSale(
   shiftId: string,
   input: PosSaleInput
 ): Promise<PosSaleResult> {
-  return prisma.$transaction(async (tx) => {
+  // Mismo motivo que `sales.service.ts`: capturado dentro de la transacción,
+  // emitido recién después de que confirme — el motor de automatizaciones es
+  // I/O externo y no debe poder hacer rollback de un cobro de mostrador ya
+  // efectuado. Queda `null` en el camino de idempotencia para no disparar el
+  // evento dos veces ante un reintento del mismo `idempotencyKey`.
+  let emittedSalePayload: WorkflowEventPayload | null = null;
+
+  const result = await prisma.$transaction(async (tx) => {
     if (input.idempotencyKey) {
       const existing = await tx.salesDocument.findUnique({
         where: { companyId_idempotencyKey: { companyId, idempotencyKey: input.idempotencyKey } },
@@ -108,6 +118,10 @@ export async function createPosSale(
 
     const warehouseId = shift.cashRegister.warehouseId;
     const contactId = await resolveCustomer(tx, companyId, input.customerRut);
+    // Se necesita el contacto completo (no solo el id) para el receptor del
+    // timbre electrónico si la empresa tiene CAF cargado — ver más abajo.
+    const contact = await tx.contact.findFirst({ where: { id: contactId, companyId } });
+    if (!contact) throw new Error('Cliente no encontrado');
 
     // Los precios los pone el servidor desde el catálogo. Aceptar el precio del
     // cliente permitiría vender a $1 desde la consola del navegador.
@@ -139,12 +153,16 @@ export async function createPosSale(
       throw new Error('El efectivo recibido es menor al total de la venta');
     }
 
-    const folioSeq = await tx.folioSequence.upsert({
-      where: { companyId_dteType: { companyId, dteType: 'BOLETA_39' } },
-      update: { currentFolio: { increment: 1 } },
-      create: { companyId, dteType: 'BOLETA_39', currentFolio: 1 },
-    });
-    const folio = folioSeq.currentFolio;
+    // Mismo camino que Ventas (`assignSalesFolio`): si la empresa tiene un CAF
+    // vigente para Boleta, el folio sale del rango autorizado por el SII y el
+    // documento se puede timbrar. Antes esta ruta llamaba directo a
+    // `folioSequence.upsert`, así que una boleta de mostrador NUNCA obtenía
+    // timbre válido aunque hubiera CAF cargado — y con Ventas usando el mismo
+    // tipo de documento por el camino del CAF, quedaban dos contadores de
+    // folio independientes para BOLETA_39, con riesgo real de duplicados ante
+    // el SII.
+    const folioAssignment = await assignSalesFolio(tx, companyId, 'BOLETA_39');
+    const folio = folioAssignment.folio;
     const reference = `POS ${DTE_TYPE_LABELS.BOLETA_39} Folio #${folio}`;
 
     // El costo que se persiste en la línea se toma del movimiento de Kardex, no
@@ -167,6 +185,64 @@ export async function createPosSale(
       costedItemsForAccounting.push({ unitCostPMP: movement.unitCost, quantity: item.quantity });
     }
 
+    // Timbrado electrónico — mismo bloque que `sales.service.ts`. Solo ocurre
+    // cuando el folio vino de un CAF (`folioAssignment.stamping` no nulo); sin
+    // folio autorizado no hay nada que timbrar y la boleta sigue naciendo con
+    // numeración interna, tal como ya documenta el fallback deliberado.
+    const issuedAt = new Date();
+    let stamped: { tedXml: string; signedXml: string } | null = null;
+
+    if (folioAssignment.stamping) {
+      const issuer = await tx.company.findUnique({
+        where: { id: companyId },
+        select: {
+          rut: true,
+          businessName: true,
+          giro: true,
+          actividadEconomicaCodigo: true,
+          address: true,
+          comuna: true,
+          ciudad: true,
+        },
+      });
+
+      if (issuer) {
+        stamped = stampDocument({
+          siiCode: folioAssignment.stamping.siiCode,
+          folio,
+          issueDate: issuedAt,
+          dueDate: null,
+          paymentMethod: input.paymentMethod,
+          issuer,
+          receiver: {
+            rut: contact.rut,
+            businessName: contact.razonSocial,
+            giro: contact.giro,
+            address: contact.address,
+            comuna: contact.comuna,
+            ciudad: null,
+          },
+          lines: computedItems.map((item) => ({
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            lineTotal: item.total,
+            isExempt: item.isExempt ?? false,
+            discountPercent: item.discountPercent ?? 0,
+            sku: item.sku,
+          })),
+          totals: {
+            netAmount: totals.netAmount,
+            exemptAmount: totals.exemptAmount,
+            ivaAmount: totals.ivaAmount,
+            totalAmount: totals.totalAmount,
+          },
+          cafBlockXml: folioAssignment.stamping.cafBlockXml,
+          privateKeyPem: folioAssignment.stamping.privateKeyPem,
+        });
+      }
+    }
+
     const document = await tx.salesDocument.create({
       data: {
         companyId,
@@ -176,6 +252,14 @@ export async function createPosSale(
         dteType: 'BOLETA_39',
         folio,
         status: 'ISSUED',
+        issueDate: issuedAt,
+        cafId: folioAssignment.cafId ?? undefined,
+        tedXml: stamped?.tedXml,
+        signedXml: stamped?.signedXml,
+        // Timbrado pero aún no despachado al SII — mismo significado que en
+        // Ventas: `null` cuando el documento no tiene timbre (numeración
+        // interna), 'PENDING' cuando sí.
+        siiStatus: stamped ? 'PENDING' : undefined,
         paymentMethod: input.paymentMethod,
         netAmount: totals.netAmount,
         exemptAmount: totals.exemptAmount,
@@ -229,8 +313,25 @@ export async function createPosSale(
         ? input.cashReceived - totals.totalAmount
         : 0;
 
+    emittedSalePayload = {
+      documentId: document.id,
+      dteType: 'BOLETA_39',
+      folio,
+      contactId: contact.id,
+      contactName: contact.razonSocial,
+      totalAmount: totals.totalAmount,
+      paymentMethod: input.paymentMethod,
+      isDte: stamped !== null,
+    };
+
     return { ...document, changeDue };
   }, LOCKING_TX_OPTIONS);
+
+  if (emittedSalePayload) {
+    void emitWorkflowEvent(companyId, 'SALE_ISSUED', emittedSalePayload);
+  }
+
+  return result;
 }
 
 export interface PosProduct {
