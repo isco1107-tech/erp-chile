@@ -19,6 +19,7 @@ import { formatRut } from '../src/lib/chile/rut';
 import bcrypt from 'bcryptjs';
 import type { CompanyFeatureFlags } from '../src/lib/auth/modules';
 import { MANUAL_DEMO_ADMIN_EMAIL, MANUAL_DEMO_ADMIN_PASSWORD } from './manual-demo-constants';
+import { assertScriptCanRun } from './lib/guard-production';
 
 const COMPANY_RUT = formatRut('99999999-9');
 
@@ -49,6 +50,7 @@ const ALL_FEATURES_ON: CompanyFeatureFlags = {
 };
 
 async function main() {
+  assertScriptCanRun('scripts/seed-manual-demo.ts');
   const company = await prisma.company.upsert({
     where: { rut: COMPANY_RUT },
     update: {},

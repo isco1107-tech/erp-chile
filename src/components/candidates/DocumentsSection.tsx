@@ -106,7 +106,16 @@ export default function DocumentsSection({ candidateId, documents: initial, canW
       <ul className="space-y-1.5">
         {documents.map((doc) => (
           <li key={doc.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-border px-2.5 py-1.5 text-sm">
-            <a href={doc.fileUrl} target="_blank" rel="noreferrer" className="flex-1 text-primary underline-offset-2 hover:underline">
+            {/* `fileUrl` viene vacío para tipos sensibles (p. ej. MEDICAL_CERTIFICATE):
+                stripSensitiveFileUrl lo blanquea en el servidor. En ese caso se usa la
+                ruta autenticada, igual que PhotosSection — nunca se reconstruye ni se
+                expone la URL pública real del blob. */}
+            <a
+              href={doc.fileUrl || `/api/candidates/${candidateId}/documents/${doc.id}/file`}
+              target="_blank"
+              rel="noreferrer"
+              className="flex-1 text-primary underline-offset-2 hover:underline"
+            >
               {doc.title}
             </a>
             {doc.expiresAt && (

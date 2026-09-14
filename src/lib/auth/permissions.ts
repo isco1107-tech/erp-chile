@@ -237,7 +237,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'fees:write': 'Registrar boletas de honorarios y marcarlas como pagadas',
   'candidates:read': 'Ver fichas de candidatas y staff',
   'candidates:write': 'Crear y editar fichas de candidatas y staff',
-  'candidates:sensitive': 'Ver datos de contacto y fotografías de postulaciones',
+  'candidates:sensitive': 'Ver datos de contacto, fotografías y certificados médicos de postulaciones',
   'production:read': 'Ver acreditaciones de staff y proveedores',
   'production:write': 'Acreditar staff y proveedores y validar accesos',
   'production:design': 'Personalizar el diseño (fondo, colores, marca de agua) de las credenciales',

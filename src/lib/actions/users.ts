@@ -234,7 +234,7 @@ export async function changeUserRoleAction(userId: string, role: Role): Promise<
     if (parsedRole.data === 'OWNER' && session.role !== 'OWNER') {
       return { success: false, error: 'Solo un Dueño (OWNER) puede asignar el rol de Dueño' };
     }
-    const data = await usersService.changeUserRole(session.companyId, session.id, userId, parsedRole.data);
+    const data = await usersService.changeUserRole(session.companyId, session.id, userId, parsedRole.data, session.role);
     await createAuditLog({
       companyId: session.companyId,
       userId: session.id,
@@ -254,7 +254,7 @@ export async function changeUserRoleAction(userId: string, role: Role): Promise<
 export async function toggleUserStatusAction(userId: string): Promise<ActionResult<SafeUser>> {
   try {
     const session = await requireAuthWithPermission('settings:users');
-    const data = await usersService.toggleUserStatus(session.companyId, session.id, userId);
+    const data = await usersService.toggleUserStatus(session.companyId, session.id, userId, session.role);
     await createAuditLog({
       companyId: session.companyId,
       userId: session.id,
@@ -274,7 +274,7 @@ export async function toggleUserStatusAction(userId: string): Promise<ActionResu
 export async function deleteUserAction(userId: string): Promise<ActionResult<null>> {
   try {
     const session = await requireAuthWithPermission('settings:users');
-    await usersService.deleteUser(session.companyId, session.id, userId);
+    await usersService.deleteUser(session.companyId, session.id, userId, session.role);
     await createAuditLog({
       companyId: session.companyId,
       userId: session.id,
@@ -300,7 +300,7 @@ export async function resetUserPasswordAction(
     // `resetUserTemporaryPassword`/`finalizeOwnPasswordResetAction`) para que
     // el admin alcance a ver y copiar la clave nueva antes de que se cierre
     // su propia sesión.
-    const data = await usersService.resetUserTemporaryPassword(session.companyId, userId, {
+    const data = await usersService.resetUserTemporaryPassword(session.companyId, session.id, userId, session.role, {
       deferInvalidation: isSelf,
     });
 

@@ -70,6 +70,7 @@ function redactSensitiveFields(candidate: CandidateWithProject, canSeeSensitive:
     employerName: null,
     employerRut: null,
     employerAddress: null,
+    condicionesMedicas: null,
   };
 }
 
@@ -398,17 +399,22 @@ export async function deleteAttendanceAction(attendanceId: string, candidateId: 
 // Documentos (contratos de imagen, fotografías de postulación y otros)
 // ---------------------------------------------------------------------------
 
-const SENSITIVE_DOCUMENT_TYPES: ReadonlySet<CandidateDocument['documentType']> = new Set(['PHOTO_FACE', 'PHOTO_FULL_BODY']);
+const SENSITIVE_DOCUMENT_TYPES: ReadonlySet<CandidateDocument['documentType']> = new Set([
+  'PHOTO_FACE',
+  'PHOTO_FULL_BODY',
+  'MEDICAL_CERTIFICATE',
+]);
 
 /**
  * `fileUrl` es la URL PÚBLICA real del blob (`access: 'public'` en Vercel
- * Blob) — nunca debe llegar al navegador para una fotografía de postulación,
- * o la ruta autenticada de descarga (`.../documents/[id]/file`) deja de
- * significar algo: cualquiera con `candidates:read`/`candidates:write` (sin
- * `candidates:sensitive`) podría copiarla del panel y acceder a la foto para
- * siempre, sin sesión y sin quedar en la bitácora. Para `CONTRACT_IMAGE`/
- * `OTHER` sí se conserva — son documentos internos preexistentes que el
- * panel ya enlazaba directo antes de este módulo.
+ * Blob) — nunca debe llegar al navegador para una fotografía o certificado
+ * médico de postulación, o la ruta autenticada de descarga
+ * (`.../documents/[id]/file`) deja de significar algo: cualquiera con
+ * `candidates:read`/`candidates:write` (sin `candidates:sensitive`) podría
+ * copiarla del panel y acceder al archivo para siempre, sin sesión y sin
+ * quedar en la bitácora. Para `CONTRACT_IMAGE`/`OTHER` sí se conserva — son
+ * documentos internos preexistentes que el panel ya enlazaba directo antes
+ * de este módulo.
  */
 function stripSensitiveFileUrl(doc: CandidateDocument): CandidateDocument {
   if (!SENSITIVE_DOCUMENT_TYPES.has(doc.documentType)) return doc;

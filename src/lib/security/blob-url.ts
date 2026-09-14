@@ -32,3 +32,23 @@ export function isAllowedBlobUrl(value: string): boolean {
     return false;
   }
 }
+
+/**
+ * `isAllowedBlobUrl` solo valida el HOST — un archivo de otra candidata o de
+ * otra empresa, subido al mismo storage compartido, también lo pasa. Esto
+ * verifica además que el PATHNAME empiece con el prefijo que la propia ruta
+ * de subida generó (p. ej. `candidates/{companyId}/documents/{candidateId}-`),
+ * el mismo dato que ya queda codificado en el nombre del objeto tanto para R2
+ * como para blobs legacy de Vercel (mismo pathname detrás de hosts
+ * distintos — ver `storage/blob.ts`). Usarlo para cerrar SEG-04: que
+ * "asociar" un documento no baste con conocer/copiar la URL de un archivo
+ * ajeno.
+ */
+export function blobPathnameStartsWith(value: string, prefix: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.pathname.replace(/^\/+/, '').startsWith(prefix);
+  } catch {
+    return false;
+  }
+}

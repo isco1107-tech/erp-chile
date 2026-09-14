@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { prisma } from '../src/lib/prisma';
 import { purgeRejectedCandidates } from '../src/modules/candidates/services/candidates.service';
+import { assertScriptCanRun } from './lib/guard-production';
 
 /**
  * Purga por retención (Sección 7 del módulo de postulaciones): elimina
@@ -33,6 +34,7 @@ function parseArgs(): { months: number; commit: boolean; companyId?: string } {
 }
 
 async function main() {
+  assertScriptCanRun('scripts/purge-rejected-candidates.ts');
   const { months, commit, companyId } = parseArgs();
   if (!Number.isFinite(months) || months <= 0) {
     console.error('Meses de retención inválidos. Usa --months=12 o CANDIDATE_RETENTION_MONTHS.');

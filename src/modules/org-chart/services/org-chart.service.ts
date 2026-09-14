@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
-import type { JobPosition, User } from '@prisma/client';
+import type { JobPosition } from '@prisma/client';
+import { SAFE_USER_SELECT, type SafeUser } from '@/lib/services/users.service';
 import type { CreateJobPositionInput } from '../schema';
 
 export type JobPositionWithUsage = JobPosition & { userCount: number };
@@ -7,11 +8,12 @@ export type JobPositionWithUsage = JobPosition & { userCount: number };
 export type MinimalUser = { id: string; managerId: string | null };
 
 /**
- * `Omit<User, 'passwordHash'>`, mismo criterio que `SafeUser` en
- * `src/lib/services/users.service.ts`: esto cruza la frontera Server Action →
- * cliente, así que nunca puede arrastrar el hash bcrypt.
+ * Reusa `SAFE_USER_SELECT`/`SafeUser` de `src/lib/services/users.service.ts`
+ * en vez de reimplementar su propio `Omit<User, 'passwordHash'>` — ese
+ * duplicado dejaba pasar `totpSecret` y otros campos de seguridad al
+ * navegador igual que `SafeUser` antes de convertirse en lista positiva.
  */
-export type StaffFlatRow = Omit<User, 'passwordHash'> & {
+export type StaffFlatRow = SafeUser & {
   jobPosition: { id: string; name: string } | null;
   manager: { id: string; name: string } | null;
   customRole: { name: string } | null;
@@ -133,8 +135,8 @@ export async function assignJobPosition(
 export async function listStaffFlat(companyId: string): Promise<StaffFlatRow[]> {
   return prisma.user.findMany({
     where: { companyId },
-    omit: { passwordHash: true },
-    include: {
+    select: {
+      ...SAFE_USER_SELECT,
       jobPosition: { select: { id: true, name: true } },
       manager: { select: { id: true, name: true } },
       // No forma parte del molde original de la tabla de gestión, pero

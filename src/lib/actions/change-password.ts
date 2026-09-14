@@ -34,6 +34,14 @@ const schema = z
 export async function completeForcedPasswordChangeAction(input: unknown): Promise<ActionResult<null>> {
   try {
     const context = await getAuthContext();
+    // Esta acción solo existe para el cambio obligatorio de primer ingreso —
+    // no hay (todavía) un flujo de cambio de contraseña voluntario en el
+    // sistema. Sin este chequeo, una sesión robada o un equipo abierto podía
+    // usarla para fijar una contraseña permanente en cualquier momento, sin
+    // volver a pedir la actual (SEG-02).
+    if (!context.mustChangePassword) {
+      return { success: false, error: 'No hay un cambio de contraseña pendiente' };
+    }
     const parsed = schema.safeParse(input);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
 

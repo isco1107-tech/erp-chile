@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import type { CandidateDocument, CandidateDocumentStatus } from '@prisma/client';
 import type { DocumentCreateInput, DocumentUpdateInput } from '../schema';
+import { blobPathnameStartsWith } from '@/lib/security/blob-url';
 
 export async function assertCandidateOwnership(companyId: string, candidateId: string): Promise<void> {
   const candidate = await prisma.candidate.findFirst({ where: { id: candidateId, companyId }, select: { id: true } });
@@ -30,6 +31,18 @@ export async function addDocument(
   data: DocumentCreateInput
 ): Promise<CandidateDocument> {
   await assertCandidateOwnership(companyId, candidateId);
+  // SEG-04: `documentCreateSchema.fileUrl` (Zod) solo valida el HOST de la
+  // URL vía `isAllowedBlobUrl` — no puede validar más, no tiene el
+  // companyId/candidateId a mano. Acá sí los tenemos: sin este chequeo,
+  // cualquiera con `candidates:write` podía asociar a ESTA candidata el
+  // archivo de otra (de la misma empresa o de otro tenant, el storage es
+  // compartido) con solo conocer o copiar su URL — el archivo ya pasaba el
+  // allowlist de host igual. La ruta de subida siempre arma el pathname como
+  // `candidates/{companyId}/documents/{candidateId}-...`.
+  const expectedPrefix = `candidates/${companyId}/documents/${candidateId}-`;
+  if (!blobPathnameStartsWith(data.fileUrl, expectedPrefix)) {
+    throw new Error('El archivo no corresponde a esta candidata');
+  }
   const signedAt = data.signedAt ?? null;
   const expiresAt = data.expiresAt ?? null;
   const created = await prisma.candidateDocument.create({
