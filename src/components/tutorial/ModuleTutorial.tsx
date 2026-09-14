@@ -92,13 +92,24 @@ export default function ModuleTutorial({ userId }: ModuleTutorialProps) {
   useEffect(() => setMounted(true), []);
 
   // Auto-abrir: una vez por usuario+módulo, solo si hay contenido para esta ruta.
+  // Se marca "visto" ya en este momento (no al cerrar): el overlay de foco no
+  // bloquea clicks fuera del elemento resaltado (el halo es solo `box-shadow`,
+  // sin superficie propia), así que el usuario puede navegar a otra pantalla
+  // sin pasar por `close()` — si el "visto" quedara pendiente de ese cierre
+  // explícito, el tour reaparecería en cada visita al módulo en vez de una
+  // sola vez.
   useEffect(() => {
     setStep(0);
     if (!moduleKey || !content) {
       setOpen(false);
       return;
     }
-    setOpen(!hasSeen(userId, moduleKey));
+    if (hasSeen(userId, moduleKey)) {
+      setOpen(false);
+      return;
+    }
+    markSeen(userId, moduleKey);
+    setOpen(true);
   }, [moduleKey, content, userId]);
 
   // Reapertura manual desde el botón "Cómo usar", sin importar si ya se vio.
