@@ -17,6 +17,17 @@ async function main() {
         for (const image of images) image.loading = 'eager';
         await Promise.all(images.map(image => image.decode()));
       });
+      // Reveal-on-scroll only fires for what has been in view, so walk the page
+      // once: otherwise the full-page screenshots capture half-faded sections.
+      await page.evaluate(async () => {
+        const step = window.innerHeight * 0.8;
+        for (let y = 0; y < document.body.scrollHeight; y += step) {
+          window.scrollTo({ top: y, behavior: 'instant' });
+          await new Promise(resolve => setTimeout(resolve, 90));
+        }
+        window.scrollTo({ top: 0, behavior: 'instant' });
+      });
+      await page.waitForTimeout(900);
     };
     const response = await page.goto(origin, { waitUntil: 'networkidle' });
     assert.equal(response.status(), 200);
