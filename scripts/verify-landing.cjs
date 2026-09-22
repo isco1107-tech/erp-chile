@@ -51,7 +51,7 @@ async function main() {
     const prepared = page.getByRole('status').filter({ hasText: 'Envía el mensaje' });
     await prepared.waitFor();
     const emailLink = await prepared.getByRole('link').getAttribute('href');
-    assert.ok(emailLink.startsWith('mailto:aetherp@gmail.com?'));
+    assert.ok(emailLink.startsWith('mailto:aethererp1@gmail.com?'));
     assert.match(decodeURIComponent(emailLink), /Empresa de prueba/);
     assert.match(decodeURIComponent(emailLink), /Finanzas y contabilidad/);
     await page.locator('#cotizar').screenshot({ path: `${folder}/quote.png` });

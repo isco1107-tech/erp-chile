@@ -91,7 +91,7 @@ function DownloadOption({ platform, name, detail, icon: Icon, releases }: {
   );
 }
 
-export default function Landing({ releases, salesEmail = 'aetherp@gmail.com', salesWhatsapp }: { releases: DesktopRelease[]; salesEmail?: string; salesWhatsapp?: string }) {
+export default function Landing({ releases, salesEmail = 'aethererp1@gmail.com', salesWhatsapp }: { releases: DesktopRelease[]; salesEmail?: string; salesWhatsapp?: string }) {
   const [activeView, setActiveView] = useState(0);
   const [activeGroup, setActiveGroup] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
