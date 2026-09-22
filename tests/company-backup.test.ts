@@ -67,6 +67,18 @@ describe('Selección de tablas del respaldo', () => {
     expect(usuario?.fields).toContain('name');
   });
 
+  it('deja fuera las credenciales de la API del SII pero conserva la configuración de la empresa', () => {
+    // `siiApiKey` matchea "secret" en ningún lado de su nombre — el patrón
+    // sensible necesita el caso "apiKey" explícito, si no este campo salía
+    // (cifrado, pero igual sin razón de negocio para estar) en el respaldo.
+    const companySettings = modelos.find((modelo) => modelo.name === 'CompanySettings');
+    expect(companySettings).toBeDefined();
+    expect(companySettings?.fields).not.toContain('siiApiKey');
+    expect(companySettings?.fields).not.toContain('siiApiSecret');
+    expect(companySettings?.fields).toContain('siiApiEnabled');
+    expect(companySettings?.fields).toContain('siiApiBaseUrl');
+  });
+
   it('no incluye relaciones, solo escalares y enums', () => {
     // Las filas relacionadas ya viajan en su propia tabla; anidarlas duplicaría
     // el archivo completo.

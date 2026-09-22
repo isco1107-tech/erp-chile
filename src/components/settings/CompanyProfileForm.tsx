@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import type { Company, CompanySettings } from '@prisma/client';
+import type { Company } from '@prisma/client';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { CurrencyInput } from '@/components/ui/CurrencyInput';
@@ -10,10 +10,11 @@ import { Label } from '@/components/ui/label';
 import { RutInput } from '@/components/ui/RutInput';
 import { updateCompanyProfileAction, updateCompanySettingsAction } from '@/lib/actions/company';
 import { extractBrandPalette } from '@/lib/branding/extract-color';
+import type { CompanySettingsView } from '@/lib/services/company.service';
 
 interface CompanyProfileFormProps {
   company: Company;
-  settings: CompanySettings;
+  settings: CompanySettingsView;
 }
 
 async function uploadLogo(file: File, brandPalette: string[]): Promise<string> {
@@ -66,6 +67,18 @@ export default function CompanyProfileForm({ company, settings }: CompanyProfile
   const [fiscalYear, setFiscalYear] = useState(String(settings.fiscalYear));
   const [noApprovalThreshold, setNoApprovalThreshold] = useState(settings.purchaseApprovalThreshold == null);
   const [approvalThreshold, setApprovalThreshold] = useState(settings.purchaseApprovalThreshold ?? 0);
+  const [siiApiEnabled, setSiiApiEnabled] = useState(Boolean(settings.siiApiEnabled));
+  const [siiApiBaseUrl, setSiiApiBaseUrl] = useState(settings.siiApiBaseUrl ?? '');
+  // La credencial real nunca vuelve del servidor (ver CompanySettingsView):
+  // el campo arranca vacío y solo se envía si el usuario escribe un valor
+  // nuevo o pide quitar el guardado explícitamente.
+  const [siiApiKey, setSiiApiKey] = useState('');
+  const [siiApiKeySet, setSiiApiKeySet] = useState(settings.siiApiKeySet);
+  const [siiApiKeyCleared, setSiiApiKeyCleared] = useState(false);
+  const [siiApiSecret, setSiiApiSecret] = useState('');
+  const [siiApiSecretSet, setSiiApiSecretSet] = useState(settings.siiApiSecretSet);
+  const [siiApiSecretCleared, setSiiApiSecretCleared] = useState(false);
+  const [showSiiSecret, setShowSiiSecret] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -93,11 +106,23 @@ export default function CompanyProfileForm({ company, settings }: CompanyProfile
         honorariumRetentionBps: Math.round(Number(retentionRate) * 100),
         fiscalYear: Number(fiscalYear),
         purchaseApprovalThreshold: noApprovalThreshold ? null : approvalThreshold,
+        siiApiEnabled,
+        siiApiBaseUrl: siiApiBaseUrl.trim() || null,
+        // undefined = no tocar la credencial guardada (nunca viajó al cliente
+        // para poder reenviarla tal cual). null = quitarla explícitamente.
+        siiApiKey: siiApiKey.trim() ? siiApiKey.trim() : siiApiKeyCleared ? null : undefined,
+        siiApiSecret: siiApiSecret.trim() ? siiApiSecret.trim() : siiApiSecretCleared ? null : undefined,
       });
       if (!settingsResult.success) {
         toast.error(settingsResult.error);
         return;
       }
+      setSiiApiKeySet(settingsResult.data.siiApiKeySet);
+      setSiiApiSecretSet(settingsResult.data.siiApiSecretSet);
+      setSiiApiKey('');
+      setSiiApiSecret('');
+      setSiiApiKeyCleared(false);
+      setSiiApiSecretCleared(false);
       toast.success(result.message ?? 'Perfil actualizado');
     } finally {
       setSaving(false);
@@ -207,6 +232,76 @@ export default function CompanyProfileForm({ company, settings }: CompanyProfile
               </p>
             </>
           )}
+        </div>
+
+        <div className="mt-4 border-t border-border pt-4 space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="font-medium">Integración API del SII</p>
+              <p className="text-xs text-muted-foreground">Credenciales propias por empresa para conectar con el servicio SII desde esta plataforma.</p>
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={siiApiEnabled} onChange={(e) => setSiiApiEnabled(e.target.checked)} />
+              Activada
+            </label>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <Label htmlFor="siiApiBaseUrl">URL base de la API</Label>
+              <Input
+                id="siiApiBaseUrl"
+                type="url"
+                value={siiApiBaseUrl}
+                onChange={(e) => setSiiApiBaseUrl(e.target.value)}
+                placeholder="https://api.sii.cl/...."
+              />
+            </div>
+            <div>
+              <Label htmlFor="siiApiKey">API Key</Label>
+              <Input
+                id="siiApiKey"
+                value={siiApiKey}
+                onChange={(e) => { setSiiApiKey(e.target.value); setSiiApiKeyCleared(false); }}
+                placeholder={siiApiKeySet && !siiApiKeyCleared ? '•••••••• (guardada — escribe para reemplazar)' : 'Clave o token de acceso'}
+              />
+              {siiApiKeySet && !siiApiKeyCleared && (
+                <button type="button" className="mt-1 text-xs text-muted-foreground underline" onClick={() => { setSiiApiKeyCleared(true); setSiiApiKey(''); }}>
+                  Quitar credencial guardada
+                </button>
+              )}
+              {siiApiKeyCleared && <p className="mt-1 text-xs text-amber-600">Se quitará al guardar.</p>}
+            </div>
+            <div>
+              <Label htmlFor="siiApiSecret">API Secret</Label>
+              <div className="relative">
+                <Input
+                  id="siiApiSecret"
+                  type={showSiiSecret ? 'text' : 'password'}
+                  value={siiApiSecret}
+                  onChange={(e) => { setSiiApiSecret(e.target.value); setSiiApiSecretCleared(false); }}
+                  placeholder={siiApiSecretSet && !siiApiSecretCleared ? '•••••••• (guardada)' : 'Secreto o contraseña'}
+                />
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground"
+                  onClick={() => setShowSiiSecret((v) => !v)}
+                >
+                  {showSiiSecret ? 'Ocultar' : 'Ver'}
+                </button>
+              </div>
+              {siiApiSecretSet && !siiApiSecretCleared && (
+                <button type="button" className="mt-1 text-xs text-muted-foreground underline" onClick={() => { setSiiApiSecretCleared(true); setSiiApiSecret(''); }}>
+                  Quitar credencial guardada
+                </button>
+              )}
+              {siiApiSecretCleared && <p className="mt-1 text-xs text-amber-600">Se quitará al guardar.</p>}
+            </div>
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            Estas credenciales quedan asociadas a la empresa actual y cifradas en la base de datos. No compartas la API Secret con otros usuarios ni la uses fuera del contexto autorizado.
+          </p>
         </div>
       </div>
     </form>

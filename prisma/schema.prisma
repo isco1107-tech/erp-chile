@@ -451,6 +451,13 @@ model CompanySettings {
   /// de pago manual (entradas, votación) — no hay pasarela de pago integrada,
   /// así que el comprador transfiere fuera del sistema y el staff confirma.
   bankTransferInfo          String?
+  /// Integración con la API del SII para esta empresa. Almacena la
+  /// configuración específica del cliente (endpoint, key y secret), sin
+  /// compartir la credencial entre empresas.
+  siiApiEnabled             Boolean      @default(false)
+  siiApiBaseUrl             String?
+  siiApiKey                 String?
+  siiApiSecret              String?
   createdAt                 DateTime     @default(now())
   updatedAt                 DateTime     @updatedAt
 }

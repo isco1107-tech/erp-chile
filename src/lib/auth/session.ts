@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { SignJWT, jwtVerify, type JWTPayload } from 'jose';
+import { ERP_ENTRY_COOKIE, ERP_ENTRY_COOKIE_OPTIONS } from './entry-preference';
 
 export interface SessionPayload extends JWTPayload {
   userId: string;
@@ -64,6 +65,7 @@ export async function verifySessionToken(token: string): Promise<SessionPayload>
 }
 
 export function setSessionCookie(res: NextResponse, token: string) {
+  res.cookies.set(ERP_ENTRY_COOKIE, 'erp', ERP_ENTRY_COOKIE_OPTIONS);
   res.cookies.set('session', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
@@ -98,6 +100,7 @@ export function clearSessionCookie(res: NextResponse) {
 export async function setSessionCookieServer(token: string) {
   const { cookies } = await import('next/headers');
   const store = await cookies();
+  store.set(ERP_ENTRY_COOKIE, 'erp', ERP_ENTRY_COOKIE_OPTIONS);
   store.set({
     name: 'session',
     value: token,

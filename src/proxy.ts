@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
+import { ERP_ENTRY_COOKIE, ERP_ENTRY_COOKIE_OPTIONS } from '@/lib/auth/entry-preference';
 
 /**
  * Rutas alcanzables sin sesión. `forgot-password` y `reset-password` tienen que
@@ -54,7 +55,35 @@ const PUBLIC_ROUTES = [
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // The application and returning customers enter the ERP. This preference
+  // does not authorize anything: dashboard guards still validate the tenant.
+  if (pathname === '/') {
+    const token = req.cookies.get('session')?.value;
+    const desktop = /\bAetherDesktop\//i.test(req.headers.get('user-agent') ?? '');
+    if (token || desktop || req.cookies.get(ERP_ENTRY_COOKIE)?.value === 'erp') {
+      let destination = '/login';
+      if (token) {
+        try {
+          if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET is not set');
+          const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET));
+          if (payload.purpose !== 'session') throw new Error('Token de sesión inválido');
+          destination = '/dashboard';
+        } catch { /* An expired session still belongs at login, not marketing. */ }
+      }
+      const response = NextResponse.redirect(new URL(destination, req.url));
+      response.headers.set('Cache-Control', 'private, no-store');
+      response.cookies.set(ERP_ENTRY_COOKIE, 'erp', ERP_ENTRY_COOKIE_OPTIONS);
+      if (token && destination === '/login') response.cookies.delete('session');
+      return response;
+    }
+    return NextResponse.next();
+  }
+
   if (
+    pathname === '/conoce-aether' ||
+    pathname.startsWith('/marketing/') ||
+    pathname.startsWith('/downloads/') ||
+    pathname.startsWith('/manual/screenshots/') ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/static') ||
     PUBLIC_ROUTES.some((route) => pathname.startsWith(route))

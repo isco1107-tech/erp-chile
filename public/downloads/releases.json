@@ -1,0 +1,34 @@
+[
+  {
+    "platform": "windows",
+    "architecture": "x64",
+    "version": "0.1.1",
+    "file": "aether-erp-windows.exe",
+    "size": 1969815,
+    "sha256": "b52c6676737ac395e2efbb328a8a2131ceca717f2f064c933375fd07479f145d"
+  },
+  {
+    "platform": "macos",
+    "architecture": "arm64",
+    "version": "0.1.1",
+    "file": "aether-erp-macos.dmg",
+    "size": 5248907,
+    "sha256": "65a8e801155fbe30a2f45f549006838144b25005c3212ebd9174d3e93dada6f1"
+  },
+  {
+    "platform": "macos",
+    "architecture": "x64",
+    "version": "0.1.1",
+    "file": "aether-erp-macos-intel.dmg",
+    "size": 5306421,
+    "sha256": "83ecbf4958beec433cff376ded0d6a857d1bbcfd81a9410b5f91e2b21020051c"
+  },
+  {
+    "platform": "linux",
+    "architecture": "x64",
+    "version": "0.1.1",
+    "file": "aether-erp-linux.AppImage",
+    "size": 82180600,
+    "sha256": "a2046e50c0380a13118bd357ba405838394b885fbcc42e4f485d190ce705ed05"
+  }
+]

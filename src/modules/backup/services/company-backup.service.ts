@@ -52,8 +52,13 @@ const EXCLUDED_MODELS = new Set([
  * Campos que nunca salen, por nombre. Se filtra por patrón y no por lista
  * exacta para que un modelo nuevo con `algoSecret` quede cubierto sin que
  * nadie tenga que acordarse de agregarlo acá.
+ *
+ * `api[_-]?key` es un patrón aparte (no un simple `key`): `AccountMapping.key`
+ * es dato de negocio real (mapeo de plan de cuentas) que sí debe salir en el
+ * respaldo, así que un `key` suelto sería demasiado ancho. `siiApiKey` fue el
+ * caso real que expuso el hueco — matchea "secret" pero no "key".
  */
-const SENSITIVE_FIELD_PATTERN = /password|secret|token|hash|salt|credential|privatekey/i;
+const SENSITIVE_FIELD_PATTERN = /password|secret|token|hash|salt|credential|privatekey|api[_-]?key/i;
 
 /** Acceso dinámico al delegate de Prisma, tipado sin recurrir a `any`. */
 interface FindManyDelegate {
