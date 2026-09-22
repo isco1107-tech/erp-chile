@@ -12,7 +12,7 @@ const points = [
 
 export default function ChileSection() {
   return (
-    <section className={`${s.section} ${s.chile}`}>
+    <section id="tributacion" className={`${s.section} ${s.chile}`}>
       <div className={`${s.container} ${s.chileGrid}`}>
         <div className={s.chileCopy} data-reveal>
           <p className={s.kicker}>TRIBUTACIÓN CHILENA</p>

@@ -166,14 +166,14 @@ export default function Landing({ releases, salesEmail = 'aethererp1@gmail.com',
       <header className={s.header} ref={header}>
         <div className={s.headerInner}>
           <Link href="/conoce-aether" aria-label="Aether ERP, inicio"><Brand /></Link>
-          <nav className={s.desktopNav} aria-label="Navegación principal"><a href="#como-funciona">Cómo funciona</a><a href="#plataforma">La plataforma</a><a href="#para-quien">Para quién</a><a href="#modulos">Soluciones</a><a href="#seguridad">Seguridad</a><a href="#descargas">Descargas</a></nav>
+          <nav className={s.desktopNav} aria-label="Navegación principal"><a href="#como-funciona">Cómo funciona</a><a href="#plataforma">La plataforma</a><a href="#para-quien">Para quién</a><a href="#modulos">Soluciones</a><a href="#seguridad">Seguridad</a><a href="#descargas">Descargas</a><a href="#implementacion">Precios</a></nav>
           <div className={s.headerActions}>
             <Link className={s.login} href="/login">Ingresar <ArrowUpRight size={15} aria-hidden="true" /></Link>
             <a className={s.headerCta} href="#cotizar">Solicitar demo <ArrowUpRight size={15} aria-hidden="true" /></a>
             <button className={s.menuButton} aria-label={menuOpen ? 'Cerrar menú' : 'Abrir menú'} aria-expanded={menuOpen} aria-controls="mobile-nav" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X /> : <Menu />}</button>
           </div>
         </div>
-        {menuOpen && <nav id="mobile-nav" className={s.mobileNav} aria-label="Navegación móvil" onClick={() => setMenuOpen(false)}><a href="#como-funciona">Cómo funciona</a><a href="#plataforma">La plataforma</a><a href="#para-quien">Para quién</a><a href="#modulos">Soluciones</a><a href="#seguridad">Seguridad</a><a href="#implementacion">Implementación</a><a href="#descargas">Descargas</a><a href="#cotizar">Cotizar para mi empresa</a><Link href="/login">Ingresar al ERP</Link></nav>}
+        {menuOpen && <nav id="mobile-nav" className={s.mobileNav} aria-label="Navegación móvil" onClick={() => setMenuOpen(false)}><a href="#como-funciona">Cómo funciona</a><a href="#cambio">Lo que cambia</a><a href="#plataforma">La plataforma</a><a href="#tributacion">Tributación chilena</a><a href="#para-quien">Para quién</a><a href="#modulos">Soluciones</a><a href="#seguridad">Seguridad</a><a href="#descargas">Descargas</a><a href="#implementacion">Precios</a><a href="#cotizar">Cotizar para mi empresa</a><Link href="/login">Ingresar al ERP</Link></nav>}
       </header>
 
       <section id="contenido" className={s.hero}>
