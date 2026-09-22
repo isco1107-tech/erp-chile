@@ -139,7 +139,7 @@ export default function Landing({ releases, salesEmail = 'aetherp@gmail.com', sa
           <div className={s.heroMedia}><div className={s.windowBar}><span /><span /><span /><p><LockKeyhole size={11} /> Aether / Panel de tu empresa</p><Layers3 size={13} /></div><HeroPreview /></div>
           <div className={s.connectedCard}><span className={s.connectedIcon}><Layers3 size={22} /></span><div><strong>Todo conectado. Todo más claro.</strong><p>De la primera venta al último pago.</p></div><CircleCheck size={19} /></div>
           <div className={s.heroFlow}><span><ReceiptText size={15} /> Ventas</span><ArrowRight size={13} /><span><Boxes size={15} /> Stock</span><ArrowRight size={13} /><span><WalletCards size={15} /> Caja</span></div>
-          <p className={s.demoCaption}>Vista ilustrativa · Datos ficticios · Explora capturas reales más abajo</p>
+          <p className={s.demoCaption}>Captura real · Entorno de demostración</p>
         </div>
         </div>
         <div className={s.heroCaption}><span>PARA EL DÍA A DÍA. Y PARA LO QUE VIENE.</span><a href="#plataforma" aria-label="Explorar Aether"><ArrowDown size={20} /></a><span>GESTIÓN CONECTADA / AETHER ERP</span></div>
