@@ -4,6 +4,7 @@ import { buildWorkbook } from './workbook.service';
 import { sendEmail, getAppUrl } from '@/lib/email/mailer';
 import { buildWeeklyReportEmail } from '@/lib/email/templates';
 import { createAuditLog } from '@/lib/auth/audit';
+import { captureException } from '@/lib/observability';
 
 const OPERATIONAL_STATUSES = ['ACTIVE', 'TRIAL'] as const;
 
@@ -71,7 +72,7 @@ export async function runWeeklyReportCron(): Promise<{ processedCompanies: numbe
 
       processedCompanies++;
     } catch (err) {
-      console.error(`Error al procesar reporte semanal para empresa ${company.id}:`, err);
+      captureException(err, { module: 'reports', companyId: company.id, extra: { reason: 'weekly-report' } });
     }
   }
 

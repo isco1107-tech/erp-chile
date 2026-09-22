@@ -8,6 +8,7 @@ import {
   InvalidEventPayloadError,
 } from '@/modules/webhooks/services/n8n-handler.service';
 import { checkRateLimit, N8N_WEBHOOK_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { captureException } from '@/lib/observability';
 
 const MAX_BODY_BYTES = 256 * 1024; // Un evento de conciliación es unas pocas líneas de JSON; 256 KB da margen de sobra.
 
@@ -117,11 +118,11 @@ export async function POST(req: NextRequest) {
       if (handlerError instanceof DocumentNotFoundError) {
         return NextResponse.json({ success: false, error: handlerError.message }, { status: 404 });
       }
-      console.error(`n8n webhook: error ejecutando evento ${eventType} (${eventId}) para empresa ${company.companyId}:`, handlerError);
+      captureException(handlerError, { module: 'webhooks', companyId: company.companyId, extra: { eventType, eventId } });
       return NextResponse.json({ success: false, error: 'Error interno al procesar el evento' }, { status: 500 });
     }
   } catch (error) {
-    console.error('n8n webhook: error inesperado:', error);
+    captureException(error, { module: 'webhooks' });
     return NextResponse.json({ success: false, error: 'Error interno al procesar el webhook' }, { status: 500 });
   }
 }

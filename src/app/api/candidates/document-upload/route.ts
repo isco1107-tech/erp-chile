@@ -3,6 +3,7 @@ import { put } from '@/lib/storage/blob';
 import { AuthError, ModuleNotEnabledError, TenantInactiveError, requireAuthWithPermission } from '@/lib/auth/guards';
 import { prisma } from '@/lib/prisma';
 import { sniffCertificateType, SNIFFED_CERTIFICATE_EXTENSION } from '@/lib/security/file-signature';
+import { captureException } from '@/lib/observability';
 
 /**
  * Sube el archivo de un documento/contrato de imagen de candidata a Vercel
@@ -72,7 +73,7 @@ export async function POST(req: Request) {
     if (error instanceof TenantInactiveError) {
       return NextResponse.json({ success: false, error: error.message }, { status: 403 });
     }
-    console.error('Candidate document upload failed:', error);
+    captureException(error, { module: 'candidates' });
     return NextResponse.json({ success: false, error: 'No se pudo subir el documento' }, { status: 500 });
   }
 }

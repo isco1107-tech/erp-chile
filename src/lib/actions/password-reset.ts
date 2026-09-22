@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { headers } from 'next/headers';
 import { getAppUrl, sendEmail } from '@/lib/email/mailer';
 import { buildPasswordResetEmail } from '@/lib/email/templates';
+import { captureException } from '@/lib/observability';
 import { passwordPolicySchema } from '@/lib/auth/password-policy';
 import {
   RESET_TOKEN_TTL_MINUTES,
@@ -114,7 +115,7 @@ export async function requestPasswordResetAction(input: unknown): Promise<Action
 
     return { success: true, data: null, message: genericMessage };
   } catch (error) {
-    console.error('requestPasswordResetAction falló:', error);
+    captureException(error, { module: 'auth', extra: { reason: 'requestPasswordResetAction' } });
     // Tampoco acá se distingue: un error interno no debe revelar si el correo
     // existía. Queda en el log del servidor para diagnosticarlo.
     return { success: true, data: null, message: genericMessage };

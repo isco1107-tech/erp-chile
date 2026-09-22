@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { prisma } from '@/lib/prisma';
+import { captureException } from '@/lib/observability';
 
 /**
  * Tipos de evento de seguridad. Suficientemente granulares para alimentar un
@@ -53,7 +54,7 @@ export function logSecurityEvent(input: SecurityEventInput): void {
       },
     })
     .catch((error) => {
-      console.error('logSecurityEvent failed:', error);
+      captureException(error, { module: 'auth', extra: { reason: 'logSecurityEvent', type: input.type } });
     });
 }
 

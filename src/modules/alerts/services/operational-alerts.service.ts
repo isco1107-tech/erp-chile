@@ -11,6 +11,7 @@ import {
 import { createAuditLog } from '@/lib/auth/audit';
 import { getLowFolioWarnings } from '@/modules/dte/services/caf.service';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
+import { captureException } from '@/lib/observability';
 
 const OPERATIONAL_STATUSES = ['ACTIVE', 'TRIAL'] as const;
 
@@ -300,7 +301,7 @@ export async function runOperationalAlertsCron(): Promise<{ processedCompanies: 
 
       processedCompanies++;
     } catch (err) {
-      console.error(`Error al procesar alertas operativas para empresa ${company.id}:`, err);
+      captureException(err, { module: 'alerts', companyId: company.id, extra: { reason: 'operational-alerts' } });
     }
   }
 

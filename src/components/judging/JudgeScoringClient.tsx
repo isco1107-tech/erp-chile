@@ -10,6 +10,7 @@ import {
   PublicButton,
   PublicCard,
   PublicCardHeader,
+  PublicConfirmDialog,
   PublicFooter,
   PublicPage,
   PublicProgress,
@@ -36,6 +37,7 @@ export default function JudgeScoringClient({ token }: { token: string }) {
   const [categoryId, setCategoryId] = useState('');
   const [scores, setScores] = useState<Record<string, string>>({});
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [pendingSubmit, setPendingSubmit] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     const result = await getJudgeContextAction(token);
@@ -132,14 +134,21 @@ export default function JudgeScoringClient({ token }: { token: string }) {
     }
   }
 
-  async function handleSubmit(candidateId: string) {
+  function requestSubmit(candidateId: string) {
     const { value } = scoreFor(candidateId);
     const score = Number(value);
     if (!Number.isInteger(score) || score < 0 || score > (category?.maxScore ?? 10)) {
       toast.error(`Ingresa un puntaje entre 0 y ${category?.maxScore ?? 10}`);
       return;
     }
-    if (!confirm('¿Enviar este puntaje? No podrás editarlo después.')) return;
+    setPendingSubmit(candidateId);
+  }
+
+  async function confirmSubmit() {
+    const candidateId = pendingSubmit;
+    if (!candidateId) return;
+    const { value } = scoreFor(candidateId);
+    const score = Number(value);
     setBusyKey(`submit:${candidateId}`);
     try {
       const result = await submitScoreAction(token, { candidateId, categoryId, score });
@@ -151,6 +160,7 @@ export default function JudgeScoringClient({ token }: { token: string }) {
       await reload();
     } finally {
       setBusyKey(null);
+      setPendingSubmit(null);
     }
   }
 
@@ -251,7 +261,7 @@ export default function JudgeScoringClient({ token }: { token: string }) {
                         <PublicButton
                           type="button"
                           disabled={busyKey === `submit:${candidate.id}`}
-                          onClick={() => void handleSubmit(candidate.id)}
+                          onClick={() => requestSubmit(candidate.id)}
                         >
                           Enviar
                         </PublicButton>
@@ -268,6 +278,16 @@ export default function JudgeScoringClient({ token }: { token: string }) {
         )}
       </PublicShell>
       <PublicFooter>{ctx.project.name} · Panel de jurado · Esta pantalla se actualiza sola</PublicFooter>
+
+      <PublicConfirmDialog
+        open={pendingSubmit !== null}
+        title="¿Enviar este puntaje?"
+        message="No podrás editarlo después de enviarlo."
+        confirmLabel="Enviar puntaje"
+        busy={busyKey !== null && busyKey === `submit:${pendingSubmit}`}
+        onConfirm={() => void confirmSubmit()}
+        onCancel={() => setPendingSubmit(null)}
+      />
     </PublicPage>
   );
 }

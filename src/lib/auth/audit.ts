@@ -3,6 +3,7 @@ import 'server-only';
 import { headers } from 'next/headers';
 import type { AuditAction, Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { captureException } from '@/lib/observability';
 
 /**
  * Escritura de la bitácora de auditoría.
@@ -60,7 +61,7 @@ export async function createAuditLog(input: CreateAuditLogInput): Promise<void> 
       },
     });
   } catch (error) {
-    console.error('createAuditLog failed:', error);
+    captureException(error, { module: 'auth', companyId: input.companyId, userId: input.userId, extra: { reason: 'createAuditLog', entity: input.entity } });
   }
 }
 
@@ -101,6 +102,6 @@ export async function createPlatformAuditLog(input: CreatePlatformAuditLogInput)
       },
     });
   } catch (error) {
-    console.error('createPlatformAuditLog failed:', error);
+    captureException(error, { module: 'platform', companyId: input.companyId, extra: { reason: 'createPlatformAuditLog', action: input.action } });
   }
 }

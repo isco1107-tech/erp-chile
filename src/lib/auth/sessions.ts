@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
 import { sendEmail } from '@/lib/email/mailer';
 import { buildNewLoginNoticeEmail } from '@/lib/email/templates';
+import { captureException } from '@/lib/observability';
 
 /**
  * Registro paralelo de sesiones para la pantalla "Dispositivos activos".
@@ -58,7 +59,7 @@ export async function recordSession(input: RecordSessionInput): Promise<void> {
       },
     });
   } catch (error) {
-    console.error('No se pudo registrar la sesión para "Dispositivos activos":', error);
+    captureException(error, { module: 'auth', companyId: input.companyId, userId: input.userId, extra: { reason: 'recordSession' } });
   }
 }
 
@@ -86,7 +87,7 @@ async function checkAndNotifyNewLoginLocation(userId: string, ipAddress: string,
     const email = buildNewLoginNoticeEmail({ userName: user.name, ipAddress, userAgent, loginAt: new Date() });
     await sendEmail({ to: user.email, subject: email.subject, html: email.html, text: email.text });
   } catch (error) {
-    console.error('checkAndNotifyNewLoginLocation: fallo al enviar aviso de nuevo inicio de sesión:', error);
+    captureException(error, { module: 'auth', userId, extra: { reason: 'checkAndNotifyNewLoginLocation' } });
   }
 }
 

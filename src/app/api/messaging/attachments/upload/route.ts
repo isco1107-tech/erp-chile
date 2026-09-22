@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { put } from '@/lib/storage/blob';
 import { AuthError, ModuleNotEnabledError, TenantInactiveError, requireAuthWithPermission } from '@/lib/auth/guards';
 import { encryptFileBuffer } from '@/lib/messaging/crypto';
+import { captureException } from '@/lib/observability';
 import { createPendingAttachment } from '@/modules/messaging/services/messaging.service';
 
 /**
@@ -90,7 +91,7 @@ export async function POST(req: Request) {
     if (error instanceof Error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 400 });
     }
-    console.error('Messaging attachment upload failed:', error);
+    captureException(error, { module: 'messaging' });
     return NextResponse.json({ success: false, error: 'No se pudo subir el archivo' }, { status: 500 });
   }
 }

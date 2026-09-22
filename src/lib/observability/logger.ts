@@ -81,6 +81,12 @@ function emit(record: LogRecord): void {
 
   // `fatal` no existe en la consola; se mapea a error. `debug` va a stdout vía
   // console.debug para no ensuciar stderr con ruido de desarrollo.
+  // Este es el único lugar del código de la app donde `console.error`/`warn`
+  // son el destino correcto: ES el transporte a consola del propio logger
+  // estructurado que el resto de la app usa a través de `captureException`/
+  // `captureMessage` (ver `src/lib/observability/index.ts`), no un atajo que
+  // se lo salta.
+  /* eslint-disable no-console */
   const write =
     record.level === 'error' || record.level === 'fatal'
       ? console.error
@@ -89,6 +95,7 @@ function emit(record: LogRecord): void {
         : record.level === 'debug'
           ? console.debug
           : console.info;
+  /* eslint-enable no-console */
 
   if (isPretty()) {
     const scope = typeof record.context.module === 'string' ? ` [${record.context.module}]` : '';

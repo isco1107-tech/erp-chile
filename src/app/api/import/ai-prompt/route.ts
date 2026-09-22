@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { AuthError, ModuleNotEnabledError, TenantInactiveError, can, requireAuthWithPermission } from '@/lib/auth/guards';
+import { captureException } from '@/lib/observability';
 import { parsePromptToRows } from '@/modules/import/services/ai-prompt-import.service';
 import { ENTITY_WRITE_PERMISSION, MAX_AI_PROMPT_CHARS } from '@/modules/import/schema';
 
@@ -53,7 +54,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: error.message }, { status: 403 });
     }
     if (error instanceof Error && error.message.includes('GEMINI_API_KEY')) {
-      console.error('AI prompt import misconfigured:', error);
+      captureException(error, { module: 'import', extra: { reason: 'misconfigured' } });
       return NextResponse.json(
         { success: false, error: 'La importación por texto no está configurada en el servidor. Contacta al administrador' },
         { status: 503 }
@@ -62,7 +63,7 @@ export async function POST(req: Request) {
     if (error instanceof Error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 400 });
     }
-    console.error('AI prompt import failed:', error);
+    captureException(error, { module: 'import' });
     return NextResponse.json({ success: false, error: 'No se pudo interpretar el texto' }, { status: 500 });
   }
 }

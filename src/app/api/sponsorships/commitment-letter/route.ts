@@ -4,6 +4,7 @@ import { AuthError, ModuleNotEnabledError, TenantInactiveError, requireAuthWithP
 import { createAuditLog } from '@/lib/auth/audit';
 import { prisma } from '@/lib/prisma';
 import { renderCommitmentLetterPdf } from '@/modules/sponsorships/services/agreement-pdf.service';
+import { captureException } from '@/lib/observability';
 
 /**
  * Genera la carta de compromiso desde la plantilla vigente, la sube a Blob y
@@ -72,7 +73,7 @@ export async function GET(req: Request) {
     if (error instanceof Error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 400 });
     }
-    console.error('Commitment letter generation failed:', error);
+    captureException(error, { module: 'sponsorships' });
     return NextResponse.json({ success: false, error: 'No se pudo generar la carta' }, { status: 500 });
   }
 }

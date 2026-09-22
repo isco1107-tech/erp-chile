@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { put } from '@/lib/storage/blob';
 import { AuthError, ModuleNotEnabledError, TenantInactiveError, requireAuthWithPermission } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
+import { captureException } from '@/lib/observability';
 
 /**
  * Sube la imagen de fondo de una plantilla de credencial a Cloudflare R2 y
@@ -73,7 +74,7 @@ export async function POST(req: Request) {
     if (error instanceof TenantInactiveError) {
       return NextResponse.json({ success: false, error: error.message }, { status: 403 });
     }
-    console.error('Badge template background upload failed:', error);
+    captureException(error, { module: 'production' });
     return NextResponse.json({ success: false, error: 'No se pudo subir la imagen' }, { status: 500 });
   }
 }

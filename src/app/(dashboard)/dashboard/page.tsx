@@ -29,6 +29,7 @@ import { getAuthContext, can } from '@/lib/auth/guards';
 import { MODULES } from '@/lib/auth/modules';
 import { prisma } from '@/lib/prisma';
 import { formatCurrency } from '@/lib/chile/tax';
+import { addMonthsSantiago, santiagoDateParts, startOfMonthSantiago, startOfTodaySantiago, startOfTomorrowSantiago } from '@/lib/chile/timezone';
 import { KpiCard, type TrendDirection } from '@/components/ui/KpiCard';
 import { InfoTooltip } from '@/components/ui/InfoTooltip';
 import { TAX_GLOSSARY } from '@/lib/chile/glossary';
@@ -61,16 +62,21 @@ function documentSign(type: DteType): number {
   return type === 'NOTA_CREDITO_61' ? -1 : 1;
 }
 
+/**
+ * Clave/etiqueta de mes por calendario chileno, no UTC — tanto para los
+ * marcadores sintéticos de `monthlyBuckets` (que ahora se construyen con
+ * `addMonthsSantiago`, así que ya son instantes de medianoche en Santiago)
+ * como para `issueDate` real de un documento. Antes bucketeaba por UTC, lo
+ * que desplazaba hasta ~4 horas las ventas cercanas al cambio de mes/día
+ * hacia el mes equivocado (ver `src/lib/chile/timezone.ts`).
+ */
 function monthKey(date: Date): string {
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+  const { year, month } = santiagoDateParts(date);
+  return `${year}-${String(month).padStart(2, '0')}`;
 }
 
 function monthLabel(date: Date): string {
-  return date.toLocaleDateString('es-CL', { month: 'short', timeZone: 'UTC' }).replace('.', '');
-}
-
-function startOfMonth(date: Date): Date {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+  return date.toLocaleDateString('es-CL', { month: 'short', timeZone: 'America/Santiago' }).replace('.', '');
 }
 
 /** Saludo según la hora real en Chile (America/Santiago), no la del servidor. */
@@ -104,25 +110,64 @@ export default async function DashboardPage() {
   const canReadCosts = can(context, 'products:costs');
 
   const now = new Date();
-  const currentMonth = startOfMonth(now);
-  const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
-  const previousMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
-  const trendStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11, 1));
+  const currentMonth = startOfMonthSantiago(now);
+  const nextMonth = addMonthsSantiago(now, 1);
+  const previousMonth = addMonthsSantiago(now, -1);
+  const trendStart = addMonthsSantiago(now, -11);
 
-  const [salesDocuments, inventoryStocks, contactCount, productCount] = await Promise.all([
-    canReadSales && context.features.hasDteBilling
-      ? prisma.salesDocument.findMany({
-          where: {
-            companyId: context.companyId,
-            status: 'ISSUED',
-            dteType: { in: SALES_TYPES },
-            issueDate: { gte: trendStart, lt: nextMonth },
-          },
-          include: { contact: true, items: true },
-          orderBy: { issueDate: 'desc' },
-          take: 1000,
-        })
-      : Promise.resolve([]),
+  // Ventana completa de 12 meses para agregar KPIs y el gráfico de tendencia
+  // — SIN `take`: un límite acá (antes `take: 1000`, ordenado desc) descarta
+  // silenciosamente los documentos más antiguos de la ventana en cualquier
+  // empresa con más de 1.000 documentos emitidos en el año, subestimando los
+  // meses iniciales del gráfico. `select` liviano (sin `contact`, sin más
+  // campos de `items` que los que entran al costo) porque esta consulta ya
+  // no está acotada y puede traer varios miles de filas en empresas grandes.
+  const salesAggregationQuery = canReadSales && context.features.hasDteBilling
+    ? prisma.salesDocument.findMany({
+        where: {
+          companyId: context.companyId,
+          status: 'ISSUED',
+          dteType: { in: SALES_TYPES },
+          issueDate: { gte: trendStart, lt: nextMonth },
+        },
+        select: {
+          dteType: true,
+          issueDate: true,
+          netAmount: true,
+          exemptAmount: true,
+          ivaAmount: true,
+          items: { select: { quantity: true, unitCostPMP: true } },
+        },
+      })
+    : Promise.resolve([]);
+
+  // Tabla de "ventas recientes": solo necesita las últimas 5, con datos del
+  // contacto — separada de la agregación de arriba para no cargar `contact`
+  // en las miles de filas que esa consulta puede traer.
+  const recentSalesQuery = canReadSales && context.features.hasDteBilling
+    ? prisma.salesDocument.findMany({
+        where: {
+          companyId: context.companyId,
+          status: 'ISSUED',
+          dteType: { in: SALES_TYPES },
+        },
+        select: {
+          id: true,
+          dteType: true,
+          folio: true,
+          status: true,
+          issueDate: true,
+          totalAmount: true,
+          contact: { select: { razonSocial: true } },
+        },
+        orderBy: { issueDate: 'desc' },
+        take: 5,
+      })
+    : Promise.resolve([]);
+
+  const [salesDocuments, latestSales, inventoryStocks, contactCount, productCount] = await Promise.all([
+    salesAggregationQuery,
+    recentSalesQuery,
     canReadInventory && context.features.hasInventory
       ? prisma.stock.findMany({
           where: { companyId: context.companyId },
@@ -179,8 +224,12 @@ export default async function DashboardPage() {
   // el resto de la página. La idea es que, sea cual sea la mezcla de módulos
   // de una empresa, el dashboard igual muestre sus métricas importantes en
   // vez de depender de que Ventas/Inventario estén activos.
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  // Antes `new Date(now.getFullYear(), now.getMonth(), now.getDate())`: usa
+  // la hora LOCAL del proceso Node, que en producción suele correr en UTC —
+  // "hoy" para el widget de ventas POS terminaba siendo el día calendario en
+  // UTC, no en Chile.
+  const todayStart = startOfTodaySantiago(now);
+  const todayEnd = startOfTomorrowSantiago(now);
 
   const canReadPurchases = context.features.hasPurchases && can(context, 'purchases:read');
   const canReadTreasury = context.features.hasTreasury && can(context, 'treasury:read');
@@ -311,7 +360,6 @@ export default async function DashboardPage() {
     .filter((stock) => stock.product.isTrackable && stock.quantity <= stock.product.minStock && stock.product.minStock > 0)
     .sort((a, b) => a.quantity - b.quantity);
   const criticalStock = criticalStockAll.slice(0, 5);
-  const latestSales = salesDocuments.slice(0, 5);
 
   const mixData = SALES_TYPES.filter((type) => (mixCounts.get(type) ?? 0) > 0).map((type, index) => ({
     name: DTE_TYPE_LABELS[type] ?? type,

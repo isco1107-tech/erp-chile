@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { AuthError, ModuleNotEnabledError, TenantInactiveError, can, requireAuthWithPermission } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
+import { captureException } from '@/lib/observability';
 import { commitHistoricalRows } from '@/modules/import/services/import.service';
 import { ENTITY_WRITE_PERMISSION } from '@/modules/import/schema';
 
@@ -94,7 +95,7 @@ export async function POST(req: Request) {
     if (error instanceof Error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 400 });
     }
-    console.error('Commit rows failed:', error);
+    captureException(error, { module: 'import' });
     return NextResponse.json({ success: false, error: 'No se pudo procesar la importación' }, { status: 500 });
   }
 }

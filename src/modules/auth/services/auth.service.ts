@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { sendEmail } from '@/lib/email/mailer';
 import { buildAccountLockedNoticeEmail } from '@/lib/email/templates';
+import { captureException } from '@/lib/observability';
 
 /** Estados de tenant que permiten operar. Debe coincidir con `guards.ts`. */
 const OPERATIONAL_STATUSES = ['ACTIVE', 'TRIAL'];
@@ -143,7 +144,7 @@ async function notifyAccountLocked(userId: string, companyId: string | null): Pr
     });
     await Promise.all(recipients.map((r) => sendEmail({ to: r.email, subject: email.subject, html: email.html, text: email.text })));
   } catch (error) {
-    console.error('notifyAccountLocked: fallo al enviar aviso de bloqueo:', error);
+    captureException(error, { module: 'auth', extra: { reason: 'account-locked-notice' } });
   }
 }
 

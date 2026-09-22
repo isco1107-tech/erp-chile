@@ -8,6 +8,7 @@ import { runCooAgent } from '@/modules/agents/roles/coo';
 import { runSalesAgent } from '@/modules/agents/roles/sales';
 import { sendEmail, getAppUrl } from '@/lib/email/mailer';
 import { buildAgentDigestEmail } from '@/lib/email/templates';
+import { captureException } from '@/lib/observability';
 
 /**
  * Cron de agentes de inteligencia de negocio, invocado por Vercel Cron (ver
@@ -120,11 +121,11 @@ async function sendCeoDigestEmail(companyId: string, companyName: string, since:
     await Promise.all(
       recipients.map((r) =>
         sendEmail({ to: r.email, subject: email.subject, html: email.html, text: email.text }).catch((error) =>
-          console.error(`sendCeoDigestEmail: fallo al enviar a ${r.email}:`, error)
+          captureException(error, { module: 'agents', companyId, extra: { reason: 'sendCeoDigestEmail', recipient: r.email } })
         )
       )
     );
   } catch (error) {
-    console.error(`sendCeoDigestEmail: fallo para empresa ${companyId}:`, error);
+    captureException(error, { module: 'agents', companyId, extra: { reason: 'sendCeoDigestEmail' } });
   }
 }

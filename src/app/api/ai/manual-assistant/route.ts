@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import type { Content, FunctionDeclaration } from '@google/genai';
 import { AuthError, TenantInactiveError, getAuthContext } from '@/lib/auth/guards';
+import { captureException } from '@/lib/observability';
 import { generateAgentWithTools } from '@/modules/agents/services/gemini-agent';
 import { buildManualSystemPrompt } from '@/modules/manual/prompt';
 import { checkRateLimit, MANUAL_ASSISTANT_RATE_LIMIT } from '@/lib/security/rate-limiter';
@@ -140,7 +141,7 @@ export async function POST(req: Request) {
     if (error instanceof TenantInactiveError) {
       return NextResponse.json({ success: false, error: error.message }, { status: 403 });
     }
-    console.error('Manual assistant failed:', error);
+    captureException(error, { module: 'ai' });
     return NextResponse.json({ success: false, error: 'El asistente no pudo responder en este momento' }, { status: 500 });
   }
 }

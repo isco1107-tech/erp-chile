@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { CandidateStatus } from '@prisma/client';
 import { AuthError, ModuleNotEnabledError, TenantInactiveError, requireAuthWithPermission } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
+import { captureException } from '@/lib/observability';
 import { buildCandidateApplicationsWorkbook } from '@/modules/candidates/services/export.service';
 
 /**
@@ -56,7 +57,7 @@ export async function GET(req: Request) {
     if (error instanceof TenantInactiveError) {
       return NextResponse.json({ success: false, error: error.message }, { status: 403 });
     }
-    console.error('Candidate export failed:', error);
+    captureException(error, { module: 'candidates' });
     return NextResponse.json({ success: false, error: 'No se pudo generar el archivo' }, { status: 500 });
   }
 }

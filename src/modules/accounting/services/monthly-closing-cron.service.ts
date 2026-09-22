@@ -3,6 +3,7 @@ import { sendEmail, getAppUrl } from '@/lib/email/mailer';
 import { buildMonthlyClosingEmail } from '@/lib/email/templates';
 import { createAuditLog } from '@/lib/auth/audit';
 import { runReconciliationWithF29 } from './reconciliation.service';
+import { captureException } from '@/lib/observability';
 
 const OPERATIONAL_STATUSES = ['ACTIVE', 'TRIAL'] as const;
 
@@ -84,7 +85,7 @@ export async function runMonthlyClosingCron(): Promise<{ processedCompanies: num
 
       processedCompanies++;
     } catch (err) {
-      console.error(`Error al procesar cierre mensual para empresa ${company.id}:`, err);
+      captureException(err, { module: 'accounting', companyId: company.id, extra: { reason: 'monthly-closing' } });
     }
   }
 

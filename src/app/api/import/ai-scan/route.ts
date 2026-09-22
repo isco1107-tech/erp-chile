@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { AuthError, ModuleNotEnabledError, TenantInactiveError, can, requireAuthWithPermission } from '@/lib/auth/guards';
+import { captureException } from '@/lib/observability';
 import { scanInvoiceImages, type AllowedImageMimeType } from '@/modules/import/services/ai-scan.service';
 import { ENTITY_WRITE_PERMISSION, MAX_AI_SCAN_IMAGES, MAX_AI_SCAN_IMAGE_BYTES } from '@/modules/import/schema';
 
@@ -87,13 +88,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: error.message }, { status: 403 });
     }
     if (error instanceof Error && error.message.includes('GEMINI_API_KEY')) {
-      console.error('AI scan misconfigured:', error);
+      captureException(error, { module: 'import', extra: { reason: 'misconfigured' } });
       return NextResponse.json(
         { success: false, error: 'El escaneo por IA no está configurado en el servidor. Contacta al administrador' },
         { status: 503 }
       );
     }
-    console.error('AI scan failed:', error);
+    captureException(error, { module: 'import' });
     return NextResponse.json({ success: false, error: 'No se pudieron escanear las imágenes' }, { status: 500 });
   }
 }

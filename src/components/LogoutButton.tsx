@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { captureException } from '@/lib/observability';
 
 export default function LogoutButton() {
   const router = useRouter();
@@ -13,7 +14,7 @@ export default function LogoutButton() {
       await fetch('/api/auth/signout', { method: 'POST' });
       router.push('/login');
     } catch (e) {
-      console.error(e);
+      captureException(e, { module: 'auth', extra: { reason: 'logout-button' } });
     } finally {
       setLoading(false);
     }

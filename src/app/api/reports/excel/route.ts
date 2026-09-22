@@ -9,6 +9,7 @@ import {
 import { createAuditLog } from '@/lib/auth/audit';
 import { buildReportDataset } from '@/modules/reports/services/dataset.service';
 import { buildWorkbook } from '@/modules/reports/services/workbook.service';
+import { captureException } from '@/lib/observability';
 
 const rangeSchema = z.object({
   from: z.coerce.date(),
@@ -96,7 +97,7 @@ export async function GET(req: Request) {
     if (error instanceof TenantInactiveError) {
       return NextResponse.json({ success: false, error: error.message }, { status: 403 });
     }
-    console.error('Excel export failed:', error);
+    captureException(error, { module: 'reports' });
     return NextResponse.json({ success: false, error: 'No se pudo generar el reporte' }, { status: 500 });
   }
 }

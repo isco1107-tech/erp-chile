@@ -6,6 +6,7 @@ import { createAuditLog } from '@/lib/auth/audit';
 import { prisma } from '@/lib/prisma';
 import { sendEmail, getAppUrl } from '@/lib/email/mailer';
 import { buildContractSignedNoticeEmail } from '@/lib/email/templates';
+import { captureException } from '@/lib/observability';
 
 /**
  * Webhook de ZapSign — dedicado, no pasa por el `/api/webhooks` genérico
@@ -74,7 +75,7 @@ export async function POST(req: Request) {
         await Promise.all(
           recipients.map((r) =>
             sendEmail({ to: r.email, subject: email.subject, html: email.html, text: email.text }).catch((error) =>
-              console.error('zapsign webhook: fallo al enviar aviso de firma completada:', error)
+              captureException(error, { module: 'candidates', companyId: document.companyId, extra: { reason: 'zapsign-signed-notice', recipient: r.email } })
             )
           )
         );
@@ -83,7 +84,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, message: 'Firma confirmada y contrato actualizado' });
   } catch (error) {
-    console.error('ZapSign webhook processing failed:', error);
+    captureException(error, { module: 'candidates', extra: { reason: 'zapsign-webhook' } });
     // 200 a propósito: si devolvemos error, ZapSign reintenta indefinidamente
     // un evento que probablemente vamos a rechazar igual (ej. token inválido);
     // el error ya queda en los logs del servidor para investigar.

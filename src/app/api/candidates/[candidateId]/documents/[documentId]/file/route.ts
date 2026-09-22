@@ -3,6 +3,7 @@ import { AuthError, ModuleNotEnabledError, TenantInactiveError, requireAuthWithP
 import { createAuditLog } from '@/lib/auth/audit';
 import { prisma } from '@/lib/prisma';
 import { isAllowedBlobUrl } from '@/lib/security/blob-url';
+import { captureException, captureMessage } from '@/lib/observability';
 
 /**
  * Ruta autenticada para ver/descargar un archivo de `CandidateDocument`
@@ -34,7 +35,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ candida
     // escrita por otro camino, no debe poder convertir este proxy en un
     // oráculo hacia una URL interna arbitraria.
     if (!isAllowedBlobUrl(document.fileUrl)) {
-      console.error('candidate document file: fileUrl con origen no permitido, se rechaza', { documentId });
+      captureMessage('candidate document file: fileUrl con origen no permitido, se rechaza', 'warn', {
+        module: 'candidates',
+        companyId: session.companyId,
+        extra: { documentId, candidateId },
+      });
       return NextResponse.json({ success: false, error: 'No se pudo obtener el archivo' }, { status: 502 });
     }
 
@@ -71,7 +76,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ candida
     if (error instanceof TenantInactiveError) {
       return NextResponse.json({ success: false, error: error.message }, { status: 403 });
     }
-    console.error('candidate document file fetch failed:', error);
+    captureException(error, { module: 'candidates' });
     return NextResponse.json({ success: false, error: 'No se pudo obtener el archivo' }, { status: 500 });
   }
 }

@@ -12,6 +12,7 @@ import type {
 import { sendEmail } from '@/lib/email/mailer';
 import { buildSponsorshipPaymentConfirmationEmail } from '@/lib/email/templates';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
+import { captureException } from '@/lib/observability';
 import { SPONSORSHIP_TIER_LABELS } from '../schema';
 import type {
   DeliverableCreateInput,
@@ -185,7 +186,7 @@ export async function updateSponsorshipPayment(
         paidAmount: data.paidAmount,
         isBarter: contract.isBarter,
       }),
-    }).catch((error) => console.error('updateSponsorshipPayment: fallo al enviar correo de confirmación:', error));
+    }).catch((error) => captureException(error, { module: 'sponsorships', companyId, extra: { reason: 'payment-confirmation-email' } }));
   }
 
   return updated;

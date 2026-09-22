@@ -269,6 +269,57 @@ export function PublicFooter({ children }: { children: ReactNode }) {
   return <footer className="pub-footer">{children}</footer>;
 }
 
+/**
+ * Diálogo de confirmación propio del sistema público — reemplaza al
+ * `confirm()` nativo del navegador, que rompe la estética cuidada de estas
+ * pantallas con el cuadro gris del sistema operativo. `role="alertdialog"` +
+ * el foco inicial en el botón de cancelar (la acción reversible) siguen el
+ * mismo criterio que los diálogos de shadcn del dashboard.
+ */
+export function PublicConfirmDialog({
+  open,
+  title,
+  message,
+  confirmLabel = 'Confirmar',
+  cancelLabel = 'Cancelar',
+  busy = false,
+  onConfirm,
+  onCancel,
+}: {
+  open: boolean;
+  title: string;
+  message: ReactNode;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  busy?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  if (!open) return null;
+  return (
+    <div
+      className="pub-dialog-overlay"
+      role="presentation"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !busy) onCancel();
+      }}
+    >
+      <div className="pub-dialog" role="alertdialog" aria-modal="true" aria-labelledby="pub-dialog-title">
+        <h2 id="pub-dialog-title" className="pub-dialog-title">{title}</h2>
+        <div className="pub-dialog-message">{message}</div>
+        <div className="pub-dialog-actions">
+          <PublicButton type="button" variant="ghost" onClick={onCancel} disabled={busy} autoFocus>
+            {cancelLabel}
+          </PublicButton>
+          <PublicButton type="button" onClick={onConfirm} disabled={busy}>
+            {busy ? 'Enviando…' : confirmLabel}
+          </PublicButton>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function IconCheck() {
   return (
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
@@ -827,4 +878,45 @@ const PUBLIC_STYLES = `
 }
 .pub-footer a { color: var(--pub-a); text-decoration: none; }
 .pub-footer a:hover { text-decoration: underline; }
+
+/* ── Marca de plataforma (AetherBadge, montada en el layout raíz) ───────
+   Su estilo por defecto es un pill claro pensado para el dashboard/login;
+   sobre el fondo casi negro de estas páginas se ve como un elemento roto de
+   otro producto. Esta regla solo existe mientras una página pública está
+   montada (este bloque style lo inyecta PublicPage), y el combinador de
+   hermano general (~) alcanza al badge porque en app/layout.tsx es hermano
+   posterior del contenido de la página dentro de <body>. */
+.pub-root ~ .aether-platform-badge {
+  border-color: var(--pub-line) !important;
+  background: rgba(255,255,255,0.06) !important;
+  color: var(--pub-ink-dim) !important;
+  backdrop-filter: blur(10px);
+}
+.pub-root ~ .aether-platform-badge:hover { background: rgba(255,255,255,0.1) !important; }
+
+/* ── Diálogo de confirmación ──────────────────────────────────────────── */
+.pub-dialog-overlay {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: center;
+  padding: 1.25rem;
+  background: rgba(2,3,8,0.72);
+  backdrop-filter: blur(4px);
+  animation: pub-fade 0.18s ease both;
+}
+@keyframes pub-fade { from { opacity: 0; } to { opacity: 1; } }
+.pub-dialog {
+  width: 100%; max-width: 24rem;
+  border: 1px solid var(--pub-line);
+  border-radius: var(--pub-radius);
+  background: linear-gradient(180deg, var(--pub-glass) 0%, var(--pub-glass-2) 100%), rgba(10,13,22,0.94);
+  backdrop-filter: blur(22px) saturate(140%);
+  box-shadow: 0 24px 60px -24px rgba(0,0,0,0.9);
+  padding: 1.5rem;
+  animation: pub-rise 0.22s cubic-bezier(0.16,1,0.3,1) both;
+}
+.pub-dialog-title { margin: 0 0 0.6rem; font-size: 1.1rem; font-weight: 700; letter-spacing: -0.01em; }
+.pub-dialog-message { margin: 0 0 1.5rem; font-size: 0.88rem; line-height: 1.55; color: var(--pub-ink-dim); }
+.pub-dialog-actions { display: flex; justify-content: flex-end; gap: 0.6rem; }
+.pub-dialog-actions > .pub-btn { min-height: 2.6rem; padding: 0.6rem 1.1rem; }
+@media (max-width: 420px) { .pub-dialog-actions { flex-direction: column-reverse; } .pub-dialog-actions > .pub-btn { width: 100%; } }
 `;

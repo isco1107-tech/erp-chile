@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { AuthError, TenantInactiveError, getAuthContext } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
+import { captureException } from '@/lib/observability';
 import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import { checkRateLimit, MANUAL_ASSISTANT_CONFIRM_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { getAgentAction } from '@/modules/agent-actions/registry';
@@ -72,7 +73,7 @@ export async function POST(req: Request) {
       // lo mismo para errores de auth/tenant, pero este es el único punto
       // donde puede llegar un error de Prisma real (los `service` reusados
       // por `execute()` sí pueden lanzarlos).
-      console.error('Agent action execute failed:', pending.actionType, error);
+      captureException(error, { module: 'agent-actions', companyId: session.companyId, userId: session.id, extra: { actionType: pending.actionType } });
       return NextResponse.json({ success: false, error: toFriendlyErrorMessage(error) }, { status: 500 });
     }
 
@@ -94,7 +95,7 @@ export async function POST(req: Request) {
     if (error instanceof TenantInactiveError) {
       return NextResponse.json({ success: false, error: error.message }, { status: 403 });
     }
-    console.error('Manual assistant confirm failed:', error);
+    captureException(error, { module: 'agent-actions' });
     return NextResponse.json({ success: false, error: 'No se pudo completar la acción' }, { status: 500 });
   }
 }

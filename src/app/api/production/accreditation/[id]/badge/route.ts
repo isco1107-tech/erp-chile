@@ -5,6 +5,7 @@ import { AuthError, ModuleNotEnabledError, TenantInactiveError, requireAuthWithP
 import { getAppUrl } from '@/lib/email/mailer';
 import * as productionService from '@/modules/production/services/production.service';
 import { renderBadgeElement, BADGE_WIDTH, BADGE_HEIGHT } from '@/modules/production/badge-render';
+import { captureException } from '@/lib/observability';
 
 /**
  * PNG descargable/imprimible de la credencial, con el mismo diseño (plantilla
@@ -51,7 +52,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     if (error instanceof TenantInactiveError) {
       return NextResponse.json({ success: false, error: error.message }, { status: 403 });
     }
-    console.error('Badge PNG generation failed:', error);
+    captureException(error, { module: 'production' });
     return NextResponse.json({ success: false, error: 'No se pudo generar la credencial' }, { status: 500 });
   }
 }

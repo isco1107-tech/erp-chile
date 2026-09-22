@@ -5,6 +5,7 @@ import { AuthError, requireAuthWithPermission } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 import * as auditService from '@/lib/services/audit.service';
 import { buildAuditLogWorkbook } from '@/lib/services/audit-workbook.service';
+import { captureException } from '@/lib/observability';
 
 const AUDIT_ACTIONS: AuditAction[] = ['CREATE', 'UPDATE', 'DELETE', 'ISSUE_DTE', 'CANCEL_DTE', 'STOCK_ADJUSTMENT', 'EXPORT'];
 
@@ -75,7 +76,7 @@ export async function GET(req: Request) {
     if (error instanceof AuthError) {
       return NextResponse.json({ success: false, error: error.message }, { status: error.status });
     }
-    console.error('Audit log export failed:', error);
+    captureException(error, { module: 'audit' });
     return NextResponse.json({ success: false, error: 'No se pudo generar la bitácora' }, { status: 500 });
   }
 }

@@ -7,6 +7,7 @@ import {
   requireAuthWithPermission,
 } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
+import { captureException } from '@/lib/observability';
 import { buildPreview, commitImport } from '@/modules/import/services/import.service';
 import { ENTITY_WRITE_PERMISSION, importEntitySchema, type ImportEntity } from '@/modules/import/schema';
 
@@ -110,7 +111,7 @@ export async function POST(req: Request) {
     if (error instanceof Error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 400 });
     }
-    console.error('Import failed:', error);
+    captureException(error, { module: 'import' });
     return NextResponse.json({ success: false, error: 'No se pudo procesar el archivo' }, { status: 500 });
   }
 }

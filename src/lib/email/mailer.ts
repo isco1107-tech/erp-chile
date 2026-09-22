@@ -1,4 +1,5 @@
 import 'server-only';
+import { captureException, captureMessage } from '@/lib/observability';
 
 /**
  * Envío de correo transaccional.
@@ -94,7 +95,7 @@ async function sendViaBrevo(input: SendEmailInput, apiKey: string): Promise<Emai
 
   if (!response.ok) {
     const detail = await response.text();
-    console.error(`[email:brevo:fallo] ${response.status} al enviar a ${input.to}: ${detail}`);
+    captureMessage('email:brevo:fallo', 'error', { module: 'email', extra: { status: response.status, to: input.to, detail } });
     return { status: 'failed', provider: 'brevo', error: `${response.status}: ${detail}` };
   }
   return { status: 'sent', provider: 'brevo' };
@@ -118,7 +119,7 @@ async function sendViaResend(input: SendEmailInput, apiKey: string): Promise<Ema
 
   if (!response.ok) {
     const detail = await response.text();
-    console.error(`[email:resend:fallo] ${response.status} al enviar a ${input.to}: ${detail}`);
+    captureMessage('email:resend:fallo', 'error', { module: 'email', extra: { status: response.status, to: input.to, detail } });
     return { status: 'failed', provider: 'resend', error: `${response.status}: ${detail}` };
   }
   return { status: 'sent', provider: 'resend' };
@@ -140,7 +141,7 @@ export async function sendEmail(input: SendEmailInput): Promise<EmailResult> {
     return await sendViaResend(input, process.env.RESEND_API_KEY!);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error(`[email:${provider}:fallo] excepción al enviar a ${input.to}: ${message}`);
+    captureException(error, { module: 'email', extra: { provider, to: input.to } });
     return { status: 'failed', provider, error: message };
   }
 }

@@ -5,6 +5,7 @@ import { Prisma, type CandidateAttendance, type CandidateDocument } from '@prism
 import { can, requireAuthWithPermission, authErrorMessage } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
+import { captureException } from '@/lib/observability';
 import { sendEmail } from '@/lib/email/mailer';
 import { lookupCompaniesByName, type CompanyLookupCandidate } from '@/modules/contacts/services/company-lookup.service';
 import { buildCandidateStatusChangeEmail } from '@/lib/email/templates';
@@ -166,7 +167,7 @@ export async function updateCandidateStatusAction(id: string, input: unknown): P
     // quedó guardado y auditado.
     if (previous && previous.status !== data.status) {
       await notifyCandidateStatusChange(session.companyId, data).catch((error) =>
-        console.error('updateCandidateStatusAction: fallo al enviar correo de cambio de estado:', error)
+        captureException(error, { module: 'candidates', companyId: session.companyId, extra: { reason: 'status-change-notice' } })
       );
     }
     return { success: true, data: redactSensitiveFields(data, can(session, 'candidates:sensitive')), message: 'Estado actualizado' };

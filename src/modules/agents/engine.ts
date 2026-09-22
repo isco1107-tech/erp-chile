@@ -2,6 +2,7 @@ import 'server-only';
 
 import type { AgentRole } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { captureException } from '@/lib/observability';
 
 /**
  * Envoltorio de ejecución para cualquier agente. Crea el `AgentRun` en
@@ -41,7 +42,7 @@ export async function runAgent(companyId: string, role: AgentRole, fn: () => Pro
     return { status: 'COMPLETED', summary };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Error desconocido';
-    console.error(`[agents:${role}] companyId=${companyId} falló:`, error);
+    captureException(error, { module: 'agents', companyId, extra: { role } });
     await prisma.agentRun.update({
       where: { id: run.id },
       data: { status: 'FAILED', error: message, finishedAt: new Date() },

@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { captureException } from '@/lib/observability';
 
 /**
  * Extracción de la constraint violada en un error P2002.
@@ -117,7 +118,7 @@ export function toFriendlyErrorMessage(error: unknown): string {
     if (error.code === 'P2003') return 'No se puede completar la acción: hay otros registros que dependen de este dato';
     if (error.code === 'P2025') return 'El registro no existe o ya fue eliminado';
     if (error.code === 'P2028') return 'La operación tardó demasiado. Intenta de nuevo';
-    console.error('Error de base de datos no traducido:', error.code, error.message);
+    captureException(error, { module: 'prisma', extra: { code: error.code, reason: 'untranslated-known-request-error' } });
     return 'Ocurrió un error al guardar los datos. Intenta de nuevo';
   }
 
@@ -127,7 +128,7 @@ export function toFriendlyErrorMessage(error: unknown): string {
     error instanceof Prisma.PrismaClientUnknownRequestError ||
     error instanceof Prisma.PrismaClientRustPanicError
   ) {
-    console.error('Error de Prisma no traducido:', error);
+    captureException(error, { module: 'prisma', extra: { reason: 'untranslated-prisma-error' } });
     return 'Ocurrió un error inesperado. Si el problema persiste, contacta a soporte';
   }
 
