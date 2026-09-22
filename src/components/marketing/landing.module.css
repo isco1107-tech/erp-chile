@@ -442,3 +442,111 @@
   .quoteCard { padding: 24px; } .quoteFields { grid-template-columns: 1fr; gap: 20px; } .quoteSubmit { font-size: 12px !important; }
 }
 @media (max-width: 380px) { .hero h1 { font-size: 40px; } .headerCta { font-size: 10px; } .headerCta svg { display: none; } .valueStrip span { font-size: 9px; } .finalCta h2 { font-size: 32px; } .quoteCard { padding: 19px; } .connectedCard { gap: 7px; padding: 9px; } .connectedCard strong { font-size: 9px; } }
+
+/* ——— Lo que cambia: hoy vs. con Aether ——— */
+.shift { background: linear-gradient(180deg, #fbf9f5, #fff); border-top: 1px solid #ece8e0; }
+.shiftPanel { border: 1px solid #e6e2d9; border-radius: 12px; background: #fff; overflow: hidden; box-shadow: 0 18px 50px #0c17300a; }
+.shiftHead { display: grid; grid-template-columns: 1fr 44px 1fr; align-items: center; padding: 15px 26px; background: #f7f5f0; border-bottom: 1px solid #ebe7de; font-size: 10px; font-weight: 600; }
+.shiftHeadBefore, .shiftHeadAfter { display: inline-flex; align-items: center; gap: 8px; }
+.shiftHeadBefore { color: #8b8578; }
+.shiftHeadAfter { color: #45536f; }
+.shiftHeadAfter svg { color: #9a7f3c; }
+.shiftRows { list-style: none; margin: 0; padding: 0; }
+.shiftRows li { display: grid; grid-template-columns: 1fr 44px 1fr; align-items: center; border-top: 1px solid #f1ede5; background: linear-gradient(90deg, #fff 50%, #fdfbf6 50%); }
+.shiftRows li:first-child { border-top: none; }
+.shiftBefore, .shiftAfter { display: flex; align-items: flex-start; gap: 12px; padding: 19px 26px; font-size: 13px; line-height: 1.7; min-width: 0; }
+.shiftBefore { color: #8a857d; }
+.shiftBefore svg { flex-shrink: 0; margin-top: 3px; color: #bcb4a6; }
+.shiftAfter { color: var(--ink); font-weight: 500; }
+.shiftAfter svg { flex-shrink: 0; margin-top: 3px; color: #8a7333; }
+.shiftBefore p, .shiftAfter p { margin: 0; }
+.shiftArrow { justify-self: center; color: #d2c9b6; }
+.shiftInline { display: none; }
+
+/* ——— Para quién está hecho ——— */
+.segments { background: #fff; }
+.segmentGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.segmentGrid article { padding: 30px; border: 1px solid #e8e4dc; border-radius: 10px; background: #fdfcfa; transition: transform .2s, border-color .2s, box-shadow .2s; }
+.segmentGrid article:hover { transform: translateY(-4px); border-color: #ded4bd; box-shadow: 0 16px 40px #0c17300c; }
+.segmentIcon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: #eee8dc; color: #4a5266; margin-bottom: 26px; }
+.segmentLabel { font-size: 9px; font-weight: 600; color: #6b6452; margin: 0 0 11px; }
+.segmentGrid h3 { font-size: 22px; font-weight: 500; line-height: 1.3; margin: 0 0 13px; }
+.segmentText { font-size: 13px; line-height: 1.85; color: var(--muted); margin: 0 0 22px; }
+.segmentGrid ul { list-style: none; display: flex; flex-wrap: wrap; gap: 7px; margin: 0; padding: 0; }
+.segmentGrid li { font-size: 10.5px; padding: 7px 11px; border-radius: 999px; background: #f4f1ea; border: 1px solid #eae5da; color: #4f5666; }
+.segmentNote { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; margin: 26px 0 0; padding-top: 22px; border-top: 1px solid #ece8e0; font-size: 13px; line-height: 1.7; color: var(--muted); }
+.segmentNote a { display: inline-flex; align-items: center; gap: 9px; font-size: 12px; font-weight: 550; color: var(--ink); }
+
+/* ——— Confianza y resguardo de datos ——— */
+.security { background: #f8f7f3; border-top: 1px solid #ebe8e1; }
+.securityGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.securityGrid article { padding: 26px; background: #fff; border: 1px solid #e7e4dc; border-radius: 10px; transition: transform .2s, box-shadow .2s; }
+.securityGrid article:hover { transform: translateY(-4px); box-shadow: 0 14px 36px #0c17300c; }
+.securityIcon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 11px; background: #141821; color: var(--gold); margin-bottom: 22px; }
+.securityGrid h3 { font-size: 16px; font-weight: 550; line-height: 1.35; margin: 0 0 10px; }
+.securityGrid p { font-size: 12.5px; line-height: 1.8; color: var(--muted); margin: 0; }
+.securityStrip { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 16px; margin-top: 20px; padding: 18px 22px; border: 1px dashed #ddd8cc; border-radius: 10px; }
+.securityStrip p { margin: 0; font-size: 10px; font-weight: 600; color: #5a6376; }
+.securityStrip span { display: inline-flex; align-items: center; gap: 8px; font-size: 11.5px; color: #4f5666; }
+.securityStrip span::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--gold); }
+
+/* ——— Puesta en marcha y modelo de cotización ——— */
+.startup { background: #131722; color: #fff; }
+.startup .kicker { color: #a4aec3; }
+.startupHeading { max-width: 660px; margin-bottom: 40px; }
+.startupHeading h2 { font-size: 38px; font-weight: 500; line-height: 1.2; letter-spacing: -.03em; margin: 0; }
+.startupHeading h2 span { color: var(--gold); }
+.startupLead { font-size: 14px; line-height: 1.8; color: #a9b0bf; margin: 18px 0 0; }
+.startupSteps { list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin: 0; padding: 0; }
+.startupSteps li { padding: 24px; border: 1px solid #ffffff1a; border-radius: 10px; background: linear-gradient(160deg, #ffffff0b, #ffffff03); }
+.startupTop { display: flex; align-items: center; justify-content: space-between; margin-bottom: 26px; }
+.startupIcon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 11px; background: #dbc07618; border: 1px solid #dbc07630; color: var(--gold); }
+.startupIndex { font-size: 11px; color: #757f94; font-variant-numeric: tabular-nums; }
+.startupSteps h3 { font-size: 16px; font-weight: 550; line-height: 1.35; margin: 0 0 10px; }
+.startupSteps p { font-size: 12.5px; line-height: 1.8; color: #a2aab9; margin: 0; }
+.pricing { display: grid; grid-template-columns: 1fr 1.15fr; gap: 42px; align-items: center; margin-top: 18px; padding: 32px; border: 1px solid #ffffff1a; border-radius: 12px; background: #ffffff07; }
+.pricing .kicker { margin-bottom: 14px; }
+.pricingCopy h3 { font-size: 26px; font-weight: 500; line-height: 1.25; margin: 0 0 14px; }
+.pricingCopy > p { font-size: 13px; line-height: 1.85; color: #a2aab9; margin: 0; }
+.pricingCopy a { display: inline-flex; align-items: center; gap: 10px; margin-top: 20px; padding-bottom: 6px; font-size: 13px; font-weight: 550; color: var(--gold); border-bottom: 1px solid #dbc07655; }
+.pricingFactors { list-style: none; display: grid; gap: 12px; margin: 0; padding: 0; }
+.pricingFactors li { display: flex; align-items: flex-start; gap: 14px; padding: 15px 18px; border: 1px solid #ffffff12; border-radius: 9px; background: #ffffff09; }
+.pricingFactors svg { flex-shrink: 0; margin-top: 2px; color: var(--gold); }
+.pricingFactors strong { display: block; font-size: 13px; font-weight: 550; margin-bottom: 5px; }
+.pricingFactors p { margin: 0; font-size: 12px; line-height: 1.7; color: #a2aab9; }
+
+/* ——— Acciones persistentes: CTA móvil y volver arriba ——— */
+.stickyBar { position: fixed; z-index: 45; left: 12px; right: 12px; bottom: 12px; display: none; align-items: center; gap: 10px; padding: 10px; border: 1px solid #ffffff1f; border-radius: 12px; background: #10131af2; backdrop-filter: blur(14px); box-shadow: 0 14px 40px #00000066; opacity: 0; transform: translateY(130%); transition: opacity .25s, transform .3s; pointer-events: none; }
+.stickyBar a { display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: 1; min-height: 46px; border-radius: 8px; font-size: 13px; font-weight: 550; }
+.stickyBar a:first-child { flex: 0 0 36%; color: #e7e3d9; border: 1px solid #ffffff2b; }
+.stickyBar a:last-child { background: var(--gold); color: var(--ink); }
+.toTop { position: fixed; z-index: 45; right: 26px; bottom: 26px; display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid #d8d2c4; border-radius: 50%; background: #fffffff2; color: var(--ink); box-shadow: 0 10px 30px #0c173014; backdrop-filter: blur(8px); opacity: 0; transform: translateY(14px); transition: opacity .25s, transform .3s, background .2s, border-color .2s; pointer-events: none; }
+.toTop:hover { background: var(--gold); border-color: var(--gold); }
+.stickyBar.stickyVisible, .toTop.stickyVisible { opacity: 1; transform: none; pointer-events: auto; }
+
+@media (max-width: 1050px) {
+  .shiftHead { padding: 14px 20px; }
+  .shiftBefore, .shiftAfter { padding: 17px 20px; font-size: 12.5px; }
+  .segmentGrid article { padding: 24px; } .segmentGrid h3 { font-size: 20px; } .segmentIcon { margin-bottom: 21px; }
+  .securityGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .startupHeading h2 { font-size: 33px; } .startupSteps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pricing { grid-template-columns: 1fr; gap: 28px; padding: 26px; }
+}
+@media (max-width: 760px) {
+  .shiftHead { display: none; }
+  .shiftRows li { grid-template-columns: 1fr; background: #fff; padding: 6px 0; }
+  .shiftRows li + li { border-top: 1px solid #f1ede5; }
+  .shiftBefore { padding: 13px 18px 10px; font-size: 12.5px; }
+  .shiftAfter { padding: 12px 16px; margin: 0 14px 10px; border-radius: 8px; background: #fbf8f1; font-size: 12.5px; }
+  .shiftArrow { display: none; }
+  .shiftInline { display: inline; font-weight: 600; }
+  .shiftBefore .shiftInline { color: #a69e8f; }
+  .shiftAfter .shiftInline { color: #8a7333; }
+  .segmentGrid { grid-template-columns: 1fr; gap: 14px; } .segmentText { margin-bottom: 18px; } .segmentNote { font-size: 12.5px; }
+  .securityGrid { grid-template-columns: 1fr; gap: 12px; } .securityGrid article { padding: 22px; } .securityIcon { margin-bottom: 18px; }
+  .securityStrip { gap: 9px 14px; padding: 16px 18px; }
+  .startupHeading { margin-bottom: 28px; } .startupHeading h2 { font-size: 28px; } .startupHeading h2 br { display: none; } .startupHeading h2 span { display: block; }
+  .startupLead { font-size: 13px; } .startupSteps { grid-template-columns: 1fr; gap: 12px; } .startupSteps li { padding: 20px; } .startupTop { margin-bottom: 18px; }
+  .pricing { margin-top: 12px; padding: 22px; gap: 24px; } .pricingCopy h3 { font-size: 22px; } .pricingFactors li { padding: 13px 15px; }
+  .stickyBar { display: flex; } .toTop { display: none; }
+}

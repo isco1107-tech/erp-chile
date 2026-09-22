@@ -50,6 +50,11 @@ const PUBLIC_ROUTES = [
   // la app, login incluido).
   '/politica-privacidad',
   '/aether',
+  // Metadatos de rastreo de la landing (`src/app/robots.ts` y
+  // `src/app/sitemap.ts`): un buscador los pide sin cookies, así que si
+  // cayeran en el redirect a /login la landing quedaría sin robots ni sitemap.
+  '/robots.txt',
+  '/sitemap.xml',
 ];
 
 export async function proxy(req: NextRequest) {

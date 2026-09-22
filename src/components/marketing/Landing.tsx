@@ -15,6 +15,12 @@ import HeroPreview from './HeroPreview';
 import HowItWorks from './HowItWorks';
 import ChileSection from './ChileSection';
 import StatBand from './StatBand';
+import Shift from './Shift';
+import Segments from './Segments';
+import Security from './Security';
+import Onboarding from './Onboarding';
+import StickyActions from './StickyActions';
+import { faqs } from './content';
 import { useReveal } from './useReveal';
 
 export type DesktopRelease = {
@@ -63,15 +69,6 @@ const tickerItems = [
   'Proyectos', 'Ticketing', 'Jurados', 'Auspicios', 'Acreditaciones', 'Automatizaciones', 'Agentes IA',
 ];
 
-const faqs = [
-  ['¿Cuánto cuesta y cómo lo contrato?', 'La cotización se prepara según los módulos y el alcance que necesita tu empresa. Selecciona tus áreas de interés en el formulario y solicita una demo por correo. Antes de contratar, podrás revisar la propuesta y resolver tus dudas con el equipo de Aether.'],
-  ['¿Qué incluye Aether ERP?', 'Aether reúne gestión comercial, inventario, compras, tesorería, contabilidad y producción de eventos. Los módulos disponibles para tu empresa dependen de su configuración y de los servicios contratados.'],
-  ['¿Necesito instalar algo para usarlo?', 'Puedes acceder desde el navegador. El cliente de escritorio es una alternativa para abrir Aether en una ventana propia. Ambas opciones utilizan la misma plataforma y requieren conexión a internet.'],
-  ['¿La descarga incluye una cuenta o una licencia?', 'No. La descarga del cliente no tiene costo, pero para operar necesitas una cuenta activa y acceso a una empresa habilitada en Aether. Instalarlo no activa una suscripción ni crea una empresa automáticamente.'],
-  ['¿Está preparado para empresas chilenas?', 'Incluye RUT, IVA, folios CAF, timbre electrónico y reportes como F29. La firma digital y el envío automático al SII todavía no están disponibles. Revisa con nuestro equipo el alcance tributario y la configuración que necesita tu empresa antes de contratar.'],
-  ['¿Puedo gestionar más de una empresa?', 'Sí. Aether organiza usuarios, permisos y módulos por empresa para que cada equipo acceda a la información que le corresponde.'],
-  ['¿Por qué el sistema puede mostrar una advertencia al instalar?', 'Estos instaladores todavía no cuentan con certificados comerciales de firma. Windows puede mostrar una advertencia de editor desconocido; macOS puede solicitar autorización en Privacidad y seguridad. Si tu equipo exige aplicaciones firmadas, puedes utilizar la versión web.'],
-];
 
 function Brand() {
   return <span className={s.brand}><Image src="/branding/aether-icon.png" alt="" width={29} height={34} /><span>aether<span className={s.brandSuffix}>ERP</span></span></span>;
@@ -169,14 +166,14 @@ export default function Landing({ releases, salesEmail = 'aethererp1@gmail.com',
       <header className={s.header} ref={header}>
         <div className={s.headerInner}>
           <Link href="/conoce-aether" aria-label="Aether ERP, inicio"><Brand /></Link>
-          <nav className={s.desktopNav} aria-label="Navegación principal"><a href="#como-funciona">Cómo funciona</a><a href="#plataforma">La plataforma</a><a href="#modulos">Soluciones</a><a href="#descargas">Descargas</a><a href="#cotizar">Cotizar</a></nav>
+          <nav className={s.desktopNav} aria-label="Navegación principal"><a href="#como-funciona">Cómo funciona</a><a href="#plataforma">La plataforma</a><a href="#para-quien">Para quién</a><a href="#modulos">Soluciones</a><a href="#seguridad">Seguridad</a><a href="#descargas">Descargas</a></nav>
           <div className={s.headerActions}>
             <Link className={s.login} href="/login">Ingresar <ArrowUpRight size={15} aria-hidden="true" /></Link>
             <a className={s.headerCta} href="#cotizar">Solicitar demo <ArrowUpRight size={15} aria-hidden="true" /></a>
             <button className={s.menuButton} aria-label={menuOpen ? 'Cerrar menú' : 'Abrir menú'} aria-expanded={menuOpen} aria-controls="mobile-nav" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X /> : <Menu />}</button>
           </div>
         </div>
-        {menuOpen && <nav id="mobile-nav" className={s.mobileNav} aria-label="Navegación móvil" onClick={() => setMenuOpen(false)}><a href="#como-funciona">Cómo funciona</a><a href="#plataforma">La plataforma</a><a href="#modulos">Soluciones</a><a href="#descargas">Descargas</a><a href="#cotizar">Cotizar para mi empresa</a><Link href="/login">Ingresar al ERP</Link></nav>}
+        {menuOpen && <nav id="mobile-nav" className={s.mobileNav} aria-label="Navegación móvil" onClick={() => setMenuOpen(false)}><a href="#como-funciona">Cómo funciona</a><a href="#plataforma">La plataforma</a><a href="#para-quien">Para quién</a><a href="#modulos">Soluciones</a><a href="#seguridad">Seguridad</a><a href="#implementacion">Implementación</a><a href="#descargas">Descargas</a><a href="#cotizar">Cotizar para mi empresa</a><Link href="/login">Ingresar al ERP</Link></nav>}
       </header>
 
       <section id="contenido" className={s.hero}>
@@ -228,6 +225,8 @@ export default function Landing({ releases, salesEmail = 'aethererp1@gmail.com',
 
       <HowItWorks />
 
+      <Shift />
+
       <section id="plataforma" className={`${s.section} ${s.platform}`}><div className={s.container}>
         <div className={s.sectionHeading} data-reveal><div><p className={s.kicker}>01 / CONOCE TU PRÓXIMO ERP</p><h2>Todo se entiende mejor<br /> cuando está conectado.</h2></div><p>Del primer presupuesto al último pago. Aether reúne las áreas de tu empresa para que puedas ver el panorama completo.</p></div>
         <div className={s.tabs} role="tablist" aria-label="Vistas del ERP" data-reveal onKeyDown={event => tabKeys(event, activeView, views.length, setActiveView)}>{views.map((item, index) => <button id={`view-tab-${index}`} key={item.image} role="tab" aria-selected={activeView === index} aria-controls="product-panel" tabIndex={activeView === index ? 0 : -1} onClick={() => setActiveView(index)}><item.icon size={17} aria-hidden="true" />{item.label}</button>)}</div>
@@ -238,6 +237,8 @@ export default function Landing({ releases, salesEmail = 'aethererp1@gmail.com',
       </div></section>
 
       <ChileSection />
+
+      <Segments />
 
       <section id="modulos" className={`${s.section} ${s.modules}`}><div className={s.container}>
         <div className={s.sectionHeading} data-reveal><div><p className={s.kicker}>02 / UN LUGAR PARA CADA ÁREA</p><h2>Empieza con lo que necesitas.<br /> Crece con lo que viene.</h2></div><p>Una estructura modular que acompaña tu operación. Activa las herramientas que tu empresa necesita y mantén la información conectada.</p></div>
@@ -253,12 +254,16 @@ export default function Landing({ releases, salesEmail = 'aethererp1@gmail.com',
         <div className={s.intelligenceFooter} data-reveal><span><Check size={16} /> Multiempresa</span><span><Check size={16} /> Permisos por rol</span><span><Check size={16} /> Exportación a Excel</span><span><Check size={16} /> Respaldos por empresa</span></div>
       </div></section>
 
+      <Security />
+
       <section id="descargas" className={`${s.section} ${s.downloads}`}><div className={s.container}>
-        <div className={s.downloadHeading} data-reveal><p className={s.kicker}>03 / TU NEGOCIO, A UN CLIC</p><h2>Un lugar en tu escritorio.<br /><span>Toda tu empresa adentro.</span></h2><p>Abre Aether en su propia ventana y entra directo a tu operación.<br /> Elige tu sistema y descarga el cliente de escritorio.</p></div>
+        <div className={s.downloadHeading} data-reveal><p className={s.kicker}>04 / TU NEGOCIO, A UN CLIC</p><h2>Un lugar en tu escritorio.<br /><span>Toda tu empresa adentro.</span></h2><p>Abre Aether en su propia ventana y entra directo a tu operación.<br /> Elige tu sistema y descarga el cliente de escritorio.</p></div>
         <div className={s.downloadGrid}><DownloadOption platform="windows" name="Windows" detail="Tu operación, siempre a mano." icon={Monitor} releases={releases} delay={0} /><DownloadOption platform="macos" name="macOS" detail="Aether también vive en tu Mac." icon={Laptop} releases={releases} delay={110} /><DownloadOption platform="linux" name="Linux" detail="Tu entorno. La misma plataforma." icon={Terminal} releases={releases} delay={220} /></div>
         <div className={s.downloadNote} data-reveal><p><ShieldCheck size={17} aria-hidden="true" /> Requiere internet y una cuenta activa. Instaladores sin firma comercial.</p>{releases.length > 0 && <a href="/downloads/SHA256SUMS.txt" download>Verificación SHA-256 <ArrowUpRight size={14} aria-hidden="true" /></a>}</div>
         <div className={s.webOption} data-reveal><div><Globe2 size={25} aria-hidden="true" /><p><strong>También puedes entrar desde el navegador.</strong><span>La misma información, sin instalar nada.</span></p></div><Link href="/login">Abrir Aether web <ArrowUpRight size={18} aria-hidden="true" /></Link></div>
       </div></section>
+
+      <Onboarding />
 
       <section className={`${s.section} ${s.faq}`}><div className={s.container}><div data-reveal><p className={s.kicker}>ANTES DE EMPEZAR</p><h2>Las cosas claras.</h2><p>Lo que necesitas saber<br /> sobre Aether ERP.</p></div><div className={s.faqList}>{faqs.map(([question, answer], index) => <details key={question} data-reveal style={{ transitionDelay: `${index * 45}ms` }}><summary>{question}<ChevronDown size={18} aria-hidden="true" /></summary><p>{answer}</p></details>)}</div></div></section>
 
@@ -267,6 +272,8 @@ export default function Landing({ releases, salesEmail = 'aethererp1@gmail.com',
       <section className={s.finalCta}><div className={s.container} data-reveal><p className={s.kicker}>TU EMPRESA YA TIENE EL POTENCIAL</p><h2>Dale espacio para crecer.<br />Dale Aether.</h2><a href="#cotizar">Conversemos de tu empresa <ArrowRight size={22} aria-hidden="true" /></a></div></section>
 
       <footer className={s.footer}><div className={s.container}><Link href="/" aria-label="Aether ERP"><Brand /></Link><p>Gestión conectada. Hecha para avanzar.</p><Link href="/aether/privacidad">Privacidad <ArrowUpRight size={13} aria-hidden="true" /></Link><span>© {new Date().getFullYear()} Aether ERP</span></div></footer>
+
+      <StickyActions />
 
       <dialog ref={dialog} className={s.lightbox} onClick={event => { if (event.target === event.currentTarget) dialog.current?.close(); }} aria-label={`Captura ampliada: ${view.label}`}><div><button className={s.closeLightbox} aria-label="Cerrar captura" onClick={() => dialog.current?.close()} autoFocus><X /></button><Image src={`/manual/screenshots/${view.image}.png`} alt={`Captura ampliada de ${view.label}`} width={1440} height={900} sizes="95vw" /><p>{view.label} · Entorno de demostración</p></div></dialog>
     </main>
