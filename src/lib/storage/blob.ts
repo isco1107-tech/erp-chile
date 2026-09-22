@@ -21,6 +21,11 @@
  * (`*.public.blob.vercel-storage.com`), delega en `@vercel/blob` — que sigue
  * instalado y sigue funcionando mientras `BLOB_READ_WRITE_TOKEN` exista.
  * Así ningún archivo viejo queda huérfano solo por el cambio de proveedor.
+ *
+ * R2 es OPT-IN: se activa solo cuando están definidas todas las `R2_*`. En un
+ * entorno que todavía no las tiene, las subidas siguen yendo a Vercel Blob,
+ * igual que antes de esta migración. Así el código se puede desplegar antes de
+ * contratar R2 sin dejar caídas las 13 rutas de subida.
  */
 import { DeleteObjectCommand, DeleteObjectsCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { captureException, captureMessage } from '@/lib/observability';
@@ -54,6 +59,20 @@ function requiredEnv(name: string): string {
   }
   return value;
 }
+
+const R2_ENV_VARS = ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET_NAME', 'R2_PUBLIC_URL'] as const;
+
+/**
+ * R2 se considera disponible solo con TODAS sus variables presentes.
+ *
+ * A medias no sirve: sin `R2_PUBLIC_URL` la subida funcionaría pero devolvería
+ * una URL inválida, y sin credenciales no funciona nada. Es todo o nada.
+ */
+function r2Configured(): boolean {
+  return R2_ENV_VARS.every((name) => Boolean(process.env[name]));
+}
+
+let announcedFallback = false;
 
 let cachedClient: S3Client | null = null;
 
@@ -104,6 +123,31 @@ export async function put(
   options: PutBlobOptions
 ): Promise<PutBlobResult> {
   const bytes = await toBuffer(body);
+
+  // Entorno sin R2 todavía: se sigue subiendo por Vercel Blob, exactamente
+  // como antes de esta migración. Es deliberado que no falle — un despliegue
+  // hecho antes de contratar R2 dejaría sin subir archivos a las 13 rutas que
+  // pasan por acá (fotos de candidatas, logos, contratos, adjuntos...), y
+  // degradar al proveedor anterior es mejor que romperlas. `del()` ya sabe
+  // borrar en ambos proveedores según el dominio de la URL guardada.
+  if (!r2Configured()) {
+    if (!announcedFallback) {
+      announcedFallback = true;
+      captureMessage(
+        'storage/blob: R2 no está configurado, las subidas siguen en Vercel Blob. Define las R2_* para migrar.',
+        'warn',
+        { module: 'storage.blob' }
+      );
+    }
+    const { put: putVercelBlob } = await import('@vercel/blob');
+    const uploaded = await putVercelBlob(pathname, bytes, {
+      access: options.access,
+      contentType: options.contentType,
+      addRandomSuffix: options.addRandomSuffix ?? false,
+    });
+    return { url: uploaded.url, pathname: uploaded.pathname };
+  }
+
   const client = r2Client();
   await client.send(
     new PutObjectCommand({
