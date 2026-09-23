@@ -8,9 +8,9 @@ import { ArrowUpRight, Boxes, Landmark, ReceiptText, ShieldCheck } from 'lucide-
  *
  * Misma identidad que el landing (tinta + dorado, mismo titular), para que
  * pasar de la página comercial al login no se sienta como cambiar de
- * producto. El panel de marca va a la izquierda y el formulario sobre una
- * superficie limpia a la derecha: el logo ya no se dibuja detrás del
- * formulario (competía con los campos).
+ * producto. El panel de marca va a la izquierda y el formulario a la derecha;
+ * el logo grande de Aether va de fondo, centrado en la pantalla
+ * (`LogoBackdrop`).
  */
 
 const HIGHLIGHTS = [
@@ -23,19 +23,21 @@ const HIGHLIGHTS = [
 export function AuthShell({ children }: { children: ReactNode }) {
   return (
     <div className="auth-shell relative flex min-h-screen">
+      <LogoBackdrop />
+
       {/* Panel de marca */}
       <aside className="relative hidden w-[46%] max-w-[720px] flex-col justify-between overflow-hidden border-r border-white/[0.06] bg-[#10131a] p-12 lg:flex xl:p-16">
         <AuthBackdrop />
 
-        <Link href="/" className="relative flex w-fit items-center gap-2.5 rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary">
+        <Link href="/" className="relative z-[2] flex w-fit items-center gap-2.5 rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/branding/aether-icon.png" alt="" aria-hidden="true" className="h-8 w-7 object-contain" />
+          <img src="/branding/logo-on-dark.png" alt="" aria-hidden="true" className="size-7 object-contain" />
           <span className="text-2xl font-semibold tracking-tight text-white">
             aether<span className="ml-1.5 align-middle text-[10px] font-medium text-white/60">ERP</span>
           </span>
         </Link>
 
-        <div className="relative max-w-md space-y-8">
+        <div className="relative z-[2] max-w-md space-y-8">
           <div className="space-y-5">
             <p className="flex items-center gap-2 text-[11px] font-medium tracking-[0.14em] text-white/60 uppercase">
               <span className="size-1.5 rounded-full bg-primary" aria-hidden="true" /> Hecho para Chile
@@ -60,7 +62,7 @@ export function AuthShell({ children }: { children: ReactNode }) {
           </ul>
         </div>
 
-        <div className="relative flex items-center justify-between gap-4 text-xs text-white/50">
+        <div className="relative z-[2] flex items-center justify-between gap-4 text-xs text-white/50">
           <p>© {new Date().getFullYear()} Aether ERP Solutions</p>
           <Link href="/aether/privacidad" className="transition-colors hover:text-white">
             Privacidad
@@ -69,11 +71,11 @@ export function AuthShell({ children }: { children: ReactNode }) {
       </aside>
 
       {/* Formulario */}
-      <main className="relative flex flex-1 flex-col">
+      <main className="relative z-[2] flex flex-1 flex-col">
         <div className="flex items-center justify-between p-5 lg:justify-end lg:p-8">
           <Link href="/" className="flex items-center gap-2 lg:hidden">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/branding/aether-icon.png" alt="" aria-hidden="true" className="h-7 w-6 object-contain" />
+            <img src="/branding/logo-on-dark.png" alt="" aria-hidden="true" className="size-7 object-contain" />
             <span className="text-lg font-semibold tracking-tight text-foreground">aether</span>
           </Link>
           <Link
@@ -137,20 +139,37 @@ export function AuthError({ children }: { children: ReactNode }) {
 }
 
 /**
- * Textura del panel de marca: halo dorado tenue, la constelación del landing y
- * el isotipo muy atenuado en la esquina. Decorativo, fuera del árbol accesible.
+ * El isotipo de Aether de fondo, centrado en toda la pantalla.
+ *
+ * `logo-on-dark.png` es `logo.png` con el azul marino recoloreado a blanco
+ * (script de un solo uso sobre los canales RGB; la estrella dorada queda
+ * intacta) — sobre el fondo oscuro el azul original tenía casi el mismo tono
+ * que `--background` y se perdía. Transparencia real, sin caja ni overlay
+ * pesado. Va sobre el fondo del panel de marca (z-[1]) y bajo el contenido
+ * (z-[2]), para cruzar ambos paneles sin que el `aside` lo tape.
+ */
+function LogoBackdrop() {
+  return (
+    <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-[1] overflow-hidden select-none">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/branding/logo-on-dark.png"
+        alt=""
+        className="absolute inset-0 m-auto h-auto w-[min(85vw,1250px)] object-contain opacity-80 lg:w-[min(58vw,1000px)]"
+      />
+    </div>
+  );
+}
+
+/**
+ * Textura del panel de marca: halo dorado tenue y la constelación del landing.
+ * Decorativo, fuera del árbol accesible.
  */
 function AuthBackdrop() {
   return (
     <div aria-hidden="true" className="pointer-events-none absolute inset-0 select-none">
       <div className="absolute -top-48 -left-40 size-[36rem] rounded-full bg-primary/[0.09] blur-[120px]" />
       <div className="absolute -right-48 bottom-0 size-[30rem] rounded-full bg-[#334d85]/20 blur-[120px]" />
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/branding/logo-on-dark.png"
-        alt=""
-        className="absolute -right-24 -bottom-16 w-[560px] max-w-none object-contain opacity-[0.07]"
-      />
       <div
         className="absolute inset-0 opacity-[0.35]"
         style={{
