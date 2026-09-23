@@ -21,12 +21,14 @@ import {
 import type { ProductionCandidateOption, ProductionProjectOption, StageTimelineItemWithCandidate } from '@/modules/production/services/production.service';
 import { STAGE_ITEM_STATUS_LABELS } from '@/modules/production/schema';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 const STATUS_TONE: Record<StageItemStatus, Tone> = { PENDING: 'neutral', IN_PROGRESS: 'info', DONE: 'success', SKIPPED: 'danger' };
 
 /** Poll cada 5s: no hay WebSocket/SSE en el repo (ver plan) — el director de piso en otra pantalla ve el cambio en, como máximo, 5 segundos. */
 const POLL_MS = 5000;
 
 export default function ProductionTimelineClient({ canWrite }: { canWrite: boolean }) {
+  const confirm = useConfirm();
   const [projects, setProjects] = useState<ProductionProjectOption[]>([]);
   const [projectId, setProjectId] = useState('');
   const [items, setItems] = useState<StageTimelineItemWithCandidate[]>([]);
@@ -96,7 +98,7 @@ export default function ProductionTimelineClient({ canWrite }: { canWrite: boole
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('¿Eliminar este bloque de la escaleta?')) return;
+    if (!await confirm('¿Eliminar este bloque de la escaleta?')) return;
     const result = await deleteStageItemAction(id);
     if (!result.success) toast.error(result.error);
     await reload();
@@ -156,7 +158,7 @@ export default function ProductionTimelineClient({ canWrite }: { canWrite: boole
         {items.length === 0 && <p className="text-sm text-muted-foreground">Sin bloques en la escaleta todavía.</p>}
         {items.map((item, index) => (
           <div key={item.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-border p-3 text-sm">
-            <span className="hud-label w-8 shrink-0 text-center">#{item.blockOrder}</span>
+            <span className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase w-8 shrink-0 text-center">#{item.blockOrder}</span>
             <div className="min-w-[10rem] flex-1">
               <p className="font-semibold text-foreground">{item.title}</p>
               <p className="text-xs text-muted-foreground">

@@ -6,6 +6,7 @@ import { Link2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getOrCreatePortalLinkAction, regeneratePortalLinkAction } from '@/modules/sponsorships/actions/sponsorships.actions';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 /**
  * Botón para el equipo interno: genera (o reutiliza) el link del portal de la
  * marca y lo copia al portapapeles. El token nunca se muestra directo en la
@@ -13,6 +14,7 @@ import { getOrCreatePortalLinkAction, regeneratePortalLinkAction } from '@/modul
  * para no invitar a compartirlo pegado en un chat sin la URL completa.
  */
 export default function SponsorPortalLinkButton({ contractId }: { contractId: string }) {
+  const confirm = useConfirm();
   const [busy, setBusy] = useState<'get' | 'regen' | null>(null);
 
   function portalUrl(portalToken: string): string {
@@ -35,7 +37,7 @@ export default function SponsorPortalLinkButton({ contractId }: { contractId: st
   }
 
   async function handleRegenerate() {
-    if (!confirm('¿Regenerar el link? El link anterior dejará de funcionar de inmediato.')) return;
+    if (!await confirm('¿Regenerar el link? El link anterior dejará de funcionar de inmediato.')) return;
     setBusy('regen');
     try {
       const result = await regeneratePortalLinkAction(contractId);

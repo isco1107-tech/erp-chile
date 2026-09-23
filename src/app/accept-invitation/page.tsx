@@ -113,7 +113,7 @@ function AcceptInvitationForm() {
   const mismatch = confirmPassword.length > 0 && password !== confirmPassword;
 
   return (
-    <PublicPage accent="cyan">
+    <PublicPage accent="gold">
       <PublicTopBar brand={invitation.companyName} right="Invitación" />
       <PublicShell>
         <PublicCard glow>

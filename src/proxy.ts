@@ -55,6 +55,10 @@ const PUBLIC_ROUTES = [
   // cayeran en el redirect a /login la landing quedaría sin robots ni sitemap.
   '/robots.txt',
   '/sitemap.xml',
+  // Imagen para compartir en redes (`src/app/opengraph-image.tsx`) y manifest
+  // web: los piden WhatsApp, LinkedIn o el navegador, siempre sin sesión.
+  '/opengraph-image',
+  '/manifest.webmanifest',
 ];
 
 export async function proxy(req: NextRequest) {

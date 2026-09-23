@@ -226,3 +226,12 @@ export const MANUAL_ASSISTANT_CONFIRM_RATE_LIMIT: RateLimitConfig = {
   limit: 10,
   windowMs: 60_000,
 };
+
+/** Formulario comercial del landing (`POST /api/public/leads`): público y sin
+ * sesión, mismo criterio que las postulaciones — 5 solicitudes por hora por IP
+ * alcanzan para cualquier persona real y frenan el spam automatizado. */
+export const SALES_LEAD_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'sales-lead-ip',
+  limit: 5,
+  windowMs: 60 * 60_000,
+};

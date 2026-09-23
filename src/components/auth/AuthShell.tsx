@@ -1,76 +1,100 @@
 import type { ReactNode } from 'react';
-import { CreditCard, MessageSquareText, Package, Users } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowUpRight, Boxes, Landmark, ReceiptText, ShieldCheck } from 'lucide-react';
 
 /**
  * Marco compartido de las pantallas de autenticación (login, recuperar
  * contraseña, elegir contraseña nueva, cambio forzado, cuenta suspendida).
  *
- * Antes solo `/login` tenía el layout de dos paneles con la marca; el resto
- * eran tarjetas sueltas centradas sobre el fondo oscuro. Como todas viven en
- * el mismo flujo — se llega a ellas desde el login o desde un correo — la
- * inconsistencia se leía como "otra aplicación". Este componente centraliza
- * el fondo, el panel de marca y la tarjeta, para que cualquier pantalla del
- * flujo se vea igual con tres líneas.
+ * Misma identidad que el landing (tinta + dorado, mismo titular), para que
+ * pasar de la página comercial al login no se sienta como cambiar de
+ * producto. El panel de marca va a la izquierda y el formulario sobre una
+ * superficie limpia a la derecha: el logo ya no se dibuja detrás del
+ * formulario (competía con los campos).
  */
 
 const HIGHLIGHTS = [
-  { icon: Package, label: 'Inventario y ventas en tiempo real' },
-  { icon: Users, label: 'Candidatas, staff y equipo en un solo lugar' },
-  { icon: CreditCard, label: 'Cuotas, cobros y flujo de caja' },
-  { icon: MessageSquareText, label: 'Mensajería interna cifrada' },
+  { icon: ReceiptText, label: 'Ventas, folios y documentos tributarios' },
+  { icon: Boxes, label: 'Inventario multibodega con costo PMP' },
+  { icon: Landmark, label: 'Cobranza, flujo de caja y F29' },
+  { icon: ShieldCheck, label: 'Permisos por rol y registro de auditoría' },
 ] as const;
 
 export function AuthShell({ children }: { children: ReactNode }) {
   return (
-    <div className="relative flex min-h-screen overflow-hidden">
-      <AuthBackdrop />
+    <div className="auth-shell relative flex min-h-screen">
+      {/* Panel de marca */}
+      <aside className="relative hidden w-[46%] max-w-[720px] flex-col justify-between overflow-hidden border-r border-white/[0.06] bg-[#10131a] p-12 lg:flex xl:p-16">
+        <AuthBackdrop />
 
-      <div className="relative z-10 flex w-full flex-col lg:flex-row">
-        <div className="hidden flex-col justify-between p-12 lg:flex lg:w-1/2 xl:p-16">
-          <div className="flex items-center gap-2.5">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/branding/logo-on-dark.png" alt="" aria-hidden="true" className="size-7 object-contain" />
-            <span className="text-sm font-semibold tracking-[0.18em] text-foreground">AETHER ERP</span>
-          </div>
+        <Link href="/" className="relative flex w-fit items-center gap-2.5 rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/branding/aether-icon.png" alt="" aria-hidden="true" className="h-8 w-7 object-contain" />
+          <span className="text-2xl font-semibold tracking-tight text-white">
+            aether<span className="ml-1.5 align-middle text-[10px] font-medium text-white/60">ERP</span>
+          </span>
+        </Link>
 
-          <div className="max-w-md space-y-7">
-            <h1 className="text-[2.75rem] leading-[1.08] font-bold tracking-tight text-balance text-foreground">
-              Todo tu negocio,
-              <br />
-              <span className="bg-gradient-to-r from-primary via-cyan-200 to-indigo-300 bg-clip-text text-transparent">
-                en un solo panel.
-              </span>
-            </h1>
-            <p className="text-base leading-relaxed text-muted-foreground">
-              Ventas, inventario, cobros, candidatas y mensajería interna — sin planillas sueltas ni sistemas que no se
-              hablan entre sí.
+        <div className="relative max-w-md space-y-8">
+          <div className="space-y-5">
+            <p className="flex items-center gap-2 text-[11px] font-medium tracking-[0.14em] text-white/60 uppercase">
+              <span className="size-1.5 rounded-full bg-primary" aria-hidden="true" /> Hecho para Chile
             </p>
-            <ul className="space-y-3.5">
-              {HIGHLIGHTS.map(({ icon: Icon, label }) => (
-                <li key={label} className="flex items-center gap-3 text-sm text-foreground/90">
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
-                    <Icon className="size-4" strokeWidth={1.75} />
-                  </span>
-                  {label}
-                </li>
-              ))}
-            </ul>
+            <h1 className="text-[2.6rem] leading-[1.06] font-medium tracking-[-0.035em] text-balance text-white">
+              Menos caos.
+              <br />
+              Más control.
+              <br />
+              <span className="text-primary">Mejor negocio.</span>
+            </h1>
           </div>
-
-          <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} Aether ERP Solutions</p>
+          <ul className="space-y-3">
+            {HIGHLIGHTS.map(({ icon: Icon, label }) => (
+              <li key={label} className="flex items-center gap-3 text-sm text-white/80">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-primary">
+                  <Icon className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                </span>
+                {label}
+              </li>
+            ))}
+          </ul>
         </div>
 
-        <div className="flex flex-1 items-center justify-center p-4">{children}</div>
-      </div>
+        <div className="relative flex items-center justify-between gap-4 text-xs text-white/50">
+          <p>© {new Date().getFullYear()} Aether ERP Solutions</p>
+          <Link href="/aether/privacidad" className="transition-colors hover:text-white">
+            Privacidad
+          </Link>
+        </div>
+      </aside>
+
+      {/* Formulario */}
+      <main className="relative flex flex-1 flex-col">
+        <div className="flex items-center justify-between p-5 lg:justify-end lg:p-8">
+          <Link href="/" className="flex items-center gap-2 lg:hidden">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/branding/aether-icon.png" alt="" aria-hidden="true" className="h-7 w-6 object-contain" />
+            <span className="text-lg font-semibold tracking-tight text-foreground">aether</span>
+          </Link>
+          <Link
+            href="/#cotizar"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            ¿Aún no usas Aether? <span className="font-medium text-foreground">Conócelo</span>
+            <ArrowUpRight className="size-3.5" aria-hidden="true" />
+          </Link>
+        </div>
+        <div className="flex flex-1 items-center justify-center px-4 pb-16">{children}</div>
+      </main>
     </div>
   );
 }
 
-/** Tarjeta de vidrio del flujo de autenticación. */
+/** Tarjeta del flujo de autenticación. */
 export function AuthCard({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
     <div
-      className={`w-full max-w-md rounded-2xl border border-white/10 bg-card/70 p-8 shadow-[0_32px_80px_-40px_rgba(0,0,0,0.95)] backdrop-blur-xl ${className}`}
+      className={`w-full max-w-[420px] rounded-2xl border border-white/[0.08] bg-card p-8 shadow-[0_32px_80px_-40px_rgba(0,0,0,0.9)] sm:p-9 ${className}`}
     >
       {children}
     </div>
@@ -88,13 +112,13 @@ export function AuthCardHeader({
   description?: ReactNode;
 }) {
   return (
-    <div className="mb-6">
+    <div className="mb-7">
       {icon && (
-        <div className="mb-5 flex size-11 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary">
+        <div className="mb-5 flex size-11 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary">
           {icon}
         </div>
       )}
-      <h2 className="text-2xl font-bold tracking-tight text-foreground">{title}</h2>
+      <h2 className="text-2xl font-semibold tracking-tight text-foreground">{title}</h2>
       {description && <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{description}</p>}
     </div>
   );
@@ -113,35 +137,26 @@ export function AuthError({ children }: { children: ReactNode }) {
 }
 
 /**
- * El isotipo de Aether de fondo más el resplandor de marca.
- *
- * `logo-on-dark.png` es `logo.png` con el azul marino recoloreado a blanco
- * (script de un solo uso sobre los canales RGB; la estrella dorada queda
- * intacta) — sobre el fondo oscuro el azul original tenía casi el mismo tono
- * que `--background` y se perdía. Transparencia real, sin caja ni overlay
- * pesado.
+ * Textura del panel de marca: halo dorado tenue, la constelación del landing y
+ * el isotipo muy atenuado en la esquina. Decorativo, fuera del árbol accesible.
  */
 function AuthBackdrop() {
   return (
     <div aria-hidden="true" className="pointer-events-none absolute inset-0 select-none">
-      <div className="absolute -top-40 -left-32 size-[38rem] rounded-full bg-primary/12 blur-[120px]" />
-      <div className="absolute -top-24 -right-40 size-[34rem] rounded-full bg-indigo-500/12 blur-[120px]" />
-
+      <div className="absolute -top-48 -left-40 size-[36rem] rounded-full bg-primary/[0.09] blur-[120px]" />
+      <div className="absolute -right-48 bottom-0 size-[30rem] rounded-full bg-[#334d85]/20 blur-[120px]" />
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/branding/logo-on-dark.png"
         alt=""
-        className="absolute inset-0 m-auto h-auto w-[min(85vw,1250px)] object-contain opacity-80 lg:w-[min(58vw,1000px)]"
+        className="absolute -right-24 -bottom-16 w-[560px] max-w-none object-contain opacity-[0.07]"
       />
       <div
-        className="absolute inset-0"
-        style={{ background: 'radial-gradient(ellipse at center, transparent 0%, transparent 60%, var(--background) 96%)' }}
-      />
-      <div
-        className="absolute inset-0 opacity-[0.03]"
+        className="absolute inset-0 opacity-[0.35]"
         style={{
-          backgroundImage:
-            "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E\")",
+          backgroundImage: 'radial-gradient(rgb(255 255 255 / 0.07) 1px, transparent 1px)',
+          backgroundSize: '28px 28px',
+          maskImage: 'linear-gradient(180deg, black 0%, transparent 75%)',
         }}
       />
     </div>

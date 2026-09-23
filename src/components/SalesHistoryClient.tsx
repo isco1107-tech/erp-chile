@@ -18,6 +18,7 @@ import { DTE_TYPE_LABELS } from '@/modules/sales/schema';
 import type { SalesDocumentListItem } from '@/modules/sales/services/sales.service';
 import { formatCurrency } from '@/lib/chile/tax';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 type SalesRow = SalesDocumentListItem;
 
 const TABS: { key: string; label: string; dteTypes?: DteType[] }[] = [
@@ -44,6 +45,7 @@ type SortField = 'issueDate' | 'totalAmount';
 const DEFAULT_PAGE_SIZE = 25;
 
 export default function SalesHistoryClient() {
+  const confirm = useConfirm();
   const [rows, setRows] = useState<SalesRow[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -126,7 +128,7 @@ export default function SalesHistoryClient() {
   }
 
   async function handleCancel(id: string) {
-    if (!confirm('¿Anular este documento? Esto reingresará el stock descontado.')) return;
+    if (!await confirm('¿Anular este documento? Esto reingresará el stock descontado.')) return;
     const result = await cancelSalesDocumentAction(id);
     if (!result.success) {
       toast.error(result.error);

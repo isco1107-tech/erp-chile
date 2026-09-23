@@ -8,6 +8,7 @@ import { listMySessionsAction, revokeMySessionAction, revokeOtherSessionsAction 
 import type { SessionWithUser } from '@/lib/services/sessions.service';
 import { formatRelative } from '@/lib/format';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 /**
  * Lectura aproximada del user-agent para mostrar algo legible ("Chrome en
  * Windows") en vez del string crudo. No pretende ser exhaustiva — alcanza
@@ -35,6 +36,7 @@ function describeDevice(userAgent: string | null): { label: string; isMobile: bo
 }
 
 export default function SessionsClient() {
+  const confirm = useConfirm();
   const [sessions, setSessions] = useState<SessionWithUser[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [viewerUserId, setViewerUserId] = useState<string | null>(null);
@@ -62,7 +64,7 @@ export default function SessionsClient() {
 
   async function handleRevoke(sessionId: string) {
     const isCurrent = sessionId === currentSessionId;
-    if (isCurrent && !confirm('Esta es tu sesión actual: cerrarla te llevará al login. ¿Continuar?')) return;
+    if (isCurrent && !await confirm('Esta es tu sesión actual: cerrarla te llevará al login. ¿Continuar?')) return;
     setBusyId(sessionId);
     try {
       const result = await revokeMySessionAction(sessionId);
@@ -82,7 +84,7 @@ export default function SessionsClient() {
   }
 
   async function handleRevokeOthers() {
-    if (!confirm('¿Cerrar todas las demás sesiones? Esta pantalla seguirá abierta.')) return;
+    if (!await confirm('¿Cerrar todas las demás sesiones? Esta pantalla seguirá abierta.')) return;
     const result = await revokeOtherSessionsAction();
     if (!result.success) {
       toast.error(result.error);

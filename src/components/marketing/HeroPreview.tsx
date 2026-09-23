@@ -1,15 +1,6 @@
-import Image from 'next/image';
+import ProductMock from './ProductMock';
 
-/** Real screenshot of the demo environment — same image used in the "Visión general" tab below. */
+/** Vista del panel principal con datos de ejemplo (ver `ProductMock`). */
 export default function HeroPreview() {
-  return (
-    <Image
-      src="/manual/screenshots/dashboard.png"
-      alt="Panel de gestión de Aether ERP con ventas, inventario y finanzas conectados"
-      width={1440}
-      height={900}
-      sizes="(max-width: 760px) 100vw, 56vw"
-      priority
-    />
-  );
+  return <ProductMock view="dashboard" />;
 }

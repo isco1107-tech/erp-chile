@@ -41,6 +41,7 @@ import {
 import type { JudgingProjectOption } from '@/modules/judging/services/judging.service';
 import type { RoundResultRow } from '@/modules/judging/services/rounds.service';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 const POLL_MS = 4000;
 
 const ROUND_STATUS_LABEL: Record<CompetitionRound['status'], string> = {
@@ -60,6 +61,7 @@ const ROUND_STATUS_TONE: Record<CompetitionRound['status'], 'neutral' | 'success
 };
 
 export default function JudgingDirectorClient({ canWrite }: { canWrite: boolean }) {
+  const confirm = useConfirm();
   const [projects, setProjects] = useState<JudgingProjectOption[]>([]);
   const [projectId, setProjectId] = useState('');
 
@@ -176,7 +178,7 @@ export default function JudgingDirectorClient({ canWrite }: { canWrite: boolean 
   }
 
   async function handleDeleteRound(id: string) {
-    if (!confirm('¿Eliminar esta ronda? Solo se pueden eliminar rondas que no hayan sido votadas.')) return;
+    if (!await confirm('¿Eliminar esta ronda? Solo se pueden eliminar rondas que no hayan sido votadas.')) return;
     const result = await deleteRoundAction(id);
     if (!result.success) {
       toast.error(result.error);
@@ -206,7 +208,7 @@ export default function JudgingDirectorClient({ canWrite }: { canWrite: boolean 
   }
 
   async function handleFinishVoting(id: string) {
-    if (!confirm('¿Finalizar las votaciones de esta ronda? Se calcularán los puntajes oficiales y el ranking definitivo.')) return;
+    if (!await confirm('¿Finalizar las votaciones de esta ronda? Se calcularán los puntajes oficiales y el ranking definitivo.')) return;
     setTransitioning(true);
     try {
       const result = await closeRoundAction(id);
@@ -222,7 +224,7 @@ export default function JudgingDirectorClient({ canWrite }: { canWrite: boolean 
   }
 
   async function handleReopenVoting(id: string) {
-    if (!confirm('¿Reabrir la votación para esta ronda? Los jurados podrán volver a enviar o editar calificaciones.')) return;
+    if (!await confirm('¿Reabrir la votación para esta ronda? Los jurados podrán volver a enviar o editar calificaciones.')) return;
     setTransitioning(true);
     try {
       const result = await reopenRoundAction(id);
@@ -309,7 +311,7 @@ export default function JudgingDirectorClient({ canWrite }: { canWrite: boolean 
   }
 
   async function handleDeleteJudge(id: string) {
-    if (!confirm('¿Eliminar este jurado?')) return;
+    if (!await confirm('¿Eliminar este jurado?')) return;
     const result = await deleteJudgeAssignmentAction(id);
     if (!result.success) toast.error(result.error);
     const list = await listJudgeAssignmentsAction(projectId);

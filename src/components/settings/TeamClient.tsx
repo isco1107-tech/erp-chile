@@ -36,10 +36,12 @@ import {
 import type { CustomRoleWithUsage } from '@/modules/roles/services/roles.service';
 import { ROLES, ROLE_BADGE_CLASS, ROLE_LABELS } from '@/lib/auth/roles';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 const selectClass =
   'h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30';
 
 export default function TeamClient() {
+  const confirm = useConfirm();
   const [tab, setTab] = useState<'users' | 'invitations'>('users');
   const [users, setUsers] = useState<TeamMember[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
@@ -186,7 +188,7 @@ export default function TeamClient() {
   }
 
   async function handleDeleteUser(userId: string, email: string) {
-    if (!confirm(`¿Eliminar la cuenta de ${email}? Esto la borra por completo y libera el correo para invitarlo o crearlo de nuevo. No se puede deshacer.`)) return;
+    if (!await confirm(`¿Eliminar la cuenta de ${email}? Esto la borra por completo y libera el correo para invitarlo o crearlo de nuevo. No se puede deshacer.`)) return;
     const result = await deleteUserAction(userId);
     if (!result.success) {
       toast.error(result.error);
@@ -197,7 +199,7 @@ export default function TeamClient() {
   }
 
   async function handleResetPassword(userId: string) {
-    if (!confirm('¿Generar una contraseña temporal nueva? La anterior deja de funcionar de inmediato.')) return;
+    if (!await confirm('¿Generar una contraseña temporal nueva? La anterior deja de funcionar de inmediato.')) return;
     const result = await resetUserPasswordAction(userId);
     if (!result.success) {
       toast.error(result.error);
@@ -227,7 +229,7 @@ export default function TeamClient() {
   }
 
   async function handleRevoke(id: string) {
-    if (!confirm('¿Revocar esta invitación?')) return;
+    if (!await confirm('¿Revocar esta invitación?')) return;
     const result = await revokeInvitationAction(id);
     if (!result.success) {
       toast.error(result.error);

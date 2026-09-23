@@ -16,17 +16,16 @@ export const metadata: Metadata = {
   // evita que compitan entre ellas por el mismo contenido.
   alternates: { canonical: '/' },
   robots: { index: true, follow: true },
+  // La imagen la genera `src/app/opengraph-image.tsx` (1200×630 con titular).
   openGraph: {
     title: 'Aether ERP | Tu empresa, conectada',
     description: 'Del primer presupuesto al último pago. Una plataforma para toda tu operación.',
     type: 'website', locale: 'es_CL', siteName: 'Aether ERP',
-    images: [{ url: '/branding/aether-logo-full.png', width: 1280, height: 698, alt: 'Aether ERP Solutions' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Aether ERP | Tu empresa, conectada',
     description: 'Del primer presupuesto al último pago. Una plataforma para toda tu operación.',
-    images: ['/branding/aether-logo-full.png'],
   },
 };
 
@@ -34,6 +33,6 @@ export default function HomePage() {
   return <>
     <StructuredData base={getAppUrl()} salesEmail={SALES_EMAIL} />
     <InstalledAppEntry />
-    <Landing releases={releases} salesEmail={SALES_EMAIL} salesWhatsapp={process.env.AETHER_SALES_WHATSAPP} />
+    <Landing releases={releases} salesEmail={SALES_EMAIL} salesWhatsapp={process.env.AETHER_SALES_WHATSAPP} legalName={process.env.AETHER_LEGAL_NAME} legalRut={process.env.AETHER_LEGAL_RUT} />
   </>;
 }

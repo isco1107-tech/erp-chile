@@ -7,7 +7,7 @@ export default function AgentsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <p className="hud-label mb-1">Business intelligence / agents</p>
+        <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase mb-1">Business intelligence / agents</p>
         <h1 className="text-2xl font-semibold text-foreground" data-tutorial="module-header">Agentes de Inteligencia de Negocio</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
           Equipo ejecutivo virtual (CEO, CFO, COO, Ventas) que analiza tus datos reales de ventas, compras,

@@ -6,11 +6,13 @@ import { Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { sendPaymentReminderAction } from '@/modules/treasury/actions/reminders.actions';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 export default function SendReminderButton({ contactId, hasEmail }: { contactId: string; hasEmail: boolean }) {
+  const confirm = useConfirm();
   const [sending, setSending] = useState(false);
 
   async function handleSend() {
-    if (!confirm('¿Enviar un correo de recordatorio de pago a este cliente con todos sus documentos pendientes?')) return;
+    if (!await confirm('¿Enviar un correo de recordatorio de pago a este cliente con todos sus documentos pendientes?')) return;
     setSending(true);
     try {
       const result = await sendPaymentReminderAction(contactId);

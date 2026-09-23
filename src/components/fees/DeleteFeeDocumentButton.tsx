@@ -7,6 +7,7 @@ import { Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { deleteFeeDocumentAction } from '@/modules/fees/actions/fees.actions';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 interface DeleteFeeDocumentButtonProps {
   documentId: string;
   folioNumber: string;
@@ -21,11 +22,12 @@ export default function DeleteFeeDocumentButton({
   variant = 'full',
   onDeleted,
 }: DeleteFeeDocumentButtonProps) {
+  const confirm = useConfirm();
   const router = useRouter();
   const [deleting, setDeleting] = useState(false);
 
   async function handleDelete() {
-    if (!confirm(`¿Eliminar la boleta de honorarios N° ${folioNumber}? Esta acción no se puede deshacer.`)) return;
+    if (!await confirm(`¿Eliminar la boleta de honorarios N° ${folioNumber}? Esta acción no se puede deshacer.`)) return;
 
     setDeleting(true);
     const result = await deleteFeeDocumentAction(documentId);

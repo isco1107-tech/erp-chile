@@ -90,6 +90,15 @@ Este archivo contiene las reglas arquitectónicas, estándares de seguridad y l�
   ```
 - **Verificación antes de dar algo por terminado:** `npm run ci` corre `prisma validate` + `typecheck` + `lint` + `test`. Los cuatro deben pasar.
 
+### Interfaz del panel (convenciones)
+
+- **Identidad:** tinta `#12161f` + dorado `#dbc076` (los del logo). Los colores salen de los tokens de `globals.css` (`bg-primary`, `text-muted-foreground`, `bg-success-soft`/`text-success`, etc.), nunca de hex sueltos ni de `emerald-600`/`cyan-300`. `:root` es el tema oscuro (login, accesos públicos); `.theme-saas-light` es el panel. Las clases `hud-*` del tema antiguo ya no se usan.
+- **Navegación:** `src/lib/navigation/workspace-nav.ts` es el ÚNICO registro de módulos; lo consumen la barra lateral y la paleta ⌘K. Una pantalla nueva se agrega ahí, no en el layout.
+- **Confirmaciones:** `const confirm = useConfirm()` (`src/components/ui/confirm-provider.tsx`), nunca `window.confirm()`.
+- **Ventas y POS:** toda emisión manda `idempotencyKey` con `createIdempotencyTracker()` (`src/lib/idempotency.ts`): el reintento de la misma operación no debe duplicar documentos.
+- **Encabezados:** `PageHeader` (`src/components/ui/PageHeader.tsx`); indicadores con `KpiCard`, estados con `StatusBadge`, vacíos con `EmptyState`.
+- **Nada flotante sobre el contenido:** los asistentes se abren desde la barra superior (`HeaderAssistantButtons`).
+
 ---
 
 ## 5. Base de Datos Compartida con Producción ⚠️

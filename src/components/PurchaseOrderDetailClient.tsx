@@ -15,6 +15,7 @@ import type { PurchaseOrderWithRelations } from '@/modules/purchases/services/pu
 import type { GoodsReceiptWithRelations } from '@/modules/purchases/services/goods-receipt.service';
 import type { Warehouse } from '@prisma/client';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 const STATUS_LABEL: Record<string, string> = {
   DRAFT: 'Borrador', SENT: 'Enviada', PARTIALLY_RECEIVED: 'Recibida parcial',
   RECEIVED: 'Recibida', CLOSED: 'Cerrada', CANCELLED: 'Anulada',
@@ -27,6 +28,7 @@ export default function PurchaseOrderDetailClient({
   order: PurchaseOrderWithRelations;
   initialReceipts: GoodsReceiptWithRelations[];
 }) {
+  const confirm = useConfirm();
   const router = useRouter();
   const [receipts, setReceipts] = useState(initialReceipts);
   const [busy, setBusy] = useState(false);
@@ -53,7 +55,7 @@ export default function PurchaseOrderDetailClient({
   }
 
   async function handleCancel() {
-    if (!confirm('¿Anular esta orden de compra?')) return;
+    if (!await confirm('¿Anular esta orden de compra?')) return;
     setBusy(true);
     try {
       const result = await cancelPurchaseOrderAction(order.id);
@@ -93,7 +95,7 @@ export default function PurchaseOrderDetailClient({
   }
 
   async function handleCancelReceipt(id: string) {
-    if (!confirm('¿Anular esta recepción? Revierte el stock que aplicó.')) return;
+    if (!await confirm('¿Anular esta recepción? Revierte el stock que aplicó.')) return;
     setBusy(true);
     try {
       const result = await cancelGoodsReceiptAction(id);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Contact, Warehouse } from '@prisma/client';
 import { toast } from 'sonner';
@@ -26,6 +26,9 @@ import { formatCurrency } from '@/lib/chile/tax';
 import { InfoTooltip } from '@/components/ui/InfoTooltip';
 import { TAX_GLOSSARY } from '@/lib/chile/glossary';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
+import { createIdempotencyTracker } from '@/lib/idempotency';
+import { isExemptDocument } from '@/lib/chile/dte/codes';
 let keyCounter = 0;
 function newKey(): string {
   keyCounter += 1;
@@ -46,7 +49,9 @@ interface LineItemDraft {
 const REFERENCE_DTE_TYPES = new Set(['NOTA_CREDITO_61', 'NOTA_DEBITO_56', 'GUIA_DESPACHO_52']);
 
 export default function SalesDocumentForm() {
+  const confirm = useConfirm();
   const router = useRouter();
+  const idempotency = useRef(createIdempotencyTracker());
 
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [products, setProducts] = useState<ProductWithStock[]>([]);
@@ -144,7 +149,9 @@ export default function SalesDocumentForm() {
         description: product.name,
         quantity: '1',
         unitPrice: String(product.netPrice),
-        isExempt: dteType === 'FACTURA_EXENTA_34',
+        // La exención la fija el catálogo (el servidor la vuelve a leer de ahí):
+        // la previsualización tiene que mostrar el mismo IVA que se va a guardar.
+        isExempt: product.isExempt,
         discountPercent: '0',
       },
     ]);
@@ -159,7 +166,7 @@ export default function SalesDocumentForm() {
         description: '',
         quantity: '1',
         unitPrice: '0',
-        isExempt: dteType === 'FACTURA_EXENTA_34',
+        isExempt: isExemptDocument(dteType),
         discountPercent: '0',
       },
     ]);
@@ -199,7 +206,7 @@ export default function SalesDocumentForm() {
       return;
     }
     if (status === 'ISSUED') {
-      const confirmed = confirm(
+      const confirmed = await confirm(
         'Se asignará un folio correlativo y se descontará el stock de la bodega seleccionada. Esta acción no se puede deshacer (solo anular). ¿Continuar?'
       );
       if (!confirmed) return;
@@ -207,13 +214,20 @@ export default function SalesDocumentForm() {
 
     setSaving(true);
     try {
-      const result = await createSalesDocumentAction(parsed.data, status);
+      // Misma clave mientras el documento no cambie: si se pierde la
+      // respuesta y el usuario reintenta, recibe el documento ya creado en vez
+      // de emitir otro folio y descontar stock dos veces.
+      const idempotencyKey = idempotency.current.keyFor({ status, ...parsed.data });
+      const result = await createSalesDocumentAction({ ...parsed.data, idempotencyKey }, status);
       if (!result.success) {
         toast.error(result.error);
         return;
       }
+      idempotency.current.reset();
       toast.success(result.message ?? 'Documento guardado');
       router.push(`/dashboard/sales/${result.data.id}`);
+    } catch {
+      toast.error('No se pudo contactar al servidor. Tus datos siguen aquí: vuelve a intentarlo y el documento no se duplicará.');
     } finally {
       setSaving(false);
     }
@@ -458,6 +472,9 @@ export default function SalesDocumentForm() {
                     <input
                       type="checkbox"
                       checked={item.isExempt}
+                      disabled={Boolean(item.productId)}
+                      title={item.productId ? 'Definido en el catálogo del producto' : 'Marca si esta línea libre está exenta de IVA'}
+                      aria-label={item.productId ? 'Exento (definido en el catálogo)' : 'Línea exenta de IVA'}
                       onChange={(e) => updateItem(item.key, 'isExempt', e.target.checked)}
                     />
                   </td>

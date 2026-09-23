@@ -18,9 +18,11 @@ import {
 import type { ProductListItem } from '@/modules/inventory/services/products.service';
 import { formatCurrency } from '@/lib/chile/tax';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 const DEFAULT_PAGE_SIZE = 25;
 
 export default function ProductsClient() {
+  const confirm = useConfirm();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -107,7 +109,7 @@ export default function ProductsClient() {
   }
 
   async function handleDelete(product: ProductListItem) {
-    if (!confirm(`¿Eliminar el producto "${product.name}"?`)) return;
+    if (!await confirm(`¿Eliminar el producto "${product.name}"?`)) return;
     const result = await deleteProductAction(product.id);
     if (!result.success) {
       toast.error(result.error);

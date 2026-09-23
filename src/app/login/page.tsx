@@ -48,8 +48,7 @@ export default function LoginPage() {
       });
       const json = await res.json();
       if (!json.success) {
-        toast.error(json.error || 'Credenciales inválidas');
-        setError(json.error || 'Credenciales inválidas');
+        setError(json.error || 'Correo o contraseña incorrectos');
         return;
       }
       if (json.data?.totpRequired) {
@@ -60,8 +59,7 @@ export default function LoginPage() {
       toast.success('Inicio de sesión correcto');
       router.push('/dashboard');
     } catch (e) {
-      toast.error('Error al iniciar sesión');
-      setError('Error al iniciar sesión');
+      setError('No pudimos conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.');
     } finally {
       setLoading(false);
     }
@@ -79,15 +77,13 @@ export default function LoginPage() {
       });
       const json = await res.json();
       if (!json.success) {
-        toast.error(json.error || 'Código incorrecto');
         setError(json.error || 'Código incorrecto');
         return;
       }
       toast.success('Inicio de sesión correcto');
       router.push('/dashboard');
     } catch (e) {
-      toast.error('Error al verificar el código');
-      setError('Error al verificar el código');
+      setError('No pudimos verificar el código. Revisa tu conexión e inténtalo de nuevo.');
     } finally {
       setLoading(false);
     }
@@ -109,6 +105,7 @@ export default function LoginPage() {
               <Input
                 id="totpCode"
                 inputMode="numeric"
+                autoComplete="one-time-code"
                 autoFocus
                 className="mt-1.5 text-center text-lg tracking-[0.4em]"
                 value={totpCode}
@@ -136,41 +133,55 @@ export default function LoginPage() {
     <AuthShell>
       <AuthCard>
         <AuthCardHeader
-          title="Bienvenido de vuelta"
-          description="Ingresa tus credenciales para acceder a tu panel."
+          title="Ingresa a tu empresa"
+          description="Usa el correo y la contraseña con que te invitaron."
         />
 
         {error && <AuthError>{error}</AuthError>}
 
         <form onSubmit={form.onSubmit((values) => handleSubmit(values))} className="space-y-4">
           <div>
-            <Label htmlFor="username">Usuario</Label>
+            <Label htmlFor="username">Correo o usuario</Label>
             <div className="relative mt-1.5">
-              <Mail className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" strokeWidth={1.75} />
-              <Input id="username" className="pl-9" {...form.getInputProps('username')} />
+              <Mail className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
+              <Input
+                id="username"
+                className="h-10 pl-9"
+                autoComplete="username"
+                autoFocus
+                aria-invalid={Boolean(form.errors.username)}
+                aria-describedby={form.errors.username ? 'username-error' : undefined}
+                {...form.getInputProps('username')}
+              />
             </div>
-            {form.errors.username && <div className="mt-1 text-sm text-destructive">{form.errors.username}</div>}
+            {form.errors.username && <p id="username-error" className="mt-1.5 text-sm text-destructive">{form.errors.username}</p>}
           </div>
 
           <div>
-            <Label htmlFor="password">Contraseña</Label>
-            <div className="relative mt-1.5">
-              <KeyRound className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" strokeWidth={1.75} />
-              <PasswordInput id="password" className="pl-9" {...form.getInputProps('password')} />
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="password">Contraseña</Label>
+              <Link href="/forgot-password" className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
+                ¿La olvidaste?
+              </Link>
             </div>
-            {form.errors.password && <div className="mt-1 text-sm text-destructive">{form.errors.password}</div>}
+            <div className="relative mt-1.5">
+              <KeyRound className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
+              <PasswordInput
+                id="password"
+                className="h-10 pl-9"
+                autoComplete="current-password"
+                aria-invalid={Boolean(form.errors.password)}
+                aria-describedby={form.errors.password ? 'password-error' : undefined}
+                {...form.getInputProps('password')}
+              />
+            </div>
+            {form.errors.password && <p id="password-error" className="mt-1.5 text-sm text-destructive">{form.errors.password}</p>}
           </div>
 
-          <Button type="submit" className="w-full" size="lg" disabled={loading}>
-            {loading ? 'Entrando...' : 'Entrar'}
+          <Button type="submit" className="mt-2 h-10 w-full" size="lg" disabled={loading}>
+            {loading ? 'Entrando…' : 'Entrar'}
           </Button>
         </form>
-
-        <p className="mt-5 text-center text-sm">
-          <Link href="/forgot-password" className="text-muted-foreground underline underline-offset-4 hover:text-foreground">
-            ¿Olvidaste tu contraseña?
-          </Link>
-        </p>
       </AuthCard>
     </AuthShell>
   );

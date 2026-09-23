@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Delete, Printer, Trash2 } from 'lucide-react';
+import { Delete, Printer, ScanBarcode, Trash2 } from 'lucide-react';
+import { createIdempotencyTracker } from '@/lib/idempotency';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,6 +20,7 @@ import { computeDocument } from '@/modules/sales/calc';
 import { formatCurrency } from '@/lib/chile/tax';
 import { formatRut, validateRut } from '@/lib/chile/rut';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 interface CartLine {
   productId: string;
   sku: string;
@@ -46,6 +48,7 @@ const KEYPAD = ['7', '8', '9', '4', '5', '6', '1', '2', '3', '0', '00', '000'];
 const QUICK_CASH = [1000, 2000, 5000, 10000, 20000];
 
 export default function PosTerminal(props: Props) {
+  const confirm = useConfirm();
   const router = useRouter();
 
   const [products, setProducts] = useState<PosProduct[]>([]);
@@ -59,6 +62,9 @@ export default function PosTerminal(props: Props) {
   const [ticket, setTicket] = useState<TicketData | null>(null);
 
   const searchRef = useRef<HTMLInputElement>(null);
+  // Una clave por venta: un reintento de la MISMA venta (respuesta perdida,
+  // doble clic) no emite una segunda boleta. Ver `src/lib/idempotency.ts`.
+  const idempotency = useRef(createIdempotencyTracker());
 
   /**
    * El lector de código de barras se comporta como un teclado que teclea muy
@@ -172,8 +178,8 @@ export default function PosTerminal(props: Props) {
     });
   }
 
-  function clearAll() {
-    if (cart.length > 0 && !confirm('¿Vaciar la venta en curso?')) return;
+  async function clearAll() {
+    if (cart.length > 0 && !await confirm('¿Vaciar la venta en curso?')) return;
     setCart([]);
     setCashReceived('');
     setCustomerRut('');
@@ -200,18 +206,22 @@ export default function PosTerminal(props: Props) {
     const lowStock = cart.filter((line) => line.isTrackable && line.quantity > line.stock);
     if (lowStock.length > 0) {
       const detail = lowStock.map((l) => `${l.sku} (disponible ${l.stock})`).join(', ');
-      if (!confirm(`Stock insuficiente en: ${detail}. El sistema rechazará la venta. ¿Intentar de todos modos?`)) {
+      if (!await confirm(`Stock insuficiente en: ${detail}. El sistema rechazará la venta. ¿Intentar de todos modos?`)) {
         return;
       }
     }
 
     setSaving(true);
     try {
-      const result = await createPosSaleAction(props.shiftId, {
+      const payload = {
         items: cart.map((line) => ({ productId: line.productId, quantity: line.quantity })),
         paymentMethod,
         cashReceived: isCash ? received : undefined,
         customerRut: rut || undefined,
+      };
+      const result = await createPosSaleAction(props.shiftId, {
+        ...payload,
+        idempotencyKey: idempotency.current.keyFor({ shiftId: props.shiftId, ...payload }),
       });
 
       if (!result.success) {
@@ -220,6 +230,7 @@ export default function PosTerminal(props: Props) {
       }
 
       const sale = result.data;
+      idempotency.current.reset();
       setTicket({
         companyName: props.companyName,
         companyRut: props.companyRut,
@@ -263,6 +274,10 @@ export default function PosTerminal(props: Props) {
       });
       router.refresh();
       focusSearch();
+    } catch {
+      // Red caída: el carrito se conserva y el reintento usa la misma clave,
+      // así que si la venta alcanzó a registrarse no se duplica.
+      toast.error('No se pudo contactar al servidor. Revisa la conexión y vuelve a cobrar: la venta no se duplicará.');
     } finally {
       setSaving(false);
     }
@@ -271,8 +286,10 @@ export default function PosTerminal(props: Props) {
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
       <div className="space-y-3">
-        <div className="hud-surface rounded-2xl p-4">
-          <p className="hud-label mb-2">Input stream / barcode</p><Label htmlFor="pos-search">Escanear o buscar producto</Label>
+        <div className="rounded-2xl border border-border bg-card shadow-card p-4">
+          <Label htmlFor="pos-search" className="mb-2 flex items-center gap-2">
+            <ScanBarcode className="size-4 text-muted-foreground" aria-hidden="true" /> Escanear o buscar producto
+          </Label>
           <Input
             id="pos-search"
             ref={searchRef}
@@ -283,8 +300,11 @@ export default function PosTerminal(props: Props) {
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleSearchKeyDown}
             className="h-12 text-lg"
+            aria-describedby="pos-search-hint"
           />
-          {loadingProducts && <p className="mt-2 font-mono text-xs text-muted-foreground">Cargando catálogo...</p>}
+          <p id="pos-search-hint" className="mt-2 text-xs text-muted-foreground">
+            {loadingProducts ? 'Cargando catálogo…' : 'El lector de código de barras agrega el producto al instante.'}
+          </p>
           {matches.length > 0 && (
             <ul className="mt-2 divide-y divide-border rounded-lg border border-border">
               {matches.map((product) => (
@@ -308,23 +328,24 @@ export default function PosTerminal(props: Props) {
           )}
         </div>
 
-        <div className="hud-surface overflow-x-auto rounded-2xl">
+        <div className="rounded-2xl border border-border bg-card shadow-card overflow-x-auto">
           <table className="w-full min-w-[520px] table-auto text-sm">
             <thead className="bg-muted/50 text-left">
               <tr>
-                <th className="hud-label p-3 text-left">Producto</th>
-                <th className="hud-label p-3 text-left">Cantidad</th>
+                <th className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase p-3 text-left">Producto</th>
+                <th className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase p-3 text-left">Cantidad</th>
                 {/* Neto en ambas columnas: el IVA se suma una vez en el total. */}
-                <th className="hud-label p-3 text-left">P. Unit. neto</th>
-                <th className="hud-label p-3 text-left">Neto línea</th>
+                <th className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase p-3 text-right">P. unit. neto</th>
+                <th className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase p-3 text-right">Neto línea</th>
                 <th className="p-2"></th>
               </tr>
             </thead>
             <tbody>
               {cart.length === 0 && (
                 <tr>
-                    <td className="p-10 text-center font-mono text-xs text-muted-foreground" colSpan={5}>
-                    Escanea un producto para comenzar
+                    <td className="p-12 text-center text-sm text-muted-foreground" colSpan={5}>
+                    <ScanBarcode className="mx-auto mb-2 size-7 text-muted-foreground/60" aria-hidden="true" />
+                    Escanea o busca un producto para comenzar la venta
                   </td>
                 </tr>
               )}
@@ -332,7 +353,7 @@ export default function PosTerminal(props: Props) {
                 <tr key={line.productId} className="border-t border-border transition-colors hover:bg-muted/50">
                   <td className="p-2">
                     <p className="font-medium">{line.name}</p>
-                    <p className="font-mono text-xs text-muted-foreground">{line.sku}</p>
+                    <p className="text-xs text-muted-foreground">{line.sku}</p>
                   </td>
                   <td className="p-2">
                     <div className="flex items-center gap-1">
@@ -348,10 +369,10 @@ export default function PosTerminal(props: Props) {
                       <p className="mt-1 text-xs text-destructive">Sobre stock ({line.stock})</p>
                     )}
                   </td>
-                  <td className="p-2">{formatCurrency(line.netPrice)}</td>
-                  <td className="p-2 font-medium">{formatCurrency(line.subtotal)}</td>
+                  <td className="p-2 text-right tabular-nums">{formatCurrency(line.netPrice)}</td>
+                  <td className="p-2 text-right font-medium tabular-nums">{formatCurrency(line.subtotal)}</td>
                   <td className="p-2">
-                    <Button type="button" size="xs" variant="ghost" onClick={() => removeLine(line.productId)}>
+                    <Button type="button" size="xs" variant="ghost" aria-label={`Quitar ${line.name}`} onClick={() => removeLine(line.productId)}>
                       <Trash2 className="size-4" />
                     </Button>
                   </td>
@@ -363,21 +384,21 @@ export default function PosTerminal(props: Props) {
       </div>
 
       <div className="space-y-3">
-        <div className="hud-surface rounded-2xl p-5">
-          <p className="hud-label">
+        <div className="rounded-2xl bg-primary p-5 text-primary-foreground shadow-card">
+          <p className="text-[11px] font-medium tracking-wide uppercase opacity-70">
             {props.cashRegisterName} · {props.warehouseName}
           </p>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-sm text-muted-foreground">Total a pagar</span>
-            <span className="font-mono text-4xl tabular-nums text-primary drop-shadow-[0_0_12px_rgba(34,211,238,0.35)]">{formatCurrency(total)}</span>
+          <div className="mt-2 flex items-baseline justify-between gap-3">
+            <span className="text-sm opacity-80">Total a pagar</span>
+            <span className="text-4xl font-semibold tracking-tight tabular-nums" aria-live="polite">{formatCurrency(total)}</span>
           </div>
-          <div className="mt-2 flex justify-between font-mono text-xs text-muted-foreground">
+          <div className="mt-2 flex justify-between text-xs tabular-nums opacity-70">
             <span>Neto {formatCurrency(computed.totals.netAmount)}</span>
             <span>IVA {formatCurrency(computed.totals.ivaAmount)}</span>
           </div>
         </div>
 
-        <div className="hud-surface rounded-2xl p-4">
+        <div className="rounded-2xl border border-border bg-card shadow-card p-4">
           <Label>Medio de pago</Label>
           <div className="mt-2 grid grid-cols-2 gap-2">
             {POS_PAYMENT_METHODS.map((method) => (
@@ -397,7 +418,7 @@ export default function PosTerminal(props: Props) {
         </div>
 
         {isCash && (
-          <div className="hud-surface rounded-2xl p-4">
+          <div className="rounded-2xl border border-border bg-card shadow-card p-4">
             <div className="flex items-baseline justify-between">
               <Label htmlFor="cash-received">Efectivo recibido</Label>
               <span className="text-lg font-semibold">{formatCurrency(received)}</span>
@@ -441,16 +462,16 @@ export default function PosTerminal(props: Props) {
 
             <div
               className={`mt-3 flex items-baseline justify-between rounded-xl border px-3 py-3 ${
-                change < 0 ? 'border-rose-500/30 bg-rose-500/10 text-rose-300' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                change < 0 ? 'border-danger/25 bg-danger-soft text-danger' : 'border-success/25 bg-success-soft text-success'
               }`}
             >
               <span className="text-sm font-medium">{change < 0 ? 'Falta' : 'Vuelto'}</span>
-              <span className="text-2xl font-bold">{formatCurrency(Math.abs(change))}</span>
+              <span className="text-2xl font-bold tabular-nums" aria-live="polite">{formatCurrency(Math.abs(change))}</span>
             </div>
           </div>
         )}
 
-        <div className="hud-surface rounded-2xl p-4">
+        <div className="rounded-2xl border border-border bg-card shadow-card p-4">
           <Label htmlFor="customer-rut">RUT del cliente (opcional)</Label>
           <Input
             id="customer-rut"
@@ -469,7 +490,7 @@ export default function PosTerminal(props: Props) {
             Cancelar
           </Button>
           <Button type="button" className="h-12 flex-1 text-base" disabled={!canCharge} onClick={handleCharge}>
-            {saving ? 'Emitiendo...' : `Cobrar ${formatCurrency(total)}`}
+            {saving ? 'Emitiendo boleta…' : `Cobrar ${formatCurrency(total)}`}
           </Button>
         </div>
 

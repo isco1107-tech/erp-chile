@@ -19,7 +19,7 @@ export default function Onboarding() {
     <section id="implementacion" className={`${s.section} ${s.startup}`}>
       <div className={s.container}>
         <div className={s.startupHeading} data-reveal>
-          <p className={s.kicker}>05 / DE LA DECISIÓN AL PRIMER DOCUMENTO</p>
+          <p className={s.kicker}>DE LA DECISIÓN AL PRIMER DOCUMENTO</p>
           <h2>Partir no debería ser<br /><span>el proyecto más difícil del año.</span></h2>
           <p className={s.startupLead}>Cuatro pasos, en orden, con tus datos actuales como punto de partida.</p>
         </div>

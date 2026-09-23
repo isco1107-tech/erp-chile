@@ -16,7 +16,7 @@ export default function Security() {
       <div className={s.container}>
         <div className={s.sectionHeading} data-reveal>
           <div>
-            <p className={s.kicker}>03 / CONFIANZA, NO BUENA FE</p>
+            <p className={s.kicker}>CONFIANZA, NO BUENA FE</p>
             <h2>Tu información es tuya.<br />Y se comporta como tal.</h2>
           </div>
           <p>Un ERP guarda lo más sensible de una empresa: sus precios, sus márgenes, sus clientes. Estas son las reglas con las que Aether lo cuida.</p>

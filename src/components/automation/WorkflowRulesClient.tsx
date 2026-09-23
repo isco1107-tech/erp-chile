@@ -31,6 +31,7 @@ import {
 import type { WorkflowRuleRow, WorkflowExecutionRow } from '@/modules/automation/services/workflow-rules.service';
 import type { WorkflowRuleInput } from '@/modules/automation/schema';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 const selectClass =
   'h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30';
 const textareaClass =
@@ -80,6 +81,7 @@ function ruleToForm(rule: WorkflowRuleRow): FormState {
 }
 
 export default function WorkflowRulesClient() {
+  const confirm = useConfirm();
   const [rules, setRules] = useState<WorkflowRuleRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -145,7 +147,7 @@ export default function WorkflowRulesClient() {
   }
 
   async function remove(rule: WorkflowRuleRow) {
-    if (!confirm(`¿Eliminar la regla "${rule.name}"? Esta acción no se puede deshacer.`)) return;
+    if (!await confirm(`¿Eliminar la regla "${rule.name}"? Esta acción no se puede deshacer.`)) return;
     const result = await deleteWorkflowRuleAction(rule.id);
     if (!result.success) return toast.error(result.error);
     toast.success(result.message ?? 'Regla eliminada');
@@ -165,7 +167,7 @@ export default function WorkflowRulesClient() {
 
   async function regenerateSecret() {
     if (!secretForId) return;
-    if (!confirm('¿Regenerar el secreto? Cualquier integración externa que use el secreto actual (n8n, Zapier, tu propio servidor) empezará a fallar la verificación de firma hasta que la actualices con el nuevo valor.')) return;
+    if (!await confirm('¿Regenerar el secreto? Cualquier integración externa que use el secreto actual (n8n, Zapier, tu propio servidor) empezará a fallar la verificación de firma hasta que la actualices con el nuevo valor.')) return;
     setRegenerating(true);
     const result = await regenerateWorkflowRuleSecretAction(secretForId);
     setRegenerating(false);

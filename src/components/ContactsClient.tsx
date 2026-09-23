@@ -12,11 +12,13 @@ import ContactForm from './ContactForm';
 import { listContactsPageAction, deleteContactAction, getContactAction } from '@/modules/contacts/actions/contacts.actions';
 import type { ContactListItem } from '@/modules/contacts/services/contacts.service';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 type Filter = 'all' | 'customers' | 'suppliers';
 
 const DEFAULT_PAGE_SIZE = 25;
 
 export default function ContactsClient() {
+  const confirm = useConfirm();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -108,7 +110,7 @@ export default function ContactsClient() {
   }
 
   async function handleDelete(contact: ContactListItem) {
-    if (!confirm(`¿Eliminar el contacto "${contact.razonSocial}"?`)) return;
+    if (!await confirm(`¿Eliminar el contacto "${contact.razonSocial}"?`)) return;
     const result = await deleteContactAction(contact.id);
     if (!result.success) {
       toast.error(result.error);

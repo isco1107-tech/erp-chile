@@ -33,6 +33,8 @@ export interface SendEmailInput {
   html: string;
   text: string;
   attachments?: EmailAttachment[];
+  /** Dirección a la que va la respuesta (p. ej. el interesado de un formulario). */
+  replyTo?: string;
 }
 
 export type EmailDeliveryStatus = 'sent' | 'logged' | 'failed';
@@ -87,6 +89,7 @@ async function sendViaBrevo(input: SendEmailInput, apiKey: string): Promise<Emai
       subject: input.subject,
       htmlContent: input.html,
       textContent: input.text,
+      ...(input.replyTo ? { replyTo: { email: input.replyTo } } : {}),
       ...(input.attachments && input.attachments.length > 0
         ? { attachment: input.attachments.map((a) => ({ name: a.filename, content: a.content.toString('base64') })) }
         : {}),
@@ -111,6 +114,7 @@ async function sendViaResend(input: SendEmailInput, apiKey: string): Promise<Ema
       subject: input.subject,
       html: input.html,
       text: input.text,
+      ...(input.replyTo ? { reply_to: input.replyTo } : {}),
       ...(input.attachments && input.attachments.length > 0
         ? { attachments: input.attachments.map((a) => ({ filename: a.filename, content: a.content.toString('base64') })) }
         : {}),

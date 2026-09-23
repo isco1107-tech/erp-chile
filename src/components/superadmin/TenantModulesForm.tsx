@@ -19,6 +19,7 @@ import {
 } from '@/modules/platform/schema';
 import { MODULES, type CompanyFeatureFlags, type FeatureKey } from '@/lib/auth/modules';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 const selectClass =
   'h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30';
 
@@ -61,6 +62,7 @@ function Toggle({
 }
 
 export default function TenantModulesForm(props: Props) {
+  const confirm = useConfirm();
   const router = useRouter();
 
   const [features, setFeatures] = useState<CompanyFeatureFlags>(props.initialFeatures);
@@ -97,12 +99,12 @@ export default function TenantModulesForm(props: Props) {
     }
     // Bajar el límite por debajo de lo ya usado no borra nada, pero deja al
     // cliente sin poder invitar. Se avisa antes de guardar.
-    if (users < props.userCount && !confirm(
+    if (users < props.userCount && !await confirm(
       `La empresa ya tiene ${props.userCount} usuarios y estás fijando el máximo en ${users}. No se eliminará a nadie, pero no podrá invitar hasta liberar cupos. ¿Continuar?`
     )) {
       return;
     }
-    if (warehouses < props.warehouseCount && !confirm(
+    if (warehouses < props.warehouseCount && !await confirm(
       `La empresa ya tiene ${props.warehouseCount} bodegas y estás fijando el máximo en ${warehouses}. ¿Continuar?`
     )) {
       return;
@@ -130,7 +132,7 @@ export default function TenantModulesForm(props: Props) {
   async function handleStatusChange(next: TenantStatus) {
     if (
       (next === 'SUSPENDED' || next === 'CANCELLED') &&
-      !confirm(`Se cortará el acceso de todos los usuarios de ${props.companyName} de inmediato. ¿Continuar?`)
+      !await confirm(`Se cortará el acceso de todos los usuarios de ${props.companyName} de inmediato. ¿Continuar?`)
     ) {
       return;
     }

@@ -14,9 +14,12 @@ html, body, #__next {
 body {
   @apply bg-background text-foreground;
   font-feature-settings: "cv11", "tnum";
-  background-image: radial-gradient(circle at 8% 0%, rgb(6 182 212 / 0.12), transparent 28rem),
-    radial-gradient(circle at 92% 0%, rgb(99 102 241 / 0.12), transparent 30rem),
-    linear-gradient(135deg, #08090d 0%, #0b0d13 52%, #08090d 100%);
+  /* Fondo de las superficies oscuras (login, accesos públicos): la misma
+     tinta del landing con un halo dorado muy tenue — la identidad de Aether,
+     no el cian/índigo genérico que tenía antes. */
+  background-image: radial-gradient(circle at 12% 0%, rgb(219 192 118 / 0.10), transparent 30rem),
+    radial-gradient(circle at 90% 8%, rgb(51 77 133 / 0.14), transparent 32rem),
+    linear-gradient(160deg, #10131a 0%, #0c0f15 55%, #0a0c11 100%);
   background-attachment: fixed;
 }
 
@@ -87,44 +90,55 @@ select option {
   --color-info: var(--info);
   --color-info-soft: var(--info-soft);
   --color-chart-6: var(--chart-6);
-  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
-  --shadow-hover: 0 4px 12px rgba(16, 24, 40, 0.08);
-  --shadow-popover: 0 12px 24px rgba(16, 24, 40, 0.1);
+  --color-brand-gold: var(--brand-gold);
+  --color-brand-ink: var(--brand-ink);
+  --shadow-card: 0 1px 2px rgba(18, 22, 31, 0.04), 0 1px 3px rgba(18, 22, 31, 0.05);
+  --shadow-hover: 0 6px 16px -4px rgba(18, 22, 31, 0.10);
+  --shadow-popover: 0 16px 40px -12px rgba(18, 22, 31, 0.22);
 }
 
+/*
+ * Identidad Aether (la misma del logo y del landing): tinta #12161f + dorado
+ * #dbc076. `:root` es el tema OSCURO que usan el login, el cambio de
+ * contraseña, /suspended y los accesos públicos; el panel autenticado usa
+ * `.theme-saas-light` (abajo). Antes este tema era cian, el landing dorado y
+ * el panel esmeralda: tres productos distintos a la vista.
+ */
 :root {
-  --background: #08090d;
-  --foreground: #e7edf3;
-  --card: rgb(24 27 34 / 0.72);
-  --card-foreground: #e7edf3;
-  --popover: #11141b;
-  --popover-foreground: #e7edf3;
-  --primary: #22d3ee;
-  --primary-foreground: #061014;
-  --secondary: #171b23;
-  --secondary-foreground: #d9e2ea;
-  --muted: #12151c;
-  --muted-foreground: #84909e;
-  --accent: #17232a;
-  --accent-foreground: #67e8f9;
-  --destructive: #fb7185;
+  --brand-ink: #12161f;
+  --brand-gold: #dbc076;
+  --background: #0c0f15;
+  --foreground: #eceef2;
+  --card: rgb(22 26 35 / 0.78);
+  --card-foreground: #eceef2;
+  --popover: #141820;
+  --popover-foreground: #eceef2;
+  --primary: #dbc076;
+  --primary-foreground: #12161f;
+  --secondary: #1a1e27;
+  --secondary-foreground: #dfe2e8;
+  --muted: #151922;
+  --muted-foreground: #9499a3;
+  --accent: #231f15;
+  --accent-foreground: #ecd79f;
+  --destructive: #f97066;
   --border: rgb(255 255 255 / 0.09);
-  --input: rgb(255 255 255 / 0.11);
-  --ring: #22d3ee;
-  --chart-1: #22d3ee;
-  --chart-2: #34d399;
-  --chart-3: #fbbf24;
-  --chart-4: #818cf8;
-  --chart-5: #fb7185;
+  --input: rgb(255 255 255 / 0.12);
+  --ring: #dbc076;
+  --chart-1: #dbc076;
+  --chart-2: #7a9ad6;
+  --chart-3: #5fb89a;
+  --chart-4: #c98a6b;
+  --chart-5: #a58fd8;
   --radius: 0.625rem;
-  --sidebar: rgb(17 20 27 / 0.78);
-  --sidebar-foreground: #e7edf3;
-  --sidebar-primary: #22d3ee;
-  --sidebar-primary-foreground: #061014;
-  --sidebar-accent: #17232a;
-  --sidebar-accent-foreground: #67e8f9;
+  --sidebar: rgb(16 19 26 / 0.85);
+  --sidebar-foreground: #eceef2;
+  --sidebar-primary: #dbc076;
+  --sidebar-primary-foreground: #12161f;
+  --sidebar-accent: #231f15;
+  --sidebar-accent-foreground: #ecd79f;
   --sidebar-border: rgb(255 255 255 / 0.1);
-  --sidebar-ring: #22d3ee;
+  --sidebar-ring: #dbc076;
 }
 
 /*
@@ -139,30 +153,35 @@ select option {
  * los valores de `:root` de arriba, sin cambios.
  */
 .theme-saas-light {
-  --background: #f6f7f9;
-  --foreground: #101828;
+  /* Neutros cálidos (los mismos del landing) + tinta como acción principal +
+     dorado como acento. Contrastes verificados AA: texto secundario #65676e
+     sobre blanco 5.6:1, sobre el fondo 5.2:1; dorado oscuro sobre su tinte
+     5.6:1. Una empresa con paleta propia (`brandPalette`) sobreescribe estos
+     valores inline desde el layout. */
+  --background: #f7f6f3;
+  --foreground: #12161f;
   --card: #ffffff;
-  --card-foreground: #101828;
+  --card-foreground: #12161f;
   --popover: #ffffff;
-  --popover-foreground: #101828;
-  --primary: #10b981;
+  --popover-foreground: #12161f;
+  --primary: #12161f;
   --primary-foreground: #ffffff;
-  --secondary: #f2f4f7;
-  --secondary-foreground: #101828;
-  --muted: #f2f4f7;
-  --muted-foreground: #667085;
-  --accent: #ecfdf5;
-  --accent-foreground: #059669;
-  --destructive: #f04438;
-  --border: #eaecf0;
-  --input: #eaecf0;
-  --ring: #10b981;
-  --chart-1: #10b981;
-  --chart-2: #6366f1;
-  --chart-3: #f59e0b;
-  --chart-4: #ec4899;
-  --chart-5: #06b6d4;
-  --chart-6: #8b5cf6;
+  --secondary: #f1f0ec;
+  --secondary-foreground: #12161f;
+  --muted: #f1f0ec;
+  --muted-foreground: #65676e;
+  --accent: #faf5e6;
+  --accent-foreground: #7a5d1c;
+  --destructive: #d92d20;
+  --border: #e7e5df;
+  --input: #dedbd3;
+  --ring: #c9a54e;
+  --chart-1: #c9a24a;
+  --chart-2: #334d85;
+  --chart-3: #5f9f86;
+  --chart-4: #c2775a;
+  --chart-5: #8a78c4;
+  --chart-6: #9aa1ad;
   --radius: 1rem;
   /* Override directo en vez de la fórmula compartida de `@theme inline`
      (calc(var(--radius) * 0.6/0.8), pensada para el radio del tema oscuro):
@@ -170,27 +189,28 @@ select option {
      fórmula compartida con el resto de la app. */
   --radius-sm: 0.5rem;
   --radius-md: 0.75rem;
-  --sidebar: #0b0f14;
-  --sidebar-foreground: #98a2b3;
-  --sidebar-primary: #10b981;
-  --sidebar-primary-foreground: #ffffff;
+  --sidebar: #10131a;
+  --sidebar-foreground: #a3a7b0;
+  --sidebar-primary: #dbc076;
+  --sidebar-primary-foreground: #12161f;
   --sidebar-accent: rgb(255 255 255 / 0.06);
   --sidebar-accent-foreground: #ffffff;
   --sidebar-border: rgb(255 255 255 / 0.08);
-  --sidebar-ring: #10b981;
+  --sidebar-ring: #dbc076;
 
-  /* Tokens del brief sin variable shadcn equivalente 1:1. Solo existen (y solo
-     se usan) dentro de este scope — ver nota en `@theme inline` de arriba. */
-  --text-secondary: #475467;
-  --accent-soft: #ecfdf5;
-  --accent-hover: #059669;
-  --success: #12b76a;
+  /* Tokens semánticos sin variable shadcn equivalente 1:1. Los tonos de texto
+     son los oscuros de cada familia: los anteriores (#12b76a, #f79009) no
+     llegaban a 3:1 sobre su propio fondo suave en las pastillas de estado. */
+  --text-secondary: #45474d;
+  --accent-soft: #faf5e6;
+  --accent-hover: #0b0e14;
+  --success: #067647;
   --success-soft: #ecfdf3;
-  --warning: #f79009;
+  --warning: #b54708;
   --warning-soft: #fffaeb;
-  --danger: #f04438;
+  --danger: #b42318;
   --danger-soft: #fef3f2;
-  --info: #6366f1;
+  --info: #3538cd;
   --info-soft: #eef2ff;
 
   /* El div raíz del AppShell pinta un fondo opaco encima del gradiente HUD del
@@ -202,8 +222,41 @@ select option {
 }
 
 .theme-saas-light ::selection {
-  background: rgb(16 185 129 / 0.18);
-  color: #065f46;
+  background: rgb(219 192 118 / 0.35);
+  color: #12161f;
+}
+
+/*
+ * Controles nativos dentro del panel: el ERP tiene ~50 <select> nativos (bien
+ * para accesibilidad y móvil) que cada pantalla estilaba distinto. Este base
+ * les da a todos la misma flecha, el mismo foco y el mismo cursor; las
+ * utilidades de Tailwind de cada pantalla siguen ganando para tamaño y color.
+ */
+.theme-saas-light select:not([multiple]):not([size]) {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2365676e' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.55rem center;
+  background-size: 1rem;
+  padding-right: 2rem;
+  cursor: pointer;
+}
+
+.theme-saas-light :is(input, select, textarea):disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Cifras siempre alineadas en tablas: montos, cantidades y folios. */
+.theme-saas-light table {
+  font-variant-numeric: tabular-nums;
+}
+
+/* La firma "Hecho con Aether ERP" es para superficies públicas; dentro del
+   panel de una empresa (y en el login de Aether) sobra y tapaba contenido. */
+.theme-saas-light ~ .aether-platform-badge,
+.auth-shell ~ .aether-platform-badge {
+  display: none;
 }
 
 .dark {

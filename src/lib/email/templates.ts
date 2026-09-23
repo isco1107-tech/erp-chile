@@ -14,7 +14,7 @@
 import type { CandidateStatus } from '@prisma/client';
 import { formatCurrency } from '@/lib/chile/tax';
 
-const BRAND = '#1e3a5f';
+const BRAND = '#12161f';
 
 export function escapeHtml(value: string): string {
   return value

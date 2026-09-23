@@ -16,3 +16,70 @@ export const faqs: [question: string, answer: string][] = [
   ['¿Puedo llevarme mis datos si me voy?', 'Sí. Cualquier persona con el permiso de exportación puede descargar la información completa de la empresa en formato JSON, sin contraseñas ni credenciales en el archivo.'],
   ['¿Por qué el sistema puede mostrar una advertencia al instalar?', 'Estos instaladores todavía no cuentan con certificados comerciales de firma. Windows puede mostrar una advertencia de editor desconocido; macOS puede solicitar autorización en Privacidad y seguridad. Si tu equipo exige aplicaciones firmadas, puedes utilizar la versión web.'],
 ];
+
+export interface Plan {
+  name: string;
+  audience: string;
+  /**
+   * Precio mensual "desde", en CLP enteros y sin IVA. `null` muestra "Precio
+   * según módulos". Poner aquí solo precios reales vigentes: lo que se publica
+   * en el landing es una oferta comercial.
+   */
+  priceFrom: number | null;
+  featured?: boolean;
+  includes: string[];
+}
+
+export const plans: Plan[] = [
+  {
+    name: 'Comercio',
+    audience: 'Para quien vende productos y mueve bodega: tiendas, distribuidoras y ferreterías.',
+    priceFrom: null,
+    includes: [
+      'Ventas y facturación con folios CAF y timbre',
+      'Punto de venta con boleta y arqueo de caja',
+      'Inventario multibodega con costo PMP',
+      'Compras, órdenes y recepción',
+      'Clientes, proveedores y reportes Excel',
+    ],
+  },
+  {
+    name: 'Gestión completa',
+    audience: 'Para la empresa que quiere operación, finanzas y contabilidad en el mismo sistema.',
+    priceFrom: null,
+    featured: true,
+    includes: [
+      'Todo lo del plan Comercio',
+      'Cuentas por cobrar y pagar con antigüedad de saldos',
+      'Contabilidad automática: diario, mayor y balance de 8 columnas',
+      'F29 del período y cuadraturas contra el mayor',
+      'Presupuestos, automatizaciones y agentes de IA',
+    ],
+  },
+  {
+    name: 'Eventos y certámenes',
+    audience: 'Para productoras que además de producir tienen que rendir cuentas.',
+    priceFrom: null,
+    includes: [
+      'Proyectos con presupuesto por evento',
+      'Escaleta en vivo, vestuario y acreditaciones QR',
+      'Auspicios con portal para cada marca',
+      'Venta de entradas y votación del público',
+      'Jurado con escrutinio en línea',
+    ],
+  },
+];
+
+export interface Testimonial {
+  quote: string;
+  name: string;
+  role: string;
+  company: string;
+}
+
+/**
+ * Solo testimonios REALES, con autorización escrita de quien los da. Mientras
+ * la lista esté vacía, la sección no se muestra: un testimonio inventado en
+ * una página comercial es publicidad engañosa.
+ */
+export const testimonials: Testimonial[] = [];

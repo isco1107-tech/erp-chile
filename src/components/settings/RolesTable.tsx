@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { deleteCustomRoleAction } from '@/modules/roles/actions/roles.actions';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 export interface RoleRow {
   id: string;
   name: string;
@@ -16,11 +17,12 @@ export interface RoleRow {
 }
 
 export default function RolesTable({ roles }: { roles: RoleRow[] }) {
+  const confirm = useConfirm();
   const router = useRouter();
   const [deleting, setDeleting] = useState<string | null>(null);
 
   async function handleDelete(role: RoleRow) {
-    if (!confirm(`¿Eliminar el rol "${role.name}"?`)) return;
+    if (!await confirm(`¿Eliminar el rol "${role.name}"?`)) return;
     setDeleting(role.id);
     try {
       const result = await deleteCustomRoleAction(role.id);

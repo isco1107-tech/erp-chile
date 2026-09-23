@@ -12,6 +12,7 @@ import { Trash2 } from 'lucide-react';
 import { addDocumentAction, deleteDocumentAction, updateDocumentAction } from '@/modules/candidates/actions/candidates.actions';
 import { CANDIDATE_DOCUMENT_STATUS_LABELS } from '@/modules/candidates/schema';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 interface Props {
   candidateId: string;
   documents: CandidateDocument[];
@@ -21,6 +22,7 @@ interface Props {
 const STATUS_TONE: Record<string, Tone> = { PENDING: 'neutral', SIGNED: 'success', EXPIRED: 'danger' };
 
 export default function DocumentsSection({ candidateId, documents: initial, canWrite }: Props) {
+  const confirm = useConfirm();
   const [documents, setDocuments] = useState<CandidateDocument[]>(initial);
   const [title, setTitle] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
@@ -83,7 +85,7 @@ export default function DocumentsSection({ candidateId, documents: initial, canW
   }
 
   async function handleDelete(documentId: string) {
-    if (!confirm('¿Eliminar este documento?')) return;
+    if (!await confirm('¿Eliminar este documento?')) return;
     setBusyId(documentId);
     try {
       const result = await deleteDocumentAction(documentId, candidateId);

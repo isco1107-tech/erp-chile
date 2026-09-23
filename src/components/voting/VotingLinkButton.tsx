@@ -8,6 +8,7 @@ import { CurrencyInput } from '@/components/ui/CurrencyInput';
 import { Label } from '@/components/ui/label';
 import { getOrCreateVoteSalesLinkAction, regenerateVoteSalesLinkAction } from '@/modules/public-voting/actions/public-voting-admin.actions';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 /**
  * Botón para el equipo interno: genera (o reutiliza) el link público de
  * votación de un proyecto. A diferencia de `TicketingLinkButton`, pide el
@@ -16,6 +17,7 @@ import { getOrCreateVoteSalesLinkAction, regenerateVoteSalesLinkAction } from '@
  * precio distinto exige un link nuevo, no solo "regenerar".
  */
 export default function VotingLinkButton({ projectId, currentPrice }: { projectId: string; currentPrice: number | null }) {
+  const confirm = useConfirm();
   const [price, setPrice] = useState(currentPrice ?? 100);
   const [busy, setBusy] = useState<'get' | 'regen' | null>(null);
 
@@ -49,7 +51,7 @@ export default function VotingLinkButton({ projectId, currentPrice }: { projectI
       toast.error('Ingresa un precio por voto válido (entero mayor a cero)');
       return;
     }
-    if (!confirm('¿Regenerar el link? El link anterior dejará de funcionar de inmediato.')) return;
+    if (!await confirm('¿Regenerar el link? El link anterior dejará de funcionar de inmediato.')) return;
     setBusy('regen');
     try {
       const result = await regenerateVoteSalesLinkAction(projectId, { pricePerVote });

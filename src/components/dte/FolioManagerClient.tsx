@@ -8,6 +8,7 @@ import { DTE_TYPE_LABELS } from '@/modules/sales/schema';
 import { getFolioAvailabilityAction, revokeCafAction, uploadCafAction } from '@/modules/dte/actions/caf.actions';
 import type { FolioAvailability } from '@/modules/dte/services/caf.service';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 /**
  * Administración de folios autorizados (CAF) del SII.
  *
@@ -26,6 +27,7 @@ interface FolioManagerClientProps {
 }
 
 export default function FolioManagerClient({ initialAvailability, canManage }: FolioManagerClientProps) {
+  const confirm = useConfirm();
   const [availability, setAvailability] = useState(initialAvailability);
   const [uploading, setUploading] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -53,8 +55,8 @@ export default function FolioManagerClient({ initialAvailability, canManage }: F
     }
   }
 
-  function handleRevoke(cafId: string, label: string) {
-    if (!confirm(`Se dejarán de asignar folios de este rango (${label}). Los documentos ya emitidos no se ven afectados. ¿Continuar?`)) {
+  async function handleRevoke(cafId: string, label: string) {
+    if (!await confirm(`Se dejarán de asignar folios de este rango (${label}). Los documentos ya emitidos no se ven afectados. ¿Continuar?`)) {
       return;
     }
     startTransition(async () => {

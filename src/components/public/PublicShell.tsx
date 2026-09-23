@@ -28,7 +28,7 @@ export type PublicAccent = 'gold' | 'violet' | 'rose' | 'cyan' | 'emerald';
 
 /** Raíz de una página pública: pinta el fondo, fija el acento y aísla el tema. */
 export function PublicPage({
-  accent = 'cyan',
+  accent = 'gold',
   children,
   className = '',
 }: {
@@ -229,7 +229,7 @@ export function PublicProgress({ percent, label }: { percent: number; label?: Re
 
 /** Pantalla completa de estado: cargando, link inválido o confirmación. */
 export function PublicStatus({
-  accent = 'cyan',
+  accent = 'gold',
   variant,
   title,
   message,

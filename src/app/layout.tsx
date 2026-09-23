@@ -10,7 +10,11 @@ const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 export const metadata = {
   title: 'Aether ERP',
-  description: 'Aether ERP Solutions',
+  description: 'ERP chileno para ventas, inventario, finanzas, contabilidad y producción de eventos.',
+};
+
+export const viewport = {
+  themeColor: '#10131a',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

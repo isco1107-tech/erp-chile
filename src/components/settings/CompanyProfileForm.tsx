@@ -209,7 +209,7 @@ export default function CompanyProfileForm({ company, settings }: CompanyProfile
 
       <Button type="submit" disabled={saving}>{saving ? 'Guardando...' : 'Guardar Cambios'}</Button>
       <div className="border-t border-border pt-4">
-        <p className="hud-label mb-3">Configuración operativa y tributaria</p>
+        <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase mb-3">Configuración operativa y tributaria</p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div><Label htmlFor="industryType">Industria</Label><select id="industryType" className="h-10 w-full rounded-xl border border-input bg-muted px-3 text-sm text-foreground" value={industryType} onChange={(e) => setIndustryType(e.target.value as typeof industryType)}><option value="SERVICES">Servicios</option><option value="COMMERCE">Comercio</option><option value="DISTRIBUTION">Distribución</option><option value="RETAIL">Retail</option><option value="LIGHT_MANUFACTURING">Manufactura ligera</option></select></div>
           <div><Label htmlFor="ppmRate">Tasa PPM (%)</Label><Input id="ppmRate" type="number" min="0" max="100" step="0.01" value={ppmRate} onChange={(e) => setPpmRate(e.target.value)} /></div>

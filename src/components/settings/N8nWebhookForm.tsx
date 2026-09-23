@@ -10,11 +10,13 @@ import {
   revokeN8nWebhookSecretAction,
 } from '@/modules/webhooks/actions/n8n-secret.actions';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 interface N8nWebhookFormProps {
   initialSecret: string | null;
 }
 
 export default function N8nWebhookForm({ initialSecret }: N8nWebhookFormProps) {
+  const confirm = useConfirm();
   const [secret, setSecret] = useState<string | null>(initialSecret);
   const [reveal, setReveal] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -44,7 +46,7 @@ export default function N8nWebhookForm({ initialSecret }: N8nWebhookFormProps) {
   }
 
   async function handleRegenerate() {
-    if (!confirm('El token anterior dejará de funcionar de inmediato. Si ya lo usaste en un workflow de n8n, tendrás que actualizarlo ahí también. ¿Continuar?')) return;
+    if (!await confirm('El token anterior dejará de funcionar de inmediato. Si ya lo usaste en un workflow de n8n, tendrás que actualizarlo ahí también. ¿Continuar?')) return;
     setBusy(true);
     try {
       const result = await regenerateN8nWebhookSecretAction();
@@ -58,7 +60,7 @@ export default function N8nWebhookForm({ initialSecret }: N8nWebhookFormProps) {
   }
 
   async function handleRevoke() {
-    if (!confirm('Esto desactiva la automatización externa: cualquier workflow de n8n que llame a este webhook empezará a recibir error 401. ¿Continuar?')) return;
+    if (!await confirm('Esto desactiva la automatización externa: cualquier workflow de n8n que llame a este webhook empezará a recibir error 401. ¿Continuar?')) return;
     setBusy(true);
     try {
       const result = await revokeN8nWebhookSecretAction();

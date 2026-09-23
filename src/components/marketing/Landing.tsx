@@ -12,13 +12,15 @@ import {
 import s from './landing.module.css';
 import SalesContact from './SalesContact';
 import HeroPreview from './HeroPreview';
+import ProductMock, { type ProductMockView } from './ProductMock';
 import HowItWorks from './HowItWorks';
 import ChileSection from './ChileSection';
-import StatBand from './StatBand';
 import Shift from './Shift';
 import Segments from './Segments';
 import Security from './Security';
 import Onboarding from './Onboarding';
+import Plans from './Plans';
+import Testimonials from './Testimonials';
 import StickyActions from './StickyActions';
 import { faqs } from './content';
 import { useReveal } from './useReveal';
@@ -29,11 +31,11 @@ export type DesktopRelease = {
 };
 
 const views = [
-  { label: 'Visión general', image: 'dashboard', title: 'La perspectiva que tu negocio necesita.', description: 'Reúne ventas, costos, cobranza e inventario en un panel ejecutivo. Identifica lo que requiere atención y decide con tus datos a la vista.', icon: BarChart3, points: ['Indicadores del negocio', 'Alertas de inventario', 'Seguimiento de documentos'] },
-  { label: 'Ventas', image: 'sales', title: 'Cada venta, de principio a fin.', description: 'Conecta clientes, documentos y pagos. Mantén el historial comercial a mano y da seguimiento a cada operación desde el mismo lugar.', icon: ReceiptText, points: ['Documentos y estados de pago', 'Historial por cliente', 'Control de folios y DTE'] },
-  { label: 'Inventario', image: 'inventory', title: 'Conoce lo que tienes. Y lo que cuesta.', description: 'Controla existencias, movimientos y valorización por bodega. Anticipa faltantes y trabaja con costos promedio ponderados.', icon: Boxes, points: ['Stock por bodega', 'Kardex de movimientos', 'Valorización PMP'] },
-  { label: 'Finanzas', image: 'treasury', title: 'Una mirada clara a tu caja.', description: 'Organiza cuentas por cobrar y pagar, revisa vencimientos y proyecta el flujo de caja para planificar el siguiente paso.', icon: WalletCards, points: ['Cobranza y vencimientos', 'Cuentas por pagar', 'Flujo de caja proyectado'] },
-  { label: 'Eventos', image: 'projects', title: 'De la planificación al gran día.', description: 'Coordina proyectos y producción con el respaldo de tu operación financiera. Lleva presupuestos, auspicios y equipos bajo un mismo contexto.', icon: Ticket, points: ['Proyectos y presupuestos', 'Auspicios y producción', 'Ticketing y acreditaciones'] },
+  { label: 'Visión general', image: 'dashboard' as ProductMockView, title: 'La perspectiva que tu negocio necesita.', description: 'Reúne ventas, costos, cobranza e inventario en un panel ejecutivo. Identifica lo que requiere atención y decide con tus datos a la vista.', icon: BarChart3, points: ['Indicadores del negocio', 'Alertas de inventario', 'Seguimiento de documentos'] },
+  { label: 'Ventas', image: 'sales' as ProductMockView, title: 'Cada venta, de principio a fin.', description: 'Conecta clientes, documentos y pagos. Mantén el historial comercial a mano y da seguimiento a cada operación desde el mismo lugar.', icon: ReceiptText, points: ['Documentos y estados de pago', 'Historial por cliente', 'Control de folios y DTE'] },
+  { label: 'Inventario', image: 'inventory' as ProductMockView, title: 'Conoce lo que tienes. Y lo que cuesta.', description: 'Controla existencias, movimientos y valorización por bodega. Anticipa faltantes y trabaja con costos promedio ponderados.', icon: Boxes, points: ['Stock por bodega', 'Kardex de movimientos', 'Valorización PMP'] },
+  { label: 'Finanzas', image: 'treasury' as ProductMockView, title: 'Una mirada clara a tu caja.', description: 'Organiza cuentas por cobrar y pagar, revisa vencimientos y proyecta el flujo de caja para planificar el siguiente paso.', icon: WalletCards, points: ['Cobranza y vencimientos', 'Cuentas por pagar', 'Flujo de caja proyectado'] },
+  { label: 'Eventos', image: 'projects' as ProductMockView, title: 'De la planificación al gran día.', description: 'Coordina proyectos y producción con el respaldo de tu operación financiera. Lleva presupuestos, auspicios y equipos bajo un mismo contexto.', icon: Ticket, points: ['Proyectos y presupuestos', 'Auspicios y producción', 'Ticketing y acreditaciones'] },
 ];
 
 const moduleGroups = [
@@ -98,7 +100,7 @@ function DownloadOption({ platform, name, detail, icon: Icon, releases, delay }:
   );
 }
 
-export default function Landing({ releases, salesEmail = 'aethererp1@gmail.com', salesWhatsapp }: { releases: DesktopRelease[]; salesEmail?: string; salesWhatsapp?: string }) {
+export default function Landing({ releases, salesEmail = 'aethererp1@gmail.com', salesWhatsapp, legalName, legalRut }: { releases: DesktopRelease[]; salesEmail?: string; salesWhatsapp?: string; legalName?: string; legalRut?: string }) {
   const [activeView, setActiveView] = useState(0);
   const [activeGroup, setActiveGroup] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -166,14 +168,14 @@ export default function Landing({ releases, salesEmail = 'aethererp1@gmail.com',
       <header className={s.header} ref={header}>
         <div className={s.headerInner}>
           <Link href="/conoce-aether" aria-label="Aether ERP, inicio"><Brand /></Link>
-          <nav className={s.desktopNav} aria-label="Navegación principal"><a href="#como-funciona">Cómo funciona</a><a href="#plataforma">La plataforma</a><a href="#para-quien">Para quién</a><a href="#modulos">Soluciones</a><a href="#seguridad">Seguridad</a><a href="#descargas">Descargas</a><a href="#implementacion">Precios</a></nav>
+          <nav className={s.desktopNav} aria-label="Navegación principal"><a href="#como-funciona">Cómo funciona</a><a href="#plataforma">La plataforma</a><a href="#para-quien">Para quién</a><a href="#modulos">Soluciones</a><a href="#seguridad">Seguridad</a><a href="#planes">Planes</a><a href="#descargas">Descargas</a></nav>
           <div className={s.headerActions}>
             <Link className={s.login} href="/login">Ingresar <ArrowUpRight size={15} aria-hidden="true" /></Link>
             <a className={s.headerCta} href="#cotizar">Solicitar demo <ArrowUpRight size={15} aria-hidden="true" /></a>
             <button className={s.menuButton} aria-label={menuOpen ? 'Cerrar menú' : 'Abrir menú'} aria-expanded={menuOpen} aria-controls="mobile-nav" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X /> : <Menu />}</button>
           </div>
         </div>
-        {menuOpen && <nav id="mobile-nav" className={s.mobileNav} aria-label="Navegación móvil" onClick={() => setMenuOpen(false)}><a href="#como-funciona">Cómo funciona</a><a href="#cambio">Lo que cambia</a><a href="#plataforma">La plataforma</a><a href="#tributacion">Tributación chilena</a><a href="#para-quien">Para quién</a><a href="#modulos">Soluciones</a><a href="#seguridad">Seguridad</a><a href="#descargas">Descargas</a><a href="#implementacion">Precios</a><a href="#cotizar">Cotizar para mi empresa</a><Link href="/login">Ingresar al ERP</Link></nav>}
+        {menuOpen && <nav id="mobile-nav" className={s.mobileNav} aria-label="Navegación móvil" onClick={() => setMenuOpen(false)}><a href="#como-funciona">Cómo funciona</a><a href="#cambio">Lo que cambia</a><a href="#plataforma">La plataforma</a><a href="#tributacion">Tributación chilena</a><a href="#para-quien">Para quién</a><a href="#modulos">Soluciones</a><a href="#seguridad">Seguridad</a><a href="#planes">Planes</a><a href="#descargas">Descargas</a><a href="#cotizar">Cotizar para mi empresa</a><Link href="/login">Ingresar al ERP</Link></nav>}
       </header>
 
       <section id="contenido" className={s.hero}>
@@ -199,7 +201,7 @@ export default function Landing({ releases, salesEmail = 'aethererp1@gmail.com',
             <div className={s.heroMedia}><div className={s.windowBar}><span /><span /><span /><p><LockKeyhole size={11} /> Aether / Panel de tu empresa</p><Layers3 size={13} /></div><HeroPreview /></div>
             <div className={s.connectedCard}><span className={s.connectedIcon}><Layers3 size={22} /></span><div><strong>Todo conectado. Todo más claro.</strong><p>De la primera venta al último pago.</p></div><CircleCheck size={19} /></div>
             <div className={s.heroFlow}><span><ReceiptText size={15} /> Ventas</span><ArrowRight size={13} /><span><Boxes size={15} /> Stock</span><ArrowRight size={13} /><span><WalletCards size={15} /> Caja</span></div>
-            <p className={s.demoCaption}>Captura real · Entorno de demostración</p>
+            <p className={s.demoCaption}>Vista ilustrativa del panel · datos de ejemplo</p>
           </div>
         </div>
 
@@ -211,8 +213,6 @@ export default function Landing({ releases, salesEmail = 'aethererp1@gmail.com',
           </div>
         </div>
       </section>
-
-      <section className={s.valueStrip} aria-label="Beneficios principales"><div className={s.container}><p data-reveal>Menos piezas sueltas.<br /><strong>Más visión de negocio.</strong></p><span data-reveal style={{ transitionDelay: '80ms' }}><Layers3 /> Operación conectada</span><span data-reveal style={{ transitionDelay: '160ms' }}><Landmark /> Contexto chileno</span><span data-reveal style={{ transitionDelay: '240ms' }}><UsersRound /> Equipos coordinados</span></div></section>
 
       <section className={`${s.section} ${s.outcomes}`}><div className={s.container}>
         <div className={s.sectionHeading} data-reveal><div><p className={s.kicker}>QUE TU SISTEMA TRABAJE CONTIGO</p><h2>El control se nota.<br />En cada parte de tu día.</h2></div><p>Cuando la información deja de estar repartida, tu equipo puede dedicar más atención a vender, planificar y hacer avanzar el negocio.</p></div>
@@ -228,11 +228,11 @@ export default function Landing({ releases, salesEmail = 'aethererp1@gmail.com',
       <Shift />
 
       <section id="plataforma" className={`${s.section} ${s.platform}`}><div className={s.container}>
-        <div className={s.sectionHeading} data-reveal><div><p className={s.kicker}>01 / CONOCE TU PRÓXIMO ERP</p><h2>Todo se entiende mejor<br /> cuando está conectado.</h2></div><p>Del primer presupuesto al último pago. Aether reúne las áreas de tu empresa para que puedas ver el panorama completo.</p></div>
+        <div className={s.sectionHeading} data-reveal><div><p className={s.kicker}>CONOCE TU PRÓXIMO ERP</p><h2>Todo se entiende mejor<br /> cuando está conectado.</h2></div><p>Del primer presupuesto al último pago. Aether reúne las áreas de tu empresa para que puedas ver el panorama completo.</p></div>
         <div className={s.tabs} role="tablist" aria-label="Vistas del ERP" data-reveal onKeyDown={event => tabKeys(event, activeView, views.length, setActiveView)}>{views.map((item, index) => <button id={`view-tab-${index}`} key={item.image} role="tab" aria-selected={activeView === index} aria-controls="product-panel" tabIndex={activeView === index ? 0 : -1} onClick={() => setActiveView(index)}><item.icon size={17} aria-hidden="true" />{item.label}</button>)}</div>
         <div id="product-panel" role="tabpanel" aria-labelledby={`view-tab-${activeView}`} className={s.productPanel}>
           <div className={s.productCopy} key={`copy-${view.image}`}><span className={s.viewNumber}>0{activeView + 1}</span><h3>{view.title}</h3><p>{view.description}</p><ul>{view.points.map(point => <li key={point}><CircleCheck size={16} aria-hidden="true" />{point}</li>)}</ul><a href="#cotizar">Quiero verlo para mi empresa <ArrowUpRight size={17} aria-hidden="true" /></a></div>
-          <figure className={s.productImage} key={view.image}><Image src={`/manual/screenshots/${view.image}.png`} alt={`Aether ERP: ${view.label}`} width={1440} height={900} sizes="(max-width: 760px) 100vw, 850px" /><button className={s.expandButton} title="Ampliar captura" aria-label={`Ampliar captura de ${view.label}`} onClick={() => dialog.current?.showModal()}><Expand size={18} /></button><figcaption>Captura del entorno de demostración</figcaption></figure>
+          <figure className={s.productImage} key={view.image}><div className={s.productFrame}><ProductMock view={view.image} /></div><button className={s.expandButton} title="Ampliar vista" aria-label={`Ampliar vista de ${view.label}`} onClick={() => dialog.current?.showModal()}><Expand size={18} /></button><figcaption>Vista ilustrativa · datos de ejemplo</figcaption></figure>
         </div>
       </div></section>
 
@@ -240,13 +240,13 @@ export default function Landing({ releases, salesEmail = 'aethererp1@gmail.com',
 
       <Segments />
 
+      <Testimonials />
+
       <section id="modulos" className={`${s.section} ${s.modules}`}><div className={s.container}>
-        <div className={s.sectionHeading} data-reveal><div><p className={s.kicker}>02 / UN LUGAR PARA CADA ÁREA</p><h2>Empieza con lo que necesitas.<br /> Crece con lo que viene.</h2></div><p>Una estructura modular que acompaña tu operación. Activa las herramientas que tu empresa necesita y mantén la información conectada.</p></div>
+        <div className={s.sectionHeading} data-reveal><div><p className={s.kicker}>UN LUGAR PARA CADA ÁREA</p><h2>Empieza con lo que necesitas.<br /> Crece con lo que viene.</h2></div><p>Una estructura modular que acompaña tu operación. Activa las herramientas que tu empresa necesita y mantén la información conectada.</p></div>
         <div className={`${s.tabs} ${s.moduleTabs}`} role="tablist" aria-label="Familias de módulos" data-reveal onKeyDown={event => tabKeys(event, activeGroup, moduleGroups.length, setActiveGroup)}>{moduleGroups.map((group, index) => <button id={`module-tab-${index}`} key={group.name} role="tab" aria-selected={activeGroup === index} aria-controls="module-panel" tabIndex={activeGroup === index ? 0 : -1} onClick={() => setActiveGroup(index)}>{group.name}</button>)}</div>
         <div id="module-panel" role="tabpanel" aria-labelledby={`module-tab-${activeGroup}`} className={s.moduleGrid} key={activeGroup}>{moduleGroups[activeGroup].modules.map((item, index) => <article key={item.title} className={s.module} style={{ animationDelay: `${index * 55}ms` }} onPointerMove={spotlight}><div className={s.moduleTop}><item.icon size={25} aria-hidden="true" /><span>0{index + 1}</span></div><h3>{item.title}</h3><p>{item.text}</p></article>)}</div>
       </div></section>
-
-      <StatBand />
 
       <section className={`${s.section} ${s.intelligence}`}><div className={s.container}>
         <div className={s.intelligenceHeading} data-reveal><p className={s.kicker}><Sparkles size={16} aria-hidden="true" /> MÁS CONTEXTO. MEJORES DECISIONES.</p><h2>Tu información tiene mucho que decir.<br /><span>Dale una voz.</span></h2></div>
@@ -256,12 +256,7 @@ export default function Landing({ releases, salesEmail = 'aethererp1@gmail.com',
 
       <Security />
 
-      <section id="descargas" className={`${s.section} ${s.downloads}`}><div className={s.container}>
-        <div className={s.downloadHeading} data-reveal><p className={s.kicker}>04 / TU NEGOCIO, A UN CLIC</p><h2>Un lugar en tu escritorio.<br /><span>Toda tu empresa adentro.</span></h2><p>Abre Aether en su propia ventana y entra directo a tu operación.<br /> Elige tu sistema y descarga el cliente de escritorio.</p></div>
-        <div className={s.downloadGrid}><DownloadOption platform="windows" name="Windows" detail="Tu operación, siempre a mano." icon={Monitor} releases={releases} delay={0} /><DownloadOption platform="macos" name="macOS" detail="Aether también vive en tu Mac." icon={Laptop} releases={releases} delay={110} /><DownloadOption platform="linux" name="Linux" detail="Tu entorno. La misma plataforma." icon={Terminal} releases={releases} delay={220} /></div>
-        <div className={s.downloadNote} data-reveal><p><ShieldCheck size={17} aria-hidden="true" /> Requiere internet y una cuenta activa. Instaladores sin firma comercial.</p>{releases.length > 0 && <a href="/downloads/SHA256SUMS.txt" download>Verificación SHA-256 <ArrowUpRight size={14} aria-hidden="true" /></a>}</div>
-        <div className={s.webOption} data-reveal><div><Globe2 size={25} aria-hidden="true" /><p><strong>También puedes entrar desde el navegador.</strong><span>La misma información, sin instalar nada.</span></p></div><Link href="/login">Abrir Aether web <ArrowUpRight size={18} aria-hidden="true" /></Link></div>
-      </div></section>
+      <Plans />
 
       <Onboarding />
 
@@ -269,13 +264,29 @@ export default function Landing({ releases, salesEmail = 'aethererp1@gmail.com',
 
       <SalesContact email={salesEmail} whatsapp={salesWhatsapp} />
 
+      <section id="descargas" className={`${s.section} ${s.downloads}`}><div className={s.container}>
+        <div className={s.downloadHeading} data-reveal><p className={s.kicker}>TU NEGOCIO, A UN CLIC</p><h2>Un lugar en tu escritorio.<br /><span>Toda tu empresa adentro.</span></h2><p>Abre Aether en su propia ventana y entra directo a tu operación.<br /> Elige tu sistema y descarga el cliente de escritorio.</p></div>
+        <div className={s.downloadGrid}><DownloadOption platform="windows" name="Windows" detail="Tu operación, siempre a mano." icon={Monitor} releases={releases} delay={0} /><DownloadOption platform="macos" name="macOS" detail="Aether también vive en tu Mac." icon={Laptop} releases={releases} delay={110} /><DownloadOption platform="linux" name="Linux" detail="Tu entorno. La misma plataforma." icon={Terminal} releases={releases} delay={220} /></div>
+        <div className={s.downloadNote} data-reveal><p><ShieldCheck size={17} aria-hidden="true" /> Requiere internet y una cuenta activa. Instaladores sin firma comercial.</p>{releases.length > 0 && <a href="/downloads/SHA256SUMS.txt" download>Verificación SHA-256 <ArrowUpRight size={14} aria-hidden="true" /></a>}</div>
+        <div className={s.webOption} data-reveal><div><Globe2 size={25} aria-hidden="true" /><p><strong>También puedes entrar desde el navegador.</strong><span>La misma información, sin instalar nada.</span></p></div><Link href="/login">Abrir Aether web <ArrowUpRight size={18} aria-hidden="true" /></Link></div>
+      </div></section>
+
+
       <section className={s.finalCta}><div className={s.container} data-reveal><p className={s.kicker}>TU EMPRESA YA TIENE EL POTENCIAL</p><h2>Dale espacio para crecer.<br />Dale Aether.</h2><a href="#cotizar">Conversemos de tu empresa <ArrowRight size={22} aria-hidden="true" /></a></div></section>
 
-      <footer className={s.footer}><div className={s.container}><Link href="/" aria-label="Aether ERP"><Brand /></Link><p>Gestión conectada. Hecha para avanzar.</p><Link href="/aether/privacidad">Privacidad <ArrowUpRight size={13} aria-hidden="true" /></Link><span>© {new Date().getFullYear()} Aether ERP</span></div></footer>
+      <footer className={s.footer}><div className={s.container}>
+        <div className={s.footerGrid}>
+          <div className={s.footerBrand}><Link href="/" aria-label="Aether ERP, inicio"><Brand /></Link><p>ERP chileno para ventas, inventario, finanzas y producción de eventos. Gestión conectada, hecha para avanzar.</p></div>
+          <nav className={s.footerCol} aria-label="Producto"><h3>Producto</h3><ul><li><a href="#como-funciona">Cómo funciona</a></li><li><a href="#plataforma">La plataforma</a></li><li><a href="#modulos">Módulos</a></li><li><a href="#planes">Planes</a></li><li><a href="#descargas">Descargas</a></li></ul></nav>
+          <nav className={s.footerCol} aria-label="Empresa"><h3>Contacto</h3><ul><li><a href="#cotizar">Solicitar una demo</a></li><li><a href={`mailto:${salesEmail}`}>{salesEmail}</a></li><li><a href="#seguridad">Seguridad</a></li><li><Link href="/login">Ingresar al ERP</Link></li></ul></nav>
+          <nav className={s.footerCol} aria-label="Legal"><h3>Legal</h3><ul><li><Link href="/aether/privacidad">Política de privacidad</Link></li><li><Link href="/aether/terminos">Términos de servicio</Link></li></ul></nav>
+        </div>
+        <div className={s.footerLegal}><span>© {new Date().getFullYear()} {legalName ?? 'Aether ERP'}{legalRut ? ` · RUT ${legalRut}` : ''}</span><span>Hecho en Chile, para empresas chilenas.</span></div>
+      </div></footer>
 
       <StickyActions />
 
-      <dialog ref={dialog} className={s.lightbox} onClick={event => { if (event.target === event.currentTarget) dialog.current?.close(); }} aria-label={`Captura ampliada: ${view.label}`}><div><button className={s.closeLightbox} aria-label="Cerrar captura" onClick={() => dialog.current?.close()} autoFocus><X /></button><Image src={`/manual/screenshots/${view.image}.png`} alt={`Captura ampliada de ${view.label}`} width={1440} height={900} sizes="95vw" /><p>{view.label} · Entorno de demostración</p></div></dialog>
+      <dialog ref={dialog} className={s.lightbox} onClick={event => { if (event.target === event.currentTarget) dialog.current?.close(); }} aria-label={`Vista ampliada: ${view.label}`}><div><button className={s.closeLightbox} aria-label="Cerrar vista ampliada" onClick={() => dialog.current?.close()} autoFocus><X /></button><div className={s.lightboxFrame}><ProductMock view={view.image} /></div><p>{view.label} · vista ilustrativa con datos de ejemplo</p></div></dialog>
     </main>
   );
 }

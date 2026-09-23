@@ -218,7 +218,7 @@ export default function MessagingClient({
             <MessageSquarePlus className="size-4.5" />
           </button>
         </div>
-        <div className="hud-scroll flex-1 space-y-0.5 overflow-y-auto p-2">
+        <div className="flex-1 space-y-0.5 overflow-y-auto p-2">
           {loadingConversations && (
             <p className="p-4 text-center text-sm text-muted-foreground">Cargando conversaciones...</p>
           )}
@@ -312,7 +312,7 @@ export default function MessagingClient({
               </button>
             </div>
 
-            <div className="hud-scroll flex-1 space-y-3 overflow-y-auto p-4">
+            <div className="flex-1 space-y-3 overflow-y-auto p-4">
               {loadingMessages && <p className="text-center text-sm text-muted-foreground">Cargando mensajes...</p>}
               {!loadingMessages && messages.length === 0 && (
                 <p className="text-center text-sm text-muted-foreground">Todavía no hay mensajes. Escribe el primero.</p>

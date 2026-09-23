@@ -17,6 +17,7 @@ import { PURCHASE_DOCUMENT_TYPE_LABELS } from '@/modules/purchases/schema';
 import type { PurchaseDocumentListItem } from '@/modules/purchases/services/purchases.service';
 import { formatCurrency } from '@/lib/chile/tax';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 const STATUS_BADGE: Record<string, string> = {
   DRAFT: 'bg-muted text-muted-foreground',
   ISSUED: 'bg-green-600/10 text-green-600',
@@ -38,6 +39,7 @@ const PAYMENT_STATUS_LABEL: Record<string, string> = {
 const DEFAULT_PAGE_SIZE = 25;
 
 export default function PurchaseHistoryClient({ canApprove }: { canApprove: boolean }) {
+  const confirm = useConfirm();
   const [rows, setRows] = useState<PurchaseDocumentListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -81,7 +83,7 @@ export default function PurchaseHistoryClient({ canApprove }: { canApprove: bool
   }
 
   async function handleCancel(id: string) {
-    if (!confirm('¿Anular este documento de compra?')) return;
+    if (!await confirm('¿Anular este documento de compra?')) return;
     const result = await cancelPurchaseDocumentAction(id);
     if (!result.success) {
       toast.error(result.error);
@@ -92,7 +94,7 @@ export default function PurchaseHistoryClient({ canApprove }: { canApprove: bool
   }
 
   async function handleApprove(id: string) {
-    if (!confirm('¿Aprobar esta compra? Se emitirá y afectará el inventario.')) return;
+    if (!await confirm('¿Aprobar esta compra? Se emitirá y afectará el inventario.')) return;
     setBusyId(id);
     try {
       const result = await approvePurchaseDocumentAction(id);
