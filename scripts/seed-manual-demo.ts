@@ -47,6 +47,11 @@ const ALL_FEATURES_ON: CompanyFeatureFlags = {
   hasInstallmentPlans: true,
   hasTicketing: true,
   hasPublicVoting: true,
+  hasIntelligence: true,
+  hasSalesPipeline: true,
+  hasPayroll: true,
+  hasFixedAssets: true,
+  hasExpenseReports: true,
 };
 
 async function main() {

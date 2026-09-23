@@ -216,17 +216,13 @@ export default function TenantModulesForm(props: Props) {
         </p>
         <div className="divide-y divide-border">
           {/*
-            `hasAccounting` queda fuera a propósito: el módulo tiene schema,
-            permisos y motor de asientos (src/modules/accounting/) pero CERO
-            Server Actions y CERO pantalla en el dashboard — activarlo hoy le
-            mostraría al cliente un módulo "contratado" sin nada usable
-            detrás. Sacarlo de esta lista hasta que exista
-            src/app/(dashboard)/dashboard/accounting/. No se toca el flag en
-            sí ni CompanyFeatures: si algún día se activa a mano, el sistema
-            lo sigue respetando, solo que nadie puede activarlo por error
-            desde acá mientras tanto.
+            Contabilidad volvió a esta lista: ya tiene sus pantallas (Libro
+            Diario, Mayor, Balance, Cuadraturas y Estados Financieros) y es
+            activable de verdad — al guardarla encendida se siembra el plan de
+            cuentas y el motor de asientos empieza a contabilizar; apagada, la
+            operación sigue sin generar asientos (`isLedgerActive`).
           */}
-          {MODULES.filter((mod) => mod.key !== 'hasAccounting').map((mod) => (
+          {MODULES.map((mod) => (
             <div key={mod.key} className="flex items-center justify-between gap-4 py-3">
               <div>
                 <Label htmlFor={`toggle-${mod.key}`} className="text-sm font-medium">{mod.label}</Label>

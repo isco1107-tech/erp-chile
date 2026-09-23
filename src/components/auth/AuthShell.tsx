@@ -33,7 +33,7 @@ export function AuthShell({ children }: { children: ReactNode }) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/branding/logo-on-dark.png" alt="" aria-hidden="true" className="size-7 object-contain" />
           <span className="text-2xl font-semibold tracking-tight text-white">
-            aether<span className="ml-1.5 align-middle text-[10px] font-medium text-white/60">ERP</span>
+            Aether<span className="ml-1.5 align-middle text-[10px] font-medium text-white/60">ERP</span>
           </span>
         </Link>
 
@@ -76,10 +76,10 @@ export function AuthShell({ children }: { children: ReactNode }) {
           <Link href="/" className="flex items-center gap-2 lg:hidden">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/branding/logo-on-dark.png" alt="" aria-hidden="true" className="size-7 object-contain" />
-            <span className="text-lg font-semibold tracking-tight text-foreground">aether</span>
+            <span className="text-lg font-semibold tracking-tight text-foreground">Aether</span>
           </Link>
           <Link
-            href="/#cotizar"
+            href="/conoce-aether#cotizar"
             className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
             ¿Aún no usas Aether? <span className="font-medium text-foreground">Conócelo</span>

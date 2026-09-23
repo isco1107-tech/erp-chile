@@ -6,6 +6,7 @@ import { postCreditNoteIssued, postSalesDocumentIssued } from '../src/modules/ac
 import { postPurchaseCreditNoteIssued, postPurchaseDocumentIssued } from '../src/modules/accounting/posting-rules/purchases-posting';
 import { postPurchasePaymentEntry, postSalesPaymentEntry } from '../src/modules/accounting/posting-rules/treasury-posting';
 import { JournalError } from '../src/modules/accounting/services/journal.service';
+import { isLedgerActive } from '../src/modules/accounting/posting-rules/shared';
 
 /**
  * Fase C.4 de PROMPT_ERP_V2.md — genera asientos retroactivos para documentos
@@ -68,6 +69,12 @@ async function runBackfill(companyId: string, dryRun: boolean): Promise<Simulati
 
   try {
     await prisma.$transaction(async (tx) => {
+      // Las reglas de asiento no postean sin Contabilidad activa y plan de
+      // cuentas (`isLedgerActive`): el informe diría "se crearían N" y no se
+      // crearía ninguno. Mejor abortar con la causa.
+      if (!(await isLedgerActive(tx, companyId))) {
+        throw new Error('La empresa no tiene Contabilidad activa con plan de cuentas. Actívala en superadmin (siembra el plan) antes del backfill.');
+      }
       const existingEntryCount = await tx.journalEntry.count({ where: { companyId } });
       if (existingEntryCount > 0) {
         throw new Error(

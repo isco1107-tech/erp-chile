@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
 import { Prisma, type BadgeTemplate, type StaffAccreditation, type StageTimelineItem, type WardrobeItem } from '@prisma/client';
 import { requireAuthWithPermission, authErrorMessage } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
@@ -16,6 +17,8 @@ import {
   badgeTemplateCreateSchema,
   badgeTemplateUpdateSchema,
   ACCREDITATION_LEVEL_LABELS,
+  STAGE_LIVE_ACTIONS,
+  chainScheduleSchema,
 } from '../schema';
 import * as productionService from '../services/production.service';
 import type {
@@ -41,6 +44,8 @@ function toErrorMessage(error: unknown): string {
 function revalidateProduction() {
   revalidatePath('/dashboard/production');
   revalidatePath('/dashboard/production/accreditation');
+  revalidatePath('/dashboard/production/timeline');
+  revalidatePath('/dashboard/production/wardrobe');
 }
 
 // ---------------------------------------------------------------------------
@@ -118,6 +123,100 @@ export async function deleteStageItemAction(id: string): Promise<ActionResult<nu
     });
     revalidateProduction();
     return { success: true, data: null, message: 'Bloque eliminado' };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+export async function duplicateStageItemAction(id: string): Promise<ActionResult<StageTimelineItem>> {
+  try {
+    const session = await requireAuthWithPermission('production:write');
+    const data = await productionService.duplicateStageItem(session.companyId, id);
+    revalidateProduction();
+    return { success: true, data, message: 'Bloque duplicado al final de la escaleta' };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+/** Modo show: al aire / terminar / omitir / volver a pendiente un bloque puntual. */
+export async function stageLiveAction(id: string, action: unknown): Promise<ActionResult<null>> {
+  try {
+    const session = await requireAuthWithPermission('production:write');
+    const parsed = z.enum(STAGE_LIVE_ACTIONS).safeParse(action);
+    if (!parsed.success) return { success: false, error: 'Acción inválida' };
+    await productionService.applyStageLiveAction(session.companyId, id, parsed.data);
+    await createAuditLog({
+      companyId: session.companyId,
+      userId: session.id,
+      userEmail: session.email,
+      action: 'UPDATE',
+      entity: 'StageTimelineItem',
+      entityId: id,
+      metadata: { live: parsed.data },
+    });
+    revalidateProduction();
+    return { success: true, data: null };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+/** "Siguiente bloque" del modo show. */
+export async function advanceShowAction(projectId: string): Promise<ActionResult<{ currentId: string | null }>> {
+  try {
+    const session = await requireAuthWithPermission('production:write');
+    const currentId = await productionService.advanceShow(session.companyId, projectId);
+    revalidateProduction();
+    return { success: true, data: { currentId }, message: currentId ? undefined : 'Fin del show: no quedan bloques pendientes' };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+export async function chainStageScheduleAction(input: unknown): Promise<ActionResult<{ changed: number }>> {
+  try {
+    const session = await requireAuthWithPermission('production:write');
+    const parsed = chainScheduleSchema.safeParse(input);
+    if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
+    const changed = await productionService.chainStageSchedule(session.companyId, parsed.data.projectId, parsed.data.firstStart);
+    await createAuditLog({
+      companyId: session.companyId,
+      userId: session.id,
+      userEmail: session.email,
+      action: 'UPDATE',
+      entity: 'StageTimelineItem',
+      entityId: parsed.data.projectId,
+      metadata: { chainedFrom: parsed.data.firstStart.toISOString(), changed },
+    });
+    revalidateProduction();
+    return { success: true, data: { changed }, message: changed === 0 ? 'Los horarios ya estaban encadenados' : `${changed} bloque(s) reprogramado(s)` };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+export async function generateWardrobePlanAction(projectId: string): Promise<ActionResult<{ created: number }>> {
+  try {
+    const session = await requireAuthWithPermission('production:write');
+    const created = await productionService.generateWardrobePlan(session.companyId, projectId);
+    if (created > 0) {
+      await createAuditLog({
+        companyId: session.companyId,
+        userId: session.id,
+        userEmail: session.email,
+        action: 'CREATE',
+        entity: 'WardrobeItem',
+        entityId: projectId,
+        metadata: { generatedPlan: created },
+      });
+    }
+    revalidateProduction();
+    return {
+      success: true,
+      data: { created },
+      message: created === 0 ? 'El plan de looks ya estaba completo' : `${created} look(s) pendiente(s) creados`,
+    };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
   }

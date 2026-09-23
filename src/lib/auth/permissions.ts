@@ -157,6 +157,36 @@ export const PERMISSIONS = {
   'publicvoting:read': ['OWNER', 'ADMIN', 'SALES'],
   'publicvoting:write': ['OWNER', 'ADMIN', 'SALES'],
 
+  // Centro de Inteligencia 360: cruza ventas, márgenes, caja, cartera y
+  // cumplimiento tributario de TODA la empresa — mismo criterio que
+  // `reports:financial` (dirección y contabilidad), fuera de SALES/WAREHOUSE.
+  'intelligence:view': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
+
+  // CRM comercial: lo opera el equipo de ventas, mismo criterio que sales:*.
+  'crm:read': ['OWNER', 'ADMIN', 'SALES'],
+  'crm:write': ['OWNER', 'ADMIN', 'SALES'],
+
+  // Remuneraciones: sueldos, RUT, AFP, Isapre y cuentas bancarias del equipo
+  // son el dato más sensible de la empresa — solo dirección y contabilidad.
+  'payroll:read': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
+  'payroll:write': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
+  // Cerrar un mes congela las liquidaciones (no se recalculan más): mismo
+  // criterio de separación que `accounting:close_period`.
+  'payroll:close': ['OWNER', 'ACCOUNTANT'],
+  // Aprobar vacaciones/permisos es decisión de jefatura, no de contabilidad.
+  'leave:approve': ['OWNER', 'ADMIN'],
+
+  // Activo fijo: registro contable/tributario, mismo criterio que accounting:*.
+  'assets:read': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
+  'assets:write': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
+
+  // Rendición de gastos: cualquiera rinde lo suyo; aprobar es jefatura y
+  // reembolsar es tesorería. Quien rinde nunca debería aprobar su propia
+  // rendición — el servicio lo bloquea aunque tenga ambos permisos.
+  'expenses:submit': ALL_ROLES,
+  'expenses:approve': ['OWNER', 'ADMIN'],
+  'expenses:reimburse': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
+
   // Mensajería interna: entorno de productividad transversal, no un módulo
   // vertical del negocio — todo el equipo puede usarla, mismo criterio que
   // contacts:read.
@@ -256,6 +286,18 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'ticketing:write': 'Configurar tipos de entrada, confirmar pagos y hacer control de acceso',
   'publicvoting:read': 'Ver órdenes y ranking de votación pagada',
   'publicvoting:write': 'Confirmar pagos de votación pagada',
+  'intelligence:view': 'Ver el Centro de Inteligencia 360 (salud de la empresa, proyecciones y flujos)',
+  'crm:read': 'Ver oportunidades y actividades del CRM',
+  'crm:write': 'Crear oportunidades, moverlas de etapa y registrar actividades',
+  'payroll:read': 'Ver trabajadores, sueldos y liquidaciones',
+  'payroll:write': 'Crear trabajadores y calcular liquidaciones',
+  'payroll:close': 'Cerrar el mes de remuneraciones',
+  'leave:approve': 'Aprobar o rechazar vacaciones y permisos',
+  'assets:read': 'Ver el registro de activo fijo y su depreciación',
+  'assets:write': 'Registrar, editar y dar de baja activos fijos',
+  'expenses:submit': 'Rendir gastos propios',
+  'expenses:approve': 'Aprobar o rechazar rendiciones de gastos del equipo',
+  'expenses:reimburse': 'Registrar el reembolso de rendiciones aprobadas',
   'messaging:use': 'Usar la mensajería interna de la empresa',
   'messaging:whatsapp_personal': 'Abrir WhatsApp Web personal desde el header del ERP',
 };

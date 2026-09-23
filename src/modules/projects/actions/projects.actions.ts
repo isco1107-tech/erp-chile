@@ -6,7 +6,9 @@ import { requireAuthWithPermission, authErrorMessage } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import { getProjectFinancialSummary, type ProjectFinancialSummary } from '@/lib/services/projects';
-import { projectCreateSchema, projectUpdateSchema } from '../schema';
+import { projectCreateSchema, projectPublicSiteSchema, projectUpdateSchema } from '../schema';
+import { publicSlugProblem } from '@/lib/events/public-slug';
+import { getPageantHub, type PageantHub } from '../services/hub.service';
 import * as projectsService from '../services/projects.service';
 
 export type ActionResult<T> =
@@ -106,6 +108,63 @@ export async function getProjectAction(id: string): Promise<ActionResult<Project
     if (!project) return { success: false, error: 'Proyecto no encontrado' };
     const financialSummary = await getProjectFinancialSummary(session.companyId, id);
     return { success: true, data: { ...project, financialSummary } };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Centro de mando del certamen y micrositio público
+// ---------------------------------------------------------------------------
+
+export async function getPageantHubAction(id: string): Promise<ActionResult<PageantHub>> {
+  try {
+    const session = await requireAuthWithPermission('projects:read');
+    const hub = await getPageantHub(session.companyId, id, session.features);
+    if (!hub) return { success: false, error: 'Proyecto no encontrado' };
+    return { success: true, data: hub };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+export async function updatePublicSiteAction(id: string, input: unknown): Promise<ActionResult<Project>> {
+  try {
+    const session = await requireAuthWithPermission('projects:write');
+    const parsed = projectPublicSiteSchema.safeParse(input);
+    if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
+    if (parsed.data.publicSlug && !(await projectsService.isPublicSlugAvailable(session.companyId, id, parsed.data.publicSlug))) {
+      return { success: false, error: 'Esa dirección ya la usa otro certamen. Prueba agregando el año o la ciudad.' };
+    }
+    const data = await projectsService.updatePublicSite(session.companyId, id, parsed.data);
+    await createAuditLog({
+      companyId: session.companyId,
+      userId: session.id,
+      userEmail: session.email,
+      action: 'UPDATE',
+      entity: 'Project',
+      entityId: id,
+      metadata: { publicSite: { slug: parsed.data.publicSlug, enabled: parsed.data.publicSiteEnabled } },
+    });
+    revalidatePath(`/dashboard/projects/${id}`);
+    if (data.publicSlug) revalidatePath(`/certamen/${data.publicSlug}`);
+    return { success: true, data, message: parsed.data.publicSiteEnabled ? 'Sitio publicado' : 'Configuración guardada' };
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      return { success: false, error: 'Esa dirección ya la usa otro certamen. Prueba agregando el año o la ciudad.' };
+    }
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+export async function checkPublicSlugAction(id: string, slug: string): Promise<ActionResult<{ available: boolean; problem: string | null }>> {
+  try {
+    const session = await requireAuthWithPermission('projects:write');
+    const normalized = String(slug).trim().toLowerCase();
+    const problem = publicSlugProblem(normalized);
+    if (problem) return { success: true, data: { available: false, problem } };
+    const available = await projectsService.isPublicSlugAvailable(session.companyId, id, normalized);
+    return { success: true, data: { available, problem: available ? null : 'Esa dirección ya está en uso' } };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
   }

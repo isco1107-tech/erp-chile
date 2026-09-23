@@ -1,0 +1,271 @@
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
+import { CheckCircle2, ExternalLink, ImagePlus, Wand2, XCircle } from 'lucide-react';
+import type { Project } from '@prisma/client';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { textareaClass } from '@/components/ui/field-classes';
+import { slugify } from '@/lib/events/public-slug';
+import { checkPublicSlugAction, updatePublicSiteAction } from '@/modules/projects/actions/projects.actions';
+import { PUBLIC_ACCENT_LABELS, PUBLIC_ACCENTS, type PublicAccentKey } from '@/modules/projects/schema';
+import { cn } from '@/lib/utils';
+
+/** Muestras de color de los acentos del sistema público (los mismos de `PublicShell`). */
+const ACCENT_SWATCH: Record<PublicAccentKey, string> = {
+  gold: 'linear-gradient(135deg, #e7cd97, #a8823f)',
+  violet: 'linear-gradient(135deg, #b39bff, #6d28d9)',
+  rose: 'linear-gradient(135deg, #fda4b4, #be123c)',
+  cyan: 'linear-gradient(135deg, #67e8f9, #0e7490)',
+  emerald: 'linear-gradient(135deg, #6ee7b7, #047857)',
+};
+
+type Toggle = 'showCandidatesPublic' | 'showSponsorsPublic' | 'showVoteRankingPublic' | 'showResultsPublic' | 'sponsorLeadFormEnabled';
+
+const TOGGLES: Array<{ key: Toggle; label: string; hint: string }> = [
+  { key: 'showCandidatesPublic', label: 'Galería de candidatas', hint: 'Solo oficiales, finalistas y ganadora, con nombre artístico, número, a quién representan, foto y la bio pública.' },
+  { key: 'showSponsorsPublic', label: 'Muro de auspiciadores', hint: 'Marcas con contrato confirmado, agrupadas por nivel.' },
+  { key: 'sponsorLeadFormEnabled', label: 'Formulario "Quiero auspiciar"', hint: 'Cada solicitud entra al CRM como prospecto con tarea de seguimiento (requiere CRM).' },
+  { key: 'showVoteRankingPublic', label: 'Ranking de votación del público', hint: 'Muestra los votos pagados por candidata en vivo.' },
+  { key: 'showResultsPublic', label: 'Resultados oficiales', hint: 'Revela ganadora, finalistas y podio cuando la ronda final esté completada. Actívalo al coronar.' },
+];
+
+export function PublicSiteForm({ project, canWrite }: { project: Project; canWrite: boolean }) {
+  const router = useRouter();
+  const [values, setValues] = useState({
+    publicSlug: project.publicSlug ?? '',
+    publicSiteEnabled: project.publicSiteEnabled,
+    publicTagline: project.publicTagline ?? '',
+    publicDescription: project.publicDescription ?? '',
+    coverImageUrl: project.coverImageUrl ?? '',
+    publicAccent: ((PUBLIC_ACCENTS as readonly string[]).includes(project.publicAccent) ? project.publicAccent : 'gold') as PublicAccentKey,
+    instagramHandle: project.instagramHandle ?? '',
+    publicContactEmail: project.publicContactEmail ?? '',
+    showCandidatesPublic: project.showCandidatesPublic,
+    showSponsorsPublic: project.showSponsorsPublic,
+    showVoteRankingPublic: project.showVoteRankingPublic,
+    showResultsPublic: project.showResultsPublic,
+    sponsorLeadFormEnabled: project.sponsorLeadFormEnabled,
+  });
+  const [slugState, setSlugState] = useState<{ available: boolean; problem: string | null } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const set = <K extends keyof typeof values>(key: K, value: (typeof values)[K]) => setValues((prev) => ({ ...prev, [key]: value }));
+
+  // Verificación de la dirección mientras se escribe (espera 400 ms entre teclas).
+  useEffect(() => {
+    const slug = values.publicSlug.trim();
+    if (!slug || slug === project.publicSlug) {
+      setSlugState(null);
+      return;
+    }
+    const timer = window.setTimeout(async () => {
+      const result = await checkPublicSlugAction(project.id, slug);
+      if (result.success) setSlugState(result.data);
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [values.publicSlug, project.id, project.publicSlug]);
+
+  async function uploadCover(file: File) {
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append('projectId', project.id);
+      form.append('file', file);
+      const res = await fetch('/api/projects/cover-upload', { method: 'POST', body: form });
+      const json = (await res.json()) as { success: boolean; data?: { url: string }; error?: string };
+      if (!json.success || !json.data) {
+        toast.error(json.error ?? 'No se pudo subir la imagen');
+        return;
+      }
+      set('coverImageUrl', json.data.url);
+      toast.success('Portada cargada: guarda para publicarla');
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  }
+
+  async function save() {
+    setSaving(true);
+    try {
+      const result = await updatePublicSiteAction(project.id, values);
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(result.message ?? 'Guardado');
+      router.refresh();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const sitePath = values.publicSlug ? `/certamen/${values.publicSlug}` : null;
+
+  return (
+    <div className="grid grid-cols-1 gap-5 xl:grid-cols-[2fr_1fr]">
+      <div className="space-y-5">
+        <section className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-card">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold">Publicación</h2>
+              <p className="text-xs text-muted-foreground">Mientras esté apagado, el enlace responde &quot;no disponible&quot;.</p>
+            </div>
+            <Switch checked={values.publicSiteEnabled} onCheckedChange={(v) => set('publicSiteEnabled', v)} label="Sitio publicado" disabled={!canWrite} />
+          </div>
+          <div>
+            <Label htmlFor="site-slug">Dirección del sitio</Label>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-muted-foreground">/certamen/</span>
+              <Input id="site-slug" className="max-w-sm flex-1" value={values.publicSlug} onChange={(e) => set('publicSlug', e.target.value.toLowerCase())} placeholder="miss-universe-chile-2026" disabled={!canWrite} />
+              <Button type="button" size="sm" variant="outline" onClick={() => set('publicSlug', slugify(project.name))} disabled={!canWrite}>
+                <Wand2 aria-hidden="true" />
+                Usar el nombre
+              </Button>
+            </div>
+            {slugState && (
+              <p className={cn('mt-1 flex items-center gap-1 text-xs', slugState.available ? 'text-success' : 'text-danger')}>
+                {slugState.available ? <CheckCircle2 className="size-3.5" aria-hidden="true" /> : <XCircle className="size-3.5" aria-hidden="true" />}
+                {slugState.available ? 'Dirección disponible' : slugState.problem}
+              </p>
+            )}
+          </div>
+        </section>
+
+        <section className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-card">
+          <h2 className="text-base font-semibold">Portada y textos</h2>
+          <div>
+            <Label>Imagen de portada</Label>
+            <div className="mt-1 flex flex-wrap items-center gap-3">
+              <div className="relative h-24 w-40 overflow-hidden rounded-md border border-border bg-muted">
+                {values.coverImageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={values.coverImageUrl} alt="Portada del certamen" className="size-full object-cover" />
+                ) : (
+                  <span className="flex size-full items-center justify-center text-xs text-muted-foreground">Sin portada</span>
+                )}
+              </div>
+              {canWrite && (
+                <div className="flex flex-col gap-1.5">
+                  <input ref={fileRef} type="file" accept="image/png,image/jpeg" className="hidden" onChange={(e) => e.target.files?.[0] && void uploadCover(e.target.files[0])} />
+                  <Button type="button" size="sm" variant="outline" disabled={uploading} onClick={() => fileRef.current?.click()}>
+                    <ImagePlus aria-hidden="true" />
+                    {uploading ? 'Subiendo…' : values.coverImageUrl ? 'Cambiar portada' : 'Subir portada'}
+                  </Button>
+                  {values.coverImageUrl && (
+                    <Button type="button" size="sm" variant="ghost" onClick={() => set('coverImageUrl', '')}>
+                      Quitar portada
+                    </Button>
+                  )}
+                  <p className="text-xs text-muted-foreground">JPG o PNG horizontal, hasta 6 MB.</p>
+                </div>
+              )}
+            </div>
+          </div>
+          <div>
+            <Label htmlFor="site-tagline">Frase principal</Label>
+            <Input id="site-tagline" value={values.publicTagline} onChange={(e) => set('publicTagline', e.target.value)} placeholder="La belleza con propósito vuelve a Viña del Mar" disabled={!canWrite} />
+          </div>
+          <div>
+            <Label htmlFor="site-description">Sobre el certamen</Label>
+            <textarea id="site-description" className={cn(textareaClass, 'min-h-32')} value={values.publicDescription} onChange={(e) => set('publicDescription', e.target.value)} placeholder="Historia del certamen, qué se busca en una reina, causa social, premios…" disabled={!canWrite} />
+          </div>
+          <div>
+            <Label>Color de acento</Label>
+            <div className="mt-1 flex flex-wrap gap-2" role="radiogroup" aria-label="Color de acento">
+              {PUBLIC_ACCENTS.map((accent) => (
+                <button
+                  key={accent}
+                  type="button"
+                  role="radio"
+                  aria-checked={values.publicAccent === accent}
+                  disabled={!canWrite}
+                  onClick={() => set('publicAccent', accent)}
+                  className={cn('flex items-center gap-2 rounded-full border px-3 py-1 text-xs', values.publicAccent === accent ? 'border-foreground font-medium' : 'border-border text-muted-foreground')}
+                >
+                  <span className="size-3.5 rounded-full" style={{ background: ACCENT_SWATCH[accent] }} aria-hidden="true" />
+                  {PUBLIC_ACCENT_LABELS[accent]}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="site-ig">Instagram del certamen</Label>
+              <Input id="site-ig" value={values.instagramHandle} onChange={(e) => set('instagramHandle', e.target.value)} placeholder="@misschileoficial" disabled={!canWrite} />
+            </div>
+            <div>
+              <Label htmlFor="site-email">Correo de contacto público</Label>
+              <Input id="site-email" type="email" value={values.publicContactEmail} onChange={(e) => set('publicContactEmail', e.target.value)} placeholder="comercial@…" disabled={!canWrite} />
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-border bg-card p-5 shadow-card">
+          <h2 className="text-base font-semibold">Secciones</h2>
+          <ul className="mt-3 divide-y divide-border">
+            {TOGGLES.map((toggle) => (
+              <li key={toggle.key} className="flex items-start justify-between gap-4 py-3">
+                <div>
+                  <p className="text-sm font-medium">{toggle.label}</p>
+                  <p className="text-xs text-muted-foreground">{toggle.hint}</p>
+                </div>
+                <Switch checked={values[toggle.key]} onCheckedChange={(v) => set(toggle.key, v)} label={toggle.label} disabled={!canWrite} />
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        {canWrite && (
+          <div className="flex gap-2">
+            <Button type="button" onClick={() => void save()} disabled={saving}>
+              {saving ? 'Guardando…' : values.publicSiteEnabled ? 'Guardar y publicar' : 'Guardar'}
+            </Button>
+          </div>
+        )}
+      </div>
+
+      <aside className="space-y-4">
+        <section className="rounded-lg border border-border bg-card p-5 shadow-card">
+          <h2 className="text-base font-semibold">Vista previa</h2>
+          <div className="mt-3 overflow-hidden rounded-lg border border-border bg-foreground text-background">
+            <div className="relative h-32">
+              {values.coverImageUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={values.coverImageUrl} alt="" className="absolute inset-0 size-full object-cover opacity-60" aria-hidden="true" />
+              )}
+              <span className="absolute inset-x-0 bottom-0 h-1" style={{ background: ACCENT_SWATCH[values.publicAccent] }} aria-hidden="true" />
+            </div>
+            <div className="p-4">
+              <p className="text-lg font-semibold">{project.name}</p>
+              {values.publicTagline && <p className="text-sm text-background/70">{values.publicTagline}</p>}
+            </div>
+          </div>
+          {sitePath && project.publicSlug === values.publicSlug && project.publicSiteEnabled ? (
+            <a href={sitePath} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1.5 text-sm text-primary hover:underline">
+              <ExternalLink className="size-4" aria-hidden="true" />
+              Ver el sitio publicado
+            </a>
+          ) : (
+            <p className="mt-3 text-xs text-muted-foreground">Guarda con el sitio publicado para verlo en vivo.</p>
+          )}
+        </section>
+        <section className="rounded-lg border border-border bg-card p-5 text-sm text-muted-foreground shadow-card">
+          <h2 className="text-base font-semibold text-foreground">Qué se muestra</h2>
+          <ul className="mt-2 list-inside list-disc space-y-1">
+            <li>Botones de entradas, votación y postulación aparecen solos cuando cada link está activo.</li>
+            <li>La cuenta regresiva usa la fecha de la gala del certamen.</li>
+            <li>Los planes de auspicio salen del tarifario (solo los marcados como públicos).</li>
+            <li>Nunca se publica RUT, edad, contacto ni ficha de postulación de las candidatas.</li>
+          </ul>
+        </section>
+      </aside>
+    </div>
+  );
+}

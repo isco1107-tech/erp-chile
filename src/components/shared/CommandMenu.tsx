@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import type { Contact } from '@prisma/client';
-import { CreditCard, Package, PackagePlus, Search, UserPlus, Users, type LucideIcon } from 'lucide-react';
+import { CreditCard, Package, PackagePlus, ReceiptText, Search, Target, UserPlus, Users, type LucideIcon } from 'lucide-react';
 import { Dialog, DialogBackdrop, DialogDescription, DialogPortal, DialogTitle } from '@/components/ui/dialog';
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { cn } from '@/lib/utils';
@@ -20,6 +20,8 @@ export interface CommandMenuProps {
   permissions: Permission[];
   features: CompanyFeatureFlags;
   isSuperAdmin: boolean;
+  /** Ítems que la empresa apagó: tampoco deben aparecer en la paleta. */
+  disabledNavItems?: readonly string[];
 }
 
 interface StaticEntry {
@@ -34,6 +36,8 @@ interface StaticEntry {
 
 interface QuickAction extends StaticEntry {
   visible: (permissions: Permission[], features: CompanyFeatureFlags) => boolean;
+  /** Ítem del menú del que depende: si la empresa lo apagó, la acción tampoco se ofrece. */
+  navItem?: string;
 }
 
 const QUICK_ACTIONS: QuickAction[] = [
@@ -44,6 +48,7 @@ const QUICK_ACTIONS: QuickAction[] = [
     icon: CreditCard,
     keywords: ['factura', 'boleta', 'emitir'],
     visible: (permissions, features) => features.hasDteBilling && permissions.includes('sales:write'),
+    navItem: 'sales',
   },
   {
     id: 'action-new-contact',
@@ -52,6 +57,7 @@ const QUICK_ACTIONS: QuickAction[] = [
     icon: UserPlus,
     keywords: ['contacto', 'rut'],
     visible: (permissions) => permissions.includes('contacts:write'),
+    navItem: 'contacts',
   },
   {
     id: 'action-stock-in',
@@ -60,6 +66,25 @@ const QUICK_ACTIONS: QuickAction[] = [
     icon: PackagePlus,
     keywords: ['inventario', 'ingreso', 'bodega'],
     visible: (permissions, features) => features.hasInventory && permissions.includes('inventory:write'),
+    navItem: 'inventory',
+  },
+  {
+    id: 'action-new-opportunity',
+    label: 'Nueva oportunidad comercial',
+    href: '/dashboard/crm?new=1',
+    icon: Target,
+    keywords: ['crm', 'lead', 'prospecto', 'negocio'],
+    visible: (permissions, features) => features.hasSalesPipeline && permissions.includes('crm:write'),
+    navItem: 'crm',
+  },
+  {
+    id: 'action-new-expense',
+    label: 'Rendir un gasto',
+    href: '/dashboard/expenses?new=1',
+    icon: ReceiptText,
+    keywords: ['rendicion', 'reembolso', 'boleta'],
+    visible: (permissions, features) => features.hasExpenseReports && permissions.includes('expenses:submit'),
+    navItem: 'expenses',
   },
 ];
 
@@ -87,7 +112,7 @@ function matches(entry: StaticEntry, normalizedQuery: string): boolean {
 const MAX_LIVE_RESULTS = 5;
 const OPTION_ID_PREFIX = 'command-option-';
 
-export default function CommandMenu({ permissions, features, isSuperAdmin }: CommandMenuProps) {
+export default function CommandMenu({ permissions, features, isSuperAdmin, disabledNavItems }: CommandMenuProps) {
   const router = useRouter();
 
   const [open, setOpen] = React.useState(false);
@@ -104,7 +129,7 @@ export default function CommandMenu({ permissions, features, isSuperAdmin }: Com
   // Mismo registro que la barra lateral: todo módulo visible allá se encuentra acá.
   const visibleModules = React.useMemo<StaticEntry[]>(
     () =>
-      buildWorkspaceNav({ permissions, features, isSuperAdmin }).flatMap((group) =>
+      buildWorkspaceNav({ permissions, features, isSuperAdmin, disabledNavItems }).flatMap((group) =>
         group.links.map((link) => ({
           id: `nav-${link.href}`,
           label: link.label,
@@ -114,11 +139,14 @@ export default function CommandMenu({ permissions, features, isSuperAdmin }: Com
           keywords: link.keywords,
         }))
       ),
-    [permissions, features, isSuperAdmin]
+    [permissions, features, isSuperAdmin, disabledNavItems]
   );
   const visibleActions = React.useMemo(
-    () => QUICK_ACTIONS.filter((item) => item.visible(permissions, features)),
-    [permissions, features]
+    () =>
+      QUICK_ACTIONS.filter(
+        (item) => item.visible(permissions, features) && !(item.navItem && disabledNavItems?.includes(item.navItem))
+      ),
+    [permissions, features, disabledNavItems]
   );
 
   const canSearchContacts = permissions.includes('contacts:read');

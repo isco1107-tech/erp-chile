@@ -41,10 +41,25 @@ import {
   HelpCircle,
   MessageSquare,
   ChevronDown,
+  Radar,
+  ChartSpline,
+  Workflow,
+  Target,
+  IdCard,
+  Banknote,
+  TreePalm,
+  Building2,
+  ReceiptText,
+  CalendarCheck,
+  Contact,
+  BarChart3,
+  Globe,
+  Layers,
+  Sparkles,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { NavGroup, NavIconKey, NavLink } from '@/lib/navigation/workspace-nav';
+import { findNavLinkForPath, type NavGroup, type NavIconKey, type NavLink } from '@/lib/navigation/workspace-nav';
 
 /**
  * Los íconos se resuelven por clave dentro de este componente cliente: una
@@ -89,6 +104,21 @@ export const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   voting: Vote,
   help: HelpCircle,
   messaging: MessageSquare,
+  intelligence: Radar,
+  forecast: ChartSpline,
+  flows: Workflow,
+  crm: Target,
+  employees: IdCard,
+  payroll: Banknote,
+  leave: TreePalm,
+  fixedAssets: Building2,
+  expenses: ReceiptText,
+  crmTasks: CalendarCheck,
+  crmPeople: Contact,
+  crmReports: BarChart3,
+  pageantSite: Globe,
+  packages: Layers,
+  casting: Sparkles,
 };
 
 
@@ -98,14 +128,7 @@ export const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
  * coinciden por prefijo, pero solo el segundo debe marcarse.
  */
 function findActiveHref(groups: NavGroup[], pathname: string): string | null {
-  let best: string | null = null;
-  for (const group of groups) {
-    for (const link of group.links) {
-      const matches = link.exact ? pathname === link.href : pathname === link.href || pathname.startsWith(`${link.href}/`);
-      if (matches && (!best || link.href.length > best.length)) best = link.href;
-    }
-  }
-  return best;
+  return findNavLinkForPath(groups.flatMap((group) => group.links), pathname)?.href ?? null;
 }
 
 export function SidebarNav({ groups }: { groups: NavGroup[] }) {

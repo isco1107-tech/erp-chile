@@ -187,6 +187,66 @@ export const WORKFLOW_TRIGGER_DEFINITIONS: Record<WorkflowTriggerEvent, Workflow
       { field: 'totalAmount', label: 'Monto del contrato', kind: 'number' },
     ],
   },
+  OPPORTUNITY_WON: {
+    event: 'OPPORTUNITY_WON',
+    label: 'Oportunidad ganada (CRM)',
+    description: 'Una oportunidad del embudo comercial se marcó como ganada.',
+    fields: [
+      { field: 'opportunityId', label: 'ID de la oportunidad', kind: 'string' },
+      { field: 'title', label: 'Oportunidad', kind: 'string' },
+      { field: 'clientName', label: 'Cliente', kind: 'string' },
+      { field: 'amount', label: 'Monto', kind: 'number' },
+      { field: 'ownerName', label: 'Vendedor', kind: 'string' },
+    ],
+  },
+  EXPENSE_REPORT_SUBMITTED: {
+    event: 'EXPENSE_REPORT_SUBMITTED',
+    label: 'Rendición de gastos enviada',
+    description: 'Un colaborador envió una rendición de gastos para aprobación.',
+    fields: [
+      { field: 'reportId', label: 'ID de la rendición', kind: 'string' },
+      { field: 'title', label: 'Rendición', kind: 'string' },
+      { field: 'submitterName', label: 'Rendida por', kind: 'string' },
+      { field: 'totalAmount', label: 'Total', kind: 'number' },
+      { field: 'itemCount', label: 'Cantidad de gastos', kind: 'number' },
+    ],
+  },
+  LEAVE_REQUESTED: {
+    event: 'LEAVE_REQUESTED',
+    label: 'Solicitud de vacaciones o permiso',
+    description: 'Se registró una solicitud de vacaciones, licencia o permiso que espera aprobación.',
+    fields: [
+      { field: 'requestId', label: 'ID de la solicitud', kind: 'string' },
+      { field: 'employeeName', label: 'Trabajador', kind: 'string' },
+      { field: 'type', label: 'Tipo', kind: 'string' },
+      { field: 'businessDays', label: 'Días hábiles', kind: 'number' },
+      { field: 'startDate', label: 'Desde', kind: 'string' },
+    ],
+  },
+  PAYROLL_CLOSED: {
+    event: 'PAYROLL_CLOSED',
+    label: 'Remuneraciones del mes cerradas',
+    description: 'Se cerró un período de remuneraciones y sus liquidaciones quedaron congeladas.',
+    fields: [
+      { field: 'periodLabel', label: 'Período', kind: 'string' },
+      { field: 'employeeCount', label: 'Trabajadores', kind: 'number' },
+      { field: 'totalNetPay', label: 'Total líquido a pagar', kind: 'number' },
+      { field: 'totalEmployerCost', label: 'Costo empresa', kind: 'number' },
+    ],
+  },
+  CRM_LEAD_RECEIVED: {
+    event: 'CRM_LEAD_RECEIVED',
+    label: 'Prospecto de auspicio desde el sitio del certamen',
+    description: 'Una marca completó el formulario "Quiero auspiciar" del micrositio público y quedó como oportunidad en el CRM.',
+    fields: [
+      { field: 'opportunityId', label: 'ID de la oportunidad', kind: 'string' },
+      { field: 'projectName', label: 'Certamen', kind: 'string' },
+      { field: 'companyName', label: 'Marca / empresa', kind: 'string' },
+      { field: 'contactName', label: 'Nombre de contacto', kind: 'string' },
+      { field: 'contactEmail', label: 'Correo de contacto', kind: 'string' },
+      { field: 'packageName', label: 'Plan de interés', kind: 'string' },
+    ],
+  },
 };
 
 export const WORKFLOW_ACTION_TYPE_LABELS: Record<WorkflowActionType, string> = {

@@ -37,6 +37,11 @@ export type FeatureKey = keyof Pick<
   | 'hasInstallmentPlans'
   | 'hasTicketing'
   | 'hasPublicVoting'
+  | 'hasIntelligence'
+  | 'hasSalesPipeline'
+  | 'hasPayroll'
+  | 'hasFixedAssets'
+  | 'hasExpenseReports'
 >;
 
 export type CompanyFeatureFlags = Record<FeatureKey, boolean>;
@@ -125,7 +130,8 @@ export const MODULES: ModuleDefinition[] = [
   {
     key: 'hasAccounting',
     label: 'Contabilidad',
-    description: 'Plan de cuentas, asientos, libro mayor, estados financieros y ratios.',
+    description:
+      'Asientos automáticos desde ventas, compras, pagos e inventario, libro diario y mayor, balance, cuadraturas y estados financieros. Al activarla se crea el plan de cuentas base.',
     permissions: [
       'accounting:view',
       'accounting:post',
@@ -146,14 +152,15 @@ export const MODULES: ModuleDefinition[] = [
   {
     key: 'hasEventProjects',
     label: 'Eventos & Proyectos',
-    description: 'Centros de costo por certamen: presupuesto, ingresos y gastos vinculados.',
+    description:
+      'Centro de mando por certamen (checklist de preparación, indicadores de cada módulo, finanzas con entradas y votos) y micrositio público con cuenta regresiva, candidatas, auspiciadores y resultados.',
     permissions: ['projects:read', 'projects:write'],
     routes: ['/dashboard/projects'],
   },
   {
     key: 'hasSponsorships',
     label: 'Auspicios & Marcas',
-    description: 'Contratos de auspicio en efectivo o canje, con checklist de entregables por marca.',
+    description: 'Tarifario de auspicios por certamen (planes, cupos y beneficios) y contratos en efectivo o canje con checklist de entregables por marca.',
     permissions: ['sponsorships:read', 'sponsorships:write'],
     routes: ['/dashboard/sponsorships'],
   },
@@ -180,8 +187,9 @@ export const MODULES: ModuleDefinition[] = [
   },
   {
     key: 'hasLiveProduction',
-    label: 'Acreditaciones',
-    description: 'Acreditación de staff y proveedores con código QR y control de acceso por certamen.',
+    label: 'Producción en Vivo',
+    description:
+      'Escaleta minuto a minuto con modo show (tiempo real, atraso acumulado, pies técnicos), vestuario por candidata y bloque, y acreditación de staff con código QR.',
     permissions: ['production:read', 'production:write', 'production:design'],
     routes: ['/dashboard/production'],
   },
@@ -234,6 +242,44 @@ export const MODULES: ModuleDefinition[] = [
     permissions: ['publicvoting:read', 'publicvoting:write'],
     routes: ['/dashboard/voting'],
   },
+  {
+    key: 'hasIntelligence',
+    label: 'Centro de Inteligencia 360',
+    description:
+      'Radiografía completa de la empresa: puntaje de salud, ciclo de caja, proyecciones, clientes RFM, productos ABC, caja a 13 semanas, simulador y flujos del negocio.',
+    permissions: ['intelligence:view'],
+    routes: ['/dashboard/intelligence'],
+  },
+  {
+    key: 'hasSalesPipeline',
+    label: 'CRM Comercial',
+    description:
+      'CRM para productoras: embudo por tipo de negocio (auspicios, eventos, entradas corporativas, presentaciones), contactos, agenda, reportes, exportación y conversión de auspicios ganados en contrato.',
+    permissions: ['crm:read', 'crm:write'],
+    routes: ['/dashboard/crm'],
+  },
+  {
+    key: 'hasPayroll',
+    label: 'Personas & Remuneraciones',
+    description:
+      'Ficha de trabajadores, liquidaciones de sueldo con AFP, salud, cesantía e impuesto único, vacaciones con aprobación y libro de remuneraciones.',
+    permissions: ['payroll:read', 'payroll:write', 'payroll:close', 'leave:approve'],
+    routes: ['/dashboard/hr'],
+  },
+  {
+    key: 'hasFixedAssets',
+    label: 'Activo Fijo',
+    description: 'Registro de bienes de uso con depreciación lineal o acelerada y valor libro al día.',
+    permissions: ['assets:read', 'assets:write'],
+    routes: ['/dashboard/fixed-assets'],
+  },
+  {
+    key: 'hasExpenseReports',
+    label: 'Rendición de Gastos',
+    description: 'Cada colaborador rinde sus gastos; jefatura aprueba o rechaza y finanzas registra el reembolso.',
+    permissions: ['expenses:submit', 'expenses:approve', 'expenses:reimburse'],
+    routes: ['/dashboard/expenses'],
+  },
 ];
 
 export const MODULE_KEYS: FeatureKey[] = MODULES.map((m) => m.key);
@@ -267,6 +313,11 @@ export const DEFAULT_FEATURES: CompanyFeatureFlags = {
   hasInstallmentPlans: false,
   hasTicketing: false,
   hasPublicVoting: false,
+  hasIntelligence: false,
+  hasSalesPipeline: false,
+  hasPayroll: false,
+  hasFixedAssets: false,
+  hasExpenseReports: false,
 };
 
 /** Índice inverso permiso → módulo, construido una vez al cargar el módulo. */
@@ -313,6 +364,11 @@ export function toFeatureFlags(features: CompanyFeatures | null): CompanyFeature
     hasInstallmentPlans: features.hasInstallmentPlans,
     hasTicketing: features.hasTicketing,
     hasPublicVoting: features.hasPublicVoting,
+    hasIntelligence: features.hasIntelligence,
+    hasSalesPipeline: features.hasSalesPipeline,
+    hasPayroll: features.hasPayroll,
+    hasFixedAssets: features.hasFixedAssets,
+    hasExpenseReports: features.hasExpenseReports,
   };
 }
 

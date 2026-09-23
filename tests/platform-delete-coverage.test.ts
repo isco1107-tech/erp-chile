@@ -51,6 +51,24 @@ const CASCADES_TO_COMPANY = new Set([
   'WorkflowExecution',
   'WorkflowNotification',
   'JobPosition',
+  // Módulos CRM, Remuneraciones, Activo fijo y Rendiciones: todos con
+  // `onDelete: Cascade` directo hacia Company. Sus FKs hacia Contact, User y
+  // Project son `SetNull`, así que el `deleteMany` explícito de esos padres
+  // en `hardDeleteTenant` no las bloquea.
+  'Opportunity',
+  'CrmActivity',
+  // Suite de certámenes + CRM v2: `onDelete: Cascade` directo hacia Company.
+  // CrmPerson → Contact es `SetNull`; SponsorshipPackage también cascadea
+  // desde Project, y sus hijos (contratos, oportunidades) apuntan con `SetNull`.
+  'CrmPerson',
+  'SponsorshipPackage',
+  'Employee',
+  'PayrollPeriod',
+  'Payslip',
+  'LeaveRequest',
+  'FixedAsset',
+  'ExpenseReport',
+  'ExpenseItem',
 ]);
 
 /** Cascadean desde `Project`, que se borra explícito en `hardDeleteTenant`. */

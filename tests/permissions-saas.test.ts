@@ -45,6 +45,11 @@ const FULL: CompanyFeatureFlags = {
   hasInstallmentPlans: true,
   hasTicketing: true,
   hasPublicVoting: true,
+  hasIntelligence: true,
+  hasSalesPipeline: true,
+  hasPayroll: true,
+  hasFixedAssets: true,
+  hasExpenseReports: true,
 };
 
 const STARTER: CompanyFeatureFlags = { ...DEFAULT_FEATURES };

@@ -18,6 +18,15 @@ function toDateInputValue(date: Date | string | null | undefined): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** `Date` → `datetime-local` en la hora local del navegador. */
+function toDateTimeInputValue(date: Date | string | null | undefined): string {
+  if (!date) return '';
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 interface ProjectFormProps {
   editingProject: Project | null;
 }
@@ -33,6 +42,9 @@ export default function ProjectForm({ editingProject }: ProjectFormProps) {
     endDate: toDateInputValue(editingProject?.endDate),
     status: (editingProject?.status ?? 'PLANNING') as ProjectStatus,
     notes: editingProject?.notes ?? '',
+    galaDate: toDateTimeInputValue(editingProject?.galaDate),
+    venueName: editingProject?.venueName ?? '',
+    venueAddress: editingProject?.venueAddress ?? '',
   }));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -54,6 +66,9 @@ export default function ProjectForm({ editingProject }: ProjectFormProps) {
       endDate: form.endDate || undefined,
       status: form.status,
       notes: form.notes || undefined,
+      galaDate: form.galaDate ? new Date(form.galaDate).toISOString() : null,
+      venueName: form.venueName,
+      venueAddress: form.venueAddress,
     };
 
     const schema = editingProject ? projectUpdateSchema : projectCreateSchema;
@@ -161,6 +176,22 @@ export default function ProjectForm({ editingProject }: ProjectFormProps) {
               <option key={status} value={status}>{PROJECT_STATUS_LABELS[status]}</option>
             ))}
           </select>
+        </div>
+
+        <div>
+          <Label htmlFor="galaDate">Fecha y hora de la gala final</Label>
+          <Input id="galaDate" type="datetime-local" value={form.galaDate} onChange={(e) => update('galaDate', e.target.value)} />
+          <p className="mt-1 text-xs text-muted-foreground">Alimenta la cuenta regresiva del sitio y el checklist de preparación.</p>
+        </div>
+
+        <div>
+          <Label htmlFor="venueName">Recinto</Label>
+          <Input id="venueName" value={form.venueName} onChange={(e) => update('venueName', e.target.value)} placeholder="Teatro Municipal de Viña del Mar" />
+        </div>
+
+        <div className="sm:col-span-2">
+          <Label htmlFor="venueAddress">Dirección del recinto</Label>
+          <Input id="venueAddress" value={form.venueAddress} onChange={(e) => update('venueAddress', e.target.value)} />
         </div>
 
         <div className="sm:col-span-2">

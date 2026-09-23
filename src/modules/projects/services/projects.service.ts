@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import type { Project } from '@prisma/client';
-import type { ProjectCreateInput, ProjectUpdateInput } from '../schema';
+import type { ProjectCreateInput, ProjectPublicSiteInput, ProjectUpdateInput } from '../schema';
 
 export async function createProject(companyId: string, data: ProjectCreateInput): Promise<Project> {
   return prisma.project.create({
@@ -14,6 +14,9 @@ export async function createProject(companyId: string, data: ProjectCreateInput)
       endDate: data.endDate,
       status: data.status,
       notes: data.notes,
+      galaDate: data.galaDate,
+      venueName: data.venueName === undefined ? undefined : data.venueName || null,
+      venueAddress: data.venueAddress === undefined ? undefined : data.venueAddress || null,
     },
   });
 }
@@ -33,6 +36,9 @@ export async function updateProject(companyId: string, id: string, data: Project
       endDate: data.endDate,
       status: data.status,
       notes: data.notes,
+      galaDate: data.galaDate,
+      venueName: data.venueName === undefined ? undefined : data.venueName || null,
+      venueAddress: data.venueAddress === undefined ? undefined : data.venueAddress || null,
     },
   });
   if (result.count === 0) throw new Error('Proyecto no encontrado');
@@ -86,4 +92,23 @@ export async function deleteProject(companyId: string, id: string): Promise<void
 
   const result = await prisma.project.deleteMany({ where: { id, companyId } });
   if (result.count === 0) throw new Error('Proyecto no encontrado');
+}
+
+/**
+ * Configuración del micrositio público. La dirección es única en toda la
+ * plataforma: si otra empresa ya la usa, Prisma lanza P2002 y la acción lo
+ * traduce a un mensaje accionable.
+ */
+export async function updatePublicSite(companyId: string, id: string, data: ProjectPublicSiteInput): Promise<Project> {
+  const result = await prisma.project.updateMany({ where: { id, companyId }, data });
+  if (result.count === 0) throw new Error('Proyecto no encontrado');
+  const project = await prisma.project.findFirst({ where: { id, companyId } });
+  if (!project) throw new Error('Proyecto no encontrado');
+  return project;
+}
+
+/** ¿Está libre esta dirección? (la propia del proyecto cuenta como libre). */
+export async function isPublicSlugAvailable(companyId: string, projectId: string, slug: string): Promise<boolean> {
+  const taken = await prisma.project.findUnique({ where: { publicSlug: slug }, select: { id: true, companyId: true } });
+  return !taken || (taken.id === projectId && taken.companyId === companyId);
 }

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { validateRut } from '@/lib/chile/rut';
 
 export const PAYMENT_PLAN_FREQUENCIES = ['WEEKLY', 'BIWEEKLY', 'MONTHLY'] as const;
 
@@ -100,3 +101,53 @@ export const installmentPaymentSchema = z.object({
 });
 
 export type InstallmentPaymentInput = z.infer<typeof installmentPaymentSchema>;
+
+// ---------------------------------------------------------------------------
+// Pago en línea desde el portal público (`/pagar/[token]`)
+// ---------------------------------------------------------------------------
+
+const rutField = z
+  .string()
+  .trim()
+  .min(3, 'Ingresa el RUT de la candidata')
+  .max(15, 'RUT inválido')
+  .refine((value) => validateRut(value), 'El RUT no es válido. Revisa el dígito verificador.');
+
+/** Paso 1 del portal: la "credencial" es solo el RUT de la candidata. */
+export const publicInstallmentLookupSchema = z.object({ rut: rutField });
+
+export type PublicInstallmentLookupInput = z.infer<typeof publicInstallmentLookupSchema>;
+
+/**
+ * Paso 2: qué cuotas paga y a quién se envía el comprobante. El RUT viaja de
+ * nuevo porque el portal no guarda sesión: el servidor vuelve a comprobar que
+ * cada cuota pertenezca a esa candidata dentro de la empresa del token. El
+ * monto NUNCA viene del cliente: sale del saldo de cada cuota.
+ */
+export const publicInstallmentCheckoutSchema = z.object({
+  rut: rutField,
+  installmentIds: z
+    .array(z.string().min(1))
+    .min(1, 'Selecciona al menos una cuota')
+    .max(24, 'Máximo 24 cuotas por pago')
+    .refine((ids) => new Set(ids).size === ids.length, 'Hay cuotas repetidas en la selección'),
+  payerName: z.string().trim().min(2, 'Tu nombre es obligatorio').max(120, 'Máximo 120 caracteres'),
+  payerEmail: z.string().trim().email('Correo inválido').max(180, 'Máximo 180 caracteres'),
+});
+
+export type PublicInstallmentCheckoutInput = z.infer<typeof publicInstallmentCheckoutSchema>;
+
+/** Honeypot del portal — mismo criterio que `TICKET_PURCHASE_HONEYPOT_FIELD`. */
+export const INSTALLMENT_PORTAL_HONEYPOT_FIELD = 'website';
+
+/** API key de Khipu desde el panel. `null` la borra (desactiva el cobro en línea). */
+export const khipuCredentialSchema = z.object({
+  apiKey: z.string().trim().min(10, 'La API key de Khipu parece incompleta').max(200, 'API key demasiado larga').nullable(),
+});
+
+export const ONLINE_PAYMENT_STATUS_LABELS: Record<'PENDING' | 'PAID' | 'FAILED' | 'EXPIRED', string> = {
+  PENDING: 'En curso',
+  PAID: 'Pagado',
+  FAILED: 'Fallido',
+  EXPIRED: 'Vencido',
+};

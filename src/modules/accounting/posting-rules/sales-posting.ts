@@ -1,7 +1,7 @@
 import type { DteType, SalesDocument } from '@prisma/client';
 import { DTE_TYPE_LABELS } from '@/modules/sales/schema';
 import { createAndPostEntry, resolveMappedAccountId, type JournalLineInput, type TxClient } from '../services/journal.service';
-import { invertLines, reverseDocumentEntries } from './shared';
+import { invertLines, reverseDocumentEntries, isLedgerActive } from './shared';
 
 /**
  * Reglas de asiento del ciclo de ventas (`PROMPT_ERP_V2.md`, Fase C.1).
@@ -93,6 +93,8 @@ export async function postSalesDocumentIssued(
   costedItems: { unitCostPMP: number; quantity: number }[],
   opts: { isImmediatePayment: boolean; affectsStock: boolean; createdByUserId?: string }
 ): Promise<void> {
+  // Contabilidad apagada o sin plan de cuentas: la operación sigue, sin asiento.
+  if (!(await isLedgerActive(tx, companyId))) return;
   if (!REVENUE_DTE_TYPES.includes(doc.dteType)) return;
 
   const accounts = await resolveSalesAccounts(tx, companyId, doc.ivaAmount, opts.isImmediatePayment ? 'CAJA' : 'CLIENTES');
@@ -149,6 +151,8 @@ export async function postCreditNoteIssued(
   restockedItems: { unitCostPMP: number; quantity: number }[],
   opts: { createdByUserId?: string }
 ): Promise<void> {
+  // Contabilidad apagada o sin plan de cuentas: la operación sigue, sin asiento.
+  if (!(await isLedgerActive(tx, companyId))) return;
   const accounts = await resolveSalesAccounts(tx, companyId, doc.ivaAmount, 'CLIENTES');
   const label = DTE_TYPE_LABELS[doc.dteType];
 

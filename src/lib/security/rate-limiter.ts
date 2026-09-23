@@ -180,6 +180,15 @@ export const TICKET_PURCHASE_RATE_LIMIT: RateLimitConfig = {
   windowMs: 60 * 60_000,
 };
 
+/** Formulario "Quiero auspiciar" del micrositio de un certamen
+ * (`/api/public/pageants/[slug]/sponsor-lead`): pocas solicitudes legítimas
+ * por hora desde una misma conexión; más que eso es spam contra el CRM. */
+export const SPONSOR_LEAD_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'sponsor-lead-ip',
+  limit: 5,
+  windowMs: 60 * 60_000,
+};
+
 /** Compra pública de votos (`/api/public/votes/[token]/purchase`): mismo
  * criterio que `TICKET_PURCHASE_RATE_LIMIT`. */
 export const VOTE_PURCHASE_RATE_LIMIT: RateLimitConfig = {
@@ -234,4 +243,29 @@ export const SALES_LEAD_RATE_LIMIT: RateLimitConfig = {
   prefix: 'sales-lead-ip',
   limit: 5,
   windowMs: 60 * 60_000,
+};
+
+/** Portal público de pago de cuotas, consulta por RUT
+ * (`/api/public/installments/[token]/lookup`): el RUT no es secreto, así que
+ * el límite apunta a frenar el barrido de RUTs, no a una familia que
+ * consulta varias veces. */
+export const INSTALLMENT_LOOKUP_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'installment-lookup-ip',
+  limit: 30,
+  windowMs: 15 * 60_000,
+};
+
+/** Portal público de pago de cuotas, creación del cobro en la pasarela. */
+export const INSTALLMENT_CHECKOUT_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'installment-checkout-ip',
+  limit: 10,
+  windowMs: 60 * 60_000,
+};
+
+/** Página de estado del pago: cada consulta de una orden en curso pregunta a
+ * Khipu, y la página refresca sola unos minutos mientras espera. */
+export const INSTALLMENT_STATUS_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'installment-status-ip',
+  limit: 120,
+  windowMs: 10 * 60_000,
 };

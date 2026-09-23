@@ -1,9 +1,12 @@
 import { prisma } from '@/lib/prisma';
-import type { AccreditationLevel, BadgeTemplate, StaffAccreditation, StageTimelineItem, WardrobeItem } from '@prisma/client';
+import type { AccreditationLevel, BadgeTemplate, CandidateStatus, StaffAccreditation, StageTimelineItem, WardrobeItem } from '@prisma/client';
+import { chainStartTimes } from '@/lib/events/run-of-show';
+import { STAGE_SEGMENT_META } from '../schema';
 import type {
   BadgeTemplateCreateInput,
   BadgeTemplateUpdateInput,
   StaffAccreditationCreateInput,
+  StageLiveAction,
   StageTimelineItemCreateInput,
   StageTimelineItemUpdateInput,
   WardrobeItemCreateInput,
@@ -20,12 +23,30 @@ async function assertBadgeTemplateOwnership(companyId: string, projectId: string
   if (!template) throw new Error('La plantilla de diseño no existe o no pertenece a este proyecto');
 }
 
+/**
+ * La candidata de un bloque o de una prenda tiene que ser del MISMO
+ * certamen y de la misma empresa. Sin esto, un id adivinado de otra empresa
+ * quedaba colgado del bloque y su nombre aparecía en la escaleta ajena.
+ */
+async function assertCandidateInProject(companyId: string, projectId: string, candidateId: string | null | undefined): Promise<void> {
+  if (!candidateId) return;
+  const found = await prisma.candidate.findFirst({ where: { id: candidateId, companyId, projectId }, select: { id: true } });
+  if (!found) throw new Error('La candidata no existe o no pertenece a este certamen');
+}
+
+async function assertStageItemInProject(companyId: string, projectId: string, stageItemId: string | null | undefined): Promise<void> {
+  if (!stageItemId) return;
+  const found = await prisma.stageTimelineItem.findFirst({ where: { id: stageItemId, companyId, projectId }, select: { id: true } });
+  if (!found) throw new Error('El bloque de escaleta no existe o no pertenece a este certamen');
+}
+
 // ---------------------------------------------------------------------------
 // Escaleta (StageTimelineItem)
 // ---------------------------------------------------------------------------
 
 export async function createStageItem(companyId: string, data: StageTimelineItemCreateInput): Promise<StageTimelineItem> {
   await assertProjectOwnership(companyId, data.projectId);
+  await assertCandidateInProject(companyId, data.projectId, data.candidateId);
 
   const last = await prisma.stageTimelineItem.findFirst({
     where: { companyId, projectId: data.projectId },
@@ -43,23 +64,38 @@ export async function createStageItem(companyId: string, data: StageTimelineItem
       title: data.title,
       description: data.description || undefined,
       candidateId: data.candidateId || undefined,
+      segmentType: data.segmentType,
+      responsible: data.responsible || undefined,
+      audioCue: data.audioCue || undefined,
+      lightingCue: data.lightingCue || undefined,
+      videoCue: data.videoCue || undefined,
     },
   });
 }
 
+const blank = (value: string | undefined) => (value === '' ? null : value);
+
 export async function updateStageItem(companyId: string, id: string, data: StageTimelineItemUpdateInput): Promise<StageTimelineItem> {
-  const result = await prisma.stageTimelineItem.updateMany({
+  const existing = await prisma.stageTimelineItem.findFirst({ where: { id, companyId }, select: { projectId: true } });
+  if (!existing) throw new Error('Bloque de escaleta no encontrado');
+  await assertCandidateInProject(companyId, existing.projectId, data.candidateId);
+
+  await prisma.stageTimelineItem.updateMany({
     where: { id, companyId },
     data: {
       startTime: data.startTime,
       durationMinutes: data.durationMinutes,
       title: data.title,
-      description: data.description === '' ? null : data.description,
-      candidateId: data.candidateId === '' ? null : data.candidateId,
+      description: blank(data.description),
+      candidateId: blank(data.candidateId),
       status: data.status,
+      segmentType: data.segmentType,
+      responsible: blank(data.responsible),
+      audioCue: blank(data.audioCue),
+      lightingCue: blank(data.lightingCue),
+      videoCue: blank(data.videoCue),
     },
   });
-  if (result.count === 0) throw new Error('Bloque de escaleta no encontrado');
 
   const updated = await prisma.stageTimelineItem.findFirst({ where: { id, companyId } });
   if (!updated) throw new Error('Bloque de escaleta no encontrado');
@@ -97,17 +133,132 @@ export async function moveStageItem(companyId: string, projectId: string, id: st
   ]);
 }
 
+/** Copia un bloque al final de la escaleta (los tiempos reales y el estado no se copian). */
+export async function duplicateStageItem(companyId: string, id: string): Promise<StageTimelineItem> {
+  const source = await prisma.stageTimelineItem.findFirst({ where: { id, companyId } });
+  if (!source) throw new Error('Bloque de escaleta no encontrado');
+  const last = await prisma.stageTimelineItem.findFirst({
+    where: { companyId, projectId: source.projectId },
+    orderBy: { blockOrder: 'desc' },
+    select: { blockOrder: true, startTime: true, durationMinutes: true },
+  });
+  const startTime = last ? new Date(last.startTime.getTime() + last.durationMinutes * 60_000) : source.startTime;
+  return prisma.stageTimelineItem.create({
+    data: {
+      companyId,
+      projectId: source.projectId,
+      blockOrder: (last?.blockOrder ?? 0) + 1,
+      startTime,
+      durationMinutes: source.durationMinutes,
+      title: `${source.title} (copia)`.slice(0, 160),
+      description: source.description,
+      candidateId: source.candidateId,
+      segmentType: source.segmentType,
+      responsible: source.responsible,
+      audioCue: source.audioCue,
+      lightingCue: source.lightingCue,
+      videoCue: source.videoCue,
+    },
+  });
+}
+
 export async function deleteStageItem(companyId: string, id: string): Promise<void> {
   const result = await prisma.stageTimelineItem.deleteMany({ where: { id, companyId } });
   if (result.count === 0) throw new Error('Bloque de escaleta no encontrado');
 }
 
-export type StageTimelineItemWithCandidate = StageTimelineItem & { candidate: { id: string; fullName: string; stageName: string | null } | null };
+/**
+ * Controles del modo show. Poner un bloque "al aire" cierra el que estaba al
+ * aire (solo puede haber uno), todo en una transacción para que dos
+ * pantallas de control no dejen dos bloques en curso a la vez.
+ */
+export async function applyStageLiveAction(companyId: string, id: string, action: StageLiveAction): Promise<void> {
+  const item = await prisma.stageTimelineItem.findFirst({ where: { id, companyId } });
+  if (!item) throw new Error('Bloque de escaleta no encontrado');
+  const now = new Date();
+
+  await prisma.$transaction(async (tx) => {
+    if (action === 'start') {
+      await tx.stageTimelineItem.updateMany({
+        where: { companyId, projectId: item.projectId, status: 'IN_PROGRESS', NOT: { id } },
+        data: { status: 'DONE', actualEndedAt: now },
+      });
+      await tx.stageTimelineItem.updateMany({ where: { id, companyId }, data: { status: 'IN_PROGRESS', actualStartedAt: now, actualEndedAt: null } });
+    } else if (action === 'finish') {
+      await tx.stageTimelineItem.updateMany({
+        where: { id, companyId },
+        data: { status: 'DONE', actualStartedAt: item.actualStartedAt ?? now, actualEndedAt: now },
+      });
+    } else if (action === 'skip') {
+      await tx.stageTimelineItem.updateMany({ where: { id, companyId }, data: { status: 'SKIPPED', actualStartedAt: null, actualEndedAt: null } });
+    } else {
+      await tx.stageTimelineItem.updateMany({ where: { id, companyId }, data: { status: 'PENDING', actualStartedAt: null, actualEndedAt: null } });
+    }
+  });
+}
+
+/**
+ * "Siguiente bloque": cierra el que está al aire y pone al aire el primer
+ * pendiente que viene después. Es el botón que se aprieta en vivo.
+ * Devuelve el id del bloque que quedó al aire, o `null` si el show terminó.
+ */
+export async function advanceShow(companyId: string, projectId: string): Promise<string | null> {
+  await assertProjectOwnership(companyId, projectId);
+  const items = await prisma.stageTimelineItem.findMany({
+    where: { companyId, projectId },
+    orderBy: { blockOrder: 'asc' },
+    select: { id: true, status: true, actualStartedAt: true },
+  });
+  const currentIndex = items.findIndex((i) => i.status === 'IN_PROGRESS');
+  const next = items.find((i, index) => i.status === 'PENDING' && index > currentIndex);
+  const now = new Date();
+
+  await prisma.$transaction(async (tx) => {
+    if (currentIndex !== -1) {
+      const current = items[currentIndex]!;
+      await tx.stageTimelineItem.updateMany({
+        where: { id: current.id, companyId, status: 'IN_PROGRESS' },
+        data: { status: 'DONE', actualStartedAt: current.actualStartedAt ?? now, actualEndedAt: now },
+      });
+    }
+    if (next) {
+      await tx.stageTimelineItem.updateMany({ where: { id: next.id, companyId }, data: { status: 'IN_PROGRESS', actualStartedAt: now, actualEndedAt: null } });
+    }
+  });
+
+  return next?.id ?? null;
+}
+
+/** Reprograma las horas de inicio en cadena (cada bloque parte cuando termina el anterior). */
+export async function chainStageSchedule(companyId: string, projectId: string, firstStart: Date): Promise<number> {
+  await assertProjectOwnership(companyId, projectId);
+  const items = await prisma.stageTimelineItem.findMany({
+    where: { companyId, projectId },
+    orderBy: { blockOrder: 'asc' },
+    select: { id: true, startTime: true, durationMinutes: true },
+  });
+  const changes = chainStartTimes(items, firstStart);
+  if (changes.length === 0) return 0;
+  await prisma.$transaction(changes.map((c) => prisma.stageTimelineItem.updateMany({ where: { id: c.id, companyId }, data: { startTime: c.startTime } })));
+  return changes.length;
+}
+
+export type StageTimelineItemWithCandidate = StageTimelineItem & {
+  candidate: { id: string; fullName: string; stageName: string | null; candidateNumber: number | null; representing: string | null } | null;
+  wardrobeItems: Array<{ id: string; name: string; status: WardrobeItem['status']; candidate: { fullName: string; stageName: string | null; candidateNumber: number | null } | null }>;
+};
 
 export async function listStageItems(companyId: string, projectId: string): Promise<StageTimelineItemWithCandidate[]> {
   return prisma.stageTimelineItem.findMany({
     where: { companyId, projectId },
-    include: { candidate: { select: { id: true, fullName: true, stageName: true } } },
+    include: {
+      candidate: { select: { id: true, fullName: true, stageName: true, candidateNumber: true, representing: true } },
+      wardrobeItems: {
+        where: { companyId },
+        select: { id: true, name: true, status: true, candidate: { select: { fullName: true, stageName: true, candidateNumber: true } } },
+        orderBy: { createdAt: 'asc' },
+      },
+    },
     orderBy: { blockOrder: 'asc' },
   });
 }
@@ -118,6 +269,10 @@ export async function listStageItems(companyId: string, projectId: string): Prom
 
 export async function createWardrobeItem(companyId: string, data: WardrobeItemCreateInput): Promise<WardrobeItem> {
   await assertProjectOwnership(companyId, data.projectId);
+  await Promise.all([
+    assertCandidateInProject(companyId, data.projectId, data.candidateId),
+    assertStageItemInProject(companyId, data.projectId, data.stageTimelineItemId),
+  ]);
   return prisma.wardrobeItem.create({
     data: {
       companyId,
@@ -128,23 +283,41 @@ export async function createWardrobeItem(companyId: string, data: WardrobeItemCr
       candidateId: data.candidateId || undefined,
       status: data.status,
       notes: data.notes || undefined,
+      source: data.source,
+      size: data.size || undefined,
+      color: data.color || undefined,
+      valuation: data.valuation ?? undefined,
+      fittingAt: data.fittingAt ?? undefined,
+      returnDueAt: data.returnDueAt ?? undefined,
     },
   });
 }
 
 export async function updateWardrobeItem(companyId: string, id: string, data: WardrobeItemUpdateInput): Promise<WardrobeItem> {
-  const result = await prisma.wardrobeItem.updateMany({
+  const existing = await prisma.wardrobeItem.findFirst({ where: { id, companyId }, select: { projectId: true } });
+  if (!existing) throw new Error('Prenda no encontrada');
+  await Promise.all([
+    assertCandidateInProject(companyId, existing.projectId, data.candidateId),
+    assertStageItemInProject(companyId, existing.projectId, data.stageTimelineItemId),
+  ]);
+
+  await prisma.wardrobeItem.updateMany({
     where: { id, companyId },
     data: {
       name: data.name,
-      designer: data.designer === '' ? null : data.designer,
-      stageTimelineItemId: data.stageTimelineItemId === '' ? null : data.stageTimelineItemId,
-      candidateId: data.candidateId === '' ? null : data.candidateId,
+      designer: blank(data.designer),
+      stageTimelineItemId: blank(data.stageTimelineItemId),
+      candidateId: blank(data.candidateId),
       status: data.status,
-      notes: data.notes === '' ? null : data.notes,
+      notes: blank(data.notes),
+      source: data.source,
+      size: blank(data.size),
+      color: blank(data.color),
+      valuation: data.valuation,
+      fittingAt: data.fittingAt,
+      returnDueAt: data.returnDueAt,
     },
   });
-  if (result.count === 0) throw new Error('Prenda no encontrada');
 
   const updated = await prisma.wardrobeItem.findFirst({ where: { id, companyId } });
   if (!updated) throw new Error('Prenda no encontrada');
@@ -157,19 +330,58 @@ export async function deleteWardrobeItem(companyId: string, id: string): Promise
 }
 
 export type WardrobeItemWithRelations = WardrobeItem & {
-  candidate: { id: string; fullName: string; stageName: string | null } | null;
-  stageTimelineItem: { id: string; title: string; blockOrder: number } | null;
+  candidate: { id: string; fullName: string; stageName: string | null; candidateNumber: number | null } | null;
+  stageTimelineItem: { id: string; title: string; blockOrder: number; segmentType: StageTimelineItem['segmentType'] } | null;
 };
 
 export async function listWardrobeItems(companyId: string, projectId: string): Promise<WardrobeItemWithRelations[]> {
   return prisma.wardrobeItem.findMany({
     where: { companyId, projectId },
     include: {
-      candidate: { select: { id: true, fullName: true, stageName: true } },
-      stageTimelineItem: { select: { id: true, title: true, blockOrder: true } },
+      candidate: { select: { id: true, fullName: true, stageName: true, candidateNumber: true } },
+      stageTimelineItem: { select: { id: true, title: true, blockOrder: true, segmentType: true } },
     },
     orderBy: { createdAt: 'asc' },
   });
+}
+
+/** Candidatas que pasan a la gala: las que tienen algo que vestir. */
+const COMPETING_STATUSES: CandidateStatus[] = ['OFFICIAL_CANDIDATE', 'FINALIST', 'WINNER'];
+
+/**
+ * "Plan de looks": una prenda pendiente por candidata oficial en cada bloque
+ * de la escaleta que pide vestuario propio (traje de baño, gala, típico,
+ * opening). Idempotente: si la candidata ya tiene una prenda en ese bloque,
+ * no se crea otra — se puede volver a correr después de sumar bloques.
+ */
+export async function generateWardrobePlan(companyId: string, projectId: string): Promise<number> {
+  await assertProjectOwnership(companyId, projectId);
+  const [blocks, candidates, existing] = await Promise.all([
+    prisma.stageTimelineItem.findMany({ where: { companyId, projectId }, select: { id: true, title: true, segmentType: true }, orderBy: { blockOrder: 'asc' } }),
+    prisma.candidate.findMany({
+      where: { companyId, projectId, status: { in: COMPETING_STATUSES } },
+      select: { id: true, fullName: true, stageName: true },
+    }),
+    prisma.wardrobeItem.findMany({ where: { companyId, projectId, candidateId: { not: null }, stageTimelineItemId: { not: null } }, select: { candidateId: true, stageTimelineItemId: true } }),
+  ]);
+  const taken = new Set(existing.map((w) => `${w.candidateId}:${w.stageTimelineItemId}`));
+  const rows: Array<{ companyId: string; projectId: string; name: string; candidateId: string; stageTimelineItemId: string }> = [];
+  for (const block of blocks) {
+    if (!STAGE_SEGMENT_META[block.segmentType].suggestsWardrobe) continue;
+    for (const candidate of candidates) {
+      if (taken.has(`${candidate.id}:${block.id}`)) continue;
+      rows.push({
+        companyId,
+        projectId,
+        name: `${STAGE_SEGMENT_META[block.segmentType].label} — ${candidate.stageName ?? candidate.fullName}`.slice(0, 160),
+        candidateId: candidate.id,
+        stageTimelineItemId: block.id,
+      });
+    }
+  }
+  if (rows.length === 0) return 0;
+  const result = await prisma.wardrobeItem.createMany({ data: rows });
+  return result.count;
 }
 
 // ---------------------------------------------------------------------------
@@ -324,13 +536,17 @@ export interface ProductionCandidateOption {
   id: string;
   fullName: string;
   stageName: string | null;
+  candidateNumber: number | null;
+  representing: string | null;
+  status: CandidateStatus;
 }
 
+/** Candidatas asignables a bloques y prendas: todas menos las descartadas o retiradas, numeradas primero. */
 export async function listCandidateOptions(companyId: string, projectId: string): Promise<ProductionCandidateOption[]> {
   return prisma.candidate.findMany({
-    where: { companyId, projectId },
-    select: { id: true, fullName: true, stageName: true },
-    orderBy: { fullName: 'asc' },
+    where: { companyId, projectId, status: { notIn: ['REJECTED', 'WITHDRAWN'] } },
+    select: { id: true, fullName: true, stageName: true, candidateNumber: true, representing: true, status: true },
+    orderBy: [{ candidateNumber: { sort: 'asc', nulls: 'last' } }, { fullName: 'asc' }],
   });
 }
 

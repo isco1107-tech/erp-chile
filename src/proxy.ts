@@ -40,6 +40,15 @@ const PUBLIC_ROUTES = [
   // `Project.ticketSalesToken` / `Project.voteSalesToken`).
   '/tickets',
   '/votar',
+  // Micrositio público de cada certamen (`/certamen/[slug]`): lo ve
+  // cualquiera en internet; la página solo publica si el certamen tiene el
+  // sitio activado (`Project.publicSiteEnabled`) y la empresa está operativa.
+  '/certamen',
+  // Portal de pago de cuotas de candidatas (`/pagar/[token]`) y su página de
+  // estado/comprobante (`/pagar/estado/[accessToken]`): quien paga (familia,
+  // auspiciador) no tiene cuenta ERP; la ruta valida el token ella misma
+  // contra `CompanySettings.installmentPortalToken` / la orden de pago.
+  '/pagar',
   // Activos estáticos de marca (logo/ícono de Aether ERP en `public/branding`)
   // — deben verse en TODA la superficie del producto, incluida la pantalla de
   // login, que por definición no tiene sesión.

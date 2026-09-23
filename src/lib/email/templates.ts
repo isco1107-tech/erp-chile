@@ -1541,3 +1541,69 @@ export function buildMonthlyClosingEmail(input: MonthlyClosingEmailInput): { sub
 
   return { subject, html, text };
 }
+
+export interface InstallmentPaymentReceiptEmailInput {
+  companyName: string;
+  /** Nombre de quien recibe este correo (pagador o candidata). */
+  recipientName: string;
+  candidateName: string;
+  projectName: string | null;
+  receiptLabel: string;
+  paidAtLabel: string;
+  items: Array<{ installmentNumber: number; amount: number }>;
+  installmentCount: number;
+  amount: number;
+  receiptUrl: string;
+}
+
+/**
+ * Confirmación de pago en línea de cuotas/mensualidades. Se envía cuando la
+ * pasarela CONFIRMÓ el pago (no cuando el pagador vuelve del banco), con el
+ * comprobante en PDF adjunto y un enlace para volver a descargarlo.
+ */
+export function buildInstallmentPaymentReceiptEmail(input: InstallmentPaymentReceiptEmailInput): {
+  subject: string;
+  html: string;
+  text: string;
+} {
+  const cuotas = input.items.map((i) => `N° ${i.installmentNumber}`).join(', ');
+  const subject = `Pago recibido — ${input.items.length === 1 ? 'cuota' : 'cuotas'} ${cuotas} de ${input.candidateName}`;
+
+  const rows = input.items
+    .map(
+      (i) =>
+        `<tr><td style="padding:6px 0;border-bottom:1px solid #e2e8f0;">Cuota N° ${i.installmentNumber} de ${input.installmentCount}</td><td style="padding:6px 0;border-bottom:1px solid #e2e8f0;text-align:right;">${escapeHtml(formatCurrency(i.amount))}</td></tr>`
+    )
+    .join('');
+
+  const html = layout({
+    title: 'Pago recibido correctamente',
+    body: `
+      <p style="margin:0 0 12px;">Hola <strong>${escapeHtml(input.recipientName)}</strong>, confirmamos el pago de
+      ${input.items.length === 1 ? 'la cuota' : 'las cuotas'} de <strong>${escapeHtml(input.candidateName)}</strong>${
+        input.projectName ? ` en <strong>${escapeHtml(input.projectName)}</strong>` : ''
+      }. Ya ${input.items.length === 1 ? 'quedó registrada' : 'quedaron registradas'} como ${input.items.length === 1 ? 'pagada' : 'pagadas'}.</p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;border-collapse:collapse;margin:8px 0 4px;">
+        ${rows}
+        <tr><td style="padding:10px 0 0;font-weight:700;">Total pagado</td><td style="padding:10px 0 0;text-align:right;font-weight:700;">${escapeHtml(formatCurrency(input.amount))}</td></tr>
+      </table>
+      <p style="margin:12px 0 0;color:#64748b;font-size:13px;">Comprobante ${escapeHtml(input.receiptLabel)} · ${escapeHtml(input.paidAtLabel)}. Lo adjuntamos en PDF a este correo.</p>
+    `,
+    ctaLabel: 'Descargar comprobante',
+    ctaUrl: input.receiptUrl,
+    footer: `${escapeHtml(input.companyName)}. Este comprobante no es un documento tributario. Si no reconoces este pago, responde a la organización.`,
+  });
+
+  const text = [
+    `Pago recibido — ${input.companyName}`,
+    '',
+    `Hola ${input.recipientName}, confirmamos el pago de ${input.candidateName}${input.projectName ? ` (${input.projectName})` : ''}.`,
+    '',
+    ...input.items.map((i) => `- Cuota N° ${i.installmentNumber} de ${input.installmentCount}: ${formatCurrency(i.amount)}`),
+    `Total pagado: ${formatCurrency(input.amount)}`,
+    '',
+    `Comprobante ${input.receiptLabel} (${input.paidAtLabel}): ${input.receiptUrl}`,
+  ].join('\n');
+
+  return { subject, html, text };
+}

@@ -1,7 +1,7 @@
 import type { PurchaseDocument, PurchaseDocumentItem } from '@prisma/client';
 import { PURCHASE_DOCUMENT_TYPE_LABELS } from '@/modules/purchases/schema';
 import { createAndPostEntry, resolveMappedAccountId, type JournalLineInput, type TxClient } from '../services/journal.service';
-import { invertLines, reverseDocumentEntries } from './shared';
+import { invertLines, reverseDocumentEntries, isLedgerActive } from './shared';
 
 /**
  * Reglas de asiento del ciclo de compras (`PROMPT_ERP_V2.md`, Fase C.1).
@@ -79,6 +79,8 @@ export async function postPurchaseDocumentIssued(
   items: PurchaseDocumentItem[],
   opts: { createdByUserId?: string } = {}
 ): Promise<void> {
+  // Contabilidad apagada o sin plan de cuentas: la operación sigue, sin asiento.
+  if (!(await isLedgerActive(tx, companyId))) return;
   const inventory = movesInventory(items);
   const accounts = await resolvePurchaseAccounts(tx, companyId, inventory, doc.ivaAmount);
   const label = PURCHASE_DOCUMENT_TYPE_LABELS[doc.documentType];
@@ -108,6 +110,8 @@ export async function postPurchaseCreditNoteIssued(
   originalItems: PurchaseDocumentItem[],
   opts: { createdByUserId?: string } = {}
 ): Promise<void> {
+  // Contabilidad apagada o sin plan de cuentas: la operación sigue, sin asiento.
+  if (!(await isLedgerActive(tx, companyId))) return;
   const inventory = movesInventory(originalItems);
   const accounts = await resolvePurchaseAccounts(tx, companyId, inventory, doc.ivaAmount);
   const label = PURCHASE_DOCUMENT_TYPE_LABELS[doc.documentType];

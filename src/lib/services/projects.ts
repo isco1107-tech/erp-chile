@@ -10,8 +10,15 @@ import { prisma } from '@/lib/prisma';
 export interface ProjectFinancialSummary {
   budgetedIncome: number;
   budgetedExpense: number;
-  /** SalesDocument.totalAmount (ISSUED) + SponsorshipContract.paidAmount, ambos con projectId. */
+  /**
+   * SalesDocument.totalAmount (ISSUED) + SponsorshipContract.paidAmount +
+   * TicketSale.paidAmount + VoteOrder.paidAmount, todos con projectId.
+   * Entradas y votos se venden fuera de Ventas (autocontenidos), así que no
+   * hay doble conteo con SalesDocument.
+   */
   actualIncomeCash: number;
+  /** Desglose del ingreso en efectivo por fuente (suman `actualIncomeCash`). */
+  incomeBySource: { sales: number; sponsorships: number; tickets: number; votes: number };
   /** SponsorshipContract.barterValuation de contratos de canje (isBarter true). */
   actualIncomeBarter: number;
   /** PurchaseDocument.totalAmount (ISSUED) + FeeDocument.netToPay (PAID), ambos con projectId. */
@@ -37,7 +44,7 @@ export interface ProjectFinancialSummary {
  * acá.
  */
 export async function getProjectFinancialSummary(companyId: string, projectId: string): Promise<ProjectFinancialSummary> {
-  const [project, salesAgg, sponsorshipCashAgg, sponsorshipBarterAgg, purchaseAgg, feeAgg] = await Promise.all([
+  const [project, salesAgg, sponsorshipCashAgg, sponsorshipBarterAgg, purchaseAgg, feeAgg, ticketAgg, voteAgg] = await Promise.all([
     prisma.project.findFirst({ where: { id: projectId, companyId }, select: { budgetedIncome: true, budgetedExpense: true } }),
     prisma.salesDocument.aggregate({
       where: { companyId, projectId, status: 'ISSUED' },
@@ -59,12 +66,20 @@ export async function getProjectFinancialSummary(companyId: string, projectId: s
       where: { companyId, projectId, paymentStatus: 'PAID' },
       _sum: { netToPay: true },
     }),
+    prisma.ticketSale.aggregate({ where: { companyId, projectId }, _sum: { paidAmount: true } }),
+    prisma.voteOrder.aggregate({ where: { companyId, projectId }, _sum: { paidAmount: true } }),
   ]);
 
   const budgetedIncome = project?.budgetedIncome ?? 0;
   const budgetedExpense = project?.budgetedExpense ?? 0;
 
-  const actualIncomeCash = (salesAgg._sum.totalAmount ?? 0) + (sponsorshipCashAgg._sum.paidAmount ?? 0);
+  const incomeBySource = {
+    sales: salesAgg._sum.totalAmount ?? 0,
+    sponsorships: sponsorshipCashAgg._sum.paidAmount ?? 0,
+    tickets: ticketAgg._sum.paidAmount ?? 0,
+    votes: voteAgg._sum.paidAmount ?? 0,
+  };
+  const actualIncomeCash = incomeBySource.sales + incomeBySource.sponsorships + incomeBySource.tickets + incomeBySource.votes;
   const actualIncomeBarter = sponsorshipBarterAgg._sum.barterValuation ?? 0;
   const actualExpense = (purchaseAgg._sum.totalAmount ?? 0) + (feeAgg._sum.netToPay ?? 0);
 
@@ -77,6 +92,7 @@ export async function getProjectFinancialSummary(companyId: string, projectId: s
     budgetedIncome,
     budgetedExpense,
     actualIncomeCash,
+    incomeBySource,
     actualIncomeBarter,
     actualExpense,
     marginAmount,

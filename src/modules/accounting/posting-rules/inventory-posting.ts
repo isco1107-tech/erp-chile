@@ -1,5 +1,6 @@
 import type { InventoryMovement } from '@prisma/client';
 import { createAndPostEntry, resolveMappedAccountId, type JournalLineInput, type TxClient } from '../services/journal.service';
+import { isLedgerActive } from './shared';
 
 /**
  * Ajustes de inventario que NO nacen de una venta o una compra —
@@ -45,6 +46,8 @@ export async function postInventoryAdjustmentEntry(
   isIncrease: boolean,
   opts: { createdByUserId?: string } = {}
 ): Promise<void> {
+  // Contabilidad apagada o sin plan de cuentas: la operación sigue, sin asiento.
+  if (!(await isLedgerActive(tx, companyId))) return;
   if (movement.totalCost <= 0) return;
 
   const [existenciasAccountId, diferenciaInventarioAccountId] = await Promise.all([
@@ -101,6 +104,8 @@ export async function postCashShiftDifference(
   shift: { id: string; difference: number },
   opts: { createdByUserId?: string } = {}
 ): Promise<void> {
+  // Contabilidad apagada o sin plan de cuentas: la operación sigue, sin asiento.
+  if (!(await isLedgerActive(tx, companyId))) return;
   if (shift.difference === 0) return;
 
   const [cajaAccountId, diferenciaCajaAccountId] = await Promise.all([

@@ -98,6 +98,8 @@ async function hardDeleteTenant(tx: Prisma.TransactionClient, companyId: string)
   await tx.voteOrder.deleteMany({ where: { companyId } });
   await tx.ticketSale.deleteMany({ where: { companyId } });
   await tx.ticketType.deleteMany({ where: { companyId } });
+  await tx.installmentPaymentOrderItem.deleteMany({ where: { companyId } });
+  await tx.installmentPaymentOrder.deleteMany({ where: { companyId } });
   await tx.paymentPlanInstallment.deleteMany({ where: { companyId } });
   await tx.paymentPlan.deleteMany({ where: { companyId } });
   await tx.promissoryNote.deleteMany({ where: { companyId } });

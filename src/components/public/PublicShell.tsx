@@ -636,6 +636,7 @@ const PUBLIC_STYLES = `
   border-color: var(--pub-a);
   box-shadow: inset 0 0 0 4px color-mix(in oklab, var(--pub-a) 90%, transparent);
 }
+.pub-option > input[type="checkbox"] { border-radius: 5px; }
 .pub-option > input:focus-visible { outline: 2px solid var(--pub-a); outline-offset: 2px; }
 .pub-option-body { flex: 1; display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
 .pub-option-name { font-size: 0.93rem; font-weight: 600; }

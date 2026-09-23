@@ -265,3 +265,26 @@ export const documentUpdateSchema = z.object({
 });
 
 export type DocumentUpdateInput = z.infer<typeof documentUpdateSchema>;
+
+/**
+ * Presentación pública de una candidata (número oficial, a quién
+ * representa, bio del sitio y visibilidad). Esquema APARTE a propósito: si
+ * estos campos vivieran en `candidateCreateSchema`, el formulario público de
+ * postulación (que deriva de él) dejaría que una postulante se asignara su
+ * propio número o escribiera su bio del sitio oficial.
+ */
+export const candidatePresentationSchema = z.object({
+  candidateNumber: z.number().int('El número debe ser entero').min(1, 'El número parte en 1').max(999).nullable(),
+  representing: z.string().trim().max(80, 'Máximo 80 caracteres').optional(),
+  publicBio: z.string().trim().max(1500, 'Máximo 1500 caracteres').optional(),
+  showOnPublicSite: z.boolean(),
+});
+
+export type CandidatePresentationInput = z.infer<typeof candidatePresentationSchema>;
+
+export const NUMBERING_ORDERS = ['alphabetical', 'representing', 'registration'] as const;
+export const NUMBERING_ORDER_LABELS: Record<(typeof NUMBERING_ORDERS)[number], string> = {
+  alphabetical: 'Por nombre',
+  representing: 'Por lo que representan (región/ciudad)',
+  registration: 'Por orden de postulación',
+};

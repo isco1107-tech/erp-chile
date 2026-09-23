@@ -2,7 +2,8 @@ import VotePurchaseClient from '@/components/voting/VotePurchaseClient';
 
 export const metadata = { title: 'Votación' };
 
-export default async function VotePurchasePage({ params }: { params: Promise<{ token: string }> }) {
+export default async function VotePurchasePage({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<{ candidata?: string }> }) {
   const { token } = await params;
-  return <VotePurchaseClient token={token} />;
+  const { candidata } = await searchParams;
+  return <VotePurchaseClient token={token} initialCandidateId={typeof candidata === 'string' ? candidata : undefined} />;
 }

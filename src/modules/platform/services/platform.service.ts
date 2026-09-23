@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import type { Company, CompanyFeatures, Role, TenantStatus } from '@prisma/client';
 import { cleanRut, formatRut } from '@/lib/chile/rut';
 import { MODULES, toFeatureFlags, type CompanyFeatureFlags, type FeatureKey } from '@/lib/auth/modules';
+import { ensureChartOfAccounts } from '@/modules/accounting/services/chart-setup.service';
 import type { CompanyCreateInput, CompanyPlanUpdateInput } from '../schema';
 
 export interface PlatformMetrics {
@@ -162,7 +163,7 @@ export async function createTenant(input: CompanyCreateInput): Promise<Company> 
 
   const passwordHash = await bcrypt.hash(input.adminPassword, 12);
 
-  return prisma.$transaction(async (tx) => {
+  const created = await prisma.$transaction(async (tx) => {
     const company = await tx.company.create({
       data: {
         rut,
@@ -199,13 +200,19 @@ export async function createTenant(input: CompanyCreateInput): Promise<Company> 
 
     return company;
   });
+
+  // Fuera de la transacción de alta a propósito: la siembra son ~50
+  // escrituras con su propio timeout extendido. Si falla, la empresa ya
+  // existe igual y el plan se puede crear después desde la pantalla contable.
+  if (input.features.hasAccounting) await ensureChartOfAccounts(created.id);
+  return created;
 }
 
 export async function updateTenantPlan(companyId: string, input: CompanyPlanUpdateInput): Promise<Company> {
   const company = await prisma.company.findUnique({ where: { id: companyId } });
   if (!company) throw new Error('Empresa no encontrada');
 
-  return prisma.$transaction(async (tx) => {
+  const updated = await prisma.$transaction(async (tx) => {
     await tx.companyFeatures.upsert({
       where: { companyId },
       update: input.features,
@@ -221,6 +228,12 @@ export async function updateTenantPlan(companyId: string, input: CompanyPlanUpda
       },
     });
   });
+
+  // Activar Contabilidad deja lista la contabilidad automática: siembra el
+  // plan de cuentas si falta (no-op si ya existe). Apagarla no borra nada:
+  // el plan y los asientos quedan, solo se dejan de generar asientos nuevos.
+  if (input.features.hasAccounting) await ensureChartOfAccounts(companyId);
+  return updated;
 }
 
 export async function setTenantStatus(companyId: string, status: TenantStatus): Promise<Company> {

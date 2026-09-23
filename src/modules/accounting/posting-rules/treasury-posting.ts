@@ -1,5 +1,6 @@
 import type { Payment, PaymentMethodType } from '@prisma/client';
 import { createAndPostEntry, resolveMappedAccountId, type TxClient } from '../services/journal.service';
+import { isLedgerActive } from './shared';
 
 /**
  * Reglas de asiento de cobros/pagos manuales registrados en Tesorería
@@ -23,6 +24,8 @@ export async function postSalesPaymentEntry(
   payment: Payment,
   opts: { createdByUserId?: string } = {}
 ): Promise<void> {
+  // Contabilidad apagada o sin plan de cuentas: la operación sigue, sin asiento.
+  if (!(await isLedgerActive(tx, companyId))) return;
   const [debitAccountId, clientesAccountId] = await Promise.all([
     resolveMappedAccountId(tx, companyId, cashOrBankKey(payment.paymentMethod)),
     resolveMappedAccountId(tx, companyId, 'CLIENTES'),
@@ -48,6 +51,8 @@ export async function postPurchasePaymentEntry(
   payment: Payment,
   opts: { createdByUserId?: string } = {}
 ): Promise<void> {
+  // Contabilidad apagada o sin plan de cuentas: la operación sigue, sin asiento.
+  if (!(await isLedgerActive(tx, companyId))) return;
   const [proveedoresAccountId, creditAccountId] = await Promise.all([
     resolveMappedAccountId(tx, companyId, 'PROVEEDORES'),
     resolveMappedAccountId(tx, companyId, cashOrBankKey(payment.paymentMethod)),

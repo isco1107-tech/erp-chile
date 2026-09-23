@@ -33,7 +33,7 @@ export default async function OpengraphImage() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={iconSrc} width={46} height={54} alt="" />
           <div style={{ display: 'flex', alignItems: 'baseline', fontSize: 44, fontWeight: 600 }}>
-            aether
+            Aether
             <span style={{ fontSize: 18, marginLeft: 10, opacity: 0.6 }}>ERP</span>
           </div>
         </div>

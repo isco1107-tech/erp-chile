@@ -8,6 +8,8 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import type { Tone } from '@/components/ui/tone';
 import { can, getAuthContext } from '@/lib/auth/guards';
 import PaymentPlanDetailClient from '@/components/payment-plans/PaymentPlanDetailClient';
+import OnlinePaymentsSection from '@/components/payment-plans/OnlinePaymentsSection';
+import { listOnlinePaymentsAction } from '@/modules/payment-plans/actions/online-payment.actions';
 
 export const metadata = { title: 'Plan de Pago' };
 
@@ -19,7 +21,7 @@ const STATUS_TONE: Record<string, Tone> = {
 
 export default async function PaymentPlanDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [result, context] = await Promise.all([getPaymentPlanAction(id), getAuthContext()]);
+  const [result, context, onlinePayments] = await Promise.all([getPaymentPlanAction(id), getAuthContext(), listOnlinePaymentsAction(id)]);
   if (!result.success) notFound();
 
   const plan = result.data;
@@ -62,6 +64,8 @@ export default async function PaymentPlanDetailPage({ params }: { params: Promis
         )}
 
         <PaymentPlanDetailClient plan={plan} canWrite={canWrite} />
+
+        <OnlinePaymentsSection planId={plan.id} payments={onlinePayments.success ? onlinePayments.data : []} canWrite={canWrite} />
       </div>
     </div>
   );

@@ -73,7 +73,7 @@ const tickerItems = [
 
 
 function Brand() {
-  return <span className={s.brand}><Image src="/branding/aether-icon.png" alt="" width={29} height={34} /><span>aether<span className={s.brandSuffix}>ERP</span></span></span>;
+  return <span className={s.brand}><Image src="/branding/aether-icon.png" alt="" width={29} height={34} /><span>Aether<span className={s.brandSuffix}>ERP</span></span></span>;
 }
 
 function DownloadOption({ platform, name, detail, icon: Icon, releases, delay }: {

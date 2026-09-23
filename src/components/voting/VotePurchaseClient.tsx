@@ -33,7 +33,7 @@ import {
 const VOTE_PRESETS = [1, 5, 10, 25, 50] as const;
 const MAX_VOTES = 10_000;
 
-export default function VotePurchaseClient({ token }: { token: string }) {
+export default function VotePurchaseClient({ token, initialCandidateId }: { token: string; initialCandidateId?: string }) {
   const [project, setProject] = useState<PublicVotingProjectInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -56,10 +56,11 @@ export default function VotePurchaseClient({ token }: { token: string }) {
         return;
       }
       setProject(result.data);
-      if (result.data.candidates.length > 0) setCandidateId(result.data.candidates[0]!.id);
+      const preferred = result.data.candidates.find((c) => c.id === initialCandidateId) ?? result.data.candidates[0];
+      if (preferred) setCandidateId(preferred.id);
       setLoading(false);
     })();
-  }, [token]);
+  }, [token, initialCandidateId]);
 
   const total = project ? project.pricePerVote * voteCount : 0;
   const selected = project?.candidates.find((c) => c.id === candidateId) ?? null;

@@ -67,8 +67,8 @@ enum AgentTaskStatus {
 }
 
 model Company {
-  id                        String                     @id @default(cuid())
-  rut                       String                     @unique
+  id                        String                        @id @default(cuid())
+  rut                       String                        @unique
   businessName              String
   address                   String?
   phone                     String?
@@ -80,17 +80,17 @@ model Company {
   /// Imagen de fondo del dashboard, subida por la empresa (Vercel Blob).
   backgroundUrl             String?
   /// Hasta 3 colores extraídos del logo (#rrggbb), usados para personalizar el tema del panel. Vacío = tema por defecto.
-  brandPalette              String[]                   @default([])
+  brandPalette              String[]                      @default([])
   actividadEconomicaCodigo  String?
-  status                    TenantStatus               @default(ACTIVE)
-  planName                  String                     @default("Starter")
-  maxUsers                  Int                        @default(3)
-  maxWarehouses             Int                        @default(1)
+  status                    TenantStatus                  @default(ACTIVE)
+  planName                  String                        @default("Starter")
+  maxUsers                  Int                           @default(3)
+  maxWarehouses             Int                           @default(1)
   features                  CompanyFeatures?
   settings                  CompanySettings?
   taxPeriods                TaxPeriod[]
   customRoles               CustomRole[]
-  createdAt                 DateTime                   @default(now())
+  createdAt                 DateTime                      @default(now())
   users                     User[]
   contacts                  Contact[]
   categories                Category[]
@@ -149,6 +149,8 @@ model Company {
   promissoryNotes           PromissoryNote[]
   paymentPlans              PaymentPlan[]
   paymentPlanInstallments   PaymentPlanInstallment[]
+  installmentPaymentOrders  InstallmentPaymentOrder[]
+  installmentPaymentItems   InstallmentPaymentOrderItem[]
   ticketTypes               TicketType[]
   ticketSales               TicketSale[]
   voteOrders                VoteOrder[]
@@ -159,6 +161,17 @@ model Company {
   workflowRules             WorkflowRule[]
   workflowExecutions        WorkflowExecution[]
   workflowNotifications     WorkflowNotification[]
+  opportunities             Opportunity[]
+  crmActivities             CrmActivity[]
+  crmPeople                 CrmPerson[]
+  sponsorshipPackages       SponsorshipPackage[]
+  employees                 Employee[]
+  payrollPeriods            PayrollPeriod[]
+  payslips                  Payslip[]
+  leaveRequests             LeaveRequest[]
+  fixedAssets               FixedAsset[]
+  expenseReports            ExpenseReport[]
+  expenseItems              ExpenseItem[]
 
   // El panel de plataforma agrupa por estado y por plan en cada carga.
   @@index([status])
@@ -255,6 +268,12 @@ model User {
   createdWorkflowRules             WorkflowRule[]
   cashMovements                    CashMovement[]
   approvedAgentTasks               AgentTask[]
+  ownedOpportunities               Opportunity[]             @relation("OpportunityOwner")
+  crmActivities                    CrmActivity[]             @relation("CrmActivityUser")
+  closedPayrollPeriods             PayrollPeriod[]           @relation("PayrollPeriodClosedBy")
+  reviewedLeaveRequests            LeaveRequest[]            @relation("LeaveRequestReviewer")
+  submittedExpenseReports          ExpenseReport[]           @relation("ExpenseReportSubmitter")
+  reviewedExpenseReports           ExpenseReport[]           @relation("ExpenseReportReviewer")
 
   @@index([companyId])
   @@index([customRoleId])
@@ -409,6 +428,20 @@ model CompanyFeatures {
   /// Votación pagada del público por su candidata favorita, con confirmación
   /// manual de pago. Ver `VoteOrder`.
   hasPublicVoting       Boolean  @default(false)
+  /// Centro de Inteligencia 360: salud de la empresa, ciclo de caja,
+  /// proyecciones, RFM/ABC, caja a 13 semanas y flujos de negocio. No crea
+  /// datos propios: todo se calcula sobre los documentos reales del tenant.
+  hasIntelligence       Boolean  @default(false)
+  /// CRM comercial: embudo de oportunidades y actividades de seguimiento.
+  /// (`hasCrm` es, por historia, el módulo de Agentes — ver arriba.)
+  hasSalesPipeline      Boolean  @default(false)
+  /// Personas y Remuneraciones: ficha de trabajadores, liquidaciones con
+  /// reglas previsionales chilenas y solicitudes de vacaciones/permisos.
+  hasPayroll            Boolean  @default(false)
+  /// Activo fijo con depreciación lineal/acelerada.
+  hasFixedAssets        Boolean  @default(false)
+  /// Rendición de gastos con flujo de aprobación y reembolso.
+  hasExpenseReports     Boolean  @default(false)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 }
@@ -458,6 +491,20 @@ model CompanySettings {
   siiApiBaseUrl             String?
   siiApiKey                 String?
   siiApiSecret              String?
+  /// Ítems del menú lateral que la empresa decidió apagar (ids estables de
+  /// `src/lib/navigation/workspace-nav.ts`). Es configuración del espacio de
+  /// trabajo, no un control de acceso: los permisos siguen en los guards.
+  disabledNavItems          String[]     @default([])
+  /// Token del portal público de pago de cuotas (`/pagar/[token]`). Mismo
+  /// patrón que `calendarSyncToken`: el token resuelve la empresa, el
+  /// visitante nunca manda un `companyId`. `null` hasta que alguien comparte
+  /// el portal desde Cuotas & Mensualidades.
+  installmentPortalToken    String?      @unique
+  /// API key de la cuenta de cobro de Khipu de ESTA empresa, cifrada con
+  /// AES-256-GCM (`src/lib/payments/crypto.ts`). Decide a qué cuenta llega el
+  /// dinero, por eso solo se edita con `settings:company`. El nombre termina
+  /// en "Credential" para que el respaldo lo excluya por patrón.
+  khipuApiCredential        String?
   createdAt                 DateTime     @default(now())
   updatedAt                 DateTime     @updatedAt
 }
@@ -466,6 +513,8 @@ enum InternalDocumentKind {
   PURCHASE_ORDER
   GOODS_RECEIPT
   CANDIDATE_APPLICATION
+  /// Comprobante de pago en línea de cuotas (`InstallmentPaymentOrder.receiptNumber`).
+  INSTALLMENT_RECEIPT
 }
 
 /// Correlativos internos (no folio SII) para documentos sin relevancia
@@ -585,6 +634,9 @@ model Contact {
   feeDocuments           FeeDocument[]
   promissoryNotes        PromissoryNote[]
   paymentPlans           PaymentPlan[]
+  opportunities          Opportunity[]
+  fixedAssets            FixedAsset[]
+  crmPeople              CrmPerson[]
 
   @@unique([companyId, rutClean])
   @@index([companyId, razonSocial])
@@ -1622,6 +1674,41 @@ model Project {
   ticketTypes                TicketType[]
   ticketSales                TicketSale[]
   voteOrders                 VoteOrder[]
+  expenseReports             ExpenseReport[]
+  opportunities              Opportunity[]
+  sponsorshipPackages        SponsorshipPackage[]
+
+  // ── Gala y micrositio público del certamen ──────────────────────────────
+  /// Fecha y hora de la gala final. Distinta de `startDate` (inicio del
+  /// proyecto completo, que puede ser meses antes): es la que alimenta la
+  /// cuenta regresiva del micrositio y el "¿listos para la gala?" del panel.
+  galaDate               DateTime?
+  venueName              String?
+  venueAddress           String?
+  /// Dirección pública del micrositio (`/certamen/{publicSlug}`). Única en
+  /// toda la plataforma, no por empresa: la URL no lleva la empresa. `null`
+  /// hasta que alguien la configura; publicar exige además `publicSiteEnabled`.
+  publicSlug             String?   @unique
+  publicSiteEnabled      Boolean   @default(false)
+  publicTagline          String?
+  publicDescription      String?
+  coverImageUrl          String?
+  /// Acento visual del micrositio (`gold`, `violet`, `rose`, `cyan`,
+  /// `emerald` — los de `PublicShell`). Texto y no enum para poder sumar
+  /// acentos sin migración; Zod valida los permitidos.
+  publicAccent           String    @default("gold")
+  instagramHandle        String?
+  publicContactEmail     String?
+  /// Qué secciones muestra el micrositio. Candidatas y auspiciadores
+  /// visibles por defecto (es la razón de ser del sitio); ranking de votos y
+  /// resultados apagados hasta que producción decida revelarlos.
+  showCandidatesPublic   Boolean   @default(true)
+  showSponsorsPublic     Boolean   @default(true)
+  showVoteRankingPublic  Boolean   @default(false)
+  showResultsPublic      Boolean   @default(false)
+  /// Formulario "Quiero auspiciar" del micrositio: crea un prospecto en el
+  /// CRM (`hasSalesPipeline`). Sin CRM contratado el formulario no aparece.
+  sponsorLeadFormEnabled Boolean   @default(true)
 
   @@unique([companyId, code])
   @@index([companyId, status])
@@ -1671,6 +1758,14 @@ model SponsorshipContract {
   agreementGeneratedAt DateTime?
   agreementSignedAt    DateTime?
   deliverables         SponsorshipDeliverable[]
+  /// Plan del tarifario del que salió este contrato (si salió de uno). Es la
+  /// base del conteo de cupos vendidos por plan. `SetNull`: borrar un plan
+  /// no puede arrastrar contratos ya firmados.
+  packageId            String?
+  package              SponsorshipPackage?      @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  /// Oportunidad del CRM que se convirtió en este contrato (trazabilidad
+  /// venta → contrato). La FK vive en `Opportunity.sponsorshipContractId`.
+  sourceOpportunity    Opportunity?
   createdAt            DateTime                 @default(now())
   updatedAt            DateTime                 @updatedAt
 
@@ -1678,6 +1773,39 @@ model SponsorshipContract {
   @@index([companyId, contactId])
   @@index([companyId, status])
   @@index([companyId, paymentStatus])
+  @@index([packageId])
+}
+
+/// Plan del tarifario de auspicios de un certamen (ej. "Auspiciador Oro —
+/// $8.000.000, 3 cupos"). Es lo que el equipo comercial ofrece: alimenta la
+/// propuesta en el CRM, la sección "Planes de auspicio" del micrositio y, al
+/// convertir un negocio ganado en contrato, la lista inicial de entregables
+/// (`benefits`, uno por línea). `maxSlots null` = sin límite de cupos.
+model SponsorshipPackage {
+  id              String                @id @default(cuid())
+  companyId       String
+  company         Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  projectId       String
+  project         Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tier            SponsorshipTier
+  name            String
+  /// Valor neto de lista en CLP entero. El precio real negociado queda en el
+  /// contrato (`cashAmount`/`barterValuation`), no acá.
+  price           Int                   @default(0)
+  maxSlots        Int?
+  benefits        String[]              @default([])
+  description     String?
+  /// Visible en el micrositio público. El precio se muestra solo si además
+  /// `showPricePublic` — muchas productoras no publican tarifas.
+  isPublic        Boolean               @default(true)
+  showPricePublic Boolean               @default(false)
+  order           Int                   @default(0)
+  contracts       SponsorshipContract[]
+  opportunities   Opportunity[]
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  @@index([companyId, projectId])
 }
 
 /// Checklist de compromisos entregables a la marca auspiciadora (logo en
@@ -1833,25 +1961,26 @@ enum PaymentPlanStatus {
 /// candidata"). Genera sus `PaymentPlanInstallment` al crearse — ver
 /// `createPaymentPlan` en `payment-plans.service.ts`. Módulo `hasInstallmentPlans`.
 model PaymentPlan {
-  id               String                   @id @default(cuid())
+  id               String                    @id @default(cuid())
   companyId        String
-  company          Company                  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  company          Company                   @relation(fields: [companyId], references: [id], onDelete: Restrict)
   contactId        String
-  contact          Contact                  @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  contact          Contact                   @relation(fields: [contactId], references: [id], onDelete: Restrict)
   candidateId      String?
-  candidate        Candidate?               @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+  candidate        Candidate?                @relation(fields: [candidateId], references: [id], onDelete: SetNull)
   totalAmount      Int
   installmentCount Int
-  frequency        PaymentPlanFrequency     @default(MONTHLY)
+  frequency        PaymentPlanFrequency      @default(MONTHLY)
   startDate        DateTime
   /// Multa por cuota vencida, en basis points sobre el monto de ESA cuota
   /// (1000 = 10%). `0` = sin cláusula de penalización.
-  penaltyBps       Int                      @default(0)
-  status           PaymentPlanStatus        @default(ACTIVE)
+  penaltyBps       Int                       @default(0)
+  status           PaymentPlanStatus         @default(ACTIVE)
   notes            String?
   installments     PaymentPlanInstallment[]
-  createdAt        DateTime                 @default(now())
-  updatedAt        DateTime                 @updatedAt
+  onlinePayments   InstallmentPaymentOrder[]
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
 
   @@index([companyId, status])
   @@index([companyId, contactId])
@@ -1862,9 +1991,9 @@ model PaymentPlan {
 /// autocontenidos, mismo patrón que el resto de los documentos financieros
 /// nuevos de este módulo.
 model PaymentPlanInstallment {
-  id                String        @id @default(cuid())
+  id                String                        @id @default(cuid())
   companyId         String
-  company           Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  company           Company                       @relation(fields: [companyId], references: [id], onDelete: Restrict)
   paymentPlanId     String
   /// `Restrict`, no `Cascade`: protege contra un borrado accidental en
   /// cascada por fuera de la lógica de aplicación. El borrado deliberado y
@@ -1875,20 +2004,105 @@ model PaymentPlanInstallment {
   /// cotidiano de dar de baja un plan sigue siendo cancelarlo
   /// (`status: CANCELLED`), que conserva el historial; borrar es la
   /// excepción explícita, no la regla.
-  paymentPlan       PaymentPlan   @relation(fields: [paymentPlanId], references: [id], onDelete: Restrict)
+  paymentPlan       PaymentPlan                   @relation(fields: [paymentPlanId], references: [id], onDelete: Restrict)
   installmentNumber Int
   dueDate           DateTime
   amount            Int
-  paidAmount        Int           @default(0)
-  paymentStatus     PaymentStatus @default(UNPAID)
+  paidAmount        Int                           @default(0)
+  paymentStatus     PaymentStatus                 @default(UNPAID)
   /// Multa ya aplicada sobre esta cuota (CLP) — el cron de vencidas la aplica
   /// una sola vez, este campo es el guardia contra doble aplicación.
-  penaltyApplied    Int           @default(0)
+  penaltyApplied    Int                           @default(0)
   paidAt            DateTime?
-  createdAt         DateTime      @default(now())
+  createdAt         DateTime                      @default(now())
+  onlinePayments    InstallmentPaymentOrderItem[]
 
   @@unique([paymentPlanId, installmentNumber])
   @@index([companyId, paymentStatus, dueDate])
+}
+
+enum OnlinePaymentStatus {
+  /// Orden creada y enviada a la pasarela; el pagador todavía no termina.
+  PENDING
+  /// La pasarela confirmó el pago y ya se aplicó a las cuotas.
+  PAID
+  /// La pasarela rechazó la creación del cobro o lo reportó revertido.
+  FAILED
+  /// Venció sin pago confirmado. Libera las cuotas para un nuevo intento.
+  EXPIRED
+}
+
+/// Pago en línea de una o más cuotas desde el portal público `/pagar/[token]`
+/// (sin login: la "credencial" es el RUT de la candidata). Nunca se marca
+/// `PAID` por lo que diga el navegador ni el cuerpo de la notificación: el
+/// servicio vuelve a consultar el cobro a la pasarela con la API key de la
+/// empresa (`syncOrderWithProvider` en `online-payment.service.ts`).
+///
+/// Los datos de la candidata y del pagador quedan como snapshot (no FK a
+/// `Candidate`): el comprobante es un documento emitido y no debe cambiar si
+/// después se edita o se borra la ficha.
+model InstallmentPaymentOrder {
+  id                 String                        @id @default(cuid())
+  companyId          String
+  company            Company                       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  paymentPlanId      String
+  /// `Restrict`: `deletePaymentPlan` borra primero las órdenes, igual que
+  /// hace con las cuotas.
+  paymentPlan        PaymentPlan                   @relation(fields: [paymentPlanId], references: [id], onDelete: Restrict)
+  /// 'KHIPU' hoy. Texto y no enum para sumar otra pasarela sin migrar.
+  provider           String
+  /// Id del cobro en la pasarela (`payment_id` de Khipu). `null` solo en el
+  /// instante entre crear la orden y recibir la respuesta de la pasarela.
+  providerPaymentId  String?
+  paymentUrl         String?
+  amount             Int
+  status             OnlinePaymentStatus           @default(PENDING)
+  payerName          String
+  payerEmail         String
+  candidateName      String
+  candidateRutClean  String
+  projectName        String?
+  /// Correlativo del comprobante (`InternalDocumentSequence` kind
+  /// `INSTALLMENT_RECEIPT`). Se asigna recién al confirmarse el pago.
+  receiptNumber      Int?
+  /// Capacidad de acceso pública: la página de estado y el PDF del
+  /// comprobante se piden con este valor, nunca con el `id`.
+  accessToken        String                        @unique
+  providerReceiptUrl String?
+  payerBank          String?
+  /// Monto que llegó por sobre el saldo de las cuotas (p. ej. alguien
+  /// registró un pago manual mientras esta orden estaba en curso). Se informa
+  /// al equipo para devolverlo; no se aplica a otra cuota por su cuenta.
+  excessAmount       Int                           @default(0)
+  expiresAt          DateTime
+  paidAt             DateTime?
+  items              InstallmentPaymentOrderItem[]
+  createdAt          DateTime                      @default(now())
+  updatedAt          DateTime                      @updatedAt
+
+  @@unique([provider, providerPaymentId])
+  @@unique([companyId, receiptNumber])
+  @@index([companyId, paymentPlanId])
+  @@index([companyId, status])
+}
+
+/// Cuota cubierta por una `InstallmentPaymentOrder`, con el monto que la
+/// orden le asignó al crearse (su saldo pendiente en ese momento).
+model InstallmentPaymentOrderItem {
+  id                String                  @id @default(cuid())
+  companyId         String
+  company           Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  orderId           String
+  order             InstallmentPaymentOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  installmentId     String
+  /// `Cascade`: `deleteInstallment` solo borra cuotas sin pagos, así que lo
+  /// único que se arrastra acá son intentos no concretados.
+  installment       PaymentPlanInstallment  @relation(fields: [installmentId], references: [id], onDelete: Cascade)
+  installmentNumber Int
+  amount            Int
+
+  @@unique([orderId, installmentId])
+  @@index([companyId, installmentId])
 }
 
 /// Boleta de honorarios de un prestador de servicios (staff/proveedor)
@@ -1996,6 +2210,21 @@ model Candidate {
   employerName          String?
   employerRut           String?
   employerAddress       String?
+  // ── Presentación pública (micrositio, votación, escaleta) ───────────────
+  /// Número oficial de candidata en el certamen ("Candidata N° 7"). Único
+  /// por proyecto; `null` mientras no se numera (Postgres admite varios NULL
+  /// bajo un índice único).
+  candidateNumber       Int?
+  /// Ciudad, región o país que representa ("Valparaíso", "Chile"): el
+  /// "Miss ___" de la banda.
+  representing          String?
+  /// Texto de presentación para el micrositio, escrito por el equipo — no se
+  /// reutiliza nada del formulario privado de postulación sin que alguien lo
+  /// decida y lo escriba acá.
+  publicBio             String?
+  /// Permite ocultar a una candidata oficial del micrositio sin cambiar su
+  /// estado en el certamen.
+  showOnPublicSite      Boolean               @default(true)
   attendances           CandidateAttendance[]
   documents             CandidateDocument[]
   wardrobeItems         WardrobeItem[]
@@ -2013,6 +2242,7 @@ model Candidate {
   // correlativo (`InternalDocumentSequence` es per-company), así que dos
   // empresas distintas del mismo SaaS pueden legítimamente compartir folio.
   @@unique([companyId, folio])
+  @@unique([projectId, candidateNumber])
   @@index([companyId, projectId, status])
   @@index([companyId, comuna])
   @@index([companyId, createdAt])
@@ -2148,23 +2378,51 @@ enum StageItemStatus {
 /// Un bloque de la escaleta (ej. "Traje de baño — Bloque 3"). `blockOrder` es
 /// el orden real en vivo — se reordena moviendo el número, nunca reordenando
 /// filas por fecha de creación.
+/// Tipo de segmento de un certamen de belleza: ordena la escaleta, colorea el
+/// modo show y sugiere el vestuario que corresponde a cada bloque.
+enum StageSegmentType {
+  OPENING
+  PRESENTATION
+  SWIMSUIT
+  EVENING_GOWN
+  NATIONAL_COSTUME
+  QUESTION
+  ARTISTIC
+  SPONSOR
+  BREAK
+  CROWNING
+  OTHER
+}
+
 model StageTimelineItem {
-  id              String          @id @default(cuid())
+  id              String           @id @default(cuid())
   companyId       String
-  company         Company         @relation(fields: [companyId], references: [id])
+  company         Company          @relation(fields: [companyId], references: [id])
   projectId       String
-  project         Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
   blockOrder      Int
   startTime       DateTime
   durationMinutes Int
   title           String
   description     String?
-  status          StageItemStatus @default(PENDING)
+  status          StageItemStatus  @default(PENDING)
   candidateId     String?
-  candidate       Candidate?      @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+  candidate       Candidate?       @relation(fields: [candidateId], references: [id], onDelete: SetNull)
   wardrobeItems   WardrobeItem[]
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  /// Default `OTHER` para no reclasificar a ciegas los bloques ya cargados.
+  segmentType     StageSegmentType @default(OTHER)
+  /// Quién da el pie o es responsable del bloque (conductor, jefe de piso…).
+  responsible     String?
+  /// Pies técnicos por área — lo que el switcher/sonido/luces leen en vivo.
+  audioCue        String?
+  lightingCue     String?
+  videoCue        String?
+  /// Hora real de inicio/fin, marcadas desde el modo show. Son la base del
+  /// adelanto/atraso acumulado; `startTime` sigue siendo el plan.
+  actualStartedAt DateTime?
+  actualEndedAt   DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
   @@unique([projectId, blockOrder])
   @@index([companyId, projectId])
@@ -2175,6 +2433,16 @@ enum WardrobeStatus {
   READY
   ISSUED
   RETURNED
+}
+
+/// De dónde sale la prenda — define a quién se le devuelve y si entra al
+/// valor de canje de un auspicio.
+enum WardrobeSource {
+  PRODUCTION
+  DESIGNER
+  SPONSOR
+  RENTAL
+  CANDIDATE_OWN
 }
 
 /// Prenda/accesorio asignado a una candidata para un bloque de la escaleta.
@@ -2192,6 +2460,15 @@ model WardrobeItem {
   candidate           Candidate?         @relation(fields: [candidateId], references: [id], onDelete: SetNull)
   status              WardrobeStatus     @default(PENDING)
   notes               String?
+  source              WardrobeSource     @default(PRODUCTION)
+  size                String?
+  color               String?
+  /// Valor declarado en CLP entero (seguro, garantía de arriendo o canje).
+  valuation           Int?
+  /// Prueba de vestuario agendada.
+  fittingAt           DateTime?
+  /// Fecha comprometida de devolución (arriendo, diseñador, auspicio).
+  returnDueAt         DateTime?
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
 
@@ -2888,6 +3165,17 @@ enum WorkflowTriggerEvent {
   VOTE_ORDER_PAID
   /// Contrato de auspicio firmado (ZapSign u otro proveedor de firma).
   SPONSORSHIP_SIGNED
+  /// Oportunidad del CRM marcada como ganada.
+  OPPORTUNITY_WON
+  /// Rendición de gastos enviada a aprobación.
+  EXPENSE_REPORT_SUBMITTED
+  /// Solicitud de vacaciones o permiso registrada.
+  LEAVE_REQUESTED
+  /// Período de remuneraciones cerrado.
+  PAYROLL_CLOSED
+  /// Prospecto recibido por el formulario "Quiero auspiciar" del micrositio
+  /// público de un certamen (queda como oportunidad en el CRM).
+  CRM_LEAD_RECEIVED
 }
 
 enum WorkflowActionType {
@@ -3006,4 +3294,475 @@ model WorkflowNotification {
 
   /// La campanita solo pide las no leídas más recientes.
   @@index([companyId, readAt, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CRM comercial (`hasSalesPipeline`)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum OpportunityStage {
+  LEAD
+  QUALIFIED
+  PROPOSAL
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum CrmActivityType {
+  CALL
+  EMAIL
+  MEETING
+  WHATSAPP
+  TASK
+  NOTE
+}
+
+/// Negocio en curso. Puede nacer sin `Contact` (un prospecto que todavía no
+/// tiene RUT) y vincularse después; `prospectName` cubre ese tramo.
+model Opportunity {
+  id                    String               @id @default(cuid())
+  companyId             String
+  company               Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  title                 String
+  contactId             String?
+  contact               Contact?             @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  prospectName          String?
+  prospectEmail         String?
+  prospectPhone         String?
+  /// Monto neto estimado en CLP entero.
+  amount                Int                  @default(0)
+  /// 0-100. Se sugiere por etapa, pero el vendedor puede ajustarlo.
+  probability           Int                  @default(10)
+  stage                 OpportunityStage     @default(LEAD)
+  source                String?
+  expectedCloseDate     DateTime?
+  ownerUserId           String?
+  owner                 User?                @relation("OpportunityOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  lostReason            String?
+  /// Fecha en que entró a la etapa actual: base del "días en etapa" y del
+  /// tiempo de ciclo del embudo.
+  stageChangedAt        DateTime             @default(now())
+  closedAt              DateTime?
+  notes                 String?
+  activities            CrmActivity[]
+  // ── Negocio de una productora de certámenes ──────────────────────────────
+  /// Qué se está vendiendo. Default `OTHER` para no reclasificar a ciegas los
+  /// negocios cargados antes de este campo.
+  dealType              CrmDealType          @default(OTHER)
+  priority              CrmPriority          @default(MEDIUM)
+  /// Certamen/evento al que apunta el negocio (auspicio de Miss X 2026,
+  /// entradas corporativas de la gala…). `SetNull`: cancelar o borrar un
+  /// proyecto no borra el historial comercial.
+  projectId             String?
+  project               Project?             @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  /// Solo para `SPONSORSHIP`: plan del tarifario y nivel propuestos.
+  packageId             String?
+  package               SponsorshipPackage?  @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  sponsorshipTier       SponsorshipTier?
+  /// Parte del negocio que se paga en canje (productos/servicios), valorizada
+  /// en CLP entero. `amount` sigue siendo solo lo que entra en efectivo.
+  isBarter              Boolean              @default(false)
+  barterValuation       Int                  @default(0)
+  barterDescription     String?
+  tags                  String[]             @default([])
+  /// Persona de contacto principal del negocio (gerente de marca, agencia…).
+  personId              String?
+  person                CrmPerson?           @relation(fields: [personId], references: [id], onDelete: SetNull)
+  /// Contrato de auspicio creado al convertir este negocio ganado. Único: un
+  /// negocio se convierte una sola vez.
+  sponsorshipContractId String?              @unique
+  sponsorshipContract   SponsorshipContract? @relation(fields: [sponsorshipContractId], references: [id], onDelete: SetNull)
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  @@index([companyId, stage])
+  @@index([companyId, ownerUserId])
+  @@index([companyId, contactId])
+  @@index([companyId, projectId])
+  @@index([companyId, dealType])
+  @@index([personId])
+  @@index([packageId])
+}
+
+/// Qué vende una productora de certámenes y eventos.
+enum CrmDealType {
+  SPONSORSHIP
+  EVENT_PRODUCTION
+  CORPORATE_TICKETS
+  TALENT_BOOKING
+  LICENSING
+  MEDIA
+  OTHER
+}
+
+enum CrmPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+/// Persona de contacto comercial (gerente de marketing de una marca, agencia
+/// de medios, productor de un evento corporativo). Distinta de `Contact`, que
+/// es la EMPRESA con RUT: una marca tiene varias personas y una persona puede
+/// existir antes de que su empresa tenga ficha tributaria.
+model CrmPerson {
+  id               String        @id @default(cuid())
+  companyId        String
+  company          Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contactId        String?
+  contact          Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  fullName         String
+  jobTitle         String?
+  /// Empresa escrita a mano cuando todavía no hay `Contact` con RUT.
+  organizationName String?
+  email            String?
+  phone            String?
+  instagram        String?
+  linkedinUrl      String?
+  isDecisionMaker  Boolean       @default(false)
+  tags             String[]      @default([])
+  notes            String?
+  opportunities    Opportunity[]
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([companyId, contactId])
+  @@index([companyId, fullName])
+}
+
+model CrmActivity {
+  id            String          @id @default(cuid())
+  companyId     String
+  company       Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  opportunityId String
+  opportunity   Opportunity     @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  type          CrmActivityType
+  summary       String
+  dueAt         DateTime?
+  completedAt   DateTime?
+  userId        String?
+  user          User?           @relation("CrmActivityUser", fields: [userId], references: [id], onDelete: SetNull)
+  createdAt     DateTime        @default(now())
+
+  @@index([companyId, opportunityId])
+  @@index([companyId, completedAt, dueAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Personas y Remuneraciones (`hasPayroll`)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum EmploymentContractType {
+  INDEFINIDO
+  PLAZO_FIJO
+  POR_OBRA
+}
+
+enum HealthInsuranceType {
+  FONASA
+  ISAPRE
+}
+
+enum AfpInstitution {
+  CAPITAL
+  CUPRUM
+  HABITAT
+  MODELO
+  PLANVITAL
+  PROVIDA
+  UNO
+}
+
+enum GratificationMode {
+  /// Art. 50 del Código del Trabajo: 25% de lo devengado, con tope anual de
+  /// 4,75 ingresos mínimos (pagado mes a mes).
+  ART_50
+  NONE
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  TERMINATED
+}
+
+enum PayrollPeriodStatus {
+  DRAFT
+  CLOSED
+}
+
+enum LeaveType {
+  VACATION
+  SICK_LEAVE
+  PERSONAL
+  UNPAID
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+/// Ficha del trabajador dependiente. Los honorarios NO van acá: siguen en
+/// `FeeDocument` (no hay relación laboral ni cotizaciones).
+model Employee {
+  id                 String                 @id @default(cuid())
+  companyId          String
+  company            Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  rut                String
+  rutClean           String
+  fullName           String
+  email              String?
+  phone              String?
+  birthDate          DateTime?
+  address            String?
+  position           String
+  department         String?
+  hireDate           DateTime
+  terminationDate    DateTime?
+  contractType       EmploymentContractType @default(INDEFINIDO)
+  /// Jornada ordinaria semanal (Ley 21.561 la baja gradualmente a 40 h).
+  weeklyHours        Int                    @default(42)
+  /// Sueldo base mensual en CLP entero.
+  baseSalary         Int
+  gratificationMode  GratificationMode      @default(ART_50)
+  /// Asignaciones no imponibles ni tributables (CLP entero).
+  mealAllowance      Int                    @default(0)
+  transportAllowance Int                    @default(0)
+  afp                AfpInstitution
+  healthInsurance    HealthInsuranceType    @default(FONASA)
+  isapreName         String?
+  /// Plan de Isapre pactado en UF (ej. 3.25). Solo si `healthInsurance = ISAPRE`.
+  isaprePlanUf       Float?
+  bankName           String?
+  bankAccountType    String?
+  bankAccountNumber  String?
+  status             EmployeeStatus         @default(ACTIVE)
+  notes              String?
+  payslips           Payslip[]
+  leaveRequests      LeaveRequest[]
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  @@unique([companyId, rutClean])
+  @@index([companyId, status])
+}
+
+/// Mes de remuneraciones. Guarda los parámetros previsionales vigentes ESE
+/// mes (UF, UTM, topes, tasas) para que una liquidación cerrada se pueda
+/// reproducir años después aunque los valores legales hayan cambiado.
+model PayrollPeriod {
+  id                     String              @id @default(cuid())
+  companyId              String
+  company                Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  year                   Int
+  month                  Int
+  status                 PayrollPeriodStatus @default(DRAFT)
+  ufValue                Float
+  utmValue               Int
+  minimumWage            Int
+  /// Tope imponible AFP/salud en UF.
+  taxableCapUf           Float
+  /// Tope imponible del seguro de cesantía en UF.
+  unemploymentCapUf      Float
+  /// Tasas del empleador en basis points (1% = 100).
+  sisRateBps             Int
+  mutualRateBps          Int
+  employerPensionRateBps Int
+  /// Comisión de cada AFP en basis points, `{ "HABITAT": 127, ... }`.
+  afpCommissionBps       Json
+  closedAt               DateTime?
+  closedByUserId         String?
+  closedBy               User?               @relation("PayrollPeriodClosedBy", fields: [closedByUserId], references: [id], onDelete: SetNull)
+  payslips               Payslip[]
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+
+  @@unique([companyId, year, month])
+}
+
+/// Liquidación de sueldo: foto completa del cálculo. Todos los montos son
+/// CLP entero y quedan congelados al cerrar el período.
+model Payslip {
+  id                   String        @id @default(cuid())
+  companyId            String
+  company              Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  periodId             String
+  period               PayrollPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  employeeId           String
+  employee             Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  workedDays           Int           @default(30)
+  overtimeHours        Float         @default(0)
+  /// Bonos imponibles del mes (producción, metas, etc.).
+  bonuses              Int           @default(0)
+  /// Anticipos y otros descuentos voluntarios.
+  advances             Int           @default(0)
+  otherDeductions      Int           @default(0)
+  baseSalary           Int
+  gratification        Int
+  overtimeAmount       Int
+  taxableIncome        Int
+  mealAllowance        Int
+  transportAllowance   Int
+  pensionAmount        Int
+  healthAmount         Int
+  unemploymentEmployee Int
+  taxBase              Int
+  incomeTax            Int
+  totalDeductions      Int
+  netPay               Int
+  employerSis          Int
+  employerUnemployment Int
+  employerMutual       Int
+  employerPension      Int
+  employerCost         Int
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  @@unique([periodId, employeeId])
+  @@index([companyId, periodId])
+  @@index([companyId, employeeId])
+}
+
+model LeaveRequest {
+  id               String      @id @default(cuid())
+  companyId        String
+  company          Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employeeId       String
+  employee         Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  type             LeaveType
+  startDate        DateTime
+  endDate          DateTime
+  /// Días hábiles (lunes a viernes) del rango, sin contar feriados.
+  businessDays     Int
+  status           LeaveStatus @default(PENDING)
+  reason           String?
+  reviewedByUserId String?
+  reviewedBy       User?       @relation("LeaveRequestReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  reviewedAt       DateTime?
+  reviewNotes      String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@index([companyId, status])
+  @@index([companyId, employeeId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Activo fijo (`hasFixedAssets`)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum DepreciationMethod {
+  LINEAL
+  /// Un tercio de la vida útil normal, en años enteros (art. 31 N°5 bis LIR).
+  ACELERADA
+  /// Terrenos y bienes que no se deprecian.
+  SIN_DEPRECIACION
+}
+
+enum FixedAssetStatus {
+  ACTIVE
+  DISPOSED
+}
+
+/// La depreciación NO se persiste mes a mes: se calcula determinísticamente
+/// desde costo, fecha de inicio y vida útil (`src/lib/assets/depreciation.ts`).
+model FixedAsset {
+  id                    String             @id @default(cuid())
+  companyId             String
+  company               Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  code                  String
+  name                  String
+  category              String
+  description           String?
+  location              String?
+  responsible           String?
+  acquisitionDate       DateTime
+  depreciationStartDate DateTime
+  /// Costo de adquisición neto (sin IVA recuperable), CLP entero.
+  acquisitionCost       Int
+  residualValue         Int                @default(1)
+  /// Vida útil NORMAL en meses. La acelerada se deriva de este valor.
+  usefulLifeMonths      Int
+  method                DepreciationMethod @default(LINEAL)
+  status                FixedAssetStatus   @default(ACTIVE)
+  disposalDate          DateTime?
+  disposalAmount        Int?
+  supplierContactId     String?
+  supplier              Contact?           @relation(fields: [supplierContactId], references: [id], onDelete: SetNull)
+  invoiceReference      String?
+  notes                 String?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  @@unique([companyId, code])
+  @@index([companyId, status])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Rendición de gastos (`hasExpenseReports`)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum ExpenseReportStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  REIMBURSED
+}
+
+enum ExpenseDocumentType {
+  BOLETA
+  FACTURA
+  TICKET
+  SIN_DOCUMENTO
+}
+
+model ExpenseReport {
+  id                     String              @id @default(cuid())
+  companyId              String
+  company                Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  title                  String
+  submittedByUserId      String?
+  submittedBy            User?               @relation("ExpenseReportSubmitter", fields: [submittedByUserId], references: [id], onDelete: SetNull)
+  status                 ExpenseReportStatus @default(DRAFT)
+  /// Centro de costo opcional (módulo `hasEventProjects`).
+  projectId              String?
+  project                Project?            @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  totalAmount            Int                 @default(0)
+  submittedAt            DateTime?
+  reviewedByUserId       String?
+  reviewedBy             User?               @relation("ExpenseReportReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  reviewedAt             DateTime?
+  reviewNotes            String?
+  reimbursedAt           DateTime?
+  reimbursementReference String?
+  items                  ExpenseItem[]
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+
+  @@index([companyId, status])
+  @@index([companyId, submittedByUserId])
+}
+
+model ExpenseItem {
+  id             String              @id @default(cuid())
+  companyId      String
+  company        Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  reportId       String
+  report         ExpenseReport       @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  expenseDate    DateTime
+  category       String
+  description    String
+  documentType   ExpenseDocumentType @default(BOLETA)
+  documentNumber String?
+  supplierName   String?
+  supplierRut    String?
+  /// Total pagado, IVA incluido, CLP entero.
+  amount         Int
+  createdAt      DateTime            @default(now())
+
+  @@index([companyId, reportId])
 }

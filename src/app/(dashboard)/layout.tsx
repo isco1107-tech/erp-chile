@@ -10,7 +10,9 @@ import {
 } from '@/lib/auth/guards';
 import { ROLE_LABELS } from '@/lib/auth/roles';
 import { deriveThemeFromPalette } from '@/lib/branding/theme-from-color';
-import { buildWorkspaceNav } from '@/lib/navigation/workspace-nav';
+import { applyDisabledNavItems, buildAvailableWorkspaceNav } from '@/lib/navigation/workspace-nav';
+import { getDisabledNavItems } from '@/modules/workspace/services/workspace.service';
+import { DisabledSectionGate, type GateSection } from '@/components/shared/DisabledSectionGate';
 import LogoutButton from '@/components/LogoutButton';
 import CommandMenu from '@/components/shared/CommandMenu';
 import NotificationBell from '@/components/shared/NotificationBell';
@@ -64,11 +66,19 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   // Registro único compartido con la paleta de comandos (⌘K): mismos módulos,
   // mismas condiciones de acceso. Ver `src/lib/navigation/workspace-nav.ts`.
-  const groups = buildWorkspaceNav({
+  // Se arma primero el menú completo (para la puerta de secciones apagadas) y
+  // después se le restan los ítems que la empresa desactivó.
+  const disabledNavItems = await getDisabledNavItems(context.companyId);
+  const availableGroups = buildAvailableWorkspaceNav({
     permissions: context.permissions,
     features,
     isSuperAdmin: context.isSuperAdmin,
   });
+  const groups = applyDisabledNavItems(availableGroups, disabledNavItems);
+  const visibleIds = new Set(groups.flatMap((group) => group.links.map((link) => link.id)));
+  const gateSections: GateSection[] = availableGroups.flatMap((group) =>
+    group.links.map((link) => ({ id: link.id, href: link.href, label: link.label, exact: link.exact, disabled: !visibleIds.has(link.id) }))
+  );
 
   // Onboarding: solo se calcula para el Dueño — es quien puede resolver todos
   // los pasos (bodega, POS, invitar), y mostrárselo a un colaborador sin esos
@@ -193,7 +203,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <div className="flex min-h-screen flex-col lg:pl-[260px]">
             <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-2 border-b border-border bg-card/85 px-4 backdrop-blur-md print:hidden lg:px-8">
               <MobileNavToggle />
-              <CommandMenu permissions={context.permissions} features={features} isSuperAdmin={context.isSuperAdmin} />
+              <CommandMenu
+                permissions={context.permissions}
+                features={features}
+                isSuperAdmin={context.isSuperAdmin}
+                disabledNavItems={disabledNavItems}
+              />
               <div className="flex-1" />
               <HowToUseButton />
               <HeaderAssistantButtons showCopilot={showCopilot} />
@@ -211,7 +226,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
             </header>
 
             <main id="contenido-principal" tabIndex={-1} className="flex-1 outline-none print:p-0">
-              <div className="mx-auto max-w-[1440px] p-4 sm:p-6 lg:p-8 print:p-0">{children}</div>
+              <div className="mx-auto max-w-[1440px] p-4 sm:p-6 lg:p-8 print:p-0">
+                <DisabledSectionGate sections={gateSections} canConfigure={allow('settings:company')}>
+                  {children}
+                </DisabledSectionGate>
+              </div>
             </main>
           </div>
         </MobileNavProvider>

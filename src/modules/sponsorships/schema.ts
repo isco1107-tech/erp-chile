@@ -93,3 +93,26 @@ export const sponsorshipPaymentSchema = z.object({
 });
 
 export type SponsorshipPaymentInput = z.infer<typeof sponsorshipPaymentSchema>;
+
+// ---------------------------------------------------------------------------
+// Tarifario de auspicios (SponsorshipPackage)
+// ---------------------------------------------------------------------------
+
+export const sponsorshipPackageSchema = z.object({
+  projectId: z.string().min(1, 'Seleccione un certamen'),
+  tier: z.enum(SPONSORSHIP_TIERS, 'Selecciona el nivel del plan'),
+  name: z.string().trim().min(2, 'Ponle un nombre al plan').max(120),
+  price: z.number().int('El precio debe ser un número entero').min(0, 'El precio no puede ser negativo').max(100_000_000_000),
+  maxSlots: z.number().int().min(1, 'Los cupos deben ser al menos 1').max(1000).nullable().optional(),
+  /** Un beneficio por línea; cada uno se convierte en entregable al firmar. */
+  benefits: z.array(z.string().trim().min(1).max(200)).max(40).default([]),
+  description: z.string().trim().max(2000).optional(),
+  isPublic: z.boolean().default(true),
+  showPricePublic: z.boolean().default(false),
+  order: z.number().int().min(0).max(1000).default(0),
+});
+
+export const sponsorshipPackageUpdateSchema = sponsorshipPackageSchema.omit({ projectId: true });
+
+export type SponsorshipPackageInput = z.infer<typeof sponsorshipPackageSchema>;
+export type SponsorshipPackageUpdateInput = z.infer<typeof sponsorshipPackageUpdateSchema>;

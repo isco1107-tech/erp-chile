@@ -171,6 +171,17 @@ export const MANUAL_SECTIONS: ManualSection[] = [
         ],
       },
       {
+        id: 'modulos-menu',
+        title: 'Encender o apagar secciones del menú',
+        steps: [
+          'Ve a Configuración → Módulos y Menú (solo Dueño o Administrador).',
+          'Cada sección del menú lateral tiene un interruptor: apágalo para ocultarla a todo tu equipo, también de la búsqueda Ctrl+K y de su dirección web.',
+          'Apagar una sección no borra datos ni cambia permisos: al encenderla vuelve tal como estaba.',
+          'Inicio y Configuración no se pueden apagar, para que siempre haya forma de volver a encender lo demás.',
+          'Al final de esa pantalla ves los módulos que todavía no están en tu plan.',
+        ],
+      },
+      {
         id: 'dos-factores',
         title: 'Activar verificación en dos pasos (2FA)',
         steps: [
@@ -465,6 +476,16 @@ export const MANUAL_SECTIONS: ManualSection[] = [
     route: '/dashboard/financial-statements',
     topics: [
       {
+        id: 'activar-contabilidad',
+        title: 'Cómo funciona la contabilidad automática',
+        steps: [
+          'La Contabilidad es un módulo que se activa aparte. Mientras está apagada, vendes, compras y pagas normalmente, solo que no se generan asientos.',
+          'Al activarla se crea el plan de cuentas base y, desde ese momento, cada venta, compra, pago y ajuste de stock se contabiliza solo.',
+          'Si ves el aviso "Falta el plan de cuentas" en las pantallas contables, el Dueño o el Contador puede crearlo con un clic desde ahí.',
+          'Los documentos anteriores a la activación no tienen asiento: pide a soporte cargarlos de forma retroactiva si necesitas estados financieros completos del año.',
+        ],
+      },
+      {
         id: 'estados-financieros',
         title: 'Ver los estados financieros',
         steps: [
@@ -538,7 +559,28 @@ export const MANUAL_SECTIONS: ManualSection[] = [
         id: 'rentabilidad-proyecto',
         title: 'Ver cuánto está ganando o perdiendo un proyecto',
         steps: [
-          'Entra al detalle del proyecto para ver el presupuesto vs. lo real: ingresos (ventas, auspicios) menos gastos (compras, honorarios) vinculados a ese proyecto específico.',
+          'Entra al detalle del certamen: la sección Finanzas muestra presupuesto vs. real, con el ingreso desglosado en auspicios cobrados, entradas, votación del público y ventas facturadas, menos compras y honorarios vinculados.',
+        ],
+      },
+      {
+        id: 'centro-de-mando',
+        title: 'Usar el centro de mando del certamen',
+        steps: [
+          'Ve a Certámenes & Eventos y entra a un certamen. Arriba verás los días que faltan para la gala (defínela en "Editar certamen").',
+          '"¿Listos para la gala?" es un checklist calculado con datos reales: candidatas oficiales, contratos firmados, rondas y jurados, escaleta, looks, credenciales, auspicios, entradas y sitio publicado. Cada ítem te lleva a donde se resuelve.',
+          'A 14 días o menos de la gala, lo pendiente se marca como crítico en rojo.',
+          'Las tarjetas por módulo muestran candidatas, auspicios (cobrado vs. comprometido, entregables vencidos), entradas vendidas e ingresadas, votos, jurado, producción y negocios del CRM de ese certamen.',
+        ],
+      },
+      {
+        id: 'sitio-publico',
+        title: 'Publicar el sitio oficial del certamen',
+        steps: [
+          'En el centro de mando haz clic en "Sitio público".',
+          'Define la dirección (/certamen/tu-certamen), sube una portada, escribe la frase principal y el texto "Sobre el certamen", y elige el color de acento.',
+          'Elige qué secciones mostrar: galería de candidatas, auspiciadores, formulario "Quiero auspiciar", ranking de votos y resultados. Los botones de entradas, votación y postulación aparecen solos cuando cada link está activo.',
+          'Activa "Sitio publicado" y guarda. El día de la coronación enciende "Resultados oficiales" para revelar ganadora y podio.',
+          'Nunca se publica RUT, edad, contacto ni la ficha de postulación: de cada candidata oficial solo se muestra nombre artístico, número, a quién representa, foto y la bio que el equipo escribe en el Tablero de casting.',
         ],
       },
     ],
@@ -663,9 +705,37 @@ export const MANUAL_SECTIONS: ManualSection[] = [
   },
   {
     key: 'hasLiveProduction',
-    title: 'Acreditaciones',
-    route: '/dashboard/production/accreditation',
+    title: 'Producción en Vivo',
+    route: '/dashboard/production/timeline',
     topics: [
+      {
+        id: 'armar-escaleta',
+        title: 'Armar la escaleta de la gala',
+        steps: [
+          'Ve a Escaleta en Vivo, elige el certamen y agrega bloques: segmento (apertura, traje de baño, gala, preguntas, coronación…), título, hora, duración, candidata y quién da el pie.',
+          'En "pies técnicos" anota audio, luces y pantalla/cámara de cada bloque: es lo que ven cabina y switcher.',
+          'Reordena con las flechas y usa "Encadenar horarios" para que cada bloque parta justo cuando termina el anterior.',
+          '"Imprimir escaleta" genera la hoja para cabina, piso y conductores.',
+        ],
+      },
+      {
+        id: 'modo-show',
+        title: 'Dirigir el show en vivo (modo show)',
+        steps: [
+          'Haz clic en "Modo show": pantalla completa con el bloque al aire, cuenta regresiva, lo que sigue, sus pies técnicos y los looks del bloque.',
+          '"Siguiente bloque" cierra el que está al aire y pone al aire el siguiente, marcando la hora real. El indicador muestra el atraso o adelanto acumulado y la hora estimada de término.',
+          'Quien solo tiene permiso de lectura ve el modo show como monitor de backstage, sin botones.',
+        ],
+      },
+      {
+        id: 'vestuario',
+        title: 'Organizar el vestuario',
+        steps: [
+          'Ve a Vestuario. "Generar plan de looks" crea un look pendiente por candidata oficial en cada bloque que requiere vestuario.',
+          'Cada look tiene origen (producción, diseñador, auspicio, arriendo, propio), talla, color, valor declarado, fecha de prueba y de devolución.',
+          'Avanza el estado con un clic (Pendiente → Lista → Entregada → Devuelta). Las devoluciones vencidas y las pruebas próximas se destacan arriba.',
+        ],
+      },
       {
         id: 'acreditar',
         title: 'Acreditar a staff o proveedores para el día del evento',
@@ -917,6 +987,204 @@ export const MANUAL_SECTIONS: ManualSection[] = [
           'Conecta tu cuenta de Google desde esa pantalla; se sincroniza con el correo con el que iniciaste sesión.',
           'Se envían al calendario los certámenes y galas, y los cumpleaños de las candidatas, con recordatorios automáticos.',
           'Necesitas permiso de escritura sobre proyectos para modificar la sincronización; con solo lectura la ves pero no la cambias.',
+        ],
+      },
+    ],
+  },
+  {
+    key: 'hasIntelligence',
+    title: 'Centro de Inteligencia 360',
+    route: '/dashboard/intelligence',
+    topics: [
+      {
+        id: 'radiografia',
+        title: 'Leer la Radiografía 360 de tu empresa',
+        steps: [
+          'Ve a Inteligencia de Negocio → Radiografía 360.',
+          'Arriba ves el puntaje de salud (0 a 100) y su diagnóstico por dimensión: liquidez, rentabilidad, crecimiento, cobranza, inventario y diversificación de clientes. Cada una dice qué hacer.',
+          'Las "Señales de hoy" son alertas automáticas sobre tus datos reales (ventas bajo el ritmo del mes anterior, cartera vencida, clientes de alto valor que dejaron de comprar, productos bajo costo…), ordenadas por urgencia.',
+          'Una dimensión sin datos no se inventa: se activa sola cuando existan (por ejemplo, inventario o cuentas por cobrar).',
+        ],
+      },
+      {
+        id: 'clientes-productos',
+        title: 'Entender la segmentación de clientes y productos',
+        steps: [
+          'Clientes: la segmentación RFM los agrupa por recencia, frecuencia y monto (Campeones, Leales, En riesgo, No se pueden perder…). Cada grupo trae una acción sugerida.',
+          'Productos: la matriz venta × margen separa Estrellas, Motores de volumen, Joyas de nicho y productos A revisar, y lista el inventario sin rotación en 90 días.',
+          'Las boletas sin RUT (consumidor final) no cuentan como cliente: se muestran aparte.',
+        ],
+      },
+      {
+        id: 'simulador',
+        title: 'Simular decisiones antes de tomarlas',
+        steps: [
+          'En la sección "Simulador" mueve precio, volumen, costo de compra y días de cobro, inventario o pago.',
+          'Ves al instante el efecto anual en utilidad bruta y la caja que liberas o inmovilizas. Si bajas el precio, te dice cuánto más tendrías que vender para empatar.',
+          'No guarda nada: es para explorar escenarios.',
+        ],
+      },
+      {
+        id: 'caja-13-semanas',
+        title: 'Anticipar un problema de caja (13 semanas)',
+        steps: [
+          'Ve a Caja a 13 semanas e ingresa tu saldo actual en bancos.',
+          'Verás semana a semana lo que entra (facturas por cobrar, cuotas, pagarés) y lo que sale (proveedores, sueldos, cotizaciones, F29 estimado).',
+          'Si en alguna semana el saldo proyectado queda negativo, la pantalla te avisa con anticipación.',
+          'Con el control de "recuperación de lo vencido" decides cuánto de la cartera morosa esperas cobrar.',
+        ],
+      },
+      {
+        id: 'flujos',
+        title: 'Encontrar cuellos de botella en tus procesos',
+        steps: [
+          'Ve a Flujos del negocio: reconstruye de cotización a cobro, de compra a pago y (con CRM) de prospecto a negocio, con tus documentos reales de los últimos 6 meses.',
+          'Cada etapa muestra volumen, monto y conversión; cada tramo, su tiempo mediano contra una referencia sana.',
+          'La etapa más lenta queda marcada como cuello de botella. Desde ahí puedes crear una automatización para atacarla.',
+        ],
+      },
+    ],
+  },
+  {
+    key: 'hasSalesPipeline',
+    title: 'CRM Comercial',
+    route: '/dashboard/crm',
+    topics: [
+      {
+        id: 'crear-oportunidad',
+        title: 'Registrar una oportunidad',
+        steps: [
+          'Ve a CRM Comercial → Embudo de negocios y haz clic en "Nueva oportunidad" (o búscalo con Ctrl+K).',
+          'Elige el tipo de negocio: auspicio, producción de evento, entradas corporativas, presentación de reinas, franquicia o medios.',
+          'Asocia la marca (con ficha o como prospecto), la persona de contacto y el certamen. En un auspicio elige el plan del tarifario: el nivel y el precio de lista se completan solos.',
+          'Si la marca aporta productos o servicios, activa "Incluye canje" y valorízalo: el canje se reporta aparte del efectivo.',
+        ],
+      },
+      {
+        id: 'mover-etapa',
+        title: 'Avanzar un negocio en el embudo',
+        steps: [
+          'Arrastra la tarjeta a la siguiente columna, o ábrela y elige la etapa en el selector.',
+          'Al marcarla como Ganada puedes disparar una automatización (por ejemplo, avisar a bodega o enviar un correo de bienvenida).',
+          'Al marcarla como Perdida debes indicar el motivo: así el CRM te muestra por qué pierdes negocios.',
+        ],
+      },
+      {
+        id: 'seguimiento',
+        title: 'Agendar el próximo paso',
+        steps: [
+          'Dentro de cada oportunidad registra llamadas, reuniones o tareas, hechas o agendadas con fecha.',
+          'Las tarjetas sin próximo paso y las actividades vencidas se destacan para que ningún negocio se enfríe.',
+          'La Agenda comercial junta todos los seguimientos del equipo agrupados en vencidos, hoy, mañana y próximos días, con reprogramación en un clic.',
+        ],
+      },
+      {
+        id: 'convertir-auspicio',
+        title: 'Convertir un auspicio ganado en contrato',
+        steps: [
+          'Abre un negocio de tipo Auspicio marcado como Ganado y haz clic en "Convertir en contrato de auspicio".',
+          'Si era un prospecto sin ficha, elige o crea ahí mismo la ficha de la marca con su RUT.',
+          'El contrato queda Confirmado en Auspicios & Marcas, con los beneficios del plan como checklist de entregables, y enlazado al negocio.',
+        ],
+      },
+      {
+        id: 'prospectos-web',
+        title: 'Recibir marcas desde el sitio del certamen',
+        steps: [
+          'Con el formulario "Quiero auspiciar" activo en el sitio público, cada solicitud entra como oportunidad de Auspicio en etapa Prospecto, con su persona de contacto y una tarea para responder al día siguiente.',
+          'Además llega un aviso a la campanita y se dispara la automatización "Prospecto de auspicio desde el sitio del certamen".',
+        ],
+      },
+      {
+        id: 'reportes-crm',
+        title: 'Analizar el embudo',
+        steps: [
+          'En Reportes comerciales ves el pronóstico ponderado por mes de cierre y el rendimiento por tipo de negocio, certamen, origen y responsable, más los motivos de pérdida.',
+          'En la vista Lista puedes ordenar, filtrar y exportar todas las oportunidades a Excel.',
+        ],
+      },
+    ],
+  },
+  {
+    key: 'hasPayroll',
+    title: 'Personas y Remuneraciones',
+    route: '/dashboard/hr',
+    topics: [
+      {
+        id: 'ficha-trabajador',
+        title: 'Crear la ficha de un trabajador',
+        steps: [
+          'Ve a Personas & Equipo → Trabajadores y haz clic en "Nuevo trabajador".',
+          'Completa contrato (tipo, jornada, fecha de ingreso), sueldo base, gratificación, colación y movilización, AFP y salud (Fonasa o Isapre con su plan en UF).',
+          'Si alguien deja la empresa, usa "Término": su historial se conserva y deja de aparecer en las nóminas siguientes.',
+        ],
+      },
+      {
+        id: 'liquidaciones',
+        title: 'Calcular las liquidaciones del mes',
+        steps: [
+          'Ve a Remuneraciones y haz clic en "Abrir período".',
+          'Confirma la UF, la UTM, el ingreso mínimo, los topes y las tasas en los indicadores de previred.com: quedan guardados con el período.',
+          'En la planilla ajusta días trabajados, horas extra, bonos, anticipos y otros descuentos, y haz clic en "Calcular liquidaciones". Puedes recalcular cuantas veces quieras.',
+          'Revisa cada liquidación (se puede imprimir) y descarga el libro de remuneraciones en Excel.',
+          'Al terminar, "Cerrar período" congela las liquidaciones.',
+        ],
+      },
+      {
+        id: 'vacaciones',
+        title: 'Registrar y aprobar vacaciones',
+        steps: [
+          'Ve a Vacaciones & Permisos y registra la solicitud: el sistema cuenta los días hábiles (ajústalos si hay feriados).',
+          'Una jefatura la aprueba o rechaza. Solo las vacaciones aprobadas descuentan del saldo.',
+          'A la derecha ves el saldo de cada trabajador: 1,25 días hábiles por mes trabajado.',
+        ],
+      },
+    ],
+  },
+  {
+    key: 'hasFixedAssets',
+    title: 'Activo Fijo',
+    route: '/dashboard/fixed-assets',
+    topics: [
+      {
+        id: 'registrar-activo',
+        title: 'Registrar un bien',
+        steps: [
+          'Ve a Finanzas → Activo Fijo y haz clic en "Registrar activo".',
+          'Elige la categoría: precarga la vida útil de referencia de la tabla del SII (verifica la vigente).',
+          'Elige método lineal o acelerado (un tercio de la vida útil). El costo va neto, sin el IVA que recuperas.',
+        ],
+      },
+      {
+        id: 'depreciacion',
+        title: 'Contabilizar la depreciación del mes',
+        steps: [
+          'Si tienes Contabilidad, usa "Contabilizar depreciación" y elige el mes.',
+          'Se crea un asiento Gasto por depreciación contra Depreciación acumulada. Solo se permite uno por mes; para corregirlo, reversa el anterior desde el Libro Diario.',
+        ],
+      },
+    ],
+  },
+  {
+    key: 'hasExpenseReports',
+    title: 'Rendición de Gastos',
+    route: '/dashboard/expenses',
+    topics: [
+      {
+        id: 'rendir',
+        title: 'Rendir mis gastos',
+        steps: [
+          'Ve a Finanzas → Rendición de Gastos y crea una rendición (ej.: un viaje o un evento).',
+          'Agrega cada gasto con su fecha, categoría, tipo de documento y monto.',
+          'Cuando esté completa, "Enviar a aprobación". Si te la rechazan, verás el motivo y podrás corregirla y reenviarla.',
+        ],
+      },
+      {
+        id: 'aprobar-reembolsar',
+        title: 'Aprobar y reembolsar rendiciones',
+        steps: [
+          'Quien aprueba ve la bandeja "Por aprobar". Nadie puede aprobar su propia rendición.',
+          'Finanzas ve la bandeja "Por reembolsar" y marca cada rendición como reembolsada con la referencia de la transferencia.',
         ],
       },
     ],

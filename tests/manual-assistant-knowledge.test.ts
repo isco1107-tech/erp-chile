@@ -1,4 +1,4 @@
-import type { CompanyFeatureFlags, FeatureKey } from '@/lib/auth/modules';
+import { MODULE_KEYS, type CompanyFeatureFlags, type FeatureKey } from '@/lib/auth/modules';
 import type { Permission } from '@/lib/auth/permissions';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { getVisibleManualSections } from '@/modules/manual/content';
@@ -19,31 +19,10 @@ import { buildManualSystemPrompt } from '@/modules/manual/prompt';
  * su empresa no paga. Estos tests fijan ese filtrado.
  */
 
-const FEATURE_KEYS: FeatureKey[] = [
-  'hasInventory',
-  'hasPmpCosting',
-  'hasDteBilling',
-  'hasPurchases',
-  'hasTreasury',
-  'hasAdvancedReports',
-  'hasMultipleWarehouses',
-  'hasPos',
-  'hasAccounting',
-  'hasCrm',
-  'hasEventProjects',
-  'hasSponsorships',
-  'hasFeeDocuments',
-  'hasCandidates',
-  'hasOrgChart',
-  'hasLiveProduction',
-  'hasJudging',
-  'hasMultiCompany',
-  'hasBudgets',
-  'hasPromissoryNotes',
-  'hasInstallmentPlans',
-  'hasTicketing',
-  'hasPublicVoting',
-];
+// Derivado del registro real: una lista a mano se desfasaba cada vez que se
+// agregaba un módulo, y el test del "mapa completo" fallaba por la lista, no
+// por el código.
+const FEATURE_KEYS: FeatureKey[] = [...MODULE_KEYS];
 
 function features(enabled: FeatureKey[]): CompanyFeatureFlags {
   return Object.fromEntries(FEATURE_KEYS.map((key) => [key, enabled.includes(key)])) as CompanyFeatureFlags;

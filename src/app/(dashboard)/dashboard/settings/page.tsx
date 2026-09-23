@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Building2, FileCheck2, KeyRound, Laptop, Lock, ShieldCheck, Upload, UserCircle, Users, Zap } from 'lucide-react';
+import { Building2, FileCheck2, KeyRound, Laptop, LayoutGrid, Lock, ShieldCheck, Upload, UserCircle, Users, Zap } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AuthError, TenantInactiveError, can, getAuthContext } from '@/lib/auth/guards';
 import type { Permission } from '@/lib/auth/permissions';
@@ -14,6 +14,13 @@ const SECTIONS: Array<{ href: string; icon: typeof Building2; title: string; des
     icon: Building2,
     title: 'Perfil de Empresa',
     description: 'Razón social, RUT, giro, dirección, logo y datos usados en los DTEs.',
+    permission: 'settings:company',
+  },
+  {
+    href: '/dashboard/settings/modules',
+    icon: LayoutGrid,
+    title: 'Módulos y Menú',
+    description: 'Enciende o apaga cada sección del menú lateral para todo tu equipo, sin perder datos.',
     permission: 'settings:company',
   },
   {

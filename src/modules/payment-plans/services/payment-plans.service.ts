@@ -292,6 +292,9 @@ export async function deletePaymentPlan(companyId: string, id: string): Promise<
 
     const totalPaid = installments.reduce((sum, i) => sum + i.paidAmount, 0);
 
+    // Pagos en línea del plan (sus ítems caen en cascada): mismo criterio de
+    // "no dejar dato estorbando". El monto ya pagado queda en `totalPaid`.
+    await tx.installmentPaymentOrder.deleteMany({ where: { paymentPlanId: id, companyId } });
     await tx.paymentPlanInstallment.deleteMany({ where: { paymentPlanId: id, companyId } });
     await tx.paymentPlan.deleteMany({ where: { id, companyId } });
     return { totalPaid };
