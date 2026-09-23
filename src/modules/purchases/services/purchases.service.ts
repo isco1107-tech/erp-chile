@@ -18,6 +18,8 @@ import {
 } from '@/modules/accounting/posting-rules/purchases-posting';
 import { PURCHASE_STOCK_DIRECTION, type PurchaseDocumentCreateInput, type PurchaseDocumentItemInput } from '../schema';
 import { QUANTITY_EPSILON } from './goods-receipt.service';
+import { emitWorkflowEvent } from '@/lib/workflows/engine';
+import type { WorkflowEventPayload } from '@/lib/workflows/types';
 
 async function resolveDefaultWarehouse(tx: TxClient, companyId: string): Promise<string | undefined> {
   const warehouse =
@@ -53,7 +55,12 @@ export async function createPurchaseDocument(
    */
   skipApprovalGate = false
 ): Promise<PurchaseDocumentWithItems> {
-  return prisma.$transaction(async (tx) => {
+  // Igual que en ventas: se emite después de confirmar la transacción, nunca
+  // dentro — evita que un correo/webhook de la automatización pueda influir
+  // en el resultado de la compra.
+  let emittedApprovalPayload: WorkflowEventPayload | null = null;
+
+  const result = await prisma.$transaction(async (tx) => {
     const contact = await tx.contact.findFirst({ where: { id: input.contactId, companyId } });
     if (!contact) throw new Error('Proveedor no encontrado');
     // Sin este chequeo se podía elegir cualquier contacto (incluso uno marcado
@@ -306,6 +313,14 @@ export async function createPurchaseDocument(
       include: { items: true },
     });
 
+    if (approvalStatus === 'PENDING') {
+      emittedApprovalPayload = {
+        documentId: created.id,
+        contactName: contact.razonSocial,
+        totalAmount: created.totalAmount,
+      };
+    }
+
     // El asiento nace junto con el documento, dentro de la misma transacción.
     // Postea igual aunque la compra referencie una OC (el stock ya se movió
     // en la Recepción): la Factura, no la Recepción, es el hecho contable que
@@ -365,6 +380,12 @@ export async function createPurchaseDocument(
 
     return created;
   }, LOCKING_TX_OPTIONS);
+
+  if (emittedApprovalPayload) {
+    void emitWorkflowEvent(companyId, 'PURCHASE_PENDING_APPROVAL', emittedApprovalPayload);
+  }
+
+  return result;
 }
 
 /**

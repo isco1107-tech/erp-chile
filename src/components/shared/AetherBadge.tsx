@@ -21,7 +21,7 @@ export default function AetherBadge() {
     <Link
       href="/aether/privacidad"
       aria-label="Hecho con Aether ERP Solutions — ver política de privacidad de la plataforma"
-      className="fixed right-4 bottom-20 z-30 flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/90 px-2.5 py-1.5 text-[11px] font-medium text-slate-500 opacity-70 shadow-sm backdrop-blur-sm transition-opacity duration-150 hover:opacity-100 print:hidden"
+      className="aether-platform-badge fixed right-4 bottom-20 z-30 flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/90 px-2.5 py-1.5 text-[11px] font-medium text-slate-500 opacity-70 shadow-sm backdrop-blur-sm transition-opacity duration-150 hover:opacity-100 print:hidden"
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/branding/logo.png" alt="" aria-hidden="true" className="h-3.5 w-3.5 shrink-0 object-contain" />

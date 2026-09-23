@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { prisma } from '../src/lib/prisma';
+import { assertScriptCanRun } from './lib/guard-production';
 import { LOCKING_TX_OPTIONS } from '../src/lib/prisma-tx';
 import { postCreditNoteIssued, postSalesDocumentIssued } from '../src/modules/accounting/posting-rules/sales-posting';
 import { postPurchaseCreditNoteIssued, postPurchaseDocumentIssued } from '../src/modules/accounting/posting-rules/purchases-posting';
@@ -186,6 +187,7 @@ function printReport(report: SimulationReport, dryRun: boolean): void {
 }
 
 async function main() {
+  assertScriptCanRun('scripts/backfill-accounting.ts');
   const { companyId, commit } = parseArgs();
   const company = await prisma.company.findUnique({ where: { id: companyId } });
   if (!company) {

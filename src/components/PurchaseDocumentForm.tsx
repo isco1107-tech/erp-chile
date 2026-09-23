@@ -30,6 +30,7 @@ import { formatCurrency } from '@/lib/chile/tax';
 import { InfoTooltip } from '@/components/ui/InfoTooltip';
 import { TAX_GLOSSARY } from '@/lib/chile/glossary';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 let keyCounter = 0;
 function newKey(): string {
   keyCounter += 1;
@@ -58,6 +59,7 @@ interface Props {
 }
 
 export default function PurchaseDocumentForm({ editingDocument }: Props) {
+  const confirm = useConfirm();
   const router = useRouter();
   const searchParams = useSearchParams();
   const purchaseOrderId = searchParams.get('purchaseOrderId') || editingDocument?.purchaseOrderId || undefined;
@@ -276,7 +278,7 @@ export default function PurchaseDocumentForm({ editingDocument }: Props) {
 
     if (status === 'ISSUED' && hasProductLines) {
       const warehouseName = warehouses.find((w) => w.id === warehouseId)?.name ?? 'la bodega seleccionada';
-      const confirmed = confirm(
+      const confirmed = await confirm(
         stockDirection === 'IN'
           ? `Se dará entrada al stock en ${warehouseName} y se recalculará el costo PMP de los productos incluidos. ¿Continuar?`
           : `Se descontará el stock de ${warehouseName} al PMP vigente por devolución al proveedor. ¿Continuar?`

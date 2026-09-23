@@ -103,6 +103,36 @@ describe('sendEmail — Brevo', () => {
     expect(body.textContent).toBe('t');
   });
 
+  it('adjunta un archivo codificado en base64', async () => {
+    process.env.BREVO_API_KEY = 'xkeysib_test';
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 201, text: async () => '' });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    await sendEmail({
+      to: 'destino@ejemplo.cl',
+      subject: 'Asunto',
+      html: '<p>h</p>',
+      text: 't',
+      attachments: [{ filename: 'reporte.xlsx', content: Buffer.from('contenido') }],
+    });
+
+    const [, options] = fetchMock.mock.calls[0];
+    const body = JSON.parse(options.body);
+    expect(body.attachment).toEqual([{ name: 'reporte.xlsx', content: Buffer.from('contenido').toString('base64') }]);
+  });
+
+  it('sin adjuntos no manda la clave "attachment"', async () => {
+    process.env.BREVO_API_KEY = 'xkeysib_test';
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 201, text: async () => '' });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    await sendEmail({ to: 'destino@ejemplo.cl', subject: 'Asunto', html: '<p>h</p>', text: 't' });
+
+    const [, options] = fetchMock.mock.calls[0];
+    const body = JSON.parse(options.body);
+    expect(body.attachment).toBeUndefined();
+  });
+
   it('un rechazo de Brevo devuelve "failed" sin lanzar', async () => {
     process.env.BREVO_API_KEY = 'xkeysib_test';
     jest.spyOn(console, 'error').mockImplementation(() => {});
@@ -139,6 +169,24 @@ describe('sendEmail — Resend', () => {
     // Ambos formatos viajan: el texto plano es lo que salva del filtro de spam.
     expect(body.html).toBe('<p>h</p>');
     expect(body.text).toBe('t');
+  });
+
+  it('adjunta un archivo codificado en base64 con el nombre de campo de Resend', async () => {
+    process.env.RESEND_API_KEY = 're_test';
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 200, text: async () => '' });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    await sendEmail({
+      to: 'destino@ejemplo.cl',
+      subject: 'Asunto',
+      html: '<p>h</p>',
+      text: 't',
+      attachments: [{ filename: 'reporte.xlsx', content: Buffer.from('contenido') }],
+    });
+
+    const [, options] = fetchMock.mock.calls[0];
+    const body = JSON.parse(options.body);
+    expect(body.attachments).toEqual([{ filename: 'reporte.xlsx', content: Buffer.from('contenido').toString('base64') }]);
   });
 
   it('una excepción de red devuelve "failed" sin lanzar', async () => {

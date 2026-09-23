@@ -7,7 +7,9 @@ import { toast } from 'sonner';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { issuePurchaseDocumentAction, cancelPurchaseDocumentAction } from '@/modules/purchases/actions/purchases.actions';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 export default function DraftPurchaseActions({ documentId }: { documentId: string }) {
+  const confirm = useConfirm();
   const router = useRouter();
   // Acción específica en curso (no un solo `busy` compartido): con un booleano
   // único, al hacer clic en "Emitir" el botón "Anular borrador" también
@@ -16,7 +18,7 @@ export default function DraftPurchaseActions({ documentId }: { documentId: strin
   const [busyAction, setBusyAction] = useState<'issue' | 'cancel' | null>(null);
 
   async function handleIssue() {
-    if (!confirm('¿Emitir este documento? Se aplicará el movimiento de stock/PMP correspondiente.')) return;
+    if (!await confirm('¿Emitir este documento? Se aplicará el movimiento de stock/PMP correspondiente.')) return;
     setBusyAction('issue');
     try {
       const result = await issuePurchaseDocumentAction(documentId);
@@ -32,7 +34,7 @@ export default function DraftPurchaseActions({ documentId }: { documentId: strin
   }
 
   async function handleCancel() {
-    if (!confirm('¿Anular este borrador? No se puede deshacer.')) return;
+    if (!await confirm('¿Anular este borrador? No se puede deshacer.')) return;
     setBusyAction('cancel');
     try {
       const result = await cancelPurchaseDocumentAction(documentId);

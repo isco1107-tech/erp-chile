@@ -14,6 +14,7 @@ import {
 } from '@/modules/sponsorships/actions/sponsorships.actions';
 import { SPONSORSHIP_DELIVERABLE_TYPES, SPONSORSHIP_DELIVERABLE_TYPE_LABELS } from '@/modules/sponsorships/schema';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 interface Props {
   contractId: string;
   deliverables: SponsorshipDeliverable[];
@@ -22,6 +23,7 @@ interface Props {
 
 /** Checklist de entregables comprometidos con la marca (ej. logo en backdrop, mención en redes, pauta de TV). */
 export default function DeliverableChecklist({ contractId, deliverables: initialDeliverables, canWrite }: Props) {
+  const confirm = useConfirm();
   const [deliverables, setDeliverables] = useState<SponsorshipDeliverable[]>(initialDeliverables);
   const [newTitle, setNewTitle] = useState('');
   const [newType, setNewType] = useState<(typeof SPONSORSHIP_DELIVERABLE_TYPES)[number]>('OTRO');
@@ -63,7 +65,7 @@ export default function DeliverableChecklist({ contractId, deliverables: initial
   }
 
   async function handleDelete(deliverableId: string) {
-    if (!confirm('¿Eliminar este entregable?')) return;
+    if (!await confirm('¿Eliminar este entregable?')) return;
     setBusyId(deliverableId);
     try {
       const result = await deleteDeliverableAction(deliverableId, contractId);

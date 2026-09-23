@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCalendarFeedByToken } from '@/modules/calendar/services/calendar.service';
+import { captureException } from '@/lib/observability';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +27,7 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error('Error serving calendar feed:', error);
+    captureException(error, { module: 'calendar' });
     return new NextResponse('Error interno al generar el calendario', { status: 500 });
   }
 }

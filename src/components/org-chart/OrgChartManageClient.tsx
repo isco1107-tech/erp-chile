@@ -18,10 +18,12 @@ import type { JobPositionWithUsage, StaffFlatRow } from '@/modules/org-chart/ser
 import type { OrgChartSuggestion } from '@/modules/org-chart/services/suggest-hierarchy.service';
 import AiSuggestionPreview from './AiSuggestionPreview';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 const selectClass =
   'h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30';
 
 export default function OrgChartManageClient({ canUseAi }: { canUseAi: boolean }) {
+  const confirm = useConfirm();
   const [staff, setStaff] = useState<StaffFlatRow[]>([]);
   const [positions, setPositions] = useState<JobPositionWithUsage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,7 +94,7 @@ export default function OrgChartManageClient({ canUseAi }: { canUseAi: boolean }
   }
 
   async function handleDeletePosition(id: string, name: string) {
-    if (!confirm(`¿Eliminar el cargo "${name}"?`)) return;
+    if (!await confirm(`¿Eliminar el cargo "${name}"?`)) return;
     const result = await deleteJobPositionAction(id);
     if (!result.success) {
       toast.error(result.error);

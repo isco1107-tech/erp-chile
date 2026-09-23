@@ -69,9 +69,16 @@ export const MODULES: ModuleDefinition[] = [
   {
     key: 'hasDteBilling',
     label: 'Facturación Electrónica (DTE)',
-    description: 'Emisión de boletas, facturas y notas con folio SII.',
-    permissions: ['sales:read', 'sales:write', 'sales:cancel'],
-    routes: ['/dashboard/sales'],
+    // La descripción decía "con folio SII" cuando el folio era un contador
+    // interno sin respaldo del SII. Ahora los folios sí salen de un CAF
+    // autorizado y los documentos se timbran (TED), pero el envío al SII
+    // todavía no está: la descripción dice exactamente hasta dónde llega hoy,
+    // porque prometer emisión ante el SII y no cumplirla es un problema
+    // legal para el cliente, no una imprecisión de marketing.
+    description:
+      'Boletas, facturas y notas con folios autorizados del SII (CAF) y timbre electrónico. El envío automático al SII aún no está disponible.',
+    permissions: ['sales:read', 'sales:write', 'sales:cancel', 'dte:manage_caf'],
+    routes: ['/dashboard/sales', '/dashboard/settings/folios'],
   },
   {
     key: 'hasPurchases',

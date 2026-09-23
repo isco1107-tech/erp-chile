@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { sendEmail } from '@/lib/email/mailer';
 import { buildInstallmentReminderEmail } from '@/lib/email/templates';
 import { createAuditLog } from '@/lib/auth/audit';
+import { captureException } from '@/lib/observability';
 import { applyOverduePenalties, listOverdueInstallments, type OverdueInstallmentGroup } from './payment-plans.service';
 
 const OPERATIONAL_STATUSES = ['ACTIVE', 'TRIAL'] as const;
@@ -73,7 +74,7 @@ export async function runOverdueInstallmentsReminderCron(): Promise<{ processedC
 
       processedCompanies++;
     } catch (err) {
-      console.error(`Error al procesar recordatorio de cuotas vencidas para empresa ${company.id}:`, err);
+      captureException(err, { module: 'payment-plans', companyId: company.id, extra: { reason: 'overdue-reminders' } });
     }
   }
 

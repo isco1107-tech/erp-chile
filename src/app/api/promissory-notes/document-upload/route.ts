@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
-import { put } from '@vercel/blob';
+import { put } from '@/lib/storage/blob';
 import { AuthError, ModuleNotEnabledError, TenantInactiveError, requireAuthWithPermission } from '@/lib/auth/guards';
+import { captureException } from '@/lib/observability';
 
 /**
- * Sube el pagaré firmado (foto o PDF) a Vercel Blob. Va en un Route Handler,
+ * Sube el pagaré firmado (foto o PDF) a Cloudflare R2. Va en un Route Handler,
  * no en una Server Action, por el límite de 1 MB de cuerpo de las Server
  * Actions — mismo motivo que `candidates/photo-upload`.
  *
@@ -65,7 +66,7 @@ export async function POST(req: Request) {
     if (error instanceof TenantInactiveError) {
       return NextResponse.json({ success: false, error: error.message }, { status: 403 });
     }
-    console.error('Promissory note document upload failed:', error);
+    captureException(error, { module: 'promissory-notes' });
     return NextResponse.json({ success: false, error: 'No se pudo subir el documento' }, { status: 500 });
   }
 }

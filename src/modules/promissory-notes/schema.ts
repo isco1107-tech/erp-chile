@@ -1,4 +1,15 @@
 import { z } from 'zod';
+import { isAllowedBlobUrl } from '@/lib/security/blob-url';
+
+// SEG-04: a diferencia de `documentCreateSchema.fileUrl` de candidatas, este
+// campo no validaba ni siquiera el host — cualquier string pasaba. Mismo
+// allowlist que ya usa candidatas (protocolo + host de R2/Vercel Blob), para
+// que subir un pagaré firmado no acepte una URL arbitraria (incluida una
+// interna, vía SSRF si algo llega a hacerle `fetch()` en el servidor).
+const documentUrlSchema = z
+  .string()
+  .optional()
+  .refine((value) => !value || isAllowedBlobUrl(value), 'URL de archivo no permitida');
 
 export const PROMISSORY_NOTE_STATUSES = ['ACTIVE', 'PAID', 'PROTESTED', 'CANCELLED'] as const;
 
@@ -29,7 +40,7 @@ const promissoryNoteShape = z
     amount: z.number().int('El monto debe ser un número entero').positive('El monto debe ser mayor a $0'),
     issueDate: z.coerce.date(),
     dueDate: z.coerce.date(),
-    documentUrl: z.string().optional(),
+    documentUrl: documentUrlSchema,
     status: z.enum(PROMISSORY_NOTE_STATUSES).default('ACTIVE'),
     notes: z.string().optional(),
   })
@@ -49,7 +60,7 @@ const promissoryNoteUpdateShape = z.object({
   amount: z.number().int('El monto debe ser un número entero').positive('El monto debe ser mayor a $0'),
   issueDate: z.coerce.date(),
   dueDate: z.coerce.date(),
-  documentUrl: z.string().optional(),
+  documentUrl: documentUrlSchema,
   status: z.enum(PROMISSORY_NOTE_STATUSES, 'Selecciona un estado'),
   notes: z.string().optional(),
 });

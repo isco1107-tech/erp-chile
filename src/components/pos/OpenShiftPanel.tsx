@@ -104,16 +104,16 @@ export default function OpenShiftPanel({ canManageRegisters, warehouses }: Props
   return (
     <div className="mx-auto max-w-lg space-y-4">
       <div className="flex flex-col items-center gap-2 text-center">
-        <div className="flex size-14 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10 shadow-[0_0_24px_-8px_rgba(34,211,238,0.8)]">
-          <Lock className="size-6 text-cyan-300" />
+        <div className="flex size-14 items-center justify-center rounded-2xl border border-primary/10 bg-accent">
+          <Lock className="size-6 text-accent-foreground" />
         </div>
-        <h1 className="text-2xl font-bold">Abrir caja</h1>
+        <h1 className="text-2xl font-bold" data-tutorial="module-header">Abrir caja</h1>
         <p className="text-sm text-muted-foreground">
           No tienes un turno abierto. Declara el fondo de cambio con el que partes para poder vender.
         </p>
       </div>
 
-      <div className="hud-surface space-y-4 rounded-2xl p-5">
+      <div className="border border-border bg-card shadow-card space-y-4 rounded-2xl p-5">
         <div>
           <Label htmlFor="register">Caja</Label>
           <select
@@ -167,7 +167,7 @@ export default function OpenShiftPanel({ canManageRegisters, warehouses }: Props
       </div>
 
       {canManageRegisters && (
-        <div className="hud-surface rounded-2xl p-4">
+        <div className="border border-border bg-card shadow-card rounded-2xl p-4">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium">Cajas del local</p>
             <Button type="button" size="xs" variant="outline" onClick={() => setShowCreate((s) => !s)}>

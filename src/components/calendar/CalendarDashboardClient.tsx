@@ -24,6 +24,7 @@ import {
 } from '@/modules/calendar/actions/calendar.actions';
 import type { CalendarFeedData } from '@/modules/calendar/schema';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 export default function CalendarDashboardClient({
   userEmail,
   canWrite,
@@ -31,6 +32,7 @@ export default function CalendarDashboardClient({
   userEmail: string;
   canWrite: boolean;
 }) {
+  const confirm = useConfirm();
   const [data, setData] = useState<CalendarFeedData | null>(null);
   const [loading, setLoading] = useState(true);
   const [sendingReminder, setSendingReminder] = useState(false);
@@ -61,7 +63,7 @@ export default function CalendarDashboardClient({
   }
 
   async function handleRegenerateToken() {
-    if (!confirm('¿Regenerar el enlace de Google Calendar? La URL anterior dejará de funcionar y deberás volver a suscribirte en Google Calendar.')) {
+    if (!await confirm('¿Regenerar el enlace de Google Calendar? La URL anterior dejará de funcionar y deberás volver a suscribirte en Google Calendar.')) {
       return;
     }
     setRegenerating(true);

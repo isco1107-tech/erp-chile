@@ -932,12 +932,23 @@ export async function commitHistoricalRows(
                     row.values.productSku?.trim()
                   );
                 }
+                // `isExempt` sale SIEMPRE del catálogo cuando hay producto
+                // resuelto, nunca de un valor fijo — asimetría real con el
+                // importador de ventas que ya lo hacía así (CLAUDE.md lo exige
+                // para cualquier flujo de ventas/compras). Sin esto, importar
+                // históricamente la compra de un producto exento (libros, etc.)
+                // siempre calculaba IVA crédito fiscal sobre esa línea.
+                let isExempt = false;
+                if (productId) {
+                  const product = await prisma.product.findFirst({ where: { id: productId, companyId } });
+                  isExempt = product?.isExempt ?? false;
+                }
                 return {
                   productId,
                   description: item.description,
                   quantity: item.quantity,
                   unitCost: item.unitPrice,
-                  isExempt: false,
+                  isExempt,
                 };
               })
             )

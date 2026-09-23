@@ -1,20 +1,43 @@
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
-import type { AuditAction, Invitation, Role, User } from '@prisma/client';
+import type { AuditAction, Invitation, Prisma, Role } from '@prisma/client';
 import { generateRandomPassword } from '@/lib/auth/password-policy';
 
 export const INVITATION_TTL_DAYS = 7;
 const INVITATION_TTL_HOURS = INVITATION_TTL_DAYS * 24;
 
 /**
- * Usuario sin `passwordHash`. Todo lo que cruza la frontera Server Action →
- * cliente debe usar este tipo: devolver el modelo `User` completo filtraba el
- * hash bcrypt de cada miembro del equipo al navegador de cualquier ADMIN.
+ * Lista POSITIVA de campos de `User` seguros para cruzar la frontera Server
+ * Action → cliente. Antes era `Omit<User, 'passwordHash'>`: cualquier campo de
+ * seguridad nuevo en el modelo (un secreto TOTP, un contador de intentos
+ * fallidos) se filtraba automáticamente al navegador de cualquier ADMIN hasta
+ * que alguien se acordara de excluirlo a mano. Con lista positiva pasa lo
+ * contrario — un campo nuevo queda afuera hasta que se agregue acá a
+ * propósito. Quedan fuera a propósito: `passwordHash`, `totpSecret`,
+ * `totpFailedAttempts`, `totpLockedUntil`, `failedLoginAttempts`,
+ * `loginLockedUntil` (material/estado de autenticación) y `sessionVersion`
+ * (contador interno de invalidación sin uso en la interfaz).
  */
-export type SafeUser = Omit<User, 'passwordHash'>;
+export const SAFE_USER_SELECT = {
+  id: true,
+  email: true,
+  name: true,
+  phone: true,
+  role: true,
+  companyId: true,
+  customRoleId: true,
+  photoUrl: true,
+  jobPositionId: true,
+  managerId: true,
+  isSuperAdmin: true,
+  isActive: true,
+  mustChangePassword: true,
+  totpEnabled: true,
+  createdAt: true,
+} as const satisfies Prisma.UserSelect;
 
-const SAFE_USER_OMIT = { passwordHash: true } as const;
+export type SafeUser = Prisma.UserGetPayload<{ select: typeof SAFE_USER_SELECT }>;
 
 function generateToken(): string {
   return crypto.randomBytes(32).toString('hex');
@@ -27,8 +50,7 @@ export async function listUsers(companyId: string): Promise<TeamMember[]> {
   const users = await prisma.user.findMany({
     where: { companyId },
     orderBy: { createdAt: 'asc' },
-    omit: SAFE_USER_OMIT,
-    include: { customRole: { select: { name: true } } },
+    select: { ...SAFE_USER_SELECT, customRole: { select: { name: true } } },
   });
   return users.map(({ customRole, ...user }) => ({ ...user, customRoleName: customRole?.name ?? null }));
 }
@@ -89,7 +111,26 @@ export async function getInvitationByToken(
   });
 }
 
-export async function acceptInvitation(token: string, data: { name: string; password: string }): Promise<User> {
+/**
+ * Selección mínima necesaria para que `acceptInvitationAction` emita la
+ * sesión (`createSessionToken`/`checkIpAllowlist`) — deliberadamente no es
+ * `SafeUser`: esta función nunca cruza al cliente, así que no debe heredar
+ * las decisiones de qué mostrarle a la interfaz, y sí necesita
+ * `sessionVersion`, que `SafeUser` excluye a propósito.
+ */
+interface AcceptInvitationResult {
+  id: string;
+  companyId: string | null;
+  role: Role;
+  email: string;
+  sessionVersion: number;
+  isSuperAdmin: boolean;
+}
+
+export async function acceptInvitation(
+  token: string,
+  data: { name: string; password: string }
+): Promise<AcceptInvitationResult> {
   const invitation = await prisma.invitation.findUnique({
     where: { token },
     include: { company: { select: { status: true, maxUsers: true } } },
@@ -137,6 +178,7 @@ export async function acceptInvitation(token: string, data: { name: string; pass
         companyId: invitation.companyId,
         customRoleId,
       },
+      select: { id: true, companyId: true, role: true, email: true, sessionVersion: true, isSuperAdmin: true },
     });
     await tx.invitation.update({ where: { id: invitation.id }, data: { acceptedAt: new Date() } });
     return user;
@@ -195,20 +237,42 @@ export async function createUserDirect(
       customRoleId: data.customRoleId ?? null,
       mustChangePassword: true,
     },
-    omit: SAFE_USER_OMIT,
+    select: SAFE_USER_SELECT,
   });
   return { user: { ...user, customRoleName }, temporaryPassword };
+}
+
+/**
+ * Jerarquía actor→objetivo para gestionar una cuenta (cambiar rol, resetear
+ * contraseña, suspender, eliminar): sin esto, el permiso `settings:users`
+ * alcanzaba para actuar sobre cualquier cuenta de la empresa, incluido un
+ * OWNER o una cuenta de plataforma (`isSuperAdmin`) que compartiera esa
+ * empresa como hogar. Usa el rol BASE real del actor (`actorRole`, el enum
+ * `Role` de la sesión), no su conjunto de permisos efectivo — así un
+ * `CustomRole` al que se le haya otorgado `settings:users` no elude la regla,
+ * igual criterio que ya usa `inviteUserAction`/`createUserDirectAction` para
+ * bloquear la asignación del rol OWNER.
+ */
+export function assertCanManageTarget(actorRole: Role, target: { role: Role; isSuperAdmin: boolean }): void {
+  if (target.isSuperAdmin) {
+    throw new Error('No se puede administrar una cuenta de plataforma desde la empresa');
+  }
+  if (target.role === 'OWNER' && actorRole !== 'OWNER') {
+    throw new Error('Solo un Dueño (OWNER) puede administrar a otro Dueño');
+  }
 }
 
 export async function changeUserRole(
   companyId: string,
   actingUserId: string,
   targetUserId: string,
-  role: Role
+  role: Role,
+  actorRole: Role
 ): Promise<SafeUser> {
   if (actingUserId === targetUserId) throw new Error('No puedes cambiar tu propio rol');
   const target = await prisma.user.findFirst({ where: { id: targetUserId, companyId } });
   if (!target) throw new Error('Usuario no encontrado');
+  assertCanManageTarget(actorRole, target);
 
   if (target.role === 'OWNER' && role !== 'OWNER') {
     const ownerCount = await prisma.user.count({ where: { companyId, role: 'OWNER', isActive: true } });
@@ -217,17 +281,19 @@ export async function changeUserRole(
 
   const result = await prisma.user.updateMany({ where: { id: targetUserId, companyId }, data: { role } });
   if (result.count === 0) throw new Error('Usuario no encontrado');
-  return prisma.user.findFirstOrThrow({ where: { id: targetUserId, companyId }, omit: SAFE_USER_OMIT });
+  return prisma.user.findFirstOrThrow({ where: { id: targetUserId, companyId }, select: SAFE_USER_SELECT });
 }
 
 export async function toggleUserStatus(
   companyId: string,
   actingUserId: string,
-  targetUserId: string
+  targetUserId: string,
+  actorRole: Role
 ): Promise<SafeUser> {
   if (actingUserId === targetUserId) throw new Error('No puedes suspender tu propia cuenta');
   const target = await prisma.user.findFirst({ where: { id: targetUserId, companyId } });
   if (!target) throw new Error('Usuario no encontrado');
+  assertCanManageTarget(actorRole, target);
 
   if (target.isActive && target.role === 'OWNER') {
     const activeOwnerCount = await prisma.user.count({ where: { companyId, role: 'OWNER', isActive: true } });
@@ -239,7 +305,7 @@ export async function toggleUserStatus(
     data: { isActive: !target.isActive },
   });
   if (result.count === 0) throw new Error('Usuario no encontrado');
-  return prisma.user.findFirstOrThrow({ where: { id: targetUserId, companyId }, omit: SAFE_USER_OMIT });
+  return prisma.user.findFirstOrThrow({ where: { id: targetUserId, companyId }, select: SAFE_USER_SELECT });
 }
 
 /**
@@ -253,10 +319,16 @@ export async function toggleUserStatus(
  * cuadres intactos, solo se pierde de quién fue). Es la única forma de que
  * "eliminar" sea eliminar de verdad sin arriesgar la contabilidad.
  */
-export async function deleteUser(companyId: string, actingUserId: string, targetUserId: string): Promise<void> {
+export async function deleteUser(
+  companyId: string,
+  actingUserId: string,
+  targetUserId: string,
+  actorRole: Role
+): Promise<void> {
   if (actingUserId === targetUserId) throw new Error('No puedes eliminar tu propia cuenta');
   const target = await prisma.user.findFirst({ where: { id: targetUserId, companyId } });
   if (!target) throw new Error('Usuario no encontrado');
+  assertCanManageTarget(actorRole, target);
 
   if (target.role === 'OWNER') {
     const ownerCount = await prisma.user.count({ where: { companyId, role: 'OWNER' } });
@@ -280,7 +352,7 @@ export async function deleteUser(companyId: string, actingUserId: string, target
 export async function updateOwnPhone(companyId: string, userId: string, phone: string | null): Promise<SafeUser> {
   const result = await prisma.user.updateMany({ where: { id: userId, companyId }, data: { phone } });
   if (result.count === 0) throw new Error('Usuario no encontrado');
-  return prisma.user.findFirstOrThrow({ where: { id: userId, companyId }, omit: SAFE_USER_OMIT });
+  return prisma.user.findFirstOrThrow({ where: { id: userId, companyId }, select: SAFE_USER_SELECT });
 }
 
 export async function updateOwnJobPosition(
@@ -290,7 +362,7 @@ export async function updateOwnJobPosition(
 ): Promise<SafeUser> {
   const result = await prisma.user.updateMany({ where: { id: userId, companyId }, data: { jobPositionId } });
   if (result.count === 0) throw new Error('Usuario no encontrado');
-  return prisma.user.findFirstOrThrow({ where: { id: userId, companyId }, omit: SAFE_USER_OMIT });
+  return prisma.user.findFirstOrThrow({ where: { id: userId, companyId }, select: SAFE_USER_SELECT });
 }
 
 export interface UserActivitySummary {
@@ -347,7 +419,9 @@ export async function getUserActivity(companyId: string, userId: string): Promis
  */
 export async function resetUserTemporaryPassword(
   companyId: string,
+  actingUserId: string,
   targetUserId: string,
+  actorRole: Role,
   options?: {
     /**
      * Cuando el admin se resetea la contraseña a sí mismo, invalidar la
@@ -366,6 +440,12 @@ export async function resetUserTemporaryPassword(
     include: { customRole: { select: { name: true } } },
   });
   if (!target) throw new Error('Usuario no encontrado');
+  // El auto-reseteo (actingUserId === targetUserId) es el único caso legítimo
+  // en que un OWNER/superadmin es su propio objetivo — no pasa por la
+  // jerarquía porque no hay elevación de privilegio posible sobre uno mismo.
+  if (actingUserId !== targetUserId) {
+    assertCanManageTarget(actorRole, target);
+  }
 
   const temporaryPassword = generateRandomPassword();
   const passwordHash = await bcrypt.hash(temporaryPassword, 12);
@@ -377,7 +457,7 @@ export async function resetUserTemporaryPassword(
   });
   if (result.count === 0) throw new Error('Usuario no encontrado');
 
-  const updated = await prisma.user.findFirstOrThrow({ where: { id: targetUserId, companyId }, omit: SAFE_USER_OMIT });
+  const updated = await prisma.user.findFirstOrThrow({ where: { id: targetUserId, companyId }, select: SAFE_USER_SELECT });
   return { user: { ...updated, customRoleName: target.customRole?.name ?? null }, temporaryPassword };
 }
 

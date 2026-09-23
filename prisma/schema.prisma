@@ -155,6 +155,10 @@ model Company {
   conversations             Conversation[]
   messages                  Message[]
   messageAttachments        MessageAttachment[]
+  dteCafs                   DteCaf[]
+  workflowRules             WorkflowRule[]
+  workflowExecutions        WorkflowExecution[]
+  workflowNotifications     WorkflowNotification[]
 
   // El panel de plataforma agrupa por estado y por plan en cada carga.
   @@index([status])
@@ -245,6 +249,12 @@ model User {
   conversationParticipations       ConversationParticipant[]
   createdConversations             Conversation[]            @relation("MessagingConversationCreator")
   uploadedMessageAttachments       MessageAttachment[]
+  /// CAF que este usuario cargó — queda trazado quién habilitó cada rango de
+  /// folios, que es una acción tributariamente sensible.
+  uploadedDteCafs                  DteCaf[]
+  createdWorkflowRules             WorkflowRule[]
+  cashMovements                    CashMovement[]
+  approvedAgentTasks               AgentTask[]
 
   @@index([companyId])
   @@index([customRoleId])
@@ -428,11 +438,26 @@ model CompanySettings {
   purchaseApprovalThreshold Int?
   /// Token único para la suscripción de eventos y cumpleaños en Google Calendar
   calendarSyncToken         String?      @unique
+  /// Token único para que una automatización externa (n8n, Zapier, un script
+  /// propio) llame `POST /api/webhooks` en nombre de esta empresa —
+  /// `Authorization: Bearer <token>`. El token ES la identidad de la empresa
+  /// en ese endpoint (mismo patrón que `calendarSyncToken`): el companyId
+  /// NUNCA se acepta del payload que manda el cliente, siempre se resuelve
+  /// buscando este token. `null` hasta que alguien lo genera desde
+  /// Configuración → Empresa.
+  n8nWebhookSecret          String?      @unique
   /// Texto libre con los datos de transferencia (banco, tipo de cuenta,
   /// número, titular, RUT) que se muestra al comprador en los flujos públicos
   /// de pago manual (entradas, votación) — no hay pasarela de pago integrada,
   /// así que el comprador transfiere fuera del sistema y el staff confirma.
   bankTransferInfo          String?
+  /// Integración con la API del SII para esta empresa. Almacena la
+  /// configuración específica del cliente (endpoint, key y secret), sin
+  /// compartir la credencial entre empresas.
+  siiApiEnabled             Boolean      @default(false)
+  siiApiBaseUrl             String?
+  siiApiKey                 String?
+  siiApiSecret              String?
   createdAt                 DateTime     @default(now())
   updatedAt                 DateTime     @updatedAt
 }
@@ -768,8 +793,29 @@ model SalesDocument {
   project        Project?            @relation(fields: [projectId], references: [id])
   items          SalesDocumentItem[]
   payments       Payment[]
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
+
+  // ── Facturación electrónica ──────────────────────────────────────────────
+  // Todo nullable: los documentos emitidos antes de que existiera el módulo
+  // DTE, y las cotizaciones (que no son DTE), no tienen nada de esto.
+  /// CAF que autorizó el folio. Permite revalidar el timbre años después,
+  /// incluso si ese rango ya se agotó.
+  cafId           String?
+  caf             DteCaf?              @relation(fields: [cafId], references: [id])
+  /// `<TED>` firmado, tal como se imprime en el PDF417 del documento.
+  tedXml          String?
+  /// XML completo del DTE ya firmado y enviado. Es el original tributario:
+  /// se guarda literal porque cualquier reserialización invalida la firma.
+  signedXml       String?
+  /// Track ID que devuelve el SII al recibir el envío. Es la única forma de
+  /// consultar después si el documento fue aceptado.
+  siiTrackId      String?
+  siiStatus       SiiSubmissionStatus?
+  siiStatusAt     DateTime?
+  /// Glosa del SII cuando rechaza u observa; sin esto un rechazo es opaco.
+  siiStatusDetail String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([companyId, dteType, folio])
   @@unique([companyId, idempotencyKey])
@@ -1149,9 +1195,11 @@ model CashMovement {
   amount      Int
   reason      String
   userId      String?
+  user        User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
   createdAt   DateTime         @default(now())
 
   @@index([companyId, cashShiftId])
+  @@index([userId])
 }
 
 model Invitation {
@@ -2446,6 +2494,7 @@ model TicketSale {
 
   @@index([companyId, projectId])
   @@index([companyId, paymentStatus])
+  @@index([companyId, ticketTypeId])
 }
 
 /// Orden de votos pagados por una candidata, creada desde `/votar/[token]`
@@ -2472,6 +2521,7 @@ model VoteOrder {
   @@index([companyId, projectId])
   @@index([companyId, candidateId])
   @@index([companyId, paymentStatus])
+  @@index([companyId, candidateId, paymentStatus])
 }
 
 // ============================================================================
@@ -2504,10 +2554,12 @@ model AgentTask {
   payload          Json?
   requiresApproval Boolean         @default(false)
   approvedByUserId String?
+  approvedByUser   User?           @relation(fields: [approvedByUserId], references: [id], onDelete: SetNull)
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
   @@index([companyId, role, status])
+  @@index([approvedByUserId])
 }
 
 /// Una fila por corrida de un agente (cron o manual). Nunca queda colgada en
@@ -2602,7 +2654,14 @@ model ProcessedWebhookEvent {
   processedAt DateTime @default(now())
   createdAt   DateTime @default(now())
 
-  @@unique([provider, eventId])
+  /// `companyId` va en la clave de unicidad (no solo `provider`+`eventId`):
+  /// dos empresas distintas pueden coincidir en el mismo `eventId` si su
+  /// automatización externa genera el hash sin incluir la empresa (ej. un
+  /// mismo workflow de n8n reusado por varios clientes con
+  /// fecha+monto+glosa). Sin `companyId` acá, el evento de la segunda
+  /// empresa se descartaría en silencio como "duplicado" del de la
+  /// primera — el pago de la segunda empresa nunca se registraría.
+  @@unique([provider, companyId, eventId])
   @@index([companyId, provider])
   @@index([createdAt])
 }
@@ -2722,4 +2781,229 @@ model MessageAttachment {
 
   @@index([conversationId])
   @@index([messageId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Facturación Electrónica (DTE) — autorización de folios del SII
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Estado de un archivo CAF dentro de su ciclo de vida.
+enum CafStatus {
+  /// Tiene folios disponibles y puede timbrar documentos.
+  ACTIVE
+  /// Se asignó el último folio del rango. No se borra: los documentos ya
+  /// emitidos con él siguen necesitando su bloque para revalidarse.
+  EXHAUSTED
+  /// Marcado a mano cuando el SII anula el rango (robo, error de solicitud).
+  REVOKED
+}
+
+/// Resultado del envío de un DTE al SII.
+enum SiiSubmissionStatus {
+  /// Documento emitido y timbrado, todavía no enviado al SII.
+  PENDING
+  /// Enviado; el SII entregó un Track ID y aún no responde el resultado.
+  SENT
+  ACCEPTED
+  /// Aceptado con reparos: es válido, pero el SII observó algo.
+  ACCEPTED_WITH_OBJECTIONS
+  REJECTED
+}
+
+/// Código de Autorización de Folios entregado por el SII.
+///
+/// Autoriza un RANGO de folios para UN tipo de documento y contiene la llave
+/// privada RSA con la que se firma el timbre (TED) de cada documento de ese
+/// rango. Sin un CAF vigente no existe emisión legalmente válida: el folio no
+/// es un contador interno, es un número que el SII entregó de antemano.
+model DteCaf {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  dteType DteType
+  /// Código numérico del SII (33, 39, 61…), redundante con `dteType` a
+  /// propósito: es el valor que viaja al SII y evita traducir en cada consulta.
+  siiCode Int
+
+  rangeFrom         Int
+  rangeTo           Int
+  /// Folio más alto ya asignado de este rango. 0 = ninguno usado todavía.
+  /// Es el cursor real de emisión; se avanza con lock de fila.
+  lastAssignedFolio Int @default(0)
+
+  authorizedAt DateTime
+  status       CafStatus @default(ACTIVE)
+
+  /// XML completo del CAF, cifrado en reposo con AES-256-GCM. Va cifrado
+  /// porque contiene la llave privada que timbra los documentos: quien la
+  /// obtiene puede emitir documentos a nombre de la empresa.
+  encryptedXml String
+
+  uploadedById String?
+  uploadedBy   User?   @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  salesDocuments SalesDocument[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// El SII nunca entrega dos rangos iguales para el mismo tipo y emisor;
+  /// esto convierte un doble-subida del mismo archivo en un error explícito.
+  @@unique([companyId, dteType, rangeFrom])
+  /// Cubre la búsqueda del CAF vigente al momento de emitir.
+  @@index([companyId, dteType, status])
+}
+
+// ============================================================================
+// Motor de automatizaciones ("Flujos de trabajo")
+// ============================================================================
+// Reglas definidas por la propia empresa (sin tocar código): un disparador de
+// negocio ya existente + condiciones simples + una o más acciones. Es
+// deliberadamente acotado en superficie (3 tipos de acción) para no convertirse
+// en una forma de mutar datos de negocio sin pasar por las reglas de cada
+// módulo — una automatización nunca escribe directo en Sales/Purchases/Stock,
+// solo notifica o dispara integraciones externas.
+
+enum WorkflowTriggerEvent {
+  /// Documento de venta emitido (Factura, Boleta, Guía, NC, ND). Payload trae
+  /// dteType/folio/totalAmount/contactName/paymentMethod.
+  SALE_ISSUED
+  /// Documento de venta anulado.
+  SALE_CANCELLED
+  /// Compra que superó `purchaseApprovalThreshold` y quedó esperando aprobación.
+  PURCHASE_PENDING_APPROVAL
+  /// Producto cuyo stock total cayó a su mínimo configurado o por debajo
+  /// (mismo criterio que la alerta operativa diaria).
+  STOCK_BELOW_MINIMUM
+  /// Documento de venta a crédito vencido y todavía impago.
+  RECEIVABLE_OVERDUE
+  /// Rango de folios del SII con pocos folios libres.
+  DTE_FOLIOS_LOW
+  /// Nueva postulación recibida en el formulario público de candidatas.
+  CANDIDATE_REGISTERED
+  /// Orden de compra de entradas confirmada como pagada.
+  TICKET_PURCHASE_CONFIRMED
+  /// Orden de votos confirmada como pagada.
+  VOTE_ORDER_PAID
+  /// Contrato de auspicio firmado (ZapSign u otro proveedor de firma).
+  SPONSORSHIP_SIGNED
+}
+
+enum WorkflowActionType {
+  SEND_EMAIL
+  CREATE_NOTIFICATION
+  CALL_WEBHOOK
+}
+
+enum WorkflowExecutionStatus {
+  /// Todas las acciones de la regla se ejecutaron sin error.
+  SUCCESS
+  /// Al menos una acción falló, pero al menos una tuvo éxito.
+  PARTIAL_FAILURE
+  /// Ninguna acción se ejecutó con éxito.
+  FAILED
+}
+
+/// Mismo vocabulario que ya usa `NotificationItem.severity` en
+/// `src/lib/actions/notifications.ts` — una sola fuente de verdad para lo que
+/// puede mostrar la campanita, ahora que también hay notificaciones
+/// persistidas (antes todas se calculaban al vuelo).
+enum WorkflowNotificationSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+model WorkflowRule {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+
+  trigger WorkflowTriggerEvent
+
+  /// `WorkflowCondition[]` (ver src/lib/workflows/types.ts) evaluadas en AND
+  /// contra el payload del evento. Arreglo vacío = se ejecuta siempre que
+  /// ocurra el disparador.
+  conditions Json @default("[]")
+
+  /// `WorkflowActionConfig[]` ejecutadas en el orden del arreglo. Siempre al
+  /// menos una — se valida en el schema Zod, no aquí.
+  actions Json
+
+  isActive Boolean @default(true)
+
+  /// Secreto HMAC para las acciones CALL_WEBHOOK de esta regla (header
+  /// `X-Aether-Signature`), para que el receptor pueda verificar que la
+  /// llamada vino de esta empresa. En texto plano, mismo criterio que
+  /// `CompanySettings.n8nWebhookSecret`: es un secreto de integración, no una
+  /// llave que pueda forjar documentos tributarios.
+  signingSecret String
+
+  createdById String?
+  createdBy   User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  executions    WorkflowExecution[]
+  notifications WorkflowNotification[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId, trigger, isActive])
+}
+
+model WorkflowExecution {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  /// Opcional y `SetNull` a propósito: el historial de ejecuciones es
+  /// evidencia de auditoría (qué correo/webhook se disparó y cuándo) y debe
+  /// sobrevivir aunque alguien borre la regla que lo generó — a diferencia de
+  /// `DteCaf`/`SalesDocument`, acá no hay razón tributaria para exigir que
+  /// exista la regla dueña.
+  ruleId String?
+  rule   WorkflowRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+
+  trigger WorkflowTriggerEvent
+  status  WorkflowExecutionStatus
+
+  /// Payload del evento que disparó esta corrida — clave para depurar por qué
+  /// una condición hizo o no hizo match.
+  eventPayload Json
+
+  /// `Array<{ type, success, detail }>`: resultado de cada acción, en orden.
+  actionResults Json
+
+  createdAt DateTime @default(now())
+
+  /// El historial de una regla (más reciente primero) es el patrón de acceso
+  /// principal de la UI.
+  @@index([companyId, ruleId, createdAt])
+}
+
+model WorkflowNotification {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  /// `SetNull` — la notificación ya entregada sigue siendo válida en la
+  /// campanita aunque la regla que la generó se borre después.
+  ruleId String?
+  rule   WorkflowRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+
+  severity WorkflowNotificationSeverity @default(INFO)
+  title    String
+  message  String
+  href     String?
+
+  readAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  /// La campanita solo pide las no leídas más recientes.
+  @@index([companyId, readAt, createdAt])
 }

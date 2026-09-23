@@ -19,6 +19,7 @@ import {
 import { ItemLinesEditor } from './AiRowsReviewTable';
 import { useProductOptions } from '@/hooks/use-product-options';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 const selectClass =
   'h-9 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30';
 
@@ -28,6 +29,7 @@ interface Props {
 }
 
 export default function ImportWizard({ availableEntities }: Props) {
+  const confirm = useConfirm();
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -427,12 +429,12 @@ export default function ImportWizard({ availableEntities }: Props) {
                   liveValidRows === 0 ||
                   ((entity === 'products' || entity === 'contacts') && liveInvalidRows > 0)
                 }
-                onClick={() => {
+                onClick={async () => {
                   const message =
                     liveInvalidRows > 0
                       ? `Se importarán ${liveValidRows} fila(s) válidas; las ${liveInvalidRows} con error quedarán fuera. ¿Confirmar?`
                       : `Se crearán ${liveValidRows} registro(s). ¿Confirmar la importación?`;
-                  if (confirm(message)) {
+                  if (await confirm(message)) {
                     commit();
                   }
                 }}

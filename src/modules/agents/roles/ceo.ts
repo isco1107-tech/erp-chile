@@ -4,6 +4,7 @@ import type { AgentRole } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { generateAgentText } from '../services/gemini-agent';
 import { CEO_PRIORITIZATION_RUBRIC } from '../knowledge-base';
+import { captureException } from '@/lib/observability';
 
 /**
  * Rol CEO: resumen ejecutivo. Es el ÚNICO rol que "lee" el trabajo de los
@@ -56,7 +57,7 @@ export async function runCeoAgent(companyId: string): Promise<string> {
     const prioritiesText = await generateAgentText(SYSTEM_PROMPT, `Recomendaciones recientes del equipo:\n${bullet}`);
     priorities = splitLines(prioritiesText);
   } catch (error) {
-    console.error('[agents:CEO] Gemini falló al resumir prioridades, se aborta esta corrida sin crear tareas:', error);
+    captureException(error, { module: 'agents', companyId, extra: { role: 'CEO', reason: 'summarize-priorities' } });
     throw error;
   }
 

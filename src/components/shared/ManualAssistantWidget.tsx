@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { HelpCircle, X, Send, Check } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { MessageCircleQuestion, X, Send, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { parseChatResponse, parseConfirmResponse } from '@/lib/ai/chat-response';
+import { MANUAL_ASSISTANT_OPEN_EVENT } from './assistant-events';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -16,13 +18,23 @@ interface PendingAction {
 }
 
 /**
- * Botón flotante + panel deslizante del asistente del Manual de Usuario.
- * Mismo estilo que `AiCopilotDrawer.tsx` (superficie flotante de baja
- * densidad → mismo criterio "Obsidian HUD" de `PROMPT_ERP_V2.md` §G.1), pero
- * a la izquierda para que ambos widgets convivan sin superponerse en una
- * empresa que además tenga `hasCrm`. Disponible siempre, sin depender de
- * ningún módulo contratado — es ayuda de uso de la app, no una feature de
- * negocio.
+ * Arranques sugeridos para la pantalla en blanco. Deliberadamente amplios (no
+ * "¿cómo emito una boleta?"): el asistente ahora sabe orientar sobre cualquier
+ * pantalla, resolver trabas y armar flujos completos, y la mayoría de la gente
+ * no descubre eso si el ejemplo que ve es siempre el mismo caso puntual.
+ */
+const SUGGESTIONS = [
+  '¿Qué puedo hacer en esta pantalla?',
+  '¿Por dónde empiezo a usar el sistema?',
+  '¿Qué tengo que revisar para cerrar el mes?',
+  'No me deja hacer algo, ¿por qué?',
+];
+
+/**
+ * Panel deslizante del asistente del Manual de Usuario. Se abre desde la
+ * barra superior (`HeaderAssistantButtons` dispara
+ * `MANUAL_ASSISTANT_OPEN_EVENT`). Disponible siempre, sin depender de ningún
+ * módulo contratado — es ayuda de uso de la app, no una feature de negocio.
  *
  * Overlay/panel montados a mano (sin `Dialog`/`DialogPortal` de base-ui):
  * ese primitivo espera que su contenido sea un `Popup` real para poder
@@ -40,6 +52,15 @@ export default function ManualAssistantWidget() {
   const [sending, setSending] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [confirming, setConfirming] = useState(false);
+  // Le da al asistente la pantalla desde la que se abrió, para que "¿cómo hago
+  // esto?" no obligue al usuario a explicar dónde está parado.
+  const pathname = usePathname();
+
+  useEffect(() => {
+    const openPanel = () => setOpen(true);
+    window.addEventListener(MANUAL_ASSISTANT_OPEN_EVENT, openPanel);
+    return () => window.removeEventListener(MANUAL_ASSISTANT_OPEN_EVENT, openPanel);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -50,8 +71,8 @@ export default function ManualAssistantWidget() {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [open]);
 
-  async function handleSend() {
-    const content = input.trim();
+  async function sendMessage(rawContent: string) {
+    const content = rawContent.trim();
     if (!content || sending) return;
 
     const nextMessages: ChatMessage[] = [...messages, { role: 'user', content }];
@@ -63,7 +84,7 @@ export default function ManualAssistantWidget() {
       const res = await fetch('/api/ai/manual-assistant', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: nextMessages }),
+        body: JSON.stringify({ messages: nextMessages, currentPath: pathname }),
       });
       const json = parseChatResponse(await res.json());
       if (!json.success) {
@@ -77,6 +98,10 @@ export default function ManualAssistantWidget() {
     } finally {
       setSending(false);
     }
+  }
+
+  function handleSend() {
+    void sendMessage(input);
   }
 
   async function handleConfirm() {
@@ -105,31 +130,24 @@ export default function ManualAssistantWidget() {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label="Abrir asistente del manual"
-        className="hud-surface fixed bottom-5 left-5 z-40 flex size-14 items-center justify-center rounded-full text-cyan-300 shadow-[0_0_24px_-8px_rgba(34,211,238,0.8)] transition-transform duration-150 hover:scale-105 print:hidden lg:left-[280px]"
-      >
-        <HelpCircle className="size-6" strokeWidth={1.75} />
-      </button>
-
       {open && (
         <>
           <div
             role="presentation"
             onClick={() => setOpen(false)}
-            className="fixed inset-0 z-50 bg-black/50"
+            className="fixed inset-0 z-50 bg-neutral-950/30 backdrop-blur-[2px] print:hidden"
           />
           <div
             role="dialog"
             aria-modal="true"
             aria-label="Asistente del Manual"
-            className={cn('hud-surface fixed inset-y-0 left-0 z-50 flex w-full max-w-md flex-col')}
+            className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l border-border bg-card text-card-foreground shadow-popover print:hidden"
           >
             <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
               <div>
-                <p className="hud-label">Asistente</p>
+                <p className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                  <MessageCircleQuestion className="size-3.5 text-primary" aria-hidden="true" /> Asistente
+                </p>
                 <p className="text-sm text-muted-foreground">Te explico cómo hacer algo, o lo hago yo si me lo pides</p>
               </div>
               <button
@@ -142,11 +160,27 @@ export default function ManualAssistantWidget() {
               </button>
             </div>
 
-            <div className="hud-scroll flex-1 space-y-3 overflow-y-auto px-4 py-4">
+            <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
               {messages.length === 0 && (
-                <p className="text-sm text-muted-foreground">
-                  Pregúntame por ejemplo: &ldquo;¿Cómo emito una boleta?&rdquo;, o pídeme directamente &ldquo;Créame un contacto para Juan Pérez, RUT 12.345.678-9, es cliente&rdquo;.
-                </p>
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Pregúntame lo que necesites hacer en el sistema: te explico paso a paso, te digo a qué pantalla ir, o lo hago yo
+                    por ti (por ejemplo &ldquo;créame un contacto para Juan Pérez, RUT 12.345.678-9, es cliente&rdquo;).
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {SUGGESTIONS.map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        onClick={() => void sendMessage(suggestion)}
+                        disabled={sending}
+                        className="rounded-full border border-input px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/60 hover:text-foreground disabled:opacity-50"
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               )}
               {messages.map((message, index) => (
                 <div
@@ -159,10 +193,10 @@ export default function ManualAssistantWidget() {
                   {message.content}
                 </div>
               ))}
-              {sending && <p className="hud-label">Pensando...</p>}
+              {sending && <p className="text-xs text-muted-foreground">Pensando…</p>}
 
               {pendingAction && (
-                <div className="rounded-xl border border-cyan-300/40 bg-cyan-950/20 p-3">
+                <div className="rounded-xl border border-primary/30 bg-accent p-3">
                   <p className="mb-2 text-sm text-foreground">{pendingAction.summary}</p>
                   <div className="flex gap-2">
                     <button
@@ -190,7 +224,7 @@ export default function ManualAssistantWidget() {
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  void handleSend();
+                  handleSend();
                 }}
                 className="flex gap-2"
               >

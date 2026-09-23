@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
-import { put } from '@vercel/blob';
+import { put } from '@/lib/storage/blob';
 import { AuthError, ModuleNotEnabledError, TenantInactiveError, requireAuthWithPermission } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
+import { captureException } from '@/lib/observability';
 import { renderCandidateContractPdf } from '@/modules/candidates/services/contract-pdf.service';
 import { upsertGeneratedContract } from '@/modules/candidates/services/documents.service';
 
@@ -61,7 +62,7 @@ export async function GET(req: Request) {
     if (error instanceof Error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 400 });
     }
-    console.error('Candidate contract generation failed:', error);
+    captureException(error, { module: 'candidates' });
     return NextResponse.json({ success: false, error: 'No se pudo generar el contrato' }, { status: 500 });
   }
 }

@@ -1,0 +1,4 @@
+b52c6676737ac395e2efbb328a8a2131ceca717f2f064c933375fd07479f145d  aether-erp-windows.exe
+65a8e801155fbe30a2f45f549006838144b25005c3212ebd9174d3e93dada6f1  aether-erp-macos.dmg
+83ecbf4958beec433cff376ded0d6a857d1bbcfd81a9410b5f91e2b21020051c  aether-erp-macos-intel.dmg
+a2046e50c0380a13118bd357ba405838394b885fbcc42e4f485d190ce705ed05  aether-erp-linux.AppImage

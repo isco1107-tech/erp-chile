@@ -13,7 +13,11 @@ import type {
 import { applyStockIn, applyStockOut } from '@/modules/inventory/services/stock.service';
 import { getContactOutstandingBalance } from '@/modules/treasury/services/treasury.service';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
+import { emitWorkflowEvent } from '@/lib/workflows/engine';
+import type { WorkflowEventPayload } from '@/lib/workflows/types';
 import { postCreditNoteIssued, postSalesDocumentIssued, reverseSalesDocumentPosting } from '@/modules/accounting/posting-rules/sales-posting';
+import { isExemptDocument, siiCode } from '@/lib/chile/dte/codes';
+import { assignSalesFolio, stampDocument, type FolioAssignment } from '@/modules/dte/services/stamping.service';
 import { computeDocument, exceedsCreditLimit } from '../calc';
 import { CASH_ELIGIBLE_DTE_TYPES, DTE_TYPE_LABELS, NON_FOLIO_DTE_TYPES, STOCK_AFFECTING_DTE_TYPES } from '../schema';
 import type { SalesDocumentCreateInput } from '../schema';
@@ -31,7 +35,15 @@ export async function createSalesDocument(
   input: SalesDocumentCreateInput,
   status: 'DRAFT' | 'ISSUED'
 ): Promise<SalesDocumentWithItems> {
-  return prisma.$transaction(async (tx) => {
+  // Capturado dentro de la transacción, emitido recién después de que
+  // confirme (ver el final de la función): una automatización que envía
+  // correo o llama un webhook es I/O externo y no debe poder hacer que la
+  // venta haga rollback si falla. Queda en `null` en el camino de
+  // idempotencia (documento ya existente) para no disparar el evento dos
+  // veces ante un reintento del mismo `idempotencyKey`.
+  let emittedSalePayload: WorkflowEventPayload | null = null;
+
+  const result = await prisma.$transaction(async (tx) => {
     if (input.idempotencyKey) {
       const existing = await tx.salesDocument.findUnique({
         where: { companyId_idempotencyKey: { companyId, idempotencyKey: input.idempotencyKey } },
@@ -69,6 +81,17 @@ export async function createSalesDocument(
 
     const { items: computedItems, totals } = computeDocument(withCost);
     const { netAmount, exemptAmount, ivaAmount, totalAmount } = totals;
+
+    // Una Factura/Boleta Exenta no puede llevar líneas afectas: el propio
+    // TipoDTE del SII declara el documento entero como exento de IVA. Sin este
+    // chequeo, una línea con un producto no marcado exento en el catálogo
+    // calculaba IVA igual, dejando un documento tipo 34/41 con `IVA` > 0 —
+    // inconsistente con su propia naturaleza y candidato a rechazo del SII.
+    if (isExemptDocument(input.dteType) && netAmount > 0) {
+      throw new Error(
+        `${DTE_TYPE_LABELS[input.dteType]} no puede incluir líneas afectas a IVA: revisa que todos los productos de esta venta estén marcados como exentos en el catálogo`
+      );
+    }
 
     let folio: number | null = null;
     const dteLabel = DTE_TYPE_LABELS[input.dteType];
@@ -113,13 +136,15 @@ export async function createSalesDocument(
     const referencesIssuedGuide = referencedDocument?.dteType === 'GUIA_DESPACHO_52';
     const affectsStock = isIssuing && STOCK_AFFECTING_DTE_TYPES.includes(input.dteType) && !referencesIssuedGuide;
 
+    // Folio: sale de un CAF autorizado por el SII si la empresa tiene folios
+    // cargados, y del contador interno si no (ver `assignSalesFolio`). La
+    // asignación va DENTRO de esta transacción para que, si la emisión falla
+    // más abajo, el folio vuelva atrás y no quede un hueco en la numeración —
+    // el SII exige justificar cada folio no utilizado.
+    let folioAssignment: FolioAssignment | null = null;
     if (needsFolio) {
-      const folioSeq = await tx.folioSequence.upsert({
-        where: { companyId_dteType: { companyId, dteType: input.dteType } },
-        update: { currentFolio: { increment: 1 } },
-        create: { companyId, dteType: input.dteType, currentFolio: 1 },
-      });
-      folio = folioSeq.currentFolio;
+      folioAssignment = await assignSalesFolio(tx, companyId, input.dteType);
+      folio = folioAssignment.folio;
     }
 
     // Cuánto ya se acreditó contra el documento original por notas de crédito
@@ -213,6 +238,74 @@ export async function createSalesDocument(
     // mismo auto-cobro al crear (`pos.service.ts`); Ventas no lo hacía.
     const isImmediatePayment = isIssuing && input.paymentMethod !== 'CREDITO_30';
 
+    // Timbrado electrónico. Solo ocurre cuando el folio vino de un CAF: sin
+    // folio autorizado no hay nada que timbrar. La fecha se fija acá y se pasa
+    // tanto al timbre como al documento para que no puedan discrepar (el TED
+    // declara la fecha de emisión y el SII la contrasta con la del documento).
+    const issuedAt = new Date();
+    let stamped: { tedXml: string; signedXml: string } | null = null;
+
+    if (folio !== null && folioAssignment?.stamping) {
+      const issuer = await tx.company.findUnique({
+        where: { id: companyId },
+        select: {
+          rut: true,
+          businessName: true,
+          giro: true,
+          actividadEconomicaCodigo: true,
+          address: true,
+          comuna: true,
+          ciudad: true,
+        },
+      });
+
+      if (issuer) {
+        stamped = stampDocument({
+          siiCode: folioAssignment.stamping.siiCode,
+          folio,
+          issueDate: issuedAt,
+          dueDate: input.dueDate ? new Date(input.dueDate) : null,
+          paymentMethod: input.paymentMethod,
+          issuer,
+          receiver: {
+            rut: contact.rut,
+            businessName: contact.razonSocial,
+            giro: contact.giro,
+            address: contact.address,
+            comuna: contact.comuna,
+            ciudad: null,
+          },
+          lines: computedItems.map((item) => ({
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            lineTotal: item.total,
+            isExempt: item.isExempt ?? false,
+            discountPercent: item.discountPercent ?? 0,
+            sku: item.sku,
+          })),
+          totals: { netAmount, exemptAmount, ivaAmount, totalAmount },
+          references:
+            referencedDocument && referencedDocument.folio !== null
+              ? [
+                  {
+                    siiCode: siiCode(referencedDocument.dteType),
+                    folio: referencedDocument.folio,
+                    issueDate: referencedDocument.issueDate,
+                    // 3 = "corrige montos". Es el código correcto para la nota
+                    // de crédito parcial, que es el caso habitual; una
+                    // anulación total (código 1) requiere que el usuario lo
+                    // declare y todavía no hay campo para eso en el formulario.
+                    reasonCode: isCreditNote ? 3 : undefined,
+                  },
+                ]
+              : undefined,
+          cafBlockXml: folioAssignment.stamping.cafBlockXml,
+          privateKeyPem: folioAssignment.stamping.privateKeyPem,
+        });
+      }
+    }
+
     const created = await tx.salesDocument.create({
       data: {
         companyId,
@@ -221,6 +314,14 @@ export async function createSalesDocument(
         dteType: input.dteType,
         folio,
         status,
+        issueDate: issuedAt,
+        cafId: folioAssignment?.cafId ?? undefined,
+        tedXml: stamped?.tedXml,
+        signedXml: stamped?.signedXml,
+        // Timbrado pero aún no despachado al SII. `null` cuando el documento
+        // no es un DTE (numeración interna): así se distingue "pendiente de
+        // envío" de "no corresponde enviar".
+        siiStatus: stamped ? 'PENDING' : undefined,
         dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
         paymentMethod: input.paymentMethod,
         netAmount,
@@ -252,6 +353,19 @@ export async function createSalesDocument(
       },
       include: { items: true },
     });
+
+    if (isIssuing && input.dteType !== 'COTIZACION') {
+      emittedSalePayload = {
+        documentId: created.id,
+        dteType: input.dteType,
+        folio,
+        contactId: contact.id,
+        contactName: contact.razonSocial,
+        totalAmount,
+        paymentMethod: input.paymentMethod,
+        isDte: stamped !== null,
+      };
+    }
 
     // El asiento nace junto con el documento, dentro de esta misma
     // transacción: si falla, la venta no se emite. Las Notas de Crédito
@@ -311,10 +425,18 @@ export async function createSalesDocument(
 
     return created;
   }, LOCKING_TX_OPTIONS);
+
+  if (emittedSalePayload) {
+    void emitWorkflowEvent(companyId, 'SALE_ISSUED', emittedSalePayload);
+  }
+
+  return result;
 }
 
 export async function cancelSalesDocument(companyId: string, id: string, reason?: string): Promise<SalesDocument> {
-  return prisma.$transaction(async (tx) => {
+  let emittedCancelPayload: WorkflowEventPayload | null = null;
+
+  const cancelResult = await prisma.$transaction(async (tx) => {
     const document = await tx.salesDocument.findFirst({
       where: { id, companyId },
       include: { items: true, cashShift: { select: { id: true, status: true, closedAt: true } } },
@@ -426,8 +548,23 @@ export async function cancelSalesDocument(companyId: string, id: string, reason?
 
     const result = await tx.salesDocument.findFirst({ where: { id: document.id, companyId } });
     if (!result) throw new Error('Documento no encontrado');
+
+    emittedCancelPayload = {
+      documentId: result.id,
+      dteType: result.dteType,
+      folio: result.folio,
+      totalAmount: result.totalAmount,
+      reason: reason ?? null,
+    };
+
     return result;
   }, LOCKING_TX_OPTIONS);
+
+  if (emittedCancelPayload) {
+    void emitWorkflowEvent(companyId, 'SALE_CANCELLED', emittedCancelPayload);
+  }
+
+  return cancelResult;
 }
 
 export async function duplicateSalesDocument(companyId: string, id: string): Promise<SalesDocumentWithItems> {

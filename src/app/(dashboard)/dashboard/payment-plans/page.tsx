@@ -9,7 +9,7 @@ export default async function PaymentPlansPage() {
 
   return (
     <div>
-      <h1 className="mb-4 text-2xl font-bold">Cuotas / Mensualidades</h1>
+      <h1 className="mb-4 text-2xl font-bold" data-tutorial="module-header">Cuotas / Mensualidades</h1>
       <PaymentPlanListClient canWrite={canWrite} />
     </div>
   );

@@ -17,6 +17,7 @@ import { PURCHASE_DOCUMENT_TYPE_LABELS } from '@/modules/purchases/schema';
 import type { PurchaseDocumentListItem } from '@/modules/purchases/services/purchases.service';
 import { formatCurrency } from '@/lib/chile/tax';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 const STATUS_BADGE: Record<string, string> = {
   DRAFT: 'bg-muted text-muted-foreground',
   ISSUED: 'bg-green-600/10 text-green-600',
@@ -38,6 +39,7 @@ const PAYMENT_STATUS_LABEL: Record<string, string> = {
 const DEFAULT_PAGE_SIZE = 25;
 
 export default function PurchaseHistoryClient({ canApprove }: { canApprove: boolean }) {
+  const confirm = useConfirm();
   const [rows, setRows] = useState<PurchaseDocumentListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -81,7 +83,7 @@ export default function PurchaseHistoryClient({ canApprove }: { canApprove: bool
   }
 
   async function handleCancel(id: string) {
-    if (!confirm('¿Anular este documento de compra?')) return;
+    if (!await confirm('¿Anular este documento de compra?')) return;
     const result = await cancelPurchaseDocumentAction(id);
     if (!result.success) {
       toast.error(result.error);
@@ -92,7 +94,7 @@ export default function PurchaseHistoryClient({ canApprove }: { canApprove: bool
   }
 
   async function handleApprove(id: string) {
-    if (!confirm('¿Aprobar esta compra? Se emitirá y afectará el inventario.')) return;
+    if (!await confirm('¿Aprobar esta compra? Se emitirá y afectará el inventario.')) return;
     setBusyId(id);
     try {
       const result = await approvePurchaseDocumentAction(id);
@@ -124,9 +126,10 @@ export default function PurchaseHistoryClient({ canApprove }: { canApprove: bool
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 duration-500 animate-in fade-in slide-in-from-bottom-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Input
+          data-tutorial="module-search"
           placeholder="Buscar por RUT o Razón Social"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -136,25 +139,25 @@ export default function PurchaseHistoryClient({ canApprove }: { canApprove: bool
           <Link href="/dashboard/purchases/orders" className={buttonVariants({ variant: 'outline' })}>
             Órdenes de Compra
           </Link>
-          <Link href="/dashboard/purchases/new" className={buttonVariants({ variant: 'default' })}>
+          <Link href="/dashboard/purchases/new" className={buttonVariants({ variant: 'default' })} data-tutorial="module-primary-action">
             Nueva Factura de Proveedor
           </Link>
         </div>
       </div>
 
-      <div className="rounded-xl border border-border">
+      <div className="rounded-lg border border-border bg-card shadow-card">
         <div className="max-h-[65vh] scroll-smooth overflow-auto">
         <table className="w-full min-w-[920px] table-auto text-sm">
           <thead className="sticky top-0 z-10 bg-muted/95 text-left backdrop-blur-sm">
             <tr>
-              <th className="p-2 font-medium">Folio</th>
-              <th className="p-2 font-medium">Tipo</th>
-              <th className="p-2 font-medium">Fecha</th>
-              <th className="p-2 font-medium">Proveedor</th>
-              <th className="p-2 font-medium">Total</th>
-              <th className="p-2 font-medium">Saldo</th>
-              <th className="p-2 font-medium">Estado</th>
-              <th className="p-2 font-medium">Acciones</th>
+              <th scope="col" className="p-2 font-medium">Folio</th>
+              <th scope="col" className="p-2 font-medium">Tipo</th>
+              <th scope="col" className="p-2 font-medium">Fecha</th>
+              <th scope="col" className="p-2 font-medium">Proveedor</th>
+              <th scope="col" className="p-2 font-medium">Total</th>
+              <th scope="col" className="p-2 font-medium">Saldo</th>
+              <th scope="col" className="p-2 font-medium">Estado</th>
+              <th scope="col" className="p-2 font-medium">Acciones</th>
             </tr>
           </thead>
           <tbody>

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { AuthError, ModuleNotEnabledError, TenantInactiveError, requireAuthWithPermission } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
+import { captureException } from '@/lib/observability';
 import { buildScrutinyWorkbook } from '@/modules/judging/services/judging.service';
 
 /**
@@ -48,7 +49,7 @@ export async function GET(req: Request) {
     if (error instanceof TenantInactiveError) {
       return NextResponse.json({ success: false, error: error.message }, { status: 403 });
     }
-    console.error('Scrutiny export failed:', error);
+    captureException(error, { module: 'judging' });
     return NextResponse.json({ success: false, error: 'No se pudo generar el acta' }, { status: 500 });
   }
 }

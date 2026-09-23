@@ -12,6 +12,7 @@ import { Trash2 } from 'lucide-react';
 import { addDocumentAction, deleteDocumentAction, updateDocumentAction } from '@/modules/candidates/actions/candidates.actions';
 import { CANDIDATE_DOCUMENT_STATUS_LABELS } from '@/modules/candidates/schema';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 interface Props {
   candidateId: string;
   documents: CandidateDocument[];
@@ -21,6 +22,7 @@ interface Props {
 const STATUS_TONE: Record<string, Tone> = { PENDING: 'neutral', SIGNED: 'success', EXPIRED: 'danger' };
 
 export default function DocumentsSection({ candidateId, documents: initial, canWrite }: Props) {
+  const confirm = useConfirm();
   const [documents, setDocuments] = useState<CandidateDocument[]>(initial);
   const [title, setTitle] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
@@ -83,7 +85,7 @@ export default function DocumentsSection({ candidateId, documents: initial, canW
   }
 
   async function handleDelete(documentId: string) {
-    if (!confirm('¿Eliminar este documento?')) return;
+    if (!await confirm('¿Eliminar este documento?')) return;
     setBusyId(documentId);
     try {
       const result = await deleteDocumentAction(documentId, candidateId);
@@ -106,7 +108,16 @@ export default function DocumentsSection({ candidateId, documents: initial, canW
       <ul className="space-y-1.5">
         {documents.map((doc) => (
           <li key={doc.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-border px-2.5 py-1.5 text-sm">
-            <a href={doc.fileUrl} target="_blank" rel="noreferrer" className="flex-1 text-primary underline-offset-2 hover:underline">
+            {/* `fileUrl` viene vacío para tipos sensibles (p. ej. MEDICAL_CERTIFICATE):
+                stripSensitiveFileUrl lo blanquea en el servidor. En ese caso se usa la
+                ruta autenticada, igual que PhotosSection — nunca se reconstruye ni se
+                expone la URL pública real del blob. */}
+            <a
+              href={doc.fileUrl || `/api/candidates/${candidateId}/documents/${doc.id}/file`}
+              target="_blank"
+              rel="noreferrer"
+              className="flex-1 text-primary underline-offset-2 hover:underline"
+            >
               {doc.title}
             </a>
             {doc.expiresAt && (

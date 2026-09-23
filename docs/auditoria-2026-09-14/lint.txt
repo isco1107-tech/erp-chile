@@ -1,0 +1,54 @@
+
+> erp@0.1.0 lint
+> eslint .
+
+
+D:\ERP\src\app\(dashboard)\error.tsx
+  24:5  warning  Unused eslint-disable directive (no problems were reported from 'no-console')
+
+D:\ERP\src\components\InventoryClient.tsx
+  86:5  warning  Unused eslint-disable directive (no problems were reported from 'react-hooks/exhaustive-deps')
+
+D:\ERP\src\components\PurchaseDocumentForm.tsx
+  121:6  warning  React Hook useEffect has a missing dependency: 'editingDocument'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  164:6  warning  React Hook useEffect has a missing dependency: 'editingDocument'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+D:\ERP\src\components\PurchaseOrderHistoryClient.tsx
+  48:5  warning  Unused eslint-disable directive (no problems were reported from 'react-hooks/exhaustive-deps')
+
+D:\ERP\src\components\calendar\CalendarDashboardClient.tsx
+  303:23  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+D:\ERP\src\components\fees\FeeDocumentListClient.tsx
+  50:5  warning  Unused eslint-disable directive (no problems were reported from 'react-hooks/exhaustive-deps')
+
+D:\ERP\src\components\judging\JudgingDirectorClient.tsx
+  859:29  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  884:29  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  909:29  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  971:37  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+D:\ERP\src\components\projects\ProjectListClient.tsx
+  43:5  warning  Unused eslint-disable directive (no problems were reported from 'react-hooks/exhaustive-deps')
+
+D:\ERP\src\components\public\PublicErrorBoundary.tsx
+  23:5  warning  Unused eslint-disable directive (no problems were reported from 'no-console')
+
+D:\ERP\src\components\settings\SessionsClient.tsx
+  75:9  warning  Do not use `window.location.href` to navigate to internal Next.js pages. Use `redirect()` in the render phase, or `useRouter().push()` in Client Components' event handlers instead. See: https://nextjs.org/docs/messages/no-location-assign-relative-destination  @next/next/no-location-assign-relative-destination
+
+D:\ERP\src\lib\chile\rut.ts
+  39:1  warning  Assign object to a variable before exporting as module default  import/no-anonymous-default-export
+
+D:\ERP\src\lib\chile\tax.ts
+  35:1  warning  Assign object to a variable before exporting as module default  import/no-anonymous-default-export
+
+D:\ERP\src\lib\inventory\pmp.ts
+  45:1  warning  Assign object to a variable before exporting as module default  import/no-anonymous-default-export
+
+D:\ERP\src\lib\prisma.ts
+  5:3  warning  Unused eslint-disable directive (no problems were reported from 'no-var')
+
+✖ 18 problems (0 errors, 18 warnings)
+  0 errors and 7 warnings potentially fixable with the `--fix` option.
+

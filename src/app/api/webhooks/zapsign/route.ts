@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
-import { put } from '@vercel/blob';
+import { put } from '@/lib/storage/blob';
 import { getDocumentStatus } from '@/lib/zapsign/client';
 import { markContractSignedByZapsignToken } from '@/modules/candidates/services/documents.service';
 import { createAuditLog } from '@/lib/auth/audit';
+import { prisma } from '@/lib/prisma';
+import { sendEmail, getAppUrl } from '@/lib/email/mailer';
+import { buildContractSignedNoticeEmail } from '@/lib/email/templates';
+import { captureException } from '@/lib/observability';
 
 /**
  * Webhook de ZapSign — dedicado, no pasa por el `/api/webhooks` genérico
@@ -38,11 +42,12 @@ export async function POST(req: Request) {
     const pathname = `candidates/zapsign-signed/${docToken}.pdf`;
     const blob = await put(pathname, fileBuffer, { access: 'public', contentType: 'application/pdf', addRandomSuffix: false });
 
-    const document = await markContractSignedByZapsignToken(docToken, blob.url);
-    if (!document) {
+    const result = await markContractSignedByZapsignToken(docToken, blob.url);
+    if (!result) {
       // Token válido en ZapSign pero no corresponde a ningún documento nuestro — no se hace nada más.
       return NextResponse.json({ success: true, message: 'Token no corresponde a ningún documento registrado' });
     }
+    const { document, justSigned } = result;
 
     await createAuditLog({
       companyId: document.companyId,
@@ -53,9 +58,33 @@ export async function POST(req: Request) {
       metadata: { candidateId: document.candidateId, action: 'signature_confirmed', zapsignDocToken: docToken },
     });
 
+    // Aviso al staff solo la primera vez que se confirma la firma — un
+    // reintento del mismo evento (`justSigned: false`) no debe reenviarlo.
+    if (justSigned) {
+      const candidate = await prisma.candidate.findUnique({ where: { id: document.candidateId }, select: { fullName: true, stageName: true } });
+      const recipients = await prisma.user.findMany({
+        where: { companyId: document.companyId, role: { in: ['OWNER', 'ADMIN'] }, isActive: true },
+        select: { email: true },
+      });
+      if (candidate && recipients.length > 0) {
+        const email = buildContractSignedNoticeEmail({
+          candidateName: candidate.stageName ?? candidate.fullName,
+          documentTitle: document.title,
+          dashboardUrl: `${getAppUrl()}/dashboard/candidates/${document.candidateId}`,
+        });
+        await Promise.all(
+          recipients.map((r) =>
+            sendEmail({ to: r.email, subject: email.subject, html: email.html, text: email.text }).catch((error) =>
+              captureException(error, { module: 'candidates', companyId: document.companyId, extra: { reason: 'zapsign-signed-notice', recipient: r.email } })
+            )
+          )
+        );
+      }
+    }
+
     return NextResponse.json({ success: true, message: 'Firma confirmada y contrato actualizado' });
   } catch (error) {
-    console.error('ZapSign webhook processing failed:', error);
+    captureException(error, { module: 'candidates', extra: { reason: 'zapsign-webhook' } });
     // 200 a propósito: si devolvemos error, ZapSign reintenta indefinidamente
     // un evento que probablemente vamos a rechazar igual (ej. token inválido);
     // el error ya queda en los logs del servidor para investigar.

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { put, del } from '@vercel/blob';
+import { put, del } from '@/lib/storage/blob';
 import { prisma } from '@/lib/prisma';
 import { candidateSelfRegistrationSchema, CANDIDATE_HONEYPOT_FIELD } from '@/modules/candidates/schema';
 import {
@@ -16,6 +16,8 @@ import { extractClientIp } from '@/lib/auth/ip-allowlist';
 import { checkRateLimit, CANDIDATE_APPLICATION_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { sendEmail, getAppUrl } from '@/lib/email/mailer';
 import { buildCandidateApplicationConfirmationEmail, buildNewCandidateApplicationNoticeEmail } from '@/lib/email/templates';
+import { emitWorkflowEvent } from '@/lib/workflows/engine';
+import { captureException } from '@/lib/observability';
 import crypto from 'crypto';
 
 /**
@@ -211,7 +213,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       photos.push(await uploadOne(medicalCertificateFile, certificateCheck, 'MEDICAL_CERTIFICATE'));
     }
   } catch (error) {
-    console.error('candidate-application: fallo al subir fotografías:', error);
+    captureException(error, { module: 'candidates', companyId: projectExists.companyId, extra: { reason: 'photo-upload' } });
     if (uploadedUrls.length > 0) await del(uploadedUrls).catch(() => undefined);
     return jsonError('No se pudieron subir las fotografías. Intenta de nuevo.', 500);
   }
@@ -228,8 +230,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     // debe revertir la postulación"). Nunca debe tumbar la respuesta 200 al
     // postulante si el correo falla — se registra y se sigue.
     void sendConfirmationEmails(candidate, folio, projectExists.companyId).catch((error) =>
-      console.error('candidate-application: fallo al encolar correos:', error)
+      captureException(error, { module: 'candidates', companyId: projectExists.companyId, extra: { reason: 'confirmation-emails' } })
     );
+
+    void emitCandidateRegisteredEvent(candidate, projectExists.companyId);
 
     return NextResponse.json({ success: true, data: { folio } });
   } catch (error) {
@@ -243,7 +247,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     if (error instanceof RegistrationFullError) return jsonError(error.message, 403);
     if (error instanceof BelowMinimumAgeError) return jsonError(error.message, 403);
     if (error instanceof DuplicateApplicationError) return jsonError(error.message, 409);
-    console.error('candidate-application: error inesperado:', error);
+    captureException(error, { module: 'candidates', companyId: projectExists.companyId });
     return jsonError('No se pudo enviar la inscripción. Intenta de nuevo más tarde.', 500);
   }
 }
@@ -275,4 +279,14 @@ async function sendConfirmationEmails(
     dashboardUrl: `${getAppUrl()}/dashboard/candidates`,
   });
   await Promise.all(owners.map((owner) => sendEmail({ to: owner.email, ...notice })));
+}
+
+async function emitCandidateRegisteredEvent(candidate: { id: string; fullName: string; projectId: string }, companyId: string): Promise<void> {
+  const project = await prisma.project.findUnique({ where: { id: candidate.projectId }, select: { name: true } });
+  await emitWorkflowEvent(companyId, 'CANDIDATE_REGISTERED', {
+    candidateId: candidate.id,
+    fullName: candidate.fullName,
+    projectId: candidate.projectId,
+    projectName: project?.name ?? null,
+  });
 }

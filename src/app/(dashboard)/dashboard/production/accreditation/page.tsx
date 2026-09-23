@@ -10,7 +10,7 @@ export default async function ProductionAccreditationPage() {
 
   return (
     <div>
-      <h1 className="mb-4 text-2xl font-bold">Acreditación de Staff & Proveedores</h1>
+      <h1 className="mb-4 text-2xl font-bold" data-tutorial="module-header">Acreditación de Staff & Proveedores</h1>
       <AccreditationClient canWrite={canWrite} canDesign={canDesign} />
     </div>
   );

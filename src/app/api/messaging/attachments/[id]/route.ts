@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { AuthError, ModuleNotEnabledError, TenantInactiveError, requireAuthWithPermission } from '@/lib/auth/guards';
 import { decryptFileBuffer } from '@/lib/messaging/crypto';
+import { captureException } from '@/lib/observability';
 import { getAttachmentForDownload } from '@/modules/messaging/services/messaging.service';
 
 /**
@@ -41,7 +42,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     if (error instanceof Error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 404 });
     }
-    console.error('Messaging attachment download failed:', error);
+    captureException(error, { module: 'messaging' });
     return NextResponse.json({ success: false, error: 'No se pudo descargar el archivo' }, { status: 500 });
   }
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { purgeRejectedCandidates } from '@/modules/candidates/services/candidates.service';
 import { isCronAuthorized } from '@/lib/security/cron-auth';
+import { captureExceptionAndFlush } from '@/lib/observability';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,7 +26,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ success: true, ...result, months, timestamp: new Date().toISOString() });
   } catch (error) {
-    console.error('Error in candidate retention purge cron:', error);
+    await captureExceptionAndFlush(error, { module: 'cron:candidates-purge' });
     return NextResponse.json({ success: false, error: 'Error al ejecutar la purga por retención' }, { status: 500 });
   }
 }

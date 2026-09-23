@@ -177,7 +177,7 @@ export default function CandidateListClient({ canWrite, canExport }: { canWrite:
             {canWrite && projectId && <RegistrationSettingsButton projectId={projectId} />}
             {canWrite && projectId && <CandidateRegistrationLinkButton projectId={projectId} />}
             {canWrite && (
-              <Link href="/dashboard/candidates/new" className={buttonVariants({ variant: 'default' })}>
+              <Link href="/dashboard/candidates/new" className={buttonVariants({ variant: 'default' })} data-tutorial="module-primary-action">
                 Nueva Candidata
               </Link>
             )}

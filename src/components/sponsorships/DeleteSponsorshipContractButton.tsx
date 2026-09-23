@@ -7,6 +7,7 @@ import { Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { deleteSponsorshipContractAction } from '@/modules/sponsorships/actions/sponsorships.actions';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 interface DeleteSponsorshipContractButtonProps {
   contractId: string;
   contactName: string;
@@ -21,13 +22,14 @@ export default function DeleteSponsorshipContractButton({
   variant = 'full',
   onDeleted,
 }: DeleteSponsorshipContractButtonProps) {
+  const confirm = useConfirm();
   const router = useRouter();
   const [deleting, setDeleting] = useState(false);
 
   async function handleDelete(event: MouseEvent) {
     event.preventDefault();
     event.stopPropagation();
-    if (!confirm(`¿Eliminar el contrato de auspicio con "${contactName}"? Esta acción no se puede deshacer.`)) return;
+    if (!await confirm(`¿Eliminar el contrato de auspicio con "${contactName}"? Esta acción no se puede deshacer.`)) return;
 
     setDeleting(true);
     const result = await deleteSponsorshipContractAction(contractId);

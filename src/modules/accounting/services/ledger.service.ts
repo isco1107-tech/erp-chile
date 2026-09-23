@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import type { Account, JournalLine } from '@prisma/client';
+import { santiagoMidnightUtc } from '@/lib/chile/timezone';
 
 /**
  * Consultas de saldo sobre el libro mayor.
@@ -69,8 +70,11 @@ export function netToColumns(net: number): { debit: number; credit: number } {
  * la capa de presentación a partir de sus hijas, no aquí.
  */
 export async function getTrialBalance(companyId: string, year: number, month: number): Promise<TrialBalanceRow[]> {
-  const periodStart = new Date(Date.UTC(year, month - 1, 1));
-  const periodEnd = new Date(Date.UTC(year, month, 1));
+  // Límites del mes en el calendario de Santiago, no en UTC: un asiento del
+  // 31 a las 22:00 (hora de Chile) ya es 1 del mes siguiente en UTC y caía en
+  // el período equivocado del balance y de los estados financieros.
+  const periodStart = santiagoMidnightUtc(year, month, 1);
+  const periodEnd = month === 12 ? santiagoMidnightUtc(year + 1, 1, 1) : santiagoMidnightUtc(year, month + 1, 1);
 
   const accounts = await prisma.account.findMany({
     where: { companyId, isPostable: true },

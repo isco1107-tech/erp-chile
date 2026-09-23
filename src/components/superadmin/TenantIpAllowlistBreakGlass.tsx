@@ -6,15 +6,17 @@ import { AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { disableTenantIpAllowlistAction } from '@/modules/platform/actions/platform.actions';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 /** Válvula de emergencia: solo aparece si el cliente activó la restricción de IP — cubre el caso de que se haya bloqueado a sí mismo. */
 export default function TenantIpAllowlistBreakGlass({ companyId, initialEnabled }: { companyId: string; initialEnabled: boolean }) {
+  const confirm = useConfirm();
   const [enabled, setEnabled] = useState(initialEnabled);
   const [disabling, setDisabling] = useState(false);
 
   if (!enabled) return null;
 
   async function handleDisable() {
-    if (!confirm('¿Desactivar la restricción por IP de esta empresa? Sus administradores podrán volver a entrar desde cualquier IP.')) return;
+    if (!await confirm('¿Desactivar la restricción por IP de esta empresa? Sus administradores podrán volver a entrar desde cualquier IP.')) return;
     setDisabling(true);
     try {
       const result = await disableTenantIpAllowlistAction(companyId);

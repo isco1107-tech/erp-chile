@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
 import { Prisma, type Candidate, type CandidateStatus, type PaymentPlanStatus, type PaymentStatus, type PromissoryNoteStatus } from '@prisma/client';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
+import { captureException } from '@/lib/observability';
 import { cleanRut, formatRut, validateRut } from '@/lib/chile/rut';
 import type {
   CandidateCreateInput,
@@ -422,13 +423,13 @@ export async function deleteCandidate(companyId: string, id: string): Promise<vo
   const fileUrls = [...candidate.documents.map((d) => d.fileUrl), ...(candidate.photoUrl ? [candidate.photoUrl] : [])];
   if (fileUrls.length > 0) {
     try {
-      const { del } = await import('@vercel/blob');
+      const { del } = await import('@/lib/storage/blob');
       await del(fileUrls);
     } catch (error) {
       // No revierte el borrado en base: la solicitud de la titular ya se
       // cumplió sobre el dato estructurado, que es lo que un reintento
       // manual no puede recuperar. Un blob huérfano se puede limpiar aparte.
-      console.error('deleteCandidate: no se pudieron borrar todos los archivos en Blob:', error);
+      captureException(error, { module: 'candidates', companyId, extra: { candidateId: id, reason: 'no se pudieron borrar todos los archivos en Blob' } });
     }
   }
 }
@@ -511,14 +512,16 @@ export async function purgeRejectedCandidates(months: number, companyId?: string
   for (const candidate of candidates) {
     const fileUrls = [...candidate.documents.map((d) => d.fileUrl), ...(candidate.photoUrl ? [candidate.photoUrl] : [])];
     try {
-      await prisma.candidate.delete({ where: { id: candidate.id } });
+      await prisma.candidate.deleteMany({ where: { id: candidate.id, companyId: candidate.companyId } });
       if (fileUrls.length > 0) {
-        const { del } = await import('@vercel/blob');
-        await del(fileUrls).catch((error) => console.error(`purgeRejectedCandidates: fallo al borrar blobs de ${candidate.id}:`, error));
+        const { del } = await import('@/lib/storage/blob');
+        await del(fileUrls).catch((error) =>
+          captureException(error, { module: 'candidates', companyId: candidate.companyId, extra: { candidateId: candidate.id, reason: 'purgeRejectedCandidates: fallo al borrar blobs' } })
+        );
       }
       deleted += 1;
     } catch (error) {
-      console.error(`purgeRejectedCandidates: fallo al purgar candidata ${candidate.id}:`, error);
+      captureException(error, { module: 'candidates', companyId: candidate.companyId, extra: { candidateId: candidate.id, reason: 'purgeRejectedCandidates: fallo al purgar candidata' } });
     }
   }
 

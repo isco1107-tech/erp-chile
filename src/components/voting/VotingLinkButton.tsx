@@ -4,10 +4,11 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { Link2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { CurrencyInput } from '@/components/ui/CurrencyInput';
 import { Label } from '@/components/ui/label';
 import { getOrCreateVoteSalesLinkAction, regenerateVoteSalesLinkAction } from '@/modules/public-voting/actions/public-voting-admin.actions';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 /**
  * Botón para el equipo interno: genera (o reutiliza) el link público de
  * votación de un proyecto. A diferencia de `TicketingLinkButton`, pide el
@@ -16,7 +17,8 @@ import { getOrCreateVoteSalesLinkAction, regenerateVoteSalesLinkAction } from '@
  * precio distinto exige un link nuevo, no solo "regenerar".
  */
 export default function VotingLinkButton({ projectId, currentPrice }: { projectId: string; currentPrice: number | null }) {
-  const [price, setPrice] = useState(currentPrice ? String(currentPrice) : '100');
+  const confirm = useConfirm();
+  const [price, setPrice] = useState(currentPrice ?? 100);
   const [busy, setBusy] = useState<'get' | 'regen' | null>(null);
 
   function votingUrl(token: string): string {
@@ -24,7 +26,7 @@ export default function VotingLinkButton({ projectId, currentPrice }: { projectI
   }
 
   async function handleCopy() {
-    const pricePerVote = Number(price);
+    const pricePerVote = price;
     if (!Number.isInteger(pricePerVote) || pricePerVote <= 0) {
       toast.error('Ingresa un precio por voto válido (entero mayor a cero)');
       return;
@@ -44,12 +46,12 @@ export default function VotingLinkButton({ projectId, currentPrice }: { projectI
   }
 
   async function handleRegenerate() {
-    const pricePerVote = Number(price);
+    const pricePerVote = price;
     if (!Number.isInteger(pricePerVote) || pricePerVote <= 0) {
       toast.error('Ingresa un precio por voto válido (entero mayor a cero)');
       return;
     }
-    if (!confirm('¿Regenerar el link? El link anterior dejará de funcionar de inmediato.')) return;
+    if (!await confirm('¿Regenerar el link? El link anterior dejará de funcionar de inmediato.')) return;
     setBusy('regen');
     try {
       const result = await regenerateVoteSalesLinkAction(projectId, { pricePerVote });
@@ -68,13 +70,21 @@ export default function VotingLinkButton({ projectId, currentPrice }: { projectI
     <div className="flex flex-wrap items-end gap-2">
       <div className="w-32">
         <Label htmlFor="vote-price">Precio por voto</Label>
-        <Input id="vote-price" type="number" min={1} value={price} onChange={(e) => setPrice(e.target.value)} />
+        <CurrencyInput id="vote-price" value={price} onChange={setPrice} />
       </div>
       <Button type="button" variant="outline" size="sm" disabled={busy !== null} onClick={handleCopy}>
         <Link2 />
         {busy === 'get' ? 'Copiando...' : 'Copiar link de votación'}
       </Button>
-      <Button type="button" variant="ghost" size="icon-sm" title="Regenerar link (invalida el anterior)" disabled={busy !== null} onClick={handleRegenerate}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        title="Regenerar link (invalida el anterior)"
+        aria-label="Regenerar link (invalida el anterior)"
+        disabled={busy !== null}
+        onClick={handleRegenerate}
+      >
         <RefreshCw />
       </Button>
     </div>

@@ -1,0 +1,91 @@
+{
+  "date": "2026-09-14",
+  "scope": "Auditoría estática y comprobaciones locales; sin consultas ni modificaciones de producción",
+  "baseCommit": "81e31ab8b1d7f6a22babf73bb20b194eeda2f870",
+  "environment": {
+    "node": "22.16.0",
+    "npm": "10.9.2",
+    "shell": "PowerShell",
+    "cwd": "D:\\ERP"
+  },
+  "inventory": {
+    "modules": 35,
+    "sourceFiles": 603,
+    "pages": 100,
+    "routeHandlers": 45,
+    "prismaModels": 79,
+    "migrations": 48,
+    "testFiles": 33,
+    "typescriptSourceLines": 81468
+  },
+  "checks": [
+    {
+      "command": "npm run prisma:validate",
+      "exitCode": 0,
+      "result": "valid",
+      "evidence": "prisma-validate.txt",
+      "environmentOverride": "DATABASE_URL y DIRECT_DATABASE_URL = conexión ficticia 127.0.0.1:9"
+    },
+    {
+      "command": "npm run typecheck -- --incremental false",
+      "exitCode": 0,
+      "result": "passed",
+      "evidence": "typecheck.txt"
+    },
+    {
+      "command": "npm run lint",
+      "exitCode": 0,
+      "errors": 0,
+      "warnings": 18,
+      "evidence": "lint.txt"
+    },
+    {
+      "command": "npm test -- --testPathIgnorePatterns=tests/security/brute-force.test.ts --json --outputFile=docs/auditoria-2026-09-14/jest-results.json",
+      "exitCode": 0,
+      "suitesPassed": 32,
+      "testsPassed": 523,
+      "durationSeconds": 74.493,
+      "evidence": "jest-results.json",
+      "environmentOverride": "DATABASE_URL/DIRECT_DATABASE_URL ficticias; BASE_URL = http://127.0.0.1:9"
+    },
+    {
+      "command": "npm audit --package-lock-only --ignore-scripts --json --registry=https://registry.npmjs.org",
+      "exitCode": 0,
+      "reportedVulnerabilities": 0,
+      "evidence": "npm-audit.json"
+    },
+    {
+      "command": "node docs/auditoria-2026-09-14/repro-limite.cjs",
+      "exitCode": 0,
+      "result": "SEG-09 reproducido; cuota reiniciada antes de vencer",
+      "evidence": "repro-limite.json",
+      "isolated": true
+    }
+  ],
+  "notExecuted": [
+    "Build de producción",
+    "Migraciones contra PostgreSQL",
+    "Tests de fuerza bruta activos",
+    "Pruebas E2E/navegador",
+    "Pruebas de carga sobre servidor",
+    "Acceso a proveedores/BD de producción",
+    "Reparación de datos históricos"
+  ],
+  "preExistingChanges": [
+    ".claude/scheduled_tasks.lock",
+    "next-env.d.ts",
+    "src/components/tutorial/ModuleTutorial.tsx"
+  ],
+  "deliverableState": "Documentación y backlog; correcciones de aplicación no implementadas",
+  "planning": {
+    "workPackages": 27,
+    "personDaysMin": 135,
+    "personDaysMax": 237,
+    "includesFiscalProviderIntegration": true,
+    "calendarWeeksReference": [
+      16,
+      24
+    ],
+    "contingencyNotIncluded": "20-30%"
+  }
+}

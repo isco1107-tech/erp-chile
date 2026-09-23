@@ -4,7 +4,8 @@ import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { Card } from '@/components/ui/card';
+import { LockKeyhole } from 'lucide-react';
+import { AuthCard, AuthCardHeader, AuthError, AuthShell } from '@/components/auth/AuthShell';
 import { PasswordInput } from '@/components/ui/PasswordInput';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -64,15 +65,17 @@ function ResetPasswordForm() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <Card className="w-full max-w-md p-6">
-        <h2 className="mb-4 text-2xl font-bold">Elegir nueva contraseña</h2>
-
-        {checking && <p className="text-sm text-muted-foreground">Validando enlace...</p>}
+    <AuthShell>
+      <AuthCard>
+        <AuthCardHeader
+          icon={<LockKeyhole className="size-5.5" strokeWidth={1.75} />}
+          title="Elegir nueva contraseña"
+          description={checking ? 'Validando tu enlace…' : undefined}
+        />
 
         {!checking && tokenError && (
           <div className="space-y-4">
-            <p className="text-sm text-destructive">{tokenError}</p>
+            <AuthError>{tokenError}</AuthError>
             <Link href="/forgot-password" className="inline-block text-sm underline underline-offset-4">
               Solicitar un enlace nuevo
             </Link>
@@ -81,7 +84,7 @@ function ResetPasswordForm() {
 
         {!checking && !tokenError && email && (
           <>
-            <p className="mb-4 text-sm text-muted-foreground">
+            <p className="mb-5 rounded-xl border border-white/10 bg-white/[0.03] px-3.5 py-2.5 text-sm text-muted-foreground">
               Estás cambiando la contraseña de <span className="font-medium text-foreground">{email}</span>.
             </p>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -117,14 +120,22 @@ function ResetPasswordForm() {
             </form>
           </>
         )}
-      </Card>
-    </div>
+      </AuthCard>
+    </AuthShell>
   );
 }
 
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center">Cargando...</div>}>
+    <Suspense
+      fallback={
+        <AuthShell>
+          <AuthCard>
+            <AuthCardHeader title="Elegir nueva contraseña" description="Validando tu enlace…" />
+          </AuthCard>
+        </AuthShell>
+      }
+    >
       <ResetPasswordForm />
     </Suspense>
   );

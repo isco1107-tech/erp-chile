@@ -18,6 +18,7 @@ import { DTE_TYPE_LABELS } from '@/modules/sales/schema';
 import type { SalesDocumentListItem } from '@/modules/sales/services/sales.service';
 import { formatCurrency } from '@/lib/chile/tax';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 type SalesRow = SalesDocumentListItem;
 
 const TABS: { key: string; label: string; dteTypes?: DteType[] }[] = [
@@ -44,6 +45,7 @@ type SortField = 'issueDate' | 'totalAmount';
 const DEFAULT_PAGE_SIZE = 25;
 
 export default function SalesHistoryClient() {
+  const confirm = useConfirm();
   const [rows, setRows] = useState<SalesRow[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -126,7 +128,7 @@ export default function SalesHistoryClient() {
   }
 
   async function handleCancel(id: string) {
-    if (!confirm('¿Anular este documento? Esto reingresará el stock descontado.')) return;
+    if (!await confirm('¿Anular este documento? Esto reingresará el stock descontado.')) return;
     const result = await cancelSalesDocumentAction(id);
     if (!result.success) {
       toast.error(result.error);
@@ -137,7 +139,7 @@ export default function SalesHistoryClient() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 duration-500 animate-in fade-in slide-in-from-bottom-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           {TABS.map((t) => (
@@ -146,6 +148,7 @@ export default function SalesHistoryClient() {
             </Button>
           ))}
           <Input
+            data-tutorial="module-search"
             placeholder="Buscar por RUT o Razón Social"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -153,33 +156,33 @@ export default function SalesHistoryClient() {
           />
         </div>
 
-        <Link href="/dashboard/sales/new" className={buttonVariants({ variant: 'default' })}>
+        <Link href="/dashboard/sales/new" className={buttonVariants({ variant: 'default' })} data-tutorial="module-primary-action">
           Nueva Venta
         </Link>
       </div>
 
-      <div className="rounded-xl border border-border">
+      <div className="rounded-lg border border-border bg-card shadow-card">
         <div className="max-h-[65vh] scroll-smooth overflow-auto">
           <table className="w-full min-w-[880px] table-auto text-sm">
             <thead className="sticky top-0 z-10 bg-muted/95 text-left backdrop-blur-sm">
               <tr>
-                <th className="p-2 font-medium">Folio</th>
-                <th className="p-2 font-medium">Tipo DTE</th>
-                <th className="p-2 font-medium">
+                <th scope="col" className="p-2 font-medium">Folio</th>
+                <th scope="col" className="p-2 font-medium">Tipo DTE</th>
+                <th scope="col" className="p-2 font-medium">
                   <button type="button" className="flex items-center gap-1 font-medium" onClick={() => toggleSort('issueDate')}>
                     Fecha
                     {sortField === 'issueDate' && (sortDir === 'asc' ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />)}
                   </button>
                 </th>
-                <th className="p-2 font-medium">Cliente</th>
-                <th className="p-2 font-medium">
+                <th scope="col" className="p-2 font-medium">Cliente</th>
+                <th scope="col" className="p-2 font-medium">
                   <button type="button" className="flex items-center gap-1 font-medium" onClick={() => toggleSort('totalAmount')}>
                     Total
                     {sortField === 'totalAmount' && (sortDir === 'asc' ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />)}
                   </button>
                 </th>
-                <th className="p-2 font-medium">Estado</th>
-                <th className="p-2 font-medium">Acciones</th>
+                <th scope="col" className="p-2 font-medium">Estado</th>
+                <th scope="col" className="p-2 font-medium">Acciones</th>
               </tr>
             </thead>
             <tbody>

@@ -1,4 +1,5 @@
 import 'server-only';
+import { captureException, captureMessage } from '@/lib/observability';
 
 /**
  * Envío de correo transaccional.
@@ -19,11 +20,21 @@ import 'server-only';
  * enlace se puede copiar a mano desde el panel de Equipo.
  */
 
+export interface EmailAttachment {
+  filename: string;
+  /** Contenido binario crudo — cada proveedor lo codifica a base64 recién al armar su request. */
+  content: Buffer;
+  contentType?: string;
+}
+
 export interface SendEmailInput {
   to: string;
   subject: string;
   html: string;
   text: string;
+  attachments?: EmailAttachment[];
+  /** Dirección a la que va la respuesta (p. ej. el interesado de un formulario). */
+  replyTo?: string;
 }
 
 export type EmailDeliveryStatus = 'sent' | 'logged' | 'failed';
@@ -78,12 +89,16 @@ async function sendViaBrevo(input: SendEmailInput, apiKey: string): Promise<Emai
       subject: input.subject,
       htmlContent: input.html,
       textContent: input.text,
+      ...(input.replyTo ? { replyTo: { email: input.replyTo } } : {}),
+      ...(input.attachments && input.attachments.length > 0
+        ? { attachment: input.attachments.map((a) => ({ name: a.filename, content: a.content.toString('base64') })) }
+        : {}),
     }),
   });
 
   if (!response.ok) {
     const detail = await response.text();
-    console.error(`[email:brevo:fallo] ${response.status} al enviar a ${input.to}: ${detail}`);
+    captureMessage('email:brevo:fallo', 'error', { module: 'email', extra: { status: response.status, to: input.to, detail } });
     return { status: 'failed', provider: 'brevo', error: `${response.status}: ${detail}` };
   }
   return { status: 'sent', provider: 'brevo' };
@@ -99,12 +114,16 @@ async function sendViaResend(input: SendEmailInput, apiKey: string): Promise<Ema
       subject: input.subject,
       html: input.html,
       text: input.text,
+      ...(input.replyTo ? { reply_to: input.replyTo } : {}),
+      ...(input.attachments && input.attachments.length > 0
+        ? { attachments: input.attachments.map((a) => ({ filename: a.filename, content: a.content.toString('base64') })) }
+        : {}),
     }),
   });
 
   if (!response.ok) {
     const detail = await response.text();
-    console.error(`[email:resend:fallo] ${response.status} al enviar a ${input.to}: ${detail}`);
+    captureMessage('email:resend:fallo', 'error', { module: 'email', extra: { status: response.status, to: input.to, detail } });
     return { status: 'failed', provider: 'resend', error: `${response.status}: ${detail}` };
   }
   return { status: 'sent', provider: 'resend' };
@@ -126,7 +145,7 @@ export async function sendEmail(input: SendEmailInput): Promise<EmailResult> {
     return await sendViaResend(input, process.env.RESEND_API_KEY!);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error(`[email:${provider}:fallo] excepción al enviar a ${input.to}: ${message}`);
+    captureException(error, { module: 'email', extra: { provider, to: input.to } });
     return { status: 'failed', provider, error: message };
   }
 }

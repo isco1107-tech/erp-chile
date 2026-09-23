@@ -4,6 +4,7 @@ import type { DteType } from '@prisma/client';
 import {
   CircleDollarSign,
   TrendingUp,
+  TrendingDown,
   Percent,
   Boxes,
   PackageSearch,
@@ -12,11 +13,23 @@ import {
   Crown,
   CalendarRange,
   AlertTriangle,
+  ClipboardCheck,
+  Wallet,
+  FileWarning,
+  BadgeAlert,
+  Truck,
+  ScanBarcode,
+  Users,
+  Handshake,
+  Ticket,
+  Vote,
+  Briefcase,
 } from 'lucide-react';
 import { getAuthContext, can } from '@/lib/auth/guards';
 import { MODULES } from '@/lib/auth/modules';
 import { prisma } from '@/lib/prisma';
 import { formatCurrency } from '@/lib/chile/tax';
+import { addMonthsSantiago, santiagoDateParts, startOfMonthSantiago, startOfTodaySantiago, startOfTomorrowSantiago } from '@/lib/chile/timezone';
 import { KpiCard, type TrendDirection } from '@/components/ui/KpiCard';
 import { InfoTooltip } from '@/components/ui/InfoTooltip';
 import { TAX_GLOSSARY } from '@/lib/chile/glossary';
@@ -25,6 +38,12 @@ import { ActionCard } from '@/components/ui/ActionCard';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { DashboardCharts } from '@/components/dashboard/DashboardCharts';
 import { RecentSalesTable } from '@/components/dashboard/RecentSalesTable';
+import {
+  findPendingPurchaseApprovals,
+  findOverdueReceivables,
+  findExpiringCandidateContracts,
+  findMismatchedPurchases,
+} from '@/modules/alerts/services/operational-alerts.service';
 
 const SALES_TYPES: DteType[] = ['FACTURA_33', 'FACTURA_EXENTA_34', 'BOLETA_39', 'NOTA_CREDITO_61', 'NOTA_DEBITO_56'];
 
@@ -43,16 +62,21 @@ function documentSign(type: DteType): number {
   return type === 'NOTA_CREDITO_61' ? -1 : 1;
 }
 
+/**
+ * Clave/etiqueta de mes por calendario chileno, no UTC — tanto para los
+ * marcadores sintéticos de `monthlyBuckets` (que ahora se construyen con
+ * `addMonthsSantiago`, así que ya son instantes de medianoche en Santiago)
+ * como para `issueDate` real de un documento. Antes bucketeaba por UTC, lo
+ * que desplazaba hasta ~4 horas las ventas cercanas al cambio de mes/día
+ * hacia el mes equivocado (ver `src/lib/chile/timezone.ts`).
+ */
 function monthKey(date: Date): string {
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+  const { year, month } = santiagoDateParts(date);
+  return `${year}-${String(month).padStart(2, '0')}`;
 }
 
 function monthLabel(date: Date): string {
-  return date.toLocaleDateString('es-CL', { month: 'short', timeZone: 'UTC' }).replace('.', '');
-}
-
-function startOfMonth(date: Date): Date {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+  return date.toLocaleDateString('es-CL', { month: 'short', timeZone: 'America/Santiago' }).replace('.', '');
 }
 
 /** Saludo según la hora real en Chile (America/Santiago), no la del servidor. */
@@ -86,25 +110,64 @@ export default async function DashboardPage() {
   const canReadCosts = can(context, 'products:costs');
 
   const now = new Date();
-  const currentMonth = startOfMonth(now);
-  const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
-  const previousMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
-  const trendStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11, 1));
+  const currentMonth = startOfMonthSantiago(now);
+  const nextMonth = addMonthsSantiago(now, 1);
+  const previousMonth = addMonthsSantiago(now, -1);
+  const trendStart = addMonthsSantiago(now, -11);
 
-  const [salesDocuments, inventoryStocks, contactCount, productCount] = await Promise.all([
-    canReadSales && context.features.hasDteBilling
-      ? prisma.salesDocument.findMany({
-          where: {
-            companyId: context.companyId,
-            status: 'ISSUED',
-            dteType: { in: SALES_TYPES },
-            issueDate: { gte: trendStart, lt: nextMonth },
-          },
-          include: { contact: true, items: true },
-          orderBy: { issueDate: 'desc' },
-          take: 1000,
-        })
-      : Promise.resolve([]),
+  // Ventana completa de 12 meses para agregar KPIs y el gráfico de tendencia
+  // — SIN `take`: un límite acá (antes `take: 1000`, ordenado desc) descarta
+  // silenciosamente los documentos más antiguos de la ventana en cualquier
+  // empresa con más de 1.000 documentos emitidos en el año, subestimando los
+  // meses iniciales del gráfico. `select` liviano (sin `contact`, sin más
+  // campos de `items` que los que entran al costo) porque esta consulta ya
+  // no está acotada y puede traer varios miles de filas en empresas grandes.
+  const salesAggregationQuery = canReadSales && context.features.hasDteBilling
+    ? prisma.salesDocument.findMany({
+        where: {
+          companyId: context.companyId,
+          status: 'ISSUED',
+          dteType: { in: SALES_TYPES },
+          issueDate: { gte: trendStart, lt: nextMonth },
+        },
+        select: {
+          dteType: true,
+          issueDate: true,
+          netAmount: true,
+          exemptAmount: true,
+          ivaAmount: true,
+          items: { select: { quantity: true, unitCostPMP: true } },
+        },
+      })
+    : Promise.resolve([]);
+
+  // Tabla de "ventas recientes": solo necesita las últimas 5, con datos del
+  // contacto — separada de la agregación de arriba para no cargar `contact`
+  // en las miles de filas que esa consulta puede traer.
+  const recentSalesQuery = canReadSales && context.features.hasDteBilling
+    ? prisma.salesDocument.findMany({
+        where: {
+          companyId: context.companyId,
+          status: 'ISSUED',
+          dteType: { in: SALES_TYPES },
+        },
+        select: {
+          id: true,
+          dteType: true,
+          folio: true,
+          status: true,
+          issueDate: true,
+          totalAmount: true,
+          contact: { select: { razonSocial: true } },
+        },
+        orderBy: { issueDate: 'desc' },
+        take: 5,
+      })
+    : Promise.resolve([]);
+
+  const [salesDocuments, latestSales, inventoryStocks, contactCount, productCount] = await Promise.all([
+    salesAggregationQuery,
+    recentSalesQuery,
     canReadInventory && context.features.hasInventory
       ? prisma.stock.findMany({
           where: { companyId: context.companyId },
@@ -136,6 +199,100 @@ export default async function DashboardPage() {
           _count: { _all: true },
           _sum: { amount: true, paidAmount: true },
         })
+      : Promise.resolve(null),
+  ]);
+
+  // "Alertas de hoy": mismos finders que ya usa el correo diario
+  // (`operational-alerts.service.ts`), reusados acá para que el staff vea el
+  // mismo conteo EN VIVO al entrar al panel, sin esperar al correo de las
+  // 12:00 UTC. `findLowStockProducts` no se reusa acá a propósito (hace un
+  // query extra por producto para sugerir proveedor, pensado para una vez al
+  // día por correo, no para cada carga del dashboard) — el stock bajo se
+  // cuenta con `criticalStock` más abajo, que ya sale de un query que esta
+  // página hace de todas formas.
+  const [pendingApprovals, overdueReceivables, expiringContracts, mismatchedPurchases] = await Promise.all([
+    context.features.hasPurchases && can(context, 'purchases:read') ? findPendingPurchaseApprovals(context.companyId) : Promise.resolve([]),
+    context.features.hasTreasury && can(context, 'treasury:read') ? findOverdueReceivables(context.companyId) : Promise.resolve([]),
+    context.features.hasCandidates && can(context, 'candidates:read') ? findExpiringCandidateContracts(context.companyId) : Promise.resolve([]),
+    context.features.hasPurchases && can(context, 'purchases:read') ? findMismatchedPurchases(context.companyId) : Promise.resolve([]),
+  ]);
+
+  // Indicadores por módulo: cada empresa contrata un subconjunto distinto de
+  // módulos (certamen, distribuidora, retail...), así que ningún indicador de
+  // acá es fijo — todos se calculan solo si el módulo está contratado Y el
+  // usuario tiene el permiso de lectura correspondiente, mismo criterio que
+  // el resto de la página. La idea es que, sea cual sea la mezcla de módulos
+  // de una empresa, el dashboard igual muestre sus métricas importantes en
+  // vez de depender de que Ventas/Inventario estén activos.
+  // Antes `new Date(now.getFullYear(), now.getMonth(), now.getDate())`: usa
+  // la hora LOCAL del proceso Node, que en producción suele correr en UTC —
+  // "hoy" para el widget de ventas POS terminaba siendo el día calendario en
+  // UTC, no en Chile.
+  const todayStart = startOfTodaySantiago(now);
+  const todayEnd = startOfTomorrowSantiago(now);
+
+  const canReadPurchases = context.features.hasPurchases && can(context, 'purchases:read');
+  const canReadTreasury = context.features.hasTreasury && can(context, 'treasury:read');
+  const canOperatePos = context.features.hasPos && can(context, 'pos:operate');
+  const canReadCandidates = context.features.hasCandidates && can(context, 'candidates:read');
+  const canReadSponsorships = context.features.hasSponsorships && can(context, 'sponsorships:read');
+  const canReadTicketing = context.features.hasTicketing && can(context, 'ticketing:read');
+  const canReadPublicVoting = context.features.hasPublicVoting && can(context, 'publicvoting:read');
+  const canReadProjects = context.features.hasEventProjects && can(context, 'projects:read');
+
+  const [
+    purchasesMonthAgg,
+    receivablesAgg,
+    payablesAgg,
+    posTodayAgg,
+    candidatesActiveCount,
+    candidatesPendingCount,
+    sponsorshipsAgg,
+    ticketingAgg,
+    votingAgg,
+    activeProjectsCount,
+  ] = await Promise.all([
+    canReadPurchases
+      ? prisma.purchaseDocument.aggregate({
+          where: { companyId: context.companyId, status: 'ISSUED', issueDate: { gte: currentMonth, lt: nextMonth } },
+          _sum: { netAmount: true },
+        })
+      : Promise.resolve(null),
+    canReadTreasury
+      ? prisma.salesDocument.aggregate({
+          where: { companyId: context.companyId, status: 'ISSUED', paymentStatus: { not: 'PAID' }, dteType: { not: 'GUIA_DESPACHO_52' } },
+          _sum: { totalAmount: true, paidAmount: true },
+        })
+      : Promise.resolve(null),
+    canReadTreasury
+      ? prisma.purchaseDocument.aggregate({
+          where: { companyId: context.companyId, status: 'ISSUED', paymentStatus: { not: 'PAID' } },
+          _sum: { totalAmount: true, paidAmount: true },
+        })
+      : Promise.resolve(null),
+    canOperatePos
+      ? prisma.salesDocument.aggregate({
+          where: { companyId: context.companyId, status: 'ISSUED', cashShiftId: { not: null }, issueDate: { gte: todayStart, lt: todayEnd } },
+          _sum: { totalAmount: true },
+        })
+      : Promise.resolve(null),
+    canReadCandidates
+      ? prisma.candidate.count({ where: { companyId: context.companyId, status: { notIn: ['WITHDRAWN', 'REJECTED'] } } })
+      : Promise.resolve(null),
+    canReadCandidates
+      ? prisma.candidate.count({ where: { companyId: context.companyId, status: { in: ['APPLICANT', 'UNDER_REVIEW'] } } })
+      : Promise.resolve(null),
+    canReadSponsorships
+      ? prisma.sponsorshipContract.aggregate({ where: { companyId: context.companyId }, _sum: { paidAmount: true } })
+      : Promise.resolve(null),
+    canReadTicketing
+      ? prisma.ticketSale.aggregate({ where: { companyId: context.companyId, paymentStatus: 'PAID' }, _sum: { totalAmount: true, quantity: true } })
+      : Promise.resolve(null),
+    canReadPublicVoting
+      ? prisma.voteOrder.aggregate({ where: { companyId: context.companyId, paymentStatus: 'PAID' }, _sum: { totalAmount: true, voteCount: true } })
+      : Promise.resolve(null),
+    canReadProjects
+      ? prisma.project.count({ where: { companyId: context.companyId, status: { in: ['PLANNING', 'IN_PROGRESS'] } } })
       : Promise.resolve(null),
   ]);
 
@@ -199,11 +356,10 @@ export default async function DashboardPage() {
     (sum, stock) => sum + Math.round(stock.quantity * stock.product.costPricePMP),
     0
   );
-  const criticalStock = inventoryStocks
+  const criticalStockAll = inventoryStocks
     .filter((stock) => stock.product.isTrackable && stock.quantity <= stock.product.minStock && stock.product.minStock > 0)
-    .sort((a, b) => a.quantity - b.quantity)
-    .slice(0, 5);
-  const latestSales = salesDocuments.slice(0, 5);
+    .sort((a, b) => a.quantity - b.quantity);
+  const criticalStock = criticalStockAll.slice(0, 5);
 
   const mixData = SALES_TYPES.filter((type) => (mixCounts.get(type) ?? 0) > 0).map((type, index) => ({
     name: DTE_TYPE_LABELS[type] ?? type,
@@ -220,10 +376,17 @@ export default async function DashboardPage() {
   const hasInventoryModule = canReadInventory && context.features.hasInventory;
   const hasCostsModule = canReadCosts && context.features.hasPmpCosting;
 
-  const kpis: Array<{ key: string; node: React.ReactNode }> = [];
+  // Cada tarjeta lleva un `group` (dominio de negocio) para que el grid de
+  // abajo pueda insertar encabezados discretos entre secciones en vez de
+  // mostrar una sola pared de 15+ tarjetas sin jerarquia cuando una empresa
+  // tiene todos los modulos contratados -- el orden de push no cambia (sigue
+  // siendo el orden condicional original), solo se le agrega la etiqueta de
+  // agrupacion.
+  const kpis: Array<{ key: string; node: React.ReactNode; group: string }> = [];
   if (hasSalesModule) {
     kpis.push({
       key: 'ventas-netas',
+      group: 'Ventas y costos',
       node: (
         <KpiCard
           label="Ventas netas del mes"
@@ -237,6 +400,7 @@ export default async function DashboardPage() {
     });
     kpis.push({
       key: 'iva-debito',
+      group: 'Ventas y costos',
       node: (
         <KpiCard
           label="IVA débito del mes"
@@ -251,6 +415,7 @@ export default async function DashboardPage() {
   if (hasCostsModule && hasSalesModule) {
     kpis.push({
       key: 'margen-pmp',
+      group: 'Ventas y costos',
       node: (
         <KpiCard
           label="Margen PMP del mes"
@@ -267,9 +432,111 @@ export default async function DashboardPage() {
   if (hasCostsModule && hasInventoryModule) {
     kpis.push({
       key: 'valor-bodega',
+      group: 'Ventas y costos',
       node: <KpiCard label="Valor de bodega" value={formatCurrency(inventoryValue)} icon={Boxes} tone="info" />,
     });
   }
+  if (canReadPurchases && purchasesMonthAgg) {
+    kpis.push({
+      key: 'compras-mes',
+      group: 'Compras y tesorería',
+      node: <KpiCard label="Compras netas del mes" value={formatCurrency(purchasesMonthAgg._sum.netAmount ?? 0)} icon={Truck} tone="warning" />,
+    });
+  }
+  if (canReadTreasury && receivablesAgg) {
+    const total = (receivablesAgg._sum.totalAmount ?? 0) - (receivablesAgg._sum.paidAmount ?? 0);
+    kpis.push({ key: 'cxc-total', group: 'Compras y tesorería', node: <KpiCard label="Cuentas por cobrar" value={formatCurrency(total)} icon={Wallet} tone="accent" /> });
+  }
+  if (canReadTreasury && payablesAgg) {
+    const total = (payablesAgg._sum.totalAmount ?? 0) - (payablesAgg._sum.paidAmount ?? 0);
+    kpis.push({ key: 'cxp-total', group: 'Compras y tesorería', node: <KpiCard label="Cuentas por pagar" value={formatCurrency(total)} icon={TrendingDown} tone="warning" /> });
+  }
+  if (canOperatePos && posTodayAgg) {
+    kpis.push({
+      key: 'pos-hoy',
+      group: 'Punto de venta',
+      node: <KpiCard label="Ventas POS de hoy" value={formatCurrency(posTodayAgg._sum.totalAmount ?? 0)} icon={ScanBarcode} tone="success" />,
+    });
+  }
+  if (canReadCandidates && candidatesActiveCount !== null) {
+    kpis.push({
+      key: 'candidatas-activas',
+      group: 'Candidatas',
+      node: <KpiCard label="Candidatas activas" value={String(candidatesActiveCount)} icon={Crown} tone="accent" />,
+    });
+  }
+  if (canReadCandidates && candidatesPendingCount !== null && candidatesPendingCount > 0) {
+    kpis.push({
+      key: 'postulaciones-pendientes',
+      group: 'Candidatas',
+      node: <KpiCard label="Postulaciones por revisar" value={String(candidatesPendingCount)} icon={Users} tone="warning" />,
+    });
+  }
+  if (canReadSponsorships && sponsorshipsAgg) {
+    kpis.push({
+      key: 'auspicios-recaudado',
+      group: 'Auspicios y entradas',
+      node: <KpiCard label="Recaudado en auspicios" value={formatCurrency(sponsorshipsAgg._sum.paidAmount ?? 0)} icon={Handshake} tone="success" />,
+    });
+  }
+  if (canReadTicketing && ticketingAgg) {
+    kpis.push({
+      key: 'entradas-ingresos',
+      group: 'Auspicios y entradas',
+      // Wallet (no Ticket) para el monto: mismo criterio que ya usan los
+      // propios dashboards de Ticketing/Voting (TicketingDashboardClient,
+      // VotingDashboardClient) para "Ingresos confirmados" -- el icono de
+      // dominio (Ticket/Vote) queda reservado para los conteos, no para plata.
+      node: <KpiCard label="Ingresos por entradas" value={formatCurrency(ticketingAgg._sum.totalAmount ?? 0)} icon={Wallet} tone="success" />,
+    });
+    kpis.push({
+      key: 'entradas-vendidas',
+      group: 'Auspicios y entradas',
+      node: <KpiCard label="Entradas vendidas" value={String(ticketingAgg._sum.quantity ?? 0)} icon={Ticket} tone="info" />,
+    });
+  }
+  if (canReadPublicVoting && votingAgg) {
+    kpis.push({
+      key: 'votacion-recaudado',
+      group: 'Votación',
+      // tone="success" (no "accent") para cuadrar con el resto de tarjetas
+      // "recaudado/ingresos" del panel (auspicios, entradas) -- antes quedaba
+      // como la unica excepcion en accent sin ninguna razon semantica.
+      // Icono Wallet, mismo criterio que "Ingresos por entradas" arriba.
+      node: <KpiCard label="Recaudado en votación" value={formatCurrency(votingAgg._sum.totalAmount ?? 0)} icon={Wallet} tone="success" />,
+    });
+    kpis.push({
+      key: 'votos-pagados',
+      group: 'Votación',
+      node: <KpiCard label="Votos pagados" value={String(votingAgg._sum.voteCount ?? 0)} icon={Vote} tone="info" />,
+    });
+  }
+  if (canReadProjects && activeProjectsCount !== null) {
+    kpis.push({
+      key: 'proyectos-activos',
+      group: 'Proyectos',
+      node: <KpiCard label="Proyectos activos" value={String(activeProjectsCount)} icon={Briefcase} tone="info" />,
+    });
+  }
+
+  // Agrupacion visual por dominio: con todos los modulos contratados esta
+  // lista puede pasar de 15 tarjetas en un unico grid plano, sin ninguna
+  // jerarquia entre "Ventas", "Candidatas", "Votación", etc. Se arman
+  // secciones consecutivas (el orden de kpis ya sigue el orden de negocio)
+  // y solo se muestran los encabezados cuando hay mas de un dominio -- una
+  // empresa tipica con 2-3 modulos sigue viendo el mismo grid limpio de
+  // siempre. El indice global se preserva para no romper el desfase de
+  // entrada (100 + index * 40ms) que ya existia.
+  const kpiGroups: Array<{ label: string; items: Array<{ key: string; node: React.ReactNode; index: number }> }> = [];
+  kpis.forEach((kpi, index) => {
+    const last = kpiGroups[kpiGroups.length - 1];
+    if (last && last.label === kpi.group) {
+      last.items.push({ key: kpi.key, node: kpi.node, index });
+    } else {
+      kpiGroups.push({ label: kpi.group, items: [{ key: kpi.key, node: kpi.node, index }] });
+    }
+  });
+  const showKpiGroupHeaders = kpiGroups.length > 1;
 
   // Acción sugerida: una sola tarjeta, la más relevante para esta empresa en
   // este momento. Antes solo consideraba Ventas/Inventario — una empresa de
@@ -278,10 +545,10 @@ export default async function DashboardPage() {
   // módulos contratados y pagados.
   type SuggestedAction = { title: string; description: string; actionLabel: string; href: string; icon: typeof ShoppingCart };
   let suggestedAction: SuggestedAction | null = null;
-  if (criticalStock.length > 0 && hasInventoryModule && can(context, 'inventory:write')) {
+  if (criticalStockAll.length > 0 && hasInventoryModule && can(context, 'inventory:write')) {
     suggestedAction = {
       title: 'Reponer stock crítico',
-      description: `${criticalStock.length} productos bajo el mínimo de bodega`,
+      description: `${criticalStockAll.length} producto${criticalStockAll.length === 1 ? '' : 's'} bajo el mínimo de bodega`,
       actionLabel: 'Ir a inventario',
       href: '/dashboard/inventory?openStockForm=1',
       icon: PackagePlus,
@@ -314,11 +581,32 @@ export default async function DashboardPage() {
 
   const hasAnyContent = contracted.length > 0;
 
+  // Chips de "Alertas de hoy": mismas categorías que el correo diario de
+  // `operational-alerts.service.ts`, en vivo. Solo aparecen las que tienen
+  // algo que mostrar — un dashboard con 5 chips en cero todos los días es
+  // ruido, no información.
+  const todayAlerts: Array<{ key: string; count: number; label: string; href: string; icon: typeof AlertTriangle; tone: 'danger' | 'warning' }> = [];
+  if (criticalStockAll.length > 0) {
+    todayAlerts.push({ key: 'stock', count: criticalStockAll.length, label: `producto${criticalStockAll.length === 1 ? '' : 's'} bajo stock mínimo`, href: '/dashboard/inventory', icon: PackageSearch, tone: 'danger' });
+  }
+  if (pendingApprovals.length > 0) {
+    todayAlerts.push({ key: 'approvals', count: pendingApprovals.length, label: `compra${pendingApprovals.length === 1 ? '' : 's'} esperando aprobación`, href: '/dashboard/purchases', icon: ClipboardCheck, tone: 'warning' });
+  }
+  if (mismatchedPurchases.length > 0) {
+    todayAlerts.push({ key: 'mismatch', count: mismatchedPurchases.length, label: `compra${mismatchedPurchases.length === 1 ? '' : 's'} con diferencia sin resolver`, href: '/dashboard/purchases', icon: FileWarning, tone: 'danger' });
+  }
+  if (overdueReceivables.length > 0) {
+    todayAlerts.push({ key: 'receivables', count: overdueReceivables.length, label: `cuenta${overdueReceivables.length === 1 ? '' : 's'} por cobrar vencida${overdueReceivables.length === 1 ? '' : 's'}`, href: '/dashboard/treasury/cxc', icon: Wallet, tone: 'warning' });
+  }
+  if (expiringContracts.length > 0) {
+    todayAlerts.push({ key: 'contracts', count: expiringContracts.length, label: `contrato${expiringContracts.length === 1 ? '' : 's'} de imagen por vencer`, href: '/dashboard/candidates', icon: BadgeAlert, tone: 'warning' });
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-4 duration-500 animate-in fade-in slide-in-from-top-2">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">
+          <h1 className="text-2xl font-semibold text-foreground" data-tutorial="module-header">
             {greeting()}, {capitalizedName}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -327,6 +615,34 @@ export default async function DashboardPage() {
           </p>
         </div>
       </div>
+
+      {/* Alertas de hoy: mismo dato que el correo diario, en vivo — ver
+          `todayAlerts` más arriba. Ausente por completo si no hay nada que
+          avisar, para no acostumbrar a la gente a ignorar la fila. */}
+      {todayAlerts.length > 0 && (
+        <div
+          className="flex flex-wrap items-center gap-2.5 rounded-lg border border-warning/25 bg-warning-soft/40 p-3 pl-4 duration-500 animate-in fade-in slide-in-from-top-2"
+          style={{ animationDelay: '75ms', animationFillMode: 'backwards' }}
+        >
+          <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-foreground">
+            <AlertTriangle className="size-3.5 text-warning" strokeWidth={2} />
+            Hoy
+          </span>
+          <div className="flex flex-1 flex-wrap gap-2">
+            {todayAlerts.map((alert) => (
+              <Link
+                key={alert.key}
+                href={alert.href}
+                className={`inline-flex items-center gap-1.5 rounded-full bg-card px-3 py-1.5 text-xs font-medium text-foreground shadow-card ring-1 ring-border transition-all duration-150 hover:-translate-y-0.5 hover:shadow-hover ${alert.tone === 'danger' ? 'hover:ring-danger/40' : 'hover:ring-warning/40'}`}
+              >
+                <alert.icon className={`size-3.5 ${alert.tone === 'danger' ? 'text-danger' : 'text-warning'}`} strokeWidth={2} />
+                <span className="font-semibold tabular-nums">{alert.count}</span>
+                {alert.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {!hasAnyContent && (
         <div className="rounded-lg border border-border bg-card shadow-card">
@@ -338,13 +654,32 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* KPIs */}
+      {/* KPIs — cada tarjeta entra con un leve desfase (40ms * índice) en vez
+          de todas a la vez: un detalle barato (CSS puro, sin JS ni layout
+          shift) que hace que el panel se sienta vivo en la primera carga sin
+          molestar en las siguientes (no se repite al navegar entre pestañas
+          del mismo layout, solo al montar esta página). */}
       {kpis.length > 0 && (
-        <section className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
-          {kpis.map((kpi) => (
-            <React.Fragment key={kpi.key}>{kpi.node}</React.Fragment>
+        <div className="space-y-5">
+          {kpiGroups.map((group) => (
+            <section key={group.label} className="space-y-2.5">
+              {showKpiGroupHeaders && (
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group.label}</h2>
+              )}
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
+                {group.items.map((kpi) => (
+                  <div
+                    key={kpi.key}
+                    className="duration-500 animate-in fade-in slide-in-from-bottom-2"
+                    style={{ animationDelay: `${100 + kpi.index * 40}ms`, animationFillMode: 'backwards' }}
+                  >
+                    {kpi.node}
+                  </div>
+                ))}
+              </div>
+            </section>
           ))}
-        </section>
+        </div>
       )}
 
       {/* Cobros pendientes de certámenes (cuotas/pagarés vencidos) — visible

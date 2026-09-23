@@ -9,7 +9,7 @@ export default async function PromissoryNotesPage() {
 
   return (
     <div>
-      <h1 className="mb-4 text-2xl font-bold">Pagarés</h1>
+      <h1 className="mb-4 text-2xl font-bold" data-tutorial="module-header">Pagarés</h1>
       <PromissoryNoteListClient canWrite={canWrite} />
     </div>
   );

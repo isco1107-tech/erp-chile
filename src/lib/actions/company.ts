@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 import { Prisma, type Company, type CompanySettings } from '@prisma/client';
+import type { CompanySettingsView } from '@/lib/services/company.service';
 import { z } from 'zod';
 import { requireAuthWithPermission, authErrorMessage } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
@@ -33,6 +34,10 @@ const companySettingsSchema = z.object({
   honorariumRetentionBps: z.number().int().min(0).max(10000),
   fiscalYear: z.number().int().min(2020).max(2100),
   purchaseApprovalThreshold: z.number().int().nonnegative().nullable(),
+  siiApiEnabled: z.boolean().optional(),
+  siiApiBaseUrl: z.string().trim().max(2048).nullable().optional(),
+  siiApiKey: z.string().trim().max(2048).nullable().optional(),
+  siiApiSecret: z.string().trim().max(2048).nullable().optional(),
 });
 
 const ipAllowlistSchema = z.object({
@@ -83,7 +88,7 @@ export async function updateCompanyProfileAction(input: unknown): Promise<Action
   }
 }
 
-export async function getCompanySettingsAction(): Promise<ActionResult<CompanySettings>> {
+export async function getCompanySettingsAction(): Promise<ActionResult<CompanySettingsView>> {
   try {
     const session = await requireAuthWithPermission('settings:company');
     return { success: true, data: await companyService.getCompanySettings(session.companyId) };
@@ -92,12 +97,14 @@ export async function getCompanySettingsAction(): Promise<ActionResult<CompanySe
   }
 }
 
-export async function updateCompanySettingsAction(input: unknown): Promise<ActionResult<CompanySettings>> {
+export async function updateCompanySettingsAction(input: unknown): Promise<ActionResult<CompanySettingsView>> {
   try {
     const session = await requireAuthWithPermission('settings:company');
     const parsed = companySettingsSchema.safeParse(input);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
     const data = await companyService.updateCompanySettings(session.companyId, parsed.data);
+    // Nunca la credencial en claro al log de auditoría: solo si cambió.
+    const { siiApiKey, siiApiSecret, ...safeChanges } = parsed.data;
     await createAuditLog({
       companyId: session.companyId,
       userId: session.id,
@@ -105,7 +112,13 @@ export async function updateCompanySettingsAction(input: unknown): Promise<Actio
       action: 'UPDATE',
       entity: 'CompanySettings',
       entityId: data.id,
-      metadata: { changes: parsed.data },
+      metadata: {
+        changes: {
+          ...safeChanges,
+          ...(siiApiKey !== undefined ? { siiApiKey: siiApiKey ? '[definida]' : null } : {}),
+          ...(siiApiSecret !== undefined ? { siiApiSecret: siiApiSecret ? '[definida]' : null } : {}),
+        },
+      },
     });
     revalidatePath('/dashboard/settings/company');
     revalidatePath('/dashboard');

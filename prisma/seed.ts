@@ -3,6 +3,7 @@ import { prisma } from '../src/lib/prisma';
 import { formatRut } from '../src/lib/chile/rut';
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
+import { assertScriptCanRun } from '../scripts/lib/guard-production';
 
 // El RUT se persiste siempre en formato canónico (12.345.678-K). Sembrarlo sin
 // formato creaba una segunda empresa en cada corrida, porque el `where` del
@@ -10,6 +11,7 @@ import { randomBytes } from 'crypto';
 const COMPANY_RUT = formatRut('99999999-9');
 
 async function main() {
+  assertScriptCanRun('prisma/seed.ts');
   const company = await prisma.company.upsert({
     where: { rut: COMPANY_RUT },
     update: {},

@@ -6,12 +6,14 @@ import { Link2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getOrCreateTicketSalesLinkAction, regenerateTicketSalesLinkAction } from '@/modules/ticketing/actions/ticketing.actions';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 /**
  * Botón para el equipo interno: genera (o reutiliza) el link público de venta
  * de entradas de un proyecto y lo copia al portapapeles. Mismo criterio que
  * `CandidateRegistrationLinkButton`.
  */
 export default function TicketingLinkButton({ projectId }: { projectId: string }) {
+  const confirm = useConfirm();
   const [busy, setBusy] = useState<'get' | 'regen' | null>(null);
 
   function ticketsUrl(token: string): string {
@@ -34,7 +36,7 @@ export default function TicketingLinkButton({ projectId }: { projectId: string }
   }
 
   async function handleRegenerate() {
-    if (!confirm('¿Regenerar el link? El link anterior dejará de funcionar de inmediato.')) return;
+    if (!await confirm('¿Regenerar el link? El link anterior dejará de funcionar de inmediato.')) return;
     setBusy('regen');
     try {
       const result = await regenerateTicketSalesLinkAction(projectId);
@@ -55,7 +57,15 @@ export default function TicketingLinkButton({ projectId }: { projectId: string }
         <Link2 />
         {busy === 'get' ? 'Copiando...' : 'Copiar link de venta'}
       </Button>
-      <Button type="button" variant="ghost" size="icon-sm" title="Regenerar link (invalida el anterior)" disabled={busy !== null} onClick={handleRegenerate}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        title="Regenerar link (invalida el anterior)"
+        aria-label="Regenerar link (invalida el anterior)"
+        disabled={busy !== null}
+        onClick={handleRegenerate}
+      >
         <RefreshCw />
       </Button>
     </div>

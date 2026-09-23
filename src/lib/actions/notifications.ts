@@ -24,7 +24,18 @@ export interface NotificationItem {
   title: string;
   description: string;
   href: string;
+  /** Solo las que vienen de una regla de automatización (`WorkflowNotification`) se pueden descartar una a una — el resto se recalcula sola y desaparece cuando la condición deja de cumplirse. */
+  dismissible?: boolean;
 }
+
+const WORKFLOW_NOTIFICATION_SEVERITY: Record<string, NotificationItem['severity']> = {
+  CRITICAL: 'critical',
+  WARNING: 'warning',
+  INFO: 'info',
+};
+
+/** Cuántas notificaciones de automatización sin leer se muestran como máximo — es una campanita, no una bandeja de entrada. */
+const MAX_WORKFLOW_NOTIFICATIONS = 8;
 
 export interface NotificationSummary {
   items: NotificationItem[];
@@ -119,7 +130,52 @@ export async function getNotificationSummaryAction(): Promise<ActionResult<Notif
       }
     }
 
+    // Notificaciones creadas por reglas de automatización propias de la
+    // empresa (Configuración → Automatizaciones). A diferencia de las
+    // señales de arriba (recalculadas en cada carga a partir del estado
+    // actual), estas son eventos puntuales que ya ocurrieron — por eso son
+    // las únicas que se pueden marcar como leídas.
+    //
+    // Deliberadamente SIN chequeo de permiso adicional (a diferencia de las
+    // fuentes de arriba, que sí exigen `treasury:read`/`products:read`/etc.):
+    // el título y mensaje los escribió a mano quien tiene `automation:manage`
+    // (OWNER/ADMIN) al crear la regla, así que ya decidió qué tan sensible es
+    // ese texto y a quién quiere avisarle — es un aviso de equipo, no un dato
+    // que el sistema calcule y muestre solo por tener el rol adecuado. Si una
+    // regla incluye `{{pendingAmount}}` u otro campo sensible en el mensaje,
+    // eso es responsabilidad de quien redactó la regla, no de este endpoint.
+    const workflowNotifications = await prisma.workflowNotification.findMany({
+      where: { companyId: context.companyId, readAt: null },
+      orderBy: { createdAt: 'desc' },
+      take: MAX_WORKFLOW_NOTIFICATIONS,
+      select: { id: true, severity: true, title: true, message: true, href: true },
+    });
+    for (const notification of workflowNotifications) {
+      items.push({
+        id: `workflow-${notification.id}`,
+        severity: WORKFLOW_NOTIFICATION_SEVERITY[notification.severity] ?? 'info',
+        title: notification.title,
+        description: notification.message,
+        href: notification.href || '/dashboard/settings/automations',
+        dismissible: true,
+      });
+    }
+
     return { success: true, data: { items } };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+/** Descarta una notificación de automatización de la campanita. No hay permiso extra: cualquiera que la vio puede marcarla como leída, igual que archivar un correo propio. */
+export async function dismissWorkflowNotificationAction(id: string): Promise<ActionResult<null>> {
+  try {
+    const context = await getAuthContext();
+    await prisma.workflowNotification.updateMany({
+      where: { id, companyId: context.companyId },
+      data: { readAt: new Date() },
+    });
+    return { success: true, data: null };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
   }

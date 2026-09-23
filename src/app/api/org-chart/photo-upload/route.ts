@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
-import { put } from '@vercel/blob';
+import { put } from '@/lib/storage/blob';
 import { AuthError, TenantInactiveError, getAuthContext } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
+import { captureException } from '@/lib/observability';
 import { prisma } from '@/lib/prisma';
 
 /**
- * Sube la foto de perfil del organigrama a Vercel Blob y la guarda en
+ * Sube la foto de perfil del organigrama a Cloudflare R2 y la guarda en
  * `User.photoUrl`. Va en un Route Handler, no en una Server Action, por el
  * límite de 1 MB de cuerpo de las Server Actions (mismo motivo que
  * `candidates/photo-upload`).
@@ -81,7 +82,7 @@ export async function POST(req: Request) {
     if (error instanceof TenantInactiveError) {
       return NextResponse.json({ success: false, error: error.message }, { status: 403 });
     }
-    console.error('Org chart photo upload failed:', error);
+    captureException(error, { module: 'org-chart' });
     return NextResponse.json({ success: false, error: 'No se pudo subir la foto' }, { status: 500 });
   }
 }

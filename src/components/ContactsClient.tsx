@@ -12,11 +12,13 @@ import ContactForm from './ContactForm';
 import { listContactsPageAction, deleteContactAction, getContactAction } from '@/modules/contacts/actions/contacts.actions';
 import type { ContactListItem } from '@/modules/contacts/services/contacts.service';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 type Filter = 'all' | 'customers' | 'suppliers';
 
 const DEFAULT_PAGE_SIZE = 25;
 
 export default function ContactsClient() {
+  const confirm = useConfirm();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -108,7 +110,7 @@ export default function ContactsClient() {
   }
 
   async function handleDelete(contact: ContactListItem) {
-    if (!confirm(`¿Eliminar el contacto "${contact.razonSocial}"?`)) return;
+    if (!await confirm(`¿Eliminar el contacto "${contact.razonSocial}"?`)) return;
     const result = await deleteContactAction(contact.id);
     if (!result.success) {
       toast.error(result.error);
@@ -123,6 +125,7 @@ export default function ContactsClient() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <Input
+            data-tutorial="module-search"
             placeholder="Buscar por RUT o Razón Social"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -143,6 +146,7 @@ export default function ContactsClient() {
 
         <Button
           type="button"
+          data-tutorial="module-primary-action"
           onClick={() => {
             setEditingContact(null);
             setShowForm((s) => !s);

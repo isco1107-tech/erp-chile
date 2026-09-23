@@ -2,6 +2,9 @@ import { prisma } from '@/lib/prisma';
 import type { Prisma, Role } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
+import { sendEmail } from '@/lib/email/mailer';
+import { buildAccountLockedNoticeEmail } from '@/lib/email/templates';
+import { captureException } from '@/lib/observability';
 
 /** Estados de tenant que permiten operar. Debe coincidir con `guards.ts`. */
 const OPERATIONAL_STATUSES = ['ACTIVE', 'TRIAL'];
@@ -48,7 +51,15 @@ const DUMMY_HASH = '$2b$12$8M8fKdKgsaNr.D4NjEj7auzaCl4kApLh477i.TriJbHm0KTvVMwae
  * (por email), no bloquea logins concurrentes de otras cuentas.
  */
 export async function verifyCredentials(email: string, password: string) {
-  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+  // Capturado por la clausura de la transacción: no hay forma limpia de que
+  // `$transaction` devuelva "se bloqueó recién" además del resultado normal
+  // sin cambiar el contrato de retorno de toda la función para sus 3
+  // llamadores — esta bandera es más simple y el aviso por correo (después,
+  // fuera de la transacción) es un side-effect que de todas formas no debe
+  // vivir dentro de una transacción de base de datos.
+  let justLocked: { userId: string; companyId: string | null } | null = null;
+
+  const user = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.$queryRaw`SELECT id FROM "User" WHERE email = ${email} FOR UPDATE`;
     const user = await tx.user.findUnique({
       where: { email },
@@ -71,13 +82,14 @@ export async function verifyCredentials(email: string, password: string) {
     const match = await bcrypt.compare(password, user.passwordHash);
     if (!match) {
       const attempts = user.failedLoginAttempts + 1;
+      const nowLocking = attempts >= MAX_ATTEMPTS;
       await tx.user.update({
         where: { id: user.id },
-        data:
-          attempts >= MAX_ATTEMPTS
-            ? { failedLoginAttempts: 0, loginLockedUntil: new Date(Date.now() + LOCKOUT_MS) }
-            : { failedLoginAttempts: attempts },
+        data: nowLocking
+          ? { failedLoginAttempts: 0, loginLockedUntil: new Date(Date.now() + LOCKOUT_MS) }
+          : { failedLoginAttempts: attempts },
       });
+      if (nowLocking) justLocked = { userId: user.id, companyId: user.companyId };
       return null;
     }
 
@@ -95,6 +107,45 @@ export async function verifyCredentials(email: string, password: string) {
 
     return user;
   }, LOCKING_TX_OPTIONS);
+
+  // El cast es por una rareza de inferencia de TS: al reasignarse solo dentro
+  // del closure pasado a `$transaction`, TS angosta el tipo de `justLocked`
+  // acá afuera a `null` en vez del union declarado — el cast es al mismo tipo
+  // ya declarado arriba, no amplía nada.
+  const lockedInfo = justLocked as { userId: string; companyId: string | null } | null;
+  if (lockedInfo) {
+    void notifyAccountLocked(lockedInfo.userId, lockedInfo.companyId);
+  }
+
+  return user;
+}
+
+/**
+ * Avisa a Dueños/Administradores de la empresa que una cuenta se bloqueó por
+ * 5 intentos fallidos seguidos — antes esto quedaba solo en `User.loginLockedUntil`,
+ * sin que nadie se enterara salvo que entrara a revisar la base a mano. Un
+ * usuario con `companyId: null` (ej. superadmin) no tiene a quién avisar —
+ * se omite en silencio, no es un error.
+ */
+async function notifyAccountLocked(userId: string, companyId: string | null): Promise<void> {
+  if (!companyId) return;
+  try {
+    const [lockedUser, recipients] = await Promise.all([
+      prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } }),
+      prisma.user.findMany({ where: { companyId, role: { in: ['OWNER', 'ADMIN'] }, isActive: true, id: { not: userId } }, select: { email: true } }),
+    ]);
+    if (!lockedUser || recipients.length === 0) return;
+
+    const email = buildAccountLockedNoticeEmail({
+      lockedUserName: lockedUser.name,
+      lockedUserEmail: lockedUser.email,
+      lockoutMinutes: LOCKOUT_MS / 60000,
+      maxAttempts: MAX_ATTEMPTS,
+    });
+    await Promise.all(recipients.map((r) => sendEmail({ to: r.email, subject: email.subject, html: email.html, text: email.text })));
+  } catch (error) {
+    captureException(error, { module: 'auth', extra: { reason: 'account-locked-notice' } });
+  }
 }
 
 export async function createUser(data: {

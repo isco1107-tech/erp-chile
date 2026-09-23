@@ -1,0 +1,17 @@
+
+> erp@0.1.0 test
+> jest --runInBand --testPathIgnorePatterns=tests/security/brute-force.test.ts --json --outputFile=docs/auditoria-2026-09-14/jest-results.json
+
+npm.cmd : 
+En línea: 2 Carácter: 145
++ ... 7.0.0.1:9'; npm.cmd test -- --testPathIgnorePatterns='tests/security/ ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Test Suites: 32 passed, 32 total
+Tests:       523 passed, 523 total
+Snapshots:   0 total
+Time:        74.493 s
+Ran all test suites.
+Test results written to: docs\auditoria-2026-09-14\jest-results.json

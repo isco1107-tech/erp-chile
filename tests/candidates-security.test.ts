@@ -1,5 +1,5 @@
 import { sniffImageType } from '@/lib/security/file-signature';
-import { isAllowedBlobUrl } from '@/lib/security/blob-url';
+import { isAllowedBlobUrl, blobPathnameStartsWith } from '@/lib/security/blob-url';
 
 /**
  * Módulo de postulaciones públicas de candidatas (certamen de belleza):
@@ -75,6 +75,38 @@ describe('isAllowedBlobUrl — allowlist contra SSRF en URLs de archivo', () => 
   });
 });
 
+describe('blobPathnameStartsWith — propiedad del archivo por pathname (SEG-04)', () => {
+  const prefix = 'candidates/company-1/documents/cand-1-';
+
+  it('acepta una URL de R2 cuyo pathname corresponde a esta candidata', () => {
+    expect(blobPathnameStartsWith('https://files.miempresa.cl/candidates/company-1/documents/cand-1-1700000000000.pdf', prefix)).toBe(
+      true
+    );
+  });
+
+  it('acepta una URL legacy de Vercel Blob con el mismo pathname tras el host', () => {
+    expect(blobPathnameStartsWith('https://abc123.public.blob.vercel-storage.com/candidates/company-1/documents/cand-1-1.jpg', prefix)).toBe(
+      true
+    );
+  });
+
+  it('rechaza el archivo de OTRA candidata de la misma empresa, aunque el host sea válido', () => {
+    expect(blobPathnameStartsWith('https://files.miempresa.cl/candidates/company-1/documents/cand-2-1700000000000.pdf', prefix)).toBe(
+      false
+    );
+  });
+
+  it('rechaza el archivo de otra empresa', () => {
+    expect(blobPathnameStartsWith('https://files.miempresa.cl/candidates/company-2/documents/cand-1-1700000000000.pdf', prefix)).toBe(
+      false
+    );
+  });
+
+  it('rechaza strings que no son URLs válidas en vez de lanzar', () => {
+    expect(blobPathnameStartsWith('no-es-una-url', prefix)).toBe(false);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // RBAC de campos sensibles: `redactSensitiveFields` (no exportada — el
 // archivo que la contiene es `'use server'`, así que no puede exportar una
@@ -117,6 +149,7 @@ describe('Redacción de campos sensibles en las Server Actions de candidatas', (
     employerName: 'Empresa Empleadora SpA',
     employerRut: '76.543.210-9',
     employerAddress: 'Av. Alemania 456, Temuco',
+    condicionesMedicas: 'Alergia a la penicilina',
     status: 'APPLICANT',
     project: { id: 'proj-1', name: 'Miss Test 2027', code: 'MT' },
   } as unknown as import('../src/modules/candidates/services/candidates.service').CandidateWithProject;
@@ -137,6 +170,7 @@ describe('Redacción de campos sensibles en las Server Actions de candidatas', (
     'employerName',
     'employerRut',
     'employerAddress',
+    'condicionesMedicas',
   ] as const;
 
   let mockRequireAuthWithPermission: jest.Mock;
@@ -214,6 +248,7 @@ describe('Redacción de campos sensibles en las Server Actions de candidatas', (
     expect(result.data.photoUrl).toBe('https://x.public.blob.vercel-storage.com/foto.jpg');
     expect(result.data.employerName).toBe('Empresa Empleadora SpA');
     expect(result.data.employerRut).toBe('76.543.210-9');
+    expect(result.data.condicionesMedicas).toBe('Alergia a la penicilina');
   });
 
   it('listCandidatesAction redacta cada elemento del listado, no solo el primero', async () => {
@@ -250,5 +285,83 @@ describe('Redacción de campos sensibles en las Server Actions de candidatas', (
     if (!result.success) throw new Error('unreachable');
     expect(result.data.rut).toBe('••••••••');
     expect(result.data.guardianRut).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SEG-01: el certificado médico (`MEDICAL_CERTIFICATE`) debía tratarse como
+// documento sensible igual que las fotografías de postulación — antes solo
+// `PHOTO_FACE`/`PHOTO_FULL_BODY` estaban en `SENSITIVE_DOCUMENT_TYPES`, así
+// que `candidates:read` sin `candidates:sensitive` recibía el certificado
+// completo, con su `fileUrl` pública sin blanquear.
+// ---------------------------------------------------------------------------
+
+describe('listDocumentsAction — MEDICAL_CERTIFICATE tratado como documento sensible', () => {
+  const SESSION = { id: 'user-1', companyId: 'company-1', email: 'staff@empresa.cl', role: 'ADMIN' };
+
+  const DOCS = [
+    { id: 'doc-cert', candidateId: 'cand-1', documentType: 'MEDICAL_CERTIFICATE', fileUrl: 'https://x.public.blob.vercel-storage.com/cert.pdf', title: 'Certificado médico', status: 'PENDING' },
+    { id: 'doc-contract', candidateId: 'cand-1', documentType: 'CONTRACT_IMAGE', fileUrl: 'https://x.public.blob.vercel-storage.com/contrato.pdf', title: 'Contrato de imagen', status: 'PENDING' },
+  ] as unknown as import('@prisma/client').CandidateDocument[];
+
+  let mockRequireAuthWithPermission: jest.Mock;
+  let mockCan: jest.Mock;
+  let documentsService: typeof import('../src/modules/candidates/services/documents.service');
+  let listDocumentsAction: CandidatesActionsModule['listDocumentsAction'];
+
+  beforeEach(() => {
+    jest.resetModules();
+
+    mockRequireAuthWithPermission = jest.fn().mockResolvedValue(SESSION);
+    mockCan = jest.fn();
+
+    jest.doMock('next/cache', () => ({ revalidatePath: jest.fn() }));
+    jest.doMock('@/lib/auth/audit', () => ({ createAuditLog: jest.fn().mockResolvedValue(undefined) }));
+    jest.doMock('@/lib/auth/guards', () => ({
+      requireAuthWithPermission: (...args: unknown[]) => mockRequireAuthWithPermission(...args),
+      can: (...args: unknown[]) => mockCan(...args),
+      authErrorMessage: () => null,
+    }));
+    jest.doMock('../src/modules/candidates/services/documents.service', () => ({
+      listDocuments: jest.fn(),
+    }));
+
+    documentsService = require('../src/modules/candidates/services/documents.service');
+    const actions: CandidatesActionsModule = require('../src/modules/candidates/actions/candidates.actions');
+    listDocumentsAction = actions.listDocumentsAction;
+  });
+
+  afterEach(() => {
+    jest.dontMock('next/cache');
+    jest.dontMock('@/lib/auth/audit');
+    jest.dontMock('@/lib/auth/guards');
+    jest.dontMock('../src/modules/candidates/services/documents.service');
+  });
+
+  it('sin candidates:sensitive: el certificado médico ni siquiera aparece en el listado', async () => {
+    mockCan.mockReturnValue(false);
+    jest.mocked(documentsService.listDocuments).mockResolvedValue(DOCS);
+
+    const result = await listDocumentsAction('cand-1');
+
+    expect(result.success).toBe(true);
+    if (!result.success) throw new Error('unreachable');
+    expect(result.data.map((d) => d.documentType)).toEqual(['CONTRACT_IMAGE']);
+  });
+
+  it('con candidates:sensitive: el certificado aparece en el listado pero sin la URL pública cruda', async () => {
+    mockCan.mockReturnValue(true);
+    jest.mocked(documentsService.listDocuments).mockResolvedValue(DOCS);
+
+    const result = await listDocumentsAction('cand-1');
+
+    expect(result.success).toBe(true);
+    if (!result.success) throw new Error('unreachable');
+    const cert = result.data.find((d) => d.documentType === 'MEDICAL_CERTIFICATE');
+    expect(cert).toBeDefined();
+    expect(cert?.fileUrl).toBe('');
+    // CONTRACT_IMAGE no es un tipo sensible: conserva su fileUrl tal cual.
+    const contract = result.data.find((d) => d.documentType === 'CONTRACT_IMAGE');
+    expect(contract?.fileUrl).toBe('https://x.public.blob.vercel-storage.com/contrato.pdf');
   });
 });

@@ -1,0 +1,14 @@
+
+> erp@0.1.0 prisma:validate
+> prisma validate
+
+npm.cmd : Loaded Prisma config from prisma.config.ts.
+En línea: 2 Carácter: 109
++ ... TABASE_URL; npm.cmd run prisma:validate *> docs/auditoria-2026-09-14/ ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Loaded Prisma c...isma.config.ts.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+Prisma schema loaded from prisma\schema.prisma.
+The schema at prisma\schema.prisma is valid 🚀

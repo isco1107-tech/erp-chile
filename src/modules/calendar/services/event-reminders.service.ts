@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { sendEmail } from '@/lib/email/mailer';
 import { createAuditLog } from '@/lib/auth/audit';
+import { captureException } from '@/lib/observability';
 import { getCalendarData } from './calendar.service';
 
 export interface ReminderDeliveryResult {
@@ -199,7 +200,7 @@ export async function runDailyRemindersCron(baseUrl: string): Promise<{ processe
       await sendUpcomingEventsReminder(c.id, baseUrl);
       count++;
     } catch (err) {
-      console.error(`Error al enviar recordatorios periódicos para empresa ${c.id}:`, err);
+      captureException(err, { module: 'calendar', companyId: c.id, extra: { reason: 'periodic-reminders' } });
     }
   }
 

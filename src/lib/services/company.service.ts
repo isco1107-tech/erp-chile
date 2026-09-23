@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import type { Company, CompanySettings } from '@prisma/client';
 import { cleanRut, formatRut, validateRut } from '@/lib/chile/rut';
 import { isValidIpAllowlistEntry } from '@/lib/auth/ip-allowlist';
+import { encryptSiiCredential } from '@/lib/sii/crypto';
 
 export interface CompanyProfileInput {
   rut: string;
@@ -49,22 +50,50 @@ export interface CompanySettingsInput {
   fiscalYear: number;
   /** CLP entero. `null` = sin umbral (ninguna compra requiere aprobación). */
   purchaseApprovalThreshold: number | null;
+  siiApiEnabled?: boolean;
+  siiApiBaseUrl?: string | null;
+  siiApiKey?: string | null;
+  siiApiSecret?: string | null;
 }
 
-export async function getCompanySettings(companyId: string): Promise<CompanySettings> {
-  return prisma.companySettings.upsert({
+/**
+ * Vista de `CompanySettings` segura para el cliente: `siiApiKey`/`siiApiSecret`
+ * nunca viajan al navegador (ni cifradas), solo si hay una credencial guardada.
+ * El valor real solo se descifra en el servidor, en el punto de uso
+ * (`getCompanySiiApiConfig`), nunca para mostrarlo de vuelta en un formulario.
+ */
+export type CompanySettingsView = Omit<CompanySettings, 'siiApiKey' | 'siiApiSecret'> & {
+  siiApiKeySet: boolean;
+  siiApiSecretSet: boolean;
+};
+
+function toCompanySettingsView(settings: CompanySettings): CompanySettingsView {
+  const { siiApiKey, siiApiSecret, ...rest } = settings;
+  return { ...rest, siiApiKeySet: Boolean(siiApiKey), siiApiSecretSet: Boolean(siiApiSecret) };
+}
+
+export async function getCompanySettings(companyId: string): Promise<CompanySettingsView> {
+  const settings = await prisma.companySettings.upsert({
     where: { companyId },
     update: {},
     create: { companyId },
   });
+  return toCompanySettingsView(settings);
 }
 
-export async function updateCompanySettings(companyId: string, input: CompanySettingsInput): Promise<CompanySettings> {
-  return prisma.companySettings.upsert({
+export async function updateCompanySettings(companyId: string, input: CompanySettingsInput): Promise<CompanySettingsView> {
+  const data: CompanySettingsInput = { ...input };
+  // Cadena vacía / no enviado ya se resolvió en la Server Action (trim -> null
+  // = "borrar", undefined = "no tocar"): acá solo cifra lo que sí es un valor.
+  if (data.siiApiKey) data.siiApiKey = encryptSiiCredential(data.siiApiKey);
+  if (data.siiApiSecret) data.siiApiSecret = encryptSiiCredential(data.siiApiSecret);
+
+  const settings = await prisma.companySettings.upsert({
     where: { companyId },
-    update: input,
-    create: { companyId, ...input },
+    update: data,
+    create: { companyId, ...data },
   });
+  return toCompanySettingsView(settings);
 }
 
 export interface IpAllowlistInput {

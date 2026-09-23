@@ -17,4 +17,5 @@ node_modules
 
 # Artefactos de build / instaladores sueltos que no son parte del código
 *.exe
+!public/downloads/*.exe
 *.tsbuildinfo

@@ -8,6 +8,7 @@ import {
 } from '@/modules/ticketing/services/ticketing.service';
 import { extractClientIp } from '@/lib/auth/ip-allowlist';
 import { checkRateLimit, TICKET_PURCHASE_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { captureException } from '@/lib/observability';
 
 /**
  * Endpoint público de compra de entradas: sin autenticación, resuelto por
@@ -71,7 +72,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     if (error instanceof TicketSalesNotFoundError) return jsonError(error.message, 403);
     if (error instanceof TicketTypeClosedError) return jsonError(error.message, 403);
     if (error instanceof TicketSoldOutError) return jsonError(error.message, 409);
-    console.error('ticket-purchase: error inesperado:', error);
+    captureException(error, { module: 'ticketing' });
     return jsonError('No se pudo procesar tu compra. Intenta de nuevo más tarde.', 500);
   }
 }

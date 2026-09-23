@@ -19,6 +19,7 @@ import type { PosSaleListItem } from '@/modules/pos/services/pos.service';
 import type { CashMovement } from '@prisma/client';
 import { formatCurrency } from '@/lib/chile/tax';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 interface Props {
   shiftId: string;
   cashierName: string;
@@ -35,6 +36,7 @@ interface Props {
  * cero y el arqueo no controlaría nada.
  */
 export default function CashPanel(props: Props) {
+  const confirm = useConfirm();
   const router = useRouter();
 
   const [summary, setSummary] = useState<ShiftSummary | null>(null);
@@ -107,7 +109,7 @@ export default function CashPanel(props: Props) {
       difference === 0
         ? '¿Cerrar la caja? El arqueo cuadra exactamente.'
         : `El arqueo tiene un descuadre de ${formatCurrency(Math.abs(difference))} (${difference > 0 ? 'sobrante' : 'faltante'}). Quedará registrado en la bitácora. ¿Cerrar de todos modos?`;
-    if (!confirm(confirmMessage)) return;
+    if (!await confirm(confirmMessage)) return;
 
     setClosing(true);
     try {

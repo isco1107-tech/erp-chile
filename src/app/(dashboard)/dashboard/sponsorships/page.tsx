@@ -9,7 +9,7 @@ export default async function SponsorshipsPage() {
 
   return (
     <div>
-      <h1 className="mb-4 text-2xl font-bold">Auspicios & Marcas</h1>
+      <h1 className="mb-4 text-2xl font-bold" data-tutorial="module-header">Auspicios & Marcas</h1>
       <SponsorshipListClient canWrite={canWrite} />
     </div>
   );

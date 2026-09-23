@@ -9,6 +9,11 @@ import type {
   SponsorshipStatus,
   SponsorshipTier,
 } from '@prisma/client';
+import { sendEmail } from '@/lib/email/mailer';
+import { buildSponsorshipPaymentConfirmationEmail } from '@/lib/email/templates';
+import { emitWorkflowEvent } from '@/lib/workflows/engine';
+import { captureException } from '@/lib/observability';
+import { SPONSORSHIP_TIER_LABELS } from '../schema';
 import type {
   DeliverableCreateInput,
   SponsorshipContractCreateInput,
@@ -119,12 +124,22 @@ export async function deleteSponsorshipContract(companyId: string, id: string): 
  * servidor — nunca se confía en un status que mande el cliente, mismo
  * criterio que `treasury.service.ts` al registrar cobros/pagos.
  */
+/**
+ * Al pasar a `PAID` por primera vez dispara el correo de confirmación al
+ * contacto de la marca auspiciadora — mismo patrón que
+ * `confirmTicketPayment`/`confirmVotePayment`: fuera de la transacción (un
+ * fallo de SMTP no debe revertir el pago ya confirmado) y solo si
+ * `wasAlreadyPaid` es falso. Antes esta función no avisaba a nadie.
+ */
 export async function updateSponsorshipPayment(
   companyId: string,
   id: string,
   data: SponsorshipPaymentInput
 ): Promise<SponsorshipContract> {
-  const contract = await prisma.sponsorshipContract.findFirst({ where: { id, companyId } });
+  const contract = await prisma.sponsorshipContract.findFirst({
+    where: { id, companyId },
+    include: { contact: true, project: { select: { name: true } } },
+  });
   if (!contract) throw new Error('Contrato de auspicio no encontrado');
   // Repetido server-side: la UI ya deshabilita el botón sobre el tope, pero
   // esto también corre si se llama la Server Action directo.
@@ -145,6 +160,8 @@ export async function updateSponsorshipPayment(
     paymentStatus = 'PARTIAL';
   }
 
+  const wasAlreadyPaid = contract.paymentStatus === 'PAID';
+
   await prisma.sponsorshipContract.updateMany({
     where: { id, companyId },
     data: {
@@ -156,6 +173,22 @@ export async function updateSponsorshipPayment(
 
   const updated = await prisma.sponsorshipContract.findFirst({ where: { id, companyId } });
   if (!updated) throw new Error('Contrato de auspicio no encontrado');
+
+  if (paymentStatus === 'PAID' && !wasAlreadyPaid && contract.contact.email) {
+    const company = await prisma.company.findUnique({ where: { id: companyId }, select: { businessName: true } });
+    void sendEmail({
+      to: contract.contact.email,
+      ...buildSponsorshipPaymentConfirmationEmail({
+        contactName: contract.contact.razonSocial,
+        projectName: contract.project.name,
+        companyName: company?.businessName ?? '',
+        tierLabel: SPONSORSHIP_TIER_LABELS[contract.tier],
+        paidAmount: data.paidAmount,
+        isBarter: contract.isBarter,
+      }),
+    }).catch((error) => captureException(error, { module: 'sponsorships', companyId, extra: { reason: 'payment-confirmation-email' } }));
+  }
+
   return updated;
 }
 
@@ -212,7 +245,7 @@ export function getAgreementStatus(contract: Pick<SponsorshipContract, 'agreemen
 
 /** Marca la carta de compromiso como firmada — solo posible si ya fue generada. Es un hecho que no se puede deshacer desde acá (mismo criterio que `ScoreSheet.submitScore`: una vez firmada, se sube un documento nuevo si algo cambia, no se "desfirma"). */
 export async function markAgreementSigned(companyId: string, contractId: string): Promise<SponsorshipContract> {
-  const contract = await prisma.sponsorshipContract.findFirst({ where: { id: contractId, companyId } });
+  const contract = await prisma.sponsorshipContract.findFirst({ where: { id: contractId, companyId }, include: { contact: { select: { razonSocial: true } } } });
   if (!contract) throw new Error('Contrato de auspicio no encontrado');
   if (!contract.agreementFileUrl) throw new Error('Primero genera la carta de compromiso');
   if (contract.agreementSignedAt) throw new Error('Esta carta ya estaba marcada como firmada');
@@ -220,6 +253,13 @@ export async function markAgreementSigned(companyId: string, contractId: string)
   await prisma.sponsorshipContract.updateMany({ where: { id: contractId, companyId }, data: { agreementSignedAt: new Date() } });
   const updated = await prisma.sponsorshipContract.findFirst({ where: { id: contractId, companyId } });
   if (!updated) throw new Error('Contrato de auspicio no encontrado');
+
+  void emitWorkflowEvent(companyId, 'SPONSORSHIP_SIGNED', {
+    contractId: updated.id,
+    sponsorName: contract.contact.razonSocial,
+    totalAmount: updated.cashAmount,
+  });
+
   return updated;
 }
 

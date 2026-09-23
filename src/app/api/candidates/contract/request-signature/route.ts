@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
-import { put } from '@vercel/blob';
+import { put } from '@/lib/storage/blob';
 import { AuthError, ModuleNotEnabledError, TenantInactiveError, requireAuthWithPermission } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 import { prisma } from '@/lib/prisma';
 import { renderCandidateContractPdf } from '@/modules/candidates/services/contract-pdf.service';
 import { saveZapsignRequest, upsertGeneratedContract } from '@/modules/candidates/services/documents.service';
 import { createDocument } from '@/lib/zapsign/client';
+import { captureException } from '@/lib/observability';
 
 /**
  * Genera el contrato desde la plantilla, lo sube a Blob (borrador, por si se
@@ -78,7 +79,7 @@ export async function GET(req: Request) {
     if (error instanceof Error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 400 });
     }
-    console.error('Candidate contract signature request failed:', error);
+    captureException(error, { module: 'candidates' });
     return NextResponse.json({ success: false, error: 'No se pudo enviar el contrato a firma' }, { status: 500 });
   }
 }

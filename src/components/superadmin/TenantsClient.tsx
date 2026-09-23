@@ -25,12 +25,14 @@ import {
 } from '@/modules/platform/schema';
 import { MODULES } from '@/lib/auth/modules';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 const selectClass =
   'h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30';
 
 type PlanName = (typeof PLAN_NAMES)[number];
 
 export default function TenantsClient() {
+  const confirm = useConfirm();
   const [tenants, setTenants] = useState<TenantListItem[]>([]);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -61,12 +63,12 @@ export default function TenantsClient() {
     load();
   }, []);
 
-  function toggleStatus(tenant: TenantListItem) {
+  async function toggleStatus(tenant: TenantListItem) {
     const next: TenantStatus = tenant.status === 'SUSPENDED' ? 'ACTIVE' : 'SUSPENDED';
     const verb = next === 'SUSPENDED' ? 'suspender' : 'reactivar';
     if (
       next === 'SUSPENDED' &&
-      !confirm(
+      !await confirm(
         `Se cortará el acceso de los ${tenant.userCount} usuario(s) de ${tenant.businessName} de inmediato. ¿Continuar?`
       )
     ) {

@@ -7,6 +7,7 @@ import { FileSignature, FileCheck2, Copy, Download } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 
+import { useConfirm } from '@/components/ui/confirm-provider';
 type ContractDoc = {
   id: string;
   status: 'PENDING' | 'SIGNED' | 'EXPIRED';
@@ -15,6 +16,7 @@ type ContractDoc = {
 } | null;
 
 export default function ContractSignatureSection({ candidateId, candidateEmail, document }: { candidateId: string; candidateEmail: string | null; document: ContractDoc }) {
+  const confirm = useConfirm();
   const [busy, setBusy] = useState(false);
   const [local, setLocal] = useState(document);
 
@@ -23,7 +25,7 @@ export default function ContractSignatureSection({ candidateId, candidateEmail, 
       toast.error('La candidata no tiene email registrado — agrégalo en su ficha primero');
       return;
     }
-    if (!confirm(`¿Enviar el contrato a firmar al correo ${candidateEmail}? Se generará el PDF desde la plantilla vigente.`)) return;
+    if (!await confirm(`¿Enviar el contrato a firmar al correo ${candidateEmail}? Se generará el PDF desde la plantilla vigente.`)) return;
     setBusy(true);
     try {
       const res = await fetch(`/api/candidates/contract/request-signature?candidateId=${candidateId}`);

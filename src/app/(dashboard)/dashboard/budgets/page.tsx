@@ -9,7 +9,7 @@ export default async function BudgetsPage() {
 
   return (
     <div>
-      <h1 className="mb-4 text-2xl font-bold">Presupuestos</h1>
+      <h1 className="mb-4 text-2xl font-bold" data-tutorial="module-header">Presupuestos</h1>
       <BudgetListClient canWrite={canWrite} />
     </div>
   );

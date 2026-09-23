@@ -209,10 +209,26 @@ export async function getAuthContext(): Promise<AuthContext> {
 
 export async function requireAuth(allowedRoles?: Role[]): Promise<AuthSession> {
   const context = await getAuthContext();
+  assertPasswordChangeNotPending(context);
   if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(context.role)) {
     throw new AuthError('No autorizado para esta acción', 403);
   }
   return context;
+}
+
+/**
+ * `mustChangePassword` solo se aplicaba redirigiendo la navegación del
+ * dashboard (SEG-08) — una API o Server Action invocada directamente, sin
+ * pasar por ese layout, se ejecutaba igual con permisos normales mientras la
+ * contraseña temporal seguía vigente. `getAuthContext()` en sí no lo exige:
+ * la página `/change-password` y `completeForcedPasswordChangeAction` lo
+ * llaman directamente y necesitan poder leer el flag para decidir qué hacer,
+ * no que les lance una excepción.
+ */
+export function assertPasswordChangeNotPending(context: Pick<AuthContext, 'mustChangePassword'>): void {
+  if (context.mustChangePassword) {
+    throw new AuthError('Debes cambiar tu contraseña antes de continuar', 403);
+  }
 }
 
 export function can(context: Pick<AuthContext, 'permissions'>, permission: Permission): boolean {
@@ -226,6 +242,7 @@ export function can(context: Pick<AuthContext, 'permissions'>, permission: Permi
  */
 export async function requireAuthWithPermission(permission: Permission): Promise<AuthContext> {
   const context = await getAuthContext();
+  assertPasswordChangeNotPending(context);
   if (!can(context, permission)) {
     const moduleKey = moduleForPermission(permission);
     if (moduleKey && !context.features[moduleKey]) throw new ModuleNotEnabledError(moduleKey);

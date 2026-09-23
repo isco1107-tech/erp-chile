@@ -1,15 +1,25 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Ticket, CheckCircle2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Ticket, Minus, Plus, ShieldCheck } from 'lucide-react';
 import { formatCurrency } from '@/lib/chile/tax';
 import { publicTicketPurchaseSchema, TICKET_PURCHASE_HONEYPOT_FIELD } from '@/modules/ticketing/schema';
 import { getPublicTicketingProjectAction } from '@/modules/ticketing/actions/public-ticketing.actions';
 import type { PublicTicketingProjectInfo } from '@/modules/ticketing/services/ticketing.service';
+import {
+  PublicBadge,
+  PublicButton,
+  PublicCard,
+  PublicCardHeader,
+  PublicField,
+  PublicFooter,
+  PublicPage,
+  PublicRow,
+  PublicShell,
+  PublicStatus,
+  PublicTopBar,
+  PublicTotal,
+} from '@/components/public/PublicShell';
 
 /**
  * Página pública de venta de entradas (`/tickets/[token]`). Sin pasarela de
@@ -17,10 +27,12 @@ import type { PublicTicketingProjectInfo } from '@/modules/ticketing/services/ti
  * los datos de transferencia (`bankTransferInfo`) para que el comprador pague
  * fuera del sistema — el staff confirma el pago a mano desde el panel.
  *
- * A diferencia de `CandidateRegistrationClient` (landing de certamen con
- * diseño propio), esta página usa los mismos primitivos de UI (shadcn) que el
- * resto del ERP: no es una pieza de marketing del certamen, es un formulario
- * de compra funcional.
+ * Diseño: `@/components/public/PublicShell`, el sistema compartido por todos
+ * los links públicos del certamen (antes usaba los primitivos shadcn del
+ * dashboard, que hacían ver esta pantalla como una vista interna del ERP).
+ * El selector de tipo de entrada dejó de ser un `<select>` nativo: con 2–5
+ * opciones que tienen precio, estado y cupo, las tarjetas de opción muestran
+ * toda esa información sin obligar a abrir el desplegable.
  */
 export default function TicketPurchaseClient({ token }: { token: string }) {
   const [project, setProject] = useState<PublicTicketingProjectInfo | null>(null);
@@ -46,7 +58,8 @@ export default function TicketPurchaseClient({ token }: { token: string }) {
         return;
       }
       setProject(result.data);
-      if (result.data.ticketTypes.length > 0) setTicketTypeId(result.data.ticketTypes[0]!.id);
+      const firstAvailable = result.data.ticketTypes.find((t) => t.salesOpen && !t.soldOut) ?? result.data.ticketTypes[0];
+      if (firstAvailable) setTicketTypeId(firstAvailable.id);
       setLoading(false);
     })();
   }, [token]);
@@ -93,143 +106,173 @@ export default function TicketPurchaseClient({ token }: { token: string }) {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex min-h-dvh items-center justify-center p-6 text-center text-sm text-muted-foreground">
-        Cargando…
-      </div>
-    );
-  }
+  if (loading) return <PublicStatus accent="violet" variant="loading" message="Cargando las entradas disponibles…" />;
 
   if (notFound || !project) {
     return (
-      <div className="flex min-h-dvh flex-col items-center justify-center gap-2 p-6 text-center">
-        <p className="text-lg font-semibold">Link de venta de entradas inválido o expirado</p>
-        <p className="text-sm text-muted-foreground">Contacta a la organización del evento para obtener uno vigente.</p>
-      </div>
+      <PublicStatus
+        accent="violet"
+        variant="error"
+        title="Link de entradas inválido o expirado"
+        message="Contacta a la organización del evento para obtener uno vigente."
+      />
     );
   }
 
   if (confirmation) {
     return (
-      <div className="flex min-h-dvh items-center justify-center p-6">
-        <Card className="w-full max-w-md">
-          <CardHeader className="items-center text-center">
-            <CheckCircle2 className="mb-2 size-10 text-green-600" />
-            <CardTitle>¡Recibimos tu compra!</CardTitle>
-            <CardDescription>{project.projectName} · {project.companyName}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 text-sm">
-            <div className="rounded-lg border border-border bg-muted/30 p-3">
-              <p>Tipo de entrada: <strong>{confirmation.ticketTypeName}</strong></p>
-              <p>Cantidad: <strong>{confirmation.quantity}</strong></p>
-              <p>Total a transferir: <strong>{formatCurrency(confirmation.totalAmount)}</strong></p>
+      <PublicPage accent="violet">
+        <PublicTopBar brand={project.companyName} right={project.projectName} />
+        <PublicShell>
+          <PublicCard glow>
+            <PublicCardHeader
+              icon={<Ticket size={22} strokeWidth={1.6} />}
+              eyebrow="Compra registrada"
+              title="¡Recibimos tu compra!"
+              subtitle={`${project.projectName} · ${project.companyName}`}
+            />
+            <div className="pub-panel">
+              <PublicRow label="Tipo de entrada" value={confirmation.ticketTypeName} />
+              <PublicRow label="Cantidad" value={confirmation.quantity} />
+              <PublicRow label="Total a transferir" value={formatCurrency(confirmation.totalAmount)} strong />
             </div>
-            <div>
-              <p className="mb-1 font-semibold">Datos para transferencia</p>
+            <div style={{ marginTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+              <p className="pub-eyebrow" style={{ margin: 0 }}>Datos para transferencia</p>
               {project.bankTransferInfo ? (
-                <p className="whitespace-pre-line rounded-lg border border-dashed border-border p-3 text-muted-foreground">{project.bankTransferInfo}</p>
+                <p className="pub-transfer">{project.bankTransferInfo}</p>
               ) : (
-                <p className="text-muted-foreground">La organización te contactará con los datos para transferir.</p>
+                <p className="pub-hint">La organización te contactará con los datos para transferir.</p>
               )}
+              <p className="pub-hint">
+                Te enviamos una copia a tu correo. Cuando transfieras y el equipo organizador confirme el pago, recibirás
+                el código QR de tu entrada por correo.
+              </p>
             </div>
-            <p className="text-muted-foreground">
-              Te enviamos una copia a tu correo. Una vez que transfieras y el equipo organizador confirme tu pago, recibirás
-              el código QR de tu entrada por correo.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+          </PublicCard>
+        </PublicShell>
+        <PublicFooter>{project.companyName} · Venta oficial de entradas</PublicFooter>
+      </PublicPage>
     );
   }
 
   return (
-    <div className="flex min-h-dvh items-center justify-center p-6">
-      <Card className="w-full max-w-md">
-        <CardHeader className="items-center text-center">
-          <Ticket className="mb-2 size-8 text-primary" />
-          <CardTitle>{project.projectName}</CardTitle>
-          <CardDescription>{project.companyName} · Venta de entradas</CardDescription>
-        </CardHeader>
-        <CardContent>
+    <PublicPage accent="violet">
+      <PublicTopBar brand={project.companyName} right="Venta oficial" />
+      <PublicShell>
+        <PublicCard glow>
+          <PublicCardHeader
+            icon={<Ticket size={22} strokeWidth={1.6} />}
+            eyebrow="Entradas"
+            title={project.projectName}
+            subtitle="Elige tu entrada, reserva tu cupo y paga por transferencia."
+          />
+
           {project.ticketTypes.length === 0 ? (
-            <p className="text-center text-sm text-muted-foreground">Todavía no hay tipos de entrada disponibles para este evento.</p>
+            <p className="pub-hint" style={{ textAlign: 'center' }}>
+              Todavía no hay tipos de entrada disponibles para este evento.
+            </p>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="pub-form" noValidate>
               <input
                 ref={honeypotRef}
                 type="text"
                 tabIndex={-1}
                 autoComplete="off"
                 aria-hidden="true"
-                className="absolute h-0 w-0 overflow-hidden opacity-0"
+                className="pub-honeypot"
                 name={TICKET_PURCHASE_HONEYPOT_FIELD}
               />
 
-              <div className="space-y-1.5">
-                <Label htmlFor="ticketTypeId">Tipo de entrada</Label>
-                <select
-                  id="ticketTypeId"
-                  value={ticketTypeId}
-                  onChange={(e) => setTicketTypeId(e.target.value)}
-                  className="h-10 w-full rounded-xl border border-input bg-muted px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
-                >
-                  {project.ticketTypes.map((t) => (
-                    <option key={t.id} value={t.id} disabled={!t.salesOpen || t.soldOut}>
-                      {t.name} — {formatCurrency(t.price)}
-                      {t.soldOut ? ' (agotado)' : !t.salesOpen ? ' (cerrado)' : ''}
-                    </option>
-                  ))}
-                </select>
-                {errors.ticketTypeId && <p className="text-xs text-destructive">{errors.ticketTypeId}</p>}
-              </div>
+              <fieldset className="pub-optionset">
+                <legend>Tipo de entrada</legend>
+                {project.ticketTypes.map((t) => {
+                  const unavailable = t.soldOut || !t.salesOpen;
+                  return (
+                    <label
+                      key={t.id}
+                      className={`pub-option ${ticketTypeId === t.id ? 'is-selected' : ''} ${unavailable ? 'is-disabled' : ''}`}
+                    >
+                      <input
+                        type="radio"
+                        name="ticketTypeId"
+                        value={t.id}
+                        checked={ticketTypeId === t.id}
+                        disabled={unavailable}
+                        onChange={() => setTicketTypeId(t.id)}
+                      />
+                      <span className="pub-option-body">
+                        <span className="pub-option-name">{t.name}</span>
+                        <span className="pub-option-meta">
+                          {t.soldOut ? (
+                            <PublicBadge tone="warn">Agotada</PublicBadge>
+                          ) : !t.salesOpen ? (
+                            <PublicBadge>Venta cerrada</PublicBadge>
+                          ) : (
+                            <PublicBadge tone="ok">Disponible</PublicBadge>
+                          )}
+                        </span>
+                      </span>
+                      <span className="pub-option-price">{formatCurrency(t.price)}</span>
+                    </label>
+                  );
+                })}
+                {errors.ticketTypeId && <p className="pub-error">{errors.ticketTypeId}</p>}
+              </fieldset>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="quantity">Cantidad</Label>
-                <Input
-                  id="quantity"
-                  type="number"
-                  min={1}
-                  max={20}
-                  value={quantity}
-                  onChange={(e) => setQuantity(Number(e.target.value) || 1)}
-                />
-                {errors.quantity && <p className="text-xs text-destructive">{errors.quantity}</p>}
-              </div>
+              <PublicField id="quantity" label="Cantidad" error={errors.quantity}>
+                <div className="pub-stepper">
+                  <button type="button" onClick={() => setQuantity((q) => Math.max(1, q - 1))} aria-label="Quitar una entrada">
+                    <Minus size={16} strokeWidth={2} />
+                  </button>
+                  <input
+                    id="quantity"
+                    type="number"
+                    min={1}
+                    max={20}
+                    inputMode="numeric"
+                    value={quantity}
+                    onChange={(e) => setQuantity(Math.min(20, Math.max(1, Number(e.target.value) || 1)))}
+                  />
+                  <button type="button" onClick={() => setQuantity((q) => Math.min(20, q + 1))} aria-label="Agregar una entrada">
+                    <Plus size={16} strokeWidth={2} />
+                  </button>
+                </div>
+              </PublicField>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="buyerName">Nombre completo</Label>
-                <Input id="buyerName" value={buyerName} onChange={(e) => setBuyerName(e.target.value)} />
-                {errors.buyerName && <p className="text-xs text-destructive">{errors.buyerName}</p>}
-              </div>
+              <PublicField id="buyerName" label="Nombre completo" error={errors.buyerName}>
+                <input id="buyerName" autoComplete="name" value={buyerName} onChange={(e) => setBuyerName(e.target.value)} />
+              </PublicField>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="buyerEmail">Correo electrónico</Label>
-                <Input id="buyerEmail" type="email" value={buyerEmail} onChange={(e) => setBuyerEmail(e.target.value)} />
-                {errors.buyerEmail && <p className="text-xs text-destructive">{errors.buyerEmail}</p>}
-              </div>
+              <PublicField id="buyerEmail" label="Correo electrónico" error={errors.buyerEmail} hint="Ahí te llega el QR de tu entrada.">
+                <input id="buyerEmail" type="email" autoComplete="email" value={buyerEmail} onChange={(e) => setBuyerEmail(e.target.value)} />
+              </PublicField>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="buyerPhone">Teléfono (opcional)</Label>
-                <Input id="buyerPhone" type="tel" value={buyerPhone} onChange={(e) => setBuyerPhone(e.target.value)} placeholder="+56 9 1234 5678" />
-                {errors.buyerPhone && <p className="text-xs text-destructive">{errors.buyerPhone}</p>}
-              </div>
+              <PublicField id="buyerPhone" label="Teléfono" optional error={errors.buyerPhone}>
+                <input id="buyerPhone" type="tel" autoComplete="tel" value={buyerPhone} onChange={(e) => setBuyerPhone(e.target.value)} placeholder="+56 9 1234 5678" />
+              </PublicField>
 
               {selectedType && (
-                <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
-                  <p>Total a pagar: <strong>{formatCurrency(total)}</strong></p>
-                </div>
+                <PublicTotal
+                  label="Total a pagar"
+                  value={formatCurrency(total)}
+                  note={`${quantity} × ${selectedType.name} · ${formatCurrency(selectedType.price)} c/u`}
+                />
               )}
 
-              {errors.form && <p className="text-sm text-destructive">{errors.form}</p>}
+              {errors.form && <p className="pub-error-form">{errors.form}</p>}
 
-              <Button type="submit" className="w-full" disabled={saving || !selectedType || selectedType.soldOut || !selectedType.salesOpen}>
+              <PublicButton type="submit" full disabled={saving || !selectedType || selectedType.soldOut || !selectedType.salesOpen}>
                 {saving ? 'Procesando…' : 'Confirmar compra'}
-              </Button>
+              </PublicButton>
+
+              <p className="pub-hint" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', justifyContent: 'center' }}>
+                <ShieldCheck size={14} strokeWidth={1.7} /> No se pide ningún dato de tarjeta en esta página.
+              </p>
             </form>
           )}
-        </CardContent>
-      </Card>
-    </div>
+        </PublicCard>
+      </PublicShell>
+      <PublicFooter>{project.companyName} · Venta oficial de entradas</PublicFooter>
+    </PublicPage>
   );
 }

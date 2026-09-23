@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Building2, KeyRound, Laptop, Lock, ShieldCheck, Upload, UserCircle, Users } from 'lucide-react';
+import { Building2, FileCheck2, KeyRound, Laptop, Lock, ShieldCheck, Upload, UserCircle, Users, Zap } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AuthError, TenantInactiveError, can, getAuthContext } from '@/lib/auth/guards';
 import type { Permission } from '@/lib/auth/permissions';
@@ -15,6 +15,13 @@ const SECTIONS: Array<{ href: string; icon: typeof Building2; title: string; des
     title: 'Perfil de Empresa',
     description: 'Razón social, RUT, giro, dirección, logo y datos usados en los DTEs.',
     permission: 'settings:company',
+  },
+  {
+    href: '/dashboard/settings/folios',
+    icon: FileCheck2,
+    title: 'Folios del SII',
+    description: 'Carga los CAF que autorizan tus folios y revisa cuántos te quedan antes de agotarlos.',
+    permission: 'dte:manage_caf',
   },
   {
     href: '/dashboard/settings/users',
@@ -36,6 +43,13 @@ const SECTIONS: Array<{ href: string; icon: typeof Building2; title: string; des
     title: 'Importación Masiva',
     description: 'Carga productos y contactos desde Excel o CSV, con validación previa fila por fila.',
     permission: 'import:data',
+  },
+  {
+    href: '/dashboard/settings/automations',
+    icon: Zap,
+    title: 'Automatizaciones',
+    description: 'Crea tus propios flujos de trabajo y revisa el estado de las tareas programadas.',
+    permission: 'automation:manage',
   },
   {
     href: '/dashboard/settings/audit',

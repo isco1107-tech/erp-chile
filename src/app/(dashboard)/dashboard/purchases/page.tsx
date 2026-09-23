@@ -8,8 +8,13 @@ export default async function PurchasesPage() {
   const canApprove = can(context, 'purchases:approve');
 
   return (
-    <div>
-      <h1 className="mb-4 text-2xl font-bold">Compras & Facturas de Proveedor</h1>
+    <div className="space-y-6">
+      <div className="duration-500 animate-in fade-in slide-in-from-bottom-2">
+        <h1 className="text-2xl font-semibold text-foreground" data-tutorial="module-header">Compras & Facturas de Proveedor</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Recepción de mercadería, facturas de proveedor y su estado de aprobación y pago.
+        </p>
+      </div>
       <PurchaseHistoryClient canApprove={canApprove} />
     </div>
   );

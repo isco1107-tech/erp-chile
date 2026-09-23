@@ -22,6 +22,20 @@ export interface ProjectFinancialSummary {
   budgetVsActualExpensePercent: number;
 }
 
+/**
+ * `salesAgg`/`purchaseAgg` de abajo agregan por `SalesDocument.projectId`/
+ * `PurchaseDocument.projectId` — campos que SÍ existen en el schema pero que
+ * NINGÚN formulario de Ventas ni Compras todavía deja elegir (fase 2,
+ * deliberadamente fuera de la primera pasada de estos módulos). Es decir:
+ * este código está listo, pero hoy `actualIncomeCash`/`actualExpense`
+ * siempre suman 0 de estas dos fuentes — el número real que ve el usuario es
+ * solo auspicios cobrados + honorarios pagados. La UI ya lo advierte
+ * explícitamente (`projects/[id]/page.tsx`); este comentario es para quien
+ * toque este archivo y asuma, por el código, que ya está resuelto. No
+ * "arreglar" quitando la agregación — el día que exista el selector de
+ * proyecto en esos formularios, esto empieza a sumar solo, sin tocar nada
+ * acá.
+ */
 export async function getProjectFinancialSummary(companyId: string, projectId: string): Promise<ProjectFinancialSummary> {
   const [project, salesAgg, sponsorshipCashAgg, sponsorshipBarterAgg, purchaseAgg, feeAgg] = await Promise.all([
     prisma.project.findFirst({ where: { id: projectId, companyId }, select: { budgetedIncome: true, budgetedExpense: true } }),

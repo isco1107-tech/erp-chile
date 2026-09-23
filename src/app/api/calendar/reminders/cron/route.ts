@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { runDailyRemindersCron } from '@/modules/calendar/services/event-reminders.service';
 import { isCronAuthorized } from '@/lib/security/cron-auth';
+import { captureExceptionAndFlush } from '@/lib/observability';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +21,7 @@ export async function GET(req: Request) {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Error in daily reminders cron:', error);
+    await captureExceptionAndFlush(error, { module: 'cron:calendar-reminders' });
     return NextResponse.json({ success: false, error: 'Error al ejecutar cron de recordatorios' }, { status: 500 });
   }
 }

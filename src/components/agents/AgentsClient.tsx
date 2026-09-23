@@ -19,9 +19,9 @@ const RUN_STATUS_LABEL: Record<AgentRunStatus, string> = {
 };
 
 const RUN_STATUS_TONE: Record<AgentRunStatus, string> = {
-  RUNNING: 'bg-amber-500/10 text-amber-300',
-  COMPLETED: 'bg-emerald-500/10 text-emerald-300',
-  FAILED: 'bg-rose-500/10 text-rose-300',
+  RUNNING: 'bg-amber-500/10 text-warning',
+  COMPLETED: 'bg-emerald-500/10 text-success',
+  FAILED: 'bg-rose-500/10 text-danger',
 };
 
 /**
@@ -76,8 +76,8 @@ export default function AgentsClient() {
         {AGENT_ROLES.map((role) => {
           const run = runByRole.get(role);
           return (
-            <div key={role} className="hud-surface rounded-xl p-4">
-              <p className="hud-label mb-1">{role}</p>
+            <div key={role} className="border border-border bg-card shadow-card rounded-xl p-4">
+              <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase mb-1">{role}</p>
               <h3 className="mb-3 text-sm font-semibold text-foreground">{AGENT_ROLE_LABELS[role]}</h3>
               {run ? (
                 <div className="space-y-2">
@@ -105,10 +105,10 @@ export default function AgentsClient() {
         {!loading && tasks.length === 0 && <p className="text-sm text-muted-foreground">No hay recomendaciones pendientes.</p>}
         <div className="space-y-3">
           {tasks.map((task) => (
-            <div key={task.id} className="hud-surface rounded-xl p-4">
+            <div key={task.id} className="border border-border bg-card shadow-card rounded-xl p-4">
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <p className="hud-label mb-1">{AGENT_ROLE_LABELS[task.role]}</p>
+                  <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase mb-1">{AGENT_ROLE_LABELS[task.role]}</p>
                   <h3 className="text-sm font-semibold text-foreground">{task.title}</h3>
                 </div>
                 <div className="flex gap-2">
