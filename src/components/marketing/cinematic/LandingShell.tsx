@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ArrowUpRight, Menu, X } from 'lucide-react';
 import StickyActions from '../StickyActions';
+import { isLightweightDevice } from './device';
 import { Cursor, Sky } from './LiveLayers';
 import { useLiveMotion } from './useLiveMotion';
 import s from './v2.module.css';
@@ -84,6 +85,12 @@ export default function LandingShell({ className, children }: { className?: stri
   const productView = useMemo(() => ({ view, setView }), [view]);
 
   useLiveMotion(root, cosmos, liveClasses);
+
+  // Modo liviano (ahorro de datos, conexión lenta, poca memoria): lo marca en
+  // la página para que el CSS simplifique (ver v2.module.css, [data-lite]).
+  useEffect(() => {
+    root.current?.toggleAttribute('data-lite', isLightweightDevice());
+  }, []);
 
   // Estado de la cabecera, progreso de página y «dentro de la pista», escritos
   // directo al DOM: el scroll nunca vuelve a renderizar React.

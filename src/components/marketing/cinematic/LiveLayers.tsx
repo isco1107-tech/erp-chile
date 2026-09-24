@@ -2,7 +2,18 @@
 
 import { useEffect, useRef } from 'react';
 import { startConstellation } from './constellation';
+import { isLightweightDevice } from './device';
 import s from './v2.module.css';
+
+/** Corre `task` cuando el navegador está libre (o a más tardar en 2 s). Devuelve cómo cancelarla. */
+function whenIdle(task: () => void): () => void {
+  if (typeof window.requestIdleCallback === 'function') {
+    const id = window.requestIdleCallback(task, { timeout: 2000 });
+    return () => window.cancelIdleCallback(id);
+  }
+  const id = window.setTimeout(task, 1200);
+  return () => window.clearTimeout(id);
+}
 
 /** Lo que se puede activar: el cursor se agranda encima. */
 const INTERACTIVE = 'a, button, summary, select, label, [role="tab"], [data-cursor]';
@@ -14,7 +25,8 @@ export function Sky() {
 
   useEffect(() => {
     const canvas = sky.current;
-    if (!canvas) return;
+    // En modo liviano (device.ts) queda solo el fondo estático del cielo.
+    if (!canvas || isLightweightDevice()) return;
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
     const hero = document.querySelector<HTMLElement>('[data-cinematic-track]');
     // Mientras el hero cubre la pantalla, su video manda y el cielo no se dibuja.
@@ -25,9 +37,13 @@ export function Sky() {
     const observer = new ResizeObserver(measure);
     if (hero) observer.observe(hero);
     const covered = (scroll: number) => scroll + window.innerHeight <= heroBottom;
-    const stop = startConstellation(canvas, reduced, covered);
+    // Arranca cuando el navegador queda libre: no compite con la hidratación
+    // ni con la primera pintura (el cielo empieza oculto bajo el hero).
+    let stop: (() => void) | null = null;
+    const cancel = whenIdle(() => { stop = startConstellation(canvas, reduced, covered); });
     return () => {
-      stop();
+      cancel();
+      stop?.();
       observer.disconnect();
     };
   }, []);

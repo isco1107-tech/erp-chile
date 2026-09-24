@@ -1724,6 +1724,14 @@
 
 .root .plan:not([data-featured]):hover { border-color: rgb(219 192 118 / .6); }
 
+/*
+ * Modo liviano (data-lite, ver device.ts): sin el halo que sigue al puntero ni
+ * los brillos animados; las franjas de palabras quedan quietas.
+ */
+.root[data-lite] .cosmos::after { display: none; }
+.root[data-lite] .marqueeRow { transform: translate3d(-18%, 0, 0); will-change: auto; }
+.root[data-lite] .marqueeRow + .marqueeRow { transform: translate3d(-34%, 0, 0); }
+
 @media (prefers-reduced-motion: reduce) {
   .root *,
   .root *::before,
