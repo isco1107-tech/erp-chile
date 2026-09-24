@@ -1,10 +1,15 @@
 import { createHmac, hkdfSync, randomUUID, timingSafeEqual } from 'crypto';
+import { prisma } from '@/lib/prisma';
+import { isUniqueConstraintError } from '@/lib/prisma-errors';
 
 /**
  * Token opaco y auto-contenido para el flujo "proponer → confirmar" del
- * asistente: no hay tabla ni sesión de servidor para la acción pendiente —
- * viaja firmada (HMAC-SHA256) en el propio token, exactamente como el resto
- * del chat no persiste nada entre requests.
+ * asistente: no hay tabla ni sesión de servidor para la ACCIÓN pendiente en
+ * sí (el `payload` a ejecutar) — viaja firmado (HMAC-SHA256) en el propio
+ * token, exactamente como el resto del chat no persiste nada entre
+ * requests. Lo único que sí queda en la base es la marca de "este jti ya se
+ * confirmó" (`AgentActionConfirmation`, ver más abajo) — necesaria para que
+ * el chequeo de un solo uso funcione entre instancias de servidor distintas.
  *
  * La clave de firma se DERIVA de `JWT_SECRET` vía HKDF (no se usa el secreto
  * crudo como clave HMAC) — separa este uso del de las sesiones/TOTP que
@@ -68,30 +73,50 @@ export function verifyPendingActionToken(token: string): PendingActionPayload {
 
 // ─── Marca de "ya confirmado" (un solo uso por token) ────────────────────────
 //
-// In-memory, igual límite conocido que `rate-limiter.ts`: por instancia de
-// Vercel, no distribuido. Suficiente para el caso real (evitar un doble clic
-// o un reintento automático del mismo cliente en la misma request), no para
-// un atacante distribuido — ese ya está cubierto además por el rate limit y
-// por requerir sesión autenticada de la misma empresa/usuario que propuso.
+// Fila en `AgentActionConfirmation` (tabla compartida en Neon), NO un Map en
+// memoria de proceso: bajo Vercel cada instancia serverless tiene su propia
+// memoria, así que un `Map` por proceso no detecta que el mismo token ya se
+// confirmó en OTRA instancia — el mismo jti podía reusarse ahí y ejecutar la
+// acción (que escribe en la base) dos veces. La constraint única
+// `@@unique([companyId, jti])` hace el "consumir" atómico entre instancias:
+// dos requests concurrentes con el mismo jti solo logran insertar una, la
+// otra recibe la violación de unicidad (P2002) sin ninguna coordinación
+// adicional.
 
-const JTI_STORE_KEY = '__erp_agent_action_used_jti__';
-
-function getUsedJtiStore(): Map<string, number> {
-  const g = globalThis as unknown as Record<string, Map<string, number>>;
-  if (!g[JTI_STORE_KEY]) g[JTI_STORE_KEY] = new Map();
-  return g[JTI_STORE_KEY];
+/**
+ * Intenta consumir el `jti` insertando la fila de confirmación en estado
+ * `PENDING`, ANTES de ejecutar la acción real — así el propio insert ya
+ * bloquea un segundo uso concurrente aunque la ejecución todavía no haya
+ * terminado. Devuelve el `id` de la fila para que el llamador la actualice
+ * a `SUCCEEDED`/`FAILED` con `recordPendingActionResult` una vez conocido el
+ * resultado; `null` si el jti ya había sido consumido antes.
+ */
+export async function consumePendingActionJti(
+  companyId: string,
+  jti: string,
+  actionType: string
+): Promise<string | null> {
+  try {
+    const confirmation = await prisma.agentActionConfirmation.create({
+      data: { companyId, jti, actionType, status: 'PENDING' },
+      select: { id: true },
+    });
+    return confirmation.id;
+  } catch (error) {
+    if (isUniqueConstraintError(error)) return null;
+    throw error;
+  }
 }
 
-/** `true` si es la primera vez que se consume este `jti` (y lo marca como usado); `false` si ya se había confirmado antes. */
-export function consumePendingActionJti(jti: string, ttlMs: number = DEFAULT_TTL_MS): boolean {
-  const store = getUsedJtiStore();
-  const now = Date.now();
-
-  for (const [key, expiresAt] of store) {
-    if (expiresAt < now) store.delete(key);
-  }
-
-  if (store.has(jti)) return false;
-  store.set(jti, now + ttlMs);
-  return true;
+/** Cierra la fila de confirmación con el resultado real de `action.execute`. */
+export async function recordPendingActionResult(
+  companyId: string,
+  confirmationId: string,
+  status: 'SUCCEEDED' | 'FAILED',
+  resultSummary?: string
+): Promise<void> {
+  await prisma.agentActionConfirmation.updateMany({
+    where: { id: confirmationId, companyId },
+    data: { status, resultSummary: resultSummary?.slice(0, 500) },
+  });
 }

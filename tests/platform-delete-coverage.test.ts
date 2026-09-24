@@ -69,6 +69,9 @@ const CASCADES_TO_COMPANY = new Set([
   'FixedAsset',
   'ExpenseReport',
   'ExpenseItem',
+  // OP-07: marca de "jti ya confirmado" del asistente de IA. `onDelete:
+  // Cascade` directo hacia Company.
+  'AgentActionConfirmation',
 ]);
 
 /** Cascadean desde `Project`, que se borra explícito en `hardDeleteTenant`. */

@@ -6,7 +6,7 @@ import { captureException } from '@/lib/observability';
 import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import { checkRateLimit, MANUAL_ASSISTANT_CONFIRM_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { getAgentAction } from '@/modules/agent-actions/registry';
-import { consumePendingActionJti, verifyPendingActionToken } from '@/modules/agent-actions/token';
+import { consumePendingActionJti, recordPendingActionResult, verifyPendingActionToken } from '@/modules/agent-actions/token';
 import type { Permission } from '@/lib/auth/permissions';
 
 /**
@@ -57,10 +57,14 @@ export async function POST(req: Request) {
     }
 
     // Un solo uso por token: sin esto, reenviar la misma confirmación (doble
-    // clic, reintento de red) ejecutaría la acción dos veces — grave en
+    // clic, reintento de red, u otra instancia de servidor con el mismo
+    // token) ejecutaría la acción dos veces — grave en
     // CREATE_PAYMENT_PLAN/MARK_CANDIDATE_ATTENDANCE, que no tienen ninguna
-    // restricción única que lo evite a nivel de base de datos.
-    if (!consumePendingActionJti(pending.jti)) {
+    // restricción única que lo evite a nivel de base de datos. La marca vive
+    // en `AgentActionConfirmation` (constraint única companyId+jti), no en
+    // memoria de proceso, para que funcione entre instancias distintas.
+    const confirmationId = await consumePendingActionJti(session.companyId, pending.jti, pending.actionType);
+    if (!confirmationId) {
       return NextResponse.json({ success: false, error: 'Esta acción ya fue confirmada antes' }, { status: 409 });
     }
 
@@ -68,6 +72,7 @@ export async function POST(req: Request) {
     try {
       result = await action.execute(session.companyId, pending.payload);
     } catch (error) {
+      await recordPendingActionResult(session.companyId, confirmationId, 'FAILED', error instanceof Error ? error.message : 'Error desconocido');
       // Nunca reenviar un mensaje crudo del driver de base de datos al chat
       // (ver `toFriendlyErrorMessage`) — el catch general de más abajo hace
       // lo mismo para errores de auth/tenant, pero este es el único punto
@@ -76,6 +81,8 @@ export async function POST(req: Request) {
       captureException(error, { module: 'agent-actions', companyId: session.companyId, userId: session.id, extra: { actionType: pending.actionType } });
       return NextResponse.json({ success: false, error: toFriendlyErrorMessage(error) }, { status: 500 });
     }
+
+    await recordPendingActionResult(session.companyId, confirmationId, 'SUCCEEDED', result.message);
 
     await createAuditLog({
       companyId: session.companyId,

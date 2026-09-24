@@ -66,6 +66,16 @@ enum AgentTaskStatus {
   DONE
 }
 
+/// `AgentActionConfirmation.status`: el registro nace `PENDING` en la misma
+/// operación que consume el `jti` (antes de ejecutar la acción) y termina en
+/// `SUCCEEDED` o `FAILED` — nunca queda "RUNNING" colgado porque el mismo
+/// request que lo crea también lo cierra, sea cual sea el resultado.
+enum AgentActionConfirmationStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
 model Company {
   id                        String                        @id @default(cuid())
   rut                       String                        @unique
@@ -124,6 +134,7 @@ model Company {
   userSessions              UserSession[]
   agentTasks                AgentTask[]
   agentRuns                 AgentRun[]
+  agentActionConfirmations  AgentActionConfirmation[]
   projects                  Project[]
   sponsorshipContracts      SponsorshipContract[]
   sponsorshipDeliverables   SponsorshipDeliverable[]
@@ -2854,6 +2865,35 @@ model AgentRun {
   finishedAt DateTime?
 
   @@index([companyId, role, startedAt])
+}
+
+/// Marca de "ya confirmado" para el flujo "proponer → confirmar" del
+/// asistente (OP-07 de la auditoría de arquitectura): el `jti` firmado en
+/// `signPendingAction` (src/modules/agent-actions/token.ts) se consume
+/// insertando una fila aquí, no en un `Map` en memoria de proceso — bajo
+/// Vercel cada instancia tiene su propia memoria, así que el `Map` no
+/// detectaba el reuso del mismo token entre instancias distintas y la
+/// acción (que escribe en la base) podía ejecutarse dos veces.
+///
+/// `@@unique([companyId, jti])`: la propia base detecta el reintento
+/// concurrente de forma atómica entre instancias (violación de constraint
+/// única, ver `src/lib/prisma-errors.ts`), sin necesitar coordinación
+/// adicional. La fila nace `PENDING` en el mismo insert que consume el jti
+/// (antes de llamar a `action.execute`) y se actualiza a `SUCCEEDED`/`FAILED`
+/// después — así el propio insert ya bloquea el segundo uso aunque la
+/// ejecución de la acción todavía no haya terminado.
+model AgentActionConfirmation {
+  id            String                         @id @default(cuid())
+  companyId     String
+  company       Company                        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  jti           String
+  actionType    String
+  status        AgentActionConfirmationStatus  @default(PENDING)
+  resultSummary String?
+  createdAt     DateTime                       @default(now())
+
+  @@unique([companyId, jti])
+  @@index([companyId])
 }
 
 // ============================================================================
