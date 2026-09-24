@@ -91,8 +91,12 @@ describe('N-04: notas de crédito no cruzan cliente ni exceden el original', () 
     const tx = fakeTx({
       salesDocument: {
         findFirst: jest.fn().mockResolvedValue(originalInvoiceForCliente1),
-        // Ya se acreditaron $90.000 en una NC anterior sobre un original de $119.000.
-        findMany: jest.fn().mockResolvedValue([{ totalAmount: 90000, items: [{ productId: 'p1', quantity: 1 }] }]),
+        // Ya se acreditaron $90.000 en una NC anterior sobre un original de
+        // $119.000, y no hay Notas de Débito que suban el techo.
+        findMany: jest.fn().mockImplementation((args: { where: { dteType?: string } }) => {
+          if (args?.where?.dteType === 'NOTA_DEBITO_56') return Promise.resolve([]);
+          return Promise.resolve([{ totalAmount: 90000, items: [{ productId: 'p1', quantity: 1 }] }]);
+        }),
         create: jest.fn().mockRejectedValue(new Error(STOP)),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
@@ -116,5 +120,66 @@ describe('N-04: notas de crédito no cruzan cliente ni exceden el original', () 
     });
     // 90.000 previos + 20.000 nueva = 110.000, dentro de 119.000.
     await expect(createSalesDocument('c1', creditNote([1]), 'ISSUED')).rejects.toThrow(STOP);
+  });
+
+  it('el tope de la NC suma las Notas de Débito ISSUED que referencian el mismo original', async () => {
+    // Original de $119.000, ya se acreditaron $90.000 en NC previas: sola esa
+    // deuda, una NC nueva de servicio libre por $40.000+IVA (~$47.600) supera
+    // los $119.000 y debería rechazarse. Pero hay $30.000 en Notas de Débito
+    // ISSUED contra el mismo original, que suben el techo acreditable a
+    // $149.000 — dentro de ese techo, la NC sí debe pasar.
+    fakeTx({
+      salesDocument: {
+        findFirst: jest.fn().mockResolvedValue(originalInvoiceForCliente1),
+        findMany: jest.fn().mockImplementation((args: { where: { dteType?: string } }) => {
+          if (args?.where?.dteType === 'NOTA_DEBITO_56') {
+            return Promise.resolve([{ totalAmount: 30000 }]);
+          }
+          return Promise.resolve([{ totalAmount: 90000, items: [{ productId: 'p1', quantity: 1 }] }]);
+        }),
+        create: jest.fn().mockRejectedValue(new Error(STOP)),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+    });
+    const note = creditNote([], {
+      items: [{ description: 'Ajuste', quantity: 1, unitPrice: 40000 }],
+    } as Partial<SalesDocumentCreateInput>);
+    await expect(createSalesDocument('c1', note, 'ISSUED')).rejects.toThrow(STOP);
+  });
+});
+
+describe('N-04: una Factura que formaliza una Guía de OTRO cliente se rechaza explícitamente', () => {
+  it('rechaza en vez de tratar la guía como "no encontrada" (que duplicaría el descuento de stock)', async () => {
+    fakeTx({
+      salesDocument: {
+        // La guía existe, está ISSUED, pero es de otro cliente ('cli9').
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'guia1',
+          dteType: 'GUIA_DESPACHO_52',
+          contactId: 'cli9',
+          folio: 10,
+          totalAmount: 40000,
+          paidAmount: 0,
+          items: [{ productId: 'p1', quantity: 2, unitCostPMP: 1000 }],
+        }),
+        findMany: jest.fn().mockResolvedValue([]),
+        create: jest.fn().mockRejectedValue(new Error(STOP)),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+    });
+
+    function plainSaleReferencingGuide(): SalesDocumentCreateInput {
+      return {
+        contactId: 'cli1',
+        warehouseId: 'w1',
+        dteType: 'FACTURA_33',
+        paymentMethod: 'CREDITO_30',
+        referenceType: 'GUIA_DESPACHO_52',
+        referenceFolio: 10,
+        items: [{ productId: 'p1', description: 'Polera', quantity: 2, unitPrice: 20000 }],
+      } as SalesDocumentCreateInput;
+    }
+
+    await expect(createSalesDocument('c1', plainSaleReferencingGuide(), 'ISSUED')).rejects.toThrow('pertenece a otro cliente');
   });
 });

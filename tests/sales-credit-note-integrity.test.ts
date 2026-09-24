@@ -33,6 +33,10 @@ const STOP = 'STOP_ANTES_DE_CREAR';
 const originalInvoice = {
   id: 'fac1',
   dteType: 'FACTURA_33',
+  // El filtro de cliente para NC/ND ahora se valida en código (N-04) contra
+  // el `contactId` del documento resuelto, no en la cláusula `where` de la
+  // consulta: el fixture necesita declararlo explícitamente.
+  contactId: 'cli1',
   folio: 55,
   totalAmount: 119000,
   paidAmount: 0,

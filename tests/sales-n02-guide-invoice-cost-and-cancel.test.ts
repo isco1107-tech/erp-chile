@@ -133,6 +133,49 @@ describe('N-02: la anulación repone stock solo si el documento realmente lo mov
     expect(applyStockIn).not.toHaveBeenCalled();
   });
 
+  it('anular una factura cuya guía referenciada YA NO está ISSUED (anulada después) SÍ repone stock', async () => {
+    // Al emitirse esta factura, la guía referenciada ya estaba ANULADA (o no
+    // existía), así que la factura SÍ descontó su propio stock
+    // (`affectsStock=true` en `createSalesDocument`, mismo criterio que
+    // `documentMovesStockOnIssue`). La anulación debe usar EXACTAMENTE el
+    // mismo criterio — buscar el folio referenciado con `status: 'ISSUED'` —
+    // para llegar a la misma conclusión, en vez de encontrar la guía sin
+    // filtrar por estado y asumir erróneamente que nunca movió stock.
+    const invoiceThatMovedItsOwnStock = {
+      id: 'fac4',
+      dteType: 'FACTURA_33',
+      status: 'ISSUED',
+      contactId: 'cli1',
+      warehouseId: 'w1',
+      folio: 202,
+      totalAmount: 40000,
+      paidAmount: 40000,
+      referenceFolio: 10,
+      referenceType: 'GUIA_DESPACHO_52',
+      cashShift: null,
+      items: [{ productId: 'p1', quantity: 2, unitCostPMP: 1000 }],
+    };
+    fakeTx({
+      salesDocument: {
+        findFirst: jest
+          .fn()
+          // 1) el propio documento que se anula
+          .mockResolvedValueOnce(invoiceThatMovedItsOwnStock)
+          // 2) la guía referenciada ya no está ISSUED (anulada): no se encuentra
+          .mockResolvedValueOnce(null)
+          // 3) relectura final tras el update
+          .mockResolvedValueOnce({ ...invoiceThatMovedItsOwnStock, status: 'CANCELLED' }),
+        findMany: jest.fn().mockResolvedValue([]),
+        create: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+    });
+
+    await cancelSalesDocument('c1', 'fac4', 'anulación de prueba');
+
+    expect(applyStockIn).toHaveBeenCalledTimes(1);
+  });
+
   it('anular una factura que SÍ descontó stock directamente (sin guía) repone normalmente', async () => {
     const plainIssuedInvoice = {
       id: 'fac3',
