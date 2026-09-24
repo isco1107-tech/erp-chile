@@ -32,9 +32,51 @@ _Avoid_: lead, prospecto
 
 ## Tributario
 
+**Documento de venta** (`SalesDocument`):
+Cualquier documento que registra una venta o una oferta de venta, sea o no DTE.
+_Avoid_: venta (para el documento)
+
+**DTE**:
+Documento de venta con código del SII (factura, boleta, guía, nota de débito o crédito).
+_Avoid_: documento electrónico, comprobante
+
+**Cotización**:
+Documento de venta que no es DTE; nunca lleva folio ni timbre.
+_Avoid_: presupuesto, proforma
+
+**Emitir**:
+Pasar un documento de venta de borrador a emitido.
+_Avoid_: timbrar, enviar
+
+**Timbrar**:
+Firmar un DTE con la llave del CAF; un DTE emitido sin CAF queda sin timbre y sin validez tributaria.
+_Avoid_: emitir, firmar (a secas)
+
 **Folio**:
 Número tributario de un DTE, tomado del rango autorizado por el SII.
 _Avoid_: usar "folio" para cualquier otro correlativo
+
+**Anular**:
+Dejar sin efecto dentro de Aether un documento de venta que aún no llega al SII.
+_Avoid_: anular un DTE ya enviado (eso se corrige con nota de crédito)
+
+**Nota de crédito**:
+DTE que revierte total o parcialmente otro DTE; única forma de corregir uno ya enviado al SII.
+_Avoid_: anulación, devolución (para el documento)
+
+## Punto de venta
+
+**Caja** (`CashRegister`):
+Punto de cobro físico, asociado a una bodega.
+_Avoid_: POS, terminal
+
+**Turno** (`CashShift`):
+Período entre la apertura y el cierre de una caja.
+_Avoid_: sesión, jornada
+
+**Arqueo**:
+Conteo de efectivo al cerrar un turno, comparado con lo esperado.
+_Avoid_: cuadratura, cierre (para el conteo)
 
 ## Cobranza
 
