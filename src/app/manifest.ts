@@ -15,6 +15,11 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: '#10131a',
     theme_color: '#10131a',
     lang: 'es-CL',
-    icons: [{ src: '/icon.png', sizes: 'any', type: 'image/png' }],
+    // Íconos cuadrados a su tamaño real: el original (1444×1089, 416 KB) se
+    // descargaba en cada visita y retrasaba la primera pintura en móvil.
+    icons: [
+      { src: '/icon.png', sizes: '192x192', type: 'image/png' },
+      { src: '/branding/app-icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
   };
 }
