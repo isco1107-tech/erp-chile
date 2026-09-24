@@ -15,6 +15,7 @@ import {
   listSalesDocumentsAction,
 } from '@/modules/sales/actions/sales.actions';
 import { DTE_TYPE_LABELS } from '@/modules/sales/schema';
+import { isSubmittedToSii } from '@/modules/sales/cancellation';
 import type { SalesDocumentListItem } from '@/modules/sales/services/sales.service';
 import { formatCurrency } from '@/lib/chile/tax';
 
@@ -231,7 +232,19 @@ export default function SalesHistoryClient() {
                       </Link>
                       <Button type="button" size="sm" variant="outline" onClick={() => handleDuplicate(doc.id)}>Duplicar</Button>
                       {doc.status === 'ISSUED' && (
-                        <Button type="button" size="sm" variant="destructive" onClick={() => handleCancel(doc.id)}>Anular</Button>
+                        isSubmittedToSii(doc) ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="destructive"
+                            disabled
+                            title="Ya enviado al SII: corrígelo emitiendo una Nota de Crédito"
+                          >
+                            Anular
+                          </Button>
+                        ) : (
+                          <Button type="button" size="sm" variant="destructive" onClick={() => handleCancel(doc.id)}>Anular</Button>
+                        )
                       )}
                     </div>
                   </td>
