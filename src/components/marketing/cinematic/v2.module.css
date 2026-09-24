@@ -270,10 +270,12 @@
   padding: 0 var(--gutter);
 }
 
+/* Áreas táctiles de al menos 44 px (logo, enlaces de cabecera y del pie). */
 .brand {
   display: inline-flex;
   align-items: center;
   gap: 10px;
+  min-height: 44px;
   font-size: 22px;
   font-weight: 650;
   white-space: nowrap;
@@ -290,14 +292,14 @@
   color: #dcd7cd;
 }
 
-.nav a { transition: color .2s; }
+.nav a { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; transition: color .2s; }
 .nav a:hover { color: var(--gold); }
 
 .headerCta {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 42px;
+  min-height: 44px;
   padding: 0 16px;
   border: 1px solid rgb(219 192 118 / .75);
   color: var(--gold);
@@ -311,6 +313,7 @@
 
 .menuButton {
   display: none;
+  flex: none;
   place-items: center;
   width: 44px;
   height: 44px;
@@ -1272,8 +1275,8 @@
 .footerGrid { display: grid; grid-template-columns: 1.6fr repeat(3, minmax(0, 1fr)); gap: 40px; }
 .footerBrand p { max-width: 36ch; margin: 18px 0 0; font-size: 14px; line-height: 1.7; color: var(--muted); }
 .footerCol h3 { margin: 0 0 16px; font-size: 12px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: var(--faint); }
-.footerCol ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.footerCol a { display: inline-flex; align-items: center; min-height: 32px; font-size: 14px; color: #cfc9be; transition: color .2s; }
+.footerCol ul { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.footerCol a { display: inline-flex; align-items: center; min-height: 44px; font-size: 14px; color: #cfc9be; transition: color .2s; }
 .footerCol a:hover { color: var(--gold); }
 
 .footerLegal {
