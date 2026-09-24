@@ -848,7 +848,7 @@ export async function approvePurchaseDocument(
   id: string,
   approverId: string
 ): Promise<PurchaseDocumentWithItems> {
-  return prisma.$transaction(async (tx) => {
+  const approved = await prisma.$transaction(async (tx) => {
     // Lock: sin él, dos aprobaciones concurrentes del mismo documento (doble
     // clic, dos gerentes a la vez) podían pasar ambas el chequeo de estado y
     // aplicar el movimiento de stock dos veces.
@@ -893,6 +893,21 @@ export async function approvePurchaseDocument(
     });
     return tx.purchaseDocument.findFirstOrThrow({ where: { id, companyId }, include: { items: true } });
   }, LOCKING_TX_OPTIONS);
+
+  await emitPurchaseReviewed(companyId, approved, 'APPROVED');
+  return approved;
+}
+
+/** Fuera de la transacción de aprobación/rechazo: una automatización caída no revierte la decisión. */
+async function emitPurchaseReviewed(companyId: string, doc: PurchaseDocument, decision: 'APPROVED' | 'REJECTED'): Promise<void> {
+  const contact = await prisma.contact.findFirst({ where: { id: doc.contactId, companyId }, select: { razonSocial: true } });
+  void emitWorkflowEvent(companyId, 'PURCHASE_REVIEWED', {
+    documentId: doc.id,
+    folio: String(doc.folio),
+    contactName: contact?.razonSocial ?? null,
+    totalAmount: doc.totalAmount,
+    decision,
+  });
 }
 
 /** Rechazar deja el documento como DRAFT con el motivo registrado: quien lo envió puede editarlo y volver a enviarlo. */
@@ -911,7 +926,9 @@ export async function rejectPurchaseDocument(
     data: { approvalStatus: 'REJECTED', approvedByUserId: approverId, approvedAt: new Date(), approvalNotes: notes },
   });
   if (result.count === 0) throw new Error('Este documento no está pendiente de aprobación');
-  return prisma.purchaseDocument.findFirstOrThrow({ where: { id, companyId } });
+  const rejected = await prisma.purchaseDocument.findFirstOrThrow({ where: { id, companyId } });
+  await emitPurchaseReviewed(companyId, rejected, 'REJECTED');
+  return rejected;
 }
 
 export type PendingApprovalItem = PurchaseDocument & { contact: Contact };

@@ -247,6 +247,87 @@ export const WORKFLOW_TRIGGER_DEFINITIONS: Record<WorkflowTriggerEvent, Workflow
       { field: 'packageName', label: 'Plan de interés', kind: 'string' },
     ],
   },
+  INSTALLMENT_PAID: {
+    event: 'INSTALLMENT_PAID',
+    label: 'Cuota pagada',
+    description: 'Se aplicó un pago a cuotas de un plan de pago, en línea (Khipu) o registrado a mano.',
+    fields: [
+      { field: 'paymentPlanId', label: 'ID del plan de pago', kind: 'string' },
+      { field: 'candidateName', label: 'Beneficiaria', kind: 'string' },
+      { field: 'amount', label: 'Monto pagado', kind: 'number' },
+      { field: 'channel', label: 'Canal (ONLINE o MANUAL)', kind: 'string' },
+      { field: 'payerEmail', label: 'Correo del pagador (solo en línea)', kind: 'string' },
+    ],
+  },
+  PROMISSORY_NOTE_PAID: {
+    event: 'PROMISSORY_NOTE_PAID',
+    label: 'Pagaré pagado',
+    description: 'Un pagaré quedó pagado por completo.',
+    fields: [
+      { field: 'noteId', label: 'ID del pagaré', kind: 'string' },
+      { field: 'contactName', label: 'Deudor', kind: 'string' },
+      { field: 'amount', label: 'Monto', kind: 'number' },
+    ],
+  },
+  FEE_DOCUMENT_PAID: {
+    event: 'FEE_DOCUMENT_PAID',
+    label: 'Boleta de honorarios pagada',
+    description: 'Se marcó como pagada una boleta de honorarios.',
+    fields: [
+      { field: 'feeDocumentId', label: 'ID de la boleta', kind: 'string' },
+      { field: 'folioNumber', label: 'Folio', kind: 'string' },
+      { field: 'contactName', label: 'Prestador', kind: 'string' },
+      { field: 'netToPay', label: 'Líquido pagado', kind: 'number' },
+    ],
+  },
+  CASH_SHIFT_CLOSED: {
+    event: 'CASH_SHIFT_CLOSED',
+    label: 'Turno de caja cerrado',
+    description: 'Se cerró un turno de caja con su arqueo. Para avisar solo descuadres, agrega la condición "Diferencia distinto de 0".',
+    fields: [
+      { field: 'shiftId', label: 'ID del turno', kind: 'string' },
+      { field: 'cashRegisterName', label: 'Caja', kind: 'string' },
+      { field: 'expectedAmount', label: 'Esperado', kind: 'number' },
+      { field: 'actualAmount', label: 'Contado', kind: 'number' },
+      { field: 'difference', label: 'Diferencia', kind: 'number' },
+    ],
+  },
+  PURCHASE_REVIEWED: {
+    event: 'PURCHASE_REVIEWED',
+    label: 'Compra aprobada o rechazada',
+    description: 'Una compra que esperaba aprobación fue aprobada o rechazada.',
+    fields: [
+      { field: 'documentId', label: 'ID de la compra', kind: 'string' },
+      { field: 'folio', label: 'Folio', kind: 'string' },
+      { field: 'contactName', label: 'Proveedor', kind: 'string' },
+      { field: 'totalAmount', label: 'Total', kind: 'number' },
+      { field: 'decision', label: 'Decisión (APPROVED o REJECTED)', kind: 'string' },
+    ],
+  },
+  GOODS_RECEIPT_CREATED: {
+    event: 'GOODS_RECEIPT_CREATED',
+    label: 'Mercadería recibida',
+    description: 'Se registró una recepción de mercadería contra una orden de compra.',
+    fields: [
+      { field: 'receiptId', label: 'ID de la recepción', kind: 'string' },
+      { field: 'folio', label: 'Folio de la recepción', kind: 'number' },
+      { field: 'orderId', label: 'ID de la orden de compra', kind: 'string' },
+      { field: 'itemCount', label: 'Líneas recibidas', kind: 'number' },
+      { field: 'fullyReceived', label: 'Orden completa', kind: 'boolean' },
+    ],
+  },
+  LEAVE_REQUEST_REVIEWED: {
+    event: 'LEAVE_REQUEST_REVIEWED',
+    label: 'Vacaciones o permiso revisados',
+    description: 'Una solicitud de vacaciones o permiso fue aprobada o rechazada.',
+    fields: [
+      { field: 'requestId', label: 'ID de la solicitud', kind: 'string' },
+      { field: 'employeeName', label: 'Trabajador', kind: 'string' },
+      { field: 'employeeEmail', label: 'Correo del trabajador', kind: 'string' },
+      { field: 'decision', label: 'Decisión', kind: 'string' },
+      { field: 'businessDays', label: 'Días hábiles', kind: 'number' },
+    ],
+  },
 };
 
 export const WORKFLOW_ACTION_TYPE_LABELS: Record<WorkflowActionType, string> = {

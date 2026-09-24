@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import type { Contact, GoodsReceipt, GoodsReceiptItem, PurchaseOrder, Warehouse } from '@prisma/client';
 import { applyStockIn, applyStockOut } from '@/modules/inventory/services/stock.service';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
+import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import type { GoodsReceiptCreateInput } from '../schema';
 
 export type GoodsReceiptWithItems = GoodsReceipt & { items: GoodsReceiptItem[] };
@@ -17,7 +18,8 @@ export async function createGoodsReceipt(
   companyId: string,
   input: GoodsReceiptCreateInput
 ): Promise<GoodsReceiptWithItems> {
-  return prisma.$transaction(async (tx) => {
+  let fullyReceived = false;
+  const receipt = await prisma.$transaction(async (tx) => {
     // Lock sobre la OC: sin esto, dos recepciones concurrentes contra la
     // misma orden podrían ambas leer el mismo `receivedQuantity` "antes" y
     // sobre-recibir más de lo pactado.
@@ -101,7 +103,7 @@ export async function createGoodsReceipt(
     }
 
     const updatedItems = await tx.purchaseOrderItem.findMany({ where: { orderId: input.orderId } });
-    const fullyReceived = updatedItems.every((item) => item.receivedQuantity >= item.quantity - QUANTITY_EPSILON);
+    fullyReceived = updatedItems.every((item) => item.receivedQuantity >= item.quantity - QUANTITY_EPSILON);
     await tx.purchaseOrder.updateMany({
       where: { id: input.orderId, companyId },
       data: { status: fullyReceived ? 'RECEIVED' : 'PARTIALLY_RECEIVED' },
@@ -109,6 +111,16 @@ export async function createGoodsReceipt(
 
     return receipt;
   }, LOCKING_TX_OPTIONS);
+
+  // Después de confirmar la recepción: avisar nunca puede deshacer el ingreso a bodega.
+  void emitWorkflowEvent(companyId, 'GOODS_RECEIPT_CREATED', {
+    receiptId: receipt.id,
+    folio: receipt.folio,
+    orderId: receipt.orderId,
+    itemCount: receipt.items.length,
+    fullyReceived,
+  });
+  return receipt;
 }
 
 /**

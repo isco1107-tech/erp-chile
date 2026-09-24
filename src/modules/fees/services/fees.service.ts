@@ -3,6 +3,7 @@ import type { Contact, FeeDocument, PaymentStatus, Project } from '@prisma/clien
 import { calculateFeeAmounts } from '@/lib/services/fees';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import type { FeeDocumentCreateInput, ListFeeDocumentsFilter } from '../schema';
+import { emitWorkflowEvent } from '@/lib/workflows/engine';
 
 /** Tasa por defecto si la empresa nunca configuró `CompanySettings` (mismo default del schema, 15.25% — 2026). */
 const DEFAULT_RETENTION_RATE_BPS = 1525;
@@ -50,7 +51,7 @@ export async function createFeeDocument(companyId: string, data: FeeDocumentCrea
 }
 
 export async function markFeeDocumentPaid(companyId: string, id: string, paymentDate?: Date): Promise<FeeDocument> {
-  return prisma.$transaction(async (tx) => {
+  const updated = await prisma.$transaction(async (tx) => {
     // Lock explícito: sin él, dos solicitudes concurrentes de "marcar pagada"
     // podían ambas leer paymentStatus UNPAID y duplicar el efecto.
     await tx.$queryRaw`SELECT id FROM "FeeDocument" WHERE id = ${id} AND "companyId" = ${companyId} FOR UPDATE`;
@@ -65,10 +66,19 @@ export async function markFeeDocumentPaid(companyId: string, id: string, payment
       data: { paymentStatus, paidAmount: doc.netToPay, paymentDate: paymentDate ?? new Date() },
     });
 
-    const updated = await tx.feeDocument.findFirst({ where: { id, companyId } });
-    if (!updated) throw new Error('Boleta de honorarios no encontrada');
-    return updated;
+    const result = await tx.feeDocument.findFirst({ where: { id, companyId } });
+    if (!result) throw new Error('Boleta de honorarios no encontrada');
+    return result;
   }, LOCKING_TX_OPTIONS);
+
+  const contact = await prisma.contact.findFirst({ where: { id: updated.contactId, companyId }, select: { razonSocial: true } });
+  void emitWorkflowEvent(companyId, 'FEE_DOCUMENT_PAID', {
+    feeDocumentId: updated.id,
+    folioNumber: updated.folioNumber,
+    contactName: contact?.razonSocial ?? null,
+    netToPay: updated.netToPay,
+  });
+  return updated;
 }
 
 /**

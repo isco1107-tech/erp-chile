@@ -5,6 +5,7 @@ import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { postCashShiftDifference } from '@/modules/accounting/posting-rules/inventory-posting';
 import { computeDifference, computeExpectedAmount, sumCashPayments } from '../calc';
 import type { CashMovementInput, OpenShiftInput } from '../schema';
+import { emitWorkflowEvent } from '@/lib/workflows/engine';
 
 export type CashRegisterWithWarehouse = CashRegister & { warehouse: { id: string; name: string } };
 
@@ -295,6 +296,14 @@ export async function closeShift(
     return result;
   }, LOCKING_TX_OPTIONS);
 
+  const cashRegister = await prisma.cashRegister.findFirst({ where: { id: shift.cashRegisterId, companyId }, select: { name: true } });
+  void emitWorkflowEvent(companyId, 'CASH_SHIFT_CLOSED', {
+    shiftId: shift.id,
+    cashRegisterName: cashRegister?.name ?? null,
+    expectedAmount: shift.expectedAmount ?? 0,
+    actualAmount: shift.actualAmount ?? 0,
+    difference: shift.difference ?? 0,
+  });
   return { shift, summary };
 }
 

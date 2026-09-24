@@ -17,6 +17,7 @@ import {
 } from '../online-payment-calc';
 import type { PublicInstallmentCheckoutInput } from '../schema';
 import { buildInstallmentReceiptPdf, receiptFilename } from './receipt-pdf.service';
+import { emitWorkflowEvent } from '@/lib/workflows/engine';
 
 /**
  * Pago en línea de cuotas/mensualidades de candidatas.
@@ -478,6 +479,14 @@ async function markOrderPaid(orderId: string, companyId: string, payment: KhipuP
   }, LOCKING_TX_OPTIONS);
 
   if (!paid) return;
+
+  void emitWorkflowEvent(companyId, 'INSTALLMENT_PAID', {
+    paymentPlanId: paid.paymentPlanId,
+    candidateName: paid.candidateName,
+    amount: paid.amount,
+    channel: 'ONLINE',
+    payerEmail: paid.payerEmail,
+  });
 
   if (paid.excessAmount > 0) {
     captureMessage('cuotas-pago-en-linea:pago-excedente', 'warn', {

@@ -3176,6 +3176,20 @@ enum WorkflowTriggerEvent {
   /// Prospecto recibido por el formulario "Quiero auspiciar" del micrositio
   /// público de un certamen (queda como oportunidad en el CRM).
   CRM_LEAD_RECEIVED
+  /// Pago aplicado a cuotas de un plan de pago, en línea (Khipu) o presencial.
+  INSTALLMENT_PAID
+  /// Pagaré pagado por completo.
+  PROMISSORY_NOTE_PAID
+  /// Boleta de honorarios marcada como pagada.
+  FEE_DOCUMENT_PAID
+  /// Turno de caja cerrado con su arqueo (trae la diferencia).
+  CASH_SHIFT_CLOSED
+  /// Compra pendiente aprobada o rechazada.
+  PURCHASE_REVIEWED
+  /// Recepción de mercadería registrada contra una orden de compra.
+  GOODS_RECEIPT_CREATED
+  /// Solicitud de vacaciones o permiso aprobada o rechazada.
+  LEAVE_REQUEST_REVIEWED
 }
 
 enum WorkflowActionType {
