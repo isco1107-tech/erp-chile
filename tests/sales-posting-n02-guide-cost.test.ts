@@ -23,6 +23,7 @@ import { postSalesDocumentIssued } from '@/modules/accounting/posting-rules/sale
 const GUIDE_DOC = {
   id: 'guia1',
   dteType: 'GUIA_DESPACHO_52' as const,
+  paymentMethod: 'CREDITO_30' as const,
   folio: 10,
   issueDate: new Date('2026-09-23'),
   totalAmount: 0,

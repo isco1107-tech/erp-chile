@@ -35,6 +35,7 @@ const SALE = {
   netAmount: 100_000,
   exemptAmount: 0,
   ivaAmount: 19_000,
+  paymentMethod: 'EFECTIVO' as const,
 };
 
 describe('interruptor del motor contable', () => {

@@ -1,7 +1,8 @@
-import type { DteType, SalesDocument } from '@prisma/client';
+import type { DteType, PaymentMethodType, SalesDocument } from '@prisma/client';
 import { DTE_TYPE_LABELS } from '@/modules/sales/schema';
 import { createAndPostEntry, resolveMappedAccountId, type JournalLineInput, type TxClient } from '../services/journal.service';
 import { invertLines, reverseDocumentEntries, isLedgerActive } from './shared';
+import { cashOrBankKey } from './treasury-posting';
 
 /**
  * Reglas de asiento del ciclo de ventas (`PROMPT_ERP_V2.md`, Fase C.1).
@@ -69,7 +70,12 @@ interface SalesAccountKeys {
   ivaDebitoAccountId: string | null;
 }
 
-async function resolveSalesAccounts(tx: TxClient, companyId: string, ivaAmount: number, cashOrCredit: 'CAJA' | 'CLIENTES'): Promise<SalesAccountKeys> {
+async function resolveSalesAccounts(
+  tx: TxClient,
+  companyId: string,
+  ivaAmount: number,
+  cashOrCredit: 'CAJA' | 'BANCO' | 'CLIENTES'
+): Promise<SalesAccountKeys> {
   const [debitAccountId, ventasAfectasAccountId, ventasExentasAccountId] = await Promise.all([
     resolveMappedAccountId(tx, companyId, cashOrCredit),
     resolveMappedAccountId(tx, companyId, 'VENTAS_AFECTAS'),
@@ -88,7 +94,10 @@ async function resolveSalesAccounts(tx: TxClient, companyId: string, ivaAmount: 
 export async function postSalesDocumentIssued(
   tx: TxClient,
   companyId: string,
-  doc: Pick<SalesDocument, 'id' | 'dteType' | 'folio' | 'issueDate' | 'totalAmount' | 'netAmount' | 'exemptAmount' | 'ivaAmount'>,
+  doc: Pick<
+    SalesDocument,
+    'id' | 'dteType' | 'folio' | 'issueDate' | 'totalAmount' | 'netAmount' | 'exemptAmount' | 'ivaAmount' | 'paymentMethod'
+  >,
   /** Solo las líneas que efectivamente descontaron Kardex (`applyStockOut`) — nunca todas las líneas del documento. */
   costedItems: { unitCostPMP: number; quantity: number }[],
   opts: { isImmediatePayment: boolean; affectsStock: boolean; createdByUserId?: string }
@@ -107,7 +116,13 @@ export async function postSalesDocumentIssued(
   // que el costo se reconoce una sola vez, en el punto donde de verdad salió
   // la mercadería (N-02).
   if (REVENUE_DTE_TYPES.includes(doc.dteType)) {
-    const accounts = await resolveSalesAccounts(tx, companyId, doc.ivaAmount, opts.isImmediatePayment ? 'CAJA' : 'CLIENTES');
+    // Un pago inmediato va a la cuenta de efectivo o de banco según el medio
+    // real de la venta (`cashOrBankKey`, la misma regla que ya usa Tesorería
+    // para el cobro posterior de un documento a crédito) — no siempre CAJA,
+    // que sobrestimaba efectivo físico en una venta pagada por transferencia
+    // o tarjeta (N-12).
+    const cashOrCreditKey = opts.isImmediatePayment ? cashOrBankKey(doc.paymentMethod as PaymentMethodType) : 'CLIENTES';
+    const accounts = await resolveSalesAccounts(tx, companyId, doc.ivaAmount, cashOrCreditKey);
 
     await createAndPostEntry(tx, {
       companyId,
