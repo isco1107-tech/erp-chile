@@ -1,4 +1,4 @@
-import { DatabaseBackup, FileLock2, Fingerprint, KeyRound, Network, UserCog } from 'lucide-react';
+import { Bot, DatabaseBackup, FileLock2, Fingerprint, KeyRound, Network, UserCog, Zap } from 'lucide-react';
 import s from './landing.module.css';
 
 const guarantees = [
@@ -8,6 +8,8 @@ const guarantees = [
   { icon: UserCog, title: 'Permisos al nivel del detalle', text: 'Cinco roles base y roles a medida por empresa. Defines quién puede ver costos, quién emite documentos y quién solo consulta.' },
   { icon: FileLock2, title: 'Tus folios del SII, cifrados', text: 'El archivo CAF que autoriza tus folios se guarda cifrado con AES-256-GCM y su llave privada nunca sale del sistema.' },
   { icon: DatabaseBackup, title: 'Tus datos se van contigo', text: 'Exporta la información completa de tu empresa cuando quieras, en un archivo JSON limpio de contraseñas y credenciales.' },
+  { icon: Bot, title: 'Agentes con visión de negocio', text: 'Asistentes para dirección, finanzas, operaciones y ventas que revisan tus datos y proponen acciones para tu equipo.' },
+  { icon: Zap, title: 'El seguimiento continúa solo', text: 'Automatizaciones, notificaciones y recordatorios para las tareas recurrentes: stock bajo mínimo, folios por agotarse, un pago que no llega.' },
 ];
 
 export default function Security() {
@@ -17,14 +19,14 @@ export default function Security() {
         <div className={s.sectionHeading} data-reveal>
           <div>
             <p className={s.kicker}>CONFIANZA, NO BUENA FE</p>
-            <h2>Tu información es tuya.<br />Y se comporta como tal.</h2>
+            <h2>Tu información es tuya.<br />Y trabaja también para ti.</h2>
           </div>
-          <p>Un ERP guarda lo más sensible de una empresa: sus precios, sus márgenes, sus clientes. Estas son las reglas con las que Aether lo cuida.</p>
+          <p>Un ERP guarda lo más sensible de una empresa: sus precios, sus márgenes, sus clientes. Estas son las reglas con las que Aether lo cuida, y cómo esos mismos datos se ponen a tu favor.</p>
         </div>
 
         <div className={s.securityGrid}>
           {guarantees.map((item, index) => (
-            <article key={item.title} data-reveal style={{ transitionDelay: `${index * 70}ms` }}>
+            <article key={item.title} data-reveal style={{ transitionDelay: `${index * 55}ms` }}>
               <span className={s.securityIcon}><item.icon size={19} aria-hidden="true" /></span>
               <h3>{item.title}</h3>
               <p>{item.text}</p>
@@ -34,7 +36,7 @@ export default function Security() {
 
         <div className={s.securityStrip} data-reveal>
           <p>Y además, de fábrica:</p>
-          <span>Registro de auditoría</span>
+          <span>Multiempresa</span>
           <span>Invitaciones por correo</span>
           <span>Mensajería interna cifrada</span>
           <span>Empresa suspendida, acceso cerrado</span>
