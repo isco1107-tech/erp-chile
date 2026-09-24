@@ -136,6 +136,18 @@ export async function saveZapsignRequest(
 }
 
 /**
+ * Lectura local pura, sin I/O remoto — el webhook de ZapSign (SEG-12) la usa
+ * primero para saber si el token corresponde a un documento propio antes de
+ * consultar a ZapSign, descargar el PDF firmado y subirlo al storage. Un
+ * token que no corresponde a ningún `CandidateDocument` no debe disparar
+ * ninguna llamada externa.
+ */
+export async function findCandidateDocumentByZapsignToken(zapsignDocToken: string): Promise<CandidateDocument | null> {
+  const existing = await prisma.candidateDocument.findUnique({ where: { zapsignDocToken } });
+  return existing ? withComputedStatus(existing) : null;
+}
+
+/**
  * Registra la firma confirmada por ZapSign — llamada exclusivamente desde el
  * webhook, después de que este ya reconsultó el estado real contra la API de
  * ZapSign (nunca a partir del body del webhook sin verificar). Busca por
@@ -151,16 +163,19 @@ export async function markContractSignedByZapsignToken(
   const existing = await prisma.candidateDocument.findUnique({ where: { zapsignDocToken } });
   if (!existing) return null;
   // `justSigned: false` acá: el webhook de ZapSign puede reintentar el mismo
-  // evento — el caller (route.ts) usa esta bandera para no reenviar el aviso
-  // de firma completada dos veces.
+  // evento, o dos entregas pueden llegar concurrentes — el caller (route.ts)
+  // usa esta bandera para no reenviar el aviso de firma completada dos veces.
   if (existing.signedAt) return { document: withComputedStatus(existing), justSigned: false };
 
   const signedAt = new Date();
-  await prisma.candidateDocument.updateMany({
-    where: { id: existing.id, zapsignDocToken },
+  // `signedAt: null` en el where hace la transición atómica: si dos entregas
+  // concurrentes llegan hasta acá, solo una gana el `updateMany` (count 1),
+  // la otra queda con count 0 y no debe considerarse "justSigned".
+  const result = await prisma.candidateDocument.updateMany({
+    where: { id: existing.id, zapsignDocToken, signedAt: null },
     data: { fileUrl, signedAt, status: 'SIGNED' },
   });
   const updated = await prisma.candidateDocument.findUnique({ where: { zapsignDocToken } });
   if (!updated) return null;
-  return { document: withComputedStatus(updated), justSigned: true };
+  return { document: withComputedStatus(updated), justSigned: result.count > 0 };
 }
