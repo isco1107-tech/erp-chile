@@ -206,6 +206,9 @@
 /* ── Barra de progreso de lectura ─────────────────────────────────────── */
 .progressTrack { position: fixed; top: 0; left: 0; right: 0; height: 2px; z-index: 60; pointer-events: none; }
 .progressBar { height: 100%; transform: scaleX(0); transform-origin: 0 50%; background: linear-gradient(90deg, var(--gold-deep), var(--gold) 55%, #f3e3b6); }
+/* Bajo 640px conviven header, esta barra y StickyActions: se oculta para no
+   sumar un tercer elemento fijo en pantallas angostas. */
+@media (max-width: 640px) { .progressTrack { display: none; } }
 
 /* ── Cabecera condensada al bajar ─────────────────────────────────────── */
 .header, .headerInner { transition: background .3s ease, height .3s ease, box-shadow .3s ease; }

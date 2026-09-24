@@ -7,7 +7,7 @@ import { join } from 'node:path';
  * logo (1280×698, fondo blanco): WhatsApp/LinkedIn lo recortaban y no decía
  * qué es Aether. Esta repite el titular y la identidad del landing.
  */
-export const alt = 'Aether ERP: ventas, inventario, finanzas y eventos en un solo lugar, hecho para Chile';
+export const alt = 'Aether ERP: ERP chileno para cualquier negocio, con cumplimiento SII y producción de certámenes';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -39,13 +39,13 @@ export default async function OpengraphImage() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', fontSize: 78, fontWeight: 600, lineHeight: 1.05, letterSpacing: -2 }}>
-          <span>Menos caos.</span>
-          <span>Más control.</span>
-          <span style={{ color: '#dbc076' }}>Mejor negocio.</span>
+          <span>Tu negocio,</span>
+          <span>conectado.</span>
+          <span style={{ color: '#dbc076' }}>Al día con el SII.</span>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 24, color: '#b7bbc3' }}>
-          <span>Ventas · Inventario PMP · Finanzas · F29 · Eventos</span>
+          <span>Ventas · Inventario PMP · Finanzas · SII · Certámenes</span>
           <span style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#dbc076' }}>Hecho para Chile</span>
         </div>
       </div>
