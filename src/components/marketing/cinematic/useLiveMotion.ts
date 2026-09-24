@@ -29,7 +29,9 @@ export function useLiveMotion(
     const node = root.current;
     if (!node || typeof IntersectionObserver === 'undefined') return;
 
-    const selector = ['[data-reveal]', '[data-live]', '[data-pin]', ...classes.map(name => `.${CSS.escape(name)}`)].join(', ');
+    // Las tarjetas con brillo ([data-spot]) también se observan: en pantallas
+    // táctiles se busca entre ellas la más cercana al centro.
+    const selector = ['[data-reveal]', '[data-live]', '[data-pin]', '[data-spot]', ...classes.map(name => `.${CSS.escape(name)}`)].join(', ');
     const targets = [...node.querySelectorAll<HTMLElement>(selector)].filter(target => !target.closest('[data-cinematic-track]'));
     const members = new Set<Element>(targets);
     const order = new Map<HTMLElement, number>();
@@ -78,12 +80,11 @@ export function useLiveMotion(
     }
 
     /** En pantallas táctiles, la tarjeta más cercana al centro de la ventana (solo lee). */
-    function nearestCard(viewport: number): HTMLElement | null {
+    function nearestCard(viewport: number, rects: readonly (readonly [HTMLElement, DOMRect])[]): HTMLElement | null {
       let best: HTMLElement | null = null;
       let bestDistance = viewport * 0.3;
-      for (const card of node?.querySelectorAll<HTMLElement>('[data-spot]') ?? []) {
-        const rect = card.getBoundingClientRect();
-        if (rect.bottom < 0 || rect.top > viewport) continue;
+      for (const [card, rect] of rects) {
+        if (!card.hasAttribute('data-spot') || rect.bottom < 0 || rect.top > viewport) continue;
         const distance = Math.hypot(rect.left + rect.width / 2 - window.innerWidth / 2, rect.top + rect.height / 2 - viewport / 2);
         if (distance < bestDistance) {
           best = card;
@@ -100,21 +101,21 @@ export function useLiveMotion(
       const viewport = window.innerHeight;
       // Al fondo de la página lo que queda abajo ya no puede subir más: entra completo.
       const atEnd = window.scrollY + viewport >= document.documentElement.scrollHeight - 2;
-      measured = {
-        viewport,
-        atEnd,
-        rects: [...active].map(target => {
-          orderOf(target);
-          return [target, target.getBoundingClientRect()] as const;
-        }),
-        nearest: touch.matches ? nearestCard(viewport) : focused,
-      };
+      const rects = [...active].map(target => {
+        orderOf(target);
+        return [target, target.getBoundingClientRect()] as const;
+      });
+      measured = { viewport, atEnd, rects, nearest: touch.matches ? nearestCard(viewport, rects) : focused };
     }
 
-    /** Escrituras del cuadro (requestAnimationFrame). */
+    /**
+     * Escrituras del cuadro. Aquí nunca se lee: las lecturas se hacen en el
+     * evento de scroll, en el aviso del IntersectionObserver o al cambiar el
+     * tamaño, cuando el diseño está al día. Leer aquí, justo después de que
+     * otro módulo escribió, forzaba el diseño completo de la página.
+     */
     function update() {
       frame = 0;
-      if (!measured) read();
       if (!measured) return;
       const { viewport, atEnd, rects, nearest } = measured;
       measured = null;
@@ -147,7 +148,10 @@ export function useLiveMotion(
           write(target, above ? 1 : 0, above ? 1 : 0);
         }
       }
-      if (entries.some(entry => entry.isIntersecting)) schedule();
+      if (entries.some(entry => entry.isIntersecting)) {
+        read();
+        schedule();
+      }
     }, { rootMargin: '30% 0px 30% 0px' });
 
     function reset(element: HTMLElement | null, ...properties: string[]) {
@@ -225,6 +229,7 @@ export function useLiveMotion(
     };
     const onResize = () => {
       order.clear();
+      read();
       schedule();
     };
 
