@@ -2,6 +2,20 @@
 
 Plataforma donde una empresa lleva su operación tributaria chilena (ventas, compras, inventario, contabilidad) y produce certámenes (postulación, jurado, show en vivo, auspicios, entradas, votación). Ambas mitades comparten empresa, contactos y contabilidad. El nombre en código de cada término va entre paréntesis.
 
+## Empresa y acceso
+
+**Empresa** (`Company`):
+Quien contrata Aether; unidad de aislamiento de todos los datos.
+_Avoid_: cliente, tenant, organización, cuenta
+
+**Usuario** (`User`):
+Persona que inicia sesión; puede tener acceso a varias empresas.
+_Avoid_: miembro, cuenta
+
+**Acceso** (`CompanyMembership`):
+Vínculo de un usuario con una empresa, con un rol en ella.
+_Avoid_: membresía, cuenta
+
 ## Contactos
 
 **Contacto** (`Contact`):
@@ -28,13 +42,29 @@ _Avoid_: usar "folio" para cualquier otro correlativo
 Acuerdo para pagar un monto en cuotas.
 _Avoid_: convenio, crédito
 
+**Cuota** (`PaymentPlanInstallment`):
+Cada pago con vencimiento propio dentro de un plan de pago.
+_Avoid_: mensualidad, letra
+
 **Deudor**:
 El contacto que firma el plan de pago; puede ser la candidata o su apoderado.
-_Avoid_: pagador, titular
+_Avoid_: titular
 
 **Beneficiaria**:
 La candidata a quien corresponden las cuotas de un plan de pago; el portal de pago la busca por su RUT.
 _Avoid_: deudora (cuando no firmó el plan)
+
+**Pagador**:
+Quien hace una transferencia en línea para pagar cuotas; puede no ser ni el deudor ni la beneficiaria.
+_Avoid_: deudor, cliente
+
+**Orden de pago en línea** (`InstallmentPaymentOrder`):
+Un intento de cobro por Khipu para una o más cuotas; solo vale cuando el proveedor lo confirma.
+_Avoid_: pago (antes de confirmarse)
+
+**Comprobante de pago**:
+Documento no tributario, numerado, que se emite cuando una orden de pago en línea queda pagada.
+_Avoid_: boleta, recibo
 
 ## Certámenes
 
@@ -61,3 +91,77 @@ _Avoid_: participante, concursante
 **Número de postulación** (`Candidate.folio`):
 Correlativo que recibe una ficha al postular por el formulario público.
 _Avoid_: folio
+
+### Jurado
+
+**Jurado** (`JudgeAssignment`):
+Una persona que evalúa, con acceso propio por enlace.
+_Avoid_: juez, evaluador
+
+**Panel de jurado**:
+El conjunto de jurados de un certamen.
+_Avoid_: jurado (para el grupo)
+
+**Ronda** (`CompetitionRound`):
+Etapa de evaluación de un certamen, con corte opcional a N clasificadas.
+_Avoid_: fase, etapa
+
+**Criterio** (`JudgingCategory`):
+Aspecto que se evalúa dentro de una ronda, con su ponderación.
+_Avoid_: categoría
+
+**Puntaje** (`ScoreSheet`):
+La nota de un jurado a una ficha en un criterio de una ronda.
+_Avoid_: planilla, voto
+
+**Planilla**:
+El conjunto de puntajes de un jurado en una ronda.
+_Avoid_: hoja de votación
+
+**Voto del público** (`VoteOrder`):
+Voto comprado por cualquier persona a favor de una candidata; no es un puntaje (ver ADR-0001).
+_Avoid_: voto (a secas), puntaje
+
+### Auspicios
+
+**Plan de auspicio** (`SponsorshipPackage`):
+Una oferta del tarifario de un certamen (Titular, Oro, Plata…).
+_Avoid_: paquete, nivel
+
+**Auspicio** (`SponsorshipContract`):
+El contrato firmado con un contacto para auspiciar un certamen.
+_Avoid_: patrocinio, sponsor
+
+**Canje**:
+La parte de un auspicio pagada en especie, valorizada en pesos.
+_Avoid_: trueque, barter
+
+**Contraprestación** (`SponsorshipDeliverable`):
+Lo que la organización debe entregar al auspiciador a cambio del auspicio.
+_Avoid_: entregable, beneficio
+
+### Producción
+
+**Escaleta**:
+El guion minuto a minuto del show.
+_Avoid_: pauta, programa, timeline
+
+**Bloque** (`StageTimelineItem`):
+Cada ítem de la escaleta.
+_Avoid_: ítem, momento
+
+**Segmento**:
+El tipo de un bloque (apertura, traje de baño, gala, pregunta…).
+_Avoid_: tipo de bloque
+
+**Credencial** (`StaffAccreditation`):
+Acceso del staff a un certamen, con nivel y QR.
+_Avoid_: entrada, pase
+
+**Acreditación**:
+El proceso de emitir credenciales.
+_Avoid_: credencial (para el proceso)
+
+**Entrada** (`TicketSale`):
+Acceso pagado del público a un certamen.
+_Avoid_: ticket, credencial
