@@ -1,3 +1,5 @@
+import manifest from '../../../../public/marketing/cinematic/seq/manifest.json';
+
 /**
  * Coreografía de la secuencia del hero de /landing-v2, como funciones puras.
  *
@@ -11,6 +13,12 @@ export const V1_END = 0.55;
 export const LERP = 0.12;
 /** A partir de este P empiezan a descargarse los fotogramas de v2. */
 export const V2_PRELOAD_FROM = 0.3;
+/**
+ * Mientras la persona no hace scroll solo se piden los fotogramas hasta este
+ * tanto más allá del actual: quien lee el titular y se va no descarga el
+ * video entero (en escritorio eran ~14 MB en 12 s).
+ */
+export const IDLE_AHEAD = 18;
 /**
  * Ritmo de v2 dentro de su tramo: pares [avance del tramo, tiempo del video],
  * ambos de 0 a 1. Los primeros 2 s (la galaxia, 25 % del video) ocupan el
@@ -59,6 +67,19 @@ export function frameAt(progress: number, counts: readonly [number, number]): Fr
   }
   const last = counts[1] - 1;
   return { clip: 1, index: Math.min(last, Math.round(v2Time((p - V1_END) / (1 - V1_END)) * last)) };
+}
+
+/**
+ * Con `stride` > 1 (modo liviano) solo se usan los fotogramas múltiplos de
+ * `stride` y el último, que es el que se sostiene al final de la pista.
+ */
+export function snapIndex(index: number, last: number, stride: number): number {
+  if (stride <= 1) return index;
+  return Math.min(last, Math.round(index / stride) * stride);
+}
+
+export function usesFrame(index: number, last: number, stride: number): boolean {
+  return stride <= 1 || index === last || index % stride === 0;
 }
 
 /** Posición en una numeración continua v1 → v2, útil para medir distancias. */
@@ -153,6 +174,7 @@ export function decodeWindow(center: number, total: number, direction: 1 | -1, a
   return [Math.max(0, center - before), Math.min(total - 1, center + after)];
 }
 
+/** Ruta de un fotograma. `?v=` cambia al regenerarlos, así se pueden cachear un año. */
 export function frameUrl(clip: Clip, prefix: 'd' | 'm', index: number): string {
-  return `/marketing/cinematic/seq/v${clip + 1}/${prefix}_${String(index + 1).padStart(3, '0')}.webp`;
+  return `/marketing/cinematic/seq/v${clip + 1}/${prefix}_${String(index + 1).padStart(3, '0')}.webp?v=${manifest.version}`;
 }

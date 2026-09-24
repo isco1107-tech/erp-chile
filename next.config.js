@@ -4,6 +4,12 @@ const nextConfig = {
   async headers() {
     return [
       {
+        // Fotogramas del hero: las URLs llevan ?v=<hash del contenido>
+        // (scripts/generate-cinematic-frames.cjs), así que no cambian nunca.
+        source: '/marketing/cinematic/seq/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+      },
+      {
         source: '/downloads/:path*',
         headers: [
           { key: 'Content-Disposition', value: 'attachment' },

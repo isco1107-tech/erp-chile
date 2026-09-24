@@ -4,6 +4,7 @@ import { getImageProps } from 'next/image';
 import { ArrowDown, ArrowUpRight } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import manifest from '../../../../public/marketing/cinematic/seq/manifest.json';
+import { isLightweightDevice } from './device';
 import { startPlayer, type PlayerElements } from './player';
 import { frameUrl } from './sequence';
 import s from './sequence.module.css';
@@ -71,10 +72,12 @@ export default function CinematicSequence() {
     const still = window.matchMedia(STATIC_QUERY);
     const mobile = window.matchMedia(MOBILE_QUERY);
     const reduced = window.matchMedia(REDUCED_QUERY);
+    // Modo liviano (ahorro de datos, conexión lenta, poca memoria): uno de cada tres fotogramas.
+    const stride = isLightweightDevice() ? 3 : 1;
     let stop: (() => void) | null = null;
     const restart = () => {
       stop?.();
-      stop = still.matches ? null : startPlayer(elements, mobile.matches ? 'mobile' : 'desktop', manifest.boundary.crossfadeMs, !reduced.matches);
+      stop = still.matches ? null : startPlayer(elements, mobile.matches ? 'mobile' : 'desktop', manifest.boundary.crossfadeMs, !reduced.matches, stride);
     };
     restart();
     const queries = [still, mobile, reduced];

@@ -1,6 +1,6 @@
 import manifest from '../../../../public/marketing/cinematic/seq/manifest.json';
 import {
-  LERP, V2_PRELOAD_FROM, chapterState, choreography, clamp01, decodeWindow, exitShade, frameAt, frameUrl, hudOpacity,
+  IDLE_AHEAD, LERP, V2_PRELOAD_FROM, chapterState, snapIndex, usesFrame, choreography, clamp01, decodeWindow, exitShade, frameAt, frameUrl, hudOpacity,
   fromGlobal, globalIndex, loadOrder, type Choreography, type Clip, type FramePosition,
 } from './sequence';
 
@@ -118,7 +118,11 @@ function clearChoreography(elements: PlayerElements) {
   }
 }
 
-export function startPlayer(elements: PlayerElements, setName: FrameSetName, crossfadeMs: number, inertia = true): () => void {
+/**
+ * `stride` > 1 es el modo liviano (ver device.ts): uno de cada `stride`
+ * fotogramas, así que se descarga y decodifica esa fracción del video.
+ */
+export function startPlayer(elements: PlayerElements, setName: FrameSetName, crossfadeMs: number, inertia = true, stride = 1): () => void {
   const { track, stage, canvas } = elements;
   const context = canvas.getContext('2d', { alpha: false });
   if (!context) return () => {};
@@ -153,9 +157,11 @@ export function startPlayer(elements: PlayerElements, setName: FrameSetName, cro
   let outgoing: { image: Drawable; started: number } | null = null;
   let width = 0;
   let height = 0;
-  // Hasta el evento load solo se piden los fotogramas cercanos: el resto
-  // espera para no competir con lo que necesita la primera pantalla.
+  // Hasta el evento load solo se pide el fotograma actual (el póster ya está
+  // en caché): nada compite con la primera pantalla. Después, hasta que la
+  // persona hace scroll, solo un tramo corto por delante (IDLE_AHEAD).
   let warm = document.readyState === 'complete';
+  let engaged = false;
 
   function schedule() {
     if (!raf && !disposed && visible && !document.hidden) raf = requestAnimationFrame(tick);
@@ -297,8 +303,10 @@ export function startPlayer(elements: PlayerElements, setName: FrameSetName, cro
     }
     for (const global of order) {
       if (fetches >= MAX_FETCHES) break;
-      if (!warm && (global < current - 2 || global > current + 8)) continue;
+      if (!warm && global !== current) continue;
+      if (!engaged && (global < current || global > current + IDLE_AHEAD)) continue;
       const { clip, index } = fromGlobal(global, counts);
+      if (!usesFrame(index, counts[clip] - 1, stride)) continue;
       if (clip === 1 && !v2Allowed) continue;
       if (clips[clip].status[index] === 0) fetchFrame(clip, index);
     }
@@ -332,7 +340,8 @@ export function startPlayer(elements: PlayerElements, setName: FrameSetName, cro
       loaderDirty = true;
     }
 
-    const position = frameAt(progress, counts);
+    const exact = frameAt(progress, counts);
+    const position = { clip: exact.clip, index: snapIndex(exact.index, counts[exact.clip] - 1, stride) };
     const global = globalIndex(position, counts);
     if (global !== current) {
       direction = global > current ? 1 : -1;
@@ -361,6 +370,10 @@ export function startPlayer(elements: PlayerElements, setName: FrameSetName, cro
   // requestAnimationFrame solo se escribe. Medir ahí, después de que otro
   // módulo escribió, obligaría a recalcular estilos y diseño en cada cuadro.
   const onScroll = () => {
+    if (!engaged) {
+      engaged = true;
+      loaderDirty = true;
+    }
     if (visible) {
       ({ target, exit } = readScroll());
       measure = false;
@@ -410,6 +423,8 @@ export function startPlayer(elements: PlayerElements, setName: FrameSetName, cro
   document.addEventListener('visibilitychange', onVisibility);
   track.setAttribute('data-player', setName);
   ({ target, exit } = readScroll());
+  // Si la página abre a mitad de la pista (recarga, ancla), la persona ya está recorriéndola.
+  engaged = target > 0;
   writeChoreography(elements, choreography(target));
   writeExit();
 

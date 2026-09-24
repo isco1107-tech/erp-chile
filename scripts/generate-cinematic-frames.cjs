@@ -4,6 +4,7 @@
  *
  * Uso: node scripts/generate-cinematic-frames.cjs [ruta/a/ffmpeg]
  *      (o la variable FFMPEG). ffprobe se busca junto a ffmpeg.
+ *      Con --version-only solo recalcula la versión del manifiesto.
  *
  * Proceso local y sin conexión: no lee credenciales ni la base de datos.
  *
@@ -33,13 +34,18 @@
  *   lee de este manifiesto.
  * - Si un set se pasa del presupuesto, se baja la calidad (nunca la
  *   cantidad de fotogramas), igual que pedía el prompt.
+ * - «version» es un hash del contenido de los fotogramas. Las URLs lo llevan
+ *   (?v=…) y next.config.js los sirve con caché de un año: si se regeneran,
+ *   la versión cambia y nadie ve fotogramas viejos.
  */
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const crypto = require('node:crypto');
 const { spawn } = require('node:child_process');
 
-const ffmpeg = process.argv[2] || process.env.FFMPEG || 'ffmpeg';
+const args = process.argv.slice(2).filter(arg => !arg.startsWith('--'));
+const ffmpeg = args[0] || process.env.FFMPEG || 'ffmpeg';
 const ffprobe = /ffmpeg(\.exe)?$/i.test(ffmpeg) ? ffmpeg.replace(/ffmpeg(\.exe)?$/i, (_, ext) => `ffprobe${ext ?? ''}`) : 'ffprobe';
 
 const root = path.resolve(__dirname, '..');
@@ -228,6 +234,25 @@ async function lightRanges(pattern, count) {
   return ranges;
 }
 
+/** Hash corto del contenido de todos los fotogramas, en orden. */
+function frameVersion() {
+  const hash = crypto.createHash('sha1');
+  for (const clip of ['v1', 'v2']) {
+    const folder = path.join(output, clip);
+    for (const file of fs.readdirSync(folder).sort()) hash.update(file).update(fs.readFileSync(path.join(folder, file)));
+  }
+  return hash.digest('hex').slice(0, 10);
+}
+
+function writeVersionOnly() {
+  const file = path.join(output, 'manifest.json');
+  const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const next = { generatedBy: manifest.generatedBy, version: frameVersion(), clips: manifest.clips, boundary: manifest.boundary };
+  fs.writeFileSync(file, `${JSON.stringify(next, null, 2)}
+`);
+  console.log(`Versión de los fotogramas: ${next.version}`);
+}
+
 async function main() {
   const videos = { v1: sourcePath('v1'), v2: sourcePath('v2') };
   const sources = { v1: await probe(videos.v1), v2: await probe(videos.v2) };
@@ -243,7 +268,7 @@ async function main() {
   const jobs = ['v1', 'v2'].flatMap(clip => SETS.map(set => ({ clip, set })));
   const encoded = await Promise.all(jobs.map(({ clip, set }) => encode(videos[clip], clip, set)));
 
-  const manifest = { generatedBy: 'scripts/generate-cinematic-frames.cjs', clips: {} };
+  const manifest = { generatedBy: 'scripts/generate-cinematic-frames.cjs', version: '', clips: {} };
   for (const clip of ['v1', 'v2']) {
     const entry = { source: path.basename(videos[clip]), sourceSeconds: sources[clip].duration, usedSeconds: sources[clip].duration };
     jobs.forEach((job, index) => {
@@ -256,6 +281,7 @@ async function main() {
   // Dos cuadros seguidos dentro de un mismo video dan ~0,94. Bajo 0,9 el
   // salto entre videos se nota, y la landing lo cubre con un fundido de 300 ms.
   manifest.boundary = { ssim, crossfadeMs: ssim !== null && ssim >= 0.9 ? 0 : 300 };
+  manifest.version = frameVersion();
   fs.writeFileSync(path.join(output, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
 
   const total = name => Object.values(manifest.clips).reduce((sum, clip) => sum + clip[name].bytes, 0);
@@ -265,7 +291,7 @@ async function main() {
   console.log(`Escribí ${path.relative(root, path.join(output, 'manifest.json'))}`);
 }
 
-main().catch(error => {
+(process.argv.includes('--version-only') ? Promise.resolve().then(writeVersionOnly) : main()).catch(error => {
   console.error(error.message);
   process.exitCode = 1;
 });

@@ -1,5 +1,6 @@
 {
   "generatedBy": "scripts/generate-cinematic-frames.cjs",
+  "version": "d3233868a4",
   "clips": {
     "v1": {
       "source": "v1.mp4",

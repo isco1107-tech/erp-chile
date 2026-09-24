@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import {
-  V1_END, chapterState, choreography, decodeWindow, exitShade, frameAt, frameUrl, fromGlobal, globalIndex, hudOpacity, loadOrder, smoothstep, v2Time,
+  V1_END, chapterState, choreography, decodeWindow, exitShade, frameAt, frameUrl, fromGlobal, globalIndex, hudOpacity, loadOrder, smoothstep, snapIndex, usesFrame, v2Time,
 } from '../src/components/marketing/cinematic/sequence';
 import { ENTER_FROM, ENTER_SPAN, MAX_STAGGER, enterProgress, viewProgress } from '../src/components/marketing/cinematic/live';
 import { linkStrength, makeStars, streakLength, wrap } from '../src/components/marketing/cinematic/constellation';
@@ -135,9 +135,20 @@ describe('landing v2 · carga progresiva', () => {
     expect(decodeWindow(258, 259, 1)).toEqual([252, 258]);
   });
 
-  it('arma las rutas de los fotogramas', () => {
-    expect(frameUrl(0, 'd', 0)).toBe('/marketing/cinematic/seq/v1/d_001.webp');
-    expect(frameUrl(1, 'm', 76)).toBe('/marketing/cinematic/seq/v2/m_077.webp');
+  it('arma las rutas de los fotogramas, versionadas por contenido', () => {
+    expect(manifest.version).toMatch(/^[0-9a-f]{10}$/);
+    expect(frameUrl(0, 'd', 0)).toBe(`/marketing/cinematic/seq/v1/d_001.webp?v=${manifest.version}`);
+    expect(frameUrl(1, 'm', 76)).toBe(`/marketing/cinematic/seq/v2/m_077.webp?v=${manifest.version}`);
+  });
+
+  it('en modo liviano usa uno de cada tres fotogramas y siempre el último', () => {
+    expect(snapIndex(4, 143, 1)).toBe(4);
+    expect(snapIndex(4, 143, 3)).toBe(3);
+    expect(snapIndex(143, 143, 3)).toBe(143);
+    expect(usesFrame(6, 143, 3)).toBe(true);
+    expect(usesFrame(7, 143, 3)).toBe(false);
+    expect(usesFrame(143, 143, 3)).toBe(true);
+    expect(usesFrame(7, 143, 1)).toBe(true);
   });
 });
 
@@ -177,8 +188,9 @@ describe('landing v2 · fotogramas generados', () => {
   });
 
   it('tiene el primer fotograma de v1 para el póster (LCP) en ambos sets', () => {
-    expect(existsSync(path.join(publicDir, frameUrl(0, 'd', 0)))).toBe(true);
-    expect(existsSync(path.join(publicDir, frameUrl(0, 'm', 0)))).toBe(true);
+    const file = (url: string) => path.join(publicDir, url.split('?')[0]);
+    expect(existsSync(file(frameUrl(0, 'd', 0)))).toBe(true);
+    expect(existsSync(file(frameUrl(0, 'm', 0)))).toBe(true);
   });
 
   it('funde la unión v1→v2 cuando los cuadros no calzan', () => {
