@@ -4,6 +4,7 @@ import type { Employee, LeaveRequest } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { accruedVacationDays, businessDaysBetween } from '@/lib/chile/payroll';
 import type { LeaveRequestInput, LeaveReviewInput } from '../schema';
+import { emitWorkflowEvent } from '@/lib/workflows/engine';
 
 /**
  * Vacaciones y permisos con flujo de aprobación:
@@ -76,7 +77,18 @@ export async function reviewLeaveRequest(companyId: string, id: string, reviewer
     data: { status: input.decision, reviewedByUserId: reviewerId, reviewedAt: new Date(), reviewNotes: input.notes ?? null },
   });
   if (result.count === 0) throw new Error('La solicitud no existe o ya fue revisada');
-  return prisma.leaveRequest.findFirstOrThrow({ where: { id, companyId } });
+  const reviewed = await prisma.leaveRequest.findFirstOrThrow({
+    where: { id, companyId },
+    include: { employee: { select: { fullName: true, email: true } } },
+  });
+  void emitWorkflowEvent(companyId, 'LEAVE_REQUEST_REVIEWED', {
+    requestId: reviewed.id,
+    employeeName: reviewed.employee.fullName,
+    employeeEmail: reviewed.employee.email,
+    decision: reviewed.status,
+    businessDays: reviewed.businessDays,
+  });
+  return reviewed;
 }
 
 export async function cancelLeaveRequest(companyId: string, id: string): Promise<void> {

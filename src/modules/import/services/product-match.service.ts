@@ -209,7 +209,8 @@ export async function parseItemsTextBatch(texts: string[]): Promise<ExtractedIte
       const result = batchResponseSchema.safeParse({ documents });
       if (!result.success) throw new Error('La respuesta del modelo no tuvo el formato esperado');
       return result.data;
-    }
+    },
+    'lite'
   );
 
   // Defensivo: si el modelo devolvió menos/más elementos que textos de

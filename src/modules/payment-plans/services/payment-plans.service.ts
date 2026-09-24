@@ -3,6 +3,7 @@ import type { Contact, PaymentMethodType, PaymentPlan, PaymentPlanInstallment, P
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { computeDueDate, distributeInstallmentAmounts } from '../calc';
 import type { PaymentPlanCreateInput, PaymentPlanUpdateInput } from '../schema';
+import { emitWorkflowEvent } from '@/lib/workflows/engine';
 
 export type PaymentPlanWithRelations = PaymentPlan & {
   contact: Contact;
@@ -161,7 +162,7 @@ export async function registerInstallmentPayment(
   method: PaymentMethodType,
   date?: Date
 ): Promise<PaymentPlanInstallment> {
-  return prisma.$transaction(async (tx) => {
+  const updated = await prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "PaymentPlanInstallment" WHERE id = ${installmentId} AND "companyId" = ${companyId} FOR UPDATE`;
 
     const installment = await tx.paymentPlanInstallment.findFirst({ where: { id: installmentId, companyId } });
@@ -202,10 +203,24 @@ export async function registerInstallmentPayment(
       });
     }
 
-    const updated = await tx.paymentPlanInstallment.findFirst({ where: { id: installmentId, companyId } });
-    if (!updated) throw new Error('Cuota no encontrada');
-    return updated;
+    const result = await tx.paymentPlanInstallment.findFirst({ where: { id: installmentId, companyId } });
+    if (!result) throw new Error('Cuota no encontrada');
+    return result;
   }, LOCKING_TX_OPTIONS);
+
+  // Después de confirmar: una automatización caída no revierte el cobro.
+  const plan = await prisma.paymentPlan.findFirst({
+    where: { id: updated.paymentPlanId, companyId },
+    select: { candidate: { select: { fullName: true } } },
+  });
+  void emitWorkflowEvent(companyId, 'INSTALLMENT_PAID', {
+    paymentPlanId: updated.paymentPlanId,
+    candidateName: plan?.candidate?.fullName ?? null,
+    amount,
+    channel: 'MANUAL',
+    payerEmail: null,
+  });
+  return updated;
 }
 
 /**

@@ -848,7 +848,7 @@ export async function approvePurchaseDocument(
   id: string,
   approverId: string
 ): Promise<PurchaseDocumentWithItems> {
-  return prisma.$transaction(async (tx) => {
+  const approved = await prisma.$transaction(async (tx) => {
     // Lock: sin él, dos aprobaciones concurrentes del mismo documento (doble
     // clic, dos gerentes a la vez) podían pasar ambas el chequeo de estado y
     // aplicar el movimiento de stock dos veces.
@@ -857,6 +857,10 @@ export async function approvePurchaseDocument(
     const doc = await tx.purchaseDocument.findFirst({ where: { id, companyId }, include: { items: true } });
     if (!doc) throw new Error('Documento no encontrado');
     if (doc.approvalStatus !== 'PENDING') throw new Error('Este documento no está pendiente de aprobación');
+    // Un documento anulado mientras esperaba aprobación puede seguir marcado
+    // PENDING (datos anteriores a que la anulación lo limpiara). Aprobarlo lo
+    // revivía como ISSUED y volvía a mover stock y PMP (N-08).
+    if (doc.status === 'CANCELLED') throw new Error('Este documento fue anulado y ya no se puede aprobar');
 
     const direction = PURCHASE_STOCK_DIRECTION[doc.documentType];
     // `direction === 'OUT'` solo puede darse en Notas de Crédito, que nunca
@@ -889,6 +893,21 @@ export async function approvePurchaseDocument(
     });
     return tx.purchaseDocument.findFirstOrThrow({ where: { id, companyId }, include: { items: true } });
   }, LOCKING_TX_OPTIONS);
+
+  await emitPurchaseReviewed(companyId, approved, 'APPROVED');
+  return approved;
+}
+
+/** Fuera de la transacción de aprobación/rechazo: una automatización caída no revierte la decisión. */
+async function emitPurchaseReviewed(companyId: string, doc: PurchaseDocument, decision: 'APPROVED' | 'REJECTED'): Promise<void> {
+  const contact = await prisma.contact.findFirst({ where: { id: doc.contactId, companyId }, select: { razonSocial: true } });
+  void emitWorkflowEvent(companyId, 'PURCHASE_REVIEWED', {
+    documentId: doc.id,
+    folio: String(doc.folio),
+    contactName: contact?.razonSocial ?? null,
+    totalAmount: doc.totalAmount,
+    decision,
+  });
 }
 
 /** Rechazar deja el documento como DRAFT con el motivo registrado: quien lo envió puede editarlo y volver a enviarlo. */
@@ -907,14 +926,16 @@ export async function rejectPurchaseDocument(
     data: { approvalStatus: 'REJECTED', approvedByUserId: approverId, approvedAt: new Date(), approvalNotes: notes },
   });
   if (result.count === 0) throw new Error('Este documento no está pendiente de aprobación');
-  return prisma.purchaseDocument.findFirstOrThrow({ where: { id, companyId } });
+  const rejected = await prisma.purchaseDocument.findFirstOrThrow({ where: { id, companyId } });
+  await emitPurchaseReviewed(companyId, rejected, 'REJECTED');
+  return rejected;
 }
 
 export type PendingApprovalItem = PurchaseDocument & { contact: Contact };
 
 export async function listPendingApprovals(companyId: string): Promise<PendingApprovalItem[]> {
   return prisma.purchaseDocument.findMany({
-    where: { companyId, approvalStatus: 'PENDING' },
+    where: { companyId, approvalStatus: 'PENDING', status: { not: 'CANCELLED' } },
     include: { contact: true },
     orderBy: { createdAt: 'asc' },
     take: 200,
@@ -923,6 +944,10 @@ export async function listPendingApprovals(companyId: string): Promise<PendingAp
 
 export async function cancelPurchaseDocument(companyId: string, id: string): Promise<PurchaseDocument> {
   return prisma.$transaction(async (tx) => {
+    // Mismo lock que la aprobación: sin él, anular y aprobar a la vez podían
+    // cruzarse y dejar un documento anulado con stock recibido.
+    await tx.$queryRaw`SELECT id FROM "PurchaseDocument" WHERE id = ${id} AND "companyId" = ${companyId} FOR UPDATE`;
+
     const document = await tx.purchaseDocument.findFirst({
       where: { id, companyId },
       include: { items: { select: { productId: true } } },
@@ -952,7 +977,12 @@ export async function cancelPurchaseDocument(companyId: string, id: string): Pro
 
     const updated = await tx.purchaseDocument.updateMany({
       where: { id: document.id, companyId },
-      data: { status: 'CANCELLED' },
+      // Anulado deja de esperar aprobación: sale de la bandeja de pendientes y
+      // nadie puede aprobarlo después (N-08).
+      data: {
+        status: 'CANCELLED',
+        ...(document.approvalStatus === 'PENDING' ? { approvalStatus: 'NOT_REQUIRED' as const } : {}),
+      },
     });
     if (updated.count !== 1) throw new Error('No se pudo anular el documento');
     return tx.purchaseDocument.findFirstOrThrow({ where: { id: document.id, companyId } });

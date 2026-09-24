@@ -13,6 +13,7 @@ import {
 } from './modules';
 import { resolvePermissions } from './effective-permissions';
 import { isSessionRevoked, touchSession } from './sessions';
+import { isOperationalTenant } from '@/lib/auth/tenant-status';
 
 export { resolvePermissions };
 
@@ -77,7 +78,6 @@ export class ModuleNotEnabledError extends Error {
   }
 }
 
-const OPERATIONAL_STATUSES: TenantStatus[] = ['ACTIVE', 'TRIAL'];
 
 async function readSessionPayload(): Promise<SessionPayload> {
   const cookieStore = await cookies();
@@ -154,7 +154,7 @@ const loadContext = cache(async (userId: string, activeCompanyId?: string): Prom
     // Si no hay membresía válida, sigue con la empresa hogar ya cargada arriba.
   }
 
-  if (!OPERATIONAL_STATUSES.includes(effectiveCompany.status)) {
+  if (!isOperationalTenant(effectiveCompany.status)) {
     throw new TenantInactiveError(effectiveCompany.status);
   }
 
@@ -287,7 +287,7 @@ export async function requireModule(companyId: string, moduleKey: FeatureKey): P
     include: { features: true },
   });
   if (!company) throw new AuthError('Sesión sin empresa asociada', 401);
-  if (!OPERATIONAL_STATUSES.includes(company.status)) throw new TenantInactiveError(company.status);
+  if (!isOperationalTenant(company.status)) throw new TenantInactiveError(company.status);
 
   const features = toFeatureFlags(company.features);
   if (!features[moduleKey]) throw new ModuleNotEnabledError(moduleKey);
@@ -304,7 +304,7 @@ export async function requirePermission(userId: string, requiredPermission: Perm
     },
   });
   if (!user || !user.isActive || !user.company) return false;
-  if (!OPERATIONAL_STATUSES.includes(user.company.status)) return false;
+  if (!isOperationalTenant(user.company.status)) return false;
 
   const permissions = resolvePermissions({
     role: user.role,

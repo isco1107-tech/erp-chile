@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import type { Contact, PaymentStatus, Prisma, PromissoryNote } from '@prisma/client';
+import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import type {
   PromissoryNoteCreateInput,
   PromissoryNotePaymentInput,
@@ -146,6 +147,16 @@ export async function registerPromissoryNotePayment(
 
   const updated = await prisma.promissoryNote.findFirst({ where: { id, companyId } });
   if (!updated) throw new Error('Pagaré no encontrado');
+
+  // Solo en la transición a pagado: volver a guardar un pagaré ya pagado no avisa de nuevo.
+  if (paymentStatus === 'PAID' && note.paymentStatus !== 'PAID') {
+    const contact = await prisma.contact.findFirst({ where: { id: updated.contactId, companyId }, select: { razonSocial: true } });
+    void emitWorkflowEvent(companyId, 'PROMISSORY_NOTE_PAID', {
+      noteId: updated.id,
+      contactName: contact?.razonSocial ?? null,
+      amount: updated.amount,
+    });
+  }
   return updated;
 }
 

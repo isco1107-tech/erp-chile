@@ -118,3 +118,38 @@ describe('Configuraciones predefinidas', () => {
     expect(RESET_RATE_LIMIT.prefix).toBe('reset-ip');
   });
 });
+
+describe('Rate Limiter — limpieza por ventana propia (SEG-09)', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it('una request de ventana corta no borra el bloqueo de una ventana de una hora', () => {
+    // Después de cualquier limpieza real previa del store, para que la de este test sí corra.
+    let now = Date.now() + 10 * 60_000;
+    jest.spyOn(Date, 'now').mockImplementation(() => now);
+    const hourly: RateLimitConfig = { prefix: 'hourly', limit: 2, windowMs: 60 * 60_000 };
+    const minute: RateLimitConfig = { prefix: 'minute', limit: 10, windowMs: 60_000 };
+
+    checkRateLimit('10.0.0.1', hourly);
+    checkRateLimit('10.0.0.1', hourly);
+    expect(checkRateLimit('10.0.0.1', hourly).allowed).toBe(false);
+
+    // Pasan 5 minutos y el mismo cliente toca una ruta de ventana corta, lo
+    // que dispara la limpieza del store.
+    now += 5 * 60_000;
+    checkRateLimit('10.0.0.1', minute);
+
+    expect(checkRateLimit('10.0.0.1', hourly).allowed).toBe(false);
+  });
+
+  it('la limpieza sí descarta una entrada cuya propia ventana ya expiró', () => {
+    let now = Date.now() + 30 * 60_000;
+    jest.spyOn(Date, 'now').mockImplementation(() => now);
+    const minute: RateLimitConfig = { prefix: 'minute', limit: 1, windowMs: 60_000 };
+
+    checkRateLimit('10.0.0.2', minute);
+    expect(checkRateLimit('10.0.0.2', minute).allowed).toBe(false);
+
+    now += 3 * 60_000;
+    expect(checkRateLimit('10.0.0.2', minute).allowed).toBe(true);
+  });
+});

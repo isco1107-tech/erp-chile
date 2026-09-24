@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { isOperationalTenant } from '@/lib/auth/tenant-status';
 import { prisma } from '@/lib/prisma';
 import type { CalendarCandidateInfo, CalendarFeedData, CalendarItem } from '../schema';
 
@@ -318,10 +319,11 @@ export function buildIcsFeed(companyName: string, items: CalendarItem[]): string
 export async function getCalendarFeedByToken(token: string, baseUrl: string): Promise<{ filename: string; ics: string } | null> {
   const settings = await prisma.companySettings.findUnique({
     where: { calendarSyncToken: token },
-    select: { companyId: true },
+    select: { companyId: true, company: { select: { status: true } } },
   });
 
-  if (!settings) return null;
+  // El feed público deja de publicar la agenda de una empresa suspendida o cancelada (SEG-10).
+  if (!settings || !isOperationalTenant(settings.company.status)) return null;
 
   const data = await getCalendarData(settings.companyId, baseUrl);
   const ics = buildIcsFeed(data.companyName, data.items);

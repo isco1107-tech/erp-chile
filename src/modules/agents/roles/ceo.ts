@@ -54,7 +54,11 @@ export async function runCeoAgent(companyId: string): Promise<string> {
 
   let priorities: string[];
   try {
-    const prioritiesText = await generateAgentText(SYSTEM_PROMPT, `Recomendaciones recientes del equipo:\n${bullet}`);
+    const prioritiesText = await generateAgentText(
+      SYSTEM_PROMPT,
+      `Recomendaciones recientes del equipo:\n${bullet}`,
+      'reasoning'
+    );
     priorities = splitLines(prioritiesText);
   } catch (error) {
     captureException(error, { module: 'agents', companyId, extra: { role: 'CEO', reason: 'summarize-priorities' } });

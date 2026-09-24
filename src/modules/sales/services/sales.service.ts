@@ -182,7 +182,10 @@ export async function createSalesDocument(
     // `EXISTENCIAS` que descontar.
     const costedItemsForAccounting: { unitCostPMP: number; quantity: number }[] = [];
 
-    if (affectsStock || isCreditNote) {
+    // Una Nota de Crédito en borrador no devuelve mercadería: su asiento recién
+    // nace al emitirse, y mover stock antes dejaba inventario sin respaldo
+    // contable (N-01).
+    if (affectsStock || (isCreditNote && isIssuing)) {
       const sourceItems = isCreditNote && referencedDocument ? referencedDocument.items : computedItems;
       for (const item of computedItems) {
         if (!item.productId) continue;
@@ -193,8 +196,14 @@ export async function createSalesDocument(
           // Si la línea tiene cantidad <= 0 (Caso B: ajuste de precio / descuento sin devolución física), no movemos stock
           if (item.quantity <= 0) continue;
 
+          // Todas las líneas del original con este producto, no solo la
+          // primera; y lo acreditado incluye las líneas anteriores de ESTA
+          // misma nota, o repetir el producto en dos líneas duplicaba lo
+          // devolvible (N-05).
           const sourceItem = sourceItems.find((candidate) => candidate.productId === item.productId);
-          const originalQuantity = sourceItem?.quantity ?? 0;
+          const originalQuantity = sourceItems
+            .filter((candidate) => candidate.productId === item.productId)
+            .reduce((sum, candidate) => sum + candidate.quantity, 0);
           const alreadyCredited = previouslyCreditedByProduct?.get(item.productId) ?? 0;
           const remaining = originalQuantity - alreadyCredited;
           // Rechazar en vez de recortar en silencio: recortar la cantidad de
@@ -206,6 +215,7 @@ export async function createSalesDocument(
               `No se puede acreditar ${item.quantity} unidades de "${item.description}": el documento original tenía ${originalQuantity} y ya se acreditaron ${alreadyCredited} en notas de crédito previas (quedan ${Math.max(0, remaining)} disponibles)`
             );
           }
+          previouslyCreditedByProduct?.set(item.productId, alreadyCredited + item.quantity);
           const restockUnitCost = sourceItem?.unitCostPMP ?? item.unitCostPMP;
           restockedForAccounting.push({ unitCostPMP: restockUnitCost, quantity: item.quantity });
           await applyStockIn(tx, companyId, {
@@ -437,6 +447,10 @@ export async function cancelSalesDocument(companyId: string, id: string, reason?
   let emittedCancelPayload: WorkflowEventPayload | null = null;
 
   const cancelResult = await prisma.$transaction(async (tx) => {
+    // Lock de la fila: dos anulaciones simultáneas (doble clic, dos pestañas)
+    // leían ambas ISSUED y reponían stock y revertían pagos dos veces (N-09).
+    await tx.$queryRaw`SELECT id FROM "SalesDocument" WHERE id = ${id} AND "companyId" = ${companyId} FOR UPDATE`;
+
     const document = await tx.salesDocument.findFirst({
       where: { id, companyId },
       include: { items: true, cashShift: { select: { id: true, status: true, closedAt: true } } },
@@ -541,10 +555,10 @@ export async function cancelSalesDocument(companyId: string, id: string, reason?
     await reverseSalesDocumentPosting(tx, companyId, document.id, cancellationNote);
 
     const updated = await tx.salesDocument.updateMany({
-      where: { id: document.id, companyId },
+      where: { id: document.id, companyId, status: 'ISSUED' },
       data: { status: 'CANCELLED' },
     });
-    if (updated.count !== 1) throw new Error('No se pudo anular el documento');
+    if (updated.count !== 1) throw new Error('El documento ya no está emitido: puede que otra persona lo haya anulado recién');
 
     const result = await tx.salesDocument.findFirst({ where: { id: document.id, companyId } });
     if (!result) throw new Error('Documento no encontrado');

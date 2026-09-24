@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { isOperationalTenant } from '@/lib/auth/tenant-status';
 import { prisma } from '@/lib/prisma';
 
 /**
@@ -61,7 +62,10 @@ export async function resolveCompanyByN8nWebhookSecret(token: string): Promise<{
   if (!token) return null;
   const settings = await prisma.companySettings.findUnique({
     where: { n8nWebhookSecret: token },
-    select: { companyId: true },
+    select: { companyId: true, company: { select: { status: true } } },
   });
-  return settings ? { companyId: settings.companyId } : null;
+  // Una empresa suspendida o cancelada no recibe eventos externos: el token
+  // sigue guardado (vuelve a funcionar si se reactiva), pero no opera (SEG-10).
+  if (!settings || !isOperationalTenant(settings.company.status)) return null;
+  return { companyId: settings.companyId };
 }
