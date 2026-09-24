@@ -56,7 +56,7 @@ async function estimateMonthlyTax(companyId: string, year: number, month: number
   const [sales, purchases] = await Promise.all([
     prisma.salesDocument.findMany({
       where: { companyId, status: 'ISSUED', dteType: { in: TAXABLE_SALES_DTE_TYPES }, issueDate: { gte: from, lt: to } },
-      select: { dteType: true, ivaAmount: true, netAmount: true },
+      select: { dteType: true, ivaAmount: true, netAmount: true, exemptAmount: true },
     }),
     prisma.purchaseDocument.findMany({
       where: { companyId, status: 'ISSUED', documentType: { in: TAXABLE_PURCHASE_DOCUMENT_TYPES }, issueDate: { gte: from, lt: to } },
@@ -64,7 +64,8 @@ async function estimateMonthlyTax(companyId: string, year: number, month: number
     }),
   ]);
   const debit = sales.reduce((sum, doc) => sum + signForSalesDteType(doc.dteType) * doc.ivaAmount, 0);
-  const net = sales.reduce((sum, doc) => sum + signForSalesDteType(doc.dteType) * doc.netAmount, 0);
+  // Base del PPM = ventas netas afectas + exentas, igual que el motor F29 (`f29.ts`).
+  const net = sales.reduce((sum, doc) => sum + signForSalesDteType(doc.dteType) * (doc.netAmount + doc.exemptAmount), 0);
   const credit = purchases.reduce((sum, doc) => sum + signForPurchaseDocumentType(doc.documentType as PurchaseDocumentType) * doc.ivaAmount, 0);
   return Math.max(0, debit - credit) + Math.max(0, Math.round((net * ppmBps) / 10000));
 }

@@ -52,6 +52,10 @@ const ALL_FEATURES_ON: CompanyFeatureFlags = {
   hasPayroll: true,
   hasFixedAssets: true,
   hasExpenseReports: true,
+  hasServiceContracts: true,
+  hasTimesheets: true,
+  hasBankReconciliation: true,
+  hasPublicApi: true,
 };
 
 async function main() {

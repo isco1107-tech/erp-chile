@@ -382,13 +382,13 @@ export async function buildReportDataset(companyId: string, range: ReportRange):
   const pagos: PaymentRow[] = payments.map((p) => ({
     fecha: p.paymentDate,
     direccion: p.type === 'INCOME' ? 'Ingreso' : 'Egreso',
-    contraparte: p.contact.razonSocial,
+    contraparte: p.contact?.razonSocial ?? '',
     medioPago: p.paymentMethod,
     documento: p.salesDocument
       ? `Venta folio ${p.salesDocument.folio ?? '-'}`
       : p.purchaseDocument
         ? `Compra folio ${p.purchaseDocument.folio}`
-        : '',
+        : (p.description ?? ''),
     monto: p.amount,
     referencia: p.referenceNumber ?? '',
   }));

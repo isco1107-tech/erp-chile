@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { moneyDetailsSchema } from '@/modules/treasury/schema';
 
 /**
  * Alta de una Boleta de Honorarios Electrónica (BHE) ya emitida por el
@@ -23,9 +24,8 @@ export const feeDocumentCreateSchema = z.object({
 
 export type FeeDocumentCreateInput = z.infer<typeof feeDocumentCreateSchema>;
 
-export const markFeeDocumentPaidSchema = z.object({
-  paymentDate: z.coerce.date().optional(),
-});
+/** El pago del líquido pasa por Tesorería: medio, caja/banco, fecha y comprobante. */
+export const markFeeDocumentPaidSchema = moneyDetailsSchema;
 
 export type MarkFeeDocumentPaidInput = z.infer<typeof markFeeDocumentPaidSchema>;
 

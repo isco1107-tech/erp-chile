@@ -44,8 +44,37 @@ export function santiagoMidnightUtc(year: number, month: number, day: number): D
   // Aproximación inicial solo para resolver qué offset regía esa fecha
   // (puede diferir de "hoy" si se calculan meses pasados).
   const approx = new Date(Date.UTC(year, month - 1, day));
-  const offsetHours = santiagoOffsetHours(approx);
-  return new Date(Date.UTC(year, month - 1, day, -offsetHours, 0, 0));
+  const first = new Date(Date.UTC(year, month - 1, day, -santiagoOffsetHours(approx), 0, 0));
+  // El offset de la aproximación (00:00 UTC ≈ 20:00–21:00 del día anterior en
+  // Chile) puede ser el de ANTES del cambio de hora. El día que termina el
+  // horario de verano (abril) eso daba las 23:00 del día anterior: el día
+  // equivocado. Si el resultado no cae en la fecha pedida, se recalcula con el
+  // offset vigente en ese instante. El día que empieza el horario de verano
+  // (septiembre) la medianoche no existe y el primer cálculo ya da las 01:00
+  // de la fecha correcta, que es donde empieza ese día.
+  const check = santiagoDateParts(first);
+  if (check.year === year && check.month === month && check.day === day) return first;
+  return new Date(Date.UTC(year, month - 1, day, -santiagoOffsetHours(first), 0, 0));
+}
+
+/**
+ * "YYYY-MM-DD" de un `<input type="date">` → medianoche de ese día en
+ * Santiago. `new Date('2026-04-05')` en cambio da la medianoche UTC, que en
+ * Chile todavía es el día 4. `null` si el texto no es una fecha real.
+ */
+export function parseSantiagoDateInput(value: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  const probe = new Date(Date.UTC(year, month - 1, day));
+  if (probe.getUTCFullYear() !== year || probe.getUTCMonth() !== month - 1 || probe.getUTCDate() !== day) return null;
+  return santiagoMidnightUtc(year, month, day);
+}
+
+/** Día calendario de `date` en Santiago como "YYYY-MM-DD", para precargar un `<input type="date">`. */
+export function toSantiagoDateInput(date: Date): string {
+  const { year, month, day } = santiagoDateParts(date);
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
 /** Medianoche de hoy en Santiago, como instante UTC. */

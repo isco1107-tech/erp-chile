@@ -247,6 +247,49 @@ export const WORKFLOW_TRIGGER_DEFINITIONS: Record<WorkflowTriggerEvent, Workflow
       { field: 'packageName', label: 'Plan de interés', kind: 'string' },
     ],
   },
+  PAYMENT_RECEIVED: {
+    event: 'PAYMENT_RECEIVED',
+    label: 'Dinero recibido',
+    description: 'Entró dinero a Tesorería: cobro de una factura, cuota, entrada, voto, auspicio o pagaré, o un abono conciliado de la cartola.',
+    fields: [
+      { field: 'paymentId', label: 'ID del movimiento', kind: 'string' },
+      { field: 'amount', label: 'Monto', kind: 'number' },
+      { field: 'paymentMethod', label: 'Medio de pago', kind: 'string' },
+      { field: 'source', label: 'Origen (DOCUMENT, INSTALLMENT, TICKET_SALE…)', kind: 'string' },
+      { field: 'description', label: 'Glosa', kind: 'string' },
+      { field: 'contactId', label: 'ID del contacto', kind: 'string' },
+    ],
+  },
+  PAYMENT_MADE: {
+    event: 'PAYMENT_MADE',
+    label: 'Pago realizado',
+    description: 'Salió dinero de Tesorería: pago a proveedor, sueldos, cotizaciones, honorarios o reembolso de una rendición.',
+    fields: [
+      { field: 'paymentId', label: 'ID del movimiento', kind: 'string' },
+      { field: 'amount', label: 'Monto', kind: 'number' },
+      { field: 'paymentMethod', label: 'Medio de pago', kind: 'string' },
+      { field: 'source', label: 'Origen (DOCUMENT, PAYROLL_SALARIES, FEE_DOCUMENT…)', kind: 'string' },
+      { field: 'description', label: 'Glosa', kind: 'string' },
+      { field: 'contactId', label: 'ID del contacto', kind: 'string' },
+    ],
+  },
+  RECURRING_INVOICES_READY: {
+    event: 'RECURRING_INVOICES_READY',
+    label: 'Facturas recurrentes listas para revisar',
+    description: 'La facturación automática de contratos dejó documentos en borrador esperando que alguien los revise y emita.',
+    fields: [{ field: 'draftCount', label: 'Cantidad de borradores', kind: 'number' }],
+  },
+  RECURRING_BILLING_FAILED: {
+    event: 'RECURRING_BILLING_FAILED',
+    label: 'Falló la facturación de un contrato',
+    description: 'Un contrato recurrente no pudo generar la factura de su período (por ejemplo, sin folios o sobre el límite de crédito del cliente).',
+    fields: [
+      { field: 'contractId', label: 'ID del contrato', kind: 'string' },
+      { field: 'contractName', label: 'Contrato', kind: 'string' },
+      { field: 'periodKey', label: 'Período', kind: 'string' },
+      { field: 'error', label: 'Motivo', kind: 'string' },
+    ],
+  },
 };
 
 export const WORKFLOW_ACTION_TYPE_LABELS: Record<WorkflowActionType, string> = {

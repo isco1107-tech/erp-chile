@@ -183,7 +183,7 @@ export default function VotePurchaseClient({ token, initialCandidateId }: { toke
               <fieldset className="pub-optionset">
                 <legend>Candidata</legend>
                 {project.candidates.map((c) => {
-                  const name = c.stageName || c.fullName;
+                  const name = c.name;
                   return (
                     <label key={c.id} className={`pub-option ${candidateId === c.id ? 'is-selected' : ''}`}>
                       <input
@@ -196,8 +196,8 @@ export default function VotePurchaseClient({ token, initialCandidateId }: { toke
                       <span className="pub-option-avatar" aria-hidden="true">{name.slice(0, 1).toUpperCase()}</span>
                       <span className="pub-option-body">
                         <span className="pub-option-name">{name}</span>
-                        {c.stageName && c.fullName !== c.stageName && (
-                          <span className="pub-hint" style={{ fontSize: '0.75rem' }}>{c.fullName}</span>
+                        {c.number !== null && !name.includes(`N° ${c.number}`) && (
+                          <span className="pub-hint" style={{ fontSize: '0.75rem' }}>Candidata N° {c.number}</span>
                         )}
                       </span>
                     </label>
@@ -250,7 +250,7 @@ export default function VotePurchaseClient({ token, initialCandidateId }: { toke
               <PublicTotal
                 label="Total a pagar"
                 value={formatCurrency(total)}
-                note={selected ? `${voteCount} × ${formatCurrency(project.pricePerVote)} para ${selected.stageName || selected.fullName}` : undefined}
+                note={selected ? `${voteCount} × ${formatCurrency(project.pricePerVote)} para ${selected.name}` : undefined}
               />
 
               {errors.form && <p className="pub-error-form">{errors.form}</p>}

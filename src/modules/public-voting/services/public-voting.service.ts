@@ -5,6 +5,9 @@ import { sendEmail } from '@/lib/email/mailer';
 import { buildVoteConfirmationEmail } from '@/lib/email/templates';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import { captureException } from '@/lib/observability';
+import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
+import { emitPaymentEvent, recordPaidAmountChange } from '@/modules/treasury/services/movements.service';
+import { PUBLIC_CANDIDATE_STATUSES, publicCandidateName } from '@/lib/events/public-candidate';
 import { decodeVoteToken, encodeVoteToken } from '../schema';
 import type { ConfirmVotePaymentInput, PublicVotePurchaseInput } from '../schema';
 
@@ -55,10 +58,11 @@ export async function getCurrentVotePrice(companyId: string, projectId: string):
 // Flujo público (acceso por token, sin cuenta ERP)
 // ---------------------------------------------------------------------------
 
+/** Lo que ve el público de cada candidata en la página de votación (ver `public-candidate.ts`). */
 export interface PublicVotingCandidateOption {
   id: string;
-  fullName: string;
-  stageName: string | null;
+  name: string;
+  number: number | null;
   photoUrl: string | null;
 }
 
@@ -80,10 +84,13 @@ export async function getPublicVotingProjectByToken(token: string): Promise<Publ
     where: { voteSalesToken: token },
     include: {
       company: { select: { businessName: true, settings: { select: { bankTransferInfo: true } } } },
+      // Solo candidatas oficiales y visibles, igual que el micrositio: una
+      // postulante todavía no aceptada no debe aparecer con su foto en una
+      // página pública. Campo por campo: `fullName` no se lee.
       candidates: {
-        where: { status: { notIn: ['WITHDRAWN', 'REJECTED'] } },
-        select: { id: true, fullName: true, stageName: true, photoUrl: true },
-        orderBy: { fullName: 'asc' },
+        where: { status: { in: PUBLIC_CANDIDATE_STATUSES }, showOnPublicSite: true },
+        select: { id: true, stageName: true, candidateNumber: true, photoUrl: true },
+        orderBy: [{ candidateNumber: { sort: 'asc', nulls: 'last' } }, { stageName: 'asc' }],
       },
     },
   });
@@ -96,7 +103,7 @@ export async function getPublicVotingProjectByToken(token: string): Promise<Publ
     companyName: project.company.businessName,
     bankTransferInfo: project.company.settings?.bankTransferInfo ?? null,
     pricePerVote: decoded.pricePerVote,
-    candidates: project.candidates,
+    candidates: project.candidates.map((c) => ({ id: c.id, name: publicCandidateName(c), number: c.candidateNumber, photoUrl: c.photoUrl })),
   };
 }
 
@@ -116,8 +123,8 @@ export async function createPublicVoteOrder(token: string, data: PublicVotePurch
   if (!project) throw new VoteSalesNotFoundError('Link de votación inválido o expirado');
 
   const candidate = await prisma.candidate.findFirst({
-    where: { id: data.candidateId, companyId: project.companyId, projectId: project.id, status: { notIn: ['WITHDRAWN', 'REJECTED'] } },
-    select: { id: true, fullName: true, stageName: true },
+    where: { id: data.candidateId, companyId: project.companyId, projectId: project.id, status: { in: PUBLIC_CANDIDATE_STATUSES }, showOnPublicSite: true },
+    select: { id: true, stageName: true, candidateNumber: true },
   });
   if (!candidate) throw new InvalidCandidateError('La candidata seleccionada no existe o no participa en este certamen');
 
@@ -135,7 +142,7 @@ export async function createPublicVoteOrder(token: string, data: PublicVotePurch
     },
   });
 
-  return { order, candidateName: candidate.stageName || candidate.fullName };
+  return { order, candidateName: publicCandidateName(candidate) };
 }
 
 // ---------------------------------------------------------------------------
@@ -180,24 +187,46 @@ export async function listVoteOrders(companyId: string, filters: VoteOrderListFi
  * solo si `wasAlreadyPaid` es falso (para no reenviarlo si alguien vuelve a
  * guardar el mismo monto).
  */
-export async function confirmVotePayment(companyId: string, id: string, data: ConfirmVotePaymentInput): Promise<VoteOrder> {
-  const order = await prisma.voteOrder.findFirst({
-    where: { id, companyId },
-    include: { project: { select: { name: true } }, candidate: { select: { fullName: true, stageName: true } } },
-  });
-  if (!order) throw new Error('Orden de votos no encontrada');
-  if (data.paidAmount > order.totalAmount) throw new Error('El monto pagado supera el total de la orden');
+/**
+ * Fija el monto pagado de una orden de votos. La diferencia con lo ya pagado
+ * entra a Tesorería en la misma transacción, con lock sobre la orden.
+ */
+export async function confirmVotePayment(companyId: string, id: string, data: ConfirmVotePaymentInput, userId?: string): Promise<VoteOrder> {
+  const { order, updated, payment, paymentStatus } = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "VoteOrder" WHERE id = ${id} AND "companyId" = ${companyId} FOR UPDATE`;
+    const current = await tx.voteOrder.findFirst({
+      where: { id, companyId },
+      include: { project: { select: { name: true } }, candidate: { select: { fullName: true, stageName: true, candidateNumber: true } } },
+    });
+    if (!current) throw new Error('Orden de votos no encontrada');
+    if (data.paidAmount > current.totalAmount) throw new Error('El monto pagado supera el total de la orden');
 
-  let paymentStatus: PaymentStatus;
-  if (data.paidAmount === 0) paymentStatus = 'UNPAID';
-  else if (data.paidAmount >= order.totalAmount) paymentStatus = 'PAID';
-  else paymentStatus = 'PARTIAL';
+    let paymentStatus: PaymentStatus;
+    if (data.paidAmount === 0) paymentStatus = 'UNPAID';
+    else if (data.paidAmount >= current.totalAmount) paymentStatus = 'PAID';
+    else paymentStatus = 'PARTIAL';
 
+    await tx.voteOrder.updateMany({ where: { id, companyId }, data: { paidAmount: data.paidAmount, paymentStatus } });
+    const movement = await recordPaidAmountChange(tx, {
+      companyId,
+      previousPaid: current.paidAmount,
+      newPaid: data.paidAmount,
+      method: data.paymentMethod,
+      source: 'VOTE_ORDER',
+      sourceId: current.id,
+      description: `${current.voteCount} votos por ${current.candidate.stageName ?? current.candidate.fullName}`,
+      counterpartKey: 'COBROS_POR_DOCUMENTAR',
+      projectId: current.projectId,
+      treasuryAccountId: data.treasuryAccountId,
+      createdByUserId: userId,
+    });
+    const after = await tx.voteOrder.findFirst({ where: { id, companyId } });
+    if (!after) throw new Error('Orden de votos no encontrada');
+    return { order: current, updated: after, payment: movement, paymentStatus };
+  }, LOCKING_TX_OPTIONS);
+
+  if (payment) emitPaymentEvent(companyId, payment);
   const wasAlreadyPaid = order.paymentStatus === 'PAID';
-
-  await prisma.voteOrder.updateMany({ where: { id, companyId }, data: { paidAmount: data.paidAmount, paymentStatus } });
-  const updated = await prisma.voteOrder.findFirst({ where: { id, companyId } });
-  if (!updated) throw new Error('Orden de votos no encontrada');
 
   if (paymentStatus === 'PAID' && !wasAlreadyPaid) {
     const company = await prisma.company.findUnique({ where: { id: companyId }, select: { businessName: true } });
@@ -206,7 +235,8 @@ export async function confirmVotePayment(companyId: string, id: string, data: Co
       ...buildVoteConfirmationEmail({
         projectName: order.project.name,
         companyName: company?.businessName ?? '',
-        candidateName: order.candidate.stageName ?? order.candidate.fullName,
+        // Correo a alguien del público: nombre público, nunca el de la ficha.
+        candidateName: publicCandidateName(order.candidate),
         voteCount: order.voteCount,
         totalAmount: order.totalAmount,
       }),

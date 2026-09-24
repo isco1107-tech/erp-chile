@@ -133,7 +133,7 @@ export async function updateSponsorshipPaymentAction(
     const parsed = sponsorshipPaymentSchema.safeParse(input);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
 
-    const data = await sponsorshipsService.updateSponsorshipPayment(session.companyId, id, parsed.data);
+    const data = await sponsorshipsService.updateSponsorshipPayment(session.companyId, id, parsed.data, session.id);
     await createAuditLog({
       companyId: session.companyId,
       userId: session.id,

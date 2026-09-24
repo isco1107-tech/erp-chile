@@ -76,6 +76,15 @@ export const MANUAL_SECTIONS: ManualSection[] = [
         ],
       },
       {
+        id: 'pendientes',
+        title: 'Ver todo lo que tengo pendiente',
+        steps: [
+          'Abre "Pendientes" en el menú: reúne en una sola lista lo que requiere acción en toda la empresa (compras y rendiciones por aprobar, facturas vencidas, borradores por emitir, cartola por conciliar, cotizaciones previsionales sin pagar, folios por agotarse…).',
+          'Solo ves lo de los módulos a los que tienes acceso. Cada fila te lleva directo a la pantalla donde se resuelve.',
+          'El dueño ve además, en el inicio, la guía de "Primeros pasos", que se marca sola a medida que la empresa queda configurada.',
+        ],
+      },
+      {
         id: 'asistente-ia',
         title: 'Pedir ayuda al Asistente',
         steps: [
@@ -353,7 +362,17 @@ export const MANUAL_SECTIONS: ManualSection[] = [
         title: 'Crear una cotización antes de vender',
         steps: [
           'Si el cliente todavía no confirma la compra, genera una Cotización en vez de un documento definitivo.',
-          'Cuando el cliente confirma, conviertes esa cotización en una boleta/factura sin tener que volver a cargar los productos.',
+          'Cuando el cliente confirma, abre la cotización, elige el documento (factura, boleta o guía) y usa "Convertir cotización": se crea un borrador con el mismo cliente y las mismas líneas, sin volver a cargarlas.',
+          'Revisa el borrador (los precios y la exención se toman del catálogo vigente) y emítelo con "Emitir documento".',
+        ],
+      },
+      {
+        id: 'borradores',
+        title: 'Emitir o eliminar un borrador',
+        steps: [
+          'Un documento guardado como borrador no tiene folio ni valor tributario. Ábrelo desde el historial de ventas.',
+          '"Emitir documento" le asigna folio, descuenta stock y genera su asiento, igual que una emisión directa.',
+          '"Eliminar borrador" lo borra sin dejar rastro; si venía de un contrato o de horas trabajadas, esas horas vuelven a quedar disponibles para facturar.',
         ],
       },
       {
@@ -423,9 +442,29 @@ export const MANUAL_SECTIONS: ManualSection[] = [
       },
       {
         id: 'flujo-caja',
-        title: 'Revisar el flujo de caja proyectado',
+        title: 'Revisar el flujo de caja',
         steps: [
-          'Ve a Flujo de Caja para ver entradas y salidas esperadas según los vencimientos de CxC y CxP.',
+          'Ve a Flujo de Caja: muestra todo el dinero que entró y salió en el período, venga de donde venga (ventas, compras, sueldos, honorarios, rendiciones, cuotas, entradas, votos, auspicios, pagarés o la cartola).',
+          'La tabla "¿De dónde viene y a dónde va?" resume por origen; puedes filtrar por caja o banco y exportar a CSV.',
+          'Para la proyección de las próximas semanas usa Inteligencia → Caja a 13 semanas.',
+        ],
+      },
+      {
+        id: 'cajas-bancos',
+        title: 'Registrar mis cajas y cuentas bancarias',
+        steps: [
+          'Ve a Finanzas → Cajas & Bancos y crea tu cuenta corriente y tu caja, con su saldo inicial.',
+          'Marca una por defecto de cada tipo: todo pago en efectivo va a la caja por defecto y todo pago por transferencia, tarjeta o cheque al banco por defecto, salvo que elijas otra al registrarlo.',
+          'Desde ahí ves el saldo al día de cada una. Si llevas Contabilidad, puedes asociar cada banco a su propia subcuenta contable.',
+        ],
+      },
+      {
+        id: 'link-pago',
+        title: 'Cobrar una factura con link de pago',
+        steps: [
+          'Conecta tu cuenta de cobro Khipu en Configuración → Integraciones.',
+          'Abre la factura por cobrar y haz clic en "Link de pago": obtienes un enlace para copiar o enviar por WhatsApp.',
+          'Cuando el cliente paga por transferencia, el sistema confirma el pago con Khipu y registra solo el cobro en Tesorería (y su asiento). El link vence en 72 horas.',
         ],
       },
       {
@@ -627,6 +666,15 @@ export const MANUAL_SECTIONS: ManualSection[] = [
         steps: [
           'Ve a Boletas de Honorarios → "Nueva boleta".',
           'Ingresa el prestador de servicios, el monto bruto — el sistema calcula la retención de 2ª categoría automáticamente según la tasa configurada en tu empresa.',
+          'Si tienes Contabilidad, la boleta se registra con su asiento (honorarios contra retención por enterar y líquido por pagar).',
+        ],
+      },
+      {
+        id: 'pagar-boleta',
+        title: 'Pagar una boleta de honorarios',
+        steps: [
+          'Abre la boleta y haz clic en "Pagar boleta": elige medio de pago y caja o banco.',
+          'El líquido queda como egreso en Tesorería, y la retención se declara en el F29 del mes en que pagas.',
         ],
       },
     ],
@@ -1127,7 +1175,24 @@ export const MANUAL_SECTIONS: ManualSection[] = [
           'Confirma la UF, la UTM, el ingreso mínimo, los topes y las tasas en los indicadores de previred.com: quedan guardados con el período.',
           'En la planilla ajusta días trabajados, horas extra, bonos, anticipos y otros descuentos, y haz clic en "Calcular liquidaciones". Puedes recalcular cuantas veces quieras.',
           'Revisa cada liquidación (se puede imprimir) y descarga el libro de remuneraciones en Excel.',
-          'Al terminar, "Cerrar período" congela las liquidaciones.',
+          'Al terminar, "Cerrar período" congela las liquidaciones. Si tienes Contabilidad, en ese momento se genera solo el asiento de centralización (gasto, cotizaciones, impuesto único y líquidos por pagar).',
+        ],
+      },
+      {
+        id: 'pagar-sueldos',
+        title: 'Registrar el pago de sueldos y cotizaciones',
+        steps: [
+          'Con el mes cerrado, en la pantalla del período usa "Pagar sueldos" cuando transfieras la nómina, y "Pagar cotizaciones" cuando pagues la planilla en Previred (hasta el día 13 del mes siguiente).',
+          'Cada pago queda en Tesorería como egreso de la cuenta que elijas; en Pendientes verás los meses con cotizaciones sin pago registrado.',
+          'El impuesto único retenido aparece solo en tu F29 del mes (código 48).',
+        ],
+      },
+      {
+        id: 'isapre-impuesto',
+        title: 'Cómo rebaja impuesto un plan de Isapre',
+        steps: [
+          'El 7% legal de salud siempre rebaja la base del impuesto único.',
+          'Si el plan de Isapre cuesta más que el 7%, lo pagado también rebaja, pero solo hasta el 7% del tope imponible del período (con el tope de 89,9 UF, unas 6,3 UF). Como sale del tope imponible que confirmas en Previred, se actualiza solo cuando cambia.',
         ],
       },
       {
@@ -1183,8 +1248,108 @@ export const MANUAL_SECTIONS: ManualSection[] = [
         id: 'aprobar-reembolsar',
         title: 'Aprobar y reembolsar rendiciones',
         steps: [
-          'Quien aprueba ve la bandeja "Por aprobar". Nadie puede aprobar su propia rendición.',
-          'Finanzas ve la bandeja "Por reembolsar" y marca cada rendición como reembolsada con la referencia de la transferencia.',
+          'Quien aprueba ve la bandeja "Por aprobar". Nadie puede aprobar su propia rendición. Al aprobar, si tienes Contabilidad, se registra el gasto.',
+          'Finanzas ve la bandeja "Por reembolsar", elige medio de pago y caja o banco, y registra el reembolso: queda como egreso en Tesorería.',
+        ],
+      },
+    ],
+  },
+  {
+    key: 'hasServiceContracts',
+    title: 'Contratos Recurrentes',
+    route: '/dashboard/contracts',
+    topics: [
+      {
+        id: 'crear-contrato',
+        title: 'Crear un contrato que se facture solo',
+        steps: [
+          'Ve a Servicios → Contratos Recurrentes y haz clic en "Nuevo contrato".',
+          'Elige el cliente, el documento (factura afecta o exenta, boleta), la frecuencia (mensual, bimestral, trimestral, semestral o anual), la fecha de inicio y, si corresponde, la de término.',
+          'Agrega los servicios que se cobran cada período: del catálogo (la exención se toma del producto) o como línea libre.',
+          'Decide si se emite automáticamente o si queda en borrador para revisarlo. Mientras lo armas ves el total por período y el ingreso mensual recurrente.',
+        ],
+      },
+      {
+        id: 'como-factura',
+        title: 'Cómo y cuándo factura',
+        steps: [
+          'Cada mañana el sistema factura los contratos cuya fecha llegó: el día de facturación es el mismo día del mes de la fecha de inicio (o el último día en meses más cortos).',
+          'Un período nunca se factura dos veces. Si un contrato inicia en el pasado, parte en el próximo período; para cobrar ya el actual usa "Facturar ahora".',
+          'Si una facturación falla (sin folios, sobre el límite de crédito del cliente), queda anotada con el motivo, aparece en Pendientes y se reintenta al día siguiente.',
+          'Los borradores se revisan y se emiten desde Ventas con "Emitir documento".',
+        ],
+      },
+      {
+        id: 'pausar-terminar',
+        title: 'Pausar, reanudar o terminar un contrato',
+        steps: [
+          'Pausar detiene la facturación; al reanudar, parte en el próximo período (los meses en pausa no se facturan en bloque).',
+          'Terminar lo cierra para siempre y conserva el historial. Solo se puede eliminar un contrato que nunca facturó.',
+        ],
+      },
+    ],
+  },
+  {
+    key: 'hasTimesheets',
+    title: 'Control de Horas',
+    route: '/dashboard/timesheets',
+    topics: [
+      {
+        id: 'registrar-horas',
+        title: 'Registrar mis horas',
+        steps: [
+          'Ve a Servicios → Control de Horas y completa fecha, horas (1,5 = hora y media), cliente, qué hiciste y si es facturable con su tarifa por hora.',
+          'Puedes editar o borrar tus registros mientras no se hayan facturado. Jefatura ve y corrige las horas de todo el equipo.',
+        ],
+      },
+      {
+        id: 'facturar-horas',
+        title: 'Facturar las horas de un cliente',
+        steps: [
+          'En "Horas por facturar" aparece cada cliente con sus horas pendientes y su monto; haz clic en "Facturar".',
+          'Elige qué registros incluir, el tipo de documento y si quieres una línea por registro o una sola línea con el total.',
+          'Se crea un borrador de venta: revísalo y emítelo. Si eliminas ese borrador, las horas vuelven a quedar disponibles para facturar.',
+        ],
+      },
+    ],
+  },
+  {
+    key: 'hasBankReconciliation',
+    title: 'Conciliación Bancaria',
+    route: '/dashboard/treasury/reconciliation',
+    topics: [
+      {
+        id: 'importar-cartola',
+        title: 'Importar la cartola del banco',
+        steps: [
+          'Descarga la cartola desde tu banco en Excel o CSV (cualquier banco chileno).',
+          'Ve a Finanzas → Conciliación Bancaria, elige la cuenta y haz clic en "Importar cartola". El sistema encuentra solo la tabla de movimientos.',
+          'Reimportar la misma cartola no duplica movimientos: los que ya estaban se reconocen y se omiten.',
+        ],
+      },
+      {
+        id: 'conciliar',
+        title: 'Conciliar cada movimiento',
+        steps: [
+          'Para cada movimiento pendiente el sistema sugiere el cobro o pago ya registrado que calza (mismo monto y fecha cercana), o la factura con ese saldo exacto.',
+          'Si no hay sugerencia, elige "Registrar como…": cobro o pago de una factura, comisión bancaria, otro ingreso u otro gasto. El movimiento de Tesorería y su asiento se crean en el mismo paso.',
+          '"Conciliar automáticamente" enlaza de una vez los calces claros; lo ambiguo lo decides tú. Un traspaso entre cuentas propias o un movimiento que no corresponde se marca "Ignorar".',
+        ],
+      },
+    ],
+  },
+  {
+    key: 'hasPublicApi',
+    title: 'API REST',
+    route: '/dashboard/settings/api',
+    topics: [
+      {
+        id: 'crear-llave',
+        title: 'Conectar mi tienda en línea u otra herramienta',
+        steps: [
+          'Ve a Configuración → API REST y crea una llave con solo los permisos que necesita la integración (por ejemplo: leer productos y stock y emitir ventas).',
+          'Copia la llave en ese momento: por seguridad no se vuelve a mostrar. Si la pierdes o se filtra, revócala y crea otra.',
+          'En la misma pantalla están los ejemplos para probarla y para emitir una boleta desde tu tienda (la cabecera Idempotency-Key evita boletas duplicadas si tu tienda reintenta).',
         ],
       },
     ],

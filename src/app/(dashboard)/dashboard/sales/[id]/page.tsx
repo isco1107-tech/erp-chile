@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, FileCheck2 } from 'lucide-react';
 import { getSalesDocumentAction } from '@/modules/sales/actions/sales.actions';
-import { DTE_TYPE_LABELS, PAYMENT_METHOD_LABELS } from '@/modules/sales/schema';
+import { CASH_ELIGIBLE_DTE_TYPES, DTE_TYPE_LABELS, PAYMENT_METHOD_LABELS } from '@/modules/sales/schema';
 import { formatCurrency } from '@/lib/chile/tax';
 import { formatRut } from '@/lib/chile/rut';
 import { isBoleta, isDte } from '@/lib/chile/dte/codes';
@@ -11,6 +11,11 @@ import PrintButton from '@/components/PrintButton';
 import { buttonVariants } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import DocumentPaymentsPanel from '@/components/treasury/DocumentPaymentsPanel';
+import DraftSalesActions from '@/components/sales/DraftSalesActions';
+import ConvertQuoteButton from '@/components/sales/ConvertQuoteButton';
+import InvoicePaymentLinkButton from '@/components/treasury/InvoicePaymentLinkButton';
+import { can, getAuthContext } from '@/lib/auth/guards';
+import { isKhipuConnected } from '@/modules/treasury/online/invoice-links.service';
 
 export const metadata = { title: 'Documento de Venta' };
 
@@ -40,8 +45,12 @@ export default async function SalesDocumentDetailPage({
   searchParams: Promise<{ cedible?: string }>;
 }) {
   const [{ id }, { cedible }] = await Promise.all([params, searchParams]);
-  const result = await getSalesDocumentAction(id);
+  const [result, context] = await Promise.all([getSalesDocumentAction(id), getAuthContext()]);
   if (!result.success) notFound();
+  const canWrite = can(context, 'sales:write');
+  // El link de pago registra el cobro en Tesorería: exige ese permiso y que
+  // la empresa haya conectado Khipu.
+  const canCollectOnline = can(context, 'treasury:write') && (await isKhipuConnected(context.companyId));
 
   const doc = result.data;
   const docLabel = DTE_TYPE_LABELS[doc.dteType];
@@ -72,6 +81,16 @@ export default async function SalesDocumentDetailPage({
             >
               <FileCheck2 aria-hidden="true" /> {esCedible ? 'Ver copia normal' : 'Copia cedible'}
             </Link>
+          )}
+          {doc.status === 'DRAFT' && canWrite && <DraftSalesActions documentId={doc.id} label={docLabel} />}
+          {doc.dteType === 'COTIZACION' && doc.status !== 'CANCELLED' && canWrite && <ConvertQuoteButton quoteId={doc.id} />}
+          {doc.status === 'ISSUED' && doc.paymentStatus !== 'PAID' && canCollectOnline && CASH_ELIGIBLE_DTE_TYPES.includes(doc.dteType) && (
+            <InvoicePaymentLinkButton
+              salesDocumentId={doc.id}
+              documentLabel={`${docLabel} N° ${doc.folio ?? '—'}`}
+              customerName={doc.contact.razonSocial}
+              customerPhone={doc.contact.phone}
+            />
           )}
           <PrintButton />
         </div>

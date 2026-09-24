@@ -17,6 +17,7 @@ import {
 } from '../online-payment-calc';
 import type { PublicInstallmentCheckoutInput } from '../schema';
 import { buildInstallmentReceiptPdf, receiptFilename } from './receipt-pdf.service';
+import { emitPaymentEvent, recordTreasuryMovement } from '@/modules/treasury/services/movements.service';
 
 /**
  * Pago en línea de cuotas/mensualidades de candidatas.
@@ -276,7 +277,12 @@ export async function createOnlinePaymentOrder(
           : null;
       const sameSelection =
         existing !== null && existing.items.length === ids.length && existing.items.every((item) => ids.includes(item.installmentId));
-      if (existing && sameSelection) return { order: existing, reused: true as const };
+      // Solo se reanuda la orden de la MISMA persona (mismo correo). El RUT de
+      // una candidata no es secreto: sin este chequeo, cualquiera que lo
+      // supiera recibía el `accessToken` de la orden ajena y con él, una vez
+      // pagada, el comprobante con nombre y correo de quien pagó.
+      const samePayer = existing !== null && existing.payerEmail === input.payerEmail.toLowerCase();
+      if (existing && sameSelection && samePayer) return { order: existing, reused: true as const };
 
       const busy = installments.find((i) => i.onlinePayments.length > 0);
       throw new InstallmentSelectionError(
@@ -364,7 +370,7 @@ export async function createOnlinePaymentOrder(
  * veces (notificación + página de estado a la vez) aplica el pago una sola
  * vez gracias al lock y al chequeo de estado dentro de `markOrderPaid`.
  */
-export async function syncOrderWithProvider(orderId: string): Promise<OnlinePaymentStatus> {
+export async function syncOrderWithProvider(orderId: string, opts: { throwOnProviderError?: boolean } = {}): Promise<OnlinePaymentStatus> {
   const order = await prisma.installmentPaymentOrder.findUnique({ where: { id: orderId } });
   if (!order) throw new Error('Orden de pago no encontrada');
   if (order.status === 'PAID') return 'PAID';
@@ -383,6 +389,10 @@ export async function syncOrderWithProvider(orderId: string): Promise<OnlinePaym
     payment = await getKhipuPayment(decryptPaymentCredential(settings.khipuApiCredential), order.providerPaymentId);
   } catch (error) {
     captureException(error, { module: 'cuotas-pago-en-linea', companyId: order.companyId, extra: { orderId, reason: 'khipu-get' } });
+    // Desde la notificación de Khipu el error se propaga: la ruta responde 500
+    // y Khipu reintenta. Tragárselo ahí dejaba un pago confirmado pendiente
+    // para siempre si el pagador ya había cerrado el navegador.
+    if (opts.throwOnProviderError) throw error;
     return order.status;
   }
 
@@ -474,10 +484,37 @@ async function markOrderPaid(orderId: string, companyId: string, payment: KhipuP
       },
     });
 
-    return { ...order, status: 'PAID' as const, paidAt: now, receiptNumber: seq.currentFolio, excessAmount: excess, payerBank: payment.bank ?? null };
+    // La transferencia completa ya está en el banco (incluido un eventual
+    // excedente, que se devuelve aparte): entra entera a Tesorería.
+    const plan = await tx.paymentPlan.findFirst({ where: { id: order.paymentPlanId, companyId }, select: { contactId: true, candidate: { select: { projectId: true } } } });
+    const treasuryPayment = await recordTreasuryMovement(tx, {
+      companyId,
+      direction: 'INCOME',
+      amount: order.amount,
+      method: 'TRANSFERENCIA',
+      date: now,
+      source: 'INSTALLMENT',
+      sourceId: order.paymentPlanId,
+      description: `Pago en línea de cuotas — comprobante N° ${seq.currentFolio} (${order.candidateName})`,
+      counterpartKey: 'COBROS_POR_DOCUMENTAR',
+      contactId: plan?.contactId ?? null,
+      projectId: plan?.candidate?.projectId ?? null,
+      referenceNumber: order.providerPaymentId,
+    });
+
+    return {
+      ...order,
+      status: 'PAID' as const,
+      paidAt: now,
+      receiptNumber: seq.currentFolio,
+      excessAmount: excess,
+      payerBank: payment.bank ?? null,
+      treasuryPayment,
+    };
   }, LOCKING_TX_OPTIONS);
 
   if (!paid) return;
+  emitPaymentEvent(companyId, paid.treasuryPayment);
 
   if (paid.excessAmount > 0) {
     captureMessage('cuotas-pago-en-linea:pago-excedente', 'warn', {
@@ -567,7 +604,7 @@ export async function handleKhipuNotification(paymentId: string): Promise<'proce
     select: { id: true },
   });
   if (!order) return 'unknown';
-  await syncOrderWithProvider(order.id);
+  await syncOrderWithProvider(order.id, { throwOnProviderError: true });
   return 'processed';
 }
 

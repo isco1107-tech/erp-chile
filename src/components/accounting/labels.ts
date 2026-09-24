@@ -9,6 +9,9 @@ export const SOURCE_LABELS: Record<JournalSourceType, string> = {
   MANUAL: 'Manual',
   OPENING: 'Apertura',
   CLOSING: 'Cierre',
+  PAYROLL: 'Remuneraciones',
+  FEE_DOCUMENT: 'Honorarios',
+  EXPENSE_REPORT: 'Rendición',
 };
 
 /** Enlace al documento que originó el asiento, cuando existe una pantalla para verlo. */
@@ -16,6 +19,9 @@ export function sourceHref(sourceType: JournalSourceType, sourceId: string | nul
   if (!sourceId) return null;
   if (sourceType === 'SALES_DOCUMENT') return `/dashboard/sales/${sourceId}`;
   if (sourceType === 'PURCHASE_DOCUMENT') return `/dashboard/purchases/${sourceId}`;
+  if (sourceType === 'PAYROLL') return `/dashboard/hr/payroll/${sourceId}`;
+  if (sourceType === 'FEE_DOCUMENT') return `/dashboard/fees/${sourceId}`;
+  if (sourceType === 'EXPENSE_REPORT') return `/dashboard/expenses`;
   return null;
 }
 

@@ -13,6 +13,12 @@ export interface F29Result {
   netSales: number;
   /** Retención de honorarios (2ª categoría) del período. Obligación aparte del IVA/PPM, NO forma parte de `determinedTax`. */
   honorariumRetentionAmount: number;
+  /**
+   * Impuesto Único de 2ª categoría retenido en las liquidaciones del mes
+   * (código 48). Solo de períodos de remuneraciones CERRADOS: un borrador
+   * todavía puede recalcularse. Tampoco forma parte de `determinedTax`.
+   */
+  employeeIncomeTaxAmount: number;
 }
 
 function periodBounds(year: number, month: number): { from: Date; to: Date } {
@@ -29,7 +35,7 @@ export async function calculateAndStoreF29(companyId: string, year: number, mont
   const { from, to } = periodBounds(year, month);
   const previousPeriod = month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 };
 
-  const [settings, previous, sales, purchases, feeDocuments] = await Promise.all([
+  const [settings, previous, sales, purchases, feeDocuments, payroll] = await Promise.all([
     prisma.companySettings.findUnique({ where: { companyId } }),
     prisma.taxPeriod.findUnique({ where: { companyId_year_month: { companyId, ...previousPeriod } } }),
     prisma.salesDocument.findMany({
@@ -57,6 +63,12 @@ export async function calculateAndStoreF29(companyId: string, year: number, mont
       where: { companyId, status: 'ISSUED', paymentStatus: 'PAID', paymentDate: { gte: from, lt: to } },
       select: { retentionAmount: true },
     }),
+    // El impuesto único se retiene en la liquidación del mes que se paga:
+    // período de remuneraciones del mismo año/mes, ya cerrado.
+    prisma.payslip.aggregate({
+      where: { companyId, period: { year, month, status: 'CLOSED' } },
+      _sum: { incomeTax: true },
+    }),
   ]);
 
   const debitVat = sales.reduce((sum, document) => sum + signForSalesDteType(document.dteType) * document.ivaAmount, 0);
@@ -76,6 +88,7 @@ export async function calculateAndStoreF29(companyId: string, year: number, mont
   const determinedTax = Math.max(0, taxableBeforePpm) + ppmAmount;
   // Obligación de 2ª categoría, separada del IVA/PPM: NO se suma a `determinedTax`.
   const honorariumRetentionAmount = feeDocuments.reduce((sum, d) => sum + d.retentionAmount, 0);
+  const employeeIncomeTaxAmount = payroll._sum.incomeTax ?? 0;
 
   const result: F29Result = {
     year,
@@ -88,6 +101,7 @@ export async function calculateAndStoreF29(companyId: string, year: number, mont
     determinedTax,
     netSales,
     honorariumRetentionAmount,
+    employeeIncomeTaxAmount,
   };
 
   const persisted = {
@@ -100,6 +114,7 @@ export async function calculateAndStoreF29(companyId: string, year: number, mont
     ppmAmount,
     determinedTax,
     honorariumRetentionAmount,
+    employeeIncomeTaxAmount,
   };
 
   await prisma.taxPeriod.upsert({

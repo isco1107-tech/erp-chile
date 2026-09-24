@@ -22,7 +22,15 @@ jest.mock('@/lib/email/mailer', () => ({
 // are done").
 jest.mock('@/lib/workflows/engine', () => ({ emitWorkflowEvent: jest.fn() }));
 
+// Tesorería se prueba aparte (treasury-movements.test.ts); acá solo importa que
+// la confirmación le pase a Tesorería lo que había y lo que queda pagado.
+jest.mock('@/modules/treasury/services/movements.service', () => ({
+  recordPaidAmountChange: jest.fn().mockResolvedValue(null),
+  emitPaymentEvent: jest.fn(),
+}));
+
 import { sendEmail } from '@/lib/email/mailer';
+import { recordPaidAmountChange } from '@/modules/treasury/services/movements.service';
 import {
   createPublicTicketOrder,
   confirmTicketPayment,
@@ -44,6 +52,16 @@ interface TicketTypeStub {
   salesOpen: boolean;
   quantityAvailable: number | null;
   sales: Array<{ quantity: number }>;
+}
+
+/**
+ * Simula `$transaction` para los servicios que operan con lock: el callback
+ * recibe los mismos delegados ya espiados sobre `prisma`, más un `$queryRaw`
+ * mudo para el `SELECT ... FOR UPDATE`.
+ */
+function mockTransactionWith(delegates: Record<string, unknown>) {
+  jest.spyOn(prisma, '$transaction').mockImplementation((async (callback: unknown) =>
+    (callback as (client: unknown) => Promise<unknown>)({ $queryRaw: async () => [], ...delegates })) as never);
 }
 
 /** Simula la transacción: ejecuta el callback con un cliente falso. */
@@ -209,6 +227,7 @@ describe('Confirmación de pago de entradas', () => {
       return { count: 1 };
     }) as never);
     jest.spyOn(prisma.company, 'findUnique').mockResolvedValue({ businessName: 'Productora' } as never);
+    mockTransactionWith({ ticketSale: prisma.ticketSale });
 
     return actualizado;
   }
@@ -216,12 +235,22 @@ describe('Confirmación de pago de entradas', () => {
   beforeEach(() => {
     jest.restoreAllMocks();
     (sendEmail as jest.Mock).mockClear();
+    (recordPaidAmountChange as jest.Mock).mockClear();
   });
 
   it('deriva el estado del pago en el servidor, no del formulario', async () => {
     const actualizado = mockSale();
     await confirmTicketPayment('cmp_1', 'venta_1', { paidAmount: 24000 } as never);
     expect(actualizado[0].paymentStatus).toBe('PAID');
+  });
+
+  it('registra en Tesorería solo la diferencia con lo ya pagado', async () => {
+    mockSale({ paidAmount: 10000, paymentStatus: 'PARTIAL' });
+    await confirmTicketPayment('cmp_1', 'venta_1', { paidAmount: 24000, paymentMethod: 'EFECTIVO' } as never);
+    expect(recordPaidAmountChange).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ companyId: 'cmp_1', previousPaid: 10000, newPaid: 24000, method: 'EFECTIVO', source: 'TICKET_SALE', counterpartKey: 'COBROS_POR_DOCUMENTAR' })
+    );
   });
 
   it('marca PARTIAL un abono y UNPAID un monto cero', async () => {
@@ -409,6 +438,7 @@ describe('Confirmación de pago de votos', () => {
       return { count: 1 };
     }) as never);
     jest.spyOn(prisma.company, 'findUnique').mockResolvedValue({ businessName: 'Productora' } as never);
+    mockTransactionWith({ voteOrder: prisma.voteOrder });
     return actualizado;
   }
 

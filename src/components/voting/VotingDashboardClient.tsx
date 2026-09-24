@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Trophy, Vote, Wallet } from 'lucide-react';
+import PaymentChannelFields, { DEFAULT_PAYMENT_CHANNEL } from '@/components/treasury/PaymentChannelFields';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { CurrencyInput } from '@/components/ui/CurrencyInput';
@@ -31,6 +32,7 @@ export default function VotingDashboardClient({ canWrite }: { canWrite: boolean 
   const [loading, setLoading] = useState(true);
   const [paymentOrder, setPaymentOrder] = useState<VoteOrderWithCandidate | null>(null);
   const [paidAmount, setPaidAmount] = useState(0);
+  const [paymentChannel, setPaymentChannel] = useState(DEFAULT_PAYMENT_CHANNEL);
   const [savingPayment, setSavingPayment] = useState(false);
 
   useEffect(() => {
@@ -74,7 +76,11 @@ export default function VotingDashboardClient({ canWrite }: { canWrite: boolean 
     if (!paymentOrder) return;
     setSavingPayment(true);
     try {
-      const result = await confirmVotePaymentAction(paymentOrder.id, { paidAmount });
+      const result = await confirmVotePaymentAction(paymentOrder.id, {
+        paidAmount,
+        paymentMethod: paymentChannel.paymentMethod,
+        treasuryAccountId: paymentChannel.treasuryAccountId || undefined,
+      });
       if (!result.success) {
         toast.error(result.error);
         return;
@@ -174,6 +180,9 @@ export default function VotingDashboardClient({ canWrite }: { canWrite: boolean 
               <Label htmlFor="paid-amount">Monto pagado (CLP)</Label>
               <CurrencyInput id="paid-amount" value={paidAmount} onChange={setPaidAmount} />
             </div>
+            {paymentOrder && paidAmount !== paymentOrder.paidAmount && (
+              <PaymentChannelFields context="voting" value={paymentChannel} onChange={setPaymentChannel} idPrefix="vote" />
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPaymentOrder(null)} disabled={savingPayment}>Cancelar</Button>

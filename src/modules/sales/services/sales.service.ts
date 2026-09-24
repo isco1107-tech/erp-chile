@@ -12,6 +12,7 @@ import type {
 } from '@prisma/client';
 import { applyStockIn, applyStockOut } from '@/modules/inventory/services/stock.service';
 import { getContactOutstandingBalance } from '@/modules/treasury/services/treasury.service';
+import { defaultTreasuryAccountId } from '@/modules/treasury/services/movements.service';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import type { WorkflowEventPayload } from '@/lib/workflows/types';
@@ -19,7 +20,7 @@ import { postCreditNoteIssued, postSalesDocumentIssued, reverseSalesDocumentPost
 import { isExemptDocument, siiCode } from '@/lib/chile/dte/codes';
 import { assignSalesFolio, stampDocument, type FolioAssignment } from '@/modules/dte/services/stamping.service';
 import { computeDocument, exceedsCreditLimit } from '../calc';
-import { CASH_ELIGIBLE_DTE_TYPES, DTE_TYPE_LABELS, NON_FOLIO_DTE_TYPES, STOCK_AFFECTING_DTE_TYPES } from '../schema';
+import { CASH_ELIGIBLE_DTE_TYPES, DTE_TYPE_LABELS, NON_FOLIO_DTE_TYPES, STOCK_AFFECTING_DTE_TYPES, salesDocumentCreateSchema } from '../schema';
 import type { SalesDocumentCreateInput } from '../schema';
 
 export type SalesDocumentWithItems = SalesDocument & { items: SalesDocumentItem[] };
@@ -30,10 +31,21 @@ export type SalesDocumentWithRelations = SalesDocument & {
   company: Company;
 };
 
+export interface CreateSalesDocumentOptions {
+  /**
+   * Emite a partir de un borrador existente: dentro de la MISMA transacción se
+   * crea el documento emitido, se traspasan al nuevo los vínculos que
+   * apuntaban al borrador (facturación de contrato, horas facturadas) y se
+   * elimina el borrador. O pasa todo o no pasa nada.
+   */
+  replaceDraftId?: string;
+}
+
 export async function createSalesDocument(
   companyId: string,
   input: SalesDocumentCreateInput,
-  status: 'DRAFT' | 'ISSUED'
+  status: 'DRAFT' | 'ISSUED',
+  opts: CreateSalesDocumentOptions = {}
 ): Promise<SalesDocumentWithItems> {
   // Capturado dentro de la transacción, emitido recién después de que
   // confirme (ver el final de la función): una automatización que envía
@@ -44,6 +56,16 @@ export async function createSalesDocument(
   let emittedSalePayload: WorkflowEventPayload | null = null;
 
   const result = await prisma.$transaction(async (tx) => {
+    if (opts.replaceDraftId) {
+      // Lock del borrador: dos clics en "Emitir" no pueden emitir dos veces.
+      await tx.$queryRaw`SELECT id FROM "SalesDocument" WHERE id = ${opts.replaceDraftId} AND "companyId" = ${companyId} FOR UPDATE`;
+      const draft = await tx.salesDocument.findFirst({ where: { id: opts.replaceDraftId, companyId }, select: { status: true } });
+      if (!draft || draft.status !== 'DRAFT') throw new Error('El borrador ya fue emitido o eliminado');
+      // Su llave de idempotencia pasa al documento emitido (p. ej. la de un
+      // contrato recurrente, así el cron no vuelve a facturar ese período).
+      await tx.salesDocument.updateMany({ where: { id: opts.replaceDraftId, companyId }, data: { idempotencyKey: null } });
+    }
+
     if (input.idempotencyKey) {
       const existing = await tx.salesDocument.findUnique({
         where: { companyId_idempotencyKey: { companyId, idempotencyKey: input.idempotencyKey } },
@@ -354,6 +376,12 @@ export async function createSalesDocument(
       include: { items: true },
     });
 
+    if (opts.replaceDraftId) {
+      await tx.serviceContractBilling.updateMany({ where: { companyId, salesDocumentId: opts.replaceDraftId }, data: { salesDocumentId: created.id } });
+      await tx.timeEntry.updateMany({ where: { companyId, salesDocumentId: opts.replaceDraftId }, data: { salesDocumentId: created.id } });
+      await tx.salesDocument.deleteMany({ where: { id: opts.replaceDraftId, companyId, status: 'DRAFT' } });
+    }
+
     if (isIssuing && input.dteType !== 'COTIZACION') {
       emittedSalePayload = {
         documentId: created.id,
@@ -370,8 +398,17 @@ export async function createSalesDocument(
     // El asiento nace junto con el documento, dentro de esta misma
     // transacción: si falla, la venta no se emite. Las Notas de Crédito
     // postean aparte, más abajo, con su propia regla de reverso.
+    // La cuenta de Tesorería del cobro al contado se decide una vez: la usan
+    // tanto el asiento de la venta como el `Payment` de más abajo.
+    const cashMethod = input.paymentMethod === 'CREDITO_30' ? null : input.paymentMethod;
+    const paysNow = isImmediatePayment && cashMethod !== null && CASH_ELIGIBLE_DTE_TYPES.includes(input.dteType);
+    const cashTreasuryAccountId = paysNow ? await defaultTreasuryAccountId(tx, companyId, cashMethod) : null;
     if (isIssuing && !isCreditNote) {
-      await postSalesDocumentIssued(tx, companyId, created, costedItemsForAccounting, { isImmediatePayment, affectsStock });
+      await postSalesDocumentIssued(tx, companyId, created, costedItemsForAccounting, {
+        isImmediatePayment,
+        affectsStock,
+        money: paysNow ? { paymentMethod: cashMethod, treasuryAccountId: cashTreasuryAccountId } : undefined,
+      });
     }
 
     // Espejo de `pos.service.ts`: una venta al contado que nace pagada debe
@@ -383,7 +420,7 @@ export async function createSalesDocument(
     // contado NO debe generar su propio `Payment` porque la Factura que la
     // formaliza después ya registra el cobro real — sin este filtro, el mismo
     // dinero quedaría contado dos veces. Una Cotización tampoco es una venta.
-    if (isImmediatePayment && CASH_ELIGIBLE_DTE_TYPES.includes(input.dteType) && input.paymentMethod !== 'CREDITO_30') {
+    if (paysNow) {
       await tx.payment.create({
         data: {
           companyId,
@@ -391,8 +428,11 @@ export async function createSalesDocument(
           contactId: input.contactId,
           salesDocumentId: created.id,
           amount: totalAmount,
-          paymentMethod: input.paymentMethod,
+          paymentMethod: cashMethod,
           notes: `DTE ${dteLabel} Folio #${folio ?? '-'}`,
+          // La caja/banco por defecto del medio de pago: así el cobro al
+          // contado suma al saldo de esa cuenta en Tesorería.
+          treasuryAccountId: cashTreasuryAccountId,
         },
       });
     }
@@ -565,6 +605,71 @@ export async function cancelSalesDocument(companyId: string, id: string, reason?
   }
 
   return cancelResult;
+}
+
+/**
+ * Emite un borrador. Antes un borrador guardado no tenía cómo emitirse (solo
+ * duplicarse como otro borrador); ahora pasa por exactamente el mismo camino
+ * que una emisión directa (folio/CAF, timbre, stock, asiento, cobro al
+ * contado), con los montos recalculados desde el catálogo vigente.
+ */
+export async function issueDraftSalesDocument(companyId: string, draftId: string): Promise<SalesDocumentWithItems> {
+  const draft = await prisma.salesDocument.findFirst({ where: { id: draftId, companyId, status: 'DRAFT' }, include: { items: true } });
+  if (!draft) throw new Error('El borrador no existe o ya fue emitido');
+  const input: SalesDocumentCreateInput = {
+    contactId: draft.contactId,
+    warehouseId: draft.warehouseId,
+    dteType: draft.dteType,
+    paymentMethod: draft.paymentMethod as SalesDocumentCreateInput['paymentMethod'],
+    dueDate: draft.dueDate ? draft.dueDate.toISOString() : undefined,
+    referenceFolio: draft.referenceFolio ?? undefined,
+    referenceType: draft.referenceType ?? undefined,
+    notes: draft.notes ?? undefined,
+    idempotencyKey: draft.idempotencyKey ?? undefined,
+    items: draft.items.map((item) => ({
+      productId: item.productId ?? undefined,
+      sku: item.sku ?? undefined,
+      description: item.description,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      isExempt: item.isExempt,
+      discountPercent: item.discountPercent ?? undefined,
+    })),
+  };
+  const parsed = salesDocumentCreateSchema.safeParse(input);
+  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? 'El borrador tiene datos incompletos: edítalo antes de emitir');
+  return createSalesDocument(companyId, parsed.data, 'ISSUED', { replaceDraftId: draft.id });
+}
+
+/**
+ * Un borrador no es un documento tributario: se puede eliminar sin anularlo.
+ * Las horas que se facturaban en él vuelven a quedar disponibles, y la
+ * facturación de contrato que lo generó queda anotada como no emitida.
+ */
+/**
+ * `onlyIfUnreferenced`: para deshacer un borrador recién armado por otro
+ * módulo sin llevarse por delante horas o períodos que una solicitud
+ * concurrente ya haya ligado a él (en ese caso el borrador se conserva).
+ */
+export async function deleteDraftSalesDocument(companyId: string, draftId: string, opts: { onlyIfUnreferenced?: boolean } = {}): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "SalesDocument" WHERE id = ${draftId} AND "companyId" = ${companyId} FOR UPDATE`;
+    const draft = await tx.salesDocument.findFirst({ where: { id: draftId, companyId }, select: { status: true } });
+    if (!draft || draft.status !== 'DRAFT') throw new Error('Solo se pueden eliminar borradores');
+    if (opts.onlyIfUnreferenced) {
+      const [entries, billings] = await Promise.all([
+        tx.timeEntry.count({ where: { companyId, salesDocumentId: draftId } }),
+        tx.serviceContractBilling.count({ where: { companyId, salesDocumentId: draftId } }),
+      ]);
+      if (entries > 0 || billings > 0) return;
+    }
+    await tx.timeEntry.updateMany({ where: { companyId, salesDocumentId: draftId }, data: { status: 'OPEN', salesDocumentId: null } });
+    await tx.serviceContractBilling.updateMany({
+      where: { companyId, salesDocumentId: draftId },
+      data: { status: 'FAILED', salesDocumentId: null, errorMessage: 'El borrador se eliminó sin emitir' },
+    });
+    await tx.salesDocument.deleteMany({ where: { id: draftId, companyId, status: 'DRAFT' } });
+  }, LOCKING_TX_OPTIONS);
 }
 
 export async function duplicateSalesDocument(companyId: string, id: string): Promise<SalesDocumentWithItems> {

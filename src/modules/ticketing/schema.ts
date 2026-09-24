@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { paidAmountMoneyFields } from '@/modules/treasury/schema';
 
 /**
  * Módulo "Venta de Entradas" (`hasTicketing`). Sin pasarela de pago: el
@@ -42,6 +43,7 @@ export const TICKET_PURCHASE_HONEYPOT_FIELD = 'website';
 /** Confirmación de pago manual desde el panel interno (`ticketing:write`). */
 export const confirmTicketPaymentSchema = z.object({
   paidAmount: z.number().int('El monto debe ser un número entero').nonnegative('El monto no puede ser negativo'),
+  ...paidAmountMoneyFields,
 });
 
 export type ConfirmTicketPaymentInput = z.infer<typeof confirmTicketPaymentSchema>;

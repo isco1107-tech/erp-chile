@@ -192,9 +192,16 @@ export function computePayslip(employee: PayrollEmployeeInput, variables: Payrol
   const indefinite = employee.contractType === 'INDEFINIDO';
   const unemploymentEmployee = indefinite ? bps(cappedUnemployment, UNEMPLOYMENT_WORKER_INDEFINITE_BPS) : 0;
 
-  // Solo el 7% legal rebaja la base del impuesto: el adicional voluntario de
-  // la Isapre no es cotización obligatoria.
-  const taxBase = Math.max(0, taxableIncome - pensionAmount - Math.min(healthAmount, legalHealth) - unemploymentEmployee);
+  // Rebaja de salud en la base del impuesto único: lo efectivamente cotizado
+  // (plan de Isapre incluido), con tope en el 7% calculado sobre el tope
+  // imponible vigente del período (art. 42 N°1 LIR; criterio SII, Oficio
+  // 2406/2016). Las "4,2 UF" que se citan a veces son ese 7% cuando el tope
+  // imponible era 60 UF: el límite se mueve con el tope, no es fijo. Antes se
+  // rebajaba solo el 7% del sueldo y un plan de Isapre sobre el 7% pagaba más
+  // impuesto del que corresponde.
+  const healthTaxCap = bps(Math.round(params.taxableCapUf * params.ufValue), HEALTH_BPS);
+  const deductibleHealth = Math.max(legalHealth, Math.min(healthAmount, healthTaxCap));
+  const taxBase = Math.max(0, taxableIncome - pensionAmount - deductibleHealth - unemploymentEmployee);
   const tax = incomeTax(taxBase, params.utmValue);
 
   const mealAllowance = Math.round(employee.mealAllowance * dayFactor);

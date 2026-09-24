@@ -56,6 +56,12 @@ import {
   Globe,
   Layers,
   Sparkles,
+  Vault,
+  ArrowLeftRight,
+  Repeat,
+  Timer,
+  Inbox,
+  Split,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -119,6 +125,12 @@ export const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   pageantSite: Globe,
   packages: Layers,
   casting: Sparkles,
+  bankAccounts: Vault,
+  bankReconciliation: ArrowLeftRight,
+  contracts: Repeat,
+  timesheets: Timer,
+  inbox: Inbox,
+  mappings: Split,
 };
 
 

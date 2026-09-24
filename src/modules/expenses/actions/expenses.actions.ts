@@ -8,6 +8,8 @@ import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import { expenseItemSchema, expenseReimburseSchema, expenseReportSchema, expenseReviewSchema } from '../schema';
 import * as expensesService from '../services/expenses.service';
 import type { ExpenseReportDetail, ExpenseReportRow, ExpensesSummary, Viewer } from '../services/expenses.service';
+import { emitPaymentEvent } from '@/modules/treasury/services/movements.service';
+import { listTreasuryAccountOptions, type TreasuryAccountOption } from '@/modules/treasury/services/accounts.service';
 
 export type ActionResult<T> =
   | { success: true; data: T; message?: string }
@@ -36,20 +38,24 @@ export interface ExpensesBoard {
   currentUserId: string;
   canApprove: boolean;
   canReimburse: boolean;
+  /** Cajas/bancos para elegir desde dónde sale el reembolso (vacío si no puede reembolsar). */
+  treasuryAccounts: TreasuryAccountOption[];
 }
 
 export async function getExpensesBoardAction(): Promise<ActionResult<ExpensesBoard>> {
   try {
     const session = await requireAuthWithPermission('expenses:submit');
     const viewer = viewerOf(session);
-    const [reports, summary, projects] = await Promise.all([
+    const canReimburse = can(session, 'expenses:reimburse');
+    const [reports, summary, projects, treasuryAccounts] = await Promise.all([
       expensesService.listReports(session.companyId, viewer),
       expensesService.getExpensesSummary(session.companyId, viewer),
       session.features.hasEventProjects ? expensesService.listProjectOptions(session.companyId) : Promise.resolve([]),
+      canReimburse ? listTreasuryAccountOptions(session.companyId) : Promise.resolve([]),
     ]);
     return {
       success: true,
-      data: { reports, summary, projects, currentUserId: session.id, canApprove: can(session, 'expenses:approve'), canReimburse: can(session, 'expenses:reimburse') },
+      data: { reports, summary, projects, currentUserId: session.id, canApprove: can(session, 'expenses:approve'), canReimburse, treasuryAccounts },
     };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
@@ -159,7 +165,8 @@ export async function reimburseExpenseReportAction(reportId: string, input: unkn
     const session = await requireAuthWithPermission('expenses:reimburse');
     const parsed = expenseReimburseSchema.safeParse(input);
     if (!parsed.success) return { success: false, error: firstIssue(parsed.error) };
-    await expensesService.reimburseReport(session.companyId, reportId, parsed.data.reference);
+    const payment = await expensesService.reimburseReport(session.companyId, reportId, parsed.data, session.id);
+    emitPaymentEvent(session.companyId, payment);
     await createAuditLog({
       companyId: session.companyId,
       userId: session.id,
@@ -167,7 +174,7 @@ export async function reimburseExpenseReportAction(reportId: string, input: unkn
       action: 'UPDATE',
       entity: 'ExpenseReport',
       entityId: reportId,
-      metadata: { status: 'REIMBURSED', reference: parsed.data.reference },
+      metadata: { status: 'REIMBURSED', reference: parsed.data.referenceNumber ?? null, paymentId: payment.id },
     });
     revalidateExpenses();
     return { success: true, data: null, message: 'Reembolso registrado' };

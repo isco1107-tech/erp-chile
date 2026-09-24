@@ -171,7 +171,7 @@ export async function confirmTicketPaymentAction(id: string, input: unknown): Pr
     const parsed = confirmTicketPaymentSchema.safeParse(input);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
 
-    const data = await ticketingService.confirmTicketPayment(session.companyId, id, parsed.data);
+    const data = await ticketingService.confirmTicketPayment(session.companyId, id, parsed.data, session.id);
     await createAuditLog({
       companyId: session.companyId,
       userId: session.id,

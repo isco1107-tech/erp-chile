@@ -39,6 +39,10 @@
     {
       "path": "/api/reports/weekly/cron",
       "schedule": "0 8 * * 1"
+    },
+    {
+      "path": "/api/contracts/billing/cron",
+      "schedule": "0 10 * * *"
     }
   ]
 }

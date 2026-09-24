@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { validateRut } from '@/lib/chile/rut';
+import { moneyDetailsSchema } from '@/modules/treasury/schema';
 
 export const EXPENSE_CATEGORIES = [
   'Transporte',
@@ -67,9 +68,8 @@ export const expenseReviewSchema = z
     path: ['notes'],
   });
 
-export const expenseReimburseSchema = z.object({
-  reference: optionalText(120),
-});
+/** El reembolso es un egreso de Tesorería: medio, caja/banco, fecha y comprobante. */
+export const expenseReimburseSchema = moneyDetailsSchema;
 
 export type ExpenseReportInput = z.infer<typeof expenseReportSchema>;
 export type ExpenseItemInput = z.infer<typeof expenseItemSchema>;

@@ -230,7 +230,8 @@ export async function getRadiography(companyId: string, options: { hasPayroll: b
       bucket.grossProfit += revenue - cost;
     }
     debitVatByMonth.set(key, (debitVatByMonth.get(key) ?? 0) + sign * doc.ivaAmount);
-    netByMonth.set(key, (netByMonth.get(key) ?? 0) + sign * doc.netAmount);
+    // Base del PPM = ventas netas afectas + exentas, igual que el motor F29 (`f29.ts`).
+    netByMonth.set(key, (netByMonth.get(key) ?? 0) + sign * (doc.netAmount + doc.exemptAmount));
     netSales12m += revenue;
     cost12m += cost;
     gross12m += sign * doc.totalAmount;

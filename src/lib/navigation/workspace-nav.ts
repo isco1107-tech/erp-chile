@@ -70,7 +70,13 @@ export type NavIconKey =
   | 'payroll'
   | 'leave'
   | 'fixedAssets'
-  | 'expenses';
+  | 'expenses'
+  | 'bankAccounts'
+  | 'bankReconciliation'
+  | 'contracts'
+  | 'timesheets'
+  | 'inbox'
+  | 'mappings';
 
 export interface NavLink {
   /** Identificador estable (ver comentario del archivo). */
@@ -114,6 +120,21 @@ const SETTINGS_PERMISSIONS: Permission[] = [
   'dte:manage_caf',
   'automation:manage',
   'import:data',
+  'api:manage',
+];
+
+/** Permisos que alimentan algún bloque de la bandeja de Pendientes. */
+export const INBOX_PERMISSIONS: Permission[] = [
+  'treasury:read',
+  'purchases:approve',
+  'expenses:approve',
+  'expenses:reimburse',
+  'leave:approve',
+  'payroll:read',
+  'contracts:read',
+  'bank:reconcile',
+  'paymentplans:read',
+  'sales:write',
 ];
 
 /**
@@ -129,6 +150,11 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
   };
 
   const principal: NavLink[] = [{ id: 'home', href: '/dashboard', label: 'Inicio', icon: 'home', exact: true, keywords: ['dashboard', 'panel', 'resumen'] }];
+  // La bandeja reúne pendientes de varios módulos; aparece si el usuario puede
+  // ver al menos una fuente (cada bloque vuelve a exigir su permiso).
+  if (INBOX_PERMISSIONS.some(allow)) {
+    principal.push({ id: 'inbox', href: '/dashboard/inbox', label: 'Pendientes', icon: 'inbox', keywords: ['tareas', 'aprobar', 'por hacer', 'bandeja', 'alertas', 'vencidos'] });
+  }
   if (features.hasPos && allow('pos:operate')) {
     principal.push({ id: 'pos', href: '/dashboard/pos', label: 'Punto de Venta', icon: 'pos', keywords: ['pos', 'caja', 'boleta'] });
   }
@@ -179,6 +205,15 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
   }
   push('Ventas', ventas);
 
+  const servicios: NavLink[] = [];
+  if (features.hasServiceContracts && allow('contracts:read')) {
+    servicios.push({ id: 'service-contracts', href: '/dashboard/contracts', label: 'Contratos Recurrentes', icon: 'contracts', keywords: ['suscripcion', 'iguala', 'mensualidad', 'facturacion recurrente', 'arriendo', 'mantencion', 'contrato'] });
+  }
+  if (features.hasTimesheets && allow('timesheets:log')) {
+    servicios.push({ id: 'timesheets', href: '/dashboard/timesheets', label: 'Control de Horas', icon: 'timesheets', keywords: ['horas', 'timesheet', 'tiempo', 'facturar horas', 'bitacora'] });
+  }
+  push('Servicios', servicios);
+
   if (features.hasPurchases && allow('purchases:read')) {
     push('Compras', [
       { id: 'purchases', href: '/dashboard/purchases', label: 'Compras', icon: 'purchases', keywords: ['factura de compra', 'proveedor'] },
@@ -191,8 +226,12 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
     finanzas.push(
       { id: 'treasury-cxc', href: '/dashboard/treasury/cxc', label: 'Cuentas por Cobrar', icon: 'cxc', keywords: ['cobranza', 'deudores', 'morosos'] },
       { id: 'treasury-cxp', href: '/dashboard/treasury/cxp', label: 'Cuentas por Pagar', icon: 'cxp', keywords: ['pagos', 'acreedores'] },
-      { id: 'treasury-cashflow', href: '/dashboard/treasury/cashflow', label: 'Flujo de Caja', icon: 'cashflow', keywords: ['caja', 'tesoreria'] }
+      { id: 'treasury-cashflow', href: '/dashboard/treasury/cashflow', label: 'Flujo de Caja', icon: 'cashflow', keywords: ['caja', 'tesoreria'] },
+      { id: 'treasury-accounts', href: '/dashboard/treasury/accounts', label: 'Cajas & Bancos', icon: 'bankAccounts', keywords: ['banco', 'cuenta corriente', 'saldo', 'caja chica'] }
     );
+  }
+  if (features.hasBankReconciliation && allow('bank:reconcile')) {
+    finanzas.push({ id: 'bank-reconciliation', href: '/dashboard/treasury/reconciliation', label: 'Conciliación Bancaria', icon: 'bankReconciliation', keywords: ['cartola', 'banco', 'conciliar', 'extracto'] });
   }
   if (features.hasAdvancedReports && allow('reports:read')) {
     finanzas.push(
@@ -229,6 +268,9 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
         { id: 'accounting-trial-balance', href: '/dashboard/accounting/trial-balance', label: 'Balance de Comprobación', icon: 'trialBalance', keywords: ['8 columnas', 'balance tributario', 'sumas y saldos'] },
         { id: 'accounting-reconciliation', href: '/dashboard/accounting/reconciliation', label: 'Cuadraturas', icon: 'reconciliation', keywords: ['conciliacion', 'cuadrar', 'control'] }
       );
+    }
+    if (allow('accounting:manage_accounts')) {
+      contabilidad.push({ id: 'accounting-mappings', href: '/dashboard/accounting/mappings', label: 'Cuentas del Sistema', icon: 'mappings', keywords: ['mapeo', 'plan de cuentas', 'integracion contable', 'cuentas automaticas'] });
     }
     push('Contabilidad', contabilidad);
   }

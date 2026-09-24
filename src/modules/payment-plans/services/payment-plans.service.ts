@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
-import type { Contact, PaymentMethodType, PaymentPlan, PaymentPlanInstallment, PaymentStatus, Prisma } from '@prisma/client';
+import type { Contact, Payment, PaymentMethodType, PaymentPlan, PaymentPlanInstallment, PaymentStatus, Prisma } from '@prisma/client';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
+import { recordTreasuryMovement } from '@/modules/treasury/services/movements.service';
 import { computeDueDate, distributeInstallmentAmounts } from '../calc';
 import type { PaymentPlanCreateInput, PaymentPlanUpdateInput } from '../schema';
 
@@ -154,18 +155,30 @@ export async function getPaymentPlan(companyId: string, id: string): Promise<Pay
  * concurrentes sobre la misma cuota leían el mismo `paidAmount` y el segundo
  * pisaba al primero.
  */
+/**
+ * Registra el pago (total o parcial) de una cuota. El dinero entra a
+ * Tesorería en la misma transacción (fuente `INSTALLMENT`, contra
+ * `COBROS_POR_DOCUMENTAR`): la cuota por sí sola no es un documento
+ * tributario, así que el ingreso no se reconoce como venta hasta que se emita
+ * la boleta o factura correspondiente.
+ */
 export async function registerInstallmentPayment(
   companyId: string,
   installmentId: string,
   amount: number,
   method: PaymentMethodType,
-  date?: Date
-): Promise<PaymentPlanInstallment> {
+  date?: Date,
+  extra: { treasuryAccountId?: string; referenceNumber?: string; userId?: string } = {}
+): Promise<{ installment: PaymentPlanInstallment; payment: Payment }> {
   return prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "PaymentPlanInstallment" WHERE id = ${installmentId} AND "companyId" = ${companyId} FOR UPDATE`;
 
-    const installment = await tx.paymentPlanInstallment.findFirst({ where: { id: installmentId, companyId } });
+    const installment = await tx.paymentPlanInstallment.findFirst({
+      where: { id: installmentId, companyId },
+      include: { paymentPlan: { select: { contactId: true, status: true, candidate: { select: { projectId: true, fullName: true } } } } },
+    });
     if (!installment) throw new Error('Cuota no encontrada');
+    if (installment.paymentPlan.status === 'CANCELLED') throw new Error('El plan está anulado: no admite nuevos pagos');
 
     const pendingBalance = installment.amount - installment.paidAmount;
     if (amount > pendingBalance) throw new Error('El monto pagado supera el saldo pendiente de la cuota');
@@ -183,11 +196,22 @@ export async function registerInstallmentPayment(
       },
     });
 
-    // método de pago (`method`) y `date` quedan registrados en la propia cuota
-    // vía `paidAt`; este módulo no crea un `Payment` de tesorería aparte
-    // (el plan de cuotas es su propio libro de cobro), así que `method` solo
-    // sirve hoy para trazabilidad futura si se decide anotarlo en auditoría.
-    void method;
+    const payment = await recordTreasuryMovement(tx, {
+      companyId,
+      direction: 'INCOME',
+      amount,
+      method,
+      date: date ?? new Date(),
+      source: 'INSTALLMENT',
+      sourceId: installment.paymentPlanId,
+      description: `Cuota N° ${installment.installmentNumber}${installment.paymentPlan.candidate ? ` — ${installment.paymentPlan.candidate.fullName}` : ''}`,
+      counterpartKey: 'COBROS_POR_DOCUMENTAR',
+      contactId: installment.paymentPlan.contactId,
+      projectId: installment.paymentPlan.candidate?.projectId ?? null,
+      treasuryAccountId: extra.treasuryAccountId,
+      referenceNumber: extra.referenceNumber,
+      createdByUserId: extra.userId,
+    });
 
     // Si todas las cuotas del plan quedaron pagadas, el plan se marca COMPLETED.
     const allInstallments = await tx.paymentPlanInstallment.findMany({
@@ -204,7 +228,7 @@ export async function registerInstallmentPayment(
 
     const updated = await tx.paymentPlanInstallment.findFirst({ where: { id: installmentId, companyId } });
     if (!updated) throw new Error('Cuota no encontrada');
-    return updated;
+    return { installment: updated, payment };
   }, LOCKING_TX_OPTIONS);
 }
 
@@ -253,15 +277,32 @@ export async function applyOverduePenalties(companyId: string): Promise<number> 
  * mismo criterio que `deletePromissoryNote`: una cuota con `paidAmount > 0`
  * no se borra (perdería el rastro del cobro ya hecho), se deja como está.
  */
-export async function deleteInstallment(companyId: string, installmentId: string): Promise<void> {
-  const installment = await prisma.paymentPlanInstallment.findFirst({ where: { id: installmentId, companyId } });
-  if (!installment) throw new Error('Cuota no encontrada');
-  if (installment.paidAmount > 0) {
-    throw new Error('No se puede eliminar: esta cuota ya registra un pago. El historial de cobro no se puede perder.');
-  }
+/**
+ * ¿Hay un pago en línea que todavía puede confirmarse? Una orden PENDING
+ * sigue viva hasta su vencimiento (más un margen, porque Khipu puede
+ * confirmar una transferencia que el pagador inició justo antes).
+ */
+function livePendingOrderWhere(now: Date) {
+  return { status: 'PENDING' as const, expiresAt: { gt: new Date(now.getTime() - 30 * 60 * 1000) } };
+}
 
-  const result = await prisma.paymentPlanInstallment.deleteMany({ where: { id: installmentId, companyId } });
-  if (result.count === 0) throw new Error('Cuota no encontrada');
+export async function deleteInstallment(companyId: string, installmentId: string): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "PaymentPlanInstallment" WHERE id = ${installmentId} AND "companyId" = ${companyId} FOR UPDATE`;
+    const installment = await tx.paymentPlanInstallment.findFirst({ where: { id: installmentId, companyId } });
+    if (!installment) throw new Error('Cuota no encontrada');
+    if (installment.paidAmount > 0) {
+      throw new Error('No se puede eliminar: esta cuota ya registra un pago. El historial de cobro no se puede perder.');
+    }
+    // Una cuota dentro de un pago en línea en curso no se borra: si la orden
+    // se paga después, el dinero llegaría completo pero solo se aplicaría a
+    // las cuotas que quedaron (el ítem borrado se iba en cascada).
+    const inFlight = await tx.installmentPaymentOrderItem.count({ where: { companyId, installmentId, order: livePendingOrderWhere(new Date()) } });
+    if (inFlight > 0) throw new Error('Esta cuota tiene un pago en línea en curso: espera a que termine o venza antes de eliminarla');
+
+    const result = await tx.paymentPlanInstallment.deleteMany({ where: { id: installmentId, companyId } });
+    if (result.count === 0) throw new Error('Cuota no encontrada');
+  }, LOCKING_TX_OPTIONS);
 }
 
 /**
@@ -291,6 +332,11 @@ export async function deletePaymentPlan(companyId: string, id: string): Promise<
     if (!plan) throw new Error('Plan de pago no encontrado');
 
     const totalPaid = installments.reduce((sum, i) => sum + i.paidAmount, 0);
+
+    // Un pago en línea en curso podría confirmarse después de borrar el plan:
+    // el dinero entraría sin nada contra qué aplicarlo. Se espera a que termine.
+    const inFlight = await tx.installmentPaymentOrder.count({ where: { companyId, paymentPlanId: id, ...livePendingOrderWhere(new Date()) } });
+    if (inFlight > 0) throw new Error('Hay un pago en línea en curso para este plan: espera a que termine o venza antes de eliminarlo');
 
     // Pagos en línea del plan (sus ítems caen en cascada): mismo criterio de
     // "no dejar dato estorbando". El monto ya pagado queda en `totalPaid`.

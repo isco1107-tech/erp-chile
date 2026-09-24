@@ -23,4 +23,6 @@ export const TAX_GLOSSARY = {
   cxp: 'Cuentas por Pagar: el dinero que tú le debes a tus proveedores.',
   remanente: 'Crédito de IVA que te sobró el mes pasado (pagaste más IVA del que cobraste) y se arrastra para descontarlo este mes.',
   retencionHonorarios: 'Un porcentaje que le descuentas a quien te emite una boleta de honorarios, y que tú (no él) declaras y pagas al SII.',
+  impuestoUnico: 'El Impuesto Único de Segunda Categoría que descontaste de los sueldos del mes. Lo retiene la empresa y lo paga en el mismo F29 (código 48).',
+  totalF29: 'Lo que suma el formulario completo: IVA y PPM, más las retenciones de honorarios y de sueldos. Es el monto a pagar si no hay otros conceptos.',
 } as const;

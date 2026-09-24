@@ -172,6 +172,14 @@ model Company {
   fixedAssets               FixedAsset[]
   expenseReports            ExpenseReport[]
   expenseItems              ExpenseItem[]
+  treasuryAccounts          TreasuryAccount[]
+  bankStatementLines        BankStatementLine[]
+  serviceContracts          ServiceContract[]
+  serviceContractLines      ServiceContractLine[]
+  serviceContractBillings   ServiceContractBilling[]
+  timeEntries               TimeEntry[]
+  apiKeys                   ApiKey[]
+  invoicePaymentLinks       InvoicePaymentLink[]
 
   // El panel de plataforma agrupa por estado y por plan en cada carga.
   @@index([status])
@@ -274,6 +282,7 @@ model User {
   reviewedLeaveRequests            LeaveRequest[]            @relation("LeaveRequestReviewer")
   submittedExpenseReports          ExpenseReport[]           @relation("ExpenseReportSubmitter")
   reviewedExpenseReports           ExpenseReport[]           @relation("ExpenseReportReviewer")
+  timeEntries                      TimeEntry[]
 
   @@index([companyId])
   @@index([customRoleId])
@@ -442,6 +451,18 @@ model CompanyFeatures {
   hasFixedAssets        Boolean  @default(false)
   /// Rendición de gastos con flujo de aprobación y reembolso.
   hasExpenseReports     Boolean  @default(false)
+  /// Contratos de servicio con facturación recurrente (igualas, mantenciones,
+  /// arriendos, suscripciones). Ver `ServiceContract`.
+  hasServiceContracts   Boolean  @default(false)
+  /// Control de horas del equipo por cliente/proyecto y facturación de las
+  /// horas facturables. Ver `TimeEntry`.
+  hasTimesheets         Boolean  @default(false)
+  /// Importación de cartola bancaria y conciliación contra Tesorería. Ver
+  /// `BankStatementLine`.
+  hasBankReconciliation Boolean  @default(false)
+  /// API REST pública con llaves por empresa para integrar tiendas en línea,
+  /// planillas o herramientas como Zapier/Make/n8n. Ver `ApiKey`.
+  hasPublicApi          Boolean  @default(false)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 }
@@ -548,6 +569,10 @@ model TaxPeriod {
   /// período — obligación separada del IVA/PPM, NO se suma a `determinedTax`.
   /// Ver src/lib/chile/f29.ts.
   honorariumRetentionAmount Int      @default(0)
+  /// Impuesto Único de 2ª categoría retenido a los trabajadores en las
+  /// liquidaciones del mes (código 48 del F29). Sale de los períodos de
+  /// remuneraciones CERRADOS; tampoco se suma a `determinedTax`.
+  employeeIncomeTaxAmount   Int      @default(0)
   calculatedAt              DateTime @default(now())
   createdAt                 DateTime @default(now())
   updatedAt                 DateTime @updatedAt
@@ -637,6 +662,8 @@ model Contact {
   opportunities          Opportunity[]
   fixedAssets            FixedAsset[]
   crmPeople              CrmPerson[]
+  serviceContracts       ServiceContract[]
+  timeEntries            TimeEntry[]
 
   @@unique([companyId, rutClean])
   @@index([companyId, razonSocial])
@@ -684,32 +711,33 @@ model Warehouse {
 }
 
 model Product {
-  id                 String                 @id @default(cuid())
-  companyId          String
-  company            Company                @relation(fields: [companyId], references: [id])
-  categoryId         String?
-  category           Category?              @relation(fields: [categoryId], references: [id])
-  sku                String
-  name               String
-  description        String?
-  unit               String                 @default("UN")
-  isTrackable        Boolean                @default(true)
+  id                   String                 @id @default(cuid())
+  companyId            String
+  company              Company                @relation(fields: [companyId], references: [id])
+  categoryId           String?
+  category             Category?              @relation(fields: [categoryId], references: [id])
+  sku                  String
+  name                 String
+  description          String?
+  unit                 String                 @default("UN")
+  isTrackable          Boolean                @default(true)
   /// Producto exento de IVA. Sin este campo el POS no tenía forma de saberlo y
   /// cobraba 19% sobre todo, sobrecobrando al cliente y distorsionando el F29.
-  isExempt           Boolean                @default(false)
-  costPricePMP       Float                  @default(0)
-  netPrice           Int                    @default(0)
-  grossPrice         Int                    @default(0)
-  minStock           Int                    @default(0)
-  stocks             Stock[]
-  movements          InventoryMovement[]
-  salesDocumentItems SalesDocumentItem[]
-  purchaseItems      PurchaseDocumentItem[]
-  purchaseOrderItems PurchaseOrderItem[]
-  goodsReceiptItems  GoodsReceiptItem[]
-  journalLines       JournalLine[]
-  createdAt          DateTime               @default(now())
-  updatedAt          DateTime               @updatedAt
+  isExempt             Boolean                @default(false)
+  costPricePMP         Float                  @default(0)
+  netPrice             Int                    @default(0)
+  grossPrice           Int                    @default(0)
+  minStock             Int                    @default(0)
+  stocks               Stock[]
+  movements            InventoryMovement[]
+  salesDocumentItems   SalesDocumentItem[]
+  purchaseItems        PurchaseDocumentItem[]
+  purchaseOrderItems   PurchaseOrderItem[]
+  goodsReceiptItems    GoodsReceiptItem[]
+  journalLines         JournalLine[]
+  serviceContractLines ServiceContractLine[]
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
 
   @@unique([companyId, sku])
   @@index([companyId, name])
@@ -810,41 +838,44 @@ model FolioSequence {
 }
 
 model SalesDocument {
-  id             String              @id @default(cuid())
-  companyId      String
-  company        Company             @relation(fields: [companyId], references: [id])
-  contactId      String
-  contact        Contact             @relation(fields: [contactId], references: [id])
-  warehouseId    String
-  warehouse      Warehouse           @relation(fields: [warehouseId], references: [id])
-  dteType        DteType
-  folio          Int?
-  status         DocumentStatus      @default(DRAFT)
-  issueDate      DateTime            @default(now())
-  dueDate        DateTime?
-  paymentMethod  String
-  netAmount      Int                 @default(0)
-  exemptAmount   Int                 @default(0)
-  ivaAmount      Int                 @default(0)
-  totalAmount    Int                 @default(0)
-  paidAmount     Int                 @default(0)
-  paymentStatus  PaymentStatus       @default(UNPAID)
-  referenceFolio Int?
-  referenceType  DteType?
-  notes          String?
+  id              String                  @id @default(cuid())
+  companyId       String
+  company         Company                 @relation(fields: [companyId], references: [id])
+  contactId       String
+  contact         Contact                 @relation(fields: [contactId], references: [id])
+  warehouseId     String
+  warehouse       Warehouse               @relation(fields: [warehouseId], references: [id])
+  dteType         DteType
+  folio           Int?
+  status          DocumentStatus          @default(DRAFT)
+  issueDate       DateTime                @default(now())
+  dueDate         DateTime?
+  paymentMethod   String
+  netAmount       Int                     @default(0)
+  exemptAmount    Int                     @default(0)
+  ivaAmount       Int                     @default(0)
+  totalAmount     Int                     @default(0)
+  paidAmount      Int                     @default(0)
+  paymentStatus   PaymentStatus           @default(UNPAID)
+  referenceFolio  Int?
+  referenceType   DteType?
+  notes           String?
   /// Clave de idempotencia para prevenir duplicados por doble clic o reintentos de red.
-  idempotencyKey String?
+  idempotencyKey  String?
   /// Turno de caja que originó la venta. Solo lo llena el POS; es lo que
   /// permite que el arqueo sepa qué ventas cuentan para esta caja y este turno.
-  cashShiftId    String?
-  cashShift      CashShift?          @relation(fields: [cashShiftId], references: [id])
+  cashShiftId     String?
+  cashShift       CashShift?              @relation(fields: [cashShiftId], references: [id])
   /// Centro de costo/evento opcional (módulo `hasEventProjects`). Permite
   /// agregar ingresos reales de un proyecto sin que el resto del sistema
   /// dependa de que ese módulo esté contratado.
-  projectId      String?
-  project        Project?            @relation(fields: [projectId], references: [id])
-  items          SalesDocumentItem[]
-  payments       Payment[]
+  projectId       String?
+  project         Project?                @relation(fields: [projectId], references: [id])
+  items           SalesDocumentItem[]
+  payments        Payment[]
+  contractBilling ServiceContractBilling?
+  timeEntries     TimeEntry[]
+  paymentLinks    InvoicePaymentLink[]
 
   // ── Facturación electrónica ──────────────────────────────────────────────
   // Todo nullable: los documentos emitidos antes de que existiera el módulo
@@ -1136,35 +1167,72 @@ model PurchaseDocumentItem {
   @@index([companyId, productId])
 }
 
+/// Módulo que originó un movimiento de Tesorería. `Payment` es el libro único
+/// de dinero que entra y sale: además de cobros/pagos de documentos de
+/// venta/compra, registra sueldos, honorarios, rendiciones, cuotas, entradas,
+/// votos, auspicios y pagarés. `null` en los pagos anteriores a este campo y en
+/// los de ventas/compras, que se identifican por su FK tipada.
+enum PaymentSource {
+  FEE_DOCUMENT
+  EXPENSE_REPORT
+  PAYROLL_SALARIES
+  PAYROLL_CONTRIBUTIONS
+  INSTALLMENT
+  TICKET_SALE
+  VOTE_ORDER
+  SPONSORSHIP
+  PROMISSORY_NOTE
+  SERVICE_CONTRACT
+  BANK_STATEMENT
+  /// Lo cobrado por un link de pago en línea por sobre el saldo del documento
+  /// (queda como anticipo del cliente; `sourceId` = id del link).
+  INVOICE_PAYMENT_LINK
+}
+
 model Payment {
-  id                 String            @id @default(cuid())
+  id                 String             @id @default(cuid())
   companyId          String
-  company            Company           @relation(fields: [companyId], references: [id])
+  company            Company            @relation(fields: [companyId], references: [id])
   type               PaymentDirection
-  contactId          String
-  contact            Contact           @relation(fields: [contactId], references: [id])
+  /// Opcional desde que Tesorería registra también sueldos, rendiciones o
+  /// entradas vendidas al público, que no tienen un `Contact` detrás.
+  contactId          String?
+  /// `Restrict` explícito: al volverse opcional, Prisma habría pasado a
+  /// `SetNull` y borrar un contacto con pagos dejaría esos pagos huérfanos en
+  /// vez de bloquear el borrado como siempre.
+  contact            Contact?           @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  /// Origen del movimiento cuando no es un documento de venta/compra. Junto con
+  /// `sourceId` permite ir del flujo de caja al registro que lo generó.
+  source             PaymentSource?
+  sourceId           String?
+  /// Glosa legible del movimiento ("Sueldos marzo 2026", "Entrada gala — Ana P.").
+  description        String?
+  /// Caja o cuenta bancaria donde entró/salió el dinero (Tesorería → Cuentas).
+  treasuryAccountId  String?
+  treasuryAccount    TreasuryAccount?   @relation(fields: [treasuryAccountId], references: [id], onDelete: SetNull)
+  bankStatementLine  BankStatementLine?
   salesDocumentId    String?
-  salesDocument      SalesDocument?    @relation(fields: [salesDocumentId], references: [id])
+  salesDocument      SalesDocument?     @relation(fields: [salesDocumentId], references: [id])
   purchaseDocumentId String?
-  purchaseDocument   PurchaseDocument? @relation(fields: [purchaseDocumentId], references: [id])
+  purchaseDocument   PurchaseDocument?  @relation(fields: [purchaseDocumentId], references: [id])
   /// Centro de costo/evento opcional (módulo `hasEventProjects`) — permite
   /// etiquetar un pago suelto de tesorería directo a un proyecto (ej. gasto
   /// de producción pagado en efectivo) sin pasar por un documento.
   projectId          String?
-  project            Project?          @relation(fields: [projectId], references: [id])
+  project            Project?           @relation(fields: [projectId], references: [id])
   /// Etiqueta opcional a una línea de presupuesto operativo (módulo
   /// `hasBudgets`) — así el "real" de `Budget`/`BudgetLine` se suma solo
   /// desde los pagos ya registrados en Tesorería, sin duplicar agregación.
   budgetLineId       String?
-  budgetLine         BudgetLine?       @relation(fields: [budgetLineId], references: [id], onDelete: SetNull)
+  budgetLine         BudgetLine?        @relation(fields: [budgetLineId], references: [id], onDelete: SetNull)
   amount             Int
   paymentMethod      PaymentMethodType
-  paymentDate        DateTime          @default(now())
+  paymentDate        DateTime           @default(now())
   referenceNumber    String?
   bankAccount        String?
   notes              String?
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
   @@index([companyId, type])
   @@index([companyId, paymentDate])
@@ -1172,6 +1240,8 @@ model Payment {
   @@index([companyId, purchaseDocumentId])
   @@index([companyId, projectId])
   @@index([companyId, budgetLineId])
+  @@index([companyId, source, sourceId])
+  @@index([companyId, treasuryAccountId, paymentDate])
 }
 
 /// Caja física del local. Se ata a una bodega porque toda venta del POS
@@ -1352,30 +1422,31 @@ enum CashFlowCategory {
 /// agrupadora/hoja: solo las hojas (`isPostable = true`) reciben líneas de
 /// asiento, las agrupadoras solo suman para el balance.
 model Account {
-  id               String           @id @default(cuid())
+  id               String            @id @default(cuid())
   companyId        String
-  company          Company          @relation(fields: [companyId], references: [id])
+  company          Company           @relation(fields: [companyId], references: [id])
   code             String
   name             String
   parentId         String?
   /// `Restrict`, no el `SetNull` implícito de una relación opcional: borrar una
   /// cuenta agrupadora no debe desprender en silencio a sus hijas del árbol
   /// del plan de cuentas.
-  parent           Account?         @relation("AccountHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
-  children         Account[]        @relation("AccountHierarchy")
+  parent           Account?          @relation("AccountHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children         Account[]         @relation("AccountHierarchy")
   type             AccountType
   nature           AccountNature
   /// Solo las cuentas hoja pueden recibir líneas de asiento (forzado también por trigger).
-  isPostable       Boolean          @default(true)
+  isPostable       Boolean           @default(true)
   /// Corriente / no corriente. Nulo en cuentas de resultado, donde no aplica.
   isCurrent        Boolean?
-  costBehavior     CostBehavior     @default(NONE)
-  cashFlowCategory CashFlowCategory @default(NONE)
-  isActive         Boolean          @default(true)
+  costBehavior     CostBehavior      @default(NONE)
+  cashFlowCategory CashFlowCategory  @default(NONE)
+  isActive         Boolean           @default(true)
   mappings         AccountMapping[]
   journalLines     JournalLine[]
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  treasuryAccounts TreasuryAccount[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 
   @@unique([companyId, code])
   @@index([companyId, type])
@@ -1456,6 +1527,12 @@ enum JournalSourceType {
   MANUAL
   OPENING
   CLOSING
+  /// Centralización de remuneraciones al cerrar el mes (`sourceId` = PayrollPeriod.id).
+  PAYROLL
+  /// Registro de una boleta de honorarios recibida (`sourceId` = FeeDocument.id).
+  FEE_DOCUMENT
+  /// Rendición de gastos aprobada (`sourceId` = ExpenseReport.id).
+  EXPENSE_REPORT
 }
 
 /// Cabecera del asiento contable. Nunca se edita ni se borra en estado
@@ -1677,6 +1754,8 @@ model Project {
   expenseReports             ExpenseReport[]
   opportunities              Opportunity[]
   sponsorshipPackages        SponsorshipPackage[]
+  serviceContracts           ServiceContract[]
+  timeEntries                TimeEntry[]
 
   // ── Gala y micrositio público del certamen ──────────────────────────────
   /// Fecha y hora de la gala final. Distinta de `startDate` (inicio del
@@ -3176,6 +3255,14 @@ enum WorkflowTriggerEvent {
   /// Prospecto recibido por el formulario "Quiero auspiciar" del micrositio
   /// público de un certamen (queda como oportunidad en el CRM).
   CRM_LEAD_RECEIVED
+  /// Entró dinero a Tesorería (cobro de factura, cuota, entrada, voto, etc.).
+  PAYMENT_RECEIVED
+  /// Salió dinero de Tesorería (pago a proveedor, sueldos, honorarios, reembolso).
+  PAYMENT_MADE
+  /// El cron de contratos recurrentes dejó facturas en borrador para revisar.
+  RECURRING_INVOICES_READY
+  /// Un contrato recurrente no pudo facturar su período (sin folios, límite de crédito…).
+  RECURRING_BILLING_FAILED
 }
 
 enum WorkflowActionType {
@@ -3576,6 +3663,10 @@ model PayrollPeriod {
   closedAt               DateTime?
   closedByUserId         String?
   closedBy               User?               @relation("PayrollPeriodClosedBy", fields: [closedByUserId], references: [id], onDelete: SetNull)
+  /// Pago de los líquidos a los trabajadores, registrado en Tesorería.
+  salariesPaidAt         DateTime?
+  /// Pago de cotizaciones previsionales (planilla Previred), registrado en Tesorería.
+  contributionsPaidAt    DateTime?
   payslips               Payslip[]
   createdAt              DateTime            @default(now())
   updatedAt              DateTime            @updatedAt
@@ -3593,6 +3684,11 @@ model Payslip {
   period               PayrollPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
   employeeId           String
   employee             Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  /// Foto de la ficha del trabajador al calcular (nombre, cargo, contrato,
+  /// AFP, salud, cuenta bancaria). La liquidación impresa de un mes cerrado
+  /// muestra estos datos, no los de la ficha actual. `null` en liquidaciones
+  /// calculadas antes de existir el campo.
+  employeeSnapshot     Json?
   workedDays           Int           @default(30)
   overtimeHours        Float         @default(0)
   /// Bonos imponibles del mes (producción, metas, etc.).
@@ -3765,4 +3861,274 @@ model ExpenseItem {
   createdAt      DateTime            @default(now())
 
   @@index([companyId, reportId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Tesorería: cajas y cuentas bancarias, cartola y conciliación
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum TreasuryAccountType {
+  CASH
+  BANK
+}
+
+/// Caja o cuenta bancaria de la empresa. Cada `Payment` puede indicar en cuál
+/// entró o salió el dinero; así Tesorería muestra saldo por cuenta y la
+/// cartola se concilia contra la cuenta correcta.
+model TreasuryAccount {
+  id              String              @id @default(cuid())
+  companyId       String
+  company         Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  name            String
+  type            TreasuryAccountType
+  bankName        String?
+  accountNumber   String?
+  /// Cuenta contable hoja que representa esta caja/banco. `null` = la cuenta
+  /// mapeada a `CAJA` o `BANCO` según `type`.
+  ledgerAccountId String?
+  ledgerAccount   Account?            @relation(fields: [ledgerAccountId], references: [id], onDelete: SetNull)
+  /// Saldo al comenzar a usar la cuenta en el sistema (CLP; puede ser negativo
+  /// en una línea de crédito).
+  openingBalance  Int                 @default(0)
+  openingDate     DateTime?
+  /// Cuenta que se propone por defecto al registrar un cobro/pago de su tipo.
+  isDefault       Boolean             @default(false)
+  isActive        Boolean             @default(true)
+  payments        Payment[]
+  statementLines  BankStatementLine[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@unique([companyId, name])
+  @@index([companyId, isActive])
+}
+
+enum BankStatementLineStatus {
+  UNMATCHED
+  MATCHED
+  IGNORED
+}
+
+/// Línea de cartola bancaria importada (Excel/CSV del banco). `amount` es
+/// positivo para abonos y negativo para cargos. Se concilia contra un
+/// `Payment`: uno existente (sugerido por monto y fecha) o uno creado desde la
+/// línea.
+model BankStatementLine {
+  id                String                  @id @default(cuid())
+  companyId         String
+  company           Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  treasuryAccountId String
+  treasuryAccount   TreasuryAccount         @relation(fields: [treasuryAccountId], references: [id], onDelete: Restrict)
+  date              DateTime
+  description       String
+  reference         String?
+  amount            Int
+  balance           Int?
+  /// Huella de la línea (fecha|monto|glosa|referencia|n° de repetición) para
+  /// que reimportar la misma cartola no duplique movimientos.
+  fingerprint       String
+  importBatchId     String
+  status            BankStatementLineStatus @default(UNMATCHED)
+  paymentId         String?                 @unique
+  payment           Payment?                @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  matchedAt         DateTime?
+  matchedByUserId   String?
+  createdAt         DateTime                @default(now())
+
+  @@unique([companyId, treasuryAccountId, fingerprint])
+  @@index([companyId, treasuryAccountId, status, date])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Empresas de servicios: contratos recurrentes y control de horas
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum ServiceContractStatus {
+  ACTIVE
+  PAUSED
+  ENDED
+}
+
+enum BillingFrequency {
+  MONTHLY
+  BIMONTHLY
+  QUARTERLY
+  SEMIANNUAL
+  ANNUAL
+}
+
+/// Contrato de servicio con facturación recurrente: cada período el sistema
+/// genera el documento de venta con las líneas del contrato. Con
+/// `autoIssue = false` el documento nace en borrador para revisarlo antes de
+/// emitir; con `true` se emite solo (consume folio y genera asiento).
+model ServiceContract {
+  id              String                   @id @default(cuid())
+  companyId       String
+  company         Company                  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  contactId       String
+  contact         Contact                  @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  projectId       String?
+  project         Project?                 @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  name            String
+  status          ServiceContractStatus    @default(ACTIVE)
+  dteType         DteType
+  /// Forma de pago del documento generado (mismo catálogo que el formulario de
+  /// venta, `PAYMENT_METHODS` en sales/schema.ts), texto igual que en
+  /// `SalesDocument.paymentMethod`.
+  paymentMethod   String                   @default("CREDITO_30")
+  /// Días de plazo para el vencimiento de cada documento generado.
+  paymentTermDays Int                      @default(30)
+  frequency       BillingFrequency         @default(MONTHLY)
+  startDate       DateTime
+  endDate         DateTime?
+  /// Próxima fecha de facturación. El cron diario factura todo contrato
+  /// ACTIVE con `nextBillingDate` <= hoy y la avanza un período.
+  nextBillingDate DateTime
+  autoIssue       Boolean                  @default(false)
+  warehouseId     String?
+  notes           String?
+  lines           ServiceContractLine[]
+  billings        ServiceContractBilling[]
+  timeEntries     TimeEntry[]
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+
+  @@index([companyId, status, nextBillingDate])
+  @@index([companyId, contactId])
+}
+
+model ServiceContractLine {
+  id          String          @id @default(cuid())
+  companyId   String
+  company     Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  contractId  String
+  contract    ServiceContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  /// Si enlaza un producto/servicio del catálogo, la exención se lee del
+  /// catálogo al facturar, nunca de este registro (CLAUDE.md sección 3).
+  productId   String?
+  product     Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  description String
+  quantity    Float
+  unitPrice   Int
+  /// Solo aplica a líneas libres (sin producto).
+  isExempt    Boolean         @default(false)
+  sortOrder   Int             @default(0)
+
+  @@index([companyId, contractId])
+}
+
+enum ServiceContractBillingStatus {
+  GENERATED
+  FAILED
+}
+
+/// Facturación de un período de un contrato. `@@unique([contractId,
+/// periodKey])` es la llave de idempotencia: el cron puede correr dos veces el
+/// mismo día sin facturar dos veces el mismo período.
+model ServiceContractBilling {
+  id              String                       @id @default(cuid())
+  companyId       String
+  company         Company                      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  contractId      String
+  contract        ServiceContract              @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  /// "2026-09" = período que comienza en septiembre de 2026.
+  periodKey       String
+  billingDate     DateTime
+  status          ServiceContractBillingStatus
+  salesDocumentId String?                      @unique
+  salesDocument   SalesDocument?               @relation(fields: [salesDocumentId], references: [id], onDelete: SetNull)
+  errorMessage    String?
+  createdAt       DateTime                     @default(now())
+
+  @@unique([contractId, periodKey])
+  @@index([companyId, createdAt])
+}
+
+enum TimeEntryStatus {
+  OPEN
+  BILLED
+}
+
+/// Horas trabajadas por una persona del equipo. Las facturables de un cliente
+/// se convierten en un documento de venta desde "Facturar horas".
+model TimeEntry {
+  id                String           @id @default(cuid())
+  companyId         String
+  company           Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  userId            String?
+  user              User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  contactId         String?
+  contact           Contact?         @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  projectId         String?
+  project           Project?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  serviceContractId String?
+  serviceContract   ServiceContract? @relation(fields: [serviceContractId], references: [id], onDelete: SetNull)
+  date              DateTime
+  minutes           Int
+  description       String
+  billable          Boolean          @default(true)
+  /// Tarifa por hora en CLP al registrar (snapshot).
+  hourlyRate        Int              @default(0)
+  status            TimeEntryStatus  @default(OPEN)
+  salesDocumentId   String?
+  salesDocument     SalesDocument?   @relation(fields: [salesDocumentId], references: [id], onDelete: SetNull)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@index([companyId, date])
+  @@index([companyId, userId, date])
+  @@index([companyId, contactId, status])
+  @@index([companyId, projectId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Integraciones: API pública y cobro en línea de facturas
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Llave de la API pública. Se muestra UNA sola vez al crearla; aquí solo
+/// queda su SHA-256 (`keyHash`) y un prefijo visible para reconocerla.
+/// `keyHash` calza con el patrón que el respaldo excluye (`/hash/i`).
+model ApiKey {
+  id              String    @id @default(cuid())
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name            String
+  prefix          String
+  keyHash         String    @unique
+  /// Alcances concedidos, p. ej. ["contacts:read", "sales:write"].
+  scopes          String[]
+  createdByUserId String?
+  lastUsedAt      DateTime?
+  revokedAt       DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([companyId])
+}
+
+/// Link de pago en línea de un documento de venta por cobrar (Khipu). Igual
+/// que las cuotas (`InstallmentPaymentOrder`), solo pasa a PAID tras consultar
+/// el cobro a la pasarela; al pagarse registra el cobro en Tesorería contra el
+/// documento.
+model InvoicePaymentLink {
+  id                String              @id @default(cuid())
+  companyId         String
+  company           Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  salesDocumentId   String
+  salesDocument     SalesDocument       @relation(fields: [salesDocumentId], references: [id], onDelete: Restrict)
+  provider          String
+  providerPaymentId String?
+  paymentUrl        String?
+  amount            Int
+  status            OnlinePaymentStatus @default(PENDING)
+  /// Capacidad pública: la página de pago se pide con este valor, nunca con el id.
+  accessToken       String              @unique
+  paymentId         String?             @unique
+  expiresAt         DateTime
+  paidAt            DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@unique([provider, providerPaymentId])
+  @@index([companyId, salesDocumentId])
+  @@index([companyId, status])
 }

@@ -13,6 +13,8 @@ import { sendEmail } from '@/lib/email/mailer';
 import { buildSponsorshipPaymentConfirmationEmail } from '@/lib/email/templates';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import { captureException } from '@/lib/observability';
+import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
+import { emitPaymentEvent, recordPaidAmountChange } from '@/modules/treasury/services/movements.service';
 import { SPONSORSHIP_TIER_LABELS } from '../schema';
 import type {
   DeliverableCreateInput,
@@ -134,45 +136,68 @@ export async function deleteSponsorshipContract(companyId: string, id: string): 
 export async function updateSponsorshipPayment(
   companyId: string,
   id: string,
-  data: SponsorshipPaymentInput
+  data: SponsorshipPaymentInput,
+  userId?: string
 ): Promise<SponsorshipContract> {
-  const contract = await prisma.sponsorshipContract.findFirst({
-    where: { id, companyId },
-    include: { contact: true, project: { select: { name: true } } },
-  });
-  if (!contract) throw new Error('Contrato de auspicio no encontrado');
-  // Repetido server-side: la UI ya deshabilita el botón sobre el tope, pero
-  // esto también corre si se llama la Server Action directo.
-  if (contract.cashAmount > 0 && data.paidAmount > contract.cashAmount) {
-    throw new Error('El monto pagado supera el aporte en efectivo acordado');
-  }
+  const { contract, updated, payment, paymentStatus } = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "SponsorshipContract" WHERE id = ${id} AND "companyId" = ${companyId} FOR UPDATE`;
+    const current = await tx.sponsorshipContract.findFirst({
+      where: { id, companyId },
+      include: { contact: true, project: { select: { name: true } } },
+    });
+    if (!current) throw new Error('Contrato de auspicio no encontrado');
+    // Repetido server-side: la UI ya deshabilita el botón sobre el tope, pero
+    // esto también corre si se llama la Server Action directo.
+    if (current.cashAmount > 0 && data.paidAmount > current.cashAmount) {
+      throw new Error('El monto pagado supera el aporte en efectivo acordado');
+    }
 
-  let paymentStatus: PaymentStatus;
-  if (contract.cashAmount === 0) {
-    // Canje puro: no hay componente en efectivo que cobrar, así que siempre
-    // queda "Pagado" independiente de lo que se ingrese acá.
-    paymentStatus = 'PAID';
-  } else if (data.paidAmount === 0) {
-    paymentStatus = 'UNPAID';
-  } else if (data.paidAmount >= contract.cashAmount) {
-    paymentStatus = 'PAID';
-  } else {
-    paymentStatus = 'PARTIAL';
-  }
+    let paymentStatus: PaymentStatus;
+    if (current.cashAmount === 0) {
+      // Canje puro: no hay componente en efectivo que cobrar, así que siempre
+      // queda "Pagado" independiente de lo que se ingrese acá.
+      paymentStatus = 'PAID';
+    } else if (data.paidAmount === 0) {
+      paymentStatus = 'UNPAID';
+    } else if (data.paidAmount >= current.cashAmount) {
+      paymentStatus = 'PAID';
+    } else {
+      paymentStatus = 'PARTIAL';
+    }
 
+    // Un canje puro no mueve dinero: su "pago" no pasa por Tesorería.
+    const newPaid = current.cashAmount === 0 ? current.paidAmount : data.paidAmount;
+    await tx.sponsorshipContract.updateMany({
+      where: { id, companyId },
+      data: {
+        paidAmount: newPaid,
+        paymentStatus,
+        notes: data.notes !== undefined ? (data.notes || null) : undefined,
+      },
+    });
+
+    const movement = await recordPaidAmountChange(tx, {
+      companyId,
+      previousPaid: current.paidAmount,
+      newPaid,
+      method: data.paymentMethod,
+      source: 'SPONSORSHIP',
+      sourceId: current.id,
+      description: `Auspicio ${SPONSORSHIP_TIER_LABELS[current.tier]} — ${current.contact.razonSocial} (${current.project.name})`,
+      counterpartKey: 'COBROS_POR_DOCUMENTAR',
+      contactId: current.contactId,
+      projectId: current.projectId,
+      treasuryAccountId: data.treasuryAccountId,
+      createdByUserId: userId,
+    });
+
+    const after = await tx.sponsorshipContract.findFirst({ where: { id, companyId } });
+    if (!after) throw new Error('Contrato de auspicio no encontrado');
+    return { contract: current, updated: after, payment: movement, paymentStatus };
+  }, LOCKING_TX_OPTIONS);
+
+  if (payment) emitPaymentEvent(companyId, payment);
   const wasAlreadyPaid = contract.paymentStatus === 'PAID';
-
-  await prisma.sponsorshipContract.updateMany({
-    where: { id, companyId },
-    data: {
-      paidAmount: data.paidAmount,
-      paymentStatus,
-      notes: data.notes !== undefined ? (data.notes || null) : undefined,
-    },
-  });
-
-  const updated = await prisma.sponsorshipContract.findFirst({ where: { id, companyId } });
-  if (!updated) throw new Error('Contrato de auspicio no encontrado');
 
   if (paymentStatus === 'PAID' && !wasAlreadyPaid && contract.contact.email) {
     const company = await prisma.company.findUnique({ where: { id: companyId }, select: { businessName: true } });

@@ -17,6 +17,7 @@ import { DTE_TYPE_LABELS } from '@/modules/sales/schema';
 import { formatCurrency } from '@/lib/chile/tax';
 import { formatRut } from '@/lib/chile/rut';
 import WhatsAppButton from '@/components/shared/WhatsAppButton';
+import { buttonVariants } from '@/components/ui/button';
 
 export const metadata = { title: 'Ficha de Contacto' };
 
@@ -105,6 +106,11 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <WhatsAppButton phone={contact.phone} name={contact.razonSocial} />
+          {contact.isCustomer && context.features.hasTreasury && can(context, 'treasury:read') && (
+            <Link href={`/dashboard/contacts/${contact.id}/statement`} className={buttonVariants({ variant: 'outline' })}>
+              Estado de cuenta
+            </Link>
+          )}
           <div className="flex gap-1.5">
             {contact.isCustomer && <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium">Cliente</span>}
             {contact.isSupplier && <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium">Proveedor</span>}

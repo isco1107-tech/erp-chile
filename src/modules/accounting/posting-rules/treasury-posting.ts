@@ -1,4 +1,5 @@
 import type { Payment, PaymentMethodType } from '@prisma/client';
+import { resolveOrCreateMappedAccountId } from '../chart-of-accounts';
 import { createAndPostEntry, resolveMappedAccountId, type TxClient } from '../services/journal.service';
 import { isLedgerActive } from './shared';
 
@@ -18,6 +19,28 @@ function cashOrBankKey(method: PaymentMethodType): 'CAJA' | 'BANCO' {
   return method === 'EFECTIVO' ? 'CAJA' : 'BANCO';
 }
 
+/**
+ * Cuenta contable donde entra o sale el dinero de un pago. Si el pago indica
+ * una caja/cuenta bancaria de Tesorería con cuenta contable propia, esa manda;
+ * si la indica sin cuenta propia, se usa `CAJA`/`BANCO` según su tipo; si no
+ * indica ninguna, se decide por el medio de pago (comportamiento histórico).
+ */
+export async function resolveMoneyAccountId(
+  tx: TxClient,
+  companyId: string,
+  payment: Pick<Payment, 'paymentMethod' | 'treasuryAccountId'>
+): Promise<string> {
+  if (payment.treasuryAccountId) {
+    const account = await tx.treasuryAccount.findFirst({
+      where: { id: payment.treasuryAccountId, companyId },
+      select: { type: true, ledgerAccountId: true },
+    });
+    if (account?.ledgerAccountId) return account.ledgerAccountId;
+    if (account) return resolveMappedAccountId(tx, companyId, account.type === 'CASH' ? 'CAJA' : 'BANCO');
+  }
+  return resolveMappedAccountId(tx, companyId, cashOrBankKey(payment.paymentMethod));
+}
+
 export async function postSalesPaymentEntry(
   tx: TxClient,
   companyId: string,
@@ -27,7 +50,7 @@ export async function postSalesPaymentEntry(
   // Contabilidad apagada o sin plan de cuentas: la operación sigue, sin asiento.
   if (!(await isLedgerActive(tx, companyId))) return;
   const [debitAccountId, clientesAccountId] = await Promise.all([
-    resolveMappedAccountId(tx, companyId, cashOrBankKey(payment.paymentMethod)),
+    resolveMoneyAccountId(tx, companyId, payment),
     resolveMappedAccountId(tx, companyId, 'CLIENTES'),
   ]);
 
@@ -39,8 +62,8 @@ export async function postSalesPaymentEntry(
     sourceId: payment.id,
     createdByUserId: opts.createdByUserId,
     lines: [
-      { accountId: debitAccountId, debit: payment.amount, credit: 0 },
-      { accountId: clientesAccountId, debit: 0, credit: payment.amount },
+      { accountId: debitAccountId, debit: payment.amount, credit: 0, customerId: payment.contactId ?? undefined },
+      { accountId: clientesAccountId, debit: 0, credit: payment.amount, customerId: payment.contactId ?? undefined },
     ],
   });
 }
@@ -55,7 +78,7 @@ export async function postPurchasePaymentEntry(
   if (!(await isLedgerActive(tx, companyId))) return;
   const [proveedoresAccountId, creditAccountId] = await Promise.all([
     resolveMappedAccountId(tx, companyId, 'PROVEEDORES'),
-    resolveMappedAccountId(tx, companyId, cashOrBankKey(payment.paymentMethod)),
+    resolveMoneyAccountId(tx, companyId, payment),
   ]);
 
   await createAndPostEntry(tx, {
@@ -66,8 +89,103 @@ export async function postPurchasePaymentEntry(
     sourceId: payment.id,
     createdByUserId: opts.createdByUserId,
     lines: [
-      { accountId: proveedoresAccountId, debit: payment.amount, credit: 0 },
-      { accountId: creditAccountId, debit: 0, credit: payment.amount },
+      { accountId: proveedoresAccountId, debit: payment.amount, credit: 0, supplierId: payment.contactId ?? undefined },
+      { accountId: creditAccountId, debit: 0, credit: payment.amount, supplierId: payment.contactId ?? undefined },
     ],
+  });
+}
+
+/**
+ * Un pago que se registró sin caja/banco y luego se concilia contra la
+ * cartola de una cuenta cuyo ledger es otro: el asiento original cargó la
+ * cuenta por medio de pago (`CAJA`/`BANCO`), pero el dinero está en la
+ * cuenta de la cartola. Se mueve entre ambas con un asiento de
+ * reclasificación (los asientos no se editan). No hace nada si la
+ * Contabilidad está apagada, si el pago nunca tuvo asiento o si ambas
+ * cuentas son la misma.
+ */
+export async function postMoneyReclassification(
+  tx: TxClient,
+  companyId: string,
+  payment: Payment,
+  newTreasuryAccountId: string,
+  opts: { createdByUserId?: string } = {}
+): Promise<void> {
+  if (!(await isLedgerActive(tx, companyId))) return;
+  const posted = await tx.journalEntry.findFirst({
+    where: {
+      companyId,
+      status: 'POSTED',
+      OR: [{ sourceType: 'PAYMENT', sourceId: payment.id }, ...(payment.salesDocumentId ? [{ sourceType: 'SALES_DOCUMENT' as const, sourceId: payment.salesDocumentId }] : [])],
+    },
+    select: { id: true },
+  });
+  if (!posted) return;
+
+  const [fromAccountId, toAccountId] = await Promise.all([
+    resolveMoneyAccountId(tx, companyId, payment),
+    resolveMoneyAccountId(tx, companyId, { paymentMethod: payment.paymentMethod, treasuryAccountId: newTreasuryAccountId }),
+  ]);
+  if (fromAccountId === toAccountId) return;
+
+  const isIncome = payment.type === 'INCOME';
+  await createAndPostEntry(tx, {
+    companyId,
+    date: new Date(),
+    description: `Reclasificación de cuenta al conciliar${payment.description ? `: ${payment.description}` : ''}`.slice(0, 250),
+    sourceType: 'PAYMENT',
+    sourceId: payment.id,
+    createdByUserId: opts.createdByUserId,
+    lines: isIncome
+      ? [
+          { accountId: toAccountId, debit: payment.amount, credit: 0 },
+          { accountId: fromAccountId, debit: 0, credit: payment.amount },
+        ]
+      : [
+          { accountId: fromAccountId, debit: payment.amount, credit: 0 },
+          { accountId: toAccountId, debit: 0, credit: payment.amount },
+        ],
+  });
+}
+
+/**
+ * Asiento de un movimiento de Tesorería que no nace de un documento de
+ * venta/compra (sueldos, honorarios, cuotas, entradas…). La contrapartida es
+ * la clave semántica que cada módulo indica: el pasivo que el pago cancela
+ * (`HONORARIOS_POR_PAGAR`) o la cuenta que el cobro abona
+ * (`COBROS_POR_DOCUMENTAR`). Si la empresa sembró su plan antes de que
+ * existiera esa clave, se crea sola (`resolveOrCreateMappedAccountId`).
+ */
+export async function postTreasuryMovementEntry(
+  tx: TxClient,
+  companyId: string,
+  payment: Payment,
+  counterpartKey: string,
+  opts: { createdByUserId?: string } = {}
+): Promise<void> {
+  if (!(await isLedgerActive(tx, companyId))) return;
+  const [moneyAccountId, counterpartAccountId] = await Promise.all([
+    resolveMoneyAccountId(tx, companyId, payment),
+    resolveOrCreateMappedAccountId(tx, companyId, counterpartKey),
+  ]);
+  const isIncome = payment.type === 'INCOME';
+  const partner = payment.contactId ?? undefined;
+
+  await createAndPostEntry(tx, {
+    companyId,
+    date: payment.paymentDate,
+    description: payment.description ?? (isIncome ? 'Cobro registrado en Tesorería' : 'Pago registrado en Tesorería'),
+    sourceType: 'PAYMENT',
+    sourceId: payment.id,
+    createdByUserId: opts.createdByUserId,
+    lines: isIncome
+      ? [
+          { accountId: moneyAccountId, debit: payment.amount, credit: 0, customerId: partner },
+          { accountId: counterpartAccountId, debit: 0, credit: payment.amount, customerId: partner },
+        ]
+      : [
+          { accountId: counterpartAccountId, debit: payment.amount, credit: 0, supplierId: partner },
+          { accountId: moneyAccountId, debit: 0, credit: payment.amount, supplierId: partner },
+        ],
   });
 }

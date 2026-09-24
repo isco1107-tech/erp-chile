@@ -1,7 +1,10 @@
 import 'server-only';
 
-import type { ExpenseItem, ExpenseReport, Prisma } from '@prisma/client';
+import type { ExpenseItem, ExpenseReport, Payment, Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { ensureExpenseReportAccrual, postExpenseReportApproved } from '@/modules/accounting/posting-rules/people-posting';
+import { recordTreasuryMovement } from '@/modules/treasury/services/movements.service';
+import type { MoneyDetailsInput } from '@/modules/treasury/schema';
 import { formatRut } from '@/lib/chile/rut';
 import { startOfMonthSantiago } from '@/lib/chile/timezone';
 import type { ExpenseItemInput, ExpenseReportInput, ExpenseReviewInput } from '../schema';
@@ -79,9 +82,21 @@ async function recomputeTotal(tx: Prisma.TransactionClient, companyId: string, r
   await tx.expenseReport.updateMany({ where: { id: reportId, companyId }, data: { totalAmount: total._sum.amount ?? 0 } });
 }
 
+/**
+ * Lock + re-chequeo dentro de la transacción: sin esto, un gasto agregado
+ * mientras otra pestaña enviaba (y alguien aprobaba) la rendición entraba
+ * igual, cambiando el total ya aprobado.
+ */
+async function lockEditable(tx: Prisma.TransactionClient, companyId: string, userId: string, reportId: string): Promise<void> {
+  await tx.$queryRaw`SELECT id FROM "ExpenseReport" WHERE id = ${reportId} AND "companyId" = ${companyId} FOR UPDATE`;
+  const report = await tx.expenseReport.findFirst({ where: { id: reportId, companyId, submittedByUserId: userId }, select: { status: true } });
+  if (!report) throw new Error('La rendición no existe o no es tuya');
+  if (report.status !== 'DRAFT' && report.status !== 'REJECTED') throw new Error('La rendición ya fue enviada: no se puede modificar');
+}
+
 export async function addItem(companyId: string, userId: string, reportId: string, input: ExpenseItemInput): Promise<void> {
-  await findEditable(companyId, userId, reportId);
   await prisma.$transaction(async (tx) => {
+    await lockEditable(tx, companyId, userId, reportId);
     await tx.expenseItem.create({
       data: {
         companyId,
@@ -101,8 +116,8 @@ export async function addItem(companyId: string, userId: string, reportId: strin
 }
 
 export async function removeItem(companyId: string, userId: string, reportId: string, itemId: string): Promise<void> {
-  await findEditable(companyId, userId, reportId);
   await prisma.$transaction(async (tx) => {
+    await lockEditable(tx, companyId, userId, reportId);
     const result = await tx.expenseItem.deleteMany({ where: { id: itemId, reportId, companyId } });
     if (result.count === 0) throw new Error('El gasto no existe');
     await recomputeTotal(tx, companyId, reportId);
@@ -121,23 +136,67 @@ export async function submitReport(companyId: string, userId: string, reportId: 
   return (await getReport(companyId, reportId, { userId, canSeeAll: true })) as ExpenseReportDetail;
 }
 
+/**
+ * Aprobar reconoce el gasto: con Contabilidad activa, el asiento (gasto contra
+ * rendiciones por pagar) nace en la misma transacción que el cambio de estado.
+ */
 export async function reviewReport(companyId: string, reviewerId: string, reportId: string, input: ExpenseReviewInput): Promise<void> {
   const report = await prisma.expenseReport.findFirst({ where: { id: reportId, companyId }, select: { submittedByUserId: true } });
   if (!report) throw new Error('La rendición no existe');
   if (report.submittedByUserId === reviewerId) throw new Error('No puedes aprobar ni rechazar tu propia rendición: debe revisarla otra persona');
-  const result = await prisma.expenseReport.updateMany({
-    where: { id: reportId, companyId, status: 'SUBMITTED' },
-    data: { status: input.decision, reviewedByUserId: reviewerId, reviewedAt: new Date(), reviewNotes: input.notes ?? null },
+  await prisma.$transaction(async (tx) => {
+    const reviewedAt = new Date();
+    const result = await tx.expenseReport.updateMany({
+      where: { id: reportId, companyId, status: 'SUBMITTED' },
+      data: { status: input.decision, reviewedByUserId: reviewerId, reviewedAt, reviewNotes: input.notes ?? null },
+    });
+    if (result.count === 0) throw new Error('La rendición ya no está esperando revisión');
+    if (input.decision !== 'APPROVED') return;
+    const approved = await tx.expenseReport.findFirstOrThrow({ where: { id: reportId, companyId }, select: { id: true, title: true, totalAmount: true } });
+    await postExpenseReportApproved(tx, companyId, { ...approved, approvedAt: reviewedAt }, reviewerId);
   });
-  if (result.count === 0) throw new Error('La rendición ya no está esperando revisión');
 }
 
-export async function reimburseReport(companyId: string, reportId: string, reference: string | undefined): Promise<void> {
-  const result = await prisma.expenseReport.updateMany({
-    where: { id: reportId, companyId, status: 'APPROVED' },
-    data: { status: 'REIMBURSED', reimbursedAt: new Date(), reimbursementReference: reference ?? null },
+/**
+ * Reembolsar es un egreso de Tesorería contra `RENDICIONES_POR_PAGAR`. El
+ * cambio de estado condicionado a APPROVED es el candado: si dos personas
+ * reembolsan a la vez, solo una transacción lo encuentra aprobado.
+ */
+export async function reimburseReport(companyId: string, reportId: string, details: MoneyDetailsInput, userId?: string): Promise<Payment> {
+  return prisma.$transaction(async (tx) => {
+    const reimbursedAt = details.paymentDate ?? new Date();
+    const result = await tx.expenseReport.updateMany({
+      where: { id: reportId, companyId, status: 'APPROVED' },
+      data: { status: 'REIMBURSED', reimbursedAt, reimbursementReference: details.referenceNumber ?? null },
+    });
+    if (result.count === 0) throw new Error('Solo se pueden reembolsar rendiciones aprobadas');
+    const report = await tx.expenseReport.findFirstOrThrow({
+      where: { id: reportId, companyId },
+      select: { id: true, title: true, totalAmount: true, projectId: true, reviewedAt: true, submittedBy: { select: { name: true } } },
+    });
+    // Rendiciones aprobadas antes de que existiera el asiento de aprobación.
+    await ensureExpenseReportAccrual(
+      tx,
+      companyId,
+      { id: report.id, title: report.title, totalAmount: report.totalAmount, approvedAt: report.reviewedAt ?? reimbursedAt },
+      userId
+    );
+    return recordTreasuryMovement(tx, {
+      companyId,
+      direction: 'EXPENSE',
+      amount: report.totalAmount,
+      method: details.paymentMethod,
+      date: reimbursedAt,
+      source: 'EXPENSE_REPORT',
+      sourceId: report.id,
+      description: `Reembolso rendición "${report.title}"${report.submittedBy ? ` — ${report.submittedBy.name}` : ''}`,
+      counterpartKey: 'RENDICIONES_POR_PAGAR',
+      projectId: report.projectId,
+      treasuryAccountId: details.treasuryAccountId,
+      referenceNumber: details.referenceNumber,
+      createdByUserId: userId,
+    });
   });
-  if (result.count === 0) throw new Error('Solo se pueden reembolsar rendiciones aprobadas');
 }
 
 export async function deleteReport(companyId: string, userId: string, reportId: string): Promise<void> {

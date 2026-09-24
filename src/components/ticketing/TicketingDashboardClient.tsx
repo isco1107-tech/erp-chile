@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { QrCode, Plus, Trash2, Ticket, TicketCheck, Wallet, ScanLine } from 'lucide-react';
+import PaymentChannelFields, { DEFAULT_PAYMENT_CHANNEL } from '@/components/treasury/PaymentChannelFields';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -44,6 +45,7 @@ export default function TicketingDashboardClient({ canWrite }: { canWrite: boole
   const [deleteTypeTarget, setDeleteTypeTarget] = useState<TicketType | null>(null);
   const [paymentSale, setPaymentSale] = useState<TicketSaleWithType | null>(null);
   const [paidAmount, setPaidAmount] = useState(0);
+  const [paymentChannel, setPaymentChannel] = useState(DEFAULT_PAYMENT_CHANNEL);
   const [savingPayment, setSavingPayment] = useState(false);
   const [checkInCode, setCheckInCode] = useState('');
   const [checkingIn, setCheckingIn] = useState(false);
@@ -140,7 +142,11 @@ export default function TicketingDashboardClient({ canWrite }: { canWrite: boole
     if (!paymentSale) return;
     setSavingPayment(true);
     try {
-      const result = await confirmTicketPaymentAction(paymentSale.id, { paidAmount });
+      const result = await confirmTicketPaymentAction(paymentSale.id, {
+        paidAmount,
+        paymentMethod: paymentChannel.paymentMethod,
+        treasuryAccountId: paymentChannel.treasuryAccountId || undefined,
+      });
       if (!result.success) {
         toast.error(result.error);
         return;
@@ -318,6 +324,9 @@ export default function TicketingDashboardClient({ canWrite }: { canWrite: boole
               <Label htmlFor="paid-amount">Monto pagado (CLP)</Label>
               <CurrencyInput id="paid-amount" value={paidAmount} onChange={setPaidAmount} />
             </div>
+            {paymentSale && paidAmount !== paymentSale.paidAmount && (
+              <PaymentChannelFields context="ticketing" value={paymentChannel} onChange={setPaymentChannel} idPrefix="ticket" />
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPaymentSale(null)} disabled={savingPayment}>Cancelar</Button>

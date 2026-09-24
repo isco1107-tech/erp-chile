@@ -1,8 +1,12 @@
 import 'server-only';
 
 import ExcelJS from 'exceljs';
-import type { Employee, PayrollPeriod, Payslip, Prisma } from '@prisma/client';
+import type { Employee, Payment, PayrollPeriod, Payslip, Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
+import { ensurePayrollAccrual, postPayrollClosing, sumPayroll, type PayslipAmounts } from '@/modules/accounting/posting-rules/people-posting';
+import { recordTreasuryMovement } from '@/modules/treasury/services/movements.service';
+import type { MoneyDetailsInput } from '@/modules/treasury/schema';
 import { santiagoMidnightUtc } from '@/lib/chile/timezone';
 import {
   AFP_INSTITUTIONS,
@@ -110,8 +114,10 @@ export async function createPeriod(companyId: string, input: PayrollPeriodInput)
 export async function updatePeriodParameters(companyId: string, id: string, input: PayrollPeriodInput): Promise<void> {
   await findDraftPeriod(companyId, id);
   // Año y mes identifican al período: no se editan, solo los parámetros.
-  await prisma.payrollPeriod.updateMany({
-    where: { id, companyId },
+  // `status: 'DRAFT'` en el filtro: si alguien cerró el mes entre la lectura
+  // y esta escritura, no se tocan los parámetros de un período cerrado.
+  const result = await prisma.payrollPeriod.updateMany({
+    where: { id, companyId, status: 'DRAFT' },
     data: {
       ufValue: input.ufValue,
       utmValue: input.utmValue,
@@ -124,6 +130,7 @@ export async function updatePeriodParameters(companyId: string, id: string, inpu
       afpCommissionBps: input.afpCommissionBps,
     },
   });
+  if (result.count === 0) throw new Error('El período se cerró mientras lo editabas: sus parámetros ya no se pueden cambiar');
 }
 
 export async function deletePeriod(companyId: string, id: string): Promise<void> {
@@ -175,6 +182,10 @@ export async function calculatePeriod(companyId: string, periodId: string, input
   const byId = new Map(employees.map((e) => [e.id, e]));
 
   await prisma.$transaction(async (tx) => {
+    // Lock + re-chequeo dentro de la transacción: sin esto, cerrar el mes
+    // mientras otra persona recalcula dejaba modificar liquidaciones ya
+    // cerradas (y su centralización contable quedaba descuadrada).
+    await lockDraftPeriod(tx, companyId, periodId);
     await tx.payslip.deleteMany({ where: { companyId, periodId, employeeId: { notIn: ids } } });
     for (const row of input.rows) {
       const employee = byId.get(row.employeeId) as Employee;
@@ -193,14 +204,28 @@ export async function calculatePeriod(companyId: string, periodId: string, input
         row,
         params
       );
+      const employeeSnapshot = snapshotOf(employee);
       await tx.payslip.upsert({
         where: { periodId_employeeId: { periodId, employeeId: employee.id } },
-        create: { companyId, periodId, employeeId: employee.id, ...computed },
-        update: computed,
+        create: { companyId, periodId, employeeId: employee.id, employeeSnapshot, ...computed },
+        update: { ...computed, employeeSnapshot },
       });
     }
-  });
+  }, LOCKING_TX_OPTIONS);
   return input.rows.length;
+}
+
+async function lockPeriod(tx: Prisma.TransactionClient, companyId: string, periodId: string): Promise<PayrollPeriod> {
+  await tx.$queryRaw`SELECT id FROM "PayrollPeriod" WHERE id = ${periodId} AND "companyId" = ${companyId} FOR UPDATE`;
+  const period = await tx.payrollPeriod.findFirst({ where: { id: periodId, companyId } });
+  if (!period) throw new Error('El período no existe o fue eliminado');
+  return period;
+}
+
+async function lockDraftPeriod(tx: Prisma.TransactionClient, companyId: string, periodId: string): Promise<PayrollPeriod> {
+  const period = await lockPeriod(tx, companyId, periodId);
+  if (period.status !== 'DRAFT') throw new Error('El período está cerrado: sus liquidaciones ya no se pueden modificar');
+  return period;
 }
 
 export interface ClosedPeriodTotals {
@@ -210,21 +235,86 @@ export interface ClosedPeriodTotals {
   totalEmployerCost: number;
 }
 
+/**
+ * Cierra el mes: congela las liquidaciones y, con Contabilidad activa, genera
+ * la centralización de remuneraciones en la misma transacción (gasto contra
+ * cotizaciones, impuesto único y líquidos por pagar).
+ */
 export async function closePeriod(companyId: string, periodId: string, userId: string): Promise<ClosedPeriodTotals> {
-  const period = await findDraftPeriod(companyId, periodId);
-  const payslips = await prisma.payslip.findMany({ where: { companyId, periodId }, select: { netPay: true, employerCost: true } });
-  if (payslips.length === 0) throw new Error('Calcula las liquidaciones antes de cerrar el período');
-  const result = await prisma.payrollPeriod.updateMany({
-    where: { id: periodId, companyId, status: 'DRAFT' },
-    data: { status: 'CLOSED', closedAt: new Date(), closedByUserId: userId },
-  });
-  if (result.count === 0) throw new Error('El período ya fue cerrado');
-  return {
-    label: periodLabel(period.year, period.month),
-    employeeCount: payslips.length,
-    totalNetPay: payslips.reduce((s, p) => s + p.netPay, 0),
-    totalEmployerCost: payslips.reduce((s, p) => s + p.employerCost, 0),
-  };
+  return prisma.$transaction(async (tx) => {
+    const period = await lockDraftPeriod(tx, companyId, periodId);
+    const payslips = await tx.payslip.findMany({ where: { companyId, periodId } });
+    if (payslips.length === 0) throw new Error('Calcula las liquidaciones antes de cerrar el período');
+    await tx.payrollPeriod.updateMany({
+      where: { id: periodId, companyId, status: 'DRAFT' },
+      data: { status: 'CLOSED', closedAt: new Date(), closedByUserId: userId },
+    });
+    const label = periodLabel(period.year, period.month);
+    await postPayrollClosing(tx, companyId, { id: period.id, year: period.year, month: period.month, label }, payslips, userId);
+    return {
+      label,
+      employeeCount: payslips.length,
+      totalNetPay: payslips.reduce((s, p) => s + p.netPay, 0),
+      totalEmployerCost: payslips.reduce((s, p) => s + p.employerCost, 0),
+    };
+  }, LOCKING_TX_OPTIONS);
+}
+
+export type PayrollPaymentKind = 'SALARIES' | 'CONTRIBUTIONS';
+
+/** Monto a pagar de un mes cerrado: los líquidos, o la planilla de cotizaciones (trabajador + empleador). */
+export function payrollPaymentAmount(payslips: PayslipAmounts[], kind: PayrollPaymentKind): number {
+  const totals = sumPayroll(payslips);
+  return kind === 'SALARIES' ? totals.netPay : totals.workerContributions + totals.employerContributions;
+}
+
+/**
+ * Registra en Tesorería el pago de los sueldos (líquidos) o de las
+ * cotizaciones (planilla Previred) de un mes cerrado. Un solo movimiento por
+ * mes y tipo: así es como sale del banco (nómina / planilla), y el candado es
+ * `salariesPaidAt`/`contributionsPaidAt` leído bajo lock del período.
+ */
+export async function registerPayrollPayment(
+  companyId: string,
+  periodId: string,
+  kind: PayrollPaymentKind,
+  details: MoneyDetailsInput,
+  userId?: string
+): Promise<Payment> {
+  return prisma.$transaction(async (tx) => {
+    const period = await lockPeriod(tx, companyId, periodId);
+    if (period.status !== 'CLOSED') throw new Error('Primero cierra el mes: solo se pagan liquidaciones definitivas');
+    const alreadyPaid = kind === 'SALARIES' ? period.salariesPaidAt : period.contributionsPaidAt;
+    if (alreadyPaid) throw new Error(kind === 'SALARIES' ? 'Los sueldos de este mes ya están registrados como pagados' : 'Las cotizaciones de este mes ya están registradas como pagadas');
+
+    const payslips = await tx.payslip.findMany({ where: { companyId, periodId } });
+    const amount = payrollPaymentAmount(payslips, kind);
+    if (amount <= 0) throw new Error('No hay monto por pagar en este mes');
+
+    const label = periodLabel(period.year, period.month);
+    // Meses cerrados antes de que existiera la centralización contable.
+    await ensurePayrollAccrual(tx, companyId, { id: period.id, year: period.year, month: period.month, label }, payslips, userId);
+    const paidAt = details.paymentDate ?? new Date();
+    const payment = await recordTreasuryMovement(tx, {
+      companyId,
+      direction: 'EXPENSE',
+      amount,
+      method: details.paymentMethod,
+      date: paidAt,
+      source: kind === 'SALARIES' ? 'PAYROLL_SALARIES' : 'PAYROLL_CONTRIBUTIONS',
+      sourceId: period.id,
+      description: kind === 'SALARIES' ? `Pago de remuneraciones ${label}` : `Pago de cotizaciones previsionales ${label}`,
+      counterpartKey: kind === 'SALARIES' ? 'REMUNERACIONES_POR_PAGAR' : 'COTIZACIONES_POR_PAGAR',
+      treasuryAccountId: details.treasuryAccountId,
+      referenceNumber: details.referenceNumber,
+      createdByUserId: userId,
+    });
+    await tx.payrollPeriod.updateMany({
+      where: { id: periodId, companyId },
+      data: kind === 'SALARIES' ? { salariesPaidAt: paidAt } : { contributionsPaidAt: paidAt },
+    });
+    return payment;
+  }, LOCKING_TX_OPTIONS);
 }
 
 export type PayslipDocument = Payslip & {
@@ -233,12 +323,63 @@ export type PayslipDocument = Payslip & {
   company: { businessName: string; rut: string; address: string | null; comuna: string | null; logoUrl: string | null };
 };
 
+/** Datos de la ficha que se congelan con la liquidación. */
+export type PayslipEmployeeSnapshot = Pick<
+  Employee,
+  'fullName' | 'rut' | 'position' | 'contractType' | 'afp' | 'healthInsurance' | 'isapreName' | 'isaprePlanUf' | 'baseSalary' | 'bankName' | 'bankAccountType' | 'bankAccountNumber'
+>;
+
+function snapshotOf(employee: Employee): PayslipEmployeeSnapshot {
+  return {
+    fullName: employee.fullName,
+    rut: employee.rut,
+    position: employee.position,
+    contractType: employee.contractType,
+    afp: employee.afp,
+    healthInsurance: employee.healthInsurance,
+    isapreName: employee.isapreName,
+    isaprePlanUf: employee.isaprePlanUf,
+    baseSalary: employee.baseSalary,
+    bankName: employee.bankName,
+    bankAccountType: employee.bankAccountType,
+    bankAccountNumber: employee.bankAccountNumber,
+  };
+}
+
+/** Lee la foto guardada, validando cada campo; lo que falte o no calce se toma de la ficha actual. */
+function readSnapshot(value: Prisma.JsonValue | null): Partial<PayslipEmployeeSnapshot> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const source = value as Record<string, unknown>;
+  const out: Partial<PayslipEmployeeSnapshot> = {};
+  const str = (key: string) => (typeof source[key] === 'string' ? (source[key] as string) : undefined);
+  const strOrNull = (key: string) => (source[key] === null || typeof source[key] === 'string' ? (source[key] as string | null) : undefined);
+  if (str('fullName')) out.fullName = str('fullName');
+  if (str('rut')) out.rut = str('rut');
+  if (str('position') !== undefined) out.position = str('position');
+  if (str('contractType')) out.contractType = str('contractType') as Employee['contractType'];
+  if (str('afp')) out.afp = str('afp') as Employee['afp'];
+  if (str('healthInsurance')) out.healthInsurance = str('healthInsurance') as Employee['healthInsurance'];
+  if (strOrNull('isapreName') !== undefined) out.isapreName = strOrNull('isapreName');
+  if (source.isaprePlanUf === null || typeof source.isaprePlanUf === 'number') out.isaprePlanUf = source.isaprePlanUf as number | null;
+  if (typeof source.baseSalary === 'number') out.baseSalary = source.baseSalary;
+  if (strOrNull('bankName') !== undefined) out.bankName = strOrNull('bankName');
+  if (strOrNull('bankAccountType') !== undefined) out.bankAccountType = strOrNull('bankAccountType');
+  if (strOrNull('bankAccountNumber') !== undefined) out.bankAccountNumber = strOrNull('bankAccountNumber');
+  return out;
+}
+
+/**
+ * Liquidación para imprimir. La ficha del trabajador sale de la foto tomada
+ * al calcular (si existe), no de la ficha actual: cambiar hoy la AFP o la
+ * Isapre no debe reescribir una liquidación de un mes ya cerrado.
+ */
 export async function getPayslipDocument(companyId: string, payslipId: string): Promise<PayslipDocument | null> {
   const payslip = await prisma.payslip.findFirst({
     where: { id: payslipId, companyId },
     include: { employee: true, period: true, company: { select: { businessName: true, rut: true, address: true, comuna: true, logoUrl: true } } },
   });
-  return payslip;
+  if (!payslip) return null;
+  return { ...payslip, employee: { ...payslip.employee, ...readSnapshot(payslip.employeeSnapshot) } };
 }
 
 /** Libro de remuneraciones del período en Excel (resumen por trabajador + totales). */

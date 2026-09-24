@@ -118,7 +118,7 @@ export async function confirmVotePaymentAction(id: string, input: unknown): Prom
     const parsed = confirmVotePaymentSchema.safeParse(input);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
 
-    const data = await publicVotingService.confirmVotePayment(session.companyId, id, parsed.data);
+    const data = await publicVotingService.confirmVotePayment(session.companyId, id, parsed.data, session.id);
     await createAuditLog({
       companyId: session.companyId,
       userId: session.id,

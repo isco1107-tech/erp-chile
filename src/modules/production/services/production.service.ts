@@ -178,6 +178,9 @@ export async function applyStageLiveAction(companyId: string, id: string, action
   const now = new Date();
 
   await prisma.$transaction(async (tx) => {
+    // Lock del certamen: dos pantallas de control poniendo bloques distintos
+    // al aire a la vez se serializan acá, y la segunda cierra al primero.
+    await tx.$queryRaw`SELECT id FROM "Project" WHERE id = ${item.projectId} AND "companyId" = ${companyId} FOR UPDATE`;
     if (action === 'start') {
       await tx.stageTimelineItem.updateMany({
         where: { companyId, projectId: item.projectId, status: 'IN_PROGRESS', NOT: { id } },
@@ -204,29 +207,33 @@ export async function applyStageLiveAction(companyId: string, id: string, action
  */
 export async function advanceShow(companyId: string, projectId: string): Promise<string | null> {
   await assertProjectOwnership(companyId, projectId);
-  const items = await prisma.stageTimelineItem.findMany({
-    where: { companyId, projectId },
-    orderBy: { blockOrder: 'asc' },
-    select: { id: true, status: true, actualStartedAt: true },
-  });
-  const currentIndex = items.findIndex((i) => i.status === 'IN_PROGRESS');
-  const next = items.find((i, index) => i.status === 'PENDING' && index > currentIndex);
   const now = new Date();
 
-  await prisma.$transaction(async (tx) => {
-    if (currentIndex !== -1) {
-      const current = items[currentIndex]!;
+  return prisma.$transaction(async (tx) => {
+    // Lock del certamen y lectura DENTRO de la transacción: dos "Siguiente"
+    // apretados a la vez ya no leen el mismo estado y dejan dos bloques al aire.
+    await tx.$queryRaw`SELECT id FROM "Project" WHERE id = ${projectId} AND "companyId" = ${companyId} FOR UPDATE`;
+    const items = await tx.stageTimelineItem.findMany({
+      where: { companyId, projectId },
+      orderBy: { blockOrder: 'asc' },
+      select: { id: true, status: true, actualStartedAt: true },
+    });
+    const currentIndex = items.findIndex((i) => i.status === 'IN_PROGRESS');
+    const next = items.find((i, index) => i.status === 'PENDING' && index > currentIndex);
+
+    // Cierra todo lo que estuviera al aire (normalmente uno solo).
+    for (const item of items) {
+      if (item.status !== 'IN_PROGRESS') continue;
       await tx.stageTimelineItem.updateMany({
-        where: { id: current.id, companyId, status: 'IN_PROGRESS' },
-        data: { status: 'DONE', actualStartedAt: current.actualStartedAt ?? now, actualEndedAt: now },
+        where: { id: item.id, companyId, status: 'IN_PROGRESS' },
+        data: { status: 'DONE', actualStartedAt: item.actualStartedAt ?? now, actualEndedAt: now },
       });
     }
     if (next) {
       await tx.stageTimelineItem.updateMany({ where: { id: next.id, companyId }, data: { status: 'IN_PROGRESS', actualStartedAt: now, actualEndedAt: null } });
     }
+    return next?.id ?? null;
   });
-
-  return next?.id ?? null;
 }
 
 /** Reprograma las horas de inicio en cadena (cada bloque parte cuando termina el anterior). */

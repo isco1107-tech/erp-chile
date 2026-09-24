@@ -9,6 +9,7 @@ const TABS = [
   { href: '/dashboard/accounting/ledger', label: 'Libro Mayor' },
   { href: '/dashboard/accounting/trial-balance', label: 'Balance de Comprobación' },
   { href: '/dashboard/accounting/reconciliation', label: 'Cuadraturas' },
+  { href: '/dashboard/accounting/mappings', label: 'Cuentas del Sistema' },
 ] as const;
 
 /** Navegación entre libros que conserva el período elegido (`?year&month`). */

@@ -11,6 +11,8 @@ import type {
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { postPurchasePaymentEntry, postSalesPaymentEntry } from '@/modules/accounting/posting-rules/treasury-posting';
 import type { RegisterPaymentInput } from '../schema';
+import { movementOriginOf, type CashFlowOrigin } from '../labels';
+import { defaultTreasuryAccountId } from './movements.service';
 
 interface RegisterPaymentData extends RegisterPaymentInput {
   paymentMethod: PaymentMethodType;
@@ -44,51 +46,83 @@ export async function getContactOutstandingBalance(
   return (result._sum.totalAmount ?? 0) - (result._sum.paidAmount ?? 0);
 }
 
+/**
+ * Caja/banco del cobro o pago: la elegida (validada contra la empresa y
+ * activa) o, si no se eligió, la por defecto según el medio de pago.
+ */
+async function resolvePaymentTreasuryAccount(
+  tx: Prisma.TransactionClient,
+  companyId: string,
+  data: Pick<RegisterPaymentData, 'treasuryAccountId' | 'paymentMethod'>
+): Promise<string | null> {
+  if (data.treasuryAccountId) {
+    const account = await tx.treasuryAccount.findFirst({
+      where: { id: data.treasuryAccountId, companyId, isActive: true },
+      select: { id: true },
+    });
+    if (!account) throw new Error('La caja o cuenta bancaria seleccionada no existe o está desactivada');
+    return account.id;
+  }
+  return defaultTreasuryAccountId(tx, companyId, data.paymentMethod);
+}
+
 export async function registerSalesPayment(
   companyId: string,
   salesDocumentId: string,
   data: RegisterPaymentData
 ): Promise<Payment> {
-  return prisma.$transaction(async (tx) => {
-    // Lock sobre el documento: sin él, dos cobros concurrentes leían el mismo
-    // paidAmount y el segundo pisaba al primero, dando por pagado un documento
-    // que no lo estaba.
-    await tx.$queryRaw`SELECT id FROM "SalesDocument" WHERE id = ${salesDocumentId} AND "companyId" = ${companyId} FOR UPDATE`;
+  return prisma.$transaction((tx) => registerSalesPaymentInTx(tx, companyId, salesDocumentId, data), LOCKING_TX_OPTIONS);
+}
 
-    const doc = await tx.salesDocument.findFirst({ where: { id: salesDocumentId, companyId } });
-    if (!doc) throw new Error('Documento de venta no encontrado');
-    if (doc.status !== 'ISSUED') throw new Error('Solo se pueden registrar cobros sobre documentos emitidos');
+/**
+ * Mismo cobro, dentro de una transacción ajena: lo usa la conciliación
+ * bancaria para crear el cobro y enlazarlo a la línea de cartola de una vez.
+ */
+export async function registerSalesPaymentInTx(
+  tx: Prisma.TransactionClient,
+  companyId: string,
+  salesDocumentId: string,
+  data: RegisterPaymentData
+): Promise<Payment> {
+  // Lock sobre el documento: sin él, dos cobros concurrentes leían el mismo
+  // paidAmount y el segundo pisaba al primero, dando por pagado un documento
+  // que no lo estaba.
+  await tx.$queryRaw`SELECT id FROM "SalesDocument" WHERE id = ${salesDocumentId} AND "companyId" = ${companyId} FOR UPDATE`;
 
-    const pendingBalance = doc.totalAmount - doc.paidAmount;
-    if (data.amount > pendingBalance) throw new Error('El monto cobrado supera el saldo pendiente del documento');
+  const doc = await tx.salesDocument.findFirst({ where: { id: salesDocumentId, companyId } });
+  if (!doc) throw new Error('Documento de venta no encontrado');
+  if (doc.status !== 'ISSUED') throw new Error('Solo se pueden registrar cobros sobre documentos emitidos');
 
-    const newPaidAmount = doc.paidAmount + data.amount;
-    const paymentStatus: PaymentStatus = newPaidAmount >= doc.totalAmount ? 'PAID' : 'PARTIAL';
+  const pendingBalance = doc.totalAmount - doc.paidAmount;
+  if (data.amount > pendingBalance) throw new Error('El monto cobrado supera el saldo pendiente del documento');
 
-    const payment = await tx.payment.create({
-      data: {
-        companyId,
-        type: 'INCOME',
-        contactId: doc.contactId,
-        salesDocumentId: doc.id,
-        amount: data.amount,
-        paymentMethod: data.paymentMethod,
-        paymentDate: data.paymentDate ? new Date(data.paymentDate) : undefined,
-        referenceNumber: data.referenceNumber,
-        bankAccount: data.bankAccount,
-        notes: data.notes,
-      },
-    });
+  const newPaidAmount = doc.paidAmount + data.amount;
+  const paymentStatus: PaymentStatus = newPaidAmount >= doc.totalAmount ? 'PAID' : 'PARTIAL';
 
-    await tx.salesDocument.update({
-      where: { id: doc.id },
-      data: { paidAmount: newPaidAmount, paymentStatus },
-    });
+  const payment = await tx.payment.create({
+    data: {
+      companyId,
+      type: 'INCOME',
+      contactId: doc.contactId,
+      salesDocumentId: doc.id,
+      amount: data.amount,
+      paymentMethod: data.paymentMethod,
+      paymentDate: data.paymentDate ? new Date(data.paymentDate) : undefined,
+      referenceNumber: data.referenceNumber,
+      bankAccount: data.bankAccount,
+      notes: data.notes,
+      treasuryAccountId: await resolvePaymentTreasuryAccount(tx, companyId, data),
+    },
+  });
 
-    await postSalesPaymentEntry(tx, companyId, payment);
+  await tx.salesDocument.updateMany({
+    where: { id: doc.id, companyId },
+    data: { paidAmount: newPaidAmount, paymentStatus },
+  });
 
-    return payment;
-  }, LOCKING_TX_OPTIONS);
+  await postSalesPaymentEntry(tx, companyId, payment);
+
+  return payment;
 }
 
 export async function registerPurchasePayment(
@@ -96,52 +130,60 @@ export async function registerPurchasePayment(
   purchaseDocumentId: string,
   data: RegisterPaymentData
 ): Promise<Payment> {
-  return prisma.$transaction(async (tx) => {
-    // Mismo lock que en cobros: evita que dos pagos concurrentes se pisen.
-    await tx.$queryRaw`SELECT id FROM "PurchaseDocument" WHERE id = ${purchaseDocumentId} AND "companyId" = ${companyId} FOR UPDATE`;
+  return prisma.$transaction((tx) => registerPurchasePaymentInTx(tx, companyId, purchaseDocumentId, data), LOCKING_TX_OPTIONS);
+}
 
-    const doc = await tx.purchaseDocument.findFirst({ where: { id: purchaseDocumentId, companyId } });
-    if (!doc) throw new Error('Documento de compra no encontrado');
-    if (doc.status !== 'ISSUED') throw new Error('Solo se pueden registrar pagos sobre documentos registrados');
-    // Matching de 3 vías: una factura que no cuadra con su Orden de Compra
-    // no libera pago hasta que alguien con `purchases:override_match` la
-    // fuerce explícitamente (pasa a OVERRIDDEN) o se corrija el documento.
-    if (doc.matchStatus === 'MISMATCHED') {
-      throw new Error(
-        `El pago está bloqueado: esta factura no coincide con su Orden de Compra${doc.matchNotes ? ` (${doc.matchNotes})` : ''}`
-      );
-    }
+export async function registerPurchasePaymentInTx(
+  tx: Prisma.TransactionClient,
+  companyId: string,
+  purchaseDocumentId: string,
+  data: RegisterPaymentData
+): Promise<Payment> {
+  // Mismo lock que en cobros: evita que dos pagos concurrentes se pisen.
+  await tx.$queryRaw`SELECT id FROM "PurchaseDocument" WHERE id = ${purchaseDocumentId} AND "companyId" = ${companyId} FOR UPDATE`;
 
-    const pendingBalance = doc.totalAmount - doc.paidAmount;
-    if (data.amount > pendingBalance) throw new Error('El monto pagado supera el saldo pendiente del documento');
+  const doc = await tx.purchaseDocument.findFirst({ where: { id: purchaseDocumentId, companyId } });
+  if (!doc) throw new Error('Documento de compra no encontrado');
+  if (doc.status !== 'ISSUED') throw new Error('Solo se pueden registrar pagos sobre documentos registrados');
+  // Matching de 3 vías: una factura que no cuadra con su Orden de Compra
+  // no libera pago hasta que alguien con `purchases:override_match` la
+  // fuerce explícitamente (pasa a OVERRIDDEN) o se corrija el documento.
+  if (doc.matchStatus === 'MISMATCHED') {
+    throw new Error(
+      `El pago está bloqueado: esta factura no coincide con su Orden de Compra${doc.matchNotes ? ` (${doc.matchNotes})` : ''}`
+    );
+  }
 
-    const newPaidAmount = doc.paidAmount + data.amount;
-    const paymentStatus: PaymentStatus = newPaidAmount >= doc.totalAmount ? 'PAID' : 'PARTIAL';
+  const pendingBalance = doc.totalAmount - doc.paidAmount;
+  if (data.amount > pendingBalance) throw new Error('El monto pagado supera el saldo pendiente del documento');
 
-    const payment = await tx.payment.create({
-      data: {
-        companyId,
-        type: 'EXPENSE',
-        contactId: doc.contactId,
-        purchaseDocumentId: doc.id,
-        amount: data.amount,
-        paymentMethod: data.paymentMethod,
-        paymentDate: data.paymentDate ? new Date(data.paymentDate) : undefined,
-        referenceNumber: data.referenceNumber,
-        bankAccount: data.bankAccount,
-        notes: data.notes,
-      },
-    });
+  const newPaidAmount = doc.paidAmount + data.amount;
+  const paymentStatus: PaymentStatus = newPaidAmount >= doc.totalAmount ? 'PAID' : 'PARTIAL';
 
-    await tx.purchaseDocument.updateMany({
-      where: { id: doc.id, companyId },
-      data: { paidAmount: newPaidAmount, paymentStatus },
-    });
+  const payment = await tx.payment.create({
+    data: {
+      companyId,
+      type: 'EXPENSE',
+      contactId: doc.contactId,
+      purchaseDocumentId: doc.id,
+      amount: data.amount,
+      paymentMethod: data.paymentMethod,
+      paymentDate: data.paymentDate ? new Date(data.paymentDate) : undefined,
+      referenceNumber: data.referenceNumber,
+      bankAccount: data.bankAccount,
+      notes: data.notes,
+      treasuryAccountId: await resolvePaymentTreasuryAccount(tx, companyId, data),
+    },
+  });
 
-    await postPurchasePaymentEntry(tx, companyId, payment);
+  await tx.purchaseDocument.updateMany({
+    where: { id: doc.id, companyId },
+    data: { paidAmount: newPaidAmount, paymentStatus },
+  });
 
-    return payment;
-  }, LOCKING_TX_OPTIONS);
+  await postPurchasePaymentEntry(tx, companyId, payment);
+
+  return payment;
 }
 
 export type ReceivableRow = SalesDocument & { contact: Contact };
@@ -291,7 +333,18 @@ export interface CashFlowPoint {
   expense: number;
 }
 
-export type CashFlowMovement = Payment & { contact: Contact };
+export type CashFlowMovement = Payment & {
+  contact: Contact | null;
+  treasuryAccount: { name: string } | null;
+  salesDocument: { folio: number | null; dteType: string } | null;
+  purchaseDocument: { folio: string } | null;
+};
+
+export interface CashFlowOriginBreakdown {
+  origin: CashFlowOrigin;
+  income: number;
+  expense: number;
+}
 
 export interface CashFlowMethodBreakdown {
   method: PaymentMethodType;
@@ -307,15 +360,39 @@ export interface CashFlowResult {
   series: CashFlowPoint[];
   /** Consolidado por medio de pago: cuánto entró y salió de cada uno (efectivo, transferencia, tarjeta, etc). */
   byPaymentMethod: CashFlowMethodBreakdown[];
+  /** Consolidado por módulo de origen: ventas, compras, sueldos, honorarios, cuotas, entradas… */
+  byOrigin: CashFlowOriginBreakdown[];
   movements: CashFlowMovement[];
 }
 
-export async function getCashFlow(companyId: string, startDate: Date, endDate: Date): Promise<CashFlowResult> {
+export async function getCashFlow(
+  companyId: string,
+  startDate: Date,
+  endDate: Date,
+  treasuryAccountId?: string
+): Promise<CashFlowResult> {
   const payments = await prisma.payment.findMany({
-    where: { companyId, paymentDate: { gte: startDate, lte: endDate } },
-    include: { contact: true },
+    where: { companyId, paymentDate: { gte: startDate, lte: endDate }, ...(treasuryAccountId ? { treasuryAccountId } : {}) },
+    include: {
+      contact: true,
+      treasuryAccount: { select: { name: true } },
+      salesDocument: { select: { folio: true, dteType: true } },
+      purchaseDocument: { select: { folio: true } },
+    },
     orderBy: { paymentDate: 'desc' },
   });
+
+  const byOriginMap = new Map<CashFlowOrigin, { income: number; expense: number }>();
+  for (const p of payments) {
+    const origin = movementOriginOf(p);
+    const entry = byOriginMap.get(origin) ?? { income: 0, expense: 0 };
+    if (p.type === 'INCOME') entry.income += p.amount;
+    else entry.expense += p.amount;
+    byOriginMap.set(origin, entry);
+  }
+  const byOrigin = Array.from(byOriginMap.entries())
+    .map(([origin, v]) => ({ origin, ...v }))
+    .sort((a, b) => b.income + b.expense - (a.income + a.expense));
 
   const totalIncome = payments.filter((p) => p.type === 'INCOME').reduce((sum, p) => sum + p.amount, 0);
   const totalExpense = payments.filter((p) => p.type === 'EXPENSE').reduce((sum, p) => sum + p.amount, 0);
@@ -344,5 +421,5 @@ export async function getCashFlow(companyId: string, startDate: Date, endDate: D
     .map(([method, v]) => ({ method, ...v, net: v.income - v.expense }))
     .sort((a, b) => b.income + b.expense - (a.income + a.expense));
 
-  return { totalIncome, totalExpense, netAmount: totalIncome - totalExpense, series, byPaymentMethod, movements: payments };
+  return { totalIncome, totalExpense, netAmount: totalIncome - totalExpense, series, byPaymentMethod, byOrigin, movements: payments };
 }

@@ -34,6 +34,8 @@ import {
 import { EXPENSE_CATEGORIES, EXPENSE_DOCUMENT_LABELS, EXPENSE_DOCUMENT_TYPES, EXPENSE_STATUS_LABELS } from '@/modules/expenses/schema';
 import type { ExpenseReportDetail, ExpenseReportRow } from '@/modules/expenses/services/expenses.service';
 import { cn } from '@/lib/utils';
+import { PAYMENT_METHOD_TYPES, PAYMENT_METHOD_TYPE_LABELS } from '@/modules/treasury/schema';
+import { pickDefaultAccount as defaultAccountFor, type MoneyMethod } from '@/components/treasury/MoneyMovementDialog';
 
 type Status = ExpenseReportRow['status'];
 const STATUS_TONE: Record<Status, Tone> = { DRAFT: 'neutral', SUBMITTED: 'warning', APPROVED: 'info', REJECTED: 'danger', REIMBURSED: 'success' };
@@ -77,6 +79,8 @@ export function ExpensesClient() {
   const [item, setItem] = useState(EMPTY_ITEM);
   const [reviewNotes, setReviewNotes] = useState('');
   const [reference, setReference] = useState('');
+  const [reimburseMethod, setReimburseMethod] = useState<MoneyMethod>('TRANSFERENCIA');
+  const [reimburseAccount, setReimburseAccount] = useState('');
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -107,6 +111,8 @@ export function ExpensesClient() {
     setItem(EMPTY_ITEM);
     setReviewNotes('');
     setReference('');
+    setReimburseMethod('TRANSFERENCIA');
+    setReimburseAccount(defaultAccountFor(board?.treasuryAccounts ?? [], 'TRANSFERENCIA'));
   }
 
   async function refreshDetail() {
@@ -394,9 +400,44 @@ export function ExpensesClient() {
                 </div>
               )}
               {detail.status === 'APPROVED' && board.canReimburse && (
-                <div className="mt-4 space-y-2">
-                  <Label htmlFor="reimburse-ref">Referencia del reembolso (N° transferencia, cheque…)</Label>
-                  <Input id="reimburse-ref" value={reference} onChange={(e) => setReference(e.target.value)} />
+                <div className="mt-4 grid gap-3 rounded-lg border border-border p-3 sm:grid-cols-3">
+                  <p className="text-xs text-muted-foreground sm:col-span-3">
+                    El reembolso de {formatCurrency(detail.totalAmount)} queda registrado como egreso en Tesorería.
+                  </p>
+                  <div>
+                    <Label htmlFor="reimburse-method">Medio de pago</Label>
+                    <select
+                      id="reimburse-method"
+                      className={nativeSelectClass}
+                      value={reimburseMethod}
+                      onChange={(e) => {
+                        const next = e.target.value as MoneyMethod;
+                        setReimburseMethod(next);
+                        setReimburseAccount(defaultAccountFor(board.treasuryAccounts, next));
+                      }}
+                    >
+                      {PAYMENT_METHOD_TYPES.map((method) => (
+                        <option key={method} value={method}>
+                          {PAYMENT_METHOD_TYPE_LABELS[method]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <Label htmlFor="reimburse-account">Sale de</Label>
+                    <select id="reimburse-account" className={nativeSelectClass} value={reimburseAccount} onChange={(e) => setReimburseAccount(e.target.value)}>
+                      <option value="">Sin especificar</option>
+                      {board.treasuryAccounts.map((account) => (
+                        <option key={account.id} value={account.id}>
+                          {account.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <Label htmlFor="reimburse-ref">N° de comprobante</Label>
+                    <Input id="reimburse-ref" value={reference} onChange={(e) => setReference(e.target.value)} />
+                  </div>
                 </div>
               )}
 
@@ -438,7 +479,21 @@ export function ExpensesClient() {
                 )}
                 {detail.status === 'SUBMITTED' && isMine && <p className="mr-auto text-xs text-muted-foreground">Esperando revisión de otra persona.</p>}
                 {detail.status === 'APPROVED' && board.canReimburse && (
-                  <Button type="button" disabled={busy} onClick={() => void run(() => reimburseExpenseReportAction(detail.id, { reference }), refreshDetail)}>
+                  <Button
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      void run(
+                        () =>
+                          reimburseExpenseReportAction(detail.id, {
+                            paymentMethod: reimburseMethod,
+                            treasuryAccountId: reimburseAccount || undefined,
+                            referenceNumber: reference.trim() || undefined,
+                          }),
+                        refreshDetail
+                      )
+                    }
+                  >
                     <CheckCircle2 aria-hidden="true" />
                     Marcar reembolsada
                   </Button>

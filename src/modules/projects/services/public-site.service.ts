@@ -1,7 +1,8 @@
 import 'server-only';
 
-import type { CandidateStatus, SponsorshipTier } from '@prisma/client';
+import type { SponsorshipTier } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { PUBLIC_CANDIDATE_STATUSES, publicCandidateName } from '@/lib/events/public-candidate';
 import { decodeVoteToken } from '@/modules/public-voting/schema';
 import { SPONSORSHIP_TIER_LABELS, SPONSORSHIP_TIERS } from '@/modules/sponsorships/schema';
 import type { PublicAccentKey } from '../schema';
@@ -19,7 +20,6 @@ import { PUBLIC_ACCENTS } from '../schema';
  * nada, igual que un sitio apagado: el link responde "no encontrado".
  */
 
-const PUBLIC_CANDIDATE_STATUSES: CandidateStatus[] = ['OFFICIAL_CANDIDATE', 'FINALIST', 'WINNER'];
 
 export interface PublicPageantCandidate {
   id: string;
@@ -80,8 +80,9 @@ export async function getPublicPageantSite(slug: string): Promise<PublicPageantS
     features.hasCandidates && project.showCandidatesPublic
       ? prisma.candidate.findMany({
           where: { ...where, status: { in: PUBLIC_CANDIDATE_STATUSES }, showOnPublicSite: true },
-          select: { id: true, fullName: true, stageName: true, candidateNumber: true, representing: true, photoUrl: true, publicBio: true, status: true },
-          orderBy: [{ candidateNumber: { sort: 'asc', nulls: 'last' } }, { fullName: 'asc' }],
+          // Campo por campo: `fullName` (nombre de la ficha de postulación) no se lee acá.
+          select: { id: true, stageName: true, candidateNumber: true, representing: true, photoUrl: true, publicBio: true, status: true },
+          orderBy: [{ candidateNumber: { sort: 'asc', nulls: 'last' } }, { stageName: 'asc' }],
         })
       : Promise.resolve([]),
     features.hasSponsorships && project.showSponsorsPublic
@@ -115,10 +116,11 @@ export async function getPublicPageantSite(slug: string): Promise<PublicPageantS
           where: { ...where, isFinalRound: true, status: 'COMPLETED' },
           select: {
             contestants: {
-              where: { rank: { not: null } },
+              // Una candidata ocultada del sitio tampoco aparece en los resultados.
+              where: { rank: { not: null }, candidate: { showOnPublicSite: true } },
               orderBy: { rank: 'asc' },
               take: 5,
-              select: { rank: true, candidate: { select: { fullName: true, stageName: true, candidateNumber: true, representing: true, photoUrl: true } } },
+              select: { rank: true, candidate: { select: { stageName: true, candidateNumber: true, representing: true, photoUrl: true } } },
             },
           },
         })
@@ -137,12 +139,12 @@ export async function getPublicPageantSite(slug: string): Promise<PublicPageantS
     });
     const names = await prisma.candidate.findMany({
       where: { companyId, id: { in: rows.map((r) => r.candidateId) }, showOnPublicSite: true },
-      select: { id: true, fullName: true, stageName: true, candidateNumber: true },
+      select: { id: true, stageName: true, candidateNumber: true },
     });
     voteRanking = rows
       .map((r) => {
         const c = names.find((n) => n.id === r.candidateId);
-        return c ? { name: c.stageName ?? c.fullName, number: c.candidateNumber, votes: r._sum.voteCount ?? 0 } : null;
+        return c ? { name: publicCandidateName(c), number: c.candidateNumber, votes: r._sum.voteCount ?? 0 } : null;
       })
       .filter((r): r is NonNullable<typeof r> => r !== null);
   }
@@ -177,7 +179,7 @@ export async function getPublicPageantSite(slug: string): Promise<PublicPageantS
     contactEmail: project.publicContactEmail,
     candidates: candidates.map((c) => ({
       id: c.id,
-      name: c.stageName || c.fullName,
+      name: publicCandidateName(c),
       number: c.candidateNumber,
       representing: c.representing,
       photoUrl: c.photoUrl,
@@ -204,7 +206,7 @@ export async function getPublicPageantSite(slug: string): Promise<PublicPageantS
       finalRound && finalRound.contestants.length > 0
         ? finalRound.contestants.map((c) => ({
             rank: c.rank as number,
-            name: c.candidate.stageName || c.candidate.fullName,
+            name: publicCandidateName(c.candidate),
             number: c.candidate.candidateNumber,
             representing: c.candidate.representing,
             photoUrl: c.candidate.photoUrl,

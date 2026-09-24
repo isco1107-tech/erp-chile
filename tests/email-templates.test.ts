@@ -269,6 +269,7 @@ describe('Correo de cierre mensual (F29 + cuadraturas)', () => {
     ppmAmount: 10000,
     determinedTax: 150000,
     honorariumRetentionAmount: 0,
+    employeeIncomeTaxAmount: 0,
     checks: [
       { label: 'Existencias', expected: 500000, actual: 500000, difference: 0, inBalance: true },
       { label: 'Caja', expected: 100000, actual: 95000, difference: 5000, inBalance: false },

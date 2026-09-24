@@ -1422,6 +1422,7 @@ export interface MonthlyClosingEmailInput {
   ppmAmount: number;
   determinedTax: number;
   honorariumRetentionAmount: number;
+  employeeIncomeTaxAmount: number;
   checks: MonthlyClosingCheckRow[];
   dashboardUrl: string;
 }
@@ -1483,6 +1484,7 @@ export function buildMonthlyClosingEmail(input: MonthlyClosingEmailInput): { sub
                 <tr><td style="padding:4px 0;color:#64748b;">Remanente a próximo mes</td><td style="padding:4px 0;text-align:right;font-weight:600;">${escapeHtml(formatCurrency(input.remanentCredit))}</td></tr>
                 <tr><td style="padding:4px 0;color:#64748b;">PPM</td><td style="padding:4px 0;text-align:right;font-weight:600;">${escapeHtml(formatCurrency(input.ppmAmount))}</td></tr>
                 <tr><td style="padding:4px 0;color:#64748b;">Retención de honorarios</td><td style="padding:4px 0;text-align:right;font-weight:600;">${escapeHtml(formatCurrency(input.honorariumRetentionAmount))}</td></tr>
+                <tr><td style="padding:4px 0;color:#64748b;">Impuesto único trabajadores</td><td style="padding:4px 0;text-align:right;font-weight:600;">${escapeHtml(formatCurrency(input.employeeIncomeTaxAmount))}</td></tr>
                 <tr><td style="padding:8px 0 0;font-weight:700;">Impuesto determinado</td><td style="padding:8px 0 0;text-align:right;font-weight:700;font-size:15px;">${escapeHtml(formatCurrency(input.determinedTax))}</td></tr>
               </table>
               ${
@@ -1524,6 +1526,7 @@ export function buildMonthlyClosingEmail(input: MonthlyClosingEmailInput): { sub
     `- Remanente a próximo mes: ${formatCurrency(input.remanentCredit)}`,
     `- PPM: ${formatCurrency(input.ppmAmount)}`,
     `- Retención de honorarios: ${formatCurrency(input.honorariumRetentionAmount)}`,
+    `- Impuesto único trabajadores: ${formatCurrency(input.employeeIncomeTaxAmount)}`,
     `- Impuesto determinado: ${formatCurrency(input.determinedTax)}`,
     '',
     ...(input.checks.length > 0

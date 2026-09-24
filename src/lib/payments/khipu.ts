@@ -36,7 +36,8 @@ export interface KhipuCreatePaymentInput {
   notifyUrl: string;
   expiresAt: Date;
   payerName: string;
-  payerEmail: string;
+  /** Opcional: un cliente de una factura puede no tener correo registrado. */
+  payerEmail?: string;
   body?: string;
 }
 

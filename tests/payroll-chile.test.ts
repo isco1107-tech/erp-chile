@@ -101,10 +101,28 @@ describe('liquidación de sueldo', () => {
     expect(slip.employerUnemployment).toBe(Math.round(slip.taxableIncome * 0.03));
   });
 
-  it('Isapre cobra el plan si supera el 7%, pero solo el 7% rebaja impuesto', () => {
+  // Tope de la rebaja de salud: 7% del tope imponible vigente (89,9 UF × $39.500 × 7% = $248.574).
+  const HEALTH_TAX_CAP = Math.round(Math.round(89.9 * 39_500) * 0.07);
+
+  it('Isapre cobra el plan si supera el 7%, y lo pagado rebaja impuesto bajo el tope', () => {
+    // Plan 4 UF = $158.000, bajo el tope: rebaja completo.
     const slip = computePayslip({ ...EMPLOYEE, healthInsurance: 'ISAPRE', isaprePlanUf: 4 }, FULL_MONTH, PARAMS);
     expect(slip.healthAmount).toBe(158_000);
-    expect(slip.taxBase).toBe(slip.taxableIncome - slip.pensionAmount - 84_935 - slip.unemploymentEmployee);
+    expect(slip.taxBase).toBe(slip.taxableIncome - slip.pensionAmount - 158_000 - slip.unemploymentEmployee);
+  });
+
+  it('el tope no es 4,2 UF fijas: un plan de 5 UF rebaja completo con el tope imponible vigente', () => {
+    // El caso que objetó la auditoría: 5 UF = $197.500 < $248.574, rebaja entero.
+    const slip = computePayslip({ ...EMPLOYEE, baseSalary: 1_500_000, healthInsurance: 'ISAPRE', isaprePlanUf: 5 }, FULL_MONTH, PARAMS);
+    expect(slip.healthAmount).toBe(197_500);
+    expect(slip.taxBase).toBe(slip.taxableIncome - slip.pensionAmount - 197_500 - slip.unemploymentEmployee);
+  });
+
+  it('un plan sobre el 7% del tope imponible rebaja impuesto solo hasta ese tope', () => {
+    // Plan 8 UF = $316.000 > $248.574.
+    const slip = computePayslip({ ...EMPLOYEE, healthInsurance: 'ISAPRE', isaprePlanUf: 8 }, FULL_MONTH, PARAMS);
+    expect(slip.healthAmount).toBe(316_000);
+    expect(slip.taxBase).toBe(slip.taxableIncome - slip.pensionAmount - HEALTH_TAX_CAP - slip.unemploymentEmployee);
   });
 
   it('proporcional a días trabajados', () => {

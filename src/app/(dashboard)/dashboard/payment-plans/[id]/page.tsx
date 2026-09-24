@@ -10,6 +10,7 @@ import { can, getAuthContext } from '@/lib/auth/guards';
 import PaymentPlanDetailClient from '@/components/payment-plans/PaymentPlanDetailClient';
 import OnlinePaymentsSection from '@/components/payment-plans/OnlinePaymentsSection';
 import { listOnlinePaymentsAction } from '@/modules/payment-plans/actions/online-payment.actions';
+import { listTreasuryAccountOptions } from '@/modules/treasury/services/accounts.service';
 
 export const metadata = { title: 'Plan de Pago' };
 
@@ -26,6 +27,7 @@ export default async function PaymentPlanDetailPage({ params }: { params: Promis
 
   const plan = result.data;
   const canWrite = can(context, 'paymentplans:write');
+  const accounts = canWrite ? await listTreasuryAccountOptions(context.companyId) : [];
 
   return (
     <div className="space-y-4">
@@ -63,7 +65,7 @@ export default async function PaymentPlanDetailPage({ params }: { params: Promis
           </p>
         )}
 
-        <PaymentPlanDetailClient plan={plan} canWrite={canWrite} />
+        <PaymentPlanDetailClient plan={plan} canWrite={canWrite} accounts={accounts} />
 
         <OnlinePaymentsSection planId={plan.id} payments={onlinePayments.success ? onlinePayments.data : []} canWrite={canWrite} />
       </div>

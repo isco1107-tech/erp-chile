@@ -1,7 +1,10 @@
 import { prisma } from '@/lib/prisma';
-import type { Contact, FeeDocument, PaymentStatus, Project } from '@prisma/client';
+import type { Contact, FeeDocument, Payment, PaymentStatus, Project } from '@prisma/client';
 import { calculateFeeAmounts } from '@/lib/services/fees';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
+import { ensureFeeDocumentAccrual, postFeeDocumentRegistered, reverseFeeDocumentPosting } from '@/modules/accounting/posting-rules/people-posting';
+import { recordTreasuryMovement } from '@/modules/treasury/services/movements.service';
+import type { MoneyDetailsInput } from '@/modules/treasury/schema';
 import type { FeeDocumentCreateInput, ListFeeDocumentsFilter } from '../schema';
 
 /** Tasa por defecto si la empresa nunca configuró `CompanySettings` (mismo default del schema, 15.25% — 2026). */
@@ -13,8 +16,11 @@ export type FeeDocumentWithRelations = FeeDocument & { contact: Contact; project
  * Crea el registro de una BHE ya emitida por el prestador. Ninguna FK obliga
  * a que `contactId`/`projectId` pertenezcan a `companyId` (ver CLAUDE.md
  * sección multi-tenant), así que se valida ownership acá antes de escribir.
+ *
+ * Con Contabilidad activa, la boleta nace con su asiento (honorarios contra
+ * retención por enterar y líquido por pagar) en la misma transacción.
  */
-export async function createFeeDocument(companyId: string, data: FeeDocumentCreateInput): Promise<FeeDocument> {
+export async function createFeeDocument(companyId: string, data: FeeDocumentCreateInput, userId?: string): Promise<FeeDocument> {
   const contact = await prisma.contact.findFirst({ where: { id: data.contactId, companyId } });
   if (!contact) throw new Error('Prestador no encontrado');
 
@@ -33,23 +39,38 @@ export async function createFeeDocument(companyId: string, data: FeeDocumentCrea
   // nunca se recalculan después aunque cambie la tasa de la empresa.
   const { retentionAmount, netToPay } = calculateFeeAmounts(data.grossAmount, retentionRateBps);
 
-  return prisma.feeDocument.create({
-    data: {
-      companyId,
-      contactId: data.contactId,
-      projectId: data.projectId,
-      folioNumber: data.folioNumber,
-      issueDate: data.issueDate,
-      serviceDescription: data.serviceDescription,
-      grossAmount: data.grossAmount,
-      retentionRateBps,
-      retentionAmount,
-      netToPay,
-    },
+  return prisma.$transaction(async (tx) => {
+    const fee = await tx.feeDocument.create({
+      data: {
+        companyId,
+        contactId: data.contactId,
+        projectId: data.projectId,
+        folioNumber: data.folioNumber,
+        issueDate: data.issueDate,
+        serviceDescription: data.serviceDescription,
+        grossAmount: data.grossAmount,
+        retentionRateBps,
+        retentionAmount,
+        netToPay,
+      },
+    });
+    await postFeeDocumentRegistered(tx, companyId, fee, userId);
+    return fee;
   });
 }
 
-export async function markFeeDocumentPaid(companyId: string, id: string, paymentDate?: Date): Promise<FeeDocument> {
+/**
+ * Paga el líquido de la boleta: queda como egreso en Tesorería (contra
+ * `HONORARIOS_POR_PAGAR`) y la boleta como pagada, en una sola transacción.
+ * Devuelve el `Payment` para que la acción dispare la automatización después
+ * de confirmar.
+ */
+export async function markFeeDocumentPaid(
+  companyId: string,
+  id: string,
+  details: MoneyDetailsInput,
+  userId?: string
+): Promise<{ fee: FeeDocument; payment: Payment }> {
   return prisma.$transaction(async (tx) => {
     // Lock explícito: sin él, dos solicitudes concurrentes de "marcar pagada"
     // podían ambas leer paymentStatus UNPAID y duplicar el efecto.
@@ -58,16 +79,37 @@ export async function markFeeDocumentPaid(companyId: string, id: string, payment
     const doc = await tx.feeDocument.findFirst({ where: { id, companyId } });
     if (!doc) throw new Error('Boleta de honorarios no encontrada');
     if (doc.paymentStatus === 'PAID') throw new Error('Esta boleta ya está marcada como pagada');
+    // Boletas registradas antes de que existiera su asiento de devengo.
+    await ensureFeeDocumentAccrual(tx, companyId, doc, userId);
+
+    const paymentDate = details.paymentDate ?? new Date();
+    const pending = doc.netToPay - doc.paidAmount;
+    const payment = await recordTreasuryMovement(tx, {
+      companyId,
+      direction: 'EXPENSE',
+      amount: pending,
+      method: details.paymentMethod,
+      date: paymentDate,
+      source: 'FEE_DOCUMENT',
+      sourceId: doc.id,
+      description: `Pago BHE N° ${doc.folioNumber}`,
+      counterpartKey: 'HONORARIOS_POR_PAGAR',
+      contactId: doc.contactId,
+      projectId: doc.projectId,
+      treasuryAccountId: details.treasuryAccountId,
+      referenceNumber: details.referenceNumber,
+      createdByUserId: userId,
+    });
 
     const paymentStatus: PaymentStatus = 'PAID';
     await tx.feeDocument.updateMany({
       where: { id, companyId },
-      data: { paymentStatus, paidAmount: doc.netToPay, paymentDate: paymentDate ?? new Date() },
+      data: { paymentStatus, paidAmount: doc.netToPay, paymentDate },
     });
 
     const updated = await tx.feeDocument.findFirst({ where: { id, companyId } });
     if (!updated) throw new Error('Boleta de honorarios no encontrada');
-    return updated;
+    return { fee: updated, payment };
   }, LOCKING_TX_OPTIONS);
 }
 
@@ -75,19 +117,21 @@ export async function markFeeDocumentPaid(companyId: string, id: string, payment
  * Solo se permite eliminar una boleta que nunca se pagó. Una ya pagada (o con
  * pago parcial) debe conservarse: su `retentionAmount` puede ya haber
  * quedado sumado en un F29 de un período cerrado (`src/lib/chile/f29.ts`
- * filtra por `paymentDate`, no por si el registro sigue existiendo).
+ * filtra por `paymentDate`, no por si el registro sigue existiendo). Su
+ * asiento de registro no se borra: se reversa, como todo asiento contabilizado.
  */
-export async function deleteFeeDocument(companyId: string, id: string): Promise<void> {
-  const doc = await prisma.feeDocument.findFirst({ where: { id, companyId } });
-  if (!doc) throw new Error('Boleta de honorarios no encontrada');
-  if (doc.paymentStatus !== 'UNPAID') {
-    throw new Error(
-      'No se puede eliminar una boleta ya pagada: perderías el registro de la retención ya declarada.'
-    );
-  }
-
-  const result = await prisma.feeDocument.deleteMany({ where: { id, companyId } });
-  if (result.count === 0) throw new Error('Boleta de honorarios no encontrada');
+export async function deleteFeeDocument(companyId: string, id: string, userId?: string): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "FeeDocument" WHERE id = ${id} AND "companyId" = ${companyId} FOR UPDATE`;
+    const doc = await tx.feeDocument.findFirst({ where: { id, companyId } });
+    if (!doc) throw new Error('Boleta de honorarios no encontrada');
+    if (doc.paymentStatus !== 'UNPAID') {
+      throw new Error('No se puede eliminar una boleta ya pagada: perderías el registro de la retención ya declarada.');
+    }
+    await reverseFeeDocumentPosting(tx, companyId, id, `Eliminación de BHE N° ${doc.folioNumber}`, userId);
+    const result = await tx.feeDocument.deleteMany({ where: { id, companyId, paymentStatus: 'UNPAID' } });
+    if (result.count === 0) throw new Error('Boleta de honorarios no encontrada');
+  }, LOCKING_TX_OPTIONS);
 }
 
 export async function listFeeDocuments(

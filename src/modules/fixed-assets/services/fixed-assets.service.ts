@@ -141,8 +141,15 @@ export async function postMonthlyDepreciation(companyId: string, userId: string,
   if (amount <= 0) throw new Error('No hay depreciación que contabilizar en ese mes');
 
   return prisma.$transaction(async (tx) => {
+    // Candado por empresa y mes: sin él, dos solicitudes simultáneas veían
+    // ambas "no hay asiento" y contabilizaban la depreciación dos veces. Es
+    // un lock de transacción de Postgres (se libera solo al terminar).
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`${companyId}:${sourceId}`}, 0))`;
+    // `reversalOfId: null`: el asiento que REVERSA uno anterior lleva el mismo
+    // `sourceId` y queda POSTED; no cuenta como depreciación vigente (si no,
+    // después de reversar ya no se podía volver a contabilizar el mes).
     const existing = await tx.journalEntry.findFirst({
-      where: { companyId, sourceType: 'MANUAL', sourceId, status: { not: 'REVERSED' } },
+      where: { companyId, sourceType: 'MANUAL', sourceId, status: { not: 'REVERSED' }, reversalOfId: null },
       select: { entryNumber: true },
     });
     if (existing) throw new Error(`La depreciación de ese mes ya está contabilizada (asiento N° ${existing.entryNumber})`);

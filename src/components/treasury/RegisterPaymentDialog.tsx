@@ -1,7 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { listTreasuryAccountOptionsAction } from '@/modules/treasury/actions/accounts.actions';
+import { pickDefaultAccount, type TreasuryAccountChoice } from './MoneyMovementDialog';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,9 +41,23 @@ export default function RegisterPaymentDialog({
   const [paymentMethod, setPaymentMethod] = useState<(typeof PAYMENT_METHOD_TYPES)[number]>('EFECTIVO');
   const [paymentDate, setPaymentDate] = useState('');
   const [referenceNumber, setReferenceNumber] = useState('');
-  const [bankAccount, setBankAccount] = useState('');
+  const [treasuryAccountId, setTreasuryAccountId] = useState('');
+  const [accounts, setAccounts] = useState<TreasuryAccountChoice[]>([]);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Las cajas/bancos se cargan al abrir: así la cuenta por defecto del medio
+  // de pago queda preseleccionada y el saldo de cada cuenta cuadra.
+  useEffect(() => {
+    if (!open) return;
+    listTreasuryAccountOptionsAction('treasury').then((result) => {
+      if (!result.success) return;
+      setAccounts(result.data);
+      setTreasuryAccountId((current) => current || pickDefaultAccount(result.data, paymentMethod));
+    });
+    // Solo al abrir; el cambio de medio de pago ajusta la cuenta en su propio handler.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const pendingBalance = totalAmount - paidAmount;
   const parsedAmount = Math.round(Number(amount)) || 0;
@@ -51,7 +67,7 @@ export default function RegisterPaymentDialog({
     setPaymentMethod('EFECTIVO');
     setPaymentDate('');
     setReferenceNumber('');
-    setBankAccount('');
+    setTreasuryAccountId('');
     setNotes('');
   }
 
@@ -72,7 +88,7 @@ export default function RegisterPaymentDialog({
         paymentMethod,
         paymentDate: paymentDate || undefined,
         referenceNumber: referenceNumber || undefined,
-        bankAccount: bankAccount || undefined,
+        treasuryAccountId: treasuryAccountId || undefined,
         notes: notes || undefined,
       };
       const result =
@@ -144,7 +160,11 @@ export default function RegisterPaymentDialog({
                 id="payment-method"
                 className={selectClass}
                 value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value as (typeof PAYMENT_METHOD_TYPES)[number])}
+                onChange={(e) => {
+                  const next = e.target.value as (typeof PAYMENT_METHOD_TYPES)[number];
+                  setPaymentMethod(next);
+                  setTreasuryAccountId(pickDefaultAccount(accounts, next));
+                }}
               >
                 {PAYMENT_METHOD_TYPES.map((method) => (
                   <option key={method} value={method}>
@@ -166,8 +186,18 @@ export default function RegisterPaymentDialog({
             </div>
 
             <div>
-              <Label htmlFor="payment-bank">Banco / Cuenta</Label>
-              <Input id="payment-bank" value={bankAccount} onChange={(e) => setBankAccount(e.target.value)} />
+              <Label htmlFor="payment-account">{kind === 'sales' ? 'Entra a' : 'Sale de'}</Label>
+              <select id="payment-account" className={selectClass} value={treasuryAccountId} onChange={(e) => setTreasuryAccountId(e.target.value)}>
+                <option value="">Sin especificar</option>
+                {accounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.name}
+                  </option>
+                ))}
+              </select>
+              {accounts.length === 0 && (
+                <p className="mt-1 text-xs text-muted-foreground">Crea tus cajas y bancos en Tesorería → Cajas & Bancos para ver el saldo de cada una.</p>
+              )}
             </div>
 
             <div>

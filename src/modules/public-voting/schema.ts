@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { paidAmountMoneyFields } from '@/modules/treasury/schema';
 
 /**
  * Módulo "Votación Pagada del Público" (`hasPublicVoting`). Mismo flujo de
@@ -62,6 +63,7 @@ export const VOTE_PURCHASE_HONEYPOT_FIELD = 'website';
 /** Confirmación de pago manual desde el panel interno (`publicvoting:write`). */
 export const confirmVotePaymentSchema = z.object({
   paidAmount: z.number().int('El monto debe ser un número entero').nonnegative('El monto no puede ser negativo'),
+  ...paidAmountMoneyFields,
 });
 
 export type ConfirmVotePaymentInput = z.infer<typeof confirmVotePaymentSchema>;

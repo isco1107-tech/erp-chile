@@ -46,6 +46,9 @@ export const CASH_ELIGIBLE_DTE_TYPES: (typeof DTE_TYPES)[number][] = [
   'NOTA_DEBITO_56',
 ];
 
+/** Documentos en los que se puede convertir una cotización ("Convertir cotización"). */
+export const QUOTE_TARGET_DTE_TYPES = ['FACTURA_33', 'FACTURA_EXENTA_34', 'BOLETA_39', 'BOLETA_EXENTA_41', 'GUIA_DESPACHO_52'] as const;
+
 export const PAYMENT_METHODS = ['EFECTIVO', 'TRANSFERENCIA', 'TARJETA_DEBITO', 'TARJETA_CREDITO', 'CREDITO_30'] as const;
 
 export const PAYMENT_METHOD_LABELS: Record<(typeof PAYMENT_METHODS)[number], string> = {

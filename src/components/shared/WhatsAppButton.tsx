@@ -11,10 +11,10 @@ import { buildWhatsappLink } from '@/lib/chile/phone';
  * Business ni ninguna API: es el mismo link "click to chat" público de
  * WhatsApp, así que basta con que el destinatario tenga WhatsApp instalado.
  */
-export default function WhatsAppButton({ phone, name }: { phone: string | null; name: string }) {
+export default function WhatsAppButton({ phone, name, message }: { phone: string | null; name: string; message?: string }) {
   if (!phone) return null;
 
-  const result = buildWhatsappLink(phone, `Hola ${name}, te escribo desde el equipo.`);
+  const result = buildWhatsappLink(phone, message ?? `Hola ${name}, te escribo desde el equipo.`);
 
   if (!result.ok) {
     return (

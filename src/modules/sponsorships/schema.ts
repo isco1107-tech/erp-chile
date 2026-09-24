@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { paidAmountMoneyFields } from '@/modules/treasury/schema';
 
 export const SPONSORSHIP_TIERS = [
   'TITULAR_MAIN_SPONSOR',
@@ -90,6 +91,7 @@ export type DeliverableCreateInput = z.infer<typeof deliverableCreateSchema>;
 export const sponsorshipPaymentSchema = z.object({
   paidAmount: z.number().int('El monto debe ser un número entero').nonnegative('El monto no puede ser negativo'),
   notes: z.string().optional(),
+  ...paidAmountMoneyFields,
 });
 
 export type SponsorshipPaymentInput = z.infer<typeof sponsorshipPaymentSchema>;

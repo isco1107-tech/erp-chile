@@ -120,7 +120,7 @@ export default async function PayslipPage({ params }: { params: Promise<{ period
             <Line label="Total descuentos" value={slip.totalDeductions} strong />
             <p className="mt-2 text-[11px] text-muted-foreground">
               Base tributable {formatCurrency(slip.taxBase)} · UTM {formatCurrency(period.utmValue)}
-              {employee.healthInsurance === 'ISAPRE' && slip.healthAmount > legalHealth && ' · el adicional de Isapre sobre el 7% no rebaja impuesto'}
+              {employee.healthInsurance === 'ISAPRE' && slip.healthAmount > legalHealth && ` · el plan de Isapre rebaja impuesto hasta el 7% del tope imponible (${(period.taxableCapUf * 0.07).toLocaleString('es-CL', { maximumFractionDigits: 2 })} UF)`}
             </p>
           </section>
         </div>

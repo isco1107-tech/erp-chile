@@ -5,20 +5,25 @@ import { toast } from 'sonner';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { StatusBadge } from '@/components/ui/StatusBadge';
+import { nativeSelectClass } from '@/components/ui/field-classes';
 import { getCashFlowAction } from '@/modules/treasury/actions/treasury.actions';
 import { PAYMENT_METHOD_TYPE_LABELS } from '@/modules/treasury/schema';
-import type { CashFlowResult } from '@/modules/treasury/services/treasury.service';
+import { CASH_FLOW_ORIGIN_LABELS, movementOriginOf } from '@/modules/treasury/labels';
+import type { CashFlowMovement, CashFlowResult } from '@/modules/treasury/services/treasury.service';
 import { formatCurrency } from '@/lib/chile/tax';
 
-const INCOME_COLOR = '#2563eb';
-const EXPENSE_COLOR = '#d97706';
+// Tokens del tema (globals.css), no hex sueltos: ingresos en verde de éxito,
+// egresos en ámbar de advertencia, igual en claro y oscuro.
+const INCOME_COLOR = 'var(--success)';
+const EXPENSE_COLOR = 'var(--warning)';
 
 type RangePreset = 'this-month' | 'last-month' | 'this-year';
 
 const RANGE_LABELS: Record<RangePreset, string> = {
-  'this-month': 'Este Mes',
-  'last-month': 'Mes Pasado',
-  'this-year': 'Este Año',
+  'this-month': 'Este mes',
+  'last-month': 'Mes pasado',
+  'this-year': 'Este año',
 };
 
 function computeRange(preset: RangePreset): { start: Date; end: Date } {
@@ -32,23 +37,41 @@ function computeRange(preset: RangePreset): { start: Date; end: Date } {
   return { start: new Date(now.getFullYear(), 0, 1), end: new Date(now.getFullYear(), 11, 31, 23, 59, 59) };
 }
 
+function counterpart(m: CashFlowMovement): string {
+  if (m.contact) return `${m.contact.rut} — ${m.contact.razonSocial}`;
+  return m.description ?? '—';
+}
+
+function detailOf(m: CashFlowMovement): string {
+  if (m.salesDocument) return `Venta folio ${m.salesDocument.folio ?? '—'}`;
+  if (m.purchaseDocument) return `Compra folio ${m.purchaseDocument.folio}`;
+  return m.description ?? '';
+}
+
+function csvCell(value: string): string {
+  return /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+}
+
 function toCsv(result: CashFlowResult): string {
-  const header = ['Fecha', 'Tipo', 'Monto', 'Medio de Pago', 'Contacto', 'N° Comprobante', 'Banco/Cuenta', 'Notas'];
+  const header = ['Fecha', 'Tipo', 'Origen', 'Detalle', 'Monto', 'Medio de pago', 'Caja/Banco', 'Contacto', 'N° comprobante', 'Notas'];
   const rows = result.movements.map((m) => [
     new Date(m.paymentDate).toLocaleDateString('es-CL'),
     m.type === 'INCOME' ? 'Ingreso' : 'Egreso',
+    CASH_FLOW_ORIGIN_LABELS[movementOriginOf(m)],
+    detailOf(m),
     String(m.amount),
     PAYMENT_METHOD_TYPE_LABELS[m.paymentMethod],
-    `${m.contact.rut} - ${m.contact.razonSocial}`,
+    m.treasuryAccount?.name ?? m.bankAccount ?? '',
+    m.contact ? `${m.contact.rut} - ${m.contact.razonSocial}` : '',
     m.referenceNumber ?? '',
-    m.bankAccount ?? '',
-    (m.notes ?? '').replace(/[\r\n,]/g, ' '),
+    m.notes ?? '',
   ]);
-  return [header, ...rows].map((r) => r.join(',')).join('\n');
+  return [header, ...rows].map((r) => r.map(csvCell).join(',')).join('\n');
 }
 
-export default function CashFlowClient() {
+export default function CashFlowClient({ accounts = [] }: { accounts?: Array<{ id: string; name: string }> }) {
   const [preset, setPreset] = useState<RangePreset>('this-month');
+  const [accountId, setAccountId] = useState('');
   const [result, setResult] = useState<CashFlowResult | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -56,12 +79,12 @@ export default function CashFlowClient() {
 
   useEffect(() => {
     setLoading(true);
-    getCashFlowAction(range.start.toISOString(), range.end.toISOString()).then((res) => {
+    getCashFlowAction(range.start.toISOString(), range.end.toISOString(), accountId || undefined).then((res) => {
       if (res.success) setResult(res.data);
       else toast.error(res.error);
       setLoading(false);
     });
-  }, [range]);
+  }, [range, accountId]);
 
   function handleExportCsv() {
     if (!result || result.movements.length === 0) {
@@ -87,59 +110,54 @@ export default function CashFlowClient() {
               {RANGE_LABELS[key]}
             </Button>
           ))}
+          {accounts.length > 0 && (
+            <select aria-label="Filtrar por caja o banco" className={`${nativeSelectClass} w-auto`} value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+              <option value="">Todas las cuentas</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
-        <Button type="button" variant="outline" onClick={handleExportCsv}>Exportar CSV</Button>
+        <Button type="button" variant="outline" onClick={handleExportCsv}>
+          Exportar CSV
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card>
-          <CardHeader><CardTitle>Ingresos del Período</CardTitle></CardHeader>
-          <CardContent className="text-2xl font-bold" style={{ color: INCOME_COLOR }}>{formatCurrency(result?.totalIncome ?? 0)}</CardContent>
+          <CardHeader><CardTitle>Ingresos del período</CardTitle></CardHeader>
+          <CardContent className="text-2xl font-bold tabular-nums text-success">{formatCurrency(result?.totalIncome ?? 0)}</CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle>Egresos del Período</CardTitle></CardHeader>
-          <CardContent className="text-2xl font-bold" style={{ color: EXPENSE_COLOR }}>{formatCurrency(result?.totalExpense ?? 0)}</CardContent>
+          <CardHeader><CardTitle>Egresos del período</CardTitle></CardHeader>
+          <CardContent className="text-2xl font-bold tabular-nums text-warning">{formatCurrency(result?.totalExpense ?? 0)}</CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle>Saldo Neto de Caja</CardTitle></CardHeader>
-          <CardContent className="text-2xl font-bold">{formatCurrency(result?.netAmount ?? 0)}</CardContent>
+          <CardHeader><CardTitle>Saldo neto de caja</CardTitle></CardHeader>
+          <CardContent className="text-2xl font-bold tabular-nums">{formatCurrency(result?.netAmount ?? 0)}</CardContent>
         </Card>
       </div>
 
-      {!loading && result && result.byPaymentMethod.length > 0 && (
-        <Card>
-          <CardHeader><CardTitle>Consolidado por Medio de Pago</CardTitle></CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[560px] table-auto text-sm">
-                <thead className="bg-muted/50 text-left">
-                  <tr>
-                    <th className="p-2 font-medium">Medio de Pago</th>
-                    <th className="p-2 font-medium">Ingresos</th>
-                    <th className="p-2 font-medium">Egresos</th>
-                    <th className="p-2 font-medium">Neto</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.byPaymentMethod.map((row) => (
-                    <tr key={row.method} className="border-t border-border">
-                      <td className="p-2">{PAYMENT_METHOD_TYPE_LABELS[row.method]}</td>
-                      <td className="p-2" style={{ color: INCOME_COLOR }}>{formatCurrency(row.income)}</td>
-                      <td className="p-2" style={{ color: EXPENSE_COLOR }}>{formatCurrency(row.expense)}</td>
-                      <td className="p-2 font-medium">{formatCurrency(row.net)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+      {!loading && result && result.byOrigin.length > 0 && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <BreakdownCard
+            title="¿De dónde viene y a dónde va?"
+            rows={result.byOrigin.map((row) => ({ key: row.origin, label: CASH_FLOW_ORIGIN_LABELS[row.origin], income: row.income, expense: row.expense }))}
+          />
+          <BreakdownCard
+            title="Por medio de pago"
+            rows={result.byPaymentMethod.map((row) => ({ key: row.method, label: PAYMENT_METHOD_TYPE_LABELS[row.method], income: row.income, expense: row.expense }))}
+          />
+        </div>
       )}
 
       <Card>
-        <CardHeader><CardTitle>Ingresos vs Egresos</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Ingresos vs egresos</CardTitle></CardHeader>
         <CardContent>
-          {loading && <p className="p-4 text-center text-sm text-muted-foreground">Cargando...</p>}
+          {loading && <p className="p-4 text-center text-sm text-muted-foreground">Cargando…</p>}
           {!loading && (!result || result.series.length === 0) && (
             <p className="p-4 text-center text-sm text-muted-foreground">Sin movimientos en el período seleccionado</p>
           )}
@@ -155,13 +173,7 @@ export default function CashFlowClient() {
                     stroke="currentColor"
                     className="text-muted-foreground"
                   />
-                  <YAxis
-                    tickFormatter={(value: number) => formatCurrency(value)}
-                    tick={{ fontSize: 12 }}
-                    width={90}
-                    stroke="currentColor"
-                    className="text-muted-foreground"
-                  />
+                  <YAxis tickFormatter={(value: number) => formatCurrency(value)} tick={{ fontSize: 12 }} width={90} stroke="currentColor" className="text-muted-foreground" />
                   <Tooltip
                     formatter={(value, name) => [formatCurrency(Number(value ?? 0)), name === 'income' ? 'Ingresos' : 'Egresos']}
                     labelFormatter={(label) => new Date(String(label)).toLocaleDateString('es-CL')}
@@ -177,44 +189,79 @@ export default function CashFlowClient() {
       </Card>
 
       <div className="overflow-x-auto rounded-xl border border-border">
-        <table className="w-full min-w-[820px] table-auto text-sm">
+        <table className="w-full min-w-[920px] table-auto text-sm">
           <thead className="bg-muted/50 text-left">
             <tr>
               <th className="p-2 font-medium">Fecha</th>
               <th className="p-2 font-medium">Tipo</th>
-              <th className="p-2 font-medium">Contacto</th>
-              <th className="p-2 font-medium">Medio de Pago</th>
-              <th className="p-2 font-medium">Monto</th>
-              <th className="p-2 font-medium">N° Comprobante</th>
+              <th className="p-2 font-medium">Origen</th>
+              <th className="p-2 font-medium">Contraparte / glosa</th>
+              <th className="p-2 font-medium">Caja / banco</th>
+              <th className="p-2 font-medium">Medio</th>
+              <th className="p-2 text-right font-medium">Monto</th>
+              <th className="p-2 font-medium">Comprobante</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
-              <tr><td className="p-4 text-center text-muted-foreground" colSpan={6}>Cargando...</td></tr>
+              <tr><td className="p-4 text-center text-muted-foreground" colSpan={8}>Cargando…</td></tr>
             )}
             {!loading && result?.movements.length === 0 && (
-              <tr><td className="p-4 text-center text-muted-foreground" colSpan={6}>Sin movimientos en el período seleccionado</td></tr>
+              <tr><td className="p-4 text-center text-muted-foreground" colSpan={8}>Sin movimientos en el período seleccionado</td></tr>
             )}
-            {!loading && result?.movements.map((m) => (
-              <tr key={m.id} className="border-t border-border">
-                <td className="p-2">{new Date(m.paymentDate).toLocaleDateString('es-CL')}</td>
-                <td className="p-2">
-                  <span
-                    className="rounded-full px-2 py-0.5 text-xs font-medium"
-                    style={{ color: m.type === 'INCOME' ? INCOME_COLOR : EXPENSE_COLOR, backgroundColor: m.type === 'INCOME' ? `${INCOME_COLOR}1a` : `${EXPENSE_COLOR}1a` }}
-                  >
-                    {m.type === 'INCOME' ? 'Ingreso' : 'Egreso'}
-                  </span>
-                </td>
-                <td className="p-2">{m.contact.rut} — {m.contact.razonSocial}</td>
-                <td className="p-2">{PAYMENT_METHOD_TYPE_LABELS[m.paymentMethod]}</td>
-                <td className="p-2 font-medium">{formatCurrency(m.amount)}</td>
-                <td className="p-2">{m.referenceNumber ?? '—'}</td>
-              </tr>
-            ))}
+            {!loading &&
+              result?.movements.map((m) => (
+                <tr key={m.id} className="border-t border-border">
+                  <td className="p-2 whitespace-nowrap">{new Date(m.paymentDate).toLocaleDateString('es-CL')}</td>
+                  <td className="p-2">
+                    <StatusBadge tone={m.type === 'INCOME' ? 'success' : 'warning'}>{m.type === 'INCOME' ? 'Ingreso' : 'Egreso'}</StatusBadge>
+                  </td>
+                  <td className="p-2">
+                    <span className="block">{CASH_FLOW_ORIGIN_LABELS[movementOriginOf(m)]}</span>
+                    <span className="block text-xs text-muted-foreground">{detailOf(m)}</span>
+                  </td>
+                  <td className="p-2">{counterpart(m)}</td>
+                  <td className="p-2">{m.treasuryAccount?.name ?? m.bankAccount ?? '—'}</td>
+                  <td className="p-2">{PAYMENT_METHOD_TYPE_LABELS[m.paymentMethod]}</td>
+                  <td className="p-2 text-right font-medium tabular-nums">{formatCurrency(m.amount)}</td>
+                  <td className="p-2">{m.referenceNumber ?? '—'}</td>
+                </tr>
+              ))}
           </tbody>
         </table>
       </div>
     </div>
+  );
+}
+
+function BreakdownCard({ title, rows }: { title: string; rows: Array<{ key: string; label: string; income: number; expense: number }> }) {
+  return (
+    <Card>
+      <CardHeader><CardTitle>{title}</CardTitle></CardHeader>
+      <CardContent>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[420px] table-auto text-sm">
+            <thead className="bg-muted/50 text-left">
+              <tr>
+                <th className="p-2 font-medium">Concepto</th>
+                <th className="p-2 text-right font-medium">Ingresos</th>
+                <th className="p-2 text-right font-medium">Egresos</th>
+                <th className="p-2 text-right font-medium">Neto</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.key} className="border-t border-border">
+                  <td className="p-2">{row.label}</td>
+                  <td className="p-2 text-right tabular-nums text-success">{row.income ? formatCurrency(row.income) : '—'}</td>
+                  <td className="p-2 text-right tabular-nums text-warning">{row.expense ? formatCurrency(row.expense) : '—'}</td>
+                  <td className="p-2 text-right font-medium tabular-nums">{formatCurrency(row.income - row.expense)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

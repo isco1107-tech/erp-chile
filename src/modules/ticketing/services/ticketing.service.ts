@@ -6,6 +6,7 @@ import { sendEmail, getAppUrl } from '@/lib/email/mailer';
 import { buildTicketConfirmationEmail } from '@/lib/email/templates';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import { captureException } from '@/lib/observability';
+import { emitPaymentEvent, recordPaidAmountChange } from '@/modules/treasury/services/movements.service';
 import type { ConfirmTicketPaymentInput, PublicTicketPurchaseInput, TicketTypeCreateInput, TicketTypeUpdateInput } from '../schema';
 
 // ---------------------------------------------------------------------------
@@ -294,21 +295,45 @@ export async function createPublicTicketOrder(
  * dispara el correo con el QR fuera de la transacción (un fallo de SMTP no
  * debe revertir la confirmación de pago).
  */
-export async function confirmTicketPayment(companyId: string, id: string, data: ConfirmTicketPaymentInput): Promise<TicketSale> {
-  const sale = await prisma.ticketSale.findFirst({ where: { id, companyId }, include: { ticketType: true, project: { select: { name: true } } } });
-  if (!sale) throw new Error('Orden de compra no encontrada');
-  if (data.paidAmount > sale.totalAmount) throw new Error('El monto pagado supera el total de la orden');
+/**
+ * Fija el monto pagado de una orden de entradas. Lo que cambia respecto de lo
+ * ya pagado entra (o sale, si es una corrección) de Tesorería en la misma
+ * transacción, con lock sobre la orden: dos confirmaciones simultáneas no
+ * pueden registrar el mismo dinero dos veces.
+ */
+export async function confirmTicketPayment(companyId: string, id: string, data: ConfirmTicketPaymentInput, userId?: string): Promise<TicketSale> {
+  const { sale, updated, payment, paymentStatus } = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "TicketSale" WHERE id = ${id} AND "companyId" = ${companyId} FOR UPDATE`;
+    const current = await tx.ticketSale.findFirst({ where: { id, companyId }, include: { ticketType: true, project: { select: { name: true } } } });
+    if (!current) throw new Error('Orden de compra no encontrada');
+    if (data.paidAmount > current.totalAmount) throw new Error('El monto pagado supera el total de la orden');
 
-  let paymentStatus: PaymentStatus;
-  if (data.paidAmount === 0) paymentStatus = 'UNPAID';
-  else if (data.paidAmount >= sale.totalAmount) paymentStatus = 'PAID';
-  else paymentStatus = 'PARTIAL';
+    let paymentStatus: PaymentStatus;
+    if (data.paidAmount === 0) paymentStatus = 'UNPAID';
+    else if (data.paidAmount >= current.totalAmount) paymentStatus = 'PAID';
+    else paymentStatus = 'PARTIAL';
 
+    await tx.ticketSale.updateMany({ where: { id, companyId }, data: { paidAmount: data.paidAmount, paymentStatus } });
+    const movement = await recordPaidAmountChange(tx, {
+      companyId,
+      previousPaid: current.paidAmount,
+      newPaid: data.paidAmount,
+      method: data.paymentMethod,
+      source: 'TICKET_SALE',
+      sourceId: current.id,
+      description: `Entradas ${current.ticketType.name} ×${current.quantity} — ${current.buyerName}`,
+      counterpartKey: 'COBROS_POR_DOCUMENTAR',
+      projectId: current.projectId,
+      treasuryAccountId: data.treasuryAccountId,
+      createdByUserId: userId,
+    });
+    const after = await tx.ticketSale.findFirst({ where: { id, companyId } });
+    if (!after) throw new Error('Orden de compra no encontrada');
+    return { sale: current, updated: after, payment: movement, paymentStatus };
+  }, LOCKING_TX_OPTIONS);
+
+  if (payment) emitPaymentEvent(companyId, payment);
   const wasAlreadyPaid = sale.paymentStatus === 'PAID';
-
-  await prisma.ticketSale.updateMany({ where: { id, companyId }, data: { paidAmount: data.paidAmount, paymentStatus } });
-  const updated = await prisma.ticketSale.findFirst({ where: { id, companyId } });
-  if (!updated) throw new Error('Orden de compra no encontrada');
 
   if (paymentStatus === 'PAID' && !wasAlreadyPaid) {
     const company = await prisma.company.findUnique({ where: { id: companyId }, select: { businessName: true } });

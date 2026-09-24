@@ -1,5 +1,7 @@
 import { prisma } from '@/lib/prisma';
-import type { Contact, PaymentStatus, Prisma, PromissoryNote } from '@prisma/client';
+import type { Contact, Payment, PaymentStatus, Prisma, PromissoryNote } from '@prisma/client';
+import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
+import { recordPaidAmountChange } from '@/modules/treasury/services/movements.service';
 import type {
   PromissoryNoteCreateInput,
   PromissoryNotePaymentInput,
@@ -113,40 +115,64 @@ export async function deletePromissoryNote(companyId: string, id: string): Promi
  * criterio que `updateSponsorshipPayment`. Si el pagaré queda totalmente
  * pagado, también se cierra `status: 'PAID'` (deja de estar "Vigente").
  */
+/**
+ * Fija el monto pagado del pagaré. La diferencia con lo ya pagado entra (o
+ * sale, si es una corrección) de Tesorería en la misma transacción, con lock
+ * sobre el pagaré.
+ */
 export async function registerPromissoryNotePayment(
   companyId: string,
   id: string,
-  data: PromissoryNotePaymentInput
-): Promise<PromissoryNote> {
-  const note = await prisma.promissoryNote.findFirst({ where: { id, companyId } });
-  if (!note) throw new Error('Pagaré no encontrado');
-  // Repetido server-side: la UI ya deshabilita el botón sobre el tope, pero
-  // esto también corre si se llama la Server Action directo.
-  if (data.paidAmount > note.amount) {
-    throw new Error('El monto pagado supera el monto del pagaré');
-  }
+  data: PromissoryNotePaymentInput,
+  userId?: string
+): Promise<{ note: PromissoryNote; payment: Payment | null }> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "PromissoryNote" WHERE id = ${id} AND "companyId" = ${companyId} FOR UPDATE`;
+    const note = await tx.promissoryNote.findFirst({ where: { id, companyId }, include: { contact: { select: { razonSocial: true } } } });
+    if (!note) throw new Error('Pagaré no encontrado');
+    // Repetido server-side: la UI ya deshabilita el botón sobre el tope, pero
+    // esto también corre si se llama la Server Action directo.
+    if (data.paidAmount > note.amount) {
+      throw new Error('El monto pagado supera el monto del pagaré');
+    }
 
-  let paymentStatus: PaymentStatus;
-  if (data.paidAmount === 0) {
-    paymentStatus = 'UNPAID';
-  } else if (data.paidAmount >= note.amount) {
-    paymentStatus = 'PAID';
-  } else {
-    paymentStatus = 'PARTIAL';
-  }
+    let paymentStatus: PaymentStatus;
+    if (data.paidAmount === 0) {
+      paymentStatus = 'UNPAID';
+    } else if (data.paidAmount >= note.amount) {
+      paymentStatus = 'PAID';
+    } else {
+      paymentStatus = 'PARTIAL';
+    }
 
-  await prisma.promissoryNote.updateMany({
-    where: { id, companyId },
-    data: {
-      paidAmount: data.paidAmount,
-      paymentStatus,
-      status: paymentStatus === 'PAID' ? 'PAID' : undefined,
-    },
-  });
+    await tx.promissoryNote.updateMany({
+      where: { id, companyId },
+      data: {
+        paidAmount: data.paidAmount,
+        paymentStatus,
+        // Si una corrección baja el pago de un pagaré que estaba PAGADO, vuelve a vigente.
+        status: paymentStatus === 'PAID' ? 'PAID' : note.status === 'PAID' ? 'ACTIVE' : undefined,
+      },
+    });
 
-  const updated = await prisma.promissoryNote.findFirst({ where: { id, companyId } });
-  if (!updated) throw new Error('Pagaré no encontrado');
-  return updated;
+    const payment = await recordPaidAmountChange(tx, {
+      companyId,
+      previousPaid: note.paidAmount,
+      newPaid: data.paidAmount,
+      method: data.paymentMethod,
+      source: 'PROMISSORY_NOTE',
+      sourceId: note.id,
+      description: `Pago de pagaré — ${note.contact.razonSocial}`,
+      counterpartKey: 'COBROS_POR_DOCUMENTAR',
+      contactId: note.contactId,
+      treasuryAccountId: data.treasuryAccountId,
+      createdByUserId: userId,
+    });
+
+    const updated = await tx.promissoryNote.findFirst({ where: { id, companyId } });
+    if (!updated) throw new Error('Pagaré no encontrado');
+    return { note: updated, payment };
+  }, LOCKING_TX_OPTIONS);
 }
 
 export async function listPromissoryNotes(companyId: string, contactId?: string): Promise<PromissoryNoteWithRelations[]> {

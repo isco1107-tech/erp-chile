@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { paidAmountMoneyFields } from '@/modules/treasury/schema';
 import { isAllowedBlobUrl } from '@/lib/security/blob-url';
 
 // SEG-04: a diferencia de `documentCreateSchema.fileUrl` de candidatas, este
@@ -72,6 +73,7 @@ export type PromissoryNoteUpdateInput = z.infer<typeof promissoryNoteUpdateSchem
 
 export const promissoryNotePaymentSchema = z.object({
   paidAmount: z.number().int('El monto debe ser un número entero').nonnegative('El monto no puede ser negativo'),
+  ...paidAmountMoneyFields,
 });
 
 export type PromissoryNotePaymentInput = z.infer<typeof promissoryNotePaymentSchema>;

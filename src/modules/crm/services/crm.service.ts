@@ -2,6 +2,7 @@ import 'server-only';
 
 import type { CrmActivity, CrmPerson, Opportunity, OpportunityStage, Prisma, SponsorshipContract, SponsorshipTier } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { startOfMonthSantiago, startOfTomorrowSantiago } from '@/lib/chile/timezone';
 import { median } from '@/lib/intelligence/stats';
 import { breakdownBy, forecastByMonth, normalizeTags, type BreakdownRow, type ForecastBucket } from '@/lib/crm/analytics';
@@ -352,6 +353,16 @@ export async function convertToSponsorship(
   const benefits = input.createDeliverables && pkg ? pkg.benefits.map((b) => b.trim()).filter(Boolean) : [];
 
   return prisma.$transaction(async (tx) => {
+    if (pkg?.maxSlots != null) {
+      // Re-chequeo bajo lock del plan: el conteo de arriba es solo para fallar
+      // rápido. Sin esto, dos conversiones simultáneas veían ambas un cupo
+      // libre y vendían dos contratos de un plan con un único cupo.
+      await tx.$queryRaw`SELECT id FROM "SponsorshipPackage" WHERE id = ${pkg.id} AND "companyId" = ${companyId} FOR UPDATE`;
+      const taken = await tx.sponsorshipContract.count({ where: { companyId, packageId: pkg.id, status: { in: [...SLOT_TAKING_STATUSES] } } });
+      if (taken >= pkg.maxSlots) {
+        throw new Error(`El plan "${pkg.name}" ya vendió sus ${pkg.maxSlots} cupos. Aumenta los cupos del plan o elige otro nivel.`);
+      }
+    }
     const contract = await tx.sponsorshipContract.create({
       data: {
         companyId,
@@ -379,7 +390,7 @@ export async function convertToSponsorship(
     if (linked.count === 0) throw new AlreadyConvertedError('Este negocio ya se convirtió en contrato de auspicio');
     const updated = await tx.opportunity.findFirstOrThrow({ where: { id: opportunityId, companyId } });
     return { contract, opportunity: updated };
-  });
+  }, LOCKING_TX_OPTIONS);
 }
 
 // ---------------------------------------------------------------------------

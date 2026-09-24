@@ -22,6 +22,7 @@ import {
 } from '@/modules/payment-plans/schema';
 import type { PaymentPlanWithRelations } from '@/modules/payment-plans/services/payment-plans.service';
 import { formatCurrency } from '@/lib/chile/tax';
+import { pickDefaultAccount, type TreasuryAccountChoice } from '@/components/treasury/MoneyMovementDialog';
 
 const PAYMENT_STATUS_TONE: Record<'UNPAID' | 'PARTIAL' | 'PAID', Tone> = {
   UNPAID: 'warning',
@@ -35,13 +36,16 @@ const selectClass =
 interface Props {
   plan: PaymentPlanWithRelations;
   canWrite: boolean;
+  /** Cajas/bancos de Tesorería donde puede entrar el pago. */
+  accounts?: TreasuryAccountChoice[];
 }
 
-export default function PaymentPlanDetailClient({ plan, canWrite }: Props) {
+export default function PaymentPlanDetailClient({ plan, canWrite, accounts = [] }: Props) {
   const router = useRouter();
   const [payingId, setPayingId] = useState<string | null>(null);
   const [amount, setAmount] = useState(0);
   const [method, setMethod] = useState<(typeof PAYMENT_METHOD_TYPES)[number]>('EFECTIVO');
+  const [accountId, setAccountId] = useState('');
   const [saving, setSaving] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -58,12 +62,17 @@ export default function PaymentPlanDetailClient({ plan, canWrite }: Props) {
     setPayingId(installmentId);
     setAmount(pendingBalance);
     setMethod('EFECTIVO');
+    setAccountId(pickDefaultAccount(accounts, 'EFECTIVO'));
   }
 
   async function handleRegisterPayment(installmentId: string) {
     setSaving(true);
     try {
-      const result = await registerInstallmentPaymentAction(installmentId, plan.id, { amount, method });
+      const result = await registerInstallmentPaymentAction(installmentId, plan.id, {
+        amount,
+        method,
+        treasuryAccountId: accountId || undefined,
+      });
       if (!result.success) {
         toast.error(result.error);
         return;
@@ -202,8 +211,13 @@ export default function PaymentPlanDetailClient({ plan, canWrite }: Props) {
                         <div className="flex flex-wrap items-center gap-1.5">
                           <CurrencyInput value={amount} onChange={setAmount} className="h-7 w-28 text-xs" />
                           <select
+                            aria-label="Medio de pago"
                             value={method}
-                            onChange={(e) => setMethod(e.target.value as (typeof PAYMENT_METHOD_TYPES)[number])}
+                            onChange={(e) => {
+                              const next = e.target.value as (typeof PAYMENT_METHOD_TYPES)[number];
+                              setMethod(next);
+                              setAccountId(pickDefaultAccount(accounts, next));
+                            }}
                             className={selectClass}
                           >
                             {PAYMENT_METHOD_TYPES.map((m) => (
@@ -212,6 +226,16 @@ export default function PaymentPlanDetailClient({ plan, canWrite }: Props) {
                               </option>
                             ))}
                           </select>
+                          {accounts.length > 0 && (
+                            <select aria-label="Caja o banco" value={accountId} onChange={(e) => setAccountId(e.target.value)} className={selectClass}>
+                              <option value="">Caja/banco…</option>
+                              {accounts.map((account) => (
+                                <option key={account.id} value={account.id}>
+                                  {account.name}
+                                </option>
+                              ))}
+                            </select>
+                          )}
                           <Button
                             type="button"
                             size="xs"
@@ -270,7 +294,7 @@ export default function PaymentPlanDetailClient({ plan, canWrite }: Props) {
         title="Eliminar plan de pago"
         description={
           totalPaid > 0
-            ? `¿Eliminar DEFINITIVAMENTE este plan de pago y todas sus cuotas? Ya tiene ${formatCurrency(totalPaid)} en pagos registrados — ese historial de cobro se pierde para siempre junto con el plan. Esta acción no se puede deshacer.`
+            ? `¿Eliminar DEFINITIVAMENTE este plan de pago y todas sus cuotas? Ya tiene ${formatCurrency(totalPaid)} en pagos registrados: el detalle por cuota se pierde junto con el plan (los ingresos quedan en Tesorería). Esta acción no se puede deshacer.`
             : '¿Eliminar DEFINITIVAMENTE este plan de pago y todas sus cuotas? Esta acción no se puede deshacer y borra el registro por completo (no queda como "Cancelado" — desaparece).'
         }
         confirmLabel="Eliminar definitivamente"

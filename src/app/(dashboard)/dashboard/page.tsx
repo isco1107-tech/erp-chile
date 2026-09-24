@@ -38,6 +38,8 @@ import { ActionCard } from '@/components/ui/ActionCard';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { DashboardCharts } from '@/components/dashboard/DashboardCharts';
 import { RecentSalesTable } from '@/components/dashboard/RecentSalesTable';
+import GettingStartedCard from '@/components/dashboard/GettingStartedCard';
+import { getGettingStarted } from '@/modules/inbox/getting-started.service';
 import {
   findPendingPurchaseApprovals,
   findOverdueReceivables,
@@ -602,6 +604,9 @@ export default async function DashboardPage() {
     todayAlerts.push({ key: 'contracts', count: expiringContracts.length, label: `contrato${expiringContracts.length === 1 ? '' : 's'} de imagen por vencer`, href: '/dashboard/candidates', icon: BadgeAlert, tone: 'warning' });
   }
 
+  // Primeros pasos: solo para quien puede resolverlos (dirección de la empresa).
+  const gettingStarted = can(context, 'settings:company') ? await getGettingStarted(context.companyId, context.features) : null;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4 duration-500 animate-in fade-in slide-in-from-top-2">
@@ -643,6 +648,8 @@ export default async function DashboardPage() {
           </div>
         </div>
       )}
+
+      {gettingStarted && <GettingStartedCard companyId={context.companyId} steps={gettingStarted} />}
 
       {!hasAnyContent && (
         <div className="rounded-lg border border-border bg-card shadow-card">

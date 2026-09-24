@@ -8,6 +8,7 @@ import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import { installmentPaymentSchema, paymentPlanCreateSchema, paymentPlanUpdateSchema } from '../schema';
 import * as paymentPlansService from '../services/payment-plans.service';
 import type { PaymentPlanWithRelations } from '../services/payment-plans.service';
+import { emitPaymentEvent } from '@/modules/treasury/services/movements.service';
 
 export type ActionResult<T> =
   | { success: true; data: T; message?: string }
@@ -170,13 +171,15 @@ export async function registerInstallmentPaymentAction(
     const parsed = installmentPaymentSchema.safeParse(input);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
 
-    const data = await paymentPlansService.registerInstallmentPayment(
+    const { installment: data, payment } = await paymentPlansService.registerInstallmentPayment(
       session.companyId,
       installmentId,
       parsed.data.amount,
       parsed.data.method,
-      parsed.data.date
+      parsed.data.date,
+      { treasuryAccountId: parsed.data.treasuryAccountId, referenceNumber: parsed.data.referenceNumber, userId: session.id }
     );
+    emitPaymentEvent(session.companyId, payment);
     await createAuditLog({
       companyId: session.companyId,
       userId: session.id,
@@ -184,7 +187,7 @@ export async function registerInstallmentPaymentAction(
       action: 'UPDATE',
       entity: 'PaymentPlanInstallment',
       entityId: data.id,
-      metadata: { amount: parsed.data.amount, method: parsed.data.method, paymentStatus: data.paymentStatus },
+      metadata: { amount: parsed.data.amount, method: parsed.data.method, paymentStatus: data.paymentStatus, paymentId: payment.id },
     });
     revalidatePaymentPlans(planId);
     return { success: true, data, message: 'Pago de cuota registrado correctamente' };

@@ -98,6 +98,9 @@ export const installmentPaymentSchema = z.object({
   amount: z.number().int('El monto debe ser un número entero').positive('El monto debe ser mayor a cero'),
   method: z.enum(PAYMENT_METHOD_TYPES, 'Selecciona una forma de pago'),
   date: z.coerce.date().optional(),
+  /** Caja o banco donde entró el dinero (Tesorería). */
+  treasuryAccountId: z.string().min(1).optional(),
+  referenceNumber: z.string().trim().max(120).optional(),
 });
 
 export type InstallmentPaymentInput = z.infer<typeof installmentPaymentSchema>;

@@ -61,7 +61,17 @@ async function hardDeleteTenant(tx: Prisma.TransactionClient, companyId: string)
   await tx.purchaseDocumentItem.deleteMany({ where: { companyId } });
   await tx.goodsReceiptItem.deleteMany({ where: { companyId } });
   await tx.journalLine.deleteMany({ where: { companyId } });
+  // Tesorería: la línea de cartola apunta a su cuenta con RESTRICT y el link
+  // de pago en línea a su documento de venta con RESTRICT, así que ambos van
+  // antes de sus padres.
+  await tx.bankStatementLine.deleteMany({ where: { companyId } });
+  await tx.invoicePaymentLink.deleteMany({ where: { companyId } });
   await tx.payment.deleteMany({ where: { companyId } });
+  await tx.treasuryAccount.deleteMany({ where: { companyId } });
+  // Servicios: facturaciones y horas enlazan documentos de venta (SetNull),
+  // pero se borran antes para no dejar trabajo inútil de SET NULL.
+  await tx.serviceContractBilling.deleteMany({ where: { companyId } });
+  await tx.timeEntry.deleteMany({ where: { companyId } });
   await tx.stock.deleteMany({ where: { companyId } });
   await tx.inventoryMovement.deleteMany({ where: { companyId } });
   await tx.folioSequence.deleteMany({ where: { companyId } });
@@ -109,6 +119,11 @@ async function hardDeleteTenant(tx: Prisma.TransactionClient, companyId: string)
   await tx.candidate.deleteMany({ where: { companyId } });
   await tx.documentTemplate.deleteMany({ where: { companyId } });
   await tx.budget.deleteMany({ where: { companyId } });
+  // `ServiceContract` → `Contact` es RESTRICT: sus líneas y el contrato van
+  // antes del `contact.deleteMany`.
+  await tx.serviceContractLine.deleteMany({ where: { companyId } });
+  await tx.serviceContract.deleteMany({ where: { companyId } });
+  await tx.apiKey.deleteMany({ where: { companyId } });
   await tx.project.deleteMany({ where: { companyId } });
 
   await tx.contact.deleteMany({ where: { companyId } });

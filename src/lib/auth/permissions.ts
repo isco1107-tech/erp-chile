@@ -187,6 +187,24 @@ export const PERMISSIONS = {
   'expenses:approve': ['OWNER', 'ADMIN'],
   'expenses:reimburse': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
 
+  // Contratos recurrentes: los arma el equipo comercial (mismo criterio que
+  // sales:write); contabilidad los ve para anticipar la facturación del mes.
+  'contracts:read': ['OWNER', 'ADMIN', 'SALES', 'ACCOUNTANT'],
+  'contracts:write': ['OWNER', 'ADMIN', 'SALES'],
+
+  // Control de horas: todo el equipo registra las suyas; ver las de todos,
+  // editarlas y convertirlas en factura es de jefatura.
+  'timesheets:log': ALL_ROLES,
+  'timesheets:manage': ['OWNER', 'ADMIN'],
+
+  // Conciliación bancaria: crea y enlaza movimientos de Tesorería, mismo
+  // criterio que treasury:write.
+  'bank:reconcile': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
+
+  // Llaves de la API pública: dan acceso programático a datos de la empresa,
+  // mismo nivel de riesgo que `automation:manage`.
+  'api:manage': ['OWNER', 'ADMIN'],
+
   // Mensajería interna: entorno de productividad transversal, no un módulo
   // vertical del negocio — todo el equipo puede usarla, mismo criterio que
   // contacts:read.
@@ -298,6 +316,12 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'expenses:submit': 'Rendir gastos propios',
   'expenses:approve': 'Aprobar o rechazar rendiciones de gastos del equipo',
   'expenses:reimburse': 'Registrar el reembolso de rendiciones aprobadas',
+  'contracts:read': 'Ver contratos de servicio y su facturación recurrente',
+  'contracts:write': 'Crear, pausar y editar contratos de servicio recurrentes',
+  'timesheets:log': 'Registrar sus propias horas trabajadas',
+  'timesheets:manage': 'Ver y corregir las horas de todo el equipo y facturarlas',
+  'bank:reconcile': 'Importar cartolas bancarias y conciliar movimientos',
+  'api:manage': 'Crear y revocar llaves de la API pública',
   'messaging:use': 'Usar la mensajería interna de la empresa',
   'messaging:whatsapp_personal': 'Abrir WhatsApp Web personal desde el header del ERP',
 };

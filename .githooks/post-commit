@@ -1,0 +1,14 @@
+#!/bin/sh
+# Tras cada commit, Codex lo audita en segundo plano (solo lectura, no frena el commit).
+# El informe queda en .codex-audit/<sha12>.md; `npm run deploy` exige que no diga RECHAZADO.
+# Para saltarlo en un commit puntual: CODEX_AUDIT=0 git commit ...
+[ "$CODEX_AUDIT" = "0" ] && exit 0
+
+root=$(git rev-parse --show-toplevel)
+sha=$(git rev-parse --short=12 HEAD)
+mkdir -p "$root/.codex-audit"
+echo "Codex auditando $sha en segundo plano -> .codex-audit/$sha.md"
+
+( powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$root/scripts/codex-audit.ps1" \
+    -Commit HEAD -Quiet >/dev/null 2>"$root/.codex-audit/$sha.err" & ) >/dev/null 2>&1
+exit 0

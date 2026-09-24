@@ -59,6 +59,7 @@ export async function runMonthlyClosingCron(): Promise<{ processedCompanies: num
         ppmAmount: f29.ppmAmount,
         determinedTax: f29.determinedTax,
         honorariumRetentionAmount: f29.honorariumRetentionAmount,
+        employeeIncomeTaxAmount: f29.employeeIncomeTaxAmount,
         checks,
         dashboardUrl: `${getAppUrl()}/dashboard/reports/f29`,
       });

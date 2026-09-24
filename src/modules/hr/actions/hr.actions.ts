@@ -1,7 +1,10 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireAuthWithPermission, authErrorMessage } from '@/lib/auth/guards';
+import { requireAuthWithPermission, authErrorMessage, can } from '@/lib/auth/guards';
+import { moneyDetailsSchema } from '@/modules/treasury/schema';
+import { emitPaymentEvent } from '@/modules/treasury/services/movements.service';
+import { listTreasuryAccountOptions, type TreasuryAccountOption } from '@/modules/treasury/services/accounts.service';
 import { createAuditLog } from '@/lib/auth/audit';
 import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
@@ -188,10 +191,42 @@ export async function deletePayrollPeriodAction(id: string): Promise<ActionResul
   }
 }
 
-export async function getPayrollPeriodDetailAction(id: string): Promise<ActionResult<PeriodDetail>> {
+export type PeriodDetailWithAccounts = PeriodDetail & { treasuryAccounts: TreasuryAccountOption[] };
+
+export async function getPayrollPeriodDetailAction(id: string): Promise<ActionResult<PeriodDetailWithAccounts>> {
   try {
     const session = await requireAuthWithPermission('payroll:read');
-    return { success: true, data: await payrollService.getPeriodDetail(session.companyId, id) };
+    const [detail, treasuryAccounts] = await Promise.all([
+      payrollService.getPeriodDetail(session.companyId, id),
+      can(session, 'payroll:write') ? listTreasuryAccountOptions(session.companyId) : Promise.resolve([]),
+    ]);
+    return { success: true, data: { ...detail, treasuryAccounts } };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+/** Registra en Tesorería el pago de los sueldos o de las cotizaciones de un mes cerrado. */
+export async function registerPayrollPaymentAction(periodId: string, kind: 'SALARIES' | 'CONTRIBUTIONS', input: unknown): Promise<ActionResult<null>> {
+  try {
+    const session = await requireAuthWithPermission('payroll:write');
+    if (kind !== 'SALARIES' && kind !== 'CONTRIBUTIONS') return { success: false, error: 'Tipo de pago inválido' };
+    const parsed = moneyDetailsSchema.safeParse(input);
+    if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
+    const payment = await payrollService.registerPayrollPayment(session.companyId, periodId, kind, parsed.data, session.id);
+    emitPaymentEvent(session.companyId, payment);
+    await createAuditLog({
+      companyId: session.companyId,
+      userId: session.id,
+      userEmail: session.email,
+      action: 'UPDATE',
+      entity: 'PayrollPeriod',
+      entityId: periodId,
+      metadata: { paid: kind, amount: payment.amount, paymentId: payment.id },
+    });
+    revalidatePath(`/dashboard/hr/payroll/${periodId}`);
+    revalidatePath('/dashboard/treasury/cashflow');
+    return { success: true, data: null, message: kind === 'SALARIES' ? 'Pago de sueldos registrado en Tesorería' : 'Pago de cotizaciones registrado en Tesorería' };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
   }
@@ -232,6 +267,7 @@ export async function closePayrollPeriodAction(periodId: string): Promise<Action
     });
     revalidatePath('/dashboard/hr/payroll');
     revalidatePath(`/dashboard/hr/payroll/${periodId}`);
+    revalidatePath('/dashboard/accounting/journal');
     return { success: true, data: null, message: `Remuneraciones de ${totals.label} cerradas` };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };

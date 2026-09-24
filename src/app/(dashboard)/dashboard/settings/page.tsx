@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Building2, FileCheck2, KeyRound, Laptop, LayoutGrid, Lock, ShieldCheck, Upload, UserCircle, Users, Zap } from 'lucide-react';
+import { Building2, Code2, FileCheck2, KeyRound, Laptop, LayoutGrid, Lock, Plug, ShieldCheck, Upload, UserCircle, Users, Zap } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AuthError, TenantInactiveError, can, getAuthContext } from '@/lib/auth/guards';
 import type { Permission } from '@/lib/auth/permissions';
@@ -57,6 +57,20 @@ const SECTIONS: Array<{ href: string; icon: typeof Building2; title: string; des
     title: 'Automatizaciones',
     description: 'Crea tus propios flujos de trabajo y revisa el estado de las tareas programadas.',
     permission: 'automation:manage',
+  },
+  {
+    href: '/dashboard/settings/integrations',
+    icon: Plug,
+    title: 'Integraciones',
+    description: 'SII, Khipu, cartolas bancarias, API, webhooks y calendario: qué está conectado y dónde se configura.',
+    permission: 'settings:company',
+  },
+  {
+    href: '/dashboard/settings/api',
+    icon: Code2,
+    title: 'API REST',
+    description: 'Llaves para que tu tienda en línea u otras herramientas emitan boletas y lean catálogo, stock y cobranza.',
+    permission: 'api:manage',
   },
   {
     href: '/dashboard/settings/audit',

@@ -8,6 +8,7 @@ import { createAuditLog } from '@/lib/auth/audit';
 import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import { registerPaymentSchema } from '../schema';
 import * as treasuryService from '../services/treasury.service';
+import { emitPaymentEvent } from '../services/movements.service';
 import type {
   CashFlowResult,
   CxCSummary,
@@ -40,6 +41,7 @@ export async function registerSalesPaymentAction(
     const parsed = registerPaymentSchema.safeParse(input);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
     const data = await treasuryService.registerSalesPayment(session.companyId, salesDocumentId, parsed.data);
+    emitPaymentEvent(session.companyId, data);
     await createAuditLog({
       companyId: session.companyId,
       userId: session.id,
@@ -68,6 +70,7 @@ export async function registerPurchasePaymentAction(
     const parsed = registerPaymentSchema.safeParse(input);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
     const data = await treasuryService.registerPurchasePayment(session.companyId, purchaseDocumentId, parsed.data);
+    emitPaymentEvent(session.companyId, data);
     await createAuditLog({
       companyId: session.companyId,
       userId: session.id,
@@ -131,7 +134,7 @@ const cashFlowRangeSchema = z
   .object({ startDate: z.coerce.date(), endDate: z.coerce.date() })
   .refine((r) => r.startDate <= r.endDate, { message: 'La fecha inicial es posterior a la final' });
 
-export async function getCashFlowAction(startDate: string, endDate: string): Promise<ActionResult<CashFlowResult>> {
+export async function getCashFlowAction(startDate: string, endDate: string, treasuryAccountId?: string): Promise<ActionResult<CashFlowResult>> {
   try {
     const session = await requireAuthWithPermission('treasury:read');
     // Sin este parseo, una fecha malformada producía `Invalid Date`, Prisma
@@ -140,7 +143,10 @@ export async function getCashFlowAction(startDate: string, endDate: string): Pro
     if (!parsed.success) {
       return { success: false, error: parsed.error.issues[0]?.message ?? 'Rango de fechas inválido' };
     }
-    const data = await treasuryService.getCashFlow(session.companyId, parsed.data.startDate, parsed.data.endDate);
+    // El filtro va siempre junto a `companyId` en la consulta: un id de otra
+    // empresa simplemente no devuelve movimientos.
+    const accountFilter = typeof treasuryAccountId === 'string' && treasuryAccountId.length > 0 ? treasuryAccountId : undefined;
+    const data = await treasuryService.getCashFlow(session.companyId, parsed.data.startDate, parsed.data.endDate, accountFilter);
     return { success: true, data };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };

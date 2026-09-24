@@ -1,5 +1,6 @@
-import type { DteType, SalesDocument } from '@prisma/client';
+import type { DteType, Payment, SalesDocument } from '@prisma/client';
 import { DTE_TYPE_LABELS } from '@/modules/sales/schema';
+import { resolveMoneyAccountId } from './treasury-posting';
 import { createAndPostEntry, resolveMappedAccountId, type JournalLineInput, type TxClient } from '../services/journal.service';
 import { invertLines, reverseDocumentEntries, isLedgerActive } from './shared';
 
@@ -91,13 +92,27 @@ export async function postSalesDocumentIssued(
   doc: Pick<SalesDocument, 'id' | 'dteType' | 'folio' | 'issueDate' | 'totalAmount' | 'netAmount' | 'exemptAmount' | 'ivaAmount'>,
   /** Solo las líneas que efectivamente descontaron Kardex (`applyStockOut`) — nunca todas las líneas del documento. */
   costedItems: { unitCostPMP: number; quantity: number }[],
-  opts: { isImmediatePayment: boolean; affectsStock: boolean; createdByUserId?: string }
+  opts: {
+    isImmediatePayment: boolean;
+    affectsStock: boolean;
+    createdByUserId?: string;
+    /**
+     * Medio y cuenta con que se cobró al contado. El asiento debe cargar la
+     * MISMA cuenta que el `Payment` de la venta (banco para una transferencia,
+     * la cuenta contable de la caja elegida…); sin esto siempre cargaba CAJA y
+     * la conciliación bancaria no cuadraba con el mayor.
+     */
+    money?: Pick<Payment, 'paymentMethod' | 'treasuryAccountId'>;
+  }
 ): Promise<void> {
   // Contabilidad apagada o sin plan de cuentas: la operación sigue, sin asiento.
   if (!(await isLedgerActive(tx, companyId))) return;
   if (!REVENUE_DTE_TYPES.includes(doc.dteType)) return;
 
   const accounts = await resolveSalesAccounts(tx, companyId, doc.ivaAmount, opts.isImmediatePayment ? 'CAJA' : 'CLIENTES');
+  if (opts.isImmediatePayment && opts.money) {
+    accounts.debitAccountId = await resolveMoneyAccountId(tx, companyId, opts.money);
+  }
   const label = DTE_TYPE_LABELS[doc.dteType];
 
   await createAndPostEntry(tx, {

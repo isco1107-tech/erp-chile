@@ -8,6 +8,7 @@ import { DTE_TYPE_LABELS } from '@/modules/sales/schema';
 import { cleanRut, formatRut, validateRut } from '@/lib/chile/rut';
 import { assignSalesFolio, stampDocument } from '@/modules/dte/services/stamping.service';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
+import { defaultTreasuryAccountId } from '@/modules/treasury/services/movements.service';
 import type { WorkflowEventPayload } from '@/lib/workflows/types';
 import { CASH_PAYMENT_METHODS, type PosSaleInput } from '../schema';
 
@@ -291,9 +292,11 @@ export async function createPosSale(
 
     // El asiento nace junto con la boleta, dentro de la misma transacción —
     // una venta de mostrador siempre nace pagada al contado.
+    const cashTreasuryAccountId = await defaultTreasuryAccountId(tx, companyId, input.paymentMethod);
     await postSalesDocumentIssued(tx, companyId, document, costedItemsForAccounting, {
       isImmediatePayment: true,
       affectsStock: costedItemsForAccounting.length > 0,
+      money: { paymentMethod: input.paymentMethod, treasuryAccountId: cashTreasuryAccountId },
     });
 
     await tx.payment.create({
@@ -305,6 +308,9 @@ export async function createPosSale(
         amount: totals.totalAmount,
         paymentMethod: input.paymentMethod,
         notes: reference,
+        // Caja/banco por defecto del medio: la venta en efectivo suma al saldo
+        // de la caja en Tesorería, la de tarjeta al banco.
+        treasuryAccountId: cashTreasuryAccountId,
       },
     });
 

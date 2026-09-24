@@ -57,7 +57,14 @@ export default function F29Client() {
         { label: 'Remanente para el próximo mes', value: result.remanentCredit, glossary: TAX_GLOSSARY.remanente },
         { label: 'PPM (Pago Provisional Mensual)', value: result.ppmAmount, glossary: TAX_GLOSSARY.ppm },
         { label: 'Impuesto determinado (IVA + PPM a pagar)', value: result.determinedTax, emphasis: true },
-        { label: 'Retención de honorarios del período', value: result.honorariumRetentionAmount, glossary: TAX_GLOSSARY.retencionHonorarios, emphasis: true },
+        { label: 'Retención de honorarios del período', value: result.honorariumRetentionAmount, glossary: TAX_GLOSSARY.retencionHonorarios },
+        { label: 'Impuesto único retenido a trabajadores', value: result.employeeIncomeTaxAmount, glossary: TAX_GLOSSARY.impuestoUnico },
+        {
+          label: 'Total estimado a pagar en el F29',
+          value: result.determinedTax + result.honorariumRetentionAmount + result.employeeIncomeTaxAmount,
+          glossary: TAX_GLOSSARY.totalF29,
+          emphasis: true,
+        },
       ]
     : [];
 

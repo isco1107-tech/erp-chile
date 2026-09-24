@@ -42,6 +42,10 @@ export type FeatureKey = keyof Pick<
   | 'hasPayroll'
   | 'hasFixedAssets'
   | 'hasExpenseReports'
+  | 'hasServiceContracts'
+  | 'hasTimesheets'
+  | 'hasBankReconciliation'
+  | 'hasPublicApi'
 >;
 
 export type CompanyFeatureFlags = Record<FeatureKey, boolean>;
@@ -102,7 +106,7 @@ export const MODULES: ModuleDefinition[] = [
   {
     key: 'hasTreasury',
     label: 'Tesorería y Cobranzas',
-    description: 'Cuentas por cobrar y pagar, pagos y flujo de caja.',
+    description: 'Cuentas por cobrar y pagar, cajas y cuentas bancarias con saldo, pagos de todos los módulos y flujo de caja.',
     permissions: ['treasury:read', 'treasury:write'],
     routes: ['/dashboard/treasury'],
   },
@@ -280,6 +284,35 @@ export const MODULES: ModuleDefinition[] = [
     permissions: ['expenses:submit', 'expenses:approve', 'expenses:reimburse'],
     routes: ['/dashboard/expenses'],
   },
+  {
+    key: 'hasServiceContracts',
+    label: 'Contratos Recurrentes',
+    description:
+      'Igualas, mantenciones, arriendos y suscripciones: el sistema genera cada mes (o trimestre, o año) la factura del contrato, en borrador para revisar o emitida automáticamente.',
+    permissions: ['contracts:read', 'contracts:write'],
+    routes: ['/dashboard/contracts'],
+  },
+  {
+    key: 'hasTimesheets',
+    label: 'Control de Horas',
+    description: 'Cada persona registra sus horas por cliente y proyecto; las horas facturables se convierten en factura con un clic.',
+    permissions: ['timesheets:log', 'timesheets:manage'],
+    routes: ['/dashboard/timesheets'],
+  },
+  {
+    key: 'hasBankReconciliation',
+    label: 'Conciliación Bancaria',
+    description: 'Importa la cartola de tu banco (Excel o CSV) y concíliala contra Tesorería: el sistema sugiere el cobro o pago que calza con cada movimiento.',
+    permissions: ['bank:reconcile'],
+    routes: ['/dashboard/treasury/reconciliation'],
+  },
+  {
+    key: 'hasPublicApi',
+    label: 'API e Integraciones',
+    description: 'API REST con llaves por empresa para conectar tu tienda en línea, planillas o herramientas como Zapier, Make o n8n.',
+    permissions: ['api:manage'],
+    routes: ['/dashboard/settings/api'],
+  },
 ];
 
 export const MODULE_KEYS: FeatureKey[] = MODULES.map((m) => m.key);
@@ -318,6 +351,10 @@ export const DEFAULT_FEATURES: CompanyFeatureFlags = {
   hasPayroll: false,
   hasFixedAssets: false,
   hasExpenseReports: false,
+  hasServiceContracts: false,
+  hasTimesheets: false,
+  hasBankReconciliation: false,
+  hasPublicApi: false,
 };
 
 /** Índice inverso permiso → módulo, construido una vez al cargar el módulo. */
@@ -369,6 +406,10 @@ export function toFeatureFlags(features: CompanyFeatures | null): CompanyFeature
     hasPayroll: features.hasPayroll,
     hasFixedAssets: features.hasFixedAssets,
     hasExpenseReports: features.hasExpenseReports,
+    hasServiceContracts: features.hasServiceContracts,
+    hasTimesheets: features.hasTimesheets,
+    hasBankReconciliation: features.hasBankReconciliation,
+    hasPublicApi: features.hasPublicApi,
   };
 }
 

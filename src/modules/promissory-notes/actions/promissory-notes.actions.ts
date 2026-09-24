@@ -11,6 +11,7 @@ import {
   promissoryNoteUpdateSchema,
 } from '../schema';
 import * as promissoryNotesService from '../services/promissory-notes.service';
+import { emitPaymentEvent } from '@/modules/treasury/services/movements.service';
 import type {
   OverduePromissoryNote,
   PromissoryNoteWithRelations,
@@ -126,7 +127,8 @@ export async function registerPromissoryNotePaymentAction(id: string, input: unk
     const parsed = promissoryNotePaymentSchema.safeParse(input);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
 
-    const data = await promissoryNotesService.registerPromissoryNotePayment(session.companyId, id, parsed.data);
+    const { note: data, payment } = await promissoryNotesService.registerPromissoryNotePayment(session.companyId, id, parsed.data, session.id);
+    if (payment) emitPaymentEvent(session.companyId, payment);
     await createAuditLog({
       companyId: session.companyId,
       userId: session.id,
@@ -134,7 +136,7 @@ export async function registerPromissoryNotePaymentAction(id: string, input: unk
       action: 'UPDATE',
       entity: 'PromissoryNote',
       entityId: data.id,
-      metadata: { paidAmount: data.paidAmount, paymentStatus: data.paymentStatus },
+      metadata: { paidAmount: data.paidAmount, paymentStatus: data.paymentStatus, paymentId: payment?.id ?? null },
     });
     revalidatePromissoryNotes(id);
     return { success: true, data, message: 'Pago actualizado correctamente' };

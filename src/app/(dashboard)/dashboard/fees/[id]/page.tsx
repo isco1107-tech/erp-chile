@@ -7,6 +7,7 @@ import { buttonVariants } from '@/components/ui/button';
 import { can, getAuthContext } from '@/lib/auth/guards';
 import MarkFeeDocumentPaidButton from '@/components/fees/MarkFeeDocumentPaidButton';
 import DeleteFeeDocumentButton from '@/components/fees/DeleteFeeDocumentButton';
+import { listTreasuryAccountOptions } from '@/modules/treasury/services/accounts.service';
 
 export const metadata = { title: 'Boleta de Honorarios' };
 
@@ -23,6 +24,7 @@ export default async function FeeDocumentDetailPage({ params }: { params: Promis
 
   const doc = result.data;
   const canWrite = can(context, 'fees:write');
+  const accounts = canWrite && doc.paymentStatus !== 'PAID' ? await listTreasuryAccountOptions(context.companyId) : [];
 
   return (
     <div className="space-y-4">
@@ -30,7 +32,15 @@ export default async function FeeDocumentDetailPage({ params }: { params: Promis
         <Link href="/dashboard/fees" className={buttonVariants({ variant: 'outline' })}>← Volver al listado</Link>
         {canWrite && (
           <div className="flex items-center gap-2">
-            {doc.paymentStatus !== 'PAID' && <MarkFeeDocumentPaidButton documentId={doc.id} />}
+            {doc.paymentStatus !== 'PAID' && (
+              <MarkFeeDocumentPaidButton
+                documentId={doc.id}
+                folioNumber={doc.folioNumber}
+                netToPay={doc.netToPay - doc.paidAmount}
+                providerName={doc.contact.razonSocial}
+                accounts={accounts}
+              />
+            )}
             <DeleteFeeDocumentButton documentId={doc.id} folioNumber={doc.folioNumber} />
           </div>
         )}

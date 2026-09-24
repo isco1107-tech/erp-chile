@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { handleKhipuNotification } from '@/modules/payment-plans/services/online-payment.service';
+import { handleInvoiceLinkNotification } from '@/modules/treasury/online/invoice-links.service';
 import { captureException, captureMessage } from '@/lib/observability';
 
 export const dynamic = 'force-dynamic';
@@ -39,7 +40,9 @@ export async function POST(req: Request) {
   }
 
   try {
-    const result = await handleKhipuNotification(paymentId);
+    // La misma URL recibe los cobros de cuotas y los links de pago de facturas.
+    let result = await handleKhipuNotification(paymentId);
+    if (result === 'unknown') result = await handleInvoiceLinkNotification(paymentId);
     if (result === 'unknown') {
       captureMessage('cuotas-pago-en-linea:notificacion-desconocida', 'warn', {
         module: 'cuotas-pago-en-linea',

@@ -156,6 +156,40 @@ export async function cancelSalesDocumentAction(id: string, reason?: string): Pr
   }
 }
 
+/** Emite un borrador (folio, timbre, stock y asiento como cualquier emisión). */
+export async function issueDraftSalesDocumentAction(id: string): Promise<ActionResult<{ id: string }>> {
+  try {
+    const session = await requireAuthWithPermission('sales:write');
+    const data = await salesService.issueDraftSalesDocument(session.companyId, id);
+    await createAuditLog({
+      companyId: session.companyId,
+      userId: session.id,
+      userEmail: session.email,
+      action: 'ISSUE_DTE',
+      entity: 'SalesDocument',
+      entityId: data.id,
+      metadata: { fromDraft: id, dteType: data.dteType, folio: data.folio, totalAmount: data.totalAmount },
+    });
+    revalidatePath('/dashboard/sales');
+    revalidatePath('/dashboard/inventory');
+    return { success: true, data: { id: data.id }, message: `Documento emitido${data.folio ? ` con folio ${data.folio}` : ''}` };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+export async function deleteDraftSalesDocumentAction(id: string): Promise<ActionResult<null>> {
+  try {
+    const session = await requireAuthWithPermission('sales:write');
+    await salesService.deleteDraftSalesDocument(session.companyId, id);
+    await createAuditLog({ companyId: session.companyId, userId: session.id, userEmail: session.email, action: 'DELETE', entity: 'SalesDocument', entityId: id, metadata: { draft: true } });
+    revalidatePath('/dashboard/sales');
+    return { success: true, data: null, message: 'Borrador eliminado' };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
 export async function duplicateSalesDocumentAction(id: string): Promise<ActionResult<SalesDocumentWithItems>> {
   try {
     const session = await requireAuthWithPermission('sales:write');

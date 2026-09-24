@@ -19,10 +19,12 @@ import {
   closePayrollPeriodAction,
   deletePayrollPeriodAction,
   getPayrollPeriodDetailAction,
+  registerPayrollPaymentAction,
   updatePayrollPeriodAction,
+  type PeriodDetailWithAccounts as PeriodDetail,
 } from '@/modules/hr/actions/hr.actions';
 import { periodLabel } from '@/modules/hr/schema';
-import type { PeriodDetail } from '@/modules/hr/services/payroll.service';
+import MoneyMovementDialog from '@/components/treasury/MoneyMovementDialog';
 import { PeriodParamsForm, type PeriodParamsValues } from './PeriodParamsForm';
 import { cn } from '@/lib/utils';
 
@@ -219,6 +221,44 @@ export function PayrollPeriodClient({ periodId, canWrite, canClose }: { periodId
               <Lock aria-hidden="true" />
               Cerrar período
             </Button>
+          )}
+          {!draft && canWrite && !period.salariesPaidAt && totals.net > 0 && (
+            <MoneyMovementDialog
+              triggerLabel="Pagar sueldos"
+              title={`Pagar sueldos de ${periodLabel(period.year, period.month)}`}
+              description="Registra en Tesorería el pago de todos los líquidos del mes (la nómina)."
+              direction="EXPENSE"
+              amount={totals.net}
+              fixedAmount
+              accounts={detail.treasuryAccounts}
+              onSubmit={async (values) => {
+                const result = await registerPayrollPaymentAction(periodId, 'SALARIES', values);
+                return result.success ? { success: true, message: result.message } : result;
+              }}
+              onDone={() => void load()}
+            />
+          )}
+          {!draft && canWrite && !period.contributionsPaidAt && totals.previred > 0 && (
+            <MoneyMovementDialog
+              triggerLabel="Pagar cotizaciones"
+              triggerVariant="outline"
+              title={`Pagar cotizaciones de ${periodLabel(period.year, period.month)}`}
+              description="Planilla Previred: AFP, salud, cesantía y aportes del empleador del mes."
+              direction="EXPENSE"
+              amount={totals.previred}
+              fixedAmount
+              accounts={detail.treasuryAccounts}
+              onSubmit={async (values) => {
+                const result = await registerPayrollPaymentAction(periodId, 'CONTRIBUTIONS', values);
+                return result.success ? { success: true, message: result.message } : result;
+              }}
+              onDone={() => void load()}
+            />
+          )}
+          {!draft && (period.salariesPaidAt || period.contributionsPaidAt) && (
+            <StatusBadge tone="success">
+              {[period.salariesPaidAt && 'Sueldos pagados', period.contributionsPaidAt && 'Cotizaciones pagadas'].filter(Boolean).join(' · ')}
+            </StatusBadge>
           )}
           {editable && (
             <Button type="button" variant="ghost" className="text-danger" onClick={() => void removePeriod()}>

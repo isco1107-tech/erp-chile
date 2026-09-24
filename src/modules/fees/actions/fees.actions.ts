@@ -7,6 +7,7 @@ import { createAuditLog } from '@/lib/auth/audit';
 import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import { feeDocumentCreateSchema, markFeeDocumentPaidSchema, listFeeDocumentsFilterSchema } from '../schema';
 import * as feesService from '../services/fees.service';
+import { emitPaymentEvent } from '@/modules/treasury/services/movements.service';
 import type { FeeDocumentWithRelations } from '../services/fees.service';
 
 export type ActionResult<T> =
@@ -28,7 +29,7 @@ export async function createFeeDocumentAction(input: unknown): Promise<ActionRes
     const session = await requireAuthWithPermission('fees:write');
     const parsed = feeDocumentCreateSchema.safeParse(input);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
-    const data = await feesService.createFeeDocument(session.companyId, parsed.data);
+    const data = await feesService.createFeeDocument(session.companyId, parsed.data, session.id);
     await createAuditLog({
       companyId: session.companyId,
       userId: session.id,
@@ -55,7 +56,8 @@ export async function markFeeDocumentPaidAction(id: string, input?: unknown): Pr
     const session = await requireAuthWithPermission('fees:write');
     const parsed = markFeeDocumentPaidSchema.safeParse(input ?? {});
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
-    const data = await feesService.markFeeDocumentPaid(session.companyId, id, parsed.data.paymentDate);
+    const { fee: data, payment } = await feesService.markFeeDocumentPaid(session.companyId, id, parsed.data, session.id);
+    emitPaymentEvent(session.companyId, payment);
     await createAuditLog({
       companyId: session.companyId,
       userId: session.id,
@@ -63,8 +65,9 @@ export async function markFeeDocumentPaidAction(id: string, input?: unknown): Pr
       action: 'UPDATE',
       entity: 'FeeDocument',
       entityId: data.id,
-      metadata: { paymentStatus: data.paymentStatus, paidAmount: data.paidAmount },
+      metadata: { paymentStatus: data.paymentStatus, paidAmount: data.paidAmount, paymentId: payment.id },
     });
+    revalidatePath('/dashboard/treasury/cashflow');
     revalidatePath('/dashboard/fees');
     revalidatePath(`/dashboard/fees/${id}`);
     return { success: true, data, message: 'Boleta marcada como pagada' };
@@ -76,7 +79,7 @@ export async function markFeeDocumentPaidAction(id: string, input?: unknown): Pr
 export async function deleteFeeDocumentAction(id: string): Promise<ActionResult<null>> {
   try {
     const session = await requireAuthWithPermission('fees:write');
-    await feesService.deleteFeeDocument(session.companyId, id);
+    await feesService.deleteFeeDocument(session.companyId, id, session.id);
     await createAuditLog({
       companyId: session.companyId,
       userId: session.id,
