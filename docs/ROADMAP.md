@@ -13,7 +13,16 @@ Estado verificado el 2026-09-24 contra el código, sobre la auditoría del 2026-
 
 Incluye lo corregido el 2026-09-24: SEG-09 (limitador), SEG-10 (empresas suspendidas en webhooks y calendario), N-01 (NC en borrador), N-05 en notas de crédito (líneas repetidas), N-08 (aprobar compras anuladas) y N-09 (doble anulación). N-05 sigue parcial en recepciones de OC.
 
-## Olas de trabajo
+## Progreso
+
+- **Ola 1 (seguridad): completa** al 2026-09-24. Incluye SEG-05, SEG-07, SEG-12, SEG-13, OP-06 y OP-07. Pendientes aparte: SEG-06 y SEG-14.
+- **Ola 2 (dinero y stock): completa** al 2026-09-24. Incluye N-02, N-04, N-05, N-06, N-07, N-10, N-11, N-12, N-15, N-17, N-18 (parte de `paidAmount`) y N-19.
+- **Quedan de la ola 2:**
+  - N-03: libro de aplicaciones de notas de crédito.
+  - N-16: idempotencia que compare el contenido.
+  - Asientos contables para los cobros de cuotas, pagarés y auspicios: ya generan `Payment`, pero no tienen regla de posteo.
+  - Asiento de la importación histórica.
+
 
 Una ficha, o un grupo chico de fichas relacionadas, por PR. Cada PR con test de regresión que falle con el código anterior.
 
