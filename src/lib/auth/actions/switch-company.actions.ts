@@ -1,11 +1,14 @@
 'use server';
 
+import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { getAuthContext, AuthError } from '@/lib/auth/guards';
 import { createSessionToken, setSessionCookieServer } from '@/lib/auth/session';
 import { toFeatureFlags } from '@/lib/auth/modules';
 import { createAuditLog } from '@/lib/auth/audit';
+import { recordSession, revokeSessionByToken } from '@/lib/auth/sessions';
+import { captureException } from '@/lib/observability';
 
 export type ActionResult<T> =
   | { success: true; data: T; message?: string }
@@ -94,6 +97,7 @@ export async function switchActiveCompanyAction(targetCompanyId: string): Promis
   }
   if (!allowed) return { success: false, error: 'No tienes acceso a esa empresa' };
 
+  const previousToken = (await cookies()).get('session')?.value;
   const token = await createSessionToken({
     id: user.id,
     role: user.role,
@@ -104,6 +108,23 @@ export async function switchActiveCompanyAction(targetCompanyId: string): Promis
     sessionVersion: user.sessionVersion,
   });
   await setSessionCookieServer(token);
+
+  // El JWT nuevo necesita su fila en `UserSession`: sin ella, "Dispositivos
+  // activos" no lo muestra ni puede revocarlo, y seguía válido hasta expirar
+  // (SEG-05). La sesión anterior se revoca para no dejar dos tokens vivos.
+  const headerList = await headers();
+  await recordSession({
+    userId: user.id,
+    companyId: targetCompanyId,
+    token,
+    userAgent: headerList.get('user-agent'),
+    ipAddress: headerList.get('x-forwarded-for')?.split(',')[0]?.trim(),
+  });
+  if (previousToken) {
+    await revokeSessionByToken(previousToken).catch((error: unknown) =>
+      captureException(error, { module: 'auth', userId: user.id, extra: { reason: 'switch-company-revoke-previous' } })
+    );
+  }
 
   // Auditado en la empresa DESTINO (no en la de origen): es donde alguien
   // revisando "quién entró a mi empresa" va a buscarlo.
