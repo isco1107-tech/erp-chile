@@ -980,7 +980,13 @@ model PurchaseDocument {
   createdAt               DateTime               @default(now())
   updatedAt               DateTime               @updatedAt
 
-  @@unique([companyId, contactId, folio])
+  // N-17 (auditoría 2026-09-14): antes era `@@unique([companyId, contactId,
+  // folio])`, sin `documentType` — una Factura y una Nota de Crédito del
+  // mismo proveedor podían compartir folio (son numeraciones independientes
+  // del proveedor) y chocaban entre sí. `documentType` entra a la unicidad
+  // para que cada tipo de documento tenga su propio espacio de folios por
+  // proveedor.
+  @@unique([companyId, contactId, documentType, folio])
   @@index([companyId, status])
   @@index([companyId, paymentStatus])
   @@index([companyId, approvalStatus])

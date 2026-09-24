@@ -24,7 +24,10 @@ function toErrorMessage(error: unknown): string {
   const authMessage = authErrorMessage(error);
   if (authMessage) return authMessage;
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-    return 'Ya existe un documento con ese folio para este proveedor';
+    // N-17: la unicidad es (companyId, contactId, documentType, folio) —
+    // el choque es contra ese mismo tipo de documento, no cualquiera del
+    // proveedor (una Factura y una Nota de Crédito pueden compartir folio).
+    return 'Ya existe un documento de este tipo con ese folio para este proveedor';
   }
   return toFriendlyErrorMessage(error);
 }
