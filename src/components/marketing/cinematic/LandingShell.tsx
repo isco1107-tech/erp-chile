@@ -20,11 +20,8 @@ const liveClasses = [s.display, s.kicker] as const;
 const starMap = [
   ['#plataforma', 'Plataforma'],
   ['#como-funciona', 'Cómo funciona'],
-  ['#cambio', 'Lo que cambia'],
   ['#tributacion', 'Tributación'],
   ['#para-quien', 'Certámenes'],
-  ['#modulos', 'Módulos'],
-  ['#seguridad', 'Seguridad'],
   ['#planes', 'Planes'],
   ['#preguntas', 'Preguntas'],
   ['#cotizar', 'Cotizar'],
@@ -41,12 +38,9 @@ const primaryNav = [
 /** El menú móvil lleva todas las anclas, en el orden de la página. */
 const menuNav = [
   ['#como-funciona', 'Cómo funciona'],
-  ['#cambio', 'Lo que cambia'],
   ['#plataforma', 'La plataforma'],
   ['#tributacion', 'Tributación chilena'],
   ['#para-quien', 'Para quién'],
-  ['#modulos', 'Módulos'],
-  ['#seguridad', 'Seguridad'],
   ['#planes', 'Planes'],
   ['#descargas', 'Descargas'],
   ['#cotizar', 'Cotizar para mi empresa'],

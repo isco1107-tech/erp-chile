@@ -236,7 +236,7 @@ async function page2(browser) {
   await page.waitForSelector('#plataforma[data-tabs-ready]');
   await page.waitForSelector('main[data-in-track]');
 
-  const anchors =['contenido', 'como-funciona', 'cambio', 'plataforma', 'tributacion', 'para-quien', 'modulos', 'seguridad', 'planes', 'cotizar', 'descargas'];
+  const anchors = ['contenido', 'como-funciona', 'plataforma', 'tributacion', 'para-quien', 'planes', 'preguntas', 'cotizar', 'descargas'];
   const missing = await page.evaluate(ids => ids.filter(id => !document.getElementById(id)), anchors);
   check('Anclas presentes', missing.length === 0, missing.join(', '));
   check('Enlace «Ir al contenido»', await page.getByRole('link', { name: 'Ir al contenido' }).count() === 1);
@@ -283,22 +283,19 @@ async function page2(browser) {
   await page.waitForTimeout(600);
   check('«Explora el inventario» abre Inventario', await page.getByRole('tab', { name: 'Inventario', exact: true }).getAttribute('aria-selected') === 'true');
 
-  // Módulos.
-  await page.getByRole('tab', { name: 'Finanzas y control', exact: true }).click();
-  await page.waitForTimeout(550);
-  check('Pestañas de módulos', await page.locator('#module-panel-1 h4', { hasText: 'Tesorería' }).isVisible());
-
   // Pasos fijos: el panel cambia con el scroll.
   const flow = await page.evaluate(async () => {
     const section = document.getElementById('como-funciona');
     const stage = section.firstElementChild;
-    const top = section.getBoundingClientRect().top + window.scrollY;
     const travel = section.offsetHeight - stage.offsetHeight;
     document.documentElement.style.scrollBehavior = 'auto';
     const seen = [];
     for (const step of [0.1, 0.3, 0.5, 0.7, 0.9]) {
-      window.scrollTo(0, top + step * travel);
-      await new Promise(resolve => setTimeout(resolve, 250));
+      for (let pass = 0; pass < 2; pass += 1) {
+        window.scrollTo(0, section.getBoundingClientRect().top + window.scrollY + step * travel);
+        await new Promise(resolve => setTimeout(resolve, 150));
+      }
+      await new Promise(resolve => setTimeout(resolve, 150));
       seen.push(document.querySelector('[data-step-panel][data-active] h3')?.textContent);
     }
     return seen;
@@ -409,12 +406,14 @@ async function reducedMotion(browser) {
     const flow = await page.evaluate(async () => {
       const section = document.getElementById('como-funciona');
       const stageNode = section.firstElementChild;
-      const top = section.getBoundingClientRect().top + window.scrollY;
       const travel = section.offsetHeight - stageNode.offsetHeight;
       const seen = [];
       for (const step of [0.1, 0.3, 0.5, 0.7, 0.9]) {
-        window.scrollTo(0, top + step * travel);
-        await new Promise(resolve => setTimeout(resolve, 250));
+        for (let pass = 0; pass < 2; pass += 1) {
+          window.scrollTo(0, section.getBoundingClientRect().top + window.scrollY + step * travel);
+          await new Promise(resolve => setTimeout(resolve, 150));
+        }
+        await new Promise(resolve => setTimeout(resolve, 150));
         seen.push(document.querySelector('[data-step-panel][data-active] h3')?.textContent);
       }
       return { seen, sticky: getComputedStyle(stageNode).position };
@@ -463,8 +462,8 @@ async function liveMotion(browser) {
   const after = await enter('#tributacion-title > span');
   check('Los titulares suben con el scroll', before === 0 && after === 1, `--in ${before} → ${after}`);
 
-  await scrollTo('#seguridad ul li', 0.9);
-  const cascade = await page.$$eval('#seguridad ul li', nodes => nodes.slice(0, 3).map(node => Number(node.style.getPropertyValue('--in'))));
+  await scrollTo('#tributacion ul li', 0.9);
+  const cascade = await page.$$eval('#tributacion ul li', nodes => nodes.slice(0, 3).map(node => Number(node.style.getPropertyValue('--in'))));
   check('Las tarjetas entran en cascada', cascade[0] > cascade[1] && cascade[1] >= cascade[2], cascade.map(value => value.toFixed(2)).join(' > '));
 
   const marquee = async fraction => {
@@ -490,7 +489,7 @@ async function liveMotion(browser) {
     return { lit, signature };
   });
   const skyA = await skyPixels();
-  await scrollTo('#seguridad', 0.6);
+  await scrollTo('#planes', 0.6);
   const skyB = await skyPixels();
   check('El cielo de fondo se desplaza con el scroll', skyA.lit > 20 && skyB.lit > 20 && skyA.signature !== skyB.signature, `${skyA.lit} y ${skyB.lit} puntos encendidos`);
 
@@ -498,26 +497,9 @@ async function liveMotion(browser) {
   const late = await chapterOpacity(0.85, 2);
   check('La guía de capítulos del hero sigue al video', early[0] > 0.95 && early[2] < 0.5 && late[2] > 0.95 && late[0] < 0.5, `P .1: ${early.map(value => value.toFixed(2)).join(' / ')} · P .85: ${late.map(value => value.toFixed(2)).join(' / ')}`);
 
-  // Rutas de implementación: escena fija que avanza de lado.
-  const pin = await page.evaluate(() => {
-    const node = document.querySelector('[data-pin]');
-    return { top: node.getBoundingClientRect().top + window.scrollY, height: node.offsetHeight };
-  });
-  const railShift = async t => {
-    await page.evaluate(y => window.scrollTo(0, y), pin.top + t * (pin.height - 900));
-    await page.waitForTimeout(250);
-    await page.evaluate(y => window.scrollTo(0, y), pin.top + t * (pin.height - 900));
-    await page.waitForTimeout(250);
-    return page.$eval('[data-pin] [data-reveal]', node => node.parentElement.getBoundingClientRect().left);
-  };
-  const railStart = await railShift(0.05);
-  const railEnd = await railShift(0.95);
-  const pinned = await page.$eval('[data-pin] > div', node => ({ position: getComputedStyle(node).position, top: Math.round(node.getBoundingClientRect().top) }));
-  check('Las rutas avanzan de lado con el scroll', pinned.position === 'sticky' && pinned.top === 0 && railStart - railEnd > 300, `${Math.round(railStart)} → ${Math.round(railEnd)} px`);
-
-  await scrollTo('#seguridad', 0.1);
+  await scrollTo('#planes', 0.1);
   const current = await page.$eval('nav[aria-label="Mapa de la página"]', node => node.querySelector('a[aria-current]')?.textContent);
-  check('El mapa de estrellas marca la sección actual', current === 'Seguridad', current);
+  check('El mapa de estrellas marca la sección actual', current === 'Planes', current);
 
   // Cielo y cursor: con el mouse encima aparecen el cursor propio y la constelación.
   await page.mouse.move(1200, 500);
@@ -541,7 +523,7 @@ async function liveMotion(browser) {
   await mobile.evaluate(async () => {
     document.documentElement.style.scrollBehavior = 'auto';
     for (let pass = 0; pass < 2; pass += 1) {
-      const card = document.querySelector('#seguridad ul li');
+      const card = document.querySelector('#tributacion ul li');
       window.scrollTo(0, card.getBoundingClientRect().top + window.scrollY - window.innerHeight / 2 + card.offsetHeight / 2);
       await new Promise(resolve => setTimeout(resolve, 300));
     }

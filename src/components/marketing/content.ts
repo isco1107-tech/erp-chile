@@ -91,16 +91,6 @@ export const plans: Plan[] = [
   },
 ];
 
-/** Cada par es el mismo problema visto sin sistema conectado y con Aether. */
-export const shifts: [before: string, after: string][] = [
-  ['El stock real lo sabe una planilla que alguien actualiza cuando puede.', 'La venta descuenta la bodega correcta en el mismo momento en que se emite.'],
-  ['El costo de lo que vendiste es una estimación que nadie quiere revisar.', 'Cada salida toma el promedio ponderado vigente en ese instante y queda en el kardex.'],
-  ['Los folios se llevan en un cuaderno y de vez en cuando se salta uno.', 'Los folios salen del rango que autorizó el SII, uno a la vez y sin dejar huecos.'],
-  ['El F29 se arma a mano el día 10, revisando carpetas y correos.', 'Débito, crédito, remanente del mes anterior y PPM salen de los documentos del período.'],
-  ['La cobranza se acuerda de un cliente cuando el cliente llama.', 'La cuenta por cobrar nace con el documento y el vencimiento aparece antes de vencer.'],
-  ['Nadie sabe quién cambió ese precio, ni cuándo, ni con qué autorización.', 'Permisos por persona y registro de auditoría de las acciones que importan.'],
-];
-
 export interface Outcome {
   label: string;
   title: [first: string, second: string];

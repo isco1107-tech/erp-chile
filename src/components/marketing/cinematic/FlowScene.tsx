@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, type MouseEvent } from 'react';
-import { Zap } from 'lucide-react';
 import { steps } from '../HowItWorks';
 import { clamp01 } from './sequence';
 import s from './v2.module.css';
@@ -148,10 +147,6 @@ export default function FlowScene() {
         </div>
       </section>
 
-      <aside className={s.flowNote} aria-label="Automatizaciones">
-        <Zap size={18} aria-hidden="true" />
-        <p><strong>¿Y cuando algo se sale de la norma?</strong> Stock bajo el mínimo, folios del SII por agotarse, un pago que no llega: defines la regla una vez y Aether avisa por correo, por notificación interna o hacia el sistema que uses.</p>
-      </aside>
     </>
   );
 }
