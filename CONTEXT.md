@@ -155,7 +155,7 @@ El tipo de un bloque (apertura, traje de baño, gala, pregunta…).
 _Avoid_: tipo de bloque
 
 **Credencial** (`StaffAccreditation`):
-Acceso del staff a un certamen, con nivel y QR.
+Permiso de ingreso del staff a un certamen, con nivel y QR.
 _Avoid_: entrada, pase
 
 **Acreditación**:
@@ -163,5 +163,5 @@ El proceso de emitir credenciales.
 _Avoid_: credencial (para el proceso)
 
 **Entrada** (`TicketSale`):
-Acceso pagado del público a un certamen.
+Permiso de ingreso pagado del público a un certamen.
 _Avoid_: ticket, credencial
