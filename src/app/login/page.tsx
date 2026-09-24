@@ -1,8 +1,8 @@
 "use client";
 
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useForm } from '@mantine/form';
 import { z } from 'zod';
 import { KeyRound, Mail, ShieldCheck } from 'lucide-react';
@@ -18,9 +18,18 @@ const loginSchema = z.object({
   password: z.string().min(8, { message: 'La contraseña debe tener al menos 8 caracteres' }),
 });
 
-export default function LoginPage() {
+/** Mensajes de `/login?reason=...` para redirecciones desde el dashboard que no son un cierre de sesión normal (ver `(dashboard)/layout.tsx`). */
+const LOGIN_REDIRECT_REASONS: Record<string, string> = {
+  ip: 'Tu sesión sigue activa, pero tu empresa restringió el acceso a ciertas direcciones IP y la tuya no está autorizada. Contacta al administrador de tu empresa.',
+};
+
+function LoginForm() {
   const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  const redirectReason = searchParams.get('reason');
+  const [error, setError] = useState<string | null>(
+    redirectReason ? (LOGIN_REDIRECT_REASONS[redirectReason] ?? null) : null
+  );
   const [loading, setLoading] = useState(false);
   const [challengeToken, setChallengeToken] = useState<string | null>(null);
   const [totpCode, setTotpCode] = useState('');
@@ -184,5 +193,21 @@ export default function LoginPage() {
         </form>
       </AuthCard>
     </AuthShell>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <AuthShell>
+          <AuthCard>
+            <AuthCardHeader title="Ingresa a tu empresa" description="Usa el correo y la contraseña con que te invitaron." />
+          </AuthCard>
+        </AuthShell>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }

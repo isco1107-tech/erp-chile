@@ -16,14 +16,24 @@ import { isIpAllowed } from './ip-allowlist';
 export async function checkIpAllowlist(
   companyId: string | null | undefined,
   isSuperAdmin: boolean,
-  ip: string | null
+  ip: string | null,
+  /**
+   * Lista ya leída por el llamador (p.ej. `getAuthContext`, que ya trae la
+   * empresa efectiva en la misma consulta memoizada) para no volver a
+   * golpear la base en cada request. Si se omite, se consulta acá como
+   * siempre lo hizo — mantiene compatibilidad con signin/2FA/invitaciones.
+   */
+  preloadedSettings?: { ipAllowlistEnabled: boolean; ipAllowlist: string[] } | null
 ): Promise<string | null> {
   if (!companyId || isSuperAdmin) return null;
 
-  const settings = await prisma.companySettings.findUnique({
-    where: { companyId },
-    select: { ipAllowlistEnabled: true, ipAllowlist: true },
-  });
+  const settings =
+    preloadedSettings !== undefined
+      ? preloadedSettings
+      : await prisma.companySettings.findUnique({
+          where: { companyId },
+          select: { ipAllowlistEnabled: true, ipAllowlist: true },
+        });
   if (!settings?.ipAllowlistEnabled) return null;
 
   if (!isIpAllowed(ip, settings.ipAllowlist)) {

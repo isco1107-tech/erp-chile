@@ -10,8 +10,8 @@ const SALES_EMAIL = process.env.AETHER_SALES_EMAIL ?? 'aethererp1@gmail.com';
 export const metadata: Metadata = {
   metadataBase: new URL(getAppUrl()),
   title: 'Aether ERP | Tu empresa, conectada',
-  description: 'Ventas, inventario, finanzas y eventos en un solo lugar. Conoce Aether ERP, la plataforma de gestión para empresas chilenas. Disponible en web y escritorio.',
-  keywords: ['ERP chileno', 'software de gestión', 'facturación electrónica', 'DTE', 'SII', 'F29', 'inventario', 'punto de venta', 'producción de eventos'],
+  description: 'ERP chileno para cualquier negocio: ventas, inventario y finanzas con cumplimiento SII. Incluye producción de certámenes y eventos.',
+  keywords: ['ERP chileno', 'software de gestión', 'facturación electrónica', 'DTE', 'SII', 'F29', 'inventario', 'punto de venta', 'producción de certámenes y eventos'],
   // Las dos rutas (`/` y `/conoce-aether`) sirven la misma landing: la canónica
   // evita que compitan entre ellas por el mismo contenido.
   alternates: { canonical: '/' },
@@ -19,13 +19,13 @@ export const metadata: Metadata = {
   // La imagen la genera `src/app/opengraph-image.tsx` (1200×630 con titular).
   openGraph: {
     title: 'Aether ERP | Tu empresa, conectada',
-    description: 'Del primer presupuesto al último pago. Una plataforma para toda tu operación.',
+    description: 'ERP chileno para cualquier negocio, con cumplimiento SII y producción de certámenes y eventos.',
     type: 'website', locale: 'es_CL', siteName: 'Aether ERP',
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Aether ERP | Tu empresa, conectada',
-    description: 'Del primer presupuesto al último pago. Una plataforma para toda tu operación.',
+    description: 'ERP chileno para cualquier negocio, con cumplimiento SII y producción de certámenes y eventos.',
   },
 };
 

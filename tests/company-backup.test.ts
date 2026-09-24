@@ -16,7 +16,7 @@ describe('Selección de tablas del respaldo', () => {
       .filter((modelo) => modelo.fields.some((campo) => campo.name === 'companyId'))
       .map((modelo) => modelo.name);
 
-    const excluidas = ['UserSession', 'TotpBackupCode', 'ProcessedWebhookEvent', 'PlatformAuditLog', 'DteCaf'];
+    const excluidas = ['UserSession', 'TotpBackupCode', 'ProcessedWebhookEvent', 'PlatformAuditLog', 'DteCaf', 'AgentActionConfirmation'];
     const esperadas = conCompanyId.filter((nombre) => !excluidas.includes(nombre));
 
     // Si alguien agrega un modelo nuevo con companyId, entra solo. Ese es el

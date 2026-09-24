@@ -44,12 +44,20 @@ export async function getContactOutstandingBalance(
   return (result._sum.totalAmount ?? 0) - (result._sum.paidAmount ?? 0);
 }
 
+/**
+ * `externalTx` permite encadenar este cobro dentro de una transacción más
+ * amplia que ya está abierta (ej. el webhook de n8n, que necesita que el
+ * cobro y el marcado del evento como procesado confirmen o reviertan juntos
+ * — ver `n8n-handler.service.ts`). Sin ella, abre su propia transacción como
+ * siempre.
+ */
 export async function registerSalesPayment(
   companyId: string,
   salesDocumentId: string,
-  data: RegisterPaymentData
+  data: RegisterPaymentData,
+  externalTx?: Prisma.TransactionClient
 ): Promise<Payment> {
-  return prisma.$transaction(async (tx) => {
+  const run = async (tx: Prisma.TransactionClient): Promise<Payment> => {
     // Lock sobre el documento: sin él, dos cobros concurrentes leían el mismo
     // paidAmount y el segundo pisaba al primero, dando por pagado un documento
     // que no lo estaba.
@@ -88,15 +96,20 @@ export async function registerSalesPayment(
     await postSalesPaymentEntry(tx, companyId, payment);
 
     return payment;
-  }, LOCKING_TX_OPTIONS);
+  };
+
+  if (externalTx) return run(externalTx);
+  return prisma.$transaction(run, LOCKING_TX_OPTIONS);
 }
 
+/** Ver nota de `externalTx` en `registerSalesPayment`. */
 export async function registerPurchasePayment(
   companyId: string,
   purchaseDocumentId: string,
-  data: RegisterPaymentData
+  data: RegisterPaymentData,
+  externalTx?: Prisma.TransactionClient
 ): Promise<Payment> {
-  return prisma.$transaction(async (tx) => {
+  const run = async (tx: Prisma.TransactionClient): Promise<Payment> => {
     // Mismo lock que en cobros: evita que dos pagos concurrentes se pisen.
     await tx.$queryRaw`SELECT id FROM "PurchaseDocument" WHERE id = ${purchaseDocumentId} AND "companyId" = ${companyId} FOR UPDATE`;
 
@@ -141,7 +154,10 @@ export async function registerPurchasePayment(
     await postPurchasePaymentEntry(tx, companyId, payment);
 
     return payment;
-  }, LOCKING_TX_OPTIONS);
+  };
+
+  if (externalTx) return run(externalTx);
+  return prisma.$transaction(run, LOCKING_TX_OPTIONS);
 }
 
 export type ReceivableRow = SalesDocument & { contact: Contact };

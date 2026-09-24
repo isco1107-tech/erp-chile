@@ -5,6 +5,7 @@ import {
   getAuthContext,
   can,
   AuthError,
+  IpNotAllowedError,
   TenantInactiveError,
   type AuthContext,
 } from '@/lib/auth/guards';
@@ -52,6 +53,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
     context = await getAuthContext();
   } catch (error) {
     if (error instanceof TenantInactiveError) redirect('/suspended');
+    // Debe ir antes del `AuthError` genérico (`IpNotAllowedError` es
+    // subclase suya): sin distinguirlo, el usuario veía un cierre de sesión
+    // silencioso en `/login` en vez de saber que su IP está bloqueada.
+    if (error instanceof IpNotAllowedError) redirect('/login?reason=ip');
     if (error instanceof AuthError) redirect('/login');
     throw error;
   }

@@ -43,8 +43,8 @@ export interface CompanyChatUser {
   photoUrl: string | null;
 }
 
-/** Lanza si `userId` no participa de `conversationId` dentro de `companyId` — mismo mensaje genérico para no confirmar si la conversación existe. */
-async function assertParticipant(companyId: string, conversationId: string, userId: string) {
+/** Lanza si `userId` no participa de `conversationId` dentro de `companyId` — mismo mensaje genérico para no confirmar si la conversación existe. Exportada para que el Route Handler de subida de adjuntos (SEG-13) pueda autorizar ANTES de subir el archivo al storage, no después. */
+export async function assertParticipant(companyId: string, conversationId: string, userId: string) {
   const participant = await prisma.conversationParticipant.findFirst({
     where: { conversationId, userId, conversation: { companyId } },
   });

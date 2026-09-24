@@ -37,6 +37,12 @@ const EXCLUDED_MODELS = new Set([
   'TotpBackupCode',
   // Deduplicación interna de webhooks: ruido de infraestructura.
   'ProcessedWebhookEvent',
+  // Marca de "jti ya confirmado" del asistente de IA (OP-07): estado interno
+  // de deduplicación, no dato de negocio. El campo `jti` no matchea
+  // SENSITIVE_FIELD_PATTERN (no es un secreto reutilizable una vez
+  // consumido — el token en sí ya expiró o fue usado), pero se excluye el
+  // modelo entero igual, mismo criterio que `ProcessedWebhookEvent`.
+  'AgentActionConfirmation',
   // Auditoría del panel de plataforma: es del operador del SaaS, no del tenant.
   'PlatformAuditLog',
   // Contiene `encryptedXml`: el CAF cifrado, con la llave privada RSA que

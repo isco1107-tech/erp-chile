@@ -19,6 +19,8 @@ const config = [
       'dashboard/**',
       'lib/**',
       'desktop-client/src-tauri/target/**',
+      // Copias de trabajo temporales de agentes de Claude Code.
+      '.claude/worktrees/**',
     ],
   },
   ...nextConfig,

@@ -22,3 +22,6 @@ node_modules
 
 # Mapa de código de graphify (se regenera en cada sesión con `graphify update .`, pesa ~10 MB)
 graphify-out/
+
+# Copias de trabajo temporales de agentes de Claude Code (una por agente en paralelo)
+.claude/worktrees/

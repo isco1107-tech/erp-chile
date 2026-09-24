@@ -58,7 +58,10 @@ describe('Subida de archivos con R2 sin configurar', () => {
 
     expect(sent).toHaveLength(0);
     expect(vercelUploads).toEqual([
-      { pathname: 'branding/cmp_1/logo-1.png', options: { access: 'public', contentType: 'image/png', addRandomSuffix: false } },
+      {
+        pathname: 'branding/cmp_1/logo-1.png',
+        options: { access: 'public', contentType: 'image/png', addRandomSuffix: false, allowOverwrite: false },
+      },
     ]);
     // La URL devuelta es la que queda guardada en la base: debe ser la real
     // del proveedor que efectivamente recibió el archivo.
@@ -75,6 +78,37 @@ describe('Subida de archivos con R2 sin configurar', () => {
 
     expect(sent).toHaveLength(0);
     expect(vercelUploads).toHaveLength(1);
+  });
+
+  it('no pisa un archivo existente por defecto (allowOverwrite ausente)', async () => {
+    const { put } = await import('@/lib/storage/blob');
+
+    await put('candidates/zapsign-signed/doc-1.pdf', Buffer.from('pdf'), {
+      access: 'public',
+      contentType: 'application/pdf',
+      addRandomSuffix: false,
+    });
+
+    // Sin `allowOverwrite`, el fallback a `@vercel/blob` mantiene su
+    // comportamiento por defecto (no sobrescribe) para no cambiar a los
+    // demás 13 call-sites que dependen de que una colisión de nombre falle.
+    expect(vercelUploads[0]?.options).toMatchObject({ allowOverwrite: false });
+  });
+
+  it('pasa allowOverwrite: true cuando el llamador lo pide (webhook de ZapSign, reintentable)', async () => {
+    const { put } = await import('@/lib/storage/blob');
+
+    await put('candidates/zapsign-signed/doc-1.pdf', Buffer.from('pdf'), {
+      access: 'public',
+      contentType: 'application/pdf',
+      addRandomSuffix: false,
+      allowOverwrite: true,
+    });
+
+    // Sin esto, un reintento del webhook (mismo docToken -> mismo pathname)
+    // choca contra el `put` de `@vercel/blob`, que por defecto lanza si el
+    // archivo ya existe, y el contrato nunca queda marcado como firmado.
+    expect(vercelUploads[0]?.options).toMatchObject({ allowOverwrite: true });
   });
 });
 
