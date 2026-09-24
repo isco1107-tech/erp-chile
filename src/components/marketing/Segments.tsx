@@ -38,10 +38,10 @@ export default function Segments() {
       <div className={s.container}>
         <div className={s.sectionHeading} data-reveal>
           <div>
-            <p className={s.kicker}>PARA QUIÉN ESTÁ HECHO</p>
-            <h2>Cuatro formas de operar.<br />El mismo orden para todas.</h2>
+            <p className={s.kicker}>RUTAS DE IMPLEMENTACIÓN</p>
+            <h2>Cuatro formas de operar.<br />Tu punto de partida.</h2>
           </div>
-          <p>Aether no asume que todas las empresas venden igual. Reconoce tu operación en una de estas y parte por ahí.</p>
+          <p>Aether no asume que todas las empresas venden igual. Reconoce tu operación en una de estas rutas y activa solo los módulos que necesitas.</p>
         </div>
 
         <div className={s.segmentGrid}>
