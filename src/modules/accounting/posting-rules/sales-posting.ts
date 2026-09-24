@@ -16,8 +16,13 @@ import { cashOrBankKey } from './treasury-posting';
  * criterio que ya usa `sales.service.ts` para no descontar stock dos veces.
  */
 
-/** Tipos de DTE que representan una venta real (o su corrección vía Nota de Débito) y generan asiento de ingreso. */
-const REVENUE_DTE_TYPES: DteType[] = ['FACTURA_33', 'FACTURA_EXENTA_34', 'BOLETA_39', 'BOLETA_EXENTA_41', 'NOTA_DEBITO_56'];
+/**
+ * Tipos de DTE que representan una venta real (o su corrección vía Nota de
+ * Débito) y generan asiento de ingreso. Exportado porque
+ * `reconciliation.service.ts` necesita exactamente el mismo criterio para
+ * calcular el efectivo esperado en CAJA sin duplicar la lista (N-19).
+ */
+export const REVENUE_DTE_TYPES: DteType[] = ['FACTURA_33', 'FACTURA_EXENTA_34', 'BOLETA_39', 'BOLETA_EXENTA_41', 'NOTA_DEBITO_56'];
 
 /**
  * Líneas de ingreso de una venta, separando neto afecto/exento y IVA por sus

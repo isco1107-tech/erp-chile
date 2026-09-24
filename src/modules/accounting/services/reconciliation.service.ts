@@ -2,8 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { calculateAndStoreF29 } from '@/lib/chile/f29';
 import type { F29Result } from '@/lib/chile/f29';
 import { getAccountBalance } from './ledger.service';
-import { computeExpectedAmount } from '@/modules/pos/calc';
-import { CASH_PAYMENT_METHODS } from '@/modules/pos/schema';
+import { REVENUE_DTE_TYPES } from '../posting-rules/sales-posting';
 
 /**
  * Cuadraturas automáticas (`PROMPT_ERP_V2.md`, Fase C.3): compara el saldo
@@ -78,57 +77,80 @@ async function proveedoresExpected(companyId: string): Promise<number> {
 }
 
 /**
- * Efectivo esperado de una caja: el último arqueo contado (o cero si la caja
- * nunca se ha cerrado) más lo que entró y salió después de ese arqueo.
+ * Efectivo esperado en el mayor de CAJA: se calcula replicando exactamente
+ * qué operaciones postean a esa cuenta (y solo esas), no todo lo que "pasa
+ * por caja" operativamente. Fuentes que SÍ postean a CAJA (ver
+ * `sales-posting.ts`, `treasury-posting.ts` y `inventory-posting.ts`):
  *
- * Sumar `actualAmount` de TODOS los turnos CLOSED (como antes) cuenta el mismo
- * fondo fijo una y otra vez cada vez que la caja se cierra y se vuelve a abrir
- * — dos cierres sucesivos con los mismos 100 de fondo sumaban 200 sin que
- * hubiera entrado plata adicional. El último arqueo ya es la foto acumulada
- * hasta ese momento; solo hace falta sumarle la actividad posterior.
+ *   1. Venta al contado en efectivo (`postSalesDocumentIssued`, dentro de
+ *      `sales.service.ts::createSalesDocument`): cualquier `SalesDocument`
+ *      ISSUED de un tipo que postea ingreso (`REVENUE_DTE_TYPES` — Factura,
+ *      Boleta, Nota de Débito; una Guía no postea nada propio) con
+ *      `paymentMethod: 'EFECTIVO'` carga CAJA por su `totalAmount` completo
+ *      al emitirse — venga del POS o de Ventas directo. El check anterior
+ *      solo miraba ventas ligadas a un `CashShift` (POS), así que una venta
+ *      al contado en efectivo emitida desde Ventas nunca entraba al
+ *      "esperado" aunque sí cargó CAJA en el mayor.
+ *   2. Cobro posterior en efectivo de un documento a crédito
+ *      (`postSalesPaymentEntry`, vía `registerSalesPayment`): un `Payment`
+ *      INCOME en efectivo carga CAJA — pero solo cuando el documento de
+ *      venta al que pertenece es `CREDITO_30`. Un documento al contado ya
+ *      quedó cargado en (1) por su propio total; su `Payment` automático (el
+ *      que crea `createSalesDocument` para dejar registro en Tesorería) NO
+ *      tiene asiento propio (ver comentario en `sales.service.ts`), así que
+ *      contarlo de nuevo acá lo duplicaría.
+ *   3. Pago a proveedor en efectivo (`postPurchasePaymentEntry`, vía
+ *      `registerPurchasePayment`): un `Payment` EXPENSE en efectivo ABONA
+ *      CAJA. Una compra nunca carga CAJA al emitirse — siempre va a
+ *      PROVEEDORES (`purchases-posting.ts`) — así que todo pago de compra en
+ *      efectivo resta.
+ *   4. Descuadre de cierre de turno (`postCashShiftDifference`, vía
+ *      `closeShift`): al cerrar, el asiento ajusta CAJA al monto CONTADO, no
+ *      al teórico — ese ajuste (`CashShift.difference`) es un movimiento real
+ *      de la cuenta y debe sumarse, o cada descuadre físico quedaría como una
+ *      diferencia "sin explicar" permanente en este mismo check.
+ *
+ * Fuentes que NO postean a CAJA, y por lo tanto NO deben sumarse al
+ * esperado, aunque muevan el cajón físico o aparezcan en otras pantallas:
+ * el fondo inicial de un turno (`CashShift.initialAmount`, `openShift` no
+ * postea nada) y los movimientos sueltos de caja (`CashMovement` INFLOW/
+ * OUTFLOW, `registerCashMovement` tampoco postea nada — son bitácora del
+ * cajón físico, no hechos contables). Cobros de auspicios, pagarés y cuotas
+ * en efectivo tampoco: no existe hoy una regla de posteo para esos módulos
+ * (ver comentarios en `sponsorships.service.ts`/`promissory-notes.service.ts`),
+ * así que no cargan CAJA y no deben sumarse al esperado.
  */
-async function cajaExpectedForRegister(companyId: string, cashRegisterId: string): Promise<number> {
-  const lastClosed = await prisma.cashShift.findFirst({
-    where: { companyId, cashRegisterId, status: 'CLOSED' },
-    orderBy: { closedAt: 'desc' },
-  });
-  const base = lastClosed?.actualAmount ?? 0;
-  // Sin arqueo previo, se cuenta toda la actividad histórica de la caja.
-  const cutoff = lastClosed?.closedAt ?? new Date(0);
-
-  const [cashSales, inflows, outflows] = await Promise.all([
+async function cajaExpected(companyId: string): Promise<number> {
+  const [cashSales, cashCollections, cashSupplierPayments, closedShifts] = await Promise.all([
     prisma.salesDocument.aggregate({
-      where: {
-        companyId,
-        status: 'ISSUED',
-        paymentMethod: { in: CASH_PAYMENT_METHODS },
-        issueDate: { gt: cutoff },
-        cashShift: { cashRegisterId },
-      },
+      where: { companyId, status: 'ISSUED', paymentMethod: 'EFECTIVO', dteType: { in: REVENUE_DTE_TYPES } },
       _sum: { totalAmount: true },
     }),
-    prisma.cashMovement.aggregate({
-      where: { companyId, type: 'INFLOW', createdAt: { gt: cutoff }, cashShift: { cashRegisterId } },
+    prisma.payment.aggregate({
+      where: {
+        companyId,
+        type: 'INCOME',
+        paymentMethod: 'EFECTIVO',
+        salesDocument: { paymentMethod: 'CREDITO_30' },
+      },
       _sum: { amount: true },
     }),
-    prisma.cashMovement.aggregate({
-      where: { companyId, type: 'OUTFLOW', createdAt: { gt: cutoff }, cashShift: { cashRegisterId } },
+    prisma.payment.aggregate({
+      where: { companyId, type: 'EXPENSE', paymentMethod: 'EFECTIVO', purchaseDocumentId: { not: null } },
       _sum: { amount: true },
+    }),
+    prisma.cashShift.aggregate({
+      where: { companyId, status: 'CLOSED' },
+      _sum: { difference: true },
     }),
   ]);
 
-  return computeExpectedAmount({
-    initialAmount: base,
-    cashSales: cashSales._sum.totalAmount ?? 0,
-    inflows: inflows._sum.amount ?? 0,
-    outflows: outflows._sum.amount ?? 0,
-  });
-}
-
-async function cajaExpected(companyId: string): Promise<number> {
-  const registers = await prisma.cashRegister.findMany({ where: { companyId }, select: { id: true } });
-  const perRegister = await Promise.all(registers.map((register) => cajaExpectedForRegister(companyId, register.id)));
-  return perRegister.reduce((sum, amount) => sum + amount, 0);
+  return (
+    (cashSales._sum.totalAmount ?? 0) +
+    (cashCollections._sum.amount ?? 0) -
+    (cashSupplierPayments._sum.amount ?? 0) +
+    (closedShifts._sum.difference ?? 0)
+  );
 }
 
 export interface RunReconciliationOptions {

@@ -1,10 +1,15 @@
 import { prisma } from '@/lib/prisma';
 
 /**
- * N-19 (auditoría 2026-09-14): el esperado de caja de la conciliación sumaba
- * `actualAmount` de TODOS los turnos CLOSED, así que el mismo fondo fijo se
- * contaba una y otra vez cada vez que la caja se cerraba y se volvía a abrir.
- * Ahora usa el último arqueo por caja más la actividad posterior.
+ * N-19 (auditoría 2026-09-14, segunda pasada): el esperado de caja de la
+ * conciliación solo miraba las ventas del POS (ligadas a un `CashShift`) más
+ * el fondo inicial y los movimientos sueltos de caja — pero ninguno de esos
+ * dos últimos postea al mayor de CAJA (`openShift`/`registerCashMovement` no
+ * generan asiento), y el mayor de CAJA también recibe ventas en efectivo
+ * emitidas desde Ventas (no solo POS), cobros en efectivo de Tesorería sobre
+ * documentos a crédito, y pagos a proveedores en efectivo. `cajaExpected`
+ * ahora replica exactamente esas cuatro fuentes (ver el comentario en
+ * `reconciliation.service.ts` para el detalle de qué postea cada una).
  */
 
 jest.mock('@/lib/chile/f29', () => ({
@@ -53,65 +58,75 @@ function mockCashSalesAggregate(cashTotal: number) {
   }) as never);
 }
 
+function mockPaymentAggregates(collections: number, supplierPayments: number) {
+  jest.spyOn(prisma.payment, 'aggregate').mockImplementation(((args: { where: { type: 'INCOME' | 'EXPENSE' } }) => {
+    const amount = args.where.type === 'INCOME' ? collections : supplierPayments;
+    return Promise.resolve({ _sum: { amount } });
+  }) as never);
+}
+
+function mockClosedShiftsDifference(totalDifference: number) {
+  jest.spyOn(prisma.cashShift, 'aggregate').mockResolvedValue({ _sum: { difference: totalDifference } } as never);
+}
+
 afterEach(() => jest.restoreAllMocks());
 
-describe('cajaExpected no duplica el fondo fijo entre cierres sucesivos (N-19)', () => {
-  it('dos turnos CLOSED con el mismo efectivo contado no suman su saldo', async () => {
+describe('cajaExpected replica exactamente lo que postea al mayor de CAJA (N-19)', () => {
+  it('cuenta una venta en efectivo emitida desde Ventas (sin CashShift), no solo las del POS', async () => {
     mockOnlyCajaMapped();
     mockOtherSourcesAtZero();
-    jest.spyOn(prisma.cashRegister, 'findMany').mockResolvedValue([{ id: 'reg1' }] as never);
-
-    // El último de dos cierres sucesivos contó $100.000 de fondo fijo:
-    // el esperado NO debe ser 200.000 por sumar ambos arqueos.
-    jest.spyOn(prisma.cashShift, 'findFirst').mockResolvedValue({
-      id: 'shift2',
-      actualAmount: 100_000,
-      closedAt: new Date('2026-09-10T12:00:00Z'),
-    } as never);
-    mockCashSalesAggregate(0);
-    jest.spyOn(prisma.cashMovement, 'aggregate').mockResolvedValue({ _sum: { amount: 0 } } as never);
+    mockCashSalesAggregate(150_000);
+    mockPaymentAggregates(0, 0);
+    mockClosedShiftsDifference(0);
 
     const checks = await runReconciliation('c1');
     const caja = checks.find((check) => check.key === 'CAJA');
 
     expect(caja).toBeDefined();
-    expect(caja!.expected).toBe(100_000);
+    expect(caja!.expected).toBe(150_000);
   });
 
-  it('suma al último arqueo la actividad de caja posterior a ese cierre', async () => {
+  it('suma cobros en efectivo de Tesorería sobre documentos a crédito y resta pagos a proveedores en efectivo', async () => {
     mockOnlyCajaMapped();
     mockOtherSourcesAtZero();
-    jest.spyOn(prisma.cashRegister, 'findMany').mockResolvedValue([{ id: 'reg1' }] as never);
-    jest.spyOn(prisma.cashShift, 'findFirst').mockResolvedValue({
-      id: 'shift1',
-      actualAmount: 50_000,
-      closedAt: new Date('2026-09-10T12:00:00Z'),
-    } as never);
-
-    // $20.000 vendidos en efectivo y un retiro de $5.000 después del último cierre.
-    mockCashSalesAggregate(20_000);
-    const movementAgg = jest.spyOn(prisma.cashMovement, 'aggregate');
-    movementAgg.mockResolvedValueOnce({ _sum: { amount: 0 } } as never); // INFLOW
-    movementAgg.mockResolvedValueOnce({ _sum: { amount: 5_000 } } as never); // OUTFLOW
+    mockCashSalesAggregate(0);
+    mockPaymentAggregates(40_000, 15_000);
+    mockClosedShiftsDifference(0);
 
     const checks = await runReconciliation('c1');
     const caja = checks.find((check) => check.key === 'CAJA');
 
-    // 50.000 (último arqueo) + 20.000 (ventas efectivo) - 5.000 (retiro) = 65.000
-    expect(caja!.expected).toBe(65_000);
+    // 40.000 cobrados - 15.000 pagados a proveedores = 25.000
+    expect(caja!.expected).toBe(25_000);
   });
 
-  it('sin ningún cierre previo, cuenta toda la actividad histórica de la caja', async () => {
+  it('suma los descuadres de cierre de turno ya posteados por postCashShiftDifference', async () => {
     mockOnlyCajaMapped();
     mockOtherSourcesAtZero();
-    jest.spyOn(prisma.cashRegister, 'findMany').mockResolvedValue([{ id: 'reg1' }] as never);
-    jest.spyOn(prisma.cashShift, 'findFirst').mockResolvedValue(null);
-    mockCashSalesAggregate(10_000);
-    jest.spyOn(prisma.cashMovement, 'aggregate').mockResolvedValue({ _sum: { amount: 0 } } as never);
+    mockCashSalesAggregate(100_000);
+    mockPaymentAggregates(0, 0);
+    mockClosedShiftsDifference(-3_000); // faltante acumulado de cierres anteriores
 
     const checks = await runReconciliation('c1');
     const caja = checks.find((check) => check.key === 'CAJA');
 
-    expect(caja!.expected).toBe(10_000);
+    expect(caja!.expected).toBe(97_000);
+  });
+
+  it('no cuenta el fondo inicial de un turno ni los movimientos sueltos de caja (no postean a CAJA)', async () => {
+    // `CashMovement.aggregate`/`CashShift.initialAmount` ya no se consultan
+    // en absoluto para el esperado: si el código volviera a sumarlos, este
+    // mock (que no los stubea) haría fallar la prueba por una llamada real a
+    // Prisma sin conexión disponible.
+    mockOnlyCajaMapped();
+    mockOtherSourcesAtZero();
+    mockCashSalesAggregate(0);
+    mockPaymentAggregates(0, 0);
+    mockClosedShiftsDifference(0);
+
+    const checks = await runReconciliation('c1');
+    const caja = checks.find((check) => check.key === 'CAJA');
+
+    expect(caja!.expected).toBe(0);
   });
 });
