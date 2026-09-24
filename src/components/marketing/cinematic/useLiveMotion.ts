@@ -43,15 +43,21 @@ export function useLiveMotion(
     let tilt: HTMLElement | null = null;
     let magnet: HTMLElement | null = null;
 
-    /** Hermanos de una misma fila (mismo borde superior) entran en cascada. */
-    function measureOrder() {
-      for (const target of targets) {
-        let count = 0;
-        for (let sibling = target.previousElementSibling; sibling; sibling = sibling.previousElementSibling) {
-          if (members.has(sibling) && Math.abs((sibling as HTMLElement).offsetTop - target.offsetTop) < 4) count += 1;
-        }
-        order.set(target, count);
+    /**
+     * Hermanos de una misma fila (mismo borde superior) entran en cascada. Se
+     * calcula recién al medir el elemento, cuando el diseño ya está al día:
+     * hacerlo para los ~80 elementos al montar forzaba un diseño completo
+     * durante la hidratación.
+     */
+    function orderOf(target: HTMLElement): number {
+      const cached = order.get(target);
+      if (cached !== undefined) return cached;
+      let count = 0;
+      for (let sibling = target.previousElementSibling; sibling; sibling = sibling.previousElementSibling) {
+        if (members.has(sibling) && Math.abs((sibling as HTMLElement).offsetTop - target.offsetTop) < 4) count += 1;
       }
+      order.set(target, count);
+      return count;
     }
 
     function write(target: HTMLElement, enter: number, view: number) {
@@ -97,7 +103,10 @@ export function useLiveMotion(
       measured = {
         viewport,
         atEnd,
-        rects: [...active].map(target => [target, target.getBoundingClientRect()] as const),
+        rects: [...active].map(target => {
+          orderOf(target);
+          return [target, target.getBoundingClientRect()] as const;
+        }),
         nearest: touch.matches ? nearestCard(viewport) : focused,
       };
     }
@@ -215,11 +224,10 @@ export function useLiveMotion(
       spot = tilt = magnet = null;
     };
     const onResize = () => {
-      measureOrder();
+      order.clear();
       schedule();
     };
 
-    measureOrder();
     for (const target of targets) observer.observe(target);
     node.setAttribute('data-live-ready', '');
     window.addEventListener('scroll', onScroll, { passive: true });
