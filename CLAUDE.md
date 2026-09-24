@@ -127,6 +127,18 @@ Este archivo contiene las reglas arquitectónicas, estándares de seguridad y l�
 - Los campos que matcheen `/password|secret|token|hash|salt|credential|privatekey/i` nunca salen. Al agregar un modelo con credenciales, verificar que el patrón lo cubra o excluir el modelo entero en `EXCLUDED_MODELS`.
 - **No es una herramienta de restauración**: reimportar exigiría resolver orden de claves foráneas y colisiones de id. Es portabilidad y archivo, no *disaster recovery*.
 
+---
+
+## 7. Navegación del Código con Graphify
+
+Si el comando `graphify` existe y hay `graphify-out/graph.json` (se genera con `graphify update .` en ~15 s, sin LLM; no se versiona), consultar el grafo **antes** de abrir archivos para preguntas estructurales:
+
+- `graphify explain "<símbolo>"`: quién llama a una función y qué llama ella, con archivo y línea.
+- `graphify affected "<símbolo>"`: qué se ve afectado si se cambia (usar antes de tocar `calc.ts`, `tax.ts`, guards, etc.).
+- `graphify path "<A>" "<B>"`: cómo se conectan dos piezas.
+
+`graphify query "<pregunta>"` en lenguaje natural trae mucho ruido en este repo: preferir un símbolo concreto. El grafo solo orienta; antes de editar, leer el código real. Si el grafo no existe o está desactualizado, seguir con Grep/Read normalmente.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know
