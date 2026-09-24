@@ -2,6 +2,8 @@ import { prisma } from '@/lib/prisma';
 import { calculateAndStoreF29 } from '@/lib/chile/f29';
 import type { F29Result } from '@/lib/chile/f29';
 import { getAccountBalance } from './ledger.service';
+import { computeExpectedAmount } from '@/modules/pos/calc';
+import { CASH_PAYMENT_METHODS } from '@/modules/pos/schema';
 
 /**
  * Cuadraturas automáticas (`PROMPT_ERP_V2.md`, Fase C.3): compara el saldo
@@ -75,12 +77,58 @@ async function proveedoresExpected(companyId: string): Promise<number> {
   return (agg._sum.totalAmount ?? 0) - (agg._sum.paidAmount ?? 0);
 }
 
-async function cajaExpected(companyId: string): Promise<number> {
-  const agg = await prisma.cashShift.aggregate({
-    where: { companyId, status: 'CLOSED' },
-    _sum: { actualAmount: true },
+/**
+ * Efectivo esperado de una caja: el último arqueo contado (o cero si la caja
+ * nunca se ha cerrado) más lo que entró y salió después de ese arqueo.
+ *
+ * Sumar `actualAmount` de TODOS los turnos CLOSED (como antes) cuenta el mismo
+ * fondo fijo una y otra vez cada vez que la caja se cierra y se vuelve a abrir
+ * — dos cierres sucesivos con los mismos 100 de fondo sumaban 200 sin que
+ * hubiera entrado plata adicional. El último arqueo ya es la foto acumulada
+ * hasta ese momento; solo hace falta sumarle la actividad posterior.
+ */
+async function cajaExpectedForRegister(companyId: string, cashRegisterId: string): Promise<number> {
+  const lastClosed = await prisma.cashShift.findFirst({
+    where: { companyId, cashRegisterId, status: 'CLOSED' },
+    orderBy: { closedAt: 'desc' },
   });
-  return agg._sum.actualAmount ?? 0;
+  const base = lastClosed?.actualAmount ?? 0;
+  // Sin arqueo previo, se cuenta toda la actividad histórica de la caja.
+  const cutoff = lastClosed?.closedAt ?? new Date(0);
+
+  const [cashSales, inflows, outflows] = await Promise.all([
+    prisma.salesDocument.aggregate({
+      where: {
+        companyId,
+        status: 'ISSUED',
+        paymentMethod: { in: CASH_PAYMENT_METHODS },
+        issueDate: { gt: cutoff },
+        cashShift: { cashRegisterId },
+      },
+      _sum: { totalAmount: true },
+    }),
+    prisma.cashMovement.aggregate({
+      where: { companyId, type: 'INFLOW', createdAt: { gt: cutoff }, cashShift: { cashRegisterId } },
+      _sum: { amount: true },
+    }),
+    prisma.cashMovement.aggregate({
+      where: { companyId, type: 'OUTFLOW', createdAt: { gt: cutoff }, cashShift: { cashRegisterId } },
+      _sum: { amount: true },
+    }),
+  ]);
+
+  return computeExpectedAmount({
+    initialAmount: base,
+    cashSales: cashSales._sum.totalAmount ?? 0,
+    inflows: inflows._sum.amount ?? 0,
+    outflows: outflows._sum.amount ?? 0,
+  });
+}
+
+async function cajaExpected(companyId: string): Promise<number> {
+  const registers = await prisma.cashRegister.findMany({ where: { companyId }, select: { id: true } });
+  const perRegister = await Promise.all(registers.map((register) => cajaExpectedForRegister(companyId, register.id)));
+  return perRegister.reduce((sum, amount) => sum + amount, 0);
 }
 
 export interface RunReconciliationOptions {
