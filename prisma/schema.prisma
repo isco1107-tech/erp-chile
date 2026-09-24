@@ -1174,6 +1174,27 @@ model Payment {
   /// desde los pagos ya registrados en Tesorería, sin duplicar agregación.
   budgetLineId       String?
   budgetLine         BudgetLine?       @relation(fields: [budgetLineId], references: [id], onDelete: SetNull)
+  /// Auditoría N-15: el cobro de una cuota de `PaymentPlan` genera su
+  /// `Payment` de tesorería para que `getCashFlow` lo vea. `paymentPlanId` se
+  /// llena siempre que el cobro venga de un plan (permite abarcar un pago en
+  /// línea que cubre varias cuotas de una sola vez); `paymentPlanInstallmentId`
+  /// solo cuando el cobro corresponde a UNA cuota puntual (el registro manual
+  /// desde el panel). `SetNull`: borrar el plan/cuota no puede arrastrar el
+  /// historial de tesorería ya generado.
+  paymentPlanId            String?
+  paymentPlan              PaymentPlan?             @relation(fields: [paymentPlanId], references: [id], onDelete: SetNull)
+  paymentPlanInstallmentId String?
+  paymentPlanInstallment   PaymentPlanInstallment?  @relation(fields: [paymentPlanInstallmentId], references: [id], onDelete: SetNull)
+  /// Auditoría N-15: cobro de un pagaré (`PromissoryNote`). Generado por la
+  /// DIFERENCIA respecto al `paidAmount` anterior — el endpoint registra un
+  /// total acumulado, no un incremento.
+  promissoryNoteId   String?
+  promissoryNote     PromissoryNote?   @relation(fields: [promissoryNoteId], references: [id], onDelete: SetNull)
+  /// Auditoría N-15: cobro de la porción en efectivo de un contrato de
+  /// auspicio (`SponsorshipContract`). Mismo criterio de diferencia que el
+  /// pagaré: `updateSponsorshipPayment` también recibe un total acumulado.
+  sponsorshipContractId String?
+  sponsorshipContract   SponsorshipContract? @relation(fields: [sponsorshipContractId], references: [id], onDelete: SetNull)
   amount             Int
   paymentMethod      PaymentMethodType
   paymentDate        DateTime          @default(now())
@@ -1189,6 +1210,10 @@ model Payment {
   @@index([companyId, purchaseDocumentId])
   @@index([companyId, projectId])
   @@index([companyId, budgetLineId])
+  @@index([companyId, paymentPlanId])
+  @@index([companyId, paymentPlanInstallmentId])
+  @@index([companyId, promissoryNoteId])
+  @@index([companyId, sponsorshipContractId])
 }
 
 /// Caja física del local. Se ata a una bodega porque toda venta del POS
@@ -1783,6 +1808,7 @@ model SponsorshipContract {
   /// Oportunidad del CRM que se convirtió en este contrato (trazabilidad
   /// venta → contrato). La FK vive en `Opportunity.sponsorshipContractId`.
   sourceOpportunity    Opportunity?
+  payments             Payment[]
   createdAt            DateTime                 @default(now())
   updatedAt            DateTime                 @updatedAt
 
@@ -1954,6 +1980,7 @@ model PromissoryNote {
   paymentStatus PaymentStatus        @default(UNPAID)
   status        PromissoryNoteStatus @default(ACTIVE)
   notes         String?
+  payments      Payment[]
   createdAt     DateTime             @default(now())
   updatedAt     DateTime             @updatedAt
 
@@ -1996,6 +2023,7 @@ model PaymentPlan {
   notes            String?
   installments     PaymentPlanInstallment[]
   onlinePayments   InstallmentPaymentOrder[]
+  payments         Payment[]
   createdAt        DateTime                  @default(now())
   updatedAt        DateTime                  @updatedAt
 
@@ -2033,6 +2061,7 @@ model PaymentPlanInstallment {
   paidAt            DateTime?
   createdAt         DateTime                      @default(now())
   onlinePayments    InstallmentPaymentOrderItem[]
+  payments          Payment[]
 
   @@unique([paymentPlanId, installmentNumber])
   @@index([companyId, paymentStatus, dueDate])

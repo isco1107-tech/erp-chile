@@ -131,48 +131,81 @@ export async function deleteSponsorshipContract(companyId: string, id: string): 
  * fallo de SMTP no debe revertir el pago ya confirmado) y solo si
  * `wasAlreadyPaid` es falso. Antes esta función no avisaba a nadie.
  */
+/**
+ * `data.paidAmount` es el TOTAL acumulado pagado hasta ahora (mismo criterio
+ * que `registerPromissoryNotePayment`), no un incremento. N-15 (auditoría
+ * 2026-09-14): el `Payment` de tesorería que genera este cobro se crea por la
+ * DIFERENCIA respecto al `paidAmount` anterior — generarlo por el total
+ * duplicaría el cobro cada vez que se vuelve a guardar el mismo contrato.
+ * Lock explícito sobre el contrato: dos llamadas concurrentes no deben
+ * pisarse el `paidAmount` anterior.
+ */
 export async function updateSponsorshipPayment(
   companyId: string,
   id: string,
   data: SponsorshipPaymentInput
 ): Promise<SponsorshipContract> {
-  const contract = await prisma.sponsorshipContract.findFirst({
-    where: { id, companyId },
-    include: { contact: true, project: { select: { name: true } } },
+  const { updated, contract, paymentStatus, wasAlreadyPaid } = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "SponsorshipContract" WHERE id = ${id} AND "companyId" = ${companyId} FOR UPDATE`;
+
+    const contract = await tx.sponsorshipContract.findFirst({
+      where: { id, companyId },
+      include: { contact: true, project: { select: { name: true } } },
+    });
+    if (!contract) throw new Error('Contrato de auspicio no encontrado');
+    // Repetido server-side: la UI ya deshabilita el botón sobre el tope, pero
+    // esto también corre si se llama la Server Action directo.
+    if (contract.cashAmount > 0 && data.paidAmount > contract.cashAmount) {
+      throw new Error('El monto pagado supera el aporte en efectivo acordado');
+    }
+    if (data.paidAmount < contract.paidAmount) {
+      throw new Error('El monto pagado no puede ser menor al ya registrado');
+    }
+
+    let paymentStatus: PaymentStatus;
+    if (contract.cashAmount === 0) {
+      // Canje puro: no hay componente en efectivo que cobrar, así que siempre
+      // queda "Pagado" independiente de lo que se ingrese acá.
+      paymentStatus = 'PAID';
+    } else if (data.paidAmount === 0) {
+      paymentStatus = 'UNPAID';
+    } else if (data.paidAmount >= contract.cashAmount) {
+      paymentStatus = 'PAID';
+    } else {
+      paymentStatus = 'PARTIAL';
+    }
+
+    const wasAlreadyPaid = contract.paymentStatus === 'PAID';
+
+    await tx.sponsorshipContract.updateMany({
+      where: { id, companyId },
+      data: {
+        paidAmount: data.paidAmount,
+        paymentStatus,
+        notes: data.notes !== undefined ? (data.notes || null) : undefined,
+      },
+    });
+
+    const delta = data.paidAmount - contract.paidAmount;
+    // No se postea asiento contable acá: no existe hoy una regla de posteo
+    // para cobros de `SponsorshipContract`.
+    if (delta > 0) {
+      await tx.payment.create({
+        data: {
+          companyId,
+          type: 'INCOME',
+          contactId: contract.contactId,
+          sponsorshipContractId: id,
+          amount: delta,
+          paymentMethod: data.method,
+        },
+      });
+    }
+
+    const updated = await tx.sponsorshipContract.findFirst({ where: { id, companyId } });
+    if (!updated) throw new Error('Contrato de auspicio no encontrado');
+    return { updated, contract, paymentStatus, wasAlreadyPaid };
   });
-  if (!contract) throw new Error('Contrato de auspicio no encontrado');
-  // Repetido server-side: la UI ya deshabilita el botón sobre el tope, pero
-  // esto también corre si se llama la Server Action directo.
-  if (contract.cashAmount > 0 && data.paidAmount > contract.cashAmount) {
-    throw new Error('El monto pagado supera el aporte en efectivo acordado');
-  }
-
-  let paymentStatus: PaymentStatus;
-  if (contract.cashAmount === 0) {
-    // Canje puro: no hay componente en efectivo que cobrar, así que siempre
-    // queda "Pagado" independiente de lo que se ingrese acá.
-    paymentStatus = 'PAID';
-  } else if (data.paidAmount === 0) {
-    paymentStatus = 'UNPAID';
-  } else if (data.paidAmount >= contract.cashAmount) {
-    paymentStatus = 'PAID';
-  } else {
-    paymentStatus = 'PARTIAL';
-  }
-
-  const wasAlreadyPaid = contract.paymentStatus === 'PAID';
-
-  await prisma.sponsorshipContract.updateMany({
-    where: { id, companyId },
-    data: {
-      paidAmount: data.paidAmount,
-      paymentStatus,
-      notes: data.notes !== undefined ? (data.notes || null) : undefined,
-    },
-  });
-
-  const updated = await prisma.sponsorshipContract.findFirst({ where: { id, companyId } });
-  if (!updated) throw new Error('Contrato de auspicio no encontrado');
 
   if (paymentStatus === 'PAID' && !wasAlreadyPaid && contract.contact.email) {
     const company = await prisma.company.findUnique({ where: { id: companyId }, select: { businessName: true } });

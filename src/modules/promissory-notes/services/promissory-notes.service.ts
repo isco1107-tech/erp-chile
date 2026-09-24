@@ -114,42 +114,75 @@ export async function deletePromissoryNote(companyId: string, id: string): Promi
  * criterio que `updateSponsorshipPayment`. Si el pagaré queda totalmente
  * pagado, también se cierra `status: 'PAID'` (deja de estar "Vigente").
  */
+/**
+ * `data.paidAmount` es el TOTAL acumulado pagado hasta ahora (así lo pide la
+ * pantalla: "actualizar monto pagado"), no un incremento. N-15 (auditoría
+ * 2026-09-14): el `Payment` de tesorería que genera este cobro se crea por la
+ * DIFERENCIA respecto al `paidAmount` anterior — generarlo por el total
+ * duplicaría el cobro cada vez que se vuelve a guardar el mismo pagaré.
+ * Lock explícito: mismo motivo que `registerInstallmentPayment` — dos
+ * llamadas concurrentes no deben pisarse el `paidAmount` anterior.
+ */
 export async function registerPromissoryNotePayment(
   companyId: string,
   id: string,
   data: PromissoryNotePaymentInput
 ): Promise<PromissoryNote> {
-  const note = await prisma.promissoryNote.findFirst({ where: { id, companyId } });
-  if (!note) throw new Error('Pagaré no encontrado');
-  // Repetido server-side: la UI ya deshabilita el botón sobre el tope, pero
-  // esto también corre si se llama la Server Action directo.
-  if (data.paidAmount > note.amount) {
-    throw new Error('El monto pagado supera el monto del pagaré');
-  }
+  const { updated, previousPaymentStatus } = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "PromissoryNote" WHERE id = ${id} AND "companyId" = ${companyId} FOR UPDATE`;
 
-  let paymentStatus: PaymentStatus;
-  if (data.paidAmount === 0) {
-    paymentStatus = 'UNPAID';
-  } else if (data.paidAmount >= note.amount) {
-    paymentStatus = 'PAID';
-  } else {
-    paymentStatus = 'PARTIAL';
-  }
+    const note = await tx.promissoryNote.findFirst({ where: { id, companyId } });
+    if (!note) throw new Error('Pagaré no encontrado');
+    // Repetido server-side: la UI ya deshabilita el botón sobre el tope, pero
+    // esto también corre si se llama la Server Action directo.
+    if (data.paidAmount > note.amount) {
+      throw new Error('El monto pagado supera el monto del pagaré');
+    }
+    if (data.paidAmount < note.paidAmount) {
+      throw new Error('El monto pagado no puede ser menor al ya registrado');
+    }
 
-  await prisma.promissoryNote.updateMany({
-    where: { id, companyId },
-    data: {
-      paidAmount: data.paidAmount,
-      paymentStatus,
-      status: paymentStatus === 'PAID' ? 'PAID' : undefined,
-    },
+    let paymentStatus: PaymentStatus;
+    if (data.paidAmount === 0) {
+      paymentStatus = 'UNPAID';
+    } else if (data.paidAmount >= note.amount) {
+      paymentStatus = 'PAID';
+    } else {
+      paymentStatus = 'PARTIAL';
+    }
+
+    await tx.promissoryNote.updateMany({
+      where: { id, companyId },
+      data: {
+        paidAmount: data.paidAmount,
+        paymentStatus,
+        status: paymentStatus === 'PAID' ? 'PAID' : undefined,
+      },
+    });
+
+    const delta = data.paidAmount - note.paidAmount;
+    // No se postea asiento contable acá: no existe hoy una regla de posteo
+    // para cobros de `PromissoryNote`.
+    if (delta > 0) {
+      await tx.payment.create({
+        data: {
+          companyId,
+          type: 'INCOME',
+          contactId: note.contactId,
+          promissoryNoteId: id,
+          amount: delta,
+          paymentMethod: data.method,
+        },
+      });
+    }
+
+    const updated = await tx.promissoryNote.findFirst({ where: { id, companyId } });
+    if (!updated) throw new Error('Pagaré no encontrado');
+    return { updated, previousPaymentStatus: note.paymentStatus };
   });
 
-  const updated = await prisma.promissoryNote.findFirst({ where: { id, companyId } });
-  if (!updated) throw new Error('Pagaré no encontrado');
-
   // Solo en la transición a pagado: volver a guardar un pagaré ya pagado no avisa de nuevo.
-  if (paymentStatus === 'PAID' && note.paymentStatus !== 'PAID') {
+  if (updated.paymentStatus === 'PAID' && previousPaymentStatus !== 'PAID') {
     const contact = await prisma.contact.findFirst({ where: { id: updated.contactId, companyId }, select: { razonSocial: true } });
     void emitWorkflowEvent(companyId, 'PROMISSORY_NOTE_PAID', {
       noteId: updated.id,
