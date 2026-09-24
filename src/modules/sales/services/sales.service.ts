@@ -509,7 +509,26 @@ export async function cancelSalesDocument(companyId: string, id: string, reason?
       ? `Anulación (${reason}): DTE ${dteLabel} Folio #${document.folio ?? '-'}`
       : `Anulación DTE ${dteLabel} Folio #${document.folio ?? '-'}`;
 
-    if (STOCK_AFFECTING_DTE_TYPES.includes(document.dteType)) {
+    // Si este documento referencia una Guía de Despacho ya emitida, nunca
+    // descontó stock al emitirse: la mercadería ya había salido con la guía
+    // (mismo criterio que `createSalesDocument::referencesIssuedGuide`).
+    // Recalculado acá, no persistido, para que la anulación sepa si el
+    // documento de verdad movió stock en vez de asumirlo solo por su tipo de
+    // DTE — antes se reponía SIEMPRE que el tipo fuera `STOCK_AFFECTING_DTE_TYPES`,
+    // duplicando el despacho vigente de la guía cuando se anulaba la factura
+    // que solo la formalizó (N-02).
+    const referencesIssuedGuide = document.referenceFolio && document.referenceType
+      ? (
+          await tx.salesDocument.findFirst({
+            where: { companyId, dteType: document.referenceType, folio: document.referenceFolio },
+            select: { dteType: true },
+          })
+        )?.dteType === 'GUIA_DESPACHO_52'
+      : false;
+    const documentMovedStockOnIssue =
+      document.dteType !== 'NOTA_CREDITO_61' && STOCK_AFFECTING_DTE_TYPES.includes(document.dteType) && !referencesIssuedGuide;
+
+    if (documentMovedStockOnIssue) {
       for (const item of document.items) {
         if (!item.productId) continue;
         const product = await tx.product.findFirst({ where: { id: item.productId, companyId } });
@@ -524,11 +543,14 @@ export async function cancelSalesDocument(companyId: string, id: string, reason?
         });
       }
     } else if (document.dteType === 'NOTA_CREDITO_61') {
-      // La NC había reingresado stock (applyStockIn) al emitirse; anularla
-      // debe sacarlo de nuevo. Antes esto no ocurría: anular una NC mal
-      // emitida dejaba inventario fantasma permanente.
+      // La NC había reingresado stock (applyStockIn) al emitirse solo para las
+      // líneas con `quantity > 0` (Caso B, ajuste de precio sin devolución
+      // física, no movió nada — mismo criterio que `createSalesDocument`).
+      // Anularla debe sacar de bodega únicamente lo que en verdad volvió a
+      // entrar.
       for (const item of document.items) {
         if (!item.productId) continue;
+        if (item.quantity <= 0) continue;
         const product = await tx.product.findFirst({ where: { id: item.productId, companyId } });
         if (!product || !product.isTrackable) continue;
         await applyStockOut(tx, companyId, {

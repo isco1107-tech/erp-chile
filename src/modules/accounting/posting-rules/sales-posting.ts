@@ -95,26 +95,36 @@ export async function postSalesDocumentIssued(
 ): Promise<void> {
   // Contabilidad apagada o sin plan de cuentas: la operación sigue, sin asiento.
   if (!(await isLedgerActive(tx, companyId))) return;
-  if (!REVENUE_DTE_TYPES.includes(doc.dteType)) return;
 
-  const accounts = await resolveSalesAccounts(tx, companyId, doc.ivaAmount, opts.isImmediatePayment ? 'CAJA' : 'CLIENTES');
   const label = DTE_TYPE_LABELS[doc.dteType];
 
-  await createAndPostEntry(tx, {
-    companyId,
-    date: doc.issueDate,
-    description: `Venta ${label} Folio #${doc.folio ?? '-'}`,
-    sourceType: 'SALES_DOCUMENT',
-    sourceId: doc.id,
-    createdByUserId: opts.createdByUserId,
-    lines: buildSalesRevenueLines({
-      totalAmount: doc.totalAmount,
-      netAmount: doc.netAmount,
-      exemptAmount: doc.exemptAmount,
-      ivaAmount: doc.ivaAmount,
-      ...accounts,
-    }),
-  });
+  // Solo un documento que representa una venta real formalizada (Factura,
+  // Boleta, Nota de Débito) postea ingreso. Una Guía de Despacho no: es el
+  // despacho físico de una venta que se formaliza después. Pero si la guía sí
+  // movió stock (`opts.affectsStock`), su costo de venta se reconoce en ESE
+  // momento, más abajo — la Factura que la referencia después no vuelve a
+  // moverlo (`affectsStock: false` en ese caso, ver `sales.service.ts`), así
+  // que el costo se reconoce una sola vez, en el punto donde de verdad salió
+  // la mercadería (N-02).
+  if (REVENUE_DTE_TYPES.includes(doc.dteType)) {
+    const accounts = await resolveSalesAccounts(tx, companyId, doc.ivaAmount, opts.isImmediatePayment ? 'CAJA' : 'CLIENTES');
+
+    await createAndPostEntry(tx, {
+      companyId,
+      date: doc.issueDate,
+      description: `Venta ${label} Folio #${doc.folio ?? '-'}`,
+      sourceType: 'SALES_DOCUMENT',
+      sourceId: doc.id,
+      createdByUserId: opts.createdByUserId,
+      lines: buildSalesRevenueLines({
+        totalAmount: doc.totalAmount,
+        netAmount: doc.netAmount,
+        exemptAmount: doc.exemptAmount,
+        ivaAmount: doc.ivaAmount,
+        ...accounts,
+      }),
+    });
+  }
 
   if (!opts.affectsStock) return;
   const totalCost = sumUnitCostPmp(costedItems);
