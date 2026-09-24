@@ -17,8 +17,8 @@
 interface WindowEntry {
   /** Timestamps de cada request dentro de la ventana actual. */
   timestamps: number[];
-  /** Timestamp de la primera entrada — se usa para cleanup. */
-  firstSeen: number;
+  /** Ventana propia de esta clave: la limpieza la respeta aunque la dispare otra configuración. */
+  windowMs: number;
 }
 
 interface RateLimitResult {
@@ -61,16 +61,19 @@ function getStore(): RateLimitStore {
 /**
  * Elimina entradas cuya ventana ya expiró. Se ejecuta como máximo una vez cada
  * `CLEANUP_INTERVAL_MS` para no penalizar cada request.
+ *
+ * Cada entrada se juzga contra SU propia ventana. Antes se usaba la ventana de
+ * la request que disparaba la limpieza: un login (1 min) borraba contadores de
+ * una hora (postulaciones, compras públicas) y un atacante podía resetear su
+ * propio bloqueo con una request a otra ruta (SEG-09).
  */
-function maybeCleanup(store: RateLimitStore, maxWindowMs: number): void {
-  const now = Date.now();
+function maybeCleanup(store: RateLimitStore, now: number): void {
   if (now - store.lastCleanup < CLEANUP_INTERVAL_MS) return;
   store.lastCleanup = now;
 
   for (const [key, entry] of store.entries) {
-    // Si la primera entrada registrada es más vieja que la ventana más grande
-    // configurada, la entrada entera es segura de borrar.
-    if (now - entry.firstSeen > maxWindowMs * 2) {
+    const newest = entry.timestamps[entry.timestamps.length - 1];
+    if (newest === undefined || now - newest > entry.windowMs) {
       store.entries.delete(key);
     }
   }
@@ -88,11 +91,11 @@ export function checkRateLimit(identifier: string, config: RateLimitConfig): Rat
   const now = Date.now();
   const key = `${config.prefix}:${identifier}`;
 
-  maybeCleanup(store, config.windowMs);
+  maybeCleanup(store, now);
 
   let entry = store.entries.get(key);
   if (!entry) {
-    entry = { timestamps: [], firstSeen: now };
+    entry = { timestamps: [], windowMs: config.windowMs };
     store.entries.set(key, entry);
   }
 
@@ -114,7 +117,6 @@ export function checkRateLimit(identifier: string, config: RateLimitConfig): Rat
 
   // Permitido: registrar el timestamp.
   entry.timestamps.push(now);
-  if (entry.timestamps.length === 1) entry.firstSeen = now;
 
   return {
     allowed: true,
