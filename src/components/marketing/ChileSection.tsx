@@ -1,7 +1,7 @@
 import { BadgeCheck, Calculator, FileCheck2, Percent, ScanLine, ShieldCheck } from 'lucide-react';
 import s from './landing.module.css';
 
-const points = [
+export const points = [
   { icon: BadgeCheck, title: 'RUT validado de verdad', text: 'Módulo 11 sobre cada RUT, con el formato 12.345.678-K que esperan tus documentos.' },
   { icon: Percent, title: 'IVA que siempre cuadra', text: '19% repartido entre las líneas afectas por resto mayor: la suma por línea calza al peso con el total del documento.' },
   { icon: FileCheck2, title: 'Folios autorizados', text: 'Cargas el CAF y el sistema toma folios de ese rango, bloqueando el que está usando para no dejar huecos.' },

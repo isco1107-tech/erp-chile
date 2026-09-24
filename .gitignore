@@ -25,3 +25,7 @@ graphify-out/
 
 # Copias de trabajo temporales de agentes de Claude Code (una por agente en paralelo)
 .claude/worktrees/
+
+# Videos fuente de la landing: la página sirve los fotogramas WebP de seq/
+# (scripts/generate-cinematic-frames.cjs los genera a partir de estos).
+/public/marketing/cinematic/*.mp4

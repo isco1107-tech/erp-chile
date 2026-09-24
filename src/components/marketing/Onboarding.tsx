@@ -1,14 +1,14 @@
 import { ArrowUpRight, Boxes, PhoneCall, Settings2, UploadCloud, UsersRound } from 'lucide-react';
 import s from './landing.module.css';
 
-const steps = [
+export const steps = [
   { icon: PhoneCall, title: 'Conversamos tu operación', text: 'Una demo sobre tus procesos, no sobre un catálogo de funciones: qué vendes, cómo cobras y qué quieres ordenar primero.' },
   { icon: Settings2, title: 'Configuramos tu empresa', text: 'RUT, parámetros tributarios, plan de cuentas, bodegas y los módulos que elegiste. Tu empresa queda lista para emitir.' },
   { icon: UploadCloud, title: 'Traes los datos que ya tienes', text: 'Productos, clientes, stock e historial de ventas y compras desde tus planillas Excel o CSV, revisados antes de confirmar.' },
   { icon: UsersRound, title: 'Tu equipo entra a trabajar', text: 'Invitas a cada persona con el acceso que le corresponde y el manual queda dentro del sistema, a un clic.' },
 ];
 
-const factors = [
+export const factors = [
   { icon: Boxes, title: 'Los módulos que activas', text: 'Pagas por las áreas que vas a usar, no por el catálogo completo.' },
   { icon: UsersRound, title: 'Tu tamaño real', text: 'Cuántas empresas administras y cuántas personas entran al sistema.' },
   { icon: Settings2, title: 'La puesta en marcha', text: 'Qué tan acompañada necesitas la configuración y la carga inicial.' },

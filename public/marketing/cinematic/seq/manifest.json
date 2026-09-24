@@ -1,0 +1,69 @@
+{
+  "generatedBy": "scripts/generate-cinematic-frames.cjs",
+  "clips": {
+    "v1": {
+      "source": "v1.mp4",
+      "sourceSeconds": 8,
+      "usedSeconds": 8,
+      "desktop": {
+        "count": 144,
+        "fps": 18,
+        "width": 1920,
+        "height": 1080,
+        "quality": 80,
+        "bytes": 13708146,
+        "maxBytes": 15000000,
+        "light": []
+      },
+      "mobile": {
+        "count": 96,
+        "fps": 12,
+        "width": 608,
+        "height": 1080,
+        "quality": 80,
+        "bytes": 3527382,
+        "maxBytes": 5000000,
+        "light": []
+      }
+    },
+    "v2": {
+      "source": "v2 (2).mp4",
+      "sourceSeconds": 8,
+      "usedSeconds": 8,
+      "desktop": {
+        "count": 144,
+        "fps": 18,
+        "width": 1920,
+        "height": 1080,
+        "quality": 80,
+        "bytes": 9307306,
+        "maxBytes": 15000000,
+        "light": [
+          [
+            91,
+            143
+          ]
+        ]
+      },
+      "mobile": {
+        "count": 96,
+        "fps": 12,
+        "width": 608,
+        "height": 1080,
+        "quality": 80,
+        "bytes": 2270430,
+        "maxBytes": 5000000,
+        "light": [
+          [
+            61,
+            95
+          ]
+        ]
+      }
+    }
+  },
+  "boundary": {
+    "ssim": 0.840624,
+    "crossfadeMs": 300
+  }
+}

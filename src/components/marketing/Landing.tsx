@@ -4,15 +4,14 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import {
-  ArrowDown, ArrowRight, ArrowUpRight, BarChart3, Boxes,
-  CalendarDays, Check, ChevronDown, CircleCheck, Download, Expand, FileCheck2,
-  Globe2, Landmark, Laptop, Layers3, LockKeyhole, Menu, Monitor, ReceiptText,
-  ShieldCheck, ShoppingCart, Terminal, Ticket, UsersRound, WalletCards, X,
+  ArrowDown, ArrowRight, ArrowUpRight, Boxes, Check, ChevronDown, CircleCheck,
+  Download, Expand, Globe2, Laptop, Layers3, LockKeyhole, Menu, Monitor,
+  ReceiptText, ShieldCheck, Terminal, WalletCards, X,
 } from 'lucide-react';
 import s from './landing.module.css';
 import SalesContact from './SalesContact';
 import HeroPreview from './HeroPreview';
-import ProductMock, { type ProductMockView } from './ProductMock';
+import ProductMock from './ProductMock';
 import HowItWorks from './HowItWorks';
 import ChileSection from './ChileSection';
 import Segments from './Segments';
@@ -21,6 +20,7 @@ import Onboarding from './Onboarding';
 import TrustStrip from './TrustStrip';
 import StickyActions from './StickyActions';
 import { faqs } from './content';
+import { views, moduleGroups } from './catalog';
 import { useReveal } from './useReveal';
 
 /** Anclas de la navegación, en el orden en que aparecen en la página. La
@@ -39,38 +39,6 @@ export type DesktopRelease = {
   platform: string; architecture: string; version: string;
   file: string; size: number; sha256: string;
 };
-
-const views = [
-  { label: 'Visión general', image: 'dashboard' as ProductMockView, title: 'La perspectiva que tu negocio necesita.', description: 'Reúne ventas, costos, cobranza e inventario en un panel ejecutivo. Identifica lo que requiere atención y decide con tus datos a la vista.', icon: BarChart3, points: ['Indicadores del negocio', 'Alertas de inventario', 'Seguimiento de documentos'] },
-  { label: 'Ventas', image: 'sales' as ProductMockView, title: 'Cada venta, de principio a fin.', description: 'Conecta clientes, documentos y pagos. Mantén el historial comercial a mano y da seguimiento a cada operación desde el mismo lugar.', icon: ReceiptText, points: ['Documentos y estados de pago', 'Historial por cliente', 'Control de folios y DTE'] },
-  { label: 'Inventario', image: 'inventory' as ProductMockView, title: 'Conoce lo que tienes. Y lo que cuesta.', description: 'Controla existencias, movimientos y valorización por bodega. Anticipa faltantes y trabaja con costos promedio ponderados.', icon: Boxes, points: ['Stock por bodega', 'Kardex de movimientos', 'Valorización PMP'] },
-  { label: 'Finanzas', image: 'treasury' as ProductMockView, title: 'Una mirada clara a tu caja.', description: 'Organiza cuentas por cobrar y pagar, revisa vencimientos y proyecta el flujo de caja para planificar el siguiente paso.', icon: WalletCards, points: ['Cobranza y vencimientos', 'Cuentas por pagar', 'Flujo de caja proyectado'] },
-  { label: 'Certámenes', image: 'projects' as ProductMockView, title: 'De la planificación al gran día.', description: 'Coordina certámenes y su producción con el respaldo de tu operación financiera. Lleva presupuestos, auspicios y equipos bajo un mismo contexto.', icon: Ticket, points: ['Proyectos y presupuestos', 'Auspicios y producción', 'Ticketing y acreditaciones'] },
-];
-
-const moduleGroups = [
-  { name: 'Comercial y operación', modules: [
-    { title: 'Ventas y facturación', text: 'Documentos comerciales, DTE, folios y seguimiento de pagos.', icon: ReceiptText },
-    { title: 'Compras', text: 'Órdenes, recepción de productos y control por proveedor.', icon: ShoppingCart },
-    { title: 'Inventario y bodegas', text: 'Existencias, kardex, costos PMP y alertas de stock.', icon: Boxes },
-    { title: 'Clientes y proveedores', text: 'Contactos, historial comercial y límites de crédito.', icon: UsersRound },
-    { title: 'Punto de venta', text: 'Una experiencia dedicada a las ventas del día a día.', icon: Monitor },
-  ] },
-  { name: 'Finanzas y control', modules: [
-    { title: 'Tesorería', text: 'Cuentas por cobrar y pagar con sus vencimientos a la vista.', icon: WalletCards },
-    { title: 'Contabilidad', text: 'Asientos, estados financieros y cierre mensual.', icon: Landmark },
-    { title: 'Flujo de caja', text: 'Proyecciones para anticipar compromisos y necesidades de caja.', icon: BarChart3 },
-    { title: 'Reportes', text: 'Información financiera y exportaciones a Excel.', icon: FileCheck2 },
-    { title: 'Planes de pago', text: 'Cuotas, compromisos y seguimiento de cobranza.', icon: CalendarDays },
-  ] },
-  { name: 'Certámenes y producción', modules: [
-    { title: 'Proyectos', text: 'Planificación, presupuestos y seguimiento por certamen.', icon: Layers3 },
-    { title: 'Producción', text: 'Escaleta en vivo, vestuario y coordinación operativa.', icon: CalendarDays },
-    { title: 'Auspicios', text: 'Marcas, contratos y compromisos de cada auspiciador.', icon: FileCheck2 },
-    { title: 'Ticketing', text: 'Gestión de entradas y acceso público a la venta.', icon: Ticket },
-    { title: 'Jurados y votaciones', text: 'Evaluaciones y votación con portales dedicados.', icon: UsersRound },
-  ] },
-];
 
 const tickerItems = [
   'Ventas y facturación', 'Documentos tributarios', 'Inventario PMP', 'Compras', 'Punto de venta',

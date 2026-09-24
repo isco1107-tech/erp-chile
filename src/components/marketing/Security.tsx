@@ -1,7 +1,7 @@
 import { Bot, DatabaseBackup, FileLock2, Fingerprint, KeyRound, Network, UserCog, Zap } from 'lucide-react';
 import s from './landing.module.css';
 
-const guarantees = [
+export const guarantees = [
   { icon: Network, title: 'Cada empresa en su propio carril', text: 'Toda consulta queda acotada a tu empresa. Un usuario de otra compañía no puede leer tus datos, ni por error ni a propósito.' },
   { icon: Fingerprint, title: 'Sesiones que caducan solas', text: 'Sesión cifrada en cookies del navegador, con un máximo de 8 horas, y revalidada contra la base en cada acción: desactivar a alguien lo deja fuera al instante.' },
   { icon: KeyRound, title: 'Contraseñas que nadie puede leer', text: 'Se guardan con bcrypt, no en texto. Ni tú ni el equipo de Aether pueden recuperar una contraseña: solo restablecerla.' },

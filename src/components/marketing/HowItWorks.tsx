@@ -1,7 +1,7 @@
 import { ArrowRight, Boxes, FileText, Landmark, ReceiptText, WalletCards, Zap } from 'lucide-react';
 import s from './landing.module.css';
 
-const steps = [
+export const steps = [
   {
     icon: FileText,
     tag: 'PRESUPUESTO',

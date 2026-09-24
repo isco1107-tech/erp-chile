@@ -9,3 +9,19 @@ desktop-client
 # build. Explícito para no depender de la lista por defecto del CLI.
 .env
 .env.*
+
+# Local work files are not application assets.
+.agents
+.codex
+.codex-audit
+.claude
+/*.exe
+/*.xlsx
+/*.log
+/*.tsbuildinfo
+/Factura-de-Compra-1.webp
+/images*.jpg
+
+# Videos fuente de /landing-v2: la página sirve los fotogramas WebP de seq/
+# (scripts/generate-cinematic-frames.cjs los genera a partir de estos).
+/public/marketing/cinematic/*.mp4

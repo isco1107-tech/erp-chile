@@ -1,7 +1,7 @@
 import { ArrowUpRight, Briefcase, Building2, PartyPopper, Store } from 'lucide-react';
 import s from './landing.module.css';
 
-const segments = [
+export const segments = [
   {
     icon: Store,
     label: 'COMERCIO Y DISTRIBUCIÓN',

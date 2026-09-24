@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
-import Landing from '@/components/marketing/Landing';
+import CinematicLanding from '@/components/marketing/cinematic/CinematicLanding';
+import { displayFont } from '@/components/marketing/cinematic/displayFont';
 import releases from '../../public/downloads/releases.json';
 import InstalledAppEntry from '@/components/marketing/InstalledAppEntry';
 import StructuredData from '@/components/marketing/StructuredData';
@@ -33,6 +34,13 @@ export default function HomePage() {
   return <>
     <StructuredData base={getAppUrl()} salesEmail={SALES_EMAIL} />
     <InstalledAppEntry />
-    <Landing releases={releases} salesEmail={SALES_EMAIL} salesWhatsapp={process.env.AETHER_SALES_WHATSAPP} legalName={process.env.AETHER_LEGAL_NAME} legalRut={process.env.AETHER_LEGAL_RUT} />
+    <CinematicLanding
+      className={displayFont.variable}
+      releases={releases}
+      salesEmail={SALES_EMAIL}
+      salesWhatsapp={process.env.AETHER_SALES_WHATSAPP}
+      legalName={process.env.AETHER_LEGAL_NAME}
+      legalRut={process.env.AETHER_LEGAL_RUT}
+    />
   </>;
 }

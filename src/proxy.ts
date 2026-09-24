@@ -99,6 +99,7 @@ export async function proxy(req: NextRequest) {
 
   if (
     pathname === '/conoce-aether' ||
+    pathname === '/landing-v2' ||
     pathname.startsWith('/marketing/') ||
     pathname.startsWith('/downloads/') ||
     pathname.startsWith('/manual/screenshots/') ||
