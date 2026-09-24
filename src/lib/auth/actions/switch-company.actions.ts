@@ -9,6 +9,7 @@ import { toFeatureFlags } from '@/lib/auth/modules';
 import { createAuditLog } from '@/lib/auth/audit';
 import { recordSession, revokeSessionByToken } from '@/lib/auth/sessions';
 import { captureException } from '@/lib/observability';
+import { checkIpAllowlist } from '@/lib/auth/ip-allowlist-guard';
 
 export type ActionResult<T> =
   | { success: true; data: T; message?: string }
@@ -97,6 +98,14 @@ export async function switchActiveCompanyAction(targetCompanyId: string): Promis
   }
   if (!allowed) return { success: false, error: 'No tienes acceso a esa empresa' };
 
+  // SEG-07: la lista de IP se valida contra la empresa DESTINO antes de
+  // emitir el token nuevo — cambiar de empresa no debe saltarse una política
+  // más estricta que la de la empresa hogar.
+  const headerList = await headers();
+  const clientIp = headerList.get('x-forwarded-for')?.split(',')[0]?.trim() || null;
+  const ipError = await checkIpAllowlist(targetCompanyId, user.isSuperAdmin, clientIp);
+  if (ipError) return { success: false, error: ipError };
+
   const previousToken = (await cookies()).get('session')?.value;
   const token = await createSessionToken({
     id: user.id,
@@ -112,7 +121,6 @@ export async function switchActiveCompanyAction(targetCompanyId: string): Promis
   // El JWT nuevo necesita su fila en `UserSession`: sin ella, "Dispositivos
   // activos" no lo muestra ni puede revocarlo, y seguía válido hasta expirar
   // (SEG-05). La sesión anterior se revoca para no dejar dos tokens vivos.
-  const headerList = await headers();
   await recordSession({
     userId: user.id,
     companyId: targetCompanyId,

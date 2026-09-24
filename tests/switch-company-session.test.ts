@@ -20,6 +20,8 @@ jest.mock('@/lib/auth/sessions', () => ({
   revokeSessionByToken: jest.fn(async () => undefined),
 }));
 jest.mock('@/lib/auth/audit', () => ({ createAuditLog: jest.fn() }));
+// La lista de IP (SEG-07) tiene su propio test; acá la empresa destino no tiene lista.
+jest.mock('@/lib/auth/ip-allowlist-guard', () => ({ checkIpAllowlist: jest.fn(async () => null) }));
 
 import { recordSession, revokeSessionByToken } from '@/lib/auth/sessions';
 import { switchActiveCompanyAction } from '@/lib/auth/actions/switch-company.actions';

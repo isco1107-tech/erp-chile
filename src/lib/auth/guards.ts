@@ -1,5 +1,5 @@
 import { cache } from 'react';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import type { Role, TenantStatus } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { verifySessionToken, type SessionPayload } from './session';
@@ -14,6 +14,7 @@ import {
 import { resolvePermissions } from './effective-permissions';
 import { isSessionRevoked, touchSession } from './sessions';
 import { isOperationalTenant } from '@/lib/auth/tenant-status';
+import { checkIpAllowlist } from './ip-allowlist-guard';
 
 export { resolvePermissions };
 
@@ -114,12 +115,19 @@ async function readSessionPayload(): Promise<SessionPayload> {
  * tiene `hasMultiCompany` activo, cae de vuelta a la empresa hogar en
  * silencio en vez de romper la sesión completa (un flag que un superadmin
  * apaga después no debe dejar al usuario sin poder ni siquiera entrar).
+ *
+ * `clientIp` (SEG-07): la política de IP se revalida contra la empresa
+ * EFECTIVA en cada lectura, no solo al emitir el JWT — una sesión iniciada
+ * desde una red permitida no debe seguir operando desde cualquier otra, ni
+ * una membresía activar una empresa con lista más estricta sin pasar por
+ * ella. La lista viaja en el mismo `select` de la empresa ya cargada, así
+ * que no agrega una consulta extra dentro de esta función memoizada.
  */
-const loadContext = cache(async (userId: string, activeCompanyId?: string): Promise<AuthContext> => {
+const loadContext = cache(async (userId: string, activeCompanyId: string | undefined, clientIp: string | null): Promise<AuthContext> => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: {
-      company: { include: { features: true } },
+      company: { include: { features: true, settings: { select: { ipAllowlistEnabled: true, ipAllowlist: true } } } },
       customRole: { select: { id: true, name: true, permissions: true } },
     },
   });
@@ -139,7 +147,7 @@ const loadContext = cache(async (userId: string, activeCompanyId?: string): Prom
     const membership = await prisma.companyMembership.findUnique({
       where: { userId_companyId: { userId, companyId: activeCompanyId } },
       include: {
-        company: { include: { features: true } },
+        company: { include: { features: true, settings: { select: { ipAllowlistEnabled: true, ipAllowlist: true } } } },
         customRole: { select: { id: true, name: true, permissions: true } },
       },
     });
@@ -157,6 +165,9 @@ const loadContext = cache(async (userId: string, activeCompanyId?: string): Prom
   if (!isOperationalTenant(effectiveCompany.status)) {
     throw new TenantInactiveError(effectiveCompany.status);
   }
+
+  const ipError = await checkIpAllowlist(effectiveCompanyId, user.isSuperAdmin, clientIp, effectiveCompany.settings);
+  if (ipError) throw new AuthError(ipError, 403);
 
   const features = toFeatureFlags(effectiveCompany.features);
 
@@ -199,7 +210,9 @@ export async function getAuthContext(): Promise<AuthContext> {
   const payload = await readSessionPayload();
   const userId = payload.userId ?? payload.id;
   if (!userId) throw new AuthError('Sesión inválida o expirada', 401);
-  const context = await loadContext(userId, payload.activeCompanyId);
+  const headerList = await headers();
+  const clientIp = headerList.get('x-forwarded-for')?.split(',')[0]?.trim() || null;
+  const context = await loadContext(userId, payload.activeCompanyId, clientIp);
   const current = await prisma.user.findUnique({ where: { id: userId }, select: { sessionVersion: true } });
   if (!current || (payload.sessionVersion ?? 0) !== current.sessionVersion) {
     throw new AuthError('Sesión revocada, vuelve a iniciar sesión', 401);
