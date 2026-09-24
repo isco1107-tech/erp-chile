@@ -120,7 +120,7 @@ async function hero(browser, label, viewport, set) {
     };
   });
   const canvasBox = await page.$eval('[data-cinematic-track] canvas', node => node.getBoundingClientRect().toJSON());
-  check('1. H1 «EMITE. CUADRA. CORONA.»', h1.text === 'EMITE. CUADRA. CORONA.', h1.text);
+  check('1. H1 «OPERA. CONTROLA. DECIDE.»', h1.text === 'OPERA. CONTROLA. DECIDE.', h1.text);
   check('1. H1 a la izquierda', h1.box.left < viewport.width * 0.12 && h1.box.left + h1.box.width < viewport.width * 0.72, `x=${Math.round(h1.box.left)} ancho=${Math.round(h1.box.width)} fuente=${h1.size}px`);
   check('1. Video a pantalla completa', canvasBox.width >= viewport.width && canvasBox.height >= viewport.height, `${Math.round(canvasBox.width)}×${Math.round(canvasBox.height)}`);
   check('1. Primer fotograma de v1 dibujado', await page.$eval('[data-cinematic-track]', node => node.dataset.frame) === 'v1:1');

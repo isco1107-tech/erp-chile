@@ -241,7 +241,7 @@ export function Footer({ salesEmail, legalName, legalRut }: { salesEmail: string
             <Image src="/branding/aether-icon.png" alt="" width={26} height={30} />
             <span>Aether <span className={s.brandSuffix}>ERP</span></span>
           </Link>
-          <p>ERP chileno para cualquier negocio, con producción de certámenes y eventos. Gestión conectada, hecha para avanzar.</p>
+          <p>ERP chileno para gestionar tu empresa de punta a punta. Gestión conectada, hecha para avanzar.</p>
         </div>
         <nav className={s.footerCol} aria-label="Producto">
           <h3>Producto</h3>

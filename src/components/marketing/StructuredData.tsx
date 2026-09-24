@@ -38,7 +38,7 @@ export default function StructuredData({ base, salesEmail }: { base: string; sal
         inLanguage: 'es-CL',
         url: base,
         image: `${base}/branding/aether-logo-full.png`,
-        description: 'ERP chileno para cualquier tipo de negocio, con ventas, inventario con costo promedio ponderado, compras, tesorería, contabilidad, documentos tributarios electrónicos y producción de certámenes y eventos.',
+        description: 'ERP chileno de gestión empresarial, con ventas, inventario con costo promedio ponderado, compras, tesorería, contabilidad, documentos tributarios electrónicos y módulos por industria.',
         publisher: { '@id': organization },
         featureList: [
           'Documentos tributarios electrónicos con folios CAF y timbre electrónico',

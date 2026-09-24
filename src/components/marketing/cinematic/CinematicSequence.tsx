@@ -10,9 +10,9 @@ import { frameUrl } from './sequence';
 import s from './sequence.module.css';
 
 const facts = [
-  ['01', 'Emite.', 'Documentos con folio del SII.'],
-  ['02', 'Cuadra.', 'Stock, caja y F29 con datos reales.'],
-  ['03', 'Corona.', 'Tu certamen, del casting a la final.'],
+  ['01', 'Opera.', 'Ventas, compras e inventario, conectados.'],
+  ['02', 'Controla.', 'Caja, contabilidad y F29 con datos reales.'],
+  ['03', 'Decide.', 'Indicadores de toda tu empresa.'],
 ] as const;
 
 /**
@@ -99,11 +99,11 @@ export default function CinematicSequence() {
 
         <div ref={intro} className={s.intro}>
           <div className={s.copy}>
-            <p className={s.eyebrow}>AETHER ERP / HECHO PARA CHILE</p>
+            <p className={s.eyebrow}>AETHER ERP / GESTIÓN EMPRESARIAL</p>
             <h1 id="hero-title" className={s.title}>
-              <span>Emite.</span> <span>Cuadra.</span> <span className={s.gold}>Corona.</span>
+              <span>Opera.</span> <span>Controla.</span> <span className={s.gold}>Decide.</span>
             </h1>
-            <p className={s.lead}>Ventas, inventario, finanzas y producción de eventos en un solo lugar. Hecho para empresas chilenas.</p>
+            <p className={s.lead}>Ventas, inventario, finanzas, contabilidad y personas en un solo sistema de gestión. Hecho para empresas chilenas.</p>
             <div className={s.actions}>
               <a className={s.primary} href="#cotizar" data-magnetic>Quiero conocer Aether <ArrowUpRight size={18} aria-hidden="true" /></a>
               <a className={s.secondary} href="#como-funciona">Ver cómo funciona <ArrowDown size={17} aria-hidden="true" /></a>

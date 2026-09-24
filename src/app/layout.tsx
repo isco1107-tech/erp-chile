@@ -10,7 +10,7 @@ const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 export const metadata = {
   title: 'Aether ERP',
-  description: 'ERP chileno para ventas, inventario, finanzas, contabilidad y producción de eventos.',
+  description: 'ERP chileno para ventas, inventario, compras, finanzas y contabilidad.',
 };
 
 export const viewport = {
