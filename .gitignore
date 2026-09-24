@@ -19,3 +19,6 @@ node_modules
 *.exe
 !public/downloads/*.exe
 *.tsbuildinfo
+
+# Mapa de código de graphify (se regenera en cada sesión con `graphify update .`, pesa ~10 MB)
+graphify-out/
