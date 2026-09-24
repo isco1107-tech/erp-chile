@@ -245,6 +245,33 @@ export async function createPurchaseDocument(
     if (purchaseOrder && finalStatus === 'ISSUED') {
       matchStatus = 'MATCHED';
       const orderItemsById = new Map(purchaseOrder.items.map((item) => [item.id, item]));
+
+      // Una línea de la factura sin `purchaseOrderItemId` no queda fuera del
+      // matching: si el documento referencia una OC, toda línea de producto
+      // debe estar enlazada a una línea de esa OC, o el matching de 3 vías
+      // queda ciego a lo que ese producto/monto en verdad representa.
+      for (const item of computedItems) {
+        if (!item.purchaseOrderItemId) {
+          matchStatus = 'MISMATCHED';
+          matchIssues.push(`"${item.description}" no está enlazada a ninguna línea de la orden de compra`);
+        }
+      }
+
+      // Varias líneas de la factura pueden apuntar a la misma línea de OC
+      // (p. ej. el mismo ítem facturado en dos renglones distintos): hay que
+      // sumar la cantidad facturada por línea de OC antes de comparar contra
+      // el saldo disponible, no validar cada línea de la factura por
+      // separado contra el mismo saldo — si no, dos líneas de $50 c/u contra
+      // un saldo de $80 pasaban ambas el chequeo individual.
+      const invoicedQuantityByOrderItem = new Map<string, number>();
+      for (const item of computedItems) {
+        if (!item.purchaseOrderItemId) continue;
+        invoicedQuantityByOrderItem.set(
+          item.purchaseOrderItemId,
+          (invoicedQuantityByOrderItem.get(item.purchaseOrderItemId) ?? 0) + item.quantity
+        );
+      }
+
       for (const item of computedItems) {
         const orderItemId = item.purchaseOrderItemId;
         if (!orderItemId) continue;
@@ -260,10 +287,11 @@ export async function createPurchaseDocument(
           continue;
         }
         const availableToInvoice = orderItem.receivedQuantity - orderItem.invoicedQuantity;
-        if (item.quantity > availableToInvoice + QUANTITY_EPSILON) {
+        const totalInvoicedForOrderItem = invoicedQuantityByOrderItem.get(orderItemId) ?? item.quantity;
+        if (totalInvoicedForOrderItem > availableToInvoice + QUANTITY_EPSILON) {
           matchStatus = 'MISMATCHED';
           matchIssues.push(
-            `"${item.description}": factura ${item.quantity}, pero solo hay ${availableToInvoice} recibidas y no facturadas`
+            `"${item.description}": factura ${totalInvoicedForOrderItem}, pero solo hay ${availableToInvoice} recibidas y no facturadas`
           );
         }
         if (item.unitCost !== orderItem.unitCost) {
@@ -286,7 +314,7 @@ export async function createPurchaseDocument(
         approvalStatus,
         purchaseOrderId: purchaseOrder?.id,
         matchStatus,
-        matchNotes: matchIssues.length > 0 ? matchIssues.join('; ') : undefined,
+        matchNotes: matchIssues.length > 0 ? Array.from(new Set(matchIssues)).join('; ') : undefined,
         issueDate: new Date(input.issueDate),
         dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
         paymentMethod: input.paymentMethod,
