@@ -16,6 +16,7 @@ import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import type { WorkflowEventPayload } from '@/lib/workflows/types';
 import { postCreditNoteIssued, postSalesDocumentIssued, reverseSalesDocumentPosting } from '@/modules/accounting/posting-rules/sales-posting';
+import { reverseDocumentEntries } from '@/modules/accounting/posting-rules/shared';
 import { isExemptDocument, siiCode } from '@/lib/chile/dte/codes';
 import { assignSalesFolio, stampDocument, type FolioAssignment } from '@/modules/dte/services/stamping.service';
 import { computeDocument, exceedsCreditLimit } from '../calc';
@@ -592,6 +593,23 @@ export async function cancelSalesDocument(companyId: string, id: string, reason?
     // el resto del sistema (kardex, notas de crédito), el rastro de auditoría
     // nunca se elimina, solo se revierte con un movimiento nuevo.
     const linkedPayments = await tx.payment.findMany({ where: { companyId, salesDocumentId: document.id } });
+
+    // Un cobro posterior registrado en Tesorería (`registerSalesPayment`, para
+    // una venta a crédito que se pagó después de emitida) generó su propio
+    // asiento `D CAJA/BANCO / H CLIENTES` con `sourceType PAYMENT` y
+    // `sourceId` del pago (`treasury-posting.ts`), independiente del asiento
+    // de la venta. `reverseSalesDocumentPosting` (más abajo) solo reversa lo
+    // que quedó bajo `sourceType SALES_DOCUMENT`, así que ese asiento del
+    // cobro seguía vivo tras anular la venta: efectivo contable retenido sin
+    // dinero y saldo acreedor de cliente ficticio (N-11). El `Payment` que
+    // `createSalesDocument` crea para una venta al contado NO tiene este
+    // asiento propio — su efecto de caja ya viaja dentro del asiento
+    // SALES_DOCUMENT, que sí se reversa abajo — así que reversar acá para ese
+    // pago es un no-op seguro y no duplica el reverso.
+    for (const payment of linkedPayments) {
+      await reverseDocumentEntries(tx, companyId, 'PAYMENT', payment.id, cancellationNote);
+    }
+
     const netCollected = linkedPayments.reduce((sum, p) => sum + (p.type === 'INCOME' ? p.amount : -p.amount), 0);
     if (netCollected > 0) {
       await tx.payment.create({
