@@ -3,7 +3,7 @@ import { put } from '@/lib/storage/blob';
 import { AuthError, ModuleNotEnabledError, TenantInactiveError, requireAuthWithPermission } from '@/lib/auth/guards';
 import { encryptFileBuffer } from '@/lib/messaging/crypto';
 import { captureException } from '@/lib/observability';
-import { createPendingAttachment } from '@/modules/messaging/services/messaging.service';
+import { assertParticipant, createPendingAttachment } from '@/modules/messaging/services/messaging.service';
 
 /**
  * Sube un adjunto de mensajería. Va en un Route Handler (no Server Action) por
@@ -59,6 +59,13 @@ export async function POST(req: Request) {
     if (file.size > MAX_FILE_BYTES) {
       return NextResponse.json({ success: false, error: 'El archivo supera los 20 MB' }, { status: 413 });
     }
+
+    // SEG-13: autorizar ANTES de cifrar/subir. El código anterior subía el
+    // archivo al storage y recién comprobaba pertenencia a la conversación
+    // al crear el registro (`createPendingAttachment`) — un usuario sin
+    // acceso a la conversación igual disparaba una subida real. El tipo y
+    // tamaño ya se validaron arriba, también antes de la subida.
+    await assertParticipant(session.companyId, conversationId, session.id);
 
     const plainBuffer = Buffer.from(await file.arrayBuffer());
     const encryptedBuffer = encryptFileBuffer(plainBuffer);
