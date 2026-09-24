@@ -499,7 +499,15 @@ export async function cancelSalesDocument(companyId: string, id: string, reason?
     // El arqueo de un turno cerrado quedó congelado con esta venta dentro. Al
     // anularla, el esperado histórico pasaría a ser falso y el efectivo saldría
     // de un cajón distinto al que lo recibió, sin rastro en ninguno de los dos.
-    if (document.cashShift && document.cashShift.status === 'CLOSED') {
+    // Lock del turno antes de mirar su estado (N-07): sin él, un cierre
+    // concurrente podía congelar el arqueo con esta venta adentro justo antes de
+    // anularla. Mismo orden que el POS y el cierre: turno primero, productos después.
+    let shiftStatus = document.cashShift?.status;
+    if (document.cashShift) {
+      const locked = await tx.$queryRaw<{ status: string }[]>`SELECT status FROM "CashShift" WHERE id = ${document.cashShift.id} AND "companyId" = ${companyId} FOR UPDATE`;
+      shiftStatus = (locked[0]?.status as typeof shiftStatus) ?? shiftStatus;
+    }
+    if (document.cashShift && shiftStatus === 'CLOSED') {
       throw new Error(
         'Esta boleta pertenece a un turno de caja ya cerrado. Emite una Nota de Crédito en vez de anularla, para que la devolución quede registrada en el turno actual'
       );

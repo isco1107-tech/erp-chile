@@ -201,8 +201,10 @@ export async function importHistoricalSalesDocument(
           exemptAmount,
           ivaAmount,
           totalAmount,
-          paidAmount: input.paid ? totalAmount : existing.paidAmount,
-          paymentStatus: input.paid ? 'PAID' : existing.paymentStatus,
+          // Nunca más pagado que el total recalculado (N-18): dentro de la
+          // tolerancia de arriba el total puede bajar por debajo de lo ya pagado.
+          paidAmount: input.paid ? totalAmount : Math.min(existing.paidAmount, totalAmount),
+          paymentStatus: input.paid ? 'PAID' : paymentStatusFor(Math.min(existing.paidAmount, totalAmount), totalAmount),
           notes: input.notes ?? existing.notes,
           items: { create: itemsCreateData },
         },
@@ -277,4 +279,9 @@ export async function importHistoricalSalesDocument(
 
     return created;
   }, LOCKING_TX_OPTIONS);
+}
+
+function paymentStatusFor(paidAmount: number, totalAmount: number): 'UNPAID' | 'PARTIAL' | 'PAID' {
+  if (paidAmount <= 0) return 'UNPAID';
+  return paidAmount >= totalAmount ? 'PAID' : 'PARTIAL';
 }

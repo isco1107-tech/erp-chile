@@ -117,3 +117,22 @@ describe('Anulación de venta (N-09)', () => {
     );
   });
 });
+
+describe('Anulación de boleta del POS (N-07)', () => {
+  it('relee el turno con lock: si otro cierre lo cerró recién, no anula', async () => {
+    const posSale = { ...originalInvoice, status: 'ISSUED', items: [], cashShift: { id: 't1', status: 'OPEN', closedAt: null }, referenceFolio: null, referenceType: null, contactId: 'cli1' };
+    const tx = fakeTx({
+      salesDocument: {
+        findFirst: jest.fn().mockResolvedValue(posSale),
+        findMany: jest.fn().mockResolvedValue([]),
+        create: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+    });
+    // Primer $queryRaw: lock de la venta; segundo: lock del turno, que ya está cerrado.
+    tx.$queryRaw.mockResolvedValueOnce([]).mockResolvedValueOnce([{ status: 'CLOSED' }]);
+
+    await expect(cancelSalesDocument('c1', 'fac1')).rejects.toThrow('turno de caja ya cerrado');
+    expect(tx.salesDocument.updateMany).not.toHaveBeenCalled();
+  });
+});
