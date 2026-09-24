@@ -181,6 +181,14 @@ export async function createSalesDocument(
     // documento — una línea de servicio o producto no trackeable no tiene
     // `EXISTENCIAS` que descontar.
     const costedItemsForAccounting: { unitCostPMP: number; quantity: number }[] = [];
+    // Costo real que devuelve cada movimiento de Kardex (`applyStockOut` lee
+    // el PMP bajo lock de fila, así que es el único valor garantizado vigente
+    // en el momento de la salida). Se usa para persistir `unitCostPMP` en la
+    // línea del documento — igual que ya hace el POS — en vez del PMP leído
+    // suelto al principio de la transacción, que puede haber quedado
+    // desactualizado si una compra confirmó su propio PMP antes de que esta
+    // venta tomara el lock del producto (N-10).
+    const costByProduct = new Map<string, number>();
 
     // Una Nota de Crédito en borrador no devuelve mercadería: su asiento recién
     // nace al emitirse, y mover stock antes dejaba inventario sin respaldo
@@ -227,14 +235,19 @@ export async function createSalesDocument(
             reference: `DTE ${dteLabel} Folio #${folio ?? '-'}`,
           });
         } else {
-          costedItemsForAccounting.push({ unitCostPMP: item.unitCostPMP, quantity: item.quantity });
-          await applyStockOut(tx, companyId, {
+          // El costo contable y el que se persiste en la línea salen del
+          // movimiento real (`movement.unitCost`), no del PMP leído antes del
+          // lock (N-10): ese PMP pudo quedar obsoleto si una compra confirmó
+          // su propio PMP entre la lectura y este `applyStockOut`.
+          const movement = await applyStockOut(tx, companyId, {
             productId: item.productId,
             warehouseId: input.warehouseId,
             type: 'SALE_OUT',
             quantity: item.quantity,
             reference: `DTE ${dteLabel} Folio #${folio ?? '-'}`,
           });
+          costByProduct.set(item.productId, movement.unitCost);
+          costedItemsForAccounting.push({ unitCostPMP: movement.unitCost, quantity: item.quantity });
         }
       }
     }
@@ -357,7 +370,7 @@ export async function createSalesDocument(
             subtotal: item.subtotal,
             iva: item.iva,
             total: item.total,
-            unitCostPMP: item.unitCostPMP,
+            unitCostPMP: (item.productId ? costByProduct.get(item.productId) : undefined) ?? item.unitCostPMP,
           })),
         },
       },
