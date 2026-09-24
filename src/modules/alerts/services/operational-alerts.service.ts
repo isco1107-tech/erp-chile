@@ -91,7 +91,7 @@ export async function findLowStockProducts(companyId: string): Promise<Operation
  * que alguien con `purchases:approve` las apruebe o rechace. */
 export async function findPendingPurchaseApprovals(companyId: string): Promise<OperationalAlertPendingApprovalRow[]> {
   const documents = await prisma.purchaseDocument.findMany({
-    where: { companyId, approvalStatus: 'PENDING' },
+    where: { companyId, approvalStatus: 'PENDING', status: { not: 'CANCELLED' } },
     select: { folio: true, totalAmount: true, createdAt: true, contact: { select: { razonSocial: true } } },
     orderBy: { createdAt: 'asc' },
   });
