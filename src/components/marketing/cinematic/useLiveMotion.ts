@@ -145,42 +145,68 @@ export function useLiveMotion(
       for (const property of properties) element?.style.removeProperty(property);
     }
 
-    const onPointerMove = (event: PointerEvent) => {
-      if (event.pointerType !== 'mouse') return;
-      const element = event.target instanceof Element ? event.target : null;
+    // Puntero: en el evento solo se lee (con el diseño al día) y en
+    // requestAnimationFrame se escribe una vez por cuadro, aunque el mouse
+    // mande varios eventos entre cuadro y cuadro.
+    interface PointerRead {
+      x: number;
+      y: number;
+      spot: HTMLElement | null;
+      spotRect?: DOMRect;
+      tilt: HTMLElement | null;
+      tiltRect?: DOMRect;
+      magnet: HTMLElement | null;
+      magnetRect?: DOMRect;
+    }
+    let pointerRead: PointerRead | null = null;
+    let pointerFrame = 0;
 
-      const nextSpot = element?.closest<HTMLElement>('[data-spot]') ?? null;
-      if (nextSpot !== spot) reset(spot, '--mx', '--my');
-      spot = nextSpot;
-      if (spot) {
-        const rect = spot.getBoundingClientRect();
-        spot.style.setProperty('--mx', `${Math.round(event.clientX - rect.left)}px`);
-        spot.style.setProperty('--my', `${Math.round(event.clientY - rect.top)}px`);
+    const writePointer = () => {
+      pointerFrame = 0;
+      const read = pointerRead;
+      pointerRead = null;
+      if (!read) return;
+      if (read.spot !== spot) reset(spot, '--mx', '--my');
+      spot = read.spot;
+      if (spot && read.spotRect) {
+        spot.style.setProperty('--mx', `${Math.round(read.x - read.spotRect.left)}px`);
+        spot.style.setProperty('--my', `${Math.round(read.y - read.spotRect.top)}px`);
       }
-
-      const nextTilt = element?.closest<HTMLElement>('[data-tilt]') ?? null;
-      if (nextTilt !== tilt) reset(tilt, '--tx', '--ty');
-      tilt = nextTilt;
-      if (tilt) {
-        const rect = tilt.getBoundingClientRect();
-        tilt.style.setProperty('--tx', (((event.clientX - rect.left) / rect.width - 0.5) * 6).toFixed(2));
-        tilt.style.setProperty('--ty', ((0.5 - (event.clientY - rect.top) / rect.height) * 6).toFixed(2));
+      if (read.tilt !== tilt) reset(tilt, '--tx', '--ty');
+      tilt = read.tilt;
+      if (tilt && read.tiltRect) {
+        tilt.style.setProperty('--tx', (((read.x - read.tiltRect.left) / read.tiltRect.width - 0.5) * 6).toFixed(2));
+        tilt.style.setProperty('--ty', ((0.5 - (read.y - read.tiltRect.top) / read.tiltRect.height) * 6).toFixed(2));
       }
-
-      const nextMagnet = element?.closest<HTMLElement>('[data-magnetic]') ?? null;
-      if (nextMagnet !== magnet) reset(magnet, '--mgx', '--mgy');
-      magnet = nextMagnet;
-      if (magnet) {
-        const rect = magnet.getBoundingClientRect();
-        const dx = Math.max(-8, Math.min(8, (event.clientX - rect.left - rect.width / 2) * 0.16));
-        const dy = Math.max(-6, Math.min(6, (event.clientY - rect.top - rect.height / 2) * 0.3));
+      if (read.magnet !== magnet) reset(magnet, '--mgx', '--mgy');
+      magnet = read.magnet;
+      if (magnet && read.magnetRect) {
+        const dx = Math.max(-8, Math.min(8, (read.x - read.magnetRect.left - read.magnetRect.width / 2) * 0.16));
+        const dy = Math.max(-6, Math.min(6, (read.y - read.magnetRect.top - read.magnetRect.height / 2) * 0.3));
         magnet.style.setProperty('--mgx', `${dx.toFixed(1)}px`);
         magnet.style.setProperty('--mgy', `${dy.toFixed(1)}px`);
       }
+      cosmos.current?.style.setProperty('--gx', `${Math.round(read.x)}px`);
+      cosmos.current?.style.setProperty('--gy', `${Math.round(read.y)}px`);
+    };
 
-      cosmos.current?.style.setProperty('--gx', `${Math.round(event.clientX)}px`);
-      cosmos.current?.style.setProperty('--gy', `${Math.round(event.clientY)}px`);
-      schedule();
+    const onPointerMove = (event: PointerEvent) => {
+      if (event.pointerType !== 'mouse') return;
+      const element = event.target instanceof Element ? event.target : null;
+      const nextSpot = element?.closest<HTMLElement>('[data-spot]') ?? null;
+      const nextTilt = element?.closest<HTMLElement>('[data-tilt]') ?? null;
+      const nextMagnet = element?.closest<HTMLElement>('[data-magnetic]') ?? null;
+      pointerRead = {
+        x: event.clientX,
+        y: event.clientY,
+        spot: nextSpot,
+        spotRect: nextSpot?.getBoundingClientRect(),
+        tilt: nextTilt,
+        tiltRect: nextTilt?.getBoundingClientRect(),
+        magnet: nextMagnet,
+        magnetRect: nextMagnet?.getBoundingClientRect(),
+      };
+      if (!pointerFrame) pointerFrame = requestAnimationFrame(writePointer);
     };
     const onPointerLeave = () => {
       reset(spot, '--mx', '--my');
@@ -204,6 +230,7 @@ export function useLiveMotion(
 
     return () => {
       cancelAnimationFrame(frame);
+      cancelAnimationFrame(pointerFrame);
       observer.disconnect();
       window.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', onResize);

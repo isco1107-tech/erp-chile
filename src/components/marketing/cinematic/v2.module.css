@@ -101,30 +101,36 @@
 }
 
 /*
- * Titulares: cada frase sube desde una línea invisible, con un leve sesgo.
- * Los márgenes negativos del recorte dejan ver tildes y colas completas.
+ * Titulares: cada frase sube con un leve sesgo y aparece. Solo transform y
+ * opacity: la GPU lo compone sin repintar el texto (antes era un recorte con
+ * clip-path, que repintaba cada frase en cada cuadro).
  */
 .display {
-  transform: translate3d(0, calc((1 - var(--in, 1)) * 100%), 0) skewY(calc((1 - var(--in, 1)) * 5deg));
-  clip-path: inset(calc(var(--in, 1) * -.35em) -.3em calc((1 - var(--in, 1)) * (100% + .35em) - .35em) -.3em);
+  opacity: var(--in, 1);
+  transform: translate3d(0, calc((1 - var(--in, 1)) * 60%), 0) skewY(calc((1 - var(--in, 1)) * 5deg));
 }
 
-/* La frase dorada tiene un brillo que la cruza mientras pasa por la pantalla. */
-.display.gold {
-  background: linear-gradient(100deg, var(--gold) 0 36%, #fff2c8 47%, #f3dc9c 53%, var(--gold) 64% 100%);
-  background-size: 320% 100%;
-  background-position: calc(110% - var(--view, .5) * 120%) 0;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+/*
+ * La frase dorada tiene un brillo que la cruza mientras pasa por la pantalla.
+ * Mover el brillo repinta el texto en cada cuadro: solo con mouse (escritorio).
+ */
+@media (hover: hover) and (pointer: fine) {
+  .display.gold {
+    background: linear-gradient(100deg, var(--gold) 0 36%, #fff2c8 47%, #f3dc9c 53%, var(--gold) 64% 100%);
+    background-size: 320% 100%;
+    background-position: calc(110% - var(--view, .5) * 120%) 0;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
 }
 
 @media (forced-colors: active) {
   .display.gold { background: none; color: CanvasText; }
 }
 
-/* Antetítulo: una raya dorada se dibuja delante al entrar. */
-.kicker { opacity: calc(.25 + .75 * var(--in, 1)); }
+/* Antetítulo: se desliza al entrar y una raya dorada se dibuja delante (siempre legible). */
+.kicker { transform: translate3d(calc((1 - var(--in, 1)) * -24px), 0, 0); }
 
 .kicker::before {
   content: '';
@@ -164,6 +170,7 @@
 .marquee {
   position: relative;
   overflow: hidden;
+  contain: layout paint;
   padding-block: clamp(36px, 6vw, 88px);
   border-block: 1px solid var(--line);
   font-family: var(--display);
@@ -635,7 +642,8 @@
   overflow: visible;
 }
 
-.lightbox::backdrop { background: rgb(5 7 11 / .86); backdrop-filter: blur(6px); }
+/* Sin desenfoque: sobre el contenido de la página costaba cuadros, sobre todo en móvil. */
+.lightbox::backdrop { background: rgb(5 7 11 / .93); }
 .lightboxBody { position: relative; padding: clamp(10px, 2vw, 24px); border-radius: 4px; background: var(--paper); }
 .lightboxFrame { overflow: hidden; border-radius: 6px; }
 .lightboxFrame svg { max-height: 80svh; }
@@ -1406,8 +1414,20 @@
   transform: translate3d(calc((1 - var(--in, 1)) * 64px), 0, 0);
 }
 
-/* Galería: la imagen se descubre de abajo hacia arriba y flota dentro de su marco. */
-.gallery figure[data-reveal] .galleryFrame { clip-path: inset(calc((1 - var(--in, 1)) * 100%) 0 0 0); }
+/*
+ * Galería: una cortina del color del fondo se recoge hacia arriba y descubre
+ * la imagen, que flota dentro de su marco. La cortina es transform (scaleY):
+ * antes era un clip-path que repintaba la imagen en cada cuadro.
+ */
+.gallery figure[data-reveal] .galleryFrame::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--bg);
+  transform: scaleY(calc(1 - var(--in, 1)));
+  transform-origin: 50% 0;
+  pointer-events: none;
+}
 
 .gallery figure[data-reveal] .galleryFrame img {
   transform: translate3d(0, calc((var(--view, .5) - .5) * -9%), 0) scale(calc(1.24 - .1 * var(--in, 1)));
@@ -1421,22 +1441,38 @@
 
 .productBox[data-tilt] {
   transform: perspective(1200px) rotateX(calc(var(--ty, 0) * 1deg)) rotateY(calc(var(--tx, 0) * 1deg));
-  transition: transform .6s var(--ease), box-shadow .6s var(--ease);
+  transition: transform .6s var(--ease);
 }
 
-.productBox[data-tilt]:hover { box-shadow: 0 40px 90px -40px rgb(219 192 118 / .35); }
+/* El resplandor aparece con opacity: animar box-shadow repinta en cada cuadro. */
+.productFigure[data-live] { position: relative; }
+
+.productFigure[data-live]::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 32px;
+  z-index: -1;
+  box-shadow: 0 40px 90px -40px rgb(219 192 118 / .35);
+  opacity: 0;
+  transition: opacity .6s var(--ease);
+  pointer-events: none;
+}
+
+.productFigure[data-live]:hover::before { opacity: 1; }
 
 /* Cierre: las dos frases llegan desde lados opuestos y se juntan al centro. */
 .closingTitle[data-live] > span:first-child { transform: translate3d(calc((1 - var(--in, 1)) * -14vw), 0, 0); }
 .closingTitle[data-live] > span:last-child { transform: translate3d(calc((1 - var(--in, 1)) * 14vw), 0, 0); }
 
-.closingTitle[data-live] > .gold {
-  background: linear-gradient(100deg, var(--gold) 0 36%, #fff2c8 47%, #f3dc9c 53%, var(--gold) 64% 100%);
-  background-size: 320% 100%;
-  background-position: calc(110% - var(--view, .5) * 120%) 0;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+@media (hover: hover) and (pointer: fine) {
+  .closingTitle[data-live] > .gold {
+    background: linear-gradient(100deg, var(--gold) 0 36%, #fff2c8 47%, #f3dc9c 53%, var(--gold) 64% 100%);
+    background-size: 320% 100%;
+    background-position: calc(110% - var(--view, .5) * 120%) 0;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
 }
 
 @media (forced-colors: active) {
@@ -1464,25 +1500,25 @@
   transition: opacity .2s;
 }
 
+/* El anillo crece con scale (compuesto por la GPU), no con width/height, que recalculan el diseño. */
 .cursor > span:last-child {
   width: 34px;
   height: 34px;
   margin: -17px 0 0 -17px;
   border: 1px solid rgb(219 192 118 / .55);
-  transition: width .3s var(--ease), height .3s var(--ease), margin .3s var(--ease), background .3s, border-color .3s, opacity .2s;
+  scale: 1;
+  transition: scale .3s var(--ease), background .3s, border-color .3s, opacity .2s;
 }
 
 .cursor[data-hover] > span:first-child { opacity: 0; }
 
 .cursor[data-hover] > span:last-child {
-  width: 64px;
-  height: 64px;
-  margin: -32px 0 0 -32px;
+  scale: 1.9;
   border-color: var(--gold);
   background: rgb(219 192 118 / .1);
 }
 
-.cursor[data-press] > span:last-child { width: 22px; height: 22px; margin: -11px 0 0 -11px; background: rgb(219 192 118 / .3); }
+.cursor[data-press] > span:last-child { scale: .65; background: rgb(219 192 118 / .3); }
 .cursor[data-text] > span { opacity: 0; }
 
 /* Mapa de estrellas: una por sección, a la derecha; se oculta en el hero y en escenas fijas. */
@@ -1536,17 +1572,17 @@
   border-radius: 50%;
   background: rgb(244 241 234 / .4);
   box-shadow: 0 0 0 4px var(--bg);
-  transition: width .3s var(--ease), height .3s var(--ease), margin .3s var(--ease), background .3s, box-shadow .3s;
+  scale: 1;
+  transition: scale .3s var(--ease), background .3s;
 }
 
 .starmap a[data-passed]::after { background: var(--gold); }
 
+/* La estrella actual crece con scale; el halo se pinta una vez, sin animarse. */
 .starmap a[aria-current]::after {
-  width: 13px;
-  height: 13px;
-  margin-right: 5px;
+  scale: 1.8;
   background: #fff2c8;
-  box-shadow: 0 0 0 4px var(--bg), 0 0 16px 4px rgb(219 192 118 / .7);
+  box-shadow: 0 0 0 2px var(--bg), 0 0 9px 2px rgb(219 192 118 / .7);
 }
 
 .starmapLabel {
@@ -1574,8 +1610,6 @@
 .root [data-spot][data-focus]::before { opacity: 1; }
 .root [data-spot][data-focus] { box-shadow: inset 0 2px 0 rgb(219 192 118 / .8); }
 
-/* Antetítulo: las letras se juntan al entrar (va aquí para pisar el espaciado base). */
-.kicker { letter-spacing: calc(.2em + (1 - var(--in, 1)) * .55em); }
 
 /*
  * Rutas de implementación: con JavaScript y alto suficiente, la escena se fija

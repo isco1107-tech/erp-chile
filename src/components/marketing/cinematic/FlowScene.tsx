@@ -46,11 +46,20 @@ export default function FlowScene() {
       panels.forEach((panel, index) => panel.toggleAttribute('data-active', index === next));
     };
 
+    // Se mide en el evento de scroll (con el diseño al día) y se escribe en
+    // requestAnimationFrame: medir ahí, después de que otro módulo escribió,
+    // obligaría a recalcular el diseño en cada cuadro.
+    let measured: number | null = null;
+    const measure = () => {
+      const travel = Math.max(1, node.offsetHeight - stageNode.offsetHeight);
+      measured = clamp01(-node.getBoundingClientRect().top / travel);
+    };
     const update = () => {
       frame = 0;
       if (still.matches || !visible || document.hidden) return;
-      const travel = Math.max(1, node.offsetHeight - stageNode.offsetHeight);
-      const progress = clamp01(-node.getBoundingClientRect().top / travel);
+      if (measured === null) measure();
+      const progress = measured ?? 0;
+      measured = null;
       lineNode.style.setProperty('--flow', progress.toFixed(4));
       const next = Math.min(steps.length - 1, Math.floor(progress * steps.length));
       if (next !== active) activate(next);
@@ -73,14 +82,18 @@ export default function FlowScene() {
       if (visible) schedule();
     });
     observer.observe(node);
-    window.addEventListener('scroll', schedule, { passive: true });
+    const onScroll = () => {
+      if (visible && !still.matches) measure();
+      schedule();
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', schedule, { passive: true });
     still.addEventListener('change', configure);
     configure();
     return () => {
       cancelAnimationFrame(frame);
       observer.disconnect();
-      window.removeEventListener('scroll', schedule);
+      window.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', schedule);
       still.removeEventListener('change', configure);
     };

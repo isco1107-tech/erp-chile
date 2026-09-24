@@ -18,14 +18,26 @@ export default function StickyActions() {
 
   useEffect(() => {
     let frame = 0;
-    const update = () => {
-      frame = 0;
+    // Se mide en el evento de scroll (con el diseño al día) y en
+    // requestAnimationFrame solo se cambian las clases, y solo si cambiaron.
+    let showBar = false;
+    let showTop = false;
+    const measure = () => {
       const offset = window.scrollY;
       const remaining = document.documentElement.scrollHeight - offset - window.innerHeight;
-      bar.current?.classList.toggle(s.stickyVisible, offset > 620 && remaining > 780);
-      top.current?.classList.toggle(s.stickyVisible, offset > 1400);
+      showBar = offset > 620 && remaining > 780;
+      showTop = offset > 1400;
     };
-    const onScroll = () => { if (!frame) frame = requestAnimationFrame(update); };
+    const update = () => {
+      frame = 0;
+      if (bar.current && bar.current.classList.contains(s.stickyVisible) !== showBar) bar.current.classList.toggle(s.stickyVisible, showBar);
+      if (top.current && top.current.classList.contains(s.stickyVisible) !== showTop) top.current.classList.toggle(s.stickyVisible, showTop);
+    };
+    const onScroll = () => {
+      measure();
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+    measure();
     update();
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onScroll, { passive: true });
