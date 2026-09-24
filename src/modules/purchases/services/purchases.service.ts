@@ -16,7 +16,7 @@ import {
   postPurchaseDocumentIssued,
   reversePurchaseDocumentPosting,
 } from '@/modules/accounting/posting-rules/purchases-posting';
-import { PURCHASE_STOCK_DIRECTION, type PurchaseDocumentCreateInput, type PurchaseDocumentItemInput } from '../schema';
+import { PURCHASE_CREDITABLE_DOCUMENT_TYPES, PURCHASE_STOCK_DIRECTION, type PurchaseDocumentCreateInput, type PurchaseDocumentItemInput } from '../schema';
 import { QUANTITY_EPSILON } from './goods-receipt.service';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import type { WorkflowEventPayload } from '@/lib/workflows/types';
@@ -26,6 +26,49 @@ async function resolveDefaultWarehouse(tx: TxClient, companyId: string): Promise
     (await tx.warehouse.findFirst({ where: { companyId, isDefault: true } })) ??
     (await tx.warehouse.findFirst({ where: { companyId }, orderBy: { createdAt: 'asc' } }));
   return warehouse?.id;
+}
+
+/**
+ * Busca el documento de compra ISSUED que una Nota de Crédito referencia
+ * (N-17). Acotado a `PURCHASE_CREDITABLE_DOCUMENT_TYPES`: el folio ahora es
+ * único por tipo de documento, así que el mismo número de folio puede
+ * pertenecer a la vez a una Factura y a una Nota de Crédito/Débito del mismo
+ * proveedor — buscar solo por folio podía encontrar el documento equivocado.
+ */
+async function findPurchaseCreditNoteOriginal(
+  tx: TxClient,
+  companyId: string,
+  contactId: string,
+  folio: string
+) {
+  return tx.purchaseDocument.findFirst({
+    where: { companyId, contactId, documentType: { in: PURCHASE_CREDITABLE_DOCUMENT_TYPES }, folio, status: 'ISSUED' },
+    include: { items: true },
+  });
+}
+
+/**
+ * De un conjunto de Notas de Crédito previas que comparten `referenceFolio`,
+ * se queda solo con las que en verdad corrigen el mismo documento original
+ * (mismo `id`), no cualquier otro documento que casualmente comparta folio
+ * con distinto tipo (N-17): sin este cruce, el tope de crédito disponible de
+ * la Factura #100 se contaminaba con lo ya acreditado contra la Boleta #100
+ * del mismo proveedor.
+ */
+async function filterPriorCreditNotesForOriginal<T extends { referenceFolio: string | null }>(
+  tx: TxClient,
+  companyId: string,
+  contactId: string,
+  priorNotes: T[],
+  originalDocumentId: string
+): Promise<T[]> {
+  const kept: T[] = [];
+  for (const note of priorNotes) {
+    if (!note.referenceFolio) continue;
+    const noteOriginal = await findPurchaseCreditNoteOriginal(tx, companyId, contactId, note.referenceFolio);
+    if (noteOriginal?.id === originalDocumentId) kept.push(note);
+  }
+  return kept;
 }
 
 export type PurchaseDocumentWithItems = PurchaseDocument & { items: PurchaseDocumentItem[] };
@@ -116,10 +159,7 @@ export async function createPurchaseDocument(
 
     const isCreditNote = input.documentType === 'NOTA_CREDITO';
     const referencedDocument = isCreditNote && input.referenceFolio
-      ? await tx.purchaseDocument.findFirst({
-          where: { companyId, contactId: input.contactId, folio: input.referenceFolio, status: 'ISSUED' },
-          include: { items: true },
-        })
+      ? await findPurchaseCreditNoteOriginal(tx, companyId, input.contactId, input.referenceFolio)
       : null;
     if (isCreditNote && !referencedDocument) {
       throw new Error('El documento de compra referenciado no existe, no es de este proveedor o no está emitido');
@@ -171,10 +211,17 @@ export async function createPurchaseDocument(
     // para no poder devolver más unidades de las que en verdad se compraron.
     let previouslyCreditedByProduct: Map<string, number> | null = null;
     if (isCreditNote && referencedDocument) {
-      const priorCreditNotes = await tx.purchaseDocument.findMany({
+      const priorCreditNotesByFolio = await tx.purchaseDocument.findMany({
         where: { companyId, contactId: input.contactId, documentType: 'NOTA_CREDITO', referenceFolio: referencedDocument.folio, status: 'ISSUED' },
         include: { items: true },
       });
+      const priorCreditNotes = await filterPriorCreditNotesForOriginal(
+        tx,
+        companyId,
+        input.contactId,
+        priorCreditNotesByFolio,
+        referencedDocument.id
+      );
       previouslyCreditedByProduct = new Map();
       for (const priorNote of priorCreditNotes) {
         for (const line of priorNote.items) {
@@ -247,10 +294,15 @@ export async function createPurchaseDocument(
       const orderItemsById = new Map(purchaseOrder.items.map((item) => [item.id, item]));
 
       // Una línea de la factura sin `purchaseOrderItemId` no queda fuera del
-      // matching: si el documento referencia una OC, toda línea de producto
+      // matching: si el documento referencia una OC, toda línea de PRODUCTO
       // debe estar enlazada a una línea de esa OC, o el matching de 3 vías
-      // queda ciego a lo que ese producto/monto en verdad representa.
+      // queda ciego a lo que ese producto/monto en verdad representa. Exime a
+      // las líneas sin `productId` (flete, servicio u otro gasto legítimo que
+      // no forma parte de la OC): esas nunca tuvieron dónde enlazarse, y
+      // exigírselo las marcaba MISMATCHED sin que hubiera ninguna diferencia
+      // real que resolver (N-06).
       for (const item of computedItems) {
+        if (!item.productId) continue;
         if (!item.purchaseOrderItemId) {
           matchStatus = 'MISMATCHED';
           matchIssues.push(`"${item.description}" no está enlazada a ninguna línea de la orden de compra`);
@@ -725,10 +777,7 @@ export async function issuePurchaseDocument(companyId: string, id: string): Prom
 
     const referencedDocument =
       isCreditNote && doc.referenceFolio
-        ? await tx.purchaseDocument.findFirst({
-            where: { companyId, contactId: doc.contactId, folio: doc.referenceFolio, status: 'ISSUED' },
-            include: { items: true },
-          })
+        ? await findPurchaseCreditNoteOriginal(tx, companyId, doc.contactId, doc.referenceFolio)
         : null;
     if (isCreditNote && !referencedDocument) {
       throw new Error('El documento de compra referenciado no existe, no es de este proveedor o no está emitido');
@@ -736,7 +785,7 @@ export async function issuePurchaseDocument(companyId: string, id: string): Prom
 
     let previouslyCreditedByProduct: Map<string, number> | null = null;
     if (isCreditNote && referencedDocument) {
-      const priorCreditNotes = await tx.purchaseDocument.findMany({
+      const priorCreditNotesByFolio = await tx.purchaseDocument.findMany({
         where: {
           companyId,
           contactId: doc.contactId,
@@ -747,6 +796,13 @@ export async function issuePurchaseDocument(companyId: string, id: string): Prom
         },
         include: { items: true },
       });
+      const priorCreditNotes = await filterPriorCreditNotesForOriginal(
+        tx,
+        companyId,
+        doc.contactId,
+        priorCreditNotesByFolio,
+        referencedDocument.id
+      );
       previouslyCreditedByProduct = new Map();
       for (const priorNote of priorCreditNotes) {
         for (const line of priorNote.items) {

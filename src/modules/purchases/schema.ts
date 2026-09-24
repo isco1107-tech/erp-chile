@@ -33,6 +33,20 @@ export const PURCHASE_STOCK_DIRECTION = {
   OTRO: 'NONE',
 } as const satisfies Record<(typeof PURCHASE_DOCUMENT_TYPES)[number], 'IN' | 'OUT' | 'NONE'>;
 
+/**
+ * Tipos de documento de compra que pueden ser el original que una Nota de
+ * Crédito corrige (los que sí agregaron stock/deuda). El folio de compra es
+ * único por `(companyId, contactId, documentType, folio)` (N-17): el mismo
+ * número de folio puede pertenecer a la vez a una Factura, una Boleta y una
+ * Nota de Crédito/Débito del mismo proveedor, así que buscar el documento
+ * referenciado solo por folio puede encontrar el tipo equivocado. Acotar a
+ * estos tipos evita que una NC "encuentre" otra NC/ND/OTRO con el mismo
+ * folio en vez del documento que en verdad originó la deuda.
+ */
+export const PURCHASE_CREDITABLE_DOCUMENT_TYPES: (typeof PURCHASE_DOCUMENT_TYPES)[number][] = (
+  Object.keys(PURCHASE_STOCK_DIRECTION) as (typeof PURCHASE_DOCUMENT_TYPES)[number][]
+).filter((type) => PURCHASE_STOCK_DIRECTION[type] === 'IN');
+
 export const purchaseDocumentItemSchema = z.object({
   description: z.string().min(1, 'La descripción es obligatoria'),
   // Enlazar la línea a un producto es lo que dispara la entrada de stock y el

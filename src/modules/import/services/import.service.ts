@@ -959,8 +959,14 @@ export async function commitHistoricalRows(
         const issueDate = parseChileanDate(row.values.issueDate!.trim())!;
         const paid = parseBoolean(row.values.paid?.trim() ?? '') ?? false;
 
+        // `documentType` en el `where`: el folio de compra es único por
+        // `(companyId, contactId, documentType, folio)` (N-17), así que una
+        // Factura y una Nota de Crédito del mismo proveedor pueden compartir
+        // folio — buscar solo por folio podía encontrar el documento
+        // equivocado (o uno equivocado con detalle ya vinculado) y bloquear
+        // o sobrescribir la fila incorrecta.
         const existingDoc = hasRealItems
-          ? await prisma.purchaseDocument.findFirst({ where: { companyId, contactId: contact.id, folio }, include: { items: true } })
+          ? await prisma.purchaseDocument.findFirst({ where: { companyId, contactId: contact.id, documentType, folio }, include: { items: true } })
           : null;
 
         let createdDoc;
