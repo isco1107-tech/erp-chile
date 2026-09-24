@@ -72,7 +72,7 @@ export async function POST(req: Request) {
     try {
       result = await action.execute(session.companyId, pending.payload);
     } catch (error) {
-      await recordPendingActionResult(session.companyId, confirmationId, 'FAILED', error instanceof Error ? error.message : 'Error desconocido');
+      await recordResultBestEffort(session.companyId, confirmationId, 'FAILED', toFriendlyErrorMessage(error));
       // Nunca reenviar un mensaje crudo del driver de base de datos al chat
       // (ver `toFriendlyErrorMessage`) — el catch general de más abajo hace
       // lo mismo para errores de auth/tenant, pero este es el único punto
@@ -82,7 +82,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: toFriendlyErrorMessage(error) }, { status: 500 });
     }
 
-    await recordPendingActionResult(session.companyId, confirmationId, 'SUCCEEDED', result.message);
+    // La acción ya quedó escrita: nada de lo que sigue puede convertirla en un
+    // "falló" para el usuario (lo llevaría a repetirla) ni saltarse la auditoría.
+    await recordResultBestEffort(session.companyId, confirmationId, 'SUCCEEDED', result.message);
 
     await createAuditLog({
       companyId: session.companyId,
@@ -104,5 +106,19 @@ export async function POST(req: Request) {
     }
     captureException(error, { module: 'agent-actions' });
     return NextResponse.json({ success: false, error: 'No se pudo completar la acción' }, { status: 500 });
+  }
+}
+
+/** Registrar el resultado es trazabilidad, no parte de la acción: si falla, se reporta y se sigue. */
+async function recordResultBestEffort(
+  companyId: string,
+  confirmationId: string,
+  status: 'SUCCEEDED' | 'FAILED',
+  resultSummary: string
+): Promise<void> {
+  try {
+    await recordPendingActionResult(companyId, confirmationId, status, resultSummary);
+  } catch (error) {
+    captureException(error, { module: 'agent-actions', companyId, extra: { confirmationId, reason: 'record-result' } });
   }
 }

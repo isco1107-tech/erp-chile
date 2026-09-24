@@ -102,6 +102,8 @@ describe('getAuthContext revalida la lista de IP en cada lectura (SEG-07)', () =
       caught = error;
     }
     expect(caught).toBeInstanceOf(AuthError);
+    // Error específico: el dashboard lo usa para mandar a /login?reason=ip con el motivo.
+    expect((caught as Error).constructor.name).toBe('IpNotAllowedError');
     expect((caught as InstanceType<GuardsModule['AuthError']>).status).toBe(403);
     expect((caught as InstanceType<GuardsModule['AuthError']>).message).toMatch(/dirección IP/i);
   });

@@ -10,6 +10,7 @@ import {
 } from '@/modules/webhooks/services/n8n-handler.service';
 import { checkRateLimit, N8N_WEBHOOK_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { captureException } from '@/lib/observability';
+import { createAuditLog } from '@/lib/auth/audit';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 
 const MAX_BODY_BYTES = 256 * 1024; // Un evento de conciliación es unas pocas líneas de JSON; 256 KB da margen de sobra.
@@ -111,6 +112,8 @@ export async function POST(req: NextRequest) {
         await markWebhookEventProcessed({ provider: 'n8n', eventId, companyId: company.companyId, payload }, tx);
         return handlerResult;
       }, LOCKING_TX_OPTIONS);
+      // Recién confirmada la transacción: la bitácora nunca registra un pago que se revirtió.
+      if (result.audit) await createAuditLog(result.audit);
       return NextResponse.json({ success: true, message: result.summary, eventId, status: 'PROCESSED' }, { status: 200 });
     } catch (handlerError) {
       if (handlerError instanceof UnhandledEventTypeError) {

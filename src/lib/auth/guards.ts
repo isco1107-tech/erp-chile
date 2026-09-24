@@ -55,6 +55,15 @@ export class AuthError extends Error {
   }
 }
 
+/** La IP del request no está en la lista permitida de la empresa (SEG-07). Se
+ * distingue para que el dashboard explique el motivo en vez de mandar a un
+ * `/login` mudo. */
+export class IpNotAllowedError extends AuthError {
+  constructor(message: string) {
+    super(message, 403);
+  }
+}
+
 /**
  * La empresa existe pero no puede operar (suspendida o cancelada). Se distingue
  * de `AuthError` porque la respuesta correcta no es /login ni un 403 genérico,
@@ -167,7 +176,7 @@ const loadContext = cache(async (userId: string, activeCompanyId: string | undef
   }
 
   const ipError = await checkIpAllowlist(effectiveCompanyId, user.isSuperAdmin, clientIp, effectiveCompany.settings);
-  if (ipError) throw new AuthError(ipError, 403);
+  if (ipError) throw new IpNotAllowedError(ipError);
 
   const features = toFeatureFlags(effectiveCompany.features);
 

@@ -43,6 +43,18 @@ export interface PutBlobOptions {
    *  todos los call-sites actuales ya pasan `false` y construyen un nombre único
    *  ellos mismos (companyId + id + timestamp). */
   addRandomSuffix?: boolean;
+  /**
+   * Solo afecta al *fallback* sin R2 (`@vercel/blob`, que por defecto no
+   * sobrescribe y lanza si el `pathname` ya existe). `PutObjectCommand` de S3
+   * siempre sobrescribe por `Key`, así que en R2 esta opción no hace nada.
+   * Por defecto `false` (no sobrescribe) para no cambiar el comportamiento de
+   * los demás call-sites, que dependen de que una colisión de nombre falle en
+   * vez de pisar el archivo anterior en silencio. Pásalo en `true` solo cuando
+   * el llamador sea idempotente por diseño y reintentar la MISMA ruta sea
+   * esperado (ej. el webhook de ZapSign, que puede reprocesar el mismo
+   * `docToken` más de una vez).
+   */
+  allowOverwrite?: boolean;
 }
 
 export interface PutBlobResult {
@@ -144,6 +156,7 @@ export async function put(
       access: options.access,
       contentType: options.contentType,
       addRandomSuffix: options.addRandomSuffix ?? false,
+      allowOverwrite: options.allowOverwrite ?? false,
     });
     return { url: uploaded.url, pathname: uploaded.pathname };
   }

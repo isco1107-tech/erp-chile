@@ -26,7 +26,7 @@ export async function getRequestIp(): Promise<string | undefined> {
   }
 }
 
-interface CreateAuditLogInput {
+export interface CreateAuditLogInput {
   companyId: string;
   userId?: string;
   userEmail: string;

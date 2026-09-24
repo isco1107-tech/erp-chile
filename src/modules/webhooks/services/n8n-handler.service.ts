@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { registerSalesPayment, registerPurchasePayment } from '@/modules/treasury/services/treasury.service';
-import { createAuditLog } from '@/lib/auth/audit';
+import type { CreateAuditLogInput } from '@/lib/auth/audit';
 import { paymentConfirmedEventSchema, type PaymentConfirmedEvent } from '../schema';
 
 export class UnhandledEventTypeError extends Error {}
@@ -20,12 +20,23 @@ export class InvalidEventPayloadError extends Error {}
  * viceversa), ambos revierten juntos — evita que un reintento con el mismo
  * `eventId` vuelva a aplicar el pago (OP-06).
  */
+/**
+ * La bitácora viaja en el resultado en vez de escribirse acá: el handler corre
+ * dentro de la transacción del webhook, y `createAuditLog` usa su propia
+ * conexión. Escribirla antes del commit dejaba registrado un pago que un
+ * rollback posterior deshacía. La ruta la escribe después de confirmar.
+ */
+export interface N8nHandlerResult {
+  summary: string;
+  audit?: CreateAuditLogInput;
+}
+
 export async function handleN8nWebhookEvent(
   companyId: string,
   eventType: string,
   rawPayload: Record<string, unknown>,
   tx: Prisma.TransactionClient
-): Promise<{ summary: string }> {
+): Promise<N8nHandlerResult> {
   switch (eventType) {
     case 'payment.confirmed': {
       const parsed = paymentConfirmedEventSchema.safeParse(rawPayload);
@@ -43,7 +54,7 @@ async function handlePaymentConfirmed(
   companyId: string,
   data: PaymentConfirmedEvent,
   tx: Prisma.TransactionClient
-): Promise<{ summary: string }> {
+): Promise<N8nHandlerResult> {
   const paymentInput = {
     amount: data.amount,
     paymentMethod: data.paymentMethod,
@@ -65,19 +76,17 @@ async function handlePaymentConfirmed(
 
     const payment = await registerSalesPayment(companyId, doc.id, paymentInput, tx);
 
-    // Best-effort: `createAuditLog` nunca lanza (ver `audit.ts`), así que no
-    // arriesga la atomicidad del pago aunque corra en su propia conexión,
-    // fuera de esta transacción — mismo patrón que el resto del ERP.
-    await createAuditLog({
-      companyId,
-      userEmail: 'n8n-webhook',
-      action: 'CREATE',
-      entity: 'Payment',
-      entityId: payment.id,
-      metadata: { source: 'n8n', eventType: 'payment.confirmed', salesDocumentId: doc.id, folio: data.folio, amount: data.amount },
-    });
-
-    return { summary: `Cobro de ${data.amount} registrado en venta folio ${data.folio}` };
+    return {
+      summary: `Cobro de ${data.amount} registrado en venta folio ${data.folio}`,
+      audit: {
+        companyId,
+        userEmail: 'n8n-webhook',
+        action: 'CREATE',
+        entity: 'Payment',
+        entityId: payment.id,
+        metadata: { source: 'n8n', eventType: 'payment.confirmed', salesDocumentId: doc.id, folio: data.folio, amount: data.amount },
+      },
+    };
   }
 
   const doc = await tx.purchaseDocument.findFirst({
@@ -88,14 +97,15 @@ async function handlePaymentConfirmed(
 
   const payment = await registerPurchasePayment(companyId, doc.id, paymentInput, tx);
 
-  await createAuditLog({
-    companyId,
-    userEmail: 'n8n-webhook',
-    action: 'CREATE',
-    entity: 'Payment',
-    entityId: payment.id,
-    metadata: { source: 'n8n', eventType: 'payment.confirmed', purchaseDocumentId: doc.id, folio: data.folio, amount: data.amount },
-  });
-
-  return { summary: `Pago de ${data.amount} registrado en compra folio ${data.folio}` };
+  return {
+    summary: `Pago de ${data.amount} registrado en compra folio ${data.folio}`,
+    audit: {
+      companyId,
+      userEmail: 'n8n-webhook',
+      action: 'CREATE',
+      entity: 'Payment',
+      entityId: payment.id,
+      metadata: { source: 'n8n', eventType: 'payment.confirmed', purchaseDocumentId: doc.id, folio: data.folio, amount: data.amount },
+    },
+  };
 }

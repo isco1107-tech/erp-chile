@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { POST } from '@/app/api/webhooks/route';
+import { createAuditLog } from '@/lib/auth/audit';
 
 /**
  * OP-06 (auditoría 2026-09-14): el pago aplicado por un webhook de n8n y el
@@ -205,6 +206,8 @@ describe('OP-06: webhook de n8n no duplica un abono tras fallo parcial', () => {
     expect(main.payments).toHaveLength(0);
     expect(main.doc.paidAmount).toBe(0);
     expect(main.events.get('evt-1')?.status).toBe('FAILED');
+    // La bitácora solo se escribe tras confirmar: el pago revertido no queda auditado.
+    expect(createAuditLog).not.toHaveBeenCalled();
 
     const retry = await POST(request(body));
     expect(retry.status).toBe(200);
@@ -215,6 +218,7 @@ describe('OP-06: webhook de n8n no duplica un abono tras fallo parcial', () => {
     expect(main.payments).toHaveLength(1);
     expect(main.doc.paidAmount).toBe(20_000);
     expect(main.events.get('evt-1')?.status).toBe('PROCESSED');
+    expect(createAuditLog).toHaveBeenCalledTimes(1);
   });
 
   it('un evento que procesa a la primera no se reintenta ni se duplica', async () => {

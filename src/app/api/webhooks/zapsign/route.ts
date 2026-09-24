@@ -75,7 +75,10 @@ export async function POST(req: Request) {
     const fileBuffer = Buffer.from(await fileResponse.arrayBuffer());
 
     const pathname = `candidates/zapsign-signed/${docToken}.pdf`;
-    const blob = await put(pathname, fileBuffer, { access: 'public', contentType: 'application/pdf', addRandomSuffix: false });
+    // Misma ruta en cada reintento de ZapSign (respondemos 5xx ante fallas
+    // transitorias para que reintente): sin sobrescribir, el fallback de
+    // Vercel Blob lanzaría "ya existe" y el contrato nunca quedaría firmado.
+    const blob = await put(pathname, fileBuffer, { access: 'public', contentType: 'application/pdf', addRandomSuffix: false, allowOverwrite: true });
     blobUrl = blob.url;
   } catch (error) {
     captureException(error, { module: 'candidates', companyId: localDoc.companyId, extra: { reason: 'zapsign-webhook-download-upload', candidateId: localDoc.candidateId } });
