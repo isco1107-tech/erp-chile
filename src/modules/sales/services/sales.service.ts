@@ -118,14 +118,24 @@ export async function createSalesDocument(
       }
     }
 
+    // Mismo cliente que el documento que se referencia: sin esto, elegir el
+    // folio de una factura de OTRO cliente producía una Nota de Crédito válida
+    // que reducía la deuda/saldo del cliente equivocado (N-04) — el folio por
+    // sí solo no identifica al cliente correcto, solo el tipo+número de DTE.
     const referencedDocument = input.referenceFolio && input.referenceType
       ? await tx.salesDocument.findFirst({
-          where: { companyId, dteType: input.referenceType, folio: input.referenceFolio, status: 'ISSUED' },
+          where: {
+            companyId,
+            dteType: input.referenceType,
+            folio: input.referenceFolio,
+            status: 'ISSUED',
+            contactId: input.contactId,
+          },
           include: { items: true },
         })
       : null;
     if ((input.dteType === 'NOTA_CREDITO_61' || input.dteType === 'NOTA_DEBITO_56') && !referencedDocument) {
-      throw new Error('El DTE de referencia no existe, no pertenece a la empresa o no está emitido');
+      throw new Error('El DTE de referencia no existe, no pertenece al cliente seleccionado, no pertenece a la empresa, o no está emitido');
     }
 
     // Una Factura/Boleta que solo formaliza tributariamente una Guía de
@@ -168,6 +178,20 @@ export async function createSalesDocument(
           if (!line.productId) continue;
           previouslyCreditedByProduct.set(line.productId, (previouslyCreditedByProduct.get(line.productId) ?? 0) + line.quantity);
         }
+      }
+
+      // Tope monetario contra el documento original: la suma de todas las NC
+      // ya emitidas contra este folio más la que se está emitiendo ahora no
+      // puede superar el total del original. Sin este control, una NC de
+      // servicio libre (sin `productId`, así que el tope de unidades de
+      // arriba no la limita) podía acreditar cualquier monto (N-04).
+      const totalPreviouslyCredited = priorCreditNotes.reduce((sum, note) => sum + note.totalAmount, 0);
+      const totalAfterThisNote = totalPreviouslyCredited + totalAmount;
+      if (totalAfterThisNote > referencedDocument.totalAmount) {
+        const remaining = Math.max(0, referencedDocument.totalAmount - totalPreviouslyCredited);
+        throw new Error(
+          `Esta Nota de Crédito de ${formatCurrency(totalAmount)} supera lo que queda por acreditar del documento original: ya se emitieron ${formatCurrency(totalPreviouslyCredited)} en notas de crédito previas sobre un total de ${formatCurrency(referencedDocument.totalAmount)} (quedan ${formatCurrency(remaining)} disponibles)`
+        );
       }
     }
 

@@ -89,8 +89,12 @@ describe('Notas de crédito (N-01, N-05)', () => {
 
   it('no permite acreditar más de lo vendido repartiéndolo en líneas repetidas', async () => {
     fakeTx();
-    // Se vendieron 5: dos líneas de 3 suman 6.
-    await expect(createSalesDocument('c1', creditNote([3, 3]), 'ISSUED')).rejects.toThrow('No se puede acreditar');
+    // Se vendieron 5: dos líneas de 3 suman 6. Precio bajo para no chocar
+    // primero con el tope monetario (N-04): lo que se está probando acá es
+    // el tope de unidades por producto.
+    const note = creditNote([3, 3]);
+    note.items = note.items.map((item) => ({ ...item, unitPrice: 5000 }));
+    await expect(createSalesDocument('c1', note, 'ISSUED')).rejects.toThrow('No se puede acreditar');
   });
 });
 
