@@ -5,6 +5,8 @@ import { prisma } from '@/lib/prisma';
  * TOTAL acumulado (no un incremento), así que el `Payment` de tesorería que
  * genera debe ser por la DIFERENCIA respecto al `paidAmount` anterior — de lo
  * contrario, volver a guardar el mismo pagaré duplicaría el cobro cada vez.
+ * Un abono mal digitado se puede corregir hacia abajo: genera un `Payment`
+ * EXPENSE por la diferencia en vez de rechazar la corrección.
  */
 
 jest.mock('@/lib/workflows/engine', () => ({ emitWorkflowEvent: jest.fn() }));
@@ -62,12 +64,33 @@ describe('registerPromissoryNotePayment', () => {
     expect(tx.payment.create).not.toHaveBeenCalled();
   });
 
-  it('rechaza un paidAmount menor al ya registrado', async () => {
+  it('permite corregir hacia abajo un abono mal digitado con un Payment EXPENSE por la diferencia', async () => {
+    const tx = fakeTx();
+    tx.promissoryNote.findFirst
+      .mockResolvedValueOnce(note)
+      .mockResolvedValueOnce({ ...note, paidAmount: 10000, paymentStatus: 'PARTIAL' });
+
+    await registerPromissoryNotePayment('c1', 'note1', { paidAmount: 10000, method: 'TRANSFERENCIA' });
+
+    expect(tx.payment.create).toHaveBeenCalledWith({
+      data: {
+        companyId: 'c1',
+        type: 'EXPENSE',
+        contactId: 'contact1',
+        promissoryNoteId: 'note1',
+        amount: 20000, // 30000 - 10000
+        paymentMethod: 'TRANSFERENCIA',
+        notes: 'Corrección de abono',
+      },
+    });
+  });
+
+  it('rechaza un paidAmount negativo', async () => {
     const tx = fakeTx();
     tx.promissoryNote.findFirst.mockResolvedValueOnce(note);
 
-    await expect(registerPromissoryNotePayment('c1', 'note1', { paidAmount: 10000, method: 'TRANSFERENCIA' })).rejects.toThrow(
-      'no puede ser menor'
+    await expect(registerPromissoryNotePayment('c1', 'note1', { paidAmount: -1000, method: 'TRANSFERENCIA' })).rejects.toThrow(
+      'no puede ser negativo'
     );
     expect(tx.payment.create).not.toHaveBeenCalled();
   });

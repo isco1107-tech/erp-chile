@@ -3,7 +3,12 @@ import { prisma } from '@/lib/prisma';
 /**
  * N-15 (auditoría 2026-09-14): `updateSponsorshipPayment` recibe un TOTAL
  * acumulado (no un incremento), así que el `Payment` de tesorería que genera
- * debe ser por la DIFERENCIA respecto al `paidAmount` anterior.
+ * debe ser por la DIFERENCIA respecto al `paidAmount` anterior. Además:
+ *   - el tope `paidAmount <= cashAmount` aplica SIEMPRE, incluso cuando
+ *     `cashAmount === 0` (canje puro) — antes solo se validaba con
+ *     `cashAmount > 0`, así que un canje puro podía "cobrar" cualquier monto.
+ *   - un abono mal digitado se puede corregir hacia abajo: genera un
+ *     `Payment` EXPENSE por la diferencia en vez de rechazar la corrección.
  */
 
 jest.mock('@/lib/email/mailer', () => ({ sendEmail: jest.fn().mockResolvedValue({ status: 'logged', provider: 'none' }) }));
@@ -68,12 +73,44 @@ describe('updateSponsorshipPayment', () => {
     expect(tx.payment.create).not.toHaveBeenCalled();
   });
 
-  it('rechaza un paidAmount menor al ya registrado', async () => {
+  it('permite corregir hacia abajo un abono mal digitado con un Payment EXPENSE por la diferencia', async () => {
+    const tx = fakeTx();
+    tx.sponsorshipContract.findFirst
+      .mockResolvedValueOnce(contract)
+      .mockResolvedValueOnce({ ...contract, paidAmount: 50000, paymentStatus: 'PARTIAL' });
+
+    await updateSponsorshipPayment('c1', 'contract1', { paidAmount: 50000, method: 'EFECTIVO' });
+
+    expect(tx.payment.create).toHaveBeenCalledWith({
+      data: {
+        companyId: 'c1',
+        type: 'EXPENSE',
+        contactId: 'contact1',
+        sponsorshipContractId: 'contract1',
+        amount: 50000, // 100000 - 50000
+        paymentMethod: 'EFECTIVO',
+        notes: 'Corrección de abono',
+      },
+    });
+  });
+
+  it('rechaza un paidAmount negativo', async () => {
     const tx = fakeTx();
     tx.sponsorshipContract.findFirst.mockResolvedValueOnce(contract);
 
+    await expect(updateSponsorshipPayment('c1', 'contract1', { paidAmount: -1000, method: 'EFECTIVO' })).rejects.toThrow(
+      'no puede ser negativo'
+    );
+    expect(tx.payment.create).not.toHaveBeenCalled();
+  });
+
+  it('un canje puro (cashAmount 0) no puede registrar paidAmount > 0 ni generar Payment', async () => {
+    const tx = fakeTx();
+    const barterContract = { ...contract, cashAmount: 0, paidAmount: 0, isBarter: true };
+    tx.sponsorshipContract.findFirst.mockResolvedValueOnce(barterContract);
+
     await expect(updateSponsorshipPayment('c1', 'contract1', { paidAmount: 50000, method: 'EFECTIVO' })).rejects.toThrow(
-      'no puede ser menor'
+      'supera el aporte en efectivo acordado'
     );
     expect(tx.payment.create).not.toHaveBeenCalled();
   });

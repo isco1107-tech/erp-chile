@@ -154,12 +154,18 @@ export async function updateSponsorshipPayment(
     });
     if (!contract) throw new Error('Contrato de auspicio no encontrado');
     // Repetido server-side: la UI ya deshabilita el botón sobre el tope, pero
-    // esto también corre si se llama la Server Action directo.
-    if (contract.cashAmount > 0 && data.paidAmount > contract.cashAmount) {
+    // esto también corre si se llama la Server Action directo. El tope
+    // aplica SIEMPRE contra `cashAmount`, incluso cuando es 0 (canje puro):
+    // antes solo se validaba `cashAmount > 0`, así que un canje puro sin
+    // componente en efectivo podía registrar cualquier `paidAmount` y generar
+    // un `Payment` de un cobro que nunca existió.
+    if (data.paidAmount > contract.cashAmount) {
       throw new Error('El monto pagado supera el aporte en efectivo acordado');
     }
-    if (data.paidAmount < contract.paidAmount) {
-      throw new Error('El monto pagado no puede ser menor al ya registrado');
+    // N-15 (corrección a la baja): un abono mal digitado ya no queda inflado
+    // para siempre — se permite corregir hacia abajo, nunca por debajo de 0.
+    if (data.paidAmount < 0) {
+      throw new Error('El monto pagado no puede ser negativo');
     }
 
     let paymentStatus: PaymentStatus;
@@ -198,6 +204,21 @@ export async function updateSponsorshipPayment(
           sponsorshipContractId: id,
           amount: delta,
           paymentMethod: data.method,
+        },
+      });
+    } else if (delta < 0) {
+      // Corrección a la baja: un `Payment` EXPENSE por la diferencia deja el
+      // flujo de caja correcto sin borrar el rastro del abono original
+      // (mismo criterio que `registerPromissoryNotePayment`).
+      await tx.payment.create({
+        data: {
+          companyId,
+          type: 'EXPENSE',
+          contactId: contract.contactId,
+          sponsorshipContractId: id,
+          amount: -delta,
+          paymentMethod: data.method,
+          notes: 'Corrección de abono',
         },
       });
     }

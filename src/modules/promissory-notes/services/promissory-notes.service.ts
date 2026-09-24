@@ -138,8 +138,12 @@ export async function registerPromissoryNotePayment(
     if (data.paidAmount > note.amount) {
       throw new Error('El monto pagado supera el monto del pagaré');
     }
-    if (data.paidAmount < note.paidAmount) {
-      throw new Error('El monto pagado no puede ser menor al ya registrado');
+    // N-15 (corrección a la baja): un abono mal digitado ya no queda inflado
+    // para siempre — se permite corregir hacia abajo, nunca por debajo de 0.
+    // El "no puede ser menor" de antes bloqueaba cualquier corrección
+    // legítima de un error de digitación.
+    if (data.paidAmount < 0) {
+      throw new Error('El monto pagado no puede ser negativo');
     }
 
     let paymentStatus: PaymentStatus;
@@ -172,6 +176,21 @@ export async function registerPromissoryNotePayment(
           promissoryNoteId: id,
           amount: delta,
           paymentMethod: data.method,
+        },
+      });
+    } else if (delta < 0) {
+      // Corrección a la baja: un `Payment` EXPENSE por la diferencia deja el
+      // flujo de caja correcto sin borrar el rastro del abono original
+      // (mismo criterio que la reversa de una anulación de venta).
+      await tx.payment.create({
+        data: {
+          companyId,
+          type: 'EXPENSE',
+          contactId: note.contactId,
+          promissoryNoteId: id,
+          amount: -delta,
+          paymentMethod: data.method,
+          notes: 'Corrección de abono',
         },
       });
     }
