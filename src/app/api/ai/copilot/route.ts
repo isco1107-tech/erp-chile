@@ -101,7 +101,13 @@ export async function POST(req: Request) {
       ])
     );
 
-    const reply = await generateAgentWithTools(SYSTEM_PROMPT, toGeminiContents(parsed.data.messages), TOOLS, formattedExecutors);
+    const reply = await generateAgentWithTools(
+      SYSTEM_PROMPT,
+      toGeminiContents(parsed.data.messages),
+      TOOLS,
+      formattedExecutors,
+      'reasoning'
+    );
 
     return NextResponse.json({ success: true, data: { reply } });
   } catch (error) {

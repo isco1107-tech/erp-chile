@@ -2,13 +2,16 @@ import 'server-only';
 
 import { GoogleGenAI, type Content, type FunctionDeclaration, type Part } from '@google/genai';
 
+import { resolveAgentModel, type AgentModelTier } from './model-tiers';
+
 /**
  * Cliente Gemini compartido por todos los agentes automáticos.
  *
  * Extrae el mismo patrón ya probado en
  * src/modules/import/services/ai-scan.service.ts (modelo, throttling,
- * reintento ante 429) en vez de reinventarlo: mismo modelo (`gemini-3.6-flash`,
- * tier gratuito), misma variable de entorno (`GEMINI_API_KEY`) y el mismo
+ * reintento ante 429) en vez de reinventarlo: mismo modelo por defecto
+ * (`gemini-3.6-flash`, tier gratuito; cada llamada elige su nivel de capacidad,
+ * ver `model-tiers.ts`), misma variable de entorno (`GEMINI_API_KEY`) y el mismo
  * espaciado de ~10 solicitudes/minuto entre llamadas dentro de un mismo
  * proceso — relevante acá porque el cron de agentes (`/api/agents/run`)
  * puede llamar a este cliente varias veces seguidas dentro del mismo ciclo
@@ -23,8 +26,6 @@ import { GoogleGenAI, type Content, type FunctionDeclaration, type Part } from '
  * facturas). Sin ella, cualquier llamada de un agente falla y `runAgent()` la
  * registra como `AgentRun.status = FAILED` sin tumbar el resto del cron.
  */
-
-const MODEL = 'gemini-3.6-flash';
 
 /** Espaciado mínimo entre llamadas para no superar ~10 solicitudes/minuto del tier gratuito. */
 const MIN_INTERVAL_MS = 6_500;
@@ -111,9 +112,13 @@ async function callWithRetry(request: GenerateContentRequest): Promise<string | 
  * Texto libre corto (resúmenes, copys, borradores de correo). Usado por los
  * roles CEO, CMO y OUTREACH.
  */
-export async function generateAgentText(systemPrompt: string, userPrompt: string): Promise<string> {
+export async function generateAgentText(
+  systemPrompt: string,
+  userPrompt: string,
+  tier: AgentModelTier = 'standard'
+): Promise<string> {
   const text = await callWithRetry({
-    model: MODEL,
+    model: resolveAgentModel(tier),
     contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
     config: { systemInstruction: systemPrompt },
   });
@@ -132,10 +137,11 @@ export async function generateAgentJson<T>(
   systemPrompt: string,
   userPrompt: string,
   jsonSchema: Record<string, unknown>,
-  parse: (raw: unknown) => T
+  parse: (raw: unknown) => T,
+  tier: AgentModelTier = 'standard'
 ): Promise<T> {
   const text = await callWithRetry({
-    model: MODEL,
+    model: resolveAgentModel(tier),
     contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
     config: {
       systemInstruction: systemPrompt,
@@ -170,10 +176,12 @@ export async function generateAgentWithTools(
   systemPrompt: string,
   initialContents: Content[],
   tools: FunctionDeclaration[],
-  executors: Record<string, (args: Record<string, unknown>) => Promise<unknown>>
+  executors: Record<string, (args: Record<string, unknown>) => Promise<unknown>>,
+  tier: AgentModelTier = 'standard'
 ): Promise<string> {
   const client = getClient();
   const contents: Content[] = [...initialContents];
+  const model = resolveAgentModel(tier);
 
   for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
     // Antes esta llamada iba directo a `client.models.generateContent`, sin
@@ -184,7 +192,7 @@ export async function generateAgentWithTools(
     // 4 reintentos con backoff exponencial) absorbe ráfagas normales de uso.
     const response = await withRetry(() =>
       client.models.generateContent({
-        model: MODEL,
+        model,
         contents,
         config: {
           systemInstruction: systemPrompt,
