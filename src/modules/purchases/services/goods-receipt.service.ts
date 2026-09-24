@@ -34,13 +34,28 @@ export async function createGoodsReceipt(
     if (!warehouse) throw new Error('Bodega no encontrada');
 
     const itemsById = new Map(order.items.map((item) => [item.id, item]));
+
+    // Varias líneas de la misma recepción pueden apuntar al mismo ítem de la
+    // OC (p. ej. el mismo producto en dos bultos distintos del mismo camión):
+    // hay que sumar la cantidad recibida por ítem de OC antes de comparar
+    // contra lo pendiente, no validar cada línea por separado contra el
+    // mismo saldo — si no, dos líneas de 50 c/u contra un saldo de 80
+    // pasaban ambas el chequeo individual y sobre-recibían la OC.
+    const receivedQuantityByOrderItem = new Map<string, number>();
     for (const line of input.items) {
-      const orderItem = itemsById.get(line.orderItemId);
+      receivedQuantityByOrderItem.set(
+        line.orderItemId,
+        (receivedQuantityByOrderItem.get(line.orderItemId) ?? 0) + line.quantity
+      );
+    }
+
+    for (const [orderItemId, totalQuantity] of receivedQuantityByOrderItem) {
+      const orderItem = itemsById.get(orderItemId);
       if (!orderItem) throw new Error('Una de las líneas no pertenece a esta orden de compra');
       const remaining = orderItem.quantity - orderItem.receivedQuantity;
-      if (line.quantity > remaining + QUANTITY_EPSILON) {
+      if (totalQuantity > remaining + QUANTITY_EPSILON) {
         throw new Error(
-          `No se puede recibir ${line.quantity} de "${orderItem.description}": quedan ${remaining} unidades pendientes`
+          `No se puede recibir ${totalQuantity} de "${orderItem.description}": quedan ${remaining} unidades pendientes`
         );
       }
     }

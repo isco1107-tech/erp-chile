@@ -110,6 +110,13 @@ export async function createPosSale(
       }
     }
 
+    // Lock del turno ANTES de leer su estado y ANTES de cualquier lock de
+    // producto (mismo orden en todas las rutas de caja, para no cruzarse con
+    // el lock de Kardex y generar deadlocks). Sin este lock, la venta puede
+    // leer OPEN un instante antes de que `closeShift` congele el resumen y
+    // confirmar después de que el turno ya quedó CLOSED, dejando la venta
+    // fuera del arqueo aunque el dinero entró al cajón.
+    await tx.$queryRaw`SELECT id FROM "CashShift" WHERE id = ${shiftId} AND "companyId" = ${companyId} FOR UPDATE`;
     const shift = await tx.cashShift.findFirst({
       where: { id: shiftId, companyId, userId, status: 'OPEN' },
       include: { cashRegister: true },

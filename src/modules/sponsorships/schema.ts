@@ -1,5 +1,19 @@
 import { z } from 'zod';
 
+// Repite el catálogo de `src/modules/treasury/schema.ts` (`PAYMENT_METHOD_TYPES`)
+// en vez de importarlo cruzado entre módulos — mismo criterio que
+// `src/modules/payment-plans/schema.ts` y `src/modules/promissory-notes/schema.ts`.
+export const PAYMENT_METHOD_TYPES = ['EFECTIVO', 'TRANSFERENCIA', 'TARJETA_DEBITO', 'TARJETA_CREDITO', 'CHEQUE', 'OTRO'] as const;
+
+export const PAYMENT_METHOD_TYPE_LABELS: Record<(typeof PAYMENT_METHOD_TYPES)[number], string> = {
+  EFECTIVO: 'Efectivo',
+  TRANSFERENCIA: 'Transferencia',
+  TARJETA_DEBITO: 'Tarjeta de débito',
+  TARJETA_CREDITO: 'Tarjeta de crédito',
+  CHEQUE: 'Cheque',
+  OTRO: 'Otro',
+};
+
 export const SPONSORSHIP_TIERS = [
   'TITULAR_MAIN_SPONSOR',
   'GOLD',
@@ -90,6 +104,10 @@ export type DeliverableCreateInput = z.infer<typeof deliverableCreateSchema>;
 export const sponsorshipPaymentSchema = z.object({
   paidAmount: z.number().int('El monto debe ser un número entero').nonnegative('El monto no puede ser negativo'),
   notes: z.string().optional(),
+  // Solo se usa para el `Payment` de tesorería que genera el incremento del
+  // cobro (ver `updateSponsorshipPayment`); el contrato en sí no guarda medio
+  // de pago. Default a TRANSFERENCIA: es el medio más común para un aporte de marca.
+  method: z.enum(PAYMENT_METHOD_TYPES).default('TRANSFERENCIA'),
 });
 
 export type SponsorshipPaymentInput = z.infer<typeof sponsorshipPaymentSchema>;

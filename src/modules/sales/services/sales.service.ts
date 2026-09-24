@@ -16,6 +16,7 @@ import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import type { WorkflowEventPayload } from '@/lib/workflows/types';
 import { postCreditNoteIssued, postSalesDocumentIssued, reverseSalesDocumentPosting } from '@/modules/accounting/posting-rules/sales-posting';
+import { reverseDocumentEntries } from '@/modules/accounting/posting-rules/shared';
 import { isExemptDocument, siiCode } from '@/lib/chile/dte/codes';
 import { assignSalesFolio, stampDocument, type FolioAssignment } from '@/modules/dte/services/stamping.service';
 import { computeDocument, exceedsCreditLimit } from '../calc';
@@ -29,6 +30,46 @@ export type SalesDocumentWithRelations = SalesDocument & {
   warehouse: Warehouse;
   company: Company;
 };
+
+/**
+ * Busca el documento ISSUED referenciado por tipo+folio (N-02, N-04). Solo
+ * `status: 'ISSUED'`: una referencia a un folio anulado o inexistente debe
+ * comportarse como "no encontrado", nunca como si aún estuviera vigente —
+ * es el mismo criterio que usa tanto la emisión (para decidir si descuenta
+ * stock) como la anulación (para decidir si debe reponerlo), de modo que
+ * ambas rutas siempre concuerden sobre si el documento movió stock.
+ *
+ * El filtro por `contactId` NO va en la consulta: solo se exige para
+ * Notas de Crédito/Débito, y ahí se valida después de traer el documento
+ * para poder distinguir "no existe" de "existe pero es de otro cliente" y
+ * dar un mensaje explícito en ese segundo caso (N-04).
+ */
+async function findIssuedReferencedDocument(
+  tx: Prisma.TransactionClient,
+  companyId: string,
+  referenceType: DteType,
+  referenceFolio: number
+): Promise<SalesDocumentWithItems | null> {
+  return tx.salesDocument.findFirst({
+    where: { companyId, dteType: referenceType, folio: referenceFolio, status: 'ISSUED' },
+    include: { items: true },
+  });
+}
+
+/**
+ * Decide si un documento, al emitirse, descuenta stock de bodega — el mismo
+ * criterio que usa tanto la emisión (`createSalesDocument`) como la
+ * anulación (`cancelSalesDocument`) para saber si corresponde reponerlo
+ * (N-02): una Factura/Boleta que solo formaliza una Guía de Despacho ya
+ * ISSUED no mueve stock propio, porque la mercadería ya salió con la guía.
+ */
+function documentMovesStockOnIssue(
+  dteType: DteType,
+  referencedDocument: Pick<SalesDocument, 'dteType'> | null
+): boolean {
+  const referencesIssuedGuide = referencedDocument?.dteType === 'GUIA_DESPACHO_52';
+  return STOCK_AFFECTING_DTE_TYPES.includes(dteType) && !referencesIssuedGuide;
+}
 
 export async function createSalesDocument(
   companyId: string,
@@ -118,14 +159,28 @@ export async function createSalesDocument(
       }
     }
 
+    // El folio por sí solo no identifica al cliente correcto, solo el
+    // tipo+número de DTE, así que se resuelve primero por tipo+folio+ISSUED
+    // y el cliente se valida después según el caso (N-04):
+    //   - Nota de Crédito/Débito: SIEMPRE debe ser del mismo cliente, o
+    //     reduciría/aumentaría la deuda del cliente equivocado.
+    //   - Factura/Boleta que formaliza una Guía de Despacho: si la guía
+    //     encontrada es de OTRO cliente, se rechaza explícitamente en vez de
+    //     tratarla como "no encontrada" — de lo contrario `affectsStock`
+    //     daría true y la mercadería de esa guía se descontaría una segunda
+    //     vez además de lo que ya descontó al emitirse.
     const referencedDocument = input.referenceFolio && input.referenceType
-      ? await tx.salesDocument.findFirst({
-          where: { companyId, dteType: input.referenceType, folio: input.referenceFolio, status: 'ISSUED' },
-          include: { items: true },
-        })
+      ? await findIssuedReferencedDocument(tx, companyId, input.referenceType, input.referenceFolio)
       : null;
-    if ((input.dteType === 'NOTA_CREDITO_61' || input.dteType === 'NOTA_DEBITO_56') && !referencedDocument) {
-      throw new Error('El DTE de referencia no existe, no pertenece a la empresa o no está emitido');
+    const isCreditOrDebitNote = input.dteType === 'NOTA_CREDITO_61' || input.dteType === 'NOTA_DEBITO_56';
+    if (isCreditOrDebitNote) {
+      if (!referencedDocument || referencedDocument.contactId !== input.contactId) {
+        throw new Error('El DTE de referencia no existe, no pertenece al cliente seleccionado, no pertenece a la empresa, o no está emitido');
+      }
+    } else if (referencedDocument?.dteType === 'GUIA_DESPACHO_52' && referencedDocument.contactId !== input.contactId) {
+      throw new Error(
+        `La Guía de Despacho #${input.referenceFolio} referenciada pertenece a otro cliente: no se puede formalizar con este documento`
+      );
     }
 
     // Una Factura/Boleta que solo formaliza tributariamente una Guía de
@@ -134,7 +189,7 @@ export async function createSalesDocument(
     // estándar chileno guía + factura diferida descontaba el mismo despacho
     // dos veces.
     const referencesIssuedGuide = referencedDocument?.dteType === 'GUIA_DESPACHO_52';
-    const affectsStock = isIssuing && STOCK_AFFECTING_DTE_TYPES.includes(input.dteType) && !referencesIssuedGuide;
+    const affectsStock = isIssuing && documentMovesStockOnIssue(input.dteType, referencedDocument);
 
     // Folio: sale de un CAF autorizado por el SII si la empresa tiene folios
     // cargados, y del contador interno si no (ver `assignSalesFolio`). La
@@ -169,6 +224,34 @@ export async function createSalesDocument(
           previouslyCreditedByProduct.set(line.productId, (previouslyCreditedByProduct.get(line.productId) ?? 0) + line.quantity);
         }
       }
+
+      // Tope monetario contra el documento original: la suma de todas las NC
+      // ya emitidas contra este folio más la que se está emitiendo ahora no
+      // puede superar el total del original MÁS las Notas de Débito ISSUED
+      // que también referencian ese mismo documento — una ND aumenta lo que
+      // el cliente debe por el original, así que el techo de lo acreditable
+      // sube con ella. Sin este control, una NC de servicio libre (sin
+      // `productId`, así que el tope de unidades de arriba no la limita)
+      // podía acreditar cualquier monto (N-04).
+      const priorDebitNotes = await tx.salesDocument.findMany({
+        where: {
+          companyId,
+          dteType: 'NOTA_DEBITO_56',
+          referenceType: referencedDocument.dteType,
+          referenceFolio: referencedDocument.folio,
+          status: 'ISSUED',
+        },
+      });
+      const totalPreviouslyCredited = priorCreditNotes.reduce((sum, note) => sum + note.totalAmount, 0);
+      const totalDebited = priorDebitNotes.reduce((sum, note) => sum + note.totalAmount, 0);
+      const creditableCeiling = referencedDocument.totalAmount + totalDebited;
+      const totalAfterThisNote = totalPreviouslyCredited + totalAmount;
+      if (totalAfterThisNote > creditableCeiling) {
+        const remaining = Math.max(0, creditableCeiling - totalPreviouslyCredited);
+        throw new Error(
+          `Esta Nota de Crédito de ${formatCurrency(totalAmount)} supera lo que queda por acreditar del documento original: ya se emitieron ${formatCurrency(totalPreviouslyCredited)} en notas de crédito previas sobre un total de ${formatCurrency(creditableCeiling)} (original ${formatCurrency(referencedDocument.totalAmount)} + notas de débito ${formatCurrency(totalDebited)}; quedan ${formatCurrency(remaining)} disponibles)`
+        );
+      }
     }
 
     // Costo de las unidades que vuelven a bodega por una Nota de Crédito, para
@@ -181,6 +264,14 @@ export async function createSalesDocument(
     // documento — una línea de servicio o producto no trackeable no tiene
     // `EXISTENCIAS` que descontar.
     const costedItemsForAccounting: { unitCostPMP: number; quantity: number }[] = [];
+    // Costo real que devuelve cada movimiento de Kardex (`applyStockOut` lee
+    // el PMP bajo lock de fila, así que es el único valor garantizado vigente
+    // en el momento de la salida). Se usa para persistir `unitCostPMP` en la
+    // línea del documento — igual que ya hace el POS — en vez del PMP leído
+    // suelto al principio de la transacción, que puede haber quedado
+    // desactualizado si una compra confirmó su propio PMP antes de que esta
+    // venta tomara el lock del producto (N-10).
+    const costByProduct = new Map<string, number>();
 
     // Una Nota de Crédito en borrador no devuelve mercadería: su asiento recién
     // nace al emitirse, y mover stock antes dejaba inventario sin respaldo
@@ -227,14 +318,19 @@ export async function createSalesDocument(
             reference: `DTE ${dteLabel} Folio #${folio ?? '-'}`,
           });
         } else {
-          costedItemsForAccounting.push({ unitCostPMP: item.unitCostPMP, quantity: item.quantity });
-          await applyStockOut(tx, companyId, {
+          // El costo contable y el que se persiste en la línea salen del
+          // movimiento real (`movement.unitCost`), no del PMP leído antes del
+          // lock (N-10): ese PMP pudo quedar obsoleto si una compra confirmó
+          // su propio PMP entre la lectura y este `applyStockOut`.
+          const movement = await applyStockOut(tx, companyId, {
             productId: item.productId,
             warehouseId: input.warehouseId,
             type: 'SALE_OUT',
             quantity: item.quantity,
             reference: `DTE ${dteLabel} Folio #${folio ?? '-'}`,
           });
+          costByProduct.set(item.productId, movement.unitCost);
+          costedItemsForAccounting.push({ unitCostPMP: movement.unitCost, quantity: item.quantity });
         }
       }
     }
@@ -357,7 +453,7 @@ export async function createSalesDocument(
             subtotal: item.subtotal,
             iva: item.iva,
             total: item.total,
-            unitCostPMP: item.unitCostPMP,
+            unitCostPMP: (item.productId ? costByProduct.get(item.productId) : undefined) ?? item.unitCostPMP,
           })),
         },
       },
@@ -461,7 +557,15 @@ export async function cancelSalesDocument(companyId: string, id: string, reason?
     // El arqueo de un turno cerrado quedó congelado con esta venta dentro. Al
     // anularla, el esperado histórico pasaría a ser falso y el efectivo saldría
     // de un cajón distinto al que lo recibió, sin rastro en ninguno de los dos.
-    if (document.cashShift && document.cashShift.status === 'CLOSED') {
+    // Lock del turno antes de mirar su estado (N-07): sin él, un cierre
+    // concurrente podía congelar el arqueo con esta venta adentro justo antes de
+    // anularla. Mismo orden que el POS y el cierre: turno primero, productos después.
+    let shiftStatus = document.cashShift?.status;
+    if (document.cashShift) {
+      const locked = await tx.$queryRaw<{ status: string }[]>`SELECT status FROM "CashShift" WHERE id = ${document.cashShift.id} AND "companyId" = ${companyId} FOR UPDATE`;
+      shiftStatus = (locked[0]?.status as typeof shiftStatus) ?? shiftStatus;
+    }
+    if (document.cashShift && shiftStatus === 'CLOSED') {
       throw new Error(
         'Esta boleta pertenece a un turno de caja ya cerrado. Emite una Nota de Crédito en vez de anularla, para que la devolución quede registrada en el turno actual'
       );
@@ -472,7 +576,22 @@ export async function cancelSalesDocument(companyId: string, id: string, reason?
       ? `Anulación (${reason}): DTE ${dteLabel} Folio #${document.folio ?? '-'}`
       : `Anulación DTE ${dteLabel} Folio #${document.folio ?? '-'}`;
 
-    if (STOCK_AFFECTING_DTE_TYPES.includes(document.dteType)) {
+    // Recalculado acá, no persistido, para que la anulación sepa si el
+    // documento de verdad movió stock en vez de asumirlo solo por su tipo de
+    // DTE — antes se reponía SIEMPRE que el tipo fuera `STOCK_AFFECTING_DTE_TYPES`,
+    // duplicando el despacho vigente de la guía cuando se anulaba la factura
+    // que solo la formalizó (N-02). Usa exactamente el mismo criterio que la
+    // emisión (`findIssuedReferencedDocument` + `documentMovesStockOnIssue`):
+    // si el folio referenciado ya no está ISSUED (anulado, o nunca existió),
+    // se trata igual que "no encontrado" — igual que decidió la emisión en su
+    // momento — para que emisión y anulación jamás discrepen sobre si este
+    // documento movió stock.
+    const referencedDocumentAtCancel = document.referenceFolio && document.referenceType
+      ? await findIssuedReferencedDocument(tx, companyId, document.referenceType, document.referenceFolio)
+      : null;
+    const documentMovedStockOnIssue = documentMovesStockOnIssue(document.dteType, referencedDocumentAtCancel);
+
+    if (documentMovedStockOnIssue) {
       for (const item of document.items) {
         if (!item.productId) continue;
         const product = await tx.product.findFirst({ where: { id: item.productId, companyId } });
@@ -487,11 +606,14 @@ export async function cancelSalesDocument(companyId: string, id: string, reason?
         });
       }
     } else if (document.dteType === 'NOTA_CREDITO_61') {
-      // La NC había reingresado stock (applyStockIn) al emitirse; anularla
-      // debe sacarlo de nuevo. Antes esto no ocurría: anular una NC mal
-      // emitida dejaba inventario fantasma permanente.
+      // La NC había reingresado stock (applyStockIn) al emitirse solo para las
+      // líneas con `quantity > 0` (Caso B, ajuste de precio sin devolución
+      // física, no movió nada — mismo criterio que `createSalesDocument`).
+      // Anularla debe sacar de bodega únicamente lo que en verdad volvió a
+      // entrar.
       for (const item of document.items) {
         if (!item.productId) continue;
+        if (item.quantity <= 0) continue;
         const product = await tx.product.findFirst({ where: { id: item.productId, companyId } });
         if (!product || !product.isTrackable) continue;
         await applyStockOut(tx, companyId, {
@@ -533,6 +655,23 @@ export async function cancelSalesDocument(companyId: string, id: string, reason?
     // el resto del sistema (kardex, notas de crédito), el rastro de auditoría
     // nunca se elimina, solo se revierte con un movimiento nuevo.
     const linkedPayments = await tx.payment.findMany({ where: { companyId, salesDocumentId: document.id } });
+
+    // Un cobro posterior registrado en Tesorería (`registerSalesPayment`, para
+    // una venta a crédito que se pagó después de emitida) generó su propio
+    // asiento `D CAJA/BANCO / H CLIENTES` con `sourceType PAYMENT` y
+    // `sourceId` del pago (`treasury-posting.ts`), independiente del asiento
+    // de la venta. `reverseSalesDocumentPosting` (más abajo) solo reversa lo
+    // que quedó bajo `sourceType SALES_DOCUMENT`, así que ese asiento del
+    // cobro seguía vivo tras anular la venta: efectivo contable retenido sin
+    // dinero y saldo acreedor de cliente ficticio (N-11). El `Payment` que
+    // `createSalesDocument` crea para una venta al contado NO tiene este
+    // asiento propio — su efecto de caja ya viaja dentro del asiento
+    // SALES_DOCUMENT, que sí se reversa abajo — así que reversar acá para ese
+    // pago es un no-op seguro y no duplica el reverso.
+    for (const payment of linkedPayments) {
+      await reverseDocumentEntries(tx, companyId, 'PAYMENT', payment.id, cancellationNote);
+    }
+
     const netCollected = linkedPayments.reduce((sum, p) => sum + (p.type === 'INCOME' ? p.amount : -p.amount), 0);
     if (netCollected > 0) {
       await tx.payment.create({

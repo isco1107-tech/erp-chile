@@ -463,6 +463,27 @@ async function markOrderPaid(orderId: string, companyId: string, payment: KhipuP
       create: { companyId, kind: 'INSTALLMENT_RECEIPT', currentFolio: 1 },
     });
 
+    // N-15 (auditoría 2026-09-14): sin este `Payment`, `getCashFlow` no veía
+    // el cobro en línea. `paymentPlanInstallmentId` queda vacío a propósito:
+    // una orden puede cubrir varias cuotas a la vez, así que el vínculo vive
+    // a nivel de plan (`paymentPlanId`), no de una cuota puntual. Tampoco se
+    // postea asiento (mismo motivo que `registerInstallmentPayment`).
+    const plan = await tx.paymentPlan.findFirst({ where: { id: order.paymentPlanId, companyId }, select: { contactId: true } });
+    if (!plan) throw new Error('Plan de pago no encontrado');
+    await tx.payment.create({
+      data: {
+        companyId,
+        type: 'INCOME',
+        contactId: plan.contactId,
+        paymentPlanId: order.paymentPlanId,
+        amount: order.amount,
+        paymentMethod: 'TRANSFERENCIA',
+        paymentDate: now,
+        referenceNumber: order.providerPaymentId ?? undefined,
+        notes: `Pago en línea Khipu — orden ${order.id}`,
+      },
+    });
+
     await tx.installmentPaymentOrder.updateMany({
       where: { id: orderId, companyId },
       data: {

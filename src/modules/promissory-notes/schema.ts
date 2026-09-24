@@ -1,6 +1,20 @@
 import { z } from 'zod';
 import { isAllowedBlobUrl } from '@/lib/security/blob-url';
 
+// Repite el catálogo de `src/modules/treasury/schema.ts` (`PAYMENT_METHOD_TYPES`)
+// en vez de importarlo cruzado entre módulos — mismo criterio que
+// `src/modules/payment-plans/schema.ts`.
+export const PAYMENT_METHOD_TYPES = ['EFECTIVO', 'TRANSFERENCIA', 'TARJETA_DEBITO', 'TARJETA_CREDITO', 'CHEQUE', 'OTRO'] as const;
+
+export const PAYMENT_METHOD_TYPE_LABELS: Record<(typeof PAYMENT_METHOD_TYPES)[number], string> = {
+  EFECTIVO: 'Efectivo',
+  TRANSFERENCIA: 'Transferencia',
+  TARJETA_DEBITO: 'Tarjeta de débito',
+  TARJETA_CREDITO: 'Tarjeta de crédito',
+  CHEQUE: 'Cheque',
+  OTRO: 'Otro',
+};
+
 // SEG-04: a diferencia de `documentCreateSchema.fileUrl` de candidatas, este
 // campo no validaba ni siquiera el host — cualquier string pasaba. Mismo
 // allowlist que ya usa candidatas (protocolo + host de R2/Vercel Blob), para
@@ -72,6 +86,11 @@ export type PromissoryNoteUpdateInput = z.infer<typeof promissoryNoteUpdateSchem
 
 export const promissoryNotePaymentSchema = z.object({
   paidAmount: z.number().int('El monto debe ser un número entero').nonnegative('El monto no puede ser negativo'),
+  // Solo se usa para el `Payment` de tesorería que genera el incremento del
+  // cobro (ver `registerPromissoryNotePayment`); el pagaré en sí no guarda
+  // medio de pago. Default a TRANSFERENCIA: es el medio más común para saldar
+  // un pagaré ya vencido.
+  method: z.enum(PAYMENT_METHOD_TYPES).default('TRANSFERENCIA'),
 });
 
 export type PromissoryNotePaymentInput = z.infer<typeof promissoryNotePaymentSchema>;

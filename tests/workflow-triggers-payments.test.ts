@@ -22,7 +22,11 @@ function fakeTx() {
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       findMany: jest.fn().mockResolvedValue([{ paymentStatus: 'PARTIAL' }]),
     },
-    paymentPlan: { updateMany: jest.fn() },
+    paymentPlan: {
+      updateMany: jest.fn(),
+      findFirst: jest.fn().mockResolvedValue({ contactId: 'contact1' }),
+    },
+    payment: { create: jest.fn().mockResolvedValue({ id: 'payment1' }) },
   };
   jest.spyOn(prisma, '$transaction').mockImplementation((async (callback: (t: typeof tx) => unknown) => callback(tx)) as never);
   jest.spyOn(prisma.paymentPlan, 'findFirst').mockResolvedValue({ candidate: { fullName: 'Valentina Rojas' } } as never);
@@ -45,6 +49,25 @@ describe('INSTALLMENT_PAID (pago presencial)', () => {
       amount: 20000,
       channel: 'MANUAL',
       payerEmail: null,
+    });
+  });
+
+  // N-15 (auditoría 2026-09-14): sin este `Payment`, `getCashFlow` no veía el cobro.
+  it('genera un Payment INCOME vinculado al plan y a la cuota', async () => {
+    const tx = fakeTx();
+    await registerInstallmentPayment('c1', 'cuota1', 20000, 'TRANSFERENCIA');
+
+    expect(tx.payment.create).toHaveBeenCalledWith({
+      data: {
+        companyId: 'c1',
+        type: 'INCOME',
+        contactId: 'contact1',
+        paymentPlanId: 'plan1',
+        paymentPlanInstallmentId: 'cuota1',
+        amount: 20000,
+        paymentMethod: 'TRANSFERENCIA',
+        paymentDate: expect.any(Date),
+      },
     });
   });
 

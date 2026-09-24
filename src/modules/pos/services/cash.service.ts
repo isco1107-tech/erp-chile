@@ -1,11 +1,30 @@
 import { prisma } from '@/lib/prisma';
-import type { CashMovement, CashRegister, CashShift } from '@prisma/client';
+import type { CashMovement, CashRegister, CashShift, Prisma } from '@prisma/client';
 import { constraintInvolves } from '@/lib/prisma-errors';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { postCashShiftDifference } from '@/modules/accounting/posting-rules/inventory-posting';
 import { computeDifference, computeExpectedAmount, sumCashPayments } from '../calc';
 import type { CashMovementInput, OpenShiftInput } from '../schema';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
+
+/**
+ * Acepta tanto el cliente global de Prisma como un `tx` de transacción: las
+ * lecturas que solo muestran el arqueo en pantalla usan el primero, y las que
+ * participan de una operación que debe serializarse con el turno (venta,
+ * movimiento, cierre) pasan el `tx` para que todo corra bajo el mismo lock.
+ */
+type DbClient = Prisma.TransactionClient;
+
+/**
+ * Toma un lock exclusivo sobre la fila del turno hasta el fin de la
+ * transacción. Es lo que serializa venta, movimiento de caja, anulación y
+ * cierre de un mismo turno: sin este lock, `closeShift` puede calcular el
+ * resumen mientras una venta concurrente todavía no confirma, y esa venta
+ * queda fuera del arqueo congelado aunque el dinero sí entró al cajón.
+ */
+async function lockShiftRow(tx: DbClient, companyId: string, shiftId: string): Promise<void> {
+  await tx.$queryRaw`SELECT id FROM "CashShift" WHERE id = ${shiftId} AND "companyId" = ${companyId} FOR UPDATE`;
+}
 
 export type CashRegisterWithWarehouse = CashRegister & { warehouse: { id: string; name: string } };
 
@@ -159,24 +178,28 @@ const METHOD_LABELS: Record<string, string> = {
  * un contador incremental se desincroniza en cuanto una venta se anula, y el
  * arqueo dejaría de cuadrar sin que nadie sepa por qué.
  */
-export async function getShiftSummary(companyId: string, shiftId: string): Promise<ShiftSummary> {
-  const shift = await prisma.cashShift.findFirst({ where: { id: shiftId, companyId } });
+export async function getShiftSummary(
+  companyId: string,
+  shiftId: string,
+  client: DbClient = prisma
+): Promise<ShiftSummary> {
+  const shift = await client.cashShift.findFirst({ where: { id: shiftId, companyId } });
   if (!shift) throw new Error('Turno no encontrado');
 
   const [salesGroups, movements, cancelledGroups] = await Promise.all([
-    prisma.salesDocument.groupBy({
+    client.salesDocument.groupBy({
       by: ['paymentMethod'],
       // Las anuladas no cuentan: el dinero se devolvió del cajón.
       where: { companyId, cashShiftId: shiftId, status: 'ISSUED' },
       _sum: { totalAmount: true },
       _count: { _all: true },
     }),
-    prisma.cashMovement.groupBy({
+    client.cashMovement.groupBy({
       by: ['type'],
       where: { companyId, cashShiftId: shiftId },
       _sum: { amount: true },
     }),
-    prisma.salesDocument.groupBy({
+    client.salesDocument.groupBy({
       by: ['paymentMethod'],
       where: { companyId, cashShiftId: shiftId, status: 'CANCELLED' },
       _sum: { totalAmount: true },
@@ -228,20 +251,27 @@ export async function registerCashMovement(
   userId: string,
   input: CashMovementInput
 ): Promise<CashMovement> {
-  const shift = await prisma.cashShift.findFirst({ where: { id: shiftId, companyId } });
-  if (!shift) throw new Error('Turno no encontrado');
-  if (shift.status !== 'OPEN') throw new Error('El turno ya está cerrado');
+  // Lock del turno antes de leer su estado: sin esto, un cierre en curso podría
+  // congelar el resumen justo antes de que este movimiento se confirme, y el
+  // ingreso/egreso quedaría fuera del arqueo aunque el turno siguiera OPEN al
+  // momento de crearse.
+  return prisma.$transaction(async (tx) => {
+    await lockShiftRow(tx, companyId, shiftId);
+    const shift = await tx.cashShift.findFirst({ where: { id: shiftId, companyId } });
+    if (!shift) throw new Error('Turno no encontrado');
+    if (shift.status !== 'OPEN') throw new Error('El turno ya está cerrado');
 
-  return prisma.cashMovement.create({
-    data: {
-      companyId,
-      cashShiftId: shiftId,
-      userId,
-      type: input.type,
-      amount: input.amount,
-      reason: input.reason.trim(),
-    },
-  });
+    return tx.cashMovement.create({
+      data: {
+        companyId,
+        cashShiftId: shiftId,
+        userId,
+        type: input.type,
+        amount: input.amount,
+        reason: input.reason.trim(),
+      },
+    });
+  }, LOCKING_TX_OPTIONS);
 }
 
 export async function listCashMovements(companyId: string, shiftId: string): Promise<CashMovement[]> {
@@ -267,9 +297,17 @@ export async function closeShift(
   shiftId: string,
   input: { actualAmount: number; closingNotes?: string }
 ): Promise<ClosedShiftResult> {
-  const summary = await getShiftSummary(companyId, shiftId);
+  const { shift, summary } = await prisma.$transaction(async (tx) => {
+    // Lock del turno ANTES de calcular el resumen: si el resumen se calculara
+    // afuera de esta transacción (como antes), una venta que entra justo entre
+    // el cálculo y el UPDATE quedaría fuera del arqueo congelado aunque el
+    // dinero sí entró al cajón. Con el lock tomado acá, esa venta (que también
+    // bloquea el turno al vender) espera a que este cierre termine — o, si el
+    // cierre ganó la carrera, la venta encuentra el turno ya CLOSED y se
+    // rechaza antes de mutar nada.
+    await lockShiftRow(tx, companyId, shiftId);
+    const summary = await getShiftSummary(companyId, shiftId, tx);
 
-  const shift = await prisma.$transaction(async (tx) => {
     // Cierre condicionado al estado OPEN: si otro cierre ganó la carrera, este
     // afecta 0 filas y falla, en vez de pisar el arqueo ya declarado.
     const updated = await tx.cashShift.updateMany({
@@ -293,7 +331,7 @@ export async function closeShift(
     // lo esperado y lo contado, nunca el total vendido de nuevo.
     await postCashShiftDifference(tx, companyId, { id: result.id, difference: result.difference ?? 0 });
 
-    return result;
+    return { shift: result, summary };
   }, LOCKING_TX_OPTIONS);
 
   const cashRegister = await prisma.cashRegister.findFirst({ where: { id: shift.cashRegisterId, companyId }, select: { name: true } });

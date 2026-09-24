@@ -33,6 +33,10 @@ const STOP = 'STOP_ANTES_DE_CREAR';
 const originalInvoice = {
   id: 'fac1',
   dteType: 'FACTURA_33',
+  // El filtro de cliente para NC/ND ahora se valida en código (N-04) contra
+  // el `contactId` del documento resuelto, no en la cláusula `where` de la
+  // consulta: el fixture necesita declararlo explícitamente.
+  contactId: 'cli1',
   folio: 55,
   totalAmount: 119000,
   paidAmount: 0,
@@ -89,8 +93,12 @@ describe('Notas de crédito (N-01, N-05)', () => {
 
   it('no permite acreditar más de lo vendido repartiéndolo en líneas repetidas', async () => {
     fakeTx();
-    // Se vendieron 5: dos líneas de 3 suman 6.
-    await expect(createSalesDocument('c1', creditNote([3, 3]), 'ISSUED')).rejects.toThrow('No se puede acreditar');
+    // Se vendieron 5: dos líneas de 3 suman 6. Precio bajo para no chocar
+    // primero con el tope monetario (N-04): lo que se está probando acá es
+    // el tope de unidades por producto.
+    const note = creditNote([3, 3]);
+    note.items = note.items.map((item) => ({ ...item, unitPrice: 5000 }));
+    await expect(createSalesDocument('c1', note, 'ISSUED')).rejects.toThrow('No se puede acreditar');
   });
 });
 
@@ -111,5 +119,24 @@ describe('Anulación de venta (N-09)', () => {
     expect(tx.salesDocument.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 'fac1', companyId: 'c1', status: 'ISSUED' } })
     );
+  });
+});
+
+describe('Anulación de boleta del POS (N-07)', () => {
+  it('relee el turno con lock: si otro cierre lo cerró recién, no anula', async () => {
+    const posSale = { ...originalInvoice, status: 'ISSUED', items: [], cashShift: { id: 't1', status: 'OPEN', closedAt: null }, referenceFolio: null, referenceType: null, contactId: 'cli1' };
+    const tx = fakeTx({
+      salesDocument: {
+        findFirst: jest.fn().mockResolvedValue(posSale),
+        findMany: jest.fn().mockResolvedValue([]),
+        create: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+    });
+    // Primer $queryRaw: lock de la venta; segundo: lock del turno, que ya está cerrado.
+    tx.$queryRaw.mockResolvedValueOnce([]).mockResolvedValueOnce([{ status: 'CLOSED' }]);
+
+    await expect(cancelSalesDocument('c1', 'fac1')).rejects.toThrow('turno de caja ya cerrado');
+    expect(tx.salesDocument.updateMany).not.toHaveBeenCalled();
   });
 });

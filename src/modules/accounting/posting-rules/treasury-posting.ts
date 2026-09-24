@@ -13,8 +13,14 @@ import { isLedgerActive } from './shared';
  * el cobro/pago posterior de un documento que quedó pendiente (crédito).
  */
 
-/** Efectivo va a `CAJA`; cualquier otro medio (transferencia, tarjeta, cheque) va a `BANCO`. */
-function cashOrBankKey(method: PaymentMethodType): 'CAJA' | 'BANCO' {
+/**
+ * Efectivo va a `CAJA`; cualquier otro medio (transferencia, tarjeta, cheque)
+ * va a `BANCO`. Exportada porque `sales-posting.ts` la reutiliza para una
+ * venta al contado: el medio de pago inmediato de la venta determina la
+ * misma cuenta de caja/banco que ya usa el cobro posterior manual, en vez de
+ * cargar siempre CAJA sin mirar el medio (N-12).
+ */
+export function cashOrBankKey(method: PaymentMethodType): 'CAJA' | 'BANCO' {
   return method === 'EFECTIVO' ? 'CAJA' : 'BANCO';
 }
 

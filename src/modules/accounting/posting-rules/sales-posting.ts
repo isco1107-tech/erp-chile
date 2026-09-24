@@ -1,7 +1,8 @@
-import type { DteType, SalesDocument } from '@prisma/client';
+import type { DteType, PaymentMethodType, SalesDocument } from '@prisma/client';
 import { DTE_TYPE_LABELS } from '@/modules/sales/schema';
 import { createAndPostEntry, resolveMappedAccountId, type JournalLineInput, type TxClient } from '../services/journal.service';
 import { invertLines, reverseDocumentEntries, isLedgerActive } from './shared';
+import { cashOrBankKey } from './treasury-posting';
 
 /**
  * Reglas de asiento del ciclo de ventas (`PROMPT_ERP_V2.md`, Fase C.1).
@@ -15,8 +16,13 @@ import { invertLines, reverseDocumentEntries, isLedgerActive } from './shared';
  * criterio que ya usa `sales.service.ts` para no descontar stock dos veces.
  */
 
-/** Tipos de DTE que representan una venta real (o su corrección vía Nota de Débito) y generan asiento de ingreso. */
-const REVENUE_DTE_TYPES: DteType[] = ['FACTURA_33', 'FACTURA_EXENTA_34', 'BOLETA_39', 'BOLETA_EXENTA_41', 'NOTA_DEBITO_56'];
+/**
+ * Tipos de DTE que representan una venta real (o su corrección vía Nota de
+ * Débito) y generan asiento de ingreso. Exportado porque
+ * `reconciliation.service.ts` necesita exactamente el mismo criterio para
+ * calcular el efectivo esperado en CAJA sin duplicar la lista (N-19).
+ */
+export const REVENUE_DTE_TYPES: DteType[] = ['FACTURA_33', 'FACTURA_EXENTA_34', 'BOLETA_39', 'BOLETA_EXENTA_41', 'NOTA_DEBITO_56'];
 
 /**
  * Líneas de ingreso de una venta, separando neto afecto/exento y IVA por sus
@@ -69,7 +75,12 @@ interface SalesAccountKeys {
   ivaDebitoAccountId: string | null;
 }
 
-async function resolveSalesAccounts(tx: TxClient, companyId: string, ivaAmount: number, cashOrCredit: 'CAJA' | 'CLIENTES'): Promise<SalesAccountKeys> {
+async function resolveSalesAccounts(
+  tx: TxClient,
+  companyId: string,
+  ivaAmount: number,
+  cashOrCredit: 'CAJA' | 'BANCO' | 'CLIENTES'
+): Promise<SalesAccountKeys> {
   const [debitAccountId, ventasAfectasAccountId, ventasExentasAccountId] = await Promise.all([
     resolveMappedAccountId(tx, companyId, cashOrCredit),
     resolveMappedAccountId(tx, companyId, 'VENTAS_AFECTAS'),
@@ -88,33 +99,52 @@ async function resolveSalesAccounts(tx: TxClient, companyId: string, ivaAmount: 
 export async function postSalesDocumentIssued(
   tx: TxClient,
   companyId: string,
-  doc: Pick<SalesDocument, 'id' | 'dteType' | 'folio' | 'issueDate' | 'totalAmount' | 'netAmount' | 'exemptAmount' | 'ivaAmount'>,
+  doc: Pick<
+    SalesDocument,
+    'id' | 'dteType' | 'folio' | 'issueDate' | 'totalAmount' | 'netAmount' | 'exemptAmount' | 'ivaAmount' | 'paymentMethod'
+  >,
   /** Solo las líneas que efectivamente descontaron Kardex (`applyStockOut`) — nunca todas las líneas del documento. */
   costedItems: { unitCostPMP: number; quantity: number }[],
   opts: { isImmediatePayment: boolean; affectsStock: boolean; createdByUserId?: string }
 ): Promise<void> {
   // Contabilidad apagada o sin plan de cuentas: la operación sigue, sin asiento.
   if (!(await isLedgerActive(tx, companyId))) return;
-  if (!REVENUE_DTE_TYPES.includes(doc.dteType)) return;
 
-  const accounts = await resolveSalesAccounts(tx, companyId, doc.ivaAmount, opts.isImmediatePayment ? 'CAJA' : 'CLIENTES');
   const label = DTE_TYPE_LABELS[doc.dteType];
 
-  await createAndPostEntry(tx, {
-    companyId,
-    date: doc.issueDate,
-    description: `Venta ${label} Folio #${doc.folio ?? '-'}`,
-    sourceType: 'SALES_DOCUMENT',
-    sourceId: doc.id,
-    createdByUserId: opts.createdByUserId,
-    lines: buildSalesRevenueLines({
-      totalAmount: doc.totalAmount,
-      netAmount: doc.netAmount,
-      exemptAmount: doc.exemptAmount,
-      ivaAmount: doc.ivaAmount,
-      ...accounts,
-    }),
-  });
+  // Solo un documento que representa una venta real formalizada (Factura,
+  // Boleta, Nota de Débito) postea ingreso. Una Guía de Despacho no: es el
+  // despacho físico de una venta que se formaliza después. Pero si la guía sí
+  // movió stock (`opts.affectsStock`), su costo de venta se reconoce en ESE
+  // momento, más abajo — la Factura que la referencia después no vuelve a
+  // moverlo (`affectsStock: false` en ese caso, ver `sales.service.ts`), así
+  // que el costo se reconoce una sola vez, en el punto donde de verdad salió
+  // la mercadería (N-02).
+  if (REVENUE_DTE_TYPES.includes(doc.dteType)) {
+    // Un pago inmediato va a la cuenta de efectivo o de banco según el medio
+    // real de la venta (`cashOrBankKey`, la misma regla que ya usa Tesorería
+    // para el cobro posterior de un documento a crédito) — no siempre CAJA,
+    // que sobrestimaba efectivo físico en una venta pagada por transferencia
+    // o tarjeta (N-12).
+    const cashOrCreditKey = opts.isImmediatePayment ? cashOrBankKey(doc.paymentMethod as PaymentMethodType) : 'CLIENTES';
+    const accounts = await resolveSalesAccounts(tx, companyId, doc.ivaAmount, cashOrCreditKey);
+
+    await createAndPostEntry(tx, {
+      companyId,
+      date: doc.issueDate,
+      description: `Venta ${label} Folio #${doc.folio ?? '-'}`,
+      sourceType: 'SALES_DOCUMENT',
+      sourceId: doc.id,
+      createdByUserId: opts.createdByUserId,
+      lines: buildSalesRevenueLines({
+        totalAmount: doc.totalAmount,
+        netAmount: doc.netAmount,
+        exemptAmount: doc.exemptAmount,
+        ivaAmount: doc.ivaAmount,
+        ...accounts,
+      }),
+    });
+  }
 
   if (!opts.affectsStock) return;
   const totalCost = sumUnitCostPmp(costedItems);

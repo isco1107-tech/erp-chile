@@ -19,6 +19,12 @@ jest.mock('@/lib/payments/khipu', () => ({
   getKhipuPayment: jest.fn(),
 }));
 
+// `emitWorkflowEvent` "nunca lanza" y no debe pegarle a una base real en
+// tests unitarios — sin este mock, la promesa suelta de `markOrderPaid` sigue
+// viva después de que el test termina e imprime ruido ("Cannot log after
+// tests are done").
+jest.mock('@/lib/workflows/engine', () => ({ emitWorkflowEvent: jest.fn() }));
+
 process.env.TOTP_ENCRYPTION_KEY = process.env.TOTP_ENCRYPTION_KEY || 'clave-de-prueba-para-tests';
 
 import { createKhipuPayment, getKhipuPayment } from '@/lib/payments/khipu';
@@ -270,5 +276,65 @@ describe('syncOrderWithProvider', () => {
     jest.mocked(getKhipuPayment).mockClear();
     await expect(syncOrderWithProvider('ord_1')).resolves.toBe('PAID');
     expect(getKhipuPayment).not.toHaveBeenCalled();
+  });
+
+  // N-15 (auditoría 2026-09-14): sin este `Payment`, `getCashFlow` no veía el cobro en línea.
+  it('al confirmar el cobro genera un Payment INCOME por el monto total de la orden', async () => {
+    jest.mocked(getKhipuPayment).mockResolvedValue({
+      payment_id: 'kh_1',
+      status: 'done',
+      status_detail: 'normal',
+      amount: 90000,
+      currency: 'CLP',
+      transaction_id: 'ord_1',
+    });
+
+    const paymentCreate = jest.fn().mockResolvedValue({ id: 'payment1' });
+    const txSpy = jest.spyOn(prisma, '$transaction').mockImplementation((async (callback: unknown) => {
+      const tx = {
+        $queryRaw: async () => [],
+        installmentPaymentOrder: {
+          findFirst: async () => ({
+            id: 'ord_1',
+            companyId: 'cmp_1',
+            status: 'PENDING',
+            amount: 90000,
+            paymentPlanId: 'plan_1',
+            providerPaymentId: 'kh_1',
+            items: [{ installmentId: 'i1', installmentNumber: 1, amount: 90000 }],
+          }),
+          updateMany: async () => ({ count: 1 }),
+        },
+        paymentPlanInstallment: {
+          findMany: async () => [{ id: 'i1', amount: 90000, paidAmount: 0 }],
+          updateMany: async () => ({ count: 1 }),
+          count: async () => 0,
+        },
+        paymentPlan: {
+          updateMany: async () => ({ count: 1 }),
+          findFirst: async () => ({ contactId: 'contact1' }),
+        },
+        internalDocumentSequence: { upsert: async () => ({ currentFolio: 1 }) },
+        payment: { create: paymentCreate },
+      };
+      return (callback as (client: unknown) => Promise<unknown>)(tx);
+    }) as never);
+
+    await expect(syncOrderWithProvider('ord_1')).resolves.toBe('PAID');
+
+    expect(txSpy).toHaveBeenCalled();
+    expect(paymentCreate).toHaveBeenCalledWith({
+      data: {
+        companyId: 'cmp_1',
+        type: 'INCOME',
+        contactId: 'contact1',
+        paymentPlanId: 'plan_1',
+        amount: 90000,
+        paymentMethod: 'TRANSFERENCIA',
+        paymentDate: expect.any(Date),
+        referenceNumber: 'kh_1',
+        notes: 'Pago en línea Khipu — orden ord_1',
+      },
+    });
   });
 });

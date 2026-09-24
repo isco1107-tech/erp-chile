@@ -184,11 +184,25 @@ export async function registerInstallmentPayment(
       },
     });
 
-    // método de pago (`method`) y `date` quedan registrados en la propia cuota
-    // vía `paidAt`; este módulo no crea un `Payment` de tesorería aparte
-    // (el plan de cuotas es su propio libro de cobro), así que `method` solo
-    // sirve hoy para trazabilidad futura si se decide anotarlo en auditoría.
-    void method;
+    // N-15 (auditoría 2026-09-14): sin este `Payment`, `getCashFlow` no veía
+    // el cobro de la cuota y la caja real no cuadraba. No se postea asiento
+    // contable acá: no existe hoy una regla de posteo para cobros de
+    // `PaymentPlan` (a diferencia de `registerSalesPayment`/
+    // `registerPurchasePayment`, que sí tienen `treasury-posting.ts`).
+    const plan = await tx.paymentPlan.findFirst({ where: { id: installment.paymentPlanId, companyId }, select: { contactId: true } });
+    if (!plan) throw new Error('Plan de pago no encontrado');
+    await tx.payment.create({
+      data: {
+        companyId,
+        type: 'INCOME',
+        contactId: plan.contactId,
+        paymentPlanId: installment.paymentPlanId,
+        paymentPlanInstallmentId: installmentId,
+        amount,
+        paymentMethod: method,
+        paymentDate: date ?? new Date(),
+      },
+    });
 
     // Si todas las cuotas del plan quedaron pagadas, el plan se marca COMPLETED.
     const allInstallments = await tx.paymentPlanInstallment.findMany({
