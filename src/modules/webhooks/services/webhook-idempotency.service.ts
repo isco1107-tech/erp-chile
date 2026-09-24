@@ -99,16 +99,27 @@ export async function claimWebhookEvent(params: {
   }
 }
 
-/** Marca como `PROCESSED` un evento previamente reclamado con
- * `claimWebhookEvent`, adjuntando el payload y el resultado final. */
-export async function markWebhookEventProcessed(params: {
-  provider: string;
-  eventId: string;
-  companyId: string;
-  payload?: Record<string, unknown> | null;
-  status?: 'PROCESSED' | 'IGNORED';
-}): Promise<void> {
-  await prisma.processedWebhookEvent.updateMany({
+/**
+ * Marca como `PROCESSED` un evento previamente reclamado con
+ * `claimWebhookEvent`, adjuntando el payload y el resultado final.
+ *
+ * Acepta un cliente de transacción opcional (`db`) para que el llamador
+ * pueda marcarlo atómicamente junto con el efecto de negocio que el evento
+ * dispara (ver `route.ts`): si el marcado falla, el efecto también revierte,
+ * en vez de quedar aplicado con el evento en `FAILED` — eso permitía que un
+ * reintento con el mismo `eventId` volviera a aplicarlo.
+ */
+export async function markWebhookEventProcessed(
+  params: {
+    provider: string;
+    eventId: string;
+    companyId: string;
+    payload?: Record<string, unknown> | null;
+    status?: 'PROCESSED' | 'IGNORED';
+  },
+  db: Prisma.TransactionClient | typeof prisma = prisma
+): Promise<void> {
+  await db.processedWebhookEvent.updateMany({
     where: { provider: params.provider.toLowerCase().trim(), companyId: params.companyId, eventId: params.eventId.trim() },
     data: { status: params.status ?? 'PROCESSED', payload: params.payload ? (params.payload as Prisma.InputJsonValue) : undefined, processedAt: new Date() },
   });

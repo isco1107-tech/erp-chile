@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma';
+import type { Prisma } from '@prisma/client';
 import { registerSalesPayment, registerPurchasePayment } from '@/modules/treasury/services/treasury.service';
 import { createAuditLog } from '@/lib/auth/audit';
 import { paymentConfirmedEventSchema, type PaymentConfirmedEvent } from '../schema';
@@ -13,11 +13,18 @@ export class InvalidEventPayloadError extends Error {}
  * `route.ts`). Cada `case` reusa el mismo servicio de Tesorería que usaría
  * la Server Action manual (`treasury.actions.ts`) — el webhook no
  * reimplementa la lógica de negocio, solo la dispara.
+ *
+ * `tx` es el cliente de la transacción de Prisma abierta en `route.ts`, que
+ * envuelve tanto este efecto de negocio como `markWebhookEventProcessed`:
+ * si el pago se aplica pero el evento no llega a marcarse como procesado (o
+ * viceversa), ambos revierten juntos — evita que un reintento con el mismo
+ * `eventId` vuelva a aplicar el pago (OP-06).
  */
 export async function handleN8nWebhookEvent(
   companyId: string,
   eventType: string,
-  rawPayload: Record<string, unknown>
+  rawPayload: Record<string, unknown>,
+  tx: Prisma.TransactionClient
 ): Promise<{ summary: string }> {
   switch (eventType) {
     case 'payment.confirmed': {
@@ -25,14 +32,18 @@ export async function handleN8nWebhookEvent(
       if (!parsed.success) {
         throw new InvalidEventPayloadError(parsed.error.issues.map((i) => i.message).join('; '));
       }
-      return handlePaymentConfirmed(companyId, parsed.data);
+      return handlePaymentConfirmed(companyId, parsed.data, tx);
     }
     default:
       throw new UnhandledEventTypeError(`No hay una acción configurada para el evento "${eventType}"`);
   }
 }
 
-async function handlePaymentConfirmed(companyId: string, data: PaymentConfirmedEvent): Promise<{ summary: string }> {
+async function handlePaymentConfirmed(
+  companyId: string,
+  data: PaymentConfirmedEvent,
+  tx: Prisma.TransactionClient
+): Promise<{ summary: string }> {
   const paymentInput = {
     amount: data.amount,
     paymentMethod: data.paymentMethod,
@@ -46,14 +57,17 @@ async function handlePaymentConfirmed(companyId: string, data: PaymentConfirmedE
     const folioNumber = Number(data.folio);
     if (!Number.isFinite(folioNumber)) throw new InvalidEventPayloadError('El folio de venta debe ser numérico');
 
-    const doc = await prisma.salesDocument.findFirst({
+    const doc = await tx.salesDocument.findFirst({
       where: { companyId, folio: folioNumber },
       select: { id: true },
     });
     if (!doc) throw new DocumentNotFoundError(`No se encontró el documento de venta con folio ${data.folio}`);
 
-    const payment = await registerSalesPayment(companyId, doc.id, paymentInput);
+    const payment = await registerSalesPayment(companyId, doc.id, paymentInput, tx);
 
+    // Best-effort: `createAuditLog` nunca lanza (ver `audit.ts`), así que no
+    // arriesga la atomicidad del pago aunque corra en su propia conexión,
+    // fuera de esta transacción — mismo patrón que el resto del ERP.
     await createAuditLog({
       companyId,
       userEmail: 'n8n-webhook',
@@ -66,13 +80,13 @@ async function handlePaymentConfirmed(companyId: string, data: PaymentConfirmedE
     return { summary: `Cobro de ${data.amount} registrado en venta folio ${data.folio}` };
   }
 
-  const doc = await prisma.purchaseDocument.findFirst({
+  const doc = await tx.purchaseDocument.findFirst({
     where: { companyId, folio: data.folio },
     select: { id: true },
   });
   if (!doc) throw new DocumentNotFoundError(`No se encontró el documento de compra con folio ${data.folio}`);
 
-  const payment = await registerPurchasePayment(companyId, doc.id, paymentInput);
+  const payment = await registerPurchasePayment(companyId, doc.id, paymentInput, tx);
 
   await createAuditLog({
     companyId,

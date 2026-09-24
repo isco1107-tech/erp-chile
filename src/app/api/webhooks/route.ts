@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
 import { claimWebhookEvent, markWebhookEventProcessed, markWebhookEventFailed } from '@/modules/webhooks/services/webhook-idempotency.service';
 import { resolveCompanyByN8nWebhookSecret } from '@/modules/webhooks/services/n8n-secret.service';
 import {
@@ -9,6 +10,7 @@ import {
 } from '@/modules/webhooks/services/n8n-handler.service';
 import { checkRateLimit, N8N_WEBHOOK_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { captureException } from '@/lib/observability';
+import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 
 const MAX_BODY_BYTES = 256 * 1024; // Un evento de conciliación es unas pocas líneas de JSON; 256 KB da margen de sobra.
 
@@ -35,6 +37,12 @@ const MAX_BODY_BYTES = 256 * 1024; // Un evento de conciliación es unas pocas l
  * de que cualquiera alcanzara a registrarse. Si la acción de negocio falla
  * después de reclamar, el reclamo se marca `FAILED` (`markWebhookEventFailed`)
  * en vez de quedar `CLAIMED` para siempre, para permitir un reintento legítimo.
+ *
+ * La acción de negocio (`handleN8nWebhookEvent`) y el marcado a `PROCESSED`
+ * corren dentro del mismo `prisma.$transaction` (OP-06): si el pago se
+ * aplica pero el marcado falla, ambos revierten — sin esto, el evento
+ * quedaba `FAILED` con el pago ya aplicado, y un reintento legítimo con el
+ * mismo `eventId` volvía a aplicarlo (doble abono).
  */
 export async function POST(req: NextRequest) {
   try {
@@ -94,8 +102,15 @@ export async function POST(req: NextRequest) {
     const payload = typeof body.payload === 'object' && body.payload !== null ? (body.payload as Record<string, unknown>) : body;
 
     try {
-      const result = await handleN8nWebhookEvent(company.companyId, eventType, payload);
-      await markWebhookEventProcessed({ provider: 'n8n', eventId, companyId: company.companyId, payload });
+      // El efecto de negocio (puede aplicar un pago) y el marcado del evento
+      // como procesado confirman o revierten juntos: si uno falla después de
+      // que el otro ya escribió, un reintento con el mismo `eventId` volvería
+      // a aplicar el pago (OP-06).
+      const result = await prisma.$transaction(async (tx) => {
+        const handlerResult = await handleN8nWebhookEvent(company.companyId, eventType, payload, tx);
+        await markWebhookEventProcessed({ provider: 'n8n', eventId, companyId: company.companyId, payload }, tx);
+        return handlerResult;
+      }, LOCKING_TX_OPTIONS);
       return NextResponse.json({ success: true, message: result.summary, eventId, status: 'PROCESSED' }, { status: 200 });
     } catch (handlerError) {
       if (handlerError instanceof UnhandledEventTypeError) {
