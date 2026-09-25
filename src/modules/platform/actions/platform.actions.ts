@@ -102,7 +102,7 @@ export async function updateTenantPlanAction(companyId: string, input: unknown):
       action: 'UPDATE',
       entity: 'CompanyFeatures',
       entityId: companyId,
-      metadata: { plan: parsed.data.planName, features: parsed.data.features },
+      metadata: { plan: parsed.data.planName, features: parsed.data.features, disabledNavItems: parsed.data.disabledNavItems ?? null },
     });
 
     revalidatePath(`/superadmin/companies/${companyId}`);

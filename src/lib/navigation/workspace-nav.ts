@@ -250,8 +250,9 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
       { id: 'treasury-payment-batches', href: '/dashboard/treasury/payment-batches', label: 'Nóminas de pago', icon: 'paymentBatches', keywords: ['pago masivo', 'transferencias', 'proveedores', 'nomina'] }
     );
   }
+  const reportes: NavLink[] = [];
   if (features.hasAdvancedReports && allow('reports:read')) {
-    finanzas.push(
+    reportes.push(
       { id: 'reports', href: '/dashboard/reports', label: 'Reportes Excel', icon: 'reports', keywords: ['excel', 'libro de ventas', 'libro de compras', 'exportar'] },
       { id: 'reports-f29', href: '/dashboard/reports/f29', label: 'Formulario 29 (F29)', icon: 'reports', keywords: ['f29', 'iva', 'sii', 'ppm', 'impuestos'] },
       { id: 'reports-rcv', href: '/dashboard/reports/rcv', label: 'Registro de Compras y Ventas', icon: 'rcv', keywords: ['rcv', 'sii', 'libro de compras', 'libro de ventas', 'cuadratura', 'credito fiscal'] }
@@ -272,7 +273,12 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
   if (features.hasInstallmentPlans && allow('paymentplans:read')) {
     finanzas.push({ id: 'payment-plans', href: '/dashboard/payment-plans', label: 'Cuotas & Mensualidades', icon: 'paymentPlans', keywords: ['cuotas', 'mensualidad'] });
   }
+  // Boletas de honorarios: es un gasto de staff, se registra y paga desde Finanzas.
+  if (features.hasFeeDocuments && allow('fees:read')) {
+    finanzas.push({ id: 'fees', href: '/dashboard/fees', label: 'Boletas de Honorarios', icon: 'fees', keywords: ['honorarios', 'retencion'] });
+  }
   push('Finanzas', finanzas);
+  push('Reportes & SII', reportes);
 
   if (features.hasAccounting) {
     const contabilidad: NavLink[] = [];
@@ -290,9 +296,15 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
     push('Contabilidad', contabilidad);
   }
 
-  // Dos grupos a propósito: lo de uso diario separado de lo ocasional
-  // (plantillas y tableros de cumplimiento), que arranca colapsado.
+  // Producción de eventos en grupos cortos por tarea (antes era una sola
+  // lista de 13 enlaces): el certamen, sus candidatas, sus marcas, el show y
+  // lo que se vende al público. Lo ocasional (plantillas y tableros de
+  // cumplimiento) va aparte.
   const eventos: NavLink[] = [];
+  const candidatas: NavLink[] = [];
+  const auspicios: NavLink[] = [];
+  const show: NavLink[] = [];
+  const publico: NavLink[] = [];
   const eventosConfig: NavLink[] = [];
   if (features.hasEventProjects && allow('projects:read')) {
     eventos.push(
@@ -301,7 +313,7 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
     );
   }
   if (features.hasSponsorships && allow('sponsorships:read')) {
-    eventos.push(
+    auspicios.push(
       { id: 'sponsorships', href: '/dashboard/sponsorships', label: 'Auspicios & Marcas', icon: 'sponsorships', keywords: ['sponsor', 'auspiciador'] },
       { id: 'sponsorships-packages', href: '/dashboard/sponsorships/packages', label: 'Tarifario de Auspicios', icon: 'packages', keywords: ['planes', 'precios', 'kit comercial', 'cupos', 'oro', 'plata'] }
     );
@@ -310,11 +322,8 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
       eventosConfig.push({ id: 'sponsorships-template', href: '/dashboard/sponsorships/template', label: 'Plantilla: Carta de Compromiso', icon: 'sponsorships' });
     }
   }
-  if (features.hasFeeDocuments && allow('fees:read')) {
-    eventos.push({ id: 'fees', href: '/dashboard/fees', label: 'Boletas de Honorarios', icon: 'fees', keywords: ['honorarios', 'retencion'] });
-  }
   if (features.hasCandidates && allow('candidates:read')) {
-    eventos.push(
+    candidatas.push(
       { id: 'candidates', href: '/dashboard/candidates', label: 'Candidatas & Staff', icon: 'candidates', keywords: ['postulantes', 'participantes'] },
       { id: 'candidates-casting', href: '/dashboard/candidates/casting', label: 'Tablero de Casting', icon: 'casting', keywords: ['casting', 'seleccion', 'numerar', 'oficiales', 'finalistas'] },
       { id: 'candidates-attendance', href: '/dashboard/candidates/attendance', label: 'Asistencia', icon: 'candidates' }
@@ -327,25 +336,29 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
   // Checklist único de contratos (imagen de candidatas + cartas de auspicio):
   // aparece con cualquiera de los dos módulos; la página filtra por permiso.
   if ((features.hasCandidates && allow('candidates:read')) || (features.hasSponsorships && allow('sponsorships:read'))) {
-    eventos.push({ id: 'contracts', href: '/dashboard/contracts', label: 'Contratos firmados', icon: 'contracts', keywords: ['firma', 'firmados', 'contrato de imagen', 'carta de compromiso', 'checklist', 'zapsign'] });
+    candidatas.push({ id: 'contracts', href: '/dashboard/contracts', label: 'Contratos firmados', icon: 'contracts', keywords: ['firma', 'firmados', 'contrato de imagen', 'carta de compromiso', 'checklist', 'zapsign'] });
   }
   if (features.hasLiveProduction && allow('production:read')) {
-    eventos.push(
+    show.push(
       { id: 'production-timeline', href: '/dashboard/production/timeline', label: 'Escaleta en Vivo', icon: 'timeline', keywords: ['escaleta', 'run of show', 'cronograma', 'show'] },
       { id: 'production-wardrobe', href: '/dashboard/production/wardrobe', label: 'Vestuario', icon: 'wardrobe', keywords: ['ropa', 'looks', 'cambios'] },
       { id: 'production-accreditation', href: '/dashboard/production/accreditation', label: 'Acreditaciones', icon: 'production', keywords: ['credencial', 'qr', 'acceso'] }
     );
   }
   if (features.hasJudging && allow('judging:read')) {
-    eventos.push({ id: 'judging', href: '/dashboard/judging', label: 'Votación & Escrutinio', icon: 'judging', keywords: ['jurado', 'puntaje'] });
+    show.push({ id: 'judging', href: '/dashboard/judging', label: 'Votación & Escrutinio', icon: 'judging', keywords: ['jurado', 'puntaje'] });
   }
   if (features.hasTicketing && allow('ticketing:read')) {
-    eventos.push({ id: 'ticketing', href: '/dashboard/ticketing', label: 'Venta de Entradas', icon: 'ticketing', keywords: ['tickets', 'entradas'] });
+    publico.push({ id: 'ticketing', href: '/dashboard/ticketing', label: 'Venta de Entradas', icon: 'ticketing', keywords: ['tickets', 'entradas'] });
   }
   if (features.hasPublicVoting && allow('publicvoting:read')) {
-    eventos.push({ id: 'voting', href: '/dashboard/voting', label: 'Votación Pagada', icon: 'voting', keywords: ['votos', 'publico'] });
+    publico.push({ id: 'voting', href: '/dashboard/voting', label: 'Votación Pagada', icon: 'voting', keywords: ['votos', 'publico'] });
   }
-  push('Producción de Eventos', eventos);
+  push('Certámenes & Eventos', eventos);
+  push('Candidatas', candidatas);
+  push('Auspicios & Marcas', auspicios);
+  push('Show en vivo', show);
+  push('Entradas & Votación', publico);
   push('Plantillas y Cumplimiento', eventosConfig, true);
 
   const personas: NavLink[] = [];

@@ -78,6 +78,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
         initialMaxUsers={company.maxUsers}
         initialMaxWarehouses={company.maxWarehouses}
         initialFeatures={tenant.features}
+        initialDisabledNavItems={tenant.disabledNavItems}
         userCount={tenant.userCount}
         warehouseCount={tenant.warehouseCount}
       />

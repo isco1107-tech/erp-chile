@@ -171,6 +171,8 @@ export const companyPlanUpdateSchema = z.object({
   maxUsers: z.number().int().min(1, 'Debe permitir al menos 1 usuario'),
   maxWarehouses: z.number().int().min(1, 'Debe permitir al menos 1 bodega'),
   features: companyFeaturesSchema,
+  /** Pantallas del menú apagadas para la empresa (se sanean contra el registro al guardar). */
+  disabledNavItems: z.array(z.string().max(80)).max(300).optional(),
 });
 
 export type CompanyPlanUpdateInput = z.infer<typeof companyPlanUpdateSchema>;
