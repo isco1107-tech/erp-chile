@@ -88,7 +88,7 @@ export async function deleteCustomRole(companyId: string, id: string): Promise<v
     );
   }
 
-  await prisma.customRole.delete({ where: { id } });
+  await prisma.customRole.deleteMany({ where: { id, companyId } });
 }
 
 /** Asigna o quita el rol personalizado de un miembro del equipo. */
@@ -105,7 +105,7 @@ export async function assignCustomRole(
     if (!role) throw new Error('Rol no encontrado');
   }
 
-  await prisma.user.update({ where: { id: userId }, data: { customRoleId } });
+  await prisma.user.updateMany({ where: { id: userId, companyId }, data: { customRoleId } });
 }
 
 /** Usuarios activos de la empresa, para contrastar contra `maxUsers` del plan. */
