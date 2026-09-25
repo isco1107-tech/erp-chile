@@ -71,6 +71,8 @@ export interface PublicPageantSite {
   director: { name: string; title: DirectorTitle | null; role: string | null; bio: string | null; photoUrl: string | null; highlights: string[] } | null;
   /** Nota para sponsors bajo los paquetes (exclusividad por rubro, etc.). */
   sponsorNote: string | null;
+  /** Dominio propio ya verificado (ej. `missuniversotemuco.cl`); `null` si el sitio vive solo en `/certamen/{slug}`. */
+  customDomain: string | null;
 }
 
 function isAccent(value: string): value is PublicAccentKey {
@@ -252,10 +254,37 @@ export async function getPublicPageantSite(slug: string): Promise<PublicPageantS
         }
       : null,
     sponsorNote: project.sponsorExclusivityNote?.trim() || null,
+    customDomain: project.customDomainVerifiedAt ? project.customDomain : null,
   };
 }
 
 /** Lo mínimo para registrar un "Quiero ser sponsor": el formulario solo existe si el sitio lo muestra. */
+/**
+ * Slug del certamen publicado bajo un dominio propio (para `/sitio/[host]`).
+ *
+ * `reachedViaDomain`: la petición llegó a la plataforma por ese mismo host,
+ * prueba de que los DNS y el certificado ya funcionan (Vercel solo enruta a
+ * este proyecto los dominios que tiene agregados). En ese caso un dominio aún
+ * sin verificar se marca verificado en el acto, sin esperar a que alguien
+ * pulse "Revisar estado" en el panel. Sin esa prueba, solo publica un
+ * dominio ya verificado.
+ */
+export async function getPageantSlugByDomain(domain: string, reachedViaDomain = false): Promise<string | null> {
+  const project = await prisma.project.findUnique({
+    where: { customDomain: domain },
+    select: { id: true, companyId: true, publicSlug: true, customDomainVerifiedAt: true },
+  });
+  if (!project?.publicSlug) return null;
+  if (!project.customDomainVerifiedAt) {
+    if (!reachedViaDomain) return null;
+    await prisma.project.updateMany({
+      where: { id: project.id, companyId: project.companyId, customDomain: domain, customDomainVerifiedAt: null },
+      data: { customDomainVerifiedAt: new Date() },
+    });
+  }
+  return project.publicSlug;
+}
+
 export async function resolveSponsorLeadTarget(
   slug: string
 ): Promise<{

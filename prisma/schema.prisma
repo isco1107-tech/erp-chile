@@ -1890,6 +1890,14 @@ model Project {
   /// hasta que alguien la configura; publicar exige además `publicSiteEnabled`.
   publicSlug              String?   @unique
   publicSiteEnabled       Boolean   @default(false)
+  /// Dominio propio del micrositio (ej. `missuniversotemuco.cl`), en
+  /// minúsculas y sin `www.`: con él, el sitio se sirve en la raíz de ese
+  /// dominio (ver `src/proxy.ts` y `/sitio/[host]`). Único en la plataforma.
+  customDomain            String?   @unique
+  /// Cuándo se comprobó que el dominio apunta bien a la plataforma (DNS y
+  /// verificación de Vercel). Solo con esto el enlace `/certamen/{slug}`
+  /// redirige al dominio propio: antes, el sitio sigue en la dirección normal.
+  customDomainVerifiedAt  DateTime?
   publicTagline           String?
   publicDescription       String?
   coverImageUrl           String?

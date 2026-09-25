@@ -16,6 +16,7 @@ import { DIRECTOR_TITLES, directorCopy, type DirectorTitle } from '@/lib/events/
 import { checkPublicSlugAction, updatePublicSiteAction } from '@/modules/projects/actions/projects.actions';
 import { PUBLIC_ACCENT_LABELS, PUBLIC_ACCENTS, type PublicAccentKey } from '@/modules/projects/schema';
 import { cn } from '@/lib/utils';
+import { CustomDomainSection } from './CustomDomainSection';
 
 /** Muestras de color de los acentos del sistema público (los mismos de `PublicShell`). */
 const ACCENT_SWATCH: Record<PublicAccentKey, string> = {
@@ -171,6 +172,8 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
             )}
           </div>
         </section>
+
+        <CustomDomainSection projectId={project.id} canWrite={canWrite} siteEnabled={project.publicSiteEnabled} />
 
         <section className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-card">
           <h2 className="text-base font-semibold">Portada y textos</h2>
@@ -391,7 +394,7 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
             </div>
           </div>
           {sitePath && project.publicSlug === values.publicSlug && project.publicSiteEnabled ? (
-            <a href={sitePath} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1.5 text-sm text-primary hover:underline">
+            <a href={project.customDomain && project.customDomainVerifiedAt ? `https://${project.customDomain}` : sitePath} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1.5 text-sm text-primary hover:underline">
               <ExternalLink className="size-4" aria-hidden="true" />
               Ver el sitio publicado
             </a>
