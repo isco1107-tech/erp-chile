@@ -37,6 +37,8 @@ export const PAGEANT_SITE_STYLES = `
   font-size: 16px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  /* Cormorant trae números antiguos por defecto: en texto corrido se piden de caja alta. */
+  font-variant-numeric: lining-nums;
   overflow-x: clip;
 }
 .pgs[data-accent='rose'] { --a: #f2c2cb; --a-bright: #fbe3e8; --a-mid: #b3243f; --a-deep: #8e1b32; }
