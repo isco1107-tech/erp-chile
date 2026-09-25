@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { contactEmailField, contactWhatsappField, instagramHandleField } from '@/lib/events/pageant-contact';
 import type { ProjectStatus } from '@prisma/client';
 import { publicSlugProblem } from '@/lib/events/public-slug';
 
@@ -74,15 +75,9 @@ export const projectPublicSiteSchema = z
       .or(z.literal(''))
       .transform((value) => (value ? value : null)),
     publicAccent: z.enum(PUBLIC_ACCENTS).default('gold'),
-    instagramHandle: optionalText(60),
-    publicContactEmail: z
-      .string()
-      .trim()
-      .email('El correo de contacto no es válido')
-      .max(160)
-      .optional()
-      .or(z.literal(''))
-      .transform((value) => (value ? value : null)),
+    instagramHandle: instagramHandleField,
+    publicContactEmail: contactEmailField,
+    publicWhatsapp: contactWhatsappField,
     showCandidatesPublic: z.boolean(),
     showSponsorsPublic: z.boolean(),
     showVoteRankingPublic: z.boolean(),

@@ -15,6 +15,7 @@ import { sniffImageType, SNIFFED_IMAGE_EXTENSION, sniffCertificateType, SNIFFED_
 import { extractClientIp } from '@/lib/auth/ip-allowlist';
 import { checkRateLimit, peekRateLimit, CANDIDATE_APPLICATION_ATTEMPT_RATE_LIMIT, CANDIDATE_APPLICATION_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { sendEmail, getAppUrl } from '@/lib/email/mailer';
+import { pageantContact } from '@/lib/events/pageant-contact';
 import { buildCandidateApplicationConfirmationEmail, buildNewCandidateApplicationNoticeEmail } from '@/lib/email/templates';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import { captureException } from '@/lib/observability';
@@ -274,17 +275,23 @@ async function sendConfirmationEmails(
   folio: string,
   companyId: string
 ): Promise<void> {
-  const project = await prisma.project.findUnique({ where: { id: candidate.projectId }, select: { name: true, company: { select: { businessName: true } } } });
+  const project = await prisma.project.findUnique({
+    where: { id: candidate.projectId },
+    select: { name: true, publicContactEmail: true, publicWhatsapp: true, instagramHandle: true, company: { select: { businessName: true } } },
+  });
   if (!project) return;
 
   if (candidate.email) {
+    const contact = pageantContact(project);
     const confirmation = buildCandidateApplicationConfirmationEmail({
       fullName: candidate.fullName,
       projectName: project.name,
       companyName: project.company.businessName,
       folio,
+      contact,
     });
-    await sendEmail({ to: candidate.email, ...confirmation });
+    // Si la postulante responde el correo, la respuesta llega al certamen, no a la plataforma.
+    await sendEmail({ to: candidate.email, ...confirmation, ...(contact.email ? { replyTo: contact.email } : {}) });
   }
 
   const owners = await prisma.user.findMany({ where: { companyId, role: 'OWNER', isActive: true }, select: { email: true } });

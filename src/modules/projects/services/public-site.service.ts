@@ -2,6 +2,7 @@ import 'server-only';
 
 import type { CandidateStatus, SponsorshipTier } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { pageantContact } from '@/lib/events/pageant-contact';
 import { decodeVoteToken } from '@/modules/public-voting/schema';
 import { SPONSORSHIP_TIER_LABELS, SPONSORSHIP_TIERS } from '@/modules/sponsorships/schema';
 import type { PublicAccentKey } from '../schema';
@@ -46,12 +47,13 @@ export interface PublicPageantSite {
   accent: PublicAccentKey;
   instagramHandle: string | null;
   contactEmail: string | null;
+  whatsapp: { href: string; label: string } | null;
   candidates: PublicPageantCandidate[];
   sponsorsByTier: Array<{ tier: SponsorshipTier; label: string; names: string[] }>;
   packages: Array<{ id: string; name: string; tierLabel: string; price: number | null; benefits: string[]; description: string | null; slotsLeft: number | null }>;
   tickets: { href: string; fromPrice: number | null } | null;
   voting: { href: string; pricePerVote: number } | null;
-  registration: { href: string; closesAt: string | null } | null;
+  registration: { href: string; closesAt: string | null; minAge: number } | null;
   voteRanking: Array<{ name: string; number: number | null; votes: number }> | null;
   results: Array<{ rank: number; name: string; number: number | null; representing: string | null; photoUrl: string | null }> | null;
   sponsorLeadForm: boolean;
@@ -161,6 +163,8 @@ export async function getPublicPageantSite(slug: string): Promise<PublicPageantS
     (!project.registrationOpensAt || project.registrationOpensAt <= now) &&
     (!project.registrationClosesAt || project.registrationClosesAt > now);
 
+  const contact = pageantContact(project);
+
   return {
     slug,
     name: project.name,
@@ -173,8 +177,9 @@ export async function getPublicPageantSite(slug: string): Promise<PublicPageantS
     venueAddress: project.venueAddress,
     coverImageUrl: project.coverImageUrl,
     accent: isAccent(project.publicAccent) ? project.publicAccent : 'gold',
-    instagramHandle: project.instagramHandle?.replace(/^@/, '') ?? null,
-    contactEmail: project.publicContactEmail,
+    instagramHandle: contact.instagram?.handle ?? null,
+    contactEmail: contact.email,
+    whatsapp: contact.whatsapp,
     candidates: candidates.map((c) => ({
       id: c.id,
       name: c.stageName || c.fullName,
@@ -198,7 +203,9 @@ export async function getPublicPageantSite(slug: string): Promise<PublicPageantS
     })),
     tickets: ticketTypes.length > 0 && project.ticketSalesToken ? { href: `/tickets/${project.ticketSalesToken}`, fromPrice: Math.min(...ticketTypes.map((t) => t.price)) } : null,
     voting: decodedVote && project.voteSalesToken ? { href: `/votar/${project.voteSalesToken}`, pricePerVote: decodedVote.pricePerVote } : null,
-    registration: registrationOpen ? { href: `/register/candidate/${project.candidateRegistrationToken}`, closesAt: project.registrationClosesAt?.toISOString() ?? null } : null,
+    registration: registrationOpen
+      ? { href: `/register/candidate/${project.candidateRegistrationToken}`, closesAt: project.registrationClosesAt?.toISOString() ?? null, minAge: project.minCandidateAge }
+      : null,
     voteRanking,
     results:
       finalRound && finalRound.contestants.length > 0

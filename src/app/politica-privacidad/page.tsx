@@ -1,7 +1,21 @@
 import LegalDocumentLayout from '@/components/legal/LegalDocumentLayout';
-import { CONFIG } from '@/modules/candidates/registration-config';
+import type { Metadata } from 'next';
+import { cache, type ReactNode } from 'react';
+import { getRegistrationPrivacyInfo } from '@/modules/candidates/services/candidates.service';
 
-export const metadata = { title: `Política de privacidad — ${CONFIG.certamenNombre}` };
+type SearchParams = Promise<{ certamen?: string | string[] }>;
+
+/** El link de postulación agrega `?certamen=<token>`: con él la política nombra al certamen, su organización y su correo. */
+const loadCertamen = cache(async (raw: string | string[] | undefined) => {
+  const token = Array.isArray(raw) ? raw[0] : raw;
+  if (!token || !/^[A-Za-z0-9_-]{16,128}$/.test(token)) return null;
+  return getRegistrationPrivacyInfo(token);
+});
+
+export async function generateMetadata({ searchParams }: { searchParams: SearchParams }): Promise<Metadata> {
+  const info = await loadCertamen((await searchParams).certamen);
+  return { title: info ? `Política de privacidad — ${info.projectName}` : 'Política de privacidad — postulación a certámenes', robots: { index: false } };
+}
 
 /**
  * Política de privacidad de la candidata (Ley N.° 19.628 sobre Protección de
@@ -16,19 +30,31 @@ export const metadata = { title: `Política de privacidad — ${CONFIG.certamenN
  * `[ ... ]` marca los datos que identifican a la organización (RUT,
  * domicilio) que esta página no puede inventar — mismo criterio de
  * placeholder que ya usa `contract-template-default.ts` para datos legales
- * que solo la organización conoce.
+ * que solo la organización conoce. El nombre del certamen, la organización y
+ * el correo salen del certamen del link (`?certamen=`), nunca de datos fijos.
  */
-export default function PoliticaPrivacidadPage() {
+export default async function PoliticaPrivacidadPage({ searchParams }: { searchParams: SearchParams }) {
+  const info = await loadCertamen((await searchParams).certamen);
+  const certamen = info ? <strong>{info.projectName}</strong> : 'el certamen';
+  const responsible = info ? (
+    <>
+      <strong>{info.companyName}</strong>, organizadora de <strong>{info.projectName}</strong>
+    </>
+  ) : (
+    'la organización del certamen'
+  );
+  const writeTo: ReactNode = info?.contactEmail ? <a href={`mailto:${info.contactEmail}`}>{info.contactEmail}</a> : 'los canales de contacto de la organización';
+
   return (
     <LegalDocumentLayout
-      eyebrow={CONFIG.certamenNombre}
+      eyebrow={info?.projectName ?? 'Postulación al certamen'}
       title="Política de privacidad"
       lastUpdated="1 de septiembre de 2026"
       backHref="/"
       backLabel="Volver al inicio"
     >
       <p>
-        Esta política explica qué datos personales recopila <strong>{CONFIG.certamenNombre}</strong> (en adelante,
+        Esta política explica qué datos personales recopila la organización de {certamen} (en adelante,
         &ldquo;la organización&rdquo;) a través del formulario público de postulación al certamen, con qué finalidad
         los trata, cómo los protege y qué derechos tiene la titular de esos datos. Se rige por la Ley N.° 19.628 sobre
         Protección de la Vida Privada y, en lo que corresponda, por la Ley N.° 21.719 sobre Protección de Datos
@@ -37,10 +63,9 @@ export default function PoliticaPrivacidadPage() {
 
       <h2>1. Responsable del tratamiento</h2>
       <p>
-        El responsable del tratamiento de los datos recopilados en este formulario es{' '}
-        <strong>{CONFIG.certamenNombre}</strong>, RUT [RUT de la organización], con domicilio en [domicilio de la
-        organización]. Cualquier consulta sobre esta política o sobre tus datos personales puede dirigirse a{' '}
-        <a href={`mailto:${CONFIG.contactoEmail}`}>{CONFIG.contactoEmail}</a>.
+        El responsable del tratamiento de los datos recopilados en este formulario es {responsible}, RUT [RUT de la
+        organización], con domicilio en [domicilio de la organización]. Cualquier consulta sobre esta política o sobre
+        tus datos personales puede dirigirse a {writeTo}.
       </p>
 
       <h2>2. Qué datos recopilamos</h2>
@@ -67,7 +92,7 @@ export default function PoliticaPrivacidadPage() {
         <li>
           Solo si marcaste la casilla correspondiente al postular, contactarte con fines de difusión o marketing
           relacionados con el certamen. Esta autorización es independiente de las demás y puedes revocarla en
-          cualquier momento escribiendo a <a href={`mailto:${CONFIG.contactoEmail}`}>{CONFIG.contactoEmail}</a>.
+          cualquier momento escribiendo a {writeTo}.
         </li>
       </ul>
       <p>
@@ -100,8 +125,7 @@ export default function PoliticaPrivacidadPage() {
         <li><strong>Oposición:</strong> oponerte a un uso específico de tus datos, por ejemplo el contacto de marketing.</li>
       </ul>
       <p>
-        Para ejercer cualquiera de estos derechos, escríbenos a{' '}
-        <a href={`mailto:${CONFIG.contactoEmail}`}>{CONFIG.contactoEmail}</a> indicando tu nombre completo y RUT.
+        Para ejercer cualquiera de estos derechos, escríbenos a {writeTo} indicando tu nombre completo y RUT.
         Responderemos dentro de los plazos que establece la ley.
       </p>
 

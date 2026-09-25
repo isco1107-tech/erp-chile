@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { textareaClass } from '@/components/ui/field-classes';
+import { formatWhatsappNumber } from '@/lib/events/pageant-contact';
 import { slugify } from '@/lib/events/public-slug';
 import { checkPublicSlugAction, updatePublicSiteAction } from '@/modules/projects/actions/projects.actions';
 import { PUBLIC_ACCENT_LABELS, PUBLIC_ACCENTS, type PublicAccentKey } from '@/modules/projects/schema';
@@ -43,8 +44,9 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
     publicDescription: project.publicDescription ?? '',
     coverImageUrl: project.coverImageUrl ?? '',
     publicAccent: ((PUBLIC_ACCENTS as readonly string[]).includes(project.publicAccent) ? project.publicAccent : 'gold') as PublicAccentKey,
-    instagramHandle: project.instagramHandle ?? '',
+    instagramHandle: project.instagramHandle ? `@${project.instagramHandle.replace(/^@/, '')}` : '',
     publicContactEmail: project.publicContactEmail ?? '',
+    publicWhatsapp: project.publicWhatsapp ? formatWhatsappNumber(project.publicWhatsapp) : '',
     showCandidatesPublic: project.showCandidatesPublic,
     showSponsorsPublic: project.showSponsorsPublic,
     showVoteRankingPublic: project.showVoteRankingPublic,
@@ -195,16 +197,21 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
               ))}
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div>
               <Label htmlFor="site-ig">Instagram del certamen</Label>
               <Input id="site-ig" value={values.instagramHandle} onChange={(e) => set('instagramHandle', e.target.value)} placeholder="@misschileoficial" disabled={!canWrite} />
             </div>
             <div>
+              <Label htmlFor="site-wsp">WhatsApp del certamen</Label>
+              <Input id="site-wsp" type="tel" value={values.publicWhatsapp} onChange={(e) => set('publicWhatsapp', e.target.value)} placeholder="+56 9 1234 5678" disabled={!canWrite} />
+            </div>
+            <div>
               <Label htmlFor="site-email">Correo de contacto público</Label>
-              <Input id="site-email" type="email" value={values.publicContactEmail} onChange={(e) => set('publicContactEmail', e.target.value)} placeholder="comercial@…" disabled={!canWrite} />
+              <Input id="site-email" type="email" value={values.publicContactEmail} onChange={(e) => set('publicContactEmail', e.target.value)} placeholder="contacto@…" disabled={!canWrite} />
             </div>
           </div>
+          <p className="text-xs text-muted-foreground">El mismo contacto aparece en el formulario de postulación del certamen.</p>
         </section>
 
         <section className="rounded-lg border border-border bg-card p-5 shadow-card">

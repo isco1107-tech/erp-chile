@@ -1899,6 +1899,10 @@ model Project {
   publicAccent           String    @default("gold")
   instagramHandle        String?
   publicContactEmail     String?
+  /// WhatsApp de contacto del certamen (solo dígitos, formato wa.me: 56912345678).
+  /// Junto a `publicContactEmail` e `instagramHandle` es lo que ven las
+  /// postulantes y el público: contacto de cada certamen, no de la plataforma.
+  publicWhatsapp         String?
   /// Qué secciones muestra el micrositio. Candidatas y auspiciadores
   /// visibles por defecto (es la razón de ser del sitio); ranking de votos y
   /// resultados apagados hasta que producción decida revelarlos.
