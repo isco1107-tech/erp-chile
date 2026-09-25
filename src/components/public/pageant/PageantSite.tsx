@@ -317,12 +317,7 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
       {/* ── Barra superior ─────────────────────────────────────────────── */}
       <header className={`pgs-top${scrolled || menuOpen ? ' is-solid' : ''}`}>
         <a className="pgs-brand" href="#inicio" aria-label={`${site.name}, inicio`}>
-          {site.organizerLogoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={site.organizerLogoUrl} alt="" className="pgs-brand-logo" />
-          ) : (
-            <Crown className="pgs-brand-mark" />
-          )}
+          <Crown className="pgs-brand-mark" />
           <span className="pgs-brand-name">
             {title.lead && <span className="pgs-brand-lead">{title.lead} </span>}
             {title.main}
@@ -409,9 +404,6 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
 
         <div className="pgs-hero-inner">
           <Tiara className="pgs-tiara" />
-          <p className="pgs-hero-eyebrow pgs-rise" style={{ animationDelay: '0.2s' }}>
-            {site.organizer} presenta
-          </p>
           <h1 id="pgs-title" className="pgs-title" style={titleFit}>
             {title.lead && (
               <span className="pgs-title-lead pgs-rise" style={{ animationDelay: '0.3s' }}>
@@ -1112,7 +1104,6 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
               {shortName}
               {title.edition && <span className="pgs-footer-edition">{title.edition}</span>}
             </p>
-            <p className="pgs-muted">Organiza {site.organizer}</p>
           </div>
           {navItems.length > 0 && (
             <nav className="pgs-footer-nav" aria-label="Secciones (pie)">
@@ -1149,10 +1140,10 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
         </p>
         <div className="pgs-wrap pgs-footer-legal">
           <p>
-            © {title.edition ?? ''} {site.organizer}
+            © {title.edition ?? ''} {shortName}
           </p>
           <p>
-            <a href="/politica-privacidad">Privacidad</a> · Producción gestionada con Aether
+            <a href="/politica-privacidad">Privacidad</a>
           </p>
         </div>
       </footer>

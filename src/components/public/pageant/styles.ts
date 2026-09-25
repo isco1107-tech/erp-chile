@@ -105,7 +105,6 @@ export const PAGEANT_SITE_STYLES = `
 .pgs-top.is-solid { padding-top: 0.7rem; padding-bottom: 0.7rem; background: rgba(7, 10, 28, 0.82); border-bottom-color: var(--line-night); backdrop-filter: blur(18px) saturate(140%); -webkit-backdrop-filter: blur(18px) saturate(140%); }
 .pgs-brand { display: inline-flex; align-items: center; gap: 0.65rem; text-decoration: none; min-width: 0; }
 .pgs-brand-mark { width: 1.6rem; height: 1.6rem; color: var(--a); flex: none; }
-.pgs-brand-logo { height: 2rem; width: auto; max-width: 7rem; object-fit: contain; }
 .pgs-brand-name { font-family: var(--display); font-size: 1.3rem; letter-spacing: 0.04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pgs-nav { display: none; gap: 2rem; }
 .pgs-nav a { position: relative; font-size: 0.74rem; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; text-decoration: none; color: var(--on-night-dim); transition: color 0.3s; padding: 0.3rem 0; }

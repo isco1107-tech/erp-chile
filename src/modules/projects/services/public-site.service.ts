@@ -37,7 +37,6 @@ export interface PublicPageantSite {
   slug: string;
   name: string;
   organizer: string;
-  organizerLogoUrl: string | null;
   tagline: string | null;
   description: string | null;
   galaDate: string | null;
@@ -76,7 +75,7 @@ function isAccent(value: string): value is PublicAccentKey {
 export async function getPublicPageantSite(slug: string): Promise<PublicPageantSite | null> {
   const project = await prisma.project.findUnique({
     where: { publicSlug: slug },
-    include: { company: { select: { businessName: true, logoUrl: true, status: true, features: true } } },
+    include: { company: { select: { businessName: true, status: true, features: true } } },
   });
   if (!project || !project.publicSiteEnabled) return null;
   const { company } = project;
@@ -179,7 +178,6 @@ export async function getPublicPageantSite(slug: string): Promise<PublicPageantS
     slug,
     name: project.name,
     organizer: company.businessName,
-    organizerLogoUrl: company.logoUrl,
     tagline: project.publicTagline,
     description: project.publicDescription,
     galaDate: project.galaDate?.toISOString() ?? null,

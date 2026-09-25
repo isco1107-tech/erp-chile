@@ -58,9 +58,8 @@ export default async function OpengraphImage({ params }: { params: Promise<{ slu
   const accent = ACCENTS[site?.accent ?? 'gold'] ?? ACCENTS.gold;
   const gala = site?.galaDate ? galaDateParts(site.galaDate) : null;
   const meta = [gala ? `${gala.day} de ${gala.month} · ${gala.time} h` : null, site?.venueName ?? null].filter(Boolean).join('   ·   ');
-  const organizerLine = site ? `${site.organizer} presenta` : '';
   // Todo el texto de la imagen va en el recorte de la fuente: si falta un carácter, se mezclaría con la de respaldo.
-  const allText = [organizerLine, organizerLine.toUpperCase(), title.lead.toUpperCase(), title.main, title.edition ?? '', meta].join('');
+  const allText = [title.lead.toUpperCase(), title.main, title.edition ?? '', meta].join('');
   const [font, cover] = await Promise.all([loadDisplayFont(allText), loadCover(site?.coverImageUrl ?? null)]);
   const mainSize = Math.min(210, Math.floor(1000 / Math.max(title.main.length * 0.62, 3.2)));
 
@@ -87,7 +86,6 @@ export default async function OpengraphImage({ params }: { params: Promise<{ slu
         <div style={{ position: 'absolute', top: 36, left: 36, width: 70, height: 70, display: 'flex', borderTop: `1px solid ${accent.a}`, borderLeft: `1px solid ${accent.a}`, opacity: 0.6 }} />
         <div style={{ position: 'absolute', bottom: 36, right: 36, width: 70, height: 70, display: 'flex', borderBottom: `1px solid ${accent.a}`, borderRight: `1px solid ${accent.a}`, opacity: 0.6 }} />
 
-        {organizerLine && <div style={{ display: 'flex', fontSize: 20, letterSpacing: 8, textTransform: 'uppercase', color: accent.a, marginBottom: 22 }}>{organizerLine}</div>}
         {title.lead && (
           <div style={{ display: 'flex', alignItems: 'center', fontSize: 28, letterSpacing: 16, textTransform: 'uppercase' }}>
             <div style={{ display: 'flex', width: 70, height: 1, background: accent.a, marginRight: 26 }} />
