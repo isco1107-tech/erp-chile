@@ -714,10 +714,11 @@ export interface RegistrationProjectInfo {
   closedReason: string | null;
   registrationClosesAt: Date | null;
   minCandidateAge: number;
-  /** No existe un campo dedicado a "fecha de casting" en el modelo — se
-   * reutiliza `Project.startDate` (fecha del evento) para la línea del hero
-   * que la pide (Sección 5: "fecha de cierre y la fecha de casting"). */
-  eventDate: Date | null;
+  /** Fecha y hora de la gala (`Project.galaDate`), no el inicio del proyecto. */
+  galaDate: Date | null;
+  venueName: string | null;
+  /** Acento visual del certamen (el mismo del micrositio). */
+  accent: string;
   /** Bajada del certamen (la misma del micrositio), si la organización la escribió. */
   tagline: string | null;
   /** Contacto del certamen para las postulantes: nunca datos fijos de la plataforma. */
@@ -749,7 +750,9 @@ export async function getRegistrationProjectByToken(token: string): Promise<Regi
     closedReason: reason,
     registrationClosesAt: project.registrationClosesAt,
     minCandidateAge: project.minCandidateAge,
-    eventDate: project.startDate,
+    galaDate: project.galaDate,
+    venueName: project.venueName,
+    accent: project.publicAccent,
     tagline: project.publicTagline,
     contact: pageantContact(project),
   };
