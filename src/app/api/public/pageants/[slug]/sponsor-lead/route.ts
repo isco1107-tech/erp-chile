@@ -1,10 +1,12 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { extractClientIp } from '@/lib/auth/ip-allowlist';
 import { checkRateLimit, SPONSOR_LEAD_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { captureException } from '@/lib/observability';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
-import { publicSponsorLeadSchema, SPONSOR_LEAD_HONEYPOT_FIELD } from '@/modules/crm/schema';
+import { publicSponsorLeadSchema, SPONSOR_LEAD_HONEYPOT_FIELD, type PublicSponsorLeadInput } from '@/modules/crm/schema';
+import { getAppUrl, sendEmail } from '@/lib/email/mailer';
+import { buildSponsorLeadNoticeEmail } from '@/lib/email/templates';
 import { createInboundSponsorLead } from '@/modules/crm/services/crm.service';
 import { resolveSponsorLeadTarget } from '@/modules/projects/services/public-site.service';
 
@@ -53,6 +55,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
     const target = await resolveSponsorLeadTarget(slug);
     if (!target) return jsonError('Este formulario ya no está disponible', 404);
 
+    if (!target.hasCrm) {
+      // Sin CRM contratado: aviso en la campanita y correo a la organización (fuera de la respuesta).
+      await notifyWithoutCrm(target, parsed.data);
+      return NextResponse.json({ success: true, data: null });
+    }
+
     const lead = await createInboundSponsorLead(target.companyId, target.project, parsed.data);
 
     if (!lead.deduplicated) {
@@ -60,7 +68,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
         data: {
           companyId: target.companyId,
           severity: 'INFO',
-          title: 'Nueva marca interesada en auspiciar',
+          title: 'Nueva marca interesada en ser sponsor',
           message: `${parsed.data.companyName} (${parsed.data.contactName}) escribió desde el sitio de ${target.project.name}.`,
           href: `/dashboard/crm?open=${lead.opportunityId}`,
         },
@@ -81,4 +89,46 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
     captureException(error, { module: 'crm', extra: { reason: 'public-sponsor-lead', slug } });
     return jsonError('No pudimos registrar tu solicitud. Intenta de nuevo en unos minutos.', 500);
   }
+}
+
+type SponsorLeadTarget = NonNullable<Awaited<ReturnType<typeof resolveSponsorLeadTarget>>>;
+
+async function notifyWithoutCrm(target: SponsorLeadTarget, lead: PublicSponsorLeadInput): Promise<void> {
+  const pkg = lead.packageId
+    ? await prisma.sponsorshipPackage.findFirst({
+        where: { id: lead.packageId, companyId: target.companyId, projectId: target.project.id, isPublic: true },
+        select: { name: true },
+      })
+    : null;
+
+  await prisma.workflowNotification.create({
+    data: {
+      companyId: target.companyId,
+      severity: 'INFO',
+      title: 'Nueva marca interesada en ser sponsor',
+      message: `${lead.companyName} (${lead.contactName} · ${lead.phone} · ${lead.email}) escribió desde el sitio de ${target.project.name}.`.slice(0, 500),
+      href: `/dashboard/projects/${target.project.id}`,
+    },
+  });
+
+  after(async () => {
+    try {
+      const recipients = target.contactEmail
+        ? [target.contactEmail]
+        : (await prisma.user.findMany({ where: { companyId: target.companyId, role: 'OWNER', isActive: true }, select: { email: true } })).map((u) => u.email);
+      const notice = buildSponsorLeadNoticeEmail({
+        projectName: target.project.name,
+        contactName: lead.contactName,
+        companyName: lead.companyName,
+        email: lead.email,
+        phone: lead.phone,
+        activity: lead.message,
+        packageName: pkg?.name ?? null,
+        dashboardUrl: `${getAppUrl()}/dashboard/projects/${target.project.id}`,
+      });
+      await Promise.all(recipients.map((to) => sendEmail({ to, ...notice, replyTo: lead.email })));
+    } catch (error) {
+      captureException(error, { module: 'crm', companyId: target.companyId, extra: { reason: 'sponsor-lead-email' } });
+    }
+  });
 }

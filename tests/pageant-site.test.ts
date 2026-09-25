@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { projectCreateSchema, projectUpdateSchema } from '@/modules/projects/schema';
+import { projectCreateSchema, projectPublicSiteSchema, projectUpdateSchema } from '@/modules/projects/schema';
 import {
+  audienceHero,
   buildPageantView,
   galaCalendarUrl,
   galaDateParts,
@@ -264,5 +265,66 @@ describe('formulario de proyecto con WhatsApp', () => {
 
   it('normaliza el WhatsApp al formato de wa.me', () => {
     expect(projectCreateSchema.parse({ ...payload, publicWhatsapp: '+56 9 8142 5816' }).publicWhatsapp).toBe('56981425816');
+  });
+});
+
+describe('hero por vista (candidata / sponsor)', () => {
+  const base = {
+    name: 'Miss Universo Las Condes 2026',
+    edition: '2026',
+    tagline: null,
+    maxCandidates: 20,
+    registrationClosesLabel: '30 de octubre',
+    registrationOpen: true,
+    packagePrices: [2000000, 500000, null],
+    formatMoney: (n: number) => `$${n.toLocaleString('es-CL')}`,
+  };
+
+  it('candidata: convocatoria con cupo y cierre reales', () => {
+    const hero = audienceHero('candidata', base);
+    expect(hero.kicker).toBe('Convocatoria 2026');
+    expect(hero.heading).toBe('Sé la próxima reina');
+    expect(hero.pills).toEqual(['Inscripción en línea', 'Solo 20 cupos', 'Hasta el 30 de octubre']);
+  });
+
+  it('candidata sin convocatoria abierta no promete inscripción', () => {
+    const hero = audienceHero('candidata', { ...base, registrationOpen: false });
+    expect(hero.pills).toEqual(['Solo 20 cupos']);
+    expect(hero.heading).not.toContain('próxima');
+  });
+
+  it('usa la frase del certamen si existe', () => {
+    expect(audienceHero('candidata', { ...base, tagline: 'Belleza con propósito' }).lead).toBe('Belleza con propósito');
+  });
+
+  it('sponsor: categorías y precio mínimo solo de paquetes con precio público', () => {
+    const hero = audienceHero('sponsor', base);
+    expect(hero.kicker).toBe('Patrocinios oficiales 2026');
+    expect(hero.heading).toBe('Sé sponsor de la corona');
+    expect(hero.pills).toEqual(['3 categorías', 'Desde $500.000 + IVA']);
+    expect(audienceHero('sponsor', { ...base, packagePrices: [] }).pills).toEqual([]);
+  });
+});
+
+describe('director del micrositio', () => {
+  const site = {
+    publicSiteEnabled: false,
+    showCandidatesPublic: true,
+    showSponsorsPublic: true,
+    showVoteRankingPublic: false,
+    showResultsPublic: false,
+    sponsorLeadFormEnabled: true,
+  };
+
+  it('la trayectoria ignora líneas vacías y repetidas; la foto vacía queda en null', () => {
+    const parsed = projectPublicSiteSchema.parse({
+      ...site,
+      directorName: 'Constanza Rey Ortiz',
+      directorPhotoUrl: '',
+      directorHighlights: ['Director Miss Venusmodel 2024', '', '  ', 'Director Miss Venusmodel 2024', 'Miss Teen Rostro 2018'],
+    });
+    expect(parsed.directorHighlights).toEqual(['Director Miss Venusmodel 2024', 'Miss Teen Rostro 2018']);
+    expect(parsed.directorPhotoUrl).toBeNull();
+    expect(parsed.directorRole).toBeNull();
   });
 });

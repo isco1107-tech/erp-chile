@@ -346,6 +346,45 @@ export function buildNewCandidateApplicationNoticeEmail(input: NewCandidateAppli
   return { subject, html, text };
 }
 
+export interface SponsorLeadNoticeEmailInput {
+  projectName: string;
+  contactName: string;
+  companyName: string;
+  email: string;
+  phone: string;
+  activity: string;
+  packageName: string | null;
+  dashboardUrl: string;
+}
+
+/** Aviso a la organización de una marca que quiere ser sponsor (empresas sin CRM contratado). */
+export function buildSponsorLeadNoticeEmail(input: SponsorLeadNoticeEmailInput): { subject: string; html: string; text: string } {
+  const subject = `Nueva solicitud de sponsor — ${input.projectName}`;
+  const rows: Array<[string, string]> = [
+    ['Nombre', input.contactName],
+    ['Empresa', input.companyName],
+    ['Correo', input.email],
+    ['Teléfono', input.phone],
+    ['A qué se dedica', input.activity],
+    ...(input.packageName ? ([['Paquete de interés', input.packageName]] as Array<[string, string]>) : []),
+  ];
+  const html = layout({
+    title: 'Nueva solicitud de sponsor',
+    body: `
+      <p style="margin:0 0 12px;">Una marca quiere ser sponsor de <strong>${escapeHtml(input.projectName)}</strong>.</p>
+      <table role="presentation" cellpadding="0" cellspacing="0" style="font-size:13px;margin:0 0 12px;">
+        ${rows.map(([label, value]) => `<tr><td style="padding:4px 12px 4px 0;color:#64748b;vertical-align:top;">${escapeHtml(label)}</td><td style="font-weight:600;">${escapeHtml(value)}</td></tr>`).join('\n        ')}
+      </table>
+      <p style="margin:0;">Responde a este correo para escribirle directamente.</p>
+    `,
+    ctaLabel: 'Abrir el panel',
+    ctaUrl: input.dashboardUrl,
+    footer: 'Aviso automático del formulario de sponsors del sitio del certamen.',
+  });
+  const text = [`Nueva solicitud de sponsor para ${input.projectName}`, '', ...rows.map(([label, value]) => `${label}: ${value}`)].join('\n');
+  return { subject, html, text };
+}
+
 export interface PaymentReminderDocument {
   dteLabel: string;
   folio: number | null;

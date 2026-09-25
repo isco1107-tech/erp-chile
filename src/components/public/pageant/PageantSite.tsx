@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { formatCurrency } from '@/lib/chile/tax';
 import {
+  audienceHero,
   initials,
   registrationProcess,
   splitPackageBenefits,
@@ -229,6 +230,15 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
     ? { href: whatsappMessageUrl(site.whatsapp.href, whatsappGreeting(isSponsorView ? 'sponsor' : 'candidata', site.name)), label: isSponsorView ? 'Escríbenos por WhatsApp para ser sponsor' : 'Escríbenos por WhatsApp para ser candidata' }
     : null;
   useReveal(rootRef, isSponsorView ? 'sponsor' : 'candidata');
+  const [openPackages, setOpenPackages] = useState<Set<string>>(() => new Set());
+  const togglePackage = (id: string) =>
+    setOpenPackages((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const [directorOpen, setDirectorOpen] = useState(false);
   const packageBenefits = useMemo(() => splitPackageBenefits(site.packages), [site.packages]);
   const pickedPackage = site.packages.find((p) => p.id === pickedPackageId) ?? null;
   const pickPackage = (id: string) => {
@@ -257,10 +267,11 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
       { id: 'votacion', label: 'Votación', show: candidateSide && Boolean(site.voteRanking && site.voteRanking.length > 0) },
       { id: 'gala', label: 'La gala', show: hasGala },
       { id: 'auspicios', label: showAudienceSwitch ? 'Paquetes' : 'Auspicios', show: hasSponsorSection && (isSponsorView || !showAudienceSwitch) },
+      { id: 'director', label: 'Director', show: Boolean(site.director) },
       { id: 'preguntas', label: 'Preguntas', show: candidateSide && view.faq.length > 0 },
     ];
     return list.filter((s) => s.show);
-  }, [winner, site.description, site.registration, site.candidates.length, site.voteRanking, hasGala, hasSponsorSection, view.highlights.length, view.faq.length, isSponsorView, showAudienceSwitch]);
+  }, [winner, site.description, site.registration, site.candidates.length, site.voteRanking, hasGala, hasSponsorSection, view.highlights.length, view.faq.length, isSponsorView, showAudienceSwitch, site.director]);
   const shows = (id: string) => sections.some((s) => s.id === id);
   const numberOf = (id: string) => pad(sections.findIndex((s) => s.id === id) + 1);
   const navItems = sections.filter((s) => !['camino', 'preguntas'].includes(s.id)).slice(0, 6);
@@ -305,6 +316,17 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
     site.tickets ? 'Entradas a la venta' : null,
   ].filter((item): item is string => Boolean(item));
 
+  const hero = audienceHero(isSponsorView ? 'sponsor' : 'candidata', {
+    name: site.name,
+    edition: title.edition,
+    tagline: isSponsorView ? null : site.tagline,
+    maxCandidates: site.registration?.maxCandidates ?? null,
+    registrationClosesLabel: view.registrationClosesLabel,
+    registrationOpen: Boolean(site.registration),
+    packagePrices: site.packages.map((p) => p.price),
+    formatMoney: formatCurrency,
+  });
+
   const titleFit = { '--pgs-fit': Math.max(title.main.length, 6) * 0.64 } as CSSProperties;
 
   return (
@@ -317,12 +339,7 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
       {/* ── Barra superior ─────────────────────────────────────────────── */}
       <header className={`pgs-top${scrolled || menuOpen ? ' is-solid' : ''}`}>
         <a className="pgs-brand" href="#inicio" aria-label={`${site.name}, inicio`}>
-          {site.organizerLogoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={site.organizerLogoUrl} alt="" className="pgs-brand-logo" />
-          ) : (
-            <Crown className="pgs-brand-mark" />
-          )}
+          <Crown className="pgs-brand-mark" />
           <span className="pgs-brand-name">
             {title.lead && <span className="pgs-brand-lead">{title.lead} </span>}
             {title.main}
@@ -410,7 +427,7 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
         <div className="pgs-hero-inner">
           <Tiara className="pgs-tiara" />
           <p className="pgs-hero-eyebrow pgs-rise" style={{ animationDelay: '0.2s' }}>
-            {site.organizer} presenta
+            {hero.kicker}
           </p>
           <h1 id="pgs-title" className="pgs-title" style={titleFit}>
             {title.lead && (
@@ -429,10 +446,21 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
               </span>
             )}
           </h1>
-          {site.tagline && (
-            <p className="pgs-tagline pgs-rise" style={{ animationDelay: '0.66s' }}>
-              {site.tagline}
-            </p>
+          <p className="pgs-hero-call pgs-rise" style={{ animationDelay: '0.62s' }}>
+            {hero.heading}
+          </p>
+          <p className="pgs-tagline pgs-rise" style={{ animationDelay: '0.7s' }}>
+            {hero.lead}
+          </p>
+          {hero.pills.length > 0 && (
+            <ul className="pgs-pills pgs-rise" style={{ animationDelay: '0.74s' }} aria-label="Datos clave">
+              {hero.pills.map((pill) => (
+                <li key={pill}>
+                  <Diamond className="pgs-pill-mark" />
+                  {pill}
+                </li>
+              ))}
+            </ul>
           )}
           {(view.gala || site.venueName) && (
             <p className="pgs-hero-meta pgs-rise" style={{ animationDelay: '0.76s' }}>
@@ -474,22 +502,24 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
           <div className="pgs-hero-ctas pgs-rise" style={{ animationDelay: '0.96s' }}>
             {isSponsorView ? (
               <>
-                {whatsappFloat ? (
-                  <a className="pgs-btn is-gold" href={whatsappFloat.href} target="_blank" rel="noopener noreferrer">
+                {site.sponsorLeadForm ? (
+                  <a className="pgs-btn is-gold" href="#formulario-sponsor">
                     <span>Quiero ser sponsor</span>
                     <Arrow className="pgs-btn-icon" />
                   </a>
                 ) : (
-                  site.sponsorLeadForm && (
-                    <a className="pgs-btn is-gold" href="#formulario-sponsor">
+                  whatsappFloat && (
+                    <a className="pgs-btn is-gold" href={whatsappFloat.href} target="_blank" rel="noopener noreferrer">
                       <span>Quiero ser sponsor</span>
                       <Arrow className="pgs-btn-icon" />
                     </a>
                   )
                 )}
                 {site.packages.length > 0 && (
-                  <a className="pgs-btn is-ghost" href="#auspicios">
-                    <span>Ver los {site.packages.length} paquetes</span>
+                  <a className="pgs-btn is-ghost" href="#paquetes">
+                    <span>
+                      Ver {site.packages.length === 1 ? 'el paquete' : `los ${site.packages.length} paquetes`}
+                    </span>
                   </a>
                 )}
               </>
@@ -517,11 +547,11 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
               </a>
             )}
           </div>
-          {!isSponsorView && view.registrationClosesLabel && (
-            <p className="pgs-hero-note pgs-rise" style={{ animationDelay: '1.05s' }}>
-              <span className="pgs-live-dot" aria-hidden="true" />
-              Postulaciones abiertas hasta el {view.registrationClosesLabel}
-            </p>
+          {site.director && (
+            <a className="pgs-link pgs-hero-link pgs-rise" style={{ animationDelay: '1s' }} href="#director">
+              Conoce al director
+              <Arrow className="pgs-btn-icon" />
+            </a>
           )}
         </div>
         <a className="pgs-scroll-cue" href="#contenido" aria-label="Bajar al contenido">
@@ -919,52 +949,60 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
 
               {site.packages.length > 0 && (
                 <>
-                  <div className="pgs-section-head is-center pgs-subhead" data-reveal>
+                  <div id="paquetes" className="pgs-section-head is-center pgs-subhead" data-reveal>
                     <Kicker index={numberOf('auspicios')}>Patrocinios oficiales</Kicker>
                     <h2 className="pgs-h2">
                       Elige tu paquete <em>de patrocinio</em>
                     </h2>
+                    <p className="pgs-muted pgs-head-note">Toca un paquete para ver todo lo que incluye.</p>
                   </div>
                   <ul className="pgs-packages">
                     {site.packages.map((p, i) => {
                       const exclusive = packageBenefits.exclusive[p.id] ?? [];
                       const priceLabel = p.price != null ? `${formatCurrency(p.price)} + IVA` : null;
                       return (
-                        <li key={p.id} className={`pgs-package${i === 0 ? ' is-featured' : ''}${p.slotsLeft === 0 ? ' is-soldout' : ''}`} data-reveal style={{ transitionDelay: `${i * 0.08}s` }}>
-                          <p className="pgs-eyebrow">{i === 0 && site.packages.length > 1 ? 'Más exclusivo' : p.tierLabel}</p>
-                          <p className="pgs-package-name">{p.name}</p>
-                          {p.price != null && (
-                            <p className="pgs-package-price">
-                              {formatCurrency(p.price)} <span>+ IVA</span>
-                            </p>
-                          )}
+                        <li key={p.id} className={`pgs-package${i === 0 ? ' is-featured' : ''}${p.slotsLeft === 0 ? ' is-soldout' : ''}${openPackages.has(p.id) ? ' is-open' : ''}`} data-reveal style={{ transitionDelay: `${i * 0.08}s` }}>
+                          <button type="button" className="pgs-package-toggle" aria-expanded={openPackages.has(p.id)} aria-controls={`paquete-${p.id}`} onClick={() => togglePackage(p.id)}>
+                            <span className="pgs-package-head">
+                              <span className="pgs-eyebrow">{i === 0 && site.packages.length > 1 ? 'Más exclusivo' : p.tierLabel}</span>
+                              <span className="pgs-package-name">{p.name}</span>
+                              {p.price != null && (
+                                <span className="pgs-package-price">
+                                  {formatCurrency(p.price)} <span>+ IVA</span>
+                                </span>
+                              )}
+                            </span>
+                            <Chevron direction="down" className="pgs-package-chevron" />
+                          </button>
                           {p.description && <p className="pgs-package-desc">{p.description}</p>}
-                          {packageBenefits.common.length > 0 && (
-                            <>
-                              <p className="pgs-package-group">Incluye en todos los paquetes</p>
-                              <ul className="pgs-benefits">
-                                {packageBenefits.common.map((benefit) => (
-                                  <li key={benefit}>
-                                    <Diamond className="pgs-benefit-mark" />
-                                    {benefit}
-                                  </li>
-                                ))}
-                              </ul>
-                            </>
-                          )}
-                          {exclusive.length > 0 && (
-                            <>
-                              {packageBenefits.common.length > 0 && <p className="pgs-package-group">Exclusivo {p.name}</p>}
-                              <ul className="pgs-benefits">
-                                {exclusive.map((benefit) => (
-                                  <li key={benefit}>
-                                    <Diamond className="pgs-benefit-mark" />
-                                    {benefit}
-                                  </li>
-                                ))}
-                              </ul>
-                            </>
-                          )}
+                          <div id={`paquete-${p.id}`} className="pgs-package-body" hidden={!openPackages.has(p.id)}>
+                            {packageBenefits.common.length > 0 && (
+                              <>
+                                <p className="pgs-package-group">Incluye en todos los paquetes</p>
+                                <ul className="pgs-benefits">
+                                  {packageBenefits.common.map((benefit) => (
+                                    <li key={benefit}>
+                                      <Diamond className="pgs-benefit-mark" />
+                                      {benefit}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </>
+                            )}
+                            {exclusive.length > 0 && (
+                              <>
+                                {packageBenefits.common.length > 0 && <p className="pgs-package-group">Exclusivo {p.name}</p>}
+                                <ul className="pgs-benefits">
+                                  {exclusive.map((benefit) => (
+                                    <li key={benefit}>
+                                      <Diamond className="pgs-benefit-mark" />
+                                      {benefit}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </>
+                            )}
+                          </div>
                           {p.slotsLeft != null && (
                             <p className="pgs-slots">{p.slotsLeft === 0 ? 'Cupos agotados' : `${p.slotsLeft} ${p.slotsLeft === 1 ? 'cupo disponible' : 'cupos disponibles'}`}</p>
                           )}
@@ -987,6 +1025,18 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
                     })}
                   </ul>
                 </>
+              )}
+
+              {site.sponsorNote && (
+                <div className="pgs-callout pgs-callout-note" data-reveal>
+                  <span className="pgs-callout-mark" aria-hidden="true">
+                    <Crown />
+                  </span>
+                  <div>
+                    <p className="pgs-callout-title">Exclusividad por categoría</p>
+                    <p>{site.sponsorNote}</p>
+                  </div>
+                </div>
               )}
 
               {site.whatsapp && showAudienceSwitch && (
@@ -1046,6 +1096,60 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
                   </div>
                 </>
               )}
+            </div>
+          </section>
+        )}
+
+        {/* ── Conoce al director ─────────────────────────────────────── */}
+        {shows('director') && site.director && (
+          <section id="director" className="pgs-section is-night is-deep" aria-labelledby="pgs-director-title">
+            <div className="pgs-wrap">
+              <div className="pgs-director" data-reveal>
+                {site.director.photoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img className="pgs-director-photo" src={site.director.photoUrl} alt={site.director.name} loading="lazy" decoding="async" />
+                ) : (
+                  <span className="pgs-director-photo pgs-monogram" role="img" aria-label={site.director.name}>
+                    <span>{initials(site.director.name)}</span>
+                  </span>
+                )}
+                <div className="pgs-director-body">
+                  <Kicker index={numberOf('director')}>Detrás del certamen</Kicker>
+                  <h2 id="pgs-director-title" className="pgs-h2">
+                    Conoce al <em>director</em>
+                  </h2>
+                  <p className="pgs-director-name">{site.director.name}</p>
+                  {site.director.role && <p className="pgs-director-role">{site.director.role}</p>}
+                  {site.director.bio && <p className="pgs-director-bio">{site.director.bio}</p>}
+                  {site.director.highlights.length > 0 && (
+                    <div className="pgs-director-career">
+                      <button type="button" className="pgs-director-toggle" aria-expanded={directorOpen} aria-controls="pgs-director-highlights" onClick={() => setDirectorOpen((v) => !v)}>
+                        <span>Trayectoria</span>
+                        <Chevron direction="down" className="pgs-package-chevron" />
+                      </button>
+                      <ul id="pgs-director-highlights" className="pgs-director-highlights" hidden={!directorOpen}>
+                        {site.director.highlights.map((item) => (
+                          <li key={item}>
+                            <Diamond className="pgs-benefit-mark" />
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {site.whatsapp && (
+                    <a
+                      className="pgs-btn is-ghost"
+                      href={whatsappMessageUrl(site.whatsapp.href, `Hola, tengo una consulta sobre ${site.name}`)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Whatsapp className="pgs-btn-icon is-lead" />
+                      <span>Escríbenos</span>
+                    </a>
+                  )}
+                </div>
+              </div>
             </div>
           </section>
         )}
@@ -1112,7 +1216,6 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
               {shortName}
               {title.edition && <span className="pgs-footer-edition">{title.edition}</span>}
             </p>
-            <p className="pgs-muted">Organiza {site.organizer}</p>
           </div>
           {navItems.length > 0 && (
             <nav className="pgs-footer-nav" aria-label="Secciones (pie)">
@@ -1149,10 +1252,10 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
         </p>
         <div className="pgs-wrap pgs-footer-legal">
           <p>
-            © {title.edition ?? ''} {site.organizer}
+            © {title.edition ?? ''} {shortName}
           </p>
           <p>
-            <a href="/politica-privacidad">Privacidad</a> · Producción gestionada con Aether
+            <a href="/politica-privacidad">Privacidad</a>
           </p>
         </div>
       </footer>

@@ -37,7 +37,6 @@ export interface PublicPageantSite {
   slug: string;
   name: string;
   organizer: string;
-  organizerLogoUrl: string | null;
   tagline: string | null;
   description: string | null;
   galaDate: string | null;
@@ -67,6 +66,10 @@ export interface PublicPageantSite {
   voteRanking: Array<{ name: string; number: number | null; votes: number }> | null;
   results: Array<{ rank: number; name: string; number: number | null; representing: string | null; photoUrl: string | null }> | null;
   sponsorLeadForm: boolean;
+  /** "Conoce al Director" (null si el certamen no cargó un nombre). */
+  director: { name: string; role: string | null; bio: string | null; photoUrl: string | null; highlights: string[] } | null;
+  /** Nota para sponsors bajo los paquetes (exclusividad por rubro, etc.). */
+  sponsorNote: string | null;
 }
 
 function isAccent(value: string): value is PublicAccentKey {
@@ -76,7 +79,7 @@ function isAccent(value: string): value is PublicAccentKey {
 export async function getPublicPageantSite(slug: string): Promise<PublicPageantSite | null> {
   const project = await prisma.project.findUnique({
     where: { publicSlug: slug },
-    include: { company: { select: { businessName: true, logoUrl: true, status: true, features: true } } },
+    include: { company: { select: { businessName: true, status: true, features: true } } },
   });
   if (!project || !project.publicSiteEnabled) return null;
   const { company } = project;
@@ -179,7 +182,6 @@ export async function getPublicPageantSite(slug: string): Promise<PublicPageantS
     slug,
     name: project.name,
     organizer: company.businessName,
-    organizerLogoUrl: company.logoUrl,
     tagline: project.publicTagline,
     description: project.publicDescription,
     galaDate: project.galaDate?.toISOString() ?? null,
@@ -236,12 +238,25 @@ export async function getPublicPageantSite(slug: string): Promise<PublicPageantS
             photoUrl: c.candidate.photoUrl,
           }))
         : null,
-    sponsorLeadForm: project.sponsorLeadFormEnabled && features.hasSalesPipeline,
+    // Con CRM la solicitud entra como prospecto; sin CRM llega por correo a la organización.
+    sponsorLeadForm: project.sponsorLeadFormEnabled,
+    director: project.directorName?.trim()
+      ? {
+          name: project.directorName.trim(),
+          role: project.directorRole,
+          bio: project.directorBio,
+          photoUrl: project.directorPhotoUrl,
+          highlights: project.directorHighlights,
+        }
+      : null,
+    sponsorNote: project.sponsorExclusivityNote?.trim() || null,
   };
 }
 
-/** Lo mínimo para registrar un "Quiero auspiciar": el formulario solo existe si el sitio lo muestra. */
-export async function resolveSponsorLeadTarget(slug: string): Promise<{ companyId: string; project: { id: string; name: string } } | null> {
+/** Lo mínimo para registrar un "Quiero ser sponsor": el formulario solo existe si el sitio lo muestra. */
+export async function resolveSponsorLeadTarget(
+  slug: string
+): Promise<{ companyId: string; hasCrm: boolean; contactEmail: string | null; project: { id: string; name: string } } | null> {
   const project = await prisma.project.findUnique({
     where: { publicSlug: slug },
     select: {
@@ -250,11 +265,17 @@ export async function resolveSponsorLeadTarget(slug: string): Promise<{ companyI
       companyId: true,
       publicSiteEnabled: true,
       sponsorLeadFormEnabled: true,
+      publicContactEmail: true,
       company: { select: { status: true, features: { select: { hasEventProjects: true, hasSalesPipeline: true } } } },
     },
   });
   if (!project?.publicSiteEnabled || !project.sponsorLeadFormEnabled) return null;
   if (project.company.status === 'SUSPENDED' || project.company.status === 'CANCELLED') return null;
-  if (!project.company.features?.hasEventProjects || !project.company.features.hasSalesPipeline) return null;
-  return { companyId: project.companyId, project: { id: project.id, name: project.name } };
+  if (!project.company.features?.hasEventProjects) return null;
+  return {
+    companyId: project.companyId,
+    hasCrm: Boolean(project.company.features.hasSalesPipeline),
+    contactEmail: project.publicContactEmail?.trim() || null,
+    project: { id: project.id, name: project.name },
+  };
 }

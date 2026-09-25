@@ -85,6 +85,24 @@ export const projectPublicSiteSchema = z
     showVoteRankingPublic: z.boolean(),
     showResultsPublic: z.boolean(),
     sponsorLeadFormEnabled: z.boolean(),
+    // "Conoce al Director" (sin nombre, la sección no aparece).
+    directorName: optionalText(120),
+    directorRole: optionalText(160),
+    directorBio: optionalText(1500),
+    directorPhotoUrl: z
+      .string()
+      .trim()
+      .url('La foto del director no es una URL válida')
+      .max(1000)
+      .optional()
+      .or(z.literal(''))
+      .transform((value) => (value ? value : null)),
+    // Un logro por ítem; se ignoran líneas vacías o repetidas antes de contar el máximo.
+    directorHighlights: z.preprocess(
+      (value) => (Array.isArray(value) ? [...new Set(value.map((item) => (typeof item === 'string' ? item.trim() : item)).filter((item) => item !== ''))] : value),
+      z.array(z.string().max(200, 'Cada logro de la trayectoria tiene un máximo de 200 caracteres')).max(40, 'Máximo 40 logros en la trayectoria').default([])
+    ),
+    sponsorExclusivityNote: optionalText(800),
   })
   .superRefine((data, ctx) => {
     if (data.publicSlug) {

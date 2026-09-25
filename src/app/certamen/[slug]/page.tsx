@@ -23,7 +23,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const site = await loadSite(slug);
   if (!site) return { title: 'Certamen no disponible', robots: { index: false } };
-  const description = site.tagline ?? site.description?.slice(0, 160) ?? `${site.name} — organiza ${site.organizer}`;
+  const description = site.tagline ?? site.description?.slice(0, 160) ?? `${site.name} — sitio oficial del certamen`;
   // La imagen para redes la genera `opengraph-image.tsx` (con la portada si existe).
   return {
     title: { absolute: site.name },

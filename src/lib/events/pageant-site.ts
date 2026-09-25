@@ -381,3 +381,62 @@ export function splitPackageBenefits<T extends { id: string; benefits: string[] 
   for (const p of packages) exclusive[p.id] = p.benefits.filter((benefit) => !commonKeys.has(norm(benefit)));
   return { common, exclusive };
 }
+
+export interface AudienceHero {
+  /** Línea chica sobre el título ("Convocatoria 2026"). */
+  kicker: string;
+  /** Llamado principal ("Sé la próxima reina"). */
+  heading: string;
+  lead: string;
+  /** Datos cortos en pastillas; solo los que existen en el certamen. */
+  pills: string[];
+}
+
+/**
+ * Textos del hero según la vista, al estilo de la convocatoria de
+ * referencia ("Sé la próxima…" / "Sé sponsor de la corona"). Las pastillas
+ * salen de datos reales: cupo, cierre, cantidad de paquetes y precio mínimo.
+ */
+export function audienceHero(
+  audience: PageantAudience,
+  input: {
+    name: string;
+    edition: string | null;
+    tagline: string | null;
+    maxCandidates: number | null;
+    registrationClosesLabel: string | null;
+    registrationOpen: boolean;
+    packagePrices: Array<number | null>;
+    formatMoney: (amount: number) => string;
+  }
+): AudienceHero {
+  const edition = input.edition ? ` ${input.edition}` : '';
+  if (audience === 'sponsor') {
+    const prices = input.packagePrices.filter((p): p is number => p != null);
+    const pills = [
+      input.packagePrices.length > 0 ? `${input.packagePrices.length} ${input.packagePrices.length === 1 ? 'categoría' : 'categorías'}` : null,
+      prices.length > 0 ? `Desde ${input.formatMoney(Math.min(...prices))} + IVA` : null,
+    ].filter((p): p is string => Boolean(p));
+    return {
+      kicker: `Patrocinios oficiales${edition}`,
+      heading: 'Sé sponsor de la corona',
+      lead: `Asocia tu marca a ${input.name} y acompaña a las candidatas en el camino a la corona.`,
+      pills,
+    };
+  }
+  const pills = [
+    input.registrationOpen ? 'Inscripción en línea' : null,
+    input.maxCandidates ? `Solo ${input.maxCandidates} cupos` : null,
+    input.registrationOpen && input.registrationClosesLabel ? `Hasta el ${input.registrationClosesLabel}` : null,
+  ].filter((p): p is string => Boolean(p));
+  return {
+    kicker: input.registrationOpen ? `Convocatoria${edition}` : `Temporada${edition}`.trim(),
+    heading: input.registrationOpen ? 'Sé la próxima reina' : 'El camino a la corona',
+    lead:
+      input.tagline ??
+      (input.registrationOpen
+        ? `Inscríbete y vive el camino a la corona de ${input.name} desde adentro.`
+        : `Conoce a las candidatas y vive ${input.name} desde adentro.`),
+    pills,
+  };
+}
