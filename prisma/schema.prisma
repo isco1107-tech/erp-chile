@@ -135,6 +135,8 @@ model Company {
   employeeLoans             EmployeeLoan[]
   employeeAdvances          EmployeeAdvance[]
   employeeSettlements       EmployeeSettlement[]
+  receivedDtes              ReceivedDte[]
+  rcvImports                RcvImport[]
   salesDocumentItems        SalesDocumentItem[]
   purchaseDocuments         PurchaseDocument[]
   purchaseDocumentItems     PurchaseDocumentItem[]
@@ -1073,6 +1075,7 @@ model PurchaseDocument {
   items                   PurchaseDocumentItem[]
   payments                Payment[]
   paymentBatchItems       PaymentBatchItem[]
+  receivedDtes            ReceivedDte[]
   createdAt               DateTime               @default(now())
   updatedAt               DateTime               @updatedAt
 
@@ -4531,4 +4534,83 @@ model EmployeeSettlement {
   updatedAt            DateTime         @updatedAt
 
   @@index([companyId, employeeId])
+}
+
+// ─── SII · Ola 5: bandeja de DTE recibidos y Registro de Compras y Ventas ────
+
+enum ReceivedDteStatus {
+  /// Recién cargado: nadie lo revisó todavía.
+  PENDING
+  /// Aceptado en su contenido (acuse de recibo interno).
+  ACCEPTED
+  /// Reclamado: el contenido no corresponde (Ley 19.983, 8 días).
+  CLAIMED
+  /// Ya se registró como documento de compra en el ERP.
+  REGISTERED
+}
+
+/// DTE emitido por un proveedor a esta empresa, cargado desde su XML
+/// (`EnvioDTE` o `DTE` suelto). `xml` guarda el bloque `<DTE>` tal como
+/// llegó, byte a byte: el timbre del proveedor se calculó sobre esos bytes y
+/// reserializarlo lo invalidaría.
+model ReceivedDte {
+  id                 String            @id @default(cuid())
+  companyId          String
+  company            Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  issuerRut          String
+  issuerName         String
+  issuerGiro         String?
+  siiCode            Int
+  folio              Int
+  issueDate          DateTime
+  dueDate            DateTime?
+  netAmount          Int               @default(0)
+  exemptAmount       Int               @default(0)
+  ivaAmount          Int               @default(0)
+  totalAmount        Int               @default(0)
+  /// Líneas de detalle normalizadas (nombre, cantidad, precio, exenta).
+  lines              Json
+  /// Referencias del documento (notas de crédito/débito, OC, guías).
+  references         Json?
+  xml                String
+  /// `VALID` timbre íntegro, `INVALID` no cuadra, `MISSING` sin TED.
+  tedStatus          String
+  status             ReceivedDteStatus @default(PENDING)
+  statusNote         String?
+  statusAt           DateTime?
+  statusById         String?
+  purchaseDocumentId String?
+  purchaseDocument   PurchaseDocument? @relation(fields: [purchaseDocumentId], references: [id], onDelete: SetNull)
+  fileName           String?
+  receivedAt         DateTime          @default(now())
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@unique([companyId, issuerRut, siiCode, folio])
+  @@index([companyId, status, receivedAt])
+}
+
+enum RcvKind {
+  PURCHASES
+  SALES
+}
+
+/// Archivo del Registro de Compras y Ventas descargado desde el SII para un
+/// período. Se guarda normalizado (`entries`) y se cuadra contra los
+/// documentos del ERP al consultarlo; reimportar el mismo mes lo reemplaza.
+model RcvImport {
+  id           String   @id @default(cuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  kind         RcvKind
+  year         Int
+  month        Int
+  fileName     String
+  rowCount     Int
+  entries      Json
+  importedById String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([companyId, kind, year, month])
 }

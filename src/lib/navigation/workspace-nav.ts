@@ -81,7 +81,9 @@ export type NavIconKey =
   | 'collections'
   | 'banks'
   | 'cheques'
-  | 'paymentBatches';
+  | 'paymentBatches'
+  | 'receivedDte'
+  | 'rcv';
 
 export interface NavLink {
   /** Identificador estable (ver comentario del archivo). */
@@ -204,6 +206,7 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
     push('Compras', [
       { id: 'purchases', href: '/dashboard/purchases', label: 'Compras', icon: 'purchases', keywords: ['factura de compra', 'proveedor'] },
       { id: 'purchase-orders', href: '/dashboard/purchases/orders', label: 'Órdenes de Compra', icon: 'purchases', keywords: ['oc', 'orden'] },
+      { id: 'purchases-inbox', href: '/dashboard/purchases/inbox', label: 'DTE recibidos', icon: 'receivedDte', keywords: ['factura de proveedor', 'xml', 'dte', 'acuse de recibo', 'reclamo', 'bandeja', 'intercambio'] },
     ]);
   }
 
@@ -222,7 +225,8 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
   if (features.hasAdvancedReports && allow('reports:read')) {
     finanzas.push(
       { id: 'reports', href: '/dashboard/reports', label: 'Reportes Excel', icon: 'reports', keywords: ['excel', 'libro de ventas', 'libro de compras', 'exportar'] },
-      { id: 'reports-f29', href: '/dashboard/reports/f29', label: 'Formulario 29 (F29)', icon: 'reports', keywords: ['f29', 'iva', 'sii', 'ppm', 'impuestos'] }
+      { id: 'reports-f29', href: '/dashboard/reports/f29', label: 'Formulario 29 (F29)', icon: 'reports', keywords: ['f29', 'iva', 'sii', 'ppm', 'impuestos'] },
+      { id: 'reports-rcv', href: '/dashboard/reports/rcv', label: 'Registro de Compras y Ventas', icon: 'rcv', keywords: ['rcv', 'sii', 'libro de compras', 'libro de ventas', 'cuadratura', 'credito fiscal'] }
     );
   }
   if (features.hasBudgets && allow('budgets:read')) {
