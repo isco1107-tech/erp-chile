@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { contactEmailField, contactWhatsappField, instagramHandleField } from '@/lib/events/pageant-contact';
 import type { CandidateStatus } from '@prisma/client';
 import { cleanRut, validateRut } from '@/lib/chile/rut';
 import { regions } from '@/lib/chile/locations';
@@ -195,6 +196,10 @@ export const registrationSettingsSchema = z
     registrationClosesAt: z.coerce.date('Fecha de cierre inválida').nullable().optional(),
     minCandidateAge: z.number().int().min(1).max(99).default(18),
     maxCandidates: z.number().int().positive().nullable().optional(),
+    // Contacto del certamen para las postulantes (mismas columnas que edita el micrositio).
+    contactEmail: contactEmailField,
+    contactWhatsapp: contactWhatsappField,
+    instagramHandle: instagramHandleField,
   })
   .refine(
     (data) => !data.registrationOpensAt || !data.registrationClosesAt || data.registrationOpensAt < data.registrationClosesAt,

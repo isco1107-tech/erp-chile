@@ -477,6 +477,10 @@ export default function CandidateRegistrationClient({ token }: { token: string }
     );
   }
 
+  const privacyHref = `${CONFIG.privacidadUrl}?certamen=${encodeURIComponent(token)}`;
+  const contact = project.contact;
+  const hasContact = Boolean(contact.email || contact.whatsapp || contact.instagram);
+
   if (!project.isOpen) {
     return (
       <div className={rootClass}>
@@ -484,6 +488,7 @@ export default function CandidateRegistrationClient({ token }: { token: string }
         <div className="cand-insc-loading">
           <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', marginBottom: '0.75rem' }}>{project.projectName}</p>
           <p>{project.closedReason ?? 'Esta convocatoria no está recibiendo postulaciones por el momento.'}</p>
+          {hasContact && <ContactLinks contact={contact} className="cand-insc-closed-contact" />}
         </div>
       </div>
     );
@@ -509,7 +514,8 @@ export default function CandidateRegistrationClient({ token }: { token: string }
             <li>Si avanzas, te contactamos por correo o teléfono para citarte a un casting presencial.</li>
             <li>Desde ahí, un grupo reducido pasa a ser candidata oficial de {project.projectName}.</li>
           </ol>
-          <a className="cand-insc-success-link" href={CONFIG.privacidadUrl}>Política de privacidad</a>
+          {hasContact && <ContactLinks contact={contact} className="cand-insc-success-contact" />}
+          <a className="cand-insc-success-link" href={privacyHref}>Política de privacidad</a>
         </div>
       </div>
     );
@@ -525,7 +531,7 @@ export default function CandidateRegistrationClient({ token }: { token: string }
         <div className="cand-insc-nav-inner">
           <a href="#top" className="cand-insc-nav-brand">
             <IconCrown />
-            {CONFIG.certamenNombre}
+            {project.projectName}
           </a>
           <nav className="cand-insc-nav-links" aria-label="Secciones">
             {NAV_LINKS.map((l) => (
@@ -584,14 +590,14 @@ export default function CandidateRegistrationClient({ token }: { token: string }
           </p>
           <h1 className="cand-insc-hero-title cand-insc-anim" style={{ animationDelay: '0.15s' }}>
             <span className="cand-insc-hero-title-lead">{CONFIG.heroTitulo}</span>
-            <span className="cand-insc-hero-title-main">{CONFIG.certamenNombre}</span>
+            <span className="cand-insc-hero-title-main">{project.projectName}</span>
           </h1>
           <div className="cand-insc-ornament cand-insc-anim" style={{ animationDelay: '0.22s' }} aria-hidden="true">
             <span />
             <IconDiamond />
             <span />
           </div>
-          <p className="cand-insc-hero-tagline cand-insc-anim" style={{ animationDelay: '0.28s' }}>{CONFIG.heroBajada}</p>
+          <p className="cand-insc-hero-tagline cand-insc-anim" style={{ animationDelay: '0.28s' }}>{project.tagline ?? CONFIG.heroBajada}</p>
           <div className="cand-insc-hero-actions cand-insc-anim" style={{ animationDelay: '0.4s' }}>
             <a href="#formulario" className="cand-insc-hero-cta">
               Quiero postular
@@ -662,7 +668,7 @@ export default function CandidateRegistrationClient({ token }: { token: string }
         <p className="cand-insc-kicker">La convocatoria</p>
         <h2 className="cand-insc-h2">Más que una corona: una plataforma.</h2>
         <p>
-          {CONFIG.certamenNombre} busca a la próxima representante de La Araucanía: una mujer con presencia, carácter y una
+          {project.projectName} busca a la próxima representante de La Araucanía: una mujer con presencia, carácter y una
           causa que la mueva. No es solo un certamen de belleza — es una plataforma para dar voz a proyectos sociales
           reales durante todo tu reinado.
         </p>
@@ -733,6 +739,12 @@ export default function CandidateRegistrationClient({ token }: { token: string }
             </details>
           ))}
         </div>
+        {hasContact && (
+          <div className="cand-insc-faq-contact">
+            <span>¿Otra duda? Escríbenos:</span>
+            <ContactLinks contact={contact} />
+          </div>
+        )}
       </section>
 
       {/* ── Formulario ───────────────────────────────────────────────────── */}
@@ -975,7 +987,7 @@ export default function CandidateRegistrationClient({ token }: { token: string }
                 />
                 <span>
                   Autorizo el tratamiento de mis datos personales por parte de la organización, conforme a su{' '}
-                  <a href={CONFIG.privacidadUrl} target="_blank" rel="noreferrer">política de privacidad</a>.
+                  <a href={privacyHref} target="_blank" rel="noreferrer">política de privacidad</a>.
                 </span>
               </label>
               {errors.aceptaTratamientoDatos && <p className="cand-insc-error">{errors.aceptaTratamientoDatos}</p>}
@@ -1043,7 +1055,7 @@ export default function CandidateRegistrationClient({ token }: { token: string }
           hero, para no tapar el primer impacto de la página. */}
       <div className={`cand-insc-sticky-cta ${navScrolled ? 'is-visible' : ''}`}>
         <span>
-          <strong>{CONFIG.certamenNombre}</strong>
+          <strong>{project.projectName}</strong>
           Postulación gratuita
         </span>
         <a href="#formulario">Postular</a>
@@ -1056,14 +1068,14 @@ export default function CandidateRegistrationClient({ token }: { token: string }
           <IconDiamond />
           <span />
         </div>
-        <p className="cand-insc-footer-brand">{CONFIG.certamenNombre}</p>
+        <p className="cand-insc-footer-brand">{project.projectName}</p>
         <p>{project.companyName}</p>
         <p className="cand-insc-footer-links">
-          <a href={`mailto:${CONFIG.contactoEmail}`}><IconMail /> {CONFIG.contactoEmail}</a>
-          <a href={CONFIG.contactoWhatsapp} target="_blank" rel="noreferrer"><IconWhatsapp /> WhatsApp</a>
-          <a href={CONFIG.contactoInstagram} target="_blank" rel="noreferrer"><IconInstagram /> Instagram</a>
+          {contact.email && <a href={`mailto:${contact.email}`}><IconMail /> {contact.email}</a>}
+          {contact.whatsapp && <a href={contact.whatsapp.href} target="_blank" rel="noreferrer"><IconWhatsapp /> {contact.whatsapp.label}</a>}
+          {contact.instagram && <a href={contact.instagram.href} target="_blank" rel="noreferrer"><IconInstagram /> @{contact.instagram.handle}</a>}
           {CONFIG.basesUrl && <a href={CONFIG.basesUrl} target="_blank" rel="noreferrer">Bases</a>}
-          <a href={CONFIG.privacidadUrl} target="_blank" rel="noreferrer">Privacidad</a>
+          <a href={privacyHref} target="_blank" rel="noreferrer">Privacidad</a>
         </p>
       </footer>
     </div>
@@ -1304,6 +1316,29 @@ function IconClose() {
     <svg viewBox="0 0 20 20" width="12" height="12" fill="none" aria-hidden="true">
       <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
+  );
+}
+
+/** Contacto del certamen (configurado en la convocatoria): solo los canales que existen. */
+function ContactLinks({ contact, className = '' }: { contact: RegistrationProjectInfo['contact']; className?: string }) {
+  return (
+    <span className={`cand-insc-contact ${className}`}>
+      {contact.whatsapp && (
+        <a href={contact.whatsapp.href} target="_blank" rel="noreferrer">
+          <IconWhatsapp /> WhatsApp
+        </a>
+      )}
+      {contact.email && (
+        <a href={`mailto:${contact.email}`}>
+          <IconMail /> {contact.email}
+        </a>
+      )}
+      {contact.instagram && (
+        <a href={contact.instagram.href} target="_blank" rel="noreferrer">
+          <IconInstagram /> @{contact.instagram.handle}
+        </a>
+      )}
+    </span>
   );
 }
 
@@ -2190,6 +2225,18 @@ const STYLES = `
 }
 .cand-insc-footer-links a:hover { color: var(--champagne-bright); text-decoration: underline; text-underline-offset: 4px; }
 @media (max-width: 820px) { .cand-insc-footer { padding-bottom: calc(6.5rem + env(safe-area-inset-bottom)); } }
+
+.cand-insc-contact { display: inline-flex; flex-wrap: wrap; gap: 0.6rem; }
+.cand-insc-contact a {
+  display: inline-flex; align-items: center; gap: 0.45rem;
+  padding: 0.55rem 1rem; border-radius: 999px;
+  border: 1px solid rgba(168, 130, 63, 0.45); color: inherit;
+  font-size: 0.88rem; text-decoration: none; overflow-wrap: anywhere;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+.cand-insc-contact a:hover { border-color: var(--old-gold); background: rgba(233, 210, 160, 0.12); }
+.cand-insc-faq-contact { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1rem; margin-top: 2rem; font-size: 0.95rem; }
+.cand-insc-closed-contact, .cand-insc-success-contact { justify-content: center; margin-top: 1.5rem; }
 
 @media (max-width: 400px) {
   .cand-insc-section, .cand-insc-hero-content { padding-left: 1.15rem; padding-right: 1.15rem; }

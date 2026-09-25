@@ -1,3 +1,4 @@
+import { formatWhatsappNumber, pageantContact, type PageantContact } from '@/lib/events/pageant-contact';
 import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
 import { Prisma, type Candidate, type CandidateStatus, type PaymentPlanStatus, type PaymentStatus, type PromissoryNoteStatus } from '@prisma/client';
@@ -639,6 +640,10 @@ export interface RegistrationSettings {
   registrationClosesAt: Date | null;
   minCandidateAge: number;
   maxCandidates: number | null;
+  /** Contacto del certamen que ven las postulantes (vacío = no se muestra). */
+  contactEmail: string | null;
+  contactWhatsapp: string | null;
+  instagramHandle: string | null;
   /** Postulaciones ya recibidas — para mostrar "37/50" en el panel. */
   applicationsReceived: number;
 }
@@ -655,11 +660,27 @@ async function countActiveApplications(companyId: string, projectId: string): Pr
 export async function getRegistrationSettings(companyId: string, projectId: string): Promise<RegistrationSettings> {
   const project = await prisma.project.findFirst({
     where: { id: projectId, companyId },
-    select: { registrationStatus: true, registrationOpensAt: true, registrationClosesAt: true, minCandidateAge: true, maxCandidates: true },
+    select: {
+      registrationStatus: true,
+      registrationOpensAt: true,
+      registrationClosesAt: true,
+      minCandidateAge: true,
+      maxCandidates: true,
+      publicContactEmail: true,
+      publicWhatsapp: true,
+      instagramHandle: true,
+    },
   });
   if (!project) throw new Error('Proyecto no encontrado');
   const applicationsReceived = await countActiveApplications(companyId, projectId);
-  return { ...project, applicationsReceived };
+  const { publicContactEmail, publicWhatsapp, instagramHandle, ...window } = project;
+  return {
+    ...window,
+    contactEmail: publicContactEmail,
+    contactWhatsapp: publicWhatsapp ? formatWhatsappNumber(publicWhatsapp) : null,
+    instagramHandle: instagramHandle ? `@${instagramHandle.replace(/^@/, '')}` : null,
+    applicationsReceived,
+  };
 }
 
 export async function updateRegistrationSettings(
@@ -675,6 +696,9 @@ export async function updateRegistrationSettings(
       registrationClosesAt: data.registrationClosesAt ?? null,
       minCandidateAge: data.minCandidateAge,
       maxCandidates: data.maxCandidates ?? null,
+      publicContactEmail: data.contactEmail,
+      publicWhatsapp: data.contactWhatsapp,
+      instagramHandle: data.instagramHandle,
     },
   });
   if (result.count === 0) throw new Error('Proyecto no encontrado');
@@ -694,6 +718,10 @@ export interface RegistrationProjectInfo {
    * reutiliza `Project.startDate` (fecha del evento) para la línea del hero
    * que la pide (Sección 5: "fecha de cierre y la fecha de casting"). */
   eventDate: Date | null;
+  /** Bajada del certamen (la misma del micrositio), si la organización la escribió. */
+  tagline: string | null;
+  /** Contacto del certamen para las postulantes: nunca datos fijos de la plataforma. */
+  contact: PageantContact;
 }
 
 /**
@@ -722,7 +750,22 @@ export async function getRegistrationProjectByToken(token: string): Promise<Regi
     registrationClosesAt: project.registrationClosesAt,
     minCandidateAge: project.minCandidateAge,
     eventDate: project.startDate,
+    tagline: project.publicTagline,
+    contact: pageantContact(project),
   };
+}
+
+/**
+ * Lo mínimo para la política de privacidad de un certamen (nombre,
+ * organización y correo de contacto), a partir del mismo token del link de
+ * postulación. No evalúa la ventana: la política se puede leer siempre.
+ */
+export async function getRegistrationPrivacyInfo(token: string): Promise<{ projectName: string; companyName: string; contactEmail: string | null } | null> {
+  const project = await prisma.project.findUnique({
+    where: { candidateRegistrationToken: token },
+    select: { name: true, publicContactEmail: true, company: { select: { businessName: true } } },
+  });
+  return project ? { projectName: project.name, companyName: project.company.businessName, contactEmail: project.publicContactEmail } : null;
 }
 
 type ProjectRegistrationFields = {

@@ -56,6 +56,9 @@ export default function RegistrationSettingsButton({ projectId }: { projectId: s
       registrationClosesAt: settings.registrationClosesAt,
       minCandidateAge: settings.minCandidateAge,
       maxCandidates: settings.maxCandidates,
+      contactEmail: settings.contactEmail ?? '',
+      contactWhatsapp: settings.contactWhatsapp ?? '',
+      instagramHandle: settings.instagramHandle ?? '',
     });
     setSaving(false);
     if (!result.success) {
@@ -145,6 +148,47 @@ export default function RegistrationSettingsButton({ projectId }: { projectId: s
                 />
               </div>
             </div>
+
+            <fieldset className="space-y-3 border-t border-border pt-4">
+              <legend className="text-sm font-medium">Contacto para postulantes</legend>
+              <p className="text-xs text-muted-foreground">
+                Se muestran en el formulario de postulación, en su política de privacidad y en el sitio del certamen. Lo que dejes vacío no aparece.
+              </p>
+              <div>
+                <Label htmlFor="reg-email">Correo del certamen</Label>
+                <Input
+                  id="reg-email"
+                  type="email"
+                  autoComplete="off"
+                  placeholder="contacto@tucertamen.cl"
+                  value={settings.contactEmail ?? ''}
+                  onChange={(e) => setSettings({ ...settings, contactEmail: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="reg-whatsapp">WhatsApp</Label>
+                  <Input
+                    id="reg-whatsapp"
+                    type="tel"
+                    autoComplete="off"
+                    placeholder="+56 9 1234 5678"
+                    value={settings.contactWhatsapp ?? ''}
+                    onChange={(e) => setSettings({ ...settings, contactWhatsapp: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="reg-instagram">Instagram</Label>
+                  <Input
+                    id="reg-instagram"
+                    autoComplete="off"
+                    placeholder="@tucertamen"
+                    value={settings.instagramHandle ?? ''}
+                    onChange={(e) => setSettings({ ...settings, instagramHandle: e.target.value })}
+                  />
+                </div>
+              </div>
+            </fieldset>
           </div>
         )}
 

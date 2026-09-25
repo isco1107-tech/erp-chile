@@ -230,6 +230,8 @@ export interface CandidateApplicationConfirmationEmailInput {
   projectName: string;
   companyName: string;
   folio: string;
+  /** Contacto del certamen (el que configuró la organización), si tiene. */
+  contact?: { email: string | null; whatsapp: { href: string; label: string } | null; instagram: { href: string; handle: string } | null };
 }
 
 /**
@@ -243,6 +245,16 @@ export function buildCandidateApplicationConfirmationEmail(input: CandidateAppli
   text: string;
 } {
   const subject = `Recibimos tu postulación — ${input.projectName}`;
+  const contactLines = [
+    input.contact?.email ? { label: 'Correo', text: input.contact.email, href: `mailto:${input.contact.email}` } : null,
+    input.contact?.whatsapp ? { label: 'WhatsApp', text: input.contact.whatsapp.label, href: input.contact.whatsapp.href } : null,
+    input.contact?.instagram ? { label: 'Instagram', text: `@${input.contact.instagram.handle}`, href: input.contact.instagram.href } : null,
+  ].filter((line): line is { label: string; text: string; href: string } => line !== null);
+  const contactHtml = contactLines.length
+    ? `
+              <p style="margin:18px 0 6px;font-weight:600;">¿Dudas? Contacta a la organización:</p>
+              ${contactLines.map((line) => `<p style="margin:0 0 4px;">${line.label}: <a href="${escapeHtml(line.href)}" style="color:${BRAND};">${escapeHtml(line.text)}</a></p>`).join('\n              ')}`
+    : '';
 
   const html = `<!doctype html>
 <html lang="es">
@@ -262,7 +274,7 @@ export function buildCandidateApplicationConfirmationEmail(input: CandidateAppli
               <p style="margin:0 0 12px;">Hola <strong>${escapeHtml(input.fullName)}</strong>, recibimos tu postulación correctamente.</p>
               <p style="margin:0 0 16px;">Tu número de folio es:</p>
               <p style="margin:0 0 16px;padding:14px 18px;background:#f8fafc;border:1px solid #e2e8f0;text-align:center;font-size:22px;font-weight:700;letter-spacing:0.5px;">${escapeHtml(input.folio)}</p>
-              <p style="margin:0;">Guárdalo como comprobante. La organización revisará tu postulación y se pondrá en contacto contigo directamente si corresponde avanzar a la siguiente etapa.</p>
+              <p style="margin:0;">Guárdalo como comprobante. La organización revisará tu postulación y se pondrá en contacto contigo directamente si corresponde avanzar a la siguiente etapa.</p>${contactHtml}
             </td>
           </tr>
           <tr>
@@ -283,6 +295,7 @@ export function buildCandidateApplicationConfirmationEmail(input: CandidateAppli
     `Tu número de folio es: ${input.folio}`,
     '',
     'Guárdalo como comprobante. La organización se pondrá en contacto contigo si corresponde avanzar a la siguiente etapa.',
+    ...(contactLines.length ? ['', '¿Dudas? Contacta a la organización:', ...contactLines.map((line) => `${line.label}: ${line.text}`)] : []),
   ].join('\n');
 
   return { subject, html, text };
