@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import ContactForm from './ContactForm';
 import { listContactsAction } from '@/modules/contacts/actions/contacts.actions';
 import { listWarehousesAction } from '@/modules/inventory/actions/inventory.actions';
-import { listProductsAction } from '@/modules/inventory/actions/products.actions';
+import { findProductByCodeAction, listProductsAction } from '@/modules/inventory/actions/products.actions';
 import type { ProductWithStock } from '@/modules/inventory/services/products.service';
 import { createSalesDocumentAction, getContactCreditStatusAction, type ContactCreditStatus } from '@/modules/sales/actions/sales.actions';
 import { computeDocument, exceedsCreditLimit } from '@/modules/sales/calc';
@@ -214,7 +214,7 @@ export default function SalesDocumentForm({ orderId, initialType }: { orderId?: 
   const filteredProducts = useMemo(() => {
     const q = productQuery.trim().toLowerCase();
     if (!q) return [];
-    return products.filter((p) => p.sku.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)).slice(0, 8);
+    return products.filter((p) => p.sku.toLowerCase().includes(q) || p.name.toLowerCase().includes(q) || p.barcode?.toLowerCase() === q).slice(0, 8);
   }, [productQuery, products]);
 
   // Mismo cálculo que el servidor: el IVA se redondea una vez sobre el neto
@@ -248,7 +248,28 @@ export default function SalesDocumentForm({ orderId, initialType }: { orderId?: 
 
   const listTiers = (productId: string) => pricing?.tiers[productId] ?? [];
 
-  function addProductLine(product: ProductWithStock) {
+  /**
+   * Lector de código de barras: escribe el código y envía Enter. Se resuelve
+   * contra el código del producto, el de un empaque (agrega sus unidades) o
+   * el SKU exacto; si no hay coincidencia exacta, toma el primer resultado.
+   */
+  async function handleProductSearchKey(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    const code = productQuery.trim();
+    if (!code) return;
+    const result = await findProductByCodeAction(code);
+    if (result.success && result.data) {
+      const { product, factor, packagingName } = result.data;
+      addProductLine(product, factor);
+      if (packagingName) toast.success(`${packagingName}: ${factor} × ${product.name}`);
+      return;
+    }
+    if (filteredProducts[0]) addProductLine(filteredProducts[0]);
+    else toast.error(`Sin resultados para "${code}"`);
+  }
+
+  function addProductLine(product: Pick<ProductWithStock, 'id' | 'sku' | 'name' | 'netPrice' | 'isExempt'>, units = 1) {
     setItems((prev) => [
       ...prev,
       {
@@ -256,8 +277,8 @@ export default function SalesDocumentForm({ orderId, initialType }: { orderId?: 
         productId: product.id,
         sku: product.sku,
         description: product.name,
-        quantity: '1',
-        unitPrice: String(resolveUnitPrice(product.netPrice, listTiers(product.id), 1)),
+        quantity: String(units),
+        unitPrice: String(resolveUnitPrice(product.netPrice, listTiers(product.id), units)),
         priceAuto: listTiers(product.id).length > 0,
         // La exención la fija el catálogo (el servidor la vuelve a leer de ahí):
         // la previsualización tiene que mostrar el mismo IVA que se va a guardar.
@@ -536,9 +557,11 @@ export default function SalesDocumentForm({ orderId, initialType }: { orderId?: 
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-[240px]">
             <Input
-              placeholder="Buscar producto por SKU o Nombre"
+              placeholder="Escanea el código de barras o busca por SKU o nombre"
               value={productQuery}
               onChange={(e) => setProductQuery(e.target.value)}
+              onKeyDown={handleProductSearchKey}
+              autoComplete="off"
             />
             {filteredProducts.length > 0 && (
               <ul className="absolute z-10 mt-1 w-full rounded-lg border border-border bg-card text-sm shadow-md">

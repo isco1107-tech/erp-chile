@@ -74,7 +74,10 @@ export type NavIconKey =
   | 'contracts'
   | 'salesOrders'
   | 'priceLists'
-  | 'commissions';
+  | 'commissions'
+  | 'inventoryCount'
+  | 'lots'
+  | 'labels';
 
 export interface NavLink {
   /** Identificador estable (ver comentario del archivo). */
@@ -160,6 +163,9 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
     push('Inventario', [
       { id: 'products', href: '/dashboard/products', label: 'Catálogo de Productos', icon: 'products', keywords: ['productos', 'articulos', 'sku'] },
       { id: 'inventory', href: '/dashboard/inventory', label: 'Inventario', icon: 'inventory', keywords: ['stock', 'bodega', 'kardex', 'existencias'] },
+      { id: 'inventory-counts', href: '/dashboard/inventory/counts', label: 'Toma de inventario', icon: 'inventoryCount', keywords: ['conteo', 'inventario fisico', 'merma', 'ajuste', 'cuadratura'] },
+      { id: 'inventory-lots', href: '/dashboard/inventory/lots', label: 'Lotes y vencimientos', icon: 'lots', keywords: ['lote', 'vencimiento', 'caducidad', 'fefo', 'expira'] },
+      { id: 'inventory-labels', href: '/dashboard/inventory/labels', label: 'Etiquetas', icon: 'labels', keywords: ['codigo de barras', 'etiqueta', 'gondola', 'imprimir', 'ean'] },
     ]);
   }
 

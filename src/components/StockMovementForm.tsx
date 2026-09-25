@@ -28,6 +28,8 @@ const EMPTY_FORM = {
   targetWarehouseId: '',
   reference: '',
   notes: '',
+  lotNumber: '',
+  expiryDate: '',
 };
 
 type FormState = typeof EMPTY_FORM;
@@ -50,6 +52,8 @@ export default function StockMovementForm({ products, warehouses, onSaved, onCan
 
   const isIn = form.type === 'PURCHASE_IN' || form.type === 'ADJUSTMENT_IN';
   const isTransfer = form.type === 'TRANSFER';
+  const selectedProduct = products.find((p) => p.id === form.productId);
+  const capturesLot = isIn && !!selectedProduct?.tracksLots;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -64,6 +68,8 @@ export default function StockMovementForm({ products, warehouses, onSaved, onCan
       targetWarehouseId: isTransfer ? form.targetWarehouseId || undefined : undefined,
       reference: form.reference || undefined,
       notes: form.notes || undefined,
+      lotNumber: capturesLot ? form.lotNumber || undefined : undefined,
+      expiryDate: capturesLot ? form.expiryDate || undefined : undefined,
     };
 
     const parsed = stockMovementSchema.safeParse(payload);
@@ -185,6 +191,33 @@ export default function StockMovementForm({ products, warehouses, onSaved, onCan
             />
             {errors.unitCost && <p className="mt-1 text-sm text-destructive">{errors.unitCost}</p>}
           </div>
+        )}
+
+        {capturesLot && (
+          <>
+            <div>
+              <Label htmlFor="mv-lot">Lote</Label>
+              <Input
+                id="mv-lot"
+                placeholder="Ej. L2409-A (vacío = sin lote)"
+                value={form.lotNumber}
+                onChange={(e) => update('lotNumber', e.target.value)}
+                aria-invalid={!!errors.lotNumber}
+              />
+              {errors.lotNumber && <p className="mt-1 text-sm text-destructive">{errors.lotNumber}</p>}
+            </div>
+            <div>
+              <Label htmlFor="mv-expiry">Vencimiento</Label>
+              <Input
+                id="mv-expiry"
+                type="date"
+                value={form.expiryDate}
+                onChange={(e) => update('expiryDate', e.target.value)}
+                aria-invalid={!!errors.expiryDate}
+              />
+              {errors.expiryDate && <p className="mt-1 text-sm text-destructive">{errors.expiryDate}</p>}
+            </div>
+          </>
         )}
 
         <div>

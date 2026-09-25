@@ -4,6 +4,7 @@ import { applyStockIn, applyStockOut } from '@/modules/inventory/services/stock.
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import type { GoodsReceiptCreateInput } from '../schema';
+import { normalizeLotNumber, parseExpiryDate } from '@/lib/inventory/lots';
 
 export type GoodsReceiptWithItems = GoodsReceipt & { items: GoodsReceiptItem[] };
 export type GoodsReceiptWithRelations = GoodsReceiptWithItems & {
@@ -94,19 +95,26 @@ export async function createGoodsReceipt(
 
     // Acá es donde realmente se mueve stock/PMP en el flujo de 3 vías — la
     // factura que llegue después y referencie esta OC ya no lo hará de nuevo.
-    for (const line of receipt.items) {
-      if (!line.productId) continue;
-      const product = await tx.product.findFirst({ where: { id: line.productId, companyId } });
-      if (!product) throw new Error(`Producto no encontrado: ${line.description}`);
+    // Se recorre lo ingresado (no `receipt.items`, cuyo orden no está
+    // garantizado) para que cada línea lleve su propio lote y vencimiento.
+    for (const line of input.items) {
+      const orderItem = itemsById.get(line.orderItemId)!;
+      if (!orderItem.productId) continue;
+      const product = await tx.product.findFirst({ where: { id: orderItem.productId, companyId } });
+      if (!product) throw new Error(`Producto no encontrado: ${orderItem.description}`);
       if (!product.isTrackable) continue;
 
       await applyStockIn(tx, companyId, {
-        productId: line.productId,
+        productId: orderItem.productId,
         warehouseId: input.warehouseId,
         type: 'PURCHASE_IN',
         quantity: line.quantity,
-        unitCost: line.unitCost,
+        unitCost: orderItem.unitCost,
         reference: `Recepción #${receipt.folio} (OC #${order.folio})`,
+        lots:
+          line.lotNumber || line.expiryDate
+            ? [{ lotNumber: normalizeLotNumber(line.lotNumber), expiryDate: parseExpiryDate(line.expiryDate), quantity: line.quantity }]
+            : undefined,
       });
     }
 

@@ -11,6 +11,7 @@ import { formatCurrency } from '@/lib/chile/tax';
 import { sendPurchaseOrderAction, cancelPurchaseOrderAction } from '@/modules/purchases/actions/purchase-order.actions';
 import { createGoodsReceiptAction, cancelGoodsReceiptAction } from '@/modules/purchases/actions/goods-receipt.actions';
 import { listWarehousesAction } from '@/modules/inventory/actions/inventory.actions';
+import { listLotTrackedProductIdsAction } from '@/modules/inventory/actions/products.actions';
 import type { PurchaseOrderWithRelations } from '@/modules/purchases/services/purchase-order.service';
 import type { GoodsReceiptWithRelations } from '@/modules/purchases/services/goods-receipt.service';
 import type { Warehouse } from '@prisma/client';
@@ -36,6 +37,8 @@ export default function PurchaseOrderDetailClient({
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [warehouseId, setWarehouseId] = useState('');
   const [quantities, setQuantities] = useState<Record<string, string>>({});
+  const [lots, setLots] = useState<Record<string, { lotNumber: string; expiryDate: string }>>({});
+  const [lotProductIds, setLotProductIds] = useState<Set<string>>(new Set());
 
   const total = order.items.reduce((sum, i) => sum + i.quantity * i.unitCost, 0);
   const canReceive = order.status === 'SENT' || order.status === 'PARTIALLY_RECEIVED';
@@ -67,6 +70,11 @@ export default function PurchaseOrderDetailClient({
 
   async function openReceive() {
     setReceiving(true);
+    const productIds = order.items.map((item) => item.productId).filter((id): id is string => !!id);
+    if (productIds.length > 0) {
+      const tracked = await listLotTrackedProductIdsAction(productIds);
+      if (tracked.success) setLotProductIds(new Set(tracked.data));
+    }
     if (warehouses.length === 0) {
       const r = await listWarehousesAction();
       if (r.success) {
@@ -79,7 +87,12 @@ export default function PurchaseOrderDetailClient({
 
   async function handleConfirmReceipt() {
     const items = order.items
-      .map((item) => ({ orderItemId: item.id, quantity: Number(quantities[item.id]) || 0 }))
+      .map((item) => ({
+        orderItemId: item.id,
+        quantity: Number(quantities[item.id]) || 0,
+        lotNumber: lots[item.id]?.lotNumber.trim() || undefined,
+        expiryDate: lots[item.id]?.expiryDate || undefined,
+      }))
       .filter((line) => line.quantity > 0);
     if (items.length === 0) { toast.error('Ingrese al menos una cantidad a recibir'); return; }
     if (!warehouseId) { toast.error('Seleccione una bodega'); return; }
@@ -90,6 +103,7 @@ export default function PurchaseOrderDetailClient({
       toast.success(result.message);
       setReceiving(false);
       setQuantities({});
+      setLots({});
       refresh();
     } finally { setBusy(false); }
   }
@@ -173,9 +187,30 @@ export default function PurchaseOrderDetailClient({
           </div>
           <div className="space-y-2">
             {order.items.filter((item) => item.quantity - item.receivedQuantity > 0.0001).map((item) => (
-              <div key={item.id} className="flex items-center justify-between gap-2">
-                <span>{item.description} <span className="text-muted-foreground">(pendiente: {item.quantity - item.receivedQuantity})</span></span>
-                <Input type="number" min="0" step="any" className="w-28" value={quantities[item.id] ?? ''} onChange={(e) => setQuantities((prev) => ({ ...prev, [item.id]: e.target.value }))} />
+              <div key={item.id} className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span>{item.description} <span className="text-muted-foreground">(pendiente: {item.quantity - item.receivedQuantity})</span></span>
+                  <Input type="number" min="0" step="any" className="w-28" aria-label={`Cantidad a recibir de ${item.description}`} value={quantities[item.id] ?? ''} onChange={(e) => setQuantities((prev) => ({ ...prev, [item.id]: e.target.value }))} />
+                </div>
+                {item.productId && lotProductIds.has(item.productId) && (
+                  <div className="flex flex-wrap items-center justify-end gap-2 text-xs text-muted-foreground">
+                    <span>Lote y vencimiento</span>
+                    <Input
+                      className="h-8 w-36"
+                      placeholder="N° de lote"
+                      aria-label={`Lote de ${item.description}`}
+                      value={lots[item.id]?.lotNumber ?? ''}
+                      onChange={(e) => setLots((prev) => ({ ...prev, [item.id]: { lotNumber: e.target.value, expiryDate: prev[item.id]?.expiryDate ?? '' } }))}
+                    />
+                    <Input
+                      type="date"
+                      className="h-8 w-40"
+                      aria-label={`Vencimiento de ${item.description}`}
+                      value={lots[item.id]?.expiryDate ?? ''}
+                      onChange={(e) => setLots((prev) => ({ ...prev, [item.id]: { lotNumber: prev[item.id]?.lotNumber ?? '', expiryDate: e.target.value } }))}
+                    />
+                  </div>
+                )}
               </div>
             ))}
           </div>

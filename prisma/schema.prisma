@@ -120,6 +120,10 @@ model Company {
   priceLists                PriceList[]
   priceListItems            PriceListItem[]
   salesCommissionRates      SalesCommissionRate[]
+  productPackagings         ProductPackaging[]
+  inventoryLots             InventoryLot[]
+  inventoryCounts           InventoryCount[]
+  inventoryCountLines       InventoryCountLine[]
   salesDocumentItems        SalesDocumentItem[]
   purchaseDocuments         PurchaseDocument[]
   purchaseDocumentItems     PurchaseDocumentItem[]
@@ -537,6 +541,8 @@ enum InternalDocumentKind {
   PURCHASE_ORDER
   /// Nota de venta (`SalesOrder.folio`).
   SALES_ORDER
+  /// Toma de inventario (`InventoryCount.folio`).
+  INVENTORY_COUNT
   GOODS_RECEIPT
   CANDIDATE_APPLICATION
   /// Comprobante de pago en línea de cuotas (`InstallmentPaymentOrder.receiptNumber`).
@@ -695,57 +701,71 @@ model Category {
 }
 
 model Warehouse {
-  id             String                 @id @default(cuid())
-  companyId      String
-  company        Company                @relation(fields: [companyId], references: [id])
-  name           String
-  code           String
-  isDefault      Boolean                @default(false)
-  address        String?
-  stocks         Stock[]
-  movements      InventoryMovement[]
-  salesDocuments SalesDocument[]
-  salesOrders    SalesOrder[]
-  purchaseItems  PurchaseDocumentItem[]
-  goodsReceipts  GoodsReceipt[]
-  cashRegisters  CashRegister[]
-  createdAt      DateTime               @default(now())
-  updatedAt      DateTime               @updatedAt
+  id              String                 @id @default(cuid())
+  companyId       String
+  company         Company                @relation(fields: [companyId], references: [id])
+  name            String
+  code            String
+  isDefault       Boolean                @default(false)
+  address         String?
+  stocks          Stock[]
+  movements       InventoryMovement[]
+  salesDocuments  SalesDocument[]
+  salesOrders     SalesOrder[]
+  inventoryLots   InventoryLot[]
+  inventoryCounts InventoryCount[]
+  purchaseItems   PurchaseDocumentItem[]
+  goodsReceipts   GoodsReceipt[]
+  cashRegisters   CashRegister[]
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
 
   @@unique([companyId, code])
 }
 
 model Product {
-  id                 String                 @id @default(cuid())
-  companyId          String
-  company            Company                @relation(fields: [companyId], references: [id])
-  categoryId         String?
-  category           Category?              @relation(fields: [categoryId], references: [id])
-  sku                String
-  name               String
-  description        String?
-  unit               String                 @default("UN")
-  isTrackable        Boolean                @default(true)
+  id                  String                 @id @default(cuid())
+  companyId           String
+  company             Company                @relation(fields: [companyId], references: [id])
+  categoryId          String?
+  category            Category?              @relation(fields: [categoryId], references: [id])
+  sku                 String
+  name                String
+  description         String?
+  unit                String                 @default("UN")
+  isTrackable         Boolean                @default(true)
   /// Producto exento de IVA. Sin este campo el POS no tenía forma de saberlo y
   /// cobraba 19% sobre todo, sobrecobrando al cliente y distorsionando el F29.
-  isExempt           Boolean                @default(false)
-  costPricePMP       Float                  @default(0)
-  netPrice           Int                    @default(0)
-  grossPrice         Int                    @default(0)
-  minStock           Int                    @default(0)
-  stocks             Stock[]
-  movements          InventoryMovement[]
-  salesDocumentItems SalesDocumentItem[]
-  salesOrderItems    SalesOrderItem[]
-  priceListItems     PriceListItem[]
-  purchaseItems      PurchaseDocumentItem[]
-  purchaseOrderItems PurchaseOrderItem[]
-  goodsReceiptItems  GoodsReceiptItem[]
-  journalLines       JournalLine[]
-  createdAt          DateTime               @default(now())
-  updatedAt          DateTime               @updatedAt
+  isExempt            Boolean                @default(false)
+  costPricePMP        Float                  @default(0)
+  netPrice            Int                    @default(0)
+  grossPrice          Int                    @default(0)
+  minStock            Int                    @default(0)
+  /// Código de barras principal (EAN-13, UPC o interno). Único por empresa.
+  barcode             String?
+  brand               String?
+  /// Foto del producto (Blob), para catálogo, POS y etiquetas.
+  imageUrl            String?
+  /// Maneja lotes con vencimiento: las entradas registran lote y las salidas
+  /// consumen primero el que vence antes (FEFO). Ver `InventoryLot`.
+  tracksLots          Boolean                @default(false)
+  packagings          ProductPackaging[]
+  lots                InventoryLot[]
+  inventoryCountLines InventoryCountLine[]
+  stocks              Stock[]
+  movements           InventoryMovement[]
+  salesDocumentItems  SalesDocumentItem[]
+  salesOrderItems     SalesOrderItem[]
+  priceListItems      PriceListItem[]
+  purchaseItems       PurchaseDocumentItem[]
+  purchaseOrderItems  PurchaseOrderItem[]
+  goodsReceiptItems   GoodsReceiptItem[]
+  journalLines        JournalLine[]
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
 
   @@unique([companyId, sku])
+  @@unique([companyId, barcode])
   @@index([companyId, name])
 }
 
@@ -765,24 +785,27 @@ model Stock {
 }
 
 model InventoryMovement {
-  id            String       @id @default(cuid())
-  companyId     String
-  company       Company      @relation(fields: [companyId], references: [id])
-  productId     String
-  product       Product      @relation(fields: [productId], references: [id])
-  warehouseId   String
-  warehouse     Warehouse    @relation(fields: [warehouseId], references: [id])
-  type          MovementType
-  quantity      Float
-  unitCost      Float
-  totalCost     Int
-  previousStock Float
-  newStock      Float
-  previousPmp   Float
-  newPmp        Float
-  reference     String?
-  notes         String?
-  createdAt     DateTime     @default(now())
+  id             String       @id @default(cuid())
+  companyId      String
+  company        Company      @relation(fields: [companyId], references: [id])
+  productId      String
+  product        Product      @relation(fields: [productId], references: [id])
+  warehouseId    String
+  warehouse      Warehouse    @relation(fields: [warehouseId], references: [id])
+  type           MovementType
+  quantity       Float
+  unitCost       Float
+  totalCost      Int
+  previousStock  Float
+  newStock       Float
+  previousPmp    Float
+  newPmp         Float
+  reference      String?
+  notes          String?
+  /// Lotes que movió este movimiento: `[{ lotNumber, expiryDate, quantity }]`.
+  /// `null` en productos sin lotes y en movimientos previos a los lotes.
+  lotAllocations Json?
+  createdAt      DateTime     @default(now())
 
   @@index([companyId, productId, createdAt])
 }
@@ -3302,6 +3325,11 @@ enum WorkflowTriggerEvent {
   GOODS_RECEIPT_CREATED
   /// Solicitud de vacaciones o permiso aprobada o rechazada.
   LEAVE_REQUEST_REVIEWED
+  /// Lote con saldo que vence en 30, 7 o 0 días, o que ya venció (lo emite
+  /// la alerta operativa diaria en esos hitos, no todos los días).
+  LOT_EXPIRING
+  /// Toma de inventario contabilizada (trae ajustes y su valorización).
+  INVENTORY_COUNT_POSTED
 }
 
 enum WorkflowActionType {
@@ -4026,4 +4054,97 @@ model SalesCommissionRate {
   updatedAt DateTime        @updatedAt
 
   @@unique([companyId, userId])
+}
+
+// ============================================================================
+// Inventario · Ola 2: empaques, lotes con vencimiento y toma de inventario.
+// ============================================================================
+
+/// Empaque de compra o venta de un producto ("Caja x12"): `factor` unidades
+/// base. Escanear su código de barras agrega `factor` unidades del producto.
+model ProductPackaging {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name      String
+  factor    Float
+  barcode   String?
+  createdAt DateTime @default(now())
+
+  @@unique([companyId, barcode])
+  @@index([companyId, productId])
+}
+
+/// Saldo de un lote de un producto en una bodega. La suma de los lotes de un
+/// producto con `tracksLots` sigue a `Stock.quantity`; lo que entró sin lote
+/// (compras previas, devoluciones) queda en el lote "SIN-LOTE".
+model InventoryLot {
+  id          String    @id @default(cuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  lotNumber   String
+  expiryDate  DateTime?
+  quantity    Float     @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([companyId, productId, warehouseId, lotNumber])
+  @@index([companyId, expiryDate])
+}
+
+enum InventoryCountStatus {
+  OPEN
+  POSTED
+  CANCELLED
+}
+
+/// Toma de inventario (conteo físico) de una bodega. Al contabilizarla, cada
+/// diferencia entre lo contado y el stock del momento se ajusta al PMP
+/// vigente, con su asiento contra `DIFERENCIA_INVENTARIO`.
+model InventoryCount {
+  id          String               @id @default(cuid())
+  companyId   String
+  company     Company              @relation(fields: [companyId], references: [id])
+  folio       Int
+  warehouseId String
+  warehouse   Warehouse            @relation(fields: [warehouseId], references: [id])
+  categoryId  String?
+  status      InventoryCountStatus @default(OPEN)
+  notes       String?
+  createdById String?
+  postedAt    DateTime?
+  postedById  String?
+  lines       InventoryCountLine[]
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@unique([companyId, folio])
+  @@index([companyId, status])
+}
+
+model InventoryCountLine {
+  id              String         @id @default(cuid())
+  companyId       String
+  company         Company        @relation(fields: [companyId], references: [id])
+  countId         String
+  count           InventoryCount @relation(fields: [countId], references: [id], onDelete: Cascade)
+  productId       String
+  product         Product        @relation(fields: [productId], references: [id])
+  /// Stock del sistema al abrir el conteo (referencia para quien cuenta).
+  systemQuantity  Float
+  /// Lo contado. `null` = aún no contado (no se ajusta).
+  countedQuantity Float?
+  /// Al contabilizar: stock del momento, ajuste aplicado y su costo unitario.
+  stockAtPosting  Float?
+  adjustment      Float?
+  unitCost        Float?
+
+  @@unique([countId, productId])
+  @@index([companyId, countId])
 }

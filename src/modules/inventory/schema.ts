@@ -1,4 +1,13 @@
 import { z } from 'zod';
+import { isAllowedBlobUrl } from '@/lib/security/blob-url';
+
+/** Código de barras: lo que un lector puede escribir (ASCII imprimible, sin espacios a los lados). */
+const barcodeField = z
+  .string()
+  .trim()
+  .max(64, 'Máximo 64 caracteres')
+  .regex(/^[\x21-\x7e]*$/, 'El código de barras solo admite letras, números y símbolos, sin espacios')
+  .optional();
 
 export const UNITS = ['UN', 'KG', 'MT', 'LTS', 'CJA', 'PAR'] as const;
 
@@ -15,6 +24,15 @@ export const productCreateSchema = z.object({
     .int('El precio neto debe ser un número entero')
     .min(0, 'El precio neto no puede ser negativo'),
   minStock: z.number().int('El stock mínimo debe ser un número entero').min(0).optional(),
+  barcode: barcodeField,
+  brand: z.string().trim().max(80, 'Máximo 80 caracteres').optional(),
+  imageUrl: z
+    .string()
+    .url('URL de imagen inválida')
+    .refine((url) => isAllowedBlobUrl(url), 'La imagen debe subirse desde el sistema')
+    .optional()
+    .or(z.literal('')),
+  tracksLots: z.boolean().optional(),
 });
 
 export const productUpdateSchema = productCreateSchema.partial();
@@ -50,6 +68,9 @@ export const stockMovementSchema = z
     targetWarehouseId: z.string().optional(),
     reference: z.string().optional(),
     notes: z.string().optional(),
+    /** Solo productos con lotes: lote y vencimiento de lo que entra. */
+    lotNumber: z.string().trim().max(40, 'Máximo 40 caracteres').optional(),
+    expiryDate: z.union([z.literal(''), z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha de vencimiento inválida')]).optional(),
   })
   .refine(
     (data) => !(data.type === 'PURCHASE_IN' || data.type === 'ADJUSTMENT_IN') || data.unitCost !== undefined,
@@ -65,3 +86,28 @@ export const stockMovementSchema = z
   });
 
 export type StockMovementInput = z.infer<typeof stockMovementSchema>;
+
+export const productPackagingSchema = z.object({
+  name: z.string().trim().min(2, 'Ponle un nombre (ej. Caja x12)').max(60, 'Máximo 60 caracteres'),
+  factor: z.number().positive('Las unidades por empaque deben ser mayores a cero').max(1_000_000, 'Demasiadas unidades'),
+  barcode: barcodeField,
+});
+
+export type ProductPackagingInput = z.infer<typeof productPackagingSchema>;
+
+// ─── Toma de inventario ──────────────────────────────────────────────────────
+
+export const inventoryCountCreateSchema = z.object({
+  warehouseId: z.string().min(1, 'Selecciona una bodega'),
+  categoryId: z.string().optional(),
+  notes: z.string().trim().max(500, 'Máximo 500 caracteres').optional(),
+});
+
+export const inventoryCountEntriesSchema = z
+  .array(
+    z.object({
+      lineId: z.string().min(1),
+      countedQuantity: z.number().min(0, 'La cantidad contada no puede ser negativa').nullable(),
+    })
+  )
+  .max(20_000);

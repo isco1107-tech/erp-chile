@@ -81,6 +81,12 @@ async function hardDeleteTenant(tx: Prisma.TransactionClient, companyId: string)
   await tx.priceListItem.deleteMany({ where: { companyId } });
   await tx.priceList.deleteMany({ where: { companyId } });
   await tx.salesCommissionRate.deleteMany({ where: { companyId } });
+  // Inventario · Ola 2: conteos (sus líneas apuntan a Product con RESTRICT, así
+  // que van antes que los productos), lotes y empaques.
+  await tx.inventoryCountLine.deleteMany({ where: { companyId } });
+  await tx.inventoryCount.deleteMany({ where: { companyId } });
+  await tx.inventoryLot.deleteMany({ where: { companyId } });
+  await tx.productPackaging.deleteMany({ where: { companyId } });
   await tx.purchaseDocument.deleteMany({ where: { companyId } });
   await tx.journalEntry.deleteMany({ where: { companyId } });
   await tx.account.deleteMany({ where: { companyId } });

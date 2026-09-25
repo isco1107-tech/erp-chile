@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { EmptyState } from '@/components/ui/EmptyState';
 import { listContactsAction } from '@/modules/contacts/actions/contacts.actions';
 import { listWarehousesAction } from '@/modules/inventory/actions/inventory.actions';
-import { listProductsAction } from '@/modules/inventory/actions/products.actions';
+import { findProductByCodeAction, listProductsAction } from '@/modules/inventory/actions/products.actions';
 import type { ProductWithStock } from '@/modules/inventory/services/products.service';
 import { createSalesOrderAction, getQuotePrefillAction, getReservedStockAction, type QuotePrefill } from '@/modules/sales/actions/sales-orders.actions';
 import { getContactPricingAction } from '@/modules/sales/actions/price-lists.actions';
@@ -142,12 +142,12 @@ export default function SalesOrderForm({ quoteId }: { quoteId?: string }) {
   const productResults = useMemo(() => {
     const q = productQuery.trim().toLowerCase();
     if (!q) return [];
-    return products.filter((p) => p.sku.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)).slice(0, 8);
+    return products.filter((p) => p.sku.toLowerCase().includes(q) || p.name.toLowerCase().includes(q) || p.barcode?.toLowerCase() === q).slice(0, 8);
   }, [productQuery, products]);
 
   const tiersFor = (productId: string) => pricing?.tiers[productId] ?? [];
 
-  function addProduct(product: ProductWithStock) {
+  function addProduct(product: Pick<ProductWithStock, 'id' | 'sku' | 'name' | 'netPrice' | 'isExempt'>, units = 1) {
     const tiers = tiersFor(product.id);
     setLines((prev) => [
       ...prev,
@@ -156,14 +156,26 @@ export default function SalesOrderForm({ quoteId }: { quoteId?: string }) {
         productId: product.id,
         sku: product.sku,
         description: product.name,
-        quantity: '1',
-        unitPrice: String(resolveUnitPrice(product.netPrice, tiers, 1)),
+        quantity: String(units),
+        unitPrice: String(resolveUnitPrice(product.netPrice, tiers, units)),
         discountPercent: '0',
         isExempt: product.isExempt,
         priceAuto: tiers.length > 0,
       },
     ]);
     setProductQuery('');
+  }
+
+  /** Escáner: código del producto, de un empaque (agrega sus unidades) o SKU exacto. */
+  async function handleProductKey(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    const code = productQuery.trim();
+    if (!code) return;
+    const result = await findProductByCodeAction(code);
+    if (result.success && result.data) return addProduct(result.data.product, result.data.factor);
+    if (productResults[0]) addProduct(productResults[0]);
+    else toast.error(`Sin resultados para "${code}"`);
   }
 
   function update(key: string, field: keyof Line, value: string | boolean) {
@@ -339,7 +351,14 @@ export default function SalesOrderForm({ quoteId }: { quoteId?: string }) {
       <section className="space-y-3 rounded-xl border border-border bg-card p-5 shadow-card" aria-label="Productos">
         <div className="relative max-w-xl">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-          <Input className="pl-8" placeholder="Agregar producto por SKU o nombre" value={productQuery} onChange={(e) => setProductQuery(e.target.value)} />
+          <Input
+            className="pl-8"
+            placeholder="Escanea o busca un producto por SKU o nombre"
+            value={productQuery}
+            onChange={(e) => setProductQuery(e.target.value)}
+            onKeyDown={handleProductKey}
+            autoComplete="off"
+          />
           {productResults.length > 0 && (
             <ul className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-border bg-card text-sm shadow-popover">
               {productResults.map((p) => (

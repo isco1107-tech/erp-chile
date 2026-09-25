@@ -91,7 +91,7 @@ export default function PosTerminal(props: Props) {
     const q = query.trim().toLowerCase();
     if (!q) return [];
     return products
-      .filter((p) => p.sku.toLowerCase().includes(q) || p.name.toLowerCase().includes(q))
+      .filter((p) => p.sku.toLowerCase().includes(q) || p.name.toLowerCase().includes(q) || p.barcode?.toLowerCase() === q)
       .slice(0, 8);
   }, [query, products]);
 
@@ -114,12 +114,12 @@ export default function PosTerminal(props: Props) {
   const isCash = paymentMethod === 'EFECTIVO';
   const canCharge = cart.length > 0 && !saving && (!isCash || received >= total);
 
-  function addProduct(product: PosProduct) {
+  function addProduct(product: PosProduct, units = 1) {
     setCart((prev) => {
       const existing = prev.find((line) => line.productId === product.id);
       if (existing) {
         return prev.map((line) =>
-          line.productId === product.id ? { ...line, quantity: line.quantity + 1 } : line
+          line.productId === product.id ? { ...line, quantity: line.quantity + units } : line
         );
       }
       return [
@@ -129,7 +129,7 @@ export default function PosTerminal(props: Props) {
           sku: product.sku,
           name: product.name,
           netPrice: product.netPrice,
-          quantity: 1,
+          quantity: units,
           stock: product.stock,
           isTrackable: product.isTrackable,
           isExempt: product.isExempt,
@@ -146,9 +146,18 @@ export default function PosTerminal(props: Props) {
     const q = query.trim().toLowerCase();
     if (!q) return;
 
-    // El lector entrega el SKU exacto: esa coincidencia manda sobre la búsqueda
-    // parcial, para que escanear nunca agregue el producto equivocado.
-    const exact = products.find((p) => p.sku.toLowerCase() === q);
+    // El lector entrega el código exacto (de barras, de un empaque o el SKU):
+    // esa coincidencia manda sobre la búsqueda parcial, para que escanear
+    // nunca agregue el producto equivocado. Un empaque agrega sus unidades.
+    for (const product of products) {
+      const pack = product.packagings.find((pkg) => pkg.barcode.toLowerCase() === q);
+      if (pack) {
+        addProduct(product, pack.factor);
+        toast.success(`${pack.name}: ${pack.factor} × ${product.name}`);
+        return;
+      }
+    }
+    const exact = products.find((p) => p.barcode?.toLowerCase() === q) ?? products.find((p) => p.sku.toLowerCase() === q);
     const chosen = exact ?? matches[0];
     if (!chosen) {
       toast.error(`Sin resultados para "${query.trim()}"`);

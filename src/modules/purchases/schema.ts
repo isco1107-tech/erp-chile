@@ -121,6 +121,9 @@ export type PurchaseOrderCreateInput = z.infer<typeof purchaseOrderCreateSchema>
 export const goodsReceiptItemSchema = z.object({
   orderItemId: z.string().min(1),
   quantity: z.number().positive('La cantidad debe ser mayor a cero'),
+  /** Solo productos con lotes: lote y vencimiento de lo recibido. */
+  lotNumber: z.string().trim().max(40, 'El lote admite máximo 40 caracteres').optional(),
+  expiryDate: z.union([z.literal(''), z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha de vencimiento inválida')]).optional(),
 });
 
 export type GoodsReceiptItemInput = z.infer<typeof goodsReceiptItemSchema>;

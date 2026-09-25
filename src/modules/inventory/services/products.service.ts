@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma';
-import type { Category, Prisma, Product } from '@prisma/client';
+import type { Category, Prisma, Product, ProductPackaging } from '@prisma/client';
 import { calculateGrossPrice } from '@/lib/chile/tax';
-import type { CategoryCreateInput, ProductCreateInput, ProductUpdateInput } from '../schema';
+import type { CategoryCreateInput, ProductCreateInput, ProductPackagingInput, ProductUpdateInput } from '../schema';
 
 export type ProductWithStock = Product & { category: Category | null; totalStock: number };
 
@@ -13,7 +13,7 @@ export async function listProducts(
   const trimmed = options?.query?.trim();
   if (trimmed) {
     const like: Prisma.StringFilter = { contains: trimmed, mode: 'insensitive' };
-    where.OR = [{ sku: like }, { name: like }];
+    where.OR = [{ sku: like }, { name: like }, { brand: like }, { barcode: trimmed }, { packagings: { some: { barcode: trimmed } } }];
   }
   if (options?.categoryId) where.categoryId = options.categoryId;
 
@@ -51,6 +51,10 @@ export interface ProductListItem {
   minStock: number;
   costPricePMP: number;
   totalStock: number;
+  barcode: string | null;
+  brand: string | null;
+  imageUrl: string | null;
+  tracksLots: boolean;
 }
 
 export interface ListProductsResult {
@@ -77,7 +81,7 @@ export async function listProductsPage(
   const trimmed = options?.query?.trim();
   if (trimmed) {
     const like: Prisma.StringFilter = { contains: trimmed, mode: 'insensitive' };
-    where.OR = [{ sku: like }, { name: like }];
+    where.OR = [{ sku: like }, { name: like }, { brand: like }, { barcode: trimmed }, { packagings: { some: { barcode: trimmed } } }];
   }
   if (options?.categoryId) where.categoryId = options.categoryId;
 
@@ -101,6 +105,10 @@ export async function listProductsPage(
         grossPrice: true,
         minStock: true,
         costPricePMP: true,
+        barcode: true,
+        brand: true,
+        imageUrl: true,
+        tracksLots: true,
         stocks: { select: { quantity: true } },
       },
       orderBy: { name: 'asc' },
@@ -142,6 +150,7 @@ async function assertCategoryBelongsToCompany(companyId: string, categoryId: str
 
 export async function createProduct(companyId: string, input: ProductCreateInput): Promise<Product> {
   if (input.categoryId) await assertCategoryBelongsToCompany(companyId, input.categoryId);
+  if (input.barcode) await assertBarcodeFree(companyId, input.barcode);
 
   return prisma.product.create({
     data: {
@@ -156,6 +165,10 @@ export async function createProduct(companyId: string, input: ProductCreateInput
       netPrice: input.netPrice,
       grossPrice: calculateGrossPrice(input.netPrice, input.isExempt ?? false),
       minStock: input.minStock ?? 0,
+      barcode: input.barcode || undefined,
+      brand: input.brand || undefined,
+      imageUrl: input.imageUrl || undefined,
+      tracksLots: input.tracksLots ?? false,
     },
   });
 }
@@ -170,8 +183,13 @@ export async function updateProduct(companyId: string, id: string, input: Produc
     isTrackable: input.isTrackable,
     isExempt: input.isExempt,
     minStock: input.minStock,
+    barcode: input.barcode === undefined ? undefined : input.barcode || null,
+    brand: input.brand === undefined ? undefined : input.brand || null,
+    imageUrl: input.imageUrl === undefined ? undefined : input.imageUrl || null,
+    tracksLots: input.tracksLots,
   };
   if (input.sku) data.sku = input.sku;
+  if (input.barcode) await assertBarcodeFree(companyId, input.barcode, id);
   if (input.categoryId !== undefined) {
     if (input.categoryId === '') {
       data.categoryId = null;
@@ -217,4 +235,64 @@ export async function createCategory(companyId: string, input: CategoryCreateInp
   return prisma.category.create({
     data: { companyId, name: input.name, description: input.description || undefined },
   });
+}
+
+// ─── Empaques y búsqueda por código ──────────────────────────────────────────
+
+export async function listPackagings(companyId: string, productId: string): Promise<ProductPackaging[]> {
+  return prisma.productPackaging.findMany({ where: { companyId, productId }, orderBy: { factor: 'asc' } });
+}
+
+export async function createPackaging(companyId: string, productId: string, input: ProductPackagingInput): Promise<ProductPackaging> {
+  const product = await prisma.product.findFirst({ where: { id: productId, companyId }, select: { id: true } });
+  if (!product) throw new Error('Producto no encontrado');
+  if (input.barcode) await assertBarcodeFree(companyId, input.barcode);
+  return prisma.productPackaging.create({
+    data: { companyId, productId, name: input.name, factor: input.factor, barcode: input.barcode || undefined },
+  });
+}
+
+export async function deletePackaging(companyId: string, id: string): Promise<void> {
+  const result = await prisma.productPackaging.deleteMany({ where: { id, companyId } });
+  if (result.count === 0) throw new Error('Empaque no encontrado');
+}
+
+/**
+ * Un mismo código no puede ser a la vez de un producto y de un empaque: el
+ * lector no sabría si agregar 1 unidad o una caja.
+ */
+export async function assertBarcodeFree(companyId: string, barcode: string, exceptProductId?: string): Promise<void> {
+  const [product, packaging] = await Promise.all([
+    prisma.product.findFirst({ where: { companyId, barcode, ...(exceptProductId ? { id: { not: exceptProductId } } : {}) }, select: { name: true } }),
+    prisma.productPackaging.findFirst({ where: { companyId, barcode }, select: { name: true, product: { select: { name: true } } } }),
+  ]);
+  if (product) throw new Error(`El código de barras ya lo usa el producto "${product.name}"`);
+  if (packaging) throw new Error(`El código de barras ya lo usa el empaque "${packaging.name}" de ${packaging.product.name}`);
+}
+
+export interface CodeMatch {
+  product: Product;
+  /** Unidades que representa el código (1 = unidad, 12 = caja de 12). */
+  factor: number;
+  packagingName: string | null;
+}
+
+/** Resuelve un código leído por escáner: código del producto, de un empaque o SKU exacto. */
+export async function findProductByCode(companyId: string, code: string): Promise<CodeMatch | null> {
+  const value = code.trim();
+  if (!value) return null;
+  const byBarcode = await prisma.product.findFirst({ where: { companyId, barcode: value } });
+  if (byBarcode) return { product: byBarcode, factor: 1, packagingName: null };
+  const packaging = await prisma.productPackaging.findFirst({ where: { companyId, barcode: value }, include: { product: true } });
+  if (packaging) return { product: packaging.product, factor: packaging.factor, packagingName: packaging.name };
+  const bySku = await prisma.product.findFirst({ where: { companyId, sku: { equals: value, mode: 'insensitive' } } });
+  return bySku ? { product: bySku, factor: 1, packagingName: null } : null;
+}
+
+/** De una lista de productos, cuáles llevan lotes (para pedir lote y vencimiento al recibir). */
+export async function listLotTrackedProductIds(companyId: string, productIds: readonly string[]): Promise<string[]> {
+  const ids = [...new Set(productIds)].slice(0, 500);
+  if (ids.length === 0) return [];
+  const rows = await prisma.product.findMany({ where: { companyId, id: { in: ids }, tracksLots: true }, select: { id: true } });
+  return rows.map((row) => row.id);
 }
