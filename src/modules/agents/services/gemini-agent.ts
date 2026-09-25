@@ -183,6 +183,33 @@ export async function generateAgentJson<T>(
   return parse(rawJson);
 }
 
+/**
+ * Texto con búsqueda en Google (grounding): el modelo consulta la web antes
+ * de responder y `sources` trae los sitios que citó. Solo Gemini ofrece esto,
+ * por eso no pasa por NVIDIA en ningún nivel. La búsqueda con Google no admite
+ * `responseJsonSchema`: si se necesita JSON, se pide en el prompt y el caller
+ * lo extrae del texto.
+ */
+export async function generateGroundedText(
+  systemPrompt: string,
+  userPrompt: string,
+  tier: AgentModelTier = 'standard'
+): Promise<{ text: string; sources: string[] }> {
+  const client = getClient();
+  const response = await withRetry(() =>
+    client.models.generateContent({
+      model: resolveAgentModel(tier),
+      contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+      config: { systemInstruction: systemPrompt, tools: [{ googleSearch: {} }] },
+    })
+  );
+  const text = response.text?.trim();
+  if (!text) throw new Error('El modelo no devolvió una respuesta');
+  const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
+  const sources = [...new Set(chunks.map((chunk) => chunk.web?.title?.trim() ?? '').filter(Boolean))];
+  return { text, sources };
+}
+
 /** Tope de vueltas del loop de tool-calling: corta un modelo que no converge en vez de encadenar llamadas indefinidamente. */
 const MAX_TOOL_ITERATIONS = 4;
 
