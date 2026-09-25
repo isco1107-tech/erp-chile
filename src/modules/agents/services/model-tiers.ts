@@ -6,9 +6,9 @@
  * - `lite`: emparejar o mapear en volumen (productos de una factura, columnas
  *   de una importación). Mucho texto de entrada, respuesta mecánica.
  * - `standard`: recomendaciones estructuradas sobre métricas ya calculadas
- *   (CFO, COO, Ventas, organigrama) y el asistente del Manual.
+ *   (CFO, COO, Ventas, organigrama).
  * - `reasoning`: síntesis entre varias fuentes (prioridades del CEO) y el
- *   Copiloto, que encadena consultas a los datos con tool-calling.
+ *   Asistente, que encadena consultas a los datos con tool-calling.
  *
  * Cada nivel se elige por variable de entorno y, si no está definida, cae al
  * mismo modelo que se usaba antes para todo: configurar un nivel nunca es
@@ -48,7 +48,7 @@ export interface NvidiaTarget {
 
 /**
  * Si un nivel debe ir a NVIDIA en vez de Gemini. Hoy solo `reasoning` (CEO y
- * Copiloto): es donde un modelo más grande se nota, y sus llamadas son texto
+ * Asistente): es donde un modelo más grande se nota, y sus llamadas son texto
  * libre o tool-calling, que la API compatible con OpenAI de NVIDIA cubre. Las
  * respuestas JSON con esquema (`lite`/`standard`) siguen en Gemini.
  *

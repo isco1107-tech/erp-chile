@@ -2,9 +2,7 @@ import Link from 'next/link';
 
 /**
  * Marca de agua del producto: "hecho con Aether ERP", con el ícono de marca
- * en la esquina inferior derecha. Se ubica por encima del botón flotante del
- * copiloto IA (`AiCopilotDrawer`, `right-5 bottom-5`, 56px de alto) en vez de
- * al lado, para no competir con él — y lejos de la esquina inferior
+ * en la esquina inferior derecha — lejos de la esquina inferior
  * izquierda, donde Next.js dibuja su propio indicador de entorno de
  * desarrollo (`devIndicators`, solo en `next dev`, nunca en producción).
  * Tampoco choca con el logo de la empresa cliente, que vive arriba a la

@@ -525,10 +525,10 @@ export const MANUAL_SECTIONS: ManualSection[] = [
       },
       {
         id: 'copiloto',
-        title: 'Preguntarle al Copiloto Financiero',
+        title: 'Preguntarle cifras al Asistente',
         steps: [
-          'Usa el botón flotante con el ícono de chispa (abajo a la derecha) para abrir el Copiloto.',
-          'Pregúntale cosas puntuales como "¿cuál fue el margen de ventas este mes?" o "¿qué clientes están morosos?" — responde con datos reales de tu empresa, no información inventada.',
+          'Abre "Asistente" en la barra superior.',
+          'Pregúntale cosas puntuales como "¿cuánto vendí este mes?", "¿qué clientes están morosos?" o "¿cuánto IVA llevo este mes?" — responde con datos reales de tu empresa, solo de los módulos que tienes y según tus permisos.',
         ],
       },
     ],

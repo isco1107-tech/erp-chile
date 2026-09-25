@@ -7,7 +7,8 @@ import { signForSalesDteType, signForPurchaseDocumentType, TAXABLE_SALES_DTE_TYP
 import { getCxCSummary, getCxPSummary } from '@/modules/treasury/services/treasury.service';
 
 /**
- * Herramientas del AI Copilot financiero — cada una de solo lectura, cerrada
+ * Consultas de datos del Asistente (ver `assistant-data-tools.ts`, que decide
+ * cuáles se ofrecen según permisos y módulos) — cada una de solo lectura, cerrada
  * sobre el `companyId` de la sesión (nunca aceptado como argumento del
  * modelo, para que no pueda "preguntar" por otra empresa). Reutilizan las
  * mismas fórmulas que ya usa el resto del sistema (`document-sign.ts`,
@@ -172,11 +173,13 @@ export async function getVatProjection(companyId: string, args: { year?: number;
 }
 
 /** Formatea el resultado de una tool en texto plano en español para pasárselo de vuelta al modelo — nunca se le pide que "recuerde" o invente un número que no esté acá. */
-export function formatToolResultForPrompt(toolName: string, result: unknown): string {
+export function formatToolResultForPrompt(toolName: string, result: unknown, options: { includeMargin: boolean } = { includeMargin: true }): string {
   switch (toolName) {
     case 'getSalesMarginSummary': {
       const r = result as SalesMarginSummary;
-      return `Ventas netas ${formatCurrency(r.netSales)} + exentas ${formatCurrency(r.exemptSales)} entre ${r.from} y ${r.to} (${r.documentCount} documentos). Margen PMP: ${formatCurrency(r.marginAmount)} (${r.marginPercent.toFixed(1)}%).`;
+      const sales = `Ventas netas ${formatCurrency(r.netSales)} + exentas ${formatCurrency(r.exemptSales)} entre ${r.from} y ${r.to} (${r.documentCount} documentos).`;
+      // El margen revela el costo PMP: sin `products:costs` no se le entrega al modelo.
+      return options.includeMargin ? `${sales} Margen PMP: ${formatCurrency(r.marginAmount)} (${r.marginPercent.toFixed(1)}%).` : sales;
     }
     case 'getOverdueBalances': {
       const r = result as OverdueBalances;

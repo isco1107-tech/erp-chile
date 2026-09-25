@@ -32,8 +32,9 @@ import { generateNvidiaText, generateNvidiaWithTools } from './nvidia-agent';
  * Nivel `reasoning` con `NVIDIA_API_KEY` configurada: el texto libre y el
  * tool-calling van primero a NVIDIA (`nvidia-agent.ts`) y, si esa llamada
  * falla por lo que sea (cuota, modelo inexistente, timeout), se repite
- * completa con Gemini. Ojo: en ese caso las tools del Copiloto se ejecutan de
- * nuevo, por eso solo deben ser consultas de lectura.
+ * completa con Gemini. Ojo: en ese caso las tools del Asistente se ejecutan de
+ * nuevo: son consultas de lectura o `proposeAction`, que solo firma una
+ * propuesta sin escribir nada.
  */
 
 /** Espaciado mínimo entre llamadas para no superar ~10 solicitudes/minuto del tier gratuito. */
@@ -218,8 +219,8 @@ const MAX_TOOL_ITERATIONS = 4;
  * pedir una o más `FunctionCall` en vez de responder texto directo; acá se
  * ejecutan contra `executors` y se le devuelve el resultado como
  * `functionResponse`, en el mismo turno si pidió varias a la vez, hasta que
- * responda texto o se agoten las vueltas. Usado por el AI Copilot
- * (`src/app/api/ai/copilot/route.ts`) — nunca por los agentes CEO/CFO/COO
+ * responda texto o se agoten las vueltas. Usado por el Asistente
+ * (`src/app/api/ai/manual-assistant/route.ts`) — nunca por los agentes CEO/CFO/COO
  * automáticos, que no necesitan tools todavía.
  */
 export async function generateAgentWithTools(
@@ -245,7 +246,7 @@ export async function generateAgentWithTools(
   for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
     // Antes esta llamada iba directo a `client.models.generateContent`, sin
     // pasar por `withRetry` — un solo 429 (muy fácil de gatillar: la cuota
-    // gratuita de ~10 req/min se comparte entre el Copiloto, el Asistente del
+    // gratuita de ~10 req/min se comparte entre el Asistente del
     // Manual y el cron de agentes CEO/CFO/COO de TODAS las empresas) tumbaba
     // la respuesta de inmediato en vez de reintentar. Con `withRetry` (hasta
     // 4 reintentos con backoff exponencial) absorbe ráfagas normales de uso.

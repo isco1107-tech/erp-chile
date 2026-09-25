@@ -2,11 +2,11 @@ import { z } from 'zod';
 
 /**
  * Shape común de la respuesta de los endpoints de chat de IA
- * (`/api/ai/copilot`, `/api/ai/manual-assistant`) — `res.json()` devuelve
+ * (`/api/ai/manual-assistant`) — `res.json()` devuelve
  * `any` por defecto (tipo de la lib DOM); esto le da un tipo real antes de
  * leer `data.reply`/`error` en los widgets de chat. `pendingAction` solo lo
  * puebla el asistente del manual cuando propone una acción para confirmar
- * (ver `src/modules/agent-actions/registry.ts`) — el Copilot nunca lo manda.
+ * (ver `src/modules/agent-actions/registry.ts`).
  */
 export const chatResponseSchema = z.union([
   z.object({
