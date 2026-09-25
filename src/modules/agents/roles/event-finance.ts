@@ -4,6 +4,8 @@ import { analyzeProjectFinance, formatProjectsForPrompt, sortAlerts } from '@/li
 import { getEventProjectsFinance } from '../services/event-finance-metrics.service';
 import { EVENT_FINANCE_KNOWLEDGE_BASE } from '../knowledge-base';
 import { saveAlertTasks, saveModelRecommendations } from './event-shared';
+import { agentDataScope, agentModuleGuard } from '../constants';
+import { getCompanyFeatures } from '@/lib/auth/guards';
 
 /**
  * Rol "Finanzas de producción": rentabilidad y presupuesto de cada certamen
@@ -16,7 +18,7 @@ import { saveAlertTasks, saveModelRecommendations } from './event-shared';
 
 const SYSTEM_PROMPT = [
   'Eres el director financiero virtual de una productora chilena de certámenes de belleza y eventos, con criterio profesional.',
-  'Recibirás, por cada certamen activo, su ingreso en caja por fuente, gasto real, presupuesto, auspicios comprometidos y cobrados, cuotas de candidatas por cobrar y días que faltan para el evento.',
+  'Recibirás, por cada certamen activo, su ingreso en caja por fuente, gasto real, presupuesto, días que faltan para el evento y, si la empresa usa esos módulos, auspicios comprometidos y cobrados y cuotas de candidatas por cobrar.',
   '',
   EVENT_FINANCE_KNOWLEDGE_BASE,
   '',
@@ -26,14 +28,26 @@ const SYSTEM_PROMPT = [
 
 export async function runEventFinanceAgent(companyId: string): Promise<string> {
   const now = new Date();
-  const inputs = await getEventProjectsFinance(companyId, now);
+  const [inputs, features] = await Promise.all([getEventProjectsFinance(companyId, now), getCompanyFeatures(companyId)]);
   if (inputs.length === 0) return 'Sin certámenes activos que analizar.';
+  const scope = agentDataScope(features);
 
   const analyses = inputs.map((input) => analyzeProjectFinance(input, now));
   const alerts = sortAlerts(analyses.flatMap((analysis) => analysis.alerts));
   const savedAlerts = await saveAlertTasks(companyId, 'EVENT_FINANCE', alerts);
-  const summary = formatProjectsForPrompt(analyses, inputs);
-  const savedRecommendations = await saveModelRecommendations(companyId, 'EVENT_FINANCE', SYSTEM_PROMPT, `Certámenes:\n${summary}`);
+  const summary = formatProjectsForPrompt(analyses, inputs, {
+    sales: scope.sales,
+    sponsorships: scope.sponsorships,
+    tickets: scope.ticketing,
+    votes: scope.publicVoting,
+    installments: scope.installments,
+  });
+  const savedRecommendations = await saveModelRecommendations(
+    companyId,
+    'EVENT_FINANCE',
+    `${SYSTEM_PROMPT}\n${agentModuleGuard(features)}`,
+    `Certámenes:\n${summary}`
+  );
 
   const atRisk = analyses.filter((a) => a.projectedMargin < 0).length;
   return [

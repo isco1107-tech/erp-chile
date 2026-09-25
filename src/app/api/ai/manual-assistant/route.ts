@@ -8,14 +8,25 @@ import { buildManualSystemPrompt } from '@/modules/manual/prompt';
 import { checkRateLimit, MANUAL_ASSISTANT_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { getAgentAction } from '@/modules/agent-actions/registry';
 import { signPendingAction } from '@/modules/agent-actions/token';
+import { DATA_TOOLS, availableDataTools, canSeeMargins, type DataToolName } from '@/modules/agents/assistant-data-tools';
+import {
+  formatToolResultForPrompt,
+  getOverdueBalances,
+  getSalesMarginSummary,
+  getVatProjection,
+} from '@/modules/agents/services/copilot-tools';
 
 /**
- * Endpoint del asistente del Manual de Usuario. A diferencia del Copiloto
- * Financiero (`/api/ai/copilot`), NO exige ningún módulo contratado ni
- * permiso puntual — es ayuda de uso de la app en sí, disponible para
- * cualquier usuario autenticado de cualquier rol. El proxy no intercepta
- * `/api` (ver `src/proxy.ts`), así que la autorización vive acá, mismo
- * patrón que el resto de rutas bajo `src/app/api/ai/`.
+ * Endpoint del Asistente (único asistente del panel: absorbió al antiguo
+ * Copiloto Financiero). NO exige ningún módulo contratado para abrirse — es
+ * ayuda de uso de la app, disponible para cualquier usuario autenticado. El
+ * proxy no intercepta `/api` (ver `src/proxy.ts`), así que la autorización
+ * vive acá, mismo patrón que el resto de rutas bajo `src/app/api/ai/`.
+ *
+ * Responde con cifras reales vía las consultas de `assistant-data-tools.ts`,
+ * ofrecidas solo si el usuario tiene el permiso que las cubre (y con él, el
+ * módulo contratado): cada consulta es de solo lectura y cerrada sobre el
+ * `companyId` de la sesión, nunca uno que mande el modelo.
  *
  * Además de explicar, puede PROPONER acciones concretas (crear un contacto,
  * una candidata, etc. — ver `src/modules/agent-actions/registry.ts`) vía la
@@ -23,8 +34,7 @@ import { signPendingAction } from '@/modules/agent-actions/token';
  * permiso, y devuelve un token firmado que el usuario debe confirmar
  * explícitamente contra `/api/ai/manual-assistant/confirm`.
  *
- * Sin streaming ni persistencia de conversación, mismo criterio que el
- * Copiloto: el cliente manda el historial completo en cada request.
+ * Sin streaming ni persistencia de conversación: el cliente manda el historial completo en cada request.
  */
 
 const messageSchema = z.object({
@@ -75,7 +85,7 @@ export async function POST(req: Request) {
     // Sin `agents:view`/`hasCrm` de por medio (a propósito, ver comentario de
     // arriba), este límite por usuario es lo único que evita que una sola
     // persona acapare la cuota gratuita de Gemini compartida por toda la
-    // plataforma (Copiloto Financiero + agentes CEO/CFO/COO de otras empresas).
+    // plataforma (agentes CEO/CFO/COO de otras empresas).
     const rateLimit = checkRateLimit(session.id, MANUAL_ASSISTANT_RATE_LIMIT);
     if (!rateLimit.allowed) {
       return NextResponse.json(
@@ -90,12 +100,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' }, { status: 400 });
     }
 
+    const dataToolNames = availableDataTools(session.permissions);
     const systemPrompt = buildManualSystemPrompt({
       features: session.features,
       permissions: session.permissions,
       companyName: session.companyName,
       userName: session.name,
       currentPath: parsed.data.currentPath,
+      dataTools: dataToolNames.map((name) => ({ name, summary: DATA_TOOLS[name].summary })),
     });
 
     // El resultado de una `proposeAction` exitosa (token + resumen) no puede
@@ -131,7 +143,27 @@ export async function POST(req: Request) {
       },
     };
 
-    const reply = await generateAgentWithTools(systemPrompt, toGeminiContents(parsed.data.messages), [PROPOSE_ACTION_TOOL], executors);
+    // Consultas de datos: solo las habilitadas para este usuario, y el
+    // resultado se le entrega al modelo ya formateado (CLP, etiquetas en
+    // español) en vez del JSON crudo.
+    const companyId = session.companyId;
+    const includeMargin = canSeeMargins(session.permissions);
+    const dataExecutors: Record<DataToolName, (args: Record<string, unknown>) => Promise<unknown>> = {
+      getSalesMarginSummary: (args) => getSalesMarginSummary(companyId, args as { from: string; to: string }),
+      getOverdueBalances: (args) => getOverdueBalances(companyId, args as { minDaysOverdue?: number }),
+      getVatProjection: (args) => getVatProjection(companyId, args as { year?: number; month?: number }),
+    };
+    for (const name of dataToolNames) {
+      executors[name] = async (args) => ({ resumen: formatToolResultForPrompt(name, await dataExecutors[name](args), { includeMargin }) });
+    }
+
+    const reply = await generateAgentWithTools(
+      systemPrompt,
+      toGeminiContents(parsed.data.messages),
+      [PROPOSE_ACTION_TOOL, ...dataToolNames.map((name) => DATA_TOOLS[name].declaration)],
+      executors,
+      'reasoning'
+    );
 
     return NextResponse.json({ success: true, data: { reply, pendingAction } });
   } catch (error) {

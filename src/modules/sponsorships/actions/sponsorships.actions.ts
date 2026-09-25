@@ -72,6 +72,9 @@ export async function createSponsorshipContractAction(input: unknown): Promise<A
       metadata: { projectId: data.projectId, contactId: data.contactId, tier: data.tier, isBarter: data.isBarter },
     });
     revalidateSponsorships();
+    if (sponsorshipsService.isSponsorAcceptance(null, data.status)) {
+      await sponsorshipsService.notifySponsorAccepted(session.companyId, data.id);
+    }
     return { success: true, data, message: 'Contrato de auspicio creado correctamente' };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
@@ -87,6 +90,7 @@ export async function updateSponsorshipContractAction(
     const parsed = sponsorshipContractUpdateSchema.safeParse(input);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
 
+    const previous = await sponsorshipsService.getSponsorshipContract(session.companyId, id);
     const data = await sponsorshipsService.updateSponsorshipContract(session.companyId, id, parsed.data);
     await createAuditLog({
       companyId: session.companyId,
@@ -98,6 +102,9 @@ export async function updateSponsorshipContractAction(
       metadata: { status: data.status, tier: data.tier },
     });
     revalidateSponsorships(id);
+    if (sponsorshipsService.isSponsorAcceptance(previous?.status ?? null, data.status)) {
+      await sponsorshipsService.notifySponsorAccepted(session.companyId, data.id);
+    }
     return { success: true, data, message: 'Contrato de auspicio actualizado correctamente' };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };

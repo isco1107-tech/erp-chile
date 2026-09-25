@@ -1,4 +1,9 @@
-import { DEFAULT_AGENT_MODEL, resolveAgentModel } from '@/modules/agents/services/model-tiers';
+import {
+  DEFAULT_AGENT_MODEL,
+  DEFAULT_NVIDIA_REASONING_MODEL,
+  resolveAgentModel,
+  resolveNvidiaTarget,
+} from '@/modules/agents/services/model-tiers';
 
 describe('resolveAgentModel', () => {
   it('sin configuración, todos los niveles usan el modelo de siempre', () => {
@@ -16,5 +21,24 @@ describe('resolveAgentModel', () => {
 
   it('una variable vacía o con espacios no deja la llamada sin modelo', () => {
     expect(resolveAgentModel('standard', { GEMINI_MODEL_STANDARD: '   ' })).toBe(DEFAULT_AGENT_MODEL);
+  });
+});
+
+describe('resolveNvidiaTarget', () => {
+  it('sin NVIDIA_API_KEY nada cambia: todo sigue en Gemini', () => {
+    expect(resolveNvidiaTarget('reasoning', {})).toBeNull();
+    expect(resolveNvidiaTarget('reasoning', { NVIDIA_API_KEY: '   ' })).toBeNull();
+  });
+
+  it('con la key, solo el nivel reasoning va a NVIDIA', () => {
+    const env = { NVIDIA_API_KEY: 'nvapi-test' };
+    expect(resolveNvidiaTarget('reasoning', env)).toEqual({ apiKey: 'nvapi-test', model: DEFAULT_NVIDIA_REASONING_MODEL });
+    expect(resolveNvidiaTarget('standard', env)).toBeNull();
+    expect(resolveNvidiaTarget('lite', env)).toBeNull();
+  });
+
+  it('respeta el modelo configurado', () => {
+    const env = { NVIDIA_API_KEY: 'nvapi-test', NVIDIA_MODEL_REASONING: ' moonshotai/kimi-k2.6 ' };
+    expect(resolveNvidiaTarget('reasoning', env)?.model).toBe('moonshotai/kimi-k2.6');
   });
 });

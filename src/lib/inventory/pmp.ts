@@ -37,6 +37,11 @@ export function calculateNewPmp(input: PmpCalculationInput): PmpCalculationResul
   }
   const newStock = previousStock + incomingQuantity;
   if (newStock <= 0) return { newStock, newPmp: incomingUnitCost };
+  // Stock previo negativo que esta compra alcanza a cubrir: las unidades que
+  // quedan en bodega salen todas de esta compra, así que su costo es el de
+  // la compra. Ponderar contra el arrastre negativo daba un PMP absurdo, e
+  // incluso negativo (stock -5 a $1.000 + 10 a $100 → -$800).
+  if (previousStock < 0) return { newStock, newPmp: incomingUnitCost };
 
   const totalValue = previousStock * previousPmp + incomingQuantity * incomingUnitCost;
   return { newStock, newPmp: roundTo(totalValue / newStock, 2) };

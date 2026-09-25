@@ -9,11 +9,13 @@ import type {
   SponsorshipStatus,
   SponsorshipTier,
 } from '@prisma/client';
-import { sendEmail } from '@/lib/email/mailer';
-import { buildSponsorshipPaymentConfirmationEmail } from '@/lib/email/templates';
+import { getAppUrl, sendEmail } from '@/lib/email/mailer';
+import { buildSponsorAcceptedEmail, buildSponsorshipPaymentConfirmationEmail } from '@/lib/email/templates';
+import { pageantContact } from '@/lib/events/pageant-contact';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import { captureException } from '@/lib/observability';
 import { SPONSORSHIP_TIER_LABELS } from '../schema';
+export { isSponsorAcceptance } from '../schema';
 import type {
   DeliverableCreateInput,
   SponsorshipContractCreateInput,
@@ -98,6 +100,46 @@ export async function updateSponsorshipContract(
   const updated = await prisma.sponsorshipContract.findFirst({ where: { id, companyId } });
   if (!updated) throw new Error('Contrato de auspicio no encontrado');
   return updated;
+}
+
+/**
+ * Correo de bienvenida a la marca aceptada como sponsor, con el enlace a su
+ * portal. Se llama DESPUÉS de guardar el contrato y nunca lanza: un fallo de
+ * correo no deshace la aceptación. Destinatario: el correo de la ficha de la
+ * marca o, si no tiene, `fallbackEmail` (el correo que dejó en el formulario
+ * público y quedó en el negocio del CRM). Sin ninguno, no hace nada.
+ */
+export async function notifySponsorAccepted(companyId: string, contractId: string, fallbackEmail?: string | null): Promise<void> {
+  try {
+    const contract = await prisma.sponsorshipContract.findFirst({
+      where: { id: contractId, companyId },
+      select: {
+        tier: true,
+        contact: { select: { email: true, razonSocial: true, nombreFantasia: true } },
+        package: { select: { name: true } },
+        project: { select: { name: true, publicContactEmail: true, publicWhatsapp: true, instagramHandle: true } },
+        company: { select: { businessName: true } },
+      },
+    });
+    if (!contract) return;
+    const to = contract.contact.email?.trim() || fallbackEmail?.trim();
+    if (!to) return;
+
+    const portalToken = await getOrCreatePortalToken(companyId, contractId);
+    const contact = pageantContact(contract.project);
+    const email = buildSponsorAcceptedEmail({
+      contactName: contract.contact.nombreFantasia ?? contract.contact.razonSocial,
+      projectName: contract.project.name,
+      companyName: contract.company.businessName,
+      tierLabel: SPONSORSHIP_TIER_LABELS[contract.tier],
+      packageName: contract.package?.name ?? null,
+      portalUrl: `${getAppUrl()}/sponsors/${portalToken}`,
+      contact: { email: contact.email, whatsapp: contact.whatsapp },
+    });
+    await sendEmail({ to, ...email, ...(contact.email ? { replyTo: contact.email } : {}) });
+  } catch (error) {
+    captureException(error, { module: 'sponsorships', companyId, extra: { reason: 'sponsor-accepted-email', contractId } });
+  }
 }
 
 /**

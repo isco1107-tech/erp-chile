@@ -166,7 +166,7 @@ export async function updateCandidateStatusAction(id: string, input: unknown): P
     // fallo de SMTP nunca debe hacer fallar el cambio de estado, que ya
     // quedó guardado y auditado.
     if (previous && previous.status !== data.status) {
-      await notifyCandidateStatusChange(session.companyId, data).catch((error) =>
+      await notifyCandidateStatusChange(session.companyId, data, previous.status).catch((error) =>
         captureException(error, { module: 'candidates', companyId: session.companyId, extra: { reason: 'status-change-notice' } })
       );
     }
@@ -176,21 +176,28 @@ export async function updateCandidateStatusAction(id: string, input: unknown): P
   }
 }
 
-/** Aviso a la propia candidata de un cambio de estado (felicitaciones al
- * avanzar de ronda o ser seleccionada, agradecimiento al ser descartada) —
- * ver `buildCandidateStatusChangeEmail`, que decide si el estado nuevo
- * amerita algún correo. Sin destinatario (postulación cargada a mano sin
- * email, o creada antes de exigirlo) simplemente no hace nada. */
-async function notifyCandidateStatusChange(companyId: string, candidate: CandidateWithProject): Promise<void> {
+/** Aviso a la propia candidata de cada movimiento en el tablero de casting
+ * o en la ficha (felicitaciones al avanzar, aviso neutro al volver a revisión
+ * o retroceder, agradecimiento al ser descartada, confirmación al retirarse) —
+ * ver `buildCandidateStatusChangeEmail`. Responder el correo llega al
+ * contacto público del certamen. Sin destinatario (postulación cargada a mano
+ * sin email) no hace nada. */
+async function notifyCandidateStatusChange(
+  companyId: string,
+  candidate: CandidateWithProject,
+  previousStatus: CandidateWithProject['status']
+): Promise<void> {
   if (!candidate.email) return;
+  const context = await candidatesService.getCandidateNoticeContext(companyId, candidate.project.id);
   const email = buildCandidateStatusChangeEmail({
     fullName: candidate.fullName,
     projectName: candidate.project.name,
-    companyName: await candidatesService.getCompanyBusinessName(companyId),
+    companyName: context.companyName,
     status: candidate.status,
+    previousStatus,
   });
   if (!email) return;
-  await sendEmail({ to: candidate.email, ...email });
+  await sendEmail({ to: candidate.email, ...email, ...(context.replyTo ? { replyTo: context.replyTo } : {}) });
 }
 
 export async function listCandidatesAction(filters: CandidateListFilters = {}): Promise<ActionResult<CandidateListResult>> {

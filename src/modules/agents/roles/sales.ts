@@ -8,6 +8,8 @@ import { getCompanySettings } from '@/lib/services/company.service';
 import { generateAgentJson } from '../services/gemini-agent';
 import { INDUSTRY_LABELS } from '../services/business-metrics.service';
 import { SALES_KNOWLEDGE_BASE } from '../knowledge-base';
+import { agentDataScope, agentModuleGuard } from '../constants';
+import { getCompanyFeatures } from '@/lib/auth/guards';
 
 /**
  * Rol comercial (Ventas): basado 100% en datos propios de venta, NUNCA en
@@ -84,6 +86,10 @@ interface ProductPerformance {
 }
 
 export async function runSalesAgent(companyId: string): Promise<string> {
+  const features = await getCompanyFeatures(companyId);
+  const scope = agentDataScope(features);
+  if (!scope.sales) return 'Sin facturación ni punto de venta activos: no hay ventas que analizar.';
+
   const since = new Date();
   since.setUTCDate(since.getUTCDate() - LOOKBACK_DAYS);
 
@@ -120,10 +126,14 @@ export async function runSalesAgent(companyId: string): Promise<string> {
   // Precio de catálogo vs. costo, sobre TODOS los productos activos (no solo
   // los vendidos en el período) — es la única forma de detectar un producto
   // mal cotizado que todavía no se ha vendido nunca.
-  const catalogProducts = await prisma.product.findMany({
-    where: { companyId, isTrackable: true },
-    select: { sku: true, name: true, netPrice: true, costPricePMP: true },
-  });
+  // Sin catálogo con costeo PMP (módulos Inventario + Costeo PMP) no hay
+  // costo contra el que comparar el precio: esta sección no aplica.
+  const catalogProducts = scope.catalogPricing
+    ? await prisma.product.findMany({
+        where: { companyId, isTrackable: true },
+        select: { sku: true, name: true, netPrice: true, costPricePMP: true },
+      })
+    : [];
 
   const priced = catalogProducts
     .filter((p) => p.netPrice > 0)
@@ -196,17 +206,21 @@ export async function runSalesAgent(companyId: string): Promise<string> {
   const lines: string[] = [];
   lines.push(`Rubro de la empresa: ${INDUSTRY_LABELS[settings.industryType]}`);
   if (topSellers.length > 0) {
+    // El margen sale del costo PMP: sin ese módulo se reporta solo volumen.
+    const marginText = (p: ProductPerformance) => (scope.margins ? `, margen ${p.marginPercent.toFixed(1)}%` : '');
     lines.push(
       `Productos más vendidos (últimos ${LOOKBACK_DAYS} días): ${topSellers
-        .map((p) => `${p.label} (${p.quantitySold} unidades, ${formatCurrency(p.revenue)}, margen ${p.marginPercent.toFixed(1)}%)`)
+        .map((p) => `${p.label} (${p.quantitySold} unidades, ${formatCurrency(p.revenue)}${marginText(p)})`)
         .join(', ')}`
     );
-    lines.push(
-      `Mejor margen: ${bestMargin.map((p) => `${p.label} (margen ${p.marginPercent.toFixed(1)}%, ${p.quantitySold} unidades)`).join(', ')}`
-    );
-    lines.push(
-      `Peor margen: ${worstMargin.map((p) => `${p.label} (margen ${p.marginPercent.toFixed(1)}%, ${p.quantitySold} unidades)`).join(', ')}`
-    );
+    if (scope.margins) {
+      lines.push(
+        `Mejor margen: ${bestMargin.map((p) => `${p.label} (margen ${p.marginPercent.toFixed(1)}%, ${p.quantitySold} unidades)`).join(', ')}`
+      );
+      lines.push(
+        `Peor margen: ${worstMargin.map((p) => `${p.label} (margen ${p.marginPercent.toFixed(1)}%, ${p.quantitySold} unidades)`).join(', ')}`
+      );
+    }
   } else {
     lines.push(`Sin ventas emitidas en los últimos ${LOOKBACK_DAYS} días.`);
   }
@@ -220,7 +234,7 @@ export async function runSalesAgent(companyId: string): Promise<string> {
   lines.push(...pricingLines);
   const summary = lines.join('\n');
 
-  const { recommendations } = await generateAgentJson(SYSTEM_PROMPT, summary, RECOMMENDATIONS_JSON_SCHEMA, (raw) =>
+  const { recommendations } = await generateAgentJson(`${SYSTEM_PROMPT}\n${agentModuleGuard(features)}`, summary, RECOMMENDATIONS_JSON_SCHEMA, (raw) =>
     recommendationsSchema.parse(raw)
   );
 

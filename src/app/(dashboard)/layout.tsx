@@ -25,7 +25,6 @@ import { SidebarNav } from '@/components/shared/SidebarNav';
 import { CompanySwitcher } from '@/components/shared/CompanySwitcher';
 import { ConfirmProvider } from '@/components/ui/confirm-provider';
 import OnboardingWizard from '@/components/onboarding/OnboardingWizard';
-import AiCopilotDrawer from '@/components/shared/AiCopilotDrawer';
 import ManualAssistantWidget from '@/components/shared/ManualAssistantWidget';
 import ModuleTutorial from '@/components/tutorial/ModuleTutorial';
 import HowToUseButton from '@/components/tutorial/HowToUseButton';
@@ -104,7 +103,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // Solo se consulta acá (no se agrega a `AuthContext`/JWT) para no tocar el
   // contrato de sesión por un dato puramente cosmético del header.
   const currentUser = await prisma.user.findUnique({ where: { id: context.id }, select: { photoUrl: true } });
-  const showCopilot = features.hasCrm && allow('agents:view');
 
   // Tema de marca: si el logo tiene una paleta útil (`brandPalette`, hasta 3
   // colores extraídos en el navegador al subirlo), se sobreescriben acá las
@@ -216,7 +214,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
               />
               <div className="flex-1" />
               <HowToUseButton />
-              <HeaderAssistantButtons showCopilot={showCopilot} />
+              <HeaderAssistantButtons />
               {allow('messaging:whatsapp_personal') && <WhatsAppWebButton />}
               {allow('messaging:use') && <MessagingBell />}
               <NotificationBell />
@@ -248,7 +246,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
             autoOpen={onboardingEligible}
           />
         )}
-        {showCopilot && <AiCopilotDrawer />}
         <ManualAssistantWidget />
         <ModuleTutorial userId={context.id} />
       </ConfirmProvider>

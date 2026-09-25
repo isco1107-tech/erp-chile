@@ -18,6 +18,7 @@ import {
   STAGE_LABELS,
 } from '../schema';
 import * as crmService from '../services/crm.service';
+import { notifySponsorAccepted } from '@/modules/sponsorships/services/sponsorships.service';
 import type {
   CrmPackageOption,
   CrmPersonDetail,
@@ -256,6 +257,8 @@ export async function convertToSponsorshipAction(id: string, input: unknown): Pr
     });
     revalidateCrm();
     revalidatePath('/dashboard/sponsorships');
+    // El contrato nace CONFIRMED: la marca queda aceptada como sponsor.
+    await notifySponsorAccepted(session.companyId, contract.id, opportunity.prospectEmail);
     return { success: true, data: { contractId: contract.id }, message: 'Contrato de auspicio creado' };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };

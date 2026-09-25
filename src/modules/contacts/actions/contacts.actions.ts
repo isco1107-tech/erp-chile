@@ -64,8 +64,8 @@ export async function getContactAction(id: string): Promise<ActionResult<Contact
 }
 
 /**
- * Busca en internet (vía Gemini + Google Search grounding) datos públicos de
- * una empresa por nombre, para precargar el formulario de contacto y evitar
+ * Busca en internet (Gemini + Google Search, con DuckDuckGo de respaldo; ver
+ * company-lookup.service.ts) datos públicos de una empresa por nombre, para precargar el formulario de contacto y evitar
  * tipearlo desde cero. Nunca crea el contacto — solo devuelve candidatos para
  * que el usuario revise y confirme antes de guardar, porque un RUT o
  * dirección mal buscados terminarían en un contacto real usado para facturar.

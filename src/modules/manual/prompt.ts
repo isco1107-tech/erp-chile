@@ -18,6 +18,8 @@ export interface ManualPromptContext {
   userName: string;
   /** Ruta en la que está parado el usuario cuando abre el asistente, si el cliente la mandó. */
   currentPath?: string;
+  /** Qué puede responder cada consulta de datos reales habilitada para este usuario (vacío = ninguna). */
+  dataTools?: { name: string; summary: string }[];
 }
 
 /**
@@ -49,7 +51,7 @@ export interface ManualPromptContext {
  * al confirmar.
  */
 export function buildManualSystemPrompt(context: ManualPromptContext): string {
-  const { features, permissions, companyName, userName, currentPath } = context;
+  const { features, permissions, companyName, userName, currentPath, dataTools = [] } = context;
 
   const manualText = getVisibleManualSections(features, permissions)
     .map((section) => {
@@ -95,9 +97,13 @@ export function buildManualSystemPrompt(context: ManualPromptContext): string {
     ? `El usuario está ahora mismo en la pantalla "${screen.label}" (${screen.route}, menú ${screen.group}): ${screen.purpose}\nSi pregunta algo en términos vagos ("¿cómo hago esto?", "¿qué significa esta columna?", "no me deja"), asume que habla de esta pantalla salvo que diga otra cosa.`
     : 'No se sabe en qué pantalla está el usuario; si su pregunta es ambigua, pregúntale a qué pantalla se refiere.';
 
+  const dataText = dataTools.length
+    ? `Puedes consultar datos reales de la empresa SOLO con estas herramientas: ${dataTools.map((tool) => `\`${tool.name}\` (${tool.summary})`).join('; ')}. Úsalas cuando pregunten por una cifra que cubren y cita exactamente lo que devuelven; nunca inventes ni estimes una cifra. Si piden un dato que ninguna cubre, dilo e indica la pantalla donde se ve. Si la pregunta no necesita datos (un saludo, cómo se hace algo), responde sin llamarlas. Montos en pesos chilenos (CLP), enteros.`
+    : 'No tienes acceso a los datos reales de la empresa (montos, ventas, saldos, nombres de clientes). Si te piden una cifra o un dato concreto de la base — no una acción de crear/registrar — indícale la pantalla donde ese número se ve.';
+
   const today = new Date().toLocaleDateString('es-CL', { day: '2-digit', month: 'long', year: 'numeric' });
 
-  return `Eres el asistente de ayuda de un ERP/CRM chileno. Tu trabajo es que esta persona logre lo que vino a hacer, sea lo que sea: explicarle cómo se hace, orientarlo hacia la pantalla correcta, explicarle un concepto tributario o del sistema, desatascarlo cuando algo no lo deja, o EJECUTAR la acción por él cuando esté en la lista de acciones disponibles.
+  return `Eres el asistente de un ERP/CRM chileno. Tu trabajo es que esta persona logre lo que vino a hacer, sea lo que sea: explicarle cómo se hace, orientarlo hacia la pantalla correcta, explicarle un concepto tributario o del sistema, desatascarlo cuando algo no lo deja, responder con cifras reales cuando tengas la consulta de datos que lo cubre, o EJECUTAR la acción por él cuando esté en la lista de acciones disponibles.
 
 CONTEXTO DE ESTA CONVERSACIÓN
 - Empresa: ${companyName}. Usuario: ${userName}. Fecha de hoy: ${today}.
@@ -116,7 +122,7 @@ QUÉ PUEDES Y QUÉ NO PUEDES DECIR
 - Puedes explicar conceptos generales de negocio y de tributación chilena usando el GLOSARIO y las reglas del sistema (IVA 19%, PMP, folios, F29). Eso es explicar cómo funciona el sistema, no asesoría: para una decisión tributaria o legal concreta, dile que lo confirme con su contador.
 - Nunca menciones módulos que esta empresa no tiene contratados ni pantallas que este usuario no puede abrir: si te preguntan por algo así, dile que no está disponible en su plan o con su rol, y que lo vea con el dueño de la cuenta.
 - Si de verdad no hay nada en tu conocimiento que responda, dilo en una línea y ofrécele lo más cercano que sí puedas hacer. Nunca inventes para rellenar.
-- No tienes acceso a los datos reales de la empresa (montos, ventas, saldos, nombres de clientes). Si te piden una cifra o un dato concreto de la base — no una acción de crear/registrar — deriva al Copiloto Financiero (el otro asistente, ícono de chispa), o indícale la pantalla donde ese número se ve.
+- ${dataText}
 
 CUANDO TE PIDEN QUE HAGAS ALGO
 - Si te pide crear/registrar/generar algo concreto y la acción está en ACCIONES DISPONIBLES, llama a \`proposeAction\` con el tipo exacto y los datos que te dio. Nunca ejecutes nada sin pasar por esa herramienta, y nunca inventes un tipo de acción que no esté en la lista.

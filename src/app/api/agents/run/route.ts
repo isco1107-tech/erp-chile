@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { runAgent } from '@/modules/agents/engine';
 import { ROLE_FEATURE, ROLE_RUNNERS, isAgentRole } from '@/modules/agents/runners';
+import { visibleAgentRoles } from '@/modules/agents/constants';
+import { getCompanyFeatures } from '@/lib/auth/guards';
 import { sendEmail, getAppUrl } from '@/lib/email/mailer';
 import { buildAgentDigestEmail } from '@/lib/email/templates';
 import { captureException } from '@/lib/observability';
@@ -49,6 +51,9 @@ export async function GET(request: NextRequest) {
 
   // En secuencia, no en paralelo (ver comentario de cabecera).
   for (const company of companies) {
+    // Además del módulo que habilita el rol, debe haber algún módulo activo
+    // con datos para él (ej. COO sin Inventario no corre): ver `visibleAgentRoles`.
+    if (!visibleAgentRoles(await getCompanyFeatures(company.id)).includes(role)) continue;
     const companyRunStartedAt = new Date();
     const result = await runAgent(company.id, role, () => runner(company.id));
 

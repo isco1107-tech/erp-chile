@@ -4,6 +4,8 @@ import type { AgentRole } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { generateAgentText } from '../services/gemini-agent';
 import { CEO_PRIORITIZATION_RUBRIC } from '../knowledge-base';
+import { agentModuleGuard, visibleAgentRoles } from '../constants';
+import { getCompanyFeatures } from '@/lib/auth/guards';
 import { captureException } from '@/lib/observability';
 
 /**
@@ -40,9 +42,15 @@ function splitLines(text: string): string[] {
 
 export async function runCeoAgent(companyId: string): Promise<string> {
   const since = new Date(Date.now() - LOOKBACK_HOURS * 60 * 60 * 1000);
+  const features = await getCompanyFeatures(companyId);
+  // Solo lee a los roles que corren para esta empresa: una tarea vieja de un
+  // rol cuyo módulo se apagó no debe volver como "prioridad de la semana".
+  const activeRoles = new Set(visibleAgentRoles(features));
+  const sourceRoles = SOURCE_ROLES.filter((role) => activeRoles.has(role));
+  if (sourceRoles.length === 0) return 'Sin agentes activos que resumir para los módulos de esta empresa.';
 
   const recentTasks = await prisma.agentTask.findMany({
-    where: { companyId, role: { in: SOURCE_ROLES }, createdAt: { gte: since } },
+    where: { companyId, role: { in: sourceRoles }, createdAt: { gte: since } },
     orderBy: { createdAt: 'desc' },
     select: { role: true, title: true, description: true },
     take: 30,
@@ -57,7 +65,7 @@ export async function runCeoAgent(companyId: string): Promise<string> {
   let priorities: string[];
   try {
     const prioritiesText = await generateAgentText(
-      SYSTEM_PROMPT,
+      `${SYSTEM_PROMPT}\n${agentModuleGuard(features)}`,
       `Recomendaciones recientes del equipo:\n${bullet}`,
       'reasoning'
     );

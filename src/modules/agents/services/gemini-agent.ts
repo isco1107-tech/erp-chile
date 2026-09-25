@@ -2,7 +2,10 @@ import 'server-only';
 
 import { GoogleGenAI, type Content, type FunctionDeclaration, type Part } from '@google/genai';
 
-import { resolveAgentModel, type AgentModelTier } from './model-tiers';
+import { captureException } from '@/lib/observability';
+
+import { resolveAgentModel, resolveNvidiaTarget, type AgentModelTier, type NvidiaTarget } from './model-tiers';
+import { generateNvidiaText, generateNvidiaWithTools } from './nvidia-agent';
 
 /**
  * Cliente Gemini compartido por todos los agentes automáticos.
@@ -25,6 +28,13 @@ import { resolveAgentModel, type AgentModelTier } from './model-tiers';
  * Requiere `GEMINI_API_KEY` en el entorno (mismo valor que usa el escaneo de
  * facturas). Sin ella, cualquier llamada de un agente falla y `runAgent()` la
  * registra como `AgentRun.status = FAILED` sin tumbar el resto del cron.
+ *
+ * Nivel `reasoning` con `NVIDIA_API_KEY` configurada: el texto libre y el
+ * tool-calling van primero a NVIDIA (`nvidia-agent.ts`) y, si esa llamada
+ * falla por lo que sea (cuota, modelo inexistente, timeout), se repite
+ * completa con Gemini. Ojo: en ese caso las tools del Asistente se ejecutan de
+ * nuevo: son consultas de lectura o `proposeAction`, que solo firma una
+ * propuesta sin escribir nada.
  */
 
 /** Espaciado mínimo entre llamadas para no superar ~10 solicitudes/minuto del tier gratuito. */
@@ -108,6 +118,11 @@ async function callWithRetry(request: GenerateContentRequest): Promise<string | 
   return response.text;
 }
 
+/** El usuario igual recibe respuesta (de Gemini); esto deja rastro de que NVIDIA falló y por qué. */
+function reportNvidiaFallback(error: unknown, target: NvidiaTarget, call: 'text' | 'tools'): void {
+  captureException(error, { module: 'agents', extra: { provider: 'nvidia', model: target.model, call, fallback: 'gemini' } });
+}
+
 /**
  * Texto libre corto (resúmenes, copys, borradores de correo). Usado por los
  * roles CEO, CMO y OUTREACH.
@@ -117,6 +132,15 @@ export async function generateAgentText(
   userPrompt: string,
   tier: AgentModelTier = 'standard'
 ): Promise<string> {
+  const nvidia = resolveNvidiaTarget(tier);
+  if (nvidia) {
+    try {
+      return await generateNvidiaText(nvidia, systemPrompt, userPrompt);
+    } catch (error) {
+      reportNvidiaFallback(error, nvidia, 'text');
+    }
+  }
+
   const text = await callWithRetry({
     model: resolveAgentModel(tier),
     contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
@@ -160,6 +184,33 @@ export async function generateAgentJson<T>(
   return parse(rawJson);
 }
 
+/**
+ * Texto con búsqueda en Google (grounding): el modelo consulta la web antes
+ * de responder y `sources` trae los sitios que citó. Solo Gemini ofrece esto,
+ * por eso no pasa por NVIDIA en ningún nivel. La búsqueda con Google no admite
+ * `responseJsonSchema`: si se necesita JSON, se pide en el prompt y el caller
+ * lo extrae del texto.
+ */
+export async function generateGroundedText(
+  systemPrompt: string,
+  userPrompt: string,
+  tier: AgentModelTier = 'standard'
+): Promise<{ text: string; sources: string[] }> {
+  const client = getClient();
+  const response = await withRetry(() =>
+    client.models.generateContent({
+      model: resolveAgentModel(tier),
+      contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+      config: { systemInstruction: systemPrompt, tools: [{ googleSearch: {} }] },
+    })
+  );
+  const text = response.text?.trim();
+  if (!text) throw new Error('El modelo no devolvió una respuesta');
+  const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
+  const sources = [...new Set(chunks.map((chunk) => chunk.web?.title?.trim() ?? '').filter(Boolean))];
+  return { text, sources };
+}
+
 /** Tope de vueltas del loop de tool-calling: corta un modelo que no converge en vez de encadenar llamadas indefinidamente. */
 const MAX_TOOL_ITERATIONS = 4;
 
@@ -168,8 +219,8 @@ const MAX_TOOL_ITERATIONS = 4;
  * pedir una o más `FunctionCall` en vez de responder texto directo; acá se
  * ejecutan contra `executors` y se le devuelve el resultado como
  * `functionResponse`, en el mismo turno si pidió varias a la vez, hasta que
- * responda texto o se agoten las vueltas. Usado por el AI Copilot
- * (`src/app/api/ai/copilot/route.ts`) — nunca por los agentes CEO/CFO/COO
+ * responda texto o se agoten las vueltas. Usado por el Asistente
+ * (`src/app/api/ai/manual-assistant/route.ts`) — nunca por los agentes CEO/CFO/COO
  * automáticos, que no necesitan tools todavía.
  */
 export async function generateAgentWithTools(
@@ -179,6 +230,15 @@ export async function generateAgentWithTools(
   executors: Record<string, (args: Record<string, unknown>) => Promise<unknown>>,
   tier: AgentModelTier = 'standard'
 ): Promise<string> {
+  const nvidia = resolveNvidiaTarget(tier);
+  if (nvidia) {
+    try {
+      return await generateNvidiaWithTools(nvidia, systemPrompt, initialContents, tools, executors, MAX_TOOL_ITERATIONS);
+    } catch (error) {
+      reportNvidiaFallback(error, nvidia, 'tools');
+    }
+  }
+
   const client = getClient();
   const contents: Content[] = [...initialContents];
   const model = resolveAgentModel(tier);
@@ -186,7 +246,7 @@ export async function generateAgentWithTools(
   for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
     // Antes esta llamada iba directo a `client.models.generateContent`, sin
     // pasar por `withRetry` — un solo 429 (muy fácil de gatillar: la cuota
-    // gratuita de ~10 req/min se comparte entre el Copiloto, el Asistente del
+    // gratuita de ~10 req/min se comparte entre el Asistente del
     // Manual y el cron de agentes CEO/CFO/COO de TODAS las empresas) tumbaba
     // la respuesta de inmediato en vez de reintentar. Con `withRetry` (hasta
     // 4 reintentos con backoff exponencial) absorbe ráfagas normales de uso.

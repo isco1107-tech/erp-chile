@@ -13,6 +13,7 @@ import type {
 import { applyStockIn, applyStockOut } from '@/modules/inventory/services/stock.service';
 import { getContactOutstandingBalance } from '@/modules/treasury/services/treasury.service';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
+import { constraintInvolves } from '@/lib/prisma-errors';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import type { WorkflowEventPayload } from '@/lib/workflows/types';
 import { postCreditNoteIssued, postSalesDocumentIssued, reverseSalesDocumentPosting } from '@/modules/accounting/posting-rules/sales-posting';
@@ -565,7 +566,24 @@ export async function createSalesDocument(
     }
 
     return created;
-  }, LOCKING_TX_OPTIONS);
+  }, LOCKING_TX_OPTIONS).catch(async (error: unknown) => {
+    // Dos reintentos simultáneos con el mismo `idempotencyKey` (doble clic,
+    // reintento de red): ambos pasan el `findUnique` de arriba antes de que el
+    // otro confirme, y el que pierde la carrera choca con la constraint única.
+    // La venta ya quedó emitida por el otro: se devuelve esa, no un error (que
+    // además se mostraba como "ya existe un documento con ese folio").
+    if (input.idempotencyKey && constraintInvolves(error, 'idempotencyKey')) {
+      const existing = await prisma.salesDocument.findUnique({
+        where: { companyId_idempotencyKey: { companyId, idempotencyKey: input.idempotencyKey } },
+        include: { items: true },
+      });
+      if (existing) {
+        emittedSalePayload = null;
+        return existing;
+      }
+    }
+    throw error;
+  });
 
   if (emittedSalePayload) {
     void emitWorkflowEvent(companyId, 'SALE_ISSUED', emittedSalePayload);

@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { formatCurrency } from '@/lib/chile/tax';
 import { getCxCSummary, getCxPSummary, getCashFlow, listReceivables } from '@/modules/treasury/services/treasury.service';
 import { getCompanySettings } from '@/lib/services/company.service';
+import type { AgentDataScope } from '../constants';
 
 export const INDUSTRY_LABELS: Record<IndustryType, string> = {
   SERVICES: 'Servicios',
@@ -149,13 +150,23 @@ export async function getFinancialSnapshot(companyId: string): Promise<Financial
 }
 
 /** Texto plano en español para pasarle a Gemini — nunca se le pide al modelo que invente ningún número de esta lista. */
-export function formatFinancialSnapshotForPrompt(snapshot: FinancialSnapshot): string {
+export function formatFinancialSnapshotForPrompt(
+  snapshot: FinancialSnapshot,
+  scope: Pick<AgentDataScope, 'sales' | 'margins' | 'treasury'> = { sales: true, margins: true, treasury: true }
+): string {
   const lines: string[] = [];
   lines.push(`Rubro declarado de la empresa: ${INDUSTRY_LABELS[snapshot.industryType]}`);
-  lines.push(`Ventas netas del mes en curso: ${formatCurrency(snapshot.monthNetSales)}`);
-  lines.push(`Ventas netas del mes anterior: ${formatCurrency(snapshot.prevMonthNetSales)}`);
-  lines.push(`IVA débito del mes: ${formatCurrency(snapshot.monthVat)}`);
-  lines.push(`Margen PMP del mes: ${formatCurrency(snapshot.monthMarginAmount)} (${snapshot.monthMarginPercent.toFixed(1)}%)`);
+  // Solo secciones de módulos activos: sin Tesorería no hay CxC/CxP ni flujo
+  // de caja que analizar, y sin costeo PMP el margen no significa nada.
+  if (scope.sales) {
+    lines.push(`Ventas netas del mes en curso: ${formatCurrency(snapshot.monthNetSales)}`);
+    lines.push(`Ventas netas del mes anterior: ${formatCurrency(snapshot.prevMonthNetSales)}`);
+    lines.push(`IVA débito del mes: ${formatCurrency(snapshot.monthVat)}`);
+  }
+  if (scope.margins) {
+    lines.push(`Margen PMP del mes: ${formatCurrency(snapshot.monthMarginAmount)} (${snapshot.monthMarginPercent.toFixed(1)}%)`);
+  }
+  if (!scope.treasury) return lines.join('\n');
   lines.push(`Cuentas por cobrar totales: ${formatCurrency(snapshot.receivablesTotal)}`);
   lines.push(`Cuentas por cobrar vencidas: ${formatCurrency(snapshot.receivablesOverdue)}`);
   lines.push(`Cuentas por cobrar que vencen en los próximos ${SOON_DUE_DAYS} días: ${formatCurrency(snapshot.receivablesDueSoon)}`);

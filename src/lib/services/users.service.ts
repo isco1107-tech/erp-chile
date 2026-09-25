@@ -88,7 +88,7 @@ export async function inviteUser(
 export async function revokeInvitation(companyId: string, id: string): Promise<void> {
   const invitation = await prisma.invitation.findFirst({ where: { id, companyId } });
   if (!invitation) throw new Error('Invitación no encontrada');
-  await prisma.invitation.delete({ where: { id } });
+  await prisma.invitation.deleteMany({ where: { id, companyId } });
 }
 
 export async function resendInvitation(companyId: string, id: string): Promise<Invitation> {

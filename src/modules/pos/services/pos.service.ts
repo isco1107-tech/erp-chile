@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import type { Prisma, SalesDocument, SalesDocumentItem } from '@prisma/client';
 import { applyStockOut, type TxClient } from '@/modules/inventory/services/stock.service';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
+import { constraintInvolves } from '@/lib/prisma-errors';
 import { postSalesDocumentIssued } from '@/modules/accounting/posting-rules/sales-posting';
 import { computeDocument } from '@/modules/sales/calc';
 import { DTE_TYPE_LABELS } from '@/modules/sales/schema';
@@ -334,7 +335,25 @@ export async function createPosSale(
     };
 
     return { ...document, changeDue };
-  }, LOCKING_TX_OPTIONS);
+  }, LOCKING_TX_OPTIONS).catch(async (error: unknown) => {
+    // Mismo caso que en `createSalesDocument`: el reintento simultáneo que
+    // pierde la carrera devuelve la venta ya cobrada en vez de un error.
+    if (input.idempotencyKey && constraintInvolves(error, 'idempotencyKey')) {
+      const existing = await prisma.salesDocument.findUnique({
+        where: { companyId_idempotencyKey: { companyId, idempotencyKey: input.idempotencyKey } },
+        include: { items: true },
+      });
+      if (existing) {
+        emittedSalePayload = null;
+        const changeDue =
+          CASH_PAYMENT_METHODS.includes(input.paymentMethod) && input.cashReceived !== undefined
+            ? Math.max(0, input.cashReceived - existing.totalAmount)
+            : 0;
+        return { ...existing, changeDue };
+      }
+    }
+    throw error;
+  });
 
   if (emittedSalePayload) {
     void emitWorkflowEvent(companyId, 'SALE_ISSUED', emittedSalePayload);

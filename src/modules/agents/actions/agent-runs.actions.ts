@@ -8,7 +8,7 @@ import { prisma } from '@/lib/prisma';
 import { captureException } from '@/lib/observability';
 import { runAgent } from '../engine';
 import { ROLE_FEATURE, ROLE_RUNNERS } from '../runners';
-import { EVENT_AGENT_ROLES } from '../constants';
+import { EVENT_AGENT_ROLES, visibleAgentRoles } from '../constants';
 
 export type ActionResult<T> =
   | { success: true; data: T; message?: string }
@@ -56,7 +56,9 @@ export async function runAgentNowAction(role: AgentRole): Promise<ActionResult<{
     const session = await requireAuthWithPermission('agents:approve');
     companyId = session.companyId;
     if (!ON_DEMAND_ROLES.includes(role)) return { success: false, error: 'Este agente solo corre de forma programada cada mañana.' };
-    if (!session.features[ROLE_FEATURE[role]]) return { success: false, error: 'Tu plan no incluye el módulo que usa este agente.' };
+    if (!session.features[ROLE_FEATURE[role]] || !visibleAgentRoles(session.features).includes(role)) {
+      return { success: false, error: 'Tu plan no incluye los módulos que usa este agente.' };
+    }
 
     const recent = await prisma.agentRun.findFirst({
       where: { companyId, role, startedAt: { gte: new Date(Date.now() - ON_DEMAND_COOLDOWN_MS) } },

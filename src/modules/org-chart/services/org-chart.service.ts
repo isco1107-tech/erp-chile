@@ -91,7 +91,7 @@ export async function deleteJobPosition(companyId: string, id: string): Promise<
     );
   }
 
-  await prisma.jobPosition.delete({ where: { id } });
+  await prisma.jobPosition.deleteMany({ where: { id, companyId } });
 }
 
 async function listMinimalUsers(companyId: string): Promise<MinimalUser[]> {

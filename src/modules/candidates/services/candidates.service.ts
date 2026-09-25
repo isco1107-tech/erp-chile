@@ -468,6 +468,18 @@ export async function getCompanyBusinessName(companyId: string): Promise<string>
   return company?.businessName ?? '';
 }
 
+/** Remitente visible y correo de respuesta de los avisos a una candidata: el contacto público del certamen, nunca uno fijo. */
+export async function getCandidateNoticeContext(
+  companyId: string,
+  projectId: string
+): Promise<{ companyName: string; replyTo: string | null }> {
+  const [companyName, project] = await Promise.all([
+    getCompanyBusinessName(companyId),
+    prisma.project.findFirst({ where: { id: projectId, companyId }, select: { publicContactEmail: true } }),
+  ]);
+  return { companyName, replyTo: project?.publicContactEmail?.trim() || null };
+}
+
 export interface CandidateProjectOption {
   id: string;
   name: string;
