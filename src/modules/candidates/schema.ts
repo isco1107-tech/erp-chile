@@ -3,6 +3,7 @@ import type { CandidateStatus } from '@prisma/client';
 import { cleanRut, validateRut } from '@/lib/chile/rut';
 import { regions } from '@/lib/chile/locations';
 import { isAllowedBlobUrl } from '@/lib/security/blob-url';
+import { ageInSantiago } from '@/lib/chile/timezone';
 
 const rutField = z
   .string()
@@ -112,6 +113,9 @@ export type CandidateUpdateInput = z.infer<typeof candidateUpdateSchema>;
 // campos propios de la postulación pública (comuna, dirección, motivación,
 // causa social, declaraciones) pedidos en la Sección 5 del prompt del módulo
 // — en vez de reemplazar el formulario existente por uno nuevo.
+/** Mayoría de edad en Chile: bajo esto se exigen los datos del apoderado. */
+export const MINOR_AGE = 18;
+
 export const candidateSelfRegistrationSchema = candidateCreateSchema
   .omit({ projectId: true, status: true })
   .extend({
@@ -121,7 +125,15 @@ export const candidateSelfRegistrationSchema = candidateCreateSchema
     // la lista sin marcarla "(opcional)", a diferencia de Instagram/idiomas/
     // experiencia. Se sobreescribe la versión heredada (`nullable().optional()`)
     // en vez de dejar esta regla solo en el componente de cliente.
-    heightCm: z.number('Ingresa tu estatura en centímetros').int('La estatura debe ser un número entero').positive('La estatura debe ser mayor a cero'),
+    heightCm: z
+      .number('Ingresa tu estatura en centímetros')
+      .int('La estatura debe ser un número entero, en centímetros (ej. 172)')
+      .min(120, 'Ingresa tu estatura en centímetros (ej. 172)')
+      .max(230, 'Revisa tu estatura: debe ir en centímetros (ej. 172)'),
+    // Un año mal tipeado (0201, 2201) pasaba como fecha válida.
+    birthDate: z.coerce
+      .date('Fecha de nacimiento inválida')
+      .refine((date) => date.getUTCFullYear() >= 1900 && date.getTime() <= Date.now(), 'Revisa tu fecha de nacimiento'),
     comuna: z.enum(ARAUCANIA_COMUNAS as [string, ...string[]], 'Selecciona una comuna de La Araucanía'),
     direccion: z.string().min(1, 'La dirección es obligatoria').max(200, 'Máximo 200 caracteres'),
     ocupacion: z.string().min(1, 'Cuéntanos tu ocupación o si estudias').max(150, 'Máximo 150 caracteres'),
@@ -137,8 +149,19 @@ export const candidateSelfRegistrationSchema = candidateCreateSchema
     aceptaTratamientoDatos: z.literal(true, 'Debes autorizar el tratamiento de tus datos'),
     aceptaBases: z.literal(true, 'Debes aceptar las bases del certamen'),
     aceptaMarketing: z.boolean().default(false),
+  })
+  // Menor de edad: el contrato de imagen lleva la firma del apoderado, así que
+  // su nombre y RUT (válido) son obligatorios. Antes eran opcionales y una
+  // menor podía postular sin ellos cuando el certamen admitía menores.
+  .superRefine((data, ctx) => {
+    if (Number.isNaN(data.birthDate.getTime()) || ageInSantiago(data.birthDate) >= MINOR_AGE) return;
+    if (!data.guardianName || data.guardianName.trim().length < 3) {
+      ctx.addIssue({ code: 'custom', path: ['guardianName'], message: 'Como eres menor de edad, indica el nombre de tu madre, padre o apoderado' });
+    }
+    if (!data.guardianRut || !validateRut(data.guardianRut)) {
+      ctx.addIssue({ code: 'custom', path: ['guardianRut'], message: 'Ingresa un RUT válido de tu apoderado' });
+    }
   });
-
 // Honeypot: nombre de campo (`website`) usado por el formulario público y
 // por `app/api/public/candidates/[token]/apply/route.ts`. Deliberadamente
 // NO es parte de `candidateSelfRegistrationSchema`: el honeypot se revisa

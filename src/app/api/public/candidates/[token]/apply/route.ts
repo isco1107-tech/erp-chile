@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { put, del } from '@/lib/storage/blob';
 import { prisma } from '@/lib/prisma';
 import { candidateSelfRegistrationSchema, CANDIDATE_HONEYPOT_FIELD } from '@/modules/candidates/schema';
@@ -13,7 +13,7 @@ import {
 } from '@/modules/candidates/services/candidates.service';
 import { sniffImageType, SNIFFED_IMAGE_EXTENSION, sniffCertificateType, SNIFFED_CERTIFICATE_EXTENSION } from '@/lib/security/file-signature';
 import { extractClientIp } from '@/lib/auth/ip-allowlist';
-import { checkRateLimit, CANDIDATE_APPLICATION_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { checkRateLimit, peekRateLimit, CANDIDATE_APPLICATION_ATTEMPT_RATE_LIMIT, CANDIDATE_APPLICATION_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { sendEmail, getAppUrl } from '@/lib/email/mailer';
 import { buildCandidateApplicationConfirmationEmail, buildNewCandidateApplicationNoticeEmail } from '@/lib/email/templates';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
@@ -78,7 +78,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   const { token } = await params;
 
   const clientIp = extractClientIp(req) ?? 'unknown';
-  const rl = checkRateLimit(clientIp, CANDIDATE_APPLICATION_RATE_LIMIT);
+  // Dos topes: intentos (holgado, cuenta todo) y postulaciones enviadas
+  // (estricto, se consulta acá y se registra solo al tener éxito, más abajo).
+  const attempts = checkRateLimit(clientIp, CANDIDATE_APPLICATION_ATTEMPT_RATE_LIMIT);
+  const rl = attempts.allowed ? peekRateLimit(clientIp, CANDIDATE_APPLICATION_RATE_LIMIT) : attempts;
   if (!rl.allowed) {
     const retryAfter = rl.retryAfterMs ? Math.ceil((rl.retryAfterMs - Date.now()) / 1000) : 3600;
     return NextResponse.json(
@@ -232,14 +235,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       userAgent,
     });
 
+    checkRateLimit(clientIp, CANDIDATE_APPLICATION_RATE_LIMIT);
+
     // Fuera de la transacción a propósito (Sección 3: "un fallo de SMTP no
     // debe revertir la postulación"). Nunca debe tumbar la respuesta 200 al
-    // postulante si el correo falla — se registra y se sigue.
-    void sendConfirmationEmails(candidate, folio, projectExists.companyId).catch((error) =>
-      captureException(error, { module: 'candidates', companyId: projectExists.companyId, extra: { reason: 'confirmation-emails' } })
-    );
-
-    void emitCandidateRegisteredEvent(candidate, projectExists.companyId);
+    // postulante si el correo falla — se registra y se sigue. Con `after()`
+    // (no un `void` suelto): Vercel puede congelar la función apenas se
+    // envía la respuesta, y el correo que promete la pantalla de éxito no
+    // alcanzaba a salir.
+    after(async () => {
+      await sendConfirmationEmails(candidate, folio, projectExists.companyId).catch((error) =>
+        captureException(error, { module: 'candidates', companyId: projectExists.companyId, extra: { reason: 'confirmation-emails' } })
+      );
+      await emitCandidateRegisteredEvent(candidate, projectExists.companyId).catch((error) =>
+        captureException(error, { module: 'candidates', companyId: projectExists.companyId, extra: { reason: 'workflow-event' } })
+      );
+    });
 
     return NextResponse.json({ success: true, data: { folio } });
   } catch (error) {

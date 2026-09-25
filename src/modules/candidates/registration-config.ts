@@ -15,7 +15,11 @@ export const CONFIG = {
   // /public) — ver la variable CSS `--hero-photo` en `CandidateRegistrationClient.tsx`.
   contactoWhatsapp: 'https://wa.me/56900000000', // TODO: reemplazar por el número real
   contactoInstagram: 'https://instagram.com/misstemuco', // TODO: reemplazar por el usuario real
-  basesUrl: '/bases-certamen.pdf', // TODO: reemplazar por el archivo real de bases
+  // URL pública de las bases (PDF). `null` mientras no exista el archivo: el
+  // formulario muestra la casilla sin enlace. Antes apuntaba a
+  // '/bases-certamen.pdf', que no existe y, por no ser ruta pública, mandaba
+  // al login a quien intentaba leer las bases antes de aceptarlas.
+  basesUrl: null as string | null,
   privacidadUrl: '/politica-privacidad',
   contactoEmail: 'contacto@misstemuco.cl', // TODO: reemplazar por el correo real
 };

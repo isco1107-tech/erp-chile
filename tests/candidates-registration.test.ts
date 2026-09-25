@@ -341,7 +341,9 @@ function buildRegistrationInput(overrides: Partial<Record<string, unknown>> = {}
 }
 
 describe('submitCandidateRegistration — auto-inscripción pública por token', () => {
-  const FIXED_NOW = new Date(2026, 5, 15);
+  // Mediodía en Chile: la edad se calcula con el "hoy" de Santiago, y la
+  // medianoche UTC del 15 todavía es el 14 a las 20:00 en Chile.
+  const FIXED_NOW = new Date(Date.UTC(2026, 5, 15, 16));
 
   beforeEach(() => {
     jest.useFakeTimers({ doNotFake: ['nextTick'] });
