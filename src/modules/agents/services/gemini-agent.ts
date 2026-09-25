@@ -2,7 +2,10 @@ import 'server-only';
 
 import { GoogleGenAI, type Content, type FunctionDeclaration, type Part } from '@google/genai';
 
-import { resolveAgentModel, type AgentModelTier } from './model-tiers';
+import { captureException } from '@/lib/observability';
+
+import { resolveAgentModel, resolveNvidiaTarget, type AgentModelTier, type NvidiaTarget } from './model-tiers';
+import { generateNvidiaText, generateNvidiaWithTools } from './nvidia-agent';
 
 /**
  * Cliente Gemini compartido por todos los agentes automáticos.
@@ -25,6 +28,12 @@ import { resolveAgentModel, type AgentModelTier } from './model-tiers';
  * Requiere `GEMINI_API_KEY` en el entorno (mismo valor que usa el escaneo de
  * facturas). Sin ella, cualquier llamada de un agente falla y `runAgent()` la
  * registra como `AgentRun.status = FAILED` sin tumbar el resto del cron.
+ *
+ * Nivel `reasoning` con `NVIDIA_API_KEY` configurada: el texto libre y el
+ * tool-calling van primero a NVIDIA (`nvidia-agent.ts`) y, si esa llamada
+ * falla por lo que sea (cuota, modelo inexistente, timeout), se repite
+ * completa con Gemini. Ojo: en ese caso las tools del Copiloto se ejecutan de
+ * nuevo, por eso solo deben ser consultas de lectura.
  */
 
 /** Espaciado mínimo entre llamadas para no superar ~10 solicitudes/minuto del tier gratuito. */
@@ -108,6 +117,11 @@ async function callWithRetry(request: GenerateContentRequest): Promise<string | 
   return response.text;
 }
 
+/** El usuario igual recibe respuesta (de Gemini); esto deja rastro de que NVIDIA falló y por qué. */
+function reportNvidiaFallback(error: unknown, target: NvidiaTarget, call: 'text' | 'tools'): void {
+  captureException(error, { module: 'agents', extra: { provider: 'nvidia', model: target.model, call, fallback: 'gemini' } });
+}
+
 /**
  * Texto libre corto (resúmenes, copys, borradores de correo). Usado por los
  * roles CEO, CMO y OUTREACH.
@@ -117,6 +131,15 @@ export async function generateAgentText(
   userPrompt: string,
   tier: AgentModelTier = 'standard'
 ): Promise<string> {
+  const nvidia = resolveNvidiaTarget(tier);
+  if (nvidia) {
+    try {
+      return await generateNvidiaText(nvidia, systemPrompt, userPrompt);
+    } catch (error) {
+      reportNvidiaFallback(error, nvidia, 'text');
+    }
+  }
+
   const text = await callWithRetry({
     model: resolveAgentModel(tier),
     contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
@@ -179,6 +202,15 @@ export async function generateAgentWithTools(
   executors: Record<string, (args: Record<string, unknown>) => Promise<unknown>>,
   tier: AgentModelTier = 'standard'
 ): Promise<string> {
+  const nvidia = resolveNvidiaTarget(tier);
+  if (nvidia) {
+    try {
+      return await generateNvidiaWithTools(nvidia, systemPrompt, initialContents, tools, executors, MAX_TOOL_ITERATIONS);
+    } catch (error) {
+      reportNvidiaFallback(error, nvidia, 'tools');
+    }
+  }
+
   const client = getClient();
   const contents: Content[] = [...initialContents];
   const model = resolveAgentModel(tier);
