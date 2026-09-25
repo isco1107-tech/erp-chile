@@ -264,7 +264,7 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
     finanzas.push({ id: 'expenses', href: '/dashboard/expenses', label: 'Rendición de Gastos', icon: 'expenses', keywords: ['rendicion', 'reembolso', 'viaticos', 'caja chica', 'gastos'] });
   }
   if (features.hasFixedAssets && allow('assets:read')) {
-    finanzas.push({ id: 'fixed-assets', href: '/dashboard/fixed-assets', label: 'Activo Fijo', icon: 'fixedAssets', keywords: ['depreciacion', 'bienes', 'activos', 'vida util'] });
+    finanzas.push({ id: 'fixed-assets', href: '/dashboard/fixed-assets', label: 'Activo Fijo', icon: 'fixedAssets', keywords: ['depreciacion', 'bienes', 'activos', 'vida util', 'mantencion', 'etiquetas', 'inventario de activos'] });
   }
   if (features.hasPromissoryNotes && allow('promissorynotes:read')) {
     finanzas.push({ id: 'promissory-notes', href: '/dashboard/promissory-notes', label: 'Pagarés', icon: 'promissoryNotes' });

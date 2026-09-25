@@ -17,6 +17,7 @@ import { DTE_TYPE_LABELS } from '@/modules/sales/schema';
 import { formatCurrency } from '@/lib/chile/tax';
 import { formatRut } from '@/lib/chile/rut';
 import WhatsAppButton from '@/components/shared/WhatsAppButton';
+import CustomerPortalCard from '@/components/contacts/CustomerPortalCard';
 
 export const metadata = { title: 'Ficha de Contacto' };
 
@@ -123,6 +124,16 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
           <Field label="Días de crédito" value={contact.creditDays > 0 ? `${contact.creditDays} días` : 'Al contado'} />
         </div>
       </SectionCard>
+
+      {contact.isCustomer && context.features.hasDteBilling && can(context, 'contacts:write') && (
+        <CustomerPortalCard
+          contactId={contact.id}
+          contactName={contact.razonSocial}
+          phone={contact.phone}
+          active={Boolean(contact.portalTokenHash)}
+          createdAt={contact.portalTokenCreatedAt}
+        />
+      )}
 
       {sponsorships && sponsorshipRows.length > 0 && (
         <SectionCard

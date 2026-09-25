@@ -57,6 +57,9 @@ const PUBLIC_ROUTES = [
   // tiene cuenta ERP; la ruta valida el token ella misma contra
   // `ServiceTicket.trackingToken`.
   '/servicio',
+  // Portal de clientes (`/cliente/[token]`): el cliente no tiene cuenta ERP;
+  // la ruta valida el token ella misma contra `Contact.portalTokenHash`.
+  '/cliente',
   // Activos estáticos de marca (logo/ícono de Aether ERP en `public/branding`)
   // — deben verse en TODA la superficie del producto, incluida la pantalla de
   // login, que por definición no tiene sesión.

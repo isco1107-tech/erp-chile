@@ -150,6 +150,7 @@ model Company {
   productionOrderComponents ProductionOrderComponent[]
   serviceTickets            ServiceTicket[]
   serviceTicketLines        ServiceTicketLine[]
+  fixedAssetMaintenances    FixedAssetMaintenance[]
   serviceTicketEvents       ServiceTicketEvent[]
   salesDocumentItems        SalesDocumentItem[]
   purchaseDocuments         PurchaseDocument[]
@@ -739,6 +740,10 @@ model Contact {
   supplierQuotes            SupplierQuote[]
   importShipments           ImportShipment[]
   serviceTickets            ServiceTicket[]
+  /// Portal del cliente (`/cliente/[token]`): se guarda solo el hash SHA-256
+  /// del enlace; el enlace en claro se muestra una vez al generarlo.
+  portalTokenHash           String?                 @unique
+  portalTokenCreatedAt      DateTime?
 
   @@unique([companyId, rutClean])
   @@index([companyId, razonSocial])
@@ -3937,9 +3942,9 @@ enum FixedAssetStatus {
 /// La depreciación NO se persiste mes a mes: se calcula determinísticamente
 /// desde costo, fecha de inicio y vida útil (`src/lib/assets/depreciation.ts`).
 model FixedAsset {
-  id                    String             @id @default(cuid())
+  id                    String                  @id @default(cuid())
   companyId             String
-  company               Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company               Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
   code                  String
   name                  String
   category              String
@@ -3950,19 +3955,20 @@ model FixedAsset {
   depreciationStartDate DateTime
   /// Costo de adquisición neto (sin IVA recuperable), CLP entero.
   acquisitionCost       Int
-  residualValue         Int                @default(1)
+  residualValue         Int                     @default(1)
   /// Vida útil NORMAL en meses. La acelerada se deriva de este valor.
   usefulLifeMonths      Int
-  method                DepreciationMethod @default(LINEAL)
-  status                FixedAssetStatus   @default(ACTIVE)
+  method                DepreciationMethod      @default(LINEAL)
+  status                FixedAssetStatus        @default(ACTIVE)
   disposalDate          DateTime?
   disposalAmount        Int?
   supplierContactId     String?
-  supplier              Contact?           @relation(fields: [supplierContactId], references: [id], onDelete: SetNull)
+  supplier              Contact?                @relation(fields: [supplierContactId], references: [id], onDelete: SetNull)
   invoiceReference      String?
   notes                 String?
-  createdAt             DateTime           @default(now())
-  updatedAt             DateTime           @updatedAt
+  maintenances          FixedAssetMaintenance[]
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
 
   @@unique([companyId, code])
   @@index([companyId, status])
@@ -5020,4 +5026,29 @@ model ServiceTicketEvent {
   createdAt         DateTime             @default(now())
 
   @@index([companyId, ticketId, createdAt])
+}
+
+// ─── Activo fijo · Ola 6: bitácora de mantenciones ───────────────────────────
+
+/// Mantención de un bien del activo fijo (preventiva, correctiva o
+/// inspección) con su costo y la próxima fecha programada.
+model FixedAssetMaintenance {
+  id            String     @id @default(cuid())
+  companyId     String
+  company       Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  assetId       String
+  asset         FixedAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  date          DateTime
+  /// PREVENTIVE, CORRECTIVE o INSPECTION
+  kind          String
+  description   String
+  /// Costo neto de la mantención, CLP (gasto del período, no aumenta el valor del bien).
+  cost          Int        @default(0)
+  provider      String?
+  nextDueDate   DateTime?
+  createdByName String?
+  createdAt     DateTime   @default(now())
+
+  @@index([companyId, assetId, date])
+  @@index([companyId, nextDueDate])
 }

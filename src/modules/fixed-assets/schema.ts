@@ -51,3 +51,27 @@ export const postDepreciationSchema = z.object({
 
 export type FixedAssetInput = z.infer<typeof fixedAssetSchema>;
 export type DisposeAssetInput = z.infer<typeof disposeAssetSchema>;
+
+// ─── Mantenciones (Ola 6) ────────────────────────────────────────────────────
+
+export const MAINTENANCE_KINDS = ['PREVENTIVE', 'CORRECTIVE', 'INSPECTION'] as const;
+export const MAINTENANCE_KIND_LABELS: Record<(typeof MAINTENANCE_KINDS)[number], string> = {
+  PREVENTIVE: 'Preventiva',
+  CORRECTIVE: 'Correctiva',
+  INSPECTION: 'Inspección',
+};
+
+const isoDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha inválida');
+
+export const maintenanceSchema = z
+  .object({
+    date: isoDay,
+    kind: z.enum(MAINTENANCE_KINDS),
+    description: z.string().trim().min(3, 'Describe la mantención').max(500),
+    cost: z.number().int('Monto en pesos enteros').min(0).max(10_000_000_000),
+    provider: z.string().trim().max(120).optional(),
+    nextDueDate: z.union([z.literal(''), isoDay]).optional(),
+  })
+  .refine((value) => !value.nextDueDate || value.nextDueDate > value.date, { path: ['nextDueDate'], message: 'La próxima mantención debe ser posterior' });
+
+export type MaintenanceInput = z.infer<typeof maintenanceSchema>;

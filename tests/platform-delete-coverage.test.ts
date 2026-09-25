@@ -76,6 +76,9 @@ const CASCADES_TO_COMPANY = new Set([
   // PurchaseDocument es `SetNull`, así que no bloquea el borrado de compras.
   'ReceivedDte',
   'RcvImport',
+  // Activo fijo · Ola 6: mantenciones, `onDelete: Cascade` hacia Company y
+  // hacia FixedAsset.
+  'FixedAssetMaintenance',
   'FixedAsset',
   'ExpenseReport',
   'ExpenseItem',

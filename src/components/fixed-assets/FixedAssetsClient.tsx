@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { BookCheck, Building2, Coins, Plus, Search, TrendingDown, Wallet } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import Link from 'next/link';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { CurrencyInput } from '@/components/ui/CurrencyInput';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -516,6 +517,11 @@ export function FixedAssetsClient({ canWrite, canPostEntries }: { canWrite: bool
                   </tbody>
                 </table>
               )}
+              <DialogFooter>
+                <Link href={`/dashboard/fixed-assets/${detail.id}`} className={buttonVariants({ variant: 'outline' })}>
+                  Ficha, mantenciones y etiqueta
+                </Link>
+              </DialogFooter>
             </>
           )}
         </DialogContent>

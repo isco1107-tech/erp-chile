@@ -5,9 +5,9 @@ import { requireAuthWithPermission, authErrorMessage, can, ModuleNotEnabledError
 import { createAuditLog } from '@/lib/auth/audit';
 import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import { JournalError } from '@/modules/accounting/services/journal.service';
-import { disposeAssetSchema, fixedAssetSchema, postDepreciationSchema } from '../schema';
+import { disposeAssetSchema, fixedAssetSchema, maintenanceSchema, postDepreciationSchema } from '../schema';
 import * as assetsService from '../services/fixed-assets.service';
-import type { AssetRow, AssetsSummary } from '../services/fixed-assets.service';
+import type { AssetDetail, AssetRow, AssetsSummary, UpcomingMaintenance } from '../services/fixed-assets.service';
 
 export type ActionResult<T> =
   | { success: true; data: T; message?: string }
@@ -111,6 +111,52 @@ export async function postDepreciationAction(input: unknown): Promise<ActionResu
     revalidatePath('/dashboard/fixed-assets');
     revalidatePath('/dashboard/accounting/journal');
     return { success: true, data: result, message: `Asiento N° ${result.entryNumber} contabilizado` };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+export async function getFixedAssetAction(id: string): Promise<ActionResult<AssetDetail>> {
+  try {
+    const session = await requireAuthWithPermission('assets:read');
+    const asset = await assetsService.getAsset(session.companyId, id);
+    if (!asset) return { success: false, error: 'El activo no existe' };
+    return { success: true, data: asset };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+export async function listUpcomingMaintenancesAction(): Promise<ActionResult<UpcomingMaintenance[]>> {
+  try {
+    const session = await requireAuthWithPermission('assets:read');
+    return { success: true, data: await assetsService.upcomingMaintenances(session.companyId) };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+export async function addMaintenanceAction(assetId: string, input: unknown): Promise<ActionResult<null>> {
+  try {
+    const session = await requireAuthWithPermission('assets:write');
+    const parsed = maintenanceSchema.safeParse(input);
+    if (!parsed.success) return { success: false, error: firstIssue(parsed.error) };
+    await assetsService.addMaintenance(session.companyId, assetId, session.name, parsed.data);
+    await createAuditLog({ companyId: session.companyId, userId: session.id, userEmail: session.email, action: 'CREATE', entity: 'FixedAssetMaintenance', entityId: assetId, metadata: { kind: parsed.data.kind, cost: parsed.data.cost } });
+    revalidatePath(`/dashboard/fixed-assets/${assetId}`);
+    revalidatePath('/dashboard/fixed-assets');
+    return { success: true, data: null, message: 'Mantención registrada' };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+export async function deleteMaintenanceAction(assetId: string, maintenanceId: string): Promise<ActionResult<null>> {
+  try {
+    const session = await requireAuthWithPermission('assets:write');
+    await assetsService.deleteMaintenance(session.companyId, assetId, maintenanceId);
+    revalidatePath(`/dashboard/fixed-assets/${assetId}`);
+    return { success: true, data: null, message: 'Mantención eliminada' };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
   }

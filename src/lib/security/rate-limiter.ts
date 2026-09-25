@@ -331,3 +331,10 @@ export const SERVICE_ESTIMATE_DECISION_RATE_LIMIT: RateLimitConfig = {
   limit: 5,
   windowMs: 60 * 60_000,
 };
+
+/** Portal de clientes: vistas por IP. */
+export const CUSTOMER_PORTAL_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'customer-portal-ip',
+  limit: 90,
+  windowMs: 15 * 60_000,
+};
