@@ -20,6 +20,7 @@ import { buildInvitationEmail } from '@/lib/email/templates';
 import { ROLE_LABELS } from '@/lib/auth/roles';
 import { passwordPolicySchema } from '@/lib/auth/password-policy';
 import type { CreateUserDirectResult } from '@/lib/services/users.service';
+import { getClientIp } from '@/lib/security/cloudflare';
 
 export type ActionResult<T> =
   | { success: true; data: T; message?: string }
@@ -389,7 +390,7 @@ export async function acceptInvitationAction(token: string, input: unknown): Pro
     const user = await usersService.acceptInvitation(token, parsed.data);
 
     const headerList = await headers();
-    const clientIp = headerList.get('x-forwarded-for')?.split(',')[0]?.trim() || null;
+    const clientIp = getClientIp(headerList);
     // Aceptar una invitación termina en una sesión real igual que el login:
     // sin este chequeo, alguien con un enlace de invitación filtrado podía
     // crear su cuenta y entrar desde cualquier IP, saltándose por completo

@@ -9,6 +9,7 @@ import { requireAuthWithPermission, authErrorMessage } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import * as companyService from '@/lib/services/company.service';
+import { getClientIp } from '@/lib/security/cloudflare';
 
 export type ActionResult<T> =
   | { success: true; data: T; message?: string }
@@ -133,7 +134,7 @@ export async function getMyCurrentIpAction(): Promise<ActionResult<string | null
   try {
     await requireAuthWithPermission('settings:company');
     const headerList = await headers();
-    const ip = headerList.get('x-forwarded-for')?.split(',')[0]?.trim() || null;
+    const ip = getClientIp(headerList);
     return { success: true, data: ip };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };

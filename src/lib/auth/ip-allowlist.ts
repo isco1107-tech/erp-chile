@@ -1,3 +1,5 @@
+import { getClientIp } from '@/lib/security/cloudflare';
+
 /**
  * Matching de IPv4 exacta o rango CIDR contra la lista blanca de una
  * empresa. Solo IPv4: si el request llega por IPv6 (posible en Vercel según
@@ -52,17 +54,14 @@ export function isIpAllowed(ip: string | null, allowlist: string[]): boolean {
 }
 
 /**
- * Confiable específicamente en Vercel: la documentación de la plataforma
- * garantiza que sobreescribe `x-forwarded-for` y no reenvía IPs externas
- * ("this restriction is in place to prevent IP spoofing") — un cliente no
- * puede inyectar su propio valor salvo que la cuenta tenga contratado
- * "Trusted Proxy" (feature Enterprise, no aplica hoy). Si el proyecto migra
- * a otro hosting o habilita un proxy propio delante de Vercel, esta
- * garantía deja de sostenerse y hay que revisar esto de nuevo.
+ * IP del cliente de un Route Handler. Delegado a `getClientIp`
+ * (`src/lib/security/cloudflare.ts`): en Vercel `x-forwarded-for` es
+ * confiable (la plataforma lo sobreescribe), pero con Cloudflare delante trae
+ * la IP del borde de Cloudflare; ahí se usa `cf-connecting-ip`, solo si el
+ * request trae el secreto de origen que agrega nuestra zona.
  */
 export function extractClientIp(req: Request): string | null {
-  const forwarded = req.headers.get('x-forwarded-for');
-  return forwarded?.split(',')[0]?.trim() || null;
+  return getClientIp(req.headers);
 }
 
 export function isValidIpAllowlistEntry(entry: string): boolean {

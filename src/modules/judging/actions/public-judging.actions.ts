@@ -7,6 +7,7 @@ import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import { submitScoreSchema } from '../schema';
 import * as judgingService from '../services/judging.service';
 import type { JudgeContext } from '../services/judging.service';
+import { getClientIp } from '@/lib/security/cloudflare';
 
 /**
  * Acciones públicas del jurado: sin `requireAuthWithPermission`, porque el
@@ -51,7 +52,7 @@ export async function submitScoreAction(accessToken: string, input: unknown): Pr
     const parsed = submitScoreSchema.safeParse(input);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
     const hdrs = await headers();
-    const ipAddress = hdrs.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null;
+    const ipAddress = getClientIp(hdrs);
     const userAgent = hdrs.get('user-agent');
     const data = await judgingService.submitScore(accessToken, parsed.data, { ipAddress, userAgent });
     // Sin sesión de usuario ERP: se registra con el nombre del jurado como

@@ -4,6 +4,7 @@ import { headers } from 'next/headers';
 import type { AuditAction, Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { captureException } from '@/lib/observability';
+import { getClientIp } from '@/lib/security/cloudflare';
 
 /**
  * Escritura de la bitácora de auditoría.
@@ -18,9 +19,7 @@ import { captureException } from '@/lib/observability';
 export async function getRequestIp(): Promise<string | undefined> {
   try {
     const headerList = await headers();
-    const forwarded = headerList.get('x-forwarded-for');
-    if (forwarded) return forwarded.split(',')[0]?.trim();
-    return headerList.get('x-real-ip') ?? undefined;
+    return getClientIp(headerList) ?? undefined;
   } catch {
     return undefined;
   }

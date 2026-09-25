@@ -7,6 +7,7 @@ import { checkIpAllowlist } from '@/lib/auth/ip-allowlist-guard';
 import { extractClientIp } from '@/lib/auth/ip-allowlist';
 import { checkRateLimit, LOGIN_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { logSecurityEvent, extractRequestInfo } from '@/lib/security/security-logger';
+import { TURNSTILE_FIELD, verifyTurnstile } from '@/lib/security/turnstile';
 
 export async function POST(req: Request) {
   // ── Rate limit por IP: frena credential stuffing multi-cuenta ──────────
@@ -46,6 +47,15 @@ export async function POST(req: Request) {
   const { ip, userAgent } = extractRequestInfo(req);
   // Extraer email para logging ANTES de llamar loginAction (que consume el parsed data)
   const email = typeof body === 'object' && body !== null && 'email' in body ? String((body as Record<string, unknown>).email) : undefined;
+
+  // Cloudflare Turnstile (solo si está configurado): antes de tocar la base,
+  // para que un bot no pueda ni siquiera gastar intentos contra una cuenta.
+  const turnstileToken = typeof body === 'object' && body !== null ? (body as Record<string, unknown>)[TURNSTILE_FIELD] : undefined;
+  const human = await verifyTurnstile(turnstileToken, ip, 'login');
+  if (!human.ok) {
+    logSecurityEvent({ type: 'LOGIN_FAILED', email, ip, userAgent, metadata: { reason: 'turnstile' } });
+    return NextResponse.json({ success: false, error: human.error }, { status: 403 });
+  }
 
   let result;
   try {

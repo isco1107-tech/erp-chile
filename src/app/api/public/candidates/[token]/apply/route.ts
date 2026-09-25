@@ -18,6 +18,7 @@ import { sendEmail, getAppUrl } from '@/lib/email/mailer';
 import { buildCandidateApplicationConfirmationEmail, buildNewCandidateApplicationNoticeEmail } from '@/lib/email/templates';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import { captureException } from '@/lib/observability';
+import { TURNSTILE_FIELD, verifyTurnstile } from '@/lib/security/turnstile';
 import crypto from 'crypto';
 
 /**
@@ -110,6 +111,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   if (typeof honeypot === 'string' && honeypot.trim() !== '') {
     return NextResponse.json({ success: true, data: { folio: 'OK' } });
   }
+
+  // Cloudflare Turnstile (solo si está configurado): antes de validar datos y
+  // de subir fotos, para que un bot no gaste almacenamiento ni cupos.
+  const human = await verifyTurnstile(form.get(TURNSTILE_FIELD), clientIp !== 'unknown' ? clientIp : null, 'candidate-application');
+  if (!human.ok) return jsonError(human.error, 403);
 
   const heightCmRaw = formValue(form, 'heightCm');
   const rawInput = {

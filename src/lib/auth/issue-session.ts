@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { createSessionToken, setSessionCookie } from './session';
 import { recordSession } from './sessions';
+import { getClientIp } from '@/lib/security/cloudflare';
 
 export interface IssuableUser {
   id: string;
@@ -41,7 +42,7 @@ export async function issueSession(user: IssuableUser, req: Request): Promise<Ne
       companyId: user.companyId,
       token,
       userAgent: req.headers.get('user-agent'),
-      ipAddress: req.headers.get('x-forwarded-for')?.split(',')[0]?.trim(),
+      ipAddress: getClientIp(req.headers),
     });
   }
 

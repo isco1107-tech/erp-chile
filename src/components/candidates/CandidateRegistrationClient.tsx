@@ -7,6 +7,7 @@ import { ARAUCANIA_COMUNAS, CANDIDATE_HONEYPOT_FIELD, candidateSelfRegistrationS
 import { getCandidateRegistrationProjectAction } from '@/modules/candidates/actions/public-registration.actions';
 import type { RegistrationProjectInfo } from '@/modules/candidates/services/candidates.service';
 import { CONFIG } from '@/modules/candidates/registration-config';
+import TurnstileWidget, { isTurnstileConfigured } from '@/components/security/TurnstileWidget';
 
 const italiana = Italiana({ subsets: ['latin'], weight: '400', variable: '--font-display' });
 const karla = Karla({ subsets: ['latin'], weight: ['400', '500', '700'], variable: '--font-body' });
@@ -211,6 +212,10 @@ export default function CandidateRegistrationClient({ token }: { token: string }
   const [medicalCertificate, setMedicalCertificate] = useState<File | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  // Cloudflare Turnstile (solo si está configurado): token de un solo uso,
+  // se remonta el widget tras cada envío fallido para pedir uno nuevo.
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileKey, setTurnstileKey] = useState(0);
   const [folio, setFolio] = useState<string | null>(null);
   const [step, setStep] = useState(0);
   const [navScrolled, setNavScrolled] = useState(false);
@@ -392,6 +397,7 @@ export default function CandidateRegistrationClient({ token }: { token: string }
       body.append('aceptaBases', String(decl.aceptaBases));
       body.append('aceptaMarketing', String(decl.aceptaMarketing));
       body.append(CANDIDATE_HONEYPOT_FIELD, honeypotRef.current?.value ?? '');
+      if (turnstileToken) body.append('cf-turnstile-response', turnstileToken);
       if (photoFace) body.append('photoFace', photoFace);
       if (photoFullBody) body.append('photoFullBody', photoFullBody);
       if (medicalCertificate) body.append('medicalCertificate', medicalCertificate);
@@ -409,6 +415,10 @@ export default function CandidateRegistrationClient({ token }: { token: string }
       setErrors({ form: 'No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo — tus datos siguen aquí.' });
     } finally {
       setSaving(false);
+      if (isTurnstileConfigured) {
+        setTurnstileToken(null);
+        setTurnstileKey((key) => key + 1);
+      }
     }
   }
 
@@ -966,6 +976,10 @@ export default function CandidateRegistrationClient({ token }: { token: string }
             </fieldset>
           )}
 
+          {step === FORM_STEPS.length - 1 && (
+            <TurnstileWidget key={turnstileKey} action="candidate-application" onToken={setTurnstileToken} className="flex justify-center py-2" />
+          )}
+
           {errors.form && <p id="form-error" className="cand-insc-error cand-insc-error-form">{errors.form}</p>}
 
           <div className="cand-insc-form-nav">
@@ -980,7 +994,7 @@ export default function CandidateRegistrationClient({ token }: { token: string }
                 Siguiente
               </button>
             ) : (
-              <button type="submit" className="cand-insc-submit" disabled={saving}>
+              <button type="submit" className="cand-insc-submit" disabled={saving || (isTurnstileConfigured && !turnstileToken)}>
                 {saving ? 'Enviando…' : 'Enviar mi postulación'}
               </button>
             )}
