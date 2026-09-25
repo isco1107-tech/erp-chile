@@ -67,9 +67,11 @@ export async function getCommissionReport(companyId: string, year: number, month
       where: { companyId, status: 'ISSUED', issueDate: { gte: from, lt: to } },
       select: { sellerId: true, dteType: true, netAmount: true, exemptAmount: true, totalAmount: true },
     }),
+    // También los egresos ligados a ventas (cheque protestado, devolución de
+    // dinero): restan del cobrado, para no comisionar plata que no llegó.
     prisma.payment.findMany({
-      where: { companyId, type: 'INCOME', paymentDate: { gte: from, lt: to }, salesDocument: { status: 'ISSUED' } },
-      select: { amount: true, salesDocument: { select: { sellerId: true, netAmount: true, exemptAmount: true, totalAmount: true } } },
+      where: { companyId, paymentDate: { gte: from, lt: to }, salesDocument: { status: 'ISSUED' } },
+      select: { type: true, amount: true, salesDocument: { select: { sellerId: true, netAmount: true, exemptAmount: true, totalAmount: true } } },
     }),
     prisma.salesCommissionRate.findMany({ where: { companyId }, select: { userId: true, rateBps: true, basis: true } }),
     listSellers(companyId),
@@ -82,7 +84,7 @@ export async function getCommissionReport(companyId: string, year: number, month
       .filter((payment) => payment.salesDocument)
       .map((payment) => ({
         sellerId: payment.salesDocument!.sellerId,
-        amount: payment.amount,
+        amount: payment.type === 'EXPENSE' ? -payment.amount : payment.amount,
         documentNet: payment.salesDocument!.netAmount + payment.salesDocument!.exemptAmount,
         documentTotal: payment.salesDocument!.totalAmount,
       })),

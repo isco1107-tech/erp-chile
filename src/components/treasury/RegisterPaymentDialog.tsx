@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { registerPurchasePaymentAction, registerSalesPaymentAction } from '@/modules/treasury/actions/treasury.actions';
+import { listBankAccountsAction } from '@/modules/treasury/actions/banks.actions';
 import { PAYMENT_METHOD_TYPES, PAYMENT_METHOD_TYPE_LABELS } from '@/modules/treasury/schema';
 import { formatCurrency } from '@/lib/chile/tax';
 
@@ -42,6 +43,23 @@ export default function RegisterPaymentDialog({
   const [bankAccount, setBankAccount] = useState('');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  // Cuenta bancaria propia (Tesorería → Bancos): deja el movimiento listo para conciliar.
+  const [ownAccounts, setOwnAccounts] = useState<{ id: string; name: string; isDefault: boolean }[] | null>(null);
+  const [bankAccountId, setBankAccountId] = useState('none');
+
+  useEffect(() => {
+    if (!open || ownAccounts !== null) return;
+    let cancelled = false;
+    void listBankAccountsAction().then((result) => {
+      if (cancelled) return;
+      setOwnAccounts(result.success ? result.data.map((account) => ({ id: account.id, name: account.name, isDefault: account.isDefault })) : []);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, ownAccounts]);
+
+  const usesBank = paymentMethod !== 'EFECTIVO';
 
   const pendingBalance = totalAmount - paidAmount;
   const parsedAmount = Math.round(Number(amount)) || 0;
@@ -52,6 +70,7 @@ export default function RegisterPaymentDialog({
     setPaymentDate('');
     setReferenceNumber('');
     setBankAccount('');
+    setBankAccountId('none');
     setNotes('');
   }
 
@@ -73,6 +92,7 @@ export default function RegisterPaymentDialog({
         paymentDate: paymentDate || undefined,
         referenceNumber: referenceNumber || undefined,
         bankAccount: bankAccount || undefined,
+        bankAccountId: usesBank && bankAccountId !== 'none' ? bankAccountId : undefined,
         notes: notes || undefined,
       };
       const result =
@@ -144,7 +164,15 @@ export default function RegisterPaymentDialog({
                 id="payment-method"
                 className={selectClass}
                 value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value as (typeof PAYMENT_METHOD_TYPES)[number])}
+                onChange={(e) => {
+                  const method = e.target.value as (typeof PAYMENT_METHOD_TYPES)[number];
+                  setPaymentMethod(method);
+                  // Una transferencia casi siempre entra/sale por la cuenta principal.
+                  if (method === 'TRANSFERENCIA' && bankAccountId === 'none') {
+                    const main = ownAccounts?.find((account) => account.isDefault) ?? ownAccounts?.[0];
+                    if (main) setBankAccountId(main.id);
+                  }
+                }}
               >
                 {PAYMENT_METHOD_TYPES.map((method) => (
                   <option key={method} value={method}>
@@ -164,6 +192,19 @@ export default function RegisterPaymentDialog({
                 <Input id="payment-reference" value={referenceNumber} onChange={(e) => setReferenceNumber(e.target.value)} />
               </div>
             </div>
+
+            {usesBank && ownAccounts && ownAccounts.length > 0 && (
+              <div>
+                <Label htmlFor="payment-own-account">{kind === 'sales' ? 'Entró a la cuenta' : 'Salió de la cuenta'}</Label>
+                <select id="payment-own-account" className={selectClass} value={bankAccountId} onChange={(e) => setBankAccountId(e.target.value)}>
+                  <option value="none">Sin especificar</option>
+                  {ownAccounts.map((account) => (
+                    <option key={account.id} value={account.id}>{account.name}</option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-muted-foreground">Así se concilia solo al importar la cartola.</p>
+              </div>
+            )}
 
             <div>
               <Label htmlFor="payment-bank">Banco / Cuenta</Label>

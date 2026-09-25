@@ -10,10 +10,19 @@ import type {
 } from '@prisma/client';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { postPurchasePaymentEntry, postSalesPaymentEntry } from '@/modules/accounting/posting-rules/treasury-posting';
+import { reverseDocumentEntries } from '@/modules/accounting/posting-rules/shared';
 import type { RegisterPaymentInput } from '../schema';
 
 interface RegisterPaymentData extends RegisterPaymentInput {
   paymentMethod: PaymentMethodType;
+}
+
+/** La cuenta bancaria viene del cliente: se comprueba que sea de esta empresa. */
+async function resolveBankAccountId(tx: Prisma.TransactionClient, companyId: string, bankAccountId: string | undefined): Promise<string | undefined> {
+  if (!bankAccountId) return undefined;
+  const account = await tx.bankAccount.findFirst({ where: { id: bankAccountId, companyId }, select: { id: true } });
+  if (!account) throw new Error('Cuenta bancaria no encontrada');
+  return account.id;
 }
 
 /**
@@ -72,6 +81,7 @@ export async function registerSalesPayment(
 
     const newPaidAmount = doc.paidAmount + data.amount;
     const paymentStatus: PaymentStatus = newPaidAmount >= doc.totalAmount ? 'PAID' : 'PARTIAL';
+    const bankAccountId = await resolveBankAccountId(tx, companyId, data.bankAccountId);
 
     const payment = await tx.payment.create({
       data: {
@@ -84,6 +94,7 @@ export async function registerSalesPayment(
         paymentDate: data.paymentDate ? new Date(data.paymentDate) : undefined,
         referenceNumber: data.referenceNumber,
         bankAccount: data.bankAccount,
+        bankAccountId,
         notes: data.notes,
       },
     });
@@ -130,6 +141,7 @@ export async function registerPurchasePayment(
 
     const newPaidAmount = doc.paidAmount + data.amount;
     const paymentStatus: PaymentStatus = newPaidAmount >= doc.totalAmount ? 'PAID' : 'PARTIAL';
+    const bankAccountId = await resolveBankAccountId(tx, companyId, data.bankAccountId);
 
     const payment = await tx.payment.create({
       data: {
@@ -142,6 +154,7 @@ export async function registerPurchasePayment(
         paymentDate: data.paymentDate ? new Date(data.paymentDate) : undefined,
         referenceNumber: data.referenceNumber,
         bankAccount: data.bankAccount,
+        bankAccountId,
         notes: data.notes,
       },
     });
@@ -158,6 +171,57 @@ export async function registerPurchasePayment(
 
   if (externalTx) return run(externalTx);
   return prisma.$transaction(run, LOCKING_TX_OPTIONS);
+}
+
+/**
+ * Deja sin efecto un cobro o pago ya registrado (cheque protestado o anulado):
+ * reversa su asiento, crea el movimiento compensatorio —mismo patrón que la
+ * anulación de una venta— y devuelve el saldo al documento. Nunca borra el
+ * pago original: el historial de tesorería queda completo.
+ */
+export async function reversePayment(tx: Prisma.TransactionClient, companyId: string, paymentId: string, note: string, userId?: string): Promise<Payment> {
+  const payment = await tx.payment.findFirst({ where: { id: paymentId, companyId } });
+  if (!payment) throw new Error('Pago no encontrado');
+
+  if (payment.salesDocumentId) {
+    await tx.$queryRaw`SELECT id FROM "SalesDocument" WHERE id = ${payment.salesDocumentId} AND "companyId" = ${companyId} FOR UPDATE`;
+    const doc = await tx.salesDocument.findFirst({ where: { id: payment.salesDocumentId, companyId } });
+    if (!doc) throw new Error('Documento de venta no encontrado');
+    if (doc.status !== 'ISSUED') throw new Error('El documento está anulado: su cobro ya se reversó con la anulación');
+    const paidAmount = Math.max(0, doc.paidAmount - payment.amount);
+    await tx.salesDocument.updateMany({
+      where: { id: doc.id, companyId },
+      data: { paidAmount, paymentStatus: paidAmount <= 0 ? 'UNPAID' : paidAmount >= doc.totalAmount ? 'PAID' : 'PARTIAL' },
+    });
+  } else if (payment.purchaseDocumentId) {
+    await tx.$queryRaw`SELECT id FROM "PurchaseDocument" WHERE id = ${payment.purchaseDocumentId} AND "companyId" = ${companyId} FOR UPDATE`;
+    const doc = await tx.purchaseDocument.findFirst({ where: { id: payment.purchaseDocumentId, companyId } });
+    if (!doc) throw new Error('Documento de compra no encontrado');
+    if (doc.status !== 'ISSUED') throw new Error('El documento está anulado: su pago ya no está vigente');
+    const paidAmount = Math.max(0, doc.paidAmount - payment.amount);
+    await tx.purchaseDocument.updateMany({
+      where: { id: doc.id, companyId },
+      data: { paidAmount, paymentStatus: paidAmount <= 0 ? 'UNPAID' : paidAmount >= doc.totalAmount ? 'PAID' : 'PARTIAL' },
+    });
+  }
+
+  await reverseDocumentEntries(tx, companyId, 'PAYMENT', payment.id, note, userId);
+
+  return tx.payment.create({
+    data: {
+      companyId,
+      type: payment.type === 'INCOME' ? 'EXPENSE' : 'INCOME',
+      contactId: payment.contactId,
+      salesDocumentId: payment.salesDocumentId,
+      purchaseDocumentId: payment.purchaseDocumentId,
+      amount: payment.amount,
+      paymentMethod: payment.paymentMethod,
+      paymentDate: new Date(),
+      referenceNumber: payment.referenceNumber,
+      bankAccountId: payment.bankAccountId,
+      notes: note,
+    },
+  });
 }
 
 export type ReceivableRow = SalesDocument & { contact: Contact };

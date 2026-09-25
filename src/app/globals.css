@@ -478,7 +478,16 @@ html.pos-printing {
  * ticket: `labels-printing` en el <html> justo antes de `print()`, para que
  * el tamaño de página de las etiquetas no afecte al resto de la impresión.
  */
+/* En pantalla la hoja se muestra algo reducida para que quepa junto al panel; al imprimir va a escala real. */
+.label-sheet {
+  zoom: 0.85;
+}
+
 @media print {
+  html.labels-printing .label-sheet {
+    zoom: 1;
+  }
+
   html.labels-printing,
   html.labels-printing body {
     background: white;

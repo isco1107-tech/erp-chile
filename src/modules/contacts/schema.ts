@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { cleanRut, validateRut } from '@/lib/chile/rut';
+import { BANK_ACCOUNT_TYPES, BANK_CODES } from '@/lib/treasury/banks';
 
 const rutField = z
   .string()
@@ -22,6 +23,17 @@ export const contactCreateSchema = z.object({
   creditDays: z.number().int().nonnegative('Los días de crédito no pueden ser negativos').optional(),
   /** Lista de precios del cliente; `null` = precio del catálogo. */
   priceListId: z.string().min(1).nullable().optional(),
+  /** Datos bancarios para pagarle (nómina de pago a proveedores). */
+  bankCode: z.enum(BANK_CODES).nullable().optional(),
+  bankAccountType: z.enum(BANK_ACCOUNT_TYPES).nullable().optional(),
+  bankAccountNumber: z
+    .string()
+    .trim()
+    .regex(/^[\d-]{4,24}$/, 'Número de cuenta inválido (solo dígitos)')
+    .nullable()
+    .optional()
+    .or(z.literal('')),
+  paymentNoticeEmail: z.string().email('Correo de aviso inválido').nullable().optional().or(z.literal('')),
 });
 
 export const contactUpdateSchema = contactCreateSchema.partial();

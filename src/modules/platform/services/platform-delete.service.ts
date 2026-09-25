@@ -62,6 +62,16 @@ async function hardDeleteTenant(tx: Prisma.TransactionClient, companyId: string)
   await tx.goodsReceiptItem.deleteMany({ where: { companyId } });
   await tx.journalLine.deleteMany({ where: { companyId } });
   await tx.payment.deleteMany({ where: { companyId } });
+  // Tesorería · Ola 3: nóminas (sus líneas apuntan a PurchaseDocument y
+  // Contact con RESTRICT), cheques, cobranza y bancos con sus cartolas.
+  await tx.paymentBatchItem.deleteMany({ where: { companyId } });
+  await tx.paymentBatch.deleteMany({ where: { companyId } });
+  await tx.cheque.deleteMany({ where: { companyId } });
+  await tx.collectionReminderLog.deleteMany({ where: { companyId } });
+  await tx.collectionNote.deleteMany({ where: { companyId } });
+  await tx.bankStatementLine.deleteMany({ where: { companyId } });
+  await tx.bankStatement.deleteMany({ where: { companyId } });
+  await tx.bankAccount.deleteMany({ where: { companyId } });
   await tx.stock.deleteMany({ where: { companyId } });
   await tx.inventoryMovement.deleteMany({ where: { companyId } });
   await tx.folioSequence.deleteMany({ where: { companyId } });

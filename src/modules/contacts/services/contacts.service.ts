@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import type { Contact, Prisma } from '@prisma/client';
 import { cleanRut, formatRut, validateRut } from '@/lib/chile/rut';
+import { normalizeAccountNumber } from '@/lib/treasury/banks';
 import type { ContactCreateInput, ContactUpdateInput } from '../schema';
 
 export async function listContacts(companyId: string, query?: string): Promise<Contact[]> {
@@ -36,6 +37,10 @@ export type ContactListItem = Pick<
   | 'creditLimit'
   | 'creditDays'
   | 'priceListId'
+  | 'bankCode'
+  | 'bankAccountType'
+  | 'bankAccountNumber'
+  | 'paymentNoticeEmail'
 >;
 
 export interface ListContactsResult {
@@ -61,6 +66,10 @@ const CONTACT_LIST_ITEM_SELECT = {
   priceListId: true,
   creditLimit: true,
   creditDays: true,
+  bankCode: true,
+  bankAccountType: true,
+  bankAccountNumber: true,
+  paymentNoticeEmail: true,
 } satisfies Prisma.ContactSelect;
 
 /**
@@ -136,6 +145,10 @@ export async function createContact(companyId: string, input: ContactCreateInput
       creditLimit: input.creditLimit ?? undefined,
       creditDays: input.creditDays ?? undefined,
       priceListId: input.priceListId ?? undefined,
+      bankCode: input.bankCode ?? undefined,
+      bankAccountType: input.bankAccountType ?? undefined,
+      bankAccountNumber: input.bankAccountNumber ? normalizeAccountNumber(input.bankAccountNumber) : undefined,
+      paymentNoticeEmail: input.paymentNoticeEmail || undefined,
     },
   });
 }
@@ -161,6 +174,10 @@ export async function updateContact(companyId: string, id: string, input: Contac
     creditLimit: input.creditLimit,
     creditDays: input.creditDays,
     priceListId: input.priceListId,
+    bankCode: input.bankCode,
+    bankAccountType: input.bankAccountType,
+    bankAccountNumber: input.bankAccountNumber === undefined ? undefined : input.bankAccountNumber ? normalizeAccountNumber(input.bankAccountNumber) : null,
+    paymentNoticeEmail: input.paymentNoticeEmail === undefined ? undefined : input.paymentNoticeEmail || null,
   };
 
   if (input.rut) {

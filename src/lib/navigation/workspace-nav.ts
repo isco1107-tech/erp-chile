@@ -77,7 +77,11 @@ export type NavIconKey =
   | 'commissions'
   | 'inventoryCount'
   | 'lots'
-  | 'labels';
+  | 'labels'
+  | 'collections'
+  | 'banks'
+  | 'cheques'
+  | 'paymentBatches';
 
 export interface NavLink {
   /** Identificador estable (ver comentario del archivo). */
@@ -208,7 +212,11 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
     finanzas.push(
       { id: 'treasury-cxc', href: '/dashboard/treasury/cxc', label: 'Cuentas por Cobrar', icon: 'cxc', keywords: ['cobranza', 'deudores', 'morosos'] },
       { id: 'treasury-cxp', href: '/dashboard/treasury/cxp', label: 'Cuentas por Pagar', icon: 'cxp', keywords: ['pagos', 'acreedores'] },
-      { id: 'treasury-cashflow', href: '/dashboard/treasury/cashflow', label: 'Flujo de Caja', icon: 'cashflow', keywords: ['caja', 'tesoreria'] }
+      { id: 'treasury-cashflow', href: '/dashboard/treasury/cashflow', label: 'Flujo de Caja', icon: 'cashflow', keywords: ['caja', 'tesoreria'] },
+      { id: 'treasury-collections', href: '/dashboard/treasury/collections', label: 'Cobranza', icon: 'collections', keywords: ['morosidad', 'antiguedad', 'recordatorio', 'promesa de pago', 'deudores'] },
+      { id: 'treasury-banks', href: '/dashboard/treasury/banks', label: 'Bancos y conciliación', icon: 'banks', keywords: ['cartola', 'conciliacion bancaria', 'cuenta corriente', 'banco', 'extracto'] },
+      { id: 'treasury-cheques', href: '/dashboard/treasury/cheques', label: 'Cheques', icon: 'cheques', keywords: ['cheque a fecha', 'cartera', 'protesto', 'deposito'] },
+      { id: 'treasury-payment-batches', href: '/dashboard/treasury/payment-batches', label: 'Nóminas de pago', icon: 'paymentBatches', keywords: ['pago masivo', 'transferencias', 'proveedores', 'nomina'] }
     );
   }
   if (features.hasAdvancedReports && allow('reports:read')) {
