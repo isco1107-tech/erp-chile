@@ -515,6 +515,25 @@ async function liveMotion(browser) {
   });
   check('Cielo interactivo y cursor propio', sky.canvas && sky.cursor === 'block', `canvas ${sky.canvas}, cursor ${sky.cursor}`);
 
+  // Constelaciones reales: el Escorpión pasa por el centro al 28 % de la página
+  // (a la derecha) y se enciende con su nombre cuando el puntero se le acerca.
+  for (let pass = 0; pass < 2; pass += 1) {
+    await page.evaluate(() => {
+      const hero = document.querySelector('[data-cinematic-track]');
+      const start = hero.offsetTop + hero.offsetHeight;
+      const end = document.documentElement.scrollHeight - window.innerHeight;
+      window.scrollTo(0, start + 0.28 * (end - start));
+    });
+    await page.waitForTimeout(700);
+  }
+  for (let step = 0; step < 10; step += 1) {
+    await page.mouse.move(1100 + step * 10, 400 + step * 5);
+    await page.waitForTimeout(40);
+  }
+  await page.waitForTimeout(900);
+  const lit = await page.$eval('main > div[aria-hidden] canvas', node => node.dataset.lit ?? '');
+  check('Constelación real que se enciende con el puntero', lit === 'Escorpión', lit || 'ninguna');
+
   check('Sin errores (página viva)', errors.length === 0, errors.slice(0, 2).join(' | '));
   await context.close();
 

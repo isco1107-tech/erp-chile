@@ -40,7 +40,7 @@ export function Sky() {
     // Arranca cuando el navegador queda libre: no compite con la hidratación
     // ni con la primera pintura (el cielo empieza oculto bajo el hero).
     let stop: (() => void) | null = null;
-    const cancel = whenIdle(() => { stop = startConstellation(canvas, reduced, covered); });
+    const cancel = whenIdle(() => { stop = startConstellation(canvas, reduced, covered, () => heroBottom); });
     return () => {
       cancel();
       stop?.();

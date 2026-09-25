@@ -4,7 +4,8 @@ import {
   SMOOTH_TIME, V1_END, chapterState, choreography, decodeWindow, exitShade, frameAt, frameBlend, framePoint, frameUrl, fromGlobal, globalIndex, hudOpacity, loadOrder, smoothDamp, smoothstep, snapIndex, usesFrame, v2Time,
 } from '../src/components/marketing/cinematic/sequence';
 import { ENTER_FROM, ENTER_SPAN, MAX_STAGGER, enterProgress, viewProgress } from '../src/components/marketing/cinematic/live';
-import { linkStrength, makeStars, streakLength, wrap } from '../src/components/marketing/cinematic/constellation';
+import { linkStrength, makeStars, streakLength, traceAmounts, wrap } from '../src/components/marketing/cinematic/constellation';
+import { CONSTELLATIONS, centerFocus, constellationY, projectStars, starRadius } from '../src/components/marketing/cinematic/constellations';
 import { outcomes } from '../src/components/marketing/content';
 import { views } from '../src/components/marketing/catalog';
 import manifest from '../public/marketing/cinematic/seq/manifest.json';
@@ -324,5 +325,69 @@ describe('landing v2 · rueda del mouse suave', () => {
     for (let i = 0; i < 24; i += 1) at120 = approach(at120, 100, 1 / 120, 0.11);
     expect(at60).toBeCloseTo(at120, 6);
     expect(approach(40, 100, 0, 0.11)).toBe(40);
+  });
+});
+
+describe('landing v2 · constelaciones reales', () => {
+  it('cada línea une dos estrellas que existen', () => {
+    for (const item of CONSTELLATIONS) {
+      for (const [a, b] of item.lines) {
+        expect(item.stars[a]).toBeDefined();
+        expect(item.stars[b]).toBeDefined();
+        expect(a).not.toBe(b);
+      }
+    }
+  });
+
+  it('se reparten a lo largo de toda la página, alternando de lado', () => {
+    const ats = CONSTELLATIONS.map(item => item.at);
+    expect(ats).toEqual([...ats].sort((a, b) => a - b));
+    expect(ats[0]).toBeLessThan(0.1);
+    expect(ats[ats.length - 1]).toBeGreaterThan(0.9);
+    CONSTELLATIONS.forEach((item, index) => {
+      if (index > 0) expect(item.side).not.toBe(CONSTELLATIONS[index - 1].side);
+    });
+    expect(new Set(CONSTELLATIONS.map(item => item.name)).size).toBe(CONSTELLATIONS.length);
+  });
+
+  it('proyecta con el este a la izquierda y el norte arriba, en un cuadro de lado 1', () => {
+    const cross = CONSTELLATIONS.find(item => item.name === 'Cruz del Sur');
+    if (!cross) throw new Error('falta la Cruz del Sur');
+    const [acrux, mimosa, gacrux] = projectStars(cross.stars);
+    // Gacrux (más al norte) queda arriba de Acrux; Mimosa (mayor ascensión recta, al este) a la izquierda.
+    expect(gacrux.y).toBeLessThan(acrux.y);
+    expect(mimosa.x).toBeLessThan(acrux.x);
+    for (const item of CONSTELLATIONS) {
+      const points = projectStars(item.stars);
+      const spanX = Math.max(...points.map(p => p.x)) - Math.min(...points.map(p => p.x));
+      const spanY = Math.max(...points.map(p => p.y)) - Math.min(...points.map(p => p.y));
+      expect(Math.max(spanX, spanY)).toBeCloseTo(1, 6);
+      for (const point of points) {
+        expect(Math.abs(point.x)).toBeLessThanOrEqual(0.5 + 1e-9);
+        expect(Math.abs(point.y)).toBeLessThanOrEqual(0.5 + 1e-9);
+      }
+    }
+  });
+
+  it('las estrellas más brillantes se dibujan más grandes', () => {
+    expect(starRadius(-1.46)).toBeGreaterThan(starRadius(1));
+    expect(starRadius(1)).toBeGreaterThan(starRadius(3.5));
+    expect(starRadius(9)).toBe(0.7);
+  });
+
+  it('cada una pasa por el centro de la pantalla en su punto de la página', () => {
+    expect(constellationY(0.5, 5000, 1000, 9000, 800, 0.45)).toBe(400);
+    expect(constellationY(0.5, 4000, 1000, 9000, 800, 0.45)).toBeGreaterThan(400);
+    expect(centerFocus(400, 800)).toBe(1);
+    expect(centerFocus(20, 800)).toBe(0);
+    expect(centerFocus(200, 800)).toBeGreaterThan(0);
+    expect(centerFocus(200, 800)).toBeLessThan(1);
+  });
+
+  it('el trazo dibuja las líneas una tras otra', () => {
+    expect(traceAmounts(4, 0)).toEqual([0, 0, 0, 0]);
+    expect(traceAmounts(4, 0.5)).toEqual([1, 1, 0, 0]);
+    expect(traceAmounts(4, 0.625)).toEqual([1, 1, 0.5, 0]);
+    expect(traceAmounts(4, 1)).toEqual([1, 1, 1, 1]);
   });
 });
