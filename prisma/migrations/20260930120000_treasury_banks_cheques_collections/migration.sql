@@ -1,41 +1,60 @@
 -- Tesorería · Ola 3: cuentas bancarias, cartolas y conciliación, cheques,
--- nóminas de pago a proveedores y cobranza automática. 100% aditiva: tablas
--- nuevas, columnas nullable o con default, e índices nuevos.
--- CreateEnum
-CREATE TYPE "BankLineStatus" AS ENUM ('UNMATCHED', 'MATCHED', 'IGNORED');
+-- nóminas de pago a proveedores y cobranza automática. 100% aditiva.
+--
+-- Idempotente a propósito: la primera ejecución en producción falló porque
+-- la base compartida ya tenía una tabla "BankStatementLine" creada por la
+-- rama no fusionada `feat/erp-integracion-total` (otra estructura). Las
+-- líneas de cartola de esta ola viven en "BankLine" y cada sentencia tolera
+-- objetos ya creados por un intento parcial.
+DO $$ BEGIN
+  CREATE TYPE "BankLineStatus" AS ENUM ('UNMATCHED', 'MATCHED', 'IGNORED');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- CreateEnum
-CREATE TYPE "ChequeDirection" AS ENUM ('RECEIVED', 'ISSUED');
+DO $$ BEGIN
+  CREATE TYPE "ChequeDirection" AS ENUM ('RECEIVED', 'ISSUED');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- CreateEnum
-CREATE TYPE "ChequeStatus" AS ENUM ('PORTFOLIO', 'DEPOSITED', 'CLEARED', 'BOUNCED', 'VOIDED');
+DO $$ BEGIN
+  CREATE TYPE "ChequeStatus" AS ENUM ('PORTFOLIO', 'DEPOSITED', 'CLEARED', 'BOUNCED', 'VOIDED');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- CreateEnum
-CREATE TYPE "PaymentBatchStatus" AS ENUM ('DRAFT', 'PAID', 'CANCELLED');
+DO $$ BEGIN
+  CREATE TYPE "PaymentBatchStatus" AS ENUM ('DRAFT', 'PAID', 'CANCELLED');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- CreateEnum
-CREATE TYPE "CollectionNoteKind" AS ENUM ('CALL', 'EMAIL', 'VISIT', 'WHATSAPP', 'PROMISE', 'NOTE');
+DO $$ BEGIN
+  CREATE TYPE "CollectionNoteKind" AS ENUM ('CALL', 'EMAIL', 'VISIT', 'WHATSAPP', 'PROMISE', 'NOTE');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AlterEnum
-ALTER TYPE "InternalDocumentKind" ADD VALUE 'PAYMENT_BATCH';
+ALTER TYPE "InternalDocumentKind" ADD VALUE IF NOT EXISTS 'PAYMENT_BATCH';
 
 -- AlterTable
-ALTER TABLE "CompanySettings" ADD COLUMN     "collectionReminderDays" INTEGER[] DEFAULT ARRAY[]::INTEGER[],
-ADD COLUMN     "collectionRemindersEnabled" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "CompanySettings" ADD COLUMN IF NOT EXISTS "collectionReminderDays" INTEGER[] DEFAULT ARRAY[]::INTEGER[],
+ADD COLUMN IF NOT EXISTS "collectionRemindersEnabled" BOOLEAN NOT NULL DEFAULT false;
 
 -- AlterTable
-ALTER TABLE "Contact" ADD COLUMN     "bankAccountNumber" TEXT,
-ADD COLUMN     "bankAccountType" TEXT,
-ADD COLUMN     "bankCode" TEXT,
-ADD COLUMN     "collectionRemindersPaused" BOOLEAN NOT NULL DEFAULT false,
-ADD COLUMN     "paymentNoticeEmail" TEXT;
+ALTER TABLE "Contact" ADD COLUMN IF NOT EXISTS "bankAccountNumber" TEXT,
+ADD COLUMN IF NOT EXISTS "bankAccountType" TEXT,
+ADD COLUMN IF NOT EXISTS "bankCode" TEXT,
+ADD COLUMN IF NOT EXISTS "collectionRemindersPaused" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN IF NOT EXISTS "paymentNoticeEmail" TEXT;
 
 -- AlterTable
-ALTER TABLE "Payment" ADD COLUMN     "bankAccountId" TEXT,
-ADD COLUMN     "bankStatementLineId" TEXT;
+ALTER TABLE "Payment" ADD COLUMN IF NOT EXISTS "bankAccountId" TEXT,
+ADD COLUMN IF NOT EXISTS "bankStatementLineId" TEXT;
 
 -- CreateTable
-CREATE TABLE "BankAccount" (
+CREATE TABLE IF NOT EXISTS "BankAccount" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -53,7 +72,7 @@ CREATE TABLE "BankAccount" (
 );
 
 -- CreateTable
-CREATE TABLE "BankStatement" (
+CREATE TABLE IF NOT EXISTS "BankStatement" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "bankAccountId" TEXT NOT NULL,
@@ -69,7 +88,7 @@ CREATE TABLE "BankStatement" (
 );
 
 -- CreateTable
-CREATE TABLE "BankStatementLine" (
+CREATE TABLE IF NOT EXISTS "BankLine" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "bankAccountId" TEXT NOT NULL,
@@ -86,11 +105,11 @@ CREATE TABLE "BankStatementLine" (
     "matchedById" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "BankStatementLine_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "BankLine_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "Cheque" (
+CREATE TABLE IF NOT EXISTS "Cheque" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "direction" "ChequeDirection" NOT NULL,
@@ -118,7 +137,7 @@ CREATE TABLE "Cheque" (
 );
 
 -- CreateTable
-CREATE TABLE "PaymentBatch" (
+CREATE TABLE IF NOT EXISTS "PaymentBatch" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "folio" INTEGER NOT NULL,
@@ -137,7 +156,7 @@ CREATE TABLE "PaymentBatch" (
 );
 
 -- CreateTable
-CREATE TABLE "PaymentBatchItem" (
+CREATE TABLE IF NOT EXISTS "PaymentBatchItem" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "batchId" TEXT NOT NULL,
@@ -150,7 +169,7 @@ CREATE TABLE "PaymentBatchItem" (
 );
 
 -- CreateTable
-CREATE TABLE "CollectionReminderLog" (
+CREATE TABLE IF NOT EXISTS "CollectionReminderLog" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "salesDocumentId" TEXT NOT NULL,
@@ -164,7 +183,7 @@ CREATE TABLE "CollectionReminderLog" (
 );
 
 -- CreateTable
-CREATE TABLE "CollectionNote" (
+CREATE TABLE IF NOT EXISTS "CollectionNote" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "contactId" TEXT NOT NULL,
@@ -181,128 +200,203 @@ CREATE TABLE "CollectionNote" (
 );
 
 -- CreateIndex
-CREATE INDEX "BankAccount_companyId_isActive_idx" ON "BankAccount"("companyId", "isActive");
+CREATE INDEX IF NOT EXISTS "BankAccount_companyId_isActive_idx" ON "BankAccount"("companyId", "isActive");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "BankAccount_companyId_bankCode_accountNumber_key" ON "BankAccount"("companyId", "bankCode", "accountNumber");
+CREATE UNIQUE INDEX IF NOT EXISTS "BankAccount_companyId_bankCode_accountNumber_key" ON "BankAccount"("companyId", "bankCode", "accountNumber");
 
 -- CreateIndex
-CREATE INDEX "BankStatement_companyId_bankAccountId_idx" ON "BankStatement"("companyId", "bankAccountId");
+CREATE INDEX IF NOT EXISTS "BankStatement_companyId_bankAccountId_idx" ON "BankStatement"("companyId", "bankAccountId");
 
 -- CreateIndex
-CREATE INDEX "BankStatementLine_companyId_bankAccountId_status_date_idx" ON "BankStatementLine"("companyId", "bankAccountId", "status", "date");
+CREATE INDEX IF NOT EXISTS "BankLine_companyId_bankAccountId_status_date_idx" ON "BankLine"("companyId", "bankAccountId", "status", "date");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "BankStatementLine_bankAccountId_fingerprint_key" ON "BankStatementLine"("bankAccountId", "fingerprint");
+CREATE UNIQUE INDEX IF NOT EXISTS "BankLine_bankAccountId_fingerprint_key" ON "BankLine"("bankAccountId", "fingerprint");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Cheque_paymentId_key" ON "Cheque"("paymentId");
+CREATE UNIQUE INDEX IF NOT EXISTS "Cheque_paymentId_key" ON "Cheque"("paymentId");
 
 -- CreateIndex
-CREATE INDEX "Cheque_companyId_direction_status_dueDate_idx" ON "Cheque"("companyId", "direction", "status", "dueDate");
+CREATE INDEX IF NOT EXISTS "Cheque_companyId_direction_status_dueDate_idx" ON "Cheque"("companyId", "direction", "status", "dueDate");
 
 -- CreateIndex
-CREATE INDEX "PaymentBatch_companyId_status_idx" ON "PaymentBatch"("companyId", "status");
+CREATE INDEX IF NOT EXISTS "PaymentBatch_companyId_status_idx" ON "PaymentBatch"("companyId", "status");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "PaymentBatch_companyId_folio_key" ON "PaymentBatch"("companyId", "folio");
+CREATE UNIQUE INDEX IF NOT EXISTS "PaymentBatch_companyId_folio_key" ON "PaymentBatch"("companyId", "folio");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "PaymentBatchItem_paymentId_key" ON "PaymentBatchItem"("paymentId");
+CREATE UNIQUE INDEX IF NOT EXISTS "PaymentBatchItem_paymentId_key" ON "PaymentBatchItem"("paymentId");
 
 -- CreateIndex
-CREATE INDEX "PaymentBatchItem_companyId_batchId_idx" ON "PaymentBatchItem"("companyId", "batchId");
+CREATE INDEX IF NOT EXISTS "PaymentBatchItem_companyId_batchId_idx" ON "PaymentBatchItem"("companyId", "batchId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "PaymentBatchItem_batchId_purchaseDocumentId_key" ON "PaymentBatchItem"("batchId", "purchaseDocumentId");
+CREATE UNIQUE INDEX IF NOT EXISTS "PaymentBatchItem_batchId_purchaseDocumentId_key" ON "PaymentBatchItem"("batchId", "purchaseDocumentId");
 
 -- CreateIndex
-CREATE INDEX "CollectionReminderLog_companyId_sentAt_idx" ON "CollectionReminderLog"("companyId", "sentAt");
+CREATE INDEX IF NOT EXISTS "CollectionReminderLog_companyId_sentAt_idx" ON "CollectionReminderLog"("companyId", "sentAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "CollectionReminderLog_salesDocumentId_stage_key" ON "CollectionReminderLog"("salesDocumentId", "stage");
+CREATE UNIQUE INDEX IF NOT EXISTS "CollectionReminderLog_salesDocumentId_stage_key" ON "CollectionReminderLog"("salesDocumentId", "stage");
 
 -- CreateIndex
-CREATE INDEX "CollectionNote_companyId_contactId_createdAt_idx" ON "CollectionNote"("companyId", "contactId", "createdAt");
+CREATE INDEX IF NOT EXISTS "CollectionNote_companyId_contactId_createdAt_idx" ON "CollectionNote"("companyId", "contactId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "Payment_companyId_bankAccountId_idx" ON "Payment"("companyId", "bankAccountId");
+CREATE INDEX IF NOT EXISTS "Payment_companyId_bankAccountId_idx" ON "Payment"("companyId", "bankAccountId");
 
 -- CreateIndex
-CREATE INDEX "Payment_bankStatementLineId_idx" ON "Payment"("bankStatementLineId");
+CREATE INDEX IF NOT EXISTS "Payment_bankStatementLineId_idx" ON "Payment"("bankStatementLineId");
 
 -- AddForeignKey
-ALTER TABLE "Payment" ADD CONSTRAINT "Payment_bankAccountId_fkey" FOREIGN KEY ("bankAccountId") REFERENCES "BankAccount"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "Payment" ADD CONSTRAINT "Payment_bankAccountId_fkey" FOREIGN KEY ("bankAccountId") REFERENCES "BankAccount"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "Payment" ADD CONSTRAINT "Payment_bankStatementLineId_fkey" FOREIGN KEY ("bankStatementLineId") REFERENCES "BankStatementLine"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "Payment" ADD CONSTRAINT "Payment_bankStatementLineId_fkey" FOREIGN KEY ("bankStatementLineId") REFERENCES "BankLine"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "BankAccount" ADD CONSTRAINT "BankAccount_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "BankAccount" ADD CONSTRAINT "BankAccount_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "BankStatement" ADD CONSTRAINT "BankStatement_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "BankStatement" ADD CONSTRAINT "BankStatement_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "BankStatement" ADD CONSTRAINT "BankStatement_bankAccountId_fkey" FOREIGN KEY ("bankAccountId") REFERENCES "BankAccount"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "BankStatement" ADD CONSTRAINT "BankStatement_bankAccountId_fkey" FOREIGN KEY ("bankAccountId") REFERENCES "BankAccount"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "BankStatementLine" ADD CONSTRAINT "BankStatementLine_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "BankLine" ADD CONSTRAINT "BankLine_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "BankStatementLine" ADD CONSTRAINT "BankStatementLine_bankAccountId_fkey" FOREIGN KEY ("bankAccountId") REFERENCES "BankAccount"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "BankLine" ADD CONSTRAINT "BankLine_bankAccountId_fkey" FOREIGN KEY ("bankAccountId") REFERENCES "BankAccount"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "BankStatementLine" ADD CONSTRAINT "BankStatementLine_statementId_fkey" FOREIGN KEY ("statementId") REFERENCES "BankStatement"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "BankLine" ADD CONSTRAINT "BankLine_statementId_fkey" FOREIGN KEY ("statementId") REFERENCES "BankStatement"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "Cheque" ADD CONSTRAINT "Cheque_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "Cheque" ADD CONSTRAINT "Cheque_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "Cheque" ADD CONSTRAINT "Cheque_contactId_fkey" FOREIGN KEY ("contactId") REFERENCES "Contact"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "Cheque" ADD CONSTRAINT "Cheque_contactId_fkey" FOREIGN KEY ("contactId") REFERENCES "Contact"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "Cheque" ADD CONSTRAINT "Cheque_paymentId_fkey" FOREIGN KEY ("paymentId") REFERENCES "Payment"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "Cheque" ADD CONSTRAINT "Cheque_paymentId_fkey" FOREIGN KEY ("paymentId") REFERENCES "Payment"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "Cheque" ADD CONSTRAINT "Cheque_bankAccountId_fkey" FOREIGN KEY ("bankAccountId") REFERENCES "BankAccount"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "Cheque" ADD CONSTRAINT "Cheque_bankAccountId_fkey" FOREIGN KEY ("bankAccountId") REFERENCES "BankAccount"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "PaymentBatch" ADD CONSTRAINT "PaymentBatch_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "PaymentBatch" ADD CONSTRAINT "PaymentBatch_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "PaymentBatch" ADD CONSTRAINT "PaymentBatch_bankAccountId_fkey" FOREIGN KEY ("bankAccountId") REFERENCES "BankAccount"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "PaymentBatch" ADD CONSTRAINT "PaymentBatch_bankAccountId_fkey" FOREIGN KEY ("bankAccountId") REFERENCES "BankAccount"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "PaymentBatchItem" ADD CONSTRAINT "PaymentBatchItem_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "PaymentBatchItem" ADD CONSTRAINT "PaymentBatchItem_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "PaymentBatchItem" ADD CONSTRAINT "PaymentBatchItem_batchId_fkey" FOREIGN KEY ("batchId") REFERENCES "PaymentBatch"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "PaymentBatchItem" ADD CONSTRAINT "PaymentBatchItem_batchId_fkey" FOREIGN KEY ("batchId") REFERENCES "PaymentBatch"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "PaymentBatchItem" ADD CONSTRAINT "PaymentBatchItem_purchaseDocumentId_fkey" FOREIGN KEY ("purchaseDocumentId") REFERENCES "PurchaseDocument"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "PaymentBatchItem" ADD CONSTRAINT "PaymentBatchItem_purchaseDocumentId_fkey" FOREIGN KEY ("purchaseDocumentId") REFERENCES "PurchaseDocument"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "PaymentBatchItem" ADD CONSTRAINT "PaymentBatchItem_contactId_fkey" FOREIGN KEY ("contactId") REFERENCES "Contact"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "PaymentBatchItem" ADD CONSTRAINT "PaymentBatchItem_contactId_fkey" FOREIGN KEY ("contactId") REFERENCES "Contact"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "PaymentBatchItem" ADD CONSTRAINT "PaymentBatchItem_paymentId_fkey" FOREIGN KEY ("paymentId") REFERENCES "Payment"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "PaymentBatchItem" ADD CONSTRAINT "PaymentBatchItem_paymentId_fkey" FOREIGN KEY ("paymentId") REFERENCES "Payment"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "CollectionReminderLog" ADD CONSTRAINT "CollectionReminderLog_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "CollectionReminderLog" ADD CONSTRAINT "CollectionReminderLog_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "CollectionReminderLog" ADD CONSTRAINT "CollectionReminderLog_salesDocumentId_fkey" FOREIGN KEY ("salesDocumentId") REFERENCES "SalesDocument"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "CollectionReminderLog" ADD CONSTRAINT "CollectionReminderLog_salesDocumentId_fkey" FOREIGN KEY ("salesDocumentId") REFERENCES "SalesDocument"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "CollectionReminderLog" ADD CONSTRAINT "CollectionReminderLog_contactId_fkey" FOREIGN KEY ("contactId") REFERENCES "Contact"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "CollectionReminderLog" ADD CONSTRAINT "CollectionReminderLog_contactId_fkey" FOREIGN KEY ("contactId") REFERENCES "Contact"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "CollectionNote" ADD CONSTRAINT "CollectionNote_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "CollectionNote" ADD CONSTRAINT "CollectionNote_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "CollectionNote" ADD CONSTRAINT "CollectionNote_contactId_fkey" FOREIGN KEY ("contactId") REFERENCES "Contact"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "CollectionNote" ADD CONSTRAINT "CollectionNote_contactId_fkey" FOREIGN KEY ("contactId") REFERENCES "Contact"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "CollectionNote" ADD CONSTRAINT "CollectionNote_salesDocumentId_fkey" FOREIGN KEY ("salesDocumentId") REFERENCES "SalesDocument"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "CollectionNote" ADD CONSTRAINT "CollectionNote_salesDocumentId_fkey" FOREIGN KEY ("salesDocumentId") REFERENCES "SalesDocument"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 

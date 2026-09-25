@@ -4349,6 +4349,9 @@ model BankStatementLine {
 
   @@unique([bankAccountId, fingerprint])
   @@index([companyId, bankAccountId, status, date])
+  /// "BankStatementLine" ya existe en la base compartida (rama no fusionada
+  /// `feat/erp-integracion-total`, otra estructura): esta tabla usa otro nombre.
+  @@map("BankLine")
 }
 
 enum ChequeDirection {
