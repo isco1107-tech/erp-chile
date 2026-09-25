@@ -66,6 +66,11 @@ const CASCADES_TO_COMPANY = new Set([
   'PayrollPeriod',
   'Payslip',
   'LeaveRequest',
+  // Remuneraciones · Ola 4: `onDelete: Cascade` directo hacia Company (y
+  // hacia Employee), igual que el resto del módulo de personas.
+  'EmployeeLoan',
+  'EmployeeAdvance',
+  'EmployeeSettlement',
   'FixedAsset',
   'ExpenseReport',
   'ExpenseItem',

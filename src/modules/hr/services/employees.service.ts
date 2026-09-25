@@ -11,7 +11,9 @@ import type { EmployeeInput } from '../schema';
  * `updateMany`/`deleteMany` con el filtro de empresa (CLAUDE.md §2.3).
  */
 
-export type EmployeeRow = Employee & { _count: { payslips: number } };
+/** Ficha tal como viaja al navegador: sin el hash del token del portal. */
+export type EmployeeRecord = Omit<Employee, 'portalTokenHash'>;
+export type EmployeeRow = EmployeeRecord & { _count: { payslips: number } };
 
 function toData(input: EmployeeInput) {
   const rutClean = cleanRut(input.rut);
@@ -39,6 +41,7 @@ function toData(input: EmployeeInput) {
     bankName: input.bankName ?? null,
     bankAccountType: input.bankAccountType ?? null,
     bankAccountNumber: input.bankAccountNumber ?? null,
+    nationality: input.nationality ?? null,
     notes: input.notes ?? null,
   };
 }
@@ -51,6 +54,7 @@ function duplicateRut(error: unknown): never {
 export async function listEmployees(companyId: string): Promise<EmployeeRow[]> {
   return prisma.employee.findMany({
     where: { companyId },
+    omit: { portalTokenHash: true },
     include: { _count: { select: { payslips: true } } },
     orderBy: [{ status: 'asc' }, { fullName: 'asc' }],
   });

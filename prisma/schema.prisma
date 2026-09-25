@@ -132,6 +132,9 @@ model Company {
   paymentBatchItems         PaymentBatchItem[]
   collectionReminderLogs    CollectionReminderLog[]
   collectionNotes           CollectionNote[]
+  employeeLoans             EmployeeLoan[]
+  employeeAdvances          EmployeeAdvance[]
+  employeeSettlements       EmployeeSettlement[]
   salesDocumentItems        SalesDocumentItem[]
   purchaseDocuments         PurchaseDocument[]
   purchaseDocumentItems     PurchaseDocumentItem[]
@@ -499,6 +502,9 @@ model CompanySettings {
   /// negativo = antes de vencer).
   collectionRemindersEnabled Boolean      @default(false)
   collectionReminderDays     Int[]        @default([])
+  /// Remuneraciones · Ola 4: organismo del seguro de accidentes (Ley 16.744)
+  /// de la empresa: `ISL`, `ACHS`, `MUSEG` o `IST`. `null` = ISL.
+  payrollMutualCode          String?
   /// Restringe el login (contraseña Y 2FA) a IPs o rangos CIDR configurados.
   /// `false` por defecto: activarlo sin haber agregado la propia IP a la
   /// lista deja a toda la empresa (incluido el Dueño) sin poder entrar.
@@ -3703,43 +3709,52 @@ enum LeaveStatus {
 /// Ficha del trabajador dependiente. Los honorarios NO van acá: siguen en
 /// `FeeDocument` (no hay relación laboral ni cotizaciones).
 model Employee {
-  id                 String                 @id @default(cuid())
-  companyId          String
-  company            Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  rut                String
-  rutClean           String
-  fullName           String
-  email              String?
-  phone              String?
-  birthDate          DateTime?
-  address            String?
-  position           String
-  department         String?
-  hireDate           DateTime
-  terminationDate    DateTime?
-  contractType       EmploymentContractType @default(INDEFINIDO)
+  id                   String                 @id @default(cuid())
+  companyId            String
+  company              Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  rut                  String
+  rutClean             String
+  fullName             String
+  email                String?
+  phone                String?
+  birthDate            DateTime?
+  address              String?
+  position             String
+  department           String?
+  hireDate             DateTime
+  terminationDate      DateTime?
+  contractType         EmploymentContractType @default(INDEFINIDO)
   /// Jornada ordinaria semanal (Ley 21.561 la baja gradualmente a 40 h).
-  weeklyHours        Int                    @default(42)
+  weeklyHours          Int                    @default(42)
   /// Sueldo base mensual en CLP entero.
-  baseSalary         Int
-  gratificationMode  GratificationMode      @default(ART_50)
+  baseSalary           Int
+  gratificationMode    GratificationMode      @default(ART_50)
   /// Asignaciones no imponibles ni tributables (CLP entero).
-  mealAllowance      Int                    @default(0)
-  transportAllowance Int                    @default(0)
-  afp                AfpInstitution
-  healthInsurance    HealthInsuranceType    @default(FONASA)
-  isapreName         String?
+  mealAllowance        Int                    @default(0)
+  transportAllowance   Int                    @default(0)
+  afp                  AfpInstitution
+  healthInsurance      HealthInsuranceType    @default(FONASA)
+  isapreName           String?
   /// Plan de Isapre pactado en UF (ej. 3.25). Solo si `healthInsurance = ISAPRE`.
-  isaprePlanUf       Float?
-  bankName           String?
-  bankAccountType    String?
-  bankAccountNumber  String?
-  status             EmployeeStatus         @default(ACTIVE)
-  notes              String?
-  payslips           Payslip[]
-  leaveRequests      LeaveRequest[]
-  createdAt          DateTime               @default(now())
-  updatedAt          DateTime               @updatedAt
+  isaprePlanUf         Float?
+  bankName             String?
+  bankAccountType      String?
+  bankAccountNumber    String?
+  status               EmployeeStatus         @default(ACTIVE)
+  notes                String?
+  /// Remuneraciones · Ola 4: nacionalidad (la exige el contrato, art. 10 CT).
+  nationality          String?
+  /// Portal del trabajador: hash SHA-256 del token del enlace personal (el
+  /// token en claro solo se muestra una vez al generarlo).
+  portalTokenHash      String?                @unique
+  portalTokenCreatedAt DateTime?
+  payslips             Payslip[]
+  leaveRequests        LeaveRequest[]
+  loans                EmployeeLoan[]
+  advances             EmployeeAdvance[]
+  settlements          EmployeeSettlement[]
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
 
   @@unique([companyId, rutClean])
   @@index([companyId, status])
@@ -3813,6 +3828,11 @@ model Payslip {
   employerMutual       Int
   employerPension      Int
   employerCost         Int
+  /// Cuotas de préstamos descontadas (se suman a `totalDeductions`).
+  loanDeduction        Int           @default(0)
+  /// Anticipos y cuotas registrados que se aplicaron, para marcarlos al cerrar:
+  /// `{ advances: [{ id, amount }], loans: [{ id, amount }] }`.
+  deductionDetail      Json?
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
 
@@ -4415,4 +4435,100 @@ model CollectionNote {
   createdAt       DateTime           @default(now())
 
   @@index([companyId, contactId, createdAt])
+}
+
+// ─── Remuneraciones · Ola 4: préstamos, anticipos y finiquitos ───────────────
+
+enum EmployeeLoanStatus {
+  ACTIVE
+  PAID
+  CANCELLED
+}
+
+/// Préstamo de la empresa al trabajador, descontado en cuotas de la liquidación.
+model EmployeeLoan {
+  id                String             @id @default(cuid())
+  companyId         String
+  company           Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employeeId        String
+  employee          Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  description       String
+  principal         Int
+  installments      Int
+  installmentAmount Int
+  /// Primer mes en que se descuenta.
+  startYear         Int
+  startMonth        Int
+  paidInstallments  Int                @default(0)
+  status            EmployeeLoanStatus @default(ACTIVE)
+  createdById       String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@index([companyId, employeeId, status])
+}
+
+enum EmployeeAdvanceStatus {
+  PENDING
+  DEDUCTED
+  CANCELLED
+}
+
+/// Anticipo de sueldo (ej. quincena): se descuenta en la liquidación del mes indicado.
+model EmployeeAdvance {
+  id          String                @id @default(cuid())
+  companyId   String
+  company     Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employeeId  String
+  employee    Employee              @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  amount      Int
+  paidDate    DateTime
+  year        Int
+  month       Int
+  status      EmployeeAdvanceStatus @default(PENDING)
+  notes       String?
+  createdById String?
+  createdAt   DateTime              @default(now())
+
+  @@index([companyId, year, month, status])
+  @@index([companyId, employeeId])
+}
+
+enum SettlementStatus {
+  DRAFT
+  FINAL
+  CANCELLED
+}
+
+/// Finiquito: cálculo de lo que se paga al término de la relación laboral.
+model EmployeeSettlement {
+  id                   String           @id @default(cuid())
+  companyId            String
+  company              Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employeeId           String
+  employee             Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  terminationDate      DateTime
+  /// Causal legal (ej. `ART_161_1` necesidades de la empresa).
+  cause                String
+  noticeGiven          Boolean          @default(true)
+  monthlySalary        Int
+  yearsOfService       Int              @default(0)
+  severanceAmount      Int              @default(0)
+  noticeIndemnity      Int              @default(0)
+  vacationBusinessDays Float            @default(0)
+  vacationCalendarDays Float            @default(0)
+  vacationAmount       Int              @default(0)
+  pendingSalary        Int              @default(0)
+  otherEarnings        Int              @default(0)
+  loanBalance          Int              @default(0)
+  otherDeductions      Int              @default(0)
+  totalAmount          Int              @default(0)
+  notes                String?
+  status               SettlementStatus @default(DRAFT)
+  createdById          String?
+  finalizedAt          DateTime?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  @@index([companyId, employeeId])
 }

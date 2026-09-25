@@ -49,6 +49,10 @@ const PUBLIC_ROUTES = [
   // auspiciador) no tiene cuenta ERP; la ruta valida el token ella misma
   // contra `CompanySettings.installmentPortalToken` / la orden de pago.
   '/pagar',
+  // Portal del trabajador (`/trabajador/[token]`): el trabajador no tiene
+  // cuenta ERP; la ruta valida el token ella misma contra el hash guardado en
+  // `Employee.portalTokenHash`.
+  '/trabajador',
   // Activos estáticos de marca (logo/ícono de Aether ERP en `public/branding`)
   // — deben verse en TODA la superficie del producto, incluida la pantalla de
   // login, que por definición no tiene sesión.

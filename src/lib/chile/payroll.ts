@@ -118,6 +118,8 @@ export interface PayrollVariables {
   bonuses: number;
   advances: number;
   otherDeductions: number;
+  /** Cuotas de préstamos de la empresa (se descuentan del líquido). */
+  loanDeduction?: number;
 }
 
 export interface PayslipComputation {
@@ -144,6 +146,7 @@ export interface PayslipComputation {
   employerMutual: number;
   employerPension: number;
   employerCost: number;
+  loanDeduction: number;
 }
 
 const bps = (amount: number, rateBps: number) => Math.round((amount * rateBps) / 10_000);
@@ -201,8 +204,9 @@ export function computePayslip(employee: PayrollEmployeeInput, variables: Payrol
   const transportAllowance = Math.round(employee.transportAllowance * dayFactor);
   const advances = Math.max(0, Math.round(variables.advances));
   const otherDeductions = Math.max(0, Math.round(variables.otherDeductions));
+  const loanDeduction = Math.max(0, Math.round(variables.loanDeduction ?? 0));
 
-  const totalDeductions = pensionAmount + healthAmount + unemploymentEmployee + tax + advances + otherDeductions;
+  const totalDeductions = pensionAmount + healthAmount + unemploymentEmployee + tax + advances + otherDeductions + loanDeduction;
   const netPay = taxableIncome + mealAllowance + transportAllowance - totalDeductions;
 
   const employerSis = bps(cappedTaxable, params.sisRateBps);
@@ -235,6 +239,7 @@ export function computePayslip(employee: PayrollEmployeeInput, variables: Payrol
     employerMutual,
     employerPension,
     employerCost,
+    loanDeduction,
   };
 }
 

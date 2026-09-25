@@ -301,3 +301,19 @@ export const INSTALLMENT_STATUS_RATE_LIMIT: RateLimitConfig = {
   limit: 120,
   windowMs: 10 * 60_000,
 };
+
+/** Portal del trabajador (`/trabajador/[token]`): lecturas por IP. El token es
+ * secreto y largo, así que el límite apunta a frenar barridos, no a quien
+ * revisa sus liquidaciones varias veces. */
+export const EMPLOYEE_PORTAL_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'employee-portal-ip',
+  limit: 60,
+  windowMs: 15 * 60_000,
+};
+
+/** Portal del trabajador: solicitudes de vacaciones o permisos por token. */
+export const EMPLOYEE_PORTAL_REQUEST_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'employee-portal-request',
+  limit: 5,
+  windowMs: 60 * 60_000,
+};
