@@ -3,6 +3,7 @@ import { projectCreateSchema, projectPublicSiteSchema, projectUpdateSchema } fro
 import {
   audienceHero,
   buildPageantView,
+  directorCopy,
   galaCalendarUrl,
   galaDateParts,
   initials,
@@ -326,5 +327,20 @@ describe('director del micrositio', () => {
     expect(parsed.directorHighlights).toEqual(['Director Miss Venusmodel 2024', 'Miss Teen Rostro 2018']);
     expect(parsed.directorPhotoUrl).toBeNull();
     expect(parsed.directorRole).toBeNull();
+  });
+});
+
+describe('director o directora', () => {
+  it('nombra la sección según lo elegido y usa "Director" por defecto', () => {
+    expect(directorCopy('Directora').invite).toBe('Conoce a la directora');
+    expect(directorCopy('Director').invite).toBe('Conoce al director');
+    expect(directorCopy(null).label).toBe('Director');
+  });
+
+  it('el micrositio acepta solo Director o Directora', () => {
+    const base = { publicSiteEnabled: false, showCandidatesPublic: true, showSponsorsPublic: true, showVoteRankingPublic: false, showResultsPublic: false, sponsorLeadFormEnabled: true };
+    expect(projectPublicSiteSchema.parse({ ...base, directorTitle: 'Directora' }).directorTitle).toBe('Directora');
+    expect(projectPublicSiteSchema.parse(base).directorTitle).toBeNull();
+    expect(projectPublicSiteSchema.safeParse({ ...base, directorTitle: 'Jefa' }).success).toBe(false);
   });
 });

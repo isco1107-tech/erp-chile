@@ -129,7 +129,8 @@ export default function CandidateRegistrationClient({ token }: { token: string }
   const hasContact = Boolean(contact.email || contact.whatsapp || contact.instagram);
   const title = splitPageantTitle(project.projectName);
   const shortName = [title.lead, title.main].filter(Boolean).join(' ');
-  const titleFit = { '--pgs-fit': Math.max(title.main.length, 6) * 0.64 } as CSSProperties;
+  // --pgs-lead-fit: "MISS UNIVERSO" crece hasta llenar el ancho sin desbordar en teléfonos.
+  const titleFit = { '--pgs-fit': Math.max(title.main.length, 6) * 0.64, '--pgs-lead-fit': Math.max(title.lead.length, 8) * 0.9 } as CSSProperties;
   const whatsappFloat = contact.whatsapp ? <WhatsappFloat href={whatsappMessageUrl(contact.whatsapp.href, whatsappGreeting('candidata', project.projectName))} label="Escríbenos por WhatsApp" /> : null;
 
   if (!project.isOpen) {

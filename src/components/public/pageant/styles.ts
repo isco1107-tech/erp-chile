@@ -681,4 +681,35 @@ export const PAGEANT_SITE_STYLES = `
   .pgs-dust, .pgs-wa-float::after { display: none; }
   .pgs-package.is-featured::before { animation: none; }
 }
+
+/* ── Pie: palabra gigante con relleno dorado, halo y mejor contraste ── */
+.pgs-footer { isolation: isolate; border-top: 0; background: radial-gradient(70% 55% at 50% 100%, color-mix(in srgb, var(--a) 16%, transparent), transparent 70%), radial-gradient(45% 40% at 0% 0%, rgba(96, 84, 214, 0.14), transparent 70%), var(--night); }
+.pgs-footer::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 1px; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--a) 65%, transparent), transparent); }
+.pgs-footer-grid { border-top-color: color-mix(in srgb, var(--a) 22%, transparent); }
+.pgs-footer-name { background: linear-gradient(100deg, var(--on-night), var(--a-bright) 55%, var(--a)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.pgs-footer-brand .pgs-brand-mark { filter: drop-shadow(0 0 10px color-mix(in srgb, var(--a) 60%, transparent)); }
+.pgs-footer-nav a, .pgs-footer-contact a { color: color-mix(in srgb, var(--on-night) 86%, transparent); }
+.pgs-footer-contact .pgs-inline-icon { color: var(--a); }
+.pgs-footer-word {
+  color: transparent;
+  -webkit-text-stroke: 1px color-mix(in srgb, var(--a) 55%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--a-bright) 70%, transparent) 0%, color-mix(in srgb, var(--a) 45%, transparent) 45%, color-mix(in srgb, var(--a-mid) 10%, transparent) 100%);
+  -webkit-background-clip: text; background-clip: text;
+  background-size: 100% 100%;
+}
+.pgs-footer-word::selection { background: transparent; }
+.pgs-footer-legal { color: color-mix(in srgb, var(--on-night) 70%, transparent); }
+
+/* "MISS UNIVERSO": protagonista junto al nombre, en la tipografía de display y a escala del ancho. */
+.pgs-title-lead { font-family: var(--display); font-weight: 400; font-size: min(3.1rem, calc(80vw / var(--pgs-lead-fit, 12))); letter-spacing: 0.2em; margin-right: -0.2em; gap: clamp(0.7rem, 2vw, 1.4rem); color: var(--on-night); text-shadow: 0 0 28px color-mix(in srgb, var(--a) 35%, transparent); }
+.pgs-title-rule:last-child { margin-left: -0.2em; }
+.pgs-title-rule { width: clamp(1.2rem, 5vw, 4.5rem); }
+@media (max-width: 640px) { .pgs-title-lead { letter-spacing: 0.14em; margin-right: -0.14em; } .pgs-title-rule { width: 1rem; } .pgs-title-rule:last-child { margin-left: -0.14em; } }
+
+/* Con foto de portada: velo más profundo y focos más suaves, para que el título no quede sobre un gris lavado. */
+.pgs-hero.has-cover .pgs-hero-cover::after { background: linear-gradient(180deg, rgba(7,10,28,0.82) 0%, rgba(7,10,28,0.6) 35%, rgba(7,10,28,0.78) 70%, var(--night) 100%), radial-gradient(60% 50% at 50% 45%, rgba(7,10,28,0.45), transparent 70%); }
+.pgs-hero.has-cover .pgs-beam { opacity: 0.18; }
+.pgs-hero.has-cover .pgs-sheen { opacity: 0.5; }
+
+@media (max-width: 640px) { .pgs-director-photo { max-width: 17rem; outline-offset: 8px; } }
 `;

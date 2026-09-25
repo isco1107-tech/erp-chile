@@ -382,6 +382,16 @@ export function splitPackageBenefits<T extends { id: string; benefits: string[] 
   return { common, exclusive };
 }
 
+export const DIRECTOR_TITLES = ['Director', 'Directora'] as const;
+export type DirectorTitle = (typeof DIRECTOR_TITLES)[number];
+
+/** Textos de la sección del director según cómo se nombra ("Conoce a la directora"). */
+export function directorCopy(title: DirectorTitle | null): { label: DirectorTitle; invite: string; lead: string; word: string } {
+  return title === 'Directora'
+    ? { label: 'Directora', invite: 'Conoce a la directora', lead: 'Conoce a la', word: 'directora' }
+    : { label: 'Director', invite: 'Conoce al director', lead: 'Conoce al', word: 'director' };
+}
+
 export interface AudienceHero {
   /** Línea chica sobre el título ("Convocatoria 2026"). */
   kicker: string;
