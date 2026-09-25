@@ -280,23 +280,46 @@ export function sortAlerts(alerts: readonly FinanceAlert[]): FinanceAlert[] {
 }
 
 /** Resumen en texto de los certámenes para el prompt del agente. */
-export function formatProjectsForPrompt(analyses: readonly ProjectFinanceAnalysis[], inputs: readonly ProjectFinanceInput[]): string {
+/** Fuentes de ingreso de un certamen que la empresa tiene contratadas (módulo activo). */
+export interface EventIncomeModules {
+  sales: boolean;
+  sponsorships: boolean;
+  tickets: boolean;
+  votes: boolean;
+  installments: boolean;
+}
+
+const ALL_EVENT_MODULES: EventIncomeModules = { sales: true, sponsorships: true, tickets: true, votes: true, installments: true };
+
+export function formatProjectsForPrompt(
+  analyses: readonly ProjectFinanceAnalysis[],
+  inputs: readonly ProjectFinanceInput[],
+  modules: EventIncomeModules = ALL_EVENT_MODULES
+): string {
   const byId = new Map(inputs.map((input) => [input.projectId, input]));
   return analyses
     .map((a) => {
       const input = byId.get(a.projectId);
       if (!input) return '';
+      // Solo se desglosan las fuentes de módulos activos: "entradas $0" en una
+      // empresa sin Entradas invita al modelo a recomendar vender entradas.
+      const sources = [
+        modules.sponsorships ? `auspicios ${clp(input.incomeBySource.sponsorships)}` : null,
+        modules.tickets ? `entradas ${clp(input.incomeBySource.tickets)}` : null,
+        modules.votes ? `votos ${clp(input.incomeBySource.votes)}` : null,
+        modules.sales ? `ventas ${clp(input.incomeBySource.sales)}` : null,
+      ].filter((source): source is string => source !== null);
       const lines = [
         `Certamen "${a.name}" — ${a.daysToEvent >= 0 ? `faltan ${a.daysToEvent} días para el evento` : `evento hace ${-a.daysToEvent} días`}`,
-        `  Ingreso en caja: ${clp(input.incomeCash)} (auspicios ${clp(input.incomeBySource.sponsorships)}, entradas ${clp(input.incomeBySource.tickets)}, votos ${clp(input.incomeBySource.votes)}, ventas ${clp(input.incomeBySource.sales)})`,
+        `  Ingreso en caja: ${clp(input.incomeCash)}${sources.length ? ` (${sources.join(', ')})` : ''}`,
         input.incomeBarter > 0 ? `  Canjes valorizados (no es caja): ${clp(input.incomeBarter)}` : '',
         `  Gasto real: ${clp(input.expense)} · Resultado hoy: ${clp(a.margin)}${a.marginPercent !== null ? ` (${a.marginPercent}%)` : ''}`,
         input.budgetedIncome > 0 || input.budgetedExpense > 0
           ? `  Presupuesto: ingreso ${clp(input.budgetedIncome)} (${a.incomeExecution ?? '—'}% recibido), gasto ${clp(input.budgetedExpense)} (${a.expenseExecution ?? '—'}% ejecutado)`
           : '  Sin presupuesto cargado',
-        input.sponsorCashCommitted > 0 ? `  Auspicios en efectivo: comprometido ${clp(input.sponsorCashCommitted)}, cobrado ${a.sponsorCollection}%` : '',
-        input.installmentsPending > 0 ? `  Cuotas de candidatas por cobrar: ${clp(input.installmentsPending)} (vencidas ${clp(input.installmentsOverdue)})` : '',
-        input.overdueDeliverables > 0 ? `  Entregables de auspicio vencidos: ${input.overdueDeliverables}` : '',
+        modules.sponsorships && input.sponsorCashCommitted > 0 ? `  Auspicios en efectivo: comprometido ${clp(input.sponsorCashCommitted)}, cobrado ${a.sponsorCollection}%` : '',
+        modules.installments && input.installmentsPending > 0 ? `  Cuotas de candidatas por cobrar: ${clp(input.installmentsPending)} (vencidas ${clp(input.installmentsOverdue)})` : '',
+        modules.sponsorships && input.overdueDeliverables > 0 ? `  Entregables de auspicio vencidos: ${input.overdueDeliverables}` : '',
         `  Resultado proyectado cobrando lo comprometido: ${clp(a.projectedMargin)}`,
       ];
       return lines.filter(Boolean).join('\n');
@@ -311,13 +334,17 @@ export function formatProjectsForPrompt(analyses: readonly ProjectFinanceAnalysi
  * los necesita para recomendar; los nombres quedan solo en las alertas
  * internas que arma `analyzeCollections`.
  */
-export function formatCollectionsForPrompt(analysis: CollectionsAnalysis): string {
+export function formatCollectionsForPrompt(
+  analysis: CollectionsAnalysis,
+  kinds: readonly ReceivableKind[] = ['INSTALLMENT', 'PROMISSORY_NOTE', 'SPONSORSHIP']
+): string {
   const b = analysis.byBucket;
   const k = analysis.byKind;
+  const kindLabels: Record<ReceivableKind, string> = { INSTALLMENT: 'cuotas de candidatas', PROMISSORY_NOTE: 'pagarés', SPONSORSHIP: 'auspicios' };
   return [
     `Saldo total por cobrar: ${clp(analysis.totalBalance)} · vencido: ${clp(analysis.overdueBalance)}`,
     `Antigüedad del saldo: al día ${clp(b.current)}, 1-30 d ${clp(b['1-30'])}, 31-60 d ${clp(b['31-60'])}, 61-90 d ${clp(b['61-90'])}, +90 d ${clp(b['90+'])}`,
-    `Por tipo: cuotas de candidatas ${clp(k.INSTALLMENT.balance)} (vencido ${clp(k.INSTALLMENT.overdue)}); pagarés ${clp(k.PROMISSORY_NOTE.balance)} (vencido ${clp(k.PROMISSORY_NOTE.overdue)}); auspicios ${clp(k.SPONSORSHIP.balance)} (vencido ${clp(k.SPONSORSHIP.overdue)})`,
+    `Por tipo: ${kinds.map((kind) => `${kindLabels[kind]} ${clp(k[kind].balance)} (vencido ${clp(k[kind].overdue)})`).join('; ')}`,
     `Deudores con saldo vencido: ${analysis.topDebtors.length}${analysis.top3Concentration !== null ? `; los 3 mayores concentran el ${analysis.top3Concentration}% de lo vencido` : ''}`,
     analysis.topDebtors.length > 0 ? `Mayor atraso individual: ${Math.max(...analysis.topDebtors.map((d) => d.oldestDays))} días` : '',
   ]

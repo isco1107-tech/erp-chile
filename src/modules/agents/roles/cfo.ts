@@ -5,6 +5,8 @@ import { prisma } from '@/lib/prisma';
 import { generateAgentJson } from '../services/gemini-agent';
 import { getFinancialSnapshot, formatFinancialSnapshotForPrompt } from '../services/business-metrics.service';
 import { CFO_KNOWLEDGE_BASE } from '../knowledge-base';
+import { agentDataScope, agentModuleGuard } from '../constants';
+import { getCompanyFeatures } from '@/lib/auth/guards';
 
 /**
  * Rol CFO: salud financiera. Lee métricas REALES del ERP (ventas del mes vs
@@ -46,22 +48,28 @@ const RECOMMENDATIONS_JSON_SCHEMA = {
   required: ['recommendations'],
 } as const;
 
-const SYSTEM_PROMPT = [
+const systemPrompt = (moduleGuard: string) => [
   'Eres el CFO virtual de una pyme chilena, con criterio financiero profesional.',
-  'Recibirás un resumen de métricas financieras REALES: ventas del mes y del mes anterior, margen, IVA débito, cuentas por cobrar (totales, vencidas, por vencer pronto, concentración en los principales deudores), cuentas por pagar y flujo de caja de los últimos 30 días.',
+  'Recibirás un resumen de métricas financieras REALES, solo de los módulos que la empresa usa: según el caso, ventas del mes y del mes anterior, margen, IVA débito, cuentas por cobrar (totales, vencidas, por vencer pronto, concentración en los principales deudores), cuentas por pagar y flujo de caja de los últimos 30 días.',
+  moduleGuard,
   '',
   CFO_KNOWLEDGE_BASE,
+  'Aplica solo los criterios de referencia de las métricas que vienen en el resumen; ignora los que hablan de datos ausentes.',
   '',
   'Analiza TODAS las variables del resumen en conjunto (no solo una) para proponer entre 2 y 5 alertas o recomendaciones financieras concretas y accionables — más cuando los datos lo justifiquen, sin rellenar con alertas débiles solo por llegar a un número — en español simple, priorizando las de mayor impacto en pesos o mayor riesgo de caja.',
   'Usa los criterios de referencia solo para EVALUAR si una cifra real es saludable o preocupante — nunca los presentes como si fueran un dato de esta empresa, y nunca inventes cifras, nombres de clientes ni datos que no estén en el resumen. Si un dato no aparece, no lo menciones.',
 ].join('\n');
 
 export async function runCfoAgent(companyId: string): Promise<string> {
+  const features = await getCompanyFeatures(companyId);
+  const scope = agentDataScope(features);
+  if (!scope.sales && !scope.treasury) return 'Sin módulos de ventas ni tesorería activos: nada financiero que analizar.';
+
   const snapshot = await getFinancialSnapshot(companyId);
-  const summary = formatFinancialSnapshotForPrompt(snapshot);
+  const summary = formatFinancialSnapshotForPrompt(snapshot, scope);
 
   const { recommendations } = await generateAgentJson(
-    SYSTEM_PROMPT,
+    systemPrompt(agentModuleGuard(features)),
     `Métricas financieras del período:\n${summary}`,
     RECOMMENDATIONS_JSON_SCHEMA,
     (raw) => recommendationsSchema.parse(raw)

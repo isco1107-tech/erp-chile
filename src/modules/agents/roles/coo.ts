@@ -5,6 +5,8 @@ import { prisma } from '@/lib/prisma';
 import { formatCurrency } from '@/lib/chile/tax';
 import { generateAgentJson } from '../services/gemini-agent';
 import { COO_KNOWLEDGE_BASE } from '../knowledge-base';
+import { agentDataScope, agentModuleGuard } from '../constants';
+import { getCompanyFeatures } from '@/lib/auth/guards';
 
 /**
  * Rol COO: operaciones e inventario. Lee métricas REALES del ERP:
@@ -71,6 +73,9 @@ const SYSTEM_PROMPT = [
 ].join('\n');
 
 export async function runCooAgent(companyId: string): Promise<string> {
+  const features = await getCompanyFeatures(companyId);
+  if (!agentDataScope(features).inventory) return 'Sin el módulo de Inventario activo: no hay operaciones de bodega que analizar.';
+
   const windowStart = new Date();
   windowStart.setUTCDate(windowStart.getUTCDate() - ROTATION_WINDOW_DAYS);
 
@@ -120,8 +125,10 @@ export async function runCooAgent(companyId: string): Promise<string> {
 
   const lines: string[] = [];
   lines.push(`Cantidad total de SKUs con stock: ${totalSkuCount}`);
-  lines.push(`Valor total de inventario (a costo PMP): ${formatCurrency(inventoryValue)}`);
-  if (byValueDesc.length > 0) {
+  // Valor y concentración salen del costo PMP: solo con el módulo de Costeo PMP activo.
+  const showValues = features.hasPmpCosting;
+  if (showValues) lines.push(`Valor total de inventario (a costo PMP): ${formatCurrency(inventoryValue)}`);
+  if (showValues && byValueDesc.length > 0) {
     lines.push(
       `Concentración de valor: el ${((paretoCount / byValueDesc.length) * 100).toFixed(0)}% de los SKUs con más valor (${paretoCount} de ${byValueDesc.length}) concentra el ${paretoPercent.toFixed(1)}% del valor total de inventario`
     );
@@ -140,7 +147,7 @@ export async function runCooAgent(companyId: string): Promise<string> {
     lines.push(
       `Ejemplos de sobre-stock: ${overstockStocks
         .slice(0, SAMPLE_SIZE)
-        .map((s) => `${s.product.sku} — ${s.product.name} (stock ${s.quantity}, mínimo ${s.product.minStock}, valor ${formatCurrency(Math.round(s.quantity * s.product.costPricePMP))})`)
+        .map((s) => `${s.product.sku} — ${s.product.name} (stock ${s.quantity}, mínimo ${s.product.minStock}${showValues ? `, valor ${formatCurrency(Math.round(s.quantity * s.product.costPricePMP))}` : ''})`)
         .join('; ')}`
     );
   }
@@ -149,13 +156,13 @@ export async function runCooAgent(companyId: string): Promise<string> {
     lines.push(
       `Ejemplos sin rotación reciente: ${staleStocks
         .slice(0, SAMPLE_SIZE)
-        .map((s) => `${s.product.sku} — ${s.product.name} (stock ${s.quantity}, valor ${formatCurrency(Math.round(s.quantity * s.product.costPricePMP))})`)
+        .map((s) => `${s.product.sku} — ${s.product.name} (stock ${s.quantity}${showValues ? `, valor ${formatCurrency(Math.round(s.quantity * s.product.costPricePMP))}` : ''})`)
         .join('; ')}`
     );
   }
   const summary = lines.join('\n');
 
-  const { recommendations } = await generateAgentJson(SYSTEM_PROMPT, summary, RECOMMENDATIONS_JSON_SCHEMA, (raw) =>
+  const { recommendations } = await generateAgentJson(`${SYSTEM_PROMPT}\n${agentModuleGuard(features)}`, summary, RECOMMENDATIONS_JSON_SCHEMA, (raw) =>
     recommendationsSchema.parse(raw)
   );
 
