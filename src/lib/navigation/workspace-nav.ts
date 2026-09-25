@@ -148,8 +148,8 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
       { id: 'intelligence-flows', href: '/dashboard/intelligence/flows', label: 'Flujos del negocio', icon: 'flows', keywords: ['procesos', 'cuello de botella', 'order to cash', 'procure to pay', 'embudo'] }
     );
   }
-  if (features.hasCrm && allow('agents:view')) {
-    inteligencia.push({ id: 'agents', href: '/dashboard/agents', label: 'Agentes', icon: 'agents', keywords: ['ia', 'ceo', 'cfo', 'asistente'] });
+  if ((features.hasCrm || features.hasEventProjects) && allow('agents:view')) {
+    inteligencia.push({ id: 'agents', href: '/dashboard/agents', label: 'Agentes', icon: 'agents', keywords: ['ia', 'ceo', 'cfo', 'asistente', 'finanzas de eventos', 'cobranza'] });
   }
   push('Inteligencia de Negocio', inteligencia);
 

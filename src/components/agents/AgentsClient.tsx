@@ -2,15 +2,15 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import type { AgentRun, AgentRunStatus, AgentTask } from '@prisma/client';
+import type { AgentRole, AgentRun, AgentRunStatus, AgentTask } from '@prisma/client';
 import { Button } from '@/components/ui/button';
-import { listLatestAgentRunsAction } from '@/modules/agents/actions/agent-runs.actions';
+import { listLatestAgentRunsAction, runAgentNowAction } from '@/modules/agents/actions/agent-runs.actions';
 import {
   approveAgentTaskAction,
   listAgentTasksAction,
   rejectAgentTaskAction,
 } from '@/modules/agents/actions/agent-tasks.actions';
-import { AGENT_ROLES, AGENT_ROLE_LABELS } from '@/modules/agents/constants';
+import { AGENT_ROLE_LABELS, EVENT_AGENT_ROLES } from '@/modules/agents/constants';
 
 const RUN_STATUS_LABEL: Record<AgentRunStatus, string> = {
   RUNNING: 'Ejecutando',
@@ -30,8 +30,9 @@ const RUN_STATUS_TONE: Record<AgentRunStatus, string> = {
  * de acá dispara nada fuera del sistema, solo cambia el estado de la fila
  * (ver src/modules/agents/actions/agent-tasks.actions.ts).
  */
-export default function AgentsClient() {
+export default function AgentsClient({ roles, canRunNow }: { roles: AgentRole[]; canRunNow: boolean }) {
   const [runs, setRuns] = useState<AgentRun[]>([]);
+  const [runningRole, setRunningRole] = useState<AgentRole | null>(null);
   const [tasks, setTasks] = useState<AgentTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
@@ -68,12 +69,22 @@ export default function AgentsClient() {
     load();
   }
 
+  async function handleRunNow(role: AgentRole) {
+    setRunningRole(role);
+    const result = await runAgentNowAction(role);
+    if (!result.success) toast.error(result.error);
+    else toast.success(result.message ?? 'Análisis completado');
+    setRunningRole(null);
+    load();
+  }
+
   const runByRole = new Map(runs.map((run) => [run.role, run]));
+  const visibleTasks = tasks.filter((task) => roles.includes(task.role));
 
   return (
     <div className="space-y-8">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {AGENT_ROLES.map((role) => {
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {roles.map((role) => {
           const run = runByRole.get(role);
           return (
             <div key={role} className="border border-border bg-card shadow-card rounded-xl p-4">
@@ -94,6 +105,18 @@ export default function AgentsClient() {
               ) : (
                 <p className="text-sm text-muted-foreground">Sin ejecuciones aún.</p>
               )}
+              {canRunNow && EVENT_AGENT_ROLES.includes(role) && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="mt-3"
+                  disabled={runningRole !== null || run?.status === 'RUNNING'}
+                  onClick={() => handleRunNow(role)}
+                >
+                  {runningRole === role ? 'Analizando…' : 'Analizar ahora'}
+                </Button>
+              )}
             </div>
           );
         })}
@@ -102,9 +125,9 @@ export default function AgentsClient() {
       <div>
         <h2 className="mb-3 text-lg font-semibold text-foreground">Recomendaciones pendientes de revisar</h2>
         {loading && <p className="text-sm text-muted-foreground">Cargando...</p>}
-        {!loading && tasks.length === 0 && <p className="text-sm text-muted-foreground">No hay recomendaciones pendientes.</p>}
+        {!loading && visibleTasks.length === 0 && <p className="text-sm text-muted-foreground">No hay recomendaciones pendientes.</p>}
         <div className="space-y-3">
-          {tasks.map((task) => (
+          {visibleTasks.map((task) => (
             <div key={task.id} className="border border-border bg-card shadow-card rounded-xl p-4">
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <div>

@@ -48,3 +48,22 @@ export const CEO_PRIORITIZATION_RUBRIC = [
   '3. Oportunidad comercial (qué vender más, qué precio revisar).',
   'Si hay varias alertas del mismo nivel, prioriza la de mayor monto/impacto en pesos.',
 ].join('\n');
+
+export const EVENT_FINANCE_KNOWLEDGE_BASE = [
+  'Criterios de referencia de una productora de certámenes y eventos (generales, no una norma exacta):',
+  '- El ingreso de un certamen llega tarde y concentrado (auspicios, entradas y votación se cobran cerca de la gala) mientras el gasto (producción, vestuario, locación, honorarios) se paga antes. Un resultado negativo meses antes del evento es normal; lo que importa es si lo comprometido alcanza a cubrirlo.',
+  '- Auspicios: la marca suele pagar contra entregables cumplidos (menciones, backstage, logos). Entregables atrasados son la causa más común de auspicios que no se pagan o se renegocian a la baja.',
+  '- A 30 días del evento, lo sano es tener cobrado al menos ~60% del efectivo comprometido por auspicios; por debajo, el riesgo de financiar la gala con caja propia es alto.',
+  '- Los canjes (barter) reducen gasto pero no son caja: no sirven para pagar honorarios ni proveedores en efectivo.',
+  '- Presupuesto: ejecutar más del ~80% del gasto con menos del ~50% del ingreso recibido es una señal temprana de descalce que conviene corregir antes (recortar o adelantar cobros).',
+  '- Margen de referencia de un certamen bien vendido: 15-30% sobre el ingreso en efectivo; bajo 10% cualquier imprevisto de la gala lo vuelve pérdida.',
+].join('\n');
+
+export const EVENT_COLLECTIONS_KNOWLEDGE_BASE = [
+  'Criterios de referencia de cobranza (generales, no una norma exacta):',
+  '- La probabilidad de cobro cae con la antigüedad: sobre 60 días de atraso la recuperación se vuelve difícil y sobre 90 días conviene repactar o gestionar formalmente (el pagaré es título ejecutivo).',
+  '- Cobrar primero lo más grande y más reciente rinde más que perseguir montos chicos muy antiguos.',
+  '- Recordatorios antes del vencimiento (no solo después) reducen fuertemente la mora de cuotas; el pago en línea con link directo aumenta la tasa de pago.',
+  '- Cuotas de candidatas: son personas naturales, muchas veces jóvenes o menores con apoderado; el tono de cobranza debe ser cordial y dirigido al responsable de pago.',
+  '- Si los 3 principales deudores concentran más del 50% de lo vencido, el riesgo de caja está concentrado y amerita gestión directa de esos casos.',
+].join('\n');

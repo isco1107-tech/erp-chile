@@ -13,6 +13,14 @@
       "schedule": "30 8 * * *"
     },
     {
+      "path": "/api/agents/run?role=EVENT_FINANCE",
+      "schedule": "40 8 * * *"
+    },
+    {
+      "path": "/api/agents/run?role=EVENT_COLLECTIONS",
+      "schedule": "50 8 * * *"
+    },
+    {
       "path": "/api/agents/run?role=CEO",
       "schedule": "0 9 * * *"
     },
