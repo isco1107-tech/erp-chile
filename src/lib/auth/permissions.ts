@@ -41,6 +41,9 @@ export const PERMISSIONS = {
   // Forzar el pago de una factura que no cuadra con su Orden de Compra
   // (matching de 3 vías): nivel gerencial, igual que purchases:approve.
   'purchases:override_match': ['OWNER', 'ADMIN'],
+  // Cualquiera del equipo puede pedir que se compre algo; aprobar la
+  // solicitud es `purchases:approve` y cotizar/generar OC es `purchases:orders`.
+  'purchases:request': ALL_ROLES,
 
   'products:read': ALL_ROLES,
   'products:write': ['OWNER', 'ADMIN', 'WAREHOUSE'],
@@ -236,6 +239,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'purchases:approve': 'Aprobar compras que superan el límite configurado',
   'purchases:orders': 'Crear órdenes de compra y registrar recepción de mercadería',
   'purchases:override_match': 'Forzar pago de facturas que no cuadran con su orden de compra',
+  'purchases:request': 'Crear solicitudes de compra',
   'products:read': 'Ver catálogo de productos',
   'products:write': 'Crear y editar productos',
   'products:costs': 'Ver costos de compra y PMP',

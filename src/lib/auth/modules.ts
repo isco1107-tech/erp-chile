@@ -88,7 +88,7 @@ export const MODULES: ModuleDefinition[] = [
   {
     key: 'hasPurchases',
     label: 'Compras y Proveedores',
-    description: 'Facturas de proveedor, recepción de mercadería y costeo de compras.',
+    description: 'Solicitudes y cotizaciones, órdenes de compra, recepción de mercadería, facturas de proveedor e importaciones con costeo.',
     permissions: [
       'purchases:read',
       'purchases:write',
@@ -96,8 +96,9 @@ export const MODULES: ModuleDefinition[] = [
       'purchases:approve',
       'purchases:orders',
       'purchases:override_match',
+      'purchases:request',
     ],
-    routes: ['/dashboard/purchases'],
+    routes: ['/dashboard/purchases', '/dashboard/purchase-requests'],
   },
   {
     key: 'hasTreasury',

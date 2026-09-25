@@ -69,6 +69,16 @@ async function hardDeleteTenant(tx: Prisma.TransactionClient, companyId: string)
   await tx.cheque.deleteMany({ where: { companyId } });
   await tx.collectionReminderLog.deleteMany({ where: { companyId } });
   await tx.collectionNote.deleteMany({ where: { companyId } });
+  // Operaciones · Ola 6: cotizaciones (apuntan a Contact con RESTRICT) y
+  // carpetas de importación (sus líneas apuntan a Product con RESTRICT) se
+  // borran antes que contactos y productos.
+  await tx.supplierQuoteLine.deleteMany({ where: { companyId } });
+  await tx.supplierQuote.deleteMany({ where: { companyId } });
+  await tx.purchaseRequestItem.deleteMany({ where: { companyId } });
+  await tx.purchaseRequest.deleteMany({ where: { companyId } });
+  await tx.importShipmentCost.deleteMany({ where: { companyId } });
+  await tx.importShipmentItem.deleteMany({ where: { companyId } });
+  await tx.importShipment.deleteMany({ where: { companyId } });
   await tx.bankStatementLine.deleteMany({ where: { companyId } });
   await tx.bankStatement.deleteMany({ where: { companyId } });
   await tx.bankAccount.deleteMany({ where: { companyId } });

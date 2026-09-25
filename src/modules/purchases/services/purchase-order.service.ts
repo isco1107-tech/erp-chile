@@ -7,48 +7,62 @@ export type PurchaseOrderWithItems = PurchaseOrder & { items: PurchaseOrderItem[
 export type PurchaseOrderWithRelations = PurchaseOrderWithItems & { contact: Contact };
 export type PurchaseOrderListItem = PurchaseOrder & { contact: Contact; _count: { items: number } };
 
+/**
+ * Inserta la OC dentro de una transacción ya abierta. Existe aparte de
+ * `createPurchaseOrder` para que el comparativo de cotizaciones pueda generar
+ * varias OC (una por proveedor adjudicado) en una sola transacción: o salen
+ * todas, o ninguna.
+ */
+export async function insertPurchaseOrder(
+  tx: Prisma.TransactionClient,
+  companyId: string,
+  input: PurchaseOrderCreateInput,
+  options: { purchaseRequestId?: string } = {}
+): Promise<PurchaseOrderWithItems> {
+  const contact = await tx.contact.findFirst({ where: { id: input.contactId, companyId } });
+  if (!contact) throw new Error('Proveedor no encontrado');
+
+  const productIds = input.items.map((item) => item.productId).filter((id): id is string => Boolean(id));
+  if (productIds.length > 0) {
+    const found = await tx.product.count({ where: { id: { in: productIds }, companyId } });
+    if (found !== new Set(productIds).size) throw new Error('Uno o más productos no pertenecen a esta empresa');
+  }
+
+  // Mismo patrón que FolioSequence: una fila por contador, incrementada
+  // atómicamente — el valor nuevo ES el folio asignado.
+  const seq = await tx.internalDocumentSequence.upsert({
+    where: { companyId_kind: { companyId, kind: 'PURCHASE_ORDER' } },
+    update: { currentFolio: { increment: 1 } },
+    create: { companyId, kind: 'PURCHASE_ORDER', currentFolio: 1 },
+  });
+
+  return tx.purchaseOrder.create({
+    data: {
+      companyId,
+      contactId: input.contactId,
+      folio: seq.currentFolio,
+      expectedDate: input.expectedDate ? new Date(input.expectedDate) : undefined,
+      notes: input.notes,
+      purchaseRequestId: options.purchaseRequestId,
+      items: {
+        create: input.items.map((item) => ({
+          companyId,
+          productId: item.productId || undefined,
+          description: item.description,
+          quantity: item.quantity,
+          unitCost: item.unitCost,
+        })),
+      },
+    },
+    include: { items: true },
+  });
+}
+
 export async function createPurchaseOrder(
   companyId: string,
   input: PurchaseOrderCreateInput
 ): Promise<PurchaseOrderWithItems> {
-  return prisma.$transaction(async (tx) => {
-    const contact = await tx.contact.findFirst({ where: { id: input.contactId, companyId } });
-    if (!contact) throw new Error('Proveedor no encontrado');
-
-    const productIds = input.items.map((item) => item.productId).filter((id): id is string => Boolean(id));
-    if (productIds.length > 0) {
-      const found = await tx.product.count({ where: { id: { in: productIds }, companyId } });
-      if (found !== new Set(productIds).size) throw new Error('Uno o más productos no pertenecen a esta empresa');
-    }
-
-    // Mismo patrón que FolioSequence: una fila por contador, incrementada
-    // atómicamente — el valor nuevo ES el folio asignado.
-    const seq = await tx.internalDocumentSequence.upsert({
-      where: { companyId_kind: { companyId, kind: 'PURCHASE_ORDER' } },
-      update: { currentFolio: { increment: 1 } },
-      create: { companyId, kind: 'PURCHASE_ORDER', currentFolio: 1 },
-    });
-
-    return tx.purchaseOrder.create({
-      data: {
-        companyId,
-        contactId: input.contactId,
-        folio: seq.currentFolio,
-        expectedDate: input.expectedDate ? new Date(input.expectedDate) : undefined,
-        notes: input.notes,
-        items: {
-          create: input.items.map((item) => ({
-            companyId,
-            productId: item.productId || undefined,
-            description: item.description,
-            quantity: item.quantity,
-            unitCost: item.unitCost,
-          })),
-        },
-      },
-      include: { items: true },
-    });
-  }, LOCKING_TX_OPTIONS);
+  return prisma.$transaction((tx) => insertPurchaseOrder(tx, companyId, input), LOCKING_TX_OPTIONS);
 }
 
 /** Enviar es solo una bandera informativa (proveedor notificado) — recién desde `SENT` se pueden registrar recepciones. */

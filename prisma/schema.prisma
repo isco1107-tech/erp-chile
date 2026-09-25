@@ -137,6 +137,13 @@ model Company {
   employeeSettlements       EmployeeSettlement[]
   receivedDtes              ReceivedDte[]
   rcvImports                RcvImport[]
+  purchaseRequests          PurchaseRequest[]
+  purchaseRequestItems      PurchaseRequestItem[]
+  supplierQuotes            SupplierQuote[]
+  supplierQuoteLines        SupplierQuoteLine[]
+  importShipments           ImportShipment[]
+  importShipmentItems       ImportShipmentItem[]
+  importShipmentCosts       ImportShipmentCost[]
   salesDocumentItems        SalesDocumentItem[]
   purchaseDocuments         PurchaseDocument[]
   purchaseDocumentItems     PurchaseDocumentItem[]
@@ -570,6 +577,10 @@ enum InternalDocumentKind {
   CANDIDATE_APPLICATION
   /// Comprobante de pago en línea de cuotas (`InstallmentPaymentOrder.receiptNumber`).
   INSTALLMENT_RECEIPT
+  /// Solicitud de compra (`PurchaseRequest.folio`).
+  PURCHASE_REQUEST
+  /// Carpeta de importación (`ImportShipment.folio`).
+  IMPORT_SHIPMENT
 }
 
 /// Correlativos internos (no folio SII) para documentos sin relevancia
@@ -709,6 +720,8 @@ model Contact {
   paymentBatchItems         PaymentBatchItem[]
   collectionReminderLogs    CollectionReminderLog[]
   collectionNotes           CollectionNote[]
+  supplierQuotes            SupplierQuote[]
+  importShipments           ImportShipment[]
 
   @@unique([companyId, rutClean])
   @@index([companyId, razonSocial])
@@ -752,6 +765,7 @@ model Warehouse {
   purchaseItems   PurchaseDocumentItem[]
   goodsReceipts   GoodsReceipt[]
   cashRegisters   CashRegister[]
+  importShipments ImportShipment[]
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
 
@@ -759,45 +773,47 @@ model Warehouse {
 }
 
 model Product {
-  id                  String                 @id @default(cuid())
-  companyId           String
-  company             Company                @relation(fields: [companyId], references: [id])
-  categoryId          String?
-  category            Category?              @relation(fields: [categoryId], references: [id])
-  sku                 String
-  name                String
-  description         String?
-  unit                String                 @default("UN")
-  isTrackable         Boolean                @default(true)
+  id                   String                 @id @default(cuid())
+  companyId            String
+  company              Company                @relation(fields: [companyId], references: [id])
+  categoryId           String?
+  category             Category?              @relation(fields: [categoryId], references: [id])
+  sku                  String
+  name                 String
+  description          String?
+  unit                 String                 @default("UN")
+  isTrackable          Boolean                @default(true)
   /// Producto exento de IVA. Sin este campo el POS no tenía forma de saberlo y
   /// cobraba 19% sobre todo, sobrecobrando al cliente y distorsionando el F29.
-  isExempt            Boolean                @default(false)
-  costPricePMP        Float                  @default(0)
-  netPrice            Int                    @default(0)
-  grossPrice          Int                    @default(0)
-  minStock            Int                    @default(0)
+  isExempt             Boolean                @default(false)
+  costPricePMP         Float                  @default(0)
+  netPrice             Int                    @default(0)
+  grossPrice           Int                    @default(0)
+  minStock             Int                    @default(0)
   /// Código de barras principal (EAN-13, UPC o interno). Único por empresa.
-  barcode             String?
-  brand               String?
+  barcode              String?
+  brand                String?
   /// Foto del producto (Blob), para catálogo, POS y etiquetas.
-  imageUrl            String?
+  imageUrl             String?
   /// Maneja lotes con vencimiento: las entradas registran lote y las salidas
   /// consumen primero el que vence antes (FEFO). Ver `InventoryLot`.
-  tracksLots          Boolean                @default(false)
-  packagings          ProductPackaging[]
-  lots                InventoryLot[]
-  inventoryCountLines InventoryCountLine[]
-  stocks              Stock[]
-  movements           InventoryMovement[]
-  salesDocumentItems  SalesDocumentItem[]
-  salesOrderItems     SalesOrderItem[]
-  priceListItems      PriceListItem[]
-  purchaseItems       PurchaseDocumentItem[]
-  purchaseOrderItems  PurchaseOrderItem[]
-  goodsReceiptItems   GoodsReceiptItem[]
-  journalLines        JournalLine[]
-  createdAt           DateTime               @default(now())
-  updatedAt           DateTime               @updatedAt
+  tracksLots           Boolean                @default(false)
+  packagings           ProductPackaging[]
+  lots                 InventoryLot[]
+  inventoryCountLines  InventoryCountLine[]
+  stocks               Stock[]
+  movements            InventoryMovement[]
+  salesDocumentItems   SalesDocumentItem[]
+  salesOrderItems      SalesOrderItem[]
+  priceListItems       PriceListItem[]
+  purchaseItems        PurchaseDocumentItem[]
+  purchaseOrderItems   PurchaseOrderItem[]
+  goodsReceiptItems    GoodsReceiptItem[]
+  journalLines         JournalLine[]
+  purchaseRequestItems PurchaseRequestItem[]
+  importShipmentItems  ImportShipmentItem[]
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
 
   @@unique([companyId, sku])
   @@unique([companyId, barcode])
@@ -1076,6 +1092,7 @@ model PurchaseDocument {
   payments                Payment[]
   paymentBatchItems       PaymentBatchItem[]
   receivedDtes            ReceivedDte[]
+  importShipmentCosts     ImportShipmentCost[]
   createdAt               DateTime               @default(now())
   updatedAt               DateTime               @updatedAt
 
@@ -1144,6 +1161,9 @@ model PurchaseOrder {
   items             PurchaseOrderItem[]
   goodsReceipts     GoodsReceipt[]
   purchaseDocuments PurchaseDocument[]
+  /// Solicitud de compra que originó esta OC (comparativo de cotizaciones).
+  purchaseRequestId String?
+  purchaseRequest   PurchaseRequest?    @relation(fields: [purchaseRequestId], references: [id], onDelete: SetNull)
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 
@@ -4613,4 +4633,178 @@ model RcvImport {
   updatedAt    DateTime @updatedAt
 
   @@unique([companyId, kind, year, month])
+}
+
+// ─── Operaciones · Ola 6: solicitudes de compra, cotizaciones e importaciones ─
+
+enum PurchaseRequestStatus {
+  DRAFT
+  /// Enviada a aprobación.
+  SUBMITTED
+  APPROVED
+  REJECTED
+  /// Ya generó sus órdenes de compra.
+  ORDERED
+  CANCELLED
+}
+
+/// Solicitud interna de compra: alguien pide, jefatura aprueba, compras
+/// cotiza con varios proveedores y el comparativo genera las OC.
+model PurchaseRequest {
+  id              String                @id @default(cuid())
+  companyId       String
+  company         Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  folio           Int
+  title           String
+  status          PurchaseRequestStatus @default(DRAFT)
+  neededBy        DateTime?
+  notes           String?
+  requestedById   String?
+  requestedByName String?
+  decidedById     String?
+  decidedByName   String?
+  decidedAt       DateTime?
+  rejectionReason String?
+  items           PurchaseRequestItem[]
+  quotes          SupplierQuote[]
+  purchaseOrders  PurchaseOrder[]
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  @@unique([companyId, folio])
+  @@index([companyId, status])
+}
+
+model PurchaseRequestItem {
+  id                String              @id @default(cuid())
+  companyId         String
+  company           Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  requestId         String
+  request           PurchaseRequest     @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  productId         String?
+  product           Product?            @relation(fields: [productId], references: [id], onDelete: SetNull)
+  description       String
+  quantity          Float
+  unit              String?
+  /// Costo unitario de referencia (último PMP o estimado), CLP.
+  estimatedUnitCost Int?
+  position          Int                 @default(0)
+  quoteLines        SupplierQuoteLine[]
+
+  @@index([companyId, requestId])
+}
+
+/// Cotización de un proveedor para una solicitud.
+model SupplierQuote {
+  id           String              @id @default(cuid())
+  companyId    String
+  company      Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  requestId    String
+  request      PurchaseRequest     @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  contactId    String
+  contact      Contact             @relation(fields: [contactId], references: [id])
+  quoteNumber  String?
+  validUntil   DateTime?
+  leadTimeDays Int?
+  paymentTerms String?
+  notes        String?
+  lines        SupplierQuoteLine[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@unique([requestId, contactId])
+  @@index([companyId, requestId])
+}
+
+model SupplierQuoteLine {
+  id            String              @id @default(cuid())
+  companyId     String
+  company       Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  quoteId       String
+  quote         SupplierQuote       @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  requestItemId String
+  requestItem   PurchaseRequestItem @relation(fields: [requestItemId], references: [id], onDelete: Cascade)
+  /// Precio unitario neto ofrecido, CLP.
+  unitCost      Int
+
+  @@unique([quoteId, requestItemId])
+  @@index([companyId, quoteId])
+}
+
+enum ImportShipmentStatus {
+  OPEN
+  /// Mercadería ingresada a bodega al costo de importación.
+  CLOSED
+  CANCELLED
+}
+
+/// Carpeta de importación: reúne el valor FOB de la mercadería y todos los
+/// costos hasta la bodega (flete, seguro, derechos, agente, puerto) para
+/// ingresarla al kardex a su costo real.
+model ImportShipment {
+  id               String               @id @default(cuid())
+  companyId        String
+  company          Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  folio            Int
+  reference        String
+  contactId        String?
+  contact          Contact?             @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  currency         String               @default("USD")
+  /// Pesos por unidad de moneda extranjera (dólar observado o el de la DIN).
+  exchangeRate     Float
+  incoterm         String?
+  dinNumber        String?
+  arrivalDate      DateTime?
+  warehouseId      String?
+  warehouse        Warehouse?           @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  /// `VALUE` prorratea por valor FOB, `QUANTITY` por unidades.
+  allocationMethod String               @default("VALUE")
+  status           ImportShipmentStatus @default(OPEN)
+  closedAt         DateTime?
+  closedById       String?
+  notes            String?
+  items            ImportShipmentItem[]
+  costs            ImportShipmentCost[]
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  @@unique([companyId, folio])
+  @@index([companyId, status])
+}
+
+model ImportShipmentItem {
+  id               String         @id @default(cuid())
+  companyId        String
+  company          Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  shipmentId       String
+  shipment         ImportShipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  productId        String
+  product          Product        @relation(fields: [productId], references: [id])
+  description      String
+  quantity         Float
+  /// Precio unitario FOB en la moneda de la carpeta.
+  unitPriceForeign Float
+  /// Costo unitario puesto en bodega (CLP, 2 decimales), fijado al cerrar.
+  landedUnitCost   Float?
+  position         Int            @default(0)
+
+  @@index([companyId, shipmentId])
+}
+
+model ImportShipmentCost {
+  id                 String            @id @default(cuid())
+  companyId          String
+  company            Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  shipmentId         String
+  shipment           ImportShipment    @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  /// FREIGHT, INSURANCE, DUTY, CUSTOMS_AGENT, PORT, TRANSPORT, OTHER
+  kind               String
+  description        String
+  /// Monto neto en CLP (sin IVA recuperable).
+  amount             Int
+  /// Factura de Compras que respalda el costo, si ya se registró.
+  purchaseDocumentId String?
+  purchaseDocument   PurchaseDocument? @relation(fields: [purchaseDocumentId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, shipmentId])
 }

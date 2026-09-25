@@ -83,7 +83,9 @@ export type NavIconKey =
   | 'cheques'
   | 'paymentBatches'
   | 'receivedDte'
-  | 'rcv';
+  | 'rcv'
+  | 'purchaseRequests'
+  | 'imports';
 
 export interface NavLink {
   /** Identificador estable (ver comentario del archivo). */
@@ -202,12 +204,23 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
   }
   push('Ventas', ventas);
 
-  if (features.hasPurchases && allow('purchases:read')) {
-    push('Compras', [
-      { id: 'purchases', href: '/dashboard/purchases', label: 'Compras', icon: 'purchases', keywords: ['factura de compra', 'proveedor'] },
-      { id: 'purchase-orders', href: '/dashboard/purchases/orders', label: 'Órdenes de Compra', icon: 'purchases', keywords: ['oc', 'orden'] },
-      { id: 'purchases-inbox', href: '/dashboard/purchases/inbox', label: 'DTE recibidos', icon: 'receivedDte', keywords: ['factura de proveedor', 'xml', 'dte', 'acuse de recibo', 'reclamo', 'bandeja', 'intercambio'] },
-    ]);
+  if (features.hasPurchases) {
+    const compras: NavLink[] = [];
+    if (allow('purchases:read')) {
+      compras.push({ id: 'purchases', href: '/dashboard/purchases', label: 'Compras', icon: 'purchases', keywords: ['factura de compra', 'proveedor'] });
+    }
+    // Pedir una compra es para todo el equipo, aunque no vea el resto de Compras.
+    if (allow('purchases:request')) {
+      compras.push({ id: 'purchase-requests', href: '/dashboard/purchase-requests', label: 'Solicitudes de compra', icon: 'purchaseRequests', keywords: ['pedido interno', 'requisicion', 'cotizacion', 'comparativo', 'aprobar compra'] });
+    }
+    if (allow('purchases:read')) {
+      compras.push(
+        { id: 'purchase-orders', href: '/dashboard/purchases/orders', label: 'Órdenes de Compra', icon: 'purchases', keywords: ['oc', 'orden'] },
+        { id: 'purchases-imports', href: '/dashboard/purchases/imports', label: 'Importaciones', icon: 'imports', keywords: ['carpeta de importacion', 'costeo', 'fob', 'cif', 'aduana', 'din', 'flete', 'arancel'] },
+        { id: 'purchases-inbox', href: '/dashboard/purchases/inbox', label: 'DTE recibidos', icon: 'receivedDte', keywords: ['factura de proveedor', 'xml', 'dte', 'acuse de recibo', 'reclamo', 'bandeja', 'intercambio'] }
+      );
+    }
+    if (compras.length > 0) push('Compras', compras);
   }
 
   const finanzas: NavLink[] = [];
