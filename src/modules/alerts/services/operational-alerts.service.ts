@@ -12,6 +12,7 @@ import { createAuditLog } from '@/lib/auth/audit';
 import { getLowFolioWarnings } from '@/modules/dte/services/caf.service';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import { captureException } from '@/lib/observability';
+import { findLotExpiryMilestones } from '@/modules/inventory/services/lots.service';
 
 const OPERATIONAL_STATUSES = ['ACTIVE', 'TRIAL'] as const;
 
@@ -250,6 +251,12 @@ export async function runOperationalAlertsCron(): Promise<{ processedCompanies: 
       }
       for (const folio of lowFolios) {
         void emitWorkflowEvent(company.id, 'DTE_FOLIOS_LOW', { dteType: folio.dteType, remaining: folio.remaining });
+      }
+      // Lotes: solo en sus hitos (30/7/0 días y el día después), para que una
+      // regla no mande el mismo aviso todos los días del último mes.
+      const lotMilestones = company.features?.hasInventory ? await findLotExpiryMilestones(company.id, new Date()) : [];
+      for (const lot of lotMilestones) {
+        void emitWorkflowEvent(company.id, 'LOT_EXPIRING', { ...lot });
       }
 
       const totalIssues = lowStock.length + pendingApprovals.length + overdueReceivables.length + expiringContracts.length + mismatchedPurchases.length;

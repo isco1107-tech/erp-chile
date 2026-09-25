@@ -121,6 +121,9 @@ export type PurchaseOrderCreateInput = z.infer<typeof purchaseOrderCreateSchema>
 export const goodsReceiptItemSchema = z.object({
   orderItemId: z.string().min(1),
   quantity: z.number().positive('La cantidad debe ser mayor a cero'),
+  /** Solo productos con lotes: lote y vencimiento de lo recibido. */
+  lotNumber: z.string().trim().max(40, 'El lote admite máximo 40 caracteres').optional(),
+  expiryDate: z.union([z.literal(''), z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha de vencimiento inválida')]).optional(),
 });
 
 export type GoodsReceiptItemInput = z.infer<typeof goodsReceiptItemSchema>;
@@ -133,3 +136,94 @@ export const goodsReceiptCreateSchema = z.object({
 });
 
 export type GoodsReceiptCreateInput = z.infer<typeof goodsReceiptCreateSchema>;
+
+// ─── Solicitudes de compra y cotizaciones (Ola 6) ────────────────────────────
+
+export const PURCHASE_REQUEST_STATUS_LABELS = {
+  DRAFT: 'Borrador',
+  SUBMITTED: 'Por aprobar',
+  APPROVED: 'Aprobada',
+  REJECTED: 'Rechazada',
+  ORDERED: 'Con OC',
+  CANCELLED: 'Anulada',
+} as const;
+
+const isoDay = z.union([z.literal(''), z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha inválida')]).optional();
+
+export const purchaseRequestItemSchema = z.object({
+  productId: z.string().min(1).optional(),
+  description: z.string().trim().min(1, 'Describe qué se necesita').max(200),
+  quantity: z.number().positive('La cantidad debe ser mayor a cero').max(1_000_000),
+  unit: z.string().trim().max(20).optional(),
+});
+
+export const purchaseRequestSchema = z.object({
+  title: z.string().trim().min(3, 'Ponle un título a la solicitud').max(120),
+  neededBy: isoDay,
+  notes: z.string().trim().max(1000).optional(),
+  items: z.array(purchaseRequestItemSchema).min(1, 'Agrega al menos un ítem').max(100, 'Máximo 100 ítems por solicitud'),
+});
+
+export type PurchaseRequestInput = z.infer<typeof purchaseRequestSchema>;
+
+export const supplierQuoteSchema = z.object({
+  contactId: z.string().min(1, 'Selecciona el proveedor'),
+  quoteNumber: z.string().trim().max(40).optional(),
+  validUntil: isoDay,
+  leadTimeDays: z.number().int().min(0).max(365).nullable().optional(),
+  paymentTerms: z.string().trim().max(80).optional(),
+  notes: z.string().trim().max(500).optional(),
+  lines: z
+    .array(z.object({ requestItemId: z.string().min(1), unitCost: z.number().int('Precio en pesos enteros').min(0).max(1_000_000_000) }))
+    .min(1, 'Ingresa el precio de al menos un ítem'),
+});
+
+export type SupplierQuoteInput = z.infer<typeof supplierQuoteSchema>;
+
+/** Adjudicación: ítem de la solicitud → cotización elegida. */
+export const purchaseAwardSchema = z.object({
+  award: z.record(z.string(), z.string()).refine((value) => Object.keys(value).length > 0, 'Adjudica al menos un ítem'),
+  expectedDate: isoDay,
+});
+
+// ─── Importaciones (Ola 6) ───────────────────────────────────────────────────
+
+export const IMPORT_STATUS_LABELS = { OPEN: 'Abierta', CLOSED: 'Ingresada', CANCELLED: 'Anulada' } as const;
+export const IMPORT_CURRENCIES = ['USD', 'EUR', 'CNY', 'GBP', 'JPY', 'BRL', 'ARS', 'MXN'] as const;
+export const INCOTERMS = ['EXW', 'FCA', 'FAS', 'FOB', 'CFR', 'CIF', 'CPT', 'CIP', 'DAP', 'DPU', 'DDP'] as const;
+
+export const importShipmentSchema = z.object({
+  reference: z.string().trim().min(2, 'Indica una referencia (N° de embarque, BL o proforma)').max(60),
+  contactId: z.string().min(1).nullable().optional(),
+  currency: z.enum(IMPORT_CURRENCIES),
+  exchangeRate: z.number().positive('El tipo de cambio debe ser mayor a cero').max(100_000),
+  incoterm: z.enum(INCOTERMS).nullable().optional(),
+  dinNumber: z.string().trim().max(30).optional(),
+  arrivalDate: isoDay,
+  warehouseId: z.string().min(1).nullable().optional(),
+  allocationMethod: z.enum(['VALUE', 'QUANTITY']),
+  notes: z.string().trim().max(1000).optional(),
+});
+
+export type ImportShipmentInput = z.infer<typeof importShipmentSchema>;
+
+export const importItemsSchema = z
+  .array(
+    z.object({
+      productId: z.string().min(1, 'Selecciona el producto'),
+      quantity: z.number().positive('La cantidad debe ser mayor a cero').max(10_000_000),
+      unitPriceForeign: z.number().min(0, 'El precio no puede ser negativo').max(100_000_000),
+    })
+  )
+  .max(300, 'Máximo 300 productos por carpeta');
+
+export const importCostsSchema = z
+  .array(
+    z.object({
+      kind: z.enum(['FREIGHT', 'INSURANCE', 'DUTY', 'CUSTOMS_AGENT', 'PORT', 'TRANSPORT', 'OTHER']),
+      description: z.string().trim().min(1, 'Describe el costo').max(120),
+      amount: z.number().int('Monto en pesos enteros').min(0).max(10_000_000_000),
+      purchaseDocumentId: z.string().min(1).nullable().optional(),
+    })
+  )
+  .max(50);

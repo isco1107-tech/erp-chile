@@ -71,7 +71,24 @@ export type NavIconKey =
   | 'leave'
   | 'fixedAssets'
   | 'expenses'
-  | 'contracts';
+  | 'contracts'
+  | 'salesOrders'
+  | 'priceLists'
+  | 'commissions'
+  | 'inventoryCount'
+  | 'lots'
+  | 'labels'
+  | 'collections'
+  | 'banks'
+  | 'cheques'
+  | 'paymentBatches'
+  | 'receivedDte'
+  | 'rcv'
+  | 'purchaseRequests'
+  | 'imports'
+  | 'manufacturing'
+  | 'boms'
+  | 'serviceDesk';
 
 export interface NavLink {
   /** Identificador estable (ver comentario del archivo). */
@@ -157,6 +174,9 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
     push('Inventario', [
       { id: 'products', href: '/dashboard/products', label: 'Catálogo de Productos', icon: 'products', keywords: ['productos', 'articulos', 'sku'] },
       { id: 'inventory', href: '/dashboard/inventory', label: 'Inventario', icon: 'inventory', keywords: ['stock', 'bodega', 'kardex', 'existencias'] },
+      { id: 'inventory-counts', href: '/dashboard/inventory/counts', label: 'Toma de inventario', icon: 'inventoryCount', keywords: ['conteo', 'inventario fisico', 'merma', 'ajuste', 'cuadratura'] },
+      { id: 'inventory-lots', href: '/dashboard/inventory/lots', label: 'Lotes y vencimientos', icon: 'lots', keywords: ['lote', 'vencimiento', 'caducidad', 'fefo', 'expira'] },
+      { id: 'inventory-labels', href: '/dashboard/inventory/labels', label: 'Etiquetas', icon: 'labels', keywords: ['codigo de barras', 'etiqueta', 'gondola', 'imprimir', 'ean'] },
     ]);
   }
 
@@ -173,32 +193,68 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
 
   const ventas: NavLink[] = [];
   if (features.hasDteBilling && allow('sales:read')) {
-    ventas.push({ id: 'sales', href: '/dashboard/sales', label: 'Ventas & Facturación', icon: 'sales', keywords: ['factura', 'boleta', 'dte', 'cotizacion', 'nota de credito'] });
+    ventas.push(
+      { id: 'sales', href: '/dashboard/sales', label: 'Ventas & Facturación', icon: 'sales', keywords: ['factura', 'boleta', 'dte', 'cotizacion', 'nota de credito'] },
+      { id: 'sales-orders', href: '/dashboard/sales/orders', label: 'Notas de venta', icon: 'salesOrders', keywords: ['pedido', 'nota de venta', 'orden de venta', 'despacho parcial', 'reserva'] },
+      { id: 'price-lists', href: '/dashboard/sales/price-lists', label: 'Listas de precios', icon: 'priceLists', keywords: ['precios', 'mayorista', 'descuento', 'volumen', 'tarifa'] }
+    );
+    if (allow('reports:read')) {
+      ventas.push({ id: 'sales-commissions', href: '/dashboard/sales/commissions', label: 'Comisiones', icon: 'commissions', keywords: ['vendedores', 'comision', 'incentivo', 'metas'] });
+    }
   }
   if (allow('contacts:read')) {
     ventas.push({ id: 'contacts', href: '/dashboard/contacts', label: 'Clientes & Proveedores', icon: 'contacts', keywords: ['contactos', 'rut', 'clientes', 'proveedores'] });
   }
   push('Ventas', ventas);
 
-  if (features.hasPurchases && allow('purchases:read')) {
-    push('Compras', [
-      { id: 'purchases', href: '/dashboard/purchases', label: 'Compras', icon: 'purchases', keywords: ['factura de compra', 'proveedor'] },
-      { id: 'purchase-orders', href: '/dashboard/purchases/orders', label: 'Órdenes de Compra', icon: 'purchases', keywords: ['oc', 'orden'] },
-    ]);
+  if (features.hasPurchases) {
+    const compras: NavLink[] = [];
+    if (allow('purchases:read')) {
+      compras.push({ id: 'purchases', href: '/dashboard/purchases', label: 'Compras', icon: 'purchases', keywords: ['factura de compra', 'proveedor'] });
+    }
+    // Pedir una compra es para todo el equipo, aunque no vea el resto de Compras.
+    if (allow('purchases:request')) {
+      compras.push({ id: 'purchase-requests', href: '/dashboard/purchase-requests', label: 'Solicitudes de compra', icon: 'purchaseRequests', keywords: ['pedido interno', 'requisicion', 'cotizacion', 'comparativo', 'aprobar compra'] });
+    }
+    if (allow('purchases:read')) {
+      compras.push(
+        { id: 'purchase-orders', href: '/dashboard/purchases/orders', label: 'Órdenes de Compra', icon: 'purchases', keywords: ['oc', 'orden'] },
+        { id: 'purchases-imports', href: '/dashboard/purchases/imports', label: 'Importaciones', icon: 'imports', keywords: ['carpeta de importacion', 'costeo', 'fob', 'cif', 'aduana', 'din', 'flete', 'arancel'] },
+        { id: 'purchases-inbox', href: '/dashboard/purchases/inbox', label: 'DTE recibidos', icon: 'receivedDte', keywords: ['factura de proveedor', 'xml', 'dte', 'acuse de recibo', 'reclamo', 'bandeja', 'intercambio'] }
+      );
+    }
+    if (compras.length > 0) push('Compras', compras);
   }
+
+  const operaciones: NavLink[] = [];
+  if (features.hasProduction && allow('manufacturing:read')) {
+    operaciones.push(
+      { id: 'manufacturing', href: '/dashboard/manufacturing', label: 'Producción', icon: 'manufacturing', keywords: ['orden de produccion', 'fabricacion', 'elaboracion', 'manufactura', 'planta'] },
+      { id: 'manufacturing-boms', href: '/dashboard/manufacturing/boms', label: 'Recetas', icon: 'boms', keywords: ['lista de materiales', 'bom', 'insumos', 'formula', 'receta'] }
+    );
+  }
+  if (features.hasServiceDesk && allow('service:read')) {
+    operaciones.push({ id: 'service-desk', href: '/dashboard/service', label: 'Servicio técnico', icon: 'serviceDesk', keywords: ['reparacion', 'taller', 'garantia', 'orden de servicio', 'presupuesto', 'soporte'] });
+  }
+  push('Operaciones', operaciones);
 
   const finanzas: NavLink[] = [];
   if (features.hasTreasury && allow('treasury:read')) {
     finanzas.push(
       { id: 'treasury-cxc', href: '/dashboard/treasury/cxc', label: 'Cuentas por Cobrar', icon: 'cxc', keywords: ['cobranza', 'deudores', 'morosos'] },
       { id: 'treasury-cxp', href: '/dashboard/treasury/cxp', label: 'Cuentas por Pagar', icon: 'cxp', keywords: ['pagos', 'acreedores'] },
-      { id: 'treasury-cashflow', href: '/dashboard/treasury/cashflow', label: 'Flujo de Caja', icon: 'cashflow', keywords: ['caja', 'tesoreria'] }
+      { id: 'treasury-cashflow', href: '/dashboard/treasury/cashflow', label: 'Flujo de Caja', icon: 'cashflow', keywords: ['caja', 'tesoreria'] },
+      { id: 'treasury-collections', href: '/dashboard/treasury/collections', label: 'Cobranza', icon: 'collections', keywords: ['morosidad', 'antiguedad', 'recordatorio', 'promesa de pago', 'deudores'] },
+      { id: 'treasury-banks', href: '/dashboard/treasury/banks', label: 'Bancos y conciliación', icon: 'banks', keywords: ['cartola', 'conciliacion bancaria', 'cuenta corriente', 'banco', 'extracto'] },
+      { id: 'treasury-cheques', href: '/dashboard/treasury/cheques', label: 'Cheques', icon: 'cheques', keywords: ['cheque a fecha', 'cartera', 'protesto', 'deposito'] },
+      { id: 'treasury-payment-batches', href: '/dashboard/treasury/payment-batches', label: 'Nóminas de pago', icon: 'paymentBatches', keywords: ['pago masivo', 'transferencias', 'proveedores', 'nomina'] }
     );
   }
   if (features.hasAdvancedReports && allow('reports:read')) {
     finanzas.push(
       { id: 'reports', href: '/dashboard/reports', label: 'Reportes Excel', icon: 'reports', keywords: ['excel', 'libro de ventas', 'libro de compras', 'exportar'] },
-      { id: 'reports-f29', href: '/dashboard/reports/f29', label: 'Formulario 29 (F29)', icon: 'reports', keywords: ['f29', 'iva', 'sii', 'ppm', 'impuestos'] }
+      { id: 'reports-f29', href: '/dashboard/reports/f29', label: 'Formulario 29 (F29)', icon: 'reports', keywords: ['f29', 'iva', 'sii', 'ppm', 'impuestos'] },
+      { id: 'reports-rcv', href: '/dashboard/reports/rcv', label: 'Registro de Compras y Ventas', icon: 'rcv', keywords: ['rcv', 'sii', 'libro de compras', 'libro de ventas', 'cuadratura', 'credito fiscal'] }
     );
   }
   if (features.hasBudgets && allow('budgets:read')) {
@@ -208,7 +264,7 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
     finanzas.push({ id: 'expenses', href: '/dashboard/expenses', label: 'Rendición de Gastos', icon: 'expenses', keywords: ['rendicion', 'reembolso', 'viaticos', 'caja chica', 'gastos'] });
   }
   if (features.hasFixedAssets && allow('assets:read')) {
-    finanzas.push({ id: 'fixed-assets', href: '/dashboard/fixed-assets', label: 'Activo Fijo', icon: 'fixedAssets', keywords: ['depreciacion', 'bienes', 'activos', 'vida util'] });
+    finanzas.push({ id: 'fixed-assets', href: '/dashboard/fixed-assets', label: 'Activo Fijo', icon: 'fixedAssets', keywords: ['depreciacion', 'bienes', 'activos', 'vida util', 'mantencion', 'etiquetas', 'inventario de activos'] });
   }
   if (features.hasPromissoryNotes && allow('promissorynotes:read')) {
     finanzas.push({ id: 'promissory-notes', href: '/dashboard/promissory-notes', label: 'Pagarés', icon: 'promissoryNotes' });

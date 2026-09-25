@@ -4,10 +4,11 @@ import { revalidatePath } from 'next/cache';
 import { Prisma, type Category } from '@prisma/client';
 import { requireAuthWithPermission, authErrorMessage, can } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
-import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
-import { categoryCreateSchema, productCreateSchema, productUpdateSchema } from '../schema';
+import { constraintInvolves, toFriendlyErrorMessage } from '@/lib/prisma-errors';
+import type { ProductPackaging } from '@prisma/client';
+import { categoryCreateSchema, productCreateSchema, productPackagingSchema, productUpdateSchema } from '../schema';
 import * as productsService from '../services/products.service';
-import type { ListProductsResult, ProductWithStock } from '../services/products.service';
+import type { CodeMatch, ListProductsResult, ProductWithStock } from '../services/products.service';
 
 export type ActionResult<T> =
   | { success: true; data: T; message?: string }
@@ -21,6 +22,7 @@ function toErrorMessage(error: unknown): string {
   const authMessage = authErrorMessage(error);
   if (authMessage) return authMessage;
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === 'P2002' && constraintInvolves(error, 'barcode')) return 'Ese código de barras ya está asignado a otro producto o empaque';
     if (error.code === 'P2002') return 'Ya existe un producto con ese SKU en esta empresa';
     if (error.code === 'P2003') return 'No se puede eliminar: el producto tiene movimientos o stock asociado';
   }
@@ -173,6 +175,62 @@ export async function createCategoryAction(input: unknown): Promise<ActionResult
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
       return { success: false, error: 'Ya existe una categoría con ese nombre' };
     }
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+export async function listPackagingsAction(productId: string): Promise<ActionResult<ProductPackaging[]>> {
+  try {
+    const session = await requireAuthWithPermission('products:read');
+    return { success: true, data: await productsService.listPackagings(session.companyId, productId) };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+export async function createPackagingAction(productId: string, input: unknown): Promise<ActionResult<ProductPackaging>> {
+  try {
+    const session = await requireAuthWithPermission('products:write');
+    const parsed = productPackagingSchema.safeParse(input);
+    if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
+    const data = await productsService.createPackaging(session.companyId, productId, parsed.data);
+    revalidatePath('/dashboard/products');
+    return { success: true, data, message: 'Empaque agregado' };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+export async function deletePackagingAction(id: string): Promise<ActionResult<null>> {
+  try {
+    const session = await requireAuthWithPermission('products:write');
+    await productsService.deletePackaging(session.companyId, id);
+    revalidatePath('/dashboard/products');
+    return { success: true, data: null, message: 'Empaque eliminado' };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+/** Lo que devuelve el escáner: producto y cuántas unidades representa el código. */
+export async function findProductByCodeAction(code: string): Promise<ActionResult<CodeMatch | null>> {
+  try {
+    const session = await requireAuthWithPermission('products:read');
+    const match = await productsService.findProductByCode(session.companyId, String(code).slice(0, 64));
+    if (match && !can(session, 'products:costs')) match.product = redactCosts(match.product);
+    return { success: true, data: match };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+export async function listLotTrackedProductIdsAction(productIds: string[]): Promise<ActionResult<string[]>> {
+  try {
+    const session = await requireAuthWithPermission('products:read');
+    const ids = Array.isArray(productIds) ? productIds.filter((id): id is string => typeof id === 'string') : [];
+    const data = await productsService.listLotTrackedProductIds(session.companyId, ids);
+    return { success: true, data };
+  } catch (error) {
     return { success: false, error: toErrorMessage(error) };
   }
 }

@@ -36,4 +36,12 @@ export function validateRut(rut: string): boolean {
   return expected === dv;
 }
 
+/**
+ * RUT comparable entre fuentes distintas (XML del SII, CSV del RCV, ficha del
+ * contacto): sin puntos ni guion, sin ceros a la izquierda, DV en mayúscula.
+ */
+export function rutKey(rut: string): string {
+  return cleanRut(rut).replace(/^0+/, '');
+}
+
 export default { cleanRut, formatRut, validateRut };

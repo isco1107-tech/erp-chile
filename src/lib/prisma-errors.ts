@@ -77,6 +77,8 @@ const FIELD_LABELS: Record<string, string> = {
   name: 'nombre',
   code: 'código',
   tokenHash: 'token',
+  barcode: 'código de barras',
+  lotNumber: 'número de lote',
 };
 
 function humanizeField(field: string): string {

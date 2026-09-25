@@ -115,6 +115,43 @@ model Company {
   folioSequences            FolioSequence[]
   internalDocumentSequences InternalDocumentSequence[]
   salesDocuments            SalesDocument[]
+  salesOrders               SalesOrder[]
+  salesOrderItems           SalesOrderItem[]
+  priceLists                PriceList[]
+  priceListItems            PriceListItem[]
+  salesCommissionRates      SalesCommissionRate[]
+  productPackagings         ProductPackaging[]
+  inventoryLots             InventoryLot[]
+  inventoryCounts           InventoryCount[]
+  inventoryCountLines       InventoryCountLine[]
+  bankAccounts              BankAccount[]
+  bankStatements            BankStatement[]
+  bankStatementLines        BankStatementLine[]
+  cheques                   Cheque[]
+  paymentBatches            PaymentBatch[]
+  paymentBatchItems         PaymentBatchItem[]
+  collectionReminderLogs    CollectionReminderLog[]
+  collectionNotes           CollectionNote[]
+  employeeLoans             EmployeeLoan[]
+  employeeAdvances          EmployeeAdvance[]
+  employeeSettlements       EmployeeSettlement[]
+  receivedDtes              ReceivedDte[]
+  rcvImports                RcvImport[]
+  purchaseRequests          PurchaseRequest[]
+  purchaseRequestItems      PurchaseRequestItem[]
+  supplierQuotes            SupplierQuote[]
+  supplierQuoteLines        SupplierQuoteLine[]
+  importShipments           ImportShipment[]
+  importShipmentItems       ImportShipmentItem[]
+  importShipmentCosts       ImportShipmentCost[]
+  billsOfMaterials          BillOfMaterials[]
+  bomComponents             BomComponent[]
+  productionOrders          ProductionOrder[]
+  productionOrderComponents ProductionOrderComponent[]
+  serviceTickets            ServiceTicket[]
+  serviceTicketLines        ServiceTicketLine[]
+  fixedAssetMaintenances    FixedAssetMaintenance[]
+  serviceTicketEvents       ServiceTicketEvent[]
   salesDocumentItems        SalesDocumentItem[]
   purchaseDocuments         PurchaseDocument[]
   purchaseDocumentItems     PurchaseDocumentItem[]
@@ -195,6 +232,10 @@ model Company {
 
 model User {
   id                               String                    @id @default(cuid())
+  /// Ventas y notas de venta atribuidas a este vendedor (comisiones).
+  soldSalesDocuments               SalesDocument[]           @relation("SalesDocumentSeller")
+  soldSalesOrders                  SalesOrder[]              @relation("SalesOrderSeller")
+  salesCommissionRates             SalesCommissionRate[]
   email                            String                    @unique
   passwordHash                     String
   name                             String
@@ -268,6 +309,7 @@ model User {
   approvedPurchaseDocuments        PurchaseDocument[]        @relation("PurchaseApprovals")
   matchOverriddenPurchaseDocuments PurchaseDocument[]        @relation("PurchaseMatchOverrides")
   sessions                         UserSession[]
+  assignedServiceTickets           ServiceTicket[]           @relation("ServiceTicketTechnician")
   /// Empresas ADICIONALES a `companyId` (la "hogar") que este usuario puede
   /// activar sin iniciar sesión de nuevo — ver `CompanyMembership` y
   /// `src/lib/auth/actions/switch-company.actions.ts`.
@@ -457,35 +499,47 @@ model CompanyFeatures {
   hasFixedAssets        Boolean  @default(false)
   /// Rendición de gastos con flujo de aprobación y reembolso.
   hasExpenseReports     Boolean  @default(false)
+  /// Producción: recetas (lista de materiales) y órdenes de producción.
+  hasProduction         Boolean  @default(false)
+  /// Servicio técnico: órdenes de servicio con seguimiento para el cliente.
+  hasServiceDesk        Boolean  @default(false)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 }
 
 model CompanySettings {
-  id                        String       @id @default(cuid())
-  companyId                 String       @unique
-  company                   Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  industryType              IndustryType @default(COMMERCE)
-  allowNegativeStock        Boolean      @default(false)
-  ppmRateBasisPoints        Int          @default(100)
+  id                         String       @id @default(cuid())
+  companyId                  String       @unique
+  company                    Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  industryType               IndustryType @default(COMMERCE)
+  allowNegativeStock         Boolean      @default(false)
+  ppmRateBasisPoints         Int          @default(100)
   /// Retención de honorarios (2ª categoría) en basis points. Sube ~0.75pp cada
   /// año por cronograma legal (Ley 21.133): 1375 = 13.75% fue el valor de
   /// 2024; el default se actualiza periódicamente, revisar vigencia anual.
-  honorariumRetentionBps    Int          @default(1525)
-  fiscalYear                Int          @default(2026)
+  honorariumRetentionBps     Int          @default(1525)
+  fiscalYear                 Int          @default(2026)
+  /// Cobranza automática: si está activa, el cron diario manda un
+  /// recordatorio por documento en cada hito (días respecto del vencimiento;
+  /// negativo = antes de vencer).
+  collectionRemindersEnabled Boolean      @default(false)
+  collectionReminderDays     Int[]        @default([])
+  /// Remuneraciones · Ola 4: organismo del seguro de accidentes (Ley 16.744)
+  /// de la empresa: `ISL`, `ACHS`, `MUSEG` o `IST`. `null` = ISL.
+  payrollMutualCode          String?
   /// Restringe el login (contraseña Y 2FA) a IPs o rangos CIDR configurados.
   /// `false` por defecto: activarlo sin haber agregado la propia IP a la
   /// lista deja a toda la empresa (incluido el Dueño) sin poder entrar.
-  ipAllowlistEnabled        Boolean      @default(false)
+  ipAllowlistEnabled         Boolean      @default(false)
   /// Cada entrada es una IPv4 exacta ("203.0.113.5") o un rango CIDR
   /// ("203.0.113.0/24"). Ver src/lib/auth/ip-allowlist.ts.
-  ipAllowlist               String[]     @default([])
+  ipAllowlist                String[]     @default([])
   /// CLP entero. `null` = sin umbral configurado (ninguna compra requiere
   /// aprobación). Compras emitidas por sobre este monto quedan `PENDING` en
   /// vez de emitirse directo — ver `PurchaseDocument.approvalStatus`.
-  purchaseApprovalThreshold Int?
+  purchaseApprovalThreshold  Int?
   /// Token único para la suscripción de eventos y cumpleaños en Google Calendar
-  calendarSyncToken         String?      @unique
+  calendarSyncToken          String?      @unique
   /// Token único para que una automatización externa (n8n, Zapier, un script
   /// propio) llame `POST /api/webhooks` en nombre de esta empresa —
   /// `Authorization: Bearer <token>`. El token ES la identidad de la empresa
@@ -493,43 +547,57 @@ model CompanySettings {
   /// NUNCA se acepta del payload que manda el cliente, siempre se resuelve
   /// buscando este token. `null` hasta que alguien lo genera desde
   /// Configuración → Empresa.
-  n8nWebhookSecret          String?      @unique
+  n8nWebhookSecret           String?      @unique
   /// Texto libre con los datos de transferencia (banco, tipo de cuenta,
   /// número, titular, RUT) que se muestra al comprador en los flujos públicos
   /// de pago manual (entradas, votación) — no hay pasarela de pago integrada,
   /// así que el comprador transfiere fuera del sistema y el staff confirma.
-  bankTransferInfo          String?
+  bankTransferInfo           String?
   /// Integración con la API del SII para esta empresa. Almacena la
   /// configuración específica del cliente (endpoint, key y secret), sin
   /// compartir la credencial entre empresas.
-  siiApiEnabled             Boolean      @default(false)
-  siiApiBaseUrl             String?
-  siiApiKey                 String?
-  siiApiSecret              String?
+  siiApiEnabled              Boolean      @default(false)
+  siiApiBaseUrl              String?
+  siiApiKey                  String?
+  siiApiSecret               String?
   /// Ítems del menú lateral que la empresa decidió apagar (ids estables de
   /// `src/lib/navigation/workspace-nav.ts`). Es configuración del espacio de
   /// trabajo, no un control de acceso: los permisos siguen en los guards.
-  disabledNavItems          String[]     @default([])
+  disabledNavItems           String[]     @default([])
   /// Token del portal público de pago de cuotas (`/pagar/[token]`). Mismo
   /// patrón que `calendarSyncToken`: el token resuelve la empresa, el
   /// visitante nunca manda un `companyId`. `null` hasta que alguien comparte
   /// el portal desde Cuotas & Mensualidades.
-  installmentPortalToken    String?      @unique
+  installmentPortalToken     String?      @unique
   /// API key de la cuenta de cobro de Khipu de ESTA empresa, cifrada con
   /// AES-256-GCM (`src/lib/payments/crypto.ts`). Decide a qué cuenta llega el
   /// dinero, por eso solo se edita con `settings:company`. El nombre termina
   /// en "Credential" para que el respaldo lo excluya por patrón.
-  khipuApiCredential        String?
-  createdAt                 DateTime     @default(now())
-  updatedAt                 DateTime     @updatedAt
+  khipuApiCredential         String?
+  createdAt                  DateTime     @default(now())
+  updatedAt                  DateTime     @updatedAt
 }
 
 enum InternalDocumentKind {
   PURCHASE_ORDER
+  /// Nota de venta (`SalesOrder.folio`).
+  SALES_ORDER
+  /// Toma de inventario (`InventoryCount.folio`).
+  INVENTORY_COUNT
+  /// Nómina de pago a proveedores (`PaymentBatch.folio`).
+  PAYMENT_BATCH
   GOODS_RECEIPT
   CANDIDATE_APPLICATION
   /// Comprobante de pago en línea de cuotas (`InstallmentPaymentOrder.receiptNumber`).
   INSTALLMENT_RECEIPT
+  /// Solicitud de compra (`PurchaseRequest.folio`).
+  PURCHASE_REQUEST
+  /// Carpeta de importación (`ImportShipment.folio`).
+  IMPORT_SHIPMENT
+  /// Orden de producción (`ProductionOrder.folio`).
+  PRODUCTION_ORDER
+  /// Orden de servicio técnico (`ServiceTicket.folio`).
+  SERVICE_TICKET
 }
 
 /// Correlativos internos (no folio SII) para documentos sin relevancia
@@ -614,44 +682,68 @@ model JobPosition {
 }
 
 model Contact {
-  id                     String                @id @default(cuid())
-  companyId              String
-  company                Company               @relation(fields: [companyId], references: [id])
-  rut                    String
-  rutClean               String
-  razonSocial            String
-  nombreFantasia         String?
-  giro                   String?
-  email                  String?
-  phone                  String?
-  address                String?
-  comuna                 String?
-  region                 String?
-  isCustomer             Boolean               @default(true)
-  isSupplier             Boolean               @default(false)
+  id                        String                  @id @default(cuid())
+  companyId                 String
+  company                   Company                 @relation(fields: [companyId], references: [id])
+  rut                       String
+  rutClean                  String
+  razonSocial               String
+  nombreFantasia            String?
+  giro                      String?
+  email                     String?
+  phone                     String?
+  address                   String?
+  comuna                    String?
+  region                    String?
+  isCustomer                Boolean                 @default(true)
+  isSupplier                Boolean                 @default(false)
   /// CLP entero. `null` = sin límite configurado (no se bloquean ventas a
   /// crédito para este cliente). Se valida solo al EMITIR una venta con
   /// `paymentMethod: CREDITO_30`: deuda vigente + total del documento nuevo
   /// no puede superar este monto.
-  creditLimit            Int?
+  creditLimit               Int?
   /// Días de crédito pactados (0 = contado). Hoy es informativo — sugiere el
   /// vencimiento en el formulario de venta — no es en sí un límite duro.
-  creditDays             Int                   @default(0)
-  createdAt              DateTime              @default(now())
-  updatedAt              DateTime              @updatedAt
-  salesDocuments         SalesDocument[]
-  purchaseDocuments      PurchaseDocument[]
-  purchaseOrders         PurchaseOrder[]
-  payments               Payment[]
-  journalLinesAsCustomer JournalLine[]         @relation("JournalLineCustomer")
-  journalLinesAsSupplier JournalLine[]         @relation("JournalLineSupplier")
-  sponsorshipContracts   SponsorshipContract[]
-  feeDocuments           FeeDocument[]
-  promissoryNotes        PromissoryNote[]
-  paymentPlans           PaymentPlan[]
-  opportunities          Opportunity[]
-  fixedAssets            FixedAsset[]
-  crmPeople              CrmPerson[]
+  creditDays                Int                     @default(0)
+  createdAt                 DateTime                @default(now())
+  updatedAt                 DateTime                @updatedAt
+  salesDocuments            SalesDocument[]
+  salesOrders               SalesOrder[]
+  /// Lista de precios que se aplica por defecto a este cliente (Ventas y
+  /// notas de venta). `null` = precio base del catálogo.
+  priceListId               String?
+  priceList                 PriceList?              @relation(fields: [priceListId], references: [id], onDelete: SetNull)
+  purchaseDocuments         PurchaseDocument[]
+  purchaseOrders            PurchaseOrder[]
+  payments                  Payment[]
+  journalLinesAsCustomer    JournalLine[]           @relation("JournalLineCustomer")
+  journalLinesAsSupplier    JournalLine[]           @relation("JournalLineSupplier")
+  sponsorshipContracts      SponsorshipContract[]
+  feeDocuments              FeeDocument[]
+  promissoryNotes           PromissoryNote[]
+  paymentPlans              PaymentPlan[]
+  opportunities             Opportunity[]
+  fixedAssets               FixedAsset[]
+  crmPeople                 CrmPerson[]
+  /// Datos bancarios para pagarle (nómina de pago a proveedores).
+  bankCode                  String?
+  bankAccountType           String?
+  bankAccountNumber         String?
+  /// Correo al que el banco avisa el pago (si no, `email`).
+  paymentNoticeEmail        String?
+  /// Excluye al cliente de los recordatorios automáticos de cobranza.
+  collectionRemindersPaused Boolean                 @default(false)
+  cheques                   Cheque[]
+  paymentBatchItems         PaymentBatchItem[]
+  collectionReminderLogs    CollectionReminderLog[]
+  collectionNotes           CollectionNote[]
+  supplierQuotes            SupplierQuote[]
+  importShipments           ImportShipment[]
+  serviceTickets            ServiceTicket[]
+  /// Portal del cliente (`/cliente/[token]`): se guarda solo el hash SHA-256
+  /// del enlace; el enlace en claro se muestra una vez al generarlo.
+  portalTokenHash           String?                 @unique
+  portalTokenCreatedAt      DateTime?
 
   @@unique([companyId, rutClean])
   @@index([companyId, razonSocial])
@@ -679,54 +771,80 @@ model Category {
 }
 
 model Warehouse {
-  id             String                 @id @default(cuid())
-  companyId      String
-  company        Company                @relation(fields: [companyId], references: [id])
-  name           String
-  code           String
-  isDefault      Boolean                @default(false)
-  address        String?
-  stocks         Stock[]
-  movements      InventoryMovement[]
-  salesDocuments SalesDocument[]
-  purchaseItems  PurchaseDocumentItem[]
-  goodsReceipts  GoodsReceipt[]
-  cashRegisters  CashRegister[]
-  createdAt      DateTime               @default(now())
-  updatedAt      DateTime               @updatedAt
+  id               String                 @id @default(cuid())
+  companyId        String
+  company          Company                @relation(fields: [companyId], references: [id])
+  name             String
+  code             String
+  isDefault        Boolean                @default(false)
+  address          String?
+  stocks           Stock[]
+  movements        InventoryMovement[]
+  salesDocuments   SalesDocument[]
+  salesOrders      SalesOrder[]
+  inventoryLots    InventoryLot[]
+  inventoryCounts  InventoryCount[]
+  purchaseItems    PurchaseDocumentItem[]
+  goodsReceipts    GoodsReceipt[]
+  cashRegisters    CashRegister[]
+  importShipments  ImportShipment[]
+  productionOrders ProductionOrder[]
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
 
   @@unique([companyId, code])
 }
 
 model Product {
-  id                 String                 @id @default(cuid())
-  companyId          String
-  company            Company                @relation(fields: [companyId], references: [id])
-  categoryId         String?
-  category           Category?              @relation(fields: [categoryId], references: [id])
-  sku                String
-  name               String
-  description        String?
-  unit               String                 @default("UN")
-  isTrackable        Boolean                @default(true)
+  id                   String                     @id @default(cuid())
+  companyId            String
+  company              Company                    @relation(fields: [companyId], references: [id])
+  categoryId           String?
+  category             Category?                  @relation(fields: [categoryId], references: [id])
+  sku                  String
+  name                 String
+  description          String?
+  unit                 String                     @default("UN")
+  isTrackable          Boolean                    @default(true)
   /// Producto exento de IVA. Sin este campo el POS no tenía forma de saberlo y
   /// cobraba 19% sobre todo, sobrecobrando al cliente y distorsionando el F29.
-  isExempt           Boolean                @default(false)
-  costPricePMP       Float                  @default(0)
-  netPrice           Int                    @default(0)
-  grossPrice         Int                    @default(0)
-  minStock           Int                    @default(0)
-  stocks             Stock[]
-  movements          InventoryMovement[]
-  salesDocumentItems SalesDocumentItem[]
-  purchaseItems      PurchaseDocumentItem[]
-  purchaseOrderItems PurchaseOrderItem[]
-  goodsReceiptItems  GoodsReceiptItem[]
-  journalLines       JournalLine[]
-  createdAt          DateTime               @default(now())
-  updatedAt          DateTime               @updatedAt
+  isExempt             Boolean                    @default(false)
+  costPricePMP         Float                      @default(0)
+  netPrice             Int                        @default(0)
+  grossPrice           Int                        @default(0)
+  minStock             Int                        @default(0)
+  /// Código de barras principal (EAN-13, UPC o interno). Único por empresa.
+  barcode              String?
+  brand                String?
+  /// Foto del producto (Blob), para catálogo, POS y etiquetas.
+  imageUrl             String?
+  /// Maneja lotes con vencimiento: las entradas registran lote y las salidas
+  /// consumen primero el que vence antes (FEFO). Ver `InventoryLot`.
+  tracksLots           Boolean                    @default(false)
+  packagings           ProductPackaging[]
+  lots                 InventoryLot[]
+  inventoryCountLines  InventoryCountLine[]
+  stocks               Stock[]
+  movements            InventoryMovement[]
+  salesDocumentItems   SalesDocumentItem[]
+  salesOrderItems      SalesOrderItem[]
+  priceListItems       PriceListItem[]
+  purchaseItems        PurchaseDocumentItem[]
+  purchaseOrderItems   PurchaseOrderItem[]
+  goodsReceiptItems    GoodsReceiptItem[]
+  journalLines         JournalLine[]
+  purchaseRequestItems PurchaseRequestItem[]
+  importShipmentItems  ImportShipmentItem[]
+  billsOfMaterials     BillOfMaterials[]          @relation("BomOutput")
+  bomComponents        BomComponent[]
+  productionOrders     ProductionOrder[]          @relation("ProductionOutput")
+  productionComponents ProductionOrderComponent[]
+  serviceTicketLines   ServiceTicketLine[]
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
 
   @@unique([companyId, sku])
+  @@unique([companyId, barcode])
   @@index([companyId, name])
 }
 
@@ -746,24 +864,27 @@ model Stock {
 }
 
 model InventoryMovement {
-  id            String       @id @default(cuid())
-  companyId     String
-  company       Company      @relation(fields: [companyId], references: [id])
-  productId     String
-  product       Product      @relation(fields: [productId], references: [id])
-  warehouseId   String
-  warehouse     Warehouse    @relation(fields: [warehouseId], references: [id])
-  type          MovementType
-  quantity      Float
-  unitCost      Float
-  totalCost     Int
-  previousStock Float
-  newStock      Float
-  previousPmp   Float
-  newPmp        Float
-  reference     String?
-  notes         String?
-  createdAt     DateTime     @default(now())
+  id             String       @id @default(cuid())
+  companyId      String
+  company        Company      @relation(fields: [companyId], references: [id])
+  productId      String
+  product        Product      @relation(fields: [productId], references: [id])
+  warehouseId    String
+  warehouse      Warehouse    @relation(fields: [warehouseId], references: [id])
+  type           MovementType
+  quantity       Float
+  unitCost       Float
+  totalCost      Int
+  previousStock  Float
+  newStock       Float
+  previousPmp    Float
+  newPmp         Float
+  reference      String?
+  notes          String?
+  /// Lotes que movió este movimiento: `[{ lotNumber, expiryDate, quantity }]`.
+  /// `null` en productos sin lotes y en movimientos previos a los lotes.
+  lotAllocations Json?
+  createdAt      DateTime     @default(now())
 
   @@index([companyId, productId, createdAt])
 }
@@ -825,41 +946,52 @@ model FolioSequence {
 }
 
 model SalesDocument {
-  id             String              @id @default(cuid())
-  companyId      String
-  company        Company             @relation(fields: [companyId], references: [id])
-  contactId      String
-  contact        Contact             @relation(fields: [contactId], references: [id])
-  warehouseId    String
-  warehouse      Warehouse           @relation(fields: [warehouseId], references: [id])
-  dteType        DteType
-  folio          Int?
-  status         DocumentStatus      @default(DRAFT)
-  issueDate      DateTime            @default(now())
-  dueDate        DateTime?
-  paymentMethod  String
-  netAmount      Int                 @default(0)
-  exemptAmount   Int                 @default(0)
-  ivaAmount      Int                 @default(0)
-  totalAmount    Int                 @default(0)
-  paidAmount     Int                 @default(0)
-  paymentStatus  PaymentStatus       @default(UNPAID)
-  referenceFolio Int?
-  referenceType  DteType?
-  notes          String?
+  id                     String                  @id @default(cuid())
+  companyId              String
+  company                Company                 @relation(fields: [companyId], references: [id])
+  contactId              String
+  contact                Contact                 @relation(fields: [contactId], references: [id])
+  warehouseId            String
+  warehouse              Warehouse               @relation(fields: [warehouseId], references: [id])
+  dteType                DteType
+  folio                  Int?
+  status                 DocumentStatus          @default(DRAFT)
+  issueDate              DateTime                @default(now())
+  dueDate                DateTime?
+  paymentMethod          String
+  netAmount              Int                     @default(0)
+  exemptAmount           Int                     @default(0)
+  ivaAmount              Int                     @default(0)
+  totalAmount            Int                     @default(0)
+  paidAmount             Int                     @default(0)
+  paymentStatus          PaymentStatus           @default(UNPAID)
+  referenceFolio         Int?
+  referenceType          DteType?
+  notes                  String?
   /// Clave de idempotencia para prevenir duplicados por doble clic o reintentos de red.
-  idempotencyKey String?
+  idempotencyKey         String?
   /// Turno de caja que originó la venta. Solo lo llena el POS; es lo que
   /// permite que el arqueo sepa qué ventas cuentan para esta caja y este turno.
-  cashShiftId    String?
-  cashShift      CashShift?          @relation(fields: [cashShiftId], references: [id])
+  cashShiftId            String?
+  cashShift              CashShift?              @relation(fields: [cashShiftId], references: [id])
   /// Centro de costo/evento opcional (módulo `hasEventProjects`). Permite
   /// agregar ingresos reales de un proyecto sin que el resto del sistema
   /// dependa de que ese módulo esté contratado.
-  projectId      String?
-  project        Project?            @relation(fields: [projectId], references: [id])
-  items          SalesDocumentItem[]
-  payments       Payment[]
+  projectId              String?
+  project                Project?                @relation(fields: [projectId], references: [id])
+  /// Nota de venta de la que salió este documento (facturación o despacho
+  /// parcial). `null` en ventas directas.
+  salesOrderId           String?
+  salesOrder             SalesOrder?             @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
+  /// Vendedor al que se atribuye la venta (comisiones). Por defecto, quien la emite.
+  sellerId               String?
+  seller                 User?                   @relation("SalesDocumentSeller", fields: [sellerId], references: [id], onDelete: SetNull)
+  /// Cotizaciones convertidas en nota de venta.
+  quotedOrders           SalesOrder[]            @relation("QuoteToOrder")
+  items                  SalesDocumentItem[]
+  payments               Payment[]
+  collectionReminderLogs CollectionReminderLog[]
+  collectionNotes        CollectionNote[]
 
   // ── Facturación electrónica ──────────────────────────────────────────────
   // Todo nullable: los documentos emitidos antes de que existiera el módulo
@@ -894,26 +1026,31 @@ model SalesDocument {
   /// Cubre el filtro de deuda vigente por cliente (límite de crédito) y sirve
   /// también para un futuro "estado de cuenta" en la ficha de Contact.
   @@index([companyId, contactId, status, paymentStatus])
+  @@index([companyId, salesOrderId])
+  @@index([companyId, sellerId, issueDate])
 }
 
 model SalesDocumentItem {
-  id              String        @id @default(cuid())
-  companyId       String
-  company         Company       @relation(fields: [companyId], references: [id])
-  documentId      String
-  document        SalesDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  productId       String?
-  product         Product?      @relation(fields: [productId], references: [id])
-  sku             String?
-  description     String
-  quantity        Float
-  unitPrice       Int
-  isExempt        Boolean       @default(false)
-  discountPercent Float         @default(0)
-  subtotal        Int
-  iva             Int
-  total           Int
-  unitCostPMP     Float         @default(0)
+  id               String          @id @default(cuid())
+  companyId        String
+  company          Company         @relation(fields: [companyId], references: [id])
+  documentId       String
+  document         SalesDocument   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  productId        String?
+  product          Product?        @relation(fields: [productId], references: [id])
+  sku              String?
+  description      String
+  quantity         Float
+  unitPrice        Int
+  isExempt         Boolean         @default(false)
+  discountPercent  Float           @default(0)
+  subtotal         Int
+  iva              Int
+  total            Int
+  unitCostPMP      Float           @default(0)
+  /// Línea de la nota de venta que esta línea factura o despacha.
+  salesOrderItemId String?
+  salesOrderItem   SalesOrderItem? @relation(fields: [salesOrderItemId], references: [id], onDelete: SetNull)
 
   @@index([companyId, documentId])
 }
@@ -981,6 +1118,9 @@ model PurchaseDocument {
   project                 Project?               @relation(fields: [projectId], references: [id])
   items                   PurchaseDocumentItem[]
   payments                Payment[]
+  paymentBatchItems       PaymentBatchItem[]
+  receivedDtes            ReceivedDte[]
+  importShipmentCosts     ImportShipmentCost[]
   createdAt               DateTime               @default(now())
   updatedAt               DateTime               @updatedAt
 
@@ -1049,6 +1189,9 @@ model PurchaseOrder {
   items             PurchaseOrderItem[]
   goodsReceipts     GoodsReceipt[]
   purchaseDocuments PurchaseDocument[]
+  /// Solicitud de compra que originó esta OC (comparativo de cotizaciones).
+  purchaseRequestId String?
+  purchaseRequest   PurchaseRequest?    @relation(fields: [purchaseRequestId], references: [id], onDelete: SetNull)
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 
@@ -1158,26 +1301,26 @@ model PurchaseDocumentItem {
 }
 
 model Payment {
-  id                 String            @id @default(cuid())
-  companyId          String
-  company            Company           @relation(fields: [companyId], references: [id])
-  type               PaymentDirection
-  contactId          String
-  contact            Contact           @relation(fields: [contactId], references: [id])
-  salesDocumentId    String?
-  salesDocument      SalesDocument?    @relation(fields: [salesDocumentId], references: [id])
-  purchaseDocumentId String?
-  purchaseDocument   PurchaseDocument? @relation(fields: [purchaseDocumentId], references: [id])
+  id                       String                  @id @default(cuid())
+  companyId                String
+  company                  Company                 @relation(fields: [companyId], references: [id])
+  type                     PaymentDirection
+  contactId                String
+  contact                  Contact                 @relation(fields: [contactId], references: [id])
+  salesDocumentId          String?
+  salesDocument            SalesDocument?          @relation(fields: [salesDocumentId], references: [id])
+  purchaseDocumentId       String?
+  purchaseDocument         PurchaseDocument?       @relation(fields: [purchaseDocumentId], references: [id])
   /// Centro de costo/evento opcional (módulo `hasEventProjects`) — permite
   /// etiquetar un pago suelto de tesorería directo a un proyecto (ej. gasto
   /// de producción pagado en efectivo) sin pasar por un documento.
-  projectId          String?
-  project            Project?          @relation(fields: [projectId], references: [id])
+  projectId                String?
+  project                  Project?                @relation(fields: [projectId], references: [id])
   /// Etiqueta opcional a una línea de presupuesto operativo (módulo
   /// `hasBudgets`) — así el "real" de `Budget`/`BudgetLine` se suma solo
   /// desde los pagos ya registrados en Tesorería, sin duplicar agregación.
-  budgetLineId       String?
-  budgetLine         BudgetLine?       @relation(fields: [budgetLineId], references: [id], onDelete: SetNull)
+  budgetLineId             String?
+  budgetLine               BudgetLine?             @relation(fields: [budgetLineId], references: [id], onDelete: SetNull)
   /// Auditoría N-15: el cobro de una cuota de `PaymentPlan` genera su
   /// `Payment` de tesorería para que `getCashFlow` lo vea. `paymentPlanId` se
   /// llena siempre que el cobro venga de un plan (permite abarcar un pago en
@@ -1186,29 +1329,40 @@ model Payment {
   /// desde el panel). `SetNull`: borrar el plan/cuota no puede arrastrar el
   /// historial de tesorería ya generado.
   paymentPlanId            String?
-  paymentPlan              PaymentPlan?             @relation(fields: [paymentPlanId], references: [id], onDelete: SetNull)
+  paymentPlan              PaymentPlan?            @relation(fields: [paymentPlanId], references: [id], onDelete: SetNull)
   paymentPlanInstallmentId String?
-  paymentPlanInstallment   PaymentPlanInstallment?  @relation(fields: [paymentPlanInstallmentId], references: [id], onDelete: SetNull)
+  paymentPlanInstallment   PaymentPlanInstallment? @relation(fields: [paymentPlanInstallmentId], references: [id], onDelete: SetNull)
   /// Auditoría N-15: cobro de un pagaré (`PromissoryNote`). Generado por la
   /// DIFERENCIA respecto al `paidAmount` anterior — el endpoint registra un
   /// total acumulado, no un incremento.
-  promissoryNoteId   String?
-  promissoryNote     PromissoryNote?   @relation(fields: [promissoryNoteId], references: [id], onDelete: SetNull)
+  promissoryNoteId         String?
+  promissoryNote           PromissoryNote?         @relation(fields: [promissoryNoteId], references: [id], onDelete: SetNull)
   /// Auditoría N-15: cobro de la porción en efectivo de un contrato de
   /// auspicio (`SponsorshipContract`). Mismo criterio de diferencia que el
   /// pagaré: `updateSponsorshipPayment` también recibe un total acumulado.
-  sponsorshipContractId String?
-  sponsorshipContract   SponsorshipContract? @relation(fields: [sponsorshipContractId], references: [id], onDelete: SetNull)
-  amount             Int
-  paymentMethod      PaymentMethodType
-  paymentDate        DateTime          @default(now())
-  referenceNumber    String?
-  bankAccount        String?
-  notes              String?
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
+  sponsorshipContractId    String?
+  sponsorshipContract      SponsorshipContract?    @relation(fields: [sponsorshipContractId], references: [id], onDelete: SetNull)
+  amount                   Int
+  paymentMethod            PaymentMethodType
+  paymentDate              DateTime                @default(now())
+  referenceNumber          String?
+  bankAccount              String?
+  /// Cuenta bancaria propia por la que entró o salió (conciliación bancaria).
+  bankAccountId            String?
+  bankAccountRef           BankAccount?            @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+  /// Movimiento de la cartola con que quedó conciliado. Un movimiento puede
+  /// cubrir varios pagos (un depósito por tres facturas); un pago, uno solo.
+  bankStatementLineId      String?
+  bankStatementLine        BankStatementLine?      @relation(fields: [bankStatementLineId], references: [id], onDelete: SetNull)
+  cheque                   Cheque?
+  paymentBatchItem         PaymentBatchItem?
+  notes                    String?
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime                @updatedAt
 
   @@index([companyId, type])
+  @@index([companyId, bankAccountId])
+  @@index([bankStatementLineId])
   @@index([companyId, paymentDate])
   @@index([companyId, salesDocumentId])
   @@index([companyId, purchaseDocumentId])
@@ -2922,14 +3076,14 @@ model AgentRun {
 /// después — así el propio insert ya bloquea el segundo uso aunque la
 /// ejecución de la acción todavía no haya terminado.
 model AgentActionConfirmation {
-  id            String                         @id @default(cuid())
+  id            String                        @id @default(cuid())
   companyId     String
-  company       Company                        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company       Company                       @relation(fields: [companyId], references: [id], onDelete: Cascade)
   jti           String
   actionType    String
-  status        AgentActionConfirmationStatus  @default(PENDING)
+  status        AgentActionConfirmationStatus @default(PENDING)
   resultSummary String?
-  createdAt     DateTime                       @default(now())
+  createdAt     DateTime                      @default(now())
 
   @@unique([companyId, jti])
   @@index([companyId])
@@ -3269,6 +3423,17 @@ enum WorkflowTriggerEvent {
   GOODS_RECEIPT_CREATED
   /// Solicitud de vacaciones o permiso aprobada o rechazada.
   LEAVE_REQUEST_REVIEWED
+  /// Lote con saldo que vence en 30, 7 o 0 días, o que ya venció (lo emite
+  /// la alerta operativa diaria en esos hitos, no todos los días).
+  LOT_EXPIRING
+  /// Toma de inventario contabilizada (trae ajustes y su valorización).
+  INVENTORY_COUNT_POSTED
+  /// Orden de producción terminada (producto ingresado a su costo).
+  PRODUCTION_ORDER_COMPLETED
+  /// Orden de servicio técnico cambió de estado (listo para retiro, entregado…).
+  SERVICE_TICKET_STATUS_CHANGED
+  /// El cliente aprobó o rechazó el presupuesto desde su enlace de seguimiento.
+  SERVICE_ESTIMATE_DECIDED
 }
 
 enum WorkflowActionType {
@@ -3601,43 +3766,52 @@ enum LeaveStatus {
 /// Ficha del trabajador dependiente. Los honorarios NO van acá: siguen en
 /// `FeeDocument` (no hay relación laboral ni cotizaciones).
 model Employee {
-  id                 String                 @id @default(cuid())
-  companyId          String
-  company            Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  rut                String
-  rutClean           String
-  fullName           String
-  email              String?
-  phone              String?
-  birthDate          DateTime?
-  address            String?
-  position           String
-  department         String?
-  hireDate           DateTime
-  terminationDate    DateTime?
-  contractType       EmploymentContractType @default(INDEFINIDO)
+  id                   String                 @id @default(cuid())
+  companyId            String
+  company              Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  rut                  String
+  rutClean             String
+  fullName             String
+  email                String?
+  phone                String?
+  birthDate            DateTime?
+  address              String?
+  position             String
+  department           String?
+  hireDate             DateTime
+  terminationDate      DateTime?
+  contractType         EmploymentContractType @default(INDEFINIDO)
   /// Jornada ordinaria semanal (Ley 21.561 la baja gradualmente a 40 h).
-  weeklyHours        Int                    @default(42)
+  weeklyHours          Int                    @default(42)
   /// Sueldo base mensual en CLP entero.
-  baseSalary         Int
-  gratificationMode  GratificationMode      @default(ART_50)
+  baseSalary           Int
+  gratificationMode    GratificationMode      @default(ART_50)
   /// Asignaciones no imponibles ni tributables (CLP entero).
-  mealAllowance      Int                    @default(0)
-  transportAllowance Int                    @default(0)
-  afp                AfpInstitution
-  healthInsurance    HealthInsuranceType    @default(FONASA)
-  isapreName         String?
+  mealAllowance        Int                    @default(0)
+  transportAllowance   Int                    @default(0)
+  afp                  AfpInstitution
+  healthInsurance      HealthInsuranceType    @default(FONASA)
+  isapreName           String?
   /// Plan de Isapre pactado en UF (ej. 3.25). Solo si `healthInsurance = ISAPRE`.
-  isaprePlanUf       Float?
-  bankName           String?
-  bankAccountType    String?
-  bankAccountNumber  String?
-  status             EmployeeStatus         @default(ACTIVE)
-  notes              String?
-  payslips           Payslip[]
-  leaveRequests      LeaveRequest[]
-  createdAt          DateTime               @default(now())
-  updatedAt          DateTime               @updatedAt
+  isaprePlanUf         Float?
+  bankName             String?
+  bankAccountType      String?
+  bankAccountNumber    String?
+  status               EmployeeStatus         @default(ACTIVE)
+  notes                String?
+  /// Remuneraciones · Ola 4: nacionalidad (la exige el contrato, art. 10 CT).
+  nationality          String?
+  /// Portal del trabajador: hash SHA-256 del token del enlace personal (el
+  /// token en claro solo se muestra una vez al generarlo).
+  portalTokenHash      String?                @unique
+  portalTokenCreatedAt DateTime?
+  payslips             Payslip[]
+  leaveRequests        LeaveRequest[]
+  loans                EmployeeLoan[]
+  advances             EmployeeAdvance[]
+  settlements          EmployeeSettlement[]
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
 
   @@unique([companyId, rutClean])
   @@index([companyId, status])
@@ -3711,6 +3885,11 @@ model Payslip {
   employerMutual       Int
   employerPension      Int
   employerCost         Int
+  /// Cuotas de préstamos descontadas (se suman a `totalDeductions`).
+  loanDeduction        Int           @default(0)
+  /// Anticipos y cuotas registrados que se aplicaron, para marcarlos al cerrar:
+  /// `{ advances: [{ id, amount }], loans: [{ id, amount }] }`.
+  deductionDetail      Json?
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
 
@@ -3763,9 +3942,9 @@ enum FixedAssetStatus {
 /// La depreciación NO se persiste mes a mes: se calcula determinísticamente
 /// desde costo, fecha de inicio y vida útil (`src/lib/assets/depreciation.ts`).
 model FixedAsset {
-  id                    String             @id @default(cuid())
+  id                    String                  @id @default(cuid())
   companyId             String
-  company               Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company               Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
   code                  String
   name                  String
   category              String
@@ -3776,19 +3955,20 @@ model FixedAsset {
   depreciationStartDate DateTime
   /// Costo de adquisición neto (sin IVA recuperable), CLP entero.
   acquisitionCost       Int
-  residualValue         Int                @default(1)
+  residualValue         Int                     @default(1)
   /// Vida útil NORMAL en meses. La acelerada se deriva de este valor.
   usefulLifeMonths      Int
-  method                DepreciationMethod @default(LINEAL)
-  status                FixedAssetStatus   @default(ACTIVE)
+  method                DepreciationMethod      @default(LINEAL)
+  status                FixedAssetStatus        @default(ACTIVE)
   disposalDate          DateTime?
   disposalAmount        Int?
   supplierContactId     String?
-  supplier              Contact?           @relation(fields: [supplierContactId], references: [id], onDelete: SetNull)
+  supplier              Contact?                @relation(fields: [supplierContactId], references: [id], onDelete: SetNull)
   invoiceReference      String?
   notes                 String?
-  createdAt             DateTime           @default(now())
-  updatedAt             DateTime           @updatedAt
+  maintenances          FixedAssetMaintenance[]
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
 
   @@unique([companyId, code])
   @@index([companyId, status])
@@ -3858,4 +4038,1017 @@ model ExpenseItem {
   createdAt      DateTime            @default(now())
 
   @@index([companyId, reportId])
+}
+
+// ============================================================================
+// Ventas · Ola 1: notas de venta, listas de precios y comisiones.
+// ============================================================================
+
+/// Lista de precios: precio neto por producto, opcionalmente escalonado por
+/// cantidad (`minQuantity`). Se asigna a clientes (`Contact.priceListId`) y la
+/// usan Ventas y las notas de venta para proponer el precio de cada línea.
+model PriceList {
+  id          String          @id @default(cuid())
+  companyId   String
+  company     Company         @relation(fields: [companyId], references: [id])
+  name        String
+  description String?
+  isActive    Boolean         @default(true)
+  items       PriceListItem[]
+  contacts    Contact[]
+  salesOrders SalesOrder[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@unique([companyId, name])
+}
+
+/// Precio neto de un producto en una lista, desde `minQuantity` unidades.
+/// Varias filas del mismo producto con distinto `minQuantity` = precio por
+/// volumen.
+model PriceListItem {
+  id          String    @id @default(cuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  priceListId String
+  priceList   PriceList @relation(fields: [priceListId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  minQuantity Float     @default(1)
+  netPrice    Int
+
+  @@unique([priceListId, productId, minQuantity])
+  @@index([companyId, productId])
+}
+
+/// Estado de una nota de venta. Se deriva de lo facturado (ver
+/// `src/modules/sales/orders.ts`), salvo `CANCELLED`, que es explícito.
+enum SalesOrderStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+/// Nota de venta (pedido del cliente): el paso entre la cotización y la
+/// factura. Reserva stock mientras está abierta y se factura o despacha por
+/// partes; cada documento emitido desde ella suma a `quantityInvoiced` /
+/// `quantityDispatched` de sus líneas.
+model SalesOrder {
+  id             String           @id @default(cuid())
+  companyId      String
+  company        Company          @relation(fields: [companyId], references: [id])
+  folio          Int
+  contactId      String
+  contact        Contact          @relation(fields: [contactId], references: [id])
+  warehouseId    String
+  warehouse      Warehouse        @relation(fields: [warehouseId], references: [id])
+  sellerId       String?
+  seller         User?            @relation("SalesOrderSeller", fields: [sellerId], references: [id], onDelete: SetNull)
+  quoteId        String?
+  quote          SalesDocument?   @relation("QuoteToOrder", fields: [quoteId], references: [id], onDelete: SetNull)
+  priceListId    String?
+  priceList      PriceList?       @relation(fields: [priceListId], references: [id], onDelete: SetNull)
+  status         SalesOrderStatus @default(PENDING)
+  orderDate      DateTime         @default(now())
+  deliveryDate   DateTime?
+  paymentMethod  String
+  notes          String?
+  netAmount      Int              @default(0)
+  exemptAmount   Int              @default(0)
+  ivaAmount      Int              @default(0)
+  totalAmount    Int              @default(0)
+  cancelReason   String?
+  items          SalesOrderItem[]
+  salesDocuments SalesDocument[]
+  serviceTickets ServiceTicket[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([companyId, folio])
+  @@index([companyId, status])
+  @@index([companyId, contactId])
+}
+
+model SalesOrderItem {
+  id                 String              @id @default(cuid())
+  companyId          String
+  company            Company             @relation(fields: [companyId], references: [id])
+  orderId            String
+  order              SalesOrder          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId          String?
+  product            Product?            @relation(fields: [productId], references: [id])
+  sku                String?
+  description        String
+  quantity           Float
+  unitPrice          Int
+  discountPercent    Float               @default(0)
+  isExempt           Boolean             @default(false)
+  subtotal           Int                 @default(0)
+  /// Cantidad ya facturada (factura/boleta emitida desde la nota).
+  quantityInvoiced   Float               @default(0)
+  /// Cantidad que ya salió de bodega (guía, o factura que no formaliza una guía).
+  quantityDispatched Float               @default(0)
+  documentItems      SalesDocumentItem[]
+
+  @@index([companyId, orderId])
+  @@index([companyId, productId])
+}
+
+/// Base de cálculo de la comisión: lo facturado en el mes o lo efectivamente
+/// cobrado en el mes.
+enum CommissionBasis {
+  ISSUED
+  COLLECTED
+}
+
+/// Comisión de un vendedor, en puntos base sobre la venta neta (250 = 2,5%).
+model SalesCommissionRate {
+  id        String          @id @default(cuid())
+  companyId String
+  company   Company         @relation(fields: [companyId], references: [id])
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rateBps   Int
+  basis     CommissionBasis @default(ISSUED)
+  updatedAt DateTime        @updatedAt
+
+  @@unique([companyId, userId])
+}
+
+// ============================================================================
+// Inventario · Ola 2: empaques, lotes con vencimiento y toma de inventario.
+// ============================================================================
+
+/// Empaque de compra o venta de un producto ("Caja x12"): `factor` unidades
+/// base. Escanear su código de barras agrega `factor` unidades del producto.
+model ProductPackaging {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name      String
+  factor    Float
+  barcode   String?
+  createdAt DateTime @default(now())
+
+  @@unique([companyId, barcode])
+  @@index([companyId, productId])
+}
+
+/// Saldo de un lote de un producto en una bodega. La suma de los lotes de un
+/// producto con `tracksLots` sigue a `Stock.quantity`; lo que entró sin lote
+/// (compras previas, devoluciones) queda en el lote "SIN-LOTE".
+model InventoryLot {
+  id          String    @id @default(cuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  lotNumber   String
+  expiryDate  DateTime?
+  quantity    Float     @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([companyId, productId, warehouseId, lotNumber])
+  @@index([companyId, expiryDate])
+}
+
+enum InventoryCountStatus {
+  OPEN
+  POSTED
+  CANCELLED
+}
+
+/// Toma de inventario (conteo físico) de una bodega. Al contabilizarla, cada
+/// diferencia entre lo contado y el stock del momento se ajusta al PMP
+/// vigente, con su asiento contra `DIFERENCIA_INVENTARIO`.
+model InventoryCount {
+  id          String               @id @default(cuid())
+  companyId   String
+  company     Company              @relation(fields: [companyId], references: [id])
+  folio       Int
+  warehouseId String
+  warehouse   Warehouse            @relation(fields: [warehouseId], references: [id])
+  categoryId  String?
+  status      InventoryCountStatus @default(OPEN)
+  notes       String?
+  createdById String?
+  postedAt    DateTime?
+  postedById  String?
+  lines       InventoryCountLine[]
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@unique([companyId, folio])
+  @@index([companyId, status])
+}
+
+model InventoryCountLine {
+  id              String         @id @default(cuid())
+  companyId       String
+  company         Company        @relation(fields: [companyId], references: [id])
+  countId         String
+  count           InventoryCount @relation(fields: [countId], references: [id], onDelete: Cascade)
+  productId       String
+  product         Product        @relation(fields: [productId], references: [id])
+  /// Stock del sistema al abrir el conteo (referencia para quien cuenta).
+  systemQuantity  Float
+  /// Lo contado. `null` = aún no contado (no se ajusta).
+  countedQuantity Float?
+  /// Al contabilizar: stock del momento, ajuste aplicado y su costo unitario.
+  stockAtPosting  Float?
+  adjustment      Float?
+  unitCost        Float?
+
+  @@unique([countId, productId])
+  @@index([companyId, countId])
+}
+
+// ─── Tesorería · Ola 3: bancos, cartolas, conciliación, cheques, nóminas y cobranza ───
+
+/// Cuenta bancaria propia de la empresa.
+model BankAccount {
+  id             String              @id @default(cuid())
+  companyId      String
+  company        Company             @relation(fields: [companyId], references: [id])
+  name           String
+  /// Código de banco (CMF), ej. "012" BancoEstado.
+  bankCode       String
+  accountType    String
+  accountNumber  String
+  /// Saldo inicial (CLP) a la fecha desde la que se concilia.
+  openingBalance Int                 @default(0)
+  openingDate    DateTime?
+  isDefault      Boolean             @default(false)
+  isActive       Boolean             @default(true)
+  statements     BankStatement[]
+  lines          BankStatementLine[]
+  payments       Payment[]
+  cheques        Cheque[]
+  paymentBatches PaymentBatch[]
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@unique([companyId, bankCode, accountNumber])
+  @@index([companyId, isActive])
+}
+
+/// Una cartola importada (archivo del banco).
+model BankStatement {
+  id            String              @id @default(cuid())
+  companyId     String
+  company       Company             @relation(fields: [companyId], references: [id])
+  bankAccountId String
+  bankAccount   BankAccount         @relation(fields: [bankAccountId], references: [id])
+  fileName      String
+  periodStart   DateTime?
+  periodEnd     DateTime?
+  importedLines Int                 @default(0)
+  skippedLines  Int                 @default(0)
+  importedById  String?
+  lines         BankStatementLine[]
+  createdAt     DateTime            @default(now())
+
+  @@index([companyId, bankAccountId])
+}
+
+enum BankLineStatus {
+  UNMATCHED
+  MATCHED
+  /// Sin contrapartida en libros por decisión del usuario (comisión, interés...).
+  IGNORED
+}
+
+/// Movimiento de una cartola. `amount` con signo: + abono, − cargo.
+model BankStatementLine {
+  id            String         @id @default(cuid())
+  companyId     String
+  company       Company        @relation(fields: [companyId], references: [id])
+  bankAccountId String
+  bankAccount   BankAccount    @relation(fields: [bankAccountId], references: [id])
+  statementId   String
+  statement     BankStatement  @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  date          DateTime
+  description   String
+  reference     String?
+  amount        Int
+  balance       Int?
+  /// Huella para no duplicar movimientos al reimportar cartolas que se traslapan.
+  fingerprint   String
+  status        BankLineStatus @default(UNMATCHED)
+  ignoredReason String?
+  matchedAt     DateTime?
+  matchedById   String?
+  payments      Payment[]
+  createdAt     DateTime       @default(now())
+
+  @@unique([bankAccountId, fingerprint])
+  @@index([companyId, bankAccountId, status, date])
+}
+
+enum ChequeDirection {
+  RECEIVED
+  ISSUED
+}
+
+enum ChequeStatus {
+  /// Recibido: en cartera. Girado: entregado, aún no cobrado.
+  PORTFOLIO
+  DEPOSITED
+  CLEARED
+  BOUNCED
+  VOIDED
+}
+
+/// Cheque recibido de un cliente o girado a un proveedor.
+model Cheque {
+  id            String          @id @default(cuid())
+  companyId     String
+  company       Company         @relation(fields: [companyId], references: [id])
+  direction     ChequeDirection
+  number        String
+  bankCode      String
+  drawerName    String?
+  drawerRut     String?
+  contactId     String?
+  contact       Contact?        @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  amount        Int
+  issueDate     DateTime
+  /// Fecha desde la que se puede cobrar (cheque a fecha).
+  dueDate       DateTime
+  status        ChequeStatus    @default(PORTFOLIO)
+  /// Cobro/pago de tesorería que registró el cheque (si salda un documento).
+  paymentId     String?         @unique
+  payment       Payment?        @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  bankAccountId String?
+  bankAccount   BankAccount?    @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+  depositedAt   DateTime?
+  clearedAt     DateTime?
+  bouncedAt     DateTime?
+  bounceReason  String?
+  notes         String?
+  createdById   String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([companyId, direction, status, dueDate])
+}
+
+enum PaymentBatchStatus {
+  DRAFT
+  PAID
+  CANCELLED
+}
+
+/// Nómina de pago a proveedores: se exporta al banco y, al confirmarse,
+/// registra el pago de cada factura.
+model PaymentBatch {
+  id            String             @id @default(cuid())
+  companyId     String
+  company       Company            @relation(fields: [companyId], references: [id])
+  folio         Int
+  bankAccountId String
+  bankAccount   BankAccount        @relation(fields: [bankAccountId], references: [id])
+  paymentDate   DateTime
+  status        PaymentBatchStatus @default(DRAFT)
+  totalAmount   Int                @default(0)
+  notes         String?
+  createdById   String?
+  paidAt        DateTime?
+  paidById      String?
+  items         PaymentBatchItem[]
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@unique([companyId, folio])
+  @@index([companyId, status])
+}
+
+model PaymentBatchItem {
+  id                 String           @id @default(cuid())
+  companyId          String
+  company            Company          @relation(fields: [companyId], references: [id])
+  batchId            String
+  batch              PaymentBatch     @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  purchaseDocumentId String
+  purchaseDocument   PurchaseDocument @relation(fields: [purchaseDocumentId], references: [id])
+  contactId          String
+  contact            Contact          @relation(fields: [contactId], references: [id])
+  amount             Int
+  /// Pago de tesorería generado al confirmar la nómina.
+  paymentId          String?          @unique
+  payment            Payment?         @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@unique([batchId, purchaseDocumentId])
+  @@index([companyId, batchId])
+}
+
+/// Recordatorio automático de cobranza ya enviado (uno por documento e hito).
+model CollectionReminderLog {
+  id              String        @id @default(cuid())
+  companyId       String
+  company         Company       @relation(fields: [companyId], references: [id])
+  salesDocumentId String
+  salesDocument   SalesDocument @relation(fields: [salesDocumentId], references: [id], onDelete: Cascade)
+  contactId       String
+  contact         Contact       @relation(fields: [contactId], references: [id])
+  /// Hito en días respecto del vencimiento (negativo = antes de vencer).
+  stage           Int
+  sentTo          String
+  deliveryStatus  String
+  sentAt          DateTime      @default(now())
+
+  @@unique([salesDocumentId, stage])
+  @@index([companyId, sentAt])
+}
+
+enum CollectionNoteKind {
+  CALL
+  EMAIL
+  VISIT
+  WHATSAPP
+  PROMISE
+  NOTE
+}
+
+/// Gestión de cobranza registrada por el equipo (llamado, visita, promesa de pago).
+model CollectionNote {
+  id              String             @id @default(cuid())
+  companyId       String
+  company         Company            @relation(fields: [companyId], references: [id])
+  contactId       String
+  contact         Contact            @relation(fields: [contactId], references: [id])
+  salesDocumentId String?
+  salesDocument   SalesDocument?     @relation(fields: [salesDocumentId], references: [id], onDelete: SetNull)
+  kind            CollectionNoteKind
+  note            String
+  promiseDate     DateTime?
+  promiseAmount   Int?
+  createdById     String?
+  createdByName   String?
+  createdAt       DateTime           @default(now())
+
+  @@index([companyId, contactId, createdAt])
+}
+
+// ─── Remuneraciones · Ola 4: préstamos, anticipos y finiquitos ───────────────
+
+enum EmployeeLoanStatus {
+  ACTIVE
+  PAID
+  CANCELLED
+}
+
+/// Préstamo de la empresa al trabajador, descontado en cuotas de la liquidación.
+model EmployeeLoan {
+  id                String             @id @default(cuid())
+  companyId         String
+  company           Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employeeId        String
+  employee          Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  description       String
+  principal         Int
+  installments      Int
+  installmentAmount Int
+  /// Primer mes en que se descuenta.
+  startYear         Int
+  startMonth        Int
+  paidInstallments  Int                @default(0)
+  status            EmployeeLoanStatus @default(ACTIVE)
+  createdById       String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@index([companyId, employeeId, status])
+}
+
+enum EmployeeAdvanceStatus {
+  PENDING
+  DEDUCTED
+  CANCELLED
+}
+
+/// Anticipo de sueldo (ej. quincena): se descuenta en la liquidación del mes indicado.
+model EmployeeAdvance {
+  id          String                @id @default(cuid())
+  companyId   String
+  company     Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employeeId  String
+  employee    Employee              @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  amount      Int
+  paidDate    DateTime
+  year        Int
+  month       Int
+  status      EmployeeAdvanceStatus @default(PENDING)
+  notes       String?
+  createdById String?
+  createdAt   DateTime              @default(now())
+
+  @@index([companyId, year, month, status])
+  @@index([companyId, employeeId])
+}
+
+enum SettlementStatus {
+  DRAFT
+  FINAL
+  CANCELLED
+}
+
+/// Finiquito: cálculo de lo que se paga al término de la relación laboral.
+model EmployeeSettlement {
+  id                   String           @id @default(cuid())
+  companyId            String
+  company              Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employeeId           String
+  employee             Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  terminationDate      DateTime
+  /// Causal legal (ej. `ART_161_1` necesidades de la empresa).
+  cause                String
+  noticeGiven          Boolean          @default(true)
+  monthlySalary        Int
+  yearsOfService       Int              @default(0)
+  severanceAmount      Int              @default(0)
+  noticeIndemnity      Int              @default(0)
+  vacationBusinessDays Float            @default(0)
+  vacationCalendarDays Float            @default(0)
+  vacationAmount       Int              @default(0)
+  pendingSalary        Int              @default(0)
+  otherEarnings        Int              @default(0)
+  loanBalance          Int              @default(0)
+  otherDeductions      Int              @default(0)
+  totalAmount          Int              @default(0)
+  notes                String?
+  status               SettlementStatus @default(DRAFT)
+  createdById          String?
+  finalizedAt          DateTime?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  @@index([companyId, employeeId])
+}
+
+// ─── SII · Ola 5: bandeja de DTE recibidos y Registro de Compras y Ventas ────
+
+enum ReceivedDteStatus {
+  /// Recién cargado: nadie lo revisó todavía.
+  PENDING
+  /// Aceptado en su contenido (acuse de recibo interno).
+  ACCEPTED
+  /// Reclamado: el contenido no corresponde (Ley 19.983, 8 días).
+  CLAIMED
+  /// Ya se registró como documento de compra en el ERP.
+  REGISTERED
+}
+
+/// DTE emitido por un proveedor a esta empresa, cargado desde su XML
+/// (`EnvioDTE` o `DTE` suelto). `xml` guarda el bloque `<DTE>` tal como
+/// llegó, byte a byte: el timbre del proveedor se calculó sobre esos bytes y
+/// reserializarlo lo invalidaría.
+model ReceivedDte {
+  id                 String            @id @default(cuid())
+  companyId          String
+  company            Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  issuerRut          String
+  issuerName         String
+  issuerGiro         String?
+  siiCode            Int
+  folio              Int
+  issueDate          DateTime
+  dueDate            DateTime?
+  netAmount          Int               @default(0)
+  exemptAmount       Int               @default(0)
+  ivaAmount          Int               @default(0)
+  totalAmount        Int               @default(0)
+  /// Líneas de detalle normalizadas (nombre, cantidad, precio, exenta).
+  lines              Json
+  /// Referencias del documento (notas de crédito/débito, OC, guías).
+  references         Json?
+  xml                String
+  /// `VALID` timbre íntegro, `INVALID` no cuadra, `MISSING` sin TED.
+  tedStatus          String
+  status             ReceivedDteStatus @default(PENDING)
+  statusNote         String?
+  statusAt           DateTime?
+  statusById         String?
+  purchaseDocumentId String?
+  purchaseDocument   PurchaseDocument? @relation(fields: [purchaseDocumentId], references: [id], onDelete: SetNull)
+  fileName           String?
+  receivedAt         DateTime          @default(now())
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@unique([companyId, issuerRut, siiCode, folio])
+  @@index([companyId, status, receivedAt])
+}
+
+enum RcvKind {
+  PURCHASES
+  SALES
+}
+
+/// Archivo del Registro de Compras y Ventas descargado desde el SII para un
+/// período. Se guarda normalizado (`entries`) y se cuadra contra los
+/// documentos del ERP al consultarlo; reimportar el mismo mes lo reemplaza.
+model RcvImport {
+  id           String   @id @default(cuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  kind         RcvKind
+  year         Int
+  month        Int
+  fileName     String
+  rowCount     Int
+  entries      Json
+  importedById String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([companyId, kind, year, month])
+}
+
+// ─── Operaciones · Ola 6: solicitudes de compra, cotizaciones e importaciones ─
+
+enum PurchaseRequestStatus {
+  DRAFT
+  /// Enviada a aprobación.
+  SUBMITTED
+  APPROVED
+  REJECTED
+  /// Ya generó sus órdenes de compra.
+  ORDERED
+  CANCELLED
+}
+
+/// Solicitud interna de compra: alguien pide, jefatura aprueba, compras
+/// cotiza con varios proveedores y el comparativo genera las OC.
+model PurchaseRequest {
+  id              String                @id @default(cuid())
+  companyId       String
+  company         Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  folio           Int
+  title           String
+  status          PurchaseRequestStatus @default(DRAFT)
+  neededBy        DateTime?
+  notes           String?
+  requestedById   String?
+  requestedByName String?
+  decidedById     String?
+  decidedByName   String?
+  decidedAt       DateTime?
+  rejectionReason String?
+  items           PurchaseRequestItem[]
+  quotes          SupplierQuote[]
+  purchaseOrders  PurchaseOrder[]
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  @@unique([companyId, folio])
+  @@index([companyId, status])
+}
+
+model PurchaseRequestItem {
+  id                String              @id @default(cuid())
+  companyId         String
+  company           Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  requestId         String
+  request           PurchaseRequest     @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  productId         String?
+  product           Product?            @relation(fields: [productId], references: [id], onDelete: SetNull)
+  description       String
+  quantity          Float
+  unit              String?
+  /// Costo unitario de referencia (último PMP o estimado), CLP.
+  estimatedUnitCost Int?
+  position          Int                 @default(0)
+  quoteLines        SupplierQuoteLine[]
+
+  @@index([companyId, requestId])
+}
+
+/// Cotización de un proveedor para una solicitud.
+model SupplierQuote {
+  id           String              @id @default(cuid())
+  companyId    String
+  company      Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  requestId    String
+  request      PurchaseRequest     @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  contactId    String
+  contact      Contact             @relation(fields: [contactId], references: [id])
+  quoteNumber  String?
+  validUntil   DateTime?
+  leadTimeDays Int?
+  paymentTerms String?
+  notes        String?
+  lines        SupplierQuoteLine[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@unique([requestId, contactId])
+  @@index([companyId, requestId])
+}
+
+model SupplierQuoteLine {
+  id            String              @id @default(cuid())
+  companyId     String
+  company       Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  quoteId       String
+  quote         SupplierQuote       @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  requestItemId String
+  requestItem   PurchaseRequestItem @relation(fields: [requestItemId], references: [id], onDelete: Cascade)
+  /// Precio unitario neto ofrecido, CLP.
+  unitCost      Int
+
+  @@unique([quoteId, requestItemId])
+  @@index([companyId, quoteId])
+}
+
+enum ImportShipmentStatus {
+  OPEN
+  /// Mercadería ingresada a bodega al costo de importación.
+  CLOSED
+  CANCELLED
+}
+
+/// Carpeta de importación: reúne el valor FOB de la mercadería y todos los
+/// costos hasta la bodega (flete, seguro, derechos, agente, puerto) para
+/// ingresarla al kardex a su costo real.
+model ImportShipment {
+  id               String               @id @default(cuid())
+  companyId        String
+  company          Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  folio            Int
+  reference        String
+  contactId        String?
+  contact          Contact?             @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  currency         String               @default("USD")
+  /// Pesos por unidad de moneda extranjera (dólar observado o el de la DIN).
+  exchangeRate     Float
+  incoterm         String?
+  dinNumber        String?
+  arrivalDate      DateTime?
+  warehouseId      String?
+  warehouse        Warehouse?           @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  /// `VALUE` prorratea por valor FOB, `QUANTITY` por unidades.
+  allocationMethod String               @default("VALUE")
+  status           ImportShipmentStatus @default(OPEN)
+  closedAt         DateTime?
+  closedById       String?
+  notes            String?
+  items            ImportShipmentItem[]
+  costs            ImportShipmentCost[]
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  @@unique([companyId, folio])
+  @@index([companyId, status])
+}
+
+model ImportShipmentItem {
+  id               String         @id @default(cuid())
+  companyId        String
+  company          Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  shipmentId       String
+  shipment         ImportShipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  productId        String
+  product          Product        @relation(fields: [productId], references: [id])
+  description      String
+  quantity         Float
+  /// Precio unitario FOB en la moneda de la carpeta.
+  unitPriceForeign Float
+  /// Costo unitario puesto en bodega (CLP, 2 decimales), fijado al cerrar.
+  landedUnitCost   Float?
+  position         Int            @default(0)
+
+  @@index([companyId, shipmentId])
+}
+
+model ImportShipmentCost {
+  id                 String            @id @default(cuid())
+  companyId          String
+  company            Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  shipmentId         String
+  shipment           ImportShipment    @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  /// FREIGHT, INSURANCE, DUTY, CUSTOMS_AGENT, PORT, TRANSPORT, OTHER
+  kind               String
+  description        String
+  /// Monto neto en CLP (sin IVA recuperable).
+  amount             Int
+  /// Factura de Compras que respalda el costo, si ya se registró.
+  purchaseDocumentId String?
+  purchaseDocument   PurchaseDocument? @relation(fields: [purchaseDocumentId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, shipmentId])
+}
+
+// ─── Operaciones · Ola 6: producción y servicio técnico ──────────────────────
+
+/// Receta o lista de materiales: qué componentes y en qué cantidad se
+/// consumen para fabricar `outputQuantity` unidades del producto terminado.
+model BillOfMaterials {
+  id               String            @id @default(cuid())
+  companyId        String
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  productId        String
+  product          Product           @relation("BomOutput", fields: [productId], references: [id])
+  name             String
+  outputQuantity   Float             @default(1)
+  notes            String?
+  isActive         Boolean           @default(true)
+  components       BomComponent[]
+  productionOrders ProductionOrder[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([companyId, productId])
+}
+
+model BomComponent {
+  id        String          @id @default(cuid())
+  companyId String
+  company   Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bomId     String
+  bom       BillOfMaterials @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product         @relation(fields: [productId], references: [id])
+  /// Cantidad por `outputQuantity` unidades producidas.
+  quantity  Float
+  position  Int             @default(0)
+
+  @@index([companyId, bomId])
+}
+
+enum ProductionOrderStatus {
+  PLANNED
+  IN_PROGRESS
+  /// Componentes consumidos y producto terminado ingresado a bodega.
+  COMPLETED
+  CANCELLED
+}
+
+model ProductionOrder {
+  id                 String                     @id @default(cuid())
+  companyId          String
+  company            Company                    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  folio              Int
+  bomId              String?
+  bom                BillOfMaterials?           @relation(fields: [bomId], references: [id], onDelete: SetNull)
+  productId          String
+  product            Product                    @relation("ProductionOutput", fields: [productId], references: [id])
+  quantity           Float
+  warehouseId        String
+  warehouse          Warehouse                  @relation(fields: [warehouseId], references: [id])
+  status             ProductionOrderStatus      @default(PLANNED)
+  plannedDate        DateTime?
+  startedAt          DateTime?
+  completedAt        DateTime?
+  completedById      String?
+  /// Mano de obra y gastos de fabricación que se suman al costo, CLP.
+  additionalCost     Int                        @default(0)
+  additionalCostNote String?
+  /// Costo total y unitario resultantes al completar.
+  totalCost          Int?
+  unitCost           Float?
+  notes              String?
+  components         ProductionOrderComponent[]
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+
+  @@unique([companyId, folio])
+  @@index([companyId, status])
+}
+
+model ProductionOrderComponent {
+  id               String          @id @default(cuid())
+  companyId        String
+  company          Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  orderId          String
+  order            ProductionOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId        String
+  product          Product         @relation(fields: [productId], references: [id])
+  plannedQuantity  Float
+  consumedQuantity Float?
+  /// Costo de lo consumido (PMP al momento de consumir).
+  totalCost        Int?
+  position         Int             @default(0)
+
+  @@index([companyId, orderId])
+}
+
+enum ServiceTicketStatus {
+  RECEIVED
+  DIAGNOSING
+  WAITING_APPROVAL
+  APPROVED
+  IN_REPAIR
+  READY
+  DELIVERED
+  CANCELLED
+}
+
+/// Orden de servicio técnico: equipo que un cliente deja para diagnóstico y
+/// reparación. `trackingToken` es la llave del enlace de seguimiento que se
+/// entrega al cliente (sin cuenta).
+model ServiceTicket {
+  id                String               @id @default(cuid())
+  companyId         String
+  company           Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  folio             Int
+  contactId         String
+  contact           Contact              @relation(fields: [contactId], references: [id])
+  equipment         String
+  brand             String?
+  model             String?
+  serialNumber      String?
+  accessories       String?
+  reportedIssue     String
+  diagnosis         String?
+  /// LOW, NORMAL, HIGH
+  priority          String               @default("NORMAL")
+  status            ServiceTicketStatus  @default(RECEIVED)
+  technicianId      String?
+  technician        User?                @relation("ServiceTicketTechnician", fields: [technicianId], references: [id], onDelete: SetNull)
+  promisedDate      DateTime?
+  warranty          Boolean              @default(false)
+  /// Decisión del cliente sobre el presupuesto: APPROVED o REJECTED.
+  estimateDecision  String?
+  estimateDecidedAt DateTime?
+  /// STAFF o CUSTOMER (desde el enlace de seguimiento).
+  estimateDecidedBy String?
+  deliveredAt       DateTime?
+  salesOrderId      String?
+  salesOrder        SalesOrder?          @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
+  trackingToken     String               @unique
+  receivedByName    String?
+  notes             String?
+  lines             ServiceTicketLine[]
+  events            ServiceTicketEvent[]
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  @@unique([companyId, folio])
+  @@index([companyId, status])
+}
+
+model ServiceTicketLine {
+  id          String        @id @default(cuid())
+  companyId   String
+  company     Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ticketId    String
+  ticket      ServiceTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  /// PART (repuesto) o LABOR (mano de obra)
+  kind        String
+  productId   String?
+  product     Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
+  description String
+  quantity    Float
+  /// Precio unitario neto, CLP.
+  unitPrice   Int
+  position    Int           @default(0)
+
+  @@index([companyId, ticketId])
+}
+
+model ServiceTicketEvent {
+  id                String               @id @default(cuid())
+  companyId         String
+  company           Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ticketId          String
+  ticket            ServiceTicket        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  status            ServiceTicketStatus?
+  note              String?
+  visibleToCustomer Boolean              @default(true)
+  createdByName     String?
+  createdAt         DateTime             @default(now())
+
+  @@index([companyId, ticketId, createdAt])
+}
+
+// ─── Activo fijo · Ola 6: bitácora de mantenciones ───────────────────────────
+
+/// Mantención de un bien del activo fijo (preventiva, correctiva o
+/// inspección) con su costo y la próxima fecha programada.
+model FixedAssetMaintenance {
+  id            String     @id @default(cuid())
+  companyId     String
+  company       Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  assetId       String
+  asset         FixedAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  date          DateTime
+  /// PREVENTIVE, CORRECTIVE o INSPECTION
+  kind          String
+  description   String
+  /// Costo neto de la mantención, CLP (gasto del período, no aumenta el valor del bien).
+  cost          Int        @default(0)
+  provider      String?
+  nextDueDate   DateTime?
+  createdByName String?
+  createdAt     DateTime   @default(now())
+
+  @@index([companyId, assetId, date])
+  @@index([companyId, nextDueDate])
 }

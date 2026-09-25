@@ -3,9 +3,16 @@ import type { InventoryMovement, MovementType, Prisma, Warehouse } from '@prisma
 import { calculateNewPmp } from '@/lib/inventory/pmp';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { postInventoryAdjustmentEntry } from '@/modules/accounting/posting-rules/inventory-posting';
+import { allocateFefo, normalizeLotNumber, NO_LOT, type LotAllocation } from '@/lib/inventory/lots';
 import type { WarehouseCreateInput } from '../schema';
 
 export type TxClient = Prisma.TransactionClient;
+
+export interface StockInLot {
+  lotNumber: string;
+  expiryDate?: Date | null;
+  quantity: number;
+}
 
 export interface StockInParams {
   productId: string;
@@ -15,6 +22,11 @@ export interface StockInParams {
   unitCost: number;
   reference?: string;
   notes?: string;
+  /**
+   * Reparto por lote de lo que entra (solo productos con `tracksLots`). Sin
+   * reparto, todo entra al lote "SIN-LOTE". La suma debe igualar `quantity`.
+   */
+  lots?: StockInLot[];
 }
 
 export interface StockOutParams {
@@ -79,6 +91,8 @@ export async function applyStockIn(tx: TxClient, companyId: string, params: Stoc
 
   await tx.product.update({ where: { id: productId }, data: { costPricePMP: newPmp } });
 
+  const lotAllocations = product.tracksLots ? await addToLots(tx, companyId, productId, warehouseId, quantity, params.lots) : null;
+
   return tx.inventoryMovement.create({
     data: {
       companyId,
@@ -94,8 +108,45 @@ export async function applyStockIn(tx: TxClient, companyId: string, params: Stoc
       newPmp,
       reference,
       notes,
+      lotAllocations: lotAllocations ?? undefined,
     },
   });
+}
+
+/** Suma una entrada a los lotes del producto en la bodega (upsert por número de lote). */
+async function addToLots(tx: TxClient, companyId: string, productId: string, warehouseId: string, quantity: number, lots: StockInLot[] | undefined): Promise<LotAllocation[]> {
+  const entries = lots && lots.length > 0 ? lots : [{ lotNumber: NO_LOT, expiryDate: null, quantity }];
+  const total = entries.reduce((sum, lot) => sum + lot.quantity, 0);
+  if (Math.abs(total - quantity) > 1e-6) throw new Error('La suma de los lotes no coincide con la cantidad que entra');
+  const allocations: LotAllocation[] = [];
+  for (const entry of entries) {
+    if (entry.quantity <= 0) continue;
+    const lotNumber = normalizeLotNumber(entry.lotNumber);
+    const expiryDate = entry.expiryDate ?? null;
+    await tx.inventoryLot.upsert({
+      where: { companyId_productId_warehouseId_lotNumber: { companyId, productId, warehouseId, lotNumber } },
+      // El vencimiento de un lote existente solo se completa si no lo tenía.
+      update: { quantity: { increment: entry.quantity }, ...(expiryDate ? { expiryDate } : {}) },
+      create: { companyId, productId, warehouseId, lotNumber, expiryDate, quantity: entry.quantity },
+    });
+    allocations.push({ lotNumber, expiryDate: expiryDate?.toISOString() ?? null, quantity: entry.quantity });
+  }
+  return allocations;
+}
+
+/** Descuenta una salida de los lotes por FEFO (vence antes, sale antes). */
+async function takeFromLots(tx: TxClient, companyId: string, productId: string, warehouseId: string, quantity: number): Promise<LotAllocation[]> {
+  const lots = await tx.inventoryLot.findMany({
+    where: { companyId, productId, warehouseId, quantity: { gt: 0 } },
+    select: { id: true, lotNumber: true, expiryDate: true, quantity: true, createdAt: true },
+  });
+  const { allocations } = allocateFefo(lots, quantity);
+  for (const allocation of allocations) {
+    const lot = lots.find((candidate) => candidate.lotNumber === allocation.lotNumber);
+    if (!lot) continue;
+    await tx.inventoryLot.updateMany({ where: { id: lot.id, companyId }, data: { quantity: { decrement: allocation.quantity } } });
+  }
+  return allocations;
 }
 
 export async function applyStockOut(tx: TxClient, companyId: string, params: StockOutParams): Promise<InventoryMovement> {
@@ -138,6 +189,7 @@ export async function applyStockOut(tx: TxClient, companyId: string, params: Sto
   }
 
   const unitCost = product.costPricePMP;
+  const lotAllocations = product.tracksLots ? await takeFromLots(tx, companyId, productId, warehouseId, quantity) : null;
 
   return tx.inventoryMovement.create({
     data: {
@@ -154,6 +206,7 @@ export async function applyStockOut(tx: TxClient, companyId: string, params: Sto
       newPmp: product.costPricePMP,
       reference,
       notes,
+      lotAllocations: lotAllocations ?? undefined,
     },
   });
 }
@@ -206,6 +259,16 @@ export async function registerTransfer(
       reference,
       notes,
     });
+    // Los lotes viajan con la mercadería: lo que salió de cada lote entra al
+    // mismo lote en la bodega de destino; lo que salió sin lote, a SIN-LOTE.
+    const moved = (out.lotAllocations as LotAllocation[] | null) ?? null;
+    const movedTotal = moved?.reduce((sum, lot) => sum + lot.quantity, 0) ?? 0;
+    const lots = moved
+      ? [
+          ...moved.map((lot) => ({ lotNumber: lot.lotNumber, expiryDate: lot.expiryDate ? new Date(lot.expiryDate) : null, quantity: lot.quantity })),
+          ...(quantity - movedTotal > 1e-9 ? [{ lotNumber: NO_LOT, expiryDate: null, quantity: quantity - movedTotal }] : []),
+        ]
+      : undefined;
     const inMove = await applyStockIn(tx, companyId, {
       productId,
       warehouseId: toWarehouseId,
@@ -214,6 +277,7 @@ export async function registerTransfer(
       unitCost: out.unitCost,
       reference,
       notes,
+      lots,
     });
     return { out, in: inMove };
   }, LOCKING_TX_OPTIONS);

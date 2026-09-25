@@ -8,11 +8,16 @@ import { Button } from '@/components/ui/button';
 import { CurrencyInput } from '@/components/ui/CurrencyInput';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { nativeSelectClass } from '@/components/ui/field-classes';
+import { BANK_ACCOUNT_TYPES, BANK_ACCOUNT_TYPE_LABELS, CHILEAN_BANKS } from '@/lib/treasury/banks';
 import { RutInput } from '@/components/ui/RutInput';
 import { regions } from '@/lib/chile/locations';
 import { contactCreateSchema, contactUpdateSchema } from '@/modules/contacts/schema';
 import { createContactAction, lookupCompanyInfoAction, updateContactAction } from '@/modules/contacts/actions/contacts.actions';
 import type { CompanyLookupCandidate } from '@/modules/contacts/services/company-lookup.service';
+import { listPriceListsAction } from '@/modules/sales/actions/price-lists.actions';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 
 const EMPTY_FORM = {
   rut: '',
@@ -28,6 +33,13 @@ const EMPTY_FORM = {
   isSupplier: false,
   creditLimit: 0,
   creditDays: 0,
+  /** 'none' = precio del catálogo (sin lista). */
+  priceListId: 'none',
+  /** 'none' = sin banco registrado. */
+  bankCode: 'none',
+  bankAccountType: 'none',
+  bankAccountNumber: '',
+  paymentNoticeEmail: '',
 };
 
 type FormState = typeof EMPTY_FORM;
@@ -46,6 +58,12 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
   // autorizado, todo al contado"), así que "sin límite" necesita su propio
   // interruptor en vez de superponerse a 0.
   const [noCreditLimit, setNoCreditLimit] = useState(true);
+  // Listas de precios activas; si el usuario no puede verlas (sin permiso de
+  // ventas), el campo simplemente no aparece.
+  const [priceLists, setPriceLists] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    listPriceListsAction().then((r) => r.success && setPriceLists(r.data.filter((list) => list.isActive).map(({ id, name }) => ({ id, name }))));
+  }, []);
 
   const [companyQuery, setCompanyQuery] = useState('');
   const [searchingCompany, setSearchingCompany] = useState(false);
@@ -104,6 +122,11 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
         isSupplier: editingContact.isSupplier,
         creditLimit: editingContact.creditLimit ?? 0,
         creditDays: editingContact.creditDays,
+        priceListId: editingContact.priceListId ?? 'none',
+        bankCode: editingContact.bankCode ?? 'none',
+        bankAccountType: editingContact.bankAccountType ?? 'none',
+        bankAccountNumber: editingContact.bankAccountNumber ?? '',
+        paymentNoticeEmail: editingContact.paymentNoticeEmail ?? '',
       });
       setNoCreditLimit(editingContact.creditLimit == null);
       setErrors({});
@@ -127,7 +150,17 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
     e.preventDefault();
     setErrors({});
 
-    const payload = { ...form, email: form.email || undefined, creditLimit: noCreditLimit ? null : form.creditLimit };
+    const payload = {
+      ...form,
+      email: form.email || undefined,
+      creditLimit: noCreditLimit ? null : form.creditLimit,
+      // Sin listas disponibles no se toca lo que el cliente ya tenga asignado.
+      priceListId: priceLists.length === 0 ? undefined : form.priceListId === 'none' ? null : form.priceListId,
+      bankCode: form.bankCode === 'none' ? null : form.bankCode,
+      bankAccountType: form.bankAccountType === 'none' ? null : form.bankAccountType,
+      bankAccountNumber: form.bankAccountNumber.trim() || null,
+      paymentNoticeEmail: form.paymentNoticeEmail.trim() || null,
+    };
     const schema = editingContact ? contactUpdateSchema : contactCreateSchema;
     const parsed = schema.safeParse(payload);
     if (!parsed.success) {
@@ -322,7 +355,62 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
             />
             <p className="mt-1 text-xs text-muted-foreground">0 = contado</p>
           </div>
+          {priceLists.length > 0 && (
+            <div className="sm:col-span-2">
+              <Label htmlFor="priceListId">Lista de precios</Label>
+              <Select
+                items={{ none: 'Precio del catálogo', ...Object.fromEntries(priceLists.map((list) => [list.id, list.name])) }}
+                value={form.priceListId}
+                onValueChange={(value) => update('priceListId', value as string)}
+              >
+                <SelectTrigger id="priceListId" className="mt-1.5">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Precio del catálogo</SelectItem>
+                  {priceLists.map((list) => (
+                    <SelectItem key={list.id} value={list.id}>{list.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-xs text-muted-foreground">Al venderle, los precios se proponen desde esta lista.</p>
+            </div>
+          )}
         </div>
+      )}
+
+      {form.isSupplier && (
+        <fieldset className="grid grid-cols-1 gap-4 rounded-lg border border-dashed border-border p-3 sm:grid-cols-2">
+          <legend className="px-1 text-xs font-medium text-muted-foreground">Datos para pagarle (nómina de pagos)</legend>
+          <div>
+            <Label htmlFor="bankCode">Banco</Label>
+            <select id="bankCode" className={cn(nativeSelectClass, 'mt-1.5')} value={form.bankCode} onChange={(e) => update('bankCode', e.target.value)}>
+              <option value="none">Sin registrar</option>
+              {CHILEAN_BANKS.map((bank) => (
+                <option key={bank.code} value={bank.code}>{bank.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <Label htmlFor="bankAccountType">Tipo de cuenta</Label>
+            <select id="bankAccountType" className={cn(nativeSelectClass, 'mt-1.5')} value={form.bankAccountType} onChange={(e) => update('bankAccountType', e.target.value)}>
+              <option value="none">Sin registrar</option>
+              {BANK_ACCOUNT_TYPES.map((type) => (
+                <option key={type} value={type}>{BANK_ACCOUNT_TYPE_LABELS[type]}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <Label htmlFor="bankAccountNumber">N° de cuenta</Label>
+            <Input id="bankAccountNumber" inputMode="numeric" value={form.bankAccountNumber} onChange={(e) => update('bankAccountNumber', e.target.value)} aria-invalid={!!errors.bankAccountNumber} />
+            {errors.bankAccountNumber && <p className="mt-1 text-sm text-destructive">{errors.bankAccountNumber}</p>}
+          </div>
+          <div>
+            <Label htmlFor="paymentNoticeEmail">Correo de aviso de pago</Label>
+            <Input id="paymentNoticeEmail" type="email" placeholder={form.email || 'pagos@proveedor.cl'} value={form.paymentNoticeEmail} onChange={(e) => update('paymentNoticeEmail', e.target.value)} aria-invalid={!!errors.paymentNoticeEmail} />
+            {errors.paymentNoticeEmail && <p className="mt-1 text-sm text-destructive">{errors.paymentNoticeEmail}</p>}
+          </div>
+        </fieldset>
       )}
 
       {errors.form && <p className="text-sm text-destructive">{errors.form}</p>}

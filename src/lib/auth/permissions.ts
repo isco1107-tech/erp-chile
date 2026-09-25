@@ -41,6 +41,9 @@ export const PERMISSIONS = {
   // Forzar el pago de una factura que no cuadra con su Orden de Compra
   // (matching de 3 vías): nivel gerencial, igual que purchases:approve.
   'purchases:override_match': ['OWNER', 'ADMIN'],
+  // Cualquiera del equipo puede pedir que se compre algo; aprobar la
+  // solicitud es `purchases:approve` y cotizar/generar OC es `purchases:orders`.
+  'purchases:request': ALL_ROLES,
 
   'products:read': ALL_ROLES,
   'products:write': ['OWNER', 'ADMIN', 'WAREHOUSE'],
@@ -187,6 +190,16 @@ export const PERMISSIONS = {
   'expenses:approve': ['OWNER', 'ADMIN'],
   'expenses:reimburse': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
 
+  // Fabricación (recetas y órdenes de producción): operación de planta y
+  // bodega; contabilidad consulta costos. No confundir con `production:*`,
+  // que es la producción de eventos (acreditaciones, escaleta).
+  'manufacturing:read': ['OWNER', 'ADMIN', 'WAREHOUSE', 'ACCOUNTANT'],
+  'manufacturing:write': ['OWNER', 'ADMIN', 'WAREHOUSE'],
+
+  // Servicio técnico: lo atienden mesón (ventas) y taller (bodega).
+  'service:read': ['OWNER', 'ADMIN', 'SALES', 'WAREHOUSE'],
+  'service:write': ['OWNER', 'ADMIN', 'SALES', 'WAREHOUSE'],
+
   // Mensajería interna: entorno de productividad transversal, no un módulo
   // vertical del negocio — todo el equipo puede usarla, mismo criterio que
   // contacts:read.
@@ -236,6 +249,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'purchases:approve': 'Aprobar compras que superan el límite configurado',
   'purchases:orders': 'Crear órdenes de compra y registrar recepción de mercadería',
   'purchases:override_match': 'Forzar pago de facturas que no cuadran con su orden de compra',
+  'purchases:request': 'Crear solicitudes de compra',
   'products:read': 'Ver catálogo de productos',
   'products:write': 'Crear y editar productos',
   'products:costs': 'Ver costos de compra y PMP',
@@ -298,6 +312,10 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'expenses:submit': 'Rendir gastos propios',
   'expenses:approve': 'Aprobar o rechazar rendiciones de gastos del equipo',
   'expenses:reimburse': 'Registrar el reembolso de rendiciones aprobadas',
+  'manufacturing:read': 'Ver recetas y órdenes de producción',
+  'manufacturing:write': 'Crear recetas y ejecutar órdenes de producción',
+  'service:read': 'Ver órdenes de servicio técnico',
+  'service:write': 'Recibir equipos, diagnosticar, presupuestar y entregar',
   'messaging:use': 'Usar la mensajería interna de la empresa',
   'messaging:whatsapp_personal': 'Abrir WhatsApp Web personal desde el header del ERP',
 };

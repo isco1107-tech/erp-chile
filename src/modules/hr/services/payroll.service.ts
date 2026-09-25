@@ -15,6 +15,7 @@ import {
   type PayrollParameters,
 } from '@/lib/chile/payroll';
 import { isUniqueConstraintError } from '@/lib/prisma-errors';
+import { contributionSummary, loanDeductionFor, mutualLabel, type ContributionLine } from '@/lib/chile/payroll-deductions';
 import { CONTRACT_TYPE_LABELS, periodLabel, type PayrollPeriodInput, type PayslipVariablesInput } from '../schema';
 
 /**
@@ -25,11 +26,63 @@ import { CONTRACT_TYPE_LABELS, periodLabel, type PayrollPeriodInput, type Paysli
 
 export type PeriodSummary = PayrollPeriod & { employeeCount: number; totalNetPay: number; totalEmployerCost: number; totalTaxable: number };
 
-export type PayslipWithEmployee = Payslip & { employee: Pick<Employee, 'id' | 'fullName' | 'rut' | 'position' | 'contractType' | 'afp' | 'healthInsurance' | 'isapreName'> };
+export type PayslipWithEmployee = Payslip & {
+  employee: Pick<Employee, 'id' | 'fullName' | 'rut' | 'position' | 'contractType' | 'afp' | 'healthInsurance' | 'isapreName'>;
+  /** Anticipos tecleados a mano en la planilla (sin los registrados en la ficha). */
+  manualAdvances: number;
+};
+
+/** Anticipos y cuotas registrados en la ficha que se aplican en una liquidación. */
+export interface DeductionDetail {
+  advances: { id: string; amount: number }[];
+  loans: { id: string; amount: number }[];
+}
+
+export function parseDeductionDetail(value: Prisma.JsonValue | null): DeductionDetail {
+  const source = (value && typeof value === 'object' && !Array.isArray(value) ? value : {}) as Record<string, unknown>;
+  const list = (raw: unknown) =>
+    Array.isArray(raw)
+      ? raw.flatMap((item) => {
+          const entry = item as { id?: unknown; amount?: unknown };
+          return typeof entry.id === 'string' && typeof entry.amount === 'number' ? [{ id: entry.id, amount: entry.amount }] : [];
+        })
+      : [];
+  return { advances: list(source.advances), loans: list(source.loans) };
+}
+
+const sumAmounts = (items: readonly { amount: number }[]) => items.reduce((sum, item) => sum + item.amount, 0);
+
+/**
+ * Anticipos pendientes del mes y cuotas de préstamo vigentes que corresponde
+ * descontar a cada trabajador en el período.
+ */
+async function registeredDeductions(companyId: string, year: number, month: number, employeeIds: readonly string[]): Promise<Map<string, DeductionDetail>> {
+  const result = new Map<string, DeductionDetail>();
+  if (employeeIds.length === 0) return result;
+  const [advances, loans] = await Promise.all([
+    prisma.employeeAdvance.findMany({ where: { companyId, year, month, status: 'PENDING', employeeId: { in: [...employeeIds] } }, select: { id: true, employeeId: true, amount: true } }),
+    prisma.employeeLoan.findMany({ where: { companyId, status: 'ACTIVE', employeeId: { in: [...employeeIds] } } }),
+  ]);
+  const entry = (employeeId: string) => {
+    const current = result.get(employeeId) ?? { advances: [], loans: [] };
+    result.set(employeeId, current);
+    return current;
+  };
+  for (const advance of advances) entry(advance.employeeId).advances.push({ id: advance.id, amount: advance.amount });
+  for (const loan of loans) {
+    const amount = loanDeductionFor(loan, year, month);
+    if (amount > 0) entry(loan.employeeId).loans.push({ id: loan.id, amount });
+  }
+  return result;
+}
 
 export interface PeriodDetail {
   period: PayrollPeriod;
   payslips: PayslipWithEmployee[];
+  /** Anticipos y cuotas registrados que se descontarán (período abierto) o se descontaron (cerrado). */
+  registered: Record<string, { advances: number; loans: number }>;
+  /** Lo que hay que pagar el mes, por institución (AFP, salud, AFC, mutual, impuesto). */
+  contributions: ContributionLine[];
   /** Trabajadores vigentes en el mes sin liquidación todavía (para precargar la planilla). */
   pendingEmployees: Array<Pick<Employee, 'id' | 'fullName' | 'rut' | 'position' | 'baseSalary' | 'hireDate' | 'terminationDate'> & { suggestedWorkedDays: number }>;
 }
@@ -150,9 +203,26 @@ export async function getPeriodDetail(companyId: string, id: string): Promise<Pe
     }),
   ]);
   const withSlip = new Set(payslips.map((p) => p.employeeId));
+  const registered: PeriodDetail['registered'] = {};
+  if (period.status === 'DRAFT') {
+    const current = await registeredDeductions(companyId, period.year, period.month, employees.map((e) => e.id));
+    for (const [employeeId, detail] of current) registered[employeeId] = { advances: sumAmounts(detail.advances), loans: sumAmounts(detail.loans) };
+  } else {
+    for (const slip of payslips) {
+      const detail = parseDeductionDetail(slip.deductionDetail);
+      registered[slip.employeeId] = { advances: sumAmounts(detail.advances), loans: sumAmounts(detail.loans) };
+    }
+  }
+  const settings = await prisma.companySettings.findUnique({ where: { companyId }, select: { payrollMutualCode: true } });
+  const contributions = contributionSummary(
+    payslips.map((slip) => ({ ...slip, afp: slip.employee.afp, healthInsurance: slip.employee.healthInsurance, isapreName: slip.employee.isapreName, contractType: slip.employee.contractType })),
+    mutualLabel(settings?.payrollMutualCode)
+  );
   return {
     period,
-    payslips,
+    registered,
+    contributions,
+    payslips: payslips.map((slip) => ({ ...slip, manualAdvances: Math.max(0, slip.advances - sumAmounts(parseDeductionDetail(slip.deductionDetail).advances)) })),
     pendingEmployees: employees
       .filter((e) => !withSlip.has(e.id))
       .map((e) => ({ ...e, suggestedWorkedDays: suggestedWorkedDays(period.year, period.month, e.hireDate, e.terminationDate) })),
@@ -173,11 +243,15 @@ export async function calculatePeriod(companyId: string, periodId: string, input
   const employees = await prisma.employee.findMany({ where: { companyId, id: { in: ids } } });
   if (employees.length !== ids.length) throw new Error('Uno de los trabajadores de la planilla no pertenece a tu empresa');
   const byId = new Map(employees.map((e) => [e.id, e]));
+  const registered = await registeredDeductions(companyId, period.year, period.month, ids);
 
   await prisma.$transaction(async (tx) => {
     await tx.payslip.deleteMany({ where: { companyId, periodId, employeeId: { notIn: ids } } });
     for (const row of input.rows) {
       const employee = byId.get(row.employeeId) as Employee;
+      // La planilla trae solo los anticipos tecleados a mano; los registrados en
+      // la ficha (anticipos del mes y cuotas de préstamo) se suman acá.
+      const detail = registered.get(employee.id) ?? { advances: [], loans: [] };
       const computed = computePayslip(
         {
           baseSalary: employee.baseSalary,
@@ -190,13 +264,14 @@ export async function calculatePeriod(companyId: string, periodId: string, input
           healthInsurance: employee.healthInsurance,
           isaprePlanUf: employee.isaprePlanUf,
         },
-        row,
+        { ...row, advances: row.advances + sumAmounts(detail.advances), loanDeduction: sumAmounts(detail.loans) },
         params
       );
+      const deductionDetail = { advances: detail.advances, loans: detail.loans };
       await tx.payslip.upsert({
         where: { periodId_employeeId: { periodId, employeeId: employee.id } },
-        create: { companyId, periodId, employeeId: employee.id, ...computed },
-        update: computed,
+        create: { companyId, periodId, employeeId: employee.id, ...computed, deductionDetail },
+        update: { ...computed, deductionDetail },
       });
     }
   });
@@ -212,13 +287,41 @@ export interface ClosedPeriodTotals {
 
 export async function closePeriod(companyId: string, periodId: string, userId: string): Promise<ClosedPeriodTotals> {
   const period = await findDraftPeriod(companyId, periodId);
-  const payslips = await prisma.payslip.findMany({ where: { companyId, periodId }, select: { netPay: true, employerCost: true } });
+  const payslips = await prisma.payslip.findMany({ where: { companyId, periodId }, select: { employeeId: true, netPay: true, employerCost: true, deductionDetail: true } });
   if (payslips.length === 0) throw new Error('Calcula las liquidaciones antes de cerrar el período');
-  const result = await prisma.payrollPeriod.updateMany({
-    where: { id: periodId, companyId, status: 'DRAFT' },
-    data: { status: 'CLOSED', closedAt: new Date(), closedByUserId: userId },
+
+  // Si después de calcular se registró un anticipo o un préstamo, la
+  // liquidación quedó desactualizada: cerrar la congelaría sin ese descuento.
+  const current = await registeredDeductions(companyId, period.year, period.month, payslips.map((p) => p.employeeId));
+  for (const slip of payslips) {
+    const applied = parseDeductionDetail(slip.deductionDetail);
+    const now = current.get(slip.employeeId) ?? { advances: [], loans: [] };
+    const key = (detail: DeductionDetail) => JSON.stringify([detail.advances.map((a) => `${a.id}:${a.amount}`).sort(), detail.loans.map((l) => `${l.id}:${l.amount}`).sort()]);
+    if (key(applied) !== key(now)) throw new Error('Cambiaron los anticipos o préstamos desde el último cálculo: vuelve a calcular antes de cerrar');
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const result = await tx.payrollPeriod.updateMany({
+      where: { id: periodId, companyId, status: 'DRAFT' },
+      data: { status: 'CLOSED', closedAt: new Date(), closedByUserId: userId },
+    });
+    if (result.count === 0) throw new Error('El período ya fue cerrado');
+    for (const slip of payslips) {
+      const applied = parseDeductionDetail(slip.deductionDetail);
+      if (applied.advances.length > 0) {
+        await tx.employeeAdvance.updateMany({ where: { companyId, id: { in: applied.advances.map((a) => a.id) }, status: 'PENDING' }, data: { status: 'DEDUCTED' } });
+      }
+      for (const loanEntry of applied.loans) {
+        const loan = await tx.employeeLoan.findFirst({ where: { id: loanEntry.id, companyId, status: 'ACTIVE' }, select: { paidInstallments: true, installments: true } });
+        if (!loan) continue;
+        const paidInstallments = loan.paidInstallments + 1;
+        await tx.employeeLoan.updateMany({
+          where: { id: loanEntry.id, companyId },
+          data: { paidInstallments, status: paidInstallments >= loan.installments ? 'PAID' : 'ACTIVE' },
+        });
+      }
+    }
   });
-  if (result.count === 0) throw new Error('El período ya fue cerrado');
   return {
     label: periodLabel(period.year, period.month),
     employeeCount: payslips.length,
@@ -228,7 +331,7 @@ export async function closePeriod(companyId: string, periodId: string, userId: s
 }
 
 export type PayslipDocument = Payslip & {
-  employee: Employee;
+  employee: Omit<Employee, 'portalTokenHash'>;
   period: PayrollPeriod;
   company: { businessName: string; rut: string; address: string | null; comuna: string | null; logoUrl: string | null };
 };
@@ -236,7 +339,7 @@ export type PayslipDocument = Payslip & {
 export async function getPayslipDocument(companyId: string, payslipId: string): Promise<PayslipDocument | null> {
   const payslip = await prisma.payslip.findFirst({
     where: { id: payslipId, companyId },
-    include: { employee: true, period: true, company: { select: { businessName: true, rut: true, address: true, comuna: true, logoUrl: true } } },
+    include: { employee: { omit: { portalTokenHash: true } }, period: true, company: { select: { businessName: true, rut: true, address: true, comuna: true, logoUrl: true } } },
   });
   return payslip;
 }
@@ -277,6 +380,7 @@ export async function buildPayrollWorkbook(companyId: string, periodId: string):
     { header: 'Impuesto único', key: 'incomeTax', money: true },
     { header: 'Anticipos', key: 'advances', money: true },
     { header: 'Otros desc.', key: 'otherDeductions', money: true },
+    { header: 'Cuota préstamo', key: 'loanDeduction', money: true },
     { header: 'Total descuentos', key: 'totalDeductions', money: true },
     { header: 'Líquido a pagar', key: 'netPay', money: true },
     { header: 'SIS', key: 'employerSis', money: true },
@@ -333,4 +437,75 @@ export async function buildPayrollWorkbook(companyId: string, periodId: string):
   const buffer = Buffer.from(await wb.xlsx.writeBuffer());
   const rutForFile = company.rut.replace(/\./g, '');
   return { buffer, filename: `Remuneraciones_${rutForFile}_${period.year}-${String(period.month).padStart(2, '0')}.xlsx` };
+}
+
+/**
+ * Planilla de cotizaciones del período: resumen por institución y detalle por
+ * trabajador con las rentas imponibles topadas, para cuadrar o completar la
+ * planilla de Previred.
+ */
+export async function buildContributionsWorkbook(companyId: string, periodId: string): Promise<{ buffer: Buffer; filename: string }> {
+  const detail = await getPeriodDetail(companyId, periodId);
+  const { period } = detail;
+  if (detail.payslips.length === 0) throw new Error('El período aún no tiene liquidaciones calculadas');
+  const pensionCap = Math.round(period.taxableCapUf * period.ufValue);
+  const unemploymentCap = Math.round(period.unemploymentCapUf * period.ufValue);
+
+  const workbook = new ExcelJS.Workbook();
+  const summary = workbook.addWorksheet('Resumen');
+  summary.addRow([`Cotizaciones ${periodLabel(period.year, period.month)}`]).font = { bold: true, size: 13 };
+  summary.addRow([]);
+  const summaryHeader = summary.addRow(['Institución', 'Detalle', 'Trabajadores', 'Cargo trabajador', 'Cargo empleador', 'Total a pagar']);
+  summaryHeader.font = { bold: true };
+  for (const line of detail.contributions) summary.addRow([line.institution, line.detail, line.workers, line.employee, line.employer, line.total]);
+  const grand = detail.contributions.filter((line) => line.kind !== 'IMPUESTO').reduce((sum, line) => sum + line.total, 0);
+  summary.addRow([]);
+  summary.addRow(['Total Previred (sin impuesto único)', '', '', '', '', grand]).font = { bold: true };
+  summary.columns = [{ width: 36 }, { width: 52 }, { width: 14 }, { width: 18 }, { width: 18 }, { width: 18 }];
+  for (const column of [4, 5, 6]) summary.getColumn(column).numFmt = '"$"#,##0';
+
+  const sheet = workbook.addWorksheet('Detalle por trabajador');
+  const header = sheet.addRow([
+    'RUT',
+    'Nombre',
+    'Días',
+    'AFP',
+    'Renta imponible AFP',
+    'Cotización AFP',
+    'SIS',
+    'Aporte empleador pensiones',
+    'Salud',
+    'Cotización salud',
+    'Renta imponible AFC',
+    'AFC trabajador',
+    'AFC empleador',
+    'Mutual / ISL',
+    'Impuesto único',
+  ]);
+  header.font = { bold: true };
+  for (const slip of detail.payslips) {
+    sheet.addRow([
+      slip.employee.rut,
+      slip.employee.fullName,
+      slip.workedDays,
+      AFP_LABELS[slip.employee.afp],
+      Math.min(slip.taxableIncome, pensionCap),
+      slip.pensionAmount,
+      slip.employerSis,
+      slip.employerPension,
+      slip.employee.healthInsurance === 'ISAPRE' ? (slip.employee.isapreName ?? 'Isapre') : 'Fonasa',
+      slip.healthAmount,
+      slip.employee.contractType === 'INDEFINIDO' || slip.employerUnemployment > 0 ? Math.min(slip.taxableIncome, unemploymentCap) : 0,
+      slip.unemploymentEmployee,
+      slip.employerUnemployment,
+      slip.employerMutual,
+      slip.incomeTax,
+    ]);
+  }
+  sheet.columns.forEach((column, index) => {
+    column.width = index === 1 ? 32 : 16;
+    if (index >= 4 && index !== 8) column.numFmt = '"$"#,##0';
+  });
+  const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+  return { buffer, filename: `cotizaciones-${period.year}-${String(period.month).padStart(2, '0')}.xlsx` };
 }

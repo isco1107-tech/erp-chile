@@ -46,6 +46,8 @@ import {
   findExpiringCandidateContracts,
   findMismatchedPurchases,
 } from '@/modules/alerts/services/operational-alerts.service';
+import { getExpirySummary } from '@/modules/inventory/services/lots.service';
+import { getChequeSummary } from '@/modules/treasury/services/cheques.service';
 
 const SALES_TYPES: DteType[] = ['FACTURA_33', 'FACTURA_EXENTA_34', 'BOLETA_39', 'NOTA_CREDITO_61', 'NOTA_DEBITO_56'];
 
@@ -218,12 +220,14 @@ export default async function DashboardPage() {
     candidates: context.features.hasCandidates && can(context, 'candidates:read'),
     sponsors: context.features.hasSponsorships && can(context, 'sponsorships:read'),
   };
-  const [pendingApprovals, overdueReceivables, expiringContracts, mismatchedPurchases, contractsOverview] = await Promise.all([
+  const [pendingApprovals, overdueReceivables, expiringContracts, mismatchedPurchases, contractsOverview, expiry, chequeSummary] = await Promise.all([
     context.features.hasPurchases && can(context, 'purchases:read') ? findPendingPurchaseApprovals(context.companyId) : Promise.resolve([]),
     context.features.hasTreasury && can(context, 'treasury:read') ? findOverdueReceivables(context.companyId) : Promise.resolve([]),
     context.features.hasCandidates && can(context, 'candidates:read') ? findExpiringCandidateContracts(context.companyId) : Promise.resolve([]),
     context.features.hasPurchases && can(context, 'purchases:read') ? findMismatchedPurchases(context.companyId) : Promise.resolve([]),
     contractsScope.candidates || contractsScope.sponsors ? getContractsOverview(context.companyId, contractsScope) : Promise.resolve(null),
+    context.features.hasInventory && can(context, 'products:read') ? getExpirySummary(context.companyId, now) : Promise.resolve(null),
+    context.features.hasTreasury && can(context, 'treasury:read') ? getChequeSummary(context.companyId, now) : Promise.resolve(null),
   ]);
 
   // Indicadores por módulo: cada empresa contrata un subconjunto distinto de
@@ -597,6 +601,18 @@ export default async function DashboardPage() {
   const todayAlerts: Array<{ key: string; count: number; label: string; href: string; icon: typeof AlertTriangle; tone: 'danger' | 'warning' }> = [];
   if (criticalStockAll.length > 0) {
     todayAlerts.push({ key: 'stock', count: criticalStockAll.length, label: `producto${criticalStockAll.length === 1 ? '' : 's'} bajo stock mínimo`, href: '/dashboard/inventory', icon: PackageSearch, tone: 'danger' });
+  }
+  if (expiry && expiry.expiredLots > 0) {
+    todayAlerts.push({ key: 'lots-expired', count: expiry.expiredLots, label: `lote${expiry.expiredLots === 1 ? '' : 's'} vencido${expiry.expiredLots === 1 ? '' : 's'} con saldo`, href: '/dashboard/inventory/lots', icon: PackageSearch, tone: 'danger' });
+  }
+  if (expiry && expiry.soonLots > 0) {
+    todayAlerts.push({ key: 'lots-soon', count: expiry.soonLots, label: `lote${expiry.soonLots === 1 ? '' : 's'} por vencer en 30 días`, href: '/dashboard/inventory/lots', icon: PackageSearch, tone: 'warning' });
+  }
+  if (chequeSummary && chequeSummary.dueNowCount > 0) {
+    todayAlerts.push({ key: 'cheques', count: chequeSummary.dueNowCount, label: `cheque${chequeSummary.dueNowCount === 1 ? '' : 's'} para depositar`, href: '/dashboard/treasury/cheques', icon: Wallet, tone: 'warning' });
+  }
+  if (chequeSummary && chequeSummary.bouncedCount > 0) {
+    todayAlerts.push({ key: 'cheques-bounced', count: chequeSummary.bouncedCount, label: `cheque${chequeSummary.bouncedCount === 1 ? '' : 's'} protestado${chequeSummary.bouncedCount === 1 ? '' : 's'} por recuperar`, href: '/dashboard/treasury/cheques', icon: FileWarning, tone: 'danger' });
   }
   if (pendingApprovals.length > 0) {
     todayAlerts.push({ key: 'approvals', count: pendingApprovals.length, label: `compra${pendingApprovals.length === 1 ? '' : 's'} esperando aprobación`, href: '/dashboard/purchases', icon: ClipboardCheck, tone: 'warning' });

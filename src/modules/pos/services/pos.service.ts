@@ -256,6 +256,8 @@ export async function createPosSale(
         contactId,
         warehouseId,
         cashShiftId: shiftId,
+        // La cajera del turno es la vendedora de la boleta (comisiones).
+        sellerId: userId,
         dteType: 'BOLETA_39',
         folio,
         status: 'ISSUED',
@@ -350,6 +352,9 @@ export interface PosProduct {
   stock: number;
   isTrackable: boolean;
   isExempt: boolean;
+  barcode: string | null;
+  /** Códigos de empaques: escanear uno agrega `factor` unidades. */
+  packagings: { barcode: string; factor: number; name: string }[];
 }
 
 /**
@@ -360,11 +365,16 @@ export interface PosProduct {
 export async function listPosProducts(companyId: string, warehouseId: string): Promise<PosProduct[]> {
   const products = await prisma.product.findMany({
     where: { companyId },
-    include: { stocks: { where: { warehouseId }, select: { quantity: true } } },
+    include: {
+      stocks: { where: { warehouseId }, select: { quantity: true } },
+      packagings: { where: { barcode: { not: null } }, select: { barcode: true, factor: true, name: true } },
+    },
     orderBy: { name: 'asc' },
   });
 
   return products.map((product) => ({
+    barcode: product.barcode,
+    packagings: product.packagings.map((p) => ({ barcode: p.barcode as string, factor: p.factor, name: p.name })),
     id: product.id,
     sku: product.sku,
     name: product.name,

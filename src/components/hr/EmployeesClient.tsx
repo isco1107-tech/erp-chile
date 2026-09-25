@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { Banknote, Clock4, Hourglass, Plus, Search, Users } from 'lucide-react';
 import type { Employee } from '@prisma/client';
@@ -17,14 +18,14 @@ import { AFP_LABELS } from '@/lib/chile/payroll';
 import { formatShortDate } from '@/lib/intelligence/format';
 import { deleteEmployeeAction, getEmployeesAction, reactivateEmployeeAction, terminateEmployeeAction } from '@/modules/hr/actions/hr.actions';
 import { CONTRACT_TYPE_LABELS } from '@/modules/hr/schema';
-import type { EmployeeRow, HrSummary } from '@/modules/hr/services/employees.service';
+import type { EmployeeRecord, EmployeeRow, HrSummary } from '@/modules/hr/services/employees.service';
 import { EMPTY_EMPLOYEE, EmployeeFormDialog, type EmployeeFormValues } from './EmployeeFormDialog';
 
 function toDateInput(value: Date | string | null): string {
   return value ? new Date(value).toISOString().slice(0, 10) : '';
 }
 
-function toForm(employee: Employee): EmployeeFormValues {
+function toForm(employee: EmployeeRecord): EmployeeFormValues {
   return {
     id: employee.id,
     rut: employee.rut,
@@ -49,6 +50,7 @@ function toForm(employee: Employee): EmployeeFormValues {
     bankName: employee.bankName ?? '',
     bankAccountType: employee.bankAccountType ?? '',
     bankAccountNumber: employee.bankAccountNumber ?? '',
+    nationality: employee.nationality ?? 'Chilena',
     notes: employee.notes ?? '',
   };
 }
@@ -183,7 +185,9 @@ export function EmployeesClient({ canWrite }: { canWrite: boolean }) {
               {rows.map((employee) => (
                 <tr key={employee.id} className="border-t border-border">
                   <td className="px-3 py-2">
-                    <p className="font-medium text-foreground">{employee.fullName}</p>
+                    <Link href={`/dashboard/hr/employees/${employee.id}`} className="font-medium text-foreground hover:underline">
+                      {employee.fullName}
+                    </Link>
                     <p className="text-xs text-muted-foreground">{employee.rut}</p>
                   </td>
                   <td className="px-3 py-2">

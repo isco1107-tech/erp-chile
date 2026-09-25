@@ -472,3 +472,59 @@ html.pos-printing {
     background-color: rgb(255 255 255 / 0.25);
   }
 }
+
+/*
+ * Etiquetas de productos (Inventario → Etiquetas). Mismo interruptor que el
+ * ticket: `labels-printing` en el <html> justo antes de `print()`, para que
+ * el tamaño de página de las etiquetas no afecte al resto de la impresión.
+ */
+/* En pantalla la hoja se muestra algo reducida para que quepa junto al panel; al imprimir va a escala real. */
+.label-sheet {
+  zoom: 0.85;
+}
+
+@media print {
+  html.labels-printing .label-sheet {
+    zoom: 1;
+  }
+
+  html.labels-printing,
+  html.labels-printing body {
+    background: white;
+  }
+
+  html.labels-printing body * {
+    visibility: hidden;
+  }
+
+  html.labels-printing .label-sheet,
+  html.labels-printing .label-sheet * {
+    visibility: visible;
+  }
+
+  html.labels-printing .label-sheet {
+    position: absolute;
+    top: 0;
+    left: 0;
+    color: #000;
+    background: #fff;
+  }
+
+  html.labels-printing .label-sheet[data-layout="roll"] {
+    page: label-roll-page;
+  }
+
+  html.labels-printing .label-sheet:not([data-layout="roll"]) {
+    page: label-a4-page;
+  }
+}
+
+@page label-a4-page {
+  size: A4;
+  margin: 8mm 5mm;
+}
+
+@page label-roll-page {
+  size: 50mm 25mm;
+  margin: 0;
+}

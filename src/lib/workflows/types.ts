@@ -328,6 +328,69 @@ export const WORKFLOW_TRIGGER_DEFINITIONS: Record<WorkflowTriggerEvent, Workflow
       { field: 'businessDays', label: 'Días hábiles', kind: 'number' },
     ],
   },
+  LOT_EXPIRING: {
+    event: 'LOT_EXPIRING',
+    label: 'Lote por vencer',
+    description: 'Un lote con saldo vence en 30 días, en 7, hoy, o venció ayer (se avisa en esos hitos, no a diario).',
+    fields: [
+      { field: 'sku', label: 'SKU', kind: 'string' },
+      { field: 'productName', label: 'Producto', kind: 'string' },
+      { field: 'lotNumber', label: 'Lote', kind: 'string' },
+      { field: 'warehouseName', label: 'Bodega', kind: 'string' },
+      { field: 'quantity', label: 'Saldo del lote', kind: 'number' },
+      { field: 'daysToExpiry', label: 'Días para vencer (negativo = vencido)', kind: 'number' },
+    ],
+  },
+  INVENTORY_COUNT_POSTED: {
+    event: 'INVENTORY_COUNT_POSTED',
+    label: 'Toma de inventario contabilizada',
+    description: 'Se contabilizó una toma de inventario y el stock quedó ajustado a lo contado.',
+    fields: [
+      { field: 'countId', label: 'ID del conteo', kind: 'string' },
+      { field: 'folio', label: 'N° de toma', kind: 'number' },
+      { field: 'warehouseName', label: 'Bodega', kind: 'string' },
+      { field: 'adjusted', label: 'Productos ajustados', kind: 'number' },
+      { field: 'surplusValue', label: 'Sobrante valorizado', kind: 'number' },
+      { field: 'shortageValue', label: 'Faltante valorizado', kind: 'number' },
+    ],
+  },
+  PRODUCTION_ORDER_COMPLETED: {
+    event: 'PRODUCTION_ORDER_COMPLETED',
+    label: 'Orden de producción terminada',
+    description: 'Se completó una orden de producción: los insumos se consumieron y el producto terminado entró a bodega.',
+    fields: [
+      { field: 'orderId', label: 'ID de la orden', kind: 'string' },
+      { field: 'folio', label: 'N° de orden', kind: 'number' },
+      { field: 'productName', label: 'Producto', kind: 'string' },
+      { field: 'quantity', label: 'Cantidad producida', kind: 'number' },
+      { field: 'totalCost', label: 'Costo total', kind: 'number' },
+      { field: 'unitCost', label: 'Costo unitario', kind: 'number' },
+    ],
+  },
+  SERVICE_TICKET_STATUS_CHANGED: {
+    event: 'SERVICE_TICKET_STATUS_CHANGED',
+    label: 'Orden de servicio cambió de estado',
+    description: 'Una orden de servicio técnico avanzó de estado (por ejemplo, quedó lista para retiro). Útil para avisar al cliente con su enlace de seguimiento.',
+    fields: [
+      { field: 'ticketId', label: 'ID de la orden', kind: 'string' },
+      { field: 'folio', label: 'N° de orden', kind: 'number' },
+      { field: 'status', label: 'Estado nuevo', kind: 'string' },
+      { field: 'statusLabel', label: 'Estado (texto)', kind: 'string' },
+      { field: 'customerName', label: 'Cliente', kind: 'string' },
+      { field: 'customerEmail', label: 'Correo del cliente', kind: 'string' },
+      { field: 'equipment', label: 'Equipo', kind: 'string' },
+      { field: 'trackingUrl', label: 'Enlace de seguimiento', kind: 'string' },
+    ],
+  },
+  SERVICE_ESTIMATE_DECIDED: {
+    event: 'SERVICE_ESTIMATE_DECIDED',
+    label: 'Cliente respondió un presupuesto',
+    description: 'El cliente aprobó o rechazó el presupuesto de su orden de servicio desde el enlace de seguimiento.',
+    fields: [
+      { field: 'folio', label: 'N° de orden', kind: 'number' },
+      { field: 'approved', label: 'Aprobado', kind: 'boolean' },
+    ],
+  },
 };
 
 export const WORKFLOW_ACTION_TYPE_LABELS: Record<WorkflowActionType, string> = {

@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { validateRut } from '@/lib/chile/rut';
 import { AFP_INSTITUTIONS } from '@/lib/chile/payroll';
+import { TERMINATION_CAUSE_CODES } from '@/lib/chile/settlement';
+import { MUTUAL_OPTIONS } from '@/lib/chile/payroll-deductions';
 
 export const CONTRACT_TYPES = ['INDEFINIDO', 'PLAZO_FIJO', 'POR_OBRA'] as const;
 export const CONTRACT_TYPE_LABELS: Record<(typeof CONTRACT_TYPES)[number], string> = {
@@ -70,6 +72,8 @@ export const employeeSchema = z
     bankName: optionalText(80),
     bankAccountType: optionalText(40),
     bankAccountNumber: optionalText(40),
+    /** Nacionalidad (la exige el contrato, art. 10 CT). */
+    nationality: optionalText(40),
     notes: optionalText(2000),
   })
   .refine((data) => data.healthInsurance !== 'ISAPRE' || (data.isaprePlanUf !== undefined && data.isaprePlanUf > 0), {
@@ -133,3 +137,61 @@ export type PayrollPeriodInput = z.infer<typeof payrollPeriodSchema>;
 export type PayslipVariablesInput = z.infer<typeof payslipVariablesSchema>;
 export type LeaveRequestInput = z.infer<typeof leaveRequestSchema>;
 export type LeaveReviewInput = z.infer<typeof leaveReviewSchema>;
+
+// ─── Ola 4: préstamos, anticipos, finiquito y portal ─────────────────────────
+
+
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha inválida');
+const periodYear = z.number().int().min(2020).max(2100);
+const periodMonth = z.number().int().min(1).max(12);
+
+export const employeeLoanSchema = z.object({
+  employeeId: z.string().min(1),
+  description: z.string().trim().min(3, 'Describe el préstamo').max(160),
+  principal: z.number().int('El monto debe ser entero').positive('Ingresa el monto del préstamo').max(100_000_000),
+  installments: z.number().int().min(1, 'Al menos una cuota').max(60, 'Máximo 60 cuotas'),
+  startYear: periodYear,
+  startMonth: periodMonth,
+});
+
+export const employeeAdvanceSchema = z.object({
+  employeeId: z.string().min(1),
+  amount: z.number().int('El monto debe ser entero').positive('Ingresa el monto del anticipo'),
+  paidDate: isoDate,
+  year: periodYear,
+  month: periodMonth,
+  notes: z.string().trim().max(300).optional(),
+});
+
+export const settlementSchema = z.object({
+  employeeId: z.string().min(1),
+  terminationDate: isoDate,
+  cause: z.enum(TERMINATION_CAUSE_CODES, 'Elige la causal de término'),
+  noticeGiven: z.boolean(),
+  monthlySalary: z.number().int().min(0),
+  ufValue: z.number().positive('Ingresa el valor de la UF a la fecha de término'),
+  vacationBusinessDays: z.number().min(0).max(400),
+  pendingSalary: z.number().int().min(0),
+  otherEarnings: z.number().int().min(0),
+  otherDeductions: z.number().int().min(0),
+  notes: z.string().trim().max(1000).optional(),
+});
+
+export const PORTAL_LEAVE_TYPES = ['VACATION', 'PERSONAL', 'UNPAID'] as const;
+
+export const portalLeaveSchema = z
+  .object({
+    type: z.enum(PORTAL_LEAVE_TYPES, 'Elige el tipo de solicitud'),
+    startDate: isoDate,
+    endDate: isoDate,
+    reason: z.string().trim().max(300).optional(),
+  })
+  .refine((value) => value.endDate >= value.startDate, { message: 'El término debe ser igual o posterior al inicio', path: ['endDate'] });
+
+export const payrollSettingsSchema = z.object({
+  mutualCode: z.enum(MUTUAL_OPTIONS.map((option) => option.code) as [string, ...string[]]),
+});
+
+export const LOAN_STATUS_LABELS = { ACTIVE: 'Vigente', PAID: 'Pagado', CANCELLED: 'Anulado' } as const;
+export const ADVANCE_STATUS_LABELS = { PENDING: 'Por descontar', DEDUCTED: 'Descontado', CANCELLED: 'Anulado' } as const;
+export const SETTLEMENT_STATUS_LABELS = { DRAFT: 'Borrador', FINAL: 'Definitivo', CANCELLED: 'Anulado' } as const;

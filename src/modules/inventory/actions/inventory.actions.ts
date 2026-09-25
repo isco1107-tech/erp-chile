@@ -9,6 +9,7 @@ import { prisma } from '@/lib/prisma';
 import { stockMovementSchema, warehouseCreateSchema } from '../schema';
 import * as stockService from '../services/stock.service';
 import type { StockByWarehouseRow } from '../services/stock.service';
+import { normalizeLotNumber, parseExpiryDate } from '@/lib/inventory/lots';
 
 export type ActionResult<T> =
   | { success: true; data: T; message?: string }
@@ -94,9 +95,11 @@ export async function registerStockMovementAction(input: unknown): Promise<Actio
     const session = await requireAuthWithPermission('inventory:write');
     const parsed = stockMovementSchema.safeParse(input);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
-    const { type, productId, warehouseId, quantity, unitCost, targetWarehouseId, reference, notes } = parsed.data;
+    const { type, productId, warehouseId, quantity, unitCost, targetWarehouseId, reference, notes, lotNumber, expiryDate } = parsed.data;
 
     if (type === 'PURCHASE_IN' || type === 'ADJUSTMENT_IN') {
+      // Solo pesa si el producto lleva lotes; si no, `applyStockIn` lo ignora.
+      const lots = lotNumber || expiryDate ? [{ lotNumber: normalizeLotNumber(lotNumber), expiryDate: parseExpiryDate(expiryDate), quantity }] : undefined;
       await stockService.registerStockIn(session.companyId, {
         productId,
         warehouseId,
@@ -105,6 +108,7 @@ export async function registerStockMovementAction(input: unknown): Promise<Actio
         unitCost: unitCost ?? 0,
         reference,
         notes,
+        lots,
       });
     } else if (type === 'TRANSFER') {
       await stockService.registerTransfer(session.companyId, {
@@ -133,7 +137,7 @@ export async function registerStockMovementAction(input: unknown): Promise<Actio
       action: 'STOCK_ADJUSTMENT',
       entity: 'Product',
       entityId: productId,
-      metadata: { type, warehouseId, quantity, unitCost, targetWarehouseId, reference },
+      metadata: { type, warehouseId, quantity, unitCost, targetWarehouseId, reference, lotNumber },
     });
 
     revalidatePath('/dashboard/inventory');

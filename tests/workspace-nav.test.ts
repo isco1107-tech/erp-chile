@@ -53,7 +53,7 @@ describe('registro de navegación', () => {
 
 describe('ítems apagados por la empresa', () => {
   it('desaparecen del menú y el grupo vacío también', () => {
-    const groups = buildWorkspaceNav({ ...FULL_ACCESS, disabledNavItems: ['purchases', 'purchase-orders'] });
+    const groups = buildWorkspaceNav({ ...FULL_ACCESS, disabledNavItems: ['purchases', 'purchase-requests', 'purchase-orders', 'purchases-imports', 'purchases-inbox'] });
     expect(ids(groups)).not.toContain('purchases');
     expect(groups.some((g) => g.label === 'Compras')).toBe(false);
   });

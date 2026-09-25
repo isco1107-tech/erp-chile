@@ -20,6 +20,7 @@ import { reverseDocumentEntries } from '@/modules/accounting/posting-rules/share
 import { isExemptDocument, siiCode } from '@/lib/chile/dte/codes';
 import { assignSalesFolio, stampDocument, type FolioAssignment } from '@/modules/dte/services/stamping.service';
 import { computeDocument, exceedsCreditLimit } from '../calc';
+import { applyOrderProgress, assertSellerInCompany } from './sales-orders.service';
 import { CASH_ELIGIBLE_DTE_TYPES, DTE_TYPE_LABELS, NON_FOLIO_DTE_TYPES, STOCK_AFFECTING_DTE_TYPES } from '../schema';
 import type { SalesDocumentCreateInput } from '../schema';
 
@@ -190,6 +191,37 @@ export async function createSalesDocument(
     // dos veces.
     const referencesIssuedGuide = referencedDocument?.dteType === 'GUIA_DESPACHO_52';
     const affectsStock = isIssuing && documentMovesStockOnIssue(input.dteType, referencedDocument);
+
+    // Nota de venta: el documento avanza lo facturado/despachado de sus líneas
+    // dentro de esta misma transacción (si la emisión falla, el avance vuelve
+    // atrás). Un borrador solo queda vinculado; no avanza nada hasta emitirse.
+    let orderSellerId: string | null = null;
+    if (input.salesOrderId) {
+      const order = await tx.salesOrder.findFirst({
+        where: { id: input.salesOrderId, companyId },
+        select: { id: true, contactId: true, sellerId: true, folio: true },
+      });
+      if (!order) throw new Error('Nota de venta no encontrada');
+      if (order.contactId !== input.contactId) throw new Error(`La nota de venta #${order.folio} es de otro cliente`);
+      orderSellerId = order.sellerId;
+      if (isIssuing) {
+        await applyOrderProgress(tx, companyId, {
+          salesOrderId: order.id,
+          contactId: input.contactId,
+          dteType: input.dteType,
+          formalizesIssuedGuide: referencesIssuedGuide,
+          lines: input.items
+            .filter((item): item is typeof item & { salesOrderItemId: string } => Boolean(item.salesOrderItemId))
+            .map((item) => ({ salesOrderItemId: item.salesOrderItemId, quantity: item.quantity })),
+          sign: 1,
+        });
+      }
+    } else if (input.items.some((item) => item.salesOrderItemId)) {
+      throw new Error('Las líneas de una nota de venta requieren indicar la nota');
+    }
+
+    const sellerId = input.sellerId ?? orderSellerId ?? null;
+    if (sellerId) await assertSellerInCompany(tx, companyId, sellerId);
 
     // Folio: sale de un CAF autorizado por el SII si la empresa tiene folios
     // cargados, y del contador interno si no (ver `assignSalesFolio`). La
@@ -440,9 +472,12 @@ export async function createSalesDocument(
         referenceType: input.referenceType,
         notes: input.notes,
         idempotencyKey: input.idempotencyKey,
+        salesOrderId: input.salesOrderId,
+        sellerId: sellerId ?? undefined,
         items: {
           create: computedItems.map((item) => ({
             companyId,
+            salesOrderItemId: item.salesOrderItemId || undefined,
             productId: item.productId || undefined,
             sku: item.sku,
             description: item.description,
@@ -590,6 +625,21 @@ export async function cancelSalesDocument(companyId: string, id: string, reason?
       ? await findIssuedReferencedDocument(tx, companyId, document.referenceType, document.referenceFolio)
       : null;
     const documentMovedStockOnIssue = documentMovesStockOnIssue(document.dteType, referencedDocumentAtCancel);
+
+    // Devuelve a la nota de venta lo que este documento había facturado o
+    // despachado, con el mismo criterio de la emisión (¿formalizaba una guía?).
+    if (document.salesOrderId) {
+      await applyOrderProgress(tx, companyId, {
+        salesOrderId: document.salesOrderId,
+        contactId: document.contactId,
+        dteType: document.dteType,
+        formalizesIssuedGuide: referencedDocumentAtCancel?.dteType === 'GUIA_DESPACHO_52',
+        lines: document.items
+          .filter((item): item is typeof item & { salesOrderItemId: string } => Boolean(item.salesOrderItemId))
+          .map((item) => ({ salesOrderItemId: item.salesOrderItemId, quantity: item.quantity })),
+        sign: -1,
+      });
+    }
 
     if (documentMovedStockOnIssue) {
       for (const item of document.items) {

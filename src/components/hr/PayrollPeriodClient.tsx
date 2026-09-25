@@ -47,7 +47,8 @@ function rowsFromDetail(detail: PeriodDetail): Row[] {
     workedDays: slip.workedDays,
     overtimeHours: slip.overtimeHours,
     bonuses: slip.bonuses,
-    advances: slip.advances,
+    // Solo lo tecleado a mano: los anticipos registrados en la ficha se suman al calcular.
+    advances: slip.manualAdvances,
     otherDeductions: slip.otherDeductions,
   }));
   const pending: Row[] = detail.pendingEmployees.map((employee) => ({
@@ -260,7 +261,8 @@ export function PayrollPeriodClient({ periodId, canWrite, canClose }: { periodId
                     <th className="px-3 py-2 font-medium">Días</th>
                     <th className="px-3 py-2 font-medium">Horas extra</th>
                     <th className="px-3 py-2 font-medium">Bonos imponibles</th>
-                    <th className="px-3 py-2 font-medium">Anticipos</th>
+                    <th className="px-3 py-2 font-medium">Registrados en la ficha</th>
+                    <th className="px-3 py-2 font-medium">Otros anticipos</th>
                     <th className="px-3 py-2 font-medium">Otros descuentos</th>
                   </tr>
                 </thead>
@@ -283,8 +285,18 @@ export function PayrollPeriodClient({ periodId, canWrite, canClose }: { periodId
                       <td className="px-3 py-2">
                         <CurrencyInput value={row.bonuses} onChange={(v) => updateRow(row.employeeId, { bonuses: v })} className="w-32" aria-label="Bonos" />
                       </td>
+                      <td className="px-3 py-2 text-xs text-muted-foreground">
+                        {detail.registered[row.employeeId] ? (
+                          <>
+                            {detail.registered[row.employeeId]!.advances > 0 && <p className="tabular-nums">Anticipos {formatCurrency(detail.registered[row.employeeId]!.advances)}</p>}
+                            {detail.registered[row.employeeId]!.loans > 0 && <p className="tabular-nums">Cuota préstamo {formatCurrency(detail.registered[row.employeeId]!.loans)}</p>}
+                          </>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
                       <td className="px-3 py-2">
-                        <CurrencyInput value={row.advances} onChange={(v) => updateRow(row.employeeId, { advances: v })} className="w-32" aria-label="Anticipos" />
+                        <CurrencyInput value={row.advances} onChange={(v) => updateRow(row.employeeId, { advances: v })} className="w-32" aria-label="Otros anticipos" />
                       </td>
                       <td className="px-3 py-2">
                         <CurrencyInput value={row.otherDeductions} onChange={(v) => updateRow(row.employeeId, { otherDeductions: v })} className="w-32" aria-label="Otros descuentos" />
@@ -356,6 +368,48 @@ export function PayrollPeriodClient({ periodId, canWrite, canClose }: { periodId
                   <td />
                 </tr>
               </tfoot>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {detail.contributions.length > 0 && (
+        <section className="overflow-hidden rounded-lg border border-border bg-card shadow-card" aria-label="Cotizaciones por institución">
+          <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
+            <div>
+              <h2 className="text-base font-semibold text-foreground">Cotizaciones por institución</h2>
+              <p className="text-xs text-muted-foreground">Lo que se paga en Previred (y el impuesto único en el F29). Úsalo para cuadrar la planilla de Previred antes de pagar.</p>
+            </div>
+            <a href={`/api/hr/payroll/${periodId}/contributions`} className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+              <Download aria-hidden="true" />
+              Planilla de cotizaciones
+            </a>
+          </header>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Institución</th>
+                  <th className="px-3 py-2 text-right font-medium">Trabajadores</th>
+                  <th className="px-3 py-2 text-right font-medium">Cargo trabajador</th>
+                  <th className="px-3 py-2 text-right font-medium">Cargo empleador</th>
+                  <th className="px-3 py-2 text-right font-medium">Total a pagar</th>
+                </tr>
+              </thead>
+              <tbody>
+                {detail.contributions.map((line) => (
+                  <tr key={line.institution} className="border-t border-border">
+                    <td className="px-3 py-2">
+                      <p className="font-medium text-foreground">{line.institution}</p>
+                      <p className="text-xs text-muted-foreground">{line.detail}</p>
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">{line.workers}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{formatCurrency(line.employee)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{formatCurrency(line.employer)}</td>
+                    <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatCurrency(line.total)}</td>
+                  </tr>
+                ))}
+              </tbody>
             </table>
           </div>
         </section>

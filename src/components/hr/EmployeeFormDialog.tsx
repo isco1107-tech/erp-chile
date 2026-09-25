@@ -37,6 +37,7 @@ export interface EmployeeFormValues {
   bankName: string;
   bankAccountType: string;
   bankAccountNumber: string;
+  nationality: string;
   notes: string;
 }
 
@@ -63,6 +64,7 @@ export const EMPTY_EMPLOYEE: EmployeeFormValues = {
   bankName: '',
   bankAccountType: '',
   bankAccountNumber: '',
+  nationality: 'Chilena',
   notes: '',
 };
 
@@ -134,7 +136,11 @@ export function EmployeeFormDialog({ open, onOpenChange, initial, onSaved }: { o
                 <Label htmlFor="emp-phone">Teléfono</Label>
                 <Input id="emp-phone" value={values.phone} onChange={(e) => set('phone', e.target.value)} />
               </div>
-              <div className="sm:col-span-3">
+              <div>
+                <Label htmlFor="emp-nationality">Nacionalidad</Label>
+                <Input id="emp-nationality" value={values.nationality} onChange={(e) => set('nationality', e.target.value)} />
+              </div>
+              <div className="sm:col-span-2">
                 <Label htmlFor="emp-address">Dirección</Label>
                 <Input id="emp-address" value={values.address} onChange={(e) => set('address', e.target.value)} />
               </div>

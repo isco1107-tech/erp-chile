@@ -66,6 +66,19 @@ const CASCADES_TO_COMPANY = new Set([
   'PayrollPeriod',
   'Payslip',
   'LeaveRequest',
+  // Remuneraciones · Ola 4: `onDelete: Cascade` directo hacia Company (y
+  // hacia Employee), igual que el resto del módulo de personas.
+  'EmployeeLoan',
+  'EmployeeAdvance',
+  'EmployeeSettlement',
+  // SII · Ola 5: bandeja de DTE recibidos y RCV importado. `onDelete:
+  // Cascade` directo hacia Company; la FK de ReceivedDte hacia
+  // PurchaseDocument es `SetNull`, así que no bloquea el borrado de compras.
+  'ReceivedDte',
+  'RcvImport',
+  // Activo fijo · Ola 6: mantenciones, `onDelete: Cascade` hacia Company y
+  // hacia FixedAsset.
+  'FixedAssetMaintenance',
   'FixedAsset',
   'ExpenseReport',
   'ExpenseItem',

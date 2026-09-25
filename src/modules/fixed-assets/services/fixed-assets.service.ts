@@ -1,12 +1,12 @@
 import 'server-only';
 
-import type { FixedAsset } from '@prisma/client';
+import type { FixedAsset, FixedAssetMaintenance } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { isUniqueConstraintError } from '@/lib/prisma-errors';
 import { annualSchedule, depreciationAt, depreciationForMonth, type DepreciationState, type ScheduleRow } from '@/lib/assets/depreciation';
 import { createAndPostEntry } from '@/modules/accounting/services/journal.service';
-import type { DisposeAssetInput, FixedAssetInput } from '../schema';
+import type { DisposeAssetInput, FixedAssetInput, MaintenanceInput } from '../schema';
 
 /**
  * Registro de activo fijo. La depreciación se calcula al vuelo
@@ -169,4 +169,80 @@ export async function postMonthlyDepreciation(companyId: string, userId: string,
     });
     return { amount, entryNumber: entry.entryNumber };
   }, LOCKING_TX_OPTIONS);
+}
+
+// ─── Ficha del bien y mantenciones (Ola 6) ───────────────────────────────────
+
+export type AssetDetail = AssetRow & { maintenances: FixedAssetMaintenance[]; maintenanceCost: number; nextMaintenance: Date | null };
+
+export async function getAsset(companyId: string, id: string): Promise<AssetDetail | null> {
+  const asset = await prisma.fixedAsset.findFirst({
+    where: { id, companyId },
+    include: { supplier: { select: { id: true, razonSocial: true, rut: true } }, maintenances: { orderBy: { date: 'desc' } } },
+  });
+  if (!asset) return null;
+  const { maintenances, ...rest } = asset;
+  // La próxima fecha vigente es la del registro más reciente que la tenga.
+  const nextMaintenance = maintenances.find((maintenance) => maintenance.nextDueDate)?.nextDueDate ?? null;
+  return {
+    ...rest,
+    state: depreciationAt(rest, new Date()),
+    schedule: annualSchedule(rest),
+    maintenances,
+    maintenanceCost: maintenances.reduce((sum, maintenance) => sum + maintenance.cost, 0),
+    nextMaintenance,
+  };
+}
+
+export async function addMaintenance(companyId: string, assetId: string, userName: string, input: MaintenanceInput): Promise<void> {
+  const asset = await prisma.fixedAsset.findFirst({ where: { id: assetId, companyId }, select: { status: true, acquisitionDate: true } });
+  if (!asset) throw new Error('El activo no existe');
+  const date = new Date(`${input.date}T12:00:00Z`);
+  if (date < asset.acquisitionDate) throw new Error('La mantención no puede ser anterior a la adquisición');
+  await prisma.fixedAssetMaintenance.create({
+    data: {
+      companyId,
+      assetId,
+      date,
+      kind: input.kind,
+      description: input.description,
+      cost: input.cost,
+      provider: input.provider || null,
+      nextDueDate: input.nextDueDate ? new Date(`${input.nextDueDate}T12:00:00Z`) : null,
+      createdByName: userName,
+    },
+  });
+}
+
+export async function deleteMaintenance(companyId: string, assetId: string, maintenanceId: string): Promise<void> {
+  const { count } = await prisma.fixedAssetMaintenance.deleteMany({ where: { id: maintenanceId, assetId, companyId } });
+  if (count === 0) throw new Error('La mantención no existe');
+}
+
+export interface UpcomingMaintenance {
+  assetId: string;
+  code: string;
+  name: string;
+  location: string | null;
+  dueDate: Date;
+  overdue: boolean;
+}
+
+/**
+ * Mantenciones programadas de los bienes activos: la próxima fecha del
+ * registro más reciente de cada bien, si vence dentro de `days` días o ya
+ * venció.
+ */
+export async function upcomingMaintenances(companyId: string, days = 30): Promise<UpcomingMaintenance[]> {
+  const now = new Date();
+  const limit = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+  const assets = await prisma.fixedAsset.findMany({
+    where: { companyId, status: 'ACTIVE', maintenances: { some: { nextDueDate: { not: null } } } },
+    select: { id: true, code: true, name: true, location: true, maintenances: { where: { nextDueDate: { not: null } }, orderBy: { date: 'desc' }, take: 1, select: { nextDueDate: true } } },
+  });
+  return assets
+    .map((asset) => ({ asset, dueDate: asset.maintenances[0]?.nextDueDate ?? null }))
+    .filter((entry): entry is { asset: (typeof assets)[number]; dueDate: Date } => entry.dueDate !== null && entry.dueDate <= limit)
+    .map(({ asset, dueDate }) => ({ assetId: asset.id, code: asset.code, name: asset.name, location: asset.location, dueDate, overdue: dueDate < now }))
+    .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
 }
