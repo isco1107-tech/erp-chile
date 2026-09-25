@@ -2,12 +2,24 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { formatCurrency } from '@/lib/chile/tax';
-import { initials, type PageantView } from '@/lib/events/pageant-site';
+import {
+  initials,
+  registrationProcess,
+  splitPackageBenefits,
+  sponsorProcess,
+  whatsappGreeting,
+  whatsappMessageUrl,
+  whatsappPackageMessage,
+  type PageantAudience,
+  type PageantView,
+} from '@/lib/events/pageant-site';
 import type { PublicPageantCandidate, PublicPageantSite } from '@/modules/projects/services/public-site.service';
 import { Arrow, Calendar, Check, Chevron, Close, Crown, Diamond, Instagram, Mail, Pin, Plus, Ticket, Tiara, Whatsapp } from './icons';
 import { PAGEANT_FONT_CLASSES } from './fonts';
 import { HeroSky, Kicker, pad } from './parts';
 import { SponsorLeadForm } from './SponsorLeadForm';
+import { CandidateApplicationForm } from './CandidateApplicationForm';
+import { WhatsappFloat } from './WhatsappFloat';
 import { PAGEANT_SITE_STYLES } from './styles';
 
 /**
@@ -38,7 +50,7 @@ function useCountdown(target: string | null) {
 }
 
 /** Animaciones de entrada al hacer scroll. Solo se activan con JS y sin "reducir movimiento": sin eso, todo se ve de inmediato. */
-function useReveal(rootRef: React.RefObject<HTMLDivElement | null>) {
+function useReveal(rootRef: React.RefObject<HTMLDivElement | null>, key: string) {
   useEffect(() => {
     const root = rootRef.current;
     if (!root || window.matchMedia('(prefers-reduced-motion: reduce)').matches || !('IntersectionObserver' in window)) return;
@@ -54,9 +66,10 @@ function useReveal(rootRef: React.RefObject<HTMLDivElement | null>) {
       },
       { rootMargin: '0px 0px -8% 0px', threshold: 0.08 }
     );
-    root.querySelectorAll('[data-reveal]').forEach((el) => observer.observe(el));
+    root.querySelectorAll('[data-reveal]:not(.is-in)').forEach((el) => observer.observe(el));
     return () => observer.disconnect();
-  }, [rootRef]);
+    // `key` cambia al pasar de la vista de candidatas a la de sponsors: las secciones nuevas también se revelan.
+  }, [rootRef, key]);
 }
 
 /** Sección visible en pantalla, para marcar el enlace activo del menú. */
@@ -187,12 +200,41 @@ function CandidateDialog({
 
 export function PageantSite({ site, view }: { site: PublicPageantSite; view: PageantView }) {
   const rootRef = useRef<HTMLDivElement>(null);
-  useReveal(rootRef);
   const galaCountdown = useCountdown(site.results ? null : site.galaDate);
   const closeCountdown = useCountdown(site.registration?.closesAt ?? null);
   const [selected, setSelected] = useState<number | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [pickedPackageId, setPickedPackageId] = useState<string | null>(null);
+
+  // Dos caras del sitio, como la convocatoria de referencia: "Quiero ser
+  // candidata" y "Ser sponsor". El selector solo aparece si existen las dos.
+  const hasCandidateSide = Boolean(site.registration) || site.candidates.length > 0 || Boolean(site.voting) || Boolean(site.results);
+  const hasSponsorSide = site.packages.length > 0 || site.sponsorLeadForm || site.sponsorsByTier.length > 0;
+  const showAudienceSwitch = hasCandidateSide && hasSponsorSide;
+  const [audience, setAudience] = useState<PageantAudience>(hasCandidateSide ? 'candidata' : 'sponsor');
+  useEffect(() => {
+    // `?vista=sponsor` o `#auspicios` abren directo la vista de sponsors (links compartidos).
+    const params = new URLSearchParams(window.location.search);
+    if (showAudienceSwitch && (params.get('vista') === 'sponsor' || window.location.hash === '#auspicios')) setAudience('sponsor');
+  }, [showAudienceSwitch]);
+  const switchAudience = (next: PageantAudience) => {
+    setAudience(next);
+    setMenuOpen(false);
+    window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  };
+  // Sin selector, la vista es la única cara que existe; un sitio sin ninguna de las dos (solo gala, entradas…) se muestra como siempre.
+  const isSponsorView = showAudienceSwitch ? audience === 'sponsor' : hasSponsorSide && !hasCandidateSide;
+  const whatsappFloat = site.whatsapp
+    ? { href: whatsappMessageUrl(site.whatsapp.href, whatsappGreeting(isSponsorView ? 'sponsor' : 'candidata', site.name)), label: isSponsorView ? 'Escríbenos por WhatsApp para ser sponsor' : 'Escríbenos por WhatsApp para ser candidata' }
+    : null;
+  useReveal(rootRef, isSponsorView ? 'sponsor' : 'candidata');
+  const packageBenefits = useMemo(() => splitPackageBenefits(site.packages), [site.packages]);
+  const pickedPackage = site.packages.find((p) => p.id === pickedPackageId) ?? null;
+  const pickPackage = (id: string) => {
+    setPickedPackageId(id);
+    document.getElementById('formulario-sponsor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   const { title } = view;
   const shortName = [title.lead, title.main].filter(Boolean).join(' ');
@@ -204,25 +246,30 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
 
   // Numeración editorial de las secciones visibles (01, 02, …) en el orden en que aparecen.
   const sections = useMemo(() => {
+    const candidateSide = !isSponsorView;
     const list: Array<{ id: string; label: string; show: boolean }> = [
-      { id: 'resultados', label: 'Resultados', show: Boolean(winner) },
+      { id: 'resultados', label: 'Resultados', show: candidateSide && Boolean(winner) },
       { id: 'certamen', label: 'El certamen', show: Boolean(site.description) || view.highlights.length > 0 },
-      { id: 'camino', label: 'El camino', show: true },
-      { id: 'postula', label: 'Postula', show: Boolean(site.registration) },
+      // Con la convocatoria abierta, "Así es el proceso" de la inscripción reemplaza al recorrido general.
+      { id: 'camino', label: 'El camino', show: candidateSide && !site.registration },
+      { id: 'postula', label: 'Inscripción', show: candidateSide && Boolean(site.registration) },
       { id: 'candidatas', label: 'Candidatas', show: site.candidates.length > 0 },
-      { id: 'votacion', label: 'Votación', show: Boolean(site.voteRanking && site.voteRanking.length > 0) },
+      { id: 'votacion', label: 'Votación', show: candidateSide && Boolean(site.voteRanking && site.voteRanking.length > 0) },
       { id: 'gala', label: 'La gala', show: hasGala },
-      { id: 'auspicios', label: 'Auspicios', show: hasSponsorSection },
-      { id: 'preguntas', label: 'Preguntas', show: view.faq.length > 0 },
+      { id: 'auspicios', label: showAudienceSwitch ? 'Paquetes' : 'Auspicios', show: hasSponsorSection && (isSponsorView || !showAudienceSwitch) },
+      { id: 'preguntas', label: 'Preguntas', show: candidateSide && view.faq.length > 0 },
     ];
     return list.filter((s) => s.show);
-  }, [winner, site.description, site.registration, site.candidates.length, site.voteRanking, hasGala, hasSponsorSection, view.highlights.length, view.faq.length]);
+  }, [winner, site.description, site.registration, site.candidates.length, site.voteRanking, hasGala, hasSponsorSection, view.highlights.length, view.faq.length, isSponsorView, showAudienceSwitch]);
+  const shows = (id: string) => sections.some((s) => s.id === id);
   const numberOf = (id: string) => pad(sections.findIndex((s) => s.id === id) + 1);
   const navItems = sections.filter((s) => !['camino', 'preguntas'].includes(s.id)).slice(0, 6);
   const active = useScrollSpy(sections.map((s) => s.id));
 
-  const primaryCta = site.registration
-    ? { href: site.registration.href, label: 'Postula' }
+  const primaryCta = showAudienceSwitch
+    ? null
+    : site.registration
+    ? { href: '#postula', label: 'Inscríbete' }
     : site.tickets
       ? { href: site.tickets.href, label: 'Entradas' }
       : site.voting
@@ -291,6 +338,18 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
           </nav>
         )}
         <div className="pgs-top-actions">
+          {showAudienceSwitch && (
+            <div className="pgs-audience" role="group" aria-label="¿Qué te interesa?">
+              <button type="button" aria-pressed={isSponsorView} className={isSponsorView ? 'is-active' : ''} onClick={() => switchAudience('sponsor')}>
+                <span className="pgs-lg">Ser sponsor</span>
+                <span className="pgs-sm">Sponsor</span>
+              </button>
+              <button type="button" aria-pressed={!isSponsorView} className={!isSponsorView ? 'is-active' : ''} onClick={() => switchAudience('candidata')}>
+                <span className="pgs-lg">Quiero ser candidata</span>
+                <span className="pgs-sm">Candidata</span>
+              </button>
+            </div>
+          )}
           {primaryCta && (
             <a className="pgs-btn is-gold is-small" href={primaryCta.href}>
               <span>{primaryCta.label}</span>
@@ -413,13 +472,36 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
           </div>
 
           <div className="pgs-hero-ctas pgs-rise" style={{ animationDelay: '0.96s' }}>
-            {site.registration && (
-              <a className="pgs-btn is-gold" href={site.registration.href}>
-                <span>Postula al certamen</span>
-                <Arrow className="pgs-btn-icon" />
-              </a>
+            {isSponsorView ? (
+              <>
+                {whatsappFloat ? (
+                  <a className="pgs-btn is-gold" href={whatsappFloat.href} target="_blank" rel="noopener noreferrer">
+                    <span>Quiero ser sponsor</span>
+                    <Arrow className="pgs-btn-icon" />
+                  </a>
+                ) : (
+                  site.sponsorLeadForm && (
+                    <a className="pgs-btn is-gold" href="#formulario-sponsor">
+                      <span>Quiero ser sponsor</span>
+                      <Arrow className="pgs-btn-icon" />
+                    </a>
+                  )
+                )}
+                {site.packages.length > 0 && (
+                  <a className="pgs-btn is-ghost" href="#auspicios">
+                    <span>Ver los {site.packages.length} paquetes</span>
+                  </a>
+                )}
+              </>
+            ) : (
+              site.registration && (
+                <a className="pgs-btn is-gold" href="#postula">
+                  <span>Quiero inscribirme</span>
+                  <Arrow className="pgs-btn-icon" />
+                </a>
+              )
             )}
-            {site.tickets && (
+            {!isSponsorView && site.tickets && (
               <a className={`pgs-btn ${site.registration ? 'is-ghost' : 'is-gold'}`} href={site.tickets.href}>
                 <Ticket className="pgs-btn-icon is-lead" />
                 <span>
@@ -428,14 +510,14 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
                 </span>
               </a>
             )}
-            {site.voting && (
+            {!isSponsorView && site.voting && (
               <a className="pgs-btn is-ghost" href={site.voting.href}>
                 <span className="pgs-lg">Vota por tu favorita</span>
                 <span className="pgs-sm">Votar</span>
               </a>
             )}
           </div>
-          {view.registrationClosesLabel && (
+          {!isSponsorView && view.registrationClosesLabel && (
             <p className="pgs-hero-note pgs-rise" style={{ animationDelay: '1.05s' }}>
               <span className="pgs-live-dot" aria-hidden="true" />
               Postulaciones abiertas hasta el {view.registrationClosesLabel}
@@ -467,7 +549,7 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
 
       <main id="contenido" tabIndex={-1}>
         {/* ── Resultados ───────────────────────────────────────────────── */}
-        {winner && (
+        {shows('resultados') && winner && (
           <section id="resultados" className="pgs-section is-night pgs-results" aria-labelledby="pgs-results-title">
             <div className="pgs-wrap">
               <Kicker index={numberOf('resultados')}>Resultados oficiales</Kicker>
@@ -500,7 +582,7 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
         )}
 
         {/* ── El certamen ──────────────────────────────────────────────── */}
-        {(site.description || view.highlights.length > 0) && (
+        {shows('certamen') && (
           <section id="certamen" className="pgs-section is-paper" aria-labelledby="pgs-about-title">
             <div className="pgs-wrap pgs-about">
               <div className="pgs-about-head" data-reveal>
@@ -547,6 +629,7 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
         )}
 
         {/* ── El camino a la corona ───────────────────────────────────── */}
+        {shows('camino') && (
         <section id="camino" className="pgs-section is-night" aria-labelledby="pgs-journey-title">
           <div className="pgs-wrap">
             <div className="pgs-section-head" data-reveal>
@@ -572,64 +655,90 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
             </ol>
           </div>
         </section>
+        )}
 
-        {/* ── Convocatoria ─────────────────────────────────────────────── */}
-        {site.registration && (
-          <section id="postula" className="pgs-section is-paper" aria-labelledby="pgs-apply-title">
+        {/* ── Inscripción ──────────────────────────────────────────────── */}
+        {shows('postula') && site.registration && (
+          <section id="postula" className="pgs-section is-night is-deep" aria-labelledby="pgs-apply-title">
             <div className="pgs-wrap">
-              <div className="pgs-apply" data-reveal>
-                <span className="pgs-apply-glow" aria-hidden="true" />
-                <div className="pgs-apply-main">
-                  <Kicker index={numberOf('postula')}>
-                    <span className="pgs-live-dot" aria-hidden="true" />
-                    Convocatoria abierta
-                  </Kicker>
-                  <h2 id="pgs-apply-title" className="pgs-h2">
-                    Tu historia puede <em>empezar aquí</em>
-                  </h2>
-                  <p className="pgs-apply-text">
-                    La postulación es en línea y toma pocos minutos. Completa tu ficha con tus datos, tu motivación y tus fotografías: al enviarla recibes tu folio al instante y la
-                    organización te contacta si avanzas a la instancia de casting.
+              <div className="pgs-callout" data-reveal>
+                <span className="pgs-callout-mark" aria-hidden="true">
+                  <Crown />
+                </span>
+                <div>
+                  <p className="pgs-callout-title">Preselección</p>
+                  <p>
+                    {site.registration.maxCandidates ? (
+                      <>
+                        Solo <strong>{site.registration.maxCandidates} candidatas</strong> serán escogidas.{' '}
+                      </>
+                    ) : null}
+                    Inscríbete en el formulario y espera el llamado, correo o WhatsApp de la organización con el resultado de tu preselección.
                   </p>
-                  <div className="pgs-apply-ctas">
-                    <a className="pgs-btn is-gold" href={site.registration.href}>
-                      <span>Comenzar mi postulación</span>
-                      <Arrow className="pgs-btn-icon" />
-                    </a>
-                    <a className="pgs-link" href={`${site.registration.href}#requisitos`}>
-                      Ver requisitos y bases
-                    </a>
-                  </div>
                 </div>
-                <div className="pgs-apply-side">
-                  {closeCountdown && (
-                    <div className="pgs-apply-countdown" role="timer" aria-label="Tiempo para el cierre de postulaciones">
-                      <p className="pgs-apply-countdown-label">Cierre de postulaciones</p>
-                      <p className="pgs-apply-countdown-value">
-                        <span>{closeCountdown.days}</span>
-                        <small>{closeCountdown.days === 1 ? 'día' : 'días'}</small>
-                        <span>{pad(closeCountdown.hours)}</span>
-                        <small>hrs</small>
-                      </p>
-                      {view.registrationClosesLabel && <p className="pgs-apply-countdown-date">Hasta el {view.registrationClosesLabel}</p>}
-                    </div>
-                  )}
-                  <ul className="pgs-checklist">
-                    {[
-                      `Tener ${site.registration.minAge} años cumplidos`,
-                      'Formulario en línea, paso a paso',
-                      'Dos fotografías recientes: rostro y cuerpo completo',
-                      'Folio de postulación al instante',
-                    ].map((item) => (
-                      <li key={item}>
+              </div>
+
+              <div className="pgs-section-head is-center pgs-subhead" data-reveal>
+                <Kicker index={numberOf('postula')}>Tu camino a la corona</Kicker>
+                <h2 id="pgs-apply-title" className="pgs-h2">
+                  Así es <em>el proceso</em>
+                </h2>
+              </div>
+              <ol className="pgs-steps" data-reveal>
+                {registrationProcess({ name: site.name, maxCandidates: site.registration.maxCandidates }).map((step, i) => (
+                  <li key={step.title}>
+                    <span className="pgs-steps-num" aria-hidden="true">
+                      {i + 1}
+                    </span>
+                    <span className="pgs-steps-title">{step.title}</span>
+                    <span className="pgs-steps-detail">{step.detail}</span>
+                  </li>
+                ))}
+              </ol>
+
+              {site.registration.benefits.length > 0 && (
+                <>
+                  <div className="pgs-section-head is-center pgs-subhead" data-reveal>
+                    <p className="pgs-eyebrow">Qué incluye tu inscripción</p>
+                    <h2 className="pgs-h2">
+                      Formación profesional <em>antes de tu competencia</em>
+                    </h2>
+                  </div>
+                  <ul className="pgs-includes" data-reveal>
+                    {site.registration.benefits.map((benefit) => (
+                      <li key={benefit}>
                         <span className="pgs-check" aria-hidden="true">
                           <Check />
                         </span>
-                        {item}
+                        {benefit}
                       </li>
                     ))}
                   </ul>
+                  {site.registration.classesNote && (
+                    <p className="pgs-note" data-reveal>
+                      <strong>Lugar y horario de clases:</strong> {site.registration.classesNote}
+                    </p>
+                  )}
+                </>
+              )}
+
+              <div id="formulario-inscripcion" className="pgs-lead" data-reveal>
+                <div className="pgs-lead-intro">
+                  <p className="pgs-eyebrow is-ink">Postula ahora</p>
+                  <h3 className="pgs-h3 is-ink">
+                    Formulario de <em>inscripción</em>
+                  </h3>
+                  <p>
+                    Completa tus datos y espera el llamado, correo o WhatsApp de la organización con el resultado de tu preselección
+                    {site.registration.maxCandidates ? ` (solo ${site.registration.maxCandidates} candidatas)` : ''}.
+                  </p>
+                  {closeCountdown && view.registrationClosesLabel && <p className="pgs-lead-deadline">Inscripciones abiertas hasta el {view.registrationClosesLabel}.</p>}
                 </div>
+                <CandidateApplicationForm
+                  token={site.registration.token}
+                  minAge={site.registration.minAge}
+                  privacyHref={`/politica-privacidad?certamen=${encodeURIComponent(site.registration.token)}`}
+                />
               </div>
             </div>
           </section>
@@ -683,7 +792,7 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
         )}
 
         {/* ── Votación ─────────────────────────────────────────────────── */}
-        {site.voteRanking && site.voteRanking.length > 0 && (
+        {shows('votacion') && site.voteRanking && site.voteRanking.length > 0 && (
           <section id="votacion" className="pgs-section is-night is-deep" aria-labelledby="pgs-ranking-title">
             <div className="pgs-wrap pgs-vote">
               <div className="pgs-vote-head" data-reveal>
@@ -782,93 +891,167 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
           </section>
         )}
 
-        {/* ── Auspicios ────────────────────────────────────────────────── */}
-        {hasSponsorSection && (
-          <section id="auspicios" className="pgs-section is-night" aria-labelledby="pgs-sponsors-title">
+        {/* ── Sponsors ─────────────────────────────────────────────────── */}
+        {shows('auspicios') && (
+          <section id="auspicios" className="pgs-section is-night" aria-label="Sponsors">
             <div className="pgs-wrap">
-              <div className="pgs-section-head is-center" data-reveal>
-                <Kicker index={numberOf('auspicios')}>Marcas que nos acompañan</Kicker>
-                <h2 id="pgs-sponsors-title" className="pgs-h2">
-                  Auspiciadores <em>oficiales</em>
-                </h2>
-              </div>
-
-              {site.sponsorsByTier.length > 0 && (
-                <div className="pgs-sponsors" data-reveal>
-                  {site.sponsorsByTier.map((group, i) => (
-                    <div key={group.tier} className={`pgs-sponsor-tier${i === 0 ? ' is-top' : ''}`}>
-                      <p className="pgs-sponsor-label">
-                        <span aria-hidden="true" />
-                        {group.label}
-                        <span aria-hidden="true" />
-                      </p>
-                      <ul>
-                        {group.names.map((name) => (
-                          <li key={name}>{name}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
+              {showAudienceSwitch && (
+                <>
+                  <div className="pgs-section-head is-center pgs-subhead" data-reveal>
+                    <p className="pgs-eyebrow">Súmate como sponsor</p>
+                    <h2 className="pgs-h2">
+                      Así funciona <em>tu alianza</em>
+                    </h2>
+                  </div>
+                  <ol className="pgs-steps" data-reveal>
+                    {sponsorProcess({ hasPackages: site.packages.length > 0, hasWhatsapp: Boolean(site.whatsapp) }).map((step, i) => (
+                      <li key={step.title}>
+                        <span className="pgs-steps-num" aria-hidden="true">
+                          {i + 1}
+                        </span>
+                        <span className="pgs-steps-title">{step.title}</span>
+                        <span className="pgs-steps-detail">{step.detail}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </>
               )}
 
               {site.packages.length > 0 && (
                 <>
-                  <h3 className="pgs-h3" data-reveal>
-                    Planes de auspicio
-                  </h3>
+                  <div className="pgs-section-head is-center pgs-subhead" data-reveal>
+                    <Kicker index={numberOf('auspicios')}>Patrocinios oficiales</Kicker>
+                    <h2 className="pgs-h2">
+                      Elige tu paquete <em>de patrocinio</em>
+                    </h2>
+                  </div>
                   <ul className="pgs-packages">
-                    {site.packages.map((p, i) => (
-                      <li key={p.id} className={`pgs-package${i === 0 ? ' is-featured' : ''}${p.slotsLeft === 0 ? ' is-soldout' : ''}`} data-reveal style={{ transitionDelay: `${i * 0.08}s` }}>
-                        <p className="pgs-eyebrow">{p.tierLabel}</p>
-                        <p className="pgs-package-name">{p.name}</p>
-                        {p.price != null && (
-                          <p className="pgs-package-price">
-                            {formatCurrency(p.price)} <span>+ IVA</span>
-                          </p>
-                        )}
-                        {p.description && <p className="pgs-package-desc">{p.description}</p>}
-                        {p.benefits.length > 0 && (
-                          <ul className="pgs-benefits">
-                            {p.benefits.map((benefit) => (
-                              <li key={benefit}>
-                                <Diamond className="pgs-benefit-mark" />
-                                {benefit}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                        {p.slotsLeft != null && (
-                          <p className="pgs-slots">{p.slotsLeft === 0 ? 'Cupos agotados' : `${p.slotsLeft} ${p.slotsLeft === 1 ? 'cupo disponible' : 'cupos disponibles'}`}</p>
-                        )}
-                      </li>
-                    ))}
+                    {site.packages.map((p, i) => {
+                      const exclusive = packageBenefits.exclusive[p.id] ?? [];
+                      const priceLabel = p.price != null ? `${formatCurrency(p.price)} + IVA` : null;
+                      return (
+                        <li key={p.id} className={`pgs-package${i === 0 ? ' is-featured' : ''}${p.slotsLeft === 0 ? ' is-soldout' : ''}`} data-reveal style={{ transitionDelay: `${i * 0.08}s` }}>
+                          <p className="pgs-eyebrow">{i === 0 && site.packages.length > 1 ? 'Más exclusivo' : p.tierLabel}</p>
+                          <p className="pgs-package-name">{p.name}</p>
+                          {p.price != null && (
+                            <p className="pgs-package-price">
+                              {formatCurrency(p.price)} <span>+ IVA</span>
+                            </p>
+                          )}
+                          {p.description && <p className="pgs-package-desc">{p.description}</p>}
+                          {packageBenefits.common.length > 0 && (
+                            <>
+                              <p className="pgs-package-group">Incluye en todos los paquetes</p>
+                              <ul className="pgs-benefits">
+                                {packageBenefits.common.map((benefit) => (
+                                  <li key={benefit}>
+                                    <Diamond className="pgs-benefit-mark" />
+                                    {benefit}
+                                  </li>
+                                ))}
+                              </ul>
+                            </>
+                          )}
+                          {exclusive.length > 0 && (
+                            <>
+                              {packageBenefits.common.length > 0 && <p className="pgs-package-group">Exclusivo {p.name}</p>}
+                              <ul className="pgs-benefits">
+                                {exclusive.map((benefit) => (
+                                  <li key={benefit}>
+                                    <Diamond className="pgs-benefit-mark" />
+                                    {benefit}
+                                  </li>
+                                ))}
+                              </ul>
+                            </>
+                          )}
+                          {p.slotsLeft != null && (
+                            <p className="pgs-slots">{p.slotsLeft === 0 ? 'Cupos agotados' : `${p.slotsLeft} ${p.slotsLeft === 1 ? 'cupo disponible' : 'cupos disponibles'}`}</p>
+                          )}
+                          {p.slotsLeft !== 0 && (site.sponsorLeadForm || site.whatsapp) && (
+                            <div className="pgs-package-actions">
+                              {site.sponsorLeadForm && (
+                                <button type="button" className="pgs-btn is-gold is-small" onClick={() => pickPackage(p.id)}>
+                                  <span>Quiero {p.name}</span>
+                                </button>
+                              )}
+                              {site.whatsapp && (
+                                <a className="pgs-link" href={whatsappMessageUrl(site.whatsapp.href, whatsappPackageMessage(site.name, p.name, priceLabel))} target="_blank" rel="noopener noreferrer">
+                                  o consultar por WhatsApp
+                                </a>
+                              )}
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </>
               )}
 
-              {site.sponsorLeadForm && (
-                <div className="pgs-lead" data-reveal>
-                  <div className="pgs-lead-intro">
-                    <h3 className="pgs-h3 is-ink">
-                      ¿Tu marca quiere <em>estar aquí?</em>
-                    </h3>
-                    <p>Déjanos tus datos y te enviamos la propuesta comercial del certamen, con los planes y cupos disponibles.</p>
+              {site.whatsapp && showAudienceSwitch && (
+                <div className="pgs-callout is-center" data-reveal>
+                  <div>
+                    <p className="pgs-callout-title">¿Prefieres coordinarlo directo con nosotros?</p>
+                    <p>Escríbenos por WhatsApp y te ayudamos a elegir el paquete ideal para tu marca.</p>
                   </div>
-                  <SponsorLeadForm slug={site.slug} packages={site.packages} />
+                  <a className="pgs-btn is-gold" href={whatsappMessageUrl(site.whatsapp.href, whatsappGreeting('sponsor', site.name))} target="_blank" rel="noopener noreferrer">
+                    <Whatsapp className="pgs-btn-icon is-lead" />
+                    <span>Quiero ser sponsor</span>
+                  </a>
                 </div>
               )}
-              {!site.sponsorLeadForm && site.contactEmail && (
+
+              {site.sponsorLeadForm && (
+                <div id="formulario-sponsor" className="pgs-lead" data-reveal>
+                  <div className="pgs-lead-intro">
+                    <p className="pgs-eyebrow is-ink">Postula tu marca</p>
+                    <h3 className="pgs-h3 is-ink">
+                      Formulario de <em>sponsor</em>
+                    </h3>
+                    <p>Completa tus datos y te contactaremos para coordinar tu patrocinio.</p>
+                  </div>
+                  <SponsorLeadForm slug={site.slug} selectedPackage={pickedPackage ? { id: pickedPackage.id, name: pickedPackage.name } : null} onClearPackage={() => setPickedPackageId(null)} />
+                </div>
+              )}
+              {!site.sponsorLeadForm && !site.whatsapp && site.contactEmail && (
                 <p className="pgs-note" data-reveal>
-                  Para auspiciar escríbenos a <a href={`mailto:${site.contactEmail}`}>{site.contactEmail}</a>
+                  Para ser sponsor escríbenos a <a href={`mailto:${site.contactEmail}`}>{site.contactEmail}</a>
                 </p>
+              )}
+
+              {site.sponsorsByTier.length > 0 && (
+                <>
+                  <div className="pgs-section-head is-center pgs-subhead" data-reveal>
+                    <p className="pgs-eyebrow">Marcas que nos acompañan</p>
+                    <h2 className="pgs-h2">
+                      Sponsors <em>oficiales</em>
+                    </h2>
+                  </div>
+                  <div className="pgs-sponsors" data-reveal>
+                    {site.sponsorsByTier.map((group, i) => (
+                      <div key={group.tier} className={`pgs-sponsor-tier${i === 0 ? ' is-top' : ''}`}>
+                        <p className="pgs-sponsor-label">
+                          <span aria-hidden="true" />
+                          {group.label}
+                          <span aria-hidden="true" />
+                        </p>
+                        <ul>
+                          {group.names.map((name) => (
+                            <li key={name}>{name}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
           </section>
         )}
 
         {/* ── Preguntas frecuentes ─────────────────────────────────────── */}
-        {view.faq.length > 0 && (
+        {shows('preguntas') && (
           <section id="preguntas" className="pgs-section is-paper" aria-labelledby="pgs-faq-title">
             <div className="pgs-wrap pgs-faq">
               <div className="pgs-faq-head" data-reveal>
@@ -973,6 +1156,8 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
           </p>
         </div>
       </footer>
+
+      {whatsappFloat && <WhatsappFloat href={whatsappFloat.href} label={whatsappFloat.label} />}
 
       {selected !== null && site.candidates[selected] && (
         <CandidateDialog candidates={site.candidates} index={selected} voting={site.voting} onNavigate={setSelected} onClose={() => setSelected(null)} />

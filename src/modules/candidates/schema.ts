@@ -1,19 +1,17 @@
 import { z } from 'zod';
-import { contactEmailField, contactWhatsappField, instagramHandleField } from '@/lib/events/pageant-contact';
+import { contactEmailField, contactWhatsappField, instagramHandleField, normalizeInstagramHandle } from '@/lib/events/pageant-contact';
 import type { CandidateStatus } from '@prisma/client';
 import { cleanRut, validateRut } from '@/lib/chile/rut';
 import { regions } from '@/lib/chile/locations';
 import { isAllowedBlobUrl } from '@/lib/security/blob-url';
-import { ageInSantiago } from '@/lib/chile/timezone';
 
 const rutField = z
   .string()
   .min(3, 'El RUT es obligatorio')
   .refine((val) => validateRut(cleanRut(val)), 'RUT inválido. Verifica que esté bien escrito, ej: 12.345.678-K');
 
-/** Comunas de La Araucanía, únicas exigidas en el formulario público de este
- * certamen (residir en la región es un requisito de bases, Sección 5). */
-export const ARAUCANIA_COMUNAS = regions.find((r) => r.code === 'IX')!.comunas;
+/** Todas las comunas de Chile, para sugerir en la ficha y en los filtros (la comuna es texto libre). */
+export const CHILE_COMUNAS = [...new Set(regions.flatMap((r) => r.comunas))].sort((a, b) => a.localeCompare(b, 'es-CL'));
 
 export const CANDIDATE_STATUSES = [
   'APPLICANT',
@@ -62,7 +60,9 @@ export const candidateCreateSchema = z.object({
   stageName: z.string().max(100, 'Máximo 100 caracteres').optional(),
   email: z.string().email('Email inválido').max(180, 'Máximo 180 caracteres').optional().or(z.literal('')),
   phone: z.string().max(30, 'Máximo 30 caracteres').optional(),
-  birthDate: z.coerce.date('Fecha de nacimiento inválida'),
+  // Obligatoria al crear desde el panel. En la edición (`candidateUpdateSchema`,
+  // parcial) puede venir vacía: las postulaciones públicas solo traen la edad.
+  birthDate: z.preprocess((value) => (value === '' || value === null ? undefined : value), z.coerce.date('Ingresa la fecha de nacimiento')),
   dressSize: z.string().max(20, 'Máximo 20 caracteres').optional(),
   shoeSize: z.string().max(20, 'Máximo 20 caracteres').optional(),
   heightCm: z.number().int('La estatura debe ser un número entero').positive('La estatura debe ser mayor a cero').nullable().optional(),
@@ -98,68 +98,64 @@ export type CandidateCreateInput = z.infer<typeof candidateCreateSchema>;
 
 // Sin `projectId`: es un dato estructural, una candidata no se puede mover de
 // proyecto una vez creada (ver CLAUDE.md de la tarea).
-export const candidateUpdateSchema = candidateCreateSchema.omit({ projectId: true }).partial();
+export const candidateUpdateSchema = candidateCreateSchema
+  .omit({ projectId: true })
+  .partial()
+  // Una postulación pública no trae fecha de nacimiento: al editarla, el campo puede quedar vacío.
+  .extend({ birthDate: z.preprocess((value) => (value === '' || value === null ? undefined : value), z.coerce.date('Fecha de nacimiento inválida').optional()) });
 
 export type CandidateUpdateInput = z.infer<typeof candidateUpdateSchema>;
 
-// Formulario público de auto-inscripción (sin `projectId` -se resuelve desde
-// el token del link- ni `status` -siempre entra como `APPLICANT`, la
-// postulante no elige su propio estado en el certamen). El email es
-// obligatorio acá (a diferencia del formulario interno): es el único dato de
-// contacto/identificación que el equipo tiene de alguien que nunca tuvo
-// cuenta ni sesión ERP.
-//
-// Se mantienen los campos de tallas/contacto de emergencia/tutor del
-// formulario interno original (opcionales, ya en producción) y se AGREGAN los
-// campos propios de la postulación pública (comuna, dirección, motivación,
-// causa social, declaraciones) pedidos en la Sección 5 del prompt del módulo
-// — en vez de reemplazar el formulario existente por uno nuevo.
+// Formulario público de auto-inscripción: solo los 8 datos que pide la
+// convocatoria (nombre, RUT, edad, comuna, teléfono, correo, Instagram y
+// por qué quiere participar). Sin `projectId` (sale del token del link) ni
+// `status` (siempre entra como `APPLICANT`). El resto de la ficha (tallas,
+// contacto de emergencia, fotos) lo completa el equipo después, en la
+// preselección. La edad mínima depende de cada convocatoria
+// (`Project.minCandidateAge`) y se revisa en el servidor.
 /** Mayoría de edad en Chile: bajo esto se exigen los datos del apoderado. */
 export const MINOR_AGE = 18;
 
-export const candidateSelfRegistrationSchema = candidateCreateSchema
-  .omit({ projectId: true, status: true })
-  .extend({
-    email: z.string().email('Email inválido').max(180, 'Máximo 180 caracteres'),
-    // A diferencia del formulario interno (donde la estatura puede
-    // desconocerse todavía), el formulario público SÍ la exige — Sección 5
-    // la lista sin marcarla "(opcional)", a diferencia de Instagram/idiomas/
-    // experiencia. Se sobreescribe la versión heredada (`nullable().optional()`)
-    // en vez de dejar esta regla solo en el componente de cliente.
-    heightCm: z
-      .number('Ingresa tu estatura en centímetros')
-      .int('La estatura debe ser un número entero, en centímetros (ej. 172)')
-      .min(120, 'Ingresa tu estatura en centímetros (ej. 172)')
-      .max(230, 'Revisa tu estatura: debe ir en centímetros (ej. 172)'),
-    // Un año mal tipeado (0201, 2201) pasaba como fecha válida.
-    birthDate: z.coerce
-      .date('Fecha de nacimiento inválida')
-      .refine((date) => date.getUTCFullYear() >= 1900 && date.getTime() <= Date.now(), 'Revisa tu fecha de nacimiento'),
-    comuna: z.enum(ARAUCANIA_COMUNAS as [string, ...string[]], 'Selecciona una comuna de La Araucanía'),
-    direccion: z.string().min(1, 'La dirección es obligatoria').max(200, 'Máximo 200 caracteres'),
-    ocupacion: z.string().min(1, 'Cuéntanos tu ocupación o si estudias').max(150, 'Máximo 150 caracteres'),
-    instagram: z.string().max(80, 'Máximo 80 caracteres').optional(),
-    idiomas: z.string().max(200, 'Máximo 200 caracteres').optional(),
-    experiencia: z.string().max(2000, 'Máximo 2000 caracteres').optional(),
-    motivacion: z
+export const candidateSelfRegistrationSchema = z
+  .object({
+    fullName: z.string().trim().min(3, 'Escribe tu nombre completo').max(180, 'Máximo 180 caracteres'),
+    rut: rutField,
+    age: z.number('Ingresa tu edad').int('La edad debe ser un número entero').min(1, 'Ingresa tu edad').max(99, 'Revisa tu edad'),
+    comuna: z.string().trim().min(2, 'Escribe la comuna donde vives').max(80, 'Máximo 80 caracteres'),
+    phone: z
       .string()
-      .min(80, 'Cuéntanos un poco más — mínimo 80 caracteres')
-      .max(2000, 'Máximo 2000 caracteres'),
-    causaSocial: z.string().min(1, 'Cuéntanos qué causa social te gustaría impulsar').max(1000, 'Máximo 1000 caracteres'),
-    aceptaRequisitos: z.literal(true, 'Debes declarar que cumples los requisitos y que tus datos son verídicos'),
-    aceptaTratamientoDatos: z.literal(true, 'Debes autorizar el tratamiento de tus datos'),
-    aceptaBases: z.literal(true, 'Debes aceptar las bases del certamen'),
-    aceptaMarketing: z.boolean().default(false),
+      .trim()
+      .min(8, 'Escribe un teléfono de contacto')
+      .max(30, 'Máximo 30 caracteres')
+      .regex(/^[+\d\s().-]+$/, 'El teléfono solo puede tener números'),
+    email: z.string().trim().email('Escribe un correo válido').max(180, 'Máximo 180 caracteres'),
+    // Usuario, "@usuario" o el link del perfil → "@usuario"; se rechaza lo que no sea un usuario válido.
+    instagram: z
+      .string()
+      .trim()
+      .min(1, 'Escribe tu usuario de Instagram')
+      .max(120, 'Máximo 120 caracteres')
+      .transform((value, ctx) => {
+        const handle = normalizeInstagramHandle(value);
+        if (!handle) {
+          ctx.addIssue({ code: 'custom', message: 'Escribe solo tu usuario de Instagram (ej. @tuusuario)' });
+          return z.NEVER;
+        }
+        return `@${handle}`;
+      }),
+    motivacion: z.string().trim().min(10, 'Cuéntanos por qué quieres participar').max(2000, 'Máximo 2000 caracteres'),
+    // Solo se piden si declara ser menor de edad (el contrato de imagen lleva su firma).
+    guardianName: z.string().trim().max(150, 'Máximo 150 caracteres').optional(),
+    guardianRut: z.string().trim().max(12, 'Máximo 12 caracteres').optional(),
+    // Consentimiento expreso para tratar sus datos (Ley 19.628): sin esto no se guarda nada.
+    aceptaTratamientoDatos: z.literal(true, 'Debes aceptar la política de privacidad para inscribirte'),
   })
-  // Menor de edad: el contrato de imagen lleva la firma del apoderado, así que
-  // su nombre y RUT (válido) son obligatorios. Antes eran opcionales y una
-  // menor podía postular sin ellos cuando el certamen admitía menores.
   .superRefine((data, ctx) => {
-    if (Number.isNaN(data.birthDate.getTime()) || ageInSantiago(data.birthDate) >= MINOR_AGE) return;
-    if (!data.guardianName || data.guardianName.trim().length < 3) {
+    if (data.age >= MINOR_AGE) return;
+    if (!data.guardianName || data.guardianName.length < 3) {
       ctx.addIssue({ code: 'custom', path: ['guardianName'], message: 'Como eres menor de edad, indica el nombre de tu madre, padre o apoderado' });
     }
-    if (!data.guardianRut || !validateRut(data.guardianRut)) {
+    if (!data.guardianRut || !validateRut(cleanRut(data.guardianRut))) {
       ctx.addIssue({ code: 'custom', path: ['guardianRut'], message: 'Ingresa un RUT válido de tu apoderado' });
     }
   });
@@ -200,6 +196,20 @@ export const registrationSettingsSchema = z
     contactEmail: contactEmailField,
     contactWhatsapp: contactWhatsappField,
     instagramHandle: instagramHandleField,
+    // "Qué incluye tu inscripción": un beneficio por ítem, sin vacíos ni repetidos.
+    benefits: z.preprocess(
+      (value) => (Array.isArray(value) ? [...new Set(value.map((item) => (typeof item === 'string' ? item.trim() : item)).filter((item) => item !== ''))] : value),
+      z
+        .array(z.string().max(120, 'Cada ítem de "qué incluye" tiene un máximo de 120 caracteres'))
+        .max(20, 'Máximo 20 ítems en "qué incluye"')
+        .default([])
+    ),
+    classesNote: z
+      .string()
+      .trim()
+      .max(300, 'Máximo 300 caracteres')
+      .optional()
+      .transform((value) => value || null),
   })
   .refine(
     (data) => !data.registrationOpensAt || !data.registrationClosesAt || data.registrationOpensAt < data.registrationClosesAt,

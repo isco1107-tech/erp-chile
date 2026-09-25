@@ -71,16 +71,15 @@ export default async function PoliticaPrivacidadPage({ searchParams }: { searchP
       <h2>2. Qué datos recopilamos</h2>
       <p>Al postular, te pedimos:</p>
       <ul>
-        <li>Datos de identificación: nombre completo, RUT, fecha de nacimiento.</li>
-        <li>Datos de contacto: correo electrónico, teléfono, comuna y dirección.</li>
-        <li>Datos de perfil: estatura, talla de vestido y de zapato, ocupación u estudios, Instagram (opcional), idiomas (opcional), experiencia previa (opcional), tu motivación para postular y la causa social que te gustaría impulsar.</li>
-        <li>Contacto de emergencia y, si eres menor de edad, nombre y RUT de tu representante legal.</li>
-        <li>Dos fotografías: una de rostro y una de cuerpo entero.</li>
+        <li>Datos de identificación: nombre completo, RUT y edad.</li>
+        <li>Datos de contacto: teléfono, correo electrónico, comuna donde vives e Instagram.</li>
+        <li>Por qué quieres participar en el certamen.</li>
+        <li>Si eres menor de edad, nombre y RUT de tu madre, padre o apoderado.</li>
         <li>Metadatos técnicos del envío (dirección IP y navegador/dispositivo usado), con fines exclusivos de seguridad — por ejemplo, para prevenir envíos automatizados o fraudulentos.</li>
       </ul>
       <p>
-        No te pedimos ningún dato que no esté en este listado. Los campos marcados como opcionales en el formulario
-        pueden dejarse en blanco sin que eso afecte tu postulación.
+        No te pedimos ningún otro dato al inscribirte. Si quedas preseleccionada, la organización puede pedirte más
+        información (por ejemplo, fotografías o tallas) para el desarrollo del certamen, con este mismo resguardo.
       </p>
 
       <h2>3. Para qué usamos tus datos</h2>
@@ -88,19 +87,14 @@ export default async function PoliticaPrivacidadPage({ searchParams }: { searchP
       <ul>
         <li>Evaluar tu postulación y gestionar el proceso de selección del certamen (revisión, citación a casting, avance de ronda o descarte).</li>
         <li>Contactarte durante el proceso — por ejemplo, para avisarte de un cambio de etapa o coordinar una actividad.</li>
-        <li>Verificar que cumples los requisitos de participación indicados en las bases del certamen (mayoría de edad u autorización de tu representante legal, residencia en la región, entre otros).</li>
-        <li>
-          Solo si marcaste la casilla correspondiente al postular, contactarte con fines de difusión o marketing
-          relacionados con el certamen. Esta autorización es independiente de las demás y puedes revocarla en
-          cualquier momento escribiendo a {writeTo}.
-        </li>
+        <li>Verificar que cumples los requisitos de participación indicados en las bases del certamen (por ejemplo, la edad mínima).</li>
       </ul>
       <p>
         No vendemos ni compartimos tus datos con terceros ajenos a la organización del certamen, salvo obligación
         legal o requerimiento de una autoridad competente.
       </p>
 
-      <h2>4. Cómo protegemos tus fotografías</h2>
+      <h2>4. Cómo protegemos tus fotografías (si las entregas)</h2>
       <p>
         Tus fotografías se almacenan fuera de cualquier carpeta de acceso público: no existe una URL adivinable que
         las muestre directamente. Solo personal de la organización con un permiso específico (distinto del acceso

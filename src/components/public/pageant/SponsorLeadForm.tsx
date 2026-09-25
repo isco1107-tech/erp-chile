@@ -2,23 +2,20 @@
 
 import { useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { publicSponsorLeadSchema, SPONSOR_LEAD_HONEYPOT_FIELD } from '@/modules/crm/schema';
-import type { PublicPageantSite } from '@/modules/projects/services/public-site.service';
 import { Arrow, Check } from './icons';
 
 /**
- * "Quiero auspiciar": crea la oportunidad en el embudo comercial de la
+ * Formulario de sponsor (nombre y apellido, teléfono, correo, empresa y a qué
+ * se dedica): crea la oportunidad en el embudo comercial de la
  * organización (`/api/public/pageants/{slug}/sponsor-lead`). Misma
  * validación que el servidor (`publicSponsorLeadSchema`) y el mismo campo
  * trampa contra bots.
  */
 
-function Field({ id, label, optional, error, children }: { id: string; label: string; optional?: boolean; error?: string; children: ReactNode }) {
+function Field({ id, label, error, children }: { id: string; label: string; error?: string; children: ReactNode }) {
   return (
     <div className={`pgs-field${error ? ' has-error' : ''}`}>
-      <label htmlFor={id}>
-        {label}
-        {optional && <span> · opcional</span>}
-      </label>
+      <label htmlFor={id}>{label}</label>
       {children}
       {error && (
         <p className="pgs-field-error" id={`${id}-error`}>
@@ -29,8 +26,17 @@ function Field({ id, label, optional, error, children }: { id: string; label: st
   );
 }
 
-export function SponsorLeadForm({ slug, packages }: { slug: string; packages: PublicPageantSite['packages'] }) {
-  const [values, setValues] = useState({ companyName: '', contactName: '', jobTitle: '', email: '', phone: '', packageId: '', message: '' });
+export function SponsorLeadForm({
+  slug,
+  selectedPackage,
+  onClearPackage,
+}: {
+  slug: string;
+  /** Paquete elegido desde su tarjeta ("Me interesa"), si lo hay. */
+  selectedPackage: { id: string; name: string } | null;
+  onClearPackage: () => void;
+}) {
+  const [values, setValues] = useState({ contactName: '', phone: '', email: '', companyName: '', message: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
   const [serverError, setServerError] = useState('');
@@ -41,7 +47,7 @@ export function SponsorLeadForm({ slug, packages }: { slug: string; packages: Pu
   async function submit(event: FormEvent) {
     event.preventDefault();
     setServerError('');
-    const payload = { ...values, [SPONSOR_LEAD_HONEYPOT_FIELD]: honeypot.current?.value ?? '' };
+    const payload = { ...values, packageId: selectedPackage?.id ?? '', [SPONSOR_LEAD_HONEYPOT_FIELD]: honeypot.current?.value ?? '' };
     const parsed = publicSponsorLeadSchema.safeParse(payload);
     if (!parsed.success) {
       const next: Record<string, string> = {};
@@ -79,46 +85,40 @@ export function SponsorLeadForm({ slug, packages }: { slug: string; packages: Pu
         <span className="pgs-sent-mark">
           <Check />
         </span>
-        <h3>¡Gracias! Recibimos tu interés</h3>
-        <p>El equipo comercial te contactará dentro de las próximas 24 horas hábiles con la propuesta.</p>
+        <h3>¡Gracias! Recibimos tu solicitud</h3>
+        <p>Te contactaremos para coordinar tu patrocinio.</p>
       </div>
     );
   }
 
   return (
     <form className="pgs-form" onSubmit={submit} noValidate>
+      {selectedPackage && (
+        <p className="pgs-lead-pick">
+          <span>
+            Paquete de interés: <strong>{selectedPackage.name}</strong>
+          </span>
+          <button type="button" onClick={onClearPackage} aria-label="Quitar el paquete elegido">
+            Quitar
+          </button>
+        </p>
+      )}
+      <Field id="lead-contactName" label="Nombre y apellido" error={errors.contactName}>
+        <input id="lead-contactName" value={values.contactName} onChange={(e) => set('contactName', e.target.value)} autoComplete="name" {...described('contactName')} />
+      </Field>
       <div className="pgs-form-grid">
-        <Field id="lead-companyName" label="Marca o empresa" error={errors.companyName}>
-          <input id="lead-companyName" value={values.companyName} onChange={(e) => set('companyName', e.target.value)} autoComplete="organization" {...described('companyName')} />
-        </Field>
-        <Field id="lead-contactName" label="Tu nombre" error={errors.contactName}>
-          <input id="lead-contactName" value={values.contactName} onChange={(e) => set('contactName', e.target.value)} autoComplete="name" {...described('contactName')} />
+        <Field id="lead-phone" label="Teléfono" error={errors.phone}>
+          <input id="lead-phone" type="tel" value={values.phone} onChange={(e) => set('phone', e.target.value)} autoComplete="tel" placeholder="+56 9 …" {...described('phone')} />
         </Field>
         <Field id="lead-email" label="Correo" error={errors.email}>
           <input id="lead-email" type="email" value={values.email} onChange={(e) => set('email', e.target.value)} autoComplete="email" {...described('email')} />
         </Field>
-        <Field id="lead-phone" label="Teléfono / WhatsApp" optional error={errors.phone}>
-          <input id="lead-phone" type="tel" value={values.phone} onChange={(e) => set('phone', e.target.value)} autoComplete="tel" placeholder="+56 9 …" {...described('phone')} />
-        </Field>
-        <Field id="lead-jobTitle" label="Cargo" optional error={errors.jobTitle}>
-          <input id="lead-jobTitle" value={values.jobTitle} onChange={(e) => set('jobTitle', e.target.value)} autoComplete="organization-title" {...described('jobTitle')} />
-        </Field>
-        {packages.length > 0 && (
-          <Field id="lead-packageId" label="Plan de interés" optional>
-            <select id="lead-packageId" value={values.packageId} onChange={(e) => set('packageId', e.target.value)}>
-              <option value="">Aún no lo sé</option>
-              {packages.map((p) => (
-                <option key={p.id} value={p.id} disabled={p.slotsLeft === 0}>
-                  {p.name}
-                  {p.slotsLeft === 0 ? ' (agotado)' : ''}
-                </option>
-              ))}
-            </select>
-          </Field>
-        )}
       </div>
-      <Field id="lead-message" label="Cuéntanos qué buscas" optional error={errors.message}>
-        <textarea id="lead-message" rows={4} value={values.message} onChange={(e) => set('message', e.target.value)} placeholder="Objetivos de tu marca, público al que quieres llegar, canje posible…" {...described('message')} />
+      <Field id="lead-companyName" label="Nombre de empresa" error={errors.companyName}>
+        <input id="lead-companyName" value={values.companyName} onChange={(e) => set('companyName', e.target.value)} autoComplete="organization" {...described('companyName')} />
+      </Field>
+      <Field id="lead-message" label="¿A qué te dedicas?" error={errors.message}>
+        <textarea id="lead-message" rows={3} value={values.message} onChange={(e) => set('message', e.target.value)} {...described('message')} />
       </Field>
       <input ref={honeypot} type="text" name={SPONSOR_LEAD_HONEYPOT_FIELD} tabIndex={-1} autoComplete="off" aria-hidden="true" className="pgs-hp" />
       {serverError && (
@@ -127,7 +127,7 @@ export function SponsorLeadForm({ slug, packages }: { slug: string; packages: Pu
         </p>
       )}
       <button type="submit" className="pgs-btn is-ink" disabled={status === 'sending'}>
-        <span>{status === 'sending' ? 'Enviando…' : 'Quiero auspiciar'}</span>
+        <span>{status === 'sending' ? 'Enviando…' : 'Enviar solicitud'}</span>
         <Arrow className="pgs-btn-icon" />
       </button>
     </form>

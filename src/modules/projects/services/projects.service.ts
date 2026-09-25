@@ -17,6 +17,7 @@ export async function createProject(companyId: string, data: ProjectCreateInput)
       galaDate: data.galaDate,
       venueName: data.venueName === undefined ? undefined : data.venueName || null,
       venueAddress: data.venueAddress === undefined ? undefined : data.venueAddress || null,
+      publicWhatsapp: data.publicWhatsapp ?? null,
     },
   });
 }
@@ -39,6 +40,7 @@ export async function updateProject(companyId: string, id: string, data: Project
       galaDate: data.galaDate,
       venueName: data.venueName === undefined ? undefined : data.venueName || null,
       venueAddress: data.venueAddress === undefined ? undefined : data.venueAddress || null,
+      publicWhatsapp: data.publicWhatsapp,
     },
   });
   if (result.count === 0) throw new Error('Proyecto no encontrado');

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { projectCreateSchema, projectUpdateSchema } from '@/modules/projects/schema';
 import {
   buildPageantView,
   galaCalendarUrl,
@@ -7,6 +8,12 @@ import {
   pageantFaq,
   pageantHighlights,
   pageantJourney,
+  registrationProcess,
+  splitPackageBenefits,
+  sponsorProcess,
+  whatsappGreeting,
+  whatsappMessageUrl,
+  whatsappPackageMessage,
   splitPageantTitle,
   venueMapsUrl,
   type FaqInput,
@@ -195,5 +202,67 @@ describe('Contacto propio de cada certamen', () => {
       'El WhatsApp no es un número válido (ej. +56 9 1234 5678)',
       'El Instagram no es un usuario válido (ej. @missuniversotemuco)',
     ]);
+  });
+});
+
+describe('vistas candidata / sponsor del micrositio', () => {
+  it('arma el link de WhatsApp con el mensaje predeterminado codificado', () => {
+    const url = whatsappMessageUrl('https://wa.me/56981425816', whatsappGreeting('candidata', 'Miss Universo Las Condes 2026'));
+    expect(url).toBe('https://wa.me/56981425816?text=Hola%2C%20quiero%20ser%20candidata%20de%20Miss%20Universo%20Las%20Condes%202026');
+    expect(whatsappGreeting('sponsor', 'Miss X')).toBe('Hola, quiero ser sponsor de Miss X');
+  });
+
+  it('el mensaje por paquete lleva el nombre en mayúsculas y el precio si existe', () => {
+    expect(whatsappPackageMessage('Miss X', 'Diamond Sponsor', '$2.000.000')).toBe('Hola, quiero información sobre el paquete DIAMOND SPONSOR ($2.000.000) de Miss X');
+    expect(whatsappPackageMessage('Miss X', 'Gold', null)).toBe('Hola, quiero información sobre el paquete GOLD de Miss X');
+  });
+
+  it('el proceso menciona el cupo solo si la convocatoria lo definió', () => {
+    expect(registrationProcess({ name: 'Miss X', maxCandidates: 20 })[1].detail).toContain('entre las 20 preseleccionadas');
+    expect(registrationProcess({ name: 'Miss X', maxCandidates: null })[1].detail).toContain('si quedaste preseleccionada');
+    expect(registrationProcess({ name: 'Miss X', maxCandidates: null })).toHaveLength(3);
+  });
+
+  it('separa los beneficios comunes a todos los paquetes de los exclusivos', () => {
+    const { common, exclusive } = splitPackageBenefits([
+      { id: 'd', benefits: ['Logo como Official Sponsor', 'Mención en escenario', '3 invitaciones VIP'] },
+      { id: 'g', benefits: ['logo como official sponsor ', 'Mención en escenario', '1 invitación'] },
+    ]);
+    expect(common).toEqual(['Logo como Official Sponsor', 'Mención en escenario']);
+    expect(exclusive).toEqual({ d: ['3 invitaciones VIP'], g: ['1 invitación'] });
+  });
+
+  it('con un solo paquete no hay beneficios "comunes"', () => {
+    const { common, exclusive } = splitPackageBenefits([{ id: 'o', benefits: ['A', 'B'] }]);
+    expect(common).toEqual([]);
+    expect(exclusive.o).toEqual(['A', 'B']);
+  });
+
+  it('el proceso de sponsor se adapta a si hay paquetes y WhatsApp', () => {
+    expect(sponsorProcess({ hasPackages: true, hasWhatsapp: true })[0].title).toBe('Elige tu paquete');
+    expect(sponsorProcess({ hasPackages: false, hasWhatsapp: false })[1].detail).not.toContain('WhatsApp');
+  });
+});
+
+describe('campos de contacto con null', () => {
+  it('un formulario ya validado en el cliente reenvía null y el servidor lo acepta como vacío', () => {
+    expect(contactWhatsappField.parse(null)).toBeNull();
+    expect(contactEmailField.parse(null)).toBeNull();
+    expect(instagramHandleField.parse(null)).toBeNull();
+  });
+});
+
+describe('formulario de proyecto con WhatsApp', () => {
+  const payload = { code: 'MULC', name: 'Miss Universo Las Condes 2026', startDate: '2026-10-01', budgetedIncome: 0, budgetedExpense: 0 };
+
+  it.each(['', '+56 9 8142 5816'])('lo que validó el cliente (WhatsApp "%s") vuelve a validar en el servidor', (publicWhatsapp) => {
+    for (const schema of [projectCreateSchema, projectUpdateSchema]) {
+      const client = schema.parse({ ...payload, publicWhatsapp });
+      expect(schema.safeParse(client).success).toBe(true);
+    }
+  });
+
+  it('normaliza el WhatsApp al formato de wa.me', () => {
+    expect(projectCreateSchema.parse({ ...payload, publicWhatsapp: '+56 9 8142 5816' }).publicWhatsapp).toBe('56981425816');
   });
 });

@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 import { CANDIDATE_STATUS_LABELS } from '../schema';
 import { listCandidatesForExport, type CandidateListFilters } from './candidates.service';
 import { formatRut } from '@/lib/chile/rut';
+import { ageInSantiago } from '@/lib/chile/timezone';
 
 const BRAND = 'FF1E3A5F';
 
@@ -22,9 +23,12 @@ export async function buildCandidateApplicationsWorkbook(companyId: string, filt
     { header: 'Nombre completo', key: 'fullName', width: 28 },
     { header: 'RUT', key: 'rut', width: 14 },
     { header: 'Fecha de nacimiento', key: 'birthDate', width: 16 },
+    { header: 'Edad', key: 'age', width: 8 },
     { header: 'Email', key: 'email', width: 26 },
     { header: 'Teléfono', key: 'phone', width: 16 },
     { header: 'Comuna', key: 'comuna', width: 18 },
+    { header: 'Instagram', key: 'instagram', width: 18 },
+    { header: '¿Por qué quiere participar?', key: 'motivacion', width: 40 },
     { header: 'Estado', key: 'status', width: 18 },
     { header: 'Motivo descarte', key: 'motivoDescarte', width: 26 },
     { header: 'Fecha postulación', key: 'createdAt', width: 18 },
@@ -42,10 +46,13 @@ export async function buildCandidateApplicationsWorkbook(companyId: string, filt
       project: `${c.project.name} (${c.project.code})`,
       fullName: c.fullName,
       rut: formatRut(c.rut),
-      birthDate: c.birthDate.toLocaleDateString('es-CL'),
+      birthDate: c.birthDate ? c.birthDate.toLocaleDateString('es-CL') : '',
+      age: c.birthDate ? ageInSantiago(c.birthDate) : (c.declaredAge ?? ''),
       email: c.email ?? '',
       phone: c.phone ?? '',
       comuna: c.comuna ?? '',
+      instagram: c.instagram ?? '',
+      motivacion: c.motivacion ?? '',
       status: CANDIDATE_STATUS_LABELS[c.status],
       motivoDescarte: c.motivoDescarte ?? '',
       createdAt: c.createdAt.toLocaleString('es-CL'),

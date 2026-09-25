@@ -5,7 +5,6 @@ import { Prisma, type Candidate, type CandidateStatus, type PaymentPlanStatus, t
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { captureException } from '@/lib/observability';
 import { cleanRut, formatRut, validateRut } from '@/lib/chile/rut';
-import { ageInSantiago } from '@/lib/chile/timezone';
 import { constraintInvolves } from '@/lib/prisma-errors';
 import type {
   CandidateCreateInput,
@@ -237,7 +236,7 @@ export interface CandidateListFilters {
   projectId?: string;
   status?: CandidateStatus;
   comuna?: string;
-  /** Edad calculada desde `birthDate` a la fecha actual. */
+  /** Edad calculada desde `birthDate` (o la declarada, si no hay fecha). */
   minAge?: number;
   maxAge?: number;
   /** Coincidencia parcial contra nombre completo, RUT (con o sin formato) o folio. */
@@ -285,19 +284,40 @@ function ageRangeToBirthDateRange(minAge?: number, maxAge?: number): { gte?: Dat
  * internas creadas a mano, no cuando cualquier persona de internet puede
  * generar filas nuevas sin límite práctico.
  */
-export async function listCandidates(companyId: string, filters: CandidateListFilters = {}): Promise<CandidateListResult> {
+export async function listCandidates(
+  companyId: string,
+  filters: CandidateListFilters = {},
+  // Solo para usos internos del servidor (exportación): el listado de pantalla queda en 100.
+  options: { maxPageSize?: number } = {}
+): Promise<CandidateListResult> {
   const page = Math.max(1, filters.page ?? 1);
-  const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, filters.pageSize ?? DEFAULT_PAGE_SIZE));
+  const pageSize = Math.min(options.maxPageSize ?? MAX_PAGE_SIZE, Math.max(1, filters.pageSize ?? DEFAULT_PAGE_SIZE));
 
   const where: Prisma.CandidateWhereInput = {
     companyId,
     ...(filters.projectId ? { projectId: filters.projectId } : {}),
     ...(filters.status ? { status: filters.status } : {}),
-    ...(filters.comuna ? { comuna: filters.comuna } : {}),
+    ...(filters.comuna?.trim() ? { comuna: { contains: filters.comuna.trim(), mode: 'insensitive' } } : {}),
   };
 
+  // Edad: por fecha de nacimiento o, en postulaciones públicas sin ella, por la edad declarada.
   const birthDateRange = ageRangeToBirthDateRange(filters.minAge, filters.maxAge);
-  if (birthDateRange.gte || birthDateRange.lte) where.birthDate = birthDateRange;
+  if (birthDateRange.gte || birthDateRange.lte) {
+    where.AND = [
+      {
+        OR: [
+          { birthDate: birthDateRange },
+          {
+            birthDate: null,
+            declaredAge: {
+              ...(filters.minAge !== undefined ? { gte: filters.minAge } : {}),
+              ...(filters.maxAge !== undefined ? { lte: filters.maxAge } : {}),
+            },
+          },
+        ],
+      },
+    ];
+  }
 
   if (filters.search?.trim()) {
     const term = filters.search.trim();
@@ -328,8 +348,10 @@ export async function listCandidates(companyId: string, filters: CandidateListFi
  * (Sección 6: "Excel o CSV de las postulaciones filtradas, sin fotografías").
  * Tope duro de 5000 filas: una exportación más grande que eso necesita
  * filtrar primero, no es un caso de uso real de este módulo. */
+const EXPORT_MAX_ROWS = 5000;
+
 export async function listCandidatesForExport(companyId: string, filters: Omit<CandidateListFilters, 'page' | 'pageSize'> = {}): Promise<CandidateWithProject[]> {
-  const { items } = await listCandidates(companyId, { ...filters, page: 1, pageSize: 5000 });
+  const { items } = await listCandidates(companyId, { ...filters, page: 1, pageSize: EXPORT_MAX_ROWS }, { maxPageSize: EXPORT_MAX_ROWS });
   return items;
 }
 
@@ -644,6 +666,9 @@ export interface RegistrationSettings {
   contactEmail: string | null;
   contactWhatsapp: string | null;
   instagramHandle: string | null;
+  /** "Qué incluye tu inscripción", un ítem por beneficio. */
+  benefits: string[];
+  classesNote: string | null;
   /** Postulaciones ya recibidas — para mostrar "37/50" en el panel. */
   applicationsReceived: number;
 }
@@ -669,13 +694,17 @@ export async function getRegistrationSettings(companyId: string, projectId: stri
       publicContactEmail: true,
       publicWhatsapp: true,
       instagramHandle: true,
+      registrationBenefits: true,
+      registrationClassesNote: true,
     },
   });
   if (!project) throw new Error('Proyecto no encontrado');
   const applicationsReceived = await countActiveApplications(companyId, projectId);
-  const { publicContactEmail, publicWhatsapp, instagramHandle, ...window } = project;
+  const { publicContactEmail, publicWhatsapp, instagramHandle, registrationBenefits, registrationClassesNote, ...window } = project;
   return {
     ...window,
+    benefits: registrationBenefits,
+    classesNote: registrationClassesNote,
     contactEmail: publicContactEmail,
     contactWhatsapp: publicWhatsapp ? formatWhatsappNumber(publicWhatsapp) : null,
     instagramHandle: instagramHandle ? `@${instagramHandle.replace(/^@/, '')}` : null,
@@ -699,6 +728,8 @@ export async function updateRegistrationSettings(
       publicContactEmail: data.contactEmail,
       publicWhatsapp: data.contactWhatsapp,
       instagramHandle: data.instagramHandle,
+      registrationBenefits: data.benefits,
+      registrationClassesNote: data.classesNote,
     },
   });
   if (result.count === 0) throw new Error('Proyecto no encontrado');
@@ -723,6 +754,12 @@ export interface RegistrationProjectInfo {
   tagline: string | null;
   /** Contacto del certamen para las postulantes: nunca datos fijos de la plataforma. */
   contact: PageantContact;
+  /** Cupo de preseleccionadas ("solo 20 candidatas"), si la convocatoria lo definió. */
+  maxCandidates: number | null;
+  /** "Qué incluye tu inscripción" (vacío = no se muestra). */
+  benefits: string[];
+  /** Lugar y horario de las clases, si la organización lo escribió. */
+  classesNote: string | null;
 }
 
 /**
@@ -755,6 +792,9 @@ export async function getRegistrationProjectByToken(token: string): Promise<Regi
     accent: project.publicAccent,
     tagline: project.publicTagline,
     contact: pageantContact(project),
+    maxCandidates: project.maxCandidates,
+    benefits: project.registrationBenefits,
+    classesNote: project.registrationClassesNote,
   };
 }
 
@@ -810,35 +850,14 @@ function buildFolio(projectCode: string, year: number, correlativo: number): str
   return `${projectCode.toUpperCase()}-${year}-${String(correlativo).padStart(4, '0')}`;
 }
 
-export interface UploadedApplicationPhoto {
-  documentType: 'PHOTO_FACE' | 'PHOTO_FULL_BODY' | 'MEDICAL_CERTIFICATE';
-  fileUrl: string;
-  mimeType: string;
-  fileSizeBytes: number;
-  sha256Hash: string;
-  originalFileName: string;
-}
-
-const APPLICATION_DOCUMENT_TITLE: Record<UploadedApplicationPhoto['documentType'], string> = {
-  PHOTO_FACE: 'Fotografía de rostro',
-  PHOTO_FULL_BODY: 'Fotografía de cuerpo entero',
-  MEDICAL_CERTIFICATE: 'Certificado médico',
-};
-
 export interface SubmitRegistrationMeta {
   ipOrigen?: string;
   userAgent?: string;
 }
 
 /**
- * Crea la ficha de la propia candidata desde el formulario público, junto con
- * sus 2 fotografías y el folio, todo en una sola transacción (Sección 2: "si
- * falla la escritura de una fotografía no puede quedar una postulación
- * huérfana"). Los archivos ya deben estar subidos a Blob ANTES de llamar a
- * esta función (la subida a un storage externo no puede formar parte de una
- * transacción de Postgres) — si la transacción falla, el llamador
- * (`app/api/public/candidates/[token]/apply/route.ts`) es responsable de
- * borrar los blobs recién subidos para no dejarlos huérfanos.
+ * Crea la ficha de la propia candidata desde el formulario público (los 8
+ * datos de la inscripción) y su folio, en una sola transacción.
  *
  * El `companyId`/`projectId` se resuelven SIEMPRE del token, nunca de un
  * campo del formulario — así ninguna postulante puede inscribirse en un
@@ -848,7 +867,6 @@ export interface SubmitRegistrationMeta {
 export async function submitCandidateRegistration(
   token: string,
   data: CandidateSelfRegistrationInput,
-  photos: UploadedApplicationPhoto[],
   meta: SubmitRegistrationMeta
 ): Promise<{ candidate: Candidate; folio: string }> {
   const project = await prisma.project.findUnique({
@@ -863,9 +881,7 @@ export async function submitCandidateRegistration(
   const rutClean = cleanRut(data.rut);
   if (!validateRut(rutClean)) throw new Error('RUT inválido');
 
-  // Misma función que usa el formulario, con "hoy" en Chile (no en UTC).
-  const age = ageInSantiago(data.birthDate);
-  if (age < project.minCandidateAge) {
+  if (data.age < project.minCandidateAge) {
     throw new BelowMinimumAgeError(`Debes tener al menos ${project.minCandidateAge} años cumplidos para postular.`);
   }
 
@@ -917,44 +933,18 @@ export async function submitCandidateRegistration(
           rut: formatRut(rutClean),
           rutClean,
           fullName: data.fullName,
-          stageName: data.stageName || undefined,
           email: data.email,
-          phone: data.phone || undefined,
-          birthDate: data.birthDate,
-          dressSize: data.dressSize || undefined,
-          shoeSize: data.shoeSize || undefined,
-          heightCm: data.heightCm ?? undefined,
-          emergencyContactName: data.emergencyContactName || undefined,
-          emergencyContactPhone: data.emergencyContactPhone || undefined,
+          phone: data.phone,
+          declaredAge: data.age,
           guardianName: data.guardianName || undefined,
-          guardianRut: data.guardianRut || undefined,
+          guardianRut: data.guardianRut ? formatRut(cleanRut(data.guardianRut)) : undefined,
           status: 'APPLICANT',
           folio,
           comuna: data.comuna,
-          direccion: data.direccion,
-          ocupacion: data.ocupacion,
-          instagram: data.instagram || undefined,
-          idiomas: data.idiomas || undefined,
-          experiencia: data.experiencia || undefined,
+          instagram: data.instagram,
           motivacion: data.motivacion,
-          causaSocial: data.causaSocial,
-          condicionesMedicas: data.condicionesMedicas || undefined,
-          aceptaMarketing: data.aceptaMarketing,
           ipOrigen: meta.ipOrigen || undefined,
           userAgent: meta.userAgent || undefined,
-          documents: {
-            create: photos.map((photo) => ({
-              companyId: project.companyId,
-              title: APPLICATION_DOCUMENT_TITLE[photo.documentType],
-              documentType: photo.documentType,
-              fileUrl: photo.fileUrl,
-              mimeType: photo.mimeType,
-              fileSizeBytes: photo.fileSizeBytes,
-              sha256Hash: photo.sha256Hash,
-              originalFileName: photo.originalFileName,
-              status: 'PENDING',
-            })),
-          },
         },
       });
 
@@ -970,7 +960,7 @@ export async function submitCandidateRegistration(
           action: 'CREATE',
           entity: 'Candidate',
           entityId: created.id,
-          metadata: { folio, projectId: project.id, source: 'public-registration', photoCount: photos.length },
+          metadata: { folio, projectId: project.id, source: 'public-registration' },
           ipAddress: meta.ipOrigen,
         },
       });
