@@ -1,11 +1,10 @@
-import { existsSync } from 'node:fs';
-import path from 'node:path';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Fragment } from 'react';
 import { ArrowRight, ArrowUp, ArrowUpRight, Boxes, Check, ChevronDown, ReceiptText, WalletCards } from 'lucide-react';
 import { points } from '../ChileSection';
 import { segments } from '../Segments';
+import EventMock, { type EventMockView } from './EventMock';
 import { moduleGroups } from '../catalog';
 import { faqs, outcomes, plans } from '../content';
 import { formatCurrency } from '@/lib/chile/tax';
@@ -85,19 +84,12 @@ export function ChileScene() {
   );
 }
 
-const gallery = [
-  { file: 'constelacion.webp', caption: 'Postulación y acreditación' },
-  { file: 'orbita.webp', caption: 'Escaleta minuto a minuto' },
-  { file: 'corona.webp', caption: 'Escrutinio y coronación' },
-] as const;
-
-/**
- * Si falta una imagen de la galería queda el hueco oscuro, y solo en
- * desarrollo se rotula el archivo pendiente. En producción no se toca el disco.
- */
-function isPending(file: string): boolean {
-  return process.env.NODE_ENV !== 'production' && !existsSync(path.join(process.cwd(), 'public/marketing/cinematic/gallery', file));
-}
+/** Las tres pantallas del módulo de certámenes (EventMock.tsx, con datos de ejemplo). */
+const gallery: readonly { view: EventMockView; caption: string }[] = [
+  { view: 'casting', caption: 'Postulación y acreditación' },
+  { view: 'show', caption: 'Escaleta minuto a minuto' },
+  { view: 'judging', caption: 'Escrutinio y coronación' },
+];
 
 /** Escena 6, «Del casting a la corona.»: galería de certámenes. */
 export function EventScene() {
@@ -111,15 +103,15 @@ export function EventScene() {
       </div>
       <div className={s.gallery}>
         {gallery.map((item, index) => (
-          <figure key={item.file} data-reveal>
+          <figure key={item.view} data-reveal>
             <div className={s.galleryFrame}>
-              {isPending(item.file) && <span className={s.galleryPending}>Imagen pendiente: public/marketing/cinematic/gallery/{item.file}</span>}
-              <Image src={`/marketing/cinematic/gallery/${item.file}`} alt="" fill sizes="(max-width: 760px) 100vw, 33vw" />
+              <EventMock view={item.view} />
             </div>
             <figcaption><span aria-hidden="true">0{index + 1}</span>{item.caption}</figcaption>
           </figure>
         ))}
       </div>
+      <p className={s.galleryNote}>Vistas ilustrativas del sistema · datos de ejemplo</p>
     </section>
   );
 }
