@@ -223,7 +223,8 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
     setMenuOpen(false);
     window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   };
-  const isSponsorView = showAudienceSwitch ? audience === 'sponsor' : !hasCandidateSide;
+  // Sin selector, la vista es la única cara que existe; un sitio sin ninguna de las dos (solo gala, entradas…) se muestra como siempre.
+  const isSponsorView = showAudienceSwitch ? audience === 'sponsor' : hasSponsorSide && !hasCandidateSide;
   const whatsappFloat = site.whatsapp
     ? { href: whatsappMessageUrl(site.whatsapp.href, whatsappGreeting(isSponsorView ? 'sponsor' : 'candidata', site.name)), label: isSponsorView ? 'Escríbenos por WhatsApp para ser sponsor' : 'Escríbenos por WhatsApp para ser candidata' }
     : null;

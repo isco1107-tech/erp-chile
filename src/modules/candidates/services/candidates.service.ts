@@ -284,15 +284,20 @@ function ageRangeToBirthDateRange(minAge?: number, maxAge?: number): { gte?: Dat
  * internas creadas a mano, no cuando cualquier persona de internet puede
  * generar filas nuevas sin límite práctico.
  */
-export async function listCandidates(companyId: string, filters: CandidateListFilters = {}): Promise<CandidateListResult> {
+export async function listCandidates(
+  companyId: string,
+  filters: CandidateListFilters = {},
+  // Solo para usos internos del servidor (exportación): el listado de pantalla queda en 100.
+  options: { maxPageSize?: number } = {}
+): Promise<CandidateListResult> {
   const page = Math.max(1, filters.page ?? 1);
-  const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, filters.pageSize ?? DEFAULT_PAGE_SIZE));
+  const pageSize = Math.min(options.maxPageSize ?? MAX_PAGE_SIZE, Math.max(1, filters.pageSize ?? DEFAULT_PAGE_SIZE));
 
   const where: Prisma.CandidateWhereInput = {
     companyId,
     ...(filters.projectId ? { projectId: filters.projectId } : {}),
     ...(filters.status ? { status: filters.status } : {}),
-    ...(filters.comuna?.trim() ? { comuna: { equals: filters.comuna.trim(), mode: 'insensitive' } } : {}),
+    ...(filters.comuna?.trim() ? { comuna: { contains: filters.comuna.trim(), mode: 'insensitive' } } : {}),
   };
 
   // Edad: por fecha de nacimiento o, en postulaciones públicas sin ella, por la edad declarada.
@@ -343,8 +348,10 @@ export async function listCandidates(companyId: string, filters: CandidateListFi
  * (Sección 6: "Excel o CSV de las postulaciones filtradas, sin fotografías").
  * Tope duro de 5000 filas: una exportación más grande que eso necesita
  * filtrar primero, no es un caso de uso real de este módulo. */
+const EXPORT_MAX_ROWS = 5000;
+
 export async function listCandidatesForExport(companyId: string, filters: Omit<CandidateListFilters, 'page' | 'pageSize'> = {}): Promise<CandidateWithProject[]> {
-  const { items } = await listCandidates(companyId, { ...filters, page: 1, pageSize: 5000 });
+  const { items } = await listCandidates(companyId, { ...filters, page: 1, pageSize: EXPORT_MAX_ROWS }, { maxPageSize: EXPORT_MAX_ROWS });
   return items;
 }
 
@@ -929,6 +936,8 @@ export async function submitCandidateRegistration(
           email: data.email,
           phone: data.phone,
           declaredAge: data.age,
+          guardianName: data.guardianName || undefined,
+          guardianRut: data.guardianRut ? formatRut(cleanRut(data.guardianRut)) : undefined,
           status: 'APPLICANT',
           folio,
           comuna: data.comuna,

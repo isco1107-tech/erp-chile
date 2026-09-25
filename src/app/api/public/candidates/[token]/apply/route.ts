@@ -82,6 +82,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     email: body.email,
     instagram: body.instagram,
     motivacion: body.motivacion,
+    guardianName: typeof body.guardianName === 'string' && body.guardianName.trim() !== '' ? body.guardianName : undefined,
+    guardianRut: typeof body.guardianRut === 'string' && body.guardianRut.trim() !== '' ? body.guardianRut : undefined,
+    aceptaTratamientoDatos: body.aceptaTratamientoDatos,
   });
   if (!parsed.success) {
     return jsonError(parsed.error.issues[0]?.message ?? 'Datos inválidos', 400);

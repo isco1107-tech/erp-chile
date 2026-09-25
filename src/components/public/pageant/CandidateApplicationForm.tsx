@@ -2,7 +2,7 @@
 
 import { useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { formatRut } from '@/lib/chile/rut';
-import { CANDIDATE_HONEYPOT_FIELD, candidateSelfRegistrationSchema } from '@/modules/candidates/schema';
+import { CANDIDATE_HONEYPOT_FIELD, MINOR_AGE, candidateSelfRegistrationSchema } from '@/modules/candidates/schema';
 import TurnstileWidget, { isTurnstileConfigured } from '@/components/security/TurnstileWidget';
 import { Arrow, Check } from './icons';
 
@@ -15,7 +15,7 @@ import { Arrow, Check } from './icons';
  * `/api/public/candidates/{token}/apply`.
  */
 
-const EMPTY = { fullName: '', rut: '', age: '', comuna: '', phone: '', email: '', instagram: '', motivacion: '' };
+const EMPTY = { fullName: '', rut: '', age: '', comuna: '', phone: '', email: '', instagram: '', motivacion: '', guardianName: '', guardianRut: '' };
 type Values = typeof EMPTY;
 
 function Field({ id, label, error, children }: { id: string; label: string; error?: string; children: ReactNode }) {
@@ -45,6 +45,7 @@ export function CandidateApplicationForm({
   onSubmitted?: (folio: string) => void;
 }) {
   const [values, setValues] = useState<Values>(EMPTY);
+  const [consent, setConsent] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<'idle' | 'sending'>('idle');
   const [folio, setFolio] = useState<string | null>(null);
@@ -62,14 +63,24 @@ export function CandidateApplicationForm({
       return next;
     });
   };
-  const described = (key: keyof Values) => (errors[key] ? { 'aria-invalid': true, 'aria-describedby': `insc-${key}-error` } : {});
+  const ageNumber = values.age.trim() === '' ? null : Number(values.age);
+  const isMinor = ageNumber !== null && Number.isFinite(ageNumber) && ageNumber > 0 && ageNumber < MINOR_AGE;
+  const described = (key: keyof Values | 'aceptaTratamientoDatos') => (errors[key] ? { 'aria-invalid': true, 'aria-describedby': `insc-${key}-error` } : {});
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setServerError('');
     if (honeypot.current?.value) return;
 
-    const parsed = candidateSelfRegistrationSchema.safeParse({ ...values, age: values.age.trim() === '' ? undefined : Number(values.age) });
+    const payload = {
+      ...values,
+      age: ageNumber ?? undefined,
+      // Los datos del apoderado solo viajan si declara ser menor de edad.
+      guardianName: isMinor ? values.guardianName : undefined,
+      guardianRut: isMinor ? values.guardianRut : undefined,
+      aceptaTratamientoDatos: consent,
+    };
+    const parsed = candidateSelfRegistrationSchema.safeParse(payload);
     const next: Record<string, string> = {};
     if (!parsed.success) {
       for (const issue of parsed.error.issues) {
@@ -78,6 +89,12 @@ export function CandidateApplicationForm({
       }
     } else if (parsed.data.age < minAge) {
       next.age = `Debes tener al menos ${minAge} años para postular.`;
+    }
+    // La regla del apoderado vive en un `superRefine`, que Zod no corre mientras falten otros datos:
+    // se adelanta acá para mostrar todos los errores de una vez.
+    if (isMinor && !parsed.success) {
+      if (values.guardianName.trim().length < 3) next.guardianName ??= 'Como eres menor de edad, indica el nombre de tu madre, padre o apoderado';
+      if (!values.guardianRut.trim()) next.guardianRut ??= 'Ingresa el RUT de tu apoderado';
     }
     if (Object.keys(next).length > 0) {
       setErrors(next);
@@ -92,7 +109,7 @@ export function CandidateApplicationForm({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...values,
+          ...payload,
           [CANDIDATE_HONEYPOT_FIELD]: honeypot.current?.value ?? '',
           ...(turnstileToken ? { 'cf-turnstile-response': turnstileToken } : {}),
         }),
@@ -169,6 +186,53 @@ export function CandidateApplicationForm({
       <Field id="insc-motivacion" label="¿Por qué quieres participar?" error={errors.motivacion}>
         <textarea id="insc-motivacion" rows={4} value={values.motivacion} onChange={(e) => set('motivacion', e.target.value)} required {...described('motivacion')} />
       </Field>
+      {isMinor && (
+        <div className="pgs-form-grid">
+          <Field id="insc-guardianName" label="Nombre de tu apoderado/a" error={errors.guardianName}>
+            <input id="insc-guardianName" value={values.guardianName} onChange={(e) => set('guardianName', e.target.value)} required {...described('guardianName')} />
+          </Field>
+          <Field id="insc-guardianRut" label="RUT de tu apoderado/a" error={errors.guardianRut}>
+            <input
+              id="insc-guardianRut"
+              value={values.guardianRut}
+              onChange={(e) => set('guardianRut', e.target.value)}
+              onBlur={(e) => e.target.value && set('guardianRut', formatRut(e.target.value))}
+              required
+              {...described('guardianRut')}
+            />
+          </Field>
+        </div>
+      )}
+      <div className={`pgs-consent${errors.aceptaTratamientoDatos ? ' has-error' : ''}`}>
+        <label htmlFor="insc-aceptaTratamientoDatos">
+          <input
+            id="insc-aceptaTratamientoDatos"
+            type="checkbox"
+            checked={consent}
+            onChange={(e) => {
+              setConsent(e.target.checked);
+              setErrors((prev) => {
+                const next = { ...prev };
+                delete next.aceptaTratamientoDatos;
+                return next;
+              });
+            }}
+            {...described('aceptaTratamientoDatos')}
+          />
+          <span>
+            Acepto el tratamiento de mis datos según la{' '}
+            <a href={privacyHref} target="_blank" rel="noopener noreferrer">
+              política de privacidad
+            </a>{' '}
+            del certamen.
+          </span>
+        </label>
+        {errors.aceptaTratamientoDatos && (
+          <p className="pgs-field-error" id="insc-aceptaTratamientoDatos-error">
+            {errors.aceptaTratamientoDatos}
+          </p>
+        )}
+      </div>
       <input ref={honeypot} type="text" name={CANDIDATE_HONEYPOT_FIELD} tabIndex={-1} autoComplete="off" aria-hidden="true" className="pgs-hp" />
       <TurnstileWidget key={turnstileKey} action="candidate-application" onToken={setTurnstileToken} />
       {serverError && (
@@ -180,13 +244,6 @@ export function CandidateApplicationForm({
         <span>{status === 'sending' ? 'Enviando…' : 'Enviar inscripción'}</span>
         <Arrow className="pgs-btn-icon" />
       </button>
-      <p className="pgs-form-fine">
-        Al enviar aceptas el tratamiento de tus datos según la{' '}
-        <a href={privacyHref} target="_blank" rel="noopener noreferrer">
-          política de privacidad
-        </a>{' '}
-        del certamen.
-      </p>
     </form>
   );
 }

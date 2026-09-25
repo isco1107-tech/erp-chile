@@ -74,6 +74,7 @@ export default async function PoliticaPrivacidadPage({ searchParams }: { searchP
         <li>Datos de identificación: nombre completo, RUT y edad.</li>
         <li>Datos de contacto: teléfono, correo electrónico, comuna donde vives e Instagram.</li>
         <li>Por qué quieres participar en el certamen.</li>
+        <li>Si eres menor de edad, nombre y RUT de tu madre, padre o apoderado.</li>
         <li>Metadatos técnicos del envío (dirección IP y navegador/dispositivo usado), con fines exclusivos de seguridad — por ejemplo, para prevenir envíos automatizados o fraudulentos.</li>
       </ul>
       <p>

@@ -4,6 +4,8 @@ import {
   candidateSelfRegistrationSchema,
   candidateStatusChangeSchema,
   candidateCreateSchema,
+  candidateUpdateSchema,
+  registrationSettingsSchema,
   type CandidateSelfRegistrationInput,
 } from '@/modules/candidates/schema';
 import {
@@ -40,6 +42,7 @@ function buildValidRegistration(overrides: Partial<Record<string, unknown>> = {}
     email: 'camila.fuentes@correo.cl',
     instagram: '@camila.fuentes',
     motivacion: 'Quiero representar a mi comuna y vivir el camino a la corona.',
+    aceptaTratamientoDatos: true,
     ...overrides,
   };
 }
@@ -72,11 +75,27 @@ describe('candidateSelfRegistrationSchema — formulario público de inscripció
     expect(candidateSelfRegistrationSchema.safeParse(buildValidRegistration({ age: 20.5 })).success).toBe(false);
   });
 
-  it('normaliza el Instagram con una sola @', () => {
-    const plain = candidateSelfRegistrationSchema.safeParse(buildValidRegistration({ instagram: 'camila.fuentes' }));
-    const doubled = candidateSelfRegistrationSchema.safeParse(buildValidRegistration({ instagram: '@@camila.fuentes' }));
-    expect(plain.success && plain.data.instagram).toBe('@camila.fuentes');
-    expect(doubled.success && doubled.data.instagram).toBe('@camila.fuentes');
+  it('normaliza el Instagram (usuario, @usuario o link del perfil) y rechaza lo que no es un usuario', () => {
+    for (const input of ['camila.fuentes', '@@camila.fuentes', 'https://www.instagram.com/camila.fuentes/']) {
+      const result = candidateSelfRegistrationSchema.safeParse(buildValidRegistration({ instagram: input }));
+      expect(result.success && result.data.instagram).toBe('@camila.fuentes');
+    }
+    expect(candidateSelfRegistrationSchema.safeParse(buildValidRegistration({ instagram: 'camila fuentes' })).success).toBe(false);
+  });
+
+  it('exige el consentimiento expreso para tratar los datos', () => {
+    expect(candidateSelfRegistrationSchema.safeParse(buildValidRegistration({ aceptaTratamientoDatos: false })).success).toBe(false);
+    expect(candidateSelfRegistrationSchema.safeParse(buildValidRegistration({ aceptaTratamientoDatos: undefined })).success).toBe(false);
+  });
+
+  it('una menor de edad debe indicar nombre y RUT válido de su apoderado', () => {
+    expect(candidateSelfRegistrationSchema.safeParse(buildValidRegistration({ age: 16 })).success).toBe(false);
+    expect(
+      candidateSelfRegistrationSchema.safeParse(buildValidRegistration({ age: 16, guardianName: 'María Soto', guardianRut: '12.345.678-4' })).success
+    ).toBe(false);
+    expect(
+      candidateSelfRegistrationSchema.safeParse(buildValidRegistration({ age: 16, guardianName: 'María Soto', guardianRut: '12.345.678-5' })).success
+    ).toBe(true);
   });
 
   it('rechaza un teléfono con letras', () => {
@@ -87,10 +106,18 @@ describe('candidateSelfRegistrationSchema — formulario público de inscripció
     expect(candidateSelfRegistrationSchema.safeParse(buildValidRegistration({ motivacion: 'x'.repeat(2001) })).success).toBe(false);
   });
 
-  it('la ficha interna sigue aceptando fecha de nacimiento, y ahora también sin ella', () => {
+  it('crear una ficha desde el panel exige fecha de nacimiento; editar una postulación pública, no', () => {
     const base = { projectId: 'proj-1', rut: '12.345.678-5', fullName: 'Ficha creada por staff', status: 'APPLICANT' };
     expect(candidateCreateSchema.safeParse({ ...base, birthDate: '2000-01-01' }).success).toBe(true);
-    expect(candidateCreateSchema.safeParse({ ...base, birthDate: '' }).success).toBe(true);
+    expect(candidateCreateSchema.safeParse({ ...base, birthDate: '' }).success).toBe(false);
+    expect(candidateUpdateSchema.safeParse({ fullName: 'Camila Fuentes', birthDate: '' }).success).toBe(true);
+  });
+
+  it('"qué incluye" ignora líneas vacías y repetidas antes de contar el máximo', () => {
+    const lines = Array.from({ length: 18 }, (_, i) => [`Clase ${i + 1}`, '']).flat();
+    const result = registrationSettingsSchema.safeParse({ registrationStatus: 'OPEN', benefits: [...lines, 'Clase 1', '  '] });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.benefits).toHaveLength(18);
   });
 });
 
@@ -300,6 +327,7 @@ function buildRegistrationInput(overrides: Partial<CandidateSelfRegistrationInpu
     email: 'camila.fuentes@correo.cl',
     instagram: '@camila.fuentes',
     motivacion: 'Quiero representar a mi comuna y vivir el camino a la corona.',
+    aceptaTratamientoDatos: true,
     ...overrides,
   };
 }

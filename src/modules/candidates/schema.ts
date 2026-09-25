@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { contactEmailField, contactWhatsappField, instagramHandleField } from '@/lib/events/pageant-contact';
+import { contactEmailField, contactWhatsappField, instagramHandleField, normalizeInstagramHandle } from '@/lib/events/pageant-contact';
 import type { CandidateStatus } from '@prisma/client';
 import { cleanRut, validateRut } from '@/lib/chile/rut';
 import { regions } from '@/lib/chile/locations';
@@ -9,9 +9,6 @@ const rutField = z
   .string()
   .min(3, 'El RUT es obligatorio')
   .refine((val) => validateRut(cleanRut(val)), 'RUT inválido. Verifica que esté bien escrito, ej: 12.345.678-K');
-
-/** Comunas de La Araucanía (histórico: el primer certamen solo aceptaba esa región). */
-export const ARAUCANIA_COMUNAS = regions.find((r) => r.code === 'IX')!.comunas;
 
 /** Todas las comunas de Chile, para sugerir en la ficha y en los filtros (la comuna es texto libre). */
 export const CHILE_COMUNAS = [...new Set(regions.flatMap((r) => r.comunas))].sort((a, b) => a.localeCompare(b, 'es-CL'));
@@ -63,8 +60,9 @@ export const candidateCreateSchema = z.object({
   stageName: z.string().max(100, 'Máximo 100 caracteres').optional(),
   email: z.string().email('Email inválido').max(180, 'Máximo 180 caracteres').optional().or(z.literal('')),
   phone: z.string().max(30, 'Máximo 30 caracteres').optional(),
-  // Opcional: las postulaciones del formulario público solo traen la edad.
-  birthDate: z.preprocess((value) => (value === '' || value === null ? undefined : value), z.coerce.date('Fecha de nacimiento inválida').optional()),
+  // Obligatoria al crear desde el panel. En la edición (`candidateUpdateSchema`,
+  // parcial) puede venir vacía: las postulaciones públicas solo traen la edad.
+  birthDate: z.preprocess((value) => (value === '' || value === null ? undefined : value), z.coerce.date('Ingresa la fecha de nacimiento')),
   dressSize: z.string().max(20, 'Máximo 20 caracteres').optional(),
   shoeSize: z.string().max(20, 'Máximo 20 caracteres').optional(),
   heightCm: z.number().int('La estatura debe ser un número entero').positive('La estatura debe ser mayor a cero').nullable().optional(),
@@ -100,7 +98,11 @@ export type CandidateCreateInput = z.infer<typeof candidateCreateSchema>;
 
 // Sin `projectId`: es un dato estructural, una candidata no se puede mover de
 // proyecto una vez creada (ver CLAUDE.md de la tarea).
-export const candidateUpdateSchema = candidateCreateSchema.omit({ projectId: true }).partial();
+export const candidateUpdateSchema = candidateCreateSchema
+  .omit({ projectId: true })
+  .partial()
+  // Una postulación pública no trae fecha de nacimiento: al editarla, el campo puede quedar vacío.
+  .extend({ birthDate: z.preprocess((value) => (value === '' || value === null ? undefined : value), z.coerce.date('Fecha de nacimiento inválida').optional()) });
 
 export type CandidateUpdateInput = z.infer<typeof candidateUpdateSchema>;
 
@@ -111,33 +113,52 @@ export type CandidateUpdateInput = z.infer<typeof candidateUpdateSchema>;
 // contacto de emergencia, fotos) lo completa el equipo después, en la
 // preselección. La edad mínima depende de cada convocatoria
 // (`Project.minCandidateAge`) y se revisa en el servidor.
-/** Mayoría de edad en Chile. */
+/** Mayoría de edad en Chile: bajo esto se exigen los datos del apoderado. */
 export const MINOR_AGE = 18;
 
-export const candidateSelfRegistrationSchema = z.object({
-  fullName: z.string().trim().min(3, 'Escribe tu nombre completo').max(180, 'Máximo 180 caracteres'),
-  rut: rutField,
-  age: z
-    .number('Ingresa tu edad')
-    .int('La edad debe ser un número entero')
-    .min(1, 'Ingresa tu edad')
-    .max(99, 'Revisa tu edad'),
-  comuna: z.string().trim().min(2, 'Escribe la comuna donde vives').max(80, 'Máximo 80 caracteres'),
-  phone: z
-    .string()
-    .trim()
-    .min(8, 'Escribe un teléfono de contacto')
-    .max(30, 'Máximo 30 caracteres')
-    .regex(/^[+\d\s().-]+$/, 'El teléfono solo puede tener números'),
-  email: z.string().trim().email('Escribe un correo válido').max(180, 'Máximo 180 caracteres'),
-  instagram: z
-    .string()
-    .trim()
-    .min(2, 'Escribe tu usuario de Instagram')
-    .max(80, 'Máximo 80 caracteres')
-    .transform((value) => `@${value.replace(/^@+/, '')}`),
-  motivacion: z.string().trim().min(10, 'Cuéntanos por qué quieres participar').max(2000, 'Máximo 2000 caracteres'),
-});
+export const candidateSelfRegistrationSchema = z
+  .object({
+    fullName: z.string().trim().min(3, 'Escribe tu nombre completo').max(180, 'Máximo 180 caracteres'),
+    rut: rutField,
+    age: z.number('Ingresa tu edad').int('La edad debe ser un número entero').min(1, 'Ingresa tu edad').max(99, 'Revisa tu edad'),
+    comuna: z.string().trim().min(2, 'Escribe la comuna donde vives').max(80, 'Máximo 80 caracteres'),
+    phone: z
+      .string()
+      .trim()
+      .min(8, 'Escribe un teléfono de contacto')
+      .max(30, 'Máximo 30 caracteres')
+      .regex(/^[+\d\s().-]+$/, 'El teléfono solo puede tener números'),
+    email: z.string().trim().email('Escribe un correo válido').max(180, 'Máximo 180 caracteres'),
+    // Usuario, "@usuario" o el link del perfil → "@usuario"; se rechaza lo que no sea un usuario válido.
+    instagram: z
+      .string()
+      .trim()
+      .min(1, 'Escribe tu usuario de Instagram')
+      .max(120, 'Máximo 120 caracteres')
+      .transform((value, ctx) => {
+        const handle = normalizeInstagramHandle(value);
+        if (!handle) {
+          ctx.addIssue({ code: 'custom', message: 'Escribe solo tu usuario de Instagram (ej. @tuusuario)' });
+          return z.NEVER;
+        }
+        return `@${handle}`;
+      }),
+    motivacion: z.string().trim().min(10, 'Cuéntanos por qué quieres participar').max(2000, 'Máximo 2000 caracteres'),
+    // Solo se piden si declara ser menor de edad (el contrato de imagen lleva su firma).
+    guardianName: z.string().trim().max(150, 'Máximo 150 caracteres').optional(),
+    guardianRut: z.string().trim().max(12, 'Máximo 12 caracteres').optional(),
+    // Consentimiento expreso para tratar sus datos (Ley 19.628): sin esto no se guarda nada.
+    aceptaTratamientoDatos: z.literal(true, 'Debes aceptar la política de privacidad para inscribirte'),
+  })
+  .superRefine((data, ctx) => {
+    if (data.age >= MINOR_AGE) return;
+    if (!data.guardianName || data.guardianName.length < 3) {
+      ctx.addIssue({ code: 'custom', path: ['guardianName'], message: 'Como eres menor de edad, indica el nombre de tu madre, padre o apoderado' });
+    }
+    if (!data.guardianRut || !validateRut(cleanRut(data.guardianRut))) {
+      ctx.addIssue({ code: 'custom', path: ['guardianRut'], message: 'Ingresa un RUT válido de tu apoderado' });
+    }
+  });
 // Honeypot: nombre de campo (`website`) usado por el formulario público y
 // por `app/api/public/candidates/[token]/apply/route.ts`. Deliberadamente
 // NO es parte de `candidateSelfRegistrationSchema`: el honeypot se revisa
@@ -176,11 +197,13 @@ export const registrationSettingsSchema = z
     contactWhatsapp: contactWhatsappField,
     instagramHandle: instagramHandleField,
     // "Qué incluye tu inscripción": un beneficio por ítem, sin vacíos ni repetidos.
-    benefits: z
-      .array(z.string().trim().max(120, 'Cada ítem de "qué incluye" tiene un máximo de 120 caracteres'))
-      .max(20, 'Máximo 20 ítems en "qué incluye"')
-      .default([])
-      .transform((items) => [...new Set(items.filter(Boolean))]),
+    benefits: z.preprocess(
+      (value) => (Array.isArray(value) ? [...new Set(value.map((item) => (typeof item === 'string' ? item.trim() : item)).filter((item) => item !== ''))] : value),
+      z
+        .array(z.string().max(120, 'Cada ítem de "qué incluye" tiene un máximo de 120 caracteres'))
+        .max(20, 'Máximo 20 ítems en "qué incluye"')
+        .default([])
+    ),
     classesNote: z
       .string()
       .trim()

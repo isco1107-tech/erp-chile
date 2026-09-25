@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { Download } from 'lucide-react';
@@ -62,6 +62,11 @@ export default function CandidateListClient({ canWrite, canExport }: { canWrite:
   const [minAge, setMinAge] = useState('');
   const [maxAge, setMaxAge] = useState('');
   const [search, setSearch] = useState('');
+  // Los filtros de texto consultan al servidor recién cuando se deja de escribir.
+  const debouncedComuna = useDebouncedValue(comuna);
+  const debouncedSearch = useDebouncedValue(search);
+  // Solo la última consulta pinta la lista: una respuesta vieja que llega tarde se descarta.
+  const requestSeq = useRef(0);
 
   useEffect(() => {
     listCandidateProjectOptionsAction().then((r) => {
@@ -71,17 +76,19 @@ export default function CandidateListClient({ canWrite, canExport }: { canWrite:
   }, []);
 
   async function load() {
+    const seq = ++requestSeq.current;
     setLoading(true);
     const result = await listCandidatesAction({
       projectId: projectId || undefined,
       status: (status as CandidateWithProject['status']) || undefined,
-      comuna: comuna || undefined,
+      comuna: debouncedComuna || undefined,
       minAge: minAge ? Number(minAge) : undefined,
       maxAge: maxAge ? Number(maxAge) : undefined,
-      search: search || undefined,
+      search: debouncedSearch || undefined,
       page,
       pageSize: PAGE_SIZE,
     });
+    if (seq !== requestSeq.current) return;
     if (result.success) {
       setCandidates(result.data.items);
       setTotal(result.data.total);
@@ -94,7 +101,7 @@ export default function CandidateListClient({ canWrite, canExport }: { canWrite:
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, status, comuna, minAge, maxAge, search, page]);
+  }, [projectId, status, debouncedComuna, minAge, maxAge, debouncedSearch, page]);
 
   // Cualquier cambio de filtro vuelve a la página 1 — de lo contrario se
   // podría quedar en una página que ya no existe para el nuevo resultado.
@@ -274,4 +281,13 @@ export default function CandidateListClient({ canWrite, canExport }: { canWrite:
       )}
     </div>
   );
+}
+
+function useDebouncedValue(value: string, delayMs = 300): string {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebounced(value), delayMs);
+    return () => window.clearTimeout(timer);
+  }, [value, delayMs]);
+  return debounced;
 }

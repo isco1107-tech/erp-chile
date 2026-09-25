@@ -48,12 +48,14 @@ export function pageantContact(project: { publicContactEmail: string | null; pub
   };
 }
 
-/** Campos de formulario (Zod), compartidos por la convocatoria y el micrositio. Vacío → `null`. */
+/** Campos de formulario (Zod), compartidos por la convocatoria y el micrositio. Vacío → `null`.
+ * Aceptan también `null`: un formulario que ya validó en el cliente reenvía su
+ * resultado al servidor, y ahí un campo vacío llega como `null`. */
 export const contactEmailField = z
   .string()
   .trim()
   .max(160)
-  .optional()
+  .nullish()
   .transform((value) => (value ? value.toLowerCase() : null))
   .refine((value) => value === null || z.email().safeParse(value).success, 'El correo de contacto no es válido');
 
@@ -61,7 +63,7 @@ export const contactWhatsappField = z
   .string()
   .trim()
   .max(30)
-  .optional()
+  .nullish()
   .transform((value, ctx) => {
     if (!value) return null;
     const digits = normalizeWhatsappNumber(value);
@@ -76,7 +78,7 @@ export const instagramHandleField = z
   .string()
   .trim()
   .max(120)
-  .optional()
+  .nullish()
   .transform((value, ctx) => {
     if (!value) return null;
     const handle = normalizeInstagramHandle(value);

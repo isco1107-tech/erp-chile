@@ -532,8 +532,11 @@ export const PAGEANT_SITE_STYLES = `
 .pgs-includes li { display: flex; align-items: center; gap: 0.9rem; padding: 1rem 1.2rem; border-radius: 16px; background: var(--paper); color: var(--ink); font-weight: 600; }
 .pgs-includes .pgs-check { color: var(--a-deep); background: color-mix(in srgb, var(--a) 30%, transparent); }
 .pgs-lead .pgs-lead-deadline { font-weight: 600; color: var(--a-deep); }
-.pgs-form-fine { margin: 0; font-size: 0.78rem; line-height: 1.5; color: var(--ink-soft); text-align: center; }
-.pgs-form-fine a { color: var(--ink); }
+.pgs-consent label { display: flex; align-items: flex-start; gap: 0.7rem; font-size: 0.88rem; line-height: 1.5; color: var(--ink-soft); cursor: pointer; }
+.pgs-consent input { flex: none; width: 1.15rem; height: 1.15rem; margin-top: 0.15rem; accent-color: var(--a-deep); }
+.pgs-consent a { color: var(--ink); }
+.pgs-consent.has-error label { color: var(--copihue); }
+.pgs-consent .pgs-field-error { margin-top: 0.35rem; }
 .pgs-form .pgs-btn.pgs-btn-block { align-self: stretch; }
 .pgs-lead-pick { margin: 0; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 1rem; border-radius: 12px; background: color-mix(in srgb, var(--a) 22%, var(--paper)); color: var(--ink); font-size: 0.9rem; }
 .pgs-lead-pick button { appearance: none; border: 0; background: none; color: var(--ink-soft); font: 600 0.75rem/1 var(--sans); text-decoration: underline; cursor: pointer; }

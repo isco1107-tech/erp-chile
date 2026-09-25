@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { projectCreateSchema, projectUpdateSchema } from '@/modules/projects/schema';
 import {
   buildPageantView,
   galaCalendarUrl,
@@ -240,5 +241,28 @@ describe('vistas candidata / sponsor del micrositio', () => {
   it('el proceso de sponsor se adapta a si hay paquetes y WhatsApp', () => {
     expect(sponsorProcess({ hasPackages: true, hasWhatsapp: true })[0].title).toBe('Elige tu paquete');
     expect(sponsorProcess({ hasPackages: false, hasWhatsapp: false })[1].detail).not.toContain('WhatsApp');
+  });
+});
+
+describe('campos de contacto con null', () => {
+  it('un formulario ya validado en el cliente reenvía null y el servidor lo acepta como vacío', () => {
+    expect(contactWhatsappField.parse(null)).toBeNull();
+    expect(contactEmailField.parse(null)).toBeNull();
+    expect(instagramHandleField.parse(null)).toBeNull();
+  });
+});
+
+describe('formulario de proyecto con WhatsApp', () => {
+  const payload = { code: 'MULC', name: 'Miss Universo Las Condes 2026', startDate: '2026-10-01', budgetedIncome: 0, budgetedExpense: 0 };
+
+  it.each(['', '+56 9 8142 5816'])('lo que validó el cliente (WhatsApp "%s") vuelve a validar en el servidor', (publicWhatsapp) => {
+    for (const schema of [projectCreateSchema, projectUpdateSchema]) {
+      const client = schema.parse({ ...payload, publicWhatsapp });
+      expect(schema.safeParse(client).success).toBe(true);
+    }
+  });
+
+  it('normaliza el WhatsApp al formato de wa.me', () => {
+    expect(projectCreateSchema.parse({ ...payload, publicWhatsapp: '+56 9 8142 5816' }).publicWhatsapp).toBe('56981425816');
   });
 });
