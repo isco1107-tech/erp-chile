@@ -30,12 +30,6 @@ const MOBILE_QUERY = '(max-width: 760px)';
 /** Con menos alto que esto el hero no cabe fijo: el contenido fluye apilado. */
 const STATIC_QUERY = '(max-height: 560px)';
 /**
- * Con movimiento reducido el video sigue avanzando con el scroll (lo mueve la
- * persona, no se anima solo), pero sin inercia: se detiene justo cuando ella se detiene.
- */
-const REDUCED_QUERY = '(prefers-reduced-motion: reduce)';
-
-/**
  * Primer fotograma de v1 como `<picture>`: es el LCP y es idéntico al primer
  * cuadro que dibuja el canvas, así que el paso de uno a otro no se ve.
  */
@@ -71,16 +65,15 @@ export default function CinematicSequence() {
     if (typeof IntersectionObserver === 'undefined' || typeof ResizeObserver === 'undefined') return;
     const still = window.matchMedia(STATIC_QUERY);
     const mobile = window.matchMedia(MOBILE_QUERY);
-    const reduced = window.matchMedia(REDUCED_QUERY);
     // Modo liviano (ahorro de datos, conexión lenta, poca memoria): uno de cada tres fotogramas.
     const stride = isLightweightDevice() ? 3 : 1;
     let stop: (() => void) | null = null;
     const restart = () => {
       stop?.();
-      stop = still.matches ? null : startPlayer(elements, mobile.matches ? 'mobile' : 'desktop', manifest.boundary.crossfadeMs, !reduced.matches, stride);
+      stop = still.matches ? null : startPlayer(elements, mobile.matches ? 'mobile' : 'desktop', manifest.boundary.crossfadeMs, stride);
     };
     restart();
-    const queries = [still, mobile, reduced];
+    const queries = [still, mobile];
     for (const query of queries) query.addEventListener('change', restart);
     return () => {
       stop?.();

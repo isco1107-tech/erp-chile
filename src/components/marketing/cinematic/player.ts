@@ -1,7 +1,7 @@
 import manifest from '../../../../public/marketing/cinematic/seq/manifest.json';
 import {
-  IDLE_AHEAD, LERP, V2_PRELOAD_FROM, chapterState, snapIndex, usesFrame, choreography, clamp01, decodeWindow, exitShade, frameAt, frameUrl, hudOpacity,
-  fromGlobal, globalIndex, loadOrder, type Choreography, type Clip, type FramePosition,
+  IDLE_AHEAD, SMOOTH_TIME, V2_PRELOAD_FROM, chapterState, snapIndex, usesFrame, choreography, clamp01, decodeWindow, exitShade, frameBlend, framePoint,
+  frameUrl, hudOpacity, fromGlobal, globalIndex, loadOrder, smoothDamp, type Choreography, type Clip, type FramePosition,
 } from './sequence';
 
 /**
@@ -120,9 +120,14 @@ function clearChoreography(elements: PlayerElements) {
 
 /**
  * `stride` > 1 es el modo liviano (ver device.ts): uno de cada `stride`
- * fotogramas, así que se descarga y decodifica esa fracción del video.
+ * fotogramas, así que se descarga y decodifica esa fracción del video (y no
+ * se funden fotogramas vecinos, que cuesta un segundo dibujo por cuadro).
+ *
+ * El avance sigue al scroll con inercia también con movimiento reducido: no
+ * es una animación que corra sola, es el mismo recorrido que hace la persona,
+ * sin los saltos de cada clic de la rueda.
  */
-export function startPlayer(elements: PlayerElements, setName: FrameSetName, crossfadeMs: number, inertia = true, stride = 1): () => void {
+export function startPlayer(elements: PlayerElements, setName: FrameSetName, crossfadeMs: number, stride = 1): () => void {
   const { track, stage, canvas } = elements;
   const context = canvas.getContext('2d', { alpha: false });
   if (!context) return () => {};
@@ -148,12 +153,16 @@ export function startPlayer(elements: PlayerElements, setName: FrameSetName, cro
   let exit = 0;
   let shade = Number.NaN;
   let progress = Number.NaN;
+  let velocity = 0;
+  let lastTime = 0;
   let fetches = 0;
   let decodes = 0;
   let v2Allowed = false;
   let direction: 1 | -1 = 1;
   let current = 0;
   let drawn: { position: FramePosition; image: Drawable } | null = null;
+  /** Fotograma siguiente al dibujado, fundido encima en la proporción `mix`. */
+  let blend: { image: Drawable; mix: number } | null = null;
   let outgoing: { image: Drawable; started: number } | null = null;
   let width = 0;
   let height = 0;
@@ -209,23 +218,24 @@ export function startPlayer(elements: PlayerElements, setName: FrameSetName, cro
 
   function paint(now: number) {
     if (!drawn || width === 0 || height === 0) return;
+    let alpha = 1;
     if (outgoing) {
       const t = (now - outgoing.started) / crossfadeMs;
       if (t >= 1) {
         outgoing = null;
-        draw(drawn.image, 1);
       } else {
         draw(outgoing.image, 1);
-        draw(drawn.image, Math.max(0, t));
+        alpha = Math.max(0, t);
       }
-    } else {
-      draw(drawn.image, 1);
     }
+    draw(drawn.image, alpha);
+    if (blend) draw(blend.image, alpha * blend.mix);
     if (!track.hasAttribute('data-painted')) track.setAttribute('data-painted', '');
-    // Fotograma visible (p. ej. «v1:1»): lo leen las pruebas de la landing.
-    track.dataset.frame = `v${drawn.position.clip + 1}:${drawn.position.index + 1}`;
+    // Fotograma que más se ve (p. ej. «v1:1»): lo leen las pruebas de la landing.
+    const clip = drawn.position.clip;
+    const index = drawn.position.index + (blend && blend.mix >= 0.5 ? 1 : 0);
+    track.dataset.frame = `v${clip + 1}:${index + 1}`;
     // Sobre un cuadro claro la cabecera y la línea de progreso cambian de fondo (CSS).
-    const { clip, index } = drawn.position;
     track.toggleAttribute('data-light', light[clip].some(([first, last]) => index >= first && index <= last));
   }
 
@@ -285,7 +295,7 @@ export function startPlayer(elements: PlayerElements, setName: FrameSetName, cro
     for (const clip of [0, 1] as const) {
       for (const [index, image] of clips[clip].images) {
         const global = globalIndex({ clip, index }, counts);
-        const pinned = drawn?.image === image || outgoing?.image === image;
+        const pinned = drawn?.image === image || outgoing?.image === image || blend?.image === image;
         if (!pinned && (global < first - 2 || global > last + 2)) {
           release(image);
           clips[clip].images.delete(index);
@@ -327,10 +337,20 @@ export function startPlayer(elements: PlayerElements, setName: FrameSetName, cro
     writeExit();
 
     const previous = progress;
-    // Al volver a una página a mitad de la pista se salta directo, sin barrido.
-    // Sin inercia (movimiento reducido) el video sigue al scroll 1:1.
-    progress = Number.isNaN(progress) || !inertia ? target : progress + (target - progress) * LERP;
-    if (Math.abs(target - progress) < 0.0005) progress = target;
+    // Segundos desde el cuadro anterior (acotado: una pestaña que vuelve no da un salto).
+    const dt = lastTime ? Math.min(0.05, (now - lastTime) / 1000) : 1 / 60;
+    lastTime = now;
+    if (Number.isNaN(progress)) {
+      // Al volver a una página a mitad de la pista se salta directo, sin barrido.
+      progress = target;
+      velocity = 0;
+    } else {
+      [progress, velocity] = smoothDamp(progress, target, velocity, SMOOTH_TIME, dt);
+      if (Math.abs(target - progress) < 0.00005) {
+        progress = target;
+        velocity = 0;
+      }
+    }
     if (progress !== previous) {
       writeChoreography(elements, choreography(progress));
       track.dataset.progress = progress.toFixed(3);
@@ -340,8 +360,9 @@ export function startPlayer(elements: PlayerElements, setName: FrameSetName, cro
       loaderDirty = true;
     }
 
-    const exact = frameAt(progress, counts);
-    const position = { clip: exact.clip, index: snapIndex(exact.index, counts[exact.clip] - 1, stride) };
+    const point = framePoint(progress, counts);
+    const lastIndex = counts[point.clip] - 1;
+    const position = { clip: point.clip, index: snapIndex(Math.min(lastIndex, Math.round(point.index)), lastIndex, stride) };
     const global = globalIndex(position, counts);
     if (global !== current) {
       direction = global > current ? 1 : -1;
@@ -349,12 +370,31 @@ export function startPlayer(elements: PlayerElements, setName: FrameSetName, cro
       loaderDirty = true;
     }
 
-    const image = clips[position.clip].images.get(position.index);
+    // Entre dos fotogramas se dibuja el de abajo y encima el siguiente, en la
+    // proporción que toca. Si el de abajo aún no está decodificado, el más cercano solo.
+    const frames = clips[point.clip];
+    let base = position;
+    let over: { image: Drawable; mix: number } | null = null;
+    if (stride === 1) {
+      const { lower, upper, mix } = frameBlend(point, lastIndex);
+      if (frames.images.has(lower)) {
+        base = { clip: point.clip, index: lower };
+        const upperImage = mix > 0.015 ? frames.images.get(upper) : undefined;
+        // En 64 pasos: por debajo de eso el cambio no se ve y no vale un dibujo.
+        if (upperImage) over = { image: upperImage, mix: Math.round(mix * 64) / 64 };
+      }
+    }
+    const image = frames.images.get(base.index);
     if (image && image !== drawn?.image) {
       // Cambio de video (v1 ↔ v2): el último cuadro del anterior se funde
       // durante `crossfadeMs`, porque los videos no calzan cuadro a cuadro.
-      if (drawn && drawn.position.clip !== position.clip && crossfadeMs > 0) outgoing = { image: drawn.image, started: now };
-      drawn = { position, image };
+      if (drawn && drawn.position.clip !== base.clip && crossfadeMs > 0) outgoing = { image: drawn.image, started: now };
+      drawn = { position: base, image };
+      repaint = true;
+    }
+    if (!image) over = null;
+    if (over?.image !== blend?.image || over?.mix !== blend?.mix) {
+      blend = over;
       repaint = true;
     }
     if (outgoing) repaint = true;
@@ -364,6 +404,7 @@ export function startPlayer(elements: PlayerElements, setName: FrameSetName, cro
     }
     if (loaderDirty) pump();
     if (progress !== target || outgoing) schedule();
+    else lastTime = 0;
   }
 
   // Se mide en el evento de scroll, cuando el diseño está al día; en
@@ -444,6 +485,7 @@ export function startPlayer(elements: PlayerElements, setName: FrameSetName, cro
       frames.blobs.fill(undefined);
     }
     drawn = null;
+    blend = null;
     outgoing = null;
     track.removeAttribute('data-painted');
     track.removeAttribute('data-player');

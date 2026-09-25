@@ -5,7 +5,7 @@
  *
  * Revisa los cinco criterios de éxito del hero, las anclas, las pestañas, el
  * diálogo de ampliar, el desborde horizontal, el movimiento reducido (el
- * scroll sigue mandando, sin inercia) y la versión apilada (sin JavaScript o
+ * scroll sigue mandando, con la misma inercia) y la versión apilada (sin JavaScript o
  * con ventana baja), y deja capturas en .vercel/landing-v2-check/.
  * No envía el formulario ni escribe en ninguna base de datos.
  */
@@ -374,9 +374,12 @@ async function staticModes(browser) {
   }
 }
 
-/** Con movimiento reducido el video igual avanza con el scroll, pero sin inercia. */
+/**
+ * Con movimiento reducido el video igual avanza con el scroll y con la misma
+ * inercia: no es una animación que corra sola, solo quita los saltos de la rueda.
+ */
 async function reducedMotion(browser) {
-  console.log('\n── Movimiento reducido (el scroll manda, sin inercia)');
+  console.log('\n── Movimiento reducido (el scroll manda, con inercia)');
   for (const [tag, viewport, set] of [['reducido-1440', { width: 1440, height: 900 }, 'desktop'], ['reducido-390', { width: 390, height: 844 }, 'mobile']]) {
     const context = await browser.newContext({ viewport, reducedMotion: 'reduce', isMobile: set === 'mobile', hasTouch: set === 'mobile' });
     const page = await context.newPage();
@@ -398,7 +401,7 @@ async function reducedMotion(browser) {
       };
       requestAnimationFrame(poll);
     }));
-    check(`${tag}: el scroll lleva el video 1:1, sin inercia`, elapsed >= 0 && elapsed < 200, `alcanzó P .3 en ${elapsed} ms`);
+    check(`${tag}: el video alcanza al scroll y se detiene en él`, elapsed >= 0 && elapsed < 1600, `alcanzó P .3 en ${elapsed} ms`);
     const frame = expectedFrame(0.3, set);
     await page.waitForFunction(expected => document.querySelector('[data-cinematic-track]').dataset.frame === expected, frame, { timeout: 20000 }).catch(() => {});
     check(`${tag}: el video avanza con el scroll`, await page.$eval('[data-cinematic-track]', node => node.dataset.frame) === frame, `P .3 → ${frame}`);

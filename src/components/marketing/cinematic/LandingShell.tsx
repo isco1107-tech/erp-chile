@@ -7,6 +7,7 @@ import { ArrowUpRight, Menu, X } from 'lucide-react';
 import StickyActions from '../StickyActions';
 import { isLightweightDevice } from './device';
 import { Cursor, Sky } from './LiveLayers';
+import { startSmoothWheel } from './smoothWheel';
 import { useLiveMotion } from './useLiveMotion';
 import s from './v2.module.css';
 
@@ -85,6 +86,9 @@ export default function LandingShell({ className, children }: { className?: stri
   const productView = useMemo(() => ({ view, setView }), [view]);
 
   useLiveMotion(root, cosmos, liveClasses);
+
+  // La rueda del mouse desliza en vez de saltar (ver smoothWheel.ts).
+  useEffect(() => startSmoothWheel(), []);
 
   // Modo liviano (ahorro de datos, conexión lenta, poca memoria): lo marca en
   // la página para que el CSS simplifique (ver v2.module.css, [data-lite]).

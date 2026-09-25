@@ -9,8 +9,12 @@ import manifest from '../../../../public/marketing/cinematic/seq/manifest.json';
  */
 
 export const V1_END = 0.55;
-/** Suavizado por cuadro de animación: le da inercia al avance del video. */
-export const LERP = 0.12;
+/**
+ * Inercia del avance del video, en segundos: cuánto tarda en alcanzar al
+ * scroll. Es un resorte con amortiguación crítica (ver smoothDamp), así que
+ * no depende de los cuadros por segundo de la pantalla y nunca se pasa.
+ */
+export const SMOOTH_TIME = 0.24;
 /** A partir de este P empiezan a descargarse los fotogramas de v2. */
 export const V2_PRELOAD_FROM = 0.3;
 /**
@@ -58,15 +62,54 @@ export function v2Time(stretch: number): number {
   return 1;
 }
 
+/**
+ * Posición continua dentro de un video: `index` tiene decimales (12.4 es
+ * el fotograma 12 con 40 % del 13 encima). Permite mezclar fotogramas vecinos.
+ */
+export function framePoint(progress: number, counts: readonly [number, number]): FramePosition {
+  const p = clamp01(progress);
+  if (p < V1_END) return { clip: 0, index: (p / V1_END) * (counts[0] - 1) };
+  return { clip: 1, index: v2Time((p - V1_END) / (1 - V1_END)) * (counts[1] - 1) };
+}
+
 /** Qué video y qué fotograma corresponden a un progreso. */
 export function frameAt(progress: number, counts: readonly [number, number]): FramePosition {
-  const p = clamp01(progress);
-  if (p < V1_END) {
-    const last = counts[0] - 1;
-    return { clip: 0, index: Math.min(last, Math.round((p / V1_END) * last)) };
+  const { clip, index } = framePoint(progress, counts);
+  return { clip, index: Math.min(counts[clip] - 1, Math.round(index)) };
+}
+
+/**
+ * Fotograma de abajo, el de arriba y cuánto del de arriba se ve (0 a 1). Entre
+ * dos fotogramas del video el canvas funde ambos: con la rueda del mouse el
+ * cuadro avanza de a poco en vez de saltar de uno en uno.
+ */
+export function frameBlend(point: FramePosition, last: number): { lower: number; upper: number; mix: number } {
+  const index = Math.max(0, Math.min(last, point.index));
+  const lower = Math.floor(index);
+  const upper = Math.min(last, lower + 1);
+  return { lower, upper, mix: upper === lower ? 0 : index - lower };
+}
+
+/**
+ * Resorte con amortiguación crítica (el SmoothDamp de los motores de juego):
+ * acelera y frena sin cortes, aunque el objetivo salte de a 100 px por cada
+ * clic de la rueda. Devuelve el valor nuevo y su velocidad (unidades por segundo).
+ */
+export function smoothDamp(current: number, target: number, velocity: number, smoothTime: number, dt: number): [value: number, velocity: number] {
+  if (dt <= 0) return [current, velocity];
+  const omega = 2 / Math.max(0.0001, smoothTime);
+  const x = omega * dt;
+  const decay = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+  const change = current - target;
+  const temp = (velocity + omega * change) * dt;
+  let nextVelocity = (velocity - omega * temp) * decay;
+  let value = target + (change + temp) * decay;
+  // Nunca se pasa del objetivo: si lo cruzó, se queda en él.
+  if ((target - current > 0) === (value > target)) {
+    value = target;
+    nextVelocity = 0;
   }
-  const last = counts[1] - 1;
-  return { clip: 1, index: Math.min(last, Math.round(v2Time((p - V1_END) / (1 - V1_END)) * last)) };
+  return [value, nextVelocity];
 }
 
 /**
