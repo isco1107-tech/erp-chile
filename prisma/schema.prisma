@@ -144,6 +144,13 @@ model Company {
   importShipments           ImportShipment[]
   importShipmentItems       ImportShipmentItem[]
   importShipmentCosts       ImportShipmentCost[]
+  billsOfMaterials          BillOfMaterials[]
+  bomComponents             BomComponent[]
+  productionOrders          ProductionOrder[]
+  productionOrderComponents ProductionOrderComponent[]
+  serviceTickets            ServiceTicket[]
+  serviceTicketLines        ServiceTicketLine[]
+  serviceTicketEvents       ServiceTicketEvent[]
   salesDocumentItems        SalesDocumentItem[]
   purchaseDocuments         PurchaseDocument[]
   purchaseDocumentItems     PurchaseDocumentItem[]
@@ -301,6 +308,7 @@ model User {
   approvedPurchaseDocuments        PurchaseDocument[]        @relation("PurchaseApprovals")
   matchOverriddenPurchaseDocuments PurchaseDocument[]        @relation("PurchaseMatchOverrides")
   sessions                         UserSession[]
+  assignedServiceTickets           ServiceTicket[]           @relation("ServiceTicketTechnician")
   /// Empresas ADICIONALES a `companyId` (la "hogar") que este usuario puede
   /// activar sin iniciar sesión de nuevo — ver `CompanyMembership` y
   /// `src/lib/auth/actions/switch-company.actions.ts`.
@@ -490,6 +498,10 @@ model CompanyFeatures {
   hasFixedAssets        Boolean  @default(false)
   /// Rendición de gastos con flujo de aprobación y reembolso.
   hasExpenseReports     Boolean  @default(false)
+  /// Producción: recetas (lista de materiales) y órdenes de producción.
+  hasProduction         Boolean  @default(false)
+  /// Servicio técnico: órdenes de servicio con seguimiento para el cliente.
+  hasServiceDesk        Boolean  @default(false)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 }
@@ -581,6 +593,10 @@ enum InternalDocumentKind {
   PURCHASE_REQUEST
   /// Carpeta de importación (`ImportShipment.folio`).
   IMPORT_SHIPMENT
+  /// Orden de producción (`ProductionOrder.folio`).
+  PRODUCTION_ORDER
+  /// Orden de servicio técnico (`ServiceTicket.folio`).
+  SERVICE_TICKET
 }
 
 /// Correlativos internos (no folio SII) para documentos sin relevancia
@@ -722,6 +738,7 @@ model Contact {
   collectionNotes           CollectionNote[]
   supplierQuotes            SupplierQuote[]
   importShipments           ImportShipment[]
+  serviceTickets            ServiceTicket[]
 
   @@unique([companyId, rutClean])
   @@index([companyId, razonSocial])
@@ -749,47 +766,48 @@ model Category {
 }
 
 model Warehouse {
-  id              String                 @id @default(cuid())
-  companyId       String
-  company         Company                @relation(fields: [companyId], references: [id])
-  name            String
-  code            String
-  isDefault       Boolean                @default(false)
-  address         String?
-  stocks          Stock[]
-  movements       InventoryMovement[]
-  salesDocuments  SalesDocument[]
-  salesOrders     SalesOrder[]
-  inventoryLots   InventoryLot[]
-  inventoryCounts InventoryCount[]
-  purchaseItems   PurchaseDocumentItem[]
-  goodsReceipts   GoodsReceipt[]
-  cashRegisters   CashRegister[]
-  importShipments ImportShipment[]
-  createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
+  id               String                 @id @default(cuid())
+  companyId        String
+  company          Company                @relation(fields: [companyId], references: [id])
+  name             String
+  code             String
+  isDefault        Boolean                @default(false)
+  address          String?
+  stocks           Stock[]
+  movements        InventoryMovement[]
+  salesDocuments   SalesDocument[]
+  salesOrders      SalesOrder[]
+  inventoryLots    InventoryLot[]
+  inventoryCounts  InventoryCount[]
+  purchaseItems    PurchaseDocumentItem[]
+  goodsReceipts    GoodsReceipt[]
+  cashRegisters    CashRegister[]
+  importShipments  ImportShipment[]
+  productionOrders ProductionOrder[]
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
 
   @@unique([companyId, code])
 }
 
 model Product {
-  id                   String                 @id @default(cuid())
+  id                   String                     @id @default(cuid())
   companyId            String
-  company              Company                @relation(fields: [companyId], references: [id])
+  company              Company                    @relation(fields: [companyId], references: [id])
   categoryId           String?
-  category             Category?              @relation(fields: [categoryId], references: [id])
+  category             Category?                  @relation(fields: [categoryId], references: [id])
   sku                  String
   name                 String
   description          String?
-  unit                 String                 @default("UN")
-  isTrackable          Boolean                @default(true)
+  unit                 String                     @default("UN")
+  isTrackable          Boolean                    @default(true)
   /// Producto exento de IVA. Sin este campo el POS no tenía forma de saberlo y
   /// cobraba 19% sobre todo, sobrecobrando al cliente y distorsionando el F29.
-  isExempt             Boolean                @default(false)
-  costPricePMP         Float                  @default(0)
-  netPrice             Int                    @default(0)
-  grossPrice           Int                    @default(0)
-  minStock             Int                    @default(0)
+  isExempt             Boolean                    @default(false)
+  costPricePMP         Float                      @default(0)
+  netPrice             Int                        @default(0)
+  grossPrice           Int                        @default(0)
+  minStock             Int                        @default(0)
   /// Código de barras principal (EAN-13, UPC o interno). Único por empresa.
   barcode              String?
   brand                String?
@@ -797,7 +815,7 @@ model Product {
   imageUrl             String?
   /// Maneja lotes con vencimiento: las entradas registran lote y las salidas
   /// consumen primero el que vence antes (FEFO). Ver `InventoryLot`.
-  tracksLots           Boolean                @default(false)
+  tracksLots           Boolean                    @default(false)
   packagings           ProductPackaging[]
   lots                 InventoryLot[]
   inventoryCountLines  InventoryCountLine[]
@@ -812,8 +830,13 @@ model Product {
   journalLines         JournalLine[]
   purchaseRequestItems PurchaseRequestItem[]
   importShipmentItems  ImportShipmentItem[]
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime               @updatedAt
+  billsOfMaterials     BillOfMaterials[]          @relation("BomOutput")
+  bomComponents        BomComponent[]
+  productionOrders     ProductionOrder[]          @relation("ProductionOutput")
+  productionComponents ProductionOrderComponent[]
+  serviceTicketLines   ServiceTicketLine[]
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
 
   @@unique([companyId, sku])
   @@unique([companyId, barcode])
@@ -3400,6 +3423,12 @@ enum WorkflowTriggerEvent {
   LOT_EXPIRING
   /// Toma de inventario contabilizada (trae ajustes y su valorización).
   INVENTORY_COUNT_POSTED
+  /// Orden de producción terminada (producto ingresado a su costo).
+  PRODUCTION_ORDER_COMPLETED
+  /// Orden de servicio técnico cambió de estado (listo para retiro, entregado…).
+  SERVICE_TICKET_STATUS_CHANGED
+  /// El cliente aprobó o rechazó el presupuesto desde su enlace de seguimiento.
+  SERVICE_ESTIMATE_DECIDED
 }
 
 enum WorkflowActionType {
@@ -4086,6 +4115,7 @@ model SalesOrder {
   cancelReason   String?
   items          SalesOrderItem[]
   salesDocuments SalesDocument[]
+  serviceTickets ServiceTicket[]
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
@@ -4807,4 +4837,187 @@ model ImportShipmentCost {
   purchaseDocument   PurchaseDocument? @relation(fields: [purchaseDocumentId], references: [id], onDelete: SetNull)
 
   @@index([companyId, shipmentId])
+}
+
+// ─── Operaciones · Ola 6: producción y servicio técnico ──────────────────────
+
+/// Receta o lista de materiales: qué componentes y en qué cantidad se
+/// consumen para fabricar `outputQuantity` unidades del producto terminado.
+model BillOfMaterials {
+  id               String            @id @default(cuid())
+  companyId        String
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  productId        String
+  product          Product           @relation("BomOutput", fields: [productId], references: [id])
+  name             String
+  outputQuantity   Float             @default(1)
+  notes            String?
+  isActive         Boolean           @default(true)
+  components       BomComponent[]
+  productionOrders ProductionOrder[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([companyId, productId])
+}
+
+model BomComponent {
+  id        String          @id @default(cuid())
+  companyId String
+  company   Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bomId     String
+  bom       BillOfMaterials @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product         @relation(fields: [productId], references: [id])
+  /// Cantidad por `outputQuantity` unidades producidas.
+  quantity  Float
+  position  Int             @default(0)
+
+  @@index([companyId, bomId])
+}
+
+enum ProductionOrderStatus {
+  PLANNED
+  IN_PROGRESS
+  /// Componentes consumidos y producto terminado ingresado a bodega.
+  COMPLETED
+  CANCELLED
+}
+
+model ProductionOrder {
+  id                 String                     @id @default(cuid())
+  companyId          String
+  company            Company                    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  folio              Int
+  bomId              String?
+  bom                BillOfMaterials?           @relation(fields: [bomId], references: [id], onDelete: SetNull)
+  productId          String
+  product            Product                    @relation("ProductionOutput", fields: [productId], references: [id])
+  quantity           Float
+  warehouseId        String
+  warehouse          Warehouse                  @relation(fields: [warehouseId], references: [id])
+  status             ProductionOrderStatus      @default(PLANNED)
+  plannedDate        DateTime?
+  startedAt          DateTime?
+  completedAt        DateTime?
+  completedById      String?
+  /// Mano de obra y gastos de fabricación que se suman al costo, CLP.
+  additionalCost     Int                        @default(0)
+  additionalCostNote String?
+  /// Costo total y unitario resultantes al completar.
+  totalCost          Int?
+  unitCost           Float?
+  notes              String?
+  components         ProductionOrderComponent[]
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+
+  @@unique([companyId, folio])
+  @@index([companyId, status])
+}
+
+model ProductionOrderComponent {
+  id               String          @id @default(cuid())
+  companyId        String
+  company          Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  orderId          String
+  order            ProductionOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId        String
+  product          Product         @relation(fields: [productId], references: [id])
+  plannedQuantity  Float
+  consumedQuantity Float?
+  /// Costo de lo consumido (PMP al momento de consumir).
+  totalCost        Int?
+  position         Int             @default(0)
+
+  @@index([companyId, orderId])
+}
+
+enum ServiceTicketStatus {
+  RECEIVED
+  DIAGNOSING
+  WAITING_APPROVAL
+  APPROVED
+  IN_REPAIR
+  READY
+  DELIVERED
+  CANCELLED
+}
+
+/// Orden de servicio técnico: equipo que un cliente deja para diagnóstico y
+/// reparación. `trackingToken` es la llave del enlace de seguimiento que se
+/// entrega al cliente (sin cuenta).
+model ServiceTicket {
+  id                String               @id @default(cuid())
+  companyId         String
+  company           Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  folio             Int
+  contactId         String
+  contact           Contact              @relation(fields: [contactId], references: [id])
+  equipment         String
+  brand             String?
+  model             String?
+  serialNumber      String?
+  accessories       String?
+  reportedIssue     String
+  diagnosis         String?
+  /// LOW, NORMAL, HIGH
+  priority          String               @default("NORMAL")
+  status            ServiceTicketStatus  @default(RECEIVED)
+  technicianId      String?
+  technician        User?                @relation("ServiceTicketTechnician", fields: [technicianId], references: [id], onDelete: SetNull)
+  promisedDate      DateTime?
+  warranty          Boolean              @default(false)
+  /// Decisión del cliente sobre el presupuesto: APPROVED o REJECTED.
+  estimateDecision  String?
+  estimateDecidedAt DateTime?
+  /// STAFF o CUSTOMER (desde el enlace de seguimiento).
+  estimateDecidedBy String?
+  deliveredAt       DateTime?
+  salesOrderId      String?
+  salesOrder        SalesOrder?          @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
+  trackingToken     String               @unique
+  receivedByName    String?
+  notes             String?
+  lines             ServiceTicketLine[]
+  events            ServiceTicketEvent[]
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  @@unique([companyId, folio])
+  @@index([companyId, status])
+}
+
+model ServiceTicketLine {
+  id          String        @id @default(cuid())
+  companyId   String
+  company     Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ticketId    String
+  ticket      ServiceTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  /// PART (repuesto) o LABOR (mano de obra)
+  kind        String
+  productId   String?
+  product     Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
+  description String
+  quantity    Float
+  /// Precio unitario neto, CLP.
+  unitPrice   Int
+  position    Int           @default(0)
+
+  @@index([companyId, ticketId])
+}
+
+model ServiceTicketEvent {
+  id                String               @id @default(cuid())
+  companyId         String
+  company           Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ticketId          String
+  ticket            ServiceTicket        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  status            ServiceTicketStatus?
+  note              String?
+  visibleToCustomer Boolean              @default(true)
+  createdByName     String?
+  createdAt         DateTime             @default(now())
+
+  @@index([companyId, ticketId, createdAt])
 }

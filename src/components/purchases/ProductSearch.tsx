@@ -12,6 +12,8 @@ export interface ProductOption {
   unit: string;
   isTrackable: boolean;
   barcode: string | null;
+  /** Precio de venta neto del catálogo. */
+  netPrice: number;
 }
 
 /**
@@ -36,7 +38,7 @@ export function ProductSearch({
     let cancelled = false;
     listProductsAction().then((result) => {
       if (cancelled || !result.success) return;
-      setProducts(result.data.map((product) => ({ id: product.id, sku: product.sku, name: product.name, unit: product.unit, isTrackable: product.isTrackable, barcode: product.barcode })));
+      setProducts(result.data.map((product) => ({ id: product.id, sku: product.sku, name: product.name, unit: product.unit, isTrackable: product.isTrackable, barcode: product.barcode, netPrice: product.netPrice })));
     });
     return () => {
       cancelled = true;

@@ -354,6 +354,43 @@ export const WORKFLOW_TRIGGER_DEFINITIONS: Record<WorkflowTriggerEvent, Workflow
       { field: 'shortageValue', label: 'Faltante valorizado', kind: 'number' },
     ],
   },
+  PRODUCTION_ORDER_COMPLETED: {
+    event: 'PRODUCTION_ORDER_COMPLETED',
+    label: 'Orden de producción terminada',
+    description: 'Se completó una orden de producción: los insumos se consumieron y el producto terminado entró a bodega.',
+    fields: [
+      { field: 'orderId', label: 'ID de la orden', kind: 'string' },
+      { field: 'folio', label: 'N° de orden', kind: 'number' },
+      { field: 'productName', label: 'Producto', kind: 'string' },
+      { field: 'quantity', label: 'Cantidad producida', kind: 'number' },
+      { field: 'totalCost', label: 'Costo total', kind: 'number' },
+      { field: 'unitCost', label: 'Costo unitario', kind: 'number' },
+    ],
+  },
+  SERVICE_TICKET_STATUS_CHANGED: {
+    event: 'SERVICE_TICKET_STATUS_CHANGED',
+    label: 'Orden de servicio cambió de estado',
+    description: 'Una orden de servicio técnico avanzó de estado (por ejemplo, quedó lista para retiro). Útil para avisar al cliente con su enlace de seguimiento.',
+    fields: [
+      { field: 'ticketId', label: 'ID de la orden', kind: 'string' },
+      { field: 'folio', label: 'N° de orden', kind: 'number' },
+      { field: 'status', label: 'Estado nuevo', kind: 'string' },
+      { field: 'statusLabel', label: 'Estado (texto)', kind: 'string' },
+      { field: 'customerName', label: 'Cliente', kind: 'string' },
+      { field: 'customerEmail', label: 'Correo del cliente', kind: 'string' },
+      { field: 'equipment', label: 'Equipo', kind: 'string' },
+      { field: 'trackingUrl', label: 'Enlace de seguimiento', kind: 'string' },
+    ],
+  },
+  SERVICE_ESTIMATE_DECIDED: {
+    event: 'SERVICE_ESTIMATE_DECIDED',
+    label: 'Cliente respondió un presupuesto',
+    description: 'El cliente aprobó o rechazó el presupuesto de su orden de servicio desde el enlace de seguimiento.',
+    fields: [
+      { field: 'folio', label: 'N° de orden', kind: 'number' },
+      { field: 'approved', label: 'Aprobado', kind: 'boolean' },
+    ],
+  },
 };
 
 export const WORKFLOW_ACTION_TYPE_LABELS: Record<WorkflowActionType, string> = {

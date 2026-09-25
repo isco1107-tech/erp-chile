@@ -190,6 +190,16 @@ export const PERMISSIONS = {
   'expenses:approve': ['OWNER', 'ADMIN'],
   'expenses:reimburse': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
 
+  // Fabricación (recetas y órdenes de producción): operación de planta y
+  // bodega; contabilidad consulta costos. No confundir con `production:*`,
+  // que es la producción de eventos (acreditaciones, escaleta).
+  'manufacturing:read': ['OWNER', 'ADMIN', 'WAREHOUSE', 'ACCOUNTANT'],
+  'manufacturing:write': ['OWNER', 'ADMIN', 'WAREHOUSE'],
+
+  // Servicio técnico: lo atienden mesón (ventas) y taller (bodega).
+  'service:read': ['OWNER', 'ADMIN', 'SALES', 'WAREHOUSE'],
+  'service:write': ['OWNER', 'ADMIN', 'SALES', 'WAREHOUSE'],
+
   // Mensajería interna: entorno de productividad transversal, no un módulo
   // vertical del negocio — todo el equipo puede usarla, mismo criterio que
   // contacts:read.
@@ -302,6 +312,10 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'expenses:submit': 'Rendir gastos propios',
   'expenses:approve': 'Aprobar o rechazar rendiciones de gastos del equipo',
   'expenses:reimburse': 'Registrar el reembolso de rendiciones aprobadas',
+  'manufacturing:read': 'Ver recetas y órdenes de producción',
+  'manufacturing:write': 'Crear recetas y ejecutar órdenes de producción',
+  'service:read': 'Ver órdenes de servicio técnico',
+  'service:write': 'Recibir equipos, diagnosticar, presupuestar y entregar',
   'messaging:use': 'Usar la mensajería interna de la empresa',
   'messaging:whatsapp_personal': 'Abrir WhatsApp Web personal desde el header del ERP',
 };

@@ -85,7 +85,10 @@ export type NavIconKey =
   | 'receivedDte'
   | 'rcv'
   | 'purchaseRequests'
-  | 'imports';
+  | 'imports'
+  | 'manufacturing'
+  | 'boms'
+  | 'serviceDesk';
 
 export interface NavLink {
   /** Identificador estable (ver comentario del archivo). */
@@ -222,6 +225,18 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
     }
     if (compras.length > 0) push('Compras', compras);
   }
+
+  const operaciones: NavLink[] = [];
+  if (features.hasProduction && allow('manufacturing:read')) {
+    operaciones.push(
+      { id: 'manufacturing', href: '/dashboard/manufacturing', label: 'Producción', icon: 'manufacturing', keywords: ['orden de produccion', 'fabricacion', 'elaboracion', 'manufactura', 'planta'] },
+      { id: 'manufacturing-boms', href: '/dashboard/manufacturing/boms', label: 'Recetas', icon: 'boms', keywords: ['lista de materiales', 'bom', 'insumos', 'formula', 'receta'] }
+    );
+  }
+  if (features.hasServiceDesk && allow('service:read')) {
+    operaciones.push({ id: 'service-desk', href: '/dashboard/service', label: 'Servicio técnico', icon: 'serviceDesk', keywords: ['reparacion', 'taller', 'garantia', 'orden de servicio', 'presupuesto', 'soporte'] });
+  }
+  push('Operaciones', operaciones);
 
   const finanzas: NavLink[] = [];
   if (features.hasTreasury && allow('treasury:read')) {

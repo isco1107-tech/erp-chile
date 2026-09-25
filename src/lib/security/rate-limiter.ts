@@ -317,3 +317,17 @@ export const EMPLOYEE_PORTAL_REQUEST_RATE_LIMIT: RateLimitConfig = {
   limit: 5,
   windowMs: 60 * 60_000,
 };
+
+/** Seguimiento público de servicio técnico: vistas por IP. */
+export const SERVICE_TRACKING_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'service-tracking-ip',
+  limit: 60,
+  windowMs: 15 * 60_000,
+};
+
+/** Seguimiento público de servicio técnico: responder un presupuesto. */
+export const SERVICE_ESTIMATE_DECISION_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'service-estimate-decision',
+  limit: 5,
+  windowMs: 60 * 60_000,
+};

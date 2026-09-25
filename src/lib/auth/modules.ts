@@ -42,6 +42,8 @@ export type FeatureKey = keyof Pick<
   | 'hasPayroll'
   | 'hasFixedAssets'
   | 'hasExpenseReports'
+  | 'hasProduction'
+  | 'hasServiceDesk'
 >;
 
 export type CompanyFeatureFlags = Record<FeatureKey, boolean>;
@@ -281,6 +283,20 @@ export const MODULES: ModuleDefinition[] = [
     permissions: ['expenses:submit', 'expenses:approve', 'expenses:reimburse'],
     routes: ['/dashboard/expenses'],
   },
+  {
+    key: 'hasProduction',
+    label: 'Producción',
+    description: 'Recetas (lista de materiales) y órdenes de producción que consumen insumos y dejan el producto terminado a su costo real.',
+    permissions: ['manufacturing:read', 'manufacturing:write'],
+    routes: ['/dashboard/manufacturing'],
+  },
+  {
+    key: 'hasServiceDesk',
+    label: 'Servicio Técnico',
+    description: 'Órdenes de servicio con diagnóstico, presupuesto que el cliente aprueba desde su enlace de seguimiento y facturación vía nota de venta.',
+    permissions: ['service:read', 'service:write'],
+    routes: ['/dashboard/service'],
+  },
 ];
 
 export const MODULE_KEYS: FeatureKey[] = MODULES.map((m) => m.key);
@@ -319,6 +335,8 @@ export const DEFAULT_FEATURES: CompanyFeatureFlags = {
   hasPayroll: false,
   hasFixedAssets: false,
   hasExpenseReports: false,
+  hasProduction: false,
+  hasServiceDesk: false,
 };
 
 /** Índice inverso permiso → módulo, construido una vez al cargar el módulo. */
@@ -370,6 +388,8 @@ export function toFeatureFlags(features: CompanyFeatures | null): CompanyFeature
     hasPayroll: features.hasPayroll,
     hasFixedAssets: features.hasFixedAssets,
     hasExpenseReports: features.hasExpenseReports,
+    hasProduction: features.hasProduction,
+    hasServiceDesk: features.hasServiceDesk,
   };
 }
 

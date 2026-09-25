@@ -55,6 +55,8 @@ export const PLAN_PRESETS = {
       hasPayroll: false,
       hasFixedAssets: false,
       hasExpenseReports: false,
+      hasProduction: false,
+      hasServiceDesk: false,
     },
   },
   Profesional: {
@@ -91,6 +93,8 @@ export const PLAN_PRESETS = {
       hasPayroll: false,
       hasFixedAssets: false,
       hasExpenseReports: false,
+      hasProduction: false,
+      hasServiceDesk: false,
     },
   },
   Enterprise: {
@@ -130,6 +134,8 @@ export const PLAN_PRESETS = {
       hasPayroll: false,
       hasFixedAssets: false,
       hasExpenseReports: false,
+      hasProduction: false,
+      hasServiceDesk: false,
     },
   },
 } as const satisfies Record<string, { maxUsers: number; maxWarehouses: number; features: Record<FeatureKey, boolean> }>;

@@ -50,6 +50,8 @@ const FULL: CompanyFeatureFlags = {
   hasPayroll: true,
   hasFixedAssets: true,
   hasExpenseReports: true,
+  hasProduction: true,
+  hasServiceDesk: true,
 };
 
 const STARTER: CompanyFeatureFlags = { ...DEFAULT_FEATURES };
