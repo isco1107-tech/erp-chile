@@ -35,6 +35,7 @@ export type ContactListItem = Pick<
   | 'isSupplier'
   | 'creditLimit'
   | 'creditDays'
+  | 'priceListId'
 >;
 
 export interface ListContactsResult {
@@ -57,6 +58,7 @@ const CONTACT_LIST_ITEM_SELECT = {
   region: true,
   isCustomer: true,
   isSupplier: true,
+  priceListId: true,
   creditLimit: true,
   creditDays: true,
 } satisfies Prisma.ContactSelect;
@@ -104,9 +106,17 @@ export async function getContact(companyId: string, id: string): Promise<Contact
   return prisma.contact.findFirst({ where: { companyId, id } });
 }
 
+/** La lista de precios asignada debe ser de la misma empresa. */
+async function assertPriceListInCompany(companyId: string, priceListId: string | null | undefined): Promise<void> {
+  if (!priceListId) return;
+  const list = await prisma.priceList.findFirst({ where: { id: priceListId, companyId }, select: { id: true } });
+  if (!list) throw new Error('Lista de precios no encontrada');
+}
+
 export async function createContact(companyId: string, input: ContactCreateInput): Promise<Contact> {
   const rutClean = cleanRut(input.rut);
   if (!validateRut(rutClean)) throw new Error('RUT inválido');
+  await assertPriceListInCompany(companyId, input.priceListId);
 
   return prisma.contact.create({
     data: {
@@ -125,6 +135,7 @@ export async function createContact(companyId: string, input: ContactCreateInput
       isSupplier: input.isSupplier ?? false,
       creditLimit: input.creditLimit ?? undefined,
       creditDays: input.creditDays ?? undefined,
+      priceListId: input.priceListId ?? undefined,
     },
   });
 }
@@ -135,7 +146,8 @@ function emptyToNull(value: string | undefined): string | null | undefined {
 }
 
 export async function updateContact(companyId: string, id: string, input: ContactUpdateInput): Promise<Contact> {
-  const data: Prisma.ContactUpdateInput = {
+  await assertPriceListInCompany(companyId, input.priceListId);
+  const data: Prisma.ContactUpdateManyMutationInput & { priceListId?: string | null } = {
     razonSocial: input.razonSocial,
     nombreFantasia: emptyToNull(input.nombreFantasia),
     giro: emptyToNull(input.giro),
@@ -148,6 +160,7 @@ export async function updateContact(companyId: string, id: string, input: Contac
     isSupplier: input.isSupplier,
     creditLimit: input.creditLimit,
     creditDays: input.creditDays,
+    priceListId: input.priceListId,
   };
 
   if (input.rut) {

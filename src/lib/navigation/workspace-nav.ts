@@ -71,7 +71,10 @@ export type NavIconKey =
   | 'leave'
   | 'fixedAssets'
   | 'expenses'
-  | 'contracts';
+  | 'contracts'
+  | 'salesOrders'
+  | 'priceLists'
+  | 'commissions';
 
 export interface NavLink {
   /** Identificador estable (ver comentario del archivo). */
@@ -173,7 +176,14 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
 
   const ventas: NavLink[] = [];
   if (features.hasDteBilling && allow('sales:read')) {
-    ventas.push({ id: 'sales', href: '/dashboard/sales', label: 'Ventas & Facturación', icon: 'sales', keywords: ['factura', 'boleta', 'dte', 'cotizacion', 'nota de credito'] });
+    ventas.push(
+      { id: 'sales', href: '/dashboard/sales', label: 'Ventas & Facturación', icon: 'sales', keywords: ['factura', 'boleta', 'dte', 'cotizacion', 'nota de credito'] },
+      { id: 'sales-orders', href: '/dashboard/sales/orders', label: 'Notas de venta', icon: 'salesOrders', keywords: ['pedido', 'nota de venta', 'orden de venta', 'despacho parcial', 'reserva'] },
+      { id: 'price-lists', href: '/dashboard/sales/price-lists', label: 'Listas de precios', icon: 'priceLists', keywords: ['precios', 'mayorista', 'descuento', 'volumen', 'tarifa'] }
+    );
+    if (allow('reports:read')) {
+      ventas.push({ id: 'sales-commissions', href: '/dashboard/sales/commissions', label: 'Comisiones', icon: 'commissions', keywords: ['vendedores', 'comision', 'incentivo', 'metas'] });
+    }
   }
   if (allow('contacts:read')) {
     ventas.push({ id: 'contacts', href: '/dashboard/contacts', label: 'Clientes & Proveedores', icon: 'contacts', keywords: ['contactos', 'rut', 'clientes', 'proveedores'] });

@@ -73,6 +73,14 @@ async function hardDeleteTenant(tx: Prisma.TransactionClient, companyId: string)
   await tx.goodsReceipt.deleteMany({ where: { companyId } });
   await tx.purchaseOrderItem.deleteMany({ where: { companyId } });
   await tx.salesDocument.deleteMany({ where: { companyId } });
+  // Ventas · Ola 1: notas de venta (sus documentos ya se borraron arriba; las
+  // FKs desde SalesDocument son SetNull), listas de precios (Contact y
+  // SalesOrder apuntan con SetNull) y comisiones.
+  await tx.salesOrderItem.deleteMany({ where: { companyId } });
+  await tx.salesOrder.deleteMany({ where: { companyId } });
+  await tx.priceListItem.deleteMany({ where: { companyId } });
+  await tx.priceList.deleteMany({ where: { companyId } });
+  await tx.salesCommissionRate.deleteMany({ where: { companyId } });
   await tx.purchaseDocument.deleteMany({ where: { companyId } });
   await tx.journalEntry.deleteMany({ where: { companyId } });
   await tx.account.deleteMany({ where: { companyId } });

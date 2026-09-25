@@ -105,7 +105,8 @@ export async function createSalesDocumentAction(
     const session = await requireAuthWithPermission('sales:write');
     const parsed = salesDocumentCreateSchema.safeParse(input);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
-    const data = await salesService.createSalesDocument(session.companyId, parsed.data, status);
+    // Sin vendedor explícito, la venta se atribuye a quien la emite (comisiones).
+    const data = await salesService.createSalesDocument(session.companyId, { ...parsed.data, sellerId: parsed.data.sellerId ?? session.id }, status);
     await createAuditLog({
       companyId: session.companyId,
       userId: session.id,

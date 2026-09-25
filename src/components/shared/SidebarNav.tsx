@@ -5,6 +5,9 @@ import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import {
   FileSignature,
+  ClipboardList,
+  Tags,
+  BadgePercent,
   Home,
   ScanBarcode,
   CreditCard,
@@ -115,6 +118,9 @@ export const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   fixedAssets: Building2,
   expenses: ReceiptText,
   contracts: FileSignature,
+  salesOrders: ClipboardList,
+  priceLists: Tags,
+  commissions: BadgePercent,
   crmTasks: CalendarCheck,
   crmPeople: Contact,
   crmReports: BarChart3,

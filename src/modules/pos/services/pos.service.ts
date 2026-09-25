@@ -256,6 +256,8 @@ export async function createPosSale(
         contactId,
         warehouseId,
         cashShiftId: shiftId,
+        // La cajera del turno es la vendedora de la boleta (comisiones).
+        sellerId: userId,
         dteType: 'BOLETA_39',
         folio,
         status: 'ISSUED',

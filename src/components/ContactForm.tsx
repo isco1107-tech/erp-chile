@@ -13,6 +13,8 @@ import { regions } from '@/lib/chile/locations';
 import { contactCreateSchema, contactUpdateSchema } from '@/modules/contacts/schema';
 import { createContactAction, lookupCompanyInfoAction, updateContactAction } from '@/modules/contacts/actions/contacts.actions';
 import type { CompanyLookupCandidate } from '@/modules/contacts/services/company-lookup.service';
+import { listPriceListsAction } from '@/modules/sales/actions/price-lists.actions';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const EMPTY_FORM = {
   rut: '',
@@ -28,6 +30,8 @@ const EMPTY_FORM = {
   isSupplier: false,
   creditLimit: 0,
   creditDays: 0,
+  /** 'none' = precio del catálogo (sin lista). */
+  priceListId: 'none',
 };
 
 type FormState = typeof EMPTY_FORM;
@@ -46,6 +50,12 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
   // autorizado, todo al contado"), así que "sin límite" necesita su propio
   // interruptor en vez de superponerse a 0.
   const [noCreditLimit, setNoCreditLimit] = useState(true);
+  // Listas de precios activas; si el usuario no puede verlas (sin permiso de
+  // ventas), el campo simplemente no aparece.
+  const [priceLists, setPriceLists] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    listPriceListsAction().then((r) => r.success && setPriceLists(r.data.filter((list) => list.isActive).map(({ id, name }) => ({ id, name }))));
+  }, []);
 
   const [companyQuery, setCompanyQuery] = useState('');
   const [searchingCompany, setSearchingCompany] = useState(false);
@@ -104,6 +114,7 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
         isSupplier: editingContact.isSupplier,
         creditLimit: editingContact.creditLimit ?? 0,
         creditDays: editingContact.creditDays,
+        priceListId: editingContact.priceListId ?? 'none',
       });
       setNoCreditLimit(editingContact.creditLimit == null);
       setErrors({});
@@ -127,7 +138,13 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
     e.preventDefault();
     setErrors({});
 
-    const payload = { ...form, email: form.email || undefined, creditLimit: noCreditLimit ? null : form.creditLimit };
+    const payload = {
+      ...form,
+      email: form.email || undefined,
+      creditLimit: noCreditLimit ? null : form.creditLimit,
+      // Sin listas disponibles no se toca lo que el cliente ya tenga asignado.
+      priceListId: priceLists.length === 0 ? undefined : form.priceListId === 'none' ? null : form.priceListId,
+    };
     const schema = editingContact ? contactUpdateSchema : contactCreateSchema;
     const parsed = schema.safeParse(payload);
     if (!parsed.success) {
@@ -322,6 +339,27 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
             />
             <p className="mt-1 text-xs text-muted-foreground">0 = contado</p>
           </div>
+          {priceLists.length > 0 && (
+            <div className="sm:col-span-2">
+              <Label htmlFor="priceListId">Lista de precios</Label>
+              <Select
+                items={{ none: 'Precio del catálogo', ...Object.fromEntries(priceLists.map((list) => [list.id, list.name])) }}
+                value={form.priceListId}
+                onValueChange={(value) => update('priceListId', value as string)}
+              >
+                <SelectTrigger id="priceListId" className="mt-1.5">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Precio del catálogo</SelectItem>
+                  {priceLists.map((list) => (
+                    <SelectItem key={list.id} value={list.id}>{list.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-xs text-muted-foreground">Al venderle, los precios se proponen desde esta lista.</p>
+            </div>
+          )}
         </div>
       )}
 

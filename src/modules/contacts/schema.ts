@@ -20,6 +20,8 @@ export const contactCreateSchema = z.object({
   isSupplier: z.boolean().optional(),
   creditLimit: z.number().int().nonnegative('El límite de crédito no puede ser negativo').nullable().optional(),
   creditDays: z.number().int().nonnegative('Los días de crédito no pueden ser negativos').optional(),
+  /** Lista de precios del cliente; `null` = precio del catálogo. */
+  priceListId: z.string().min(1).nullable().optional(),
 });
 
 export const contactUpdateSchema = contactCreateSchema.partial();

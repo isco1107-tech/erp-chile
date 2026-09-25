@@ -29,6 +29,13 @@ import { TAX_GLOSSARY } from '@/lib/chile/glossary';
 import { useConfirm } from '@/components/ui/confirm-provider';
 import { createIdempotencyTracker } from '@/lib/idempotency';
 import { isExemptDocument } from '@/lib/chile/dte/codes';
+import Link from 'next/link';
+import { getOrderDocumentPrefillAction, type OrderDocumentPrefill } from '@/modules/sales/actions/sales-orders.actions';
+import { getContactPricingAction } from '@/modules/sales/actions/price-lists.actions';
+import { listSellersAction } from '@/modules/sales/actions/commissions.actions';
+import type { ContactPricing } from '@/modules/sales/services/price-lists.service';
+import { resolveUnitPrice } from '@/modules/sales/pricing';
+import { ORDER_DOCUMENT_TYPES } from '@/modules/sales/orders';
 let keyCounter = 0;
 function newKey(): string {
   keyCounter += 1;
@@ -44,11 +51,22 @@ interface LineItemDraft {
   unitPrice: string;
   isExempt: boolean;
   discountPercent: string;
+  /** Línea de la nota de venta que se factura o despacha. */
+  salesOrderItemId?: string;
+  /** Tope de la línea según la nota (lo que queda por facturar o despachar). */
+  maxQuantity?: number;
+  /** El precio lo propuso la lista del cliente (se recalcula al cambiar la cantidad). */
+  priceAuto?: boolean;
 }
 
 const REFERENCE_DTE_TYPES = new Set(['NOTA_CREDITO_61', 'NOTA_DEBITO_56', 'GUIA_DESPACHO_52']);
 
-export default function SalesDocumentForm() {
+/** Cantidad que se propone desde la nota según el tipo de documento. */
+function orderQuantityFor(line: OrderDocumentPrefill['lines'][number], dteType: (typeof DTE_TYPES)[number]): number {
+  return dteType === 'GUIA_DESPACHO_52' ? line.remainingToDispatch : line.remainingToInvoice;
+}
+
+export default function SalesDocumentForm({ orderId, initialType }: { orderId?: string; initialType?: (typeof DTE_TYPES)[number] } = {}) {
   const confirm = useConfirm();
   const router = useRouter();
   const idempotency = useRef(createIdempotencyTracker());
@@ -72,8 +90,13 @@ export default function SalesDocumentForm() {
   const [productQuery, setProductQuery] = useState('');
   const [saving, setSaving] = useState(false);
   const [creditStatus, setCreditStatus] = useState<ContactCreditStatus | null>(null);
+  const [orderPrefill, setOrderPrefill] = useState<OrderDocumentPrefill | null>(null);
+  const [pricing, setPricing] = useState<ContactPricing | null>(null);
+  const [sellers, setSellers] = useState<{ id: string; name: string }[]>([]);
+  const [sellerId, setSellerId] = useState('self');
 
   useEffect(() => {
+    listSellersAction().then((r) => { if (r.success) setSellers(r.data); });
     listContactsAction().then((r) => { if (r.success) setContacts(r.data); });
     listProductsAction().then((r) => { if (r.success) setProducts(r.data); });
     listWarehousesAction().then((r) => {
@@ -84,6 +107,78 @@ export default function SalesDocumentForm() {
       }
     });
   }, []);
+
+  // Emisión desde una nota de venta: cliente, bodega, forma de pago, vendedor
+  // y líneas con lo que queda pendiente. Las cantidades se pueden bajar
+  // (despacho parcial), nunca subir sobre el saldo de la nota.
+  useEffect(() => {
+    if (!orderId) return;
+    getOrderDocumentPrefillAction(orderId).then((r) => {
+      if (!r.success) {
+        toast.error(r.error);
+        return;
+      }
+      const prefill = r.data;
+      const type = initialType && ORDER_DOCUMENT_TYPES.includes(initialType) ? initialType : 'FACTURA_33';
+      setOrderPrefill(prefill);
+      setDteType(type);
+      setWarehouseId(prefill.warehouseId);
+      setPaymentMethod(prefill.paymentMethod as (typeof PAYMENT_METHODS)[number]);
+      if (prefill.sellerId) setSellerId(prefill.sellerId);
+      setItems(
+        prefill.lines
+          .filter((line) => orderQuantityFor(line, type) > 0)
+          .map((line) => ({
+            key: newKey(),
+            productId: line.productId ?? undefined,
+            sku: line.sku ?? undefined,
+            description: line.description,
+            quantity: String(orderQuantityFor(line, type)),
+            unitPrice: String(line.unitPrice),
+            isExempt: line.isExempt,
+            discountPercent: String(line.discountPercent),
+            salesOrderItemId: line.salesOrderItemId,
+            maxQuantity: orderQuantityFor(line, type),
+          }))
+      );
+    });
+  }, [orderId, initialType]);
+
+  // El cliente de la nota se selecciona cuando llega la lista de contactos.
+  useEffect(() => {
+    if (!orderPrefill || selectedContact) return;
+    const contact = contacts.find((c) => c.id === orderPrefill.contactId);
+    if (contact) setSelectedContact(contact);
+  }, [orderPrefill, contacts, selectedContact]);
+
+  // Lista de precios del cliente: propone el precio de cada producto nuevo.
+  useEffect(() => {
+    if (!selectedContact) {
+      setPricing(null);
+      return;
+    }
+    let cancelled = false;
+    getContactPricingAction(selectedContact.id).then((r) => {
+      if (!cancelled && r.success) setPricing(r.data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedContact]);
+
+  // Al cambiar de tipo dentro de una nota, se re-propone el saldo que corresponde.
+  function changeDteType(type: (typeof DTE_TYPES)[number]) {
+    setDteType(type);
+    if (!orderPrefill) return;
+    setItems((prev) =>
+      prev.map((item) => {
+        const line = orderPrefill.lines.find((candidate) => candidate.salesOrderItemId === item.salesOrderItemId);
+        if (!line) return item;
+        const max = orderQuantityFor(line, type);
+        return { ...item, quantity: String(max), maxQuantity: max };
+      })
+    );
+  }
 
   useEffect(() => {
     if (!selectedContact) {
@@ -136,8 +231,22 @@ export default function SalesDocumentForm() {
   );
 
   function updateItem<K extends keyof LineItemDraft>(key: string, field: K, value: LineItemDraft[K]) {
-    setItems((prev) => prev.map((i) => (i.key === key ? { ...i, [field]: value } : i)));
+    setItems((prev) =>
+      prev.map((i) => {
+        if (i.key !== key) return i;
+        const next = { ...i, [field]: value };
+        if (field === 'unitPrice') next.priceAuto = false;
+        // Precio por volumen: si el precio lo puso la lista, se recalcula con la cantidad.
+        if (field === 'quantity' && i.priceAuto && i.productId && pricing?.tiers[i.productId]) {
+          const product = products.find((p) => p.id === i.productId);
+          next.unitPrice = String(resolveUnitPrice(product?.netPrice ?? Number(i.unitPrice), pricing.tiers[i.productId], Number(value) || 0));
+        }
+        return next;
+      })
+    );
   }
+
+  const listTiers = (productId: string) => pricing?.tiers[productId] ?? [];
 
   function addProductLine(product: ProductWithStock) {
     setItems((prev) => [
@@ -148,7 +257,8 @@ export default function SalesDocumentForm() {
         sku: product.sku,
         description: product.name,
         quantity: '1',
-        unitPrice: String(product.netPrice),
+        unitPrice: String(resolveUnitPrice(product.netPrice, listTiers(product.id), 1)),
+        priceAuto: listTiers(product.id).length > 0,
         // La exención la fija el catálogo (el servidor la vuelve a leer de ahí):
         // la previsualización tiene que mostrar el mismo IVA que se va a guardar.
         isExempt: product.isExempt,
@@ -186,7 +296,10 @@ export default function SalesDocumentForm() {
       referenceFolio: referenceFolio ? Number(referenceFolio) : undefined,
       referenceType: referenceType ? (referenceType as (typeof DTE_TYPES)[number]) : undefined,
       notes: notes || undefined,
+      salesOrderId: orderPrefill?.orderId,
+      sellerId: sellerId !== 'self' ? sellerId : undefined,
       items: items.map((i) => ({
+        salesOrderItemId: i.salesOrderItemId,
         productId: i.productId,
         sku: i.sku,
         description: i.description,
@@ -235,18 +348,29 @@ export default function SalesDocumentForm() {
 
   return (
     <div className="space-y-4">
+      {orderPrefill && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-info/25 bg-info-soft px-4 py-3 text-sm">
+          <span>
+            Emitiendo desde la <span className="font-semibold">nota de venta #{orderPrefill.folio}</span>. Las cantidades proponen el saldo pendiente;
+            puedes bajarlas para un despacho o facturación parcial.
+          </span>
+          <Link href={`/dashboard/sales/orders/${orderPrefill.orderId}`} className="text-xs font-medium underline underline-offset-2">
+            Ver nota
+          </Link>
+        </div>
+      )}
       <div className="grid grid-cols-1 gap-4 rounded-xl border border-border p-4 sm:grid-cols-2 lg:grid-cols-3">
         <div>
           <Label htmlFor="dteType">
             Tipo de Documento
             <InfoTooltip text={TAX_GLOSSARY.dte} />
           </Label>
-          <Select items={DTE_TYPE_LABELS} value={dteType} onValueChange={(value) => setDteType(value as (typeof DTE_TYPES)[number])}>
+          <Select items={DTE_TYPE_LABELS} value={dteType} onValueChange={(value) => changeDteType(value as (typeof DTE_TYPES)[number])}>
             <SelectTrigger id="dteType">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {DTE_TYPES.map((t) => (
+              {(orderPrefill ? ORDER_DOCUMENT_TYPES : DTE_TYPES).map((t) => (
                 <SelectItem key={t} value={t}>{DTE_TYPE_LABELS[t]}</SelectItem>
               ))}
             </SelectContent>
@@ -291,7 +415,9 @@ export default function SalesDocumentForm() {
             <div className="space-y-1.5">
               <div className="flex items-center justify-between rounded-lg border border-input px-2.5 py-1.5 text-sm">
                 <span>{selectedContact.rut} — {selectedContact.razonSocial}</span>
-                <Button type="button" size="xs" variant="ghost" onClick={() => setSelectedContact(null)}>Cambiar</Button>
+                {!orderPrefill && (
+                  <Button type="button" size="xs" variant="ghost" onClick={() => setSelectedContact(null)}>Cambiar</Button>
+                )}
               </div>
               {paymentMethod === 'CREDITO_30' && dteType !== 'NOTA_CREDITO_61' && creditStatus?.available != null && (() => {
                 const wouldExceed = exceedsCreditLimit({
@@ -307,6 +433,11 @@ export default function SalesDocumentForm() {
                   </p>
                 );
               })()}
+              {pricing?.priceListName && (
+                <p className="text-xs text-muted-foreground">
+                  Precios según la lista <span className="font-medium text-foreground">{pricing.priceListName}</span>
+                </p>
+              )}
             </div>
           ) : (
             <div className="space-y-1">
@@ -367,6 +498,27 @@ export default function SalesDocumentForm() {
               </Select>
             </div>
           </>
+        )}
+
+        {sellers.length > 1 && (
+          <div>
+            <Label htmlFor="seller">Vendedor</Label>
+            <Select
+              items={{ self: 'Quien emite', ...Object.fromEntries(sellers.map((s) => [s.id, s.name])) }}
+              value={sellerId}
+              onValueChange={(value) => setSellerId(value as string)}
+            >
+              <SelectTrigger id="seller">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="self">Quien emite</SelectItem>
+                {sellers.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         )}
 
         <div>
@@ -442,10 +594,17 @@ export default function SalesDocumentForm() {
                       type="number"
                       min={0}
                       step="any"
+                      max={item.maxQuantity}
                       value={item.quantity}
                       onChange={(e) => updateItem(item.key, 'quantity', e.target.value)}
                       className="h-7 w-20"
+                      aria-describedby={item.maxQuantity !== undefined ? `${item.key}-max` : undefined}
                     />
+                    {item.maxQuantity !== undefined && (
+                      <p id={`${item.key}-max`} className="mt-0.5 text-[11px] text-muted-foreground">
+                        Saldo: {item.maxQuantity}
+                      </p>
+                    )}
                   </td>
                   <td className="p-2">
                     <Input

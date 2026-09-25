@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, FileCheck2 } from 'lucide-react';
+import { ArrowLeft, ClipboardList, FileCheck2 } from 'lucide-react';
 import { getSalesDocumentAction } from '@/modules/sales/actions/sales.actions';
 import { DTE_TYPE_LABELS, PAYMENT_METHOD_LABELS } from '@/modules/sales/schema';
 import { formatCurrency } from '@/lib/chile/tax';
@@ -71,6 +71,16 @@ export default async function SalesDocumentDetailPage({
               className={buttonVariants({ variant: 'outline' })}
             >
               <FileCheck2 aria-hidden="true" /> {esCedible ? 'Ver copia normal' : 'Copia cedible'}
+            </Link>
+          )}
+          {doc.dteType === 'COTIZACION' && doc.status !== 'CANCELLED' && (
+            <Link href={`/dashboard/sales/orders/new?quoteId=${doc.id}`} className={buttonVariants()}>
+              <ClipboardList aria-hidden="true" /> Convertir en nota de venta
+            </Link>
+          )}
+          {doc.salesOrderId && (
+            <Link href={`/dashboard/sales/orders/${doc.salesOrderId}`} className={buttonVariants({ variant: 'outline' })}>
+              <ClipboardList aria-hidden="true" /> Ver nota de venta
             </Link>
           )}
           <PrintButton />
