@@ -56,6 +56,23 @@ export default function ProductScene() {
         <p className={s.body}>Del primer presupuesto al último pago. Aether reúne las áreas de tu empresa para que puedas ver el panorama completo.</p>
       </div>
 
+      <div className={s.tabs} role="tablist" aria-label="Vistas del ERP" onKeyDown={event => tabKeys(event, active, views.length, setView)}>
+        {views.map((item, index) => (
+          <button
+            key={item.image}
+            id={`product-tab-${index}`}
+            type="button"
+            role="tab"
+            aria-selected={active === index}
+            aria-controls="product-panel"
+            tabIndex={active === index ? 0 : -1}
+            onClick={() => setView(index)}
+          >
+            <item.icon size={17} aria-hidden="true" />{item.label}
+          </button>
+        ))}
+      </div>
+
       <div id="product-panel" role="tabpanel" aria-labelledby={`product-tab-${active}`} className={s.productPanel}>
         <figure className={s.productFigure} data-live>
           <div className={s.productBox} data-tilt>
@@ -82,23 +99,6 @@ export default function ProductScene() {
             </div>
           ))}
         </div>
-      </div>
-
-      <div className={s.tabs} role="tablist" aria-label="Vistas del ERP" onKeyDown={event => tabKeys(event, active, views.length, setView)}>
-        {views.map((item, index) => (
-          <button
-            key={item.image}
-            id={`product-tab-${index}`}
-            type="button"
-            role="tab"
-            aria-selected={active === index}
-            aria-controls="product-panel"
-            tabIndex={active === index ? 0 : -1}
-            onClick={() => setView(index)}
-          >
-            <item.icon size={17} aria-hidden="true" />{item.label}
-          </button>
-        ))}
       </div>
 
       <dialog

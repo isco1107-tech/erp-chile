@@ -573,7 +573,8 @@
   .root .productCopy[data-active] { transition-delay: 0s; }
 }
 
-.tabs { display: flex; flex-wrap: wrap; border-top: 1px solid var(--line); }
+/* Las pestañas van sobre la imagen: la línea y la marca dorada, abajo. */
+.tabs { display: flex; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
 
 .tabs [role='tab'] {
   display: inline-flex;
@@ -582,10 +583,10 @@
   justify-content: center;
   gap: 10px;
   min-height: 64px;
-  margin-top: -1px;
+  margin-bottom: -1px;
   padding: 0 16px;
   border: 0;
-  border-top: 2px solid transparent;
+  border-bottom: 2px solid transparent;
   background: none;
   color: var(--muted);
   font-size: 14px;
@@ -595,22 +596,24 @@
 }
 
 .tabs [role='tab']:hover { color: var(--text); }
-.tabs [role='tab'][aria-selected='true'] { border-top-color: var(--gold); color: var(--gold); }
+.tabs [role='tab'][aria-selected='true'] { border-bottom-color: var(--gold); color: var(--gold); }
 
 @supports (grid-template-rows: subgrid) {
   @media (min-width: 961px) {
     .product {
       grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
-      grid-template-rows: auto 1fr auto;
+      grid-template-rows: auto auto 1fr;
       column-gap: clamp(32px, 5vw, 96px);
     }
 
-    .productHead { grid-column: 2; grid-row: 1; }
+    /* Pestañas sobre la imagen; el titular a la derecha, desde arriba. */
+    .product > .tabs { grid-column: 1; grid-row: 1; align-self: end; }
+    .productHead { grid-column: 2; grid-row: 1 / 3; }
 
     .productPanel {
       display: grid;
       grid-column: 1 / -1;
-      grid-row: 1 / 3;
+      grid-row: 2 / 4;
       grid-template-columns: subgrid;
       grid-template-rows: subgrid;
       pointer-events: none;
@@ -619,18 +622,17 @@
     .productPanel > * { pointer-events: auto; }
     .productFigure { grid-column: 1; grid-row: 1 / 3; }
     .productCopies { grid-column: 2; grid-row: 2; align-self: start; }
-    .product > .tabs { grid-column: 1 / -1; grid-row: 3; }
   }
 
-  /* Las pestañas ocupan la fila vacía del panel (entre cuadro y texto): la
-     columna va explícita porque dos elementos auto-ubicados nunca se superponen. */
+  /* Las pestañas ocupan la fila vacía del panel (entre el titular y el cuadro):
+     la columna va explícita porque dos elementos auto-ubicados nunca se superponen. */
   @media (max-width: 960px) {
     .product { grid-template-rows: auto auto auto auto; }
     .productHead { grid-column: 1; grid-row: 1; }
     .productPanel { display: grid; grid-column: 1; grid-row: 2 / 5; grid-template-rows: subgrid; row-gap: 32px; }
-    .productFigure { grid-row: 1; }
+    .productFigure { grid-row: 2; }
     .productCopies { grid-row: 3; }
-    .product > .tabs { grid-column: 1; grid-row: 3; }
+    .product > .tabs { grid-column: 1; grid-row: 2; }
   }
 }
 
@@ -817,16 +819,9 @@
   background: #111520;
 }
 
-.galleryFrame img { object-fit: cover; }
+.galleryFrame svg { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
 
-.galleryPending {
-  position: absolute;
-  inset: auto 14px 14px;
-  font-family: ui-monospace, monospace;
-  font-size: 11px;
-  line-height: 1.5;
-  color: var(--gold);
-}
+.galleryNote { margin: 24px 0 0; font-size: 13px; color: var(--faint); }
 
 .gallery figcaption {
   display: flex;
@@ -1193,7 +1188,7 @@
 
 /*
  * Galería: una cortina del color del fondo se recoge hacia arriba y descubre
- * la imagen, que flota dentro de su marco. La cortina es transform (scaleY):
+ * la pantalla, que se asienta en su marco. La cortina es transform (scaleY):
  * antes era un clip-path que repintaba la imagen en cada cuadro.
  */
 .gallery figure[data-reveal] .galleryFrame::after {
@@ -1206,8 +1201,9 @@
   pointer-events: none;
 }
 
-.gallery figure[data-reveal] .galleryFrame img {
-  transform: translate3d(0, calc((var(--view, .5) - .5) * -9%), 0) scale(calc(1.24 - .1 * var(--in, 1)));
+/* Termina a escala 1: la pantalla se lee entera, sin recorte. */
+.gallery figure[data-reveal] .galleryFrame svg {
+  transform: scale(calc(1.08 - .08 * var(--in, 1)));
 }
 
 /* El cuadro de producto se endereza al entrar y se inclina hacia el puntero. */
