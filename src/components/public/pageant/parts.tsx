@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 
 /**
  * Piezas visuales compartidas por el micrositio del certamen y su página de
@@ -15,11 +15,24 @@ const STARS = Array.from({ length: 46 }, (_, i) => ({
   duration: 3.2 + (i % 6) * 0.8,
 }));
 
-/** Auroras, estrellas, grano y marco de esquinas del hero. Decorativo. */
+/** Polvo dorado que sube lento por el hero (bokeh). Posiciones deterministas. */
+const DUST = Array.from({ length: 22 }, (_, i) => ({
+  left: (i * 43 + 5) % 100,
+  size: 3 + (i % 4) * 2.5,
+  delay: (i * 1.3) % 14,
+  duration: 14 + (i % 5) * 3,
+  drift: ((i % 7) - 3) * 12,
+}));
+
+/** Focos de escenario, reflejos dorados, polvo, auroras, estrellas, grano y marco de esquinas del hero. Decorativo. */
 export function HeroSky() {
   return (
     <>
       <div className="pgs-sky" aria-hidden="true">
+        <span className="pgs-sheen" />
+        <span className="pgs-beam is-left" />
+        <span className="pgs-beam is-right" />
+        <span className="pgs-beam is-center" />
         <span className="pgs-aurora is-one" />
         <span className="pgs-aurora is-two" />
         <span className="pgs-aurora is-three" />
@@ -30,6 +43,23 @@ export function HeroSky() {
             style={{ left: `${star.left}%`, top: `${star.top}%`, width: star.size, height: star.size, animationDelay: `${star.delay}s`, animationDuration: `${star.duration}s` }}
           />
         ))}
+        {DUST.map((dust, i) => (
+          <span
+            key={`d${i}`}
+            className="pgs-dust"
+            style={
+              {
+                left: `${dust.left}%`,
+                width: dust.size,
+                height: dust.size,
+                animationDelay: `${dust.delay}s`,
+                animationDuration: `${dust.duration}s`,
+                '--pgs-drift': `${dust.drift}px`,
+              } as CSSProperties
+            }
+          />
+        ))}
+        <span className="pgs-stage" />
         <span className="pgs-grain" />
       </div>
       <div className="pgs-frame" aria-hidden="true">

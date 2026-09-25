@@ -580,4 +580,105 @@ export const PAGEANT_SITE_STYLES = `
 .pgs-director-highlights { list-style: none; margin: 0; padding: 0 0 1.1rem; display: flex; flex-direction: column; gap: 0.6rem; }
 .pgs-director-highlights li { display: flex; align-items: flex-start; gap: 0.7rem; font-size: 0.92rem; line-height: 1.45; }
 .pgs-director-body > .pgs-btn { margin-top: 1.6rem; }
+
+/* ════════════════════════════════════════════════════════════════════
+   Capa "gala": luces de escenario, reflejos dorados y bordes metálicos.
+   Todo es decorativo y se apaga con "reducir movimiento".
+   ════════════════════════════════════════════════════════════════════ */
+@property --pgs-spin { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+@keyframes pgs-spin { to { --pgs-spin: 360deg; } }
+
+/* Hero: reflejos diagonales (como seda dorada), focos que barren el escenario, polvo que sube y halo de piso. */
+.pgs-sheen { position: absolute; inset: -20%; opacity: 0.9; background: repeating-linear-gradient(125deg, transparent 0 7%, color-mix(in srgb, var(--a) 9%, transparent) 9%, transparent 12%, transparent 19%); -webkit-mask: radial-gradient(75% 65% at 50% 40%, #000 20%, transparent 80%); mask: radial-gradient(75% 65% at 50% 40%, #000 20%, transparent 80%); animation: pgs-sheen 30s linear infinite; }
+@keyframes pgs-sheen { to { transform: translate3d(-8%, 4%, 0); } }
+.pgs-beam { position: absolute; top: -12%; width: clamp(16rem, 34vw, 30rem); height: 125%; transform-origin: 50% 0; background: linear-gradient(180deg, color-mix(in srgb, var(--a-bright) 38%, transparent) 0%, color-mix(in srgb, var(--a) 14%, transparent) 45%, transparent 80%); clip-path: polygon(44% 0, 56% 0, 100% 100%, 0 100%); filter: blur(16px); mix-blend-mode: screen; opacity: 0.4; }
+.pgs-beam.is-left { left: 4%; animation: pgs-sweep-l 11s ease-in-out infinite alternate; }
+.pgs-beam.is-right { right: 4%; animation: pgs-sweep-r 13s ease-in-out infinite alternate; }
+.pgs-beam.is-center { left: 50%; margin-left: calc(clamp(16rem, 34vw, 30rem) / -2); opacity: 0.22; animation: pgs-breathe 7s ease-in-out infinite alternate; }
+@keyframes pgs-sweep-l { from { transform: rotate(-24deg); } to { transform: rotate(-6deg); } }
+@keyframes pgs-sweep-r { from { transform: rotate(24deg); } to { transform: rotate(7deg); } }
+@keyframes pgs-breathe { from { opacity: 0.12; } to { opacity: 0.3; } }
+.pgs-dust { position: absolute; bottom: -2rem; border-radius: 50%; background: radial-gradient(circle, var(--a-bright), color-mix(in srgb, var(--a) 40%, transparent) 55%, transparent 72%); filter: blur(0.6px); opacity: 0; animation: pgs-float 18s linear infinite; }
+@keyframes pgs-float { 0% { transform: translate3d(0, 0, 0); opacity: 0; } 12% { opacity: 0.85; } 80% { opacity: 0.5; } 100% { transform: translate3d(var(--pgs-drift, 0px), -105vh, 0); opacity: 0; } }
+.pgs-stage { position: absolute; left: 50%; bottom: -22vh; width: 130vw; height: 42vh; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(closest-side, color-mix(in srgb, var(--a) 34%, transparent), color-mix(in srgb, var(--a) 8%, transparent) 60%, transparent); filter: blur(10px); }
+.pgs-title-main { filter: drop-shadow(0 0 34px color-mix(in srgb, var(--a) 38%, transparent)); }
+.pgs-tiara { filter: drop-shadow(0 0 14px color-mix(in srgb, var(--a) 60%, transparent)); }
+
+/* Secciones nocturnas con halos de color y una línea dorada entre una y otra (en vez de fondo plano). */
+.pgs-section.is-night { isolation: isolate; }
+.pgs-section.is-night::before { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    linear-gradient(90deg, transparent, color-mix(in srgb, var(--a) 55%, transparent), transparent) top center / 70% 1px no-repeat,
+    repeating-linear-gradient(125deg, transparent 0 14%, color-mix(in srgb, var(--a) 4%, transparent) 16%, transparent 19%),
+    radial-gradient(55% 45% at 0% 15%, color-mix(in srgb, var(--a) 13%, transparent), transparent 70%),
+    radial-gradient(50% 45% at 100% 85%, rgba(96, 84, 214, 0.16), transparent 70%); }
+.pgs-section.is-night:nth-of-type(even)::before { transform: scaleX(-1); }
+.pgs-section.is-night + .pgs-section.is-night { border-top: 0; }
+
+/* Títulos: la palabra en cursiva con brillo metálico. */
+.pgs-h2 em, .pgs-h3 em { background: linear-gradient(100deg, var(--a-bright) 0%, var(--a) 45%, var(--a-mid) 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.pgs-lead .pgs-h3 em { background: linear-gradient(100deg, var(--a-mid), var(--a-deep)); -webkit-background-clip: text; background-clip: text; }
+
+/* Selector candidata / sponsor con halo. */
+.pgs-audience { border-color: color-mix(in srgb, var(--a) 40%, transparent); box-shadow: 0 10px 30px -18px var(--a); }
+.pgs-audience button.is-active { box-shadow: 0 6px 22px -6px color-mix(in srgb, var(--a) 80%, transparent); }
+
+/* Tarjetas con borde metálico degradado. */
+.pgs-steps li, .pgs-callout, .pgs-package {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(160deg, rgba(22, 26, 64, 0.92), rgba(9, 12, 32, 0.94)) padding-box,
+    linear-gradient(145deg, color-mix(in srgb, var(--a) 60%, transparent), rgba(255, 255, 255, 0.05) 42%, color-mix(in srgb, var(--a) 30%, transparent)) border-box;
+  box-shadow: 0 30px 60px -45px rgba(0, 0, 0, 0.9);
+  transition: transform 0.5s var(--ease), box-shadow 0.5s var(--ease);
+}
+.pgs-package, .pgs-package:hover, .pgs-package.is-featured { border-color: transparent; }
+.pgs-package.is-featured {
+  background:
+    linear-gradient(160deg, color-mix(in srgb, var(--a) 16%, rgb(18, 22, 56)), rgba(9, 12, 32, 0.96) 60%) padding-box,
+    linear-gradient(145deg, color-mix(in srgb, var(--a) 70%, transparent), rgba(255, 255, 255, 0.06) 45%, color-mix(in srgb, var(--a) 40%, transparent)) border-box;
+}
+.pgs-steps li:hover, .pgs-package:hover { transform: translateY(-4px); box-shadow: 0 30px 70px -40px color-mix(in srgb, var(--a) 70%, transparent); }
+
+/* Proceso como línea de tiempo. */
+.pgs-steps { position: relative; }
+.pgs-steps::before { content: ''; position: absolute; left: 2.3rem; top: 1.6rem; bottom: 1.6rem; width: 1px; background: linear-gradient(180deg, var(--a), color-mix(in srgb, var(--a) 20%, transparent)); }
+.pgs-steps li { position: relative; }
+.pgs-steps-num { box-shadow: 0 0 0 4px color-mix(in srgb, var(--a) 18%, transparent), 0 0 22px -2px var(--a); }
+
+/* Paquete destacado: borde que gira como un reflejo y distintivo dorado. */
+.pgs-package.is-featured { box-shadow: 0 50px 100px -55px var(--a); }
+.pgs-package.is-featured::before { content: ''; position: absolute; inset: -1px; border-radius: inherit; padding: 1.5px; pointer-events: none;
+  background: conic-gradient(from var(--pgs-spin), transparent 0 55%, var(--a-bright) 72%, var(--a) 78%, transparent 92%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  animation: pgs-spin 6s linear infinite; }
+.pgs-package.is-featured .pgs-package-head > .pgs-eyebrow { align-self: flex-start; padding: 0.35rem 0.75rem; border-radius: 999px; background: linear-gradient(120deg, var(--a-bright), var(--a) 50%, var(--a-mid)); color: var(--ink); letter-spacing: 0.2em; }
+.pgs-package-price { background: linear-gradient(100deg, var(--a-bright), var(--a) 60%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.pgs-package-price span { -webkit-text-fill-color: var(--on-night-dim); }
+
+/* "Qué incluye": fichas con acento dorado y leve elevación. */
+.pgs-includes li { position: relative; overflow: hidden; box-shadow: 0 18px 40px -30px rgba(0, 0, 0, 0.8); transition: transform 0.4s var(--ease), box-shadow 0.4s var(--ease); }
+.pgs-includes li::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: linear-gradient(180deg, var(--a-bright), var(--a-mid)); }
+.pgs-includes li:hover { transform: translateY(-3px); box-shadow: 0 24px 50px -28px var(--a); }
+
+/* Tarjetas de formulario: marco dorado y resplandor. */
+.pgs-lead { position: relative; box-shadow: 0 0 0 1px color-mix(in srgb, var(--a) 55%, transparent), 0 60px 120px -60px var(--a); }
+.pgs-lead::before { content: ''; position: absolute; left: 12%; right: 12%; top: 0; height: 3px; border-radius: 0 0 4px 4px; background: linear-gradient(90deg, transparent, var(--a-mid), var(--a), var(--a-mid), transparent); }
+
+/* Director: marco desplazado, como una foto de portada. */
+.pgs-director-photo { outline: 1px solid color-mix(in srgb, var(--a) 45%, transparent); outline-offset: 12px; }
+
+/* WhatsApp con pulso suave para que se note sin molestar. */
+.pgs-wa-float::after { content: ''; position: absolute; inset: 0; border-radius: inherit; border: 2px solid #25d366; animation: pgs-wa-pulse 2.6s ease-out infinite; }
+@keyframes pgs-wa-pulse { from { transform: scale(1); opacity: 0.8; } to { transform: scale(1.6); opacity: 0; } }
+
+@media (max-width: 640px) {
+  .pgs-beam { opacity: 0.28; }
+  .pgs-beam.is-center { display: none; }
+  .pgs-steps::before { left: 2.3rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pgs-dust, .pgs-wa-float::after { display: none; }
+  .pgs-package.is-featured::before { animation: none; }
+}
 `;
