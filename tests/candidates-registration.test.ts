@@ -4,7 +4,6 @@ import {
   candidateSelfRegistrationSchema,
   candidateStatusChangeSchema,
   candidateCreateSchema,
-  ARAUCANIA_COMUNAS,
   type CandidateSelfRegistrationInput,
 } from '@/modules/candidates/schema';
 import {
@@ -33,26 +32,20 @@ import {
 
 function buildValidRegistration(overrides: Partial<Record<string, unknown>> = {}) {
   return {
-    rut: '12.345.678-5',
     fullName: 'Camila Andrea Fuentes Soto',
+    rut: '12.345.678-5',
+    age: 21,
+    comuna: 'Las Condes',
+    phone: '+56 9 8142 5816',
     email: 'camila.fuentes@correo.cl',
-    birthDate: '2005-05-10',
-    heightCm: 168,
-    comuna: 'Temuco',
-    direccion: 'Avenida Alemania 1234',
-    ocupacion: 'Estudiante de diseño',
-    motivacion:
-      'Quiero postular a este certamen porque siempre he creído en la representación de mi comuna y en usar la vitrina para impulsar causas sociales que me importan de verdad.',
-    causaSocial: 'Prevención del acoso escolar en liceos de la región',
-    aceptaRequisitos: true,
-    aceptaTratamientoDatos: true,
-    aceptaBases: true,
+    instagram: '@camila.fuentes',
+    motivacion: 'Quiero representar a mi comuna y vivir el camino a la corona.',
     ...overrides,
   };
 }
 
-describe('candidateSelfRegistrationSchema — formulario público de postulación', () => {
-  it('acepta un envío realista con todos los campos obligatorios correctos', () => {
+describe('candidateSelfRegistrationSchema — formulario público de inscripción (8 datos)', () => {
+  it('acepta un envío realista con los 8 datos', () => {
     const result = candidateSelfRegistrationSchema.safeParse(buildValidRegistration());
     expect(result.success).toBe(true);
   });
@@ -62,78 +55,42 @@ describe('candidateSelfRegistrationSchema — formulario público de postulació
     expect(result.success).toBe(false);
   });
 
-  it('rechaza una comuna que no pertenece a La Araucanía', () => {
-    expect(ARAUCANIA_COMUNAS).not.toContain('Santiago');
-    const result = candidateSelfRegistrationSchema.safeParse(buildValidRegistration({ comuna: 'Santiago' }));
-    expect(result.success).toBe(false);
+  it('acepta cualquier comuna de Chile (texto libre)', () => {
+    expect(candidateSelfRegistrationSchema.safeParse(buildValidRegistration({ comuna: 'Santiago' })).success).toBe(true);
+    expect(candidateSelfRegistrationSchema.safeParse(buildValidRegistration({ comuna: '' })).success).toBe(false);
   });
 
-  it('acepta cualquier comuna real de la lista de La Araucanía', () => {
-    const result = candidateSelfRegistrationSchema.safeParse(buildValidRegistration({ comuna: 'Villarrica' }));
-    expect(result.success).toBe(true);
+  it.each(['fullName', 'rut', 'age', 'comuna', 'phone', 'email', 'instagram', 'motivacion'] as const)('exige %s', (field) => {
+    const { [field]: removed, ...rest } = buildValidRegistration();
+    void removed;
+    expect(candidateSelfRegistrationSchema.safeParse(rest).success).toBe(false);
   });
 
-  it('exige heightCm (a diferencia de candidateCreateSchema, donde es opcional)', () => {
-    const { heightCm, ...withoutHeight } = buildValidRegistration();
-    void heightCm;
-    const selfReg = candidateSelfRegistrationSchema.safeParse(withoutHeight);
-    expect(selfReg.success).toBe(false);
-
-    const internal = candidateCreateSchema.safeParse({
-      projectId: 'proj-1',
-      rut: '12.345.678-5',
-      fullName: 'Ficha creada por staff',
-      birthDate: '2000-01-01',
-      status: 'APPLICANT',
-    });
-    expect(internal.success).toBe(true);
+  it('rechaza una edad fuera de rango o con decimales', () => {
+    expect(candidateSelfRegistrationSchema.safeParse(buildValidRegistration({ age: 0 })).success).toBe(false);
+    expect(candidateSelfRegistrationSchema.safeParse(buildValidRegistration({ age: 120 })).success).toBe(false);
+    expect(candidateSelfRegistrationSchema.safeParse(buildValidRegistration({ age: 20.5 })).success).toBe(false);
   });
 
-  it('rechaza motivación con menos de 80 caracteres', () => {
-    const result = candidateSelfRegistrationSchema.safeParse(buildValidRegistration({ motivacion: 'Muy corta.' }));
-    expect(result.success).toBe(false);
+  it('normaliza el Instagram con una sola @', () => {
+    const plain = candidateSelfRegistrationSchema.safeParse(buildValidRegistration({ instagram: 'camila.fuentes' }));
+    const doubled = candidateSelfRegistrationSchema.safeParse(buildValidRegistration({ instagram: '@@camila.fuentes' }));
+    expect(plain.success && plain.data.instagram).toBe('@camila.fuentes');
+    expect(doubled.success && doubled.data.instagram).toBe('@camila.fuentes');
   });
 
-  it('acepta motivación de exactamente 80 caracteres', () => {
-    const result = candidateSelfRegistrationSchema.safeParse(
-      buildValidRegistration({ motivacion: 'x'.repeat(80) })
-    );
-    expect(result.success).toBe(true);
+  it('rechaza un teléfono con letras', () => {
+    expect(candidateSelfRegistrationSchema.safeParse(buildValidRegistration({ phone: 'llámame al fono' })).success).toBe(false);
   });
 
   it('rechaza motivación de más de 2000 caracteres', () => {
-    const result = candidateSelfRegistrationSchema.safeParse(
-      buildValidRegistration({ motivacion: 'x'.repeat(2001) })
-    );
-    expect(result.success).toBe(false);
+    expect(candidateSelfRegistrationSchema.safeParse(buildValidRegistration({ motivacion: 'x'.repeat(2001) })).success).toBe(false);
   });
 
-  it('rechaza direccion y ocupacion vacías, son obligatorias en el formulario público', () => {
-    expect(candidateSelfRegistrationSchema.safeParse(buildValidRegistration({ direccion: '' })).success).toBe(false);
-    expect(candidateSelfRegistrationSchema.safeParse(buildValidRegistration({ ocupacion: '' })).success).toBe(false);
-  });
-
-  it('rechaza causaSocial que exceda el máximo de 1000 caracteres', () => {
-    const result = candidateSelfRegistrationSchema.safeParse(
-      buildValidRegistration({ causaSocial: 'x'.repeat(1001) })
-    );
-    expect(result.success).toBe(false);
-  });
-
-  it.each(['aceptaRequisitos', 'aceptaTratamientoDatos', 'aceptaBases'] as const)(
-    'rechaza el envío si %s viene en false',
-    (field) => {
-      const result = candidateSelfRegistrationSchema.safeParse(buildValidRegistration({ [field]: false }));
-      expect(result.success).toBe(false);
-    }
-  );
-
-  it('acepta que aceptaMarketing quede en false por defecto (es opcional)', () => {
-    const { aceptaMarketing, ...rest } = buildValidRegistration() as Record<string, unknown>;
-    void aceptaMarketing;
-    const result = candidateSelfRegistrationSchema.safeParse(rest);
-    expect(result.success).toBe(true);
-    if (result.success) expect(result.data.aceptaMarketing).toBe(false);
+  it('la ficha interna sigue aceptando fecha de nacimiento, y ahora también sin ella', () => {
+    const base = { projectId: 'proj-1', rut: '12.345.678-5', fullName: 'Ficha creada por staff', status: 'APPLICANT' };
+    expect(candidateCreateSchema.safeParse({ ...base, birthDate: '2000-01-01' }).success).toBe(true);
+    expect(candidateCreateSchema.safeParse({ ...base, birthDate: '' }).success).toBe(true);
   });
 });
 
@@ -252,7 +209,13 @@ describe('listCandidates — filtro de edad (off-by-one en el rango de fechas)',
     jest.restoreAllMocks();
   });
 
-  function captureWhere() {
+  /** El filtro por fecha de nacimiento vive en la primera rama del OR de edad. */
+function birthDateFilter(where: Prisma.CandidateWhereInput | undefined): { gte?: Date; lte?: Date } {
+  const branches = ((where?.AND as Prisma.CandidateWhereInput[] | undefined)?.[0]?.OR ?? []) as Prisma.CandidateWhereInput[];
+  return (branches[0]?.birthDate ?? {}) as { gte?: Date; lte?: Date };
+}
+
+function captureWhere() {
     let capturedWhere: Prisma.CandidateWhereInput | undefined;
     jest.spyOn(prisma.candidate, 'findMany').mockImplementation(((args: { where: Prisma.CandidateWhereInput }) => {
       capturedWhere = args.where;
@@ -269,7 +232,7 @@ describe('listCandidates — filtro de edad (off-by-one en el rango de fechas)',
   it('edad mínima 18 -> nacida como muy tarde el mismo día de hace 18 años', async () => {
     const getWhere = captureWhere();
     await listCandidates('company-1', { minAge: 18 });
-    const birthDate = getWhere()?.birthDate as unknown as { gte?: Date; lte?: Date };
+    const birthDate = birthDateFilter(getWhere());
     expect(birthDate.gte).toBeUndefined();
     expect(birthDate.lte?.getFullYear()).toBe(2008);
     expect(birthDate.lte?.getMonth()).toBe(5);
@@ -279,7 +242,7 @@ describe('listCandidates — filtro de edad (off-by-one en el rango de fechas)',
   it('edad máxima 30 -> nacida como muy pronto un día después de hace 31 años', async () => {
     const getWhere = captureWhere();
     await listCandidates('company-1', { maxAge: 30 });
-    const birthDate = getWhere()?.birthDate as unknown as { gte?: Date; lte?: Date };
+    const birthDate = birthDateFilter(getWhere());
     expect(birthDate.lte).toBeUndefined();
     expect(birthDate.gte?.getFullYear()).toBe(1995);
     expect(birthDate.gte?.getMonth()).toBe(5);
@@ -289,15 +252,23 @@ describe('listCandidates — filtro de edad (off-by-one en el rango de fechas)',
   it('rango 18-30 combina ambos límites en el mismo filtro', async () => {
     const getWhere = captureWhere();
     await listCandidates('company-1', { minAge: 18, maxAge: 30 });
-    const birthDate = getWhere()?.birthDate as unknown as { gte?: Date; lte?: Date };
+    const birthDate = birthDateFilter(getWhere());
     expect(birthDate.gte?.getFullYear()).toBe(1995);
     expect(birthDate.lte?.getFullYear()).toBe(2008);
   });
 
-  it('sin filtros de edad no agrega la clave birthDate al where', async () => {
+  it('sin filtros de edad no agrega filtro de edad al where', async () => {
     const getWhere = captureWhere();
     await listCandidates('company-1', {});
     expect(getWhere()?.birthDate).toBeUndefined();
+    expect(getWhere()?.AND).toBeUndefined();
+  });
+
+  it('las postulaciones sin fecha de nacimiento se filtran por su edad declarada', async () => {
+    const getWhere = captureWhere();
+    await listCandidates('company-1', { minAge: 18, maxAge: 30 });
+    const branches = ((getWhere()?.AND as Prisma.CandidateWhereInput[])[0].OR ?? []) as Prisma.CandidateWhereInput[];
+    expect(branches[1]).toEqual({ birthDate: null, declaredAge: { gte: 18, lte: 30 } });
   });
 });
 
@@ -319,25 +290,18 @@ function buildProjectRecord(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
-function buildRegistrationInput(overrides: Partial<Record<string, unknown>> = {}): CandidateSelfRegistrationInput {
+function buildRegistrationInput(overrides: Partial<CandidateSelfRegistrationInput> = {}): CandidateSelfRegistrationInput {
   return {
-    rut: '12.345.678-5',
     fullName: 'Camila Andrea Fuentes Soto',
+    rut: '12.345.678-5',
+    age: 21,
+    comuna: 'Las Condes',
+    phone: '+56 9 8142 5816',
     email: 'camila.fuentes@correo.cl',
-    birthDate: new Date(2005, 4, 10),
-    heightCm: 168,
-    comuna: 'Temuco',
-    direccion: 'Avenida Alemania 1234',
-    ocupacion: 'Estudiante de diseño',
-    motivacion:
-      'Quiero postular a este certamen porque siempre he creído en la representación de mi comuna y en usar la vitrina para impulsar causas sociales que me importan de verdad.',
-    causaSocial: 'Prevención del acoso escolar en liceos de la región',
-    aceptaRequisitos: true,
-    aceptaTratamientoDatos: true,
-    aceptaBases: true,
-    aceptaMarketing: false,
+    instagram: '@camila.fuentes',
+    motivacion: 'Quiero representar a mi comuna y vivir el camino a la corona.',
     ...overrides,
-  } as CandidateSelfRegistrationInput;
+  };
 }
 
 describe('submitCandidateRegistration — auto-inscripción pública por token', () => {
@@ -357,14 +321,14 @@ describe('submitCandidateRegistration — auto-inscripción pública por token',
 
   it('lanza RegistrationNotFoundError si el token no corresponde a ningún proyecto', async () => {
     jest.spyOn(prisma.project, 'findUnique').mockResolvedValue(null);
-    await expect(submitCandidateRegistration('token-invalido', buildRegistrationInput(), [], {})).rejects.toBeInstanceOf(
+    await expect(submitCandidateRegistration('token-invalido', buildRegistrationInput(), {})).rejects.toBeInstanceOf(
       RegistrationNotFoundError
     );
   });
 
   it('lanza RegistrationNotOpenError si la convocatoria está en borrador (no OPEN)', async () => {
     jest.spyOn(prisma.project, 'findUnique').mockResolvedValue(buildProjectRecord({ registrationStatus: 'DRAFT' }) as never);
-    await expect(submitCandidateRegistration('token-x', buildRegistrationInput(), [], {})).rejects.toBeInstanceOf(
+    await expect(submitCandidateRegistration('token-x', buildRegistrationInput(), {})).rejects.toBeInstanceOf(
       RegistrationNotOpenError
     );
   });
@@ -373,7 +337,7 @@ describe('submitCandidateRegistration — auto-inscripción pública por token',
     jest.spyOn(prisma.project, 'findUnique').mockResolvedValue(
       buildProjectRecord({ registrationOpensAt: new Date(2026, 5, 20) }) as never
     );
-    await expect(submitCandidateRegistration('token-x', buildRegistrationInput(), [], {})).rejects.toBeInstanceOf(
+    await expect(submitCandidateRegistration('token-x', buildRegistrationInput(), {})).rejects.toBeInstanceOf(
       RegistrationNotOpenError
     );
   });
@@ -382,7 +346,7 @@ describe('submitCandidateRegistration — auto-inscripción pública por token',
     jest.spyOn(prisma.project, 'findUnique').mockResolvedValue(
       buildProjectRecord({ registrationClosesAt: new Date(2026, 5, 1) }) as never
     );
-    await expect(submitCandidateRegistration('token-x', buildRegistrationInput(), [], {})).rejects.toBeInstanceOf(
+    await expect(submitCandidateRegistration('token-x', buildRegistrationInput(), {})).rejects.toBeInstanceOf(
       RegistrationNotOpenError
     );
   });
@@ -390,7 +354,7 @@ describe('submitCandidateRegistration — auto-inscripción pública por token',
   it('lanza RegistrationNotOpenError cuando ya se alcanzó el cupo máximo (cupo lleno)', async () => {
     jest.spyOn(prisma.project, 'findUnique').mockResolvedValue(buildProjectRecord({ maxCandidates: 2 }) as never);
     jest.spyOn(prisma.candidate, 'count').mockResolvedValue(2);
-    await expect(submitCandidateRegistration('token-x', buildRegistrationInput(), [], {})).rejects.toBeInstanceOf(
+    await expect(submitCandidateRegistration('token-x', buildRegistrationInput(), {})).rejects.toBeInstanceOf(
       RegistrationNotOpenError
     );
   });
@@ -409,7 +373,7 @@ describe('submitCandidateRegistration — auto-inscripción pública por token',
       return cb(tx);
     }) as never);
 
-    await expect(submitCandidateRegistration('token-x', buildRegistrationInput(), [], {})).resolves.toBeTruthy();
+    await expect(submitCandidateRegistration('token-x', buildRegistrationInput(), {})).resolves.toBeTruthy();
   });
 
   it('SÍ bloquea por cupo dentro de la transacción aunque el chequeo previo no lo haya detectado (condición de carrera)', async () => {
@@ -431,7 +395,7 @@ describe('submitCandidateRegistration — auto-inscripción pública por token',
       return cb(tx);
     }) as never);
 
-    await expect(submitCandidateRegistration('token-x', buildRegistrationInput(), [], {})).rejects.toBeInstanceOf(
+    await expect(submitCandidateRegistration('token-x', buildRegistrationInput(), {})).rejects.toBeInstanceOf(
       RegistrationFullError
     );
     expect(createMock).not.toHaveBeenCalled();
@@ -439,13 +403,12 @@ describe('submitCandidateRegistration — auto-inscripción pública por token',
 
   it('lanza BelowMinimumAgeError si la postulante no cumple la edad mínima del proyecto', async () => {
     jest.spyOn(prisma.project, 'findUnique').mockResolvedValue(buildProjectRecord({ minCandidateAge: 18 }) as never);
-    // 2026-06-15 menos fecha de nacimiento 2010-01-01 = 16 años.
     await expect(
-      submitCandidateRegistration('token-x', buildRegistrationInput({ birthDate: new Date(2010, 0, 1) }), [], {})
+      submitCandidateRegistration('token-x', buildRegistrationInput({ age: 16 }), {})
     ).rejects.toBeInstanceOf(BelowMinimumAgeError);
   });
 
-  it('NO bloquea por edad a alguien que cumplió años justo hoy', async () => {
+  it('NO bloquea por edad a quien declara exactamente la edad mínima', async () => {
     jest.spyOn(prisma.project, 'findUnique').mockResolvedValue(buildProjectRecord({ minCandidateAge: 18 }) as never);
     jest.spyOn(prisma.candidate, 'findFirst').mockResolvedValue(null);
     jest.spyOn(prisma, '$transaction').mockImplementation((async (cb: (tx: unknown) => unknown) => {
@@ -457,16 +420,15 @@ describe('submitCandidateRegistration — auto-inscripción pública por token',
       return cb(tx);
     }) as never);
 
-    // Cumple 18 exactamente hoy (15 de junio de 2026): nació el 15 de junio de 2008.
     await expect(
-      submitCandidateRegistration('token-x', buildRegistrationInput({ birthDate: new Date(2008, 5, 15) }), [], {})
+      submitCandidateRegistration('token-x', buildRegistrationInput({ age: 18 }), {})
     ).resolves.toBeTruthy();
   });
 
   it('lanza DuplicateApplicationError cuando ya existe una postulación con el mismo RUT (chequeo temprano)', async () => {
     jest.spyOn(prisma.project, 'findUnique').mockResolvedValue(buildProjectRecord() as never);
     jest.spyOn(prisma.candidate, 'findFirst').mockResolvedValue({ id: 'cand-existing' } as never);
-    await expect(submitCandidateRegistration('token-x', buildRegistrationInput(), [], {})).rejects.toBeInstanceOf(
+    await expect(submitCandidateRegistration('token-x', buildRegistrationInput(), {})).rejects.toBeInstanceOf(
       DuplicateApplicationError
     );
   });
@@ -483,7 +445,7 @@ describe('submitCandidateRegistration — auto-inscripción pública por token',
       });
     }) as never);
 
-    await expect(submitCandidateRegistration('token-x', buildRegistrationInput(), [], {})).rejects.toBeInstanceOf(
+    await expect(submitCandidateRegistration('token-x', buildRegistrationInput(), {})).rejects.toBeInstanceOf(
       DuplicateApplicationError
     );
   });
@@ -495,7 +457,7 @@ describe('submitCandidateRegistration — auto-inscripción pública por token',
       throw new Error('la base de datos no responde');
     }) as never);
 
-    await expect(submitCandidateRegistration('token-x', buildRegistrationInput(), [], {})).rejects.toThrow(
+    await expect(submitCandidateRegistration('token-x', buildRegistrationInput(), {})).rejects.toThrow(
       'la base de datos no responde'
     );
   });
@@ -517,7 +479,7 @@ describe('submitCandidateRegistration — auto-inscripción pública por token',
       return cb(tx);
     }) as never);
 
-    const { folio } = await submitCandidateRegistration('token-x', buildRegistrationInput(), [], {});
+    const { folio } = await submitCandidateRegistration('token-x', buildRegistrationInput(), {});
 
     expect(folio).toBe('TMC-2026-0043');
     expect(upsertMock).toHaveBeenCalledWith(
@@ -551,7 +513,7 @@ describe('submitCandidateRegistration — auto-inscripción pública por token',
     // El input trae (maliciosamente o por error) un companyId/projectId ajeno
     // que la firma de la función ni siquiera acepta como parámetro — solo se
     // puede colar si el llamador ignorara el contrato de tipos.
-    await submitCandidateRegistration('token-x', buildRegistrationInput(), [], {});
+    await submitCandidateRegistration('token-x', buildRegistrationInput(), {});
 
     expect(capturedCreateArgs?.data.companyId).toBe('company-real');
     expect(capturedCreateArgs?.data.projectId).toBe('proj-real');

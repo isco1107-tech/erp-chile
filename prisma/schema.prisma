@@ -1903,6 +1903,11 @@ model Project {
   /// Junto a `publicContactEmail` e `instagramHandle` es lo que ven las
   /// postulantes y el público: contacto de cada certamen, no de la plataforma.
   publicWhatsapp         String?
+  /// "Qué incluye tu inscripción": un beneficio por ítem (clases de
+  /// maquillaje, oratoria…). Vacío = la sección no se muestra.
+  registrationBenefits   String[]  @default([])
+  /// Lugar y horario de las clases de preparación ("Por confirmar", etc.).
+  registrationClassesNote String?
   /// Qué secciones muestra el micrositio. Candidatas y auspiciadores
   /// visibles por defecto (es la razón de ser del sitio); ranking de votos y
   /// resultados apagados hasta que producción decida revelarlos.
@@ -2368,7 +2373,12 @@ model Candidate {
   stageName             String?
   email                 String?
   phone                 String?
-  birthDate             DateTime
+  /// Obligatoria en fichas creadas desde el panel; `null` en postulaciones del
+  /// formulario público, que solo pide la edad (`declaredAge`).
+  birthDate             DateTime?
+  /// Edad declarada por la postulante en el formulario público, al momento de
+  /// postular. Solo se usa cuando no hay `birthDate`.
+  declaredAge           Int?
   dressSize             String?
   shoeSize              String?
   heightCm              Int?

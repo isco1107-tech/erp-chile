@@ -197,7 +197,7 @@ export function pageantFaq(input: FaqInput): PageantFaq[] {
   if (input.registration) {
     faq.push({
       q: '¿Cómo postulo al certamen?',
-      a: `Completa el formulario en línea desde este sitio: tus datos, tu perfil y dos fotografías recientes (rostro y cuerpo completo). Debes tener al menos ${input.registration.minAge} años. Al enviarlo recibes tu folio al instante.${input.registration.closesAt ? ` Las postulaciones cierran el ${shortDate(input.registration.closesAt)}.` : ''}`,
+      a: `Completa el formulario de inscripción de este sitio con tus datos de contacto y cuéntanos por qué quieres participar. Debes tener al menos ${input.registration.minAge} años. Al enviarlo recibes tu folio al instante y la organización te avisa por llamado, correo o WhatsApp el resultado de tu preselección.${input.registration.closesAt ? ` Las postulaciones cierran el ${shortDate(input.registration.closesAt)}.` : ''}`,
     });
   }
   if (input.voting) {
@@ -218,7 +218,7 @@ export function pageantFaq(input: FaqInput): PageantFaq[] {
     faq.push({ q: '¿Cuándo y dónde es la gala final?', a: `La gala de ${input.name} se realiza ${[when, where].filter(Boolean).join(', ')}.` });
   }
   if (input.sponsorChannel === 'form') {
-    faq.push({ q: '¿Cómo puede participar mi marca?', a: 'Déjanos tus datos en la sección de auspicios y el equipo comercial te envía la propuesta con los planes disponibles.' });
+    faq.push({ q: '¿Cómo puede participar mi marca?', a: 'Elige tu paquete en la sección para sponsors y déjanos tus datos en el formulario: la organización te contacta para coordinar tu patrocinio.' });
   } else if (input.sponsorChannel === 'email' && input.contactEmail) {
     faq.push({ q: '¿Cómo puede participar mi marca?', a: `Escríbenos a ${input.contactEmail} y te enviamos la propuesta comercial del certamen.` });
   }
@@ -315,4 +315,69 @@ export function buildPageantView(site: PageantViewSource, now: Date, baseUrl: st
     mapsUrl: venueMapsUrl(site.venueName, site.venueAddress),
     siteUrl,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Vistas "Quiero ser candidata" / "Ser sponsor"
+// ---------------------------------------------------------------------------
+
+export type PageantAudience = 'candidata' | 'sponsor';
+
+/** Enlace de WhatsApp con un mensaje listo para enviar (`href` es el `https://wa.me/<dígitos>` del certamen). */
+export function whatsappMessageUrl(href: string, text: string): string {
+  return `${href}?text=${encodeURIComponent(text)}`;
+}
+
+/** Mensaje predeterminado del botón de WhatsApp, según quién visita el sitio. */
+export function whatsappGreeting(audience: PageantAudience, pageantName: string): string {
+  return audience === 'sponsor' ? `Hola, quiero ser sponsor de ${pageantName}` : `Hola, quiero ser candidata de ${pageantName}`;
+}
+
+/** Mensaje para consultar por un paquete de patrocinio puntual. */
+export function whatsappPackageMessage(pageantName: string, packageName: string, priceLabel: string | null): string {
+  return `Hola, quiero información sobre el paquete ${packageName.toLocaleUpperCase('es-CL')}${priceLabel ? ` (${priceLabel})` : ''} de ${pageantName}`;
+}
+
+export interface ProcessStep {
+  title: string;
+  detail: string;
+}
+
+/** "Así es el proceso" de la inscripción. El cupo solo se menciona si la convocatoria lo definió. */
+export function registrationProcess(input: { name: string; maxCandidates: number | null }): ProcessStep[] {
+  const shortlist = input.maxCandidates ? `si quedaste entre las ${input.maxCandidates} preseleccionadas` : 'si quedaste preseleccionada';
+  return [
+    { title: 'Completa tu inscripción', detail: 'Llena el formulario con tus datos de contacto y cuéntanos por qué quieres participar.' },
+    { title: 'Espera tu preselección', detail: `La organización revisa las postulaciones y te avisa por llamado, correo o WhatsApp ${shortlist}.` },
+    { title: 'Vive el certamen', detail: `Forma parte del camino a la corona de ${input.name}.` },
+  ];
+}
+
+/** "Así funciona tu alianza" para sponsors: el paso de pago depende de cómo se coordina. */
+export function sponsorProcess(input: { hasPackages: boolean; hasWhatsapp: boolean }): ProcessStep[] {
+  return [
+    input.hasPackages
+      ? { title: 'Elige tu paquete', detail: 'Según el nivel de exposición que buscas para tu marca.' }
+      : { title: 'Cuéntanos de tu marca', detail: 'Déjanos tus datos y armamos una propuesta a tu medida.' },
+    {
+      title: 'Coordina tu patrocinio',
+      detail: input.hasWhatsapp ? 'Envía el formulario o escríbenos por WhatsApp y coordinamos el acuerdo y el pago.' : 'Envía el formulario y la organización te contacta para coordinar el acuerdo y el pago.',
+    },
+    { title: 'Activa tu marca', detail: 'Tu logo, tus redes y tu empresa se integran al camino a la corona.' },
+  ];
+}
+
+/**
+ * Separa los beneficios que comparten TODOS los paquetes ("Incluye en todos
+ * los paquetes") de los propios de cada uno ("Exclusivo Diamond"). Con un
+ * solo paquete no hay nada "común": todo es de ese paquete.
+ */
+export function splitPackageBenefits<T extends { id: string; benefits: string[] }>(packages: T[]): { common: string[]; exclusive: Record<string, string[]> } {
+  const norm = (b: string) => b.trim().toLocaleLowerCase('es-CL');
+  const common =
+    packages.length > 1 ? packages[0].benefits.filter((benefit) => packages.every((p) => p.benefits.some((other) => norm(other) === norm(benefit)))) : [];
+  const commonKeys = new Set(common.map(norm));
+  const exclusive: Record<string, string[]> = {};
+  for (const p of packages) exclusive[p.id] = p.benefits.filter((benefit) => !commonKeys.has(norm(benefit)));
+  return { common, exclusive };
 }

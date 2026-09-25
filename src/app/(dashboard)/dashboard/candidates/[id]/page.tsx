@@ -155,7 +155,9 @@ export default async function CandidateDetailPage({ params }: { params: Promise<
             <StatusBadge tone={STATUS_TONE[candidate.status] ?? 'neutral'}>
               {CANDIDATE_STATUS_LABELS[candidate.status]}
             </StatusBadge>
-            <InfoPill icon={IdCard}>{ageFromBirthDate(candidate.birthDate)} años</InfoPill>
+            {(candidate.birthDate || candidate.declaredAge != null) && (
+              <InfoPill icon={IdCard}>{candidate.birthDate ? ageFromBirthDate(candidate.birthDate) : candidate.declaredAge} años</InfoPill>
+            )}
             {candidate.comuna && <InfoPill icon={MapPin}>{candidate.comuna}</InfoPill>}
             {candidate.heightCm && <InfoPill icon={Ruler}>{candidate.heightCm} cm</InfoPill>}
           </div>
@@ -166,7 +168,11 @@ export default async function CandidateDetailPage({ params }: { params: Promise<
         <SectionCard icon={IdCard} title="Datos personales">
           <div className="grid grid-cols-2 gap-4">
             <Field label="RUT" value={canSeeSensitive ? formatRut(candidate.rut) : candidate.rut} />
-            <Field label="Fecha de nacimiento" value={new Date(candidate.birthDate).toLocaleDateString('es-CL')} />
+            {candidate.birthDate ? (
+              <Field label="Fecha de nacimiento" value={new Date(candidate.birthDate).toLocaleDateString('es-CL')} />
+            ) : (
+              <Field label="Edad declarada" value={candidate.declaredAge != null ? `${candidate.declaredAge} años` : null} />
+            )}
             {canSeeSensitive ? (
               <>
                 <Field label="Email" value={candidate.email} />

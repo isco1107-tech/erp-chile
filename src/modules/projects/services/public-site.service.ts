@@ -53,7 +53,17 @@ export interface PublicPageantSite {
   packages: Array<{ id: string; name: string; tierLabel: string; price: number | null; benefits: string[]; description: string | null; slotsLeft: number | null }>;
   tickets: { href: string; fromPrice: number | null } | null;
   voting: { href: string; pricePerVote: number } | null;
-  registration: { href: string; closesAt: string | null; minAge: number } | null;
+  registration: {
+    href: string;
+    /** Token del link de postulación (público por diseño: es el mismo que va en `href`). */
+    token: string;
+    closesAt: string | null;
+    minAge: number;
+    /** Cupo de preseleccionadas, si la convocatoria lo definió. */
+    maxCandidates: number | null;
+    benefits: string[];
+    classesNote: string | null;
+  } | null;
   voteRanking: Array<{ name: string; number: number | null; votes: number }> | null;
   results: Array<{ rank: number; name: string; number: number | null; representing: string | null; photoUrl: string | null }> | null;
   sponsorLeadForm: boolean;
@@ -203,9 +213,18 @@ export async function getPublicPageantSite(slug: string): Promise<PublicPageantS
     })),
     tickets: ticketTypes.length > 0 && project.ticketSalesToken ? { href: `/tickets/${project.ticketSalesToken}`, fromPrice: Math.min(...ticketTypes.map((t) => t.price)) } : null,
     voting: decodedVote && project.voteSalesToken ? { href: `/votar/${project.voteSalesToken}`, pricePerVote: decodedVote.pricePerVote } : null,
-    registration: registrationOpen
-      ? { href: `/register/candidate/${project.candidateRegistrationToken}`, closesAt: project.registrationClosesAt?.toISOString() ?? null, minAge: project.minCandidateAge }
-      : null,
+    registration:
+      registrationOpen && project.candidateRegistrationToken
+        ? {
+            href: `/register/candidate/${project.candidateRegistrationToken}`,
+            token: project.candidateRegistrationToken,
+            closesAt: project.registrationClosesAt?.toISOString() ?? null,
+            minAge: project.minCandidateAge,
+            maxCandidates: project.maxCandidates,
+            benefits: project.registrationBenefits,
+            classesNote: project.registrationClassesNote,
+          }
+        : null,
     voteRanking,
     results:
       finalRound && finalRound.contestants.length > 0

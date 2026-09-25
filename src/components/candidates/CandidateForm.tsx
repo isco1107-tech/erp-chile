@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RutInput } from '@/components/ui/RutInput';
 import {
-  ARAUCANIA_COMUNAS,
+  CHILE_COMUNAS,
   candidateCreateSchema,
   candidateUpdateSchema,
   CANDIDATE_STATUS_LABELS,
@@ -152,7 +152,7 @@ export default function CandidateForm({ editingCandidate }: CandidateFormProps) 
         stageName: editingCandidate.stageName ?? '',
         email: editingCandidate.email ?? '',
         phone: editingCandidate.phone ?? '',
-        birthDate: new Date(editingCandidate.birthDate).toISOString().slice(0, 10),
+        birthDate: editingCandidate.birthDate ? new Date(editingCandidate.birthDate).toISOString().slice(0, 10) : '',
         dressSize: editingCandidate.dressSize ?? '',
         shoeSize: editingCandidate.shoeSize ?? '',
         heightCm: editingCandidate.heightCm != null ? String(editingCandidate.heightCm) : '',
@@ -390,12 +390,12 @@ export default function CandidateForm({ editingCandidate }: CandidateFormProps) 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <Label htmlFor="comuna">Comuna</Label>
-            <select id="comuna" className={selectClass} value={form.comuna} onChange={(e) => update('comuna', e.target.value)}>
-              <option value="">Sin especificar</option>
-              {ARAUCANIA_COMUNAS.map((c) => (
-                <option key={c} value={c}>{c}</option>
+            <Input id="comuna" list="comuna-options" value={form.comuna} onChange={(e) => update('comuna', e.target.value)} />
+            <datalist id="comuna-options">
+              {CHILE_COMUNAS.map((c) => (
+                <option key={c} value={c} />
               ))}
-            </select>
+            </datalist>
           </div>
           <div>
             <Label htmlFor="direccion">Dirección</Label>

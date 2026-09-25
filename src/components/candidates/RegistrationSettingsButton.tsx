@@ -6,6 +6,7 @@ import { Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { textareaClass } from '@/components/ui/field-classes';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   getRegistrationSettingsAction,
@@ -33,6 +34,8 @@ export default function RegistrationSettingsButton({ projectId }: { projectId: s
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState<RegistrationSettings | null>(null);
+  // "Qué incluye" se edita como texto, un ítem por línea.
+  const [benefitsText, setBenefitsText] = useState('');
 
   async function handleOpen() {
     setOpen(true);
@@ -43,6 +46,7 @@ export default function RegistrationSettingsButton({ projectId }: { projectId: s
       setOpen(false);
     } else {
       setSettings(result.data);
+      setBenefitsText(result.data.benefits.join('\n'));
     }
     setLoading(false);
   }
@@ -59,6 +63,8 @@ export default function RegistrationSettingsButton({ projectId }: { projectId: s
       contactEmail: settings.contactEmail ?? '',
       contactWhatsapp: settings.contactWhatsapp ?? '',
       instagramHandle: settings.instagramHandle ?? '',
+      benefits: benefitsText.split('\n'),
+      classesNote: settings.classesNote ?? '',
     });
     setSaving(false);
     if (!result.success) {
@@ -76,7 +82,7 @@ export default function RegistrationSettingsButton({ projectId }: { projectId: s
         <Settings2 /> Convocatoria
       </Button>
       <Dialog open={open} onOpenChange={(next) => !next && setOpen(false)}>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Configuración de la convocatoria</DialogTitle>
         </DialogHeader>
@@ -187,6 +193,31 @@ export default function RegistrationSettingsButton({ projectId }: { projectId: s
                     onChange={(e) => setSettings({ ...settings, instagramHandle: e.target.value })}
                   />
                 </div>
+              </div>
+            </fieldset>
+
+            <fieldset className="space-y-3 border-t border-border pt-4">
+              <legend className="text-sm font-medium">Qué incluye la inscripción</legend>
+              <p className="text-xs text-muted-foreground">
+                Se muestra en el sitio y en la página de inscripción. Un ítem por línea (ej. Clases de maquillaje). Vacío = la sección no aparece.
+              </p>
+              <textarea
+                id="reg-benefits"
+                className={textareaClass}
+                aria-label="Qué incluye la inscripción, un ítem por línea"
+                rows={5}
+                placeholder={'Clases de maquillaje\nClases de peinado\nAsesoría de imagen\nClases de oratoria\nClases de protocolo'}
+                value={benefitsText}
+                onChange={(e) => setBenefitsText(e.target.value)}
+              />
+              <div>
+                <Label htmlFor="reg-classes">Lugar y horario de clases</Label>
+                <Input
+                  id="reg-classes"
+                  placeholder="Por confirmar"
+                  value={settings.classesNote ?? ''}
+                  onChange={(e) => setSettings({ ...settings, classesNote: e.target.value })}
+                />
               </div>
             </fieldset>
           </div>

@@ -10,7 +10,7 @@
 export const CONFIG = {
   heroTitulo: 'Postula al certamen',
   /** Bajada por defecto del hero, si el certamen no escribió la suya (`Project.publicTagline`). */
-  heroBajada: 'Una postulación, una oportunidad. Súmate a la nueva generación de embajadoras de La Araucanía.',
+  heroBajada: 'Una inscripción, una oportunidad: vive el camino a la corona desde adentro.',
   // El nombre del certamen y su contacto (correo, WhatsApp, Instagram) ya no
   // viven acá: son de cada certamen (`Project.name`, `publicContactEmail`,
   // `publicWhatsapp`, `instagramHandle`) y se editan en la convocatoria.

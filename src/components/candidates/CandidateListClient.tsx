@@ -16,7 +16,7 @@ import {
   listCandidatesAction,
 } from '@/modules/candidates/actions/candidates.actions';
 import type { CandidateProjectOption, CandidateWithProject } from '@/modules/candidates/services/candidates.service';
-import { ARAUCANIA_COMUNAS, CANDIDATE_STATUS_LABELS, CANDIDATE_STATUSES } from '@/modules/candidates/schema';
+import { CHILE_COMUNAS, CANDIDATE_STATUS_LABELS, CANDIDATE_STATUSES } from '@/modules/candidates/schema';
 import DeleteCandidateButton from './DeleteCandidateButton';
 import CandidateRegistrationLinkButton from './CandidateRegistrationLinkButton';
 import RegistrationSettingsButton from './RegistrationSettingsButton';
@@ -143,12 +143,12 @@ export default function CandidateListClient({ canWrite, canExport }: { canWrite:
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">Comuna</label>
-              <select className={selectClass} value={comuna} onChange={(e) => updateFilter(setComuna)(e.target.value)}>
-                <option value="">Todas las comunas</option>
-                {ARAUCANIA_COMUNAS.map((c) => (
-                  <option key={c} value={c}>{c}</option>
+              <Input list="comuna-filter-options" className="h-8 w-40" placeholder="Todas las comunas" value={comuna} onChange={(e) => updateFilter(setComuna)(e.target.value)} />
+              <datalist id="comuna-filter-options">
+                {CHILE_COMUNAS.map((c) => (
+                  <option key={c} value={c} />
                 ))}
-              </select>
+              </datalist>
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">Edad mín.</label>

@@ -25,6 +25,8 @@ export const projectCreateSchema = z.object({
   galaDate: z.coerce.date('Fecha de gala inválida').nullable().optional(),
   venueName: z.string().trim().max(160).optional(),
   venueAddress: z.string().trim().max(300).optional(),
+  /** WhatsApp del certamen para responder dudas (botón flotante del sitio y de la postulación). */
+  publicWhatsapp: contactWhatsappField,
 });
 
 export type ProjectCreateInput = z.infer<typeof projectCreateSchema>;

@@ -272,9 +272,10 @@ export const publicSponsorLeadSchema = z.object({
   contactName: z.string().trim().min(2, 'Escribe tu nombre').max(160),
   jobTitle: optionalText(120),
   email: z.string().trim().email('Escribe un correo válido').max(160),
-  phone: optionalText(40),
+  // Teléfono y "¿a qué te dedicas?" son obligatorios en el formulario del micrositio.
+  phone: z.string().trim().min(8, 'Escribe un teléfono de contacto').max(40),
   packageId: optionalText(64),
-  message: optionalText(2000),
+  message: z.string().trim().min(3, 'Cuéntanos a qué te dedicas').max(2000),
   [SPONSOR_LEAD_HONEYPOT_FIELD]: z.string().max(0, 'Solicitud inválida').optional(),
 });
 

@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { CurrencyInput } from '@/components/ui/CurrencyInput';
 import { PROJECT_STATUSES, PROJECT_STATUS_LABELS, projectCreateSchema, projectUpdateSchema } from '@/modules/projects/schema';
 import { createProjectAction, updateProjectAction } from '@/modules/projects/actions/projects.actions';
+import { formatWhatsappNumber } from '@/lib/events/pageant-contact';
 
 function toDateInputValue(date: Date | string | null | undefined): string {
   if (!date) return '';
@@ -45,6 +46,7 @@ export default function ProjectForm({ editingProject }: ProjectFormProps) {
     galaDate: toDateTimeInputValue(editingProject?.galaDate),
     venueName: editingProject?.venueName ?? '',
     venueAddress: editingProject?.venueAddress ?? '',
+    publicWhatsapp: editingProject?.publicWhatsapp ? formatWhatsappNumber(editingProject.publicWhatsapp) : '',
   }));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -69,6 +71,7 @@ export default function ProjectForm({ editingProject }: ProjectFormProps) {
       galaDate: form.galaDate ? new Date(form.galaDate).toISOString() : null,
       venueName: form.venueName,
       venueAddress: form.venueAddress,
+      publicWhatsapp: form.publicWhatsapp,
     };
 
     const schema = editingProject ? projectUpdateSchema : projectCreateSchema;
@@ -192,6 +195,26 @@ export default function ProjectForm({ editingProject }: ProjectFormProps) {
         <div className="sm:col-span-2">
           <Label htmlFor="venueAddress">Dirección del recinto</Label>
           <Input id="venueAddress" value={form.venueAddress} onChange={(e) => update('venueAddress', e.target.value)} />
+        </div>
+
+        <div className="sm:col-span-2">
+          <Label htmlFor="publicWhatsapp">WhatsApp para dudas</Label>
+          <Input
+            id="publicWhatsapp"
+            type="tel"
+            autoComplete="off"
+            placeholder="+56 9 1234 5678"
+            value={form.publicWhatsapp}
+            onChange={(e) => update('publicWhatsapp', e.target.value)}
+            aria-invalid={!!errors.publicWhatsapp}
+          />
+          {errors.publicWhatsapp ? (
+            <p className="mt-1 text-sm text-destructive">{errors.publicWhatsapp}</p>
+          ) : (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Aparece como botón flotante en el sitio del certamen y en la inscripción, con un mensaje listo para candidatas y sponsors.
+            </p>
+          )}
         </div>
 
         <div className="sm:col-span-2">
