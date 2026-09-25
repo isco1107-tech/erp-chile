@@ -1,11 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { Cormorant_Garamond, Italiana, Karla } from 'next/font/google';
 import { formatCurrency } from '@/lib/chile/tax';
 import { initials, type PageantView } from '@/lib/events/pageant-site';
 import type { PublicPageantCandidate, PublicPageantSite } from '@/modules/projects/services/public-site.service';
 import { Arrow, Calendar, Check, Chevron, Close, Crown, Diamond, Instagram, Mail, Pin, Plus, Ticket, Tiara, Whatsapp } from './icons';
+import { PAGEANT_FONT_CLASSES } from './fonts';
+import { HeroSky, Kicker, pad } from './parts';
 import { SponsorLeadForm } from './SponsorLeadForm';
 import { PAGEANT_SITE_STYLES } from './styles';
 
@@ -20,19 +21,6 @@ import { PAGEANT_SITE_STYLES } from './styles';
  * del servidor en `view`: este componente solo presenta. Cada sección
  * aparece únicamente si el certamen tiene ese dato o módulo activo.
  */
-
-const display = Italiana({ subsets: ['latin'], weight: '400', variable: '--pgs-display', display: 'swap' });
-const body = Karla({ subsets: ['latin'], weight: ['300', '400', '500', '600', '700'], variable: '--pgs-body', display: 'swap' });
-const serif = Cormorant_Garamond({ subsets: ['latin'], weight: ['400', '500'], style: ['normal', 'italic'], variable: '--pgs-serif', display: 'swap' });
-
-/** Estrellas del cielo del hero: posiciones deterministas (mismo HTML en servidor y navegador). */
-const STARS = Array.from({ length: 46 }, (_, i) => ({
-  left: (i * 37 + 11) % 100,
-  top: (i * 61 + 7) % 92,
-  size: i % 5 === 0 ? 2.4 : i % 3 === 0 ? 1.6 : 1,
-  delay: (i % 9) * 0.6,
-  duration: 3.2 + (i % 6) * 0.8,
-}));
 
 function useCountdown(target: string | null) {
   const [now, setNow] = useState<number | null>(null);
@@ -91,20 +79,6 @@ function useScrollSpy(ids: string[]) {
     return () => observer.disconnect();
   }, [key]);
   return active;
-}
-
-function pad(value: number): string {
-  return String(value).padStart(2, '0');
-}
-
-function Kicker({ index, children, tone = 'night' }: { index: string; children: React.ReactNode; tone?: 'night' | 'paper' }) {
-  return (
-    <p className={`pgs-kicker is-${tone}`}>
-      <span className="pgs-kicker-index">{index}</span>
-      <span className="pgs-kicker-rule" aria-hidden="true" />
-      {children}
-    </p>
-  );
 }
 
 function Portrait({ candidate, className = '', eager = false }: { candidate: { name: string; photoUrl: string | null }; className?: string; eager?: boolean }) {
@@ -287,7 +261,7 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
   const titleFit = { '--pgs-fit': Math.max(title.main.length, 6) * 0.64 } as CSSProperties;
 
   return (
-    <div ref={rootRef} className={`pgs ${display.variable} ${body.variable} ${serif.variable}`} data-accent={site.accent}>
+    <div ref={rootRef} className={`pgs ${PAGEANT_FONT_CLASSES}`} data-accent={site.accent}>
       <style>{PAGEANT_SITE_STYLES}</style>
       <a className="pgs-skip" href="#contenido">
         Saltar al contenido
@@ -372,25 +346,7 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
             <img src={site.coverImageUrl} alt="" fetchPriority="high" />
           </div>
         )}
-        <div className="pgs-sky" aria-hidden="true">
-          <span className="pgs-aurora is-one" />
-          <span className="pgs-aurora is-two" />
-          <span className="pgs-aurora is-three" />
-          {STARS.map((star, i) => (
-            <span
-              key={i}
-              className="pgs-star"
-              style={{ left: `${star.left}%`, top: `${star.top}%`, width: star.size, height: star.size, animationDelay: `${star.delay}s`, animationDuration: `${star.duration}s` }}
-            />
-          ))}
-          <span className="pgs-grain" />
-        </div>
-        <div className="pgs-frame" aria-hidden="true">
-          <span className="is-tl" />
-          <span className="is-tr" />
-          <span className="is-bl" />
-          <span className="is-br" />
-        </div>
+        <HeroSky />
 
         <div className="pgs-hero-inner">
           <Tiara className="pgs-tiara" />

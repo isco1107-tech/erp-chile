@@ -622,8 +622,8 @@ export default function CandidateRegistrationClient({ token }: { token: string }
             {project.registrationClosesAt && (
               <span>Postulaciones cierran el {new Date(project.registrationClosesAt).toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
             )}
-            {project.registrationClosesAt && project.eventDate && ' · '}
-            {project.eventDate && <span>Gala {new Date(project.eventDate).toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Santiago' })}</span>}
+            {project.registrationClosesAt && project.galaDate && ' · '}
+            {project.galaDate && <span>Gala {new Date(project.galaDate).toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Santiago' })}</span>}
           </p>
         </div>
 
