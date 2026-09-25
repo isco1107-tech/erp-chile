@@ -38,6 +38,8 @@ import { ActionCard } from '@/components/ui/ActionCard';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { DashboardCharts } from '@/components/dashboard/DashboardCharts';
 import { RecentSalesTable } from '@/components/dashboard/RecentSalesTable';
+import { ContractsDashboardCard } from '@/components/contracts/ContractsDashboardCard';
+import { getContractsOverview } from '@/modules/projects/services/contracts-overview.service';
 import {
   findPendingPurchaseApprovals,
   findOverdueReceivables,
@@ -210,11 +212,18 @@ export default async function DashboardPage() {
   // día por correo, no para cada carga del dashboard) — el stock bajo se
   // cuenta con `criticalStock` más abajo, que ya sale de un query que esta
   // página hace de todas formas.
-  const [pendingApprovals, overdueReceivables, expiringContracts, mismatchedPurchases] = await Promise.all([
+  // Checklist de contratos firmados (candidatas + auspicios): mismo servicio
+  // que /dashboard/contracts, solo con lo que este usuario puede ver.
+  const contractsScope = {
+    candidates: context.features.hasCandidates && can(context, 'candidates:read'),
+    sponsors: context.features.hasSponsorships && can(context, 'sponsorships:read'),
+  };
+  const [pendingApprovals, overdueReceivables, expiringContracts, mismatchedPurchases, contractsOverview] = await Promise.all([
     context.features.hasPurchases && can(context, 'purchases:read') ? findPendingPurchaseApprovals(context.companyId) : Promise.resolve([]),
     context.features.hasTreasury && can(context, 'treasury:read') ? findOverdueReceivables(context.companyId) : Promise.resolve([]),
     context.features.hasCandidates && can(context, 'candidates:read') ? findExpiringCandidateContracts(context.companyId) : Promise.resolve([]),
     context.features.hasPurchases && can(context, 'purchases:read') ? findMismatchedPurchases(context.companyId) : Promise.resolve([]),
+    contractsScope.candidates || contractsScope.sponsors ? getContractsOverview(context.companyId, contractsScope) : Promise.resolve(null),
   ]);
 
   // Indicadores por módulo: cada empresa contrata un subconjunto distinto de
@@ -601,6 +610,10 @@ export default async function DashboardPage() {
   if (expiringContracts.length > 0) {
     todayAlerts.push({ key: 'contracts', count: expiringContracts.length, label: `contrato${expiringContracts.length === 1 ? '' : 's'} de imagen por vencer`, href: '/dashboard/candidates', icon: BadgeAlert, tone: 'warning' });
   }
+  if (contractsOverview && contractsOverview.summary.stale > 0) {
+    const stale = contractsOverview.summary.stale;
+    todayAlerts.push({ key: 'contracts-stale', count: stale, label: `contrato${stale === 1 ? '' : 's'} sin firmar hace más de una semana`, href: '/dashboard/contracts', icon: FileWarning, tone: 'warning' });
+  }
 
   return (
     <div className="space-y-6">
@@ -714,6 +727,9 @@ export default async function DashboardPage() {
           )}
         </section>
       )}
+
+      {/* Checklist de contratos firmados: avance por certamen y lo pendiente. */}
+      {contractsOverview && contractsOverview.summary.total > 0 && <ContractsDashboardCard overview={contractsOverview} />}
 
       {/* Gráfico de barras + donut (Client Component: recharts no puede vivir en el Server Component, ver DashboardCharts.tsx) */}
       {hasSalesModule && (
