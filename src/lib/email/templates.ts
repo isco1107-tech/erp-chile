@@ -429,6 +429,54 @@ export function buildSponsorLeadConfirmationEmail(input: SponsorLeadConfirmation
   return { subject, html, text };
 }
 
+export interface SponsorAcceptedEmailInput {
+  contactName: string;
+  projectName: string;
+  companyName: string;
+  tierLabel: string;
+  packageName: string | null;
+  /** Portal de la marca (`/sponsors/[token]`) con sus entregables y pagos. */
+  portalUrl: string;
+  /** Contacto del certamen, si lo configuró. */
+  contact: { email: string | null; whatsapp: { href: string; label: string } | null };
+}
+
+/**
+ * Aviso a la marca de que quedó aceptada como sponsor: se dispara cuando su
+ * contrato de auspicio pasa a `CONFIRMED` (desde el CRM o desde el módulo de
+ * auspicios), una sola vez por transición.
+ */
+export function buildSponsorAcceptedEmail(input: SponsorAcceptedEmailInput): { subject: string; html: string; text: string } {
+  const subject = `¡Bienvenido como sponsor de ${input.projectName}!`;
+  const contactLines = [
+    input.contact.whatsapp ? `WhatsApp: <a href="${escapeHtml(input.contact.whatsapp.href)}" style="color:${BRAND};">${escapeHtml(input.contact.whatsapp.label)}</a>` : null,
+    input.contact.email ? `Correo: <a href="mailto:${escapeHtml(input.contact.email)}" style="color:${BRAND};">${escapeHtml(input.contact.email)}</a>` : null,
+  ].filter((line): line is string => line !== null);
+  const html = layout({
+    title: input.projectName,
+    body: `
+      <p style="margin:0 0 12px;">Hola <strong>${escapeHtml(input.contactName)}</strong>, confirmamos que tu marca quedó aceptada como sponsor de <strong>${escapeHtml(input.projectName)}</strong>. ¡Gracias por sumarte!</p>
+      <p style="margin:0 0 12px;">Nivel de auspicio: <strong>${escapeHtml(input.tierLabel)}</strong>${input.packageName ? ` · Plan: <strong>${escapeHtml(input.packageName)}</strong>` : ''}.</p>
+      <p style="margin:0 0 12px;">En tu portal de sponsor puedes seguir los entregables acordados y el estado de tus pagos. La organización te contactará para coordinar los próximos pasos.</p>
+      ${contactLines.length ? `<p style="margin:16px 0 6px;font-weight:600;">¿Dudas? Escríbenos:</p>${contactLines.map((line) => `<p style="margin:0 0 4px;">${line}</p>`).join('')}` : ''}
+    `,
+    ctaLabel: 'Abrir mi portal de sponsor',
+    ctaUrl: input.portalUrl,
+    footer: `${escapeHtml(input.companyName)} · Si no reconoces este auspicio, responde este correo.`,
+  });
+  const text = [
+    `Hola ${input.contactName}, confirmamos que tu marca quedó aceptada como sponsor de ${input.projectName}. ¡Gracias por sumarte!`,
+    `Nivel de auspicio: ${input.tierLabel}${input.packageName ? ` · Plan: ${input.packageName}` : ''}.`,
+    'En tu portal de sponsor puedes seguir los entregables acordados y el estado de tus pagos:',
+    input.portalUrl,
+    input.contact.whatsapp ? `WhatsApp: ${input.contact.whatsapp.label}` : null,
+    input.contact.email ? `Correo: ${input.contact.email}` : null,
+  ]
+    .filter((line): line is string => line !== null)
+    .join('\n');
+  return { subject, html, text };
+}
+
 export interface PaymentReminderDocument {
   dteLabel: string;
   folio: number | null;
@@ -1204,6 +1252,8 @@ export interface CandidateStatusChangeEmailInput {
   projectName: string;
   companyName: string;
   status: CandidateStatus;
+  /** Estado desde el que se movió: distingue un avance (felicitaciones) de un retroceso (aviso neutro). */
+  previousStatus?: CandidateStatus | null;
 }
 
 /** Paleta de la página pública de postulación (`prompt-modulo-postulaciones.md`,
@@ -1345,22 +1395,110 @@ function buildCandidateRejectedEmail(input: CandidateStatusChangeEmailInput): { 
   return { subject, html, text };
 }
 
+/** Orden del embudo de casting: sirve para saber si un movimiento es un avance o un retroceso. */
+const CANDIDATE_PIPELINE_RANK: Partial<Record<CandidateStatus, number>> = {
+  APPLICANT: 0,
+  UNDER_REVIEW: 1,
+  CALLED_TO_CASTING: 2,
+  OFFICIAL_CANDIDATE: 3,
+  FINALIST: 4,
+  WINNER: 5,
+};
+
+/** Cómo se nombra cada etapa en el aviso neutro a la postulante. */
+const CANDIDATE_STAGE_NAMES: Record<CandidateStatus, string> = {
+  APPLICANT: 'postulación recibida',
+  UNDER_REVIEW: 'en revisión',
+  CALLED_TO_CASTING: 'citada a casting',
+  OFFICIAL_CANDIDATE: 'candidata oficial',
+  FINALIST: 'finalista',
+  WINNER: 'ganadora',
+  WITHDRAWN: 'retirada',
+  REJECTED: 'no continúa en el proceso',
+};
+
+/** Correo simple (sin botón) con el mismo encabezado que el de agradecimiento. */
+function buildCandidateNoticeEmail(
+  input: CandidateStatusChangeEmailInput,
+  subject: string,
+  paragraphs: string[]
+): { subject: string; html: string; text: string } {
+  const html = `<!doctype html>
+<html lang="es">
+<body style="margin:0;padding:0;background:#f4f6f8;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:24px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
+          <tr>
+            <td style="background:${BRAND};padding:20px 24px;">
+              <p style="margin:0;color:#ffffff;font-size:18px;font-weight:700;">${escapeHtml(input.projectName)}</p>
+              <p style="margin:2px 0 0;color:#cbd5e1;font-size:12px;">${escapeHtml(input.companyName)}</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px;color:#1f2933;font-size:15px;line-height:1.6;">
+              <p style="margin:0 0 12px;">Hola <strong>${escapeHtml(input.fullName)}</strong>,</p>
+              ${paragraphs.map((paragraph) => `<p style="margin:0 0 12px;">${escapeHtml(paragraph)}</p>`).join('\n              ')}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 24px;background:#f8fafc;border-top:1px solid #e2e8f0;color:#64748b;font-size:12px;line-height:1.5;">
+              Este correo confirma un cambio de estado en tu postulación a ${escapeHtml(input.projectName)}. Si tienes dudas, responde este correo.
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+  const text = [subject, '', `Hola ${input.fullName},`, '', ...paragraphs.flatMap((paragraph) => [paragraph, ''])].join('\n').trim();
+  return { subject, html, text };
+}
+
 /**
- * Punto único de decisión de qué correo (si corresponde alguno) dispara un
- * cambio de estado de candidata. Devuelve `null` para estados que no
- * necesitan aviso a la postulante: `APPLICANT` (ya cubierto por
- * `buildCandidateApplicationConfirmationEmail` al momento de postular),
- * `UNDER_REVIEW` (estado interno, sin novedad que comunicar) y `WITHDRAWN`
- * (la propia candidata se retiró; no tiene sentido agradecerle su
- * participación como si la hubiéramos descartado nosotros).
+ * Punto único de decisión del correo que dispara un cambio de estado de
+ * candidata (tablero de casting o ficha). Todo movimiento entre columnas
+ * avisa a la postulante:
+ * - avance a casting/oficial/finalista/ganadora (o reactivación): felicitaciones;
+ * - `REJECTED`: agradecimiento por participar;
+ * - `WITHDRAWN`: confirmación de su retiro;
+ * - `UNDER_REVIEW`, vuelta a `APPLICANT` o cualquier retroceso: aviso neutro
+ *   con la etapa nueva (nunca "felicitaciones" por bajar de etapa).
+ * Devuelve `null` solo si el estado no cambió.
  */
 export function buildCandidateStatusChangeEmail(
   input: CandidateStatusChangeEmailInput
 ): { subject: string; html: string; text: string } | null {
-  const celebration = CELEBRATION_COPY[input.status];
-  if (celebration) return buildCandidateCelebrationEmail(input, celebration);
+  const previous = input.previousStatus ?? null;
+  if (previous === input.status) return null;
   if (input.status === 'REJECTED') return buildCandidateRejectedEmail(input);
-  return null;
+  if (input.status === 'WITHDRAWN') {
+    return buildCandidateNoticeEmail(input, `Confirmamos tu retiro de ${input.projectName}`, [
+      `Registramos tu retiro del proceso de ${input.projectName}. Gracias por el tiempo que le dedicaste.`,
+      'Si fue un error o quieres retomar tu postulación, responde este correo y la organización lo revisará.',
+    ]);
+  }
+
+  const newRank = CANDIDATE_PIPELINE_RANK[input.status];
+  const previousRank = previous ? CANDIDATE_PIPELINE_RANK[previous] : undefined;
+  const isSetback = newRank !== undefined && previousRank !== undefined && newRank < previousRank;
+
+  const celebration = CELEBRATION_COPY[input.status];
+  if (celebration && !isSetback) return buildCandidateCelebrationEmail(input, celebration);
+
+  if (input.status === 'UNDER_REVIEW' && !isSetback) {
+    return buildCandidateNoticeEmail(input, `Tu postulación está en revisión — ${input.projectName}`, [
+      `El equipo de casting de ${input.projectName} está revisando tu postulación.`,
+      'Te avisaremos por este medio apenas haya una decisión sobre la siguiente etapa.',
+    ]);
+  }
+
+  return buildCandidateNoticeEmail(input, `Actualizamos tu postulación — ${input.projectName}`, [
+    `El estado de tu postulación a ${input.projectName} cambió a: ${CANDIDATE_STAGE_NAMES[input.status]}.`,
+    'La organización te contactará si necesita algo más de tu parte.',
+  ]);
 }
 
 export interface VoteConfirmationEmailInput {

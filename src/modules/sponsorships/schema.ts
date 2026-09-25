@@ -38,6 +38,19 @@ export const SPONSORSHIP_TIER_LABELS: Record<(typeof SPONSORSHIP_TIERS)[number],
 
 export const SPONSORSHIP_STATUSES = ['PROPOSAL', 'CONFIRMED', 'COMPLETED', 'CANCELLED'] as const;
 
+/**
+ * Si un cambio de estado de contrato convierte a la marca en sponsor aceptado
+ * (dispara el correo de bienvenida): pasar a `CONFIRMED` desde una propuesta,
+ * desde cancelado o al crear el contrato ya confirmado. Pasar de
+ * `COMPLETED` a `CONFIRMED` no es una aceptación nueva.
+ */
+export function isSponsorAcceptance(
+  previous: (typeof SPONSORSHIP_STATUSES)[number] | null,
+  next: (typeof SPONSORSHIP_STATUSES)[number]
+): boolean {
+  return next === 'CONFIRMED' && previous !== 'CONFIRMED' && previous !== 'COMPLETED';
+}
+
 export const SPONSORSHIP_STATUS_LABELS: Record<(typeof SPONSORSHIP_STATUSES)[number], string> = {
   PROPOSAL: 'Propuesta',
   CONFIRMED: 'Confirmado',
