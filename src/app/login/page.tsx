@@ -6,7 +6,7 @@ import { Suspense, useState } from 'react';
 import { useForm } from '@mantine/form';
 import { z } from 'zod';
 import { KeyRound, Mail, ShieldCheck } from 'lucide-react';
-import { AuthCard, AuthCardHeader, AuthError, AuthShell } from '@/components/auth/AuthShell';
+import { AuthCard, AuthCardHeader, AuthError, LoginShell } from '@/components/auth/AuthShell';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/PasswordInput';
 import { Label } from '@/components/ui/label';
@@ -109,116 +109,114 @@ function LoginForm() {
 
   if (challengeToken) {
     return (
-      <AuthShell>
-        <AuthCard>
-          <AuthCardHeader
-            icon={<ShieldCheck className="size-5.5" strokeWidth={1.75} />}
-            title="Verificación en dos pasos"
-            description="Ingresa el código de 6 dígitos de tu app de autenticación, o uno de tus códigos de respaldo."
-          />
-          {error && <AuthError>{error}</AuthError>}
-          <form onSubmit={handleVerifyTotp} className="space-y-5">
-            <div>
-              <Label htmlFor="totpCode">Código</Label>
-              <Input
-                id="totpCode"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                autoFocus
-                className="mt-1.5 text-center text-lg tracking-[0.4em]"
-                value={totpCode}
-                onChange={(e) => setTotpCode(e.target.value)}
-              />
-            </div>
-            <Button type="submit" className="w-full" size="lg" disabled={loading || totpCode.trim().length === 0}>
-              {loading ? 'Verificando...' : 'Verificar'}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              className="w-full"
-              onClick={() => { setChallengeToken(null); setTotpCode(''); setError(null); }}
-            >
-              Volver
-            </Button>
-          </form>
-        </AuthCard>
-      </AuthShell>
+      <AuthCard>
+        <AuthCardHeader
+          icon={<ShieldCheck className="size-5.5" strokeWidth={1.75} />}
+          title="Verificación en dos pasos"
+          description="Ingresa el código de 6 dígitos de tu app de autenticación, o uno de tus códigos de respaldo."
+        />
+        {error && <AuthError>{error}</AuthError>}
+        <form onSubmit={handleVerifyTotp} className="space-y-5">
+          <div>
+            <Label htmlFor="totpCode">Código</Label>
+            <Input
+              id="totpCode"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              autoFocus
+              className="mt-1.5 text-center text-lg tracking-[0.4em]"
+              value={totpCode}
+              onChange={(e) => setTotpCode(e.target.value)}
+            />
+          </div>
+          <Button type="submit" className="w-full" size="lg" disabled={loading || totpCode.trim().length === 0}>
+            {loading ? 'Verificando...' : 'Verificar'}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-full"
+            onClick={() => { setChallengeToken(null); setTotpCode(''); setError(null); }}
+          >
+            Volver
+          </Button>
+        </form>
+      </AuthCard>
     );
   }
 
   return (
-    <AuthShell>
-      <AuthCard>
-        <AuthCardHeader
-          title="Ingresa a tu empresa"
-          description="Usa el correo y la contraseña con que te invitaron."
-        />
+    <AuthCard>
+      <AuthCardHeader
+        title="Ingresa a tu empresa"
+        description="Usa el correo y la contraseña con que te invitaron."
+      />
 
-        {error && <AuthError>{error}</AuthError>}
+      {error && <AuthError>{error}</AuthError>}
 
-        <form onSubmit={form.onSubmit((values) => handleSubmit(values))} className="space-y-4">
-          <div>
-            <Label htmlFor="username">Correo o usuario</Label>
-            <div className="relative mt-1.5">
-              <Mail className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
-              <Input
-                id="username"
-                className="h-10 pl-9"
-                autoComplete="username"
-                autoFocus
-                aria-invalid={Boolean(form.errors.username)}
-                aria-describedby={form.errors.username ? 'username-error' : undefined}
-                {...form.getInputProps('username')}
-              />
-            </div>
-            {form.errors.username && <p id="username-error" className="mt-1.5 text-sm text-destructive">{form.errors.username}</p>}
+      <form onSubmit={form.onSubmit((values) => handleSubmit(values))} className="space-y-4">
+        <div>
+          <Label htmlFor="username">Correo o usuario</Label>
+          <div className="relative mt-1.5">
+            <Mail className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
+            <Input
+              id="username"
+              className="h-10 pl-9"
+              autoComplete="username"
+              autoFocus
+              aria-invalid={Boolean(form.errors.username)}
+              aria-describedby={form.errors.username ? 'username-error' : undefined}
+              {...form.getInputProps('username')}
+            />
           </div>
+          {form.errors.username && <p id="username-error" className="mt-1.5 text-sm text-destructive">{form.errors.username}</p>}
+        </div>
 
-          <div>
-            <div className="flex items-center justify-between gap-2">
-              <Label htmlFor="password">Contraseña</Label>
-              <Link href="/forgot-password" className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
-                ¿La olvidaste?
-              </Link>
-            </div>
-            <div className="relative mt-1.5">
-              <KeyRound className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
-              <PasswordInput
-                id="password"
-                className="h-10 pl-9"
-                autoComplete="current-password"
-                aria-invalid={Boolean(form.errors.password)}
-                aria-describedby={form.errors.password ? 'password-error' : undefined}
-                {...form.getInputProps('password')}
-              />
-            </div>
-            {form.errors.password && <p id="password-error" className="mt-1.5 text-sm text-destructive">{form.errors.password}</p>}
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor="password">Contraseña</Label>
+            <Link href="/forgot-password" className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
+              ¿La olvidaste?
+            </Link>
           </div>
+          <div className="relative mt-1.5">
+            <KeyRound className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
+            <PasswordInput
+              id="password"
+              className="h-10 pl-9"
+              autoComplete="current-password"
+              aria-invalid={Boolean(form.errors.password)}
+              aria-describedby={form.errors.password ? 'password-error' : undefined}
+              {...form.getInputProps('password')}
+            />
+          </div>
+          {form.errors.password && <p id="password-error" className="mt-1.5 text-sm text-destructive">{form.errors.password}</p>}
+        </div>
 
-          <TurnstileWidget key={turnstileKey} action="login" theme="dark" onToken={setTurnstileToken} className="flex min-h-[65px] justify-center" />
+        <TurnstileWidget key={turnstileKey} action="login" theme="dark" onToken={setTurnstileToken} className="flex min-h-[65px] justify-center" />
 
-          <Button type="submit" className="mt-2 h-10 w-full" size="lg" disabled={loading || (isTurnstileConfigured && !turnstileToken)}>
-            {loading ? 'Entrando…' : 'Entrar'}
-          </Button>
-        </form>
-      </AuthCard>
-    </AuthShell>
+        <Button type="submit" className="mt-2 h-10 w-full" size="lg" disabled={loading || (isTurnstileConfigured && !turnstileToken)}>
+          {loading ? 'Entrando…' : 'Entrar'}
+        </Button>
+      </form>
+    </AuthCard>
   );
 }
 
 export default function LoginPage() {
+  // El marco (con el video) queda fuera del Suspense y del formulario: pasar
+  // del fallback al formulario, o al paso de 2FA, no reinicia el video.
   return (
-    <Suspense
-      fallback={
-        <AuthShell>
+    <LoginShell>
+      <Suspense
+        fallback={
           <AuthCard>
             <AuthCardHeader title="Ingresa a tu empresa" description="Usa el correo y la contraseña con que te invitaron." />
           </AuthCard>
-        </AuthShell>
-      }
-    >
-      <LoginForm />
-    </Suspense>
+        }
+      >
+        <LoginForm />
+      </Suspense>
+    </LoginShell>
   );
 }

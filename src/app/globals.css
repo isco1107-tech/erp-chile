@@ -262,11 +262,6 @@ select option {
 /* ── Movimiento constante de las pantallas de acceso (ver AuthShell/AuthSky).
    Solo transform y opacity: nada de esto fuerza a recalcular el diseño. Con
    "reducir movimiento" la regla global de abajo lo deja quieto. */
-@keyframes login-intro-load {
-  from { transform: translateX(-100%); }
-  to { transform: translateX(300%); }
-}
-
 @keyframes auth-logo-breathe {
   0%, 100% { transform: scale(1); opacity: 0.74; }
   50% { transform: scale(1.018); opacity: 0.86; }

@@ -19,8 +19,8 @@ interface Shooting {
 }
 
 /**
- * Cielo en movimiento constante de las pantallas de acceso, la continuación
- * de la intro en video del login (`LoginIntro`): polvo de estrellas que deriva
+ * Cielo en movimiento constante de las pantallas de acceso (salvo el login,
+ * que tiene su video de fondo, ver `LoginVideo`): polvo de estrellas que deriva
  * lento a distintas profundidades, titila, y cada tanto una estrella fugaz
  * dorada. Un solo canvas detrás de todo; se detiene con la pestaña oculta y,
  * con "reducir movimiento", se dibuja una vez y queda quieto.

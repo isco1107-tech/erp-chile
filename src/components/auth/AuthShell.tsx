@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowUpRight, Boxes, Landmark, ReceiptText, ShieldCheck } from 'lucide-react';
 import AuthSky from './AuthSky';
+import LoginVideo from './LoginVideo';
 
 /**
  * Marco compartido de las pantallas de autenticación (login, recuperar
@@ -14,8 +15,9 @@ import AuthSky from './AuthSky';
  * (`LogoBackdrop`).
  *
  * Todo el fondo se mueve de forma constante y lenta (cielo de `AuthSky`,
- * auroras y el logo que "respira"): es la continuación de la intro en video
- * del login (`LoginIntro`), que termina en ese mismo cielo y ese mismo logo.
+ * auroras y el logo que "respira"). El login usa su propio marco con video
+ * (`LoginShell`, más abajo); este queda para recuperar y cambiar contraseña,
+ * cuenta suspendida, etc.
  */
 
 const HIGHLIGHTS = [
@@ -85,7 +87,7 @@ export function AuthShell({ children }: { children: ReactNode }) {
             <span className="text-lg font-semibold tracking-tight text-foreground">Aether</span>
           </Link>
           <Link
-            href="/conoce-aether#cotizar"
+            href="/conoce-aether"
             className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
             ¿Aún no usas Aether? <span className="font-medium text-foreground">Conócelo</span>
@@ -93,6 +95,60 @@ export function AuthShell({ children }: { children: ReactNode }) {
           </Link>
         </div>
         <div className="flex flex-1 items-center justify-center px-4 pb-16">{children}</div>
+      </main>
+    </div>
+  );
+}
+
+/**
+ * Marco del login: el video de Aether (v1 + v2 de la landing) de fondo en su
+ * propio panel, a la izquierda en escritorio y arriba en el teléfono, y el
+ * formulario en un panel aparte. Así el video nunca pasa por encima de los
+ * campos, y la imagen final "AETHER · ERP SOLUTIONS", que queda fija, se ve
+ * entera en vez de quedar cortada detrás de la tarjeta.
+ */
+export function LoginShell({ children }: { children: ReactNode }) {
+  const year = new Date().getFullYear();
+  return (
+    <div className="auth-shell flex min-h-screen flex-col bg-[#10131a] lg:flex-row">
+      {/* Video */}
+      <section className="relative h-[44vh] min-h-[280px] shrink-0 lg:sticky lg:top-0 lg:h-screen lg:flex-1" aria-label="Aether ERP Solutions">
+        <LoginVideo className="absolute inset-0" />
+        <Link
+          href="/"
+          className="absolute top-4 left-4 z-[3] flex items-center gap-2 rounded-full bg-black/40 py-1.5 pr-3.5 pl-2 backdrop-blur-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary lg:top-8 lg:left-8"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/branding/logo-on-dark.png" alt="" aria-hidden="true" className="size-6 object-contain" />
+          <span className="text-base font-semibold tracking-tight text-white">
+            Aether<span className="ml-1 align-middle text-[9px] font-medium text-white/60">ERP</span>
+          </span>
+        </Link>
+        {/* Bajada de marca sobre un degradé propio: se lee igual sobre el cielo oscuro y sobre la imagen final clara. */}
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] hidden h-[20%] bg-gradient-to-t from-[#070910]/85 to-transparent lg:block" />
+        <div className="absolute bottom-8 left-8 z-[3] hidden max-w-[60%] lg:block">
+          <p className="text-lg leading-snug font-medium tracking-tight text-white">
+            Menos caos. Más control. <span className="text-primary">Mejor negocio.</span>
+          </p>
+          <p className="mt-1 text-xs text-white/60">Hecho para Chile · © {year} Aether ERP Solutions</p>
+        </div>
+      </section>
+
+      {/* Formulario */}
+      <main className="relative z-[2] flex flex-1 flex-col border-white/[0.06] bg-[#10131a] lg:w-[500px] lg:flex-none lg:border-l xl:w-[560px]">
+        <div className="flex items-center justify-end p-5 lg:p-8">
+          <Link href="/conoce-aether" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground">
+            ¿Aún no usas Aether? <span className="font-medium text-foreground">Conócelo</span>
+            <ArrowUpRight className="size-3.5" aria-hidden="true" />
+          </Link>
+        </div>
+        <div className="flex flex-1 items-start justify-center px-4 pb-10 sm:items-center">{children}</div>
+        <div className="flex items-center justify-between gap-4 px-5 pb-6 text-xs text-white/50 lg:px-8">
+          <p className="lg:hidden">© {year} Aether ERP Solutions</p>
+          <Link href="/aether/privacidad" className="ml-auto transition-colors hover:text-white">
+            Privacidad
+          </Link>
+        </div>
       </main>
     </div>
   );
