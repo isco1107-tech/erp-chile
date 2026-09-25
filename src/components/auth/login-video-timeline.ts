@@ -20,7 +20,7 @@ export interface VideoFrame {
  * final (si el último ya está listo): con una conexión lenta es mejor mostrar
  * la imagen final que dejar el fondo congelado a mitad del video.
  */
-export const STALL_JUMP_MS = 6000;
+export const STALL_JUMP_MS = 12000;
 /** Descargas simultáneas: en orden, para que lo primero en verse llegue primero. */
 export const LOAD_CONCURRENCY = 6;
 

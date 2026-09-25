@@ -8,7 +8,6 @@ import { LOAD_CONCURRENCY, STALL_JUMP_MS, coverRect, loadOrder, positionAt, vide
 
 /** Mismo corte que la landing: en teléfono, el recorte vertical (y 4 veces más liviano). */
 const MOBILE_QUERY = '(max-width: 760px)';
-const REDUCED_QUERY = '(prefers-reduced-motion: reduce)';
 
 /**
  * Video de fondo del login: las secuencias v1 + v2 de la landing en un canvas
@@ -19,7 +18,11 @@ const REDUCED_QUERY = '(prefers-reduced-motion: reduce)';
  * - Empieza apenas llega el primer fotograma y avanza al ritmo de lo que se
  *   descarga (si un fotograma no llegó, espera, como un video que carga).
  * - Si se queda esperando demasiado, salta a la imagen final.
- * - Con "reducir movimiento" muestra directo la imagen final.
+ * - Se reproduce siempre, también con "reducir movimiento" activo en el
+ *   sistema (Windows lo activa al apagar "Efectos de animación", y así el
+ *   video no se veía nunca): es un video lento dentro de su propio panel, no
+ *   mueve la página, y el botón "Saltar video" lo detiene en cualquier
+ *   momento (WCAG 2.2.2).
  * - Suelta de memoria los fotogramas ya mostrados: decodificados a 1920×1080
  *   los 288 pesarían más de 2 GB.
  */
@@ -39,7 +42,6 @@ export default function LoginVideo({ className = 'relative' }: { className?: str
     const ctx: CanvasRenderingContext2D = context;
 
     const mobile = window.matchMedia(MOBILE_QUERY).matches;
-    const reduced = window.matchMedia(REDUCED_QUERY).matches;
     const set = mobile ? manifest.clips.v1.mobile : manifest.clips.v1.desktop;
     const counts: [number, number] = mobile
       ? [manifest.clips.v1.mobile.count, manifest.clips.v2.mobile.count]
@@ -130,10 +132,6 @@ export default function LoginVideo({ className = 'relative' }: { className?: str
         if (at === last) draw(last);
         return;
       }
-      if (reduced) {
-        if (at === last) finish();
-        return;
-      }
       if (at === 0 && !raf) {
         draw(0);
         setPlaying(true);
@@ -142,7 +140,7 @@ export default function LoginVideo({ className = 'relative' }: { className?: str
     }
 
     // Descarga en orden con concurrencia acotada (primero el primero y el último).
-    const queue = reduced ? [last] : loadOrder(frames.length);
+    const queue = loadOrder(frames.length);
     let cursor = 0;
     function loadNext() {
       if (disposed || cursor >= queue.length) return;
