@@ -10,6 +10,8 @@ import { projectCreateSchema, projectPublicSiteSchema, projectUpdateSchema } fro
 import { publicSlugProblem } from '@/lib/events/public-slug';
 import { getPageantHub, type PageantHub } from '../services/hub.service';
 import * as projectsService from '../services/projects.service';
+import * as customDomainService from '../services/custom-domain.service';
+import type { CustomDomainView } from '../services/custom-domain.service';
 
 export type ActionResult<T> =
   | { success: true; data: T; message?: string }
@@ -167,5 +169,62 @@ export async function checkPublicSlugAction(id: string, slug: string): Promise<A
     return { success: true, data: { available, problem: available ? null : 'Esa dirección ya está en uso' } };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+// ── Dominio propio del micrositio ────────────────────────────────────────────
+
+function customDomainErrorMessage(error: unknown): string {
+  if (error instanceof customDomainService.CustomDomainError) return error.message;
+  return toErrorMessage(error);
+}
+
+export async function getCustomDomainAction(id: string): Promise<ActionResult<CustomDomainView>> {
+  try {
+    const session = await requireAuthWithPermission('projects:read');
+    return { success: true, data: await customDomainService.refreshCustomDomain(session.companyId, id) };
+  } catch (error) {
+    return { success: false, error: customDomainErrorMessage(error) };
+  }
+}
+
+export async function setCustomDomainAction(id: string, domain: unknown): Promise<ActionResult<CustomDomainView>> {
+  try {
+    const session = await requireAuthWithPermission('projects:write');
+    if (typeof domain !== 'string') return { success: false, error: 'Escribe el dominio, por ejemplo missuniversotemuco.cl' };
+    const data = await customDomainService.setCustomDomain(session.companyId, id, domain);
+    await createAuditLog({
+      companyId: session.companyId,
+      userId: session.id,
+      userEmail: session.email,
+      action: 'UPDATE',
+      entity: 'Project',
+      entityId: id,
+      metadata: { customDomain: data.domain },
+    });
+    revalidatePath(`/dashboard/projects/${id}/site`);
+    return { success: true, data, message: data.verifiedAt ? 'Dominio conectado' : 'Dominio guardado: falta configurar los DNS' };
+  } catch (error) {
+    return { success: false, error: customDomainErrorMessage(error) };
+  }
+}
+
+export async function removeCustomDomainAction(id: string): Promise<ActionResult<CustomDomainView>> {
+  try {
+    const session = await requireAuthWithPermission('projects:write');
+    const data = await customDomainService.removeCustomDomain(session.companyId, id);
+    await createAuditLog({
+      companyId: session.companyId,
+      userId: session.id,
+      userEmail: session.email,
+      action: 'UPDATE',
+      entity: 'Project',
+      entityId: id,
+      metadata: { customDomain: null },
+    });
+    revalidatePath(`/dashboard/projects/${id}/site`);
+    return { success: true, data, message: 'Dominio quitado: el sitio sigue en su dirección normal' };
+  } catch (error) {
+    return { success: false, error: customDomainErrorMessage(error) };
   }
 }

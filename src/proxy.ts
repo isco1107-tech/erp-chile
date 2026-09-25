@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 import { ERP_ENTRY_COOKIE, ERP_ENTRY_COOKIE_OPTIONS } from '@/lib/auth/entry-preference';
+import { customDomainRoute, domainFromHost, isPlatformHost, platformBaseUrl } from '@/lib/hosting/custom-domain';
 
 /**
  * Rutas alcanzables sin sesión. `forgot-password` y `reset-password` tienen que
@@ -81,8 +82,31 @@ const PUBLIC_ROUTES = [
   '/manifest.webmanifest',
 ];
 
+/**
+ * Petición que llegó por el dominio propio de un certamen (ej.
+ * missuniversotemuco.cl): la raíz muestra su micrositio, los flujos públicos
+ * que enlaza (postulación, entradas, votación, pagos) se sirven igual, y todo
+ * lo demás (login, panel) se manda a la plataforma: el ERP nunca se sirve
+ * bajo el dominio de un cliente. Sin base de datos: `/sitio/[host]` resuelve
+ * qué certamen es.
+ */
+function routeCustomDomain(req: NextRequest, host: string): NextResponse {
+  const { pathname, search } = req.nextUrl;
+  const route = customDomainRoute(pathname);
+  if (route.kind === 'site') {
+    const url = req.nextUrl.clone();
+    url.pathname = `/sitio/${encodeURIComponent(domainFromHost(host))}`;
+    return NextResponse.rewrite(url);
+  }
+  if (route.kind === 'pass') return NextResponse.next();
+  return NextResponse.redirect(`${platformBaseUrl()}${pathname}${search}`);
+}
+
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
+
+  const host = req.headers.get('host');
+  if (!isPlatformHost(host)) return routeCustomDomain(req, host ?? '');
 
   // The application and returning customers enter the ERP. This preference
   // does not authorize anything: dashboard guards still validate the tenant.

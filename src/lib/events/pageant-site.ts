@@ -286,8 +286,14 @@ export interface PageantView {
 }
 
 /** Todo lo derivado del micrositio, calculado una vez en el servidor con el mismo `now`. */
-export function buildPageantView(site: PageantViewSource, now: Date, baseUrl: string, formatMoney: (amount: number) => string): PageantView {
-  const siteUrl = `${baseUrl}/certamen/${site.slug}`;
+export function buildPageantView(
+  site: PageantViewSource & { customDomain?: string | null },
+  now: Date,
+  baseUrl: string,
+  formatMoney: (amount: number) => string
+): PageantView {
+  // Con dominio propio verificado, esa es la dirección del sitio (compartir, calendario, SEO).
+  const siteUrl = site.customDomain ? `https://${site.customDomain}` : `${baseUrl}/certamen/${site.slug}`;
   const sponsorCount = new Set(site.sponsorsByTier.flatMap((tier) => tier.names)).size;
   const hasSponsorSection = sponsorCount > 0 || site.packages.length > 0 || site.sponsorLeadForm;
   return {
