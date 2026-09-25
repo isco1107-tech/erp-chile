@@ -304,7 +304,7 @@ export async function runAutoMatch(companyId: string, bankAccountId: string, use
 
 async function applyMatch(companyId: string, bankAccountId: string, userId: string, lineId: string, paymentIds: readonly string[]): Promise<void> {
   await prisma.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT id FROM "BankStatementLine" WHERE id = ${lineId} AND "companyId" = ${companyId} FOR UPDATE`;
+    await tx.$queryRaw`SELECT id FROM "BankLine" WHERE id = ${lineId} AND "companyId" = ${companyId} FOR UPDATE`;
     const line = await tx.bankStatementLine.findFirst({ where: { id: lineId, companyId, bankAccountId } });
     if (!line) throw new Error('Movimiento no encontrado');
     if (line.status !== 'UNMATCHED') throw new Error('Este movimiento ya está conciliado o ignorado');
@@ -379,7 +379,7 @@ export async function registerFromLine(
   };
 
   await prisma.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT id FROM "BankStatementLine" WHERE id = ${lineId} AND "companyId" = ${companyId} FOR UPDATE`;
+    await tx.$queryRaw`SELECT id FROM "BankLine" WHERE id = ${lineId} AND "companyId" = ${companyId} FOR UPDATE`;
     const fresh = await tx.bankStatementLine.findFirst({ where: { id: lineId, companyId }, select: { status: true } });
     if (fresh?.status !== 'UNMATCHED') throw new Error('Este movimiento ya está conciliado o ignorado');
     const ids: string[] = [];
