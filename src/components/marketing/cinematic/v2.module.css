@@ -287,7 +287,7 @@
 
 .nav {
   display: flex;
-  gap: 32px;
+  gap: clamp(14px, 2vw, 32px);
   margin-left: auto;
   font-size: 14px;
   color: #dcd7cd;

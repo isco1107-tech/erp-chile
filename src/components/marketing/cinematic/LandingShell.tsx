@@ -27,12 +27,17 @@ const starMap = [
   ['#cotizar', 'Cotizar'],
 ] as const;
 
-/** Navegación mínima de escritorio: cuatro enlaces y el botón de demo. */
+/**
+ * Navegación de escritorio: las secciones principales, «Saber más» (las
+ * preguntas frecuentes), las descargas y el botón de cotización.
+ */
 const primaryNav = [
   ['#plataforma', 'Plataforma'],
   ['#tributacion', 'Tributación'],
   ['#para-quien', 'Certámenes'],
   ['#planes', 'Planes'],
+  ['#preguntas', 'Saber más'],
+  ['#descargas', 'Descargar'],
 ] as const;
 
 /** El menú móvil lleva todas las anclas, en el orden de la página. */
@@ -42,8 +47,9 @@ const menuNav = [
   ['#tributacion', 'Tributación chilena'],
   ['#para-quien', 'Para quién'],
   ['#planes', 'Planes'],
-  ['#descargas', 'Descargas'],
-  ['#cotizar', 'Cotizar para mi empresa'],
+  ['#preguntas', 'Saber más'],
+  ['#cotizar', 'Cotización'],
+  ['#descargas', 'Descargar'],
 ] as const;
 
 interface ProductView {
@@ -209,7 +215,7 @@ export default function LandingShell({ className, children }: { className?: stri
             <nav className={s.nav} aria-label="Navegación principal">
               {primaryNav.map(([href, label]) => <a key={href} href={href}>{label}</a>)}
             </nav>
-            <a className={s.headerCta} href="#cotizar">Solicitar demo <ArrowUpRight size={15} aria-hidden="true" /></a>
+            <a className={s.headerCta} href="#cotizar">Cotización <ArrowUpRight size={15} aria-hidden="true" /></a>
             <button
               ref={menuButton}
               type="button"

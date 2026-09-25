@@ -240,7 +240,7 @@ async function page2(browser) {
   const missing = await page.evaluate(ids => ids.filter(id => !document.getElementById(id)), anchors);
   check('Anclas presentes', missing.length === 0, missing.join(', '));
   check('Enlace «Ir al contenido»', await page.getByRole('link', { name: 'Ir al contenido' }).count() === 1);
-  check('Navegación mínima: 4 enlaces + «Solicitar demo»', await page.locator('nav[aria-label="Navegación principal"] a').count() === 4 && await page.locator('header').getByRole('link', { name: /Solicitar demo/ }).count() === 1);
+  check('Navegación: 6 enlaces (con «Saber más» y «Descargar») + «Cotización»', await page.locator('nav[aria-label="Navegación principal"] a').count() === 6 && await page.locator('header').getByRole('link', { name: /^Cotización/ }).count() === 1);
   check('JSON-LD presente', await page.locator('script[type="application/ld+json"]').count() === 1);
 
   // Las secciones lejanas usan content-visibility: el salto debe caer justo en la sección.
