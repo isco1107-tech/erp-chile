@@ -12,6 +12,7 @@ import { Switch } from '@/components/ui/switch';
 import { textareaClass } from '@/components/ui/field-classes';
 import { formatWhatsappNumber } from '@/lib/events/pageant-contact';
 import { slugify } from '@/lib/events/public-slug';
+import { DIRECTOR_TITLES, directorCopy, type DirectorTitle } from '@/lib/events/pageant-site';
 import { checkPublicSlugAction, updatePublicSiteAction } from '@/modules/projects/actions/projects.actions';
 import { PUBLIC_ACCENT_LABELS, PUBLIC_ACCENTS, type PublicAccentKey } from '@/modules/projects/schema';
 import { cn } from '@/lib/utils';
@@ -53,6 +54,7 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
     showResultsPublic: project.showResultsPublic,
     sponsorLeadFormEnabled: project.sponsorLeadFormEnabled,
     directorName: project.directorName ?? '',
+    directorTitle: (project.directorTitle === 'Directora' ? 'Directora' : 'Director') as DirectorTitle,
     directorRole: project.directorRole ?? '',
     directorBio: project.directorBio ?? '',
     directorPhotoUrl: project.directorPhotoUrl ?? '',
@@ -246,7 +248,7 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
 
         <section className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-card">
           <div>
-            <h2 className="text-base font-semibold">Conoce al Director</h2>
+            <h2 className="text-base font-semibold">{directorCopy(values.directorTitle).invite.replace(/^c/, 'C')}</h2>
             <p className="text-xs text-muted-foreground">Aparece en las vistas de candidatas y sponsors. Sin nombre, la sección no se muestra.</p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -278,6 +280,25 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
                 )}
               </div>
             )}
+          </div>
+          <div>
+            <Label>Se muestra como</Label>
+            <div className="mt-1 flex flex-wrap gap-2" role="radiogroup" aria-label="Director o directora">
+              {DIRECTOR_TITLES.map((title) => (
+                <button
+                  key={title}
+                  type="button"
+                  role="radio"
+                  aria-checked={values.directorTitle === title}
+                  disabled={!canWrite}
+                  onClick={() => set('directorTitle', title)}
+                  className={cn('rounded-full border px-3 py-1 text-sm', values.directorTitle === title ? 'border-foreground font-medium' : 'border-border text-muted-foreground')}
+                >
+                  {title}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">En el sitio se lee &quot;{directorCopy(values.directorTitle).invite}&quot;.</p>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { contactEmailField, contactWhatsappField, instagramHandleField } from '@/lib/events/pageant-contact';
 import type { ProjectStatus } from '@prisma/client';
 import { publicSlugProblem } from '@/lib/events/public-slug';
+import { DIRECTOR_TITLES } from '@/lib/events/pageant-site';
 
 export const PROJECT_STATUSES = ['PLANNING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'] as const;
 
@@ -87,6 +88,10 @@ export const projectPublicSiteSchema = z
     sponsorLeadFormEnabled: z.boolean(),
     // "Conoce al Director" (sin nombre, la sección no aparece).
     directorName: optionalText(120),
+    directorTitle: z
+      .enum(DIRECTOR_TITLES, 'Elige Director o Directora')
+      .nullish()
+      .transform((value) => value ?? null),
     directorRole: optionalText(160),
     directorBio: optionalText(1500),
     directorPhotoUrl: z

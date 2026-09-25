@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { formatCurrency } from '@/lib/chile/tax';
 import {
   audienceHero,
+  directorCopy,
   initials,
   registrationProcess,
   splitPackageBenefits,
@@ -267,7 +268,7 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
       { id: 'votacion', label: 'Votación', show: candidateSide && Boolean(site.voteRanking && site.voteRanking.length > 0) },
       { id: 'gala', label: 'La gala', show: hasGala },
       { id: 'auspicios', label: showAudienceSwitch ? 'Paquetes' : 'Auspicios', show: hasSponsorSection && (isSponsorView || !showAudienceSwitch) },
-      { id: 'director', label: 'Director', show: Boolean(site.director) },
+      { id: 'director', label: directorCopy(site.director?.title ?? null).label, show: Boolean(site.director) },
       { id: 'preguntas', label: 'Preguntas', show: candidateSide && view.faq.length > 0 },
     ];
     return list.filter((s) => s.show);
@@ -327,7 +328,8 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
     formatMoney: formatCurrency,
   });
 
-  const titleFit = { '--pgs-fit': Math.max(title.main.length, 6) * 0.64 } as CSSProperties;
+  // --pgs-lead-fit: "MISS UNIVERSO" crece hasta llenar el ancho sin desbordar en teléfonos.
+  const titleFit = { '--pgs-fit': Math.max(title.main.length, 6) * 0.64, '--pgs-lead-fit': Math.max(title.lead.length, 8) * 0.9 } as CSSProperties;
 
   return (
     <div ref={rootRef} className={`pgs ${PAGEANT_FONT_CLASSES}`} data-accent={site.accent}>
@@ -549,7 +551,7 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
           </div>
           {site.director && (
             <a className="pgs-link pgs-hero-link pgs-rise" style={{ animationDelay: '1s' }} href="#director">
-              Conoce al director
+              {directorCopy(site.director.title).invite}
               <Arrow className="pgs-btn-icon" />
             </a>
           )}
@@ -1116,7 +1118,7 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
                 <div className="pgs-director-body">
                   <Kicker index={numberOf('director')}>Detrás del certamen</Kicker>
                   <h2 id="pgs-director-title" className="pgs-h2">
-                    Conoce al <em>director</em>
+                    {directorCopy(site.director.title).lead} <em>{directorCopy(site.director.title).word}</em>
                   </h2>
                   <p className="pgs-director-name">{site.director.name}</p>
                   {site.director.role && <p className="pgs-director-role">{site.director.role}</p>}

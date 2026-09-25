@@ -3,6 +3,7 @@ import 'server-only';
 import type { CandidateStatus, SponsorshipTier } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { pageantContact } from '@/lib/events/pageant-contact';
+import type { DirectorTitle } from '@/lib/events/pageant-site';
 import { decodeVoteToken } from '@/modules/public-voting/schema';
 import { SPONSORSHIP_TIER_LABELS, SPONSORSHIP_TIERS } from '@/modules/sponsorships/schema';
 import type { PublicAccentKey } from '../schema';
@@ -67,7 +68,7 @@ export interface PublicPageantSite {
   results: Array<{ rank: number; name: string; number: number | null; representing: string | null; photoUrl: string | null }> | null;
   sponsorLeadForm: boolean;
   /** "Conoce al Director" (null si el certamen no cargó un nombre). */
-  director: { name: string; role: string | null; bio: string | null; photoUrl: string | null; highlights: string[] } | null;
+  director: { name: string; title: DirectorTitle | null; role: string | null; bio: string | null; photoUrl: string | null; highlights: string[] } | null;
   /** Nota para sponsors bajo los paquetes (exclusividad por rubro, etc.). */
   sponsorNote: string | null;
 }
@@ -243,6 +244,7 @@ export async function getPublicPageantSite(slug: string): Promise<PublicPageantS
     director: project.directorName?.trim()
       ? {
           name: project.directorName.trim(),
+          title: project.directorTitle === 'Directora' ? 'Directora' : project.directorTitle === 'Director' ? 'Director' : null,
           role: project.directorRole,
           bio: project.directorBio,
           photoUrl: project.directorPhotoUrl,

@@ -1911,6 +1911,9 @@ model Project {
   /// "Conoce al Director" del micrositio: quién dirige el certamen. Sin
   /// nombre, la sección no se muestra.
   directorName            String?
+  /// "Director" o "Directora": cómo se nombra en el sitio ("Conoce a la
+  /// directora"). Null = "Director".
+  directorTitle           String?
   directorRole            String?
   directorBio             String?
   directorPhotoUrl        String?
