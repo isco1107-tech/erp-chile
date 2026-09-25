@@ -385,6 +385,50 @@ export function buildSponsorLeadNoticeEmail(input: SponsorLeadNoticeEmailInput):
   return { subject, html, text };
 }
 
+export interface SponsorLeadConfirmationEmailInput {
+  contactName: string;
+  companyName: string;
+  projectName: string;
+  packageName: string | null;
+  /** Sitio público del certamen (botón del correo). */
+  siteUrl: string;
+  /** Contacto del certamen, si lo configuró. */
+  contact: { email: string | null; whatsapp: { href: string; label: string } | null };
+}
+
+/** Confirmación a la marca que pidió ser sponsor desde el sitio del certamen. */
+export function buildSponsorLeadConfirmationEmail(input: SponsorLeadConfirmationEmailInput): { subject: string; html: string; text: string } {
+  const subject = `Recibimos tu solicitud de sponsor — ${input.projectName}`;
+  const contactLines = [
+    input.contact.whatsapp ? `WhatsApp: <a href="${escapeHtml(input.contact.whatsapp.href)}" style="color:${BRAND};">${escapeHtml(input.contact.whatsapp.label)}</a>` : null,
+    input.contact.email ? `Correo: <a href="mailto:${escapeHtml(input.contact.email)}" style="color:${BRAND};">${escapeHtml(input.contact.email)}</a>` : null,
+  ].filter((line): line is string => line !== null);
+  const html = layout({
+    title: input.projectName,
+    body: `
+      <p style="margin:0 0 12px;">Hola <strong>${escapeHtml(input.contactName)}</strong>, recibimos la solicitud de <strong>${escapeHtml(input.companyName)}</strong> para ser sponsor de <strong>${escapeHtml(input.projectName)}</strong>.</p>
+      ${input.packageName ? `<p style="margin:0 0 12px;">Paquete de interés: <strong>${escapeHtml(input.packageName)}</strong>.</p>` : ''}
+      <p style="margin:0 0 12px;">La organización te contactará para coordinar tu patrocinio.</p>
+      ${contactLines.length ? `<p style="margin:16px 0 6px;font-weight:600;">¿Dudas? Escríbenos:</p>${contactLines.map((line) => `<p style="margin:0 0 4px;">${line}</p>`).join('')}` : ''}
+    `,
+    ctaLabel: 'Ver el sitio del certamen',
+    ctaUrl: input.siteUrl,
+    footer: 'Si no enviaste esta solicitud, ignora este mensaje.',
+  });
+  const text = [
+    `Hola ${input.contactName}, recibimos la solicitud de ${input.companyName} para ser sponsor de ${input.projectName}.`,
+    input.packageName ? `Paquete de interés: ${input.packageName}.` : null,
+    'La organización te contactará para coordinar tu patrocinio.',
+    input.contact.whatsapp ? `WhatsApp: ${input.contact.whatsapp.label}` : null,
+    input.contact.email ? `Correo: ${input.contact.email}` : null,
+    '',
+    input.siteUrl,
+  ]
+    .filter((line): line is string => line !== null)
+    .join('\n');
+  return { subject, html, text };
+}
+
 export interface PaymentReminderDocument {
   dteLabel: string;
   folio: number | null;

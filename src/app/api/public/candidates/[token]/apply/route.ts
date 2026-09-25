@@ -106,6 +106,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     // postulación. Con `after()` para que Vercel no congele la función antes
     // de que salga el correo.
     after(async () => {
+      // Aviso en la campanita del panel, con enlace a la ficha de la postulante.
+      await prisma.workflowNotification
+        .create({
+          data: {
+            companyId,
+            severity: 'INFO',
+            title: 'Nueva postulación de candidata',
+            message: `${candidate.fullName} postuló (folio ${folio}).`.slice(0, 500),
+            href: `/dashboard/candidates/${candidate.id}`,
+          },
+        })
+        .catch((error) => captureException(error, { module: 'candidates', companyId, extra: { reason: 'bell-notification' } }));
       await sendConfirmationEmails(candidate, folio, companyId).catch((error) =>
         captureException(error, { module: 'candidates', companyId, extra: { reason: 'confirmation-emails' } })
       );
