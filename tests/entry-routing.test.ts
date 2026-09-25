@@ -96,7 +96,9 @@ describe('login con validación de sesión vigente', () => {
 
   it('una sesión revocada muestra login sin bucles de redirección', async () => {
     context.mockRejectedValue(new AuthError('Sesión revocada', 401));
-    await expect(LoginLayout({ children: 'login' })).resolves.toBe('login');
+    // Sin redirección: se renderiza el login (junto a la intro en video).
+    const element = (await LoginLayout({ children: 'login' })) as { props: { children: unknown[] } };
+    expect(element.props.children).toContain('login');
   });
 
   it('respeta el cambio obligatorio de contraseña', async () => {
