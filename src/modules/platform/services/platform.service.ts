@@ -4,6 +4,7 @@ import type { Company, CompanyFeatures, Role, TenantStatus } from '@prisma/clien
 import { cleanRut, formatRut } from '@/lib/chile/rut';
 import { MODULES, toFeatureFlags, type CompanyFeatureFlags, type FeatureKey } from '@/lib/auth/modules';
 import { ensureChartOfAccounts } from '@/modules/accounting/services/chart-setup.service';
+import { setDisabledNavItems } from '@/modules/workspace/services/workspace.service';
 import type { CompanyCreateInput, CompanyPlanUpdateInput } from '../schema';
 
 export interface PlatformMetrics {
@@ -115,6 +116,8 @@ export interface TenantDetail {
   customRoleCount: number;
   admins: Array<{ id: string; name: string; email: string; role: string; isActive: boolean }>;
   ipAllowlistEnabled: boolean;
+  /** Pantallas del menú que la empresa tiene apagadas. */
+  disabledNavItems: string[];
 }
 
 export async function getTenant(companyId: string): Promise<TenantDetail | null> {
@@ -122,7 +125,7 @@ export async function getTenant(companyId: string): Promise<TenantDetail | null>
     where: { id: companyId },
     include: {
       features: true,
-      settings: { select: { ipAllowlistEnabled: true } },
+      settings: { select: { ipAllowlistEnabled: true, disabledNavItems: true } },
       _count: { select: { users: true, warehouses: true, customRoles: true } },
     },
   });
@@ -143,6 +146,7 @@ export async function getTenant(companyId: string): Promise<TenantDetail | null>
     customRoleCount: _count.customRoles,
     admins,
     ipAllowlistEnabled: settings?.ipAllowlistEnabled ?? false,
+    disabledNavItems: settings?.disabledNavItems ?? [],
   };
 }
 
@@ -233,6 +237,8 @@ export async function updateTenantPlan(companyId: string, input: CompanyPlanUpda
   // plan de cuentas si falta (no-op si ya existe). Apagarla no borra nada:
   // el plan y los asientos quedan, solo se dejan de generar asientos nuevos.
   if (input.features.hasAccounting) await ensureChartOfAccounts(companyId);
+  // Pantallas del menú apagadas: la misma lista que la empresa edita en Configuración → Módulos y menú.
+  if (input.disabledNavItems) await setDisabledNavItems(companyId, input.disabledNavItems);
   return updated;
 }
 

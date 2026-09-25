@@ -258,7 +258,13 @@ export async function getPublicPageantSite(slug: string): Promise<PublicPageantS
 /** Lo mínimo para registrar un "Quiero ser sponsor": el formulario solo existe si el sitio lo muestra. */
 export async function resolveSponsorLeadTarget(
   slug: string
-): Promise<{ companyId: string; hasCrm: boolean; contactEmail: string | null; project: { id: string; name: string } } | null> {
+): Promise<{
+  companyId: string;
+  hasCrm: boolean;
+  contactEmail: string | null;
+  whatsapp: { href: string; label: string } | null;
+  project: { id: string; name: string };
+} | null> {
   const project = await prisma.project.findUnique({
     where: { publicSlug: slug },
     select: {
@@ -268,6 +274,8 @@ export async function resolveSponsorLeadTarget(
       publicSiteEnabled: true,
       sponsorLeadFormEnabled: true,
       publicContactEmail: true,
+      publicWhatsapp: true,
+      instagramHandle: true,
       company: { select: { status: true, features: { select: { hasEventProjects: true, hasSalesPipeline: true } } } },
     },
   });
@@ -278,6 +286,7 @@ export async function resolveSponsorLeadTarget(
     companyId: project.companyId,
     hasCrm: Boolean(project.company.features.hasSalesPipeline),
     contactEmail: project.publicContactEmail?.trim() || null,
+    whatsapp: pageantContact(project).whatsapp,
     project: { id: project.id, name: project.name },
   };
 }

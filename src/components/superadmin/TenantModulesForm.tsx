@@ -17,7 +17,10 @@ import {
   TENANT_STATUSES,
   TENANT_STATUS_LABELS,
 } from '@/modules/platform/schema';
-import { MODULES, type CompanyFeatureFlags, type FeatureKey } from '@/lib/auth/modules';
+import { type CompanyFeatureFlags, type FeatureKey } from '@/lib/auth/modules';
+import { buildModuleCatalog, type CatalogItem } from '@/lib/navigation/module-catalog';
+import { ChevronDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 import { useConfirm } from '@/components/ui/confirm-provider';
 const selectClass =
@@ -31,33 +34,66 @@ interface Props {
   initialMaxUsers: number;
   initialMaxWarehouses: number;
   initialFeatures: CompanyFeatureFlags;
+  initialDisabledNavItems: string[];
   userCount: number;
   warehouseCount: number;
 }
 
-/** Interruptor accesible: es un checkbox real con apariencia de switch. */
+/** Catálogo por área (puro, derivado de los registros de menú y módulos). */
+const CATALOG = buildModuleCatalog();
+
+/** Interruptor accesible con apariencia de switch. */
 function Toggle({
   checked,
   onChange,
   id,
+  label,
+  disabled = false,
+  small = false,
 }: {
   checked: boolean;
   onChange: (value: boolean) => void;
   id: string;
+  label: string;
+  disabled?: boolean;
+  small?: boolean;
 }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
+      aria-label={label}
       id={id}
+      disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${checked ? 'bg-primary' : 'bg-muted-foreground/30'}`}
+      className={cn(
+        'relative shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+        small ? 'h-5 w-9' : 'h-6 w-11',
+        checked ? 'bg-primary' : 'bg-muted-foreground/30'
+      )}
     >
       <span
-        className={`absolute top-0.5 size-5 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-5' : 'translate-x-0.5'}`}
+        className={cn(
+          'absolute top-0.5 left-0 rounded-full bg-white shadow transition-transform',
+          small ? 'size-4' : 'size-5',
+          checked ? (small ? 'translate-x-4' : 'translate-x-5') : 'translate-x-0.5'
+        )}
       />
     </button>
+  );
+}
+
+/** Una pantalla del menú con su interruptor "visible en el menú". */
+function ScreenRow({ item, visible, blocked, onChange }: { item: CatalogItem; visible: boolean; blocked: boolean; onChange: (visible: boolean) => void }) {
+  return (
+    <li className={cn('flex items-center justify-between gap-3 py-1.5 pl-3', blocked && 'opacity-50')}>
+      <span className="text-sm">
+        {item.label}
+        {item.locked && <span className="ml-2 text-xs text-muted-foreground">siempre visible</span>}
+      </span>
+      <Toggle id={`screen-${item.id}`} label={`${item.label}: visible en el menú`} checked={item.locked || visible} disabled={item.locked || blocked} small onChange={onChange} />
+    </li>
   );
 }
 
@@ -66,6 +102,22 @@ export default function TenantModulesForm(props: Props) {
   const router = useRouter();
 
   const [features, setFeatures] = useState<CompanyFeatureFlags>(props.initialFeatures);
+  const [hiddenScreens, setHiddenScreens] = useState<Set<string>>(() => new Set(props.initialDisabledNavItems));
+  const [openAreas, setOpenAreas] = useState<Set<string>>(() => new Set());
+  const toggleArea = (label: string) =>
+    setOpenAreas((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
+  const setScreenVisible = (id: string, visible: boolean) =>
+    setHiddenScreens((prev) => {
+      const next = new Set(prev);
+      if (visible) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   const [planName, setPlanName] = useState(props.initialPlanName);
   const [maxUsers, setMaxUsers] = useState(String(props.initialMaxUsers));
   const [maxWarehouses, setMaxWarehouses] = useState(String(props.initialMaxWarehouses));
@@ -117,6 +169,7 @@ export default function TenantModulesForm(props: Props) {
         maxUsers: users,
         maxWarehouses: warehouses,
         features,
+        disabledNavItems: [...hiddenScreens],
       });
       if (!result.success) {
         toast.error(result.error);
@@ -209,38 +262,93 @@ export default function TenantModulesForm(props: Props) {
       </div>
 
       <div className="rounded-xl border border-border p-4">
-        <h2 className="mb-1 text-sm font-semibold">Módulos contratados</h2>
-        <p className="mb-3 text-xs text-muted-foreground">
-          Al desactivar un módulo, sus rutas quedan bloqueadas y sus permisos dejan de aplicarse para todos los
-          usuarios de la empresa, incluido el Dueño.
-        </p>
-        <div className="divide-y divide-border">
-          {/*
-            Contabilidad volvió a esta lista: ya tiene sus pantallas (Libro
-            Diario, Mayor, Balance, Cuadraturas y Estados Financieros) y es
-            activable de verdad — al guardarla encendida se siembra el plan de
-            cuentas y el motor de asientos empieza a contabilizar; apagada, la
-            operación sigue sin generar asientos (`isLedgerActive`).
-          */}
-          {MODULES.map((mod) => (
-            <div key={mod.key} className="flex items-center justify-between gap-4 py-3">
-              <div>
-                <Label htmlFor={`toggle-${mod.key}`} className="text-sm font-medium">{mod.label}</Label>
-                <p className="text-xs text-muted-foreground">{mod.description}</p>
-              </div>
-              <Toggle
-                id={`toggle-${mod.key}`}
-                checked={features[mod.key]}
-                onChange={(value) => toggleModule(mod.key, value)}
-              />
-            </div>
-          ))}
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-semibold">Módulos por área</h2>
+            <p className="text-xs text-muted-foreground">
+              <strong>Módulo</strong>: lo contratado; apagado, sus rutas y permisos quedan bloqueados para toda la empresa, incluido el Dueño.{' '}
+              <strong>Pantalla</strong>: si aparece en el menú de la empresa; apagada, deja de verse y su ruta muestra &quot;sección desactivada&quot;.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button type="button" size="sm" variant="outline" onClick={() => setOpenAreas(new Set(CATALOG.map((a) => a.label)))}>
+              Expandir todo
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => setOpenAreas(new Set())}>
+              Contraer todo
+            </Button>
+          </div>
+        </div>
+        <div className="divide-y divide-border rounded-lg border border-border">
+          {CATALOG.map((area) => {
+            const open = openAreas.has(area.label);
+            const activeModules = area.modules.filter((mod) => features[mod.key]).length;
+            const screens = [...area.modules.flatMap((mod) => mod.items), ...area.baseItems];
+            const hiddenCount = screens.filter((item) => !item.locked && hiddenScreens.has(item.id)).length;
+            const panelId = `area-${area.label.replace(/\W+/g, '-').toLowerCase()}`;
+            return (
+              <section key={area.label}>
+                <button
+                  type="button"
+                  aria-expanded={open}
+                  aria-controls={panelId}
+                  onClick={() => toggleArea(area.label)}
+                  className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/40"
+                >
+                  <span>
+                    <span className="text-sm font-semibold">{area.label}</span>
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      {area.modules.length > 0 && `${activeModules} de ${area.modules.length} módulo${area.modules.length === 1 ? '' : 's'}`}
+                      {area.modules.length > 0 && screens.length > 0 && ' · '}
+                      {screens.length > 0 && `${screens.length - hiddenCount} de ${screens.length} pantalla${screens.length === 1 ? '' : 's'} en el menú`}
+                    </span>
+                  </span>
+                  <ChevronDown className={cn('size-4 shrink-0 transition-transform', open && 'rotate-180')} aria-hidden="true" />
+                </button>
+                {open && (
+                  <div id={panelId} className="space-y-3 px-4 pb-4">
+                    {area.modules.map((mod) => (
+                      <div key={mod.key} className="rounded-lg border border-border p-3">
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <Label htmlFor={`toggle-${mod.key}`} className="text-sm font-medium">
+                              {mod.label}
+                            </Label>
+                            <p className="text-xs text-muted-foreground">{mod.description}</p>
+                          </div>
+                          <Toggle id={`toggle-${mod.key}`} label={`${mod.label}: módulo contratado`} checked={features[mod.key]} onChange={(value) => toggleModule(mod.key, value)} />
+                        </div>
+                        {mod.items.length > 0 && (
+                          <ul className="mt-2 divide-y divide-border/60 border-t border-border/60">
+                            {mod.items.map((item) => (
+                              <ScreenRow key={item.id} item={item} visible={!hiddenScreens.has(item.id)} blocked={!features[mod.key]} onChange={(v) => setScreenVisible(item.id, v)} />
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    ))}
+                    {area.baseItems.length > 0 && (
+                      <div className="rounded-lg border border-dashed border-border p-3">
+                        <p className="text-sm font-medium">Incluido en todo plan</p>
+                        <p className="text-xs text-muted-foreground">No depende de un módulo: se muestra u oculta del menú de la empresa.</p>
+                        <ul className="mt-2 divide-y divide-border/60 border-t border-border/60">
+                          {area.baseItems.map((item) => (
+                            <ScreenRow key={item.id} item={item} visible={!hiddenScreens.has(item.id)} blocked={false} onChange={(v) => setScreenVisible(item.id, v)} />
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </section>
+            );
+          })}
         </div>
       </div>
 
       <div className="flex justify-end">
         <Button type="button" disabled={saving} onClick={handleSave}>
-          {saving ? 'Guardando...' : 'Guardar plan y módulos'}
+          {saving ? 'Guardando...' : 'Guardar plan, módulos y menú'}
         </Button>
       </div>
     </div>

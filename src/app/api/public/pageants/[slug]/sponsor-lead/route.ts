@@ -6,7 +6,7 @@ import { captureException } from '@/lib/observability';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import { publicSponsorLeadSchema, SPONSOR_LEAD_HONEYPOT_FIELD, type PublicSponsorLeadInput } from '@/modules/crm/schema';
 import { getAppUrl, sendEmail } from '@/lib/email/mailer';
-import { buildSponsorLeadNoticeEmail } from '@/lib/email/templates';
+import { buildSponsorLeadConfirmationEmail, buildSponsorLeadNoticeEmail } from '@/lib/email/templates';
 import { createInboundSponsorLead } from '@/modules/crm/services/crm.service';
 import { resolveSponsorLeadTarget } from '@/modules/projects/services/public-site.service';
 
@@ -58,6 +58,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
     if (!target.hasCrm) {
       // Sin CRM contratado: aviso en la campanita y correo a la organización (fuera de la respuesta).
       await notifyWithoutCrm(target, parsed.data);
+      confirmToSponsor(target, parsed.data, slug);
       return NextResponse.json({ success: true, data: null });
     }
 
@@ -82,6 +83,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
         contactEmail: parsed.data.email,
         packageName: '',
       });
+      // Una solicitud repetida el mismo día se suma al prospecto existente sin reenviar la confirmación.
+      confirmToSponsor(target, parsed.data, slug);
     }
 
     return NextResponse.json({ success: true, data: null });
@@ -129,6 +132,31 @@ async function notifyWithoutCrm(target: SponsorLeadTarget, lead: PublicSponsorLe
       await Promise.all(recipients.map((to) => sendEmail({ to, ...notice, replyTo: lead.email })));
     } catch (error) {
       captureException(error, { module: 'crm', companyId: target.companyId, extra: { reason: 'sponsor-lead-email' } });
+    }
+  });
+}
+
+/** Correo de confirmación a la marca (después de responder; un fallo de correo nunca anula la solicitud). */
+function confirmToSponsor(target: SponsorLeadTarget, lead: PublicSponsorLeadInput, slug: string): void {
+  after(async () => {
+    try {
+      const pkg = lead.packageId
+        ? await prisma.sponsorshipPackage.findFirst({
+            where: { id: lead.packageId, companyId: target.companyId, projectId: target.project.id, isPublic: true },
+            select: { name: true },
+          })
+        : null;
+      const confirmation = buildSponsorLeadConfirmationEmail({
+        contactName: lead.contactName,
+        companyName: lead.companyName,
+        projectName: target.project.name,
+        packageName: pkg?.name ?? null,
+        siteUrl: `${getAppUrl()}/certamen/${slug}`,
+        contact: { email: target.contactEmail, whatsapp: target.whatsapp },
+      });
+      await sendEmail({ to: lead.email, ...confirmation, ...(target.contactEmail ? { replyTo: target.contactEmail } : {}) });
+    } catch (error) {
+      captureException(error, { module: 'crm', companyId: target.companyId, extra: { reason: 'sponsor-lead-confirmation' } });
     }
   });
 }

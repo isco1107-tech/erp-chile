@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { buildSponsorLeadConfirmationEmail } from '@/lib/email/templates';
 import { projectCreateSchema, projectPublicSiteSchema, projectUpdateSchema } from '@/modules/projects/schema';
 import {
   audienceHero,
@@ -342,5 +343,22 @@ describe('director o directora', () => {
     expect(projectPublicSiteSchema.parse({ ...base, directorTitle: 'Directora' }).directorTitle).toBe('Directora');
     expect(projectPublicSiteSchema.parse(base).directorTitle).toBeNull();
     expect(projectPublicSiteSchema.safeParse({ ...base, directorTitle: 'Jefa' }).success).toBe(false);
+  });
+});
+
+describe('correo de confirmación al sponsor', () => {
+  it('saluda a la marca, nombra el paquete y deja el contacto del certamen', () => {
+    const email = buildSponsorLeadConfirmationEmail({
+      contactName: 'Ana Pérez',
+      companyName: 'Joyas <Sur>',
+      projectName: 'Miss Universo Temuco 2026',
+      packageName: 'Diamond Sponsor',
+      siteUrl: 'https://erp.example.cl/certamen/temuco',
+      contact: { email: 'contacto@missuniversotemuco.cl', whatsapp: { href: 'https://wa.me/56989901046', label: '+56 9 8990 1046' } },
+    });
+    expect(email.subject).toBe('Recibimos tu solicitud de sponsor — Miss Universo Temuco 2026');
+    expect(email.html).toContain('Joyas &lt;Sur&gt;');
+    expect(email.text).toContain('Paquete de interés: Diamond Sponsor.');
+    expect(email.text).toContain('WhatsApp: +56 9 8990 1046');
   });
 });
