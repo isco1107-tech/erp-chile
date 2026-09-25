@@ -1882,42 +1882,52 @@ model Project {
   /// Fecha y hora de la gala final. Distinta de `startDate` (inicio del
   /// proyecto completo, que puede ser meses antes): es la que alimenta la
   /// cuenta regresiva del micrositio y el "¿listos para la gala?" del panel.
-  galaDate               DateTime?
-  venueName              String?
-  venueAddress           String?
+  galaDate                DateTime?
+  venueName               String?
+  venueAddress            String?
   /// Dirección pública del micrositio (`/certamen/{publicSlug}`). Única en
   /// toda la plataforma, no por empresa: la URL no lleva la empresa. `null`
   /// hasta que alguien la configura; publicar exige además `publicSiteEnabled`.
-  publicSlug             String?   @unique
-  publicSiteEnabled      Boolean   @default(false)
-  publicTagline          String?
-  publicDescription      String?
-  coverImageUrl          String?
+  publicSlug              String?   @unique
+  publicSiteEnabled       Boolean   @default(false)
+  publicTagline           String?
+  publicDescription       String?
+  coverImageUrl           String?
   /// Acento visual del micrositio (`gold`, `violet`, `rose`, `cyan`,
   /// `emerald` — los de `PublicShell`). Texto y no enum para poder sumar
   /// acentos sin migración; Zod valida los permitidos.
-  publicAccent           String    @default("gold")
-  instagramHandle        String?
-  publicContactEmail     String?
+  publicAccent            String    @default("gold")
+  instagramHandle         String?
+  publicContactEmail      String?
   /// WhatsApp de contacto del certamen (solo dígitos, formato wa.me: 56912345678).
   /// Junto a `publicContactEmail` e `instagramHandle` es lo que ven las
   /// postulantes y el público: contacto de cada certamen, no de la plataforma.
-  publicWhatsapp         String?
+  publicWhatsapp          String?
   /// "Qué incluye tu inscripción": un beneficio por ítem (clases de
   /// maquillaje, oratoria…). Vacío = la sección no se muestra.
-  registrationBenefits   String[]  @default([])
+  registrationBenefits    String[]  @default([])
   /// Lugar y horario de las clases de preparación ("Por confirmar", etc.).
   registrationClassesNote String?
+  /// "Conoce al Director" del micrositio: quién dirige el certamen. Sin
+  /// nombre, la sección no se muestra.
+  directorName            String?
+  directorRole            String?
+  directorBio             String?
+  directorPhotoUrl        String?
+  /// Trayectoria del director, un logro por ítem.
+  directorHighlights      String[]  @default([])
+  /// Nota para sponsors (p. ej. exclusividad por rubro). Vacía = no se muestra.
+  sponsorExclusivityNote  String?
   /// Qué secciones muestra el micrositio. Candidatas y auspiciadores
   /// visibles por defecto (es la razón de ser del sitio); ranking de votos y
   /// resultados apagados hasta que producción decida revelarlos.
-  showCandidatesPublic   Boolean   @default(true)
-  showSponsorsPublic     Boolean   @default(true)
-  showVoteRankingPublic  Boolean   @default(false)
-  showResultsPublic      Boolean   @default(false)
+  showCandidatesPublic    Boolean   @default(true)
+  showSponsorsPublic      Boolean   @default(true)
+  showVoteRankingPublic   Boolean   @default(false)
+  showResultsPublic       Boolean   @default(false)
   /// Formulario "Quiero auspiciar" del micrositio: crea un prospecto en el
   /// CRM (`hasSalesPipeline`). Sin CRM contratado el formulario no aparece.
-  sponsorLeadFormEnabled Boolean   @default(true)
+  sponsorLeadFormEnabled  Boolean   @default(true)
 
   @@unique([companyId, code])
   @@index([companyId, status])

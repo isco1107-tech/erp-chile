@@ -30,7 +30,7 @@ type Toggle = 'showCandidatesPublic' | 'showSponsorsPublic' | 'showVoteRankingPu
 const TOGGLES: Array<{ key: Toggle; label: string; hint: string }> = [
   { key: 'showCandidatesPublic', label: 'Galería de candidatas', hint: 'Solo oficiales, finalistas y ganadora, con nombre artístico, número, a quién representan, foto y la bio pública.' },
   { key: 'showSponsorsPublic', label: 'Muro de auspiciadores', hint: 'Marcas con contrato confirmado, agrupadas por nivel.' },
-  { key: 'sponsorLeadFormEnabled', label: 'Formulario "Quiero auspiciar"', hint: 'Cada solicitud entra al CRM como prospecto con tarea de seguimiento (requiere CRM).' },
+  { key: 'sponsorLeadFormEnabled', label: 'Vista y formulario "Ser sponsor"', hint: 'Con CRM, cada solicitud entra como prospecto con tarea de seguimiento; sin CRM llega por correo al contacto del certamen (o a los dueños de la cuenta).' },
   { key: 'showVoteRankingPublic', label: 'Ranking de votación del público', hint: 'Muestra los votos pagados por candidata en vivo.' },
   { key: 'showResultsPublic', label: 'Resultados oficiales', hint: 'Revela ganadora, finalistas y podio cuando la ronda final esté completada. Actívalo al coronar.' },
 ];
@@ -52,7 +52,16 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
     showVoteRankingPublic: project.showVoteRankingPublic,
     showResultsPublic: project.showResultsPublic,
     sponsorLeadFormEnabled: project.sponsorLeadFormEnabled,
+    directorName: project.directorName ?? '',
+    directorRole: project.directorRole ?? '',
+    directorBio: project.directorBio ?? '',
+    directorPhotoUrl: project.directorPhotoUrl ?? '',
+    sponsorExclusivityNote: project.sponsorExclusivityNote ?? '',
   });
+  // La trayectoria se edita como texto, un logro por línea.
+  const [highlightsText, setHighlightsText] = useState(project.directorHighlights.join('\n'));
+  const [uploadingDirector, setUploadingDirector] = useState(false);
+  const directorFileRef = useRef<HTMLInputElement>(null);
   const [slugState, setSlugState] = useState<{ available: boolean; problem: string | null } | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -73,20 +82,41 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
     return () => window.clearTimeout(timer);
   }, [values.publicSlug, project.id, project.publicSlug]);
 
+  async function uploadImage(file: File): Promise<string | null> {
+    const form = new FormData();
+    form.append('projectId', project.id);
+    form.append('file', file);
+    const res = await fetch('/api/projects/cover-upload', { method: 'POST', body: form });
+    const json = (await res.json()) as { success: boolean; data?: { url: string }; error?: string };
+    if (!json.success || !json.data) {
+      toast.error(json.error ?? 'No se pudo subir la imagen');
+      return null;
+    }
+    return json.data.url;
+  }
+
+  async function uploadDirectorPhoto(file: File) {
+    setUploadingDirector(true);
+    try {
+      const url = await uploadImage(file);
+      if (url) {
+        set('directorPhotoUrl', url);
+        toast.success('Foto cargada: guarda para publicarla');
+      }
+    } finally {
+      setUploadingDirector(false);
+      if (directorFileRef.current) directorFileRef.current.value = '';
+    }
+  }
+
   async function uploadCover(file: File) {
     setUploading(true);
     try {
-      const form = new FormData();
-      form.append('projectId', project.id);
-      form.append('file', file);
-      const res = await fetch('/api/projects/cover-upload', { method: 'POST', body: form });
-      const json = (await res.json()) as { success: boolean; data?: { url: string }; error?: string };
-      if (!json.success || !json.data) {
-        toast.error(json.error ?? 'No se pudo subir la imagen');
-        return;
+      const url = await uploadImage(file);
+      if (url) {
+        set('coverImageUrl', url);
+        toast.success('Portada cargada: guarda para publicarla');
       }
-      set('coverImageUrl', json.data.url);
-      toast.success('Portada cargada: guarda para publicarla');
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = '';
@@ -96,7 +126,7 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
   async function save() {
     setSaving(true);
     try {
-      const result = await updatePublicSiteAction(project.id, values);
+      const result = await updatePublicSiteAction(project.id, { ...values, directorHighlights: highlightsText.split('\n') });
       if (!result.success) {
         toast.error(result.error);
         return;
@@ -212,6 +242,91 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
             </div>
           </div>
           <p className="text-xs text-muted-foreground">El mismo contacto aparece en el formulario de postulación del certamen.</p>
+        </section>
+
+        <section className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-card">
+          <div>
+            <h2 className="text-base font-semibold">Conoce al Director</h2>
+            <p className="text-xs text-muted-foreground">Aparece en las vistas de candidatas y sponsors. Sin nombre, la sección no se muestra.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative size-20 overflow-hidden rounded-full border border-border bg-muted">
+              {values.directorPhotoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={values.directorPhotoUrl} alt="Foto del director" className="size-full object-cover" />
+              ) : (
+                <span className="flex size-full items-center justify-center text-xs text-muted-foreground">Sin foto</span>
+              )}
+            </div>
+            {canWrite && (
+              <div className="flex flex-col gap-1.5">
+                <input
+                  ref={directorFileRef}
+                  type="file"
+                  accept="image/png,image/jpeg"
+                  className="hidden"
+                  onChange={(e) => e.target.files?.[0] && void uploadDirectorPhoto(e.target.files[0])}
+                />
+                <Button type="button" size="sm" variant="outline" disabled={uploadingDirector} onClick={() => directorFileRef.current?.click()}>
+                  <ImagePlus aria-hidden="true" />
+                  {uploadingDirector ? 'Subiendo…' : values.directorPhotoUrl ? 'Cambiar foto' : 'Subir foto'}
+                </Button>
+                {values.directorPhotoUrl && (
+                  <Button type="button" size="sm" variant="ghost" onClick={() => set('directorPhotoUrl', '')}>
+                    Quitar foto
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="site-director-name">Nombre</Label>
+              <Input id="site-director-name" value={values.directorName} onChange={(e) => set('directorName', e.target.value)} placeholder="Constanza Rey Ortiz" disabled={!canWrite} />
+            </div>
+            <div>
+              <Label htmlFor="site-director-role">Cargo o empresas</Label>
+              <Input id="site-director-role" value={values.directorRole} onChange={(e) => set('directorRole', e.target.value)} placeholder="CEO Venusmodel · CEO Kidsmodel" disabled={!canWrite} />
+            </div>
+          </div>
+          <div>
+            <Label htmlFor="site-director-bio">Presentación</Label>
+            <textarea
+              id="site-director-bio"
+              className={textareaClass}
+              value={values.directorBio}
+              onChange={(e) => set('directorBio', e.target.value)}
+              placeholder="Una trayectoria dedicada a la formación de reinas de belleza…"
+              disabled={!canWrite}
+            />
+          </div>
+          <div>
+            <Label htmlFor="site-director-highlights">Trayectoria (un logro por línea)</Label>
+            <textarea
+              id="site-director-highlights"
+              className={cn(textareaClass, 'min-h-32')}
+              value={highlightsText}
+              onChange={(e) => setHighlightsText(e.target.value)}
+              placeholder={'Director Miss Universo Providencia 2025\nMejor Director Teen Universe Chile 2023'}
+              disabled={!canWrite}
+            />
+          </div>
+        </section>
+
+        <section className="space-y-3 rounded-lg border border-border bg-card p-5 shadow-card">
+          <div>
+            <h2 className="text-base font-semibold">Nota para sponsors</h2>
+            <p className="text-xs text-muted-foreground">Se muestra bajo los paquetes, como &quot;Exclusividad por categoría&quot;. Vacía = no aparece.</p>
+          </div>
+          <textarea
+            id="site-sponsor-note"
+            aria-label="Nota para sponsors"
+            className={textareaClass}
+            value={values.sponsorExclusivityNote}
+            onChange={(e) => set('sponsorExclusivityNote', e.target.value)}
+            placeholder="Las categorías Diamond, Crown y Royal pueden optar a exclusividad dentro de su rubro comercial…"
+            disabled={!canWrite}
+          />
         </section>
 
         <section className="rounded-lg border border-border bg-card p-5 shadow-card">

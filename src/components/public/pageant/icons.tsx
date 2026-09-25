@@ -57,10 +57,12 @@ export function Arrow({ className }: { className?: string }) {
   );
 }
 
-export function Chevron({ className, direction = 'right' }: { className?: string; direction?: 'left' | 'right' }) {
+const CHEVRON_PATHS = { right: 'M9 5l7 7-7 7', left: 'M15 5l-7 7 7 7', down: 'M5 9l7 7 7-7' } as const;
+
+export function Chevron({ className, direction = 'right' }: { className?: string; direction?: keyof typeof CHEVRON_PATHS }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d={direction === 'right' ? 'M9 5l7 7-7 7' : 'M15 5l-7 7 7 7'} />
+      <path d={CHEVRON_PATHS[direction]} />
     </svg>
   );
 }
