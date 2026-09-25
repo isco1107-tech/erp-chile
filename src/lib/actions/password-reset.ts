@@ -15,6 +15,7 @@ import {
 } from '@/lib/services/password-reset.service';
 import { checkRateLimit, RESET_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { logSecurityEvent } from '@/lib/security/security-logger';
+import { getClientIp } from '@/lib/security/cloudflare';
 
 export type ActionResult<T> =
   | { success: true; data: T; message?: string }
@@ -37,14 +38,12 @@ const resetSchema = z
 
 /**
  * Extrae la IP del cliente desde headers de Server Action.
- * En Vercel, `x-forwarded-for` es confiable (la plataforma lo sobreescribe).
+ * Misma fuente que el resto del sistema (`getClientIp`, consciente de Cloudflare).
  */
 async function getServerActionIp(): Promise<string> {
   try {
     const headerList = await headers();
-    const forwarded = headerList.get('x-forwarded-for');
-    if (forwarded) return forwarded.split(',')[0]?.trim() ?? 'unknown';
-    return headerList.get('x-real-ip') ?? 'unknown';
+    return getClientIp(headerList) ?? 'unknown';
   } catch {
     return 'unknown';
   }

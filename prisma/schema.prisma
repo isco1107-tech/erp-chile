@@ -46,6 +46,10 @@ enum AgentRole {
   CFO
   COO
   SALES
+  /// Finanzas de producción: rentabilidad y presupuesto por certamen.
+  EVENT_FINANCE
+  /// Cobranza de eventos: cuotas de candidatas, pagarés y auspicios.
+  EVENT_COLLECTIONS
 }
 
 enum AgentRunStatus {

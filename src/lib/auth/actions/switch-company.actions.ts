@@ -10,6 +10,7 @@ import { createAuditLog } from '@/lib/auth/audit';
 import { recordSession, revokeSessionByToken } from '@/lib/auth/sessions';
 import { captureException } from '@/lib/observability';
 import { checkIpAllowlist } from '@/lib/auth/ip-allowlist-guard';
+import { getClientIp } from '@/lib/security/cloudflare';
 
 export type ActionResult<T> =
   | { success: true; data: T; message?: string }
@@ -102,7 +103,7 @@ export async function switchActiveCompanyAction(targetCompanyId: string): Promis
   // emitir el token nuevo — cambiar de empresa no debe saltarse una política
   // más estricta que la de la empresa hogar.
   const headerList = await headers();
-  const clientIp = headerList.get('x-forwarded-for')?.split(',')[0]?.trim() || null;
+  const clientIp = getClientIp(headerList);
   const ipError = await checkIpAllowlist(targetCompanyId, user.isSuperAdmin, clientIp);
   if (ipError) return { success: false, error: ipError };
 
@@ -126,7 +127,7 @@ export async function switchActiveCompanyAction(targetCompanyId: string): Promis
     companyId: targetCompanyId,
     token,
     userAgent: headerList.get('user-agent'),
-    ipAddress: headerList.get('x-forwarded-for')?.split(',')[0]?.trim(),
+    ipAddress: getClientIp(headerList),
   });
   if (previousToken) {
     await revokeSessionByToken(previousToken).catch((error: unknown) =>

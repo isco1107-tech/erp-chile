@@ -7,6 +7,9 @@ import { ARAUCANIA_COMUNAS, CANDIDATE_HONEYPOT_FIELD, candidateSelfRegistrationS
 import { getCandidateRegistrationProjectAction } from '@/modules/candidates/actions/public-registration.actions';
 import type { RegistrationProjectInfo } from '@/modules/candidates/services/candidates.service';
 import { CONFIG } from '@/modules/candidates/registration-config';
+import TurnstileWidget, { isTurnstileConfigured } from '@/components/security/TurnstileWidget';
+import { ageInSantiago } from '@/lib/chile/timezone';
+import { MAX_ORIGINAL_PHOTO_BYTES, MAX_PDF_BYTES, MAX_REQUEST_BYTES, compressPhoto, uploadFailureMessage } from './upload-limits';
 
 const italiana = Italiana({ subsets: ['latin'], weight: '400', variable: '--font-display' });
 const karla = Karla({ subsets: ['latin'], weight: ['400', '500', '700'], variable: '--font-body' });
@@ -133,15 +136,12 @@ const FORM_STEPS = [
   { title: 'Declaraciones', fields: ['aceptaRequisitos', 'aceptaTratamientoDatos', 'aceptaBases'] },
 ] as const;
 
+/** Misma función que el servidor: fecha de nacimiento en UTC, "hoy" en Chile. */
 function calcAge(birthDateStr: string): number | null {
   if (!birthDateStr) return null;
   const birth = new Date(birthDateStr);
   if (Number.isNaN(birth.getTime())) return null;
-  const now = new Date();
-  let age = now.getFullYear() - birth.getFullYear();
-  const hadBirthday = now.getMonth() > birth.getMonth() || (now.getMonth() === birth.getMonth() && now.getDate() >= birth.getDate());
-  if (!hadBirthday) age -= 1;
-  return age;
+  return ageInSantiago(birth);
 }
 
 function useCountdown(target: Date | null) {
@@ -211,6 +211,10 @@ export default function CandidateRegistrationClient({ token }: { token: string }
   const [medicalCertificate, setMedicalCertificate] = useState<File | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  // Cloudflare Turnstile (solo si está configurado): token de un solo uso,
+  // se remonta el widget tras cada envío fallido para pedir uno nuevo.
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileKey, setTurnstileKey] = useState(0);
   const [folio, setFolio] = useState<string | null>(null);
   const [step, setStep] = useState(0);
   const [navScrolled, setNavScrolled] = useState(false);
@@ -249,6 +253,13 @@ export default function CandidateRegistrationClient({ token }: { token: string }
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+    // Al corregir un campo su error desaparece; no queda rojo hasta el próximo "Siguiente".
+    setErrors((prev) => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key as string];
+      return next;
+    });
   }
 
   const age = useMemo(() => calcAge(form.birthDate), [form.birthDate]);
@@ -321,6 +332,13 @@ export default function CandidateRegistrationClient({ token }: { token: string }
     if (!photoFullBody) errs.photoFullBody = 'Adjunta tu fotografía de cuerpo entero.';
     else if (photoFullBody.size > MAX_PHOTO_BYTES) errs.photoFullBody = 'La fotografía supera los 5 MB — comprímela e inténtalo de nuevo.';
 
+    // Todo junto debe caber en un request de Vercel (~4,5 MB).
+    const attachments = (photoFace?.size ?? 0) + (photoFullBody?.size ?? 0) + (medicalCertificate?.size ?? 0);
+    if (!errs.photoFace && !errs.photoFullBody && attachments > MAX_REQUEST_BYTES) {
+      if (medicalCertificate) errs.medicalCertificate = 'Los archivos juntos son muy pesados. Sube el certificado como foto (JPG) o quítalo.';
+      else errs.photoFullBody = 'Las fotografías juntas son muy pesadas. Prueba con otra foto de menor tamaño.';
+    }
+
     return errs;
   }
 
@@ -333,7 +351,9 @@ export default function CandidateRegistrationClient({ token }: { token: string }
     const validation = validate();
     const stepFields = FORM_STEPS[step]!.fields as readonly string[];
     const stepErrors = Object.fromEntries(Object.entries(validation).filter(([key]) => stepFields.includes(key)));
-    setErrors((prev) => ({ ...prev, ...validation }));
+    // Solo los errores de este paso: los del siguiente no deben aparecer en
+    // rojo antes de que la postulante llegue a esos campos.
+    setErrors(stepErrors);
     if (Object.keys(stepErrors).length > 0) {
       document.getElementById(Object.keys(stepErrors)[0]!)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
@@ -347,6 +367,13 @@ export default function CandidateRegistrationClient({ token }: { token: string }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+
+    // Enter en un campo de un paso intermedio (el "Ir" del teclado del
+    // teléfono) avanza de paso en vez de intentar enviar todo el formulario.
+    if (step < FORM_STEPS.length - 1) {
+      handleNext();
+      return;
+    }
 
     if (honeypotRef.current?.value) return; // bot: se ignora sin dar pistas.
 
@@ -392,11 +419,19 @@ export default function CandidateRegistrationClient({ token }: { token: string }
       body.append('aceptaBases', String(decl.aceptaBases));
       body.append('aceptaMarketing', String(decl.aceptaMarketing));
       body.append(CANDIDATE_HONEYPOT_FIELD, honeypotRef.current?.value ?? '');
+      if (turnstileToken) body.append('cf-turnstile-response', turnstileToken);
       if (photoFace) body.append('photoFace', photoFace);
       if (photoFullBody) body.append('photoFullBody', photoFullBody);
       if (medicalCertificate) body.append('medicalCertificate', medicalCertificate);
 
       const res = await fetch(`/api/public/candidates/${token}/apply`, { method: 'POST', body });
+      // Un 413 de Vercel (o un 502) no trae JSON: sin este chequeo el
+      // `res.json()` lanzaba y se mostraba "revisa tu conexión".
+      if (!(res.headers.get('content-type') ?? '').includes('application/json')) {
+        setErrors({ form: uploadFailureMessage(res.status) });
+        document.getElementById('form-error')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
       const json = (await res.json()) as { success: boolean; data?: { folio: string }; error?: string };
 
       if (!json.success || !json.data) {
@@ -409,6 +444,10 @@ export default function CandidateRegistrationClient({ token }: { token: string }
       setErrors({ form: 'No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo — tus datos siguen aquí.' });
     } finally {
       setSaving(false);
+      if (isTurnstileConfigured) {
+        setTurnstileToken(null);
+        setTurnstileKey((key) => key + 1);
+      }
     }
   }
 
@@ -578,7 +617,7 @@ export default function CandidateRegistrationClient({ token }: { token: string }
               <span>Postulaciones cierran el {new Date(project.registrationClosesAt).toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
             )}
             {project.registrationClosesAt && project.eventDate && ' · '}
-            {project.eventDate && <span>Casting {new Date(project.eventDate).toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })}</span>}
+            {project.eventDate && <span>Gala {new Date(project.eventDate).toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Santiago' })}</span>}
           </p>
         </div>
 
@@ -860,7 +899,7 @@ export default function CandidateRegistrationClient({ token }: { token: string }
               <PhotoDropzone
                 id="medicalCertificate"
                 label="Certificado médico (opcional)"
-                hint="JPG, PNG o PDF, hasta 5 MB — solo si tienes uno para respaldar lo anterior."
+                hint="JPG, PNG o PDF (el PDF hasta 2,5 MB) — solo si tienes uno para respaldar lo anterior."
                 accept="image/jpeg,image/png,application/pdf"
                 file={medicalCertificate}
                 onChange={setMedicalCertificate}
@@ -949,7 +988,13 @@ export default function CandidateRegistrationClient({ token }: { token: string }
                   onChange={(e) => setDecl((d) => ({ ...d, aceptaBases: e.target.checked }))}
                 />
                 <span>
-                  He leído y acepto las <a href={CONFIG.basesUrl} target="_blank" rel="noreferrer">bases del certamen</a>.
+                  He leído y acepto las{' '}
+                  {CONFIG.basesUrl ? (
+                    <a href={CONFIG.basesUrl} target="_blank" rel="noreferrer">bases del certamen</a>
+                  ) : (
+                    'bases del certamen (si aún no las tienes, pídelas a la organización)'
+                  )}
+                  .
                 </span>
               </label>
               {errors.aceptaBases && <p className="cand-insc-error">{errors.aceptaBases}</p>}
@@ -966,7 +1011,11 @@ export default function CandidateRegistrationClient({ token }: { token: string }
             </fieldset>
           )}
 
-          {errors.form && <p id="form-error" className="cand-insc-error cand-insc-error-form">{errors.form}</p>}
+          {step === FORM_STEPS.length - 1 && (
+            <TurnstileWidget key={turnstileKey} action="candidate-application" onToken={setTurnstileToken} className="flex justify-center py-2" />
+          )}
+
+          {errors.form && <p id="form-error" className="cand-insc-error cand-insc-error-form" role="alert">{errors.form}</p>}
 
           <div className="cand-insc-form-nav">
             {step > 0 ? (
@@ -980,7 +1029,7 @@ export default function CandidateRegistrationClient({ token }: { token: string }
                 Siguiente
               </button>
             ) : (
-              <button type="submit" className="cand-insc-submit" disabled={saving}>
+              <button type="submit" className="cand-insc-submit" disabled={saving || (isTurnstileConfigured && !turnstileToken)}>
                 {saving ? 'Enviando…' : 'Enviar mi postulación'}
               </button>
             )}
@@ -1013,7 +1062,7 @@ export default function CandidateRegistrationClient({ token }: { token: string }
           <a href={`mailto:${CONFIG.contactoEmail}`}><IconMail /> {CONFIG.contactoEmail}</a>
           <a href={CONFIG.contactoWhatsapp} target="_blank" rel="noreferrer"><IconWhatsapp /> WhatsApp</a>
           <a href={CONFIG.contactoInstagram} target="_blank" rel="noreferrer"><IconInstagram /> Instagram</a>
-          <a href={CONFIG.basesUrl} target="_blank" rel="noreferrer">Bases</a>
+          {CONFIG.basesUrl && <a href={CONFIG.basesUrl} target="_blank" rel="noreferrer">Bases</a>}
           <a href={CONFIG.privacidadUrl} target="_blank" rel="noreferrer">Privacidad</a>
         </p>
       </footer>
@@ -1051,6 +1100,7 @@ function PhotoDropzone({
   const [preview, setPreview] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const isImage = file ? file.type.startsWith('image/') : false;
 
@@ -1064,19 +1114,40 @@ function PhotoDropzone({
     return () => URL.revokeObjectURL(url);
   }, [file, isImage]);
 
-  function pickFile(f: File | undefined | null) {
+  async function pickFile(f: File | undefined | null) {
+    // El mismo archivo elegido otra vez (tras "Quitar") no dispara `change`
+    // si el input conserva su valor: se limpia siempre.
+    if (inputRef.current) inputRef.current.value = '';
     if (!f) return;
-    if (f.size > MAX_PHOTO_BYTES) {
-      setLocalError('El archivo supera los 5 MB — comprímelo e inténtalo de nuevo.');
-      return;
-    }
     const allowed = accept.split(',').map((t) => t.trim());
     if (!allowed.includes(f.type)) {
       setLocalError(accept.includes('pdf') ? 'El archivo debe ser JPG, PNG o PDF.' : 'El archivo debe ser JPG o PNG.');
       return;
     }
+    if (f.type === 'application/pdf') {
+      if (f.size > MAX_PDF_BYTES) {
+        setLocalError('El PDF supera los 2,5 MB. Sube una foto del documento (JPG) en su lugar.');
+        return;
+      }
+      setLocalError(null);
+      onChange(f);
+      return;
+    }
+    if (f.size > MAX_ORIGINAL_PHOTO_BYTES) {
+      setLocalError('La foto es demasiado grande. Elige otra o tómala con menor resolución.');
+      return;
+    }
+    // Las fotos se reducen acá (lado mayor 1.600 px) para que la postulación
+    // quepa en el límite de Vercel; la calidad sigue siendo de sobra para casting.
+    setProcessing(true);
+    const compressed = await compressPhoto(f);
+    setProcessing(false);
+    if (compressed.size > MAX_PHOTO_BYTES) {
+      setLocalError('No pudimos reducir esta foto lo suficiente. Prueba con otra en JPG.');
+      return;
+    }
     setLocalError(null);
-    onChange(f);
+    onChange(compressed);
   }
 
   const shownError = error || localError || undefined;
@@ -1091,12 +1162,19 @@ function PhotoDropzone({
         onDrop={(e) => {
           e.preventDefault();
           setDragOver(false);
-          pickFile(e.dataTransfer.files?.[0]);
+          void pickFile(e.dataTransfer.files?.[0]);
         }}
         onClick={() => inputRef.current?.click()}
         role="button"
         tabIndex={0}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') inputRef.current?.click(); }}
+        onKeyDown={(e) => {
+          if (e.target !== e.currentTarget) return;
+          if (e.key === 'Enter' || e.key === ' ') {
+            // Sin esto, Espacio además hace scroll de la página.
+            e.preventDefault();
+            inputRef.current?.click();
+          }
+        }}
       >
         <input
           ref={inputRef}
@@ -1104,7 +1182,8 @@ function PhotoDropzone({
           type="file"
           accept={accept}
           className="cand-insc-dropzone-input"
-          onChange={(e) => pickFile(e.target.files?.[0])}
+          tabIndex={-1}
+          onChange={(e) => void pickFile(e.target.files?.[0])}
         />
         {file ? (
           <div className="cand-insc-dropzone-preview">
@@ -1128,12 +1207,12 @@ function PhotoDropzone({
         ) : (
           <div className="cand-insc-dropzone-empty">
             <IconUpload />
-            <p>Arrastra tu archivo aquí o haz clic para elegirlo</p>
+            <p>{processing ? 'Preparando la foto…' : 'Arrastra tu archivo aquí o haz clic para elegirlo'}</p>
             <p className="cand-insc-hint">{hint}</p>
           </div>
         )}
       </div>
-      {shownError && <p className="cand-insc-error">{shownError}</p>}
+      {shownError && <p className="cand-insc-error" role="alert">{shownError}</p>}
     </div>
   );
 }
@@ -1156,7 +1235,7 @@ function Field({
       <label htmlFor={id}>{label}</label>
       {children}
       {hint && !error && <p className="cand-insc-hint">{hint}</p>}
-      {error && <p className="cand-insc-error">{error}</p>}
+      {error && <p className="cand-insc-error" role="alert">{error}</p>}
     </div>
   );
 }

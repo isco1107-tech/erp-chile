@@ -73,3 +73,20 @@ export function addMonthsSantiago(date: Date, offset: number): Date {
   const total = year * 12 + (month - 1) + offset;
   return santiagoMidnightUtc(Math.floor(total / 12), (total % 12) + 1, 1);
 }
+
+/**
+ * Edad cumplida hoy en Chile. `birthDate` es una fecha sin hora (lo que
+ * produce `z.coerce.date('YYYY-MM-DD')` o `new Date('YYYY-MM-DD')`: medianoche
+ * UTC), así que su día se lee en UTC; el "hoy" se lee en Santiago. Leer la
+ * fecha de nacimiento con getters locales la corría un día en un navegador
+ * chileno (UTC-3), y el formulario aceptaba a quien el servidor rechazaba.
+ */
+export function ageInSantiago(birthDate: Date, now: Date = new Date()): number {
+  const today = santiagoDateParts(now);
+  const year = birthDate.getUTCFullYear();
+  const month = birthDate.getUTCMonth() + 1;
+  const day = birthDate.getUTCDate();
+  let age = today.year - year;
+  if (today.month < month || (today.month === month && today.day < day)) age -= 1;
+  return age;
+}

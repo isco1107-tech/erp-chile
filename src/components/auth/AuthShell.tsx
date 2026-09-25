@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowUpRight, Boxes, Landmark, ReceiptText, ShieldCheck } from 'lucide-react';
+import AuthSky from './AuthSky';
 
 /**
  * Marco compartido de las pantallas de autenticación (login, recuperar
@@ -11,6 +12,10 @@ import { ArrowUpRight, Boxes, Landmark, ReceiptText, ShieldCheck } from 'lucide-
  * producto. El panel de marca va a la izquierda y el formulario a la derecha;
  * el logo grande de Aether va de fondo, centrado en la pantalla
  * (`LogoBackdrop`).
+ *
+ * Todo el fondo se mueve de forma constante y lenta (cielo de `AuthSky`,
+ * auroras y el logo que "respira"): es la continuación de la intro en video
+ * del login (`LoginIntro`), que termina en ese mismo cielo y ese mismo logo.
  */
 
 const HIGHLIGHTS = [
@@ -23,10 +28,11 @@ const HIGHLIGHTS = [
 export function AuthShell({ children }: { children: ReactNode }) {
   return (
     <div className="auth-shell relative flex min-h-screen">
+      <AuthSky />
       <LogoBackdrop />
 
       {/* Panel de marca */}
-      <aside className="relative hidden w-[46%] max-w-[720px] flex-col justify-between overflow-hidden border-r border-white/[0.06] bg-[#10131a] p-12 lg:flex xl:p-16">
+      <aside className="relative hidden w-[46%] max-w-[720px] flex-col justify-between overflow-hidden border-r border-white/[0.06] bg-[#10131a]/75 p-12 backdrop-blur-[2px] lg:flex xl:p-16">
         <AuthBackdrop />
 
         <Link href="/" className="relative z-[2] flex w-fit items-center gap-2.5 rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary">
@@ -155,7 +161,7 @@ function LogoBackdrop() {
       <img
         src="/branding/logo-on-dark.png"
         alt=""
-        className="absolute inset-0 m-auto h-auto w-[min(85vw,1250px)] object-contain opacity-80 lg:w-[min(58vw,1000px)]"
+        className="auth-logo-breathe absolute inset-0 m-auto h-auto w-[min(85vw,1250px)] object-contain opacity-80 lg:w-[min(58vw,1000px)]"
       />
     </div>
   );
@@ -168,8 +174,8 @@ function LogoBackdrop() {
 function AuthBackdrop() {
   return (
     <div aria-hidden="true" className="pointer-events-none absolute inset-0 select-none">
-      <div className="absolute -top-48 -left-40 size-[36rem] rounded-full bg-primary/[0.09] blur-[120px]" />
-      <div className="absolute -right-48 bottom-0 size-[30rem] rounded-full bg-[#334d85]/20 blur-[120px]" />
+      <div className="auth-aurora-a absolute -top-48 -left-40 size-[36rem] rounded-full bg-primary/[0.09] blur-[120px]" />
+      <div className="auth-aurora-b absolute -right-48 bottom-0 size-[30rem] rounded-full bg-[#334d85]/20 blur-[120px]" />
       <div
         className="absolute inset-0 opacity-[0.35]"
         style={{

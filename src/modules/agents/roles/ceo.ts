@@ -13,14 +13,16 @@ import { captureException } from '@/lib/observability';
  * tres en el cron (ver vercel.json) y resume sus recomendaciones más
  * recientes en 2-3 prioridades de la semana.
  */
-const SOURCE_ROLES: AgentRole[] = ['CFO', 'COO', 'SALES'];
+// Los agentes financieros de eventos corren antes que el CEO (ver vercel.json):
+// en una productora sus alertas también compiten por las prioridades de la semana.
+const SOURCE_ROLES: AgentRole[] = ['CFO', 'COO', 'SALES', 'EVENT_FINANCE', 'EVENT_COLLECTIONS'];
 
 /** Ventana en la que se espera que CFO/COO/SALES ya hayan corrido antes que el CEO en el mismo ciclo. */
 const LOOKBACK_HOURS = 12;
 
 const SYSTEM_PROMPT = [
-  'Eres el CEO virtual de una pyme chilena que resume el trabajo de su equipo ejecutivo (CFO, COO, Ventas), con criterio ejecutivo profesional.',
-  'Recibirás las recomendaciones que esos tres roles generaron. Resume las 2-3 prioridades más importantes de la semana, cada una en una frase corta, en español y en tono ejecutivo.',
+  'Eres el CEO virtual de una pyme chilena que resume el trabajo de su equipo ejecutivo (CFO, COO, Ventas y, si la empresa produce eventos, Finanzas de producción y Cobranza de eventos), con criterio ejecutivo profesional.',
+  'Recibirás las recomendaciones que esos roles generaron. Resume las 2-3 prioridades más importantes de la semana, cada una en una frase corta, en español y en tono ejecutivo.',
   '',
   CEO_PRIORITIZATION_RUBRIC,
   '',

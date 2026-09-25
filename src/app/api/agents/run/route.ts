@@ -1,11 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import type { AgentRole } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { runAgent } from '@/modules/agents/engine';
-import { runCeoAgent } from '@/modules/agents/roles/ceo';
-import { runCfoAgent } from '@/modules/agents/roles/cfo';
-import { runCooAgent } from '@/modules/agents/roles/coo';
-import { runSalesAgent } from '@/modules/agents/roles/sales';
+import { ROLE_FEATURE, ROLE_RUNNERS, isAgentRole } from '@/modules/agents/runners';
 import { sendEmail, getAppUrl } from '@/lib/email/mailer';
 import { buildAgentDigestEmail } from '@/lib/email/templates';
 import { captureException } from '@/lib/observability';
@@ -24,21 +20,12 @@ import { captureException } from '@/lib/observability';
  * internas, no documentos con hora legal).
  *
  * Es multi-tenant a propósito: una sola invocación por rol recorre TODAS las
- * empresas con `CompanyFeatures.hasCrm = true`, en secuencia (nunca en
+ * empresas con el módulo que habilita ese rol (`ROLE_FEATURE`: `hasCrm` para
+ * el equipo ejecutivo, `hasEventProjects` para los agentes financieros de
+ * eventos, que corren antes del CEO para que él los lea), en secuencia (nunca en
  * paralelo) para no saturar el rate limit ~10 req/min de Gemini entre
  * empresas distintas (ver src/modules/agents/services/gemini-agent.ts).
  */
-
-const ROLE_RUNNERS: Partial<Record<AgentRole, (companyId: string) => Promise<string>>> = {
-  CEO: runCeoAgent,
-  CFO: runCfoAgent,
-  COO: runCooAgent,
-  SALES: runSalesAgent,
-};
-
-function isSupportedRole(value: string): value is keyof typeof ROLE_RUNNERS {
-  return Object.prototype.hasOwnProperty.call(ROLE_RUNNERS, value);
-}
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -48,18 +35,15 @@ export async function GET(request: NextRequest) {
   }
 
   const roleParam = request.nextUrl.searchParams.get('role') ?? '';
-  if (!isSupportedRole(roleParam)) {
+  if (!isAgentRole(roleParam)) {
     return NextResponse.json({ error: 'role inválido o no soportado por el cron de agentes' }, { status: 400 });
   }
   const role = roleParam;
   const runner = ROLE_RUNNERS[role];
-  if (!runner) {
-    return NextResponse.json({ error: 'role inválido o no soportado por el cron de agentes' }, { status: 400 });
-  }
 
   const startedAt = new Date();
   const companies = await prisma.company.findMany({
-    where: { features: { hasCrm: true } },
+    where: { features: { [ROLE_FEATURE[role]]: true } },
     select: { id: true, businessName: true },
   });
 

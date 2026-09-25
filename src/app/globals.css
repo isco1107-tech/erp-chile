@@ -259,6 +259,43 @@ select option {
   display: none;
 }
 
+/* ── Movimiento constante de las pantallas de acceso (ver AuthShell/AuthSky).
+   Solo transform y opacity: nada de esto fuerza a recalcular el diseño. Con
+   "reducir movimiento" la regla global de abajo lo deja quieto. */
+@keyframes login-intro-load {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(300%); }
+}
+
+@keyframes auth-logo-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.74; }
+  50% { transform: scale(1.018); opacity: 0.86; }
+}
+
+@keyframes auth-aurora-a {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(6vw, 4vh, 0) scale(1.12); }
+}
+
+@keyframes auth-aurora-b {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1.05); }
+  50% { transform: translate3d(-5vw, -6vh, 0) scale(0.94); }
+}
+
+.auth-logo-breathe {
+  animation: auth-logo-breathe 9s ease-in-out infinite;
+  transform-origin: center;
+  will-change: transform, opacity;
+}
+
+.auth-aurora-a {
+  animation: auth-aurora-a 22s ease-in-out infinite;
+}
+
+.auth-aurora-b {
+  animation: auth-aurora-b 28s ease-in-out infinite;
+}
+
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);

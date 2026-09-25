@@ -70,7 +70,8 @@ export type NavIconKey =
   | 'payroll'
   | 'leave'
   | 'fixedAssets'
-  | 'expenses';
+  | 'expenses'
+  | 'contracts';
 
 export interface NavLink {
   /** Identificador estable (ver comentario del archivo). */
@@ -147,8 +148,8 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
       { id: 'intelligence-flows', href: '/dashboard/intelligence/flows', label: 'Flujos del negocio', icon: 'flows', keywords: ['procesos', 'cuello de botella', 'order to cash', 'procure to pay', 'embudo'] }
     );
   }
-  if (features.hasCrm && allow('agents:view')) {
-    inteligencia.push({ id: 'agents', href: '/dashboard/agents', label: 'Agentes', icon: 'agents', keywords: ['ia', 'ceo', 'cfo', 'asistente'] });
+  if ((features.hasCrm || features.hasEventProjects) && allow('agents:view')) {
+    inteligencia.push({ id: 'agents', href: '/dashboard/agents', label: 'Agentes', icon: 'agents', keywords: ['ia', 'ceo', 'cfo', 'asistente', 'finanzas de eventos', 'cobranza'] });
   }
   push('Inteligencia de Negocio', inteligencia);
 
@@ -266,6 +267,11 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
     if (allow('candidates:write')) {
       eventosConfig.push({ id: 'candidates-template', href: '/dashboard/candidates/template', label: 'Plantilla: Contrato de Imagen', icon: 'candidates' });
     }
+  }
+  // Checklist único de contratos (imagen de candidatas + cartas de auspicio):
+  // aparece con cualquiera de los dos módulos; la página filtra por permiso.
+  if ((features.hasCandidates && allow('candidates:read')) || (features.hasSponsorships && allow('sponsorships:read'))) {
+    eventos.push({ id: 'contracts', href: '/dashboard/contracts', label: 'Contratos firmados', icon: 'contracts', keywords: ['firma', 'firmados', 'contrato de imagen', 'carta de compromiso', 'checklist', 'zapsign'] });
   }
   if (features.hasLiveProduction && allow('production:read')) {
     eventos.push(

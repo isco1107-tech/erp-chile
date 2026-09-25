@@ -2,6 +2,7 @@ import 'server-only';
 
 import { prisma } from '@/lib/prisma';
 import { captureException } from '@/lib/observability';
+import { getClientIp } from '@/lib/security/cloudflare';
 
 /**
  * Tipos de evento de seguridad. Suficientemente granulares para alimentar un
@@ -24,7 +25,7 @@ interface SecurityEventInput {
   type: SecurityEventType;
   /** Email del usuario afectado. Nunca la contraseña. */
   email?: string;
-  /** IP del cliente (de x-forwarded-for, confiable en Vercel). */
+  /** IP del cliente (ver `getClientIp`: Vercel o Cloudflare verificado). */
   ip?: string | null;
   /** User-Agent del request. */
   userAgent?: string | null;
@@ -63,8 +64,7 @@ export function logSecurityEvent(input: SecurityEventInput): void {
  * Route Handler que llame a `logSecurityEvent`.
  */
 export function extractRequestInfo(req: Request): { ip: string | null; userAgent: string | null } {
-  const forwarded = req.headers.get('x-forwarded-for');
-  const ip = forwarded?.split(',')[0]?.trim() || null;
+  const ip = getClientIp(req.headers);
   const userAgent = req.headers.get('user-agent');
   return { ip, userAgent };
 }

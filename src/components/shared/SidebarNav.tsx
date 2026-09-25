@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import {
+  FileSignature,
   Home,
   ScanBarcode,
   CreditCard,
@@ -113,6 +114,7 @@ export const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   leave: TreePalm,
   fixedAssets: Building2,
   expenses: ReceiptText,
+  contracts: FileSignature,
   crmTasks: CalendarCheck,
   crmPeople: Contact,
   crmReports: BarChart3,

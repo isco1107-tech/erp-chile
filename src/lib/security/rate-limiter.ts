@@ -127,6 +127,23 @@ export function checkRateLimit(identifier: string, config: RateLimitConfig): Rat
 }
 
 /**
+ * Consulta si un identificador todavía tiene cupo, SIN registrar un intento.
+ * Para límites que solo deben contar lo que salió bien (ej. postulaciones
+ * enviadas): se consulta al inicio con esto y se registra con
+ * `checkRateLimit` recién cuando la operación tuvo éxito.
+ */
+export function peekRateLimit(identifier: string, config: RateLimitConfig): RateLimitResult {
+  const store = getStore();
+  const now = Date.now();
+  const entry = store.entries.get(`${config.prefix}:${identifier}`);
+  const recent = entry ? entry.timestamps.filter((t) => t > now - config.windowMs) : [];
+  if (recent.length >= config.limit) {
+    return { allowed: false, remaining: 0, retryAfterMs: recent[0]! + config.windowMs, limit: config.limit };
+  }
+  return { allowed: true, remaining: config.limit - recent.length, retryAfterMs: null, limit: config.limit };
+}
+
+/**
  * Resetea el contador de un identificador. Útil para tests.
  */
 export function resetRateLimit(identifier: string, prefix: string): void {
@@ -170,6 +187,19 @@ export const RESET_RATE_LIMIT: RateLimitConfig = {
 export const CANDIDATE_APPLICATION_RATE_LIMIT: RateLimitConfig = {
   prefix: 'candidate-apply-ip',
   limit: 5,
+  windowMs: 60 * 60_000,
+};
+
+/**
+ * Intentos de postulación (válidos o no) por IP. `CANDIDATE_APPLICATION_RATE_LIMIT`
+ * cuenta solo las postulaciones enviadas con éxito: antes contaba todo, y una
+ * candidata que corregía un error de validación un par de veces (o todo un
+ * casting conectado al mismo Wi-Fi) quedaba bloqueada una hora. Este tope
+ * más holgado sigue frenando a un bot que martilla el endpoint.
+ */
+export const CANDIDATE_APPLICATION_ATTEMPT_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'candidate-apply-attempt-ip',
+  limit: 40,
   windowMs: 60 * 60_000,
 };
 

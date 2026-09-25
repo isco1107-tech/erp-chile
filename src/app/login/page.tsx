@@ -12,6 +12,7 @@ import { PasswordInput } from '@/components/ui/PasswordInput';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import TurnstileWidget, { isTurnstileConfigured } from '@/components/security/TurnstileWidget';
 
 const loginSchema = z.object({
   username: z.string().min(1, { message: 'Ingresa tu usuario o correo' }),
@@ -33,6 +34,10 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [challengeToken, setChallengeToken] = useState<string | null>(null);
   const [totpCode, setTotpCode] = useState('');
+  // Token de Cloudflare Turnstile (solo si está configurado). Es de un solo
+  // uso: tras cada intento se remonta el widget para obtener uno nuevo.
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileKey, setTurnstileKey] = useState(0);
 
   const form = useForm({
     initialValues: { username: '', password: '' },
@@ -53,11 +58,15 @@ function LoginForm() {
       const res = await fetch('/api/auth/signin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: values.username, password: values.password }),
+        body: JSON.stringify({ email: values.username, password: values.password, 'cf-turnstile-response': turnstileToken }),
       });
       const json = await res.json();
       if (!json.success) {
         setError(json.error || 'Correo o contraseña incorrectos');
+        if (isTurnstileConfigured) {
+          setTurnstileToken(null);
+          setTurnstileKey((key) => key + 1);
+        }
         return;
       }
       if (json.data?.totpRequired) {
@@ -187,7 +196,9 @@ function LoginForm() {
             {form.errors.password && <p id="password-error" className="mt-1.5 text-sm text-destructive">{form.errors.password}</p>}
           </div>
 
-          <Button type="submit" className="mt-2 h-10 w-full" size="lg" disabled={loading}>
+          <TurnstileWidget key={turnstileKey} action="login" theme="dark" onToken={setTurnstileToken} className="flex min-h-[65px] justify-center" />
+
+          <Button type="submit" className="mt-2 h-10 w-full" size="lg" disabled={loading || (isTurnstileConfigured && !turnstileToken)}>
             {loading ? 'Entrando…' : 'Entrar'}
           </Button>
         </form>

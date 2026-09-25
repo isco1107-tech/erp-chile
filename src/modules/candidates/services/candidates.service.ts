@@ -4,6 +4,8 @@ import { Prisma, type Candidate, type CandidateStatus, type PaymentPlanStatus, t
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { captureException } from '@/lib/observability';
 import { cleanRut, formatRut, validateRut } from '@/lib/chile/rut';
+import { ageInSantiago } from '@/lib/chile/timezone';
+import { constraintInvolves } from '@/lib/prisma-errors';
 import type {
   CandidateCreateInput,
   CandidateSelfRegistrationInput,
@@ -752,14 +754,6 @@ async function evaluateRegistrationWindow(project: ProjectRegistrationFields): P
   return { isOpen: true, reason: null };
 }
 
-function calculateAge(birthDate: Date, at: Date): number {
-  let age = at.getFullYear() - birthDate.getFullYear();
-  const hasHadBirthdayThisYear =
-    at.getMonth() > birthDate.getMonth() || (at.getMonth() === birthDate.getMonth() && at.getDate() >= birthDate.getDate());
-  if (!hasHadBirthdayThisYear) age -= 1;
-  return age;
-}
-
 /** `TMC-2027-0043`: prefijo = `Project.code` (ya único por empresa, mismo rol
  * que cumpliría un `folioPrefix` dedicado — se reutiliza en vez de agregar un
  * campo nuevo solo para esto). Año = año calendario del envío. Correlativo =
@@ -823,7 +817,8 @@ export async function submitCandidateRegistration(
   const rutClean = cleanRut(data.rut);
   if (!validateRut(rutClean)) throw new Error('RUT inválido');
 
-  const age = calculateAge(data.birthDate, new Date());
+  // Misma función que usa el formulario, con "hoy" en Chile (no en UTC).
+  const age = ageInSantiago(data.birthDate);
   if (age < project.minCandidateAge) {
     throw new BelowMinimumAgeError(`Debes tener al menos ${project.minCandidateAge} años cumplidos para postular.`);
   }
@@ -940,7 +935,9 @@ export async function submitCandidateRegistration(
     return { candidate, folio };
   } catch (error) {
     if (error instanceof RegistrationFullError) throw error;
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+    // Solo la unicidad del RUT es "ya postulaste"; un choque de folio (u otra
+    // unicidad) es una carrera interna y debe verse como error reintentable.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002' && !constraintInvolves(error, 'folio')) {
       throw new DuplicateApplicationError('Ya existe una inscripción con este RUT para este certamen. Si crees que es un error, contacta a la organización.');
     }
     throw error;

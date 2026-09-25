@@ -15,6 +15,7 @@ import { resolvePermissions } from './effective-permissions';
 import { isSessionRevoked, touchSession } from './sessions';
 import { isOperationalTenant } from '@/lib/auth/tenant-status';
 import { checkIpAllowlist } from './ip-allowlist-guard';
+import { getClientIp } from '@/lib/security/cloudflare';
 
 export { resolvePermissions };
 
@@ -220,7 +221,7 @@ export async function getAuthContext(): Promise<AuthContext> {
   const userId = payload.userId ?? payload.id;
   if (!userId) throw new AuthError('Sesión inválida o expirada', 401);
   const headerList = await headers();
-  const clientIp = headerList.get('x-forwarded-for')?.split(',')[0]?.trim() || null;
+  const clientIp = getClientIp(headerList);
   const context = await loadContext(userId, payload.activeCompanyId, clientIp);
   const current = await prisma.user.findUnique({ where: { id: userId }, select: { sessionVersion: true } });
   if (!current || (payload.sessionVersion ?? 0) !== current.sessionVersion) {

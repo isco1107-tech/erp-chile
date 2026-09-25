@@ -9,6 +9,7 @@ import { createSessionToken, setSessionCookieServer } from '@/lib/auth/session';
 import { recordSession } from '@/lib/auth/sessions';
 import { createAuditLog } from '@/lib/auth/audit';
 import { passwordPolicySchema } from '@/lib/auth/password-policy';
+import { getClientIp } from '@/lib/security/cloudflare';
 
 export type ActionResult<T> =
   | { success: true; data: T; message?: string }
@@ -71,7 +72,7 @@ export async function completeForcedPasswordChangeAction(input: unknown): Promis
         companyId: updated.companyId,
         token,
         userAgent: headerList.get('user-agent'),
-        ipAddress: headerList.get('x-forwarded-for')?.split(',')[0]?.trim(),
+        ipAddress: getClientIp(headerList),
       });
     }
 
