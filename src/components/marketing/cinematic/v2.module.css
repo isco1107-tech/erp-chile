@@ -295,6 +295,18 @@
 
 .nav a { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; transition: color .2s; }
 .nav a:hover { color: var(--gold); }
+/* Acceso a la landing corporativa (/empresas): distinto de las anclas de la página. */
+.nav .navCorporate {
+  gap: 7px;
+  padding: 0 14px;
+  border: 1px solid rgb(219 192 118 / .45);
+  border-radius: 999px;
+  color: var(--gold);
+  white-space: nowrap;
+}
+.nav .navCorporate:hover { border-color: var(--gold); background: rgb(219 192 118 / .1); }
+/* En pantallas medianas la cabecera no da abasto: queda el acceso del hero. */
+@media (max-width: 1320px) { .nav .navCorporate { display: none; } }
 
 .headerCta {
   display: inline-flex;
@@ -356,6 +368,7 @@
 .menu[hidden] { display: none; }
 .menu a { display: flex; align-items: center; min-height: 48px; border-bottom: 1px solid var(--line); }
 .menu a:last-child { border-bottom: 0; color: var(--gold); }
+.menu .menuCorporate { gap: 10px; color: var(--gold); font-weight: 600; }
 
 /* ── Tipografía y piezas comunes ────────────────────────────────────────── */
 .section { padding: clamp(88px, 11vw, 168px) var(--inline); }

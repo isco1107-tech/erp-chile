@@ -153,6 +153,26 @@
 
 .secondary:hover { color: var(--gold); text-decoration-color: var(--gold); }
 
+/* Acceso a la landing corporativa (/empresas), bajo los botones del hero. */
+.corporate {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  margin-top: 14px;
+  padding: 0 16px;
+  border: 1px solid rgb(219 192 118 / .4);
+  border-radius: 999px;
+  background: rgb(18 22 31 / .55);
+  font-size: 13.5px;
+  color: #ddd8ce;
+  backdrop-filter: blur(6px);
+  transition: border-color .2s, background .2s;
+}
+.corporate svg { flex-shrink: 0; color: var(--gold); }
+.corporate strong { font-weight: 600; color: var(--gold); }
+.corporate:hover { border-color: var(--gold); background: rgb(18 22 31 / .8); }
+
 .facts {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
