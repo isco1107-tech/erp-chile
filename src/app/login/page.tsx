@@ -20,6 +20,12 @@ const loginSchema = z.object({
 });
 
 /** Mensajes de `/login?reason=...` para redirecciones desde el dashboard que no son un cierre de sesión normal (ver `(dashboard)/layout.tsx`). */
+/** Destino tras iniciar sesión: el que indica el servidor (el selector de empresa si trabaja en varias), solo si es una ruta interna. */
+function nextPath(json: { data?: { redirectTo?: unknown } }): string {
+  const target = json.data?.redirectTo;
+  return typeof target === 'string' && target.startsWith('/') && !target.startsWith('//') ? target : '/dashboard';
+}
+
 const LOGIN_REDIRECT_REASONS: Record<string, string> = {
   ip: 'Tu sesión sigue activa, pero tu empresa restringió el acceso a ciertas direcciones IP y la tuya no está autorizada. Contacta al administrador de tu empresa.',
 };
@@ -75,7 +81,7 @@ function LoginForm() {
         return;
       }
       toast.success('Inicio de sesión correcto');
-      router.push('/dashboard');
+      router.push(nextPath(json));
     } catch (e) {
       setError('No pudimos conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.');
     } finally {
@@ -99,7 +105,7 @@ function LoginForm() {
         return;
       }
       toast.success('Inicio de sesión correcto');
-      router.push('/dashboard');
+      router.push(nextPath(json));
     } catch (e) {
       setError('No pudimos verificar el código. Revisa tu conexión e inténtalo de nuevo.');
     } finally {

@@ -62,7 +62,7 @@ export async function createTenantAction(input: unknown): Promise<ActionResult<C
     const parsed = companyCreateSchema.safeParse(input);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
 
-    const company = await platformService.createTenant(parsed.data);
+    const { company, linkedExistingUser } = await platformService.createTenant(parsed.data);
 
     // La bitácora vive dentro del tenant creado: es donde su propio auditor la buscará.
     await createAuditLog({
@@ -75,13 +75,20 @@ export async function createTenantAction(input: unknown): Promise<ActionResult<C
       metadata: {
         plan: parsed.data.planName,
         adminEmail: parsed.data.adminEmail,
+        adminVinculadoExistente: linkedExistingUser,
         creadaPor: 'superadmin',
       },
     });
 
     revalidatePath('/superadmin/companies');
     revalidatePath('/superadmin');
-    return { success: true, data: company, message: `Empresa ${company.businessName} creada` };
+    return {
+      success: true,
+      data: company,
+      message: linkedExistingUser
+        ? `Empresa ${company.businessName} creada. ${parsed.data.adminEmail} ya tenía cuenta: entra con su contraseña de siempre y elige la empresa al iniciar sesión`
+        : `Empresa ${company.businessName} creada`,
+    };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
   }
