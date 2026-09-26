@@ -185,7 +185,7 @@ export async function listTenantMembershipsAction(companyId: string): Promise<Ac
 export async function grantCompanyMembershipAction(companyId: string, userEmail: string, role: Role): Promise<ActionResult<TenantMembership>> {
   try {
     const session = await requireSuperAdmin();
-    const membership = await platformService.grantCompanyMembership(companyId, userEmail.trim().toLowerCase(), role);
+    const membership = await platformService.grantCompanyMembership(companyId, userEmail, role);
 
     await createAuditLog({
       companyId,
@@ -198,7 +198,7 @@ export async function grantCompanyMembershipAction(companyId: string, userEmail:
     });
 
     revalidatePath(`/superadmin/companies/${companyId}`);
-    return { success: true, data: membership, message: `${membership.userEmail} ahora puede administrar esta empresa` };
+    return { success: true, data: membership, message: `${membership.userEmail} ahora puede administrar esta empresa (módulo multiempresa activado). Al iniciar sesión elegirá en qué empresa trabajar` };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
   }

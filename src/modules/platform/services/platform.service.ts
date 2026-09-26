@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import type { Company, CompanyFeatures, Role, TenantStatus } from '@prisma/client';
 import { cleanRut, formatRut } from '@/lib/chile/rut';
-import { MODULES, toFeatureFlags, type CompanyFeatureFlags, type FeatureKey } from '@/lib/auth/modules';
+import { DEFAULT_FEATURES, MODULES, toFeatureFlags, type CompanyFeatureFlags, type FeatureKey } from '@/lib/auth/modules';
 import { ensureChartOfAccounts } from '@/modules/accounting/services/chart-setup.service';
 import { setDisabledNavItems } from '@/modules/workspace/services/workspace.service';
 import type { CompanyCreateInput, CompanyPlanUpdateInput } from '../schema';
@@ -167,7 +167,12 @@ export async function createTenant(input: CompanyCreateInput): Promise<{ company
   const existingCompany = await prisma.company.findUnique({ where: { rut } });
   if (existingCompany) throw new Error('Ya existe una empresa registrada con ese RUT');
 
-  const existingUser = await prisma.user.findUnique({ where: { email: input.adminEmail }, select: { id: true, companyId: true } });
+  // Sin distinguir mayúsculas: "Ana@x.cl" y "ana@x.cl" son la misma persona, y
+  // el índice único de la base sí los distingue (crearía una cuenta duplicada).
+  const existingUser = await prisma.user.findFirst({
+    where: { email: { equals: input.adminEmail.trim(), mode: 'insensitive' } },
+    select: { id: true, companyId: true },
+  });
   if (existingUser && !existingUser.companyId) {
     throw new Error('Ese correo es de una cuenta de plataforma sin empresa; usa otro correo para el administrador');
   }
@@ -299,16 +304,32 @@ export async function listTenantMemberships(companyId: string): Promise<TenantMe
  * puede hacerlo: es la única forma de que un login administre 2+ empresas,
  * no hay autoservicio para evitar que un OWNER se auto-invite a otra
  * empresa del SaaS.
+ *
+ * Vincular enciende `hasMultiCompany` en esta empresa: sin el módulo la
+ * membresía no se puede usar (guards la ignora), y antes quedaba creada pero
+ * inactiva sin que nada lo avisara. El correo se busca sin distinguir
+ * mayúsculas, igual que se escribe en el formulario.
  */
 export async function grantCompanyMembership(companyId: string, userEmail: string, role: Role): Promise<TenantMembership> {
-  const user = await prisma.user.findUnique({ where: { email: userEmail }, select: { id: true, name: true, email: true, companyId: true } });
+  const user = await prisma.user.findFirst({
+    where: { email: { equals: userEmail.trim(), mode: 'insensitive' } },
+    select: { id: true, name: true, email: true, companyId: true },
+  });
   if (!user) throw new Error('No existe ningún usuario con ese correo');
   if (user.companyId === companyId) throw new Error('Este usuario ya pertenece a esta empresa como su empresa hogar');
 
-  const membership = await prisma.companyMembership.upsert({
-    where: { userId_companyId: { userId: user.id, companyId } },
-    update: { role },
-    create: { userId: user.id, companyId, role },
+  const membership = await prisma.$transaction(async (tx) => {
+    const saved = await tx.companyMembership.upsert({
+      where: { userId_companyId: { userId: user.id, companyId } },
+      update: { role },
+      create: { userId: user.id, companyId, role },
+    });
+    await tx.companyFeatures.upsert({
+      where: { companyId },
+      update: { hasMultiCompany: true },
+      create: { companyId, ...DEFAULT_FEATURES, hasMultiCompany: true },
+    });
+    return saved;
   });
   return { id: membership.id, userEmail: user.email, userName: user.name, role: membership.role, createdAt: membership.createdAt };
 }

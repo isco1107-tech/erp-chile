@@ -18,10 +18,9 @@ const selectClass =
   'h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30';
 
 /**
- * Solo tiene efecto real si esta empresa tiene `hasMultiCompany` activo (ver
- * `TenantModulesForm`) — se muestra siempre igual, sin condicionar la UI al
- * flag, porque el superadmin puede querer dejar la membresía cargada de
- * antemano y prender el módulo después.
+ * Vincular enciende `hasMultiCompany` en esta empresa (ver
+ * `grantCompanyMembership`); si después se apaga el módulo desde
+ * `TenantModulesForm`, las membresías quedan guardadas pero inactivas.
  */
 export default function TenantMembershipsForm({ companyId }: { companyId: string }) {
   const [memberships, setMemberships] = useState<TenantMembership[]>([]);
@@ -69,8 +68,8 @@ export default function TenantMembershipsForm({ companyId }: { companyId: string
       <h2 className="mb-1 text-sm font-semibold">Administración multiempresa</h2>
       <p className="mb-3 text-xs text-muted-foreground">
         Vincula a un usuario que YA tiene cuenta en otra empresa para que también pueda administrar esta, cambiando de
-        empresa activa desde el selector del panel — sin crear una cuenta nueva. Requiere que el módulo &quot;Administración
-        Multiempresa&quot; esté activo más abajo.
+        empresa activa — sin crear una cuenta nueva. Al vincular se activa el módulo &quot;Administración Multiempresa&quot; en
+        esta empresa y, al iniciar sesión, esa persona elige en qué empresa trabajar.
       </p>
 
       {!loading && memberships.length > 0 && (
