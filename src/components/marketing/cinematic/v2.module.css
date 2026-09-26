@@ -312,6 +312,26 @@
 
 .headerCta:hover { background: var(--gold); color: var(--ink); }
 
+/* Acceso al ERP: siempre visible en la cabecera (la portada ya no redirige al login). */
+.headerLogin {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  /* La cabecera separa sus elementos 28 px; junto a "Cotización" queda como un par. */
+  margin-left: -16px;
+  padding: 0 16px;
+  border: 1px solid var(--gold);
+  background: var(--gold);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background .2s, color .2s;
+}
+
+.headerLogin:hover { background: transparent; color: var(--gold); }
+
 .menuButton {
   display: none;
   flex: none;
@@ -1155,8 +1175,8 @@
 }
 
 @media (max-width: 760px) {
-  .headerCta svg { display: none; }
-  .headerCta { padding: 0 12px; }
+  .headerCta svg, .headerLogin svg { display: none; }
+  .headerCta, .headerLogin { padding: 0 12px; }
   .brand { font-size: 20px; }
   .display { font-size: clamp(46px, 13vw, 64px); }
   .headingMid .display { font-size: clamp(36px, 10.5vw, 52px); }
@@ -1170,6 +1190,11 @@
 }
 
 /* Sin JavaScript no hay pestañas: las vistas y familias quedan apiladas. */
+@media (max-width: 420px) {
+  .headerCta { display: none; }
+  .headerLogin { margin-left: auto; }
+}
+
 @media (scripting: none) {
   .tabs { display: none; }
 }
