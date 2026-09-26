@@ -40,32 +40,40 @@ describe('entrada comercial y acceso al ERP', () => {
   });
 
   it.each([
-    ['aether-entry=erp', undefined],
-    [undefined, 'Mozilla/5.0 AetherDesktop/0.1.1'],
-  ])('envía al login a un cliente sin sesión (%s, %s)', async (cookie, agent) => {
-    const response = await proxy(request('/', cookie, agent));
+    ['aether-entry=erp'],
+    ['session=valid'],
+    ['aether-entry=erp; session=valid'],
+  ])('la raíz muestra la landing aunque sea cliente o tenga sesión (%s)', async cookie => {
+    const response = await proxy(request('/', cookie));
+    expect(response.headers.get('x-middleware-next')).toBe('1');
+    expect(response.headers.get('location')).toBeNull();
+    expect(verify).not.toHaveBeenCalled();
+  });
+
+  it('la app de escritorio sin sesión entra al login', async () => {
+    const response = await proxy(request('/', undefined, 'Mozilla/5.0 AetherDesktop/0.1.1'));
     expect(response.headers.get('location')).toBe('https://aether.example/login');
     expect(response.headers.get('cache-control')).toBe('private, no-store');
     expect(response.cookies.get('aether-entry')?.value).toBe('erp');
   });
 
-  it('envía una sesión firmada al dashboard sin elegir otra empresa', async () => {
+  it('la app de escritorio con sesión firmada entra al dashboard', async () => {
     verify.mockResolvedValue({ payload: { purpose: 'session', activeCompanyId: 'company-b' }, protectedHeader: { alg: 'HS256' } });
-    const response = await proxy(request('/', 'session=valid'));
+    const response = await proxy(request('/', 'session=valid', 'Mozilla/5.0 AetherDesktop/0.1.1'));
     expect(response.headers.get('location')).toBe('https://aether.example/dashboard');
     expect(response.cookies.get('session')).toBeUndefined();
   });
 
-  it('una sesión vencida vuelve al login y se elimina', async () => {
+  it('en la app de escritorio, una sesión vencida vuelve al login y se elimina', async () => {
     verify.mockRejectedValue(new Error('expired'));
-    const response = await proxy(request('/', 'session=expired'));
+    const response = await proxy(request('/', 'session=expired', 'Mozilla/5.0 AetherDesktop/0.1.1'));
     expect(response.headers.get('location')).toBe('https://aether.example/login');
     expect(response.cookies.get('session')?.value).toBe('');
   });
 
-  it('un token de otro propósito no abre el dashboard', async () => {
+  it('en la app de escritorio, un token de otro propósito no abre el dashboard', async () => {
     verify.mockResolvedValue({ payload: { purpose: 'totp-challenge' }, protectedHeader: { alg: 'HS256' } });
-    expect((await proxy(request('/', 'session=challenge'))).headers.get('location')).toBe('https://aether.example/login');
+    expect((await proxy(request('/', 'session=challenge', 'Mozilla/5.0 AetherDesktop/0.1.1'))).headers.get('location')).toBe('https://aether.example/login');
   });
 
   it('la preferencia no autoriza rutas privadas', async () => {

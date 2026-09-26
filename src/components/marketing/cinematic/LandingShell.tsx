@@ -220,6 +220,7 @@ export default function LandingShell({ className, children }: { className?: stri
               {primaryNav.map(([href, label]) => <a key={href} href={href}>{label}</a>)}
             </nav>
             <a className={s.headerCta} href="#cotizar">Cotización <ArrowUpRight size={15} aria-hidden="true" /></a>
+            <Link className={s.headerLogin} href="/login">Ingresar <ArrowUpRight size={15} aria-hidden="true" /></Link>
             <button
               ref={menuButton}
               type="button"

@@ -112,12 +112,15 @@ export async function proxy(req: NextRequest) {
   if (canonical) return NextResponse.redirect(`${canonical}${pathname}${req.nextUrl.search}`, 308);
   if (!isPlatformHost(host)) return routeCustomDomain(req, host ?? '');
 
-  // The application and returning customers enter the ERP. This preference
-  // does not authorize anything: dashboard guards still validate the tenant.
+  // La raíz del dominio es siempre la landing comercial, también para quien
+  // ya tiene sesión: al ERP se entra con el botón "Ingresar" (y /login manda
+  // al panel si la sesión sigue vigente). Solo la app de escritorio, que no
+  // tiene landing, entra directo al ERP. Nada de esto autoriza: los guards
+  // del panel validan la sesión y la empresa.
   if (pathname === '/') {
     const token = req.cookies.get('session')?.value;
     const desktop = /\bAetherDesktop\//i.test(req.headers.get('user-agent') ?? '');
-    if (token || desktop || req.cookies.get(ERP_ENTRY_COOKIE)?.value === 'erp') {
+    if (desktop) {
       let destination = '/login';
       if (token) {
         try {
