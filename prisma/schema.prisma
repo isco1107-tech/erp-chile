@@ -82,6 +82,7 @@ enum AgentActionConfirmationStatus {
 
 model Company {
   id                        String                        @id @default(cuid())
+  archivedInvoices          ArchivedInvoice[]
   rut                       String                        @unique
   businessName              String
   address                   String?
@@ -232,6 +233,7 @@ model Company {
 
 model User {
   id                               String                    @id @default(cuid())
+  archivedInvoicesCreated          ArchivedInvoice[]         @relation("ArchivedInvoiceCreatedBy")
   /// Ventas y notas de venta atribuidas a este vendedor (comisiones).
   soldSalesDocuments               SalesDocument[]           @relation("SalesDocumentSeller")
   soldSalesOrders                  SalesOrder[]              @relation("SalesOrderSeller")
@@ -683,6 +685,7 @@ model JobPosition {
 
 model Contact {
   id                        String                  @id @default(cuid())
+  archivedInvoices          ArchivedInvoice[]
   companyId                 String
   company                   Company                 @relation(fields: [companyId], references: [id])
   rut                       String
@@ -5089,4 +5092,39 @@ model FixedAssetMaintenance {
 
   @@index([companyId, assetId, date])
   @@index([companyId, nextDueDate])
+}
+
+/// Archivo simple de facturas recibidas: el proveedor (texto libre, con
+/// vínculo opcional a un `Contact`), el total y la imagen o PDF de la
+/// factura. Pensado para archivar y consultar por proveedor sin pasar por el
+/// flujo completo de Compras (ítems, IVA, stock): no mueve inventario, no
+/// genera cuentas por pagar ni asientos.
+model ArchivedInvoice {
+  id              String   @id @default(cuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id])
+  /// Nombre tal como se ingresó (o el del contacto elegido).
+  supplierName    String
+  /// Nombre normalizado para agrupar el histórico por proveedor aunque se
+  /// escriba con otras mayúsculas, tildes o espacios.
+  supplierKey     String
+  /// Proveedor del maestro de contactos, si se eligió uno (`SetNull`: borrar
+  /// el contacto no borra el archivo).
+  contactId       String?
+  contact         Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  invoiceNumber   String?
+  issueDate       DateTime
+  /// CLP, entero.
+  totalAmount     Int
+  fileUrl         String
+  mimeType        String
+  fileSizeBytes   Int
+  notes           String?
+  createdByUserId String?
+  createdBy       User?    @relation("ArchivedInvoiceCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([companyId, supplierKey, issueDate])
+  @@index([companyId, issueDate])
 }

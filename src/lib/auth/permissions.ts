@@ -29,6 +29,10 @@ export const PERMISSIONS = {
   'dte:manage_caf': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
 
   'purchases:read': ['OWNER', 'ADMIN', 'WAREHOUSE', 'ACCOUNTANT'],
+  // Archivo simple de facturas (proveedor, total e imagen): no depende del
+  // módulo de Compras, así que va como permiso transversal.
+  'invoicearchive:read': ['OWNER', 'ADMIN', 'WAREHOUSE', 'ACCOUNTANT'],
+  'invoicearchive:write': ['OWNER', 'ADMIN', 'WAREHOUSE', 'ACCOUNTANT'],
   'purchases:write': ['OWNER', 'ADMIN', 'WAREHOUSE'],
   'purchases:cancel': ['OWNER', 'ADMIN'],
   // Aprobar una compra que superó el umbral configurado: nivel gerencial,
@@ -244,6 +248,8 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'sales:cancel': 'Anular facturas emitidas',
   'dte:manage_caf': 'Cargar y administrar folios autorizados del SII (CAF)',
   'purchases:read': 'Ver compras y facturas de proveedor',
+  'invoicearchive:read': 'Ver el archivo de facturas por proveedor',
+  'invoicearchive:write': 'Ingresar y eliminar facturas del archivo',
   'purchases:write': 'Registrar compras y recepción de mercadería',
   'purchases:cancel': 'Anular compras',
   'purchases:approve': 'Aprobar compras que superan el límite configurado',
@@ -329,6 +335,8 @@ export const CORE_PERMISSION_GROUP = {
   permissions: [
     'contacts:read',
     'contacts:write',
+    'invoicearchive:read',
+    'invoicearchive:write',
     'settings:company',
     'company:export',
     'automation:manage',
