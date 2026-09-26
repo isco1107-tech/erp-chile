@@ -1,13 +1,30 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { ArrowUpRight, Check, CircleCheck, Mail, Send } from 'lucide-react';
 import s from './landing.module.css';
 import { SALES_LEAD_HONEYPOT_FIELD, SALES_LEAD_SOLUTIONS, SALES_LEAD_TEAM_SIZES } from '@/lib/marketing/sales-lead-options';
 
 type Status = { kind: 'idle' } | { kind: 'sending' } | { kind: 'sent' } | { kind: 'error'; message: string };
 
-export default function SalesContact({ email, whatsapp }: { email: string; whatsapp?: string }) {
+export default function SalesContact({
+  email,
+  whatsapp,
+  className,
+  kicker = 'EL ERP QUE CALZA CON TU EMPRESA',
+  heading = <>Tu próximo paso.<br /><span>A tu medida.</span></>,
+  lead = 'No todas las empresas necesitan lo mismo. Cuéntanos qué quieres ordenar y te contactamos para coordinar una demo sobre tus propios procesos.',
+}: {
+  email: string;
+  whatsapp?: string;
+  /** Clase adicional para el `<section>` raíz: permite reescribir las variables
+   * de color (`--ink`, `--muted`, `--h2-lg`) que consume este módulo sin forkear
+   * la lógica de envío — así lo reutiliza `/empresas` sobre fondo blanco. */
+  className?: string;
+  kicker?: string;
+  heading?: ReactNode;
+  lead?: string;
+}) {
   const [selected, setSelected] = useState<string[]>([SALES_LEAD_SOLUTIONS[0]]);
   const [company, setCompany] = useState('');
   const [team, setTeam] = useState<string>(SALES_LEAD_TEAM_SIZES[0]);
@@ -49,12 +66,12 @@ export default function SalesContact({ email, whatsapp }: { email: string; whats
   }
 
   return (
-    <section id="cotizar" className={`${s.section} ${s.contact}`}>
+    <section id="cotizar" className={`${s.section} ${s.contact}${className ? ` ${className}` : ''}`}>
       <div className={`${s.container} ${s.contactGrid}`}>
         <div className={s.contactCopy}>
-          <p className={s.kicker}>EL ERP QUE CALZA CON TU EMPRESA</p>
-          <h2>Tu próximo paso.<br /><span>A tu medida.</span></h2>
-          <p>No todas las empresas necesitan lo mismo. Cuéntanos qué quieres ordenar y te contactamos para coordinar una demo sobre tus propios procesos.</p>
+          <p className={s.kicker}>{kicker}</p>
+          <h2>{heading}</h2>
+          <p>{lead}</p>
           <ul><li><Check size={18} />Una demo enfocada en tus procesos</li><li><Check size={18} />Módulos según lo que necesitas</li><li><Check size={18} />Cotización antes de contratar, sin compromiso</li></ul>
           <a href={`mailto:${email}`} className={s.contactEmail}><Mail size={17} />{email}<ArrowUpRight size={15} /></a>
         </div>

@@ -38,6 +38,12 @@ describe('proxy con dominio propio de un certamen', () => {
     expect(response.headers.get('location')).toBe('https://erp.aether.cl/dashboard/sales?x=1');
   });
 
+  it('la landing corporativa /empresas tampoco se sirve bajo el dominio del certamen: va a la plataforma', async () => {
+    const response = await proxy(request('missuniversotemuco.cl', '/empresas'));
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toBe('https://erp.aether.cl/empresas');
+  });
+
   it('en producción, la dirección vercel.app redirige al dominio de la plataforma conservando la ruta', async () => {
     process.env.VERCEL_ENV = 'production';
     try {

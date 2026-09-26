@@ -142,6 +142,11 @@ export async function proxy(req: NextRequest) {
   if (
     pathname === '/conoce-aether' ||
     pathname === '/landing-v2' ||
+    // Landing corporativa blanca para compradores B2B: distinta de la
+    // cinematográfica de `/`, pero igual de pública (sin sesión).
+    // Incluye `/empresas/opengraph-image`: las redes la piden sin sesión.
+    pathname === '/empresas' ||
+    pathname.startsWith('/empresas/') ||
     pathname.startsWith('/marketing/') ||
     pathname.startsWith('/downloads/') ||
     pathname.startsWith('/manual/screenshots/') ||

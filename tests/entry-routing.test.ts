@@ -39,6 +39,13 @@ describe('entrada comercial y acceso al ERP', () => {
     expect(verify).not.toHaveBeenCalled();
   });
 
+  it('/empresas (landing corporativa) responde sin sesión, sin redirigir a /login', async () => {
+    const response = await proxy(request('/empresas'));
+    expect(response.headers.get('x-middleware-next')).toBe('1');
+    expect(response.headers.get('location')).toBeNull();
+    expect(verify).not.toHaveBeenCalled();
+  });
+
   it.each([
     ['aether-entry=erp'],
     ['session=valid'],
@@ -81,7 +88,13 @@ describe('entrada comercial y acceso al ERP', () => {
     expect(response.headers.get('location')).toContain('/login?callbackUrl=');
   });
 
-  it.each(['/conoce-aether', '/downloads/releases.json', '/manual/screenshots/dashboard.png'])('permite visitar %s incluso siendo cliente', async path => {
+  it('/empresas/opengraph-image (imagen para redes) también es pública', async () => {
+    const response = await proxy(request('/empresas/opengraph-image'));
+    expect(response.headers.get('x-middleware-next')).toBe('1');
+    expect(response.headers.get('location')).toBeNull();
+  });
+
+  it.each(['/conoce-aether', '/empresas', '/downloads/releases.json', '/manual/screenshots/dashboard.png'])('permite visitar %s incluso siendo cliente', async path => {
     expect((await proxy(request(path, 'aether-entry=erp; session=expired'))).headers.get('x-middleware-next')).toBe('1');
     expect(verify).not.toHaveBeenCalled();
   });

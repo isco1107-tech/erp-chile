@@ -251,6 +251,7 @@ export function Footer({ salesEmail, legalName, legalRut }: { salesEmail: string
             <li><a href="#cotizar">Solicitar una demo</a></li>
             <li><a href={`mailto:${salesEmail}`}>{salesEmail}</a></li>
             <li><Link href="/login">Ingresar al ERP</Link></li>
+            <li><Link href="/empresas">Para empresas</Link></li>
           </ul>
         </nav>
         <nav className={s.footerCol} aria-label="Legal">
