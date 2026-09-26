@@ -1,5 +1,6 @@
 import {
   appHosts,
+  canonicalPlatformBase,
   customDomainProblem,
   customDomainRoute,
   domainFromHost,
@@ -82,5 +83,22 @@ describe('otros', () => {
     expect(isApexDomain('missuniversotemuco.cl')).toBe(true);
     expect(isApexDomain('miss.temuco.cl')).toBe(false);
     expect(domainFromHost('WWW.MissUniversoTemuco.cl:443')).toBe('missuniversotemuco.cl');
+  });
+});
+
+describe('canonicalPlatformBase', () => {
+  const PROD = { VERCEL_ENV: 'production', APP_URL: 'https://aetherp.online' };
+
+  it('en producción, cualquier *.vercel.app va al dominio de la plataforma', () => {
+    expect(canonicalPlatformBase('erp-tawny-iota.vercel.app', PROD)).toBe('https://aetherp.online');
+    expect(canonicalPlatformBase('erp-2z18ykrb0-erp-f3ca.vercel.app', PROD)).toBe('https://aetherp.online');
+  });
+
+  it('no redirige el propio dominio, dominios de certámenes, previews ni sin APP_URL propio', () => {
+    expect(canonicalPlatformBase('aetherp.online', PROD)).toBeNull();
+    expect(canonicalPlatformBase('missuniversotemuco.cl', PROD)).toBeNull();
+    expect(canonicalPlatformBase('erp-git-rama.vercel.app', { ...PROD, VERCEL_ENV: 'preview' })).toBeNull();
+    expect(canonicalPlatformBase('erp-tawny-iota.vercel.app', { VERCEL_ENV: 'production' })).toBeNull();
+    expect(canonicalPlatformBase('erp-tawny-iota.vercel.app', { VERCEL_ENV: 'production', APP_URL: 'https://erp-tawny-iota.vercel.app' })).toBeNull();
   });
 });

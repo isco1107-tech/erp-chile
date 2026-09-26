@@ -38,6 +38,17 @@ describe('proxy con dominio propio de un certamen', () => {
     expect(response.headers.get('location')).toBe('https://erp.aether.cl/dashboard/sales?x=1');
   });
 
+  it('en producción, la dirección vercel.app redirige al dominio de la plataforma conservando la ruta', async () => {
+    process.env.VERCEL_ENV = 'production';
+    try {
+      const response = await proxy(request('erp-tawny-iota.vercel.app', '/certamen/miss?x=1'));
+      expect(response.status).toBe(308);
+      expect(response.headers.get('location')).toBe('https://erp.aether.cl/certamen/miss?x=1');
+    } finally {
+      delete process.env.VERCEL_ENV;
+    }
+  });
+
   it('la plataforma y vercel.app siguen con el flujo normal', async () => {
     for (const host of ['erp.aether.cl', 'erp-abc.vercel.app', 'otra-rama-abc.vercel.app']) {
       const response = await proxy(request(host, '/dashboard'));

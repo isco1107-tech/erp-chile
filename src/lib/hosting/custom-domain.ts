@@ -140,3 +140,26 @@ export function platformBaseUrl(env: Record<string, string | undefined> = proces
   if (env.VERCEL_URL) return `https://${env.VERCEL_URL}`;
   return 'http://localhost:3000';
 }
+
+/**
+ * Dominio canónico de la plataforma: en producción, una visita por una
+ * dirección `*.vercel.app` (la del proyecto o la de un despliegue) se manda
+ * al dominio de `APP_URL` (ej. aetherp.online), para que la plataforma viva
+ * en un solo dominio y las sesiones y enlaces no se repartan entre dos.
+ * Devuelve la URL base a la que redirigir, o `null` si no corresponde:
+ * fuera de producción (los previews siguen en su vercel.app), sin `APP_URL`
+ * o si `APP_URL` también es un vercel.app.
+ */
+export function canonicalPlatformBase(host: string | null, env: Record<string, string | undefined> = process.env): string | null {
+  if (env.VERCEL_ENV !== 'production' || !env.APP_URL) return null;
+  const value = cleanHost(host);
+  if (!value.endsWith('.vercel.app')) return null;
+  let target: URL;
+  try {
+    target = new URL(env.APP_URL);
+  } catch {
+    return null;
+  }
+  if (target.hostname.endsWith('.vercel.app') || target.hostname === value) return null;
+  return target.origin;
+}

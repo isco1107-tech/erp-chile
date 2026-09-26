@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 import { ERP_ENTRY_COOKIE, ERP_ENTRY_COOKIE_OPTIONS } from '@/lib/auth/entry-preference';
-import { customDomainRoute, domainFromHost, isPlatformHost, platformBaseUrl } from '@/lib/hosting/custom-domain';
+import { canonicalPlatformBase, customDomainRoute, domainFromHost, isPlatformHost, platformBaseUrl } from '@/lib/hosting/custom-domain';
 
 /**
  * Rutas alcanzables sin sesión. `forgot-password` y `reset-password` tienen que
@@ -106,6 +106,10 @@ export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   const host = req.headers.get('host');
+  // Producción por *.vercel.app → dominio de la plataforma (APP_URL). /api
+  // queda fuera del matcher: cron y webhooks ya registrados siguen igual.
+  const canonical = canonicalPlatformBase(host);
+  if (canonical) return NextResponse.redirect(`${canonical}${pathname}${req.nextUrl.search}`, 308);
   if (!isPlatformHost(host)) return routeCustomDomain(req, host ?? '');
 
   // The application and returning customers enter the ERP. This preference
