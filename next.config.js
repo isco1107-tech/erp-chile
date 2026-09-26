@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Dominio de la plataforma para los enlaces que se copian desde el panel
+  // (ver src/lib/public-url.ts). Es una URL pública, no un secreto.
+  env: { NEXT_PUBLIC_APP_URL: process.env.APP_URL ?? '' },
   async headers() {
     return [
       {

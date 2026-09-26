@@ -28,7 +28,7 @@ Get-ChildItem .vercel/desktop-artifacts/*.zip | ForEach-Object {
 node scripts/publish-desktop.cjs
 node scripts/verify-landing.cjs http://localhost:3000
 vercel --prod --yes --scope erp-f3ca
-node scripts/verify-landing.cjs https://erp-tawny-iota.vercel.app
+node scripts/verify-landing.cjs https://aetherp.online
 ```
 
 Wait for all four successful workflow jobs before downloading artifacts.

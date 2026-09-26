@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { getOrCreateTicketSalesLinkAction, regenerateTicketSalesLinkAction } from '@/modules/ticketing/actions/ticketing.actions';
 
 import { useConfirm } from '@/components/ui/confirm-provider';
+import { publicUrl } from '@/lib/public-url';
 /**
  * Botón para el equipo interno: genera (o reutiliza) el link público de venta
  * de entradas de un proyecto y lo copia al portapapeles. Mismo criterio que
@@ -17,7 +18,7 @@ export default function TicketingLinkButton({ projectId }: { projectId: string }
   const [busy, setBusy] = useState<'get' | 'regen' | null>(null);
 
   function ticketsUrl(token: string): string {
-    return `${window.location.origin}/tickets/${token}`;
+    return publicUrl(`/tickets/${token}`);
   }
 
   async function handleCopy() {

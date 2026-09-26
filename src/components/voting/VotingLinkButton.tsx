@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { getOrCreateVoteSalesLinkAction, regenerateVoteSalesLinkAction } from '@/modules/public-voting/actions/public-voting-admin.actions';
 
 import { useConfirm } from '@/components/ui/confirm-provider';
+import { publicUrl } from '@/lib/public-url';
 /**
  * Botón para el equipo interno: genera (o reutiliza) el link público de
  * votación de un proyecto. A diferencia de `TicketingLinkButton`, pide el
@@ -22,7 +23,7 @@ export default function VotingLinkButton({ projectId, currentPrice }: { projectI
   const [busy, setBusy] = useState<'get' | 'regen' | null>(null);
 
   function votingUrl(token: string): string {
-    return `${window.location.origin}/votar/${token}`;
+    return publicUrl(`/votar/${token}`);
   }
 
   async function handleCopy() {

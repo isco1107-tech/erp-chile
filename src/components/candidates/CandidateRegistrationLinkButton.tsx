@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { getOrCreateRegistrationLinkAction, regenerateRegistrationLinkAction } from '@/modules/candidates/actions/candidates.actions';
 
 import { useConfirm } from '@/components/ui/confirm-provider';
+import { publicUrl } from '@/lib/public-url';
 /**
  * Botón para el equipo interno: genera (o reutiliza) el link público de
  * auto-inscripción de un certamen y lo copia al portapapeles. Mismo criterio
@@ -18,7 +19,7 @@ export default function CandidateRegistrationLinkButton({ projectId }: { project
   const [busy, setBusy] = useState<'get' | 'regen' | null>(null);
 
   function registrationUrl(token: string): string {
-    return `${window.location.origin}/register/candidate/${token}`;
+    return publicUrl(`/register/candidate/${token}`);
   }
 
   async function handleCopy() {

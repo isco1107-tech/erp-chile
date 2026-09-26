@@ -11,6 +11,7 @@ import {
 } from '@/modules/webhooks/actions/n8n-secret.actions';
 
 import { useConfirm } from '@/components/ui/confirm-provider';
+import { publicUrl } from '@/lib/public-url';
 interface N8nWebhookFormProps {
   initialSecret: string | null;
 }
@@ -21,7 +22,7 @@ export default function N8nWebhookForm({ initialSecret }: N8nWebhookFormProps) {
   const [reveal, setReveal] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const webhookUrl = typeof window !== 'undefined' ? `${window.location.origin}/api/webhooks` : '/api/webhooks';
+  const webhookUrl = publicUrl('/api/webhooks');
 
   async function copy(value: string, label: string) {
     try {

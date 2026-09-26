@@ -28,6 +28,7 @@ import {
 import { ADVANCE_STATUS_LABELS, CONTRACT_TYPE_LABELS, LEAVE_STATUS_LABELS, LEAVE_TYPE_LABELS, LOAN_STATUS_LABELS, periodLabel } from '@/modules/hr/schema';
 import type { EmployeeProfile } from '@/modules/hr/services/employee-finance.service';
 import { SettlementPanel } from './SettlementPanel';
+import { publicUrl } from '@/lib/public-url';
 
 type Tab = 'loans' | 'payslips' | 'vacation' | 'settlement' | 'portal';
 
@@ -97,7 +98,7 @@ export default function EmployeeProfileClient({ profile, canWrite, canClose }: P
       toast.error(result.error);
       return;
     }
-    setPortalUrl(`${window.location.origin}/trabajador/${result.data.token}`);
+    setPortalUrl(publicUrl(`/trabajador/${result.data.token}`));
     toast.success(result.message ?? 'Enlace generado');
     router.refresh();
   }
