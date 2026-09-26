@@ -22,6 +22,7 @@ import { isExemptDocument, siiCode } from '@/lib/chile/dte/codes';
 import { assignSalesFolio, stampDocument, type FolioAssignment } from '@/modules/dte/services/stamping.service';
 import { computeDocument, exceedsCreditLimit } from '../calc';
 import { applyOrderProgress, assertSellerInCompany } from './sales-orders.service';
+import { isSubmittedToSii, SUBMITTED_TO_SII_CANCEL_ERROR } from '../cancellation';
 import { CASH_ELIGIBLE_DTE_TYPES, DTE_TYPE_LABELS, NON_FOLIO_DTE_TYPES, STOCK_AFFECTING_DTE_TYPES } from '../schema';
 import type { SalesDocumentCreateInput } from '../schema';
 
@@ -622,6 +623,13 @@ export async function cancelSalesDocument(companyId: string, id: string, reason?
       throw new Error(
         'Esta boleta pertenece a un turno de caja ya cerrado. Emite una Nota de Crédito en vez de anularla, para que la devolución quede registrada en el turno actual'
       );
+    }
+
+    // Un DTE que ya llegó al SII no se anula: se corrige con una Nota de
+    // Crédito. Revertir stock, pagos y asientos acá dejaría a Aether diciendo
+    // que la venta no existió mientras el SII la tiene vigente.
+    if (isSubmittedToSii(document)) {
+      throw new Error(SUBMITTED_TO_SII_CANCEL_ERROR);
     }
 
     const dteLabel = DTE_TYPE_LABELS[document.dteType];

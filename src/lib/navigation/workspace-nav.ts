@@ -88,7 +88,8 @@ export type NavIconKey =
   | 'imports'
   | 'manufacturing'
   | 'boms'
-  | 'serviceDesk';
+  | 'serviceDesk'
+  | 'invoiceArchive';
 
 export interface NavLink {
   /** Identificador estable (ver comentario del archivo). */
@@ -207,8 +208,12 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
   }
   push('Ventas', ventas);
 
+  const compras: NavLink[] = [];
+  // Archivo simple de facturas: no depende del módulo Compras (se puede usar sin él).
+  if (allow('invoicearchive:read')) {
+    compras.push({ id: 'invoice-archive', href: '/dashboard/invoice-archive', label: 'Archivo de facturas', icon: 'invoiceArchive', keywords: ['facturas', 'proveedor', 'archivo', 'foto', 'boleta de compra', 'historico de compras', 'gastos'] });
+  }
   if (features.hasPurchases) {
-    const compras: NavLink[] = [];
     if (allow('purchases:read')) {
       compras.push({ id: 'purchases', href: '/dashboard/purchases', label: 'Compras', icon: 'purchases', keywords: ['factura de compra', 'proveedor'] });
     }
@@ -223,8 +228,8 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
         { id: 'purchases-inbox', href: '/dashboard/purchases/inbox', label: 'DTE recibidos', icon: 'receivedDte', keywords: ['factura de proveedor', 'xml', 'dte', 'acuse de recibo', 'reclamo', 'bandeja', 'intercambio'] }
       );
     }
-    if (compras.length > 0) push('Compras', compras);
   }
+  push('Compras', compras);
 
   const operaciones: NavLink[] = [];
   if (features.hasProduction && allow('manufacturing:read')) {
