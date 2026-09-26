@@ -1,0 +1,985 @@
+/**
+ * Landing corporativa `/empresas`: blanca, sobria, estática. Scope de tokens
+ * propio (`.corporate`), análogo a `.theme-saas-light` en globals.css —
+ * ninguna variable de acá se filtra a `:root` ni al resto del sitio.
+ * `prefers-reduced-motion: reduce` ya está resuelto de forma global en
+ * `src/app/globals.css` (líneas ~433-441): anula duración de animación y
+ * transición en toda la app, así que las transiciones de hover de este
+ * archivo no necesitan su propio guard.
+ */
+
+.corporate {
+  /* Base */
+  --corp-bg: #ffffff;
+  --corp-bg-subtle: #f7f6f3;
+  --corp-surface: #ffffff;
+  --corp-ink: #12161f;
+  --corp-ink-muted: #45474d;
+  --corp-border: #e7e5df;
+
+  /* Acento dorado: solo decorativo, nunca texto sobre blanco */
+  --corp-gold: #dbc076;
+  --corp-gold-soft: #faf5e6;
+  --corp-gold-text: #7a5d1c;
+
+  /* Acción principal (tinta) */
+  --corp-action: #12161f;
+  --corp-action-hover: #262c3a;
+  --corp-action-foreground: #ffffff;
+
+  --corp-gray-50: #f7f6f3;
+  --corp-gray-100: #f1f0ec;
+  --corp-gray-200: #e7e5df;
+  --corp-gray-400: #9499a3;
+  --corp-gray-600: #65676e;
+
+  --corp-success: #067647;
+  --corp-success-soft: #ecfdf3;
+  --corp-info: #3538cd;
+  --corp-info-soft: #eef2ff;
+
+  --corp-font-sans: var(--font-sans);
+  --corp-text-xs: 0.8125rem;
+  --corp-text-sm: 0.9375rem;
+  --corp-text-base: 1rem;
+  --corp-text-lg: 1.125rem;
+  --corp-text-xl: 1.5rem;
+  --corp-text-2xl: 2rem;
+  --corp-text-3xl: clamp(2.25rem, 4vw + 1rem, 3.25rem);
+
+  --corp-weight-body: 400;
+  --corp-weight-medium: 500;
+  --corp-weight-heading: 600;
+
+  --corp-space-1: 0.25rem;
+  --corp-space-2: 0.5rem;
+  --corp-space-3: 0.75rem;
+  --corp-space-4: 1rem;
+  --corp-space-6: 1.5rem;
+  --corp-space-8: 2rem;
+  --corp-space-12: 3rem;
+  --corp-space-16: 4rem;
+  --corp-space-24: 6rem;
+  --corp-space-section-mobile: 3rem;
+
+  --corp-radius-sm: 0.5rem;
+  --corp-radius-md: 0.75rem;
+  --corp-radius-lg: 1rem;
+  --corp-radius-xl: 1.25rem;
+
+  --corp-shadow-card: 0 1px 2px rgba(18, 22, 31, 0.04), 0 1px 3px rgba(18, 22, 31, 0.05);
+  --corp-shadow-hover: 0 6px 16px -4px rgba(18, 22, 31, 0.1);
+
+  --corp-max-width: 74rem;
+  --corp-max-width-narrow: 46rem;
+  --corp-gutter: 1.25rem;
+  --corp-gutter-desktop: 2.5rem;
+
+  background: var(--corp-bg);
+  color: var(--corp-ink);
+  font-family: var(--corp-font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-weight: var(--corp-weight-body);
+  color-scheme: light;
+  overflow-x: clip;
+}
+
+/* Mismo criterio que `/` y `/conoce-aether` (landing.module.css, v2.module.css):
+   "Hecho con Aether ERP" no tiene sentido sobre la propia página comercial de
+   Aether, y su posición fija chocaba con el mock del hero. */
+.corporate ~ :global(.aether-platform-badge) {
+  display: none;
+}
+
+.corporate * {
+  box-sizing: border-box;
+}
+
+.corporate a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.corporate button {
+  font: inherit;
+  cursor: pointer;
+}
+
+.corporate a:focus-visible,
+.corporate button:focus-visible,
+.corporate summary:focus-visible,
+.corporate input:focus-visible,
+.corporate select:focus-visible {
+  outline: 2px solid var(--corp-gold-text);
+  outline-offset: 2px;
+}
+
+.corporate section[id],
+.corporate div[id] {
+  scroll-margin-top: 88px;
+}
+
+.corporate h1,
+.corporate h2,
+.corporate h3 {
+  font-weight: var(--corp-weight-heading);
+  line-height: 1.2;
+  margin: 0;
+}
+
+/* ── Layout utilities ─────────────────────────────────────────────────── */
+.container {
+  max-width: var(--corp-max-width);
+  margin: 0 auto;
+  padding: 0 var(--corp-gutter);
+}
+@media (min-width: 1024px) {
+  .container {
+    padding: 0 var(--corp-gutter-desktop);
+  }
+}
+
+.skip {
+  position: fixed;
+  top: -80px;
+  left: var(--corp-gutter);
+  background: var(--corp-gold);
+  color: var(--corp-ink);
+  padding: 12px 20px;
+  border-radius: var(--corp-radius-sm);
+  z-index: 100;
+}
+.skip:focus {
+  top: 10px;
+}
+
+.section {
+  padding: var(--corp-space-section-mobile) 0;
+}
+@media (min-width: 1024px) {
+  .section {
+    padding: var(--corp-space-24) 0;
+  }
+}
+
+.sectionHeading {
+  max-width: var(--corp-max-width-narrow);
+  margin: 0 0 var(--corp-space-8);
+}
+.sectionHeading.wide {
+  max-width: 40rem;
+}
+.sectionHeadingLead {
+  margin: var(--corp-space-4) 0 0;
+  color: var(--corp-ink-muted);
+  font-size: var(--corp-text-lg);
+  line-height: 1.7;
+}
+
+.kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--corp-space-2);
+  font-size: var(--corp-text-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--corp-gold-text);
+  background: var(--corp-gold-soft);
+  padding: var(--corp-space-2) var(--corp-space-3);
+  border-radius: var(--corp-radius-sm);
+  margin: 0 0 var(--corp-space-4);
+}
+
+.h2 {
+  font-size: var(--corp-text-2xl);
+  letter-spacing: -0.01em;
+}
+
+/* ── Botones ──────────────────────────────────────────────────────────────
+   Con prefijo `.corporate` a propósito: sin él, `.corporate a { color:
+   inherit }` (arriba) empata en especificidad con `.btnPrimary` y gana por
+   orden de cascada, dejando el texto del botón invisible sobre su propio
+   fondo (texto oscuro sobre fondo oscuro). Con el prefijo, dos clases (0,2,0)
+   superan a clase+elemento (0,1,1) sin depender del orden. */
+.corporate .btnPrimary,
+.corporate .btnSecondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--corp-space-2);
+  min-height: 44px;
+  padding: 0 var(--corp-space-6);
+  border-radius: var(--corp-radius-md);
+  font-size: var(--corp-text-sm);
+  font-weight: var(--corp-weight-medium);
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.corporate .btnPrimary {
+  background: var(--corp-action);
+  color: var(--corp-action-foreground);
+}
+.corporate .btnPrimary:hover {
+  background: var(--corp-action-hover);
+}
+.corporate .btnSecondary {
+  background: transparent;
+  color: var(--corp-ink);
+  border-color: var(--corp-border);
+}
+.corporate .btnSecondary:hover {
+  border-color: var(--corp-ink);
+}
+.corporate .btnGold {
+  background: var(--corp-gold);
+  color: var(--corp-ink);
+}
+.corporate .btnGold:hover {
+  background: #cdb166;
+}
+
+/* ── Encabezado ───────────────────────────────────────────────────────── */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--corp-bg);
+  border-bottom: 1px solid var(--corp-border);
+}
+.headerInner {
+  max-width: var(--corp-max-width);
+  margin: 0 auto;
+  padding: 0 var(--corp-gutter);
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--corp-space-4);
+}
+@media (min-width: 1024px) {
+  .headerInner {
+    padding: 0 var(--corp-gutter-desktop);
+    min-height: 76px;
+  }
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--corp-space-2);
+  min-height: 44px;
+}
+.brand img {
+  height: 28px;
+  width: auto;
+  display: block;
+}
+@media (min-width: 1024px) {
+  .brand img {
+    height: 32px;
+  }
+}
+.brandName {
+  font-size: var(--corp-text-lg);
+  font-weight: var(--corp-weight-heading);
+  color: var(--corp-ink);
+  white-space: nowrap;
+}
+.brandSuffix {
+  font-size: var(--corp-text-xs);
+  font-weight: var(--corp-weight-medium);
+  color: var(--corp-ink-muted);
+  margin-left: 2px;
+}
+.desktopNav {
+  display: none;
+  align-items: center;
+  gap: var(--corp-space-6);
+  font-size: var(--corp-text-sm);
+  color: var(--corp-ink-muted);
+}
+.desktopNav a {
+  padding: var(--corp-space-2) 0;
+  border-bottom: 2px solid transparent;
+}
+.desktopNav a:hover {
+  color: var(--corp-gold-text);
+  border-bottom-color: var(--corp-gold);
+}
+@media (min-width: 1024px) {
+  .desktopNav {
+    display: flex;
+  }
+}
+.headerActions {
+  display: none;
+  align-items: center;
+  gap: var(--corp-space-3);
+}
+@media (min-width: 1024px) {
+  .headerActions {
+    display: flex;
+  }
+}
+
+/* ── Menú móvil ───────────────────────────────────────────────────────── */
+.menuButton {
+  position: relative;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--corp-border);
+  border-radius: var(--corp-radius-sm);
+  background: var(--corp-bg);
+  color: var(--corp-ink);
+}
+@media (min-width: 1024px) {
+  .menuButton {
+    display: none;
+  }
+}
+.mobilePanel {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: var(--corp-bg);
+  display: flex;
+  flex-direction: column;
+  padding: var(--corp-space-6) var(--corp-gutter) var(--corp-space-8);
+  overflow-y: auto;
+}
+.mobilePanelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--corp-space-8);
+}
+.mobileNav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--corp-space-2);
+  font-size: var(--corp-text-lg);
+}
+.mobileNav a {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: var(--corp-space-3) 0;
+  border-bottom: 1px solid var(--corp-border);
+}
+.mobileActions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--corp-space-3);
+  margin-top: auto;
+  padding-top: var(--corp-space-8);
+}
+.mobileActions a {
+  width: 100%;
+}
+
+/* ── Hero ─────────────────────────────────────────────────────────────── */
+.hero {
+  padding: var(--corp-space-section-mobile) 0;
+  background: var(--corp-bg);
+}
+@media (min-width: 1024px) {
+  .hero {
+    padding: var(--corp-space-24) 0;
+  }
+}
+.heroGrid {
+  display: grid;
+  gap: var(--corp-space-8);
+  align-items: center;
+}
+@media (min-width: 1024px) {
+  .heroGrid {
+    grid-template-columns: 1fr 1fr;
+    gap: var(--corp-space-16);
+  }
+}
+.heroContent h1 {
+  font-size: var(--corp-text-3xl);
+  letter-spacing: -0.02em;
+}
+.heroLead {
+  max-width: var(--corp-max-width-narrow);
+  margin: var(--corp-space-6) 0 0;
+  font-size: var(--corp-text-lg);
+  line-height: 1.7;
+  color: var(--corp-ink-muted);
+}
+.heroActions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--corp-space-3);
+  margin-top: var(--corp-space-8);
+}
+.heroActions a {
+  width: 100%;
+}
+@media (min-width: 640px) {
+  .heroActions {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .heroActions a {
+    width: auto;
+  }
+}
+.heroTrust {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--corp-space-2);
+  margin: var(--corp-space-6) 0 0;
+  font-size: var(--corp-text-xs);
+  color: var(--corp-ink-muted);
+  line-height: 1.6;
+}
+.heroTrust svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--corp-gold-text);
+}
+.heroVisual {
+  min-width: 0;
+}
+.heroFrame {
+  overflow: hidden;
+  border: 1px solid var(--corp-border);
+  border-radius: var(--corp-radius-lg);
+  box-shadow: var(--corp-shadow-card);
+  background: var(--corp-bg-subtle);
+}
+.heroCaption {
+  margin: var(--corp-space-3) 0 0;
+  font-size: var(--corp-text-xs);
+  color: var(--corp-gray-600);
+  text-align: center;
+}
+
+/* ── Franja de hechos verificables ────────────────────────────────────── */
+.trustStrip {
+  background: var(--corp-bg-subtle);
+  border-top: 1px solid var(--corp-border);
+  border-bottom: 1px solid var(--corp-border);
+  padding: var(--corp-space-8) 0;
+}
+.trustStripLead {
+  margin: 0 0 var(--corp-space-6);
+  font-weight: var(--corp-weight-medium);
+}
+.trustGrid {
+  display: flex;
+  flex-direction: column;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.trustItem {
+  display: flex;
+  align-items: center;
+  gap: var(--corp-space-3);
+  padding: var(--corp-space-4) 0;
+  border-top: 1px solid var(--corp-border);
+  font-size: var(--corp-text-sm);
+  font-weight: var(--corp-weight-medium);
+}
+.trustItem:first-child {
+  border-top: none;
+}
+.trustItem svg {
+  flex-shrink: 0;
+  color: var(--corp-gold-text);
+}
+@media (min-width: 768px) {
+  .trustGrid {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--corp-space-4);
+  }
+  .trustItem {
+    border-top: none;
+    padding: 0;
+    flex: 1 1 auto;
+  }
+}
+
+/* ── Beneficios ───────────────────────────────────────────────────────── */
+.benefitsGrid {
+  display: grid;
+  gap: var(--corp-space-6);
+  grid-template-columns: 1fr;
+}
+@media (min-width: 768px) {
+  .benefitsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1024px) {
+  .benefitsGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.benefitCard {
+  padding: var(--corp-space-6);
+  border: 1px solid var(--corp-border);
+  border-radius: var(--corp-radius-lg);
+  background: var(--corp-surface);
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+.benefitCard:hover {
+  box-shadow: var(--corp-shadow-hover);
+  border-color: var(--corp-gold);
+}
+.benefitIcon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--corp-radius-md);
+  background: var(--corp-gold-soft);
+  color: var(--corp-gold-text);
+  margin-bottom: var(--corp-space-4);
+}
+.benefitCard h3 {
+  font-size: var(--corp-text-lg);
+  margin-bottom: var(--corp-space-2);
+}
+.benefitCard p {
+  margin: 0;
+  color: var(--corp-ink-muted);
+  font-size: var(--corp-text-sm);
+  line-height: 1.7;
+}
+
+/* ── Módulos (acordeón por grupo, sin JS) ─────────────────────────────── */
+.modulesGroup {
+  border-top: 1px solid var(--corp-border);
+}
+.modulesGroup:last-of-type {
+  border-bottom: 1px solid var(--corp-border);
+}
+.modulesSummary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--corp-space-4);
+  padding: var(--corp-space-6) 0;
+  min-height: 44px;
+  font-size: var(--corp-text-xl);
+  font-weight: var(--corp-weight-heading);
+  cursor: pointer;
+  list-style: none;
+}
+.modulesSummary::-webkit-details-marker {
+  display: none;
+}
+.modulesSummary svg {
+  flex-shrink: 0;
+  color: var(--corp-gold-text);
+  transition: transform 0.2s;
+}
+.modulesGroup[open] .modulesSummary svg {
+  transform: rotate(180deg);
+}
+.moduleGrid {
+  display: grid;
+  gap: var(--corp-space-4);
+  grid-template-columns: repeat(auto-fit, minmax(15.5rem, 1fr));
+  padding-bottom: var(--corp-space-8);
+}
+.moduleCard {
+  padding: var(--corp-space-6);
+  border: 1px solid var(--corp-border);
+  border-radius: var(--corp-radius-lg);
+  background: var(--corp-surface);
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+.moduleCard:hover {
+  box-shadow: var(--corp-shadow-hover);
+  border-color: var(--corp-gold);
+}
+.moduleIcon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--corp-radius-sm);
+  background: var(--corp-gray-100);
+  color: var(--corp-ink);
+  margin-bottom: var(--corp-space-4);
+}
+.moduleCard h3 {
+  font-size: var(--corp-text-base);
+  font-weight: var(--corp-weight-heading);
+  margin: 0 0 var(--corp-space-2);
+}
+.moduleCard p {
+  margin: 0;
+  font-size: var(--corp-text-sm);
+  color: var(--corp-ink-muted);
+  line-height: 1.7;
+}
+.modulesNote {
+  margin: var(--corp-space-6) 0 0;
+  font-size: var(--corp-text-xs);
+  color: var(--corp-gray-600);
+}
+
+/* ── Cumplimiento SII y seguridad ─────────────────────────────────────── */
+.complianceWrap {
+  background: var(--corp-bg-subtle);
+}
+/* El segundo bloque (seguridad) no repite el padding superior: ambos
+   comparten la misma franja, sin una costura visible entre los dos. */
+.securitySection {
+  padding-top: 0;
+}
+.pointsList,
+.securityGrid {
+  display: grid;
+  gap: var(--corp-space-4);
+  grid-template-columns: 1fr;
+  list-style: none;
+  margin: var(--corp-space-8) 0 0;
+  padding: 0;
+}
+@media (min-width: 768px) {
+  .pointsList {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .securityGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1024px) {
+  .securityGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.pointItem,
+.securityCard {
+  display: flex;
+  gap: var(--corp-space-3);
+  padding: var(--corp-space-4);
+  background: var(--corp-surface);
+  border: 1px solid var(--corp-border);
+  border-radius: var(--corp-radius-lg);
+}
+.securityCard {
+  flex-direction: column;
+  gap: var(--corp-space-3);
+}
+.pointIcon,
+.securityIcon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--corp-radius-sm);
+  background: var(--corp-gold-soft);
+  color: var(--corp-gold-text);
+}
+.pointItem strong,
+.securityCard h3 {
+  display: block;
+  font-size: var(--corp-text-sm);
+  font-weight: var(--corp-weight-heading);
+  margin-bottom: var(--corp-space-1);
+}
+.pointItem p,
+.securityCard p {
+  margin: 0;
+  font-size: var(--corp-text-sm);
+  color: var(--corp-ink-muted);
+  line-height: 1.7;
+}
+.scopeNotice {
+  display: flex;
+  gap: var(--corp-space-3);
+  align-items: flex-start;
+  margin-top: var(--corp-space-8);
+  padding: var(--corp-space-6);
+  background: var(--corp-surface);
+  border: 1px solid var(--corp-gold);
+  border-radius: var(--corp-radius-lg);
+}
+.scopeNotice svg {
+  flex-shrink: 0;
+  color: var(--corp-gold-text);
+  margin-top: 2px;
+}
+.scopeNotice p {
+  margin: 0;
+  font-size: var(--corp-text-sm);
+  line-height: 1.7;
+  color: var(--corp-ink);
+}
+
+/* ── Cómo se implementa ───────────────────────────────────────────────── */
+.stepsRow {
+  display: grid;
+  gap: var(--corp-space-6);
+  grid-template-columns: 1fr;
+  list-style: none;
+  margin: var(--corp-space-8) 0 0;
+  padding: 0;
+  counter-reset: step;
+}
+@media (min-width: 768px) {
+  .stepsRow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1024px) {
+  .stepsRow {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.stepItem {
+  padding: var(--corp-space-6);
+  border: 1px solid var(--corp-border);
+  border-radius: var(--corp-radius-lg);
+  background: var(--corp-surface);
+}
+.stepTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--corp-space-4);
+}
+.stepIcon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--corp-radius-sm);
+  background: var(--corp-gold-soft);
+  color: var(--corp-gold-text);
+}
+.stepIndex {
+  font-size: var(--corp-text-xs);
+  color: var(--corp-gray-600);
+  font-variant-numeric: tabular-nums;
+}
+.stepItem h3 {
+  font-size: var(--corp-text-base);
+  margin: 0 0 var(--corp-space-2);
+}
+.stepItem p {
+  margin: 0;
+  font-size: var(--corp-text-sm);
+  color: var(--corp-ink-muted);
+  line-height: 1.7;
+}
+.implementationClosing {
+  max-width: var(--corp-max-width-narrow);
+  margin: var(--corp-space-8) 0 0;
+  font-size: var(--corp-text-sm);
+  color: var(--corp-ink-muted);
+  line-height: 1.7;
+}
+
+/* ── Certámenes y eventos ─────────────────────────────────────────────── */
+.chipGrid {
+  display: grid;
+  gap: var(--corp-space-4);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: var(--corp-space-8) 0 0;
+}
+@media (min-width: 768px) {
+  .chipGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.chip {
+  padding: var(--corp-space-4);
+  border: 1px solid var(--corp-border);
+  border-radius: var(--corp-radius-md);
+  background: var(--corp-surface);
+  min-width: 0;
+}
+.chipIcon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--corp-radius-sm);
+  background: var(--corp-gray-100);
+  color: var(--corp-ink);
+  margin-bottom: var(--corp-space-3);
+}
+.chip strong {
+  display: block;
+  font-size: var(--corp-text-sm);
+  font-weight: var(--corp-weight-heading);
+  margin-bottom: var(--corp-space-1);
+}
+.chip p {
+  margin: 0;
+  font-size: var(--corp-text-xs);
+  color: var(--corp-ink-muted);
+  line-height: 1.6;
+}
+
+/* ── Preguntas frecuentes ─────────────────────────────────────────────── */
+.faqList {
+  margin: var(--corp-space-8) 0 0;
+}
+.faqList details {
+  border-bottom: 1px solid var(--corp-border);
+}
+.faqList details:first-child {
+  border-top: 1px solid var(--corp-border);
+}
+.faqList summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--corp-space-4);
+  min-height: 44px;
+  padding: var(--corp-space-4) 0;
+  font-size: var(--corp-text-sm);
+  font-weight: var(--corp-weight-medium);
+  cursor: pointer;
+  list-style: none;
+}
+.faqList summary::-webkit-details-marker {
+  display: none;
+}
+.faqList summary svg {
+  flex-shrink: 0;
+  color: var(--corp-gray-600);
+  transition: transform 0.2s;
+}
+.faqList details[open] summary svg {
+  transform: rotate(180deg);
+}
+.faqList details > p {
+  margin: 0;
+  padding: 0 var(--corp-space-6) var(--corp-space-4) 0;
+  font-size: var(--corp-text-sm);
+  color: var(--corp-ink-muted);
+  line-height: 1.75;
+}
+
+/* ── Franja de llamado a la acción (única franja oscura) ──────────────── */
+.ctaBand {
+  background: var(--corp-ink);
+  color: #ffffff;
+  padding: var(--corp-space-16) 0;
+  text-align: center;
+}
+.ctaBand h2 {
+  font-size: var(--corp-text-2xl);
+  color: #ffffff;
+}
+.ctaBand p {
+  max-width: var(--corp-max-width-narrow);
+  margin: var(--corp-space-4) auto 0;
+  color: #cbced5;
+  font-size: var(--corp-text-lg);
+}
+.ctaBand a {
+  margin-top: var(--corp-space-8);
+}
+
+/* ── Formulario de cotización (envuelve SalesContact) ───────────────────
+   `SalesContact` ya trae su propio `<section id="cotizar">` con el padding
+   vertical de `landing.module.css` (`.section`); acá solo se sobreescriben
+   las variables de color que consume, no el layout. */
+/**
+ * Variables que consume `landing.module.css` dentro de `SalesContact`
+ * (--ink, --muted, --h2-lg): al definirlas acá con los tokens de esta página,
+ * el formulario se reutiliza tal cual (misma lógica de envío) y hereda el
+ * tono corporativo sin fork del componente. El resto de sus colores ya son
+ * neutros/claros y calzan sin ajuste.
+ */
+.formVariant {
+  --ink: var(--corp-ink);
+  --muted: var(--corp-ink-muted);
+  --h2-lg: var(--corp-text-2xl);
+}
+
+/* ── Pie de página ────────────────────────────────────────────────────────
+   Único fondo del footer es claro a propósito: la banda de CTA (3.10) es la
+   ÚNICA franja oscura de toda la página (ver checklist del brief §7). */
+.footer {
+  background: var(--corp-bg-subtle);
+  color: var(--corp-ink);
+  border-top: 1px solid var(--corp-border);
+  padding: var(--corp-space-16) 0 var(--corp-space-8);
+}
+.footerGrid {
+  display: grid;
+  gap: var(--corp-space-8);
+  grid-template-columns: 1fr;
+}
+@media (min-width: 640px) {
+  .footerGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1024px) {
+  .footerGrid {
+    grid-template-columns: 1.4fr repeat(3, minmax(0, 1fr));
+  }
+}
+.footerBrand img {
+  height: 26px;
+  width: auto;
+}
+.footerBrand p {
+  margin: var(--corp-space-4) 0 0;
+  max-width: 26rem;
+  font-size: var(--corp-text-sm);
+  color: var(--corp-ink-muted);
+  line-height: 1.7;
+}
+.footerCol h3 {
+  font-size: var(--corp-text-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--corp-ink);
+  margin-bottom: var(--corp-space-4);
+}
+.footerCol ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--corp-space-3);
+}
+.footerCol a {
+  font-size: var(--corp-text-sm);
+  color: var(--corp-ink-muted);
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+.footerCol a:hover {
+  color: var(--corp-gold-text);
+}
+.footerBottom {
+  display: flex;
+  flex-direction: column;
+  gap: var(--corp-space-2);
+  margin-top: var(--corp-space-12);
+  padding-top: var(--corp-space-6);
+  border-top: 1px solid var(--corp-border);
+  font-size: var(--corp-text-xs);
+  color: var(--corp-gray-600);
+}
+@media (min-width: 768px) {
+  .footerBottom {
+    flex-direction: row;
+    justify-content: space-between;
+  }
+}
