@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 jest.mock('@/modules/accounting/services/chart-setup.service', () => ({ ensureChartOfAccounts: jest.fn() }));
 jest.mock('@/modules/workspace/services/workspace.service', () => ({ setDisabledNavItems: jest.fn() }));
 
-import { createTenant } from '@/modules/platform/services/platform.service';
+import { createTenant, grantCompanyMembership } from '@/modules/platform/services/platform.service';
 import { companyCreateSchema } from '@/modules/platform/schema';
 import type { CompanyCreateInput } from '@/modules/platform/schema';
 import { DEFAULT_FEATURES } from '@/lib/auth/modules';
@@ -40,7 +40,7 @@ afterEach(() => jest.restoreAllMocks());
 describe('createTenant con un correo que ya tiene cuenta', () => {
   it('vincula al usuario existente como Dueño y activa multiempresa, sin crear otro usuario', async () => {
     jest.spyOn(prisma.company, 'findUnique').mockResolvedValue(null);
-    jest.spyOn(prisma.user, 'findUnique').mockResolvedValue({ id: 'u1', companyId: 'c1' } as never);
+    jest.spyOn(prisma.user, 'findFirst').mockResolvedValue({ id: 'u1', companyId: 'c1' } as never);
     const tx = mockTransaction();
 
     const result = await createTenant(base);
@@ -54,7 +54,7 @@ describe('createTenant con un correo que ya tiene cuenta', () => {
 
   it('un correo nuevo sigue creando la cuenta, y exige contraseña inicial', async () => {
     jest.spyOn(prisma.company, 'findUnique').mockResolvedValue(null);
-    jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(null);
+    jest.spyOn(prisma.user, 'findFirst').mockResolvedValue(null);
     const tx = mockTransaction();
 
     await expect(createTenant(base)).rejects.toThrow('Ingresa la contraseña inicial del administrador');
@@ -68,7 +68,7 @@ describe('createTenant con un correo que ya tiene cuenta', () => {
 
   it('una cuenta de plataforma sin empresa no se puede usar como administrador', async () => {
     jest.spyOn(prisma.company, 'findUnique').mockResolvedValue(null);
-    jest.spyOn(prisma.user, 'findUnique').mockResolvedValue({ id: 'sa', companyId: null } as never);
+    jest.spyOn(prisma.user, 'findFirst').mockResolvedValue({ id: 'sa', companyId: null } as never);
     const tx = mockTransaction();
 
     await expect(createTenant(base)).rejects.toThrow('cuenta de plataforma sin empresa');
@@ -79,5 +79,22 @@ describe('createTenant con un correo que ya tiene cuenta', () => {
     const input = { ...base, rut: '76.086.428-5' };
     expect(companyCreateSchema.safeParse({ ...input, adminPassword: '' }).success).toBe(true);
     expect(companyCreateSchema.safeParse({ ...input, adminPassword: 'corta' }).success).toBe(false);
+  });
+});
+
+describe('grantCompanyMembership (superadmin)', () => {
+  it('busca el correo sin distinguir mayúsculas y enciende multiempresa en la empresa', async () => {
+    const findFirst = jest.spyOn(prisma.user, 'findFirst').mockResolvedValue({ id: 'u1', name: 'Pancho', email: 'Pancho@Gmail.com', companyId: 'home' } as never);
+    const tx = {
+      companyMembership: { upsert: jest.fn(async () => ({ id: 'm1', role: 'ADMIN', createdAt: new Date() })) },
+      companyFeatures: { upsert: jest.fn() },
+    };
+    jest.spyOn(prisma, '$transaction').mockImplementation((async (fn: (client: typeof tx) => unknown) => fn(tx)) as never);
+
+    const result = await grantCompanyMembership('filial', 'pancho@gmail.com', 'ADMIN');
+
+    expect(findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { email: { equals: 'pancho@gmail.com', mode: 'insensitive' } } }));
+    expect(tx.companyFeatures.upsert).toHaveBeenCalledWith(expect.objectContaining({ where: { companyId: 'filial' }, update: { hasMultiCompany: true } }));
+    expect(result.userEmail).toBe('Pancho@Gmail.com');
   });
 });

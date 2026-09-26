@@ -1,7 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { getImageProps } from 'next/image';
-import { ArrowDown, ArrowUpRight } from 'lucide-react';
+import { ArrowDown, ArrowUpRight, Building2 } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import manifest from '../../../../public/marketing/cinematic/seq/manifest.json';
 import { isLightweightDevice } from './device';
@@ -101,6 +102,11 @@ export default function CinematicSequence() {
               <a className={s.primary} href="#cotizar" data-magnetic>Quiero conocer Aether <ArrowUpRight size={18} aria-hidden="true" /></a>
               <a className={s.secondary} href="#como-funciona">Ver cómo funciona <ArrowDown size={17} aria-hidden="true" /></a>
             </div>
+            <Link className={s.corporate} href="/empresas">
+              <Building2 size={16} aria-hidden="true" />
+              <span>¿Evalúas Aether para tu empresa? <strong>Ver la versión corporativa</strong></span>
+              <ArrowUpRight size={15} aria-hidden="true" />
+            </Link>
           </div>
           {/* La numeración es decorativa: no es una secuencia de pasos. */}
           <ul className={s.facts}>

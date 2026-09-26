@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ArrowUpRight, Menu, X } from 'lucide-react';
+import { ArrowUpRight, Building2, Menu, X } from 'lucide-react';
 import StickyActions from '../StickyActions';
 import { isLightweightDevice } from './device';
 import { Cursor, Sky } from './LiveLayers';
@@ -218,6 +218,7 @@ export default function LandingShell({ className, children }: { className?: stri
             </a>
             <nav className={s.nav} aria-label="Navegación principal">
               {primaryNav.map(([href, label]) => <a key={href} href={href}>{label}</a>)}
+              <Link className={s.navCorporate} href="/empresas"><Building2 size={15} aria-hidden="true" />Para empresas</Link>
             </nav>
             <a className={s.headerCta} href="#cotizar">Cotización <ArrowUpRight size={15} aria-hidden="true" /></a>
             <Link className={s.headerLogin} href="/login">Ingresar <ArrowUpRight size={15} aria-hidden="true" /></Link>
@@ -235,6 +236,7 @@ export default function LandingShell({ className, children }: { className?: stri
           </div>
           <nav id="menu-landing-v2" className={s.menu} aria-label="Navegación móvil" hidden={!menuOpen} onClick={() => setMenuOpen(false)}>
             {menuNav.map(([href, label]) => <a key={href} href={href}>{label}</a>)}
+            <Link className={s.menuCorporate} href="/empresas"><Building2 size={17} aria-hidden="true" />Versión para empresas</Link>
             <Link href="/login">Ingresar al ERP</Link>
           </nav>
         </header>
