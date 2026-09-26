@@ -1,12 +1,12 @@
 'use server';
 
-import { headers } from 'next/headers';
 import { requireAuthWithPermission, authErrorMessage } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import * as calendarService from '../services/calendar.service';
 import * as remindersService from '../services/event-reminders.service';
 import type { CalendarFeedData } from '../schema';
+import { getAppUrl } from '@/lib/email/mailer';
 
 export type ActionResult<T> =
   | { success: true; data: T; message?: string }
@@ -19,11 +19,9 @@ function toErrorMessage(error: unknown): string {
   return toFriendlyErrorMessage(error);
 }
 
+/** Base de los enlaces del feed de calendario: el dominio de la plataforma, no el host con que se abrió el panel. */
 async function getOriginUrl(): Promise<string> {
-  const h = await headers();
-  const host = h.get('x-forwarded-host') || h.get('host') || 'localhost:3000';
-  const proto = h.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https');
-  return `${proto}://${host}`;
+  return getAppUrl();
 }
 
 /** Obtiene todos los eventos de certamen, pauta y cumpleaños para el panel y Google Calendar. */

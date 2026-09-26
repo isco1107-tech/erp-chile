@@ -37,6 +37,7 @@ import type { CustomRoleWithUsage } from '@/modules/roles/services/roles.service
 import { ROLES, ROLE_BADGE_CLASS, ROLE_LABELS } from '@/lib/auth/roles';
 
 import { useConfirm } from '@/components/ui/confirm-provider';
+import { publicUrl } from '@/lib/public-url';
 const selectClass =
   'h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30';
 
@@ -250,7 +251,7 @@ export default function TeamClient() {
   }
 
   function copyInviteLink(token: string) {
-    const url = `${window.location.origin}/accept-invitation?token=${token}`;
+    const url = publicUrl(`/accept-invitation?token=${token}`);
     navigator.clipboard.writeText(url);
     toast.success('Enlace de invitación copiado al portapapeles');
   }

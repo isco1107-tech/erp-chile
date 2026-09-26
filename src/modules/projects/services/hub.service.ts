@@ -298,7 +298,13 @@ export async function getPageantHub(companyId: string, projectId: string, featur
       registrationOpen: project.registrationStatus === 'OPEN',
       tickets: features.hasTicketing && project.ticketSalesToken ? `/tickets/${project.ticketSalesToken}` : null,
       voting: features.hasPublicVoting && project.voteSalesToken ? `/votar/${project.voteSalesToken}` : null,
-      site: project.publicSlug ? `/certamen/${project.publicSlug}` : null,
+      // Con dominio propio conectado, el enlace del sitio es ese dominio.
+      site:
+        project.customDomain && project.customDomainVerifiedAt
+          ? `https://${project.customDomain}`
+          : project.publicSlug
+            ? `/certamen/${project.publicSlug}`
+            : null,
     },
   };
 }

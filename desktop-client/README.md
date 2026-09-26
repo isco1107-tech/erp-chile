@@ -1,7 +1,7 @@
 # Aether ERP Desktop
 
 Tauri 2 desktop client for the hosted Aether ERP. The application opens
-`https://erp-tawny-iota.vercel.app/dashboard` in its own window, falling back to
+`https://aetherp.online/dashboard` in its own window, falling back to
 login when the session has expired. The `AetherDesktop` user agent also keeps
 root navigation inside the ERP. It requires internet
 access and an active ERP account; it is not an offline ERP server.

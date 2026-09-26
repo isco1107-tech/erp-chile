@@ -42,6 +42,7 @@ import type { JudgingProjectOption } from '@/modules/judging/services/judging.se
 import type { RoundResultRow } from '@/modules/judging/services/rounds.service';
 
 import { useConfirm } from '@/components/ui/confirm-provider';
+import { publicUrl } from '@/lib/public-url';
 const POLL_MS = 4000;
 
 const ROUND_STATUS_LABEL: Record<CompetitionRound['status'], string> = {
@@ -319,7 +320,7 @@ export default function JudgingDirectorClient({ canWrite }: { canWrite: boolean 
   }
 
   function copyJudgeLink(token: string) {
-    const url = `${window.location.origin}/judging/${token}`;
+    const url = publicUrl(`/judging/${token}`);
     navigator.clipboard.writeText(url);
     toast.success('Link del jurado copiado al portapapeles');
   }

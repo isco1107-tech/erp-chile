@@ -2,14 +2,15 @@
 
 import { useState } from 'react';
 import { Check, Copy, ExternalLink } from 'lucide-react';
+import { publicUrl } from '@/lib/public-url';
 
-/** Enlace público con copiar y abrir; arma la URL absoluta con el dominio actual. */
+/** Enlace público con copiar y abrir; arma la URL absoluta con el dominio de la plataforma (o usa tal cual una URL ya absoluta, como el dominio propio de un certamen). */
 export function PublicLinkRow({ label, path, hint }: { label: string; path: string; hint?: string }) {
   const [copied, setCopied] = useState(false);
 
   async function copy() {
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}${path}`);
+      await navigator.clipboard.writeText(publicUrl(path));
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1500);
     } catch {

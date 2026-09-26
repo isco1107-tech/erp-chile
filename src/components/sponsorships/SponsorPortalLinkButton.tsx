@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { getOrCreatePortalLinkAction, regeneratePortalLinkAction } from '@/modules/sponsorships/actions/sponsorships.actions';
 
 import { useConfirm } from '@/components/ui/confirm-provider';
+import { publicUrl } from '@/lib/public-url';
 /**
  * Botón para el equipo interno: genera (o reutiliza) el link del portal de la
  * marca y lo copia al portapapeles. El token nunca se muestra directo en la
@@ -18,7 +19,7 @@ export default function SponsorPortalLinkButton({ contractId }: { contractId: st
   const [busy, setBusy] = useState<'get' | 'regen' | null>(null);
 
   function portalUrl(portalToken: string): string {
-    return `${window.location.origin}/sponsors/${portalToken}`;
+    return publicUrl(`/sponsors/${portalToken}`);
   }
 
   async function handleCopy() {
