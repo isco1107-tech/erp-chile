@@ -35,7 +35,7 @@ export function CompanySwitcher({
     });
   }, []);
 
-  const canSwitch = companies !== null && companies.length > 1;
+  const canSwitch = companies !== null && companies.filter((c) => c.available).length > 1;
 
   return (
     <div className="relative">
@@ -64,7 +64,7 @@ export function CompanySwitcher({
             <button
               key={c.id}
               type="button"
-              disabled={c.isActive || pending}
+              disabled={c.isActive || !c.available || pending}
               onClick={() => {
                 setOpen(false);
                 startTransition(async () => {
@@ -79,6 +79,7 @@ export function CompanySwitcher({
             >
               <span className="truncate">{c.name}</span>
               {c.isActive && <span className="text-[10px] text-sidebar-primary">Actual</span>}
+              {!c.available && <span className="text-[10px] text-sidebar-foreground">Suspendida</span>}
             </button>
           ))}
         </div>

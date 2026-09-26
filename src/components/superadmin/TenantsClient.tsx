@@ -314,7 +314,9 @@ export default function TenantsClient() {
                     onChange={(e) => setForm((f) => ({ ...f, adminPassword: e.target.value }))}
                   />
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Mínimo 8 caracteres. Entrégasela por un canal seguro; el usuario nace con rol Dueño.
+                    Mínimo 8 caracteres. Entrégasela por un canal seguro; el usuario nace con rol Dueño. Si el correo ya
+                    tiene cuenta en otra empresa, deja este campo vacío: se vincula como Dueño con su contraseña actual y al
+                    iniciar sesión elige en qué empresa trabajar.
                   </p>
                 </div>
               </div>

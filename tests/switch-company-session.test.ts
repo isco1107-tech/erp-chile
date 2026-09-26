@@ -37,7 +37,7 @@ describe('switchActiveCompanyAction (SEG-05)', () => {
       id: 'u1', role: 'ADMIN', email: 'a@b.cl', companyId: 'home', isSuperAdmin: false, sessionVersion: 0,
     } as never);
     jest.spyOn(prisma.companyMembership, 'findUnique').mockResolvedValue({
-      company: { businessName: 'Filial', features: { hasMultiCompany: true } },
+      company: { businessName: 'Filial', status: 'ACTIVE', features: { hasMultiCompany: true } },
     } as never);
 
     await switchActiveCompanyAction('filial');
@@ -59,5 +59,33 @@ describe('switchActiveCompanyAction (SEG-05)', () => {
     expect(result).toEqual({ success: false, error: 'No tienes acceso a esa empresa' });
     expect(recordSession).not.toHaveBeenCalled();
     expect(revokeSessionByToken).not.toHaveBeenCalled();
+  });
+
+  it('no activa una empresa suspendida', async () => {
+    jest.spyOn(prisma.user, 'findUnique').mockResolvedValue({
+      id: 'u1', role: 'ADMIN', email: 'a@b.cl', companyId: 'home', isSuperAdmin: false, sessionVersion: 0,
+    } as never);
+    jest.spyOn(prisma.companyMembership, 'findUnique').mockResolvedValue({
+      company: { businessName: 'Filial', status: 'SUSPENDED', features: { hasMultiCompany: true } },
+    } as never);
+
+    const result = await switchActiveCompanyAction('filial');
+
+    expect(result).toEqual({ success: false, error: 'Esa empresa no está activa. Contacta a soporte' });
+    expect(recordSession).not.toHaveBeenCalled();
+  });
+
+  it('elegir la empresa en la que ya está entra directo, sin reemitir la sesión', async () => {
+    const { redirect } = jest.requireMock('next/navigation') as { redirect: jest.Mock };
+    redirect.mockImplementationOnce(() => {
+      throw new Error('NEXT_REDIRECT');
+    });
+    const findUser = jest.spyOn(prisma.user, 'findUnique');
+
+    await expect(switchActiveCompanyAction('home')).rejects.toThrow('NEXT_REDIRECT');
+
+    expect(redirect).toHaveBeenCalledWith('/dashboard');
+    expect(findUser).not.toHaveBeenCalled();
+    expect(recordSession).not.toHaveBeenCalled();
   });
 });

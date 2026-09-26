@@ -161,7 +161,9 @@ export const companyCreateSchema = z.object({
   // Primer usuario administrador del tenant. Sin él la empresa nace inaccesible.
   adminName: z.string().min(1, 'Ingrese el nombre del administrador'),
   adminEmail: z.string().email('Correo del administrador inválido'),
-  adminPassword: passwordPolicySchema,
+  // Opcional solo porque un correo que ya tiene cuenta se vincula con su
+  // contraseña actual; para una cuenta nueva `createTenant` la exige.
+  adminPassword: passwordPolicySchema.optional().or(z.literal('').transform(() => undefined)),
 });
 
 export type CompanyCreateInput = z.infer<typeof companyCreateSchema>;

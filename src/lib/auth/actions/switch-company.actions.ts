@@ -6,6 +6,8 @@ import { prisma } from '@/lib/prisma';
 import { getAuthContext, AuthError } from '@/lib/auth/guards';
 import { createSessionToken, setSessionCookieServer } from '@/lib/auth/session';
 import { toFeatureFlags } from '@/lib/auth/modules';
+import { isOperationalTenant } from '@/lib/auth/tenant-status';
+import { listAccessibleCompanies } from '@/lib/auth/accessible-companies';
 import { createAuditLog } from '@/lib/auth/audit';
 import { recordSession, revokeSessionByToken } from '@/lib/auth/sessions';
 import { captureException } from '@/lib/observability';
@@ -21,43 +23,33 @@ export interface SwitchableCompany {
   id: string;
   name: string;
   isHome: boolean;
+  /** Es la empresa en la que está trabajando ahora. */
   isActive: boolean;
+  /** `false` si está suspendida o cancelada: se muestra, pero no se puede elegir. */
+  available: boolean;
 }
 
 /**
- * Lista para el selector de empresa — separado de `getAuthContext()` a
- * propósito: esa función ya resuelve la empresa ACTIVA (para el resto del
- * sistema), esta resuelve TODAS las que el usuario podría activar, así que
- * consulta la base aparte en vez de sobrecargar el contexto de cada request.
+ * Lista para el selector de empresa (barra lateral y `/seleccionar-empresa`)
+ * — separado de `getAuthContext()` a propósito: esa función ya resuelve la
+ * empresa ACTIVA (para el resto del sistema), esta resuelve TODAS las que el
+ * usuario podría activar (`listAccessibleCompanies`, misma regla que guards).
  */
 export async function listSwitchableCompaniesAction(): Promise<ActionResult<SwitchableCompany[]>> {
   try {
     const session = await getAuthContext();
-
-    const user = await prisma.user.findUnique({
-      where: { id: session.id },
-      select: { companyId: true, company: { select: { id: true, businessName: true } } },
-    });
-    if (!user || !user.company) return { success: false, error: 'Sesión sin empresa asociada' };
-
-    const memberships = await prisma.companyMembership.findMany({
-      where: { userId: session.id },
-      include: { company: { select: { id: true, businessName: true, features: true } } },
-    });
-
-    const companies: SwitchableCompany[] = [
-      { id: user.company.id, name: user.company.businessName, isHome: true, isActive: session.companyId === user.company.id },
-    ];
-    for (const membership of memberships) {
-      if (!toFeatureFlags(membership.company.features).hasMultiCompany) continue;
-      companies.push({
-        id: membership.company.id,
-        name: membership.company.businessName,
-        isHome: false,
-        isActive: session.companyId === membership.company.id,
-      });
-    }
-    return { success: true, data: companies };
+    const companies = await listAccessibleCompanies(session.id);
+    if (companies.length === 0) return { success: false, error: 'Sesión sin empresa asociada' };
+    return {
+      success: true,
+      data: companies.map((company) => ({
+        id: company.id,
+        name: company.name,
+        isHome: company.isHome,
+        isActive: company.id === session.companyId,
+        available: company.operational,
+      })),
+    };
   } catch (error) {
     return { success: false, error: error instanceof AuthError ? error.message : 'No se pudo cargar la lista de empresas' };
   }
@@ -79,25 +71,44 @@ export async function listSwitchableCompaniesAction(): Promise<ActionResult<Swit
 export async function switchActiveCompanyAction(targetCompanyId: string): Promise<ActionResult<null>> {
   const session = await getAuthContext();
 
+  // Ya está trabajando en esa empresa (p. ej. la eligió en el selector del
+  // login y era la hogar): no hace falta reemitir la sesión ni auditar un cambio.
+  if (targetCompanyId === session.companyId) redirect('/dashboard');
+
   const user = await prisma.user.findUnique({
     where: { id: session.id },
-    select: { id: true, role: true, email: true, companyId: true, isSuperAdmin: true, sessionVersion: true },
+    select: {
+      id: true,
+      role: true,
+      email: true,
+      companyId: true,
+      isSuperAdmin: true,
+      sessionVersion: true,
+      company: { select: { businessName: true, status: true } },
+    },
   });
   if (!user) return { success: false, error: 'Sesión inválida o expirada' };
 
   let targetCompanyName: string | undefined;
+  let targetStatus = user.company?.status;
   let allowed = targetCompanyId === user.companyId;
   if (allowed) {
-    targetCompanyName = session.companyId === user.companyId ? session.companyName : undefined;
+    targetCompanyName = user.company?.businessName;
   } else {
     const membership = await prisma.companyMembership.findUnique({
       where: { userId_companyId: { userId: user.id, companyId: targetCompanyId } },
-      include: { company: { select: { businessName: true, features: true } } },
+      include: { company: { select: { businessName: true, status: true, features: true } } },
     });
     allowed = !!membership && toFeatureFlags(membership.company.features).hasMultiCompany;
     targetCompanyName = membership?.company.businessName;
+    targetStatus = membership?.company.status;
   }
   if (!allowed) return { success: false, error: 'No tienes acceso a esa empresa' };
+  // Una empresa suspendida no se puede activar: la sesión quedaría apuntando
+  // a ella y cada pantalla mandaría a /suspended.
+  if (!targetStatus || !isOperationalTenant(targetStatus)) {
+    return { success: false, error: 'Esa empresa no está activa. Contacta a soporte' };
+  }
 
   // SEG-07: la lista de IP se valida contra la empresa DESTINO antes de
   // emitir el token nuevo — cambiar de empresa no debe saltarse una política

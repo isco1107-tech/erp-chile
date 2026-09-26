@@ -154,18 +154,27 @@ export async function getTenant(companyId: string): Promise<TenantDetail | null>
  * Crea el tenant, sus feature flags, su bodega principal y su primer usuario
  * administrador en una sola transacción: una empresa a medio crear —sin usuario
  * o sin features— no sería accesible ni corregible desde la propia app.
+ *
+ * Si el correo del administrador ya tiene cuenta (dueño de otra empresa), no
+ * se crea un usuario nuevo —el correo es único—: se lo vincula como Dueño vía
+ * `CompanyMembership` y se activa `hasMultiCompany`, así entra con su misma
+ * contraseña y al iniciar sesión elige en qué empresa trabajar.
  */
-export async function createTenant(input: CompanyCreateInput): Promise<Company> {
+export async function createTenant(input: CompanyCreateInput): Promise<{ company: Company; linkedExistingUser: boolean }> {
   const rutClean = cleanRut(input.rut);
   const rut = formatRut(rutClean);
 
   const existingCompany = await prisma.company.findUnique({ where: { rut } });
   if (existingCompany) throw new Error('Ya existe una empresa registrada con ese RUT');
 
-  const existingUser = await prisma.user.findUnique({ where: { email: input.adminEmail } });
-  if (existingUser) throw new Error('Ya existe un usuario con ese correo electrónico');
+  const existingUser = await prisma.user.findUnique({ where: { email: input.adminEmail }, select: { id: true, companyId: true } });
+  if (existingUser && !existingUser.companyId) {
+    throw new Error('Ese correo es de una cuenta de plataforma sin empresa; usa otro correo para el administrador');
+  }
+  if (!existingUser && !input.adminPassword) throw new Error('Ingresa la contraseña inicial del administrador');
 
-  const passwordHash = await bcrypt.hash(input.adminPassword, 12);
+  const passwordHash = existingUser ? null : await bcrypt.hash(input.adminPassword!, 12);
+  const features = existingUser ? { ...input.features, hasMultiCompany: true } : input.features;
 
   const created = await prisma.$transaction(async (tx) => {
     const company = await tx.company.create({
@@ -177,7 +186,7 @@ export async function createTenant(input: CompanyCreateInput): Promise<Company> 
         planName: input.planName,
         maxUsers: input.maxUsers,
         maxWarehouses: input.maxWarehouses,
-        features: { create: input.features },
+        features: { create: features },
         // Sin esto, una empresa nueva quedaba sin `CompanySettings` hasta que
         // alguien guardara el formulario de Configuración por primera vez —
         // cualquier lectura que asumiera la fila existente (el wizard de
@@ -192,15 +201,19 @@ export async function createTenant(input: CompanyCreateInput): Promise<Company> 
       data: { companyId: company.id, name: 'Bodega Principal', code: 'PRINCIPAL', isDefault: true },
     });
 
-    await tx.user.create({
-      data: {
-        email: input.adminEmail,
-        passwordHash,
-        name: input.adminName,
-        role: 'OWNER',
-        companyId: company.id,
-      },
-    });
+    if (existingUser) {
+      await tx.companyMembership.create({ data: { userId: existingUser.id, companyId: company.id, role: 'OWNER' } });
+    } else {
+      await tx.user.create({
+        data: {
+          email: input.adminEmail,
+          passwordHash: passwordHash!,
+          name: input.adminName,
+          role: 'OWNER',
+          companyId: company.id,
+        },
+      });
+    }
 
     return company;
   });
@@ -209,7 +222,7 @@ export async function createTenant(input: CompanyCreateInput): Promise<Company> 
   // escrituras con su propio timeout extendido. Si falla, la empresa ya
   // existe igual y el plan se puede crear después desde la pantalla contable.
   if (input.features.hasAccounting) await ensureChartOfAccounts(created.id);
-  return created;
+  return { company: created, linkedExistingUser: Boolean(existingUser) };
 }
 
 export async function updateTenantPlan(companyId: string, input: CompanyPlanUpdateInput): Promise<Company> {
