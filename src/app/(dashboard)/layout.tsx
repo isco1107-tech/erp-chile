@@ -18,7 +18,6 @@ import LogoutButton from '@/components/LogoutButton';
 import CommandMenu from '@/components/shared/CommandMenu';
 import NotificationBell from '@/components/shared/NotificationBell';
 import MessagingBell from '@/components/shared/MessagingBell';
-import WhatsAppWebButton from '@/components/shared/WhatsAppWebButton';
 import HeaderAssistantButtons from '@/components/shared/HeaderAssistantButtons';
 import { MobileNavProvider, MobileNavToggle, MobileNavBackdrop, MobileNavDrawer } from '@/components/shared/MobileNav';
 import { SidebarNav } from '@/components/shared/SidebarNav';
@@ -215,7 +214,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
               <div className="flex-1" />
               <HowToUseButton />
               <HeaderAssistantButtons />
-              {allow('messaging:whatsapp_personal') && <WhatsAppWebButton />}
               {allow('messaging:use') && <MessagingBell />}
               <NotificationBell />
               <Link
