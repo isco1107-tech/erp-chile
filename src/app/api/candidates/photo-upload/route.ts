@@ -52,7 +52,10 @@ export async function POST(req: Request) {
     }
 
     const extension = EXTENSION_BY_TYPE[file.type];
-    const pathname = `candidates/${session.companyId}/${candidateId}-${Date.now()}.${extension}`;
+    // Auditoría 2026-09-27 (hallazgo A-5/SEG-04): el bucket sigue siendo
+    // público, pero la ruta ya no se puede adivinar por timestamp — agregar
+    // el bucket privado queda como decisión de producto pendiente.
+    const pathname = `candidates/${session.companyId}/${candidateId}-${Date.now()}-${crypto.randomUUID()}.${extension}`;
 
     const blob = await put(pathname, file, {
       access: 'public',
