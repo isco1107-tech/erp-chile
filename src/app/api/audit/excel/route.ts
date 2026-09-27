@@ -6,6 +6,7 @@ import { createAuditLog } from '@/lib/auth/audit';
 import * as auditService from '@/lib/services/audit.service';
 import { buildAuditLogWorkbook } from '@/lib/services/audit-workbook.service';
 import { captureException } from '@/lib/observability';
+import { startOfMonthSantiago } from '@/lib/chile/timezone';
 
 const AUDIT_ACTIONS: AuditAction[] = ['CREATE', 'UPDATE', 'DELETE', 'ISSUE_DTE', 'CANCEL_DTE', 'STOCK_ADJUSTMENT', 'EXPORT'];
 
@@ -16,7 +17,9 @@ const rangeSchema = z.object({
 
 function defaultRange(): { from: Date; to: Date } {
   const now = new Date();
-  return { from: new Date(now.getFullYear(), now.getMonth(), 1), to: now };
+  // Auditoría 2026-09-27 (hallazgo FIN-01/TRI-03): "este mes" en el
+  // calendario de Santiago, no en la hora local del proceso (UTC en producción).
+  return { from: startOfMonthSantiago(now), to: now };
 }
 
 const MAX_ROWS = 20000;

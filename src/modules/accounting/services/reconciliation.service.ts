@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { calculateAndStoreF29 } from '@/lib/chile/f29';
 import type { F29Result } from '@/lib/chile/f29';
+import { santiagoDateParts, santiagoMidnightUtc } from '@/lib/chile/timezone';
 import { getAccountBalance } from './ledger.service';
 import { REVENUE_DTE_TYPES } from '../posting-rules/sales-posting';
 
@@ -174,10 +175,15 @@ export interface ReconciliationResult {
  */
 export async function runReconciliationWithF29(companyId: string, options: RunReconciliationOptions = {}): Promise<ReconciliationResult> {
   const now = new Date();
-  const year = options.year ?? now.getUTCFullYear();
-  const month = options.month ?? now.getUTCMonth() + 1;
-  const periodFrom = new Date(Date.UTC(year, month - 1, 1));
-  const periodTo = new Date(Date.UTC(year, month, 1, 0, 0, 0, -1));
+  const currentSantiago = santiagoDateParts(now);
+  const year = options.year ?? currentSantiago.year;
+  const month = options.month ?? currentSantiago.month;
+  // Auditoría 2026-09-27 (hallazgo FIN-01/TRI-03): límites del período en el
+  // calendario de Santiago, igual que `f29.ts` — para que ambos lados de la
+  // cuadratura de IVA miren exactamente el mismo rango de fechas.
+  const [nextYear, nextMonth] = month === 12 ? [year + 1, 1] : [year, month + 1];
+  const periodFrom = santiagoMidnightUtc(year, month, 1);
+  const periodTo = new Date(santiagoMidnightUtc(nextYear, nextMonth, 1).getTime() - 1);
 
   const f29 = await calculateAndStoreF29(companyId, year, month);
 

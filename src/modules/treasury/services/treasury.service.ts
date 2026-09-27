@@ -9,6 +9,7 @@ import type {
   SalesDocument,
 } from '@prisma/client';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
+import { startOfMonthSantiago } from '@/lib/chile/timezone';
 import { postPurchasePaymentEntry, postSalesPaymentEntry } from '@/modules/accounting/posting-rules/treasury-posting';
 import { reverseDocumentEntries } from '@/modules/accounting/posting-rules/shared';
 import type { RegisterPaymentInput } from '../schema';
@@ -280,7 +281,10 @@ export interface CxCSummary {
 
 export async function getCxCSummary(companyId: string): Promise<CxCSummary> {
   const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  // Auditoría 2026-09-27 (hallazgo FIN-01/TRI-03): mes en curso según el
+  // calendario de Santiago, no la hora local del proceso (UTC en producción)
+  // — evitaba desfases de "cobrado este mes" cerca del cambio de mes.
+  const monthStart = startOfMonthSantiago(now);
 
   // Misma exclusión que `getContactOutstandingBalance`/`listReceivables`: sin
   // ella, una guía y la factura que la formaliza suman el doble de la misma

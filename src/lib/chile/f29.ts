@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { santiagoMidnightUtc } from './timezone';
 import { signForSalesDteType, signForPurchaseDocumentType, TAXABLE_SALES_DTE_TYPES, TAXABLE_PURCHASE_DOCUMENT_TYPES } from './document-sign';
 
 export interface F29Result {
@@ -15,13 +16,22 @@ export interface F29Result {
   honorariumRetentionAmount: number;
 }
 
-function periodBounds(year: number, month: number): { from: Date; to: Date } {
+/**
+ * Auditoría 2026-09-27 (hallazgo FIN-01/TRI-03): los límites del período se
+ * calculan en el calendario de Santiago, no en UTC — un documento emitido el
+ * 1 de marzo temprano en Chile todavía cae en UTC a fines de febrero, y
+ * quedaba fuera del F29 de marzo (o adentro del de febrero).
+ *
+ * Exportada para poder testear los límites sin necesitar una base de datos.
+ */
+export function periodBounds(year: number, month: number): { from: Date; to: Date } {
   if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
     throw new Error('Período F29 inválido');
   }
+  const [nextYear, nextMonth] = month === 12 ? [year + 1, 1] : [year, month + 1];
   return {
-    from: new Date(Date.UTC(year, month - 1, 1)),
-    to: new Date(Date.UTC(year, month, 1)),
+    from: santiagoMidnightUtc(year, month, 1),
+    to: santiagoMidnightUtc(nextYear, nextMonth, 1),
   };
 }
 

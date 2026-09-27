@@ -1,4 +1,5 @@
 import type { Account, JournalEntry, JournalLine, JournalSourceType, Prisma } from '@prisma/client';
+import { santiagoDateParts } from '@/lib/chile/timezone';
 
 /**
  * Motor de asientos contables.
@@ -65,10 +66,17 @@ export function validateLinesShape(lines: JournalLineInput[]): void {
   }
 }
 
-/** Busca el período contable de la fecha del asiento, o lo abre si es la primera vez que se usa ese mes. */
+/**
+ * Busca el período contable de la fecha del asiento, o lo abre si es la
+ * primera vez que se usa ese mes.
+ *
+ * Auditoría 2026-09-27 (hallazgo FIN-01/TRI-03): el mes se resuelve en el
+ * calendario de Santiago, no en UTC — un asiento del 1 de marzo a primera
+ * hora de Chile cae en UTC todavía a fines de febrero, y quedaba abierto
+ * (y numerado) en el período equivocado.
+ */
 async function resolveOpenPeriod(tx: TxClient, companyId: string, date: Date): Promise<{ id: string }> {
-  const year = date.getUTCFullYear();
-  const month = date.getUTCMonth() + 1;
+  const { year, month } = santiagoDateParts(date);
 
   const period = await tx.accountingPeriod.upsert({
     where: { companyId_year_month: { companyId, year, month } },
@@ -120,7 +128,9 @@ export async function createEntry(tx: TxClient, input: CreateEntryInput): Promis
   const period = await resolveOpenPeriod(tx, input.companyId, input.date);
   await validateAccounts(tx, input.companyId, input.lines);
 
-  const year = input.date.getUTCFullYear();
+  // Mismo criterio que `resolveOpenPeriod`: el año del correlativo es el de
+  // Santiago, para que coincida con el período contable recién resuelto.
+  const { year } = santiagoDateParts(input.date);
   const entryNumber = await nextEntryNumber(tx, input.companyId, year);
 
   return tx.journalEntry.create({
