@@ -26,7 +26,10 @@ export async function GET(req: Request) {
 
     const buffer = await renderCandidateContractPdf(session.companyId, candidateId);
 
-    const pathname = `candidates/${session.companyId}/contracts/${candidateId}-${Date.now()}.pdf`;
+    // Auditoría 2026-09-27 (hallazgo A-5/SEG-04): el bucket sigue siendo
+    // público, pero la ruta ya no se puede adivinar por timestamp — agregar
+    // el bucket privado queda como decisión de producto pendiente.
+    const pathname = `candidates/${session.companyId}/contracts/${candidateId}-${Date.now()}-${crypto.randomUUID()}.pdf`;
     const blob = await put(pathname, buffer, { access: 'public', contentType: 'application/pdf', addRandomSuffix: false });
 
     const document = await upsertGeneratedContract(session.companyId, candidateId, blob.url);

@@ -13,6 +13,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { KpiCard } from '@/components/ui/KpiCard';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { EmptyState } from '@/components/ui/EmptyState';
+import WhatsAppButton from '@/components/shared/WhatsAppButton';
 import { useConfirm } from '@/components/ui/confirm-provider';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { formatCurrency } from '@/lib/chile/tax';
@@ -112,6 +113,7 @@ export default function EmployeeProfileClient({ profile, canWrite, canClose }: P
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge tone={employee.status === 'ACTIVE' ? 'success' : 'neutral'}>{employee.status === 'ACTIVE' ? 'Vigente' : `Término ${formatDate(employee.terminationDate)}`}</StatusBadge>
+            <WhatsAppButton phone={employee.phone} name={employee.fullName} />
             <Link href={`/dashboard/hr/employees/${employee.id}/documentos?tipo=contrato`} className={buttonVariants({ variant: 'outline', size: 'sm' })}>
               <FileText className="size-4" aria-hidden="true" /> Contrato
             </Link>

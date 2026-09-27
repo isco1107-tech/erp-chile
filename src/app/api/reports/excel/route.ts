@@ -10,6 +10,7 @@ import { createAuditLog } from '@/lib/auth/audit';
 import { buildReportDataset } from '@/modules/reports/services/dataset.service';
 import { buildWorkbook } from '@/modules/reports/services/workbook.service';
 import { captureException } from '@/lib/observability';
+import { startOfMonthSantiago } from '@/lib/chile/timezone';
 
 const rangeSchema = z.object({
   from: z.coerce.date(),
@@ -18,8 +19,10 @@ const rangeSchema = z.object({
 
 function defaultRange(): { from: Date; to: Date } {
   const now = new Date();
+  // Auditoría 2026-09-27 (hallazgo FIN-01/TRI-03): "este mes" en el
+  // calendario de Santiago, no en la hora local del proceso (UTC en producción).
   return {
-    from: new Date(now.getFullYear(), now.getMonth(), 1),
+    from: startOfMonthSantiago(now),
     to: now,
   };
 }

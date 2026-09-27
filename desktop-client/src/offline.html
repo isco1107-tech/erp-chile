@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Aether — Sin conexión</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    background: #12161f;
+    color: #f5f1e6;
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .titlebar {
+    height: 36px;
+    width: 100%;
+    -webkit-app-region: drag;
+  }
+  .wrap {
+    height: calc(100% - 36px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    text-align: center;
+    padding: 0 32px;
+  }
+  .wrap img {
+    width: 52px;
+    height: 52px;
+    object-fit: contain;
+    opacity: 0.9;
+  }
+  h1 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 8px 0 0;
+  }
+  p {
+    font-size: 14px;
+    color: #b7b2a4;
+    margin: 0;
+    max-width: 360px;
+    line-height: 1.5;
+  }
+  button {
+    margin-top: 10px;
+    padding: 10px 22px;
+    border-radius: 8px;
+    border: 1px solid #dbc076;
+    background: transparent;
+    color: #dbc076;
+    font-size: 14px;
+    cursor: pointer;
+    -webkit-app-region: no-drag;
+  }
+  button:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  button:hover:not(:disabled) {
+    background: rgba(219, 192, 118, 0.1);
+  }
+  .status {
+    font-size: 12px;
+    color: #8b8779;
+    min-height: 16px;
+  }
+</style>
+</head>
+<body>
+  <div class="titlebar"></div>
+  <div class="wrap">
+    <img src="assets/aether-mark.png" alt="Aether" />
+    <h1>Sin conexión a internet</h1>
+    <p>Aether necesita conexión para trabajar. Apenas vuelva la conexión, la app se reconecta sola — no hace falta que hagas nada.</p>
+    <button id="retry">Reintentar ahora</button>
+    <div class="status" id="status"></div>
+  </div>
+  <script src="network-check.js"></script>
+  <script>
+    const statusEl = document.getElementById('status');
+    const button = document.getElementById('retry');
+    let checking = false;
+
+    async function attempt(manual) {
+      if (checking) return;
+      checking = true;
+      if (manual) {
+        button.disabled = true;
+        statusEl.textContent = 'Comprobando conexión…';
+      }
+      const reachable = await probeConnectivity(4000);
+      if (reachable) {
+        await switchWindow('app');
+        return;
+      }
+      if (manual) {
+        statusEl.textContent = 'Seguimos sin conexión. Reintentando automáticamente…';
+        button.disabled = false;
+      }
+      checking = false;
+    }
+
+    button.addEventListener('click', () => attempt(true));
+    attempt(false);
+    setInterval(() => attempt(false), 4000);
+  </script>
+</body>
+</html>

@@ -4,6 +4,7 @@ import { buildMonthlyClosingEmail } from '@/lib/email/templates';
 import { createAuditLog } from '@/lib/auth/audit';
 import { runReconciliationWithF29 } from './reconciliation.service';
 import { captureException } from '@/lib/observability';
+import { addMonthsSantiago, santiagoDateParts } from '@/lib/chile/timezone';
 
 const OPERATIONAL_STATUSES = ['ACTIVE', 'TRIAL'] as const;
 
@@ -25,10 +26,9 @@ const OPERATIONAL_STATUSES = ['ACTIVE', 'TRIAL'] as const;
  */
 export async function runMonthlyClosingCron(): Promise<{ processedCompanies: number; emailsSent: number }> {
   const now = new Date();
-  // Cierra el mes calendario anterior al que corre el cron.
-  const closingMonthDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
-  const year = closingMonthDate.getUTCFullYear();
-  const month = closingMonthDate.getUTCMonth() + 1;
+  // Cierra el mes calendario anterior al que corre el cron, en el calendario
+  // de Santiago (auditoría 2026-09-27, hallazgo FIN-01/TRI-03) — no en UTC.
+  const { year, month } = santiagoDateParts(addMonthsSantiago(now, -1));
 
   const companies = await prisma.company.findMany({
     where: { status: { in: [...OPERATIONAL_STATUSES] }, features: { hasDteBilling: true } },

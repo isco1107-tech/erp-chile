@@ -34,7 +34,10 @@ export async function GET(req: Request) {
 
     const buffer = await renderCommitmentLetterPdf(session.companyId, contractId);
 
-    const pathname = `sponsorships/${session.companyId}/agreements/${contractId}-${Date.now()}.pdf`;
+    // Auditoría 2026-09-27 (hallazgo A-5/SEG-04): el bucket sigue siendo
+    // público, pero la ruta ya no se puede adivinar por timestamp — agregar
+    // el bucket privado queda como decisión de producto pendiente.
+    const pathname = `sponsorships/${session.companyId}/agreements/${contractId}-${Date.now()}-${crypto.randomUUID()}.pdf`;
     const blob = await put(pathname, buffer, { access: 'public', contentType: 'application/pdf', addRandomSuffix: false });
 
     await prisma.sponsorshipContract.updateMany({

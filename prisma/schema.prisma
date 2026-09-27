@@ -224,6 +224,7 @@ model Company {
   fixedAssets               FixedAsset[]
   expenseReports            ExpenseReport[]
   expenseItems              ExpenseItem[]
+  mcpPersonalTokens         McpPersonalToken[]
 
   // El panel de plataforma agrupa por estado y por plan en cada carga.
   @@index([status])
@@ -331,6 +332,11 @@ model User {
   reviewedLeaveRequests            LeaveRequest[]            @relation("LeaveRequestReviewer")
   submittedExpenseReports          ExpenseReport[]           @relation("ExpenseReportSubmitter")
   reviewedExpenseReports           ExpenseReport[]           @relation("ExpenseReportReviewer")
+  /// Tokens personales para conectar un Claude/ChatGPT propio al servidor MCP
+  /// de la empresa (ver `McpPersonalToken`) — autoservicio, cada quien genera
+  /// y revoca los suyos, sin permiso especial más allá de que la empresa haya
+  /// activado el conector.
+  mcpPersonalTokens                McpPersonalToken[]
 
   @@index([companyId])
   @@index([customRoleId])
@@ -361,6 +367,31 @@ model UserSession {
 
   @@index([userId, revokedAt])
   @@index([companyId])
+}
+
+/// Token personal para conectar una IA propia (Claude, ChatGPT) al servidor
+/// MCP de la empresa (`/api/mcp`) — cada usuario genera y revoca los suyos
+/// desde su perfil, autoservicio, sin permiso especial más allá de que la
+/// empresa haya activado `CompanySettings.mcpConnectorEnabled`. Solo el HASH
+/// se guarda (mismo criterio que `PasswordResetToken`/`UserSession`): el
+/// token en claro se muestra una sola vez al crearlo y no se puede recuperar
+/// después. El servidor MCP revalida en cada llamada que la empresa siga con
+/// el conector activo y el usuario siga activo — revocar cualquiera de los
+/// dos corta el acceso de inmediato, sin tocar esta fila.
+model McpPersonalToken {
+  id         String    @id @default(cuid())
+  companyId  String
+  company    Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Nombre que la persona le da para reconocerlo en su lista ("Claude personal", "ChatGPT trabajo").
+  name       String
+  tokenHash  String    @unique
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+  revokedAt  DateTime?
+
+  @@index([companyId, userId])
 }
 
 /// Token de recuperación de contraseña.
@@ -574,6 +605,12 @@ model CompanySettings {
   /// dinero, por eso solo se edita con `settings:company`. El nombre termina
   /// en "Credential" para que el respaldo lo excluya por patrón.
   khipuApiCredential         String?
+  /// Interruptor de la empresa (OWNER/ADMIN, `settings:company`) para el
+  /// conector MCP — ver `McpPersonalToken`. `false` por defecto: nadie puede
+  /// generarse un token personal hasta que la empresa lo habilite, porque
+  /// conectar una IA personal saca datos de la empresa hacia la cuenta de
+  /// Anthropic/OpenAI de esa persona, fuera del control de la empresa.
+  mcpConnectorEnabled        Boolean      @default(false)
   createdAt                  DateTime     @default(now())
   updatedAt                  DateTime     @updatedAt
 }

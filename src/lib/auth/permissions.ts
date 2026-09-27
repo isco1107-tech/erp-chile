@@ -204,11 +204,6 @@ export const PERMISSIONS = {
   // vertical del negocio — todo el equipo puede usarla, mismo criterio que
   // contacts:read.
   'messaging:use': ALL_ROLES,
-  // Acceso a WhatsApp Web personal (ventana popup) desde el header — mismo
-  // criterio que otras acciones sensibles de administración (sales:cancel,
-  // purchases:approve): solo OWNER/ADMIN, nunca por chequeo de rol crudo en
-  // el componente (así un CustomRole equivalente también puede verlo).
-  'messaging:whatsapp_personal': ['OWNER', 'ADMIN'],
 } satisfies Record<string, Role[]>;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -217,6 +212,22 @@ export const ALL_PERMISSIONS = Object.keys(PERMISSIONS) as Permission[];
 
 export function isPermission(value: string): value is Permission {
   return Object.prototype.hasOwnProperty.call(PERMISSIONS, value);
+}
+
+/**
+ * Auditoría 2026-09-27 (hallazgo A-1/SEG-02/PER-01): antes de crear o
+ * editar un rol personalizado, o de crear/invitar a alguien con uno, hay que
+ * comprobar que ningún permiso solicitado exceda los del propio actor —
+ * salvo que sea OWNER, cuyos permisos efectivos ya son todos los que el plan
+ * de la empresa habilita (`resolvePermissions`), así el subconjunto siempre
+ * se cumple para él sin necesitar un caso especial. Sin este chequeo, quien
+ * tenía `settings:users` podía ampliarse permisos a sí mismo editando su
+ * propio rol, o crear una cuenta con más permisos de los que él tiene.
+ * Devuelve la lista de permisos que exceden al actor (vacía si ninguno).
+ */
+export function excessPermissions(requested: readonly string[], actorPermissions: readonly Permission[]): Permission[] {
+  const granted = new Set(actorPermissions);
+  return requested.filter(isPermission).filter((permission) => !granted.has(permission));
 }
 
 export function checkPermission(userRole: Role, requiredPermission: Permission): boolean {
@@ -317,7 +328,6 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'service:read': 'Ver órdenes de servicio técnico',
   'service:write': 'Recibir equipos, diagnosticar, presupuestar y entregar',
   'messaging:use': 'Usar la mensajería interna de la empresa',
-  'messaging:whatsapp_personal': 'Abrir WhatsApp Web personal desde el header del ERP',
 };
 
 /**
@@ -336,7 +346,6 @@ export const CORE_PERMISSION_GROUP = {
     'audit:read',
     'import:data',
     'messaging:use',
-    'messaging:whatsapp_personal',
   ] as Permission[],
 };
 
