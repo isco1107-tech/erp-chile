@@ -1,0 +1,6 @@
+{
+  "enabledMcpjsonServers": ["openrouter"],
+  "permissions": {
+    "allow": ["mcp__openrouter__openrouter_delegate"]
+  }
+}

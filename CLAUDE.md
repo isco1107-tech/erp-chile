@@ -139,6 +139,18 @@ Si el comando `graphify` existe y hay `graphify-out/graph.json` (se genera con `
 
 `graphify query "<pregunta>"` en lenguaje natural trae mucho ruido en este repo: preferir un símbolo concreto. El grafo solo orienta; antes de editar, leer el código real. Si el grafo no existe o está desactualizado, seguir con Grep/Read normalmente.
 
+---
+
+## 8. Delegar a OpenRouter para ahorrar tokens
+
+Si la herramienta `mcp__openrouter__openrouter_delegate` está disponible (servidor `scripts/mcp/openrouter-delegate.mjs`, declarado en `.mcp.json`; necesita `OPENROUTER_API_KEY` en el entorno), delegar a un modelo más barato **cuando el trabajo es voluminoso y mecánico** y lo que vuelve es corto:
+
+- **Sí delegar:** resumir o buscar algo en archivos/logs largos que solo hay que entender (no editar); primera pasada de listas repetitivas (textos del manual, traducciones, datos de prueba, fixtures, casos de prueba de funciones puras); borradores de documentación.
+- **Pasar rutas en `files`, nunca pegar el contenido en `task`:** el servidor lee los archivos y así no entran al contexto de Claude. Pedir respuesta breve y en formato exacto (lista, JSON, diff).
+- **Nunca delegar:** lógica tributaria (IVA, F29, DTE, CAF/TED, PMP), auth/permisos/multi-tenant, migraciones y esquema Prisma, ni la decisión final de un cambio. El servidor ya bloquea `.env*`, llaves y certificados; tampoco mandar datos reales de clientes.
+- **El resultado es un borrador:** revisarlo y verificarlo (tipos, tests) antes de aplicarlo. Si la tarea es chica o hay que editar el archivo de todas formas, hacerla directamente: delegar solo ahorra cuando evita leer mucho.
+
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know
