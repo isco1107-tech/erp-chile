@@ -1,0 +1,6 @@
+{
+  "enabledMcpjsonServers": ["model-delegate"],
+  "permissions": {
+    "allow": ["mcp__model-delegate__delegate_task"]
+  }
+}

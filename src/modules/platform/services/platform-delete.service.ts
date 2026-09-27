@@ -116,6 +116,8 @@ async function hardDeleteTenant(tx: Prisma.TransactionClient, companyId: string)
   await tx.inventoryCount.deleteMany({ where: { companyId } });
   await tx.inventoryLot.deleteMany({ where: { companyId } });
   await tx.productPackaging.deleteMany({ where: { companyId } });
+  // Archivo simple de facturas: antes que Contact (vínculo opcional) y User (quién la cargó).
+  await tx.archivedInvoice.deleteMany({ where: { companyId } });
   await tx.purchaseDocument.deleteMany({ where: { companyId } });
   await tx.journalEntry.deleteMany({ where: { companyId } });
   await tx.account.deleteMany({ where: { companyId } });

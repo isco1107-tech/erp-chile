@@ -139,6 +139,21 @@ Si el comando `graphify` existe y hay `graphify-out/graph.json` (se genera con `
 
 `graphify query "<pregunta>"` en lenguaje natural trae mucho ruido en este repo: preferir un símbolo concreto. El grafo solo orienta; antes de editar, leer el código real. Si el grafo no existe o está desactualizado, seguir con Grep/Read normalmente.
 
+---
+
+## 8. Delegar tareas mecánicas para ahorrar tokens
+
+Si la herramienta `mcp__model-delegate__delegate_task` está disponible (servidor `scripts/mcp/model-delegate.mjs`, declarado en `.mcp.json`), delegar a un modelo más barato **cuando el trabajo es voluminoso y mecánico** y lo que vuelve es corto. Claude sigue siendo el cerebro: decide qué delegar, revisa lo que vuelve y hace el trabajo delicado él mismo.
+
+- **Tres proveedores, todos por API compatible con OpenAI**, en este orden cuando hay más de uno configurado: NVIDIA (`NVIDIA_API_KEY`, catálogo gratuito en build.nvidia.com) → Gemini (`GEMINI_API_KEY`, de Google AI Studio) → OpenRouter (`OPENROUTER_API_KEY`, de pago, más variedad, respaldo). Sin ninguna clave en el entorno, la herramienta no aparece o responde con un error claro, y Claude sigue haciendo el trabajo él mismo.
+- **NVIDIA y OpenRouter: siempre el modelo más potente del catálogo.** Si no se fija `NVIDIA_MODEL` / `OPENROUTER_MODEL` (ni se pasa `model` en la llamada), el servidor consulta el catálogo del proveedor y elige automáticamente el modelo más grande —por parámetros en su nombre y, si no hay esa pista, por contexto o precio—. El ahorro de tokens de Claude no viene de usar un modelo débil, sino de que Claude no gasta su propio contexto leyendo o redactando lo voluminoso.
+- **Gemini es la excepción: SIEMPRE el modelo gratuito fijo, nunca autodetección.** La suscripción paga de Gemini (Google One / Gemini Advanced) no da créditos de API — la API se factura aparte con una key de Google AI Studio. Para no arriesgar un cobro sin que nadie lo pida, Gemini nunca elige "el más potente" del catálogo: usa siempre `GEMINI_MODEL` (por defecto el flash gratuito). Pasar a un modelo Pro de Gemini es una decisión explícita del desarrollador, fijando esa variable o `model` en la llamada, no algo que Claude decida solo.
+- **Sí delegar:** resumir o buscar algo en archivos/logs largos que solo hay que entender (no editar); primera pasada de listas repetitivas (textos del manual, traducciones, datos de prueba, fixtures, casos de prueba de funciones puras); borradores de documentación.
+- **Pasar rutas en `files`, nunca pegar el contenido en `task`:** el servidor lee los archivos y así no entran al contexto de Claude. Pedir respuesta breve y en formato exacto (lista, JSON, diff).
+- **Nunca delegar:** lógica tributaria (IVA, F29, DTE, CAF/TED, PMP), auth/permisos/multi-tenant, migraciones y esquema Prisma, ni la decisión final de un cambio. El servidor ya bloquea `.env*`, llaves y certificados; tampoco mandar datos reales de clientes.
+- **El resultado es un borrador:** revisarlo y verificarlo (tipos, tests) antes de aplicarlo. Si la tarea es chica o hay que editar el archivo de todas formas, hacerla directamente: delegar solo ahorra cuando evita leer mucho.
+
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know
