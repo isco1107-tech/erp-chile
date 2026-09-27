@@ -1,24 +1,14 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Aether",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "identifier": "com.aether.erp",
   "build": {
     "frontendDist": "../src"
   },
   "app": {
     "withGlobalTauri": true,
-    "windows": [
-      {
-        "title": "Aether ERP",
-        "url": "https://aetherp.online/dashboard",
-        "userAgent": "Mozilla/5.0 AetherDesktop/0.1.1",
-        "width": 1280,
-        "height": 800,
-        "minWidth": 900,
-        "minHeight": 600
-      }
-    ],
+    "windows": [],
     "security": {
       "csp": null
     }
