@@ -50,10 +50,16 @@ export const cashMovementSchema = z.object({
 
 export type CashMovementInput = z.infer<typeof cashMovementSchema>;
 
+// `unitPrice`/`discountPercent` quedan opcionales a propósito: el terminal
+// (`PosTerminal.tsx`) no los envía, y `pos.service.ts` los ignora siempre —
+// el precio y el descuento los pone el servidor desde el catálogo, nunca el
+// cliente (evitaría vender a $1 desde la consola del navegador). Exigirlos
+// aquí bloqueaba toda venta de mostrador con "Datos inválidos" antes de
+// llegar al servicio.
 export const posSaleItemSchema = z.object({
   productId: z.string().min(1, 'Producto inválido'),
   quantity: z.number().positive('La cantidad debe ser mayor a cero'),
-  unitPrice: z.number().int('El precio debe ser un número entero').min(0, 'El precio no puede ser negativo'),
+  unitPrice: z.number().int('El precio debe ser un número entero').min(0, 'El precio no puede ser negativo').optional(),
   discountPercent: z.number().min(0).max(100).optional(),
 });
 
