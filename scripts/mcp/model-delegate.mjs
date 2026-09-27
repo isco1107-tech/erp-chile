@@ -6,20 +6,31 @@
  * gasta su propio contexto leyendo o redactando lo voluminoso, no de usar un
  * modelo débil.
  *
- * Dos proveedores, ambos con API compatible con OpenAI:
- * - NVIDIA (build.nvidia.com): catálogo con modelos gratuitos. Se prefiere
- *   cuando hay `NVIDIA_API_KEY`, porque no consume saldo.
- * - OpenRouter: de pago, con más variedad de modelos. Respaldo cuando NVIDIA
- *   no está configurado, o cuando se pide `provider: "openrouter"` a propósito
- *   (por ejemplo, el modelo más grande de todos está ahí y no en NVIDIA).
+ * Tres proveedores, todos con API compatible con OpenAI, en este orden de
+ * preferencia cuando hay más de uno configurado:
+ * - NVIDIA (build.nvidia.com): catálogo con modelos gratuitos.
+ * - Gemini (Google AI Studio): SOLO el modelo flash de la capa gratuita —
+ *   ver nota de seguridad más abajo, nunca se autodetecta "el más potente"
+ *   acá porque los modelos Pro de Gemini normalmente sí cobran.
+ * - OpenRouter: de pago, con más variedad. Respaldo cuando ninguno de los
+ *   dos gratuitos está configurado, o a pedido con `provider: "openrouter"`
+ *   (por ejemplo, el modelo más grande de todos está ahí).
  *
- * Elección del modelo: si no se fija uno por variable de entorno o por
- * argumento, el servidor consulta `GET {baseUrl}/models` del proveedor y
- * elige automáticamente el más grande —por cantidad de parámetros del
- * nombre del modelo (ej. "405b"), y si no hay pistas de tamaño, por el
- * contexto más largo o el precio más alto como aproximación de potencia—.
- * Se cachea por proceso: el servidor MCP vive mientras dura la sesión de
- * Claude Code, así que no vuelve a consultar el catálogo en cada llamada.
+ * Elección del modelo en NVIDIA y OpenRouter: si no se fija uno por variable
+ * de entorno o por argumento, el servidor consulta `GET {baseUrl}/models`
+ * del proveedor y elige automáticamente el más grande —por cantidad de
+ * parámetros del nombre del modelo (ej. "405b"), y si no hay pistas de
+ * tamaño, por el contexto más largo o el precio más alto como aproximación
+ * de potencia—. Se cachea por proceso: el servidor MCP vive mientras dura
+ * la sesión de Claude Code, así que no vuelve a consultar el catálogo en
+ * cada llamada.
+ *
+ * Gemini es la excepción a propósito: la suscripción paga de Gemini (Google
+ * One / Gemini Advanced) NO da créditos de API — la API se paga aparte, con
+ * una key de Google AI Studio que factura por su cuenta. Para no arriesgar
+ * un cobro inesperado, Gemini nunca autodetecta "el más potente": usa
+ * siempre el modelo fijo de `GEMINI_MODEL` (flash, capa gratuita) salvo que
+ * se pida `model` explícito a propósito en la llamada.
  *
  * Por qué lee los archivos él mismo: si Claude tuviera que leer un archivo
  * largo para pasárselo al otro modelo, el contenido igual entraría a su
@@ -29,11 +40,16 @@
  * Configuración (variables de entorno de quien abre VS Code / Claude Code):
  * - NVIDIA_API_KEY       habilita NVIDIA (gratis) como proveedor.
  * - NVIDIA_MODEL         fija el modelo NVIDIA (si no, se autodetecta el mayor).
+ * - GEMINI_API_KEY       habilita Gemini como proveedor (de Google AI Studio,
+ *                        NO la suscripción Gemini Advanced/Google One).
+ * - GEMINI_MODEL         modelo Gemini a usar; por defecto uno de la capa
+ *                        gratuita. Cambiarlo a un modelo Pro es decisión del
+ *                        desarrollador y puede generar cobro.
  * - OPENROUTER_API_KEY   habilita OpenRouter como proveedor.
  * - OPENROUTER_MODEL     fija el modelo OpenRouter (si no, se autodetecta el mayor).
  * - *_BASE_URL           solo para pruebas (por defecto la API real).
  *
- * Sin ninguna de las dos claves, la herramienta responde con un error claro
+ * Sin ninguna clave configurada, la herramienta responde con un error claro
  * y Claude sigue haciendo el trabajo él mismo.
  *
  * Seguridad: solo lee archivos dentro del repo y nunca `.env*`, llaves,
@@ -55,6 +71,19 @@ const PROVIDERS = {
     // Se usa solo si NVIDIA_MODEL no está fijado Y la autodetección por catálogo falla
     // (por ejemplo, sin red). Confirmar el catálogo vigente en build.nvidia.com.
     fallbackModel: 'deepseek-ai/deepseek-v4-pro',
+  },
+  gemini: {
+    label: 'Gemini (Google AI Studio)',
+    keyEnv: 'GEMINI_API_KEY',
+    baseUrl: (process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai').replace(/\/$/, ''),
+    modelEnv: 'GEMINI_MODEL',
+    // A propósito NUNCA se autodetecta "el más potente": los modelos Pro de
+    // Gemini facturan aparte de cualquier suscripción. Este es el modelo que
+    // se usa siempre, salvo que el desarrollador pida uno distinto a mano.
+    // Mismo nombre de flash que ya usa la app (src/modules/agents/services/
+    // model-tiers.ts): confirmar el vigente en ai.google.dev si cambió.
+    fixedModel: true,
+    freeModel: 'gemini-3.6-flash',
   },
   openrouter: {
     label: 'OpenRouter',
@@ -155,12 +184,18 @@ async function fetchStrongestModel(providerId) {
   }
 }
 
-/** Modelo a usar para un proveedor: argumento > variable de entorno > catálogo (cacheado). */
+/**
+ * Modelo a usar para un proveedor: argumento > variable de entorno > (según
+ * el proveedor) catálogo autodetectado o modelo fijo de la capa gratuita.
+ * `fixedModel: true` (Gemini) nunca consulta el catálogo ni "el más
+ * potente": ver la nota de seguridad al inicio del archivo.
+ */
 function resolveModel(providerId, explicitModel) {
   if (explicitModel) return Promise.resolve(explicitModel);
   const provider = PROVIDERS[providerId];
   const fromEnv = process.env[provider.modelEnv]?.trim();
   if (fromEnv) return Promise.resolve(fromEnv);
+  if (provider.fixedModel) return Promise.resolve(provider.freeModel);
   if (!strongestModelCache.has(providerId)) strongestModelCache.set(providerId, fetchStrongestModel(providerId));
   return strongestModelCache.get(providerId);
 }
@@ -168,7 +203,8 @@ function resolveModel(providerId, explicitModel) {
 const TOOL = {
   name: 'delegate_task',
   description:
-    'Delega una tarea acotada al modelo MÁS POTENTE disponible (autodetectado del catálogo de NVIDIA u OpenRouter, o gratis si NVIDIA_API_KEY está configurado) y devuelve solo su respuesta. ' +
+    'Delega una tarea acotada a un modelo gratis (NVIDIA o Gemini flash) o, de respaldo, a OpenRouter (de pago), y devuelve solo su respuesta. ' +
+    'En NVIDIA/OpenRouter autodetecta el modelo MÁS POTENTE del catálogo; en Gemini usa siempre el modelo gratuito fijo, nunca uno Pro (evita cobros). ' +
     'Pasa RUTAS en `files` (el servidor las lee; su contenido no entra a tu contexto). ' +
     'Úsalo para resumir o buscar en archivos/logs largos, borradores mecánicos (fixtures, datos de prueba, textos, traducciones) ' +
     'y primeras pasadas repetitivas. El resultado es un borrador: revísalo antes de aplicarlo. ' +
@@ -178,8 +214,8 @@ const TOOL = {
     properties: {
       task: { type: 'string', description: 'Instrucción completa y autosuficiente. Pide una respuesta breve y con el formato exacto que necesitas.' },
       files: { type: 'array', items: { type: 'string' }, description: 'Rutas relativas al repo que el modelo debe leer (máx. 200 KB c/u, 600 KB en total).' },
-      provider: { type: 'string', enum: ['auto', 'nvidia', 'openrouter'], description: '"auto" (por defecto): NVIDIA si está configurado, si no OpenRouter.' },
-      model: { type: 'string', description: 'ID exacto del proveedor elegido; si se omite se usa el modelo más potente del catálogo.' },
+      provider: { type: 'string', enum: ['auto', 'nvidia', 'gemini', 'openrouter'], description: '"auto" (por defecto): NVIDIA, si no Gemini, si no OpenRouter, según cuáles tengan API key configurada.' },
+      model: { type: 'string', description: 'ID exacto del proveedor elegido; si se omite, NVIDIA/OpenRouter usan el modelo más potente del catálogo y Gemini su modelo gratuito fijo.' },
       max_output_tokens: { type: 'number', description: 'Tope de la respuesta (por defecto 2000, máx. 8000).' },
     },
     required: ['task'],
@@ -226,7 +262,7 @@ export function pickProvider(requested, env = process.env) {
     return requested;
   }
   const [first] = availableProviders(env);
-  if (!first) throw new Error('Falta NVIDIA_API_KEY u OPENROUTER_API_KEY en el entorno donde se abrió Claude Code');
+  if (!first) throw new Error('Falta NVIDIA_API_KEY, GEMINI_API_KEY u OPENROUTER_API_KEY en el entorno donde se abrió Claude Code');
   return first;
 }
 
@@ -275,7 +311,7 @@ async function delegate(args) {
   if (text.length > MAX_RESULT_CHARS) text = `${text.slice(0, MAX_RESULT_CHARS)}\n…[recortado a ${MAX_RESULT_CHARS} caracteres]`;
 
   const usage = json.usage ?? {};
-  const cost = typeof usage.cost === 'number' ? ` · US$${usage.cost.toFixed(5)}` : providerId === 'nvidia' ? ' · gratis' : '';
+  const cost = typeof usage.cost === 'number' ? ` · US$${usage.cost.toFixed(5)}` : providerId === 'nvidia' || providerId === 'gemini' ? ' · gratis' : '';
   return `${text}\n\n— ${provider.label} · ${json.model ?? model} · entrada ${usage.prompt_tokens ?? '?'} / salida ${usage.completion_tokens ?? '?'} tokens${cost}`;
 }
 
@@ -297,7 +333,7 @@ async function handle(message) {
           result: {
             protocolVersion: params?.protocolVersion ?? '2025-06-18',
             capabilities: { tools: {} },
-            serverInfo: { name: 'model-delegate', version: '3.0.0' },
+            serverInfo: { name: 'model-delegate', version: '4.0.0' },
           },
         });
       case 'ping':
