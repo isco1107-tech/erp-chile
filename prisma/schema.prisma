@@ -1342,6 +1342,13 @@ model Payment {
   /// pagaré: `updateSponsorshipPayment` también recibe un total acumulado.
   sponsorshipContractId    String?
   sponsorshipContract      SponsorshipContract?    @relation(fields: [sponsorshipContractId], references: [id], onDelete: SetNull)
+  /// Auditoría 2026-09-27 (hallazgo C-1): pago de una boleta de honorarios
+  /// (`FeeDocument`) — antes `markFeeDocumentPaid` no generaba ningún
+  /// `Payment`, así que el pago era invisible para Tesorería. `SetNull`:
+  /// borrar la boleta no puede arrastrar el historial de tesorería ya
+  /// generado, mismo criterio que el resto de estas columnas.
+  feeDocumentId            String?
+  feeDocument              FeeDocument?            @relation(fields: [feeDocumentId], references: [id], onDelete: SetNull)
   amount                   Int
   paymentMethod            PaymentMethodType
   paymentDate              DateTime                @default(now())
@@ -1656,6 +1663,14 @@ enum JournalSourceType {
   MANUAL
   OPENING
   CLOSING
+  /// Devengo al cerrar un período de remuneraciones (auditoría 2026-09-27,
+  /// hallazgo C-1) — ver `posting-rules/hr-posting.ts`.
+  PAYROLL_PERIOD
+  /// Reembolso de una rendición de gastos aprobada (mismo hallazgo) — ver
+  /// `posting-rules/expenses-posting.ts`. Las boletas de honorarios pagadas
+  /// generan un `Payment` real y usan `sourceType: PAYMENT`, igual que el
+  /// resto de cobros/pagos de Tesorería — no necesitan una clave propia.
+  EXPENSE_REPORT
 }
 
 /// Cabecera del asiento contable. Nunca se edita ni se borra en estado
@@ -2367,6 +2382,7 @@ model FeeDocument {
   paidAmount         Int            @default(0)
   paymentStatus      PaymentStatus  @default(UNPAID)
   paymentDate        DateTime?
+  payments           Payment[]
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
 

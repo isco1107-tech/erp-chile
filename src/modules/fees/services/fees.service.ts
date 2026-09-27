@@ -4,6 +4,7 @@ import { calculateFeeAmounts } from '@/lib/services/fees';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import type { FeeDocumentCreateInput, ListFeeDocumentsFilter } from '../schema';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
+import { postFeeDocumentPaymentEntry } from '@/modules/accounting/posting-rules/fees-posting';
 
 /** Tasa por defecto si la empresa nunca configuró `CompanySettings` (mismo default del schema, 15.25% — 2026). */
 const DEFAULT_RETENTION_RATE_BPS = 1525;
@@ -68,6 +69,11 @@ export async function markFeeDocumentPaid(companyId: string, id: string, payment
 
     const result = await tx.feeDocument.findFirst({ where: { id, companyId } });
     if (!result) throw new Error('Boleta de honorarios no encontrada');
+
+    // Auditoría 2026-09-27 (hallazgo C-1): antes de esto, marcar una boleta
+    // como pagada no dejaba ningún rastro en Tesorería ni Contabilidad — ver
+    // fees-posting.ts.
+    await postFeeDocumentPaymentEntry(tx, companyId, result);
     return result;
   }, LOCKING_TX_OPTIONS);
 
