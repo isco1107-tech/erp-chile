@@ -1,8 +1,8 @@
 {
   "mcpServers": {
-    "openrouter": {
+    "model-delegate": {
       "command": "node",
-      "args": ["scripts/mcp/openrouter-delegate.mjs"]
+      "args": ["scripts/mcp/model-delegate.mjs"]
     }
   }
 }

@@ -1,6 +1,6 @@
 {
-  "enabledMcpjsonServers": ["openrouter"],
+  "enabledMcpjsonServers": ["model-delegate"],
   "permissions": {
-    "allow": ["mcp__openrouter__openrouter_delegate"]
+    "allow": ["mcp__model-delegate__delegate_task"]
   }
 }

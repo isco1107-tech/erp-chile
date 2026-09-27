@@ -141,10 +141,12 @@ Si el comando `graphify` existe y hay `graphify-out/graph.json` (se genera con `
 
 ---
 
-## 8. Delegar a OpenRouter para ahorrar tokens
+## 8. Delegar tareas mecánicas para ahorrar tokens
 
-Si la herramienta `mcp__openrouter__openrouter_delegate` está disponible (servidor `scripts/mcp/openrouter-delegate.mjs`, declarado en `.mcp.json`; necesita `OPENROUTER_API_KEY` en el entorno), delegar a un modelo más barato **cuando el trabajo es voluminoso y mecánico** y lo que vuelve es corto:
+Si la herramienta `mcp__model-delegate__delegate_task` está disponible (servidor `scripts/mcp/model-delegate.mjs`, declarado en `.mcp.json`), delegar a un modelo más barato **cuando el trabajo es voluminoso y mecánico** y lo que vuelve es corto. Claude sigue siendo el cerebro: decide qué delegar, revisa lo que vuelve y hace el trabajo delicado él mismo.
 
+- **Dos proveedores, ambos por API compatible con OpenAI.** NVIDIA (`NVIDIA_API_KEY`, catálogo con modelos gratuitos en build.nvidia.com) y OpenRouter (`OPENROUTER_API_KEY`, de pago, más variedad). Con `provider: "auto"` (el valor por defecto) usa NVIDIA si está configurado —no gasta saldo— y si no cae a OpenRouter. Sin ninguna de las dos claves en el entorno, la herramienta no aparece o responde con un error claro, y Claude sigue haciendo el trabajo él mismo.
+- **Siempre el modelo más potente del proveedor elegido.** Si no se fija `NVIDIA_MODEL` / `OPENROUTER_MODEL` (ni se pasa `model` en la llamada), el servidor consulta el catálogo del proveedor y elige automáticamente el modelo más grande —por parámetros en su nombre y, si no hay esa pista, por contexto o precio—. El ahorro de tokens de Claude no viene de usar un modelo débil, sino de que Claude no gasta su propio contexto leyendo o redactando lo voluminoso.
 - **Sí delegar:** resumir o buscar algo en archivos/logs largos que solo hay que entender (no editar); primera pasada de listas repetitivas (textos del manual, traducciones, datos de prueba, fixtures, casos de prueba de funciones puras); borradores de documentación.
 - **Pasar rutas en `files`, nunca pegar el contenido en `task`:** el servidor lee los archivos y así no entran al contexto de Claude. Pedir respuesta breve y en formato exacto (lista, JSON, diff).
 - **Nunca delegar:** lógica tributaria (IVA, F29, DTE, CAF/TED, PMP), auth/permisos/multi-tenant, migraciones y esquema Prisma, ni la decisión final de un cambio. El servidor ya bloquea `.env*`, llaves y certificados; tampoco mandar datos reales de clientes.
