@@ -85,6 +85,9 @@ const CASCADES_TO_COMPANY = new Set([
   // OP-07: marca de "jti ya confirmado" del asistente de IA. `onDelete:
   // Cascade` directo hacia Company.
   'AgentActionConfirmation',
+  // Conector MCP: token personal para IA externa. `onDelete: Cascade`
+  // directo hacia Company (y hacia User).
+  'McpPersonalToken',
 ]);
 
 /** Cascadean desde `Project`, que se borra explícito en `hardDeleteTenant`. */
