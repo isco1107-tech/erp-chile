@@ -4,6 +4,7 @@ import type { ExpenseItem, ExpenseReport, Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { formatRut } from '@/lib/chile/rut';
 import { startOfMonthSantiago } from '@/lib/chile/timezone';
+import { postExpenseReimbursementEntry } from '@/modules/accounting/posting-rules/expenses-posting';
 import type { ExpenseItemInput, ExpenseReportInput, ExpenseReviewInput } from '../schema';
 
 /**
@@ -133,11 +134,19 @@ export async function reviewReport(companyId: string, reviewerId: string, report
 }
 
 export async function reimburseReport(companyId: string, reportId: string, reference: string | undefined): Promise<void> {
-  const result = await prisma.expenseReport.updateMany({
-    where: { id: reportId, companyId, status: 'APPROVED' },
-    data: { status: 'REIMBURSED', reimbursedAt: new Date(), reimbursementReference: reference ?? null },
+  await prisma.$transaction(async (tx) => {
+    const result = await tx.expenseReport.updateMany({
+      where: { id: reportId, companyId, status: 'APPROVED' },
+      data: { status: 'REIMBURSED', reimbursedAt: new Date(), reimbursementReference: reference ?? null },
+    });
+    if (result.count === 0) throw new Error('Solo se pueden reembolsar rendiciones aprobadas');
+
+    // Auditoría 2026-09-27 (hallazgo C-1): antes de esto, reembolsar una
+    // rendición no dejaba ningún rastro en Contabilidad — ver
+    // expenses-posting.ts.
+    const report = await tx.expenseReport.findFirst({ where: { id: reportId, companyId }, select: { title: true, totalAmount: true } });
+    if (report) await postExpenseReimbursementEntry(tx, companyId, reportId, report.title, report.totalAmount);
   });
-  if (result.count === 0) throw new Error('Solo se pueden reembolsar rendiciones aprobadas');
 }
 
 export async function deleteReport(companyId: string, userId: string, reportId: string): Promise<void> {

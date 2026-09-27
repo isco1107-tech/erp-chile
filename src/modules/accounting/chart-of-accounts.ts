@@ -52,7 +52,10 @@ export const CHART_OF_ACCOUNTS: ChartAccountSeed[] = [
   { code: '2104', name: 'IVA por pagar', parentCode: '21', type: 'LIABILITY', nature: 'CREDIT', isPostable: true, isCurrent: true, costBehavior: 'NONE', cashFlowCategory: 'OPERATING', mappingKey: 'IVA_POR_PAGAR' },
   { code: '2105', name: 'PPM por pagar', parentCode: '21', type: 'LIABILITY', nature: 'CREDIT', isPostable: true, isCurrent: true, costBehavior: 'NONE', cashFlowCategory: 'OPERATING' },
   { code: '2106', name: 'Retenciones por pagar', parentCode: '21', type: 'LIABILITY', nature: 'CREDIT', isPostable: true, isCurrent: true, costBehavior: 'NONE', cashFlowCategory: 'OPERATING', mappingKey: 'RETENCION_HONORARIOS' },
-  { code: '2107', name: 'Remuneraciones por pagar', parentCode: '21', type: 'LIABILITY', nature: 'CREDIT', isPostable: true, isCurrent: true, costBehavior: 'NONE', cashFlowCategory: 'OPERATING' },
+  // Existía en el plan desde el inicio, pero sin `mappingKey`: nada posteaba
+  // acá. Cerrar un período de remuneraciones no generaba ningún asiento
+  // (auditoría 2026-09-27, hallazgo C-1) — ver `posting-rules/hr-posting.ts`.
+  { code: '2107', name: 'Remuneraciones por pagar', parentCode: '21', type: 'LIABILITY', nature: 'CREDIT', isPostable: true, isCurrent: true, costBehavior: 'NONE', cashFlowCategory: 'OPERATING', mappingKey: 'OBLIGACIONES_POR_PAGAR_RRHH' },
   { code: '2108', name: 'Provisiones', parentCode: '21', type: 'LIABILITY', nature: 'CREDIT', isPostable: true, isCurrent: true, costBehavior: 'NONE', cashFlowCategory: 'OPERATING' },
   { code: '2109', name: 'Obligaciones financieras c/p', parentCode: '21', type: 'LIABILITY', nature: 'CREDIT', isPostable: true, isCurrent: true, costBehavior: 'NONE', cashFlowCategory: 'FINANCING' },
   { code: '22', name: 'Pasivo No Corriente', parentCode: '2', type: 'LIABILITY', nature: 'CREDIT', isPostable: false, isCurrent: false, costBehavior: 'NONE', cashFlowCategory: 'NONE' },
@@ -79,7 +82,8 @@ export const CHART_OF_ACCOUNTS: ChartAccountSeed[] = [
 
   // GASTOS
   { code: '6', name: 'Gastos', parentCode: null, type: 'EXPENSE', nature: 'DEBIT', isPostable: false, isCurrent: null, costBehavior: 'NONE', cashFlowCategory: 'NONE' },
-  { code: '6101', name: 'Remuneraciones', parentCode: '6', type: 'EXPENSE', nature: 'DEBIT', isPostable: true, isCurrent: null, costBehavior: 'FIXED', cashFlowCategory: 'NONE' },
+  // Mismo caso que 2107: existía sin `mappingKey`, nada posteaba acá.
+  { code: '6101', name: 'Remuneraciones', parentCode: '6', type: 'EXPENSE', nature: 'DEBIT', isPostable: true, isCurrent: null, costBehavior: 'FIXED', cashFlowCategory: 'NONE', mappingKey: 'GASTO_REMUNERACIONES' },
   { code: '6102', name: 'Arriendos', parentCode: '6', type: 'EXPENSE', nature: 'DEBIT', isPostable: true, isCurrent: null, costBehavior: 'FIXED', cashFlowCategory: 'NONE' },
   { code: '6103', name: 'Servicios básicos', parentCode: '6', type: 'EXPENSE', nature: 'DEBIT', isPostable: true, isCurrent: null, costBehavior: 'VARIABLE', cashFlowCategory: 'NONE' },
   { code: '6104', name: 'Gastos financieros', parentCode: '6', type: 'EXPENSE', nature: 'DEBIT', isPostable: true, isCurrent: null, costBehavior: 'NONE', cashFlowCategory: 'FINANCING' },
@@ -89,6 +93,16 @@ export const CHART_OF_ACCOUNTS: ChartAccountSeed[] = [
   // se contabiliza acá, nunca el total vendido — cada boleta ya postea su
   // propio asiento contra VENTAS_AFECTAS/IVA_DEBITO al emitirse.
   { code: '6107', name: 'Diferencias de caja', parentCode: '6', type: 'EXPENSE', nature: 'DEBIT', isPostable: true, isCurrent: null, costBehavior: 'NONE', cashFlowCategory: 'OPERATING', mappingKey: 'DIFERENCIA_CAJA' },
+  // Cuentas nuevas (auditoría 2026-09-27, hallazgo C-1): boletas de
+  // honorarios pagadas y rendiciones de gastos reembolsadas no generaban
+  // ningún asiento — ver `posting-rules/fees-posting.ts` y
+  // `posting-rules/expenses-posting.ts`. Empresas que sembraron el plan
+  // antes de que existieran estas dos filas las reciben solas, la primera
+  // vez que se paga una boleta o se reembolsa una rendición, vía
+  // `resolveOrCreateMappedAccount` — no requieren volver a activar
+  // Contabilidad ni tocar el plan a mano.
+  { code: '6108', name: 'Honorarios', parentCode: '6', type: 'EXPENSE', nature: 'DEBIT', isPostable: true, isCurrent: null, costBehavior: 'VARIABLE', cashFlowCategory: 'OPERATING', mappingKey: 'GASTO_HONORARIOS' },
+  { code: '6109', name: 'Reembolso de gastos', parentCode: '6', type: 'EXPENSE', nature: 'DEBIT', isPostable: true, isCurrent: null, costBehavior: 'VARIABLE', cashFlowCategory: 'OPERATING', mappingKey: 'GASTO_REEMBOLSOS' },
 ];
 
 /** Cuentas que una empresa de Servicios no necesita activas por defecto: no manejan inventario. */
@@ -143,4 +157,49 @@ export async function seedChartOfAccounts(tx: TxClient, companyId: string, indus
       });
     }
   }
+}
+
+/**
+ * Resuelve la cuenta mapeada a `key`, creándola (y su mapeo) si la empresa
+ * sembró su plan antes de que esta clave existiera en `CHART_OF_ACCOUNTS`.
+ *
+ * A diferencia de `resolveMappedAccountId` (que exige que el mapeo ya exista
+ * — correcto para cuentas núcleo como CAJA/CLIENTES, que toda empresa con
+ * Contabilidad activa debió sembrar), esta función es para mapeos NUEVOS
+ * agregados a un plan que ya existía: sin ella, una empresa que activó
+ * Contabilidad antes de este cambio quedaría con `closePeriod`/pagos
+ * fallando con "No hay una cuenta mapeada..." la primera vez que se use la
+ * cuenta nueva, en vez de simplemente completarla sola. Nunca toca un mapeo
+ * que ya existe (si el contador ya lo reasignó a otra cuenta, se respeta).
+ */
+export async function resolveOrCreateMappedAccount(tx: TxClient, companyId: string, key: string, code: string): Promise<string> {
+  const existing = await tx.accountMapping.findUnique({ where: { companyId_key: { companyId, key } } });
+  if (existing) return existing.accountId;
+
+  const seed = CHART_OF_ACCOUNTS.find((s) => s.code === code);
+  if (!seed) throw new Error(`Código de plan de cuentas ${code} no definido en CHART_OF_ACCOUNTS`);
+
+  let account = await tx.account.findFirst({ where: { companyId, code } });
+  if (!account) {
+    const parent = seed.parentCode ? await tx.account.findFirst({ where: { companyId, code: seed.parentCode } }) : null;
+    if (seed.parentCode && !parent) {
+      throw new Error(`Falta la cuenta ${seed.parentCode} en el plan de cuentas de esta empresa: actívala o revísala en Contabilidad → Plan de cuentas`);
+    }
+    account = await tx.account.create({
+      data: {
+        companyId,
+        code: seed.code,
+        name: seed.name,
+        parentId: parent?.id ?? null,
+        type: seed.type,
+        nature: seed.nature,
+        isPostable: seed.isPostable,
+        isCurrent: seed.isCurrent,
+        costBehavior: seed.costBehavior,
+        cashFlowCategory: seed.cashFlowCategory,
+      },
+    });
+  }
+  await tx.accountMapping.create({ data: { companyId, key, accountId: account.id } });
+  return account.id;
 }

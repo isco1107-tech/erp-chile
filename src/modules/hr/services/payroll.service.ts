@@ -3,6 +3,7 @@ import 'server-only';
 import ExcelJS from 'exceljs';
 import type { Employee, PayrollPeriod, Payslip, Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { BATCH_TX_OPTIONS } from '@/lib/prisma-tx';
 import { santiagoMidnightUtc } from '@/lib/chile/timezone';
 import {
   AFP_INSTITUTIONS,
@@ -17,6 +18,7 @@ import {
 import { isUniqueConstraintError } from '@/lib/prisma-errors';
 import { contributionSummary, loanDeductionFor, mutualLabel, type ContributionLine } from '@/lib/chile/payroll-deductions';
 import { CONTRACT_TYPE_LABELS, periodLabel, type PayrollPeriodInput, type PayslipVariablesInput } from '../schema';
+import { postPayrollClosingEntry } from '@/modules/accounting/posting-rules/hr-posting';
 
 /**
  * Remuneraciones por período. Un período en borrador se puede recalcular
@@ -274,7 +276,7 @@ export async function calculatePeriod(companyId: string, periodId: string, input
         update: { ...computed, deductionDetail },
       });
     }
-  });
+  }, BATCH_TX_OPTIONS);
   return input.rows.length;
 }
 
@@ -321,7 +323,21 @@ export async function closePeriod(companyId: string, periodId: string, userId: s
         });
       }
     }
-  });
+
+    // Auditoría 2026-09-27 (hallazgo C-1): antes de esto, cerrar un período
+    // no dejaba ningún rastro en Contabilidad — ver hr-posting.ts.
+    await postPayrollClosingEntry(
+      tx,
+      companyId,
+      periodId,
+      periodLabel(period.year, period.month),
+      {
+        totalNetPay: payslips.reduce((s, p) => s + p.netPay, 0),
+        totalEmployerCost: payslips.reduce((s, p) => s + p.employerCost, 0),
+      },
+      { createdByUserId: userId }
+    );
+  }, BATCH_TX_OPTIONS);
   return {
     label: periodLabel(period.year, period.month),
     employeeCount: payslips.length,
