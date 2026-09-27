@@ -8,12 +8,22 @@ import {
   TenantInactiveError,
   getAuthContext,
   can,
+  type AuthContext,
 } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
+import { excessPermissions } from '@/lib/auth/permissions';
 import { customRoleCreateSchema, memberRoleAssignSchema } from '../schema';
 import * as rolesService from '../services/roles.service';
 import type { CustomRoleWithUsage } from '../services/roles.service';
+
+/** Auditoría 2026-09-27 (hallazgo A-1/SEG-02/PER-01) — ver `excessPermissions`. */
+function assertPermissionsWithinActor(requested: readonly string[], context: AuthContext): void {
+  const excess = excessPermissions(requested, context.permissions);
+  if (excess.length > 0) {
+    throw new AuthError(`No puedes otorgar un permiso que tú mismo no tienes: ${excess.join(', ')}`, 403);
+  }
+}
 
 export type ActionResult<T> =
   | { success: true; data: T; message?: string }
@@ -50,6 +60,7 @@ export async function createCustomRoleAction(input: unknown): Promise<ActionResu
     const context = await requireRoleManager();
     const parsed = customRoleCreateSchema.safeParse(input);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
+    assertPermissionsWithinActor(parsed.data.permissions, context);
 
     const role = await rolesService.createCustomRole(context.companyId, parsed.data, context.features);
 
@@ -73,8 +84,15 @@ export async function createCustomRoleAction(input: unknown): Promise<ActionResu
 export async function updateCustomRoleAction(id: string, input: unknown): Promise<ActionResult<CustomRole>> {
   try {
     const context = await requireRoleManager();
+    // No puede editar los permisos del rol que él mismo tiene asignado: sin
+    // esto, `assignCustomRoleAction` bloqueaba auto-asignarse un rol, pero
+    // nada bloqueaba ampliar el que ya tiene.
+    if (id === context.customRoleId && context.role !== 'OWNER') {
+      return { success: false, error: 'No puedes editar los permisos de tu propio rol' };
+    }
     const parsed = customRoleCreateSchema.safeParse(input);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
+    assertPermissionsWithinActor(parsed.data.permissions, context);
 
     const role = await rolesService.updateCustomRole(context.companyId, id, parsed.data, context.features);
 
@@ -125,6 +143,14 @@ export async function assignCustomRoleAction(input: unknown): Promise<ActionResu
 
     if (parsed.data.userId === context.id) {
       return { success: false, error: 'No puedes cambiar tu propio rol personalizado' };
+    }
+    // Mismo criterio que crear/editar un rol (A-1): asignarle a otra persona
+    // un rol YA existente con más permisos que los del actor sería la misma
+    // escalada por otra puerta.
+    if (parsed.data.customRoleId) {
+      const targetRole = await rolesService.getCustomRole(context.companyId, parsed.data.customRoleId);
+      if (!targetRole) return { success: false, error: 'Rol personalizado no encontrado' };
+      assertPermissionsWithinActor(targetRole.permissions, context);
     }
 
     await rolesService.assignCustomRole(context.companyId, parsed.data.userId, parsed.data.customRoleId);

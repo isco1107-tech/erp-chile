@@ -21,6 +21,31 @@ import { ROLE_LABELS } from '@/lib/auth/roles';
 import { passwordPolicySchema } from '@/lib/auth/password-policy';
 import type { CreateUserDirectResult } from '@/lib/services/users.service';
 import { getClientIp } from '@/lib/security/cloudflare';
+import { excessPermissions } from '@/lib/auth/permissions';
+import type { AuthContext } from '@/lib/auth/guards';
+
+/**
+ * Auditoría 2026-09-27 (hallazgo A-1/SEG-02/PER-01): un ADMIN podía crear una
+ * cuenta ADMIN de la que conoce la contraseña (o invitar con ese rol),
+ * saltándose la separación de funciones que la matriz le niega a propósito
+ * (`accounting:close_period`, `payroll:close`). El rol base ADMIN solo lo
+ * puede otorgar quien ya es OWNER o ADMIN base — nunca alguien que llegó a
+ * `settings:users` solo por un rol personalizado. Si en vez de rol base se
+ * asigna un rol personalizado, sus permisos tampoco pueden exceder los del
+ * actor (ver `excessPermissions`).
+ */
+async function assertCanGrantRole(session: AuthContext, role: Role, customRoleId: string | null | undefined): Promise<string | null> {
+  if (role === 'ADMIN' && session.role !== 'OWNER' && session.role !== 'ADMIN') {
+    return 'Solo un Dueño o Administrador puede otorgar el rol Administrador';
+  }
+  if (customRoleId) {
+    const customRole = await prisma.customRole.findFirst({ where: { id: customRoleId, companyId: session.companyId }, select: { permissions: true } });
+    if (!customRole) return 'Rol personalizado no encontrado';
+    const excess = excessPermissions(customRole.permissions, session.permissions);
+    if (excess.length > 0) return `No puedes otorgar un rol con un permiso que tú mismo no tienes: ${excess.join(', ')}`;
+  }
+  return null;
+}
 
 export type ActionResult<T> =
   | { success: true; data: T; message?: string }
@@ -83,6 +108,8 @@ export async function inviteUserAction(input: unknown): Promise<ActionResult<Inv
     if (parsed.data.role === 'OWNER' && session.role !== 'OWNER') {
       return { success: false, error: 'Solo un Dueño (OWNER) puede invitar a otro Dueño' };
     }
+    const grantError = await assertCanGrantRole(session, parsed.data.role, parsed.data.customRoleId);
+    if (grantError) return { success: false, error: grantError };
 
     // Cupo del plan: usuarios activos + invitaciones vigentes.
     const context = session;
@@ -130,6 +157,8 @@ export async function createUserDirectAction(input: unknown): Promise<ActionResu
     if (parsed.data.role === 'OWNER' && session.role !== 'OWNER') {
       return { success: false, error: 'Solo un Dueño (OWNER) puede crear otro Dueño' };
     }
+    const grantError = await assertCanGrantRole(session, parsed.data.role, parsed.data.customRoleId);
+    if (grantError) return { success: false, error: grantError };
 
     const data = await usersService.createUserDirect(session.companyId, parsed.data);
 

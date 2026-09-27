@@ -219,6 +219,22 @@ export function isPermission(value: string): value is Permission {
   return Object.prototype.hasOwnProperty.call(PERMISSIONS, value);
 }
 
+/**
+ * Auditoría 2026-09-27 (hallazgo A-1/SEG-02/PER-01): antes de crear o
+ * editar un rol personalizado, o de crear/invitar a alguien con uno, hay que
+ * comprobar que ningún permiso solicitado exceda los del propio actor —
+ * salvo que sea OWNER, cuyos permisos efectivos ya son todos los que el plan
+ * de la empresa habilita (`resolvePermissions`), así el subconjunto siempre
+ * se cumple para él sin necesitar un caso especial. Sin este chequeo, quien
+ * tenía `settings:users` podía ampliarse permisos a sí mismo editando su
+ * propio rol, o crear una cuenta con más permisos de los que él tiene.
+ * Devuelve la lista de permisos que exceden al actor (vacía si ninguno).
+ */
+export function excessPermissions(requested: readonly string[], actorPermissions: readonly Permission[]): Permission[] {
+  const granted = new Set(actorPermissions);
+  return requested.filter(isPermission).filter((permission) => !granted.has(permission));
+}
+
 export function checkPermission(userRole: Role, requiredPermission: Permission): boolean {
   return (PERMISSIONS[requiredPermission] as Role[]).includes(userRole);
 }
