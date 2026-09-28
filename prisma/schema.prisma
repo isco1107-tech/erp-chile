@@ -214,6 +214,7 @@ model Company {
   workflowRules             WorkflowRule[]
   workflowExecutions        WorkflowExecution[]
   workflowNotifications     WorkflowNotification[]
+  pushSubscriptions         PushSubscription[]
   opportunities             Opportunity[]
   crmActivities             CrmActivity[]
   crmPeople                 CrmPerson[]
@@ -312,6 +313,7 @@ model User {
   approvedPurchaseDocuments        PurchaseDocument[]        @relation("PurchaseApprovals")
   matchOverriddenPurchaseDocuments PurchaseDocument[]        @relation("PurchaseMatchOverrides")
   sessions                         UserSession[]
+  pushSubscriptions                PushSubscription[]
   assignedServiceTickets           ServiceTicket[]           @relation("ServiceTicketTechnician")
   /// Empresas ADICIONALES a `companyId` (la "hogar") que este usuario puede
   /// activar sin iniciar sesión de nuevo — ver `CompanyMembership` y
@@ -366,6 +368,8 @@ model UserSession {
   lastSeenAt DateTime  @default(now())
   revokedAt  DateTime?
   expiresAt  DateTime
+
+  pushSubscriptions PushSubscription[]
 
   @@index([userId, revokedAt])
   @@index([companyId])
@@ -1419,6 +1423,8 @@ model Payment {
   @@index([companyId, paymentPlanInstallmentId])
   @@index([companyId, promissoryNoteId])
   @@index([companyId, sponsorshipContractId])
+  // Lo crea la migración 20260927040316; declararlo evita que un diff lo borre.
+  @@index([feeDocumentId])
 }
 
 /// Caja física del local. Se ata a una bodega porque toda venta del POS
@@ -3620,6 +3626,40 @@ model WorkflowExecution {
   /// El historial de una regla (más reciente primero) es el patrón de acceso
   /// principal de la UI.
   @@index([companyId, ruleId, createdAt])
+}
+
+/// Un navegador o PWA instalada que aceptó recibir avisos (Web Push). El
+/// `endpoint` lo entrega el servicio push del navegador y es único por
+/// dispositivo; `p256dh` y `auth` son las llaves públicas con que se cifra
+/// cada aviso para ese dispositivo. Recibe lo mismo que la campanita
+/// (`WorkflowNotification`) de la empresa en que estaba el usuario al
+/// activarlo; ver src/lib/notifications/web-push.ts.
+model PushSubscription {
+  id             String      @id @default(cuid())
+  companyId      String
+  company        Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Sesión desde la que se activó. Cerrar sesión, cerrar ese dispositivo en
+  /// "Dispositivos activos" o revocarla apaga los avisos (sin esto, un
+  /// teléfono perdido o un navegador compartido los seguía recibiendo).
+  sessionId      String
+  session        UserSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  /// `User.sessionVersion` al activarlo: cambiar o resetear la contraseña, o
+  /// un cierre forzado, la incrementa y apaga los avisos.
+  sessionVersion Int
+
+  endpoint  String  @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+
+  createdAt     DateTime  @default(now())
+  lastSuccessAt DateTime?
+
+  @@index([companyId])
+  @@index([userId])
+  @@index([sessionId])
 }
 
 model WorkflowNotification {

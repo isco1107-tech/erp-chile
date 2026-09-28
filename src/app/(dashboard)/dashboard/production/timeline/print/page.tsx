@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import PrintButton from '@/components/PrintButton';
-import { requireAuthWithPermission } from '@/lib/auth/guards';
+import { checkPageAccess } from '@/lib/auth/guards';
+import { PageAccessNotice } from '@/components/shared/PageAccessNotice';
 import { prisma } from '@/lib/prisma';
 import { listStageItems } from '@/modules/production/services/production.service';
 import { STAGE_ITEM_STATUS_LABELS, STAGE_SEGMENT_META } from '@/modules/production/schema';
@@ -16,7 +17,9 @@ const time = (d: Date) => d.toLocaleTimeString('es-CL', { hour: '2-digit', minut
  * con la misma validación de tenant que el resto del módulo.
  */
 export default async function PrintTimelinePage({ searchParams }: { searchParams: Promise<{ projectId?: string }> }) {
-  const session = await requireAuthWithPermission('production:read');
+  const access = await checkPageAccess('production:read');
+  if (access.denied) return <PageAccessNotice denied={access.denied} />;
+  const session = access.context;
   const { projectId } = await searchParams;
   if (!projectId) notFound();
   const project = await prisma.project.findFirst({

@@ -80,6 +80,9 @@ const PUBLIC_ROUTES = [
   // web: los piden WhatsApp, LinkedIn o el navegador, siempre sin sesión.
   '/opengraph-image',
   '/manifest.webmanifest',
+  // Service worker de avisos push: el navegador lo revisa en segundo plano
+  // y no debe recibir una redirección al login si la sesión ya venció.
+  '/sw.js',
 ];
 
 /**

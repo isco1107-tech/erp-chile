@@ -1,5 +1,6 @@
 import { Sheet } from 'lucide-react';
-import { requireAuthWithPermission } from '@/lib/auth/guards';
+import { checkPageAccess } from '@/lib/auth/guards';
+import { PageAccessNotice } from '@/components/shared/PageAccessNotice';
 import { formatCurrency } from '@/lib/chile/tax';
 import { getEightColumnBalance } from '@/modules/accounting/services/books.service';
 import { parseAccountingPeriod } from '@/components/accounting/period';
@@ -20,8 +21,9 @@ export default async function TrialBalancePage({
 }: {
   searchParams: Promise<{ year?: string; month?: string }>;
 }) {
-  const session = await requireAuthWithPermission('accounting:view').catch(() => null);
-  if (!session) return null;
+  const access = await checkPageAccess('accounting:view');
+  if (access.denied) return <PageAccessNotice denied={access.denied} />;
+  const session = access.context;
   const period = parseAccountingPeriod(await searchParams);
   const balance = await getEightColumnBalance(session.companyId, period.to);
   const { totals, result } = balance;

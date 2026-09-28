@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { BookMarked } from 'lucide-react';
-import { requireAuthWithPermission } from '@/lib/auth/guards';
+import { checkPageAccess } from '@/lib/auth/guards';
+import { PageAccessNotice } from '@/components/shared/PageAccessNotice';
 import { formatCurrency } from '@/lib/chile/tax';
 import { listPostableAccounts } from '@/modules/accounting/services/books.service';
 import { getLedger } from '@/modules/accounting/services/ledger.service';
@@ -24,8 +25,9 @@ export default async function LedgerPage({
 }: {
   searchParams: Promise<{ year?: string; month?: string; account?: string }>;
 }) {
-  const session = await requireAuthWithPermission('accounting:view').catch(() => null);
-  if (!session) return null;
+  const access = await checkPageAccess('accounting:view');
+  if (access.denied) return <PageAccessNotice denied={access.denied} />;
+  const session = access.context;
   const params = await searchParams;
   const period = parseAccountingPeriod(params);
   const accounts = await listPostableAccounts(session.companyId);

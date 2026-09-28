@@ -1,4 +1,5 @@
-import { requireAuthWithPermission } from '@/lib/auth/guards';
+import { checkPageAccess } from '@/lib/auth/guards';
+import { PageAccessNotice } from '@/components/shared/PageAccessNotice';
 import CalendarDashboardClient from '@/components/calendar/CalendarDashboardClient';
 
 export const metadata = {
@@ -6,7 +7,9 @@ export const metadata = {
 };
 
 export default async function CalendarPage() {
-  const session = await requireAuthWithPermission('projects:read');
+  const access = await checkPageAccess('projects:read');
+  if (access.denied) return <PageAccessNotice denied={access.denied} />;
+  const session = access.context;
   const canWrite = session.permissions.includes('projects:write');
 
   return (

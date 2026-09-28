@@ -274,6 +274,31 @@ export async function requireAuthWithPermission(permission: Permission): Promise
   return context;
 }
 
+/** Por qué una página no se puede mostrar a este usuario. */
+export type PageAccessDenial = 'module' | 'permission';
+
+/**
+ * Para páginas (Server Components): lo mismo que `requireAuthWithPermission`,
+ * pero un módulo fuera del plan o un permiso faltante vuelven como dato en vez
+ * de lanzar, para mostrar `PageAccessNotice`. Lanzados, caían en el error
+ * genérico del panel ("Algo salió mal") y se reportaban a observabilidad como
+ * fallas inesperadas. Sesión inválida o empresa suspendida sí se lanzan: esas
+ * las resuelve el layout con su redirección.
+ */
+export async function checkPageAccess(
+  permission: Permission,
+): Promise<{ context: AuthContext; denied: null } | { context: null; denied: PageAccessDenial }> {
+  try {
+    return { context: await requireAuthWithPermission(permission), denied: null };
+  } catch (error) {
+    if (error instanceof ModuleNotEnabledError) return { context: null, denied: 'module' };
+    // IP fuera de la lista permitida: el layout la redirige al login.
+    if (error instanceof IpNotAllowedError) throw error;
+    if (error instanceof AuthError && error.status === 403) return { context: null, denied: 'permission' };
+    throw error;
+  }
+}
+
 /** Portal de plataforma. Es una bandera global, independiente de la empresa. */
 export async function requireSuperAdmin(): Promise<AuthSession> {
   const payload = await readSessionPayload();

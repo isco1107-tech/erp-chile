@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { CheckCircle2, ListChecks, TriangleAlert } from 'lucide-react';
-import { requireAuthWithPermission } from '@/lib/auth/guards';
+import { checkPageAccess } from '@/lib/auth/guards';
+import { PageAccessNotice } from '@/components/shared/PageAccessNotice';
 import { formatCurrency } from '@/lib/chile/tax';
 import { runReconciliationWithF29, type ReconciliationCheck } from '@/modules/accounting/services/reconciliation.service';
 import { parseAccountingPeriod } from '@/components/accounting/period';
@@ -26,8 +27,9 @@ export default async function ReconciliationPage({
 }: {
   searchParams: Promise<{ year?: string; month?: string }>;
 }) {
-  const session = await requireAuthWithPermission('accounting:view').catch(() => null);
-  if (!session) return null;
+  const access = await checkPageAccess('accounting:view');
+  if (access.denied) return <PageAccessNotice denied={access.denied} />;
+  const session = access.context;
   const period = parseAccountingPeriod(await searchParams);
   const { checks, f29 } = await runReconciliationWithF29(session.companyId, { year: period.year, month: period.month });
   const failing = checks.filter((check) => !check.inBalance);

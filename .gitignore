@@ -29,3 +29,8 @@ graphify-out/
 # Videos fuente de la landing: la página sirve los fotogramas WebP de seq/
 # (scripts/generate-cinematic-frames.cjs los genera a partir de estos).
 /public/marketing/cinematic/*.mp4
+
+# Playwright (e2e)
+/e2e/.auth/
+/test-results/
+/playwright-report/

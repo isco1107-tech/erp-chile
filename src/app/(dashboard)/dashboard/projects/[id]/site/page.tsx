@@ -3,14 +3,17 @@ import { notFound } from 'next/navigation';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { buttonVariants } from '@/components/ui/button';
 import { PublicSiteForm } from '@/components/projects/PublicSiteForm';
-import { can, requireAuthWithPermission } from '@/lib/auth/guards';
+import { can, checkPageAccess } from '@/lib/auth/guards';
+import { PageAccessNotice } from '@/components/shared/PageAccessNotice';
 import { getProject } from '@/modules/projects/services/projects.service';
 
 export const metadata = { title: 'Sitio público del certamen' };
 
 export default async function ProjectPublicSitePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const context = await requireAuthWithPermission('projects:read');
+  const access = await checkPageAccess('projects:read');
+  if (access.denied) return <PageAccessNotice denied={access.denied} />;
+  const context = access.context;
   const project = await getProject(context.companyId, id);
   if (!project) notFound();
 

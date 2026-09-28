@@ -51,10 +51,10 @@ Una ficha, o un grupo chico de fichas relacionadas, por PR. Cada PR con test de 
 ### Ola 3: contabilidad y tributario
 - **N-13**: el F29 no guarda un snapshot, usa la tasa de PPM actual para meses pasados y no invalida en cascada.
 - **N-14**: existe el permiso `accounting:close_period`, pero no el flujo de cierre y reapertura.
-- **OP-15**: firma XML-DSig, envío al SII, Track ID y clasificación del origen fiscal en el F29. Cuando se construya el envío, bloquear la anulación de DTE ya enviados (ver `CONTEXT.md`, "Anular").
+- **OP-15**: núcleo hecho el 2026-09-28 en `src/lib/chile/dte/` (`certificate.ts`, `signature.ts`, `envio.ts`, `sii-client.ts`): certificado .pfx, firma XML-DSig en contexto, EnvioDTE, semilla/token, DTEUpload y QueryEstUp. La anulación de DTE ya enviados ya está bloqueada. Pendiente: guardar el certificado cifrado por empresa (modelo nuevo), resolución SII y ambiente por empresa, acción "Enviar al SII" con `siiTrackId`/`siiStatus`, consulta de estado, **prueba real en maullin con un certificado de verdad**, boletas (`EnvioBOLETA`, API REST) y clasificación del origen fiscal en el F29.
 
 ### Ola 4: operación
-- **OP-11 + UX-14**: CI con `next build`, PostgreSQL efímero con migraciones desde cero y recorridos E2E con Playwright. Es la base para validar las olas 2 y 3 con concurrencia real.
+- **OP-11 + UX-14**: hecho el 2026-09-28. Job `e2e` en CI: PostgreSQL efímero, migraciones desde cero, chequeo de drift contra `schema.prisma`, `next build` y Playwright (`e2e/`). Para lograrlo se reparó el historial: 10 tablas, 4 enums y decenas de columnas existían solo por `db push` (migraciones `20260912120000_repair_…` y `20261012120000_repair_…`, idempotentes). El primer recorrido encontró dos fallas: páginas que reventaban sin el módulo contratado (ahora `checkPageAccess` + `PageAccessNotice`) y un error de hidratación en el manual. Pendiente: recorridos de escritura (emitir venta, POS, cobro) y de concurrencia sobre esta base.
 - **OP-01**: separar los entornos. Hoy desarrollo apunta a la base de producción.
 - **OP-05 / OP-09**: outbox persistente para automatizaciones; lease por empresa, tarea y período en los crons.
 - **OP-08 / OP-16**: timeout en el envío de correo, estados reales por proveedor y destinatarios según sus permisos efectivos (roles personalizados incluidos).

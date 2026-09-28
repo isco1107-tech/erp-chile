@@ -214,7 +214,7 @@ const TOOL = {
     properties: {
       task: { type: 'string', description: 'Instrucción completa y autosuficiente. Pide una respuesta breve y con el formato exacto que necesitas.' },
       files: { type: 'array', items: { type: 'string' }, description: 'Rutas relativas al repo que el modelo debe leer (máx. 200 KB c/u, 600 KB en total).' },
-      provider: { type: 'string', enum: ['auto', 'nvidia', 'gemini', 'openrouter'], description: '"auto" (por defecto): NVIDIA, si no Gemini, si no OpenRouter, según cuáles tengan API key configurada.' },
+      provider: { type: 'string', enum: ['auto', 'nvidia', 'gemini', 'openrouter'], description: '"auto" (por defecto): NVIDIA, si no Gemini, si no OpenRouter, según cuáles tengan API key configurada; si uno falla se intenta el siguiente.' },
       model: { type: 'string', description: 'ID exacto del proveedor elegido; si se omite, NVIDIA/OpenRouter usan el modelo más potente del catálogo y Gemini su modelo gratuito fijo.' },
       max_output_tokens: { type: 'number', description: 'Tope de la respuesta (por defecto 2000, máx. 8000).' },
     },
@@ -266,17 +266,55 @@ export function pickProvider(requested, env = process.env) {
   return first;
 }
 
+/**
+ * Proveedores a intentar, en orden. Con uno pedido explícitamente, solo ese.
+ * En "auto", todos los configurados (gratis primero): si uno falla —key sin
+ * acceso al modelo, host bloqueado por la red, cuota agotada— se pasa al
+ * siguiente en vez de devolverle el error a Claude. Exportado para pruebas.
+ */
+export function providerChain(requested, env = process.env) {
+  if (requested && requested !== 'auto') return [pickProvider(requested, env)];
+  pickProvider('auto', env); // lanza el error legible si no hay ninguna key
+  return availableProviders(env);
+}
+
 async function delegate(args) {
   if (typeof args.task !== 'string' || !args.task.trim()) throw new Error('`task` es obligatorio');
 
-  const providerId = pickProvider(args.provider);
-  const provider = PROVIDERS[providerId];
-  const apiKey = process.env[provider.keyEnv].trim();
-
+  const chain = providerChain(args.provider);
   const files = Array.isArray(args.files) ? args.files : [];
   const context = files.length > 0 ? readFiles(files) : '';
-  const model = await resolveModel(providerId, typeof args.model === 'string' ? args.model.trim() : '');
+  // Un `model` explícito es un ID de un proveedor concreto: no tiene sentido
+  // mandarlo a los demás de la cadena.
+  const explicitModel = typeof args.model === 'string' ? args.model.trim() : '';
+  const attempts = explicitModel ? chain.slice(0, 1) : chain;
+
+  const failures = [];
+  for (const providerId of attempts) {
+    try {
+      const result = await callProvider(providerId, args, context, explicitModel);
+      const skipped = failures.length > 0 ? `\n(falló antes: ${failures.join(' | ')})` : '';
+      return `${result}${skipped}`;
+    } catch (error) {
+      failures.push(error instanceof Error ? error.message : String(error));
+    }
+  }
+  throw new Error(failures.join(' | '));
+}
+
+// Los modelos de razonamiento (Gemini 3.x flash, DeepSeek, Qwen "thinking")
+// descuentan sus tokens de pensamiento del mismo `max_tokens` que la
+// respuesta: con el tope justo, la respuesta visible sale cortada. En los
+// proveedores gratuitos se suma este margen; en OpenRouter no, porque ahí el
+// tope también limita el cobro.
+const THINKING_HEADROOM = 8000;
+
+async function callProvider(providerId, args, context, explicitModel) {
+  const provider = PROVIDERS[providerId];
+  const apiKey = process.env[provider.keyEnv].trim();
+  const model = await resolveModel(providerId, explicitModel);
   const maxTokens = Math.min(Math.max(Number(args.max_output_tokens) || 2000, 64), 8000);
+  const free = providerId === 'nvidia' || providerId === 'gemini';
 
   const response = await fetch(`${provider.baseUrl}/chat/completions`, {
     method: 'POST',
@@ -287,7 +325,7 @@ async function delegate(args) {
     },
     body: JSON.stringify({
       model,
-      max_tokens: maxTokens,
+      max_tokens: free ? maxTokens + THINKING_HEADROOM : maxTokens,
       messages: [
         {
           role: 'system',
@@ -303,15 +341,23 @@ async function delegate(args) {
 
   const json = await response.json().catch(() => null);
   if (!response.ok) {
-    const detail = json?.error?.message ?? `HTTP ${response.status}`;
+    // Un 403 sin cuerpo JSON suele venir de un proxy o de la política de red
+    // del entorno, no del proveedor: decirlo evita culpar a la API key.
+    const detail = json?.error?.message ?? `HTTP ${response.status}${json ? '' : ' sin cuerpo JSON (¿host bloqueado por la red?)'}`;
     throw new Error(`${provider.label} rechazó la solicitud (${model}): ${detail}`);
   }
-  let text = json?.choices?.[0]?.message?.content;
+  const choice = json?.choices?.[0];
+  let text = choice?.message?.content;
   if (typeof text !== 'string' || !text) throw new Error(`${provider.label} no devolvió texto (${model})`);
   if (text.length > MAX_RESULT_CHARS) text = `${text.slice(0, MAX_RESULT_CHARS)}\n…[recortado a ${MAX_RESULT_CHARS} caracteres]`;
+  // Sin este aviso, una respuesta cortada por el tope parece completa (un JSON
+  // a medias, una lista incompleta) y Claude la usaría como si lo fuera.
+  if (choice.finish_reason === 'length') {
+    text += '\n…[CORTADA: el modelo llegó al tope de tokens; repetir con un max_output_tokens mayor o una tarea más chica]';
+  }
 
   const usage = json.usage ?? {};
-  const cost = typeof usage.cost === 'number' ? ` · US$${usage.cost.toFixed(5)}` : providerId === 'nvidia' || providerId === 'gemini' ? ' · gratis' : '';
+  const cost = typeof usage.cost === 'number' ? ` · US$${usage.cost.toFixed(5)}` : free ? ' · gratis' : '';
   return `${text}\n\n— ${provider.label} · ${json.model ?? model} · entrada ${usage.prompt_tokens ?? '?'} / salida ${usage.completion_tokens ?? '?'} tokens${cost}`;
 }
 
@@ -333,7 +379,7 @@ async function handle(message) {
           result: {
             protocolVersion: params?.protocolVersion ?? '2025-06-18',
             capabilities: { tools: {} },
-            serverInfo: { name: 'model-delegate', version: '4.0.0' },
+            serverInfo: { name: 'model-delegate', version: '4.1.0' },
           },
         });
       case 'ping':
