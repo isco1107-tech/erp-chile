@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import type { WebSiteStatus } from '@prisma/client';
-import { authErrorMessage, requireAuthWithPermission } from '@/lib/auth/guards';
+import { authErrorMessage, can, requireAuthWithPermission } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 import { captureException } from '@/lib/observability';
 import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
@@ -97,6 +97,11 @@ export async function updateWebSiteSettingsAction(id: string, input: unknown): P
     const parsed = webSiteSettingsSchema.safeParse(input);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
     const before = await service.getWebSite(session.companyId, id);
+    // Nombre, dirección, buscadores, logo e indexación de un sitio PUBLICADO se ven en vivo:
+    // cambiarlos es publicar, así que lo decide quien tiene ese permiso.
+    if (before?.status === 'PUBLISHED' && !can(session, 'websites:publish')) {
+      return { success: false, error: 'Este sitio está publicado: solo dueño y administradores pueden cambiar su nombre, dirección, datos para buscadores o logo.' };
+    }
     const updated = await service.updateWebSiteSettings(session.companyId, id, parsed.data);
     // Publicado: el enlace viejo deja de existir; se limpia la caché de ambos.
     if (before && before.slug !== updated.slug) revalidatePublic(before.slug);
@@ -189,7 +194,7 @@ export async function deleteWebSiteAction(id: string): Promise<ActionResult<null
 }
 
 async function deleteUnusedBlobs(urls: string[], companyId: string): Promise<void> {
-  const toDelete = await service.unusedAssetUrls(urls);
+  const toDelete = await service.unusedAssetUrls(companyId, urls);
   if (toDelete.length === 0) return;
   try {
     await del(toDelete);

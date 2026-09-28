@@ -238,6 +238,50 @@ describe('HTML propio', () => {
     expect(removed.length).toBeGreaterThanOrEqual(5);
   });
 
+  it.each([
+    ['svg sin espacio antes del manejador', '<svg/onload=alert(1)>'],
+    ['img con barra antes del manejador', '<img src="x"/onerror=alert(1)>'],
+    ['details con barras', '<details/open/ontoggle=alert(1)>'],
+    ['manejador con espacios alrededor del =', "<a href='x' onclick = \"alert(1)\">x</a>"],
+    ['manejador en mayúsculas', '<body ONLOAD=alert(1)>'],
+    ['javascript: con entidad decimal', '<a href="&#106;avascript:alert(1)">x</a>'],
+    ['javascript: con entidad hexadecimal', '<a href="jav&#x61;script:alert(1)">x</a>'],
+    ['javascript: con salto de línea', '<a href="java\nscript:alert(1)">x</a>'],
+    ['javascript: con espacio inicial', '<a href=" javascript:alert(1)">x</a>'],
+    ['javascript: con :', '<a href="javascript&colon;alert(1)">x</a>'],
+    ['data:text/html', '<a href="data:text/html;base64,PHNjcmlwdD4=">x</a>'],
+    ['iframe srcdoc', '<iframe srcdoc="<script>alert(1)</script>"></iframe>'],
+    ['url(javascript:) en style', '<div style="background:url(javascript:alert(1))">x</div>'],
+    ['etiqueta sin cierre', '<img src=x onerror=alert(1)'],
+    ['script en mayúsculas sin cierre', '<SCRIPT>alert(1)'],
+    ['animate de svg que reescribe el enlace', '<svg><a><animate attributeName="href" values="javascript:alert(1)"/><text>x</text></a></svg>'],
+  ])('no deja pasar: %s', (_name, payload) => {
+    const { html } = sanitizeHtml(payload);
+    expect(html).not.toMatch(/on[a-z]+\s*=|javascript\s*:|<script|<iframe|srcdoc|<animate|data:text|alert\(1\)\s*$/i);
+    // Ningún atributo queda con un manejador ni con URL ejecutable.
+    expect(html.toLowerCase()).not.toContain('javascript');
+  });
+
+  it('conserva imágenes en data: (solo formatos de imagen)', () => {
+    const png = '<img src="data:image/png;base64,iVBORw0KGgo=" alt="x">';
+    expect(sanitizeHtml(png).html).toBe(png);
+    expect(sanitizeHtml('<img src="data:image/svg+xml;base64,PHN2Zz4=">').html).not.toContain('data:');
+  });
+
+  it('un < suelto es texto y las comillas de un atributo no se pueden romper', () => {
+    expect(sanitizeHtml('1 < 2 y 3 > 2').html).toBe('1 &lt; 2 y 3 > 2');
+    const { html } = sanitizeHtml("<a title='x\" onfocus=\"alert(1)' href=\"https://a.cl\">x</a>");
+    // El texto sigue DENTRO del valor de title (comillas escapadas): no se vuelve un atributo.
+    expect(html).toBe('<a title="x&quot; onfocus=&quot;alert(1)" href="https://a.cl">x</a>');
+  });
+
+  it.each(['<link ', '<form ', '<!--', '<a ', '<', '<svg ', '<style>@import ', '<script>', '&#106;'])('limpiar 200 KB de %j tarda milisegundos (sin costo cuadrático)', (chunk) => {
+    const big = chunk.repeat(Math.ceil(200_000 / chunk.length));
+    const started = performance.now();
+    sanitizeHtml(big);
+    expect(performance.now() - started).toBeLessThan(500);
+  });
+
   it('deja intacto un HTML normal', () => {
     const ok = '<header><h1>Hola</h1></header><p style="color:#333">Texto <a href="https://a.cl" target="_blank">enlace</a></p><img src="https://cdn.cl/a.jpg" alt="foto">';
     expect(sanitizeHtml(ok)).toEqual({ html: ok, removed: [] });
@@ -294,5 +338,23 @@ describe('entradas de formularios', () => {
     expect(publicWebSiteMessageSchema.safeParse({ name: 'Ana', email: 'a@b.cl', message: 'hola' }).success).toBe(false);
     expect(publicWebSiteMessageSchema.safeParse({ name: 'Ana', email: 'a@b.cl', phone: 'abc', message: 'Hola, quiero cotizar' }).success).toBe(false);
     expect(publicWebSiteMessageSchema.safeParse({ name: 'Ana', email: 'a@b.cl', message: 'x'.repeat(2001) }).success).toBe(false);
+  });
+});
+
+describe('cabeceras de seguridad del documento HTML propio', () => {
+  // La política del route handler no basta: Next aplica primero las cabeceras de
+  // next.config.js y no deja que el handler las pise. Sin la entrada de config,
+  // el HTML de un cliente correría con la CSP global (scripts permitidos).
+  const nextConfig = require('../next.config.js') as { headers: () => Promise<{ source: string; headers: { key: string; value: string }[] }[]> };
+
+  it('next.config.js fija la misma CSP sandbox para /web/:slug/raw, después de la global', async () => {
+    const entries = await nextConfig.headers();
+    const globalIndex = entries.findIndex((entry) => entry.source === '/:path*');
+    const rawIndex = entries.findIndex((entry) => entry.source === '/web/:slug/raw');
+    expect(globalIndex).toBeGreaterThanOrEqual(0);
+    expect(rawIndex).toBeGreaterThan(globalIndex); // la última clave repetida gana
+    const csp = entries[rawIndex]!.headers.find((header) => header.key === 'Content-Security-Policy')?.value;
+    expect(csp).toBe(SANDBOX_CSP);
+    expect(entries[rawIndex]!.headers).toContainEqual({ key: 'Referrer-Policy', value: 'no-referrer' });
   });
 });

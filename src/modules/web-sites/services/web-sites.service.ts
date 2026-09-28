@@ -5,7 +5,7 @@ import type { Prisma, WebSiteKind, WebSiteMode, WebSiteStatus } from '@prisma/cl
 import { prisma } from '@/lib/prisma';
 import { isUniqueConstraintError } from '@/lib/prisma-errors';
 import { getAppUrl } from '@/lib/email/mailer';
-import { isAllowedBlobUrl } from '@/lib/security/blob-url';
+import { blobPathnameStartsWith, isAllowedBlobUrl } from '@/lib/security/blob-url';
 import { blockImageUrls, blocksSchema, parseBlocks, type WebSiteBlock } from '@/lib/web-sites/blocks';
 import { MAX_HTML_BYTES, sanitizeHtml } from '@/lib/web-sites/html';
 import { evaluateReadiness, type ReadinessReport } from '@/lib/web-sites/readiness';
@@ -28,6 +28,8 @@ export class WebSiteError extends Error {}
 export const MAX_SITES_PER_COMPANY = 30;
 export const MAX_ASSETS_PER_SITE = 60;
 export const MAX_ASSET_BYTES = 4 * 1024 * 1024;
+/** Tope de almacenamiento de imágenes de sitios por empresa (los sitios archivados también cuentan). */
+export const MAX_COMPANY_ASSET_BYTES = 300 * 1024 * 1024;
 
 const json = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 
@@ -124,10 +126,19 @@ function hasPendingChanges(site: {
   return !sameJson(site.draftBlocks, site.publishedBlocks) || !sameJson(parseTheme(site.theme), parseTheme(site.publishedTheme));
 }
 
-/** Toda URL de imagen debe ser de nuestro almacenamiento: nada de rastreadores ni hotlinks. */
-function assertOwnImages(urls: string[]): void {
+/**
+ * Toda imagen debe ser de nuestro almacenamiento Y de esta empresa: nada de
+ * rastreadores ni hotlinks, y tampoco archivos de otro cliente que comparten el
+ * mismo bucket. Se aceptan la biblioteca de sitios, el logo de la empresa
+ * (`branding/`) y las fotos de producto (`products/`).
+ */
+function assertOwnImages(companyId: string, urls: string[]): void {
+  const prefixes = [`web-sites/${companyId}/`, `branding/${companyId}/`, `products/${companyId}/`];
   for (const url of urls) {
-    if (url && !isAllowedBlobUrl(url)) throw new WebSiteError('Una imagen no viene de la biblioteca del sitio. Súbela desde "Imágenes" y elígela ahí.');
+    if (!url) continue;
+    if (!isAllowedBlobUrl(url) || !prefixes.some((prefix) => blobPathnameStartsWith(url, prefix))) {
+      throw new WebSiteError('Una imagen no viene de la biblioteca del sitio. Súbela desde "Imágenes" y elígela ahí.');
+    }
   }
 }
 
@@ -294,7 +305,7 @@ export async function saveWebSiteContent(companyId: string, id: string, input: S
   const data: Prisma.WebSiteUpdateManyMutationInput = { contentUpdatedAt: savedAt };
   if (input.blocks) {
     if (site.mode !== 'GUIDED') throw new WebSiteError('Este sitio usa HTML propio: no tiene secciones.');
-    assertOwnImages(input.blocks.flatMap(blockImageUrls));
+    assertOwnImages(companyId, input.blocks.flatMap(blockImageUrls));
     data.draftBlocks = json(input.blocks);
   }
   if (input.theme) data.theme = json(input.theme);
@@ -315,7 +326,7 @@ export async function updateWebSiteSettings(companyId: string, id: string, input
   const site = await prisma.webSite.findFirst({ where: { id, companyId }, select: { id: true, slug: true } });
   if (!site) throw new WebSiteError('Sitio no encontrado');
   const contactId = await assertContact(companyId, input.contactId);
-  assertOwnImages([input.logoUrl ?? '', input.ogImageUrl ?? '']);
+  assertOwnImages(companyId, [input.logoUrl ?? '', input.ogImageUrl ?? '']);
   if (input.slug !== site.slug) {
     const taken = await prisma.webSite.findFirst({ where: { slug: input.slug, NOT: { id } }, select: { id: true } });
     if (taken) throw new WebSiteError('Esa dirección ya la usa otro sitio. Prueba con otra.');
@@ -438,12 +449,16 @@ export async function registerAsset(companyId: string, siteId: string, input: { 
 }
 
 /** Comprueba, ANTES de subir el archivo, que el sitio es de la empresa y que la biblioteca tiene espacio. */
-export async function assertCanAddAsset(companyId: string, siteId: string): Promise<void> {
+export async function assertCanAddAsset(companyId: string, siteId: string, incomingBytes = 0): Promise<void> {
   const site = await prisma.webSite.findFirst({ where: { id: siteId, companyId }, select: { id: true, status: true } });
   if (!site) throw new WebSiteError('Sitio no encontrado');
   if (site.status === 'ARCHIVED') throw new WebSiteError('El sitio está archivado. Restáuralo para subir imágenes.');
   const count = await prisma.webSiteAsset.count({ where: { companyId, siteId } });
   if (count >= MAX_ASSETS_PER_SITE) throw new WebSiteError(`La biblioteca del sitio admite hasta ${MAX_ASSETS_PER_SITE} imágenes. Elimina las que no uses.`);
+  const used = await prisma.webSiteAsset.aggregate({ where: { companyId }, _sum: { sizeBytes: true } });
+  if ((used._sum.sizeBytes ?? 0) + incomingBytes > MAX_COMPANY_ASSET_BYTES) {
+    throw new WebSiteError(`Tu empresa llegó al límite de ${Math.round(MAX_COMPANY_ASSET_BYTES / (1024 * 1024))} MB en imágenes de sitios. Elimina imágenes que no uses (también en sitios archivados).`);
+  }
 }
 
 export async function updateAssetAlt(companyId: string, assetId: string, alt: string): Promise<void> {
@@ -459,14 +474,14 @@ export async function deleteAsset(companyId: string, assetId: string): Promise<{
     [asset.site.logoUrl, asset.site.ogImageUrl, asset.site.draftHtml, asset.site.publishedHtml].some((value) => (value ?? '').includes(asset.url));
   if (usedHere) throw new WebSiteError('Esta imagen se usa en el sitio. Quítala de las secciones (y despublica o vuelve a publicar) antes de eliminarla.');
   await prisma.webSiteAsset.deleteMany({ where: { id: assetId, companyId } });
-  const others = await prisma.webSiteAsset.count({ where: { url: asset.url } });
+  const others = await prisma.webSiteAsset.count({ where: { url: asset.url, companyId } });
   return { urlToDelete: others === 0 ? asset.url : null };
 }
 
 /** De estas URL, las que ninguna fila de biblioteca usa (las que sí se pueden borrar del almacenamiento). */
-export async function unusedAssetUrls(urls: string[]): Promise<string[]> {
+export async function unusedAssetUrls(companyId: string, urls: string[]): Promise<string[]> {
   if (urls.length === 0) return [];
-  const used = new Set((await prisma.webSiteAsset.findMany({ where: { url: { in: urls } }, select: { url: true } })).map((row) => row.url));
+  const used = new Set((await prisma.webSiteAsset.findMany({ where: { companyId, url: { in: urls } }, select: { url: true } })).map((row) => row.url));
   return urls.filter((url) => !used.has(url));
 }
 
@@ -578,6 +593,11 @@ export async function createPublicMessage(site: Pick<PublicWebSite, 'id' | 'comp
     select: { id: true },
   });
   return message;
+}
+
+/** Mensajes recibidos por un sitio en los últimos `minutes` (tope contra spam que sobrevive a cada instancia serverless). */
+export async function countRecentMessages(companyId: string, siteId: string, minutes: number): Promise<number> {
+  return prisma.webSiteMessage.count({ where: { companyId, siteId, createdAt: { gte: new Date(Date.now() - minutes * 60_000) } } });
 }
 
 export async function countUnreadMessages(companyId: string): Promise<number> {

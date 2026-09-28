@@ -6,7 +6,12 @@ import { checkRateLimit, WEB_SITE_CONTACT_RATE_LIMIT, WEB_SITE_CONTACT_SITE_RATE
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import { WEB_SITE_HONEYPOT_FIELD } from '@/lib/web-sites/constants';
 import { publicWebSiteMessageSchema } from '@/modules/web-sites/schema';
-import { createPublicMessage, getPublicWebSite } from '@/modules/web-sites/services/web-sites.service';
+import { countRecentMessages, createPublicMessage, getPublicWebSite } from '@/modules/web-sites/services/web-sites.service';
+
+/** Un mensaje legítimo pesa unos cientos de bytes; el límite corta cuerpos gigantes antes de leerlos. */
+const MAX_BODY_BYTES = 16 * 1024;
+/** Tope por sitio y por hora, contado en la base de datos: el límite en memoria no se comparte entre instancias serverless. */
+const MAX_MESSAGES_PER_SITE_PER_HOUR = 60;
 
 /**
  * Formulario de contacto de un sitio publicado: sin sesión, resuelto por el
@@ -34,7 +39,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
 
   let body: unknown;
   try {
-    body = await req.json();
+    const declared = Number(req.headers.get('content-length') ?? 0);
+    if (declared > MAX_BODY_BYTES) return jsonError('El mensaje es demasiado largo', 413);
+    const raw = await req.text();
+    if (raw.length > MAX_BODY_BYTES) return jsonError('El mensaje es demasiado largo', 413);
+    body = JSON.parse(raw);
   } catch {
     return jsonError('Solicitud inválida', 400);
   }
@@ -52,7 +61,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
     if (!site || !site.acceptsMessages) return jsonError('Este formulario ya no está disponible', 404);
 
     const siteLimit = checkRateLimit(site.id, WEB_SITE_CONTACT_SITE_RATE_LIMIT);
-    if (!siteLimit.allowed) return jsonError('Este sitio recibió muchos mensajes seguidos. Intenta de nuevo en un rato.', 429);
+    if (!siteLimit.allowed || (await countRecentMessages(site.companyId, site.id, 60)) >= MAX_MESSAGES_PER_SITE_PER_HOUR) {
+      return jsonError('Este sitio recibió muchos mensajes seguidos. Intenta de nuevo en un rato.', 429);
+    }
 
     const message = await createPublicMessage(site, parsed.data);
 

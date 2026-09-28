@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { NextResponse } from 'next/server';
-import { put } from '@/lib/storage/blob';
+import { del, put } from '@/lib/storage/blob';
 import { authErrorMessage, requireAuthWithPermission } from '@/lib/auth/guards';
 import { captureException } from '@/lib/observability';
 import { SNIFFED_IMAGE_EXTENSION, sniffImageType } from '@/lib/security/file-signature';
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     if (!(file instanceof File) || file.size === 0) return NextResponse.json({ success: false, error: 'Adjunta una imagen' }, { status: 400 });
     if (file.size > MAX_ASSET_BYTES) return NextResponse.json({ success: false, error: `La imagen supera los ${MAX_ASSET_BYTES / (1024 * 1024)} MB. Comprímela e intenta de nuevo.` }, { status: 413 });
 
-    await assertCanAddAsset(session.companyId, siteId);
+    await assertCanAddAsset(session.companyId, siteId, file.size);
 
     const bytes = new Uint8Array(await file.arrayBuffer());
     const type = sniffImageType(bytes);
@@ -37,8 +37,14 @@ export async function POST(req: Request) {
       contentType: type,
       addRandomSuffix: false,
     });
-    const asset = await registerAsset(session.companyId, siteId, { url: blob.url, fileName: file.name || 'imagen', mimeType: type, sizeBytes: file.size, alt });
-    return NextResponse.json({ success: true, data: asset });
+    try {
+      const asset = await registerAsset(session.companyId, siteId, { url: blob.url, fileName: file.name || 'imagen', mimeType: type, sizeBytes: file.size, alt });
+      return NextResponse.json({ success: true, data: asset });
+    } catch (error) {
+      // Si no se pudo registrar, el archivo subido quedaría huérfano y sin dueño.
+      await del(blob.url).catch(() => undefined);
+      throw error;
+    }
   } catch (error) {
     const authMessage = authErrorMessage(error);
     if (authMessage) return NextResponse.json({ success: false, error: authMessage }, { status: 403 });

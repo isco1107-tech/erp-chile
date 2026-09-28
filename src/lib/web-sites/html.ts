@@ -47,51 +47,161 @@ export interface SanitizeResult {
   removed: string[];
 }
 
-const BLOCK_WITH_CONTENT = /<(script|iframe|object|applet|noscript|template)\b[\s\S]*?(?:<\/\1\s*>|$)/gi;
-const VOID_DANGEROUS = /<\/?(embed|base|frame|frameset|link|meta|form|input|button|select|textarea|param|portal)\b[^>]*>/gi;
-const EVENT_ATTR = /\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi;
-const DANGEROUS_URL_ATTR = /\s+(href|src|action|formaction|xlink:href|srcset|poster|background)\s*=\s*(?:"\s*(?:javascript|vbscript|data:text\/html)[^"]*"|'\s*(?:javascript|vbscript|data:text\/html)[^']*'|(?:javascript|vbscript|data:text\/html)[^\s>]*)/gi;
+/** Elementos cuyo CONTENIDO también se descarta (hasta su cierre). */
+const DROP_WITH_CONTENT = new Set(['script', 'iframe', 'object', 'applet', 'noscript', 'template']);
+/** Elementos que se quitan solos; su contenido, si lo hay, se conserva como texto. */
+const DROP_TAG = new Set([
+  'embed', 'base', 'frame', 'frameset', 'link', 'meta', 'form', 'input', 'button', 'select', 'textarea', 'param', 'portal',
+  // SVG animado que puede reescribir enlaces o atributos en vuelo.
+  'animate', 'set', 'animatemotion', 'animatetransform', 'handler', 'listener',
+]);
+const FORM_TAGS = new Set(['form', 'input', 'button', 'select', 'textarea']);
+/** Atributos que llevan una URL. */
+const URL_ATTRS = new Set(['href', 'src', 'xlink:href', 'srcset', 'poster', 'background', 'data', 'action', 'formaction', 'cite', 'longdesc', 'ping', 'manifest', 'codebase']);
+const DROP_ATTRS = new Set(['srcdoc', 'formaction', 'action', 'ping', 'manifest', 'codebase']);
+
+// Todo lo de abajo recorre el texto UNA vez (sin retroceso): el HTML es de un
+// usuario y puede pesar 200 KB de casos patológicos.
+const TAG_RE = /<(\/?)([a-zA-Z][a-zA-Z0-9:-]*)([^<>]*)(>?)/y;
+const ATTR_RE = /([^\s"'<>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
 const CSS_IMPORT = /@import\b[^;]*;?/gi;
-const CSS_EXPRESSION = /expression\s*\(|behavior\s*:|-moz-binding\s*:/gi;
+const CSS_DANGER = /expression\s*\(|behavior\s*:|-moz-binding\s*:|javascript\s*:|vbscript\s*:/gi;
+
+function decodeEntities(value: string): string {
+  return value
+    .replace(/&#x([0-9a-f]+);?/gi, (_m, hex: string) => String.fromCodePoint(Math.min(Number.parseInt(hex, 16), 0x10ffff)))
+    .replace(/&#(\d+);?/g, (_m, dec: string) => String.fromCodePoint(Math.min(Number.parseInt(dec, 10), 0x10ffff)))
+    .replace(/&(colon|tab|newline|nbsp);?/gi, (_m, name: string) => ({ colon: ':', tab: '\t', newline: '\n', nbsp: ' ' })[name.toLowerCase() as 'colon' | 'tab' | 'newline' | 'nbsp']);
+}
+
+/** ¿Esta URL ejecuta código o incrusta un documento? Se decodifica y se quitan espacios/controles antes de mirar. */
+function isDangerousUrl(value: string): boolean {
+  const plain = decodeEntities(value).replace(/[\u0000-\u0020\u007f-\u009f]/g, '').toLowerCase();
+  if (/^(javascript|vbscript|livescript|mocha):/.test(plain)) return true;
+  if (plain.startsWith('data:')) return !/^data:image\/(png|jpe?g|gif|webp|avif);base64,/.test(plain);
+  return false;
+}
+
+function cleanCss(css: string, note: (message: string) => void): string {
+  let out = css;
+  if (CSS_IMPORT.test(out)) note('Reglas @import de CSS (pega los estilos directamente)');
+  CSS_IMPORT.lastIndex = 0;
+  out = out.replace(CSS_IMPORT, '');
+  if (CSS_DANGER.test(out)) note('Expresiones de CSS no permitidas');
+  CSS_DANGER.lastIndex = 0;
+  return out.replace(CSS_DANGER, '');
+}
 
 /**
- * Quita scripts, marcos, formularios, manejadores `on…=`, enlaces `javascript:`
- * y similares. Es una limpieza de cortesía: la seguridad la da `SANDBOX_CSP`.
+ * Quita scripts, marcos, formularios, manejadores `on…`, URLs `javascript:` o
+ * `data:` (incluso disfrazadas con entidades) y similares. Recorre el texto una
+ * sola vez y reconstruye cada etiqueta atributo por atributo, en vez de buscar
+ * patrones sueltos: `<svg/onload=…>`, `<img src="x"/onerror=…>` o
+ * `href="&#106;avascript:…"` no se cuelan. Igual es una limpieza de cortesía:
+ * la barrera real es `SANDBOX_CSP`.
  */
 export function sanitizeHtml(input: string): SanitizeResult {
   const removed = new Set<string>();
-  let html = input.replace(/\0/g, '');
-  const strip = (pattern: RegExp, note: string) => {
-    html = html.replace(pattern, () => {
-      removed.add(note);
-      return '';
-    });
-  };
+  const note = (message: string) => removed.add(message);
+  const source = input.replace(/\0/g, '');
+  const lower = source.toLowerCase();
+  let out = '';
+  let i = 0;
 
-  // Dos pasadas: quitar un fragmento puede dejar pegado otro (`<scr<script>ipt>`).
-  for (let pass = 0; pass < 2; pass += 1) {
-    strip(/<!--[\s\S]*?-->/g, '');
-    html = html.replace(BLOCK_WITH_CONTENT, (_match, tag: string) => {
-      removed.add(
-        tag.toLowerCase() === 'script' ? 'Scripts (el HTML propio no ejecuta JavaScript)' : tag.toLowerCase() === 'iframe' ? 'Marcos incrustados (iframe)' : 'Elementos incrustados (' + tag.toLowerCase() + ')'
-      );
-      return '';
-    });
-    html = html.replace(VOID_DANGEROUS, (match) => {
-      const tag = /^<\/?([a-z]+)/i.exec(match)?.[1]?.toLowerCase() ?? '';
-      if (['form', 'input', 'button', 'select', 'textarea'].includes(tag)) removed.add('Formularios y campos (usa un enlace de WhatsApp o correo, o el modo guiado)');
-      else if (tag === 'meta' || tag === 'link') removed.add('Etiquetas <meta> y <link> (la plataforma agrega las suyas)');
-      else removed.add('Elementos no permitidos (' + tag + ')');
-      return '';
-    });
-    strip(EVENT_ATTR, 'Atributos de eventos (onclick, onload…)');
-    strip(DANGEROUS_URL_ATTR, 'Enlaces javascript: o data:');
+  while (i < source.length) {
+    const lt = source.indexOf('<', i);
+    if (lt === -1) {
+      out += source.slice(i);
+      break;
+    }
+    out += source.slice(i, lt);
+
+    if (source.startsWith('<!--', lt)) {
+      const close = source.indexOf('-->', lt + 4);
+      i = close === -1 ? source.length : close + 3;
+      continue;
+    }
+    if (source.startsWith('<!', lt) || source.startsWith('<?', lt)) {
+      // <!doctype> se conserva tal cual; declaraciones y <? … ?> se descartan.
+      const close = source.indexOf('>', lt);
+      const end = close === -1 ? source.length : close + 1;
+      if (/^<!doctype\s+html\s*>$/i.test(source.slice(lt, end))) out += source.slice(lt, end);
+      i = end;
+      continue;
+    }
+
+    TAG_RE.lastIndex = lt;
+    const match = TAG_RE.exec(source);
+    if (!match) {
+      out += '&lt;'; // un "<" suelto es texto
+      i = lt + 1;
+      continue;
+    }
+    const [whole, slash, rawName, attrText, closed] = match as unknown as [string, string, string, string, string];
+    const name = rawName.toLowerCase();
+    i = lt + whole.length;
+    // Etiqueta sin ">" de cierre: los navegadores la completarían con lo que siga. Se descarta.
+    if (!closed) continue;
+
+    if (DROP_WITH_CONTENT.has(name)) {
+      if (!slash) {
+        note(name === 'script' ? 'Scripts (el HTML propio no ejecuta JavaScript)' : name === 'iframe' ? 'Marcos incrustados (iframe)' : `Elementos incrustados (${name})`);
+        const closeAt = lower.indexOf(`</${name}`, i);
+        if (closeAt === -1) {
+          i = source.length;
+        } else {
+          const gt = source.indexOf('>', closeAt);
+          i = gt === -1 ? source.length : gt + 1;
+        }
+      }
+      continue;
+    }
+    if (DROP_TAG.has(name)) {
+      if (FORM_TAGS.has(name)) note('Formularios y campos (usa un enlace de WhatsApp o correo, o el modo guiado)');
+      else if (name === 'meta' || name === 'link') note('Etiquetas <meta> y <link> (la plataforma agrega las suyas)');
+      else note(`Elementos no permitidos (${name})`);
+      continue;
+    }
+    if (slash) {
+      out += `</${rawName}>`;
+      continue;
+    }
+
+    let attrs = '';
+    for (const attr of attrText.matchAll(ATTR_RE)) {
+      const attrName = attr[1]!.toLowerCase();
+      const value = attr[2] ?? attr[3] ?? attr[4];
+      if (attrName.startsWith('on')) {
+        note('Atributos de eventos (onclick, onload…)');
+        continue;
+      }
+      if (DROP_ATTRS.has(attrName)) {
+        note('Atributos no permitidos (action, srcdoc…)');
+        continue;
+      }
+      if (value !== undefined && URL_ATTRS.has(attrName) && isDangerousUrl(value)) {
+        note('Enlaces javascript: o data:');
+        continue;
+      }
+      if (value === undefined) {
+        attrs += ` ${attr[1]}`;
+        continue;
+      }
+      const cleaned = attrName === 'style' ? cleanCss(value, note) : value;
+      attrs += ` ${attr[1]}="${cleaned.replace(/"/g, '&quot;')}"`;
+    }
+    const selfClosing = /\/\s*$/.test(attrText) ? ' /' : '';
+    out += `<${rawName}${attrs}${selfClosing}>`;
+
+    if (name === 'style') {
+      const closeAt = lower.indexOf('</style', i);
+      const endAt = closeAt === -1 ? source.length : closeAt;
+      out += cleanCss(source.slice(i, endAt), note);
+      i = endAt;
+    }
   }
-  strip(CSS_IMPORT, 'Reglas @import de CSS (pega los estilos directamente)');
-  strip(CSS_EXPRESSION, 'Expresiones de CSS no permitidas');
 
-  removed.delete('');
-  return { html: html.trim(), removed: [...removed] };
+  return { html: out.trim(), removed: [...removed] };
 }
 
 function escapeHtml(value: string): string {
