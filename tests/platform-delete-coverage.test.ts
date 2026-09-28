@@ -51,6 +51,7 @@ const CASCADES_TO_COMPANY = new Set([
   'WorkflowExecution',
   'WorkflowNotification',
   'PushSubscription',
+  'OfflineOperation',
   'JobPosition',
   // Módulos CRM, Remuneraciones, Activo fijo y Rendiciones: todos con
   // `onDelete: Cascade` directo hacia Company. Sus FKs hacia Contact, User y

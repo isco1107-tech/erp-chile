@@ -215,6 +215,7 @@ model Company {
   workflowExecutions        WorkflowExecution[]
   workflowNotifications     WorkflowNotification[]
   pushSubscriptions         PushSubscription[]
+  offlineOperations         OfflineOperation[]
   opportunities             Opportunity[]
   crmActivities             CrmActivity[]
   crmPeople                 CrmPerson[]
@@ -314,6 +315,7 @@ model User {
   matchOverriddenPurchaseDocuments PurchaseDocument[]        @relation("PurchaseMatchOverrides")
   sessions                         UserSession[]
   pushSubscriptions                PushSubscription[]
+  offlineOperations                OfflineOperation[]
   assignedServiceTickets           ServiceTicket[]           @relation("ServiceTicketTechnician")
   /// Empresas ADICIONALES a `companyId` (la "hogar") que este usuario puede
   /// activar sin iniciar sesión de nuevo — ver `CompanyMembership` y
@@ -3660,6 +3662,54 @@ model PushSubscription {
   @@index([companyId])
   @@index([userId])
   @@index([sessionId])
+}
+
+/// Qué se hizo sin conexión (docs/adr/0002). Solo se registran operaciones
+/// que ya existen en línea; la sincronización las ejecuta con las mismas
+/// Server Actions de siempre.
+enum OfflineOperationKind {
+  POS_SALE
+  STOCK_MOVEMENT
+  PURCHASE
+  GOODS_RECEIPT
+}
+
+enum OfflineOperationStatus {
+  /// Tomada por una sincronización. Si queda así (se cortó a mitad), no se
+  /// vuelve a ejecutar sola: se revisa, para no duplicar nada.
+  PROCESSING
+  DONE
+  /// La operación se rechazó y NO quedó aplicada (las acciones son
+  /// transaccionales): se puede corregir y reintentar.
+  FAILED
+}
+
+/// Registro de cada operación hecha sin conexión (modo contingencia, máx. 2 h).
+/// Garantiza que se aplique UNA sola vez aunque el equipo la reenvíe:
+/// `idempotencyKey` la genera el equipo al capturarla y es única por empresa.
+model OfflineOperation {
+  id             String                 @id @default(cuid())
+  companyId      String
+  company        Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// SetNull: el registro de lo que se hizo sobrevive aunque se elimine la cuenta.
+  userId         String?
+  user           User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  idempotencyKey String
+  kind           OfflineOperationKind
+  status         OfflineOperationStatus
+  /// Hora del equipo cuando se hizo la operación, sin conexión.
+  capturedAt     DateTime
+  syncedAt       DateTime?
+  /// Id del documento o movimiento que creó (venta, compra, recepción).
+  resultRef      String?
+  error          String?
+  attempts       Int                    @default(1)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  @@unique([companyId, idempotencyKey])
+  @@index([companyId, status, createdAt])
+  @@index([userId])
 }
 
 model WorkflowNotification {
