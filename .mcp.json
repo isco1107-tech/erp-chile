@@ -2,7 +2,12 @@
   "mcpServers": {
     "model-delegate": {
       "command": "node",
-      "args": ["scripts/mcp/model-delegate.mjs"]
+      "args": [
+        "scripts/mcp/model-delegate.mjs"
+      ],
+      "env": {
+        "NODE_USE_ENV_PROXY": "1"
+      }
     }
   }
 }
