@@ -4,7 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { headers, cookies } from 'next/headers';
 import { Prisma, type Invitation, type Role } from '@prisma/client';
 import { z } from 'zod';
-import { requireAuthWithPermission, authErrorMessage } from '@/lib/auth/guards';
+import { requireAuthWithPermission, authErrorMessage, getAuthContext, assertPasswordChangeNotPending, AuthError } from '@/lib/auth/guards';
+import { switchActiveCompanyAction } from '@/lib/auth/actions/switch-company.actions';
 import { createAuditLog } from '@/lib/auth/audit';
 import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import { prisma } from '@/lib/prisma';
@@ -126,7 +127,7 @@ export async function inviteUserAction(input: unknown): Promise<ActionResult<Inv
       };
     }
 
-    const data = await usersService.inviteUser(session.companyId, parsed.data);
+    const data = await usersService.inviteUser(session.companyId, parsed.data, { multiCompany: session.features.hasMultiCompany });
     const delivery = await deliverInvitationEmail(data, session.companyName, session.email);
 
     await createAuditLog({
@@ -136,10 +137,15 @@ export async function inviteUserAction(input: unknown): Promise<ActionResult<Inv
       action: 'CREATE',
       entity: 'Invitation',
       entityId: data.id,
-      metadata: { email: data.email, role: data.role, envioCorreo: delivery.status },
+      metadata: { email: data.email, role: data.role, envioCorreo: delivery.status, cuentaExistente: data.existingAccount },
     });
     revalidatePath('/dashboard/settings/users');
-    return { success: true, data, message: invitationMessage(delivery.status, data.email) };
+    const message = invitationMessage(delivery.status, data.email);
+    return {
+      success: true,
+      data,
+      message: data.existingAccount ? `${message}. Ya tiene cuenta en Aether: al aceptar, se le suma esta empresa` : message,
+    };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
   }
@@ -394,7 +400,7 @@ export async function finalizeOwnPasswordResetAction(): Promise<ActionResult<nul
 
 export async function getInvitationByTokenAction(
   token: string
-): Promise<ActionResult<{ email: string; role: Role; companyName: string; expired: boolean }>> {
+): Promise<ActionResult<{ email: string; role: Role; companyName: string; expired: boolean; existingAccount: boolean }>> {
   try {
     const invitation = await usersService.getInvitationByToken(token);
     if (!invitation || invitation.acceptedAt) return { success: false, error: 'Invitación no válida' };
@@ -405,6 +411,8 @@ export async function getInvitationByTokenAction(
         role: invitation.role,
         companyName: invitation.company.businessName,
         expired: invitation.expiresAt < new Date(),
+        // Con cuenta existente, la página pide iniciar sesión en vez de crear una cuenta.
+        existingAccount: invitation.existingAccount,
       },
     };
   } catch (error) {
@@ -463,3 +471,46 @@ export async function acceptInvitationAction(token: string, input: unknown): Pro
   }
 }
 
+
+/**
+ * Acepta una invitación como MEMBRESÍA, para quien ya tiene cuenta en otra
+ * empresa: suma la empresa a las suyas y la abre. Exige sesión iniciada con
+ * el mismo correo de la invitación (lo valida el servicio).
+ *
+ * Sin `requireAuthWithPermission`: aceptar una invitación dirigida a uno
+ * mismo no es una acción sobre la empresa activa, y quien acepta todavía no
+ * tiene permisos en la empresa que lo invitó.
+ */
+export async function acceptInvitationAsMemberAction(token: string): Promise<ActionResult<null>> {
+  let targetCompanyId: string;
+  try {
+    if (typeof token !== 'string' || token.length === 0 || token.length > 200) return { success: false, error: 'Invitación no válida' };
+    let session: AuthContext;
+    try {
+      session = await getAuthContext();
+    } catch (error) {
+      if (error instanceof AuthError && error.status === 401) {
+        return { success: false, error: 'Inicia sesión con tu cuenta de Aether para aceptar la invitación' };
+      }
+      throw error;
+    }
+    assertPasswordChangeNotPending(session);
+
+    const result = await usersService.acceptInvitationAsMember(token, session.id);
+    await createAuditLog({
+      companyId: result.companyId,
+      userId: session.id,
+      userEmail: result.email,
+      action: 'CREATE',
+      entity: 'CompanyMembership',
+      entityId: session.id,
+      metadata: { role: result.role, viaInvitation: true },
+    });
+    targetCompanyId = result.companyId;
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+  // Abre la empresa recién sumada. Redirige por dentro (lanza), así que va
+  // fuera del try: atraparlo lo convertiría en un error genérico.
+  return switchActiveCompanyAction(targetCompanyId);
+}

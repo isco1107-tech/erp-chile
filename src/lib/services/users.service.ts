@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import type { AuditAction, Invitation, Prisma, Role } from '@prisma/client';
 import { generateRandomPassword } from '@/lib/auth/password-policy';
+import { toFeatureFlags } from '@/lib/auth/modules';
 
 export const INVITATION_TTL_DAYS = 7;
 const INVITATION_TTL_HOURS = INVITATION_TTL_DAYS * 24;
@@ -62,12 +63,40 @@ export async function listPendingInvitations(companyId: string): Promise<Invitat
   });
 }
 
+/**
+ * Cuenta existente con ese correo, sin distinguir mayúsculas: es la misma
+ * persona aunque la escriban distinto, y no debe terminar con dos cuentas.
+ */
+async function findUserByEmail(email: string) {
+  return prisma.user.findFirst({
+    where: { email: { equals: email, mode: 'insensitive' } },
+    select: { id: true, email: true, companyId: true, isSuperAdmin: true, isActive: true },
+  });
+}
+
 export async function inviteUser(
   companyId: string,
-  data: { email: string; role: Role; customRoleId?: string | null }
-): Promise<Invitation> {
-  const existingUser = await prisma.user.findUnique({ where: { email: data.email } });
-  if (existingUser) throw new Error('Ya existe un usuario con ese correo electrónico');
+  data: { email: string; role: Role; customRoleId?: string | null },
+  options: { multiCompany: boolean }
+): Promise<Invitation & { existingAccount: boolean }> {
+  // Alguien que ya tiene cuenta en otra empresa no recibe una cuenta nueva:
+  // se le suma esta empresa como membresía (Multiempresa), con el mismo
+  // correo y la misma contraseña que ya usa.
+  const existingUser = await findUserByEmail(data.email);
+  if (existingUser) {
+    if (existingUser.companyId === companyId) throw new Error('Esa persona ya es parte del equipo');
+    if (existingUser.isSuperAdmin) throw new Error('No se puede invitar una cuenta de plataforma');
+    const membership = await prisma.companyMembership.findUnique({
+      where: { userId_companyId: { userId: existingUser.id, companyId } },
+      select: { id: true },
+    });
+    if (membership) throw new Error('Esa persona ya tiene acceso a esta empresa');
+    if (!options.multiCompany) {
+      throw new Error(
+        'Ese correo ya tiene una cuenta en otra empresa. Para sumar a esa persona sin crearle otra cuenta, tu plan necesita el módulo Multiempresa'
+      );
+    }
+  }
 
   if (data.customRoleId) {
     const customRole = await prisma.customRole.findFirst({ where: { id: data.customRoleId, companyId } });
@@ -78,11 +107,12 @@ export async function inviteUser(
   const expiresAt = new Date(Date.now() + INVITATION_TTL_HOURS * 60 * 60 * 1000);
   const customRoleId = data.customRoleId ?? null;
 
-  return prisma.invitation.upsert({
+  const invitation = await prisma.invitation.upsert({
     where: { companyId_email: { companyId, email: data.email } },
     update: { role: data.role, customRoleId, token, expiresAt, acceptedAt: null },
     create: { companyId, email: data.email, role: data.role, customRoleId, token, expiresAt },
   });
+  return { ...invitation, existingAccount: existingUser !== null };
 }
 
 export async function revokeInvitation(companyId: string, id: string): Promise<void> {
@@ -104,11 +134,84 @@ export async function resendInvitation(companyId: string, id: string): Promise<I
 
 export async function getInvitationByToken(
   token: string
-): Promise<(Invitation & { company: { businessName: string } }) | null> {
-  return prisma.invitation.findUnique({
+): Promise<(Invitation & { company: { businessName: string }; existingAccount: boolean }) | null> {
+  const invitation = await prisma.invitation.findUnique({
     where: { token },
     include: { company: { select: { businessName: true } } },
   });
+  if (!invitation) return null;
+  return { ...invitation, existingAccount: (await findUserByEmail(invitation.email)) !== null };
+}
+
+/**
+ * Cupos del plan que ocupa una empresa: su equipo activo más las personas de
+ * otras empresas que trabajan en ella con membresía (también usan la empresa).
+ */
+async function occupiedSeats(tx: Prisma.TransactionClient, companyId: string): Promise<number> {
+  const [homeUsers, members] = await Promise.all([
+    tx.user.count({ where: { companyId, isActive: true } }),
+    tx.companyMembership.count({ where: { companyId, user: { isActive: true } } }),
+  ]);
+  return homeUsers + members;
+}
+
+/**
+ * Acepta una invitación dirigida a alguien que YA tiene cuenta: no crea un
+ * usuario, le suma la empresa como membresía. Exige que quien acepta sea esa
+ * misma cuenta (sesión iniciada con ese correo): el token solo prueba que
+ * se recibió el correo, no autoriza a colgarle una empresa a otra cuenta.
+ */
+export async function acceptInvitationAsMember(
+  token: string,
+  sessionUserId: string
+): Promise<{ companyId: string; companyName: string; role: Role; email: string }> {
+  const invitation = await prisma.invitation.findUnique({
+    where: { token },
+    include: { company: { select: { businessName: true, status: true, maxUsers: true, features: true } } },
+  });
+  if (!invitation) throw new Error('Invitación no válida');
+  if (invitation.acceptedAt) throw new Error('Esta invitación ya fue utilizada');
+  if (invitation.expiresAt < new Date()) throw new Error('Esta invitación ha expirado');
+  if (invitation.company.status === 'SUSPENDED' || invitation.company.status === 'CANCELLED') {
+    throw new Error('La cuenta de esta empresa no se encuentra activa');
+  }
+  if (!toFeatureFlags(invitation.company.features).hasMultiCompany) {
+    throw new Error('Esta empresa ya no tiene el módulo Multiempresa. Pide que te inviten de nuevo');
+  }
+
+  const user = await prisma.user.findFirst({
+    where: { id: sessionUserId, isActive: true },
+    select: { id: true, email: true, companyId: true, isSuperAdmin: true },
+  });
+  if (!user || user.email.toLowerCase() !== invitation.email.toLowerCase()) {
+    throw new Error(`Esta invitación es para ${invitation.email}. Entra con esa cuenta para aceptarla`);
+  }
+  if (user.isSuperAdmin) throw new Error('No se puede invitar una cuenta de plataforma');
+  if (user.companyId === invitation.companyId) throw new Error('Ya eres parte de esta empresa');
+
+  await prisma.$transaction(async (tx) => {
+    // El cupo se revalida al aceptar: entre la invitación y este momento el
+    // plan pudo cambiar o llenarse.
+    if ((await occupiedSeats(tx, invitation.companyId)) >= invitation.company.maxUsers) {
+      throw new Error(`La empresa alcanzó el máximo de ${invitation.company.maxUsers} usuarios de su plan. Contacta al administrador`);
+    }
+    let customRoleId: string | null = null;
+    if (invitation.customRoleId) {
+      const customRole = await tx.customRole.findFirst({
+        where: { id: invitation.customRoleId, companyId: invitation.companyId },
+        select: { id: true },
+      });
+      customRoleId = customRole?.id ?? null;
+    }
+    await tx.companyMembership.upsert({
+      where: { userId_companyId: { userId: user.id, companyId: invitation.companyId } },
+      create: { userId: user.id, companyId: invitation.companyId, role: invitation.role, customRoleId },
+      update: { role: invitation.role, customRoleId },
+    });
+    await tx.invitation.updateMany({ where: { id: invitation.id, companyId: invitation.companyId }, data: { acceptedAt: new Date() } });
+  });
+
+  return { companyId: invitation.companyId, companyName: invitation.company.businessName, role: invitation.role, email: user.email };
 }
 
 /**
@@ -142,16 +245,18 @@ export async function acceptInvitation(
     throw new Error('La cuenta de esta empresa no se encuentra activa');
   }
 
-  const existingUser = await prisma.user.findUnique({ where: { email: invitation.email } });
-  if (existingUser) throw new Error('Ya existe un usuario con ese correo electrónico');
+  // Con cuenta existente se acepta como membresía (acceptInvitationAsMember),
+  // nunca creando una segunda cuenta con el mismo correo.
+  if (await findUserByEmail(invitation.email)) {
+    throw new Error('Ese correo ya tiene una cuenta: inicia sesión con ella para aceptar la invitación');
+  }
 
   const passwordHash = await bcrypt.hash(data.password, 12);
 
   return prisma.$transaction(async (tx) => {
     // El límite se revalida al aceptar, no solo al invitar: entre ambos momentos
     // pueden pasar días y el plan pudo cambiar o llenarse el cupo.
-    const activeUsers = await tx.user.count({ where: { companyId: invitation.companyId, isActive: true } });
-    if (activeUsers >= invitation.company.maxUsers) {
+    if ((await occupiedSeats(tx, invitation.companyId)) >= invitation.company.maxUsers) {
       throw new Error(
         `La empresa alcanzó el máximo de ${invitation.company.maxUsers} usuarios de su plan. Contacta al administrador`
       );
@@ -220,8 +325,7 @@ export async function createUserDirect(
 
   const company = await prisma.company.findUnique({ where: { id: companyId }, select: { maxUsers: true } });
   if (!company) throw new Error('Empresa no encontrada');
-  const activeUsers = await prisma.user.count({ where: { companyId, isActive: true } });
-  if (activeUsers >= company.maxUsers) {
+  if ((await occupiedSeats(prisma, companyId)) >= company.maxUsers) {
     throw new Error(`Tu plan permite ${company.maxUsers} usuarios y ya están ocupados. Libera un cupo o solicita una ampliación de plan`);
   }
 

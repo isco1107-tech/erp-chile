@@ -3,8 +3,8 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { Eye, EyeOff, UserPlus } from 'lucide-react';
-import { acceptInvitationAction, getInvitationByTokenAction } from '@/lib/actions/users';
+import { Building2, Eye, EyeOff, UserPlus } from 'lucide-react';
+import { acceptInvitationAction, acceptInvitationAsMemberAction, getInvitationByTokenAction } from '@/lib/actions/users';
 import { ROLE_LABELS } from '@/lib/auth/roles';
 import {
   PublicBadge,
@@ -45,7 +45,14 @@ function AcceptInvitationForm() {
   const token = searchParams.get('token') ?? '';
 
   const [loading, setLoading] = useState(true);
-  const [invitation, setInvitation] = useState<{ email: string; role: string; companyName: string; expired: boolean } | null>(null);
+  const [invitation, setInvitation] = useState<{
+    email: string;
+    role: string;
+    companyName: string;
+    expired: boolean;
+    existingAccount: boolean;
+  } | null>(null);
+  const [needsLogin, setNeedsLogin] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
@@ -109,6 +116,61 @@ function AcceptInvitationForm() {
   }
 
   const roleLabel = ROLE_LABELS[invitation.role as keyof typeof ROLE_LABELS] ?? invitation.role;
+
+  if (invitation.existingAccount) {
+    // Ya tiene cuenta (en otra empresa): no se crea otra, se le suma esta
+    // empresa con la sesión de esa misma cuenta.
+    const loginHref = `/login?callbackUrl=${encodeURIComponent(`/accept-invitation?token=${token}`)}`;
+    const acceptAsMember = async () => {
+      setSubmitting(true);
+      try {
+        // En el camino feliz redirige a la empresa nueva y no vuelve acá.
+        const result = await acceptInvitationAsMemberAction(token);
+        if (!result.success) {
+          if (/inicia sesión/i.test(result.error)) setNeedsLogin(true);
+          toast.error(result.error);
+        }
+      } finally {
+        setSubmitting(false);
+      }
+    };
+    return (
+      <PublicPage accent="gold">
+        <PublicTopBar brand={invitation.companyName} right="Invitación" />
+        <PublicShell>
+          <PublicCard glow>
+            <PublicCardHeader
+              icon={<Building2 size={22} strokeWidth={1.6} />}
+              eyebrow="Te invitaron al equipo"
+              title={`Suma ${invitation.companyName} a tus empresas`}
+              subtitle="Ya tienes una cuenta en Aether con este correo: entras con la misma contraseña y cambias de empresa desde el menú."
+            />
+            <div className="pub-panel" style={{ marginBottom: '1.5rem' }}>
+              <div className="pub-row">
+                <span>Correo</span>
+                <span>{invitation.email}</span>
+              </div>
+              <div className="pub-row">
+                <span>Rol en {invitation.companyName}</span>
+                <span><PublicBadge tone="accent">{roleLabel}</PublicBadge></span>
+              </div>
+            </div>
+            {needsLogin ? (
+              <a className="pub-btn is-primary is-full" href={loginHref}>
+                <span>Iniciar sesión para aceptar</span>
+              </a>
+            ) : (
+              <PublicButton type="button" full disabled={submitting} onClick={acceptAsMember}>
+                {submitting ? 'Aceptando…' : `Aceptar y entrar a ${invitation.companyName}`}
+              </PublicButton>
+            )}
+          </PublicCard>
+        </PublicShell>
+        <PublicFooter>{invitation.companyName} · Invitación privada, no la compartas</PublicFooter>
+      </PublicPage>
+    );
+  }
+
   const strength = passwordStrength(password);
   const mismatch = confirmPassword.length > 0 && password !== confirmPassword;
 

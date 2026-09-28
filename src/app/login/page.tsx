@@ -21,9 +21,22 @@ const loginSchema = z.object({
 
 /** Mensajes de `/login?reason=...` para redirecciones desde el dashboard que no son un cierre de sesión normal (ver `(dashboard)/layout.tsx`). */
 /** Destino tras iniciar sesión: el que indica el servidor (el selector de empresa si trabaja en varias), solo si es una ruta interna. */
-function nextPath(json: { data?: { redirectTo?: unknown } }): string {
-  const target = json.data?.redirectTo;
-  return typeof target === 'string' && target.startsWith('/') && !target.startsWith('//') ? target : '/dashboard';
+function isInternalPath(value: unknown): value is string {
+  return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') && !value.includes('\\');
+}
+
+/**
+ * A dónde ir tras entrar. El `callbackUrl` que deja el proxy (o una
+ * invitación) se respeta si es una ruta interna, salvo que el servidor pida
+ * elegir empresa primero: en multiempresa, abrir un enlace profundo en la
+ * empresa por defecto podría ser la empresa equivocada. Aceptar una
+ * invitación sí va directo, porque es justamente para sumar una empresa.
+ */
+function nextPath(json: { data?: { redirectTo?: unknown } }, callbackUrl: string | null): string {
+  const target = isInternalPath(json.data?.redirectTo) ? json.data.redirectTo : '/dashboard';
+  if (!isInternalPath(callbackUrl) || callbackUrl.startsWith('/login')) return target;
+  if (target === '/dashboard' || callbackUrl.startsWith('/accept-invitation')) return callbackUrl;
+  return target;
 }
 
 const LOGIN_REDIRECT_REASONS: Record<string, string> = {
@@ -81,7 +94,7 @@ function LoginForm() {
         return;
       }
       toast.success('Inicio de sesión correcto');
-      router.push(nextPath(json));
+      router.push(nextPath(json, searchParams.get('callbackUrl')));
     } catch (e) {
       setError('No pudimos conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.');
     } finally {
@@ -105,7 +118,7 @@ function LoginForm() {
         return;
       }
       toast.success('Inicio de sesión correcto');
-      router.push(nextPath(json));
+      router.push(nextPath(json, searchParams.get('callbackUrl')));
     } catch (e) {
       setError('No pudimos verificar el código. Revisa tu conexión e inténtalo de nuevo.');
     } finally {

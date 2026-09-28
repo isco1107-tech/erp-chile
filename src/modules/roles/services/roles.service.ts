@@ -110,11 +110,13 @@ export async function assignCustomRole(
 
 /** Usuarios activos de la empresa, para contrastar contra `maxUsers` del plan. */
 export async function countSeatsInUse(companyId: string): Promise<number> {
-  const [users, pendingInvitations] = await Promise.all([
+  const [users, members, pendingInvitations] = await Promise.all([
     prisma.user.count({ where: { companyId, isActive: true } }),
+    // Personas de otras empresas que trabajan acá con membresía: también usan la empresa.
+    prisma.companyMembership.count({ where: { companyId, user: { isActive: true } } }),
     prisma.invitation.count({ where: { companyId, acceptedAt: null, expiresAt: { gt: new Date() } } }),
   ]);
   // Las invitaciones vigentes ya reservan cupo: si no contaran, invitar a 10
   // personas con 3 licencias dejaría el límite en evidencia recién al aceptarlas.
-  return users + pendingInvitations;
+  return users + members + pendingInvitations;
 }

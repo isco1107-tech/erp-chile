@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { OWNER_EMAIL, login } from './support';
+import { OWNER_EMAIL, OWNER_PASSWORD, login } from './support';
 
 // Sin sesión: estas pruebas no usan el estado guardado por auth.setup.ts.
 test.use({ storageState: { cookies: [], origins: [] } });
@@ -14,6 +14,23 @@ test('la pantalla de ingreso muestra el formulario', async ({ page }) => {
 test('una ruta privada sin sesión lleva al ingreso y recuerda a dónde volver', async ({ page }) => {
   await page.goto('/dashboard/sales');
   await expect(page).toHaveURL(/\/login\?callbackUrl=%2Fdashboard%2Fsales/);
+});
+
+test('tras entrar, vuelve a la pantalla que se había pedido', async ({ page }) => {
+  await page.goto('/dashboard/contacts');
+  await expect(page).toHaveURL(/\/login\?callbackUrl=%2Fdashboard%2Fcontacts/);
+  await page.locator('#username').fill(OWNER_EMAIL);
+  await page.locator('#password').fill(OWNER_PASSWORD);
+  await page.getByRole('button', { name: 'Entrar' }).click();
+  await expect(page).toHaveURL(/\/dashboard\/contacts$/);
+});
+
+test('un callbackUrl externo se ignora (sin redirección abierta)', async ({ page }) => {
+  await page.goto('/login?callbackUrl=%2F%2Fevil.example%2Fphish');
+  await page.locator('#username').fill(OWNER_EMAIL);
+  await page.locator('#password').fill(OWNER_PASSWORD);
+  await page.getByRole('button', { name: 'Entrar' }).click();
+  await expect(page).toHaveURL(/localhost:\d+\/dashboard$/);
 });
 
 test('una contraseña incorrecta se rechaza sin entrar al panel', async ({ page }) => {
