@@ -17,7 +17,8 @@
  */
 
 jest.mock('@/lib/email/mailer', () => ({ getAppUrl: () => 'https://app.test' }));
-jest.mock('@/lib/security/blob-url', () => ({ isAllowedBlobUrl: jest.fn() }));
+// Solo se simula el chequeo de host; `blobPathnameStartsWith` (prefijo de empresa) es el real.
+jest.mock('@/lib/security/blob-url', () => ({ ...jest.requireActual('@/lib/security/blob-url'), isAllowedBlobUrl: jest.fn() }));
 jest.mock('@/lib/observability', () => ({ captureException: jest.fn() }));
 jest.mock('@/lib/hosting/vercel-domains', () => ({
   ...jest.requireActual('@/lib/hosting/vercel-domains'),
@@ -39,6 +40,7 @@ jest.mock('@/lib/auth/guards', () => {
 import { resolve4, resolveCname } from 'node:dns/promises';
 import { Prisma, type Role } from '@prisma/client';
 import { resolvePermissions, sanitizePermissions } from '@/lib/auth/effective-permissions';
+import { createAuditLog } from '@/lib/auth/audit';
 import { AuthError, requireAuthWithPermission } from '@/lib/auth/guards';
 import {
   DEFAULT_FEATURES,
@@ -50,6 +52,8 @@ import {
 import { ALL_PERMISSIONS, checkPermission, permissionsForRole, rolesWithPermission, type Permission } from '@/lib/auth/permissions';
 import { buildAvailableWorkspaceNav } from '@/lib/navigation/workspace-nav';
 import { prisma } from '@/lib/prisma';
+import { captureException } from '@/lib/observability';
+import { del } from '@/lib/storage/blob';
 import { isVercelDomainsConfigured } from '@/lib/hosting/vercel-domains';
 import { isAllowedBlobUrl } from '@/lib/security/blob-url';
 import { createBlock, type WebSiteBlock } from '@/lib/web-sites/blocks';
@@ -59,10 +63,14 @@ import { parseTheme } from '@/lib/web-sites/theme';
 import { siteSlugProblem } from '@/lib/web-sites/urls';
 import * as actions from '@/modules/web-sites/actions/web-sites.actions';
 import { WebSiteDomainError, setWebSiteDomain, refreshWebSiteDomain } from '@/modules/web-sites/services/web-site-domain.service';
+import * as service from '@/modules/web-sites/services/web-sites.service';
 import {
+  MAX_ASSETS_PER_SITE,
+  MAX_COMPANY_ASSET_BYTES,
   MAX_SITES_PER_COMPANY,
   WebSiteError,
   archiveWebSite,
+  assertCanAddAsset,
   createWebSite,
   deleteAsset,
   deleteWebSite,
@@ -91,7 +99,7 @@ type Row = Record<string, unknown>;
 
 const MODEL_METHODS = {
   webSite: ['findFirst', 'findUnique', 'findMany', 'create', 'updateMany', 'deleteMany', 'count', 'groupBy'],
-  webSiteAsset: ['findFirst', 'findMany', 'create', 'count', 'updateMany', 'deleteMany'],
+  webSiteAsset: ['findFirst', 'findMany', 'create', 'count', 'aggregate', 'updateMany', 'deleteMany'],
   webSiteMessage: ['findMany', 'create', 'count', 'updateMany', 'deleteMany', 'groupBy'],
   contact: ['findFirst'],
   project: ['findFirst'],
@@ -361,6 +369,171 @@ describe('saveWebSiteContent: guardar el borrador', () => {
 
     const { data } = argsOf(db.webSite.updateMany);
     expect(data).toEqual({ draftHtml: html, contentUpdatedAt: expect.any(Date) });
+  });
+});
+
+describe('imágenes propias de la empresa: host permitido Y carpeta de la empresa de la sesión', () => {
+  const OWN = [
+    'https://blob.test/web-sites/company-a/site-1/logo.png',
+    'https://blob.test/web-sites/company-a/otro-sitio-de-la-misma-empresa/x.png',
+    'https://blob.test/branding/company-a/logo.png',
+    'https://blob.test/products/company-a/foto.png',
+  ];
+  const FOREIGN = [
+    ['la biblioteca de sitios de otra empresa', 'https://blob.test/web-sites/company-b/site-9/logo.png'],
+    ['el logo de otra empresa', 'https://blob.test/branding/company-b/logo.png'],
+    ['un producto de otra empresa', 'https://blob.test/products/company-b/foto.png'],
+    ['un prefijo parcial sin la barra (company-ab)', 'https://blob.test/web-sites/company-ab/x.png'],
+    ['una carpeta de otro módulo de la misma empresa (candidatas)', 'https://blob.test/candidates/company-a/photo.jpg'],
+    ['un recorrido ../ hacia otra empresa', 'https://blob.test/web-sites/company-a/../company-b/x.png'],
+    ['un recorrido %2e%2e/ hacia otra empresa', 'https://blob.test/web-sites/company-a/%2e%2e/company-b/x.png'],
+    ['la carpeta correcta pero no al inicio de la ruta', 'https://blob.test/otra/web-sites/company-a/x.png'],
+    ['la carpeta sin archivo ni barra final', 'https://blob.test/web-sites/company-a'],
+  ] as const;
+
+  it.each(FOREIGN)('saveWebSiteContent rechaza %s, aunque el host sea el del almacenamiento', async (_label, url) => {
+    expect(isAllowedBlobUrl(url)).toBe(true); // el host pasa: lo único que la frena es el prefijo de la empresa
+    db.webSite.findFirst.mockResolvedValueOnce({ mode: 'GUIDED', status: 'DRAFT' });
+    const hero = { ...createBlock('hero'), imageUrl: url } as WebSiteBlock;
+
+    await expect(saveWebSiteContent(COMPANY, SITE, { blocks: [hero] })).rejects.toThrow(/biblioteca del sitio/);
+    expect(db.webSite.updateMany).not.toHaveBeenCalled();
+  });
+
+  it.each(OWN)('saveWebSiteContent acepta la imagen propia %s', async (url) => {
+    db.webSite.findFirst.mockResolvedValueOnce({ mode: 'GUIDED', status: 'DRAFT' });
+    db.webSite.updateMany.mockResolvedValue({ count: 1 });
+    const gallery = { ...createBlock('gallery'), images: [{ url, alt: 'x' }] } as WebSiteBlock;
+
+    await expect(saveWebSiteContent(COMPANY, SITE, { blocks: [gallery] })).resolves.toBeDefined();
+    expect(db.webSite.updateMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('la misma URL es propia para una empresa y ajena para otra (el prefijo sale de la empresa de la sesión)', async () => {
+    const url = 'https://blob.test/web-sites/company-b/site-9/logo.png';
+    const hero = { ...createBlock('hero'), imageUrl: url } as WebSiteBlock;
+
+    db.webSite.findFirst.mockResolvedValueOnce({ mode: 'GUIDED', status: 'DRAFT' });
+    await expect(saveWebSiteContent(COMPANY, SITE, { blocks: [hero] })).rejects.toBeInstanceOf(WebSiteError);
+
+    db.webSite.findFirst.mockResolvedValueOnce({ mode: 'GUIDED', status: 'DRAFT' });
+    db.webSite.updateMany.mockResolvedValue({ count: 1 });
+    await expect(saveWebSiteContent(OTHER_COMPANY, SITE, { blocks: [hero] })).resolves.toBeDefined();
+  });
+
+  it.each(FOREIGN)('updateWebSiteSettings rechaza como logo u og:image %s y no escribe', async (_label, url) => {
+    const base = { name: 'Solar Sur', slug: 'solar-sur', indexable: true };
+    for (const field of ['logoUrl', 'ogImageUrl'] as const) {
+      db.webSite.findFirst.mockResolvedValueOnce({ id: SITE, slug: 'solar-sur' });
+      await expect(updateWebSiteSettings(COMPANY, SITE, { ...base, [field]: url })).rejects.toThrow(/biblioteca del sitio/);
+    }
+    expect(db.webSite.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('updateWebSiteSettings acepta el logo de la empresa (branding/) y guarda logo y og:image', async () => {
+    db.webSite.findFirst.mockResolvedValueOnce({ id: SITE, slug: 'solar-sur' });
+    db.webSite.updateMany.mockResolvedValue({ count: 1 });
+
+    await updateWebSiteSettings(COMPANY, SITE, {
+      name: 'Solar Sur',
+      slug: 'solar-sur',
+      indexable: true,
+      logoUrl: 'https://blob.test/branding/company-a/logo.png',
+      ogImageUrl: 'https://blob.test/web-sites/company-a/site-1/og.png',
+    });
+
+    expect(argsOf(db.webSite.updateMany).data).toMatchObject({ logoUrl: 'https://blob.test/branding/company-a/logo.png', ogImageUrl: 'https://blob.test/web-sites/company-a/site-1/og.png' });
+  });
+});
+
+describe('assertCanAddAsset: cupos de la biblioteca', () => {
+  const MB = 1024 * 1024;
+
+  function library(over: { site?: Row | null; count?: number; used?: number | null } = {}) {
+    db.webSite.findFirst.mockResolvedValue(over.site === undefined ? { id: SITE, status: 'DRAFT' } : over.site);
+    db.webSiteAsset.count.mockResolvedValue(over.count ?? 0);
+    db.webSiteAsset.aggregate.mockResolvedValue({ _sum: { sizeBytes: over.used === undefined ? 0 : over.used } });
+  }
+
+  it('todas las consultas van acotadas a la empresa: sitio, recuento por sitio y suma de bytes de la empresa', async () => {
+    library();
+
+    await assertCanAddAsset(COMPANY, SITE, 1000);
+
+    expect(argsOf(db.webSite.findFirst).where).toEqual({ id: SITE, companyId: COMPANY });
+    expect(argsOf(db.webSiteAsset.count).where).toEqual({ companyId: COMPANY, siteId: SITE });
+    expect(argsOf(db.webSiteAsset.aggregate)).toMatchObject({ where: { companyId: COMPANY }, _sum: { sizeBytes: true } });
+  });
+
+  it('un sitio ajeno o archivado no admite imágenes', async () => {
+    library({ site: null });
+    await expect(assertCanAddAsset(OTHER_COMPANY, SITE, 10)).rejects.toThrow('Sitio no encontrado');
+    library({ site: { id: SITE, status: 'ARCHIVED' } });
+    await expect(assertCanAddAsset(COMPANY, SITE, 10)).rejects.toThrow(/archivado/);
+  });
+
+  it(`una biblioteca con ${MAX_ASSETS_PER_SITE} imágenes está llena`, async () => {
+    library({ count: MAX_ASSETS_PER_SITE });
+    await expect(assertCanAddAsset(COMPANY, SITE, 10)).rejects.toThrow(new RegExp(`hasta ${MAX_ASSETS_PER_SITE} imágenes`));
+    library({ count: MAX_ASSETS_PER_SITE - 1 });
+    await expect(assertCanAddAsset(COMPANY, SITE, 10)).resolves.toBeUndefined();
+  });
+
+  it('rechaza cuando lo ya usado por la empresa (todos sus sitios, también archivados) más el archivo entrante supera el tope', async () => {
+    library({ used: MAX_COMPANY_ASSET_BYTES - 10 * MB + 1 });
+    await expect(assertCanAddAsset(COMPANY, SITE, 10 * MB)).rejects.toThrow(/límite de 300 MB/);
+  });
+
+  it('el tope es estricto: llegar justo al límite todavía se acepta', async () => {
+    library({ used: MAX_COMPANY_ASSET_BYTES - 10 * MB });
+    await expect(assertCanAddAsset(COMPANY, SITE, 10 * MB)).resolves.toBeUndefined();
+  });
+
+  it('una empresa sin imágenes (suma null) parte de cero, y sin bytes entrantes solo cuenta lo usado', async () => {
+    library({ used: null });
+    await expect(assertCanAddAsset(COMPANY, SITE, 4 * MB)).resolves.toBeUndefined();
+
+    library({ used: MAX_COMPANY_ASSET_BYTES });
+    await expect(assertCanAddAsset(COMPANY, SITE)).resolves.toBeUndefined(); // 0 bytes entrantes: no supera
+    await expect(assertCanAddAsset(COMPANY, SITE, 1)).rejects.toThrow(/límite/);
+  });
+});
+
+describe('unusedAssetUrls y countRecentMessages: siempre por empresa', () => {
+  it('unusedAssetUrls solo mira las filas de biblioteca de la empresa: una fila ajena no bloquea ni revela nada', async () => {
+    const fake = installTenantDb();
+
+    const unused = await service.unusedAssetUrls('A', ['https://blob.test/a.png', 'https://blob.test/b.png']);
+
+    // A usa a.png; b.png es de la biblioteca de B, que A no puede ver: no cuenta como "en uso".
+    expect(unused).toEqual(['https://blob.test/b.png']);
+    const [call] = fake.calls;
+    expect(call).toMatchObject({ model: 'webSiteAsset', method: 'findMany' });
+    expect(call!.where.companyId).toBe('A');
+  });
+
+  it('unusedAssetUrls sin URLs no consulta la base', async () => {
+    await expect(service.unusedAssetUrls(COMPANY, [])).resolves.toEqual([]);
+    expect(db.webSiteAsset.findMany).not.toHaveBeenCalled();
+  });
+
+  it('unusedAssetUrls consulta con companyId y las URLs pedidas', async () => {
+    db.webSiteAsset.findMany.mockResolvedValue([{ url: 'https://blob.test/x.png' }]);
+    await expect(service.unusedAssetUrls(COMPANY, ['https://blob.test/x.png', 'https://blob.test/y.png'])).resolves.toEqual(['https://blob.test/y.png']);
+    expect(argsOf(db.webSiteAsset.findMany).where).toEqual({ companyId: COMPANY, url: { in: ['https://blob.test/x.png', 'https://blob.test/y.png'] } });
+  });
+
+  it('countRecentMessages cuenta los mensajes del sitio de esa empresa dentro de la ventana pedida', async () => {
+    db.webSiteMessage.count.mockResolvedValue(7);
+    const before = Date.now();
+
+    await expect(service.countRecentMessages(COMPANY, SITE, 60)).resolves.toBe(7);
+
+    const { where } = argsOf(db.webSiteMessage.count);
+    expect(where).toMatchObject({ companyId: COMPANY, siteId: SITE });
+    const since = (where.createdAt as { gte: Date }).gte.getTime();
+    expect(since).toBeGreaterThanOrEqual(before - 60 * 60_000);
+    expect(since).toBeLessThanOrEqual(Date.now() - 60 * 60_000);
   });
 });
 
@@ -677,7 +850,8 @@ describe('deleteAsset: biblioteca de imágenes', () => {
 
     expect(argsOf(db.webSiteAsset.findFirst).where).toEqual({ id: 'asset-1', companyId: COMPANY });
     expect(argsOf(db.webSiteAsset.deleteMany).where).toEqual({ id: 'asset-1', companyId: COMPANY });
-    expect(argsOf(db.webSiteAsset.count).where).toEqual({ url: ASSET_URL });
+    // El recuento de "otra fila usa la misma URL" también es de la empresa: filas ajenas no bloquean ni revelan nada.
+    expect(argsOf(db.webSiteAsset.count).where).toEqual({ url: ASSET_URL, companyId: COMPANY });
     expect(result).toEqual({ urlToDelete: ASSET_URL });
   });
 
@@ -750,10 +924,9 @@ describe('createWebSite', () => {
     expect(fallback.slug).toBe('sitio');
   });
 
-  it('BUG: el slug de respaldo generado por uniqueSlug cumple la regla de direcciones del propio módulo', async () => {
-    // BUG: web-sites.service.ts:144 hace `root.slice(0, 44)` sin quitar un guion final: con un
-    // nombre largo cuyo carácter 44 es "-" el sufijo genera "--" y el slug incumple `siteSlugProblem`
-    // (el que valida el formulario de ajustes y que lo "corregiría" en silencio al guardar).
+  it('el slug de respaldo generado por uniqueSlug cumple la regla de direcciones del propio módulo (regresión: doble guion)', async () => {
+    // Regresión: `root.slice(0, 44)` dejaba un guion final y el sufijo generaba "--", que `siteSlugProblem`
+    // (el del formulario de ajustes) rechaza. Con un nombre cuyo carácter 44 es "-" se reproducía.
     const name = `${'a'.repeat(43)} ${'b'.repeat(6)}`; // slug: 43 "a" + "-" + 6 "b" = 50 caracteres
     db.webSite.count.mockResolvedValue(0);
     db.webSite.findFirst.mockResolvedValueOnce({ id: 'tomado' }).mockResolvedValueOnce(null);
@@ -809,9 +982,8 @@ describe('createWebSite', () => {
 });
 
 describe('duplicateWebSite', () => {
-  it('BUG: el slug de la copia cumple la regla de direcciones del módulo aunque el original sea largo', async () => {
-    // BUG: web-sites.service.ts:389 hace `source.slug.slice(0, 40)` + "-copia": si el carácter 40
-    // del slug original es "-", la copia queda con "--copia" (incumple `siteSlugProblem`).
+  it('el slug de la copia cumple la regla de direcciones del módulo aunque el original sea largo (regresión: doble guion)', async () => {
+    // Regresión: `source.slug.slice(0, 40)` + "-copia" dejaba "--copia" si el carácter 40 del original era "-".
     const slug = `${'a'.repeat(39)}-${'b'.repeat(10)}`;
     db.webSite.count.mockResolvedValue(0);
     db.webSite.findFirst
@@ -1294,7 +1466,7 @@ describe('acciones de Sitios web: RBAC por rol', () => {
     jest.mocked(requireAuthWithPermission).mockImplementation(async (permission: Permission) => {
       requested.push(permission);
       if (!checkPermission(currentRole, permission)) throw new AuthError(DENIED, 403);
-      return { id: 'u1', companyId: COMPANY, name: 'Ana', email: 'ana@x.cl', role: currentRole } as never;
+      return { id: 'u1', companyId: COMPANY, name: 'Ana', email: 'ana@x.cl', role: currentRole, permissions: resolvePermissions({ role: currentRole, customRolePermissions: null, features: { ...DEFAULT_FEATURES, hasWebSites: true } }) } as never;
     });
   });
 
@@ -1336,12 +1508,207 @@ describe('acciones de Sitios web: RBAC por rol', () => {
     }
   });
 
+  describe('updateWebSiteSettingsAction en un sitio PUBLICADO: cambiar nombre, dirección, SEO o logo es publicar', () => {
+    const SETTINGS = { name: 'Solar Sur', slug: 'solar-sur', indexable: true };
+    const BLOCKED = /Este sitio está publicado: solo dueño y administradores pueden cambiar/;
+
+    function siteInState(status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED') {
+      // getWebSite usa include; updateWebSiteSettings usa select.
+      db.webSite.findFirst.mockImplementation(async (args: { include?: unknown }) => (args.include ? siteRow({ status }) : { id: SITE, slug: 'solar-sur' }));
+      db.webSiteMessage.count.mockResolvedValue(0);
+      db.webSite.updateMany.mockResolvedValue({ count: 1 });
+    }
+
+    it('SALES (websites:write sin websites:publish) NO puede cambiar los ajustes de un sitio publicado, y no se escribe nada', async () => {
+      currentRole = 'SALES';
+      siteInState('PUBLISHED');
+
+      const result = await actions.updateWebSiteSettingsAction(SITE, SETTINGS);
+
+      expect(result).toEqual({ success: false, error: expect.stringMatching(BLOCKED) });
+      expect(db.webSite.updateMany).not.toHaveBeenCalled();
+    });
+
+    it.each(['OWNER', 'ADMIN'] as Role[])('%s sí puede cambiarlos', async (role) => {
+      currentRole = role;
+      siteInState('PUBLISHED');
+
+      const result = await actions.updateWebSiteSettingsAction(SITE, SETTINGS);
+
+      expect(result).toMatchObject({ success: true, data: { slug: 'solar-sur' } });
+      expect(db.webSite.updateMany).toHaveBeenCalledTimes(1);
+    });
+
+    it.each(['DRAFT', 'ARCHIVED'] as const)('SALES sí puede editar los ajustes de un sitio en estado %s (nadie lo ve en vivo)', async (status) => {
+      currentRole = 'SALES';
+      siteInState(status);
+
+      const result = await actions.updateWebSiteSettingsAction(SITE, SETTINGS);
+
+      expect(result.success).toBe(true);
+      expect(db.webSite.updateMany).toHaveBeenCalledTimes(1);
+    });
+
+    it('la regla es por permiso, no por rol: un rol personalizado con websites:publish sí puede, y uno sin él no', async () => {
+      currentRole = 'SALES';
+      const custom = (permissions: Permission[]) =>
+        jest.mocked(requireAuthWithPermission).mockResolvedValue({ id: 'u1', companyId: COMPANY, name: 'Ana', email: 'a@x.cl', role: 'SALES', permissions } as never);
+
+      custom(['websites:read', 'websites:write', 'websites:publish']);
+      siteInState('PUBLISHED');
+      expect((await actions.updateWebSiteSettingsAction(SITE, SETTINGS)).success).toBe(true);
+
+      db.webSite.updateMany.mockClear();
+      custom(['websites:read', 'websites:write']);
+      const denied = await actions.updateWebSiteSettingsAction(SITE, SETTINGS);
+      expect(denied).toEqual({ success: false, error: expect.stringMatching(BLOCKED) });
+      expect(db.webSite.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('un sitio que no es de la empresa no se salta la regla: sigue fallando con "Sitio no encontrado" y sin escribir', async () => {
+      currentRole = 'SALES';
+      db.webSite.findFirst.mockResolvedValue(null);
+
+      const result = await actions.updateWebSiteSettingsAction('site-de-otra-empresa', SETTINGS);
+
+      expect(result).toEqual({ success: false, error: 'Sitio no encontrado' });
+      expect(db.webSite.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('sigue exigiendo websites:write: un rol sin él ni siquiera llega a leer el sitio', async () => {
+      currentRole = 'ACCOUNTANT';
+      siteInState('PUBLISHED');
+
+      const result = await actions.updateWebSiteSettingsAction(SITE, SETTINGS);
+
+      expect(result).toEqual({ success: false, error: DENIED });
+      expect(db.webSite.findFirst).not.toHaveBeenCalled();
+    });
+  });
+
   it('un módulo fuera del plan responde con el mensaje de plan, no con "error inesperado"', async () => {
     const { ModuleNotEnabledError } = jest.requireActual('@/lib/auth/guards') as typeof import('@/lib/auth/guards');
     jest.mocked(requireAuthWithPermission).mockRejectedValue(new ModuleNotEnabledError('hasWebSites'));
     await expect(actions.publishWebSiteAction('s')).resolves.toEqual({
       success: false,
       error: 'Módulo no incluido en tu plan actual. Contacta al administrador para habilitarlo',
+    });
+  });
+});
+
+describe('acciones que eliminan: limpieza de archivos del almacenamiento', () => {
+  const U1 = 'https://blob.test/web-sites/company-a/site-1/uno.png';
+  const U2 = 'https://blob.test/web-sites/company-a/site-1/dos.png';
+
+  beforeEach(() => {
+    jest.mocked(requireAuthWithPermission).mockResolvedValue({
+      id: 'u1',
+      companyId: COMPANY,
+      name: 'Ana',
+      email: 'ana@x.cl',
+      role: 'ADMIN',
+      permissions: resolvePermissions({ role: 'ADMIN', customRolePermissions: null, features: { ...DEFAULT_FEATURES, hasWebSites: true } }),
+    } as never);
+  });
+
+  /** getWebSite lee con include; deleteWebSite lee con select (estado, dominio y archivos). */
+  function siteToDelete(assets: Array<{ url: string }>, over: Row = {}) {
+    db.webSite.findFirst.mockImplementation(async (args: { include?: unknown }) => (args.include ? siteRow() : { status: 'DRAFT', customDomain: 'solar.cl', assets, ...over }));
+    db.webSiteMessage.count.mockResolvedValue(0);
+    db.webSite.deleteMany.mockResolvedValue({ count: 1 });
+  }
+
+  it('deleteWebSiteAction borra del almacenamiento solo las URL que ninguna otra fila DE LA EMPRESA usa', async () => {
+    siteToDelete([{ url: U1 }, { url: U2 }]);
+    db.webSiteAsset.findMany.mockResolvedValue([{ url: U1 }]); // una copia del sitio todavía usa U1
+    jest.mocked(del).mockResolvedValue(undefined);
+
+    const result = await actions.deleteWebSiteAction(SITE);
+
+    expect(result).toMatchObject({ success: true });
+    expect(argsOf(db.webSite.deleteMany).where).toEqual({ id: SITE, companyId: COMPANY });
+    expect(argsOf(db.webSiteAsset.findMany).where).toEqual({ companyId: COMPANY, url: { in: [U1, U2] } });
+    expect(del).toHaveBeenCalledTimes(1);
+    expect(del).toHaveBeenCalledWith([U2]);
+    expect(createAuditLog).toHaveBeenCalledWith(expect.objectContaining({ companyId: COMPANY, action: 'DELETE', entity: 'WebSite', entityId: SITE }));
+  });
+
+  it('si otra fila sigue usando todas las URL, no se borra ningún archivo', async () => {
+    siteToDelete([{ url: U1 }]);
+    db.webSiteAsset.findMany.mockResolvedValue([{ url: U1 }]);
+
+    await actions.deleteWebSiteAction(SITE);
+
+    expect(del).not.toHaveBeenCalled();
+  });
+
+  it('un sitio sin imágenes no consulta la biblioteca ni borra archivos', async () => {
+    siteToDelete([]);
+    await actions.deleteWebSiteAction(SITE);
+    expect(db.webSiteAsset.findMany).not.toHaveBeenCalled();
+    expect(del).not.toHaveBeenCalled();
+  });
+
+  it('si falla el borrado de archivos, el sitio ya eliminado NO se convierte en error: se reporta y se responde éxito', async () => {
+    siteToDelete([{ url: U2 }]);
+    db.webSiteAsset.findMany.mockResolvedValue([]);
+    jest.mocked(del).mockRejectedValue(new Error('R2 timeout'));
+
+    const result = await actions.deleteWebSiteAction(SITE);
+
+    expect(result).toMatchObject({ success: true });
+    expect(captureException).toHaveBeenCalledWith(expect.objectContaining({ message: 'R2 timeout' }), expect.objectContaining({ module: 'sitios-web', companyId: COMPANY }));
+  });
+
+  it('un sitio publicado no se elimina: no se borra ni fila ni archivo', async () => {
+    siteToDelete([{ url: U2 }], { status: 'PUBLISHED' });
+
+    const result = await actions.deleteWebSiteAction(SITE);
+
+    expect(result).toEqual({ success: false, error: 'Despublica el sitio antes de eliminarlo.' });
+    expect(db.webSite.deleteMany).not.toHaveBeenCalled();
+    expect(del).not.toHaveBeenCalled();
+  });
+
+  describe('deleteWebSiteAssetAction', () => {
+    const emptySite = { draftBlocks: [], publishedBlocks: null, logoUrl: null, ogImageUrl: null, draftHtml: null, publishedHtml: null };
+    function asset(sharedByOthers: number) {
+      db.webSiteAsset.findFirst.mockResolvedValue({ id: 'asset-1', companyId: COMPANY, siteId: SITE, url: U1, site: emptySite });
+      db.webSiteAsset.deleteMany.mockResolvedValue({ count: 1 });
+      db.webSiteAsset.count.mockResolvedValue(sharedByOthers);
+    }
+
+    it('borra el archivo del almacenamiento cuando ninguna otra fila lo comparte', async () => {
+      asset(0);
+      jest.mocked(del).mockResolvedValue(undefined);
+
+      await expect(actions.deleteWebSiteAssetAction('asset-1')).resolves.toMatchObject({ success: true });
+
+      expect(del).toHaveBeenCalledWith(U1);
+    });
+
+    it('conserva el archivo si otra fila (p. ej. una copia del sitio) lo comparte', async () => {
+      asset(1);
+      await expect(actions.deleteWebSiteAssetAction('asset-1')).resolves.toMatchObject({ success: true });
+      expect(del).not.toHaveBeenCalled();
+    });
+
+    it('si el borrado del archivo falla, la imagen ya eliminada no se reporta como error', async () => {
+      asset(0);
+      jest.mocked(del).mockRejectedValue(new Error('R2 timeout'));
+
+      await expect(actions.deleteWebSiteAssetAction('asset-1')).resolves.toMatchObject({ success: true });
+      expect(captureException).toHaveBeenCalledTimes(1);
+    });
+
+    it('una imagen que todavía se usa en el sitio no se elimina ni del almacenamiento', async () => {
+      db.webSiteAsset.findFirst.mockResolvedValue({ id: 'asset-1', companyId: COMPANY, siteId: SITE, url: U1, site: { ...emptySite, logoUrl: U1 } });
+
+      const result = await actions.deleteWebSiteAssetAction('asset-1');
+
+      expect(result).toMatchObject({ success: false });
+      expect(db.webSiteAsset.deleteMany).not.toHaveBeenCalled();
+      expect(del).not.toHaveBeenCalled();
     });
   });
 });

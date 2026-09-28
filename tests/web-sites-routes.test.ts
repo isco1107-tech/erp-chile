@@ -18,7 +18,7 @@ jest.mock('@/lib/email/mailer', () => ({ getAppUrl: () => 'https://app.test' }))
 jest.mock('@/lib/observability', () => ({ captureException: jest.fn() }));
 jest.mock('@/lib/notifications/company-notification', () => ({ notifyCompany: jest.fn() }));
 jest.mock('@/lib/workflows/engine', () => ({ emitWorkflowEvent: jest.fn() }));
-jest.mock('@/lib/storage/blob', () => ({ put: jest.fn() }));
+jest.mock('@/lib/storage/blob', () => ({ put: jest.fn(), del: jest.fn() }));
 jest.mock('@/lib/auth/guards', () => ({ ...jest.requireActual('@/lib/auth/guards'), requireAuthWithPermission: jest.fn() }));
 
 import { after } from 'next/server';
@@ -29,11 +29,12 @@ import { AuthError, ModuleNotEnabledError, requireAuthWithPermission } from '@/l
 import { notifyCompany } from '@/lib/notifications/company-notification';
 import { captureException } from '@/lib/observability';
 import { prisma } from '@/lib/prisma';
-import { put } from '@/lib/storage/blob';
+import { del, put } from '@/lib/storage/blob';
 import { WORKFLOW_TRIGGER_DEFINITIONS } from '@/lib/workflows/types';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import { createBlock, type WebSiteBlock } from '@/lib/web-sites/blocks';
 import * as service from '@/modules/web-sites/services/web-sites.service';
+import { MAX_COMPANY_ASSET_BYTES } from '@/modules/web-sites/services/web-sites.service';
 
 // ---------------------------------------------------------------------------
 // Utilidades
@@ -45,8 +46,8 @@ type Row = Record<string, unknown>;
 
 const MODEL_METHODS = {
   webSite: ['findUnique', 'findFirst'],
-  webSiteAsset: ['count', 'create'],
-  webSiteMessage: ['create'],
+  webSiteAsset: ['count', 'create', 'aggregate'],
+  webSiteMessage: ['create', 'count'],
 } as const;
 
 interface Db {
@@ -137,8 +138,9 @@ describe('POST /api/public/web-sites/[slug]/contact', () => {
   }
   const ctx = (slug = 'solar-sur') => ({ params: Promise.resolve({ slug }) });
 
-  function siteWithForm(over: Row = {}) {
+  function siteWithForm(over: Row = {}, recentMessages = 0) {
     db.webSite.findUnique.mockResolvedValue(publicRow(over));
+    db.webSiteMessage.count.mockResolvedValue(recentMessages); // mensajes de la última hora (límite en la base)
     db.webSiteMessage.create.mockResolvedValue({ id: 'msg-1' });
   }
 
@@ -290,6 +292,109 @@ describe('POST /api/public/web-sites/[slug]/contact', () => {
     expect(db.webSiteMessage.create).toHaveBeenCalledTimes(60);
   });
 
+  it('límite en la base de datos: con 60 mensajes en la última hora responde 429 y no crea otro; con 59 todavía acepta', async () => {
+    siteWithForm({ id: 'site-db-limit' }, 60);
+    const blocked = await contactPOST(post(VALID), ctx());
+    expect(blocked.status).toBe(429);
+    expect(db.webSiteMessage.create).not.toHaveBeenCalled();
+    expect(after).not.toHaveBeenCalled();
+
+    siteWithForm({ id: 'site-db-limit-2' }, 59);
+    const accepted = await contactPOST(post(VALID), ctx());
+    expect(accepted.status).toBe(200);
+    expect(db.webSiteMessage.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('el recuento de la base es del sitio y de la empresa DEL SITIO (no del cuerpo) y mira la última hora', async () => {
+    siteWithForm({ id: 'site-db-scope' });
+    const before = Date.now();
+
+    await contactPOST(post({ ...VALID, companyId: 'otra', siteId: 'otro-sitio' }), ctx());
+
+    const { where } = argsOf(db.webSiteMessage.count);
+    expect(where).toMatchObject({ companyId: COMPANY, siteId: 'site-db-scope' });
+    const since = (where.createdAt as { gte: Date }).gte.getTime();
+    expect(since).toBeGreaterThanOrEqual(before - 60 * 60_000);
+    expect(since).toBeLessThanOrEqual(Date.now() - 60 * 60_000);
+  });
+
+  describe('tamaño del cuerpo (16 KB)', () => {
+    const LIMIT = 16 * 1024;
+    /** Cuerpo JSON válido de exactamente `chars` caracteres (el relleno va en un campo que el esquema descarta). */
+    const bodyOf = (chars: number) => {
+      const base = JSON.stringify({ ...VALID, pad: '' });
+      return JSON.stringify({ ...VALID, pad: 'x'.repeat(chars - base.length) });
+    };
+
+    it('un cuerpo de más de 16 KB responde 413 sin consultar el sitio ni guardar (aunque sea JSON válido)', async () => {
+      siteWithForm();
+      const raw = bodyOf(LIMIT + 1);
+      expect(raw).toHaveLength(LIMIT + 1);
+
+      const res = await contactPOST(post(null, { raw }), ctx());
+
+      expect(res.status).toBe(413);
+      expect(await res.json()).toEqual({ success: false, error: 'El mensaje es demasiado largo' });
+      expectNoDbAccess(db);
+      expect(after).not.toHaveBeenCalled();
+    });
+
+    it('un mensaje de texto enorme (20 000 caracteres) también es 413, no 400', async () => {
+      const res = await contactPOST(post({ ...VALID, message: 'x'.repeat(20_000) }), ctx());
+      expect(res.status).toBe(413);
+      expect(db.webSiteMessage.create).not.toHaveBeenCalled();
+    });
+
+    it('un cuerpo de exactamente 16 KB todavía se procesa', async () => {
+      siteWithForm();
+      const raw = bodyOf(LIMIT);
+      expect(raw).toHaveLength(LIMIT);
+
+      const res = await contactPOST(post(null, { raw }), ctx());
+
+      expect(res.status).toBe(200);
+      expect(db.webSiteMessage.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('si Content-Length declara más de 16 KB responde 413 sin leer el cuerpo', async () => {
+      siteWithForm();
+      const req = new Request('https://app.test/api/public/web-sites/solar-sur/contact', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-forwarded-for': nextIp(), 'content-length': String(LIMIT + 1) },
+        body: JSON.stringify(VALID),
+      });
+      const readBody = jest.spyOn(req, 'text');
+
+      const res = await contactPOST(req, ctx());
+
+      expect(res.status).toBe(413);
+      expect(readBody).not.toHaveBeenCalled();
+      expectNoDbAccess(db);
+    });
+
+    it('un Content-Length de exactamente 16 KB todavía se procesa (el tope es estricto)', async () => {
+      siteWithForm();
+      const raw = JSON.stringify(VALID);
+      const req = new Request('https://app.test/api/public/web-sites/solar-sur/contact', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-forwarded-for': nextIp(), 'content-length': String(LIMIT) },
+        body: raw,
+      });
+      expect((await contactPOST(req, ctx())).status).toBe(200);
+    });
+
+    it('un Content-Length dentro del límite no bloquea', async () => {
+      siteWithForm();
+      const raw = JSON.stringify(VALID);
+      const req = new Request('https://app.test/api/public/web-sites/solar-sur/contact', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-forwarded-for': nextIp(), 'content-length': String(raw.length) },
+        body: raw,
+      });
+      expect((await contactPOST(req, ctx())).status).toBe(200);
+    });
+  });
+
   it('éxito: la empresa sale del SITIO, nunca del cuerpo (companyId y siteId del cuerpo se ignoran)', async () => {
     siteWithForm();
     const createPublicMessage = jest.spyOn(service, 'createPublicMessage');
@@ -378,7 +483,7 @@ describe('POST /api/public/web-sites/[slug]/contact', () => {
   });
 
   it('si la base falla al guardar: 500 genérico, se reporta, y no se avisa a nadie', async () => {
-    db.webSite.findUnique.mockResolvedValue(publicRow());
+    siteWithForm();
     db.webSiteMessage.create.mockRejectedValue(new Error('connection refused 10.0.0.5'));
 
     const res = await contactPOST(post(VALID), ctx());
@@ -403,18 +508,21 @@ describe('POST /api/web-sites/asset-upload', () => {
   const WEBP = [0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50];
   const bytes = (magic: number[], total = 32) => Uint8Array.from({ length: total }, (_, i) => magic[i] ?? 0);
   const ascii = (text: string) => new TextEncoder().encode(text);
+  /** `File` acepta ArrayBuffer, no un Uint8Array genérico: se copia el tramo exacto de bytes. */
+  const blobPart = (data: Uint8Array): ArrayBuffer => data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
 
   function upload(options: { siteId?: string | null; content?: Uint8Array; type?: string; name?: string; extra?: Record<string, string> | null; file?: boolean } = {}) {
     const form = new FormData();
     if (options.siteId !== null) form.append('siteId', options.siteId ?? 'site-1');
     for (const [key, value] of Object.entries(options.extra ?? {})) form.append(key, value);
-    if (options.file !== false) form.append('file', new File([options.content ?? bytes(PNG)], options.name ?? 'logo.png', { type: options.type ?? 'image/png' }));
+    if (options.file !== false) form.append('file', new File([blobPart(options.content ?? bytes(PNG))], options.name ?? 'logo.png', { type: options.type ?? 'image/png' }));
     return new Request('https://app.test/api/web-sites/asset-upload', { method: 'POST', body: form });
   }
 
   function allowedSite(over: Row = {}) {
     db.webSite.findFirst.mockResolvedValue({ id: 'site-1', status: 'DRAFT', ...over });
     db.webSiteAsset.count.mockResolvedValue(0);
+    db.webSiteAsset.aggregate.mockResolvedValue({ _sum: { sizeBytes: 0 } });
     db.webSiteAsset.create.mockImplementation(async ({ data }: { data: Row }) => ({ id: 'asset-1', ...data, alt: data.alt ?? null, createdAt: new Date('2026-09-10T00:00:00Z') }));
     jest.mocked(put).mockImplementation((async (pathname: string) => ({ url: `https://blob.test/${pathname}`, pathname })) as never);
   }
@@ -582,6 +690,64 @@ describe('POST /api/web-sites/asset-upload', () => {
     expect(put).not.toHaveBeenCalled();
   });
 
+  it('tope de almacenamiento por empresa: si lo ya usado más este archivo lo supera, 400 y no se sube', async () => {
+    allowedSite();
+    const content = bytes(PNG, 1000);
+    db.webSiteAsset.aggregate.mockResolvedValue({ _sum: { sizeBytes: MAX_COMPANY_ASSET_BYTES - 999 } }); // falta 1 byte de espacio
+
+    const res = await uploadPOST(upload({ content }));
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/límite de 300 MB/);
+    expect(argsOf(db.webSiteAsset.aggregate)).toMatchObject({ where: { companyId: 'company-a' } });
+    expect(put).not.toHaveBeenCalled();
+    expect(db.webSiteAsset.create).not.toHaveBeenCalled();
+  });
+
+  it('tope de almacenamiento por empresa: el tamaño del archivo entrante cuenta (justo en el límite se acepta)', async () => {
+    allowedSite();
+    const content = bytes(PNG, 1000);
+    db.webSiteAsset.aggregate.mockResolvedValue({ _sum: { sizeBytes: MAX_COMPANY_ASSET_BYTES - 1000 } });
+
+    const res = await uploadPOST(upload({ content }));
+
+    expect(res.status).toBe(200);
+    expect(put).toHaveBeenCalledTimes(1);
+  });
+
+  it('si el registro del asset falla después de subir, borra el archivo huérfano del almacenamiento y responde 500', async () => {
+    allowedSite();
+    db.webSiteAsset.create.mockRejectedValue(new Error('P1001 base caída'));
+    jest.mocked(del).mockResolvedValue(undefined);
+
+    const res = await uploadPOST(upload());
+
+    expect(res.status).toBe(500);
+    expect(put).toHaveBeenCalledTimes(1);
+    const [uploadedPath] = jest.mocked(put).mock.calls[0]!;
+    expect(del).toHaveBeenCalledTimes(1);
+    expect(del).toHaveBeenCalledWith(`https://blob.test/${uploadedPath}`);
+    expect(captureException).toHaveBeenCalledTimes(1);
+  });
+
+  it('si además falla el borrado del huérfano, el error que se reporta sigue siendo el del registro (no se enmascara)', async () => {
+    allowedSite();
+    db.webSiteAsset.create.mockRejectedValue(new Error('P1001 base caída'));
+    jest.mocked(del).mockRejectedValue(new Error('R2 timeout'));
+
+    const res = await uploadPOST(upload());
+
+    expect(res.status).toBe(500);
+    expect(del).toHaveBeenCalledTimes(1);
+    expect(jest.mocked(captureException).mock.calls[0]![0]).toEqual(expect.objectContaining({ message: 'P1001 base caída' }));
+  });
+
+  it('en el camino feliz no se borra nada del almacenamiento', async () => {
+    allowedSite();
+    await uploadPOST(upload());
+    expect(del).not.toHaveBeenCalled();
+  });
+
   it.each([
     ['sin siteId', { siteId: null }],
     ['sin archivo', { file: false }],
@@ -710,6 +876,75 @@ describe('GET /web/[slug]/raw', () => {
     expect(res.status).toBe(404);
     expect(await res.text()).not.toContain('SECRETO');
     expect(res.headers.get('Content-Security-Policy')).toBeNull();
+  });
+
+  describe('por dominio propio solo se sirve el sitio DE ESE dominio', () => {
+    const ORIGINAL_APP_URL = process.env.APP_URL;
+    beforeAll(() => {
+      process.env.APP_URL = 'https://erp.aether.cl';
+    });
+    afterAll(() => {
+      if (ORIGINAL_APP_URL === undefined) delete process.env.APP_URL;
+      else process.env.APP_URL = ORIGINAL_APP_URL;
+    });
+
+    const htmlSite = (over: Row = {}) => publicRow({ mode: 'HTML', publishedBlocks: [], publishedHtml: '<p>CONTENIDO DEL CLIENTE</p>', customDomain: 'mio.cl', ...over });
+    const getVia = (host: string, slug = 'solar-sur') =>
+      rawGET(new Request(`https://${host}/web/${slug}/raw`, { headers: { host } }), ctx(slug));
+
+    it('el host de otro dominio propio NO puede mostrar el HTML de un sitio ajeno: 404 con noindex y sin filtrar el contenido', async () => {
+      db.webSite.findUnique.mockResolvedValue(htmlSite());
+
+      const res = await getVia('otro.cl');
+
+      expect(res.status).toBe(404);
+      expect(res.headers.get('X-Robots-Tag')).toBe('noindex');
+      expect(res.headers.get('Content-Type')).toMatch(/^text\/plain/);
+      expect(await res.text()).not.toContain('CONTENIDO DEL CLIENTE');
+    });
+
+    it('un dominio propio tampoco sirve un sitio que no tiene dominio propio', async () => {
+      db.webSite.findUnique.mockResolvedValue(htmlSite({ customDomain: null }));
+      const res = await getVia('otro.cl');
+      expect(res.status).toBe(404);
+    });
+
+    it.each(['mio.cl', 'www.mio.cl', 'MIO.CL', 'mio.cl:443'])('el host %s, que coincide con el customDomain del sitio, sirve el documento', async (host) => {
+      db.webSite.findUnique.mockResolvedValue(htmlSite());
+
+      const res = await getVia(host);
+
+      expect(res.status).toBe(200);
+      expect(await res.text()).toContain('CONTENIDO DEL CLIENTE');
+      expect(res.headers.get('Content-Security-Policy')).toContain("script-src 'none'");
+    });
+
+    it('un subdominio parecido (evil-mio.cl, mio.cl.evil.com, sub.mio.cl) no se confunde con el dominio del sitio', async () => {
+      for (const host of ['evil-mio.cl', 'mio.cl.evil.com', 'sub.mio.cl']) {
+        db.webSite.findUnique.mockResolvedValue(htmlSite());
+        const res = await getVia(host);
+        expect({ host, status: res.status }).toEqual({ host, status: 404 });
+      }
+    });
+
+    it.each([
+      ['el host de la plataforma (APP_URL)', 'erp.aether.cl'],
+      ['www de la plataforma', 'www.erp.aether.cl'],
+      ['localhost', 'localhost:3000'],
+      ['un despliegue *.vercel.app', 'erp-abc.vercel.app'],
+    ])('en %s sirve cualquier sitio HTML publicado, con o sin dominio propio', async (_label, host) => {
+      db.webSite.findUnique.mockResolvedValueOnce(htmlSite());
+      expect((await getVia(host)).status).toBe(200);
+
+      db.webSite.findUnique.mockResolvedValueOnce(htmlSite({ customDomain: null }));
+      expect((await getVia(host)).status).toBe(200);
+    });
+
+    it('sin cabecera Host se trata como plataforma (mismo criterio que el proxy)', async () => {
+      db.webSite.findUnique.mockResolvedValue(htmlSite());
+      const res = await rawGET(new Request('https://erp.aether.cl/web/solar-sur/raw'), ctx());
+      expect(res.status).toBe(200);
+    });
   });
 
   it('slug con formato inválido: 404 sin consultar la base', async () => {
