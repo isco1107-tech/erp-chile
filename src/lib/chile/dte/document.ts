@@ -289,5 +289,11 @@ export function buildDte(input: BuildDteInput): BuiltDte {
 
   const xml = `<?xml version="1.0" encoding="ISO-8859-1"?><DTE version="1.0">${documento}</DTE>`;
 
+  // El DTE viaja en ISO-8859-1: un carácter sin representación ahí (comillas
+  // tipográficas, guion largo, emoji) haría imposible enviarlo. Se rechaza
+  // acá, dentro de la transacción de emisión, para que el folio vuelva atrás.
+  const outside = [...xml].find((char) => char.charCodeAt(0) > 0xff);
+  if (outside) throw new Error(`El documento tiene un carácter que el SII no acepta: "${outside}". Reemplázalo y vuelve a emitir.`);
+
   return { xml, tedXml: ted.xml, documentId: id };
 }

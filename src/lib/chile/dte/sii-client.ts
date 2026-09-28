@@ -1,6 +1,6 @@
 import { signEnveloped, type SigningCredentials } from './signature';
 import { encodeLatin1 } from './envio';
-import { cleanRut } from '@/lib/chile/rut';
+import { cleanRut, validateRut } from '@/lib/chile/rut';
 
 /**
  * Cliente de los servicios del SII para DTE (facturas, notas, guías):
@@ -34,6 +34,11 @@ export class SiiServiceError extends Error {
   ) {
     super(message);
   }
+}
+
+/** Operación RPC de Axis en el namespace de sus WSDL (`http://DefaultNamespace`). */
+function operation(name: string, params = ''): string {
+  return `<ns1:${name} xmlns:ns1="http://DefaultNamespace">${params}</ns1:${name}>`;
 }
 
 function soapEnvelope(body: string): string {
@@ -91,7 +96,7 @@ function soapPost(fetchImpl: FetchLike, env: SiiEnvironment, service: string, bo
 
 /** Paso 1: semilla de un solo uso. */
 export async function getSeed(env: SiiEnvironment, fetchImpl: FetchLike = fetch): Promise<string> {
-  const answer = soapReturn(await soapPost(fetchImpl, env, 'CrSeed', '<getSeed/>'), 'getSeed');
+  const answer = soapReturn(await soapPost(fetchImpl, env, 'CrSeed', operation('getSeed')), 'getSeed');
   const state = tagText(answer, 'ESTADO');
   const seed = tagText(answer, 'SEMILLA');
   if (state !== '00' || !seed) throw new SiiServiceError('El SII no entregó la semilla de autenticación', state ?? undefined);
@@ -103,7 +108,7 @@ export async function getToken(env: SiiEnvironment, credentials: SigningCredenti
   const seed = await getSeed(env, fetchImpl);
   if (!/^\d+$/.test(seed)) throw new SiiServiceError('Semilla del SII con formato inesperado');
   const signed = signEnveloped(`<getToken><item><Semilla>${seed}</Semilla></item></getToken>`, credentials);
-  const answer = soapReturn(await soapPost(fetchImpl, env, 'GetTokenFromSeed', `<getToken><pszXml><![CDATA[${signed}]]></pszXml></getToken>`), 'getToken');
+  const answer = soapReturn(await soapPost(fetchImpl, env, 'GetTokenFromSeed', operation('getToken', `<pszXml><![CDATA[${signed}]]></pszXml>`)), 'getToken');
   const state = tagText(answer, 'ESTADO');
   const token = tagText(answer, 'TOKEN');
   if (state !== '00' || !token) {
@@ -129,7 +134,7 @@ const UPLOAD_STATUS: Record<string, string> = {
 
 function splitRut(rut: string): { body: string; dv: string } {
   const clean = cleanRut(rut);
-  if (clean.length < 2) throw new SiiServiceError(`RUT inválido: ${rut}`);
+  if (clean.length < 2 || !validateRut(clean)) throw new SiiServiceError(`RUT inválido: ${rut}`);
   return { body: clean.slice(0, -1), dv: clean.slice(-1) };
 }
 
@@ -161,14 +166,21 @@ export async function uploadEnvioDte(
   return trackId;
 }
 
-export type SiiUploadResult =
-  | { status: 'SENT'; rawState: string; detail: string | null }
-  | { status: 'ACCEPTED' | 'ACCEPTED_WITH_OBJECTIONS' | 'REJECTED'; rawState: string; detail: string | null };
+export type SiiUploadResult = {
+  /**
+   * `REPEATED`: el SII ya había recibido ese mismo envío (RPT). No es un
+   * rechazo: los DTE pueden estar aceptados bajo el Track ID original, que es
+   * el que hay que consultar.
+   */
+  status: 'SENT' | 'ACCEPTED' | 'ACCEPTED_WITH_OBJECTIONS' | 'REJECTED' | 'REPEATED';
+  rawState: string;
+  detail: string | null;
+};
 
 /** Estados de un envío que todavía se está procesando. */
-const IN_PROCESS = new Set(['REC', 'SOK', 'CRT', 'FOK', 'PDR']);
+const IN_PROCESS = new Set(['REC', 'SOK', 'CRT', 'FOK', 'PDR', 'PRD']);
 /** Rechazo del envío completo: esquema, firma, carátula, o rechazado. */
-const REJECTED = new Set(['RSC', 'RFR', 'RCT', 'RCH', 'RCO', 'RDC']);
+const REJECTED = new Set(['RSC', 'RFR', 'RCT', 'RCH', 'RCO']);
 /** Procesado con observaciones. */
 const WITH_OBJECTIONS = new Set(['RPR', 'RLV']);
 
@@ -187,12 +199,16 @@ export function interpretUploadState(answer: string): SiiUploadResult {
     throw new SiiServiceError(`El SII no pudo responder la consulta${detail ? `: ${detail}` : ''}`, state);
   }
   if (state === 'EPR') {
-    const count = (tag: string) => Number(tagText(answer, tag) ?? '0') || 0;
+    // El SII repite los contadores por cada tipo de documento del sobre:
+    // leer solo el primero daría por aceptado un 61 rechazado detrás de un 33.
+    const count = (tag: string) =>
+      [...answer.matchAll(new RegExp(`<(?:\\w+:)?${tag}>\\s*(\\d+)\\s*</(?:\\w+:)?${tag}>`, 'g'))].reduce((sum, m) => sum + Number(m[1]), 0);
     if (count('RECHAZADOS') > 0) return { status: 'REJECTED', rawState: state, detail };
     if (count('REPAROS') > 0) return { status: 'ACCEPTED_WITH_OBJECTIONS', rawState: state, detail };
     if (count('ACEPTADOS') > 0) return { status: 'ACCEPTED', rawState: state, detail };
     return { status: 'SENT', rawState: state, detail };
   }
+  if (state === 'RPT') return { status: 'REPEATED', rawState: state, detail };
   if (WITH_OBJECTIONS.has(state)) return { status: 'ACCEPTED_WITH_OBJECTIONS', rawState: state, detail };
   if (REJECTED.has(state)) return { status: 'REJECTED', rawState: state, detail };
   if (IN_PROCESS.has(state)) return { status: 'SENT', rawState: state, detail };
@@ -207,8 +223,10 @@ export async function queryUploadStatus(
 ): Promise<SiiUploadResult> {
   if (!/^\d+$/.test(params.trackId)) throw new SiiServiceError('Track ID inválido');
   const company = splitRut(params.companyRut);
-  const body =
-    `<getEstUp><RutCompania>${company.body}</RutCompania><DvCompania>${company.dv}</DvCompania>` +
-    `<TrackId>${params.trackId}</TrackId><Token>${params.token.replace(/[^\w.-]/g, '')}</Token></getEstUp>`;
+  const body = operation(
+    'getEstUp',
+    `<RutCompania>${company.body}</RutCompania><DvCompania>${company.dv}</DvCompania>` +
+      `<TrackId>${params.trackId}</TrackId><Token>${params.token.replace(/[^\w.-]/g, '')}</Token>`,
+  );
   return interpretUploadState(soapReturn(await soapPost(fetchImpl, env, 'QueryEstUp', body), 'getEstUp'));
 }

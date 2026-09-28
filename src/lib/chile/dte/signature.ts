@@ -11,12 +11,12 @@ import type { DigitalCertificate } from './certificate';
  *
  * Dos decisiones que no son obvias:
  *
- * 1. **Se firma en el contexto final.** El C14N inclusivo de un elemento
- *    incluye los namespaces que hereda de sus ancestros. Un `<Documento>`
- *    dentro de un `EnvioDTE` hereda `xmlns` y `xmlns:xsi` del sobre, y el SII
- *    verifica ahí: firmar el DTE suelto y después meterlo al sobre produce un
- *    digest que el SII no reproduce. Por eso primero se arma el XML final y
- *    se firma cada elemento en su lugar.
+ * 1. **Cada firma se calcula sobre el texto que recibe.** El C14N inclusivo
+ *    de un elemento incluye los namespaces que hereda. El `<DTE>` se firma
+ *    SUELTO (sin `xmlns`), que es como lo verifica el SII y como lo firman
+ *    las implementaciones que el SII acepta en producción (LibreDTE,
+ *    l10n_cl_fe); el `<SetDTE>` se firma ya dentro del sobre, heredando
+ *    `xmlns` y `xmlns:xsi`. Ver envio.ts.
  *
  * 2. **La firma se inserta como texto.** Nunca se parsea y re-serializa el
  *    documento completo (ver CLAUDE.md, "Nunca reserializar un XML firmado"):
@@ -90,7 +90,10 @@ function signatureBlock(signedInfo: string, credentials: SigningCredentials): st
 }
 
 function signedInfoXml(referenceUri: string, digest: string, enveloped: boolean): string {
-  const transforms = enveloped ? `<Transforms><Transform Algorithm="${ENVELOPED_ALGORITHM}"/></Transforms>` : '';
+  // Para `#ID`, el C14N explícito no cambia el digest (es el que XML-DSig
+  // aplica por defecto), pero es lo que ponen todas las implementaciones que
+  // el SII acepta: no arriesgar un validador de esquema estricto.
+  const transforms = `<Transforms><Transform Algorithm="${enveloped ? ENVELOPED_ALGORITHM : C14N_ALGORITHM}"/></Transforms>`;
   return (
     `<SignedInfo><CanonicalizationMethod Algorithm="${C14N_ALGORITHM}"/>` +
     `<SignatureMethod Algorithm="${DSIG_NS}rsa-sha1"/>` +

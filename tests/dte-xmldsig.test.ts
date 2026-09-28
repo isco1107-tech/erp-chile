@@ -12,7 +12,7 @@ import { SignedXml } from 'xml-crypto';
 import { parseCaf } from '@/lib/chile/dte/caf';
 import { buildDte } from '@/lib/chile/dte/document';
 import { CertificateError, isCertificateCurrent, loadPkcs12 } from '@/lib/chile/dte/certificate';
-import { buildSignedEnvioDte, encodeLatin1, SII_RUT } from '@/lib/chile/dte/envio';
+import { buildSignedEnvioDte, encodeLatin1, signDte, SII_RUT } from '@/lib/chile/dte/envio';
 import { signEnveloped, XmlSignatureError } from '@/lib/chile/dte/signature';
 import { getToken, interpretUploadState, queryUploadStatus, SiiServiceError, uploadEnvioDte, type FetchLike } from '@/lib/chile/dte/sii-client';
 
@@ -127,15 +127,31 @@ describe('EnvioDTE firmado', () => {
     resolutionDate: '2026-01-15',
     resolutionNumber: 0,
     documents: [
-      { xml: dteA.xml, documentId: dteA.documentId, siiCode: 33 },
-      { xml: dteB.xml, documentId: dteB.documentId, siiCode: 33 },
+      { signedXml: signDte(dteA.xml, dteA.documentId, cert), siiCode: 33 },
+      { signedXml: signDte(dteB.xml, dteB.documentId, cert), siiCode: 33 },
     ],
     signedAt: new Date('2026-09-10T15:00:00Z'),
   };
   const envio = buildSignedEnvioDte(input, cert);
 
-  it('todas las firmas (cada DTE y el SetDTE) verifican sobre el XML final', () => {
-    expect(verifyAll(envio, cert.certificatePem)).toBe(3);
+  /** Cada `<DTE>…</DTE>` del sobre, como documento propio: así lo verifica el SII. */
+  const dtesOf = (xml: string) => [...xml.matchAll(/<DTE version="1\.0">[\s\S]*?<\/DTE>/g)].map((m) => `<?xml version="1.0" encoding="ISO-8859-1"?>${m[0]}`);
+
+  it('cada DTE verifica como documento suelto, y el SetDTE sobre el sobre completo', () => {
+    const dtes = dtesOf(envio);
+    expect(dtes).toHaveLength(2);
+    for (const dte of dtes) expect(verifyAll(dte, cert.certificatePem)).toBe(1);
+
+    const doc = new DOMParser().parseFromString(envio, 'text/xml');
+    const signatures = doc.getElementsByTagNameNS('http://www.w3.org/2000/09/xmldsig#', 'Signature');
+    const setSignature = signatures[signatures.length - 1];
+    const verifier = new SignedXml({ publicCert: cert.certificatePem });
+    verifier.loadSignature(setSignature as unknown as Node);
+    expect(verifier.checkSignature(envio)).toBe(true);
+  });
+
+  it('el DTE firmado entra al sobre tal cual, sin volver a firmarse ni serializarse', () => {
+    for (const doc of input.documents) expect(envio).toContain(doc.signedXml.replace(/^<\?xml[^>]*\?>/, ''));
   });
 
   it('no re-serializa: el Documento y el timbre (con el CAF) quedan byte a byte', () => {
@@ -158,23 +174,30 @@ describe('EnvioDTE firmado', () => {
     expect(envio).toMatch(/<\/SetDTE><Signature xmlns="http:\/\/www\.w3\.org\/2000\/09\/xmldsig#">.*<\/Signature><\/EnvioDTE>$/s);
   });
 
-  it('alterar cualquier dato del documento invalida la firma', () => {
+  it('alterar cualquier dato del documento invalida la firma del DTE', () => {
     const tampered = envio.replace('<MntTotal>119000</MntTotal>', '<MntTotal>119001</MntTotal>');
     expect(tampered).not.toBe(envio);
-    expect(() => verifyAll(tampered, cert.certificatePem)).toThrow(/inválida/);
+    expect(() => verifyAll(dtesOf(tampered)[0], cert.certificatePem)).toThrow(/inválida/);
   });
 
-  it('un DTE firmado suelto NO verifica dentro del sobre (por eso se firma en contexto)', () => {
-    // El mismo DTE fuera del sobre ya no hereda xmlns ni xmlns:xsi: su forma
-    // canónica cambia y el digest firmado en contexto no calza.
-    const loose = buildSignedEnvioDte({ ...input, documents: [input.documents[0]] }, cert);
-    const doc = loose.slice(loose.indexOf('<DTE'), loose.indexOf('</DTE>') + 6);
-    const standalone = `<?xml version="1.0" encoding="ISO-8859-1"?>${doc}`;
-    const parsed = new DOMParser().parseFromString(standalone, 'text/xml');
-    const signature = parsed.getElementsByTagNameNS('http://www.w3.org/2000/09/xmldsig#', 'Signature')[0];
+  it('usa Transform C14N explícito en las referencias #ID', () => {
+    expect(envio).toContain('<Reference URI="#SetDoc"><Transforms><Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/></Transforms>');
+  });
+
+  it('rechaza RUT inválidos, DTE sin firmar y documentos de otro emisor', () => {
+    expect(() => buildSignedEnvioDte({ ...input, senderRut: '12345678-9' }, cert)).toThrow(/RUT que envía inválido/);
+    expect(() => buildSignedEnvioDte({ ...input, documents: [{ signedXml: dteA.xml, siiCode: 33 }] }, cert)).toThrow(/firmados/);
+    expect(() => buildSignedEnvioDte({ ...input, issuerRut: '77777777-7' }, cert)).toThrow(/mismo emisor/);
+  });
+
+  it('la firma del DTE es la del documento suelto: dentro del sobre hereda otros namespaces', () => {
+    // Documenta la decisión: el SII verifica el DTE como documento propio,
+    // así que una verificación "en contexto" del DTE no calza, a propósito.
+    const parsed = new DOMParser().parseFromString(envio, 'text/xml');
+    const dteSignature = parsed.getElementsByTagNameNS('http://www.w3.org/2000/09/xmldsig#', 'Signature')[0];
     const verifier = new SignedXml({ publicCert: cert.certificatePem });
-    verifier.loadSignature(signature as unknown as Node);
-    expect(verifier.checkSignature(standalone)).toBe(false);
+    verifier.loadSignature(dteSignature as unknown as Node);
+    expect(verifier.checkSignature(envio)).toBe(false);
   });
 
   it('rechaza boletas, sobres vacíos y fechas de resolución mal formadas', () => {
@@ -291,6 +314,12 @@ describe('Cliente de servicios del SII', () => {
     expect(interpretUploadState(answer('RSC')).status).toBe('REJECTED');
     expect(interpretUploadState(answer('PDR')).status).toBe('SENT');
     expect(interpretUploadState(answer('XYZ')).status).toBe('SENT');
+    expect(interpretUploadState(answer('RPT')).status).toBe('REPEATED');
+    expect(interpretUploadState(answer('PRD')).status).toBe('SENT');
+    // Contadores repetidos por tipo: un 61 rechazado detrás de un 33 aceptado.
+    const byType = '<TIPO_DOCTO>33</TIPO_DOCTO><INFORMADOS>1</INFORMADOS><ACEPTADOS>1</ACEPTADOS><RECHAZADOS>0</RECHAZADOS><REPAROS>0</REPAROS>' +
+      '<TIPO_DOCTO>61</TIPO_DOCTO><INFORMADOS>1</INFORMADOS><ACEPTADOS>0</ACEPTADOS><RECHAZADOS>1</RECHAZADOS><REPAROS>0</REPAROS>';
+    expect(interpretUploadState(answer('EPR', byType)).status).toBe('REJECTED');
     expect(() => interpretUploadState(answer('-11'))).toThrow(SiiServiceError);
   });
 
@@ -302,7 +331,29 @@ describe('Cliente de servicios del SII', () => {
       return new Response(soap('getEstUp', siiAnswer('<ACEPTADOS>1</ACEPTADOS>', 'EPR')));
     };
     await expect(queryUploadStatus('certificacion', { token: 'TK', companyRut: '76.192.083-9', trackId: '0123456789' }, fetchMock)).resolves.toMatchObject({ status: 'ACCEPTED', rawState: 'EPR' });
-    expect(body).toContain('<RutCompania>76192083</RutCompania><DvCompania>9</DvCompania><TrackId>0123456789</TrackId><Token>TK</Token>');
+    expect(body).toContain('<ns1:getEstUp xmlns:ns1="http://DefaultNamespace"><RutCompania>76192083</RutCompania><DvCompania>9</DvCompania><TrackId>0123456789</TrackId><Token>TK</Token></ns1:getEstUp>');
     await expect(queryUploadStatus('certificacion', { token: 'TK', companyRut: '76192083-9', trackId: '1 OR 1' }, fetchMock)).rejects.toThrow(/Track ID/);
   });
 });
+
+describe('Caracteres fuera de ISO-8859-1', () => {
+  it('se rechazan al armar el DTE, antes de timbrar, para que el folio vuelva atrás', () => {
+    expect(() => makeDteWithDescription('Asesoría “premium” — mensual')).toThrow(/no acepta/);
+  });
+});
+
+function makeDteWithDescription(description: string) {
+  const caf = parseCaf(CAF_XML);
+  return buildDte({
+    siiCode: 33,
+    folio: 3,
+    issueDate: new Date('2026-09-10T14:30:00Z'),
+    paymentMode: 1,
+    issuer: { rut: '76192083-9', businessName: 'EMPRESA DEMO SPA', giro: 'Servicios', actividadEconomicaCodigo: '620200', address: 'Av. Siempre Viva 742', comuna: 'Providencia', ciudad: 'Santiago' },
+    receiver: { rut: '77777777-7', businessName: 'CLIENTE SPA', giro: 'Comercio', address: 'Calle Falsa 123', comuna: 'Ñuñoa', ciudad: 'Santiago' },
+    lines: [{ description, quantity: 1, unitPrice: 1000, lineTotal: 1000, isExempt: false }],
+    totals: { netAmount: 1000, exemptAmount: 0, ivaAmount: 190, totalAmount: 1190 },
+    cafBlockXml: caf.cafBlockXml,
+    privateKeyPem: caf.privateKeyPem,
+  });
+}

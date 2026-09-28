@@ -1,16 +1,19 @@
 import { isBoletaCode } from './codes';
 import { signElementById, XmlSignatureError, type SigningCredentials } from './signature';
 import { element, siiDate, siiRut, siiTimestamp } from './xml';
+import { validateRut } from '@/lib/chile/rut';
 
 /**
  * Sobre `EnvioDTE`: uno o más DTE firmados, con su carátula, firmado a su
  * vez como un todo. Es lo que se sube al SII (y lo que se le entrega al
  * receptor en el intercambio).
  *
- * Orden de firma, que el SII verifica en ese mismo orden:
- *  1. Se arma el sobre completo con los DTE todavía sin firma.
- *  2. Se firma cada `<Documento>` en su lugar (hereda los namespaces del sobre).
- *  3. Se firma `<SetDTE>`, que ya contiene las firmas de los documentos.
+ * Orden de firma:
+ *  1. Cada `<DTE>` se firma SUELTO (`signDte`), sin los namespaces del sobre:
+ *     así lo verifica el SII, y ese mismo XML firmado es el que sirve para
+ *     el intercambio con el receptor. Se guarda en `SalesDocument.signedXml`.
+ *  2. Se arma el sobre insertando esos DTE firmados como texto, sin tocarlos.
+ *  3. Se firma `<SetDTE>` en su lugar (hereda `xmlns` y `xmlns:xsi`).
  *
  * Las boletas (39/41) no van por acá: el SII las recibe por otro canal
  * (`EnvioBOLETA`, API REST), aún no implementado.
@@ -22,11 +25,17 @@ export const SII_RUT = '60803000-K';
 const SET_ID = 'SetDoc';
 
 export interface EnvioDteDocument {
-  /** XML del `<DTE>` como lo produce `buildDte`, sin firmar. */
-  xml: string;
-  /** `ID` de su `<Documento>` (`documentId` de `buildDte`). */
-  documentId: string;
+  /** XML del `<DTE>` YA firmado con `signDte`. */
+  signedXml: string;
   siiCode: number;
+}
+
+/**
+ * Firma un DTE suelto (el `xml` de `buildDte`). El resultado es el que se
+ * guarda y se reutiliza: nunca se vuelve a firmar ni a serializar.
+ */
+export function signDte(xml: string, documentId: string, credentials: SigningCredentials): string {
+  return signElementById(xml, documentId, credentials);
 }
 
 export interface EnvioDteInput {
@@ -73,17 +82,26 @@ export function buildSignedEnvioDte(input: EnvioDteInput, credentials: SigningCr
   if (input.documents.some((doc) => isBoletaCode(doc.siiCode))) {
     throw new XmlSignatureError('Las boletas se envían al SII por otro canal, todavía no disponible');
   }
+  for (const [label, rut] of [['emisor', input.issuerRut], ['que envía', input.senderRut], ['receptor', input.receiverRut ?? SII_RUT]] as const) {
+    if (!validateRut(rut)) throw new XmlSignatureError(`RUT ${label} inválido: ${rut}`);
+  }
+  for (const doc of input.documents) {
+    if (!/<Signature[\s>]/.test(doc.signedXml)) throw new XmlSignatureError('Todos los DTE deben ir firmados antes de armar el envío');
+    const docIssuer = /<RUTEmisor>([^<]+)<\/RUTEmisor>/.exec(doc.signedXml)?.[1];
+    if (docIssuer !== siiRut(input.issuerRut)) {
+      throw new XmlSignatureError('Un envío solo puede llevar documentos del mismo emisor que su carátula');
+    }
+  }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.resolutionDate) || siiDate(new Date(`${input.resolutionDate}T12:00:00Z`)) !== input.resolutionDate) {
     throw new XmlSignatureError('La fecha de resolución debe tener formato AAAA-MM-DD');
   }
 
-  let xml =
+  const xml =
     `<?xml version="1.0" encoding="ISO-8859-1"?>\n` +
     `<EnvioDTE xmlns="http://www.sii.cl/SiiDte" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.sii.cl/SiiDte EnvioDTE_v10.xsd" version="1.0">` +
-    `<SetDTE ID="${SET_ID}">${caratula(input)}${input.documents.map((doc) => stripDeclaration(doc.xml)).join('')}</SetDTE>` +
+    `<SetDTE ID="${SET_ID}">${caratula(input)}${input.documents.map((doc) => stripDeclaration(doc.signedXml)).join('')}</SetDTE>` +
     `</EnvioDTE>`;
 
-  for (const doc of input.documents) xml = signElementById(xml, doc.documentId, credentials);
   return signElementById(xml, SET_ID, credentials);
 }
 
