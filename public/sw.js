@@ -2,18 +2,20 @@
  * Service worker de Aether.
  *
  * 1. Avisos Web Push (contenido: src/lib/notifications/web-push.ts).
- * 2. POS sin conexión: guarda la pantalla del Punto de Venta y los archivos
- *    estáticos de Next para que el POS abra aunque no haya red. Nada más se
- *    intercepta: el resto del ERP necesita el servidor.
+ * 2. Modo sin conexión (docs/adr/0002): guarda la pantalla del Punto de
+ *    Venta, la de contingencia (bodega y compras) y los archivos estáticos de
+ *    Next para que abran aunque no haya red. Nada más se intercepta: el resto
+ *    del ERP necesita el servidor.
  *
- * La copia del POS tiene datos de la empresa: se borra al cerrar sesión y al
+ * Esas copias tienen datos de la empresa: se borran al cerrar sesión y al
  * cambiar de empresa (mensaje `aether:clear-private`, ver
  * src/lib/offline/service-worker.ts).
  */
 const STATIC_CACHE = 'aether-static-v1';
 const PRIVATE_CACHE = 'aether-pos-v1';
 const KNOWN_CACHES = [STATIC_CACHE, PRIVATE_CACHE];
-const POS_PATH = '/dashboard/pos';
+/** Pantallas que abren sin conexión. El nombre del caché se conserva para no dejar copias huérfanas. */
+const OFFLINE_PATHS = ['/dashboard/pos', '/dashboard/contingencia'];
 /** Cada despliegue trae archivos nuevos con otro hash: se guardan los más recientes y los viejos se descartan. */
 const MAX_STATIC_ENTRIES = 400;
 
@@ -52,18 +54,18 @@ async function staticCacheFirst(request) {
   return response;
 }
 
-/** Pantalla del POS: siempre la del servidor si hay red; la copia solo sin conexión. */
-async function posNetworkFirst(request) {
+/** Pantalla sin conexión: siempre la del servidor si hay red; la copia solo sin conexión. */
+async function offlinePageNetworkFirst(request, path) {
   const cache = await caches.open(PRIVATE_CACHE);
   try {
     const response = await fetch(request);
-    // Solo la pantalla real del POS: nunca una redirección al login ni un error.
+    // Solo la pantalla real: nunca una redirección al login ni un error.
     if (response.ok && !response.redirected && response.type === 'basic') {
-      await cache.put(POS_PATH, response.clone());
+      await cache.put(path, response.clone());
     }
     return response;
   } catch (error) {
-    const cached = await cache.match(POS_PATH);
+    const cached = await cache.match(path);
     if (cached) return cached;
     throw error;
   }
@@ -78,8 +80,8 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(staticCacheFirst(request));
     return;
   }
-  if (request.mode === 'navigate' && url.pathname === POS_PATH && url.search === '') {
-    event.respondWith(posNetworkFirst(request));
+  if (request.mode === 'navigate' && OFFLINE_PATHS.includes(url.pathname) && url.search === '') {
+    event.respondWith(offlinePageNetworkFirst(request, url.pathname));
   }
 });
 

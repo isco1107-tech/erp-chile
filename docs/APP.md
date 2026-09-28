@@ -6,7 +6,7 @@ Análisis del 2026-09-28. Retoma lo que el commit `2e363b5` dejó "para una etap
 
 **Web (PWA)**
 - `src/app/manifest.ts`: nombre, íconos 192/512, `display: standalone`, `start_url: /dashboard`. El navegador ya puede instalarla.
-- `public/sw.js`: service worker **solo para avisos push**, y se registra recién cuando alguien activa los avisos. No hay caché ni modo sin conexión.
+- `public/sw.js`: service worker que se registra siempre en producción. Maneja los avisos push y el modo sin conexión: guarda las pantallas del POS y de contingencia y los archivos estáticos (ver `docs/adr/0002`).
 - No hay botón "Instalar Aether": depende de que la persona encuentre la opción en el menú del navegador (y en iPhone, de "Agregar a inicio").
 
 **Escritorio (`desktop-client/`, Tauri 2, v0.2.0)**
@@ -14,7 +14,7 @@ Análisis del 2026-09-28. Retoma lo que el commit `2e363b5` dejó "para una etap
 - User-Agent `AetherDesktop/0.2.0`, que sirve para mantener la navegación dentro del ERP.
 - El workflow `desktop-release.yml` construye instaladores para Windows (NSIS), Linux (AppImage) y macOS Apple Silicon e Intel (DMG). Se publican en `public/downloads/` con `SHA256SUMS.txt`.
 - **No tiene:** firma de código ni notarización, actualización automática, notificaciones nativas, enlaces profundos (`aether://`), ni memoria del tamaño y la posición de la ventana.
-- Superficie expuesta a la página remota: el comando `switch_main_window`, que solo acepta `"app"` u `"offline"`. La capability `default` no declara `remote`, así que la página remota no recibe los permisos de plugins. Hay que mantenerlo así: cualquier comando nuevo que reciba datos de la página debe validarlos igual de estricto.
+- Superficie expuesta a la página remota: el comando `switch_main_window`, que solo acepta destinos fijos (`"app"`, `"offline"`, `"pos"` y `"contingency"`). La capability `default` no declara `remote`, así que la página remota no recibe los permisos de plugins. Hay que mantenerlo así: cualquier comando nuevo que reciba datos de la página debe validarlos igual de estricto.
 
 **Multiempresa dentro de la app**
 - La sesión es una sola cookie por navegador o perfil: hay **una empresa activa a la vez** en todas las ventanas.
@@ -53,10 +53,12 @@ Arquitectura común para cualquier flujo sin conexión: una cola local de operac
 | 1 | PWA con botón de instalar y SW siempre registrado; ventana que recuerda tamaño; auto-actualización del shell; firma de código (según la compra de certificados) | Días |
 | 2 | Notificaciones nativas en escritorio; enlaces profundos para invitaciones y documentos | 1–2 semanas |
 | 3 | Consulta sin conexión (solo lectura) y acreditación de eventos sin conexión | Proyecto |
-| 4 | POS sin conexión con folios reservados o contingencia, tras la definición tributaria | Proyecto grande |
+| 4 | ~~POS sin conexión~~ Hecho como modo contingencia (POS, bodega y compras, hasta 2 horas). Pendiente: CAF por caja si el contador no valida el comprobante provisorio | Proyecto grande |
 
 ## Decisiones (dueño del producto, 2026-09-28)
 
 1. **Certificados de firma: todavía no.** La app de escritorio sigue sin firmar; lo que no depende de la firma (PWA instalable, ventana que recuerda tamaño, avisos nativos) sí avanza.
 2. **Primer flujo sin conexión: el POS.** Antes de programar, el especialista tributario define la estrategia de folios y timbre (ver `docs/adr/`).
 3. **Se mantienen ambas: escritorio (Tauri) y PWA.** El POS sin conexión se construye sobre el service worker del sitio, que funciona igual en el navegador, en la PWA instalada y dentro de la ventana Tauri (que carga el mismo origen).
+4. **Alcance sin conexión: seguir operando en cortes cortos, de 2 horas como máximo.** Cubre ventas del POS, entradas y salidas de stock, registro de compras y recepción de órdenes de compra. Todo lo demás sigue necesitando el servidor.
+5. **Boleta: comprobante provisorio y boleta al volver**, también para empresas con CAF. El especialista tributario lo desaconseja porque el cliente se va sin boleta: **validar con el contador** antes de usarlo en una empresa con CAF. Detalle y pendientes en `docs/adr/0002`.

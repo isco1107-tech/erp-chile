@@ -128,3 +128,45 @@ test.describe('venta sin conexión', () => {
     expect(await shiftSalesCount(page)).toBe(before + 1);
   });
 });
+
+// Pantalla de contingencia (bodega y compras). La empresa de prueba tiene
+// Inventario pero no Compras: el Dueño ve solo "Movimiento de stock".
+const STOCK_PRODUCT_SKU = 'E2E-HARINA';
+
+async function dismissOverlays(page: Page) {
+  const closeWizard = page.getByRole('button', { name: 'Cerrar', exact: true });
+  if (await closeWizard.isVisible().catch(() => false)) await closeWizard.click();
+  await dismissTour(page);
+}
+
+test.describe('bodega sin conexión', () => {
+  test.use({ storageState: OWNER_STATE });
+
+  test('una entrada de stock hecha sin conexión se aplica al volver la red', async ({ page, context }) => {
+    await page.goto('/dashboard/contingencia');
+    await page.evaluate(async () => {
+      await navigator.serviceWorker.ready;
+    });
+    await page.reload();
+    await dismissOverlays(page);
+    await expect(page.locator('h1', { hasText: 'Modo sin conexión' })).toBeVisible();
+    // Datos cargados del servidor: ya quedaron guardados en el equipo.
+    await expect(page.locator('#offline-stock-product')).toBeVisible();
+
+    await context.setOffline(true);
+    try {
+      await page.reload();
+      await dismissOverlays(page);
+      await expect(page.getByText(/Usando los datos guardados en este equipo/)).toBeVisible();
+      await page.locator('#offline-stock-product').fill(STOCK_PRODUCT_SKU);
+      await page.locator('#offline-stock-quantity').fill('5');
+      await page.locator('#offline-stock-cost').fill('1000');
+      await page.locator('button[type="submit"]', { hasText: 'Registrar entrada' }).click();
+      await expect(page.getByText('Entrada 5 × Harina E2E: guardado en este equipo')).toBeVisible();
+    } finally {
+      await context.setOffline(false);
+    }
+
+    await expect(page.getByText(/hechas sin conexión quedaron registradas/)).toBeVisible({ timeout: 20_000 });
+  });
+});

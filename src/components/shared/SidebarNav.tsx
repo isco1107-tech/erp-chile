@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
+  CloudOff,
   FileSignature,
   ClipboardList,
   Tags,
@@ -150,6 +151,7 @@ export const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   boms: BookOpen,
   serviceDesk: Wrench,
   invoiceArchive: Archive,
+  offline: CloudOff,
   crmTasks: CalendarCheck,
   crmPeople: Contact,
   crmReports: BarChart3,

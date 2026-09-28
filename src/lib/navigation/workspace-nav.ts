@@ -89,7 +89,8 @@ export type NavIconKey =
   | 'manufacturing'
   | 'boms'
   | 'serviceDesk'
-  | 'invoiceArchive';
+  | 'invoiceArchive'
+  | 'offline';
 
 export interface NavLink {
   /** Identificador estable (ver comentario del archivo). */
@@ -150,6 +151,10 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
   const principal: NavLink[] = [{ id: 'home', href: '/dashboard', label: 'Inicio', icon: 'home', exact: true, keywords: ['dashboard', 'panel', 'resumen'] }];
   if (features.hasPos && allow('pos:operate')) {
     principal.push({ id: 'pos', href: '/dashboard/pos', label: 'Punto de Venta', icon: 'pos', keywords: ['pos', 'caja', 'boleta'] });
+  }
+  // Contingencia (docs/adr/0002): seguir registrando bodega y compras sin red.
+  if ((features.hasInventory && allow('inventory:write')) || (features.hasPurchases && (allow('purchases:write') || allow('purchases:orders')))) {
+    principal.push({ id: 'contingency', href: '/dashboard/contingencia', label: 'Modo sin conexión', icon: 'offline', keywords: ['contingencia', 'offline', 'sin internet', 'caida', 'sin red', 'respaldo'] });
   }
   if (allow('messaging:use')) {
     principal.push({ id: 'messaging', href: '/dashboard/messaging', label: 'Mensajería', icon: 'messaging', keywords: ['chat', 'mensajes'] });

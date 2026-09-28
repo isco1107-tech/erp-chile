@@ -4,7 +4,8 @@
  *   trabaja en las dos (hogar + membresía).
  * - POS contratado en la empresa de prueba, para recorrer el POS real y su
  *   modo sin conexión: una cajera con su turno ya abierto y un producto sin
- *   control de stock (la venta no depende de existencias).
+ *   control de stock (la venta no depende de existencias), más uno con
+ *   control de stock para la pantalla de contingencia de bodega.
  *
  * SOLO para la base efímera de E2E: la DATABASE_URL local de este proyecto es
  * la de producción (CLAUDE.md §5), así que exige E2E_DATABASE=1 y se niega a
@@ -22,6 +23,7 @@ export const HOME_COMPANY_NAME = 'Empresa de Prueba';
 export const SECOND_COMPANY_NAME = 'Filial E2E SpA';
 export const CASHIER_EMAIL = 'cajero@prueba.local';
 export const POS_PRODUCT_SKU = 'E2E-CAFE';
+export const STOCK_PRODUCT_SKU = 'E2E-HARINA';
 
 async function main() {
   assertScriptCanRun('e2e/fixtures/seed-e2e.ts');
@@ -87,6 +89,12 @@ async function main() {
     where: { companyId_sku: { companyId: home.id, sku: POS_PRODUCT_SKU } },
     update: {},
     create: { companyId: home.id, sku: POS_PRODUCT_SKU, name: 'Café E2E', isTrackable: false, netPrice: 2000, grossPrice: 2380 },
+  });
+  // Con control de stock: para los movimientos de bodega del modo sin conexión.
+  await prisma.product.upsert({
+    where: { companyId_sku: { companyId: home.id, sku: STOCK_PRODUCT_SKU } },
+    update: {},
+    create: { companyId: home.id, sku: STOCK_PRODUCT_SKU, name: 'Harina E2E', isTrackable: true, netPrice: 1500, grossPrice: 1785 },
   });
 
   console.log('Datos E2E listos');
