@@ -79,7 +79,7 @@ function verifyAll(xml: string, certificatePem: string): number {
   const signatures = doc.getElementsByTagNameNS('http://www.w3.org/2000/09/xmldsig#', 'Signature');
   for (let i = 0; i < signatures.length; i += 1) {
     const verifier = new SignedXml({ publicCert: certificatePem });
-    verifier.loadSignature(signatures[i]);
+    verifier.loadSignature(signatures[i] as unknown as Node);
     if (!verifier.checkSignature(xml)) throw new Error(`Firma ${i} inválida`);
   }
   return signatures.length;
@@ -173,7 +173,7 @@ describe('EnvioDTE firmado', () => {
     const parsed = new DOMParser().parseFromString(standalone, 'text/xml');
     const signature = parsed.getElementsByTagNameNS('http://www.w3.org/2000/09/xmldsig#', 'Signature')[0];
     const verifier = new SignedXml({ publicCert: cert.certificatePem });
-    verifier.loadSignature(signature);
+    verifier.loadSignature(signature as unknown as Node);
     expect(verifier.checkSignature(standalone)).toBe(false);
   });
 
