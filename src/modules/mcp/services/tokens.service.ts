@@ -40,7 +40,7 @@ export async function resolveMcpSession(rawToken: string): Promise<McpSession | 
   const record = await prisma.mcpPersonalToken.findUnique({
     where: { tokenHash: hashMcpToken(rawToken) },
     include: {
-      user: { select: { id: true, name: true, isActive: true, role: true, customRole: { select: { permissions: true } } } },
+      user: { select: { id: true, name: true, isActive: true, role: true, companyId: true, customRole: { select: { permissions: true } } } },
       company: { include: { features: true, settings: { select: { mcpConnectorEnabled: true } } } },
     },
   });
@@ -49,21 +49,36 @@ export async function resolveMcpSession(rawToken: string): Promise<McpSession | 
   if (!record.company.settings?.mcpConnectorEnabled) return null;
   if (!isOperationalTenant(record.company.status)) return null;
 
+  const features = toFeatureFlags(record.company.features);
+
+  // Token de una empresa que NO es la hogar (se creó estando en ella por
+  // Multiempresa): los permisos salen del rol de ESA membresía, igual que en
+  // `getAuthContext`, nunca del rol de la empresa hogar. Sin membresía vigente
+  // o sin el módulo, el token deja de servir: quitar a alguien de la empresa
+  // corta también su conector.
+  let role = record.user.role;
+  let customRolePermissions = record.user.customRole?.permissions ?? null;
+  if (record.companyId !== record.user.companyId) {
+    if (!features.hasMultiCompany) return null;
+    const membership = await prisma.companyMembership.findUnique({
+      where: { userId_companyId: { userId: record.userId, companyId: record.companyId } },
+      select: { role: true, customRole: { select: { permissions: true } } },
+    });
+    if (!membership) return null;
+    role = membership.role;
+    customRolePermissions = membership.customRole?.permissions ?? null;
+  }
+
   // Fire-and-forget: no bloquea la respuesta ni la falla si la escritura demora.
   prisma.mcpPersonalToken.update({ where: { id: record.id }, data: { lastUsedAt: new Date() } }).catch(() => {});
 
-  const features = toFeatureFlags(record.company.features);
   return {
     companyId: record.companyId,
     companyName: record.company.businessName,
     userId: record.userId,
     userName: record.user.name,
     features,
-    permissions: resolvePermissions({
-      role: record.user.role,
-      customRolePermissions: record.user.customRole?.permissions ?? null,
-      features,
-    }),
+    permissions: resolvePermissions({ role, customRolePermissions, features }),
   };
 }
 

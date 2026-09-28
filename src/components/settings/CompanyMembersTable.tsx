@@ -41,7 +41,7 @@ export function CompanyMembersTable({ multiCompanyEnabled }: { multiCompanyEnabl
   async function handleRemove(member: CompanyMember) {
     const ok = await confirm({
       title: `Quitar a ${member.name} de esta empresa`,
-      description: `Pierde el acceso a esta empresa de inmediato y se cierran sus sesiones abiertas aquí. Su cuenta y su acceso a ${member.homeCompanyName ?? 'su empresa'} no cambian.`,
+      description: 'Pierde el acceso a esta empresa de inmediato y se cierran sus sesiones, avisos y conectores de IA de aquí. Su cuenta y su acceso a su propia empresa no cambian.',
       confirmLabel: 'Quitar acceso',
       destructive: true,
     });
@@ -60,12 +60,11 @@ export function CompanyMembersTable({ multiCompanyEnabled }: { multiCompanyEnabl
           : 'Con el módulo Multiempresa puedes sumar a personas que ya tienen cuenta en otra empresa (una contadora externa, un socio con dos empresas) sin crearles otra cuenta.'}
       </p>
       <div className="overflow-x-auto rounded-xl border border-border">
-        <table className="w-full min-w-[760px] table-auto text-sm">
+        <table className="w-full min-w-[680px] table-auto text-sm">
           <thead className="bg-muted/50 text-left">
             <tr>
               <th className="p-2 font-medium">Nombre</th>
               <th className="p-2 font-medium">Correo</th>
-              <th className="p-2 font-medium">Empresa de origen</th>
               <th className="p-2 font-medium">Rol aquí</th>
               <th className="p-2 font-medium">Estado</th>
               <th className="p-2 font-medium">Acciones</th>
@@ -73,16 +72,15 @@ export function CompanyMembersTable({ multiCompanyEnabled }: { multiCompanyEnabl
           </thead>
           <tbody>
             {members === null && (
-              <tr><td className="p-4 text-center text-muted-foreground" colSpan={6}>Cargando...</td></tr>
+              <tr><td className="p-4 text-center text-muted-foreground" colSpan={5}>Cargando...</td></tr>
             )}
             {members?.length === 0 && (
-              <tr><td className="p-4 text-center text-muted-foreground" colSpan={6}>Nadie de otra empresa trabaja aquí todavía</td></tr>
+              <tr><td className="p-4 text-center text-muted-foreground" colSpan={5}>Nadie de otra empresa trabaja aquí todavía</td></tr>
             )}
             {members?.map((member) => (
               <tr key={member.membershipId} className="border-t border-border">
                 <td className="p-2">{member.name}</td>
                 <td className="p-2">{member.email}</td>
-                <td className="p-2">{member.homeCompanyName ?? '—'}</td>
                 <td className="p-2">
                   <div className="flex items-center gap-2">
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${ROLE_BADGE_CLASS[member.role]}`}>

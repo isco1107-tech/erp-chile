@@ -25,13 +25,21 @@ test('tras entrar, vuelve a la pantalla que se había pedido', async ({ page }) 
   await expect(page).toHaveURL(/\/dashboard\/contacts$/);
 });
 
-test('un callbackUrl externo se ignora (sin redirección abierta)', async ({ page }) => {
-  await page.goto('/login?callbackUrl=%2F%2Fevil.example%2Fphish');
-  await page.locator('#username').fill(OWNER_EMAIL);
-  await page.locator('#password').fill(OWNER_PASSWORD);
-  await page.getByRole('button', { name: 'Entrar' }).click();
-  await expect(page).toHaveURL(/localhost:\d+\/dashboard$/);
-});
+for (const [label, callbackUrl] of [
+  ['doble barra', '%2F%2Fevil.example%2Fphish'],
+  ['tabulador que el navegador borra', '%2F%09%2Fevil.example'],
+  ['barra invertida', '%2F%5Cevil.example'],
+  ['URL absoluta', 'https%3A%2F%2Fevil.example'],
+]) {
+  test(`un callbackUrl externo se ignora: ${label}`, async ({ page }) => {
+    await page.goto(`/login?callbackUrl=${callbackUrl}`);
+    await page.locator('#username').fill(OWNER_EMAIL);
+    await page.locator('#password').fill(OWNER_PASSWORD);
+    await page.getByRole('button', { name: 'Entrar' }).click();
+    await expect(page).toHaveURL(/localhost:\d+\/dashboard$/);
+  });
+}
+
 
 test('una contraseña incorrecta se rechaza sin entrar al panel', async ({ page }) => {
   await login(page, OWNER_EMAIL, 'contraseña-que-no-es');

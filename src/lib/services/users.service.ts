@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import type { AuditAction, Invitation, Prisma, Role } from '@prisma/client';
 import { generateRandomPassword } from '@/lib/auth/password-policy';
 import { toFeatureFlags } from '@/lib/auth/modules';
+import { isOperationalTenant } from '@/lib/auth/tenant-status';
 
 export const INVITATION_TTL_DAYS = 7;
 const INVITATION_TTL_HOURS = INVITATION_TTL_DAYS * 24;
@@ -70,7 +71,7 @@ export async function listPendingInvitations(companyId: string): Promise<Invitat
 async function findUserByEmail(email: string) {
   return prisma.user.findFirst({
     where: { email: { equals: email, mode: 'insensitive' } },
-    select: { id: true, email: true, companyId: true, isSuperAdmin: true, isActive: true },
+    select: { id: true, email: true, companyId: true, isActive: true },
   });
 }
 
@@ -85,7 +86,9 @@ export async function inviteUser(
   const existingUser = await findUserByEmail(data.email);
   if (existingUser) {
     if (existingUser.companyId === companyId) throw new Error('Esa persona ya es parte del equipo');
-    if (existingUser.isSuperAdmin) throw new Error('No se puede invitar una cuenta de plataforma');
+    // Una cuenta de plataforma no se distingue acá (sería una forma de
+    // descubrir cuáles existen): la invitación se crea igual y
+    // `acceptInvitationAsMember` la rechaza.
     const membership = await prisma.companyMembership.findUnique({
       where: { userId_companyId: { userId: existingUser.id, companyId } },
       select: { id: true },
@@ -172,9 +175,7 @@ export async function acceptInvitationAsMember(
   if (!invitation) throw new Error('Invitación no válida');
   if (invitation.acceptedAt) throw new Error('Esta invitación ya fue utilizada');
   if (invitation.expiresAt < new Date()) throw new Error('Esta invitación ha expirado');
-  if (invitation.company.status === 'SUSPENDED' || invitation.company.status === 'CANCELLED') {
-    throw new Error('La cuenta de esta empresa no se encuentra activa');
-  }
+  if (!isOperationalTenant(invitation.company.status)) throw new Error('La cuenta de esta empresa no se encuentra activa');
   if (!toFeatureFlags(invitation.company.features).hasMultiCompany) {
     throw new Error('Esta empresa ya no tiene el módulo Multiempresa. Pide que te inviten de nuevo');
   }
@@ -208,7 +209,12 @@ export async function acceptInvitationAsMember(
       create: { userId: user.id, companyId: invitation.companyId, role: invitation.role, customRoleId },
       update: { role: invitation.role, customRoleId },
     });
-    await tx.invitation.updateMany({ where: { id: invitation.id, companyId: invitation.companyId }, data: { acceptedAt: new Date() } });
+    // Uso único atómico: si dos aceptaciones corren a la vez, solo una marca la invitación.
+    const marked = await tx.invitation.updateMany({
+      where: { id: invitation.id, companyId: invitation.companyId, acceptedAt: null },
+      data: { acceptedAt: new Date() },
+    });
+    if (marked.count !== 1) throw new Error('Esta invitación ya fue utilizada');
   });
 
   return { companyId: invitation.companyId, companyName: invitation.company.businessName, role: invitation.role, email: user.email };
@@ -372,11 +378,14 @@ export function assertCanManageTarget(actorRole: Role, target: { role: Role; isS
  * cuenta puede tener a su único Dueño como membresía.
  */
 async function countActiveOwners(companyId: string): Promise<number> {
-  const [homeOwners, memberOwners] = await Promise.all([
+  const [homeOwners, memberOwners, features] = await Promise.all([
     prisma.user.count({ where: { companyId, role: 'OWNER', isActive: true } }),
     prisma.companyMembership.count({ where: { companyId, role: 'OWNER', user: { isActive: true } } }),
+    prisma.companyFeatures.findUnique({ where: { companyId }, select: { hasMultiCompany: true } }),
   ]);
-  return homeOwners + memberOwners;
+  // Sin Multiempresa, un Dueño por membresía no puede entrar: no cuenta como
+  // Dueño que conserve el acceso a la empresa.
+  return homeOwners + (features?.hasMultiCompany ? memberOwners : 0);
 }
 
 /**
@@ -395,11 +404,10 @@ export interface CompanyMember {
   userId: string;
   name: string;
   email: string;
-  /** La cuenta está activa en su empresa hogar: si la suspendieron allá, tampoco entra acá. */
+  /** La cuenta está activa: si la suspendieron en su empresa, tampoco entra acá. */
   isActive: boolean;
   role: Role;
   customRoleName: string | null;
-  homeCompanyName: string | null;
   joinedAt: Date;
 }
 
@@ -412,7 +420,8 @@ export async function listMembers(companyId: string): Promise<CompanyMember[]> {
       role: true,
       createdAt: true,
       customRole: { select: { name: true } },
-      user: { select: { id: true, name: true, email: true, isActive: true, company: { select: { businessName: true } } } },
+      // Sin el nombre de su empresa hogar: es dato de otra empresa.
+      user: { select: { id: true, name: true, email: true, isActive: true } },
     },
   });
   return memberships.map((membership) => ({
@@ -423,7 +432,6 @@ export async function listMembers(companyId: string): Promise<CompanyMember[]> {
     isActive: membership.user.isActive,
     role: membership.role,
     customRoleName: membership.customRole?.name ?? null,
-    homeCompanyName: membership.user.company?.businessName ?? null,
     joinedAt: membership.createdAt,
   }));
 }
@@ -459,8 +467,9 @@ export async function changeMemberRole(
 
 /**
  * Quita el acceso de un miembro a ESTA empresa: su cuenta sigue intacta en
- * su empresa hogar. Cierra en el acto sus sesiones abiertas en esta empresa y
- * sus avisos push de aquí, para que el retiro no espere a que expire nada.
+ * su empresa hogar. Cierra en el acto sus sesiones abiertas en esta empresa,
+ * sus avisos push y sus conectores de IA (MCP) de aquí, para que el retiro no
+ * espere a que expire nada.
  */
 export async function removeMember(companyId: string, actingUserId: string, membershipId: string, actorRole: Role): Promise<{ userId: string }> {
   const membership = await findManageableMembership(companyId, actingUserId, membershipId, actorRole);
@@ -469,6 +478,7 @@ export async function removeMember(companyId: string, actingUserId: string, memb
     prisma.companyMembership.deleteMany({ where: { id: membershipId, companyId } }),
     prisma.userSession.updateMany({ where: { userId: membership.userId, companyId, revokedAt: null }, data: { revokedAt: new Date() } }),
     prisma.pushSubscription.deleteMany({ where: { userId: membership.userId, companyId } }),
+    prisma.mcpPersonalToken.updateMany({ where: { userId: membership.userId, companyId, revokedAt: null }, data: { revokedAt: new Date() } }),
   ]);
   return { userId: membership.userId };
 }
@@ -653,6 +663,15 @@ export async function resetUserTemporaryPassword(
   // jerarquía porque no hay elevación de privilegio posible sobre uno mismo.
   if (actingUserId !== targetUserId) {
     assertCanManageTarget(actorRole, target);
+    // Quien además trabaja en OTRAS empresas (membresías) no puede recibir una
+    // contraseña temporal de un admin de esta: con ella, ese admin entraría a
+    // esas otras empresas, a las que no tiene acceso. Se recupera por correo.
+    const otherCompanies = await prisma.companyMembership.count({ where: { userId: targetUserId, companyId: { not: companyId } } });
+    if (otherCompanies > 0) {
+      throw new Error(
+        'Esta persona también trabaja en otras empresas: no se le puede asignar una contraseña temporal desde aquí. Pídele que use "¿Olvidaste tu contraseña?" en el ingreso'
+      );
+    }
   }
 
   const temporaryPassword = generateRandomPassword();

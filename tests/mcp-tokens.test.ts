@@ -17,7 +17,7 @@ const baseRecord = {
   companyId: 'c1',
   userId: 'u1',
   revokedAt: null as Date | null,
-  user: { id: 'u1', name: 'Ana', isActive: true, role: 'ADMIN' as Role, customRole: null },
+  user: { id: 'u1', name: 'Ana', isActive: true, role: 'ADMIN' as Role, companyId: 'c1' as string | null, customRole: null },
   company: {
     id: 'c1',
     businessName: 'Empresa Ejemplo',
@@ -80,6 +80,40 @@ describe('resolveMcpSession', () => {
     mockFindUnique({ user: { ...baseRecord.user, role: 'OWNER' as const } });
     const session = await resolveMcpSession('raw-token');
     expect(session?.permissions.length).toBeGreaterThan(0);
+  });
+});
+
+describe('resolveMcpSession con un token de otra empresa (Multiempresa)', () => {
+  // Ana es Dueña en su empresa hogar (hogar) y Vendedora en c1 por membresía.
+  const foreign = {
+    user: { ...baseRecord.user, role: 'OWNER' as Role, companyId: 'hogar' },
+    company: { ...baseRecord.company, features: { hasMultiCompany: true } },
+  };
+
+  it('usa el rol de la membresía, nunca el de la empresa hogar', async () => {
+    mockFindUnique(foreign);
+    jest.spyOn(prisma.companyMembership, 'findUnique').mockResolvedValue({ role: 'SALES', customRole: null } as never);
+    const asMember = await resolveMcpSession('raw-token');
+
+    mockFindUnique({ ...foreign, user: { ...foreign.user, companyId: 'c1' } });
+    const asOwner = await resolveMcpSession('raw-token');
+
+    expect(asMember).not.toBeNull();
+    expect(asMember!.permissions.length).toBeLessThan(asOwner!.permissions.length);
+    expect(asMember!.permissions).not.toContain('settings:users');
+  });
+
+  it('sin membresía vigente (la quitaron), el token deja de servir', async () => {
+    mockFindUnique(foreign);
+    jest.spyOn(prisma.companyMembership, 'findUnique').mockResolvedValue(null);
+    expect(await resolveMcpSession('raw-token')).toBeNull();
+  });
+
+  it('si la empresa apagó Multiempresa, el token deja de servir', async () => {
+    mockFindUnique({ ...foreign, company: { ...baseRecord.company, features: { hasMultiCompany: false } } });
+    const membership = jest.spyOn(prisma.companyMembership, 'findUnique');
+    expect(await resolveMcpSession('raw-token')).toBeNull();
+    expect(membership).not.toHaveBeenCalled();
   });
 });
 

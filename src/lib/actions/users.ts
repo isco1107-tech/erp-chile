@@ -270,6 +270,10 @@ export async function changeUserRoleAction(userId: string, role: Role): Promise<
     if (parsedRole.data === 'OWNER' && session.role !== 'OWNER') {
       return { success: false, error: 'Solo un Dueño (OWNER) puede asignar el rol de Dueño' };
     }
+    // Misma regla que al invitar y con los miembros de otras empresas: un rol
+    // personalizado con settings:users no puede ascender a nadie a ADMIN.
+    const grantError = await assertCanGrantRole(session, parsedRole.data, null);
+    if (grantError) return { success: false, error: grantError };
     const data = await usersService.changeUserRole(session.companyId, session.id, userId, parsedRole.data, session.role);
     await createAuditLog({
       companyId: session.companyId,

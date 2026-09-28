@@ -21,8 +21,21 @@ const loginSchema = z.object({
 
 /** Mensajes de `/login?reason=...` para redirecciones desde el dashboard que no son un cierre de sesión normal (ver `(dashboard)/layout.tsx`). */
 /** Destino tras iniciar sesión: el que indica el servidor (el selector de empresa si trabaja en varias), solo si es una ruta interna. */
-function isInternalPath(value: unknown): value is string {
-  return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') && !value.includes('\\');
+/**
+ * Ruta interna segura o `null`. No basta con "empieza con / y no con //": el
+ * URL del navegador borra TAB/CR/LF, así que `/\t/evil.com` termina siendo
+ * `//evil.com`. Se rechazan caracteres de control y barras invertidas, y se
+ * exige que la URL ya resuelta tenga el mismo origen.
+ */
+function safeInternalPath(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length === 0 || value.length > 2000) return null;
+  if (/[\u0000-\u001f\u007f\\]/.test(value) || !value.startsWith('/') || value.startsWith('//')) return null;
+  try {
+    const url = new URL(value, window.location.origin);
+    return url.origin === window.location.origin ? `${url.pathname}${url.search}${url.hash}` : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -33,9 +46,10 @@ function isInternalPath(value: unknown): value is string {
  * invitación sí va directo, porque es justamente para sumar una empresa.
  */
 function nextPath(json: { data?: { redirectTo?: unknown } }, callbackUrl: string | null): string {
-  const target = isInternalPath(json.data?.redirectTo) ? json.data.redirectTo : '/dashboard';
-  if (!isInternalPath(callbackUrl) || callbackUrl.startsWith('/login')) return target;
-  if (target === '/dashboard' || callbackUrl.startsWith('/accept-invitation')) return callbackUrl;
+  const target = safeInternalPath(json.data?.redirectTo) ?? '/dashboard';
+  const callback = safeInternalPath(callbackUrl);
+  if (!callback || callback.startsWith('/login')) return target;
+  if (target === '/dashboard' || callback.startsWith('/accept-invitation')) return callback;
   return target;
 }
 
