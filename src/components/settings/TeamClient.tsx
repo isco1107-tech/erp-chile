@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ContactButtons } from '@/components/settings/ContactButtons';
+import { CompanyMembersTable } from '@/components/settings/CompanyMembersTable';
 import { getUserProfileAction, type UserProfile } from '@/lib/actions/profile';
 import { ACTION_LABELS } from '@/lib/auth/audit-labels';
 import { formatRelative } from '@/lib/format';
@@ -41,9 +42,9 @@ import { publicUrl } from '@/lib/public-url';
 const selectClass =
   'h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30';
 
-export default function TeamClient() {
+export default function TeamClient({ multiCompanyEnabled = false }: { multiCompanyEnabled?: boolean }) {
   const confirm = useConfirm();
-  const [tab, setTab] = useState<'users' | 'invitations'>('users');
+  const [tab, setTab] = useState<'users' | 'invitations' | 'members'>('users');
   const [users, setUsers] = useState<TeamMember[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [customRoles, setCustomRoles] = useState<CustomRoleWithUsage[]>([]);
@@ -299,6 +300,9 @@ export default function TeamClient() {
           <Button type="button" size="sm" variant={tab === 'invitations' ? 'default' : 'outline'} onClick={() => setTab('invitations')}>
             Invitaciones Pendientes{invitations.length > 0 ? ` (${invitations.length})` : ''}
           </Button>
+          <Button type="button" size="sm" variant={tab === 'members' ? 'default' : 'outline'} onClick={() => setTab('members')}>
+            De otras empresas
+          </Button>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
@@ -413,6 +417,8 @@ export default function TeamClient() {
           </table>
         </div>
       )}
+
+      {tab === 'members' && <CompanyMembersTable multiCompanyEnabled={multiCompanyEnabled} />}
 
       {tab === 'invitations' && (
         <div className="overflow-x-auto rounded-xl border border-border">

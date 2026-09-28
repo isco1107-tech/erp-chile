@@ -4,7 +4,7 @@
  * esa misma cuenta, con su sesión, puede aceptarla.
  */
 import { prisma } from '@/lib/prisma';
-import { acceptInvitation, acceptInvitationAsMember, inviteUser } from '@/lib/services/users.service';
+import { acceptInvitation, acceptInvitationAsMember, changeMemberRole, deleteUser, inviteUser, removeMember } from '@/lib/services/users.service';
 import { countSeatsInUse } from '@/modules/roles/services/roles.service';
 
 const futureDate = () => new Date(Date.now() + 86_400_000);
@@ -120,5 +120,64 @@ describe('countSeatsInUse', () => {
     jest.spyOn(prisma.companyMembership, 'count').mockResolvedValue(2);
     jest.spyOn(prisma.invitation, 'count').mockResolvedValue(1);
     await expect(countSeatsInUse('cliente')).resolves.toBe(6);
+  });
+});
+
+describe('gestión de miembros de otras empresas', () => {
+  const member = (overrides: Record<string, unknown> = {}) => ({
+    id: 'm-1',
+    userId: 'u-9',
+    role: 'ACCOUNTANT',
+    user: { isSuperAdmin: false, isActive: true },
+    ...overrides,
+  });
+
+  it('nadie cambia su propio acceso, y solo un Dueño administra a otro Dueño', async () => {
+    const find = jest.spyOn(prisma.companyMembership, 'findFirst');
+    find.mockResolvedValueOnce(member({ userId: 'yo' }) as never);
+    await expect(changeMemberRole('cliente', 'yo', 'm-1', 'SALES', 'OWNER')).rejects.toThrow(/tu propio acceso/);
+
+    find.mockResolvedValueOnce(member({ role: 'OWNER' }) as never);
+    await expect(changeMemberRole('cliente', 'admin', 'm-1', 'SALES', 'ADMIN')).rejects.toThrow(/Solo un Dueño/);
+  });
+
+  it('no deja a la empresa sin Dueño activo al bajar de rol a un Dueño por membresía', async () => {
+    jest.spyOn(prisma.companyMembership, 'findFirst').mockResolvedValue(member({ role: 'OWNER' }) as never);
+    jest.spyOn(prisma.user, 'count').mockResolvedValue(0);
+    jest.spyOn(prisma.companyMembership, 'count').mockResolvedValue(1);
+    const update = jest.spyOn(prisma.companyMembership, 'updateMany');
+    await expect(changeMemberRole('cliente', 'otro-dueno', 'm-1', 'ADMIN', 'OWNER')).rejects.toThrow(/al menos un Dueño/);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('cambiar el rol base reemplaza el rol personalizado, filtrando por empresa', async () => {
+    jest.spyOn(prisma.companyMembership, 'findFirst').mockResolvedValue(member() as never);
+    const update = jest.spyOn(prisma.companyMembership, 'updateMany').mockResolvedValue({ count: 1 });
+    await changeMemberRole('cliente', 'admin', 'm-1', 'SALES', 'ADMIN');
+    expect(update).toHaveBeenCalledWith({ where: { id: 'm-1', companyId: 'cliente' }, data: { role: 'SALES', customRoleId: null } });
+  });
+
+  it('quitar el acceso borra la membresía y cierra sus sesiones y avisos de ESTA empresa', async () => {
+    jest.spyOn(prisma.companyMembership, 'findFirst').mockResolvedValue(member() as never);
+    const deleteMembership = jest.spyOn(prisma.companyMembership, 'deleteMany').mockReturnValue('borrar' as never);
+    const revoke = jest.spyOn(prisma.userSession, 'updateMany').mockReturnValue('revocar' as never);
+    const push = jest.spyOn(prisma.pushSubscription, 'deleteMany').mockReturnValue('push' as never);
+    const transaction = jest.spyOn(prisma, '$transaction').mockResolvedValue([] as never);
+
+    await expect(removeMember('cliente', 'admin', 'm-1', 'ADMIN')).resolves.toEqual({ userId: 'u-9' });
+    expect(deleteMembership).toHaveBeenCalledWith({ where: { id: 'm-1', companyId: 'cliente' } });
+    expect(revoke).toHaveBeenCalledWith({ where: { userId: 'u-9', companyId: 'cliente', revokedAt: null }, data: { revokedAt: expect.any(Date) } });
+    expect(push).toHaveBeenCalledWith({ where: { userId: 'u-9', companyId: 'cliente' } });
+    expect(transaction).toHaveBeenCalledWith(['borrar', 'revocar', 'push']);
+  });
+
+  it('se puede eliminar a un Dueño suspendido si queda otro Dueño activo', async () => {
+    jest.spyOn(prisma.user, 'findFirst').mockResolvedValue({ id: 'u-2', role: 'OWNER', isActive: false, isSuperAdmin: false } as never);
+    jest.spyOn(prisma.user, 'count').mockImplementation((async (args: { where: Record<string, unknown> }) =>
+      (args.where.role === 'OWNER' ? 1 : 0)) as never);
+    jest.spyOn(prisma.companyMembership, 'count').mockResolvedValue(0);
+    const remove = jest.spyOn(prisma.user, 'deleteMany').mockResolvedValue({ count: 1 });
+    await expect(deleteUser('cliente', 'u-1', 'u-2', 'OWNER')).resolves.toBeUndefined();
+    expect(remove).toHaveBeenCalled();
   });
 });

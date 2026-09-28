@@ -21,7 +21,7 @@ export default async function TeamSettingsPage() {
           No tienes permisos para gestionar el equipo. Esta sección está reservada para Dueños y Administradores.
         </p>
       )}
-      {allowed && <TeamClient />}
+      {allowed && <TeamClient multiCompanyEnabled={context.features.hasMultiCompany} />}
     </div>
   );
 }

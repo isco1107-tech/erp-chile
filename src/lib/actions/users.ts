@@ -514,3 +514,67 @@ export async function acceptInvitationAsMemberAction(token: string): Promise<Act
   // fuera del try: atraparlo lo convertiría en un error genérico.
   return switchActiveCompanyAction(targetCompanyId);
 }
+
+/** Personas de otras empresas que trabajan en esta con membresía (Multiempresa). */
+export async function listMembersAction(): Promise<ActionResult<usersService.CompanyMember[]>> {
+  try {
+    const session = await requireAuthWithPermission('settings:users');
+    return { success: true, data: await usersService.listMembers(session.companyId) };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+const memberRoleSchema = z.object({ membershipId: z.string().min(1).max(100), role: z.enum(ROLES as [Role, ...Role[]]) });
+
+export async function changeMemberRoleAction(input: unknown): Promise<ActionResult<null>> {
+  try {
+    const session = await requireAuthWithPermission('settings:users');
+    const parsed = memberRoleSchema.safeParse(input);
+    if (!parsed.success) return { success: false, error: 'Datos inválidos' };
+    // Mismas reglas que al invitar: OWNER solo lo otorga un OWNER, ADMIN solo OWNER/ADMIN base.
+    if (parsed.data.role === 'OWNER' && session.role !== 'OWNER') {
+      return { success: false, error: 'Solo un Dueño (OWNER) puede otorgar el rol Dueño' };
+    }
+    const grantError = await assertCanGrantRole(session, parsed.data.role, null);
+    if (grantError) return { success: false, error: grantError };
+
+    await usersService.changeMemberRole(session.companyId, session.id, parsed.data.membershipId, parsed.data.role, session.role);
+    await createAuditLog({
+      companyId: session.companyId,
+      userId: session.id,
+      userEmail: session.email,
+      action: 'UPDATE',
+      entity: 'CompanyMembership',
+      entityId: parsed.data.membershipId,
+      metadata: { role: parsed.data.role },
+    });
+    revalidatePath('/dashboard/settings/users');
+    return { success: true, data: null, message: 'Rol actualizado' };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+export async function removeMemberAction(membershipId: string): Promise<ActionResult<null>> {
+  try {
+    const session = await requireAuthWithPermission('settings:users');
+    if (typeof membershipId !== 'string' || membershipId.length === 0 || membershipId.length > 100) {
+      return { success: false, error: 'Datos inválidos' };
+    }
+    const { userId } = await usersService.removeMember(session.companyId, session.id, membershipId, session.role);
+    await createAuditLog({
+      companyId: session.companyId,
+      userId: session.id,
+      userEmail: session.email,
+      action: 'DELETE',
+      entity: 'CompanyMembership',
+      entityId: membershipId,
+      metadata: { memberUserId: userId },
+    });
+    revalidatePath('/dashboard/settings/users');
+    return { success: true, data: null, message: 'Acceso a la empresa retirado' };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}

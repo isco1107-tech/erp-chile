@@ -366,6 +366,113 @@ export function assertCanManageTarget(actorRole: Role, target: { role: Role; isS
   }
 }
 
+/**
+ * Dueños activos de la empresa: los de su propio equipo y los que llegan de
+ * otra empresa con membresía. Una empresa creada para alguien que ya tenía
+ * cuenta puede tener a su único Dueño como membresía.
+ */
+async function countActiveOwners(companyId: string): Promise<number> {
+  const [homeOwners, memberOwners] = await Promise.all([
+    prisma.user.count({ where: { companyId, role: 'OWNER', isActive: true } }),
+    prisma.companyMembership.count({ where: { companyId, role: 'OWNER', user: { isActive: true } } }),
+  ]);
+  return homeOwners + memberOwners;
+}
+
+/**
+ * Lanza si, sacando a la persona afectada del grupo de Dueños (por cambio de
+ * rol, suspensión o eliminación), no quedaría ningún Dueño activo. Si la
+ * afectada ya estaba suspendida, no se descuenta: no era un Dueño activo.
+ */
+async function assertOwnerRemains(companyId: string, affectedIsActiveOwner: boolean): Promise<void> {
+  const remaining = (await countActiveOwners(companyId)) - (affectedIsActiveOwner ? 1 : 0);
+  if (remaining < 1) throw new Error('Debe existir al menos un Dueño (OWNER) activo en la empresa');
+}
+
+/** Persona de otra empresa que trabaja en esta con membresía (Multiempresa). */
+export interface CompanyMember {
+  membershipId: string;
+  userId: string;
+  name: string;
+  email: string;
+  /** La cuenta está activa en su empresa hogar: si la suspendieron allá, tampoco entra acá. */
+  isActive: boolean;
+  role: Role;
+  customRoleName: string | null;
+  homeCompanyName: string | null;
+  joinedAt: Date;
+}
+
+export async function listMembers(companyId: string): Promise<CompanyMember[]> {
+  const memberships = await prisma.companyMembership.findMany({
+    where: { companyId },
+    orderBy: { createdAt: 'asc' },
+    select: {
+      id: true,
+      role: true,
+      createdAt: true,
+      customRole: { select: { name: true } },
+      user: { select: { id: true, name: true, email: true, isActive: true, company: { select: { businessName: true } } } },
+    },
+  });
+  return memberships.map((membership) => ({
+    membershipId: membership.id,
+    userId: membership.user.id,
+    name: membership.user.name,
+    email: membership.user.email,
+    isActive: membership.user.isActive,
+    role: membership.role,
+    customRoleName: membership.customRole?.name ?? null,
+    homeCompanyName: membership.user.company?.businessName ?? null,
+    joinedAt: membership.createdAt,
+  }));
+}
+
+async function findManageableMembership(companyId: string, actingUserId: string, membershipId: string, actorRole: Role) {
+  const membership = await prisma.companyMembership.findFirst({
+    where: { id: membershipId, companyId },
+    select: { id: true, userId: true, role: true, user: { select: { isSuperAdmin: true, isActive: true } } },
+  });
+  if (!membership) throw new Error('Miembro no encontrado');
+  if (membership.userId === actingUserId) throw new Error('No puedes cambiar tu propio acceso');
+  assertCanManageTarget(actorRole, { role: membership.role, isSuperAdmin: membership.user.isSuperAdmin });
+  return membership;
+}
+
+/**
+ * Cambia el rol con que un miembro trabaja en ESTA empresa. No toca su
+ * cuenta ni su rol en su empresa hogar. Un rol base reemplaza al
+ * personalizado que tuviera.
+ */
+export async function changeMemberRole(
+  companyId: string,
+  actingUserId: string,
+  membershipId: string,
+  role: Role,
+  actorRole: Role
+): Promise<void> {
+  const membership = await findManageableMembership(companyId, actingUserId, membershipId, actorRole);
+  if (membership.role === 'OWNER' && role !== 'OWNER') await assertOwnerRemains(companyId, membership.user.isActive);
+  const result = await prisma.companyMembership.updateMany({ where: { id: membershipId, companyId }, data: { role, customRoleId: null } });
+  if (result.count === 0) throw new Error('Miembro no encontrado');
+}
+
+/**
+ * Quita el acceso de un miembro a ESTA empresa: su cuenta sigue intacta en
+ * su empresa hogar. Cierra en el acto sus sesiones abiertas en esta empresa y
+ * sus avisos push de aquí, para que el retiro no espere a que expire nada.
+ */
+export async function removeMember(companyId: string, actingUserId: string, membershipId: string, actorRole: Role): Promise<{ userId: string }> {
+  const membership = await findManageableMembership(companyId, actingUserId, membershipId, actorRole);
+  if (membership.role === 'OWNER') await assertOwnerRemains(companyId, membership.user.isActive);
+  await prisma.$transaction([
+    prisma.companyMembership.deleteMany({ where: { id: membershipId, companyId } }),
+    prisma.userSession.updateMany({ where: { userId: membership.userId, companyId, revokedAt: null }, data: { revokedAt: new Date() } }),
+    prisma.pushSubscription.deleteMany({ where: { userId: membership.userId, companyId } }),
+  ]);
+  return { userId: membership.userId };
+}
+
 export async function changeUserRole(
   companyId: string,
   actingUserId: string,
@@ -379,8 +486,7 @@ export async function changeUserRole(
   assertCanManageTarget(actorRole, target);
 
   if (target.role === 'OWNER' && role !== 'OWNER') {
-    const ownerCount = await prisma.user.count({ where: { companyId, role: 'OWNER', isActive: true } });
-    if (ownerCount <= 1) throw new Error('Debe existir al menos un Dueño (OWNER) activo en la empresa');
+    await assertOwnerRemains(companyId, target.isActive);
   }
 
   const result = await prisma.user.updateMany({ where: { id: targetUserId, companyId }, data: { role } });
@@ -400,8 +506,7 @@ export async function toggleUserStatus(
   assertCanManageTarget(actorRole, target);
 
   if (target.isActive && target.role === 'OWNER') {
-    const activeOwnerCount = await prisma.user.count({ where: { companyId, role: 'OWNER', isActive: true } });
-    if (activeOwnerCount <= 1) throw new Error('Debe existir al menos un Dueño (OWNER) activo en la empresa');
+    await assertOwnerRemains(companyId, target.isActive);
   }
 
   const result = await prisma.user.updateMany({
@@ -435,8 +540,7 @@ export async function deleteUser(
   assertCanManageTarget(actorRole, target);
 
   if (target.role === 'OWNER') {
-    const ownerCount = await prisma.user.count({ where: { companyId, role: 'OWNER' } });
-    if (ownerCount <= 1) throw new Error('Debe existir al menos un Dueño (OWNER) en la empresa');
+    await assertOwnerRemains(companyId, target.isActive);
   }
 
   // `managerId` usa `onDelete: Restrict` (relación estructural del organigrama,
