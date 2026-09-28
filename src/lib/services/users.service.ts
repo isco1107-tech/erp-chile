@@ -5,6 +5,8 @@ import type { AuditAction, Invitation, Prisma, Role } from '@prisma/client';
 import { generateRandomPassword } from '@/lib/auth/password-policy';
 import { toFeatureFlags } from '@/lib/auth/modules';
 import { isOperationalTenant } from '@/lib/auth/tenant-status';
+import { resolvePermissions } from '@/lib/auth/effective-permissions';
+import { isUniqueConstraintError } from '@/lib/prisma-errors';
 
 export const INVITATION_TTL_DAYS = 7;
 const INVITATION_TTL_HOURS = INVITATION_TTL_DAYS * 24;
@@ -71,7 +73,62 @@ export async function listPendingInvitations(companyId: string): Promise<Invitat
 async function findUserByEmail(email: string) {
   return prisma.user.findFirst({
     where: { email: { equals: email, mode: 'insensitive' } },
-    select: { id: true, email: true, companyId: true, isActive: true },
+    select: { id: true, email: true, name: true, companyId: true, isActive: true, isSuperAdmin: true },
+  });
+}
+
+/** Mismo texto al invitar y al crear: sin el módulo, una cuenta no puede trabajar en dos empresas. */
+export const MULTI_COMPANY_REQUIRED_MESSAGE =
+  'Ese correo ya tiene una cuenta en Aether, en otra empresa. Para que trabaje también aquí con esa misma cuenta, tu plan necesita el módulo Multiempresa (pídelo a soporte). Si prefieres una cuenta aparte, usa otro correo';
+
+/**
+ * ¿Quien agrega a la persona ya administra el equipo (`settings:users`) de
+ * alguna OTRA empresa donde esa persona trabaja (su empresa hogar o una
+ * membresía)? Es el caso del dueño de varias empresas que quiere a su gente
+ * en todas: ahí se le suma la empresa al instante. Con un desconocido no:
+ * se le envía una invitación y decide la persona.
+ *
+ * Los permisos se calculan igual que en `getAuthContext` (rol base o
+ * personalizado, recortado por los módulos de ESA empresa), y una membresía
+ * solo cuenta si esa empresa tiene Multiempresa y está operativa.
+ */
+export async function managesPersonElsewhere(actorId: string, personId: string, companyId: string): Promise<boolean> {
+  const [actor, person] = await Promise.all([
+    prisma.user.findFirst({
+      where: { id: actorId, isActive: true },
+      select: {
+        companyId: true,
+        role: true,
+        customRole: { select: { permissions: true } },
+        companyMemberships: { select: { companyId: true, role: true, customRole: { select: { permissions: true } } } },
+      },
+    }),
+    prisma.user.findFirst({
+      where: { id: personId },
+      select: { companyId: true, companyMemberships: { select: { companyId: true } } },
+    }),
+  ]);
+  if (!actor || !person) return false;
+
+  const personCompanies = new Set(
+    [person.companyId, ...person.companyMemberships.map((m) => m.companyId)].filter((id): id is string => Boolean(id) && id !== companyId)
+  );
+  const positions = [
+    ...(actor.companyId ? [{ companyId: actor.companyId, role: actor.role, customRolePermissions: actor.customRole?.permissions ?? null, viaMembership: false }] : []),
+    ...actor.companyMemberships.map((m) => ({ companyId: m.companyId, role: m.role, customRolePermissions: m.customRole?.permissions ?? null, viaMembership: true })),
+  ].filter((position) => personCompanies.has(position.companyId));
+  if (positions.length === 0) return false;
+
+  const companies = await prisma.company.findMany({
+    where: { id: { in: positions.map((p) => p.companyId) } },
+    select: { id: true, status: true, features: true },
+  });
+  return positions.some((position) => {
+    const company = companies.find((c) => c.id === position.companyId);
+    if (!company || !isOperationalTenant(company.status)) return false;
+    const features = toFeatureFlags(company.features);
+    if (position.viaMembership && !features.hasMultiCompany) return false;
+    return resolvePermissions({ role: position.role, customRolePermissions: position.customRolePermissions, features }).includes('settings:users');
   });
 }
 
@@ -94,11 +151,7 @@ export async function inviteUser(
       select: { id: true },
     });
     if (membership) throw new Error('Esa persona ya tiene acceso a esta empresa');
-    if (!options.multiCompany) {
-      throw new Error(
-        'Ese correo ya tiene una cuenta en otra empresa. Para sumar a esa persona sin crearle otra cuenta, tu plan necesita el módulo Multiempresa'
-      );
-    }
+    if (!options.multiCompany) throw new Error(MULTI_COMPANY_REQUIRED_MESSAGE);
   }
 
   if (data.customRoleId) {
@@ -308,19 +361,38 @@ export interface CreateUserDirectResult {
 }
 
 /**
+ * Resultado de "Crear cuenta directamente":
+ * - `created`: cuenta nueva con contraseña temporal.
+ * - `member-added`: el correo ya tenía cuenta y quien la agrega administra a
+ *   esa persona en otra empresa: se le sumó esta empresa, con su misma
+ *   contraseña (no se genera ni se cambia ninguna).
+ * - `needs-invitation`: el correo ya tenía cuenta, pero de alguien que quien
+ *   la agrega no administra: hay que invitarla y que ella acepte.
+ */
+export type CreateCollaboratorResult =
+  | ({ kind: 'created' } & CreateUserDirectResult)
+  | { kind: 'member-added'; membershipId: string; email: string; name: string }
+  | { kind: 'needs-invitation' };
+
+/**
  * Crea la cuenta de inmediato, sin pasar por el correo de invitación: útil
  * cuando el administrador prefiere entregar la contraseña por otro medio en
  * vez de esperar un round-trip de email. La contraseña SIEMPRE se genera acá,
  * nunca la escribe el administrador: así queda garantizado que cumple la
  * política desde el origen, y el flag `mustChangePassword` obliga a la
  * persona a elegir la suya propia en el primer ingreso.
+ *
+ * Si el correo ya tiene cuenta (sin distinguir mayúsculas) nunca se crea una
+ * segunda ni se toca la contraseña de la existente: ver `CreateCollaboratorResult`.
  */
 export async function createUserDirect(
   companyId: string,
-  data: { email: string; name: string; role: Role; customRoleId?: string | null }
-): Promise<CreateUserDirectResult> {
-  const existingUser = await prisma.user.findUnique({ where: { email: data.email } });
-  if (existingUser) throw new Error('Ya existe un usuario con ese correo electrónico');
+  actorId: string,
+  data: { email: string; name: string; role: Role; customRoleId?: string | null },
+  options: { multiCompany: boolean }
+): Promise<CreateCollaboratorResult> {
+  const existingUser = await findUserByEmail(data.email);
+  if (existingUser) return addExistingAccount(companyId, actorId, existingUser, data, options);
 
   let customRoleName: string | null = null;
   if (data.customRoleId) {
@@ -349,7 +421,57 @@ export async function createUserDirect(
     },
     select: SAFE_USER_SELECT,
   });
-  return { user: { ...user, customRoleName }, temporaryPassword };
+  return { kind: 'created', user: { ...user, customRoleName }, temporaryPassword };
+}
+
+async function addExistingAccount(
+  companyId: string,
+  actorId: string,
+  existingUser: NonNullable<Awaited<ReturnType<typeof findUserByEmail>>>,
+  data: { role: Role; customRoleId?: string | null },
+  options: { multiCompany: boolean }
+): Promise<CreateCollaboratorResult> {
+  if (existingUser.companyId === companyId) throw new Error('Esa persona ya es parte del equipo');
+  const membership = await prisma.companyMembership.findUnique({
+    where: { userId_companyId: { userId: existingUser.id, companyId } },
+    select: { id: true },
+  });
+  if (membership) throw new Error('Esa persona ya tiene acceso a esta empresa');
+  if (!options.multiCompany) throw new Error(MULTI_COMPANY_REQUIRED_MESSAGE);
+
+  // Cuenta de plataforma o suspendida: se responde igual que a un
+  // desconocido (invitación) para no revelar de qué tipo es la cuenta; la
+  // aceptación la rechaza después.
+  const direct = !existingUser.isSuperAdmin && existingUser.isActive && (await managesPersonElsewhere(actorId, existingUser.id, companyId));
+  if (!direct) return { kind: 'needs-invitation' };
+
+  let membershipId: string;
+  try {
+    membershipId = await prisma.$transaction(async (tx) => {
+      const company = await tx.company.findUnique({ where: { id: companyId }, select: { maxUsers: true } });
+      if (!company) throw new Error('Empresa no encontrada');
+      if ((await occupiedSeats(tx, companyId)) >= company.maxUsers) {
+        throw new Error(`Tu plan permite ${company.maxUsers} usuarios y ya están ocupados. Libera un cupo o solicita una ampliación de plan`);
+      }
+      let customRoleId: string | null = null;
+      if (data.customRoleId) {
+        const customRole = await tx.customRole.findFirst({ where: { id: data.customRoleId, companyId }, select: { id: true } });
+        if (!customRole) throw new Error('Rol personalizado no encontrado');
+        customRoleId = customRole.id;
+      }
+      const created = await tx.companyMembership.create({
+        data: { userId: existingUser.id, companyId, role: data.role, customRoleId },
+        select: { id: true },
+      });
+      // Una invitación pendiente a ese correo ya no hace falta (y ocuparía un cupo).
+      await tx.invitation.deleteMany({ where: { companyId, acceptedAt: null, email: { equals: existingUser.email, mode: 'insensitive' } } });
+      return created.id;
+    });
+  } catch (error) {
+    if (isUniqueConstraintError(error)) throw new Error('Esa persona ya tiene acceso a esta empresa');
+    throw error;
+  }
+  return { kind: 'member-added', membershipId, email: existingUser.email, name: existingUser.name };
 }
 
 /**

@@ -50,6 +50,8 @@ export default function TeamClient({ multiCompanyEnabled = false }: { multiCompa
   const [customRoles, setCustomRoles] = useState<CustomRoleWithUsage[]>([]);
   const [seats, setSeats] = useState<SeatUsage | null>(null);
   const [loading, setLoading] = useState(true);
+  /** Cambia para que la tabla de miembros se recargue tras sumar a alguien. */
+  const [membersVersion, setMembersVersion] = useState(0);
 
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteMode, setInviteMode] = useState<'email' | 'direct'>('email');
@@ -140,12 +142,24 @@ export default function TeamClient({ multiCompanyEnabled = false }: { multiCompa
         toast.error(result.error);
         return;
       }
+      const outcome = result.data;
+      if (outcome.kind !== 'created') {
+        // El correo ya tenía cuenta en otra empresa: no hay contraseña que
+        // mostrar (entra con la suya). Se le sumó esta empresa o se le invitó.
+        toast.success(result.message ?? 'Listo', { duration: 10_000 });
+        resetInviteForm();
+        setInviteOpen(false);
+        setTab(outcome.kind === 'invited' ? 'invitations' : multiCompanyEnabled ? 'members' : 'users');
+        setMembersVersion((v) => v + 1);
+        load();
+        return;
+      }
       toast.success(result.message ?? 'Cuenta creada');
       // El diálogo no se cierra todavía: primero hay que mostrar la
       // contraseña temporal, que no vuelve a estar disponible después de
       // este momento.
-      setGeneratedPassword(result.data.temporaryPassword);
-      setGeneratedFor(result.data.user.email);
+      setGeneratedPassword(outcome.temporaryPassword);
+      setGeneratedFor(outcome.user.email);
       setTab('users');
       load();
     } finally {
@@ -418,7 +432,7 @@ export default function TeamClient({ multiCompanyEnabled = false }: { multiCompa
         </div>
       )}
 
-      {tab === 'members' && <CompanyMembersTable multiCompanyEnabled={multiCompanyEnabled} />}
+      {tab === 'members' && <CompanyMembersTable key={membersVersion} multiCompanyEnabled={multiCompanyEnabled} />}
 
       {tab === 'invitations' && (
         <div className="overflow-x-auto rounded-xl border border-border">
@@ -531,6 +545,11 @@ export default function TeamClient({ multiCompanyEnabled = false }: { multiCompa
                 {inviteMode === 'email'
                   ? 'Se envía un correo con un enlace para que la persona cree su propia contraseña.'
                   : 'La cuenta queda activa de inmediato con una contraseña temporal generada al azar, que se lo pide cambiar en su primer ingreso.'}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {multiCompanyEnabled
+                  ? '¿La persona ya usa Aether en otra empresa? Usa su mismo correo: no se crea otra cuenta. Si tú también administras esa empresa, se le suma esta al instante; si no, le llega una invitación. En ambos casos entra con su misma contraseña.'
+                  : 'Si el correo ya tiene cuenta en Aether en otra empresa, para que trabaje también aquí con esa misma cuenta se necesita el módulo Multiempresa.'}
               </p>
               <div className="space-y-3">
                 <div>

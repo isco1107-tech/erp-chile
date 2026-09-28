@@ -112,39 +112,14 @@ export async function inviteUserAction(input: unknown): Promise<ActionResult<Inv
     const grantError = await assertCanGrantRole(session, parsed.data.role, parsed.data.customRoleId);
     if (grantError) return { success: false, error: grantError };
 
-    // Cupo del plan: usuarios activos + invitaciones vigentes.
-    const context = session;
-    const seatsInUse = await countSeatsInUse(session.companyId);
-    const alreadyInvited = await prisma.invitation.findFirst({
-      where: { companyId: session.companyId, email: parsed.data.email, acceptedAt: null },
-      select: { id: true },
-    });
-    // Reinvitar a alguien ya invitado no consume una licencia adicional.
-    if (!alreadyInvited && seatsInUse >= context.maxUsers) {
-      return {
-        success: false,
-        error: `Tu plan ${context.planName} permite ${context.maxUsers} usuarios y ya están ocupados. Libera un cupo o solicita una ampliación de plan`,
-      };
-    }
-
-    const data = await usersService.inviteUser(session.companyId, parsed.data, { multiCompany: session.features.hasMultiCompany });
-    const delivery = await deliverInvitationEmail(data, session.companyName, session.email);
-
-    await createAuditLog({
-      companyId: session.companyId,
-      userId: session.id,
-      userEmail: session.email,
-      action: 'CREATE',
-      entity: 'Invitation',
-      entityId: data.id,
-      metadata: { email: data.email, role: data.role, envioCorreo: delivery.status, cuentaExistente: data.existingAccount },
-    });
-    revalidatePath('/dashboard/settings/users');
-    const message = invitationMessage(delivery.status, data.email);
+    const sent = await sendInvitation(session, parsed.data);
+    if (!sent.success) return sent;
+    const { invitation, delivery } = sent.data;
+    const message = invitationMessage(delivery, invitation.email);
     return {
       success: true,
-      data,
-      message: data.existingAccount ? `${message}. Ya tiene cuenta en Aether: al aceptar, se le suma esta empresa` : message,
+      data: invitation,
+      message: invitation.existingAccount ? `${message}. Ya tiene cuenta en Aether: al aceptar, se le suma esta empresa` : message,
     };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
@@ -152,10 +127,60 @@ export async function inviteUserAction(input: unknown): Promise<ActionResult<Inv
 }
 
 /**
+ * Crea (o renueva) la invitación y la envía por correo, con el cupo del plan
+ * revalidado. La comparten "Invitar por correo" y "Crear cuenta" cuando el
+ * correo ya tiene cuenta de alguien que quien invita no administra.
+ * Los permisos (rol a otorgar) los verifica quien la llama.
+ */
+async function sendInvitation(
+  session: AuthContext,
+  data: { email: string; role: Role; customRoleId?: string | null }
+): Promise<ActionResult<{ invitation: Invitation & { existingAccount: boolean }; delivery: EmailResult['status'] }>> {
+  // Cupo del plan: usuarios activos + invitaciones vigentes.
+  const seatsInUse = await countSeatsInUse(session.companyId);
+  const alreadyInvited = await prisma.invitation.findFirst({
+    where: { companyId: session.companyId, email: data.email, acceptedAt: null },
+    select: { id: true },
+  });
+  // Reinvitar a alguien ya invitado no consume una licencia adicional.
+  if (!alreadyInvited && seatsInUse >= session.maxUsers) {
+    return {
+      success: false,
+      error: `Tu plan ${session.planName} permite ${session.maxUsers} usuarios y ya están ocupados. Libera un cupo o solicita una ampliación de plan`,
+    };
+  }
+
+  const invitation = await usersService.inviteUser(session.companyId, data, { multiCompany: session.features.hasMultiCompany });
+  const delivery = await deliverInvitationEmail(invitation, session.companyName, session.email);
+
+  await createAuditLog({
+    companyId: session.companyId,
+    userId: session.id,
+    userEmail: session.email,
+    action: 'CREATE',
+    entity: 'Invitation',
+    entityId: invitation.id,
+    metadata: { email: invitation.email, role: invitation.role, envioCorreo: delivery.status, cuentaExistente: invitation.existingAccount },
+  });
+  revalidatePath('/dashboard/settings/users');
+  return { success: true, data: { invitation, delivery: delivery.status } };
+}
+
+/**
+ * Lo que pasó al "Crear cuenta directamente" (ver `CreateCollaboratorResult`):
+ * cuenta nueva, empresa sumada a una cuenta existente, o invitación enviada
+ * porque el correo es de alguien que quien la crea no administra.
+ */
+export type CreateCollaboratorOutcome =
+  | ({ kind: 'created' } & CreateUserDirectResult)
+  | { kind: 'member-added'; membershipId: string; email: string; name: string }
+  | { kind: 'invited'; invitation: Invitation };
+
+/**
  * Crea la cuenta al instante, sin invitación por correo: el administrador ya
  * acordó la contraseña con la persona por otro medio.
  */
-export async function createUserDirectAction(input: unknown): Promise<ActionResult<CreateUserDirectResult>> {
+export async function createUserDirectAction(input: unknown): Promise<ActionResult<CreateCollaboratorOutcome>> {
   try {
     const session = await requireAuthWithPermission('settings:users');
     const parsed = createUserDirectSchema.safeParse(input);
@@ -166,7 +191,38 @@ export async function createUserDirectAction(input: unknown): Promise<ActionResu
     const grantError = await assertCanGrantRole(session, parsed.data.role, parsed.data.customRoleId);
     if (grantError) return { success: false, error: grantError };
 
-    const data = await usersService.createUserDirect(session.companyId, parsed.data);
+    const data = await usersService.createUserDirect(session.companyId, session.id, parsed.data, {
+      multiCompany: session.features.hasMultiCompany,
+    });
+
+    if (data.kind === 'member-added') {
+      await createAuditLog({
+        companyId: session.companyId,
+        userId: session.id,
+        userEmail: session.email,
+        action: 'CREATE',
+        entity: 'CompanyMembership',
+        entityId: data.membershipId,
+        metadata: { email: data.email, role: parsed.data.role, cuentaExistente: true },
+      });
+      revalidatePath('/dashboard/settings/users');
+      return {
+        success: true,
+        data,
+        message: `${data.name} ya tenía cuenta en Aether: desde ahora también trabaja en esta empresa. Entra con su mismo correo y contraseña, y elige la empresa al ingresar.`,
+      };
+    }
+
+    if (data.kind === 'needs-invitation') {
+      const sent = await sendInvitation(session, parsed.data);
+      if (!sent.success) return sent;
+      const { invitation, delivery } = sent.data;
+      return {
+        success: true,
+        data: { kind: 'invited', invitation },
+        message: `Ese correo ya tiene cuenta en Aether, en otra empresa, así que no se crea otra. ${invitationMessage(delivery, invitation.email)}: al aceptarla, entra con su misma contraseña.`,
+      };
+    }
 
     await createAuditLog({
       companyId: session.companyId,
