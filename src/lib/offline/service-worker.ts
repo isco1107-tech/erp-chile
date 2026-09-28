@@ -1,3 +1,5 @@
+import { clearSnapshots } from './queue-store';
+
 /**
  * Registro del service worker (`public/sw.js`) y limpieza de su copia privada.
  * Solo corre en el navegador.
@@ -20,15 +22,21 @@ export function registerServiceWorker(): void {
 }
 
 /**
- * Borra la copia de la pantalla del POS (tiene datos de la empresa). Se llama
- * al cerrar sesión y al cambiar de empresa, para que el próximo que abra el
- * equipo sin conexión no vea la empresa de otro.
+ * Borra la copia de la pantalla del POS y las copias de datos para trabajar
+ * sin conexión (catálogo): tienen datos de la empresa. Se llama al cerrar
+ * sesión y al cambiar de empresa, para que el próximo que abra el equipo sin
+ * conexión no vea la empresa de otro. Las operaciones por sincronizar se
+ * conservan: ya ocurrieron y tienen que llegar al servidor.
  */
 export async function clearPrivateOfflineCache(): Promise<void> {
-  if (typeof caches === 'undefined') return;
   try {
-    await caches.delete(PRIVATE_CACHE);
+    if (typeof caches !== 'undefined') await caches.delete(PRIVATE_CACHE);
   } catch {
     // Almacenamiento bloqueado: no hay copia que borrar.
+  }
+  try {
+    if (typeof indexedDB !== 'undefined') await clearSnapshots();
+  } catch {
+    // Igual que arriba.
   }
 }

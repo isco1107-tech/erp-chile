@@ -3,7 +3,8 @@
  * - Multiempresa: una segunda empresa con el módulo activo y una persona que
  *   trabaja en las dos (hogar + membresía).
  * - POS contratado en la empresa de prueba, para recorrer el POS real y su
- *   modo sin conexión.
+ *   modo sin conexión: una cajera con su turno ya abierto y un producto sin
+ *   control de stock (la venta no depende de existencias).
  *
  * SOLO para la base efímera de E2E: la DATABASE_URL local de este proyecto es
  * la de producción (CLAUDE.md §5), así que exige E2E_DATABASE=1 y se niega a
@@ -19,6 +20,8 @@ import { assertScriptCanRun } from '../../scripts/lib/guard-production';
 export const MULTI_USER_EMAIL = 'multi@prueba.local';
 export const HOME_COMPANY_NAME = 'Empresa de Prueba';
 export const SECOND_COMPANY_NAME = 'Filial E2E SpA';
+export const CASHIER_EMAIL = 'cajero@prueba.local';
+export const POS_PRODUCT_SKU = 'E2E-CAFE';
 
 async function main() {
   assertScriptCanRun('e2e/fixtures/seed-e2e.ts');
@@ -64,6 +67,28 @@ async function main() {
     update: { role: 'ACCOUNTANT' },
     create: { userId: user.id, companyId: second.id, role: 'ACCOUNTANT' },
   });
+  // POS: caja en la bodega del seed, turno abierto de la cajera y un producto.
+  const cashier = await prisma.user.upsert({
+    where: { email: CASHIER_EMAIL },
+    update: {},
+    create: { email: CASHIER_EMAIL, passwordHash: await bcrypt.hash(password, 12), name: 'Cajera E2E', role: 'SALES', companyId: home.id },
+  });
+  const warehouse = await prisma.warehouse.findUniqueOrThrow({ where: { companyId_code: { companyId: home.id, code: 'CENTRAL' } } });
+  const register = await prisma.cashRegister.upsert({
+    where: { companyId_name: { companyId: home.id, name: 'Caja E2E' } },
+    update: {},
+    create: { companyId: home.id, warehouseId: warehouse.id, name: 'Caja E2E' },
+  });
+  const openShift = await prisma.cashShift.findFirst({ where: { companyId: home.id, userId: cashier.id, status: 'OPEN' } });
+  if (!openShift) {
+    await prisma.cashShift.create({ data: { companyId: home.id, cashRegisterId: register.id, userId: cashier.id, initialAmount: 0 } });
+  }
+  await prisma.product.upsert({
+    where: { companyId_sku: { companyId: home.id, sku: POS_PRODUCT_SKU } },
+    update: {},
+    create: { companyId: home.id, sku: POS_PRODUCT_SKU, name: 'Café E2E', isTrackable: false, netPrice: 2000, grossPrice: 2380 },
+  });
+
   console.log('Datos E2E listos');
 }
 

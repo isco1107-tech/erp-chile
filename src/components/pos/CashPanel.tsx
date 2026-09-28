@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
@@ -18,6 +18,8 @@ import type { ShiftSummary } from '@/modules/pos/services/cash.service';
 import type { PosSaleListItem } from '@/modules/pos/services/pos.service';
 import type { CashMovement } from '@prisma/client';
 import { formatCurrency } from '@/lib/chile/tax';
+import { listOperations, onQueueChange } from '@/lib/offline/queue-store';
+import { unsyncedShiftSales } from '@/lib/offline/pos-sale';
 
 import { useConfirm } from '@/components/ui/confirm-provider';
 interface Props {
@@ -43,6 +45,10 @@ export default function CashPanel(props: Props) {
   const [movements, setMovements] = useState<CashMovement[]>([]);
   const [sales, setSales] = useState<PosSaleListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  /** Ventas de este turno hechas sin conexión que aún no llegan al servidor. */
+  const [unsynced, setUnsynced] = useState(0);
+  const unsyncedRef = useRef(0);
 
   const [movementType, setMovementType] = useState<'INFLOW' | 'OUTFLOW'>('OUTFLOW');
   const [movementAmount, setMovementAmount] = useState('');
@@ -54,21 +60,43 @@ export default function CashPanel(props: Props) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [summaryResult, movementsResult, salesResult] = await Promise.all([
-      getShiftSummaryAction(props.shiftId),
-      listCashMovementsAction(props.shiftId),
-      listShiftSalesAction(props.shiftId),
-    ]);
-    if (summaryResult.success) setSummary(summaryResult.data);
-    else toast.error(summaryResult.error);
-    if (movementsResult.success) setMovements(movementsResult.data);
-    if (salesResult.success) setSales(salesResult.data);
-    setLoading(false);
+    setLoadError(null);
+    try {
+      const [summaryResult, movementsResult, salesResult] = await Promise.all([
+        getShiftSummaryAction(props.shiftId),
+        listCashMovementsAction(props.shiftId),
+        listShiftSalesAction(props.shiftId),
+      ]);
+      if (summaryResult.success) setSummary(summaryResult.data);
+      else toast.error(summaryResult.error);
+      if (movementsResult.success) setMovements(movementsResult.data);
+      if (salesResult.success) setSales(salesResult.data);
+    } catch {
+      setLoadError('El arqueo necesita conexión. Puedes seguir vendiendo; vuelve aquí cuando vuelva la conexión.');
+    } finally {
+      setLoading(false);
+    }
   }, [props.shiftId]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  // Al sincronizarse las ventas hechas sin conexión, el resumen cambia.
+  useEffect(() => {
+    const refresh = () => {
+      listOperations()
+        .then((ops) => {
+          const pending = unsyncedShiftSales(ops, props.shiftId).length;
+          if (pending < unsyncedRef.current && navigator.onLine) void load();
+          unsyncedRef.current = pending;
+          setUnsynced(pending);
+        })
+        .catch(() => setUnsynced(0));
+    };
+    refresh();
+    return onQueueChange(refresh);
+  }, [props.shiftId, load]);
 
   async function handleMovement() {
     const amount = Number(movementAmount);
@@ -103,6 +131,10 @@ export default function CashPanel(props: Props) {
       return;
     }
     if (!summary) return;
+    if (unsynced > 0) {
+      toast.error('Hay ventas hechas sin conexión que aún no se registran: sincronízalas antes de cerrar la caja');
+      return;
+    }
 
     const difference = counted - summary.expectedAmount;
     const confirmMessage =
@@ -127,6 +159,17 @@ export default function CashPanel(props: Props) {
 
   const counted = Number(actualAmount);
   const liveDifference = summary && actualAmount.trim() !== '' ? counted - summary.expectedAmount : null;
+
+  if (loadError && !summary) {
+    return (
+      <div className="space-y-3 rounded-xl border border-border p-4 text-sm text-muted-foreground">
+        <p>{loadError}</p>
+        <Button type="button" variant="outline" onClick={() => void load()}>
+          Reintentar
+        </Button>
+      </div>
+    );
+  }
 
   if (loading || !summary) {
     return <p className="text-sm text-muted-foreground">Cargando arqueo...</p>;
@@ -329,7 +372,15 @@ export default function CashPanel(props: Props) {
                 />
               </div>
 
-              <Button type="button" className="h-11 w-full" disabled={closing} onClick={handleClose}>
+              {unsynced > 0 && (
+                <p role="status" className="rounded-lg border border-warning/30 bg-warning-soft p-3 text-sm text-warning">
+                  {unsynced === 1 ? 'Hay 1 venta hecha' : `Hay ${unsynced} ventas hechas`} sin conexión que aún no se
+                  registran. El arqueo no las incluye: sincronízalas (o revísalas en el aviso de la barra superior) antes de
+                  cerrar la caja.
+                </p>
+              )}
+
+              <Button type="button" className="h-11 w-full" disabled={closing || unsynced > 0} onClick={handleClose}>
                 {closing ? 'Cerrando...' : 'Cerrar caja'}
               </Button>
             </div>

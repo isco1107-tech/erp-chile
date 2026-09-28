@@ -42,6 +42,8 @@ export default async function PosPage() {
 
   return (
     <PosWorkspace
+      companyId={context.companyId}
+      userId={context.id}
       shiftId={shift.id}
       warehouseId={shift.cashRegister.warehouseId}
       warehouseName={shift.cashRegister.warehouse.name}

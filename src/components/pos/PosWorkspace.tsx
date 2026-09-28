@@ -5,6 +5,8 @@ import PosTerminal from './PosTerminal';
 import CashPanel from './CashPanel';
 
 interface Props {
+  companyId: string;
+  userId: string;
   shiftId: string;
   warehouseId: string;
   warehouseName: string;
@@ -59,6 +61,8 @@ export default function PosWorkspace(props: Props) {
 
       <div className={tab === 'terminal' ? '' : 'hidden'}>
         <PosTerminal
+          companyId={props.companyId}
+          userId={props.userId}
           shiftId={props.shiftId}
           warehouseId={props.warehouseId}
           warehouseName={props.warehouseName}

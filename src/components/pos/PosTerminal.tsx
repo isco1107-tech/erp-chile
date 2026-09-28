@@ -3,8 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Delete, Printer, ScanBarcode, Trash2 } from 'lucide-react';
+import { CloudOff, Delete, Printer, ScanBarcode, Trash2 } from 'lucide-react';
 import { createIdempotencyTracker } from '@/lib/idempotency';
+import { offlineCaptureBlock } from '@/lib/offline/queue-rules';
+import { listOperations, onQueueChange, readSnapshot, saveOperation, saveSnapshot } from '@/lib/offline/queue-store';
+import { applySaleToStock, buildOfflineSale, posCatalogKey, type OfflineSalePayload } from '@/lib/offline/pos-sale';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,8 +22,8 @@ import {
 import { computeDocument } from '@/modules/sales/calc';
 import { formatCurrency } from '@/lib/chile/tax';
 import { formatRut, validateRut } from '@/lib/chile/rut';
-
 import { useConfirm } from '@/components/ui/confirm-provider';
+
 interface CartLine {
   productId: string;
   sku: string;
@@ -33,6 +36,8 @@ interface CartLine {
 }
 
 interface Props {
+  companyId: string;
+  userId: string;
   shiftId: string;
   warehouseId: string;
   warehouseName: string;
@@ -46,6 +51,9 @@ interface Props {
 const KEYPAD = ['7', '8', '9', '4', '5', '6', '1', '2', '3', '0', '00', '000'];
 /** Denominaciones frecuentes en efectivo, para no teclear el monto completo. */
 const QUICK_CASH = [1000, 2000, 5000, 10000, 20000];
+/** Espera tras un cambio en la cola antes de recargar el stock (una sincronización guarda varias veces seguidas). */
+const CATALOG_REFRESH_MS = 1500;
+const timeFormat = new Intl.DateTimeFormat('es-CL', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Santiago' });
 
 export default function PosTerminal(props: Props) {
   const confirm = useConfirm();
@@ -60,6 +68,9 @@ export default function PosTerminal(props: Props) {
   const [customerRut, setCustomerRut] = useState('');
   const [saving, setSaving] = useState(false);
   const [ticket, setTicket] = useState<TicketData | null>(null);
+  const [online, setOnline] = useState(true);
+  /** Hora de la copia del catálogo en uso cuando no se pudo cargar del servidor; `null` = catálogo al día. */
+  const [catalogSavedAt, setCatalogSavedAt] = useState<string | null>(null);
 
   const searchRef = useRef<HTMLInputElement>(null);
   // Una clave por venta: un reintento de la MISMA venta (respuesta perdida,
@@ -78,14 +89,70 @@ export default function PosTerminal(props: Props) {
     requestAnimationFrame(() => searchRef.current?.focus());
   }, []);
 
+  const catalogKey = posCatalogKey(props.companyId, props.warehouseId);
+
+  /**
+   * Carga el catálogo del servidor y guarda una copia en el equipo. Sin
+   * conexión usa esa copia (modo contingencia, docs/adr/0002), con el stock
+   * ya descontado de lo vendido sin conexión.
+   */
+  const loadCatalog = useCallback(
+    async (notify: boolean) => {
+      try {
+        const result = await listPosProductsAction(props.warehouseId);
+        if (result.success) {
+          setProducts(result.data);
+          setCatalogSavedAt(null);
+          await saveSnapshot(catalogKey, result.data).catch(() => undefined);
+        } else if (notify) {
+          toast.error(result.error);
+        }
+      } catch {
+        const snapshot = await readSnapshot<PosProduct[]>(catalogKey).catch(() => null);
+        if (snapshot) {
+          setProducts(snapshot.data);
+          setCatalogSavedAt(snapshot.savedAt);
+        } else if (notify) {
+          toast.error('Sin conexión y sin catálogo guardado en este equipo: no se puede vender hasta volver a conectarse');
+        }
+      }
+    },
+    [props.warehouseId, catalogKey]
+  );
+
   useEffect(() => {
-    listPosProductsAction(props.warehouseId).then((result) => {
-      if (result.success) setProducts(result.data);
-      else toast.error(result.error);
+    void loadCatalog(true).then(() => {
       setLoadingProducts(false);
       focusSearch();
     });
-  }, [props.warehouseId, focusSearch]);
+  }, [loadCatalog, focusSearch]);
+
+  // Al volver la conexión, y cada vez que la sincronización registra ventas
+  // hechas sin conexión, el stock se recarga del servidor.
+  useEffect(() => {
+    setOnline(navigator.onLine);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const refreshSoon = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (navigator.onLine) void loadCatalog(false);
+      }, CATALOG_REFRESH_MS);
+    };
+    const goOnline = () => {
+      setOnline(true);
+      refreshSoon();
+    };
+    const goOffline = () => setOnline(false);
+    window.addEventListener('online', goOnline);
+    window.addEventListener('offline', goOffline);
+    const unsubscribe = onQueueChange(refreshSoon);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('online', goOnline);
+      window.removeEventListener('offline', goOffline);
+      unsubscribe();
+    };
+  }, [loadCatalog]);
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -203,6 +270,92 @@ export default function PosTerminal(props: Props) {
     document.documentElement.classList.remove('pos-printing');
   }
 
+  function resetSale() {
+    setCart([]);
+    setCashReceived('');
+    setCustomerRut('');
+    setQuery('');
+    focusSearch();
+  }
+
+  /**
+   * Modo contingencia: la venta queda en la cola del equipo y se entrega un
+   * comprobante provisorio. La boleta se emite al sincronizar (decisión del
+   * cliente registrada en docs/adr/0002, pendiente de validar con su contador).
+   */
+  async function sellOffline(payload: OfflineSalePayload, idempotencyKey: string, rut: string) {
+    let block: string | null;
+    try {
+      block = offlineCaptureBlock(await listOperations(), props.companyId);
+    } catch {
+      toast.error('Este navegador no permite guardar ventas sin conexión. Vuelve a cobrar cuando vuelva la conexión.');
+      return;
+    }
+    if (block) {
+      toast.error(block);
+      return;
+    }
+
+    const capturedAt = new Date();
+    const operation = buildOfflineSale({
+      companyId: props.companyId,
+      userId: props.userId,
+      shiftId: props.shiftId,
+      idempotencyKey,
+      payload,
+      totalLabel: formatCurrency(total),
+      capturedAt,
+    });
+    try {
+      await saveOperation(operation);
+    } catch {
+      toast.error('No se pudo guardar la venta en este equipo. Vuelve a cobrar cuando vuelva la conexión.');
+      return;
+    }
+    // Ya guardada: la próxima venta, aunque sea idéntica, es otra.
+    idempotency.current.reset();
+
+    setTicket({
+      companyName: props.companyName,
+      companyRut: props.companyRut,
+      companyAddress: props.companyAddress,
+      folio: null,
+      provisionalNumber: operation.localNumber,
+      issuedAt: capturedAt,
+      cashierName: props.cashierName,
+      customerName: rut ? `Cliente ${formatRut(rut)}` : 'Consumidor Final',
+      customerRut: rut ? formatRut(rut) : '66.666.666-6',
+      lines: computed.items.map((line) => ({
+        description: line.name,
+        sku: line.sku,
+        quantity: line.quantity,
+        unitPrice: line.netPrice,
+        subtotal: line.subtotal,
+        isExempt: line.isExempt,
+      })),
+      netAmount: computed.totals.netAmount,
+      exemptAmount: computed.totals.exemptAmount,
+      ivaAmount: computed.totals.ivaAmount,
+      totalAmount: total,
+      paymentMethodLabel: POS_PAYMENT_METHOD_LABELS[paymentMethod],
+      cashReceived: isCash ? received : undefined,
+      changeDue: isCash ? Math.max(0, received - total) : undefined,
+    });
+
+    toast.success(
+      isCash && received > total
+        ? `Venta guardada sin conexión (${operation.localNumber}) — Vuelto ${formatCurrency(received - total)}`
+        : `Venta guardada sin conexión (${operation.localNumber})`,
+      { description: 'Entrega el comprobante provisorio. La boleta se emite sola al volver la conexión.' }
+    );
+
+    const nextProducts = applySaleToStock(products, payload.items);
+    setProducts(nextProducts);
+    // La copia conserva la hora en que vino del servidor.
+    void saveSnapshot(catalogKey, nextProducts, catalogSavedAt ?? undefined).catch(() => undefined);
+    resetSale();
+  }
+
   async function handleCharge() {
     if (cart.length === 0) return;
 
@@ -220,18 +373,39 @@ export default function PosTerminal(props: Props) {
       }
     }
 
+    const payload: OfflineSalePayload = {
+      items: cart.map((line) => ({ productId: line.productId, quantity: line.quantity })),
+      paymentMethod,
+      cashReceived: isCash ? received : undefined,
+      customerRut: rut || undefined,
+    };
+    const idempotencyKey = idempotency.current.keyFor({ shiftId: props.shiftId, ...payload });
+
     setSaving(true);
     try {
-      const payload = {
-        items: cart.map((line) => ({ productId: line.productId, quantity: line.quantity })),
-        paymentMethod,
-        cashReceived: isCash ? received : undefined,
-        customerRut: rut || undefined,
-      };
-      const result = await createPosSaleAction(props.shiftId, {
-        ...payload,
-        idempotencyKey: idempotency.current.keyFor({ shiftId: props.shiftId, ...payload }),
-      });
+      if (!navigator.onLine) {
+        await sellOffline(payload, idempotencyKey, rut);
+        return;
+      }
+
+      let result: Awaited<ReturnType<typeof createPosSaleAction>>;
+      try {
+        result = await createPosSaleAction(props.shiftId, { ...payload, idempotencyKey });
+      } catch {
+        // Red caída o servidor sin respuesta. Si la venta alcanzó a
+        // registrarse, ni el reintento ni la cola la duplican: ambos usan la
+        // misma clave.
+        const offline = await confirm({
+          title: 'No se pudo contactar al servidor',
+          description:
+            'Puedes volver a cobrar, o seguir sin conexión: la venta queda guardada en este equipo, se entrega un comprobante provisorio y la boleta se emite sola al volver la conexión.',
+          confirmLabel: 'Vender sin conexión',
+          cancelLabel: 'Volver a intentar',
+          destructive: false,
+        });
+        if (offline) await sellOffline(payload, idempotencyKey, rut);
+        return;
+      }
 
       if (!result.success) {
         toast.error(result.error);
@@ -272,29 +446,35 @@ export default function PosTerminal(props: Props) {
           : `Boleta #${sale.folio} emitida`
       );
 
-      setCart([]);
-      setCashReceived('');
-      setCustomerRut('');
-      setQuery('');
+      resetSale();
       // El stock cambió: se recarga para que la próxima venta valide contra el
       // saldo real y no contra el que se cargó al abrir la caja.
-      listPosProductsAction(props.warehouseId).then((r) => {
-        if (r.success) setProducts(r.data);
-      });
+      void loadCatalog(false);
       router.refresh();
-      focusSearch();
-    } catch {
-      // Red caída: el carrito se conserva y el reintento usa la misma clave,
-      // así que si la venta alcanzó a registrarse no se duplica.
-      toast.error('No se pudo contactar al servidor. Revisa la conexión y vuelve a cobrar: la venta no se duplicará.');
     } finally {
       setSaving(false);
     }
   }
 
+  const offlineMode = !online || catalogSavedAt !== null;
+
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
       <div className="space-y-3">
+        {offlineMode && (
+          <div role="status" className="flex items-start gap-3 rounded-2xl border border-warning/30 bg-warning-soft p-4 text-sm text-warning print:hidden">
+            <CloudOff className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            <div className="space-y-1">
+              <p className="font-medium">{online ? 'Sin respuesta del servidor' : 'Sin conexión'}: sigues vendiendo en modo contingencia</p>
+              <p className="text-xs">
+                Las ventas quedan guardadas en este equipo (hasta 2 horas) y se registran solas al volver la conexión.
+                Se entrega un comprobante provisorio; la boleta electrónica se emite al sincronizar.
+                {catalogSavedAt && ` Precios y stock guardados a las ${timeFormat.format(new Date(catalogSavedAt))}.`}
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="rounded-2xl border border-border bg-card shadow-card p-4">
           <Label htmlFor="pos-search" className="mb-2 flex items-center gap-2">
             <ScanBarcode className="size-4 text-muted-foreground" aria-hidden="true" /> Escanear o buscar producto
@@ -499,13 +679,14 @@ export default function PosTerminal(props: Props) {
             Cancelar
           </Button>
           <Button type="button" className="h-12 flex-1 text-base" disabled={!canCharge} onClick={handleCharge}>
-            {saving ? 'Emitiendo boleta…' : `Cobrar ${formatCurrency(total)}`}
+            {saving ? (online ? 'Emitiendo boleta…' : 'Guardando venta…') : `Cobrar ${formatCurrency(total)}${online ? '' : ' sin conexión'}`}
           </Button>
         </div>
 
         {ticket && (
           <Button type="button" variant="outline" className="w-full" onClick={printTicket}>
-            <Printer className="mr-2 size-4" /> Reimprimir boleta #{ticket.folio}
+            <Printer className="mr-2 size-4" />{' '}
+            {ticket.provisionalNumber ? `Reimprimir comprobante ${ticket.provisionalNumber}` : `Reimprimir boleta #${ticket.folio}`}
           </Button>
         )}
       </div>

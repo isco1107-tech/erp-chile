@@ -86,12 +86,25 @@ interface Snapshot<T> {
   data: T;
 }
 
-/** Copia de datos para trabajar sin conexión (ej. catálogo de una bodega). La clave incluye la empresa. */
-export async function saveSnapshot<T>(key: string, data: T): Promise<void> {
-  await run(SNAPSHOTS, 'readwrite', (store) => store.put({ key, savedAt: new Date().toISOString(), data } satisfies Snapshot<T>));
+/**
+ * Copia de datos para trabajar sin conexión (ej. catálogo de una bodega). La
+ * clave incluye la empresa. `savedAt` es cuándo vinieron del servidor: al
+ * ajustar la copia en el equipo (stock tras una venta sin conexión) se
+ * conserva la hora original.
+ */
+export async function saveSnapshot<T>(key: string, data: T, savedAt: string = new Date().toISOString()): Promise<void> {
+  await run(SNAPSHOTS, 'readwrite', (store) => store.put({ key, savedAt, data } satisfies Snapshot<T>));
 }
 
 export async function readSnapshot<T>(key: string): Promise<{ savedAt: string; data: T } | null> {
   const found = await run<Snapshot<T> | undefined>(SNAPSHOTS, 'readonly', (store) => store.get(key) as IDBRequest<Snapshot<T> | undefined>);
   return found ? { savedAt: found.savedAt, data: found.data } : null;
+}
+
+/**
+ * Borra las copias (catálogos, proveedores): son datos de la empresa y no
+ * deben quedar para el próximo que use el equipo. La cola NO se borra.
+ */
+export async function clearSnapshots(): Promise<void> {
+  await run(SNAPSHOTS, 'readwrite', (store) => store.clear());
 }

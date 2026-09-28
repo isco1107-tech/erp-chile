@@ -30,6 +30,12 @@ export interface TicketData {
   paymentMethodLabel: string;
   cashReceived?: number;
   changeDue?: number;
+  /**
+   * Venta hecha sin conexión (docs/adr/0002): todavía no hay boleta. Se
+   * imprime como comprobante provisorio con este número, y la boleta
+   * electrónica se emite al sincronizar.
+   */
+  provisionalNumber?: string;
 }
 
 /**
@@ -52,8 +58,18 @@ export default function PosTicket({ data }: { data: TicketData }) {
       <div className="ticket-divider" />
 
       <div className="ticket-center">
-        <p className="ticket-strong">BOLETA ELECTRÓNICA</p>
-        <p>N° {data.folio ?? '-'}</p>
+        {data.provisionalNumber ? (
+          <>
+            <p className="ticket-strong">COMPROBANTE PROVISORIO</p>
+            <p>N° {data.provisionalNumber}</p>
+            <p className="ticket-small">No válido como boleta</p>
+          </>
+        ) : (
+          <>
+            <p className="ticket-strong">BOLETA ELECTRÓNICA</p>
+            <p>N° {data.folio ?? '-'}</p>
+          </>
+        )}
       </div>
 
       <div className="ticket-divider" />
@@ -127,7 +143,14 @@ export default function PosTicket({ data }: { data: TicketData }) {
       <div className="ticket-divider" />
       <div className="ticket-center">
         <p>¡Gracias por su compra!</p>
-        <p className="ticket-small">Documento emitido por sistema ERP</p>
+        {data.provisionalNumber ? (
+          <p className="ticket-small">
+            Venta registrada sin conexión. La boleta electrónica se emite al volver la conexión; solicítela en caja
+            con este número.
+          </p>
+        ) : (
+          <p className="ticket-small">Documento emitido por sistema ERP</p>
+        )}
       </div>
     </div>
   );
