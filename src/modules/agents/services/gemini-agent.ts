@@ -54,7 +54,8 @@ function getClient(): GoogleGenAI {
   return cachedClient;
 }
 
-function isRateLimitError(error: unknown): boolean {
+/** 429: cuota agotada o límite por minuto. Exportado para que quien llama distinga "sin cuota" de "falló". */
+export function isRateLimitError(error: unknown): boolean {
   const status = (error as { status?: number; code?: number })?.status ?? (error as { code?: number })?.code;
   return status === 429;
 }
@@ -87,14 +88,14 @@ async function throttle(): Promise<void> {
 const MAX_RETRIES = 2;
 const RETRY_BACKOFF_MS = [1_500, 3_000];
 
-async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+async function withRetry<T>(fn: () => Promise<T>, maxRetries: number = MAX_RETRIES): Promise<T> {
   let attempt = 0;
   for (;;) {
     await throttle();
     try {
       return await fn();
     } catch (error) {
-      if (attempt >= MAX_RETRIES || (!isRateLimitError(error) && !isTransientError(error))) throw error;
+      if (attempt >= maxRetries || (!isRateLimitError(error) && !isTransientError(error))) throw error;
       await sleep(RETRY_BACKOFF_MS[attempt] ?? RETRY_BACKOFF_MS[RETRY_BACKOFF_MS.length - 1]!);
       attempt++;
       lastCallAt = Date.now();
@@ -194,15 +195,23 @@ export async function generateAgentJson<T>(
 export async function generateGroundedText(
   systemPrompt: string,
   userPrompt: string,
-  tier: AgentModelTier = 'standard'
+  tier: AgentModelTier = 'standard',
+  /**
+   * `model` fija un modelo en vez del del nivel; `maxRetries` acota los
+   * reintentos para quien tiene a una persona esperando y prefiere probar
+   * otro modelo (otra cuota) a esperar el backoff.
+   */
+  options: { model?: string; maxRetries?: number } = {}
 ): Promise<{ text: string; sources: string[] }> {
   const client = getClient();
-  const response = await withRetry(() =>
-    client.models.generateContent({
-      model: resolveAgentModel(tier),
-      contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-      config: { systemInstruction: systemPrompt, tools: [{ googleSearch: {} }] },
-    })
+  const response = await withRetry(
+    () =>
+      client.models.generateContent({
+        model: options.model ?? resolveAgentModel(tier),
+        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+        config: { systemInstruction: systemPrompt, tools: [{ googleSearch: {} }] },
+      }),
+    options.maxRetries
   );
   const text = response.text?.trim();
   if (!text) throw new Error('El modelo no devolvió una respuesta');

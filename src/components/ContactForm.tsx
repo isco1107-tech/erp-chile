@@ -12,6 +12,7 @@ import { nativeSelectClass } from '@/components/ui/field-classes';
 import { BANK_ACCOUNT_TYPES, BANK_ACCOUNT_TYPE_LABELS, CHILEAN_BANKS } from '@/lib/treasury/banks';
 import { RutInput } from '@/components/ui/RutInput';
 import { regions } from '@/lib/chile/locations';
+import { formatRut, validateRut } from '@/lib/chile/rut';
 import { contactCreateSchema, contactUpdateSchema } from '@/modules/contacts/schema';
 import { createContactAction, lookupCompanyInfoAction, updateContactAction } from '@/modules/contacts/actions/contacts.actions';
 import type { CompanyLookupCandidate } from '@/modules/contacts/services/company-lookup.service';
@@ -69,6 +70,17 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
   const [searchingCompany, setSearchingCompany] = useState(false);
   const [companyCandidates, setCompanyCandidates] = useState<CompanyLookupCandidate[] | null>(null);
 
+  /**
+   * Si lo buscado es un RUT válido y la búsqueda no trajo nada (o no se pudo
+   * buscar), al menos ese RUT queda en el formulario para seguir a mano.
+   */
+  function keepQueryAsRut(): boolean {
+    const query = companyQuery.trim();
+    if (!validateRut(query) || form.rut.trim()) return false;
+    setForm((prev) => ({ ...prev, rut: formatRut(query) }));
+    return true;
+  }
+
   async function handleCompanySearch() {
     if (!companyQuery.trim()) return;
     setSearchingCompany(true);
@@ -76,11 +88,15 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
     try {
       const result = await lookupCompanyInfoAction(companyQuery);
       if (!result.success) {
-        toast.error(result.error);
+        toast.error(result.error, keepQueryAsRut() ? { description: 'Dejamos el RUT en el formulario.' } : undefined);
         return;
       }
-      if (result.data.length === 0) toast.info('No se encontraron resultados — completa los datos manualmente');
+      if (result.data.length === 0) {
+        toast.info('No se encontraron resultados — completa los datos manualmente', keepQueryAsRut() ? { description: 'Dejamos el RUT en el formulario.' } : undefined);
+      }
       setCompanyCandidates(result.data);
+    } catch {
+      toast.error('No se pudo conectar con el servidor. Revisa la conexión o completa los datos a mano');
     } finally {
       setSearchingCompany(false);
     }
@@ -197,7 +213,7 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
     <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border border-border p-4">
       {!editingContact && (
         <div className="space-y-2 rounded-lg border border-dashed border-border p-3">
-          <Label htmlFor="companyQuery">Buscar empresa con IA</Label>
+          <Label htmlFor="companyQuery">Buscar empresa (nombre o RUT)</Label>
           <div className="flex gap-2">
             <Input
               id="companyQuery"
@@ -209,14 +225,15 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
                   handleCompanySearch();
                 }
               }}
-              placeholder="Ej: Coca-Cola, Arauco, Falabella..."
+              placeholder="Ej: Falabella, o 90.749.000-9"
             />
             <Button type="button" variant="outline" disabled={searchingCompany} onClick={handleCompanySearch}>
               {searchingCompany ? 'Buscando...' : 'Buscar'}
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Busca en internet razón social, RUT, giro y dirección para precargar el formulario. Siempre revisa los datos antes de guardar.
+            Busca en internet razón social, RUT, giro y dirección para precargar el formulario. Siempre revisa los datos antes de
+            guardar. Si no encuentra nada, puedes completarlo a mano igual.
           </p>
           {companyCandidates && companyCandidates.length > 0 && (
             <ul className="space-y-1.5">

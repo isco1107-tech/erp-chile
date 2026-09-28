@@ -22,6 +22,7 @@ import {
 } from '@/modules/candidates/actions/candidates.actions';
 import type { CandidateProjectOption, CandidateWithProject } from '@/modules/candidates/services/candidates.service';
 import type { CompanyLookupCandidate } from '@/modules/contacts/services/company-lookup.service';
+import { formatRut, validateRut } from '@/lib/chile/rut';
 
 const selectClass =
   'h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm dark:bg-input/30';
@@ -95,6 +96,14 @@ export default function CandidateForm({ editingCandidate }: CandidateFormProps) 
   const [searchingEmployer, setSearchingEmployer] = useState(false);
   const [employerCandidates, setEmployerCandidates] = useState<CompanyLookupCandidate[] | null>(null);
 
+  /** Si lo buscado es un RUT válido y no hubo resultados, al menos queda en el formulario. */
+  function keepQueryAsEmployerRut(): boolean {
+    const query = employerQuery.trim();
+    if (!validateRut(query) || form.employerRut.trim()) return false;
+    setForm((prev) => ({ ...prev, employerRut: formatRut(query) }));
+    return true;
+  }
+
   async function handleEmployerSearch() {
     if (!employerQuery.trim()) return;
     setSearchingEmployer(true);
@@ -102,11 +111,15 @@ export default function CandidateForm({ editingCandidate }: CandidateFormProps) 
     try {
       const result = await lookupEmployerAction(employerQuery);
       if (!result.success) {
-        toast.error(result.error);
+        toast.error(result.error, keepQueryAsEmployerRut() ? { description: 'Dejamos el RUT en el formulario.' } : undefined);
         return;
       }
-      if (result.data.length === 0) toast.info('No se encontraron resultados — completa los datos manualmente');
+      if (result.data.length === 0) {
+        toast.info('No se encontraron resultados — completa los datos manualmente', keepQueryAsEmployerRut() ? { description: 'Dejamos el RUT en el formulario.' } : undefined);
+      }
       setEmployerCandidates(result.data);
+    } catch {
+      toast.error('No se pudo conectar con el servidor. Revisa la conexión o completa los datos a mano');
     } finally {
       setSearchingEmployer(false);
     }
@@ -534,7 +547,7 @@ export default function CandidateForm({ editingCandidate }: CandidateFormProps) 
                   handleEmployerSearch();
                 }
               }}
-              placeholder="Ej: Coca-Cola, Arauco, Falabella..."
+              placeholder="Ej: Falabella, o 90.749.000-9"
             />
             <Button type="button" variant="outline" disabled={searchingEmployer} onClick={handleEmployerSearch}>
               {searchingEmployer ? 'Buscando...' : 'Buscar'}

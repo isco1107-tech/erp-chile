@@ -2,15 +2,20 @@ import 'server-only';
 
 import { cleanRut } from '@/lib/chile/rut';
 import { captureException, captureMessage } from '@/lib/observability';
-import { generateGroundedText } from '@/modules/agents/services/gemini-agent';
+import { generateGroundedText, isRateLimitError } from '@/modules/agents/services/gemini-agent';
+import { resolveAgentModel } from '@/modules/agents/services/model-tiers';
 
 import {
   MAX_CANDIDATES,
   findRutInText,
+  lookupCacheKey,
+  lookupUnavailableMessage,
   matchLocationInText,
   parseAiCandidates,
+  searchModels,
   truncate,
   type CompanyLookupCandidate,
+  type LookupUnavailableCause,
 } from './company-lookup-parse';
 
 export type { CompanyLookupCandidate } from './company-lookup-parse';
@@ -28,11 +33,54 @@ export type { CompanyLookupCandidate } from './company-lookup-parse';
  *
  * Un RUT solo se precarga si pasa Módulo 11 (`rutVerified`); aun así puede
  * ser de otra entidad, por eso el formulario pide revisarlo.
+ *
+ * Hay una persona esperando: cada modelo se prueba UNA vez (sin el backoff de
+ * los agentes; antes una cuota agotada hacía esperar ~18 s para terminar en
+ * error), y tras "sin cuota" o un bloqueo de DuckDuckGo esa fuente se salta
+ * un rato en vez de volver a esperarla en cada búsqueda.
  */
 
 const DDG_URL = 'https://html.duckduckgo.com/html/';
 const USER_AGENT = 'Mozilla/5.0 (compatible; ERP-ContactLookup/1.0)';
-const DDG_TIMEOUT_MS = 10_000;
+const DDG_TIMEOUT_MS = 6_000;
+/** Tras "sin cuota" en todos los modelos, no se vuelve a intentar la IA por este tiempo. */
+const AI_COOLDOWN_MS = 5 * 60_000;
+/** DuckDuckGo bloquea IPs de servidores por horas: se deja de intentar un buen rato. */
+const WEB_COOLDOWN_MS = 30 * 60_000;
+/** Datos públicos de una empresa: la misma búsqueda repetida no gasta cuota. */
+const CACHE_TTL_MS = 60 * 60_000;
+const CACHE_MAX_ENTRIES = 100;
+
+// Estado por instancia del servidor: en serverless se pierde al reciclarse,
+// y está bien — solo evita esperas y consultas repetidas mientras dura.
+let aiCooldownUntil = 0;
+let webCooldownUntil = 0;
+const cache = new Map<string, { at: number; candidates: CompanyLookupCandidate[] }>();
+
+function readCache(key: string): CompanyLookupCandidate[] | null {
+  const hit = cache.get(key);
+  if (!hit) return null;
+  if (Date.now() - hit.at > CACHE_TTL_MS) {
+    cache.delete(key);
+    return null;
+  }
+  return hit.candidates;
+}
+
+function writeCache(key: string, candidates: CompanyLookupCandidate[]): void {
+  if (cache.size >= CACHE_MAX_ENTRIES) {
+    const oldest = cache.keys().next().value;
+    if (oldest !== undefined) cache.delete(oldest);
+  }
+  cache.set(key, { at: Date.now(), candidates });
+}
+
+/** Solo para tests: vuelve al estado inicial (sin caché ni pausas). */
+export function resetCompanyLookupState(): void {
+  aiCooldownUntil = 0;
+  webCooldownUntil = 0;
+  cache.clear();
+}
 
 const AI_SYSTEM_PROMPT = [
   'Eres un asistente que busca en internet datos públicos de empresas chilenas para precargar un formulario de contacto de un ERP.',
@@ -46,9 +94,22 @@ const AI_SYSTEM_PROMPT = [
 
 class LookupUnavailableError extends Error {}
 
-async function searchWithAi(query: string): Promise<CompanyLookupCandidate[]> {
-  const { text, sources } = await generateGroundedText(AI_SYSTEM_PROMPT, `Empresa a buscar: ${query}`);
-  return parseAiCandidates(text, sources);
+type AiOutcome = { candidates: CompanyLookupCandidate[] } | { unavailable: Exclude<LookupUnavailableCause, 'not-configured'> };
+
+/** Prueba cada modelo configurado una vez; el siguiente solo si el anterior falló. */
+async function searchWithAi(query: string): Promise<AiOutcome> {
+  let sawQuota = false;
+  for (const model of searchModels(process.env, (tier) => resolveAgentModel(tier))) {
+    try {
+      const { text, sources } = await generateGroundedText(AI_SYSTEM_PROMPT, `Empresa a buscar: ${query}`, 'standard', { model, maxRetries: 0 });
+      return { candidates: parseAiCandidates(text, sources) };
+    } catch (error) {
+      const quota = isRateLimitError(error);
+      sawQuota ||= quota;
+      captureException(error, { module: 'contactos', extra: { reason: 'company-lookup-ai', model, quota } });
+    }
+  }
+  return { unavailable: sawQuota ? 'quota' : 'error' };
 }
 
 function decodeEntities(text: string): string {
@@ -146,24 +207,44 @@ export async function lookupCompaniesByName(query: string): Promise<CompanyLooku
   const trimmed = query.trim();
   if (trimmed.length < 2) throw new Error('Ingresa al menos 2 caracteres para buscar');
 
-  let aiFailed = false;
-  if (process.env.GEMINI_API_KEY) {
-    try {
-      const candidates = await searchWithAi(trimmed);
-      if (candidates.length > 0) return candidates;
-    } catch (error) {
-      aiFailed = true;
-      captureException(error, { module: 'contactos', extra: { reason: 'company-lookup-ai' } });
-    }
-  } else {
+  const key = lookupCacheKey(trimmed);
+  const cached = readCache(key);
+  if (cached) return cached;
+
+  // `null` = la IA respondió (aunque sea sin resultados); si no, por qué no.
+  let aiProblem: LookupUnavailableCause | null;
+  if (!process.env.GEMINI_API_KEY) {
+    aiProblem = 'not-configured';
     captureMessage('Buscador de empresas sin GEMINI_API_KEY: usando solo DuckDuckGo', 'warn', { module: 'contactos' });
+  } else if (Date.now() < aiCooldownUntil) {
+    aiProblem = 'quota';
+  } else {
+    const outcome = await searchWithAi(trimmed);
+    if ('candidates' in outcome) {
+      if (outcome.candidates.length > 0) {
+        writeCache(key, outcome.candidates);
+        return outcome.candidates;
+      }
+      aiProblem = null;
+    } else {
+      aiProblem = outcome.unavailable;
+      if (outcome.unavailable === 'quota') aiCooldownUntil = Date.now() + AI_COOLDOWN_MS;
+    }
   }
 
-  try {
-    return await searchWeb(trimmed);
-  } catch (error) {
-    captureException(error, { module: 'contactos', extra: { reason: 'company-lookup-web', aiFailed } });
-    // Ambas fuentes cayeron: mejor decirlo que devolver "sin resultados".
-    throw new Error('El buscador de empresas no está disponible en este momento. Intenta de nuevo en un minuto o completa los datos manualmente');
+  if (Date.now() >= webCooldownUntil) {
+    try {
+      const candidates = await searchWeb(trimmed);
+      if (candidates.length > 0) writeCache(key, candidates);
+      return candidates;
+    } catch (error) {
+      if (error instanceof LookupUnavailableError) webCooldownUntil = Date.now() + WEB_COOLDOWN_MS;
+      captureException(error, { module: 'contactos', extra: { reason: 'company-lookup-web', aiProblem } });
+    }
   }
+
+  // La IA buscó y no encontró nada: eso es "sin resultados", no una falla.
+  if (aiProblem === null) return [];
+  // Ninguna fuente pudo buscar: mejor decirlo (y por qué) que fingir "sin resultados".
+  throw new Error(lookupUnavailableMessage(aiProblem));
 }

@@ -150,3 +150,36 @@ export function parseAiCandidates(text: string, sources: readonly string[]): Com
   // Primero los que traen RUT válido: son los que ahorran más tipeo y errores.
   return candidates.sort((a, b) => Number(b.rutVerified) - Number(a.rutVerified));
 }
+
+/**
+ * Por qué no se pudo buscar:
+ * - `quota`: el servicio de IA respondió "sin cuota" (429) en todos los modelos.
+ * - `not-configured`: no hay `GEMINI_API_KEY`.
+ * - `error`: falló por otra razón (red, modelo inexistente, respuesta inválida).
+ */
+export type LookupUnavailableCause = 'quota' | 'not-configured' | 'error';
+
+/** Mensaje para la persona: accionable, y sin culpar a lo que escribió. */
+export function lookupUnavailableMessage(cause: LookupUnavailableCause): string {
+  if (cause === 'quota') {
+    return 'La búsqueda automática de empresas alcanzó el límite de consultas del servicio de IA. Completa los datos a mano o inténtalo más tarde';
+  }
+  if (cause === 'not-configured') return 'La búsqueda automática de empresas no está configurada. Completa los datos a mano';
+  return 'El buscador de empresas no está disponible en este momento. Intenta de nuevo en un minuto o completa los datos a mano';
+}
+
+/**
+ * Modelos de Gemini con búsqueda de Google que se prueban, en orden y sin
+ * repetir: `GEMINI_MODEL_SEARCH` (para elegir uno con cuota de búsqueda), y
+ * después los de los niveles estándar y liviano. Cada modelo tiene su propia
+ * cuota, así que si uno responde "sin cuota" vale la pena el siguiente.
+ */
+export function searchModels(env: Record<string, string | undefined>, tierModel: (tier: 'standard' | 'lite') => string): string[] {
+  const candidates = [env.GEMINI_MODEL_SEARCH?.trim(), tierModel('standard'), tierModel('lite')];
+  return [...new Set(candidates.filter((model): model is string => Boolean(model)))];
+}
+
+/** Clave de caché: la misma búsqueda escrita con otras mayúsculas, tildes o espacios. */
+export function lookupCacheKey(query: string): string {
+  return normalize(query).replace(/\s+/g, ' ');
+}
