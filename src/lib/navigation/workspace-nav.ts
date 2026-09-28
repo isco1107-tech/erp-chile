@@ -89,6 +89,7 @@ export type NavIconKey =
   | 'manufacturing'
   | 'boms'
   | 'serviceDesk'
+  | 'webSites'
   | 'invoiceArchive';
 
 export interface NavLink {
@@ -242,6 +243,12 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
     operaciones.push({ id: 'service-desk', href: '/dashboard/service', label: 'Servicio técnico', icon: 'serviceDesk', keywords: ['reparacion', 'taller', 'garantia', 'orden de servicio', 'presupuesto', 'soporte'] });
   }
   push('Operaciones', operaciones);
+
+  if (features.hasWebSites && allow('websites:read')) {
+    push('Sitios web', [
+      { id: 'web-sites', href: '/dashboard/web-sites', label: 'Sitios web', icon: 'webSites', keywords: ['pagina web', 'landing', 'diseno web', 'sitio', 'html', 'portafolio', 'catalogo', 'dominio', 'publicar', 'mensajes'] },
+    ]);
+  }
 
   const finanzas: NavLink[] = [];
   if (features.hasTreasury && allow('treasury:read')) {

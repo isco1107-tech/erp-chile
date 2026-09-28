@@ -204,6 +204,13 @@ export const PERMISSIONS = {
   'service:read': ['OWNER', 'ADMIN', 'SALES', 'WAREHOUSE'],
   'service:write': ['OWNER', 'ADMIN', 'SALES', 'WAREHOUSE'],
 
+  // Sitios web: el equipo comercial arma y edita; publicar (y con ello el
+  // dominio propio) lo deciden dueño y administradores, porque lo que se
+  // publica lo ve cualquiera en internet bajo el nombre de la empresa.
+  'websites:read': ['OWNER', 'ADMIN', 'SALES'],
+  'websites:write': ['OWNER', 'ADMIN', 'SALES'],
+  'websites:publish': ['OWNER', 'ADMIN'],
+
   // Mensajería interna: entorno de productividad transversal, no un módulo
   // vertical del negocio — todo el equipo puede usarla, mismo criterio que
   // contacts:read.
@@ -333,6 +340,9 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'manufacturing:write': 'Crear recetas y ejecutar órdenes de producción',
   'service:read': 'Ver órdenes de servicio técnico',
   'service:write': 'Recibir equipos, diagnosticar, presupuestar y entregar',
+  'websites:read': 'Ver sitios web y sus mensajes',
+  'websites:write': 'Crear y editar sitios web (borrador, imágenes y mensajes)',
+  'websites:publish': 'Publicar sitios web y configurar su dominio propio',
   'messaging:use': 'Usar la mensajería interna de la empresa',
 };
 

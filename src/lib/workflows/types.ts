@@ -391,6 +391,19 @@ export const WORKFLOW_TRIGGER_DEFINITIONS: Record<WorkflowTriggerEvent, Workflow
       { field: 'approved', label: 'Aprobado', kind: 'boolean' },
     ],
   },
+  WEB_SITE_MESSAGE_RECEIVED: {
+    event: 'WEB_SITE_MESSAGE_RECEIVED',
+    label: 'Mensaje desde un sitio web',
+    description: 'Alguien escribió desde el formulario de contacto de un sitio web publicado. Útil para avisar al equipo o responder al instante.',
+    fields: [
+      { field: 'siteId', label: 'ID del sitio', kind: 'string' },
+      { field: 'siteName', label: 'Sitio', kind: 'string' },
+      { field: 'senderName', label: 'Nombre de quien escribe', kind: 'string' },
+      { field: 'senderEmail', label: 'Correo de quien escribe', kind: 'string' },
+      { field: 'senderPhone', label: 'Teléfono', kind: 'string' },
+      { field: 'message', label: 'Mensaje', kind: 'string' },
+    ],
+  },
 };
 
 export const WORKFLOW_ACTION_TYPE_LABELS: Record<WorkflowActionType, string> = {

@@ -337,3 +337,19 @@ export const CUSTOMER_PORTAL_RATE_LIMIT: RateLimitConfig = {
   limit: 90,
   windowMs: 15 * 60_000,
 };
+
+/** Formulario de contacto de un sitio web publicado: mensajes por IP. Pocos
+ * mensajes legítimos por hora desde una misma conexión; más es spam. */
+export const WEB_SITE_CONTACT_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'web-site-contact-ip',
+  limit: 5,
+  windowMs: 60 * 60_000,
+};
+
+/** Mismo formulario, por sitio: tope global para que un ataque distribuido no
+ * llene la bandeja ni el correo de una empresa. */
+export const WEB_SITE_CONTACT_SITE_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'web-site-contact-site',
+  limit: 60,
+  windowMs: 60 * 60_000,
+};

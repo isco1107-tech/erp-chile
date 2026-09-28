@@ -125,8 +125,17 @@ export type CustomDomainRoute =
   /** Cualquier otra (panel, login…): va a la plataforma, nunca bajo el dominio del certamen. */
   | { kind: 'platform' };
 
+/**
+ * Documento HTML propio de un sitio web (`/web/[slug]/raw`): el sitio en modo
+ * HTML lo incrusta en un iframe de su propio dominio, así que tiene que
+ * servirse ahí. Solo esa ruta, no todo `/web/`: un dominio no debe poder
+ * mostrar las páginas de los demás sitios.
+ */
+const WEB_SITE_RAW_RE = /^\/web\/[a-z0-9-]{3,50}\/raw\/?$/;
+
 export function customDomainRoute(pathname: string): CustomDomainRoute {
   if (pathname === '/' || pathname === '') return { kind: 'site' };
+  if (WEB_SITE_RAW_RE.test(pathname)) return { kind: 'pass' };
   if (CUSTOM_DOMAIN_PASSTHROUGH.some((prefix) => pathname === prefix || pathname.startsWith(prefix.endsWith('/') ? prefix : `${prefix}/`))) {
     return { kind: 'pass' };
   }

@@ -1189,6 +1189,97 @@ export const MANUAL_SECTIONS: ManualSection[] = [
       },
     ],
   },
+  {
+    key: 'hasWebSites',
+    title: 'Sitios web',
+    route: '/dashboard/web-sites',
+    topics: [
+      {
+        id: 'crear-sitio-asistente',
+        title: 'Crear un sitio con el asistente',
+        steps: [
+          'Haz clic en "Nuevo sitio" dentro de Sitios web.',
+          'Paso 1: elige el tipo (Página de captación, Sitio de empresa, Portafolio, Catálogo, Evento, Profesional independiente o En blanco) y revisa las secciones esenciales que sugiere.',
+          'Paso 2: selecciona "Guiado" (recomendado, por secciones con ejemplos) u "HTML propio" (escribes tu HTML y CSS; sin JavaScript ni formularios).',
+          'Paso 3: escribe el nombre, la dirección pública (/web/tu-direccion, se autogenera) y, si corresponde, asocia un cliente.',
+        ]
+      },
+      {
+        id: 'armar-contenido-que-le-falta',
+        title: 'Armar el contenido y usar la lista "Qué le falta"',
+        steps: [
+          'En la pestaña Contenido (modo Guiado), agrega secciones: Portada, Texto, Imagen, Galería, Servicios o beneficios, Llamado a la acción, Preguntas frecuentes, Testimonios, Contacto.',
+          'Sube, baja, oculta, duplica o elimina secciones con los controles de cada una.',
+          'Reemplaza los textos de ejemplo por los tuyos.',
+          'Abre la pestaña "Qué le falta": resuelve los ítems obligatorios (portada con título, forma de contacto, enlaces válidos y textos de ejemplo reemplazados; en HTML: contenido) que bloquean la publicación y revisa las recomendaciones.',
+        ]
+      },
+      {
+        id: 'subir-imagenes-describirlas',
+        title: 'Subir imágenes y describirlas',
+        steps: [
+          'Ve a la pestaña Imágenes o elige una imagen al editar una sección; sube JPG, PNG o WEBP (máx. 4 MB, hasta 60 por sitio).',
+          'Escribe una descripción (alt) para cada imagen: la usan lectores de pantalla y buscadores.',
+          'No puedes eliminar una imagen que el sitio está usando; primero quítala de las secciones.',
+        ]
+      },
+      {
+        id: 'cambiar-colores-tipografia',
+        title: 'Cambiar colores y tipografía',
+        steps: [
+          'En la pestaña Diseño, define color principal, acento, fondo y texto; el sistema avisa si el texto no se lee bien sobre el fondo.',
+          'Elige tipografía: Moderna, Clásica o Editorial.',
+          'Ajusta esquinas (rectas, suaves, redondeadas), barra superior y texto del pie.',
+        ]
+      },
+      {
+        id: 'publicar-despublicar',
+        title: 'Publicar y despublicar',
+        steps: [
+          'Solo dueño y administradores: haz clic en "Publicar", revisa el resumen de la lista "Qué le falta" y confirma.',
+          'El sitio publicado es una copia: seguir editando no cambia lo que está en internet hasta que pulses "Publicar cambios".',
+          'Para sacar el sitio de internet, usa "Despublicar".',
+          'Un sitio publicado hay que despublicarlo antes de eliminarlo; también puedes archivarlo o duplicarlo.',
+        ]
+      },
+      {
+        id: 'recibir-mensajes-formulario',
+        title: 'Recibir mensajes del formulario',
+        steps: [
+          'Los mensajes del formulario de contacto llegan a la pestaña "Mensajes" del sitio (con aviso en la campanita).',
+          'Marca los mensajes como leídos o elimínalos.',
+          'Para recibirlos también por correo, crea una automatización con el disparador "Mensaje desde un sitio web".',
+        ]
+      },
+      {
+        id: 'usar-dominio-propio',
+        title: 'Usar tu propio dominio',
+        steps: [
+          'En Ajustes, escribe tu dominio (ej. minegocio.cl).',
+          'Crea en tu proveedor de DNS los registros que te muestra el sistema y pulsa "Revisar estado"; puede tardar hasta 24 horas.',
+          'Un dominio solo puede usarlo un sitio o certamen a la vez.',
+        ]
+      },
+      {
+        id: 'usar-html-propio',
+        title: 'Usar HTML propio (qué sí y qué no)',
+        steps: [
+          'En el asistente, paso 2, elige "HTML propio" para escribir tu HTML y CSS.',
+          'Queda permitido: HTML y CSS propios.',
+          'No se permite: JavaScript ni formularios (el formulario de contacto lo provee el editor en modo Guiado).',
+        ]
+      },
+      {
+        id: 'armar-sitio-cliente',
+        title: 'Armar el sitio para un cliente (asociar cliente, duplicar como plantilla)',
+        steps: [
+          'Al crear el sitio (paso 3 del asistente) o en Ajustes, asócialo a un cliente (puedes cambiarlo después en Ajustes); así sabes para quién es cada sitio.',
+          'Con el sitio listo, usa "Duplicar" en la lista de sitios: crea una copia como borrador para reutilizar el armado con otro cliente.',
+          'Permisos: ven y editan dueño, administradores y ventas; publicar, archivar, eliminar y dominio solo dueño y administradores.',
+        ]
+      },
+    ]
+  },
 ];
 
 /**
