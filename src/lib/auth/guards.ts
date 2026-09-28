@@ -42,6 +42,13 @@ export interface AuthContext extends AuthSession {
   /** Permisos ya cruzados con los módulos que la empresa tiene contratados. */
   permissions: Permission[];
   customRoleId: string | null;
+  /**
+   * La sesión pedía otra empresa (multiempresa) y ya no se pudo abrir: se
+   * quitó la membresía o se apagó el módulo. El contexto cayó a la empresa
+   * hogar, y el panel lo avisa: sin aviso, la persona seguiría trabajando
+   * creyendo que está en la otra empresa.
+   */
+  activeCompanyUnavailable: boolean;
   customRoleName: string | null;
   /** Fuerza el flujo de "nueva contraseña" antes de dejar pasar a cualquier ruta del dashboard. */
   mustChangePassword: boolean;
@@ -205,6 +212,7 @@ const loadContext = cache(async (userId: string, activeCompanyId: string | undef
     customRoleId: effectiveCustomRoleId,
     customRoleName: effectiveCustomRoleName,
     mustChangePassword: user.mustChangePassword,
+    activeCompanyUnavailable: Boolean(activeCompanyId && activeCompanyId !== user.companyId && effectiveCompanyId === user.companyId),
   };
 });
 

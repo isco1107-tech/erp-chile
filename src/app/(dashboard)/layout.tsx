@@ -22,6 +22,8 @@ import HeaderAssistantButtons from '@/components/shared/HeaderAssistantButtons';
 import { MobileNavProvider, MobileNavToggle, MobileNavBackdrop, MobileNavDrawer } from '@/components/shared/MobileNav';
 import { SidebarNav } from '@/components/shared/SidebarNav';
 import { CompanySwitcher } from '@/components/shared/CompanySwitcher';
+import { ActiveCompanyGuard } from '@/components/shared/ActiveCompanyGuard';
+import { ActiveCompanyLostNotice } from '@/components/shared/ActiveCompanyLostNotice';
 import { ConfirmProvider } from '@/components/ui/confirm-provider';
 import OnboardingWizard from '@/components/onboarding/OnboardingWizard';
 import ManualAssistantWidget from '@/components/shared/ManualAssistantWidget';
@@ -228,6 +230,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
             <main id="contenido-principal" tabIndex={-1} className="flex-1 outline-none print:p-0">
               <div className="mx-auto max-w-[1440px] p-4 sm:p-6 lg:p-8 print:p-0">
+                {context.activeCompanyUnavailable && <ActiveCompanyLostNotice companyId={context.companyId} companyName={context.companyName} />}
                 <DisabledSectionGate sections={gateSections} canConfigure={allow('settings:company')}>
                   {children}
                 </DisabledSectionGate>
@@ -246,6 +249,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         )}
         <ManualAssistantWidget />
         <ModuleTutorial userId={context.id} />
+        <ActiveCompanyGuard companyId={context.companyId} companyName={context.companyName} />
       </ConfirmProvider>
     </div>
   );

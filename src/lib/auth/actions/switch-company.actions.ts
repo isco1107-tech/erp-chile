@@ -72,8 +72,10 @@ export async function switchActiveCompanyAction(targetCompanyId: string): Promis
   const session = await getAuthContext();
 
   // Ya está trabajando en esa empresa (p. ej. la eligió en el selector del
-  // login y era la hogar): no hace falta reemitir la sesión ni auditar un cambio.
-  if (targetCompanyId === session.companyId) redirect('/dashboard');
+  // login y era la hogar): no hace falta reemitir la sesión ni auditar un
+  // cambio. Salvo que haya caído a la hogar porque perdió la otra empresa: ahí
+  // sí se reemite, para que la sesión deje de pedir la empresa perdida.
+  if (targetCompanyId === session.companyId && !session.activeCompanyUnavailable) redirect('/dashboard');
 
   const user = await prisma.user.findUnique({
     where: { id: session.id },
