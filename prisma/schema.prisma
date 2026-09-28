@@ -214,6 +214,7 @@ model Company {
   workflowRules             WorkflowRule[]
   workflowExecutions        WorkflowExecution[]
   workflowNotifications     WorkflowNotification[]
+  pushSubscriptions         PushSubscription[]
   opportunities             Opportunity[]
   crmActivities             CrmActivity[]
   crmPeople                 CrmPerson[]
@@ -312,6 +313,7 @@ model User {
   approvedPurchaseDocuments        PurchaseDocument[]        @relation("PurchaseApprovals")
   matchOverriddenPurchaseDocuments PurchaseDocument[]        @relation("PurchaseMatchOverrides")
   sessions                         UserSession[]
+  pushSubscriptions                PushSubscription[]
   assignedServiceTickets           ServiceTicket[]           @relation("ServiceTicketTechnician")
   /// Empresas ADICIONALES a `companyId` (la "hogar") que este usuario puede
   /// activar sin iniciar sesión de nuevo — ver `CompanyMembership` y
@@ -3622,6 +3624,31 @@ model WorkflowExecution {
   /// El historial de una regla (más reciente primero) es el patrón de acceso
   /// principal de la UI.
   @@index([companyId, ruleId, createdAt])
+}
+
+/// Un navegador o PWA instalada que aceptó recibir avisos (Web Push). El
+/// `endpoint` lo entrega el servicio push del navegador y es único por
+/// dispositivo; `p256dh` y `auth` son las llaves públicas con que se cifra
+/// cada aviso para ese dispositivo. Recibe lo mismo que la campanita
+/// (`WorkflowNotification`) de la empresa en que estaba el usuario al
+/// activarlo; ver src/lib/notifications/web-push.ts.
+model PushSubscription {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  endpoint  String  @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+
+  createdAt     DateTime  @default(now())
+  lastSuccessAt DateTime?
+
+  @@index([companyId])
+  @@index([userId])
 }
 
 model WorkflowNotification {

@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { prisma } from '@/lib/prisma';
+import { notifyCompany } from '@/lib/notifications/company-notification';
 import { sendEmail } from '@/lib/email/mailer';
 import { escapeHtml } from '@/lib/email/templates';
 import { isSafeOutboundWebhookUrl, assertResolvesToPublicAddress } from '@/lib/security/outbound-url';
@@ -67,16 +67,7 @@ async function runCreateNotification(
   const title = renderTemplate(action.title, payload).text;
   const message = renderTemplate(action.message, payload).text;
 
-  await prisma.workflowNotification.create({
-    data: {
-      companyId: context.companyId,
-      ruleId: context.ruleId,
-      severity: action.severity,
-      title,
-      message,
-      href: action.href || null,
-    },
-  });
+  await notifyCompany(context.companyId, { ruleId: context.ruleId, severity: action.severity, title, message, href: action.href });
 
   return { type: 'CREATE_NOTIFICATION', success: true, detail: `Notificación creada: "${title}"` };
 }

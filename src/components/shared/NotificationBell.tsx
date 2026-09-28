@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Popover } from '@base-ui/react/popover';
 import { Bell, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PushNotificationsToggle } from '@/components/shared/PushNotificationsToggle';
 import { getNotificationSummaryAction, dismissWorkflowNotificationAction, type NotificationItem } from '@/lib/actions/notifications';
 
 const SEVERITY_DOT: Record<NotificationItem['severity'], string> = {
@@ -86,6 +87,7 @@ export default function NotificationBell() {
                   )}
                 </Link>
               ))}
+            <PushNotificationsToggle />
           </Popover.Popup>
         </Popover.Positioner>
       </Popover.Portal>

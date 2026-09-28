@@ -37,6 +37,9 @@ const EXCLUDED_MODELS = new Set([
   'TotpBackupCode',
   // Deduplicación interna de webhooks: ruido de infraestructura.
   'ProcessedWebhookEvent',
+  // Suscripciones Web Push: son de un navegador puntual (y su endpoint es
+  // una URL-capacidad para mandarle avisos), no datos portables de la empresa.
+  'PushSubscription',
   // Marca de "jti ya confirmado" del asistente de IA (OP-07): estado interno
   // de deduplicación, no dato de negocio. El campo `jti` no matchea
   // SENSITIVE_FIELD_PATTERN (no es un secreto reutilizable una vez

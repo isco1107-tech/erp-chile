@@ -4,6 +4,7 @@ import { extractClientIp } from '@/lib/auth/ip-allowlist';
 import { checkRateLimit, SPONSOR_LEAD_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { captureException } from '@/lib/observability';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
+import { notifyCompany, type CompanyNotificationInput } from '@/lib/notifications/company-notification';
 import { publicSponsorLeadSchema, SPONSOR_LEAD_HONEYPOT_FIELD, type PublicSponsorLeadInput } from '@/modules/crm/schema';
 import { getAppUrl, sendEmail } from '@/lib/email/mailer';
 import { buildSponsorLeadConfirmationEmail, buildSponsorLeadNoticeEmail } from '@/lib/email/templates';
@@ -65,14 +66,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
     const lead = await createInboundSponsorLead(target.companyId, target.project, parsed.data);
 
     if (!lead.deduplicated) {
-      await prisma.workflowNotification.create({
-        data: {
-          companyId: target.companyId,
-          severity: 'INFO',
-          title: 'Nueva marca interesada en ser sponsor',
-          message: `${parsed.data.companyName} (${parsed.data.contactName}) escribió desde el sitio de ${target.project.name}.`,
-          href: `/dashboard/crm?open=${lead.opportunityId}`,
-        },
+      notifyInBackground(target.companyId, {
+        severity: 'INFO',
+        title: 'Nueva marca interesada en ser sponsor',
+        message: `${parsed.data.companyName} (${parsed.data.contactName}) escribió desde el sitio de ${target.project.name}.`,
+        href: `/dashboard/crm?open=${lead.opportunityId}`,
       });
       // Después de confirmar el registro, nunca dentro de la transacción.
       void emitWorkflowEvent(target.companyId, 'CRM_LEAD_RECEIVED', {
@@ -96,6 +94,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
 
 type SponsorLeadTarget = NonNullable<Awaited<ReturnType<typeof resolveSponsorLeadTarget>>>;
 
+/**
+ * Campanita + Web Push después de responder: es un formulario público y el
+ * push a los dispositivos del equipo no debe demorar ni romper la respuesta.
+ */
+function notifyInBackground(companyId: string, input: CompanyNotificationInput): void {
+  after(async () => {
+    try {
+      await notifyCompany(companyId, input);
+    } catch (error) {
+      captureException(error, { module: 'crm', companyId, extra: { reason: 'sponsor-lead-notification' } });
+    }
+  });
+}
+
 async function notifyWithoutCrm(target: SponsorLeadTarget, lead: PublicSponsorLeadInput): Promise<void> {
   const pkg = lead.packageId
     ? await prisma.sponsorshipPackage.findFirst({
@@ -104,14 +116,11 @@ async function notifyWithoutCrm(target: SponsorLeadTarget, lead: PublicSponsorLe
       })
     : null;
 
-  await prisma.workflowNotification.create({
-    data: {
-      companyId: target.companyId,
-      severity: 'INFO',
-      title: 'Nueva marca interesada en ser sponsor',
-      message: `${lead.companyName} (${lead.contactName} · ${lead.phone} · ${lead.email}) escribió desde el sitio de ${target.project.name}.`.slice(0, 500),
-      href: `/dashboard/projects/${target.project.id}`,
-    },
+  notifyInBackground(target.companyId, {
+    severity: 'INFO',
+    title: 'Nueva marca interesada en ser sponsor',
+    message: `${lead.companyName} (${lead.contactName} · ${lead.phone} · ${lead.email}) escribió desde el sitio de ${target.project.name}.`.slice(0, 500),
+    href: `/dashboard/projects/${target.project.id}`,
   });
 
   after(async () => {

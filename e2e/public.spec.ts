@@ -22,7 +22,7 @@ test('una contraseña incorrecta se rechaza sin entrar al panel', async ({ page 
   await expect(page).toHaveURL(/\/login/);
 });
 
-for (const route of ['/robots.txt', '/sitemap.xml', '/manifest.webmanifest', '/politica-privacidad']) {
+for (const route of ['/robots.txt', '/sitemap.xml', '/manifest.webmanifest', '/politica-privacidad', '/sw.js']) {
   test(`${route} responde`, async ({ request }) => {
     const response = await request.get(route);
     expect(response.status()).toBe(200);
