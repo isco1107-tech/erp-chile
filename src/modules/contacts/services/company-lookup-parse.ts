@@ -162,7 +162,7 @@ export type LookupUnavailableCause = 'quota' | 'not-configured' | 'error';
 /** Mensaje para la persona: accionable, y sin culpar a lo que escribió. */
 export function lookupUnavailableMessage(cause: LookupUnavailableCause): string {
   if (cause === 'quota') {
-    return 'La búsqueda automática de empresas alcanzó el límite de consultas del servicio de IA. Completa los datos a mano o inténtalo más tarde';
+    return 'La búsqueda automática de empresas alcanzó su límite de consultas. Completa los datos a mano o inténtalo más tarde';
   }
   if (cause === 'not-configured') return 'La búsqueda automática de empresas no está configurada. Completa los datos a mano';
   return 'El buscador de empresas no está disponible en este momento. Intenta de nuevo en un minuto o completa los datos a mano';
@@ -182,4 +182,39 @@ export function searchModels(env: Record<string, string | undefined>, tierModel:
 /** Clave de caché: la misma búsqueda escrita con otras mayúsculas, tildes o espacios. */
 export function lookupCacheKey(query: string): string {
   return normalize(query).replace(/\s+/g, ' ');
+}
+
+/** Un resultado de búsqueda web, venga de Tavily o de DuckDuckGo. `url` sin protocolo. */
+export interface WebSearchResult {
+  title: string;
+  url: string;
+  snippet: string;
+}
+
+/** RUTs válidos (Módulo 11) que aparecen en un texto, sin puntos ni guion para comparar. */
+export function rutsInText(text: string): Set<string> {
+  const found = new Set<string>();
+  for (const match of text.matchAll(new RegExp(RUT_RE.source, 'g'))) {
+    const rut = verifiedRut(match[1]);
+    if (rut) found.add(cleanRut(rut));
+  }
+  return found;
+}
+
+/**
+ * La IA solo ordena lo que trajo la búsqueda: un RUT que no aparece en esos
+ * resultados se descarta (lo pudo inventar), aunque pase Módulo 11. El resto
+ * del candidato se conserva para que la persona complete el RUT a mano.
+ */
+export function onlyRutsFoundInText(candidates: CompanyLookupCandidate[], text: string): CompanyLookupCandidate[] {
+  const found = rutsInText(text);
+  return candidates.map((candidate) =>
+    candidate.rut && !found.has(cleanRut(candidate.rut)) ? { ...candidate, rut: '', rutVerified: false } : candidate
+  );
+}
+
+/** Resultados como texto numerado para que la IA los lea, con un tope de largo. */
+export function webResultsAsText(results: readonly WebSearchResult[], maxChars = 6000): string {
+  const text = results.map((result, i) => `[${i + 1}] ${result.title} — ${result.url}\n${result.snippet}`).join('\n\n');
+  return text.length > maxChars ? text.slice(0, maxChars) : text;
 }
