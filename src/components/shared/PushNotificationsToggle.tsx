@@ -3,11 +3,12 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { BellRing } from 'lucide-react';
+import { SERVICE_WORKER_URL } from '@/lib/offline/service-worker';
 import { deletePushSubscriptionAction, getPushStatusAction, savePushSubscriptionAction } from '@/lib/actions/push-subscriptions';
 
 type PushState = 'hidden' | 'denied' | 'off' | 'on' | 'busy';
 
-const SW_URL = '/sw.js';
+const SW_URL = SERVICE_WORKER_URL;
 
 /** La llave VAPID viaja en base64url; `pushManager.subscribe` la pide en bytes. */
 function base64UrlToBytes(value: string): Uint8Array<ArrayBuffer> {

@@ -23,6 +23,7 @@ import { MobileNavProvider, MobileNavToggle, MobileNavBackdrop, MobileNavDrawer 
 import { SidebarNav } from '@/components/shared/SidebarNav';
 import { CompanySwitcher } from '@/components/shared/CompanySwitcher';
 import { ActiveCompanyGuard } from '@/components/shared/ActiveCompanyGuard';
+import { ServiceWorkerRegistrar } from '@/components/shared/ServiceWorkerRegistrar';
 import { ActiveCompanyLostNotice } from '@/components/shared/ActiveCompanyLostNotice';
 import { ConfirmProvider } from '@/components/ui/confirm-provider';
 import OnboardingWizard from '@/components/onboarding/OnboardingWizard';
@@ -250,6 +251,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <ManualAssistantWidget />
         <ModuleTutorial userId={context.id} />
         <ActiveCompanyGuard companyId={context.companyId} companyName={context.companyName} />
+        <ServiceWorkerRegistrar />
       </ConfirmProvider>
     </div>
   );

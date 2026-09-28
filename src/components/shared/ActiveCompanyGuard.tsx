@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { clearPrivateOfflineCache } from '@/lib/offline/service-worker';
 
 const STORAGE_KEY = 'aether:active-company';
 const CHANNEL_NAME = 'aether-active-company';
@@ -41,6 +42,10 @@ export function ActiveCompanyGuard({ companyId, companyName }: { companyId: stri
     };
 
     try {
+      // Esta pestaña abrió en otra empresa que la anterior: la copia sin
+      // conexión del POS es de la empresa anterior y se descarta.
+      const previous = parseAnnouncement(JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? 'null'));
+      if (previous && previous.companyId !== companyId) void clearPrivateOfflineCache();
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(own));
     } catch {
       // Almacenamiento bloqueado (modo privado estricto): queda BroadcastChannel.

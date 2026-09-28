@@ -81,6 +81,8 @@
     <h1>Sin conexión a internet</h1>
     <p>Aether necesita conexión para trabajar. Apenas vuelva la conexión, la app se reconecta sola — no hace falta que hagas nada.</p>
     <button id="retry">Reintentar ahora</button>
+    <p style="margin-top: 1.25rem">¿Estás en caja? El Punto de Venta abre sin conexión si ya lo usaste antes en este equipo.</p>
+    <button id="open-pos" type="button">Abrir Punto de Venta</button>
     <div class="status" id="status"></div>
   </div>
   <script src="network-check.js"></script>
@@ -109,6 +111,9 @@
     }
 
     button.addEventListener('click', () => attempt(true));
+    document.getElementById('open-pos').addEventListener('click', () => {
+      window.__TAURI__.core.invoke('switch_main_window', { mode: 'pos' }).catch(() => {});
+    });
     attempt(false);
     setInterval(() => attempt(false), 4000);
   </script>

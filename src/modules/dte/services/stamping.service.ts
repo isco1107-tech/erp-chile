@@ -112,15 +112,19 @@ export interface StampedDocument {
   signedXml: string;
 }
 
+/** El timbre no se pudo generar: la emisión completa se deshace (folio incluido). */
+export class DteStampingError extends Error {}
+
 /**
  * Genera el timbre y el XML del documento.
  *
- * Nunca lanza hacia el llamador: un fallo acá no puede tumbar una venta que ya
- * descontó stock y cobró. Se reporta a observabilidad y el documento queda sin
- * timbre, visible como pendiente en vez de perdido — la venta es el hecho
- * comercial, el timbre es un trámite que se puede reintentar.
+ * Falla CERRADO: se llama dentro de la transacción de emisión, así que si el
+ * timbre no se puede generar se deshace todo (stock, pago y folio del CAF) y
+ * el cajero ve el motivo. Antes se tragaba el error y quedaba un documento con
+ * folio autorizado pero sin timbre: una boleta entregada sin timbre, con un
+ * folio del SII ya gastado, que es peor que no emitir (ver assignSalesFolio).
  */
-export function stampDocument(input: StampDocumentInput): StampedDocument | null {
+export function stampDocument(input: StampDocumentInput): StampedDocument {
   try {
     const built = buildDte({
       siiCode: input.siiCode,
@@ -147,6 +151,14 @@ export function stampDocument(input: StampDocumentInput): StampedDocument | null
       module: 'dte',
       extra: { folio: input.folio, siiCode: input.siiCode },
     });
-    return null;
+    // Un carácter que el SII no acepta se lo puede corregir el propio cajero:
+    // ese mensaje se muestra tal cual. Cualquier otra falla es del CAF o del
+    // sistema y va a observabilidad, no a la pantalla.
+    const fixable = error instanceof Error && /carácter que el SII no acepta/.test(error.message);
+    throw new DteStampingError(
+      fixable && error instanceof Error
+        ? error.message
+        : 'No se pudo generar el timbre electrónico, así que el documento no se emitió. Intenta de nuevo; si se repite, revisa los folios (CAF) cargados.'
+    );
   }
 }

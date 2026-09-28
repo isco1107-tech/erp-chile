@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { LogOut } from 'lucide-react';
 import { captureException } from '@/lib/observability';
+import { clearPrivateOfflineCache } from '@/lib/offline/service-worker';
 import { cn } from '@/lib/utils';
 
 /**
@@ -18,6 +19,8 @@ export default function LogoutButton({ variant = 'text', className }: { variant?
   async function handleLogout() {
     setLoading(true);
     try {
+      // La copia sin conexión del POS tiene datos de la empresa: no queda para el siguiente.
+      await clearPrivateOfflineCache();
       await fetch('/api/auth/signout', { method: 'POST' });
       router.push('/login');
     } catch (e) {

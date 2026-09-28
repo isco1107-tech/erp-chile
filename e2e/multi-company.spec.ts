@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { OWNER_PASSWORD, OWNER_STATE, login } from './support';
 
-// Datos de e2e/fixtures/seed-multi-company.ts: una persona que trabaja en dos
+// Datos de e2e/fixtures/seed-e2e.ts: una persona que trabaja en dos
 // empresas, con un rol distinto en cada una.
 const MULTI_USER_EMAIL = 'multi@prueba.local';
 const HOME = 'Empresa de Prueba';

@@ -369,3 +369,35 @@ describe('Cifrado del CAF en reposo', () => {
     }
   });
 });
+
+describe('stampDocument falla cerrado', () => {
+  // Importación diferida: el servicio trae el cliente de base de datos.
+  const { stampDocument, DteStampingError } = jest.requireActual('@/modules/dte/services/stamping.service') as typeof import('@/modules/dte/services/stamping.service');
+  const caf = parseCaf(makeCafXml());
+  const input = {
+    siiCode: 39,
+    folio: 150,
+    issueDate: new Date('2026-09-10T14:30:00Z'),
+    paymentMethod: 'EFECTIVO',
+    issuer: { rut: '76192083-9', businessName: 'EMPRESA DEMO SPA', giro: 'Comercio', actividadEconomicaCodigo: '471000', address: 'Calle 1', comuna: 'Santiago', ciudad: 'Santiago' },
+    receiver: null,
+    lines: [{ description: 'Café', quantity: 1, unitPrice: 1000, lineTotal: 1000, isExempt: false }],
+    totals: { netAmount: 840, exemptAmount: 0, ivaAmount: 160, totalAmount: 1000 },
+    cafBlockXml: caf.cafBlockXml,
+    privateKeyPem: caf.privateKeyPem,
+  };
+
+  it('con datos válidos devuelve el timbre', () => {
+    expect(stampDocument(input).tedXml).toContain('<TED');
+  });
+
+  it('un carácter que el SII no acepta detiene la emisión con un mensaje que el cajero puede resolver', () => {
+    const bad = { ...input, lines: [{ ...input.lines[0], description: 'Café “premium”' }] };
+    expect(() => stampDocument(bad)).toThrow(DteStampingError);
+    expect(() => stampDocument(bad)).toThrow(/no acepta/);
+  });
+
+  it('una llave de CAF corrupta detiene la emisión (nunca un folio autorizado sin timbre)', () => {
+    expect(() => stampDocument({ ...input, privateKeyPem: 'no es una llave' })).toThrow(/no se emitió/);
+  });
+});

@@ -15,7 +15,7 @@ export SEED_ADMIN_PASSWORD=una-clave-de-prueba
 # 2. Migraciones desde cero + datos mínimos
 npx prisma migrate deploy
 npx tsx prisma/seed.ts
-E2E_DATABASE=1 npx tsx e2e/fixtures/seed-multi-company.ts   # 2ª empresa + persona en ambas
+E2E_DATABASE=1 npx tsx e2e/fixtures/seed-e2e.ts   # 2ª empresa + persona en ambas + POS contratado
 
 # 3. Compilar y correr
 npm run build

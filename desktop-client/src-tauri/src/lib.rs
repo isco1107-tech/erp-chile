@@ -7,6 +7,9 @@ use tauri::{
 /// Debe coincidir con DASHBOARD_URL en src/network-check.js — no hay paso de
 /// build que los mantenga sincronizados si el dominio cambia.
 const DASHBOARD_URL: &str = "https://aetherp.online/dashboard";
+/// Punto de Venta: el service worker del sitio lo guarda y lo sirve sin
+/// conexión (ver public/sw.js en el ERP), así que se puede abrir aunque no haya red.
+const POS_URL: &str = "https://aetherp.online/dashboard/pos";
 const USER_AGENT: &str = "Mozilla/5.0 AetherDesktop/0.2.0";
 
 /// Se inyecta en cada carga de página de la ventana "main" — tanto el
@@ -19,10 +22,16 @@ const CONNECTIVITY_WATCH_SCRIPT: &str = r#"
 (function () {
   if (window.__aetherConnectivityWatch) return;
   window.__aetherConnectivityWatch = true;
+  var local = window.location.protocol !== 'https:';
   window.addEventListener('offline', function () {
+    // El POS sigue funcionando sin conexión: no se lo tapa con la pantalla local.
+    if (!local && window.location.pathname.indexOf('/dashboard/pos') === 0) return;
     window.__TAURI__.core.invoke('switch_main_window', { mode: 'offline' }).catch(function () {});
   });
   window.addEventListener('online', function () {
+    // Solo la pantalla local vuelve al ERP; una página del ERP ya abierta no
+    // se recarga (perdería lo que la persona estaba haciendo).
+    if (!local) return;
     window.__TAURI__.core.invoke('switch_main_window', { mode: 'app' }).catch(function () {});
   });
 })();
@@ -37,10 +46,10 @@ fn build_main_window(app: &AppHandle, mode: &str) -> tauri::Result<()> {
         let _ = existing.close();
     }
 
-    let target = if mode == "offline" {
-        WebviewUrl::App("offline.html".into())
-    } else {
-        WebviewUrl::External(DASHBOARD_URL.parse().expect("DASHBOARD_URL inválida"))
+    let target = match mode {
+        "offline" => WebviewUrl::App("offline.html".into()),
+        "pos" => WebviewUrl::External(POS_URL.parse().expect("POS_URL inválida")),
+        _ => WebviewUrl::External(DASHBOARD_URL.parse().expect("DASHBOARD_URL inválida")),
     };
 
     let window = WebviewWindowBuilder::new(app, "main", target)
@@ -61,12 +70,16 @@ fn build_main_window(app: &AppHandle, mode: &str) -> tauri::Result<()> {
 }
 
 /// Invocado desde `splash.html` (decisión inicial) y desde `offline.html` /
-/// el script de arriba (reconexión). `mode` es "app" u "offline" — nunca una
-/// URL arbitraria: el frontend no elige a dónde navega la ventana, solo
-/// entre estos dos destinos fijos conocidos en tiempo de compilación.
+/// el script de arriba (reconexión). `mode` es "app", "offline" o "pos" —
+/// nunca una URL arbitraria: el frontend no elige a dónde navega la ventana,
+/// solo entre estos destinos fijos conocidos en tiempo de compilación.
 #[tauri::command]
 fn switch_main_window(app: AppHandle, mode: String) -> Result<(), String> {
-    let mode = if mode == "offline" { "offline" } else { "app" };
+    let mode = match mode.as_str() {
+        "offline" => "offline",
+        "pos" => "pos",
+        _ => "app",
+    };
     build_main_window(&app, mode).map_err(|e| e.to_string())
 }
 

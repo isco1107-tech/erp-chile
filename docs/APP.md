@@ -55,8 +55,8 @@ Arquitectura común para cualquier flujo sin conexión: una cola local de operac
 | 3 | Consulta sin conexión (solo lectura) y acreditación de eventos sin conexión | Proyecto |
 | 4 | POS sin conexión con folios reservados o contingencia, tras la definición tributaria | Proyecto grande |
 
-## Decisiones pendientes (del dueño del producto)
+## Decisiones (dueño del producto, 2026-09-28)
 
-1. ¿Se compran los certificados de firma (Windows y Apple Developer)? Sin ellos, la app de escritorio sigue viéndose como software no confiable al instalarla.
-2. ¿Qué flujo sin conexión va primero: eventos (acreditación) o POS?
-3. ¿Escritorio y PWA, o solo PWA? Tauri aporta firma, bandeja, avisos nativos y enlaces profundos. La PWA cubre gran parte con mucho menos mantenimiento.
+1. **Certificados de firma: todavía no.** La app de escritorio sigue sin firmar; lo que no depende de la firma (PWA instalable, ventana que recuerda tamaño, avisos nativos) sí avanza.
+2. **Primer flujo sin conexión: el POS.** Antes de programar, el especialista tributario define la estrategia de folios y timbre (ver `docs/adr/`).
+3. **Se mantienen ambas: escritorio (Tauri) y PWA.** El POS sin conexión se construye sobre el service worker del sitio, que funciona igual en el navegador, en la PWA instalada y dentro de la ventana Tauri (que carga el mismo origen).

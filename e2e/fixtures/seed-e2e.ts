@@ -1,12 +1,15 @@
 /**
- * Datos de Multiempresa para los recorridos E2E: una segunda empresa con el
- * módulo activo y una persona que trabaja en las dos (hogar + membresía).
+ * Datos extra para los recorridos E2E, sobre lo que deja prisma/seed.ts:
+ * - Multiempresa: una segunda empresa con el módulo activo y una persona que
+ *   trabaja en las dos (hogar + membresía).
+ * - POS contratado en la empresa de prueba, para recorrer el POS real y su
+ *   modo sin conexión.
  *
  * SOLO para la base efímera de E2E: la DATABASE_URL local de este proyecto es
  * la de producción (CLAUDE.md §5), así que exige E2E_DATABASE=1 y se niega a
  * correr contra Neon o en un runtime de producción.
  *
- *   E2E_DATABASE=1 npx tsx e2e/fixtures/seed-multi-company.ts
+ *   E2E_DATABASE=1 npx tsx e2e/fixtures/seed-e2e.ts
  */
 import bcrypt from 'bcryptjs';
 import { prisma } from '../../src/lib/prisma';
@@ -18,16 +21,21 @@ export const HOME_COMPANY_NAME = 'Empresa de Prueba';
 export const SECOND_COMPANY_NAME = 'Filial E2E SpA';
 
 async function main() {
-  assertScriptCanRun('e2e/fixtures/seed-multi-company.ts');
+  assertScriptCanRun('e2e/fixtures/seed-e2e.ts');
   const url = process.env.DATABASE_URL ?? '';
   if (process.env.E2E_DATABASE !== '1' || /neon\.tech/i.test(url)) {
-    process.stderr.write('seed-multi-company: solo corre contra la base efímera de E2E (E2E_DATABASE=1, nunca Neon).\n');
+    process.stderr.write('seed-e2e: solo corre contra la base efímera de E2E (E2E_DATABASE=1, nunca Neon).\n');
     process.exit(1);
   }
   const password = process.env.SEED_ADMIN_PASSWORD;
   if (!password) throw new Error('Falta SEED_ADMIN_PASSWORD');
 
   const home = await prisma.company.findUniqueOrThrow({ where: { rut: formatRut('99999999-9') } });
+  await prisma.companyFeatures.upsert({
+    where: { companyId: home.id },
+    update: { hasPos: true },
+    create: { companyId: home.id, hasPos: true },
+  });
   const second = await prisma.company.upsert({
     where: { rut: formatRut('76192083-9') },
     update: {},
@@ -56,7 +64,7 @@ async function main() {
     update: { role: 'ACCOUNTANT' },
     create: { userId: user.id, companyId: second.id, role: 'ACCOUNTANT' },
   });
-  console.log('Multiempresa E2E listo');
+  console.log('Datos E2E listos');
 }
 
 main()
