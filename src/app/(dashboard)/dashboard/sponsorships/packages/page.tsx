@@ -1,12 +1,15 @@
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PackagesClient } from '@/components/sponsorships/PackagesClient';
-import { can, requireAuthWithPermission } from '@/lib/auth/guards';
+import { can, checkPageAccess } from '@/lib/auth/guards';
+import { PageAccessNotice } from '@/components/shared/PageAccessNotice';
 import { listProjectsForSelect } from '@/modules/sponsorships/services/sponsorships.service';
 
 export const metadata = { title: 'Tarifario de auspicios' };
 
 export default async function SponsorshipPackagesPage() {
-  const context = await requireAuthWithPermission('sponsorships:read');
+  const access = await checkPageAccess('sponsorships:read');
+  if (access.denied) return <PageAccessNotice denied={access.denied} />;
+  const context = access.context;
   const projects = await listProjectsForSelect(context.companyId);
 
   return (

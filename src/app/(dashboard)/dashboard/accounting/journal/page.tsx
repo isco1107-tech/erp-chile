@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { BookOpenText, ChevronLeft, ChevronRight } from 'lucide-react';
-import { requireAuthWithPermission } from '@/lib/auth/guards';
+import { checkPageAccess } from '@/lib/auth/guards';
+import { PageAccessNotice } from '@/components/shared/PageAccessNotice';
 import { formatCurrency } from '@/lib/chile/tax';
 import { listJournalEntries } from '@/modules/accounting/services/books.service';
 import { parseAccountingPeriod } from '@/components/accounting/period';
@@ -23,8 +24,9 @@ export default async function JournalBookPage({
   searchParams: Promise<{ year?: string; month?: string; page?: string }>;
 }) {
   // Sin permiso, ModuleGate (layout) ya muestra el aviso: la página no carga nada.
-  const session = await requireAuthWithPermission('accounting:view').catch(() => null);
-  if (!session) return null;
+  const access = await checkPageAccess('accounting:view');
+  if (access.denied) return <PageAccessNotice denied={access.denied} />;
+  const session = access.context;
   const params = await searchParams;
   const period = parseAccountingPeriod(params);
   const requestedPage = Math.max(1, Math.floor(Number(params.page)) || 1);

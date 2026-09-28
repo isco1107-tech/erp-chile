@@ -95,7 +95,9 @@ export default function ManualClient({ sections, companyName }: { sections: Manu
       <div className="hidden print:block">
         <h1 className="text-2xl font-bold">Manual de Usuario — {companyName}</h1>
         <p className="mb-6 text-sm text-muted-foreground">
-          Generado el {new Date().toLocaleDateString('es-CL', { day: '2-digit', month: 'long', year: 'numeric' })}
+          {/* Zona fija: sin ella el servidor (UTC) y el navegador (Chile) dan
+              días distintos de 21:00 a 24:00 y la hidratación falla. */}
+          Generado el {new Date().toLocaleDateString('es-CL', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'America/Santiago' })}
         </p>
         {sections.map((section) => (
           <div key={section.title} className="mb-6 break-inside-avoid">
