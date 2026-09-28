@@ -88,6 +88,10 @@ export async function syncOfflineOperationAction(input: unknown): Promise<Action
     if (operation.companyId !== session.companyId) {
       return { success: false, error: 'Esta operación se hizo en otra empresa: entra a esa empresa para sincronizarla' };
     }
+    // En un equipo compartido, lo que hizo un cajero no queda a nombre de otro.
+    if (operation.capturedBy !== session.id) {
+      return { success: false, error: 'Esta operación la hizo otra persona: debe entrar ella para sincronizarla' };
+    }
     const capturedAt = new Date(operation.capturedAt);
     const problem = capturedAtProblem(capturedAt);
     if (problem) return { success: false, error: problem };

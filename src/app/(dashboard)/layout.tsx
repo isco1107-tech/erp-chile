@@ -24,6 +24,7 @@ import { SidebarNav } from '@/components/shared/SidebarNav';
 import { CompanySwitcher } from '@/components/shared/CompanySwitcher';
 import { ActiveCompanyGuard } from '@/components/shared/ActiveCompanyGuard';
 import { ServiceWorkerRegistrar } from '@/components/shared/ServiceWorkerRegistrar';
+import { OfflineQueueIndicator } from '@/components/shared/OfflineQueueIndicator';
 import { ActiveCompanyLostNotice } from '@/components/shared/ActiveCompanyLostNotice';
 import { ConfirmProvider } from '@/components/ui/confirm-provider';
 import OnboardingWizard from '@/components/onboarding/OnboardingWizard';
@@ -215,6 +216,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
                 disabledNavItems={disabledNavItems}
               />
               <div className="flex-1" />
+              <OfflineQueueIndicator companyId={context.companyId} userId={context.id} />
               <HowToUseButton />
               <HeaderAssistantButtons />
               {allow('messaging:use') && <MessagingBell />}

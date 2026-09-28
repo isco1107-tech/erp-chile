@@ -19,6 +19,8 @@ export const OFFLINE_CLOCK_SKEW_MS = 5 * 60 * 1000;
 
 const base = {
   companyId: z.string().min(1).max(100),
+  /** Quién la hizo: solo esa misma persona la sincroniza (queda a su nombre). */
+  capturedBy: z.string().min(1).max(100),
   idempotencyKey: z.string().min(8).max(100),
   capturedAt: z.string().datetime(),
   /** Reintento explícito de una operación que el servidor rechazó. */

@@ -114,7 +114,7 @@ describe('claimOfflineOperation', () => {
 });
 
 describe('syncOfflineOperationAction', () => {
-  const base = { companyId: 'c1', idempotencyKey: 'clave-offline-123', capturedAt: new Date().toISOString() };
+  const base = { companyId: 'c1', capturedBy: 'u1', idempotencyKey: 'clave-offline-123', capturedAt: new Date().toISOString() };
 
   beforeEach(() => {
     (requireAuthWithPermission as jest.Mock).mockResolvedValue({ id: 'u1', companyId: 'c1' });
@@ -123,6 +123,12 @@ describe('syncOfflineOperationAction', () => {
   it('nunca aplica una operación en otra empresa', async () => {
     const result = await syncOfflineOperationAction({ ...base, companyId: 'otra', kind: 'POS_SALE', shiftId: 'turno-1', payload: {} });
     expect(result).toEqual({ success: false, error: expect.stringContaining('otra empresa') });
+    expect(op.create).not.toHaveBeenCalled();
+  });
+
+  it('solo la persona que la hizo la sincroniza', async () => {
+    const result = await syncOfflineOperationAction({ ...base, capturedBy: 'otro-cajero', kind: 'POS_SALE', shiftId: 'turno-1', payload: {} });
+    expect(result).toEqual({ success: false, error: expect.stringContaining('otra persona') });
     expect(op.create).not.toHaveBeenCalled();
   });
 
