@@ -292,6 +292,8 @@ export async function checkPageAccess(
     return { context: await requireAuthWithPermission(permission), denied: null };
   } catch (error) {
     if (error instanceof ModuleNotEnabledError) return { context: null, denied: 'module' };
+    // IP fuera de la lista permitida: el layout la redirige al login.
+    if (error instanceof IpNotAllowedError) throw error;
     if (error instanceof AuthError && error.status === 403) return { context: null, denied: 'permission' };
     throw error;
   }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { BellRing } from 'lucide-react';
-import { deletePushSubscriptionAction, getPushPublicKeyAction, savePushSubscriptionAction } from '@/lib/actions/push-subscriptions';
+import { deletePushSubscriptionAction, getPushStatusAction, savePushSubscriptionAction } from '@/lib/actions/push-subscriptions';
 
 type PushState = 'hidden' | 'denied' | 'off' | 'on' | 'busy';
 
@@ -40,11 +40,14 @@ export function PushNotificationsToggle() {
     if (!pushSupported()) return;
     let cancelled = false;
     (async () => {
-      const result = await getPushPublicKeyAction();
+      const existing = await currentSubscription();
+      // El servidor dice si esa suscripción es de esta persona y esta sesión:
+      // en un navegador compartido puede ser la de quien entró antes.
+      const result = await getPushStatusAction(existing?.endpoint ?? null);
       if (cancelled || !result.success || !result.data.publicKey) return;
       setPublicKey(result.data.publicKey);
       if (Notification.permission === 'denied') return setState('denied');
-      setState((await currentSubscription()) ? 'on' : 'off');
+      setState(result.data.subscribed ? 'on' : 'off');
     })().catch(() => undefined);
     return () => {
       cancelled = true;

@@ -9,6 +9,11 @@ export interface CompanyNotificationInput {
   message: string;
   href?: string | null;
   ruleId?: string | null;
+  /**
+   * Texto del push si debe ser más discreto que el de la campanita: el push
+   * se ve en la pantalla bloqueada. Por ejemplo, sin teléfono ni correo.
+   */
+  pushMessage?: string;
 }
 
 /**
@@ -31,5 +36,5 @@ export async function notifyCompany(companyId: string, input: CompanyNotificatio
       href: input.href || null,
     },
   });
-  await sendPushToCompany(companyId, buildPushPayload(input));
+  await sendPushToCompany(companyId, buildPushPayload({ title: input.title, message: input.pushMessage ?? input.message, href: input.href }));
 }

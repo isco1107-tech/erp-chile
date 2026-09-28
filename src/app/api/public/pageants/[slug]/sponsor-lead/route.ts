@@ -120,6 +120,7 @@ async function notifyWithoutCrm(target: SponsorLeadTarget, lead: PublicSponsorLe
     severity: 'INFO',
     title: 'Nueva marca interesada en ser sponsor',
     message: `${lead.companyName} (${lead.contactName} · ${lead.phone} · ${lead.email}) escribió desde el sitio de ${target.project.name}.`.slice(0, 500),
+    pushMessage: `${lead.companyName} escribió desde el sitio de ${target.project.name}.`,
     href: `/dashboard/projects/${target.project.id}`,
   });
 

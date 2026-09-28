@@ -40,6 +40,11 @@ describe('isAllowedPushEndpoint', () => {
       'https://evil.com/fcm.googleapis.com',
       'https://fcm.googleapis.com.evil.com/x',
       'https://evilpush.apple.com.attacker.io/x',
+      // Una sola barra: `new URL` la acepta, pero el url.parse de web-push la
+      // lee sin host y conecta a 127.0.0.1.
+      'https:/fcm.googleapis.com/x',
+      ' https://fcm.googleapis.com/x',
+      'https://fcm.googleapis.com\\x',
       'no es url',
     ]) {
       expect(isAllowedPushEndpoint(endpoint)).toBe(false);
@@ -99,6 +104,9 @@ describe('getVapidConfig', () => {
   });
 });
 
+/** Suscripción activada desde una sesión viva, sin cambios de contraseña desde entonces. */
+const LIVE = { sessionVersion: 3, session: { revokedAt: null }, user: { sessionVersion: 3 } };
+
 describe('sendPushToCompany', () => {
   const originalEnv = process.env;
   const payload = { title: 'Aviso', body: 'Cuerpo', href: '/dashboard' };
@@ -127,8 +135,8 @@ describe('sendPushToCompany', () => {
   it('borra las suscripciones que el servicio da por muertas (410) y marca las entregadas', async () => {
     (prisma.company.findFirst as jest.Mock).mockResolvedValue({ status: 'ACTIVE', features: null });
     (prisma.pushSubscription.findMany as jest.Mock).mockResolvedValue([
-      { id: 's1', endpoint: 'https://fcm.googleapis.com/fcm/send/s1', p256dh: 'p1', auth: 'a1' },
-      { id: 's2', endpoint: 'https://fcm.googleapis.com/fcm/send/s2', p256dh: 'p2', auth: 'a2' },
+      { id: 's1', endpoint: 'https://fcm.googleapis.com/fcm/send/s1', p256dh: 'p1', auth: 'a1', ...LIVE },
+      { id: 's2', endpoint: 'https://fcm.googleapis.com/fcm/send/s2', p256dh: 'p2', auth: 'a2', ...LIVE },
     ]);
     (webpush.sendNotification as jest.Mock).mockResolvedValueOnce(undefined).mockRejectedValueOnce({ statusCode: 410 });
 
@@ -139,7 +147,7 @@ describe('sendPushToCompany', () => {
 
   it('una fila guardada con un endpoint no permitido se borra sin hacerle el POST', async () => {
     (prisma.company.findFirst as jest.Mock).mockResolvedValue({ status: 'ACTIVE', features: null });
-    (prisma.pushSubscription.findMany as jest.Mock).mockResolvedValue([{ id: 's9', endpoint: 'https://169.254.169.254/latest', p256dh: 'p', auth: 'a' }]);
+    (prisma.pushSubscription.findMany as jest.Mock).mockResolvedValue([{ id: 's9', endpoint: 'https://169.254.169.254/latest', p256dh: 'p', auth: 'a', ...LIVE }]);
 
     await expect(sendPushToCompany('c1', payload)).resolves.toEqual({ sent: 0, removed: 1 });
     expect(webpush.sendNotification).not.toHaveBeenCalled();
@@ -147,7 +155,7 @@ describe('sendPushToCompany', () => {
 
   it('un error 500 del servicio se reporta y no borra la suscripción', async () => {
     (prisma.company.findFirst as jest.Mock).mockResolvedValue({ status: 'ACTIVE', features: null });
-    (prisma.pushSubscription.findMany as jest.Mock).mockResolvedValue([{ id: 's1', endpoint: 'https://fcm.googleapis.com/fcm/send/s1', p256dh: 'p1', auth: 'a1' }]);
+    (prisma.pushSubscription.findMany as jest.Mock).mockResolvedValue([{ id: 's1', endpoint: 'https://fcm.googleapis.com/fcm/send/s1', p256dh: 'p1', auth: 'a1', ...LIVE }]);
     (webpush.sendNotification as jest.Mock).mockRejectedValueOnce({ statusCode: 500 });
 
     await expect(sendPushToCompany('c1', payload)).resolves.toEqual({ sent: 0, removed: 0 });
@@ -171,6 +179,26 @@ describe('sendPushToCompany', () => {
         where: expect.objectContaining({ user: { isActive: true, OR: [{ companyId: 'c1' }, { companyMemberships: { some: { companyId: 'c1' } } }] } }),
       }),
     );
+  });
+
+  it('una sesión cerrada o revocada, o una contraseña cambiada, apagan los avisos de ese dispositivo', async () => {
+    (prisma.company.findFirst as jest.Mock).mockResolvedValue({ status: 'ACTIVE', features: null, settings: null });
+    (prisma.pushSubscription.findMany as jest.Mock).mockResolvedValue([
+      { id: 'viva', endpoint: 'https://fcm.googleapis.com/fcm/send/1', p256dh: 'p', auth: 'a', ...LIVE },
+      { id: 'cerrada', endpoint: 'https://fcm.googleapis.com/fcm/send/2', p256dh: 'p', auth: 'a', ...LIVE, session: { revokedAt: new Date() } },
+      { id: 'clave-cambiada', endpoint: 'https://fcm.googleapis.com/fcm/send/3', p256dh: 'p', auth: 'a', ...LIVE, user: { sessionVersion: 4 } },
+    ]);
+    (webpush.sendNotification as jest.Mock).mockResolvedValue(undefined);
+
+    await expect(sendPushToCompany('c1', payload)).resolves.toEqual({ sent: 1, removed: 2 });
+    expect(webpush.sendNotification).toHaveBeenCalledTimes(1);
+    expect(prisma.pushSubscription.deleteMany).toHaveBeenCalledWith({ where: { companyId: 'c1', id: { in: ['cerrada', 'clave-cambiada'] } } });
+  });
+
+  it('una empresa con lista de IP permitidas no recibe push', async () => {
+    (prisma.company.findFirst as jest.Mock).mockResolvedValue({ status: 'ACTIVE', features: null, settings: { ipAllowlistEnabled: true } });
+    await expect(sendPushToCompany('c1', payload)).resolves.toEqual({ sent: 0, removed: 0 });
+    expect(prisma.pushSubscription.findMany).not.toHaveBeenCalled();
   });
 
   it('nunca lanza, aunque falle la base', async () => {

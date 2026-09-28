@@ -369,6 +369,8 @@ model UserSession {
   revokedAt  DateTime?
   expiresAt  DateTime
 
+  pushSubscriptions PushSubscription[]
+
   @@index([userId, revokedAt])
   @@index([companyId])
 }
@@ -3633,11 +3635,19 @@ model WorkflowExecution {
 /// (`WorkflowNotification`) de la empresa en que estaba el usuario al
 /// activarlo; ver src/lib/notifications/web-push.ts.
 model PushSubscription {
-  id        String  @id @default(cuid())
-  companyId String
-  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             String      @id @default(cuid())
+  companyId      String
+  company        Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Sesión desde la que se activó. Cerrar sesión, cerrar ese dispositivo en
+  /// "Dispositivos activos" o revocarla apaga los avisos (sin esto, un
+  /// teléfono perdido o un navegador compartido los seguía recibiendo).
+  sessionId      String
+  session        UserSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  /// `User.sessionVersion` al activarlo: cambiar o resetear la contraseña, o
+  /// un cierre forzado, la incrementa y apaga los avisos.
+  sessionVersion Int
 
   endpoint  String  @unique
   p256dh    String
@@ -3649,6 +3659,7 @@ model PushSubscription {
 
   @@index([companyId])
   @@index([userId])
+  @@index([sessionId])
 }
 
 model WorkflowNotification {

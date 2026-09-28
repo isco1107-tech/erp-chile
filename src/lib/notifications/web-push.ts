@@ -51,6 +51,11 @@ export function isAllowedPushEndpoint(endpoint: string): boolean {
   } catch {
     return false;
   }
+  // `href` normalizado idéntico al original: `https:/fcm.googleapis.com/x`
+  // (una sola barra) pasa `new URL`, pero el `url.parse` que usa web-push lo
+  // lee sin host y termina conectando a 127.0.0.1. También descarta espacios,
+  // tabs y barras invertidas que cada parser interpreta distinto.
+  if (url.href !== endpoint) return false;
   if (url.protocol !== 'https:' || url.port !== '' || url.username || url.password) return false;
   return PUSH_SERVICE_HOSTS.some((pattern) => pattern.test(url.hostname));
 }
@@ -106,6 +111,10 @@ function statusCodeOf(error: unknown): number | null {
  * y la empresa es su empresa hogar o (con multiempresa contratado) tiene
  * membresía. Las mismas reglas que `getAuthContext`, para que un usuario
  * desactivado o sacado de la empresa deje de recibir avisos al instante.
+ * Además, la sesión desde la que se activó no puede estar revocada ni la
+ * contraseña haber cambiado desde entonces (`sessionVersion`): esas filas se
+ * borran. Una empresa con lista de IP permitidas no recibe push, porque el
+ * aviso llegaría a un dispositivo fuera de esa red.
  *
  * Nunca lanza: un aviso es I/O externo y no debe poder romper lo que lo
  * originó. Las suscripciones que el servicio push da por muertas se borran.
@@ -117,9 +126,10 @@ export async function sendPushToCompany(companyId: string, payload: PushPayload)
   try {
     const company = await prisma.company.findFirst({
       where: { id: companyId },
-      select: { status: true, features: true },
+      select: { status: true, features: true, settings: { select: { ipAllowlistEnabled: true } } },
     });
     if (!company || !isOperationalTenant(company.status)) return { sent: 0, removed: 0 };
+    if (company.settings?.ipAllowlistEnabled) return { sent: 0, removed: 0 };
     const multiCompany = toFeatureFlags(company.features).hasMultiCompany;
 
     const subscriptions = await prisma.pushSubscription.findMany({
@@ -130,7 +140,15 @@ export async function sendPushToCompany(companyId: string, payload: PushPayload)
           OR: multiCompany ? [{ companyId }, { companyMemberships: { some: { companyId } } }] : [{ companyId }],
         },
       },
-      select: { id: true, endpoint: true, p256dh: true, auth: true },
+      select: {
+        id: true,
+        endpoint: true,
+        p256dh: true,
+        auth: true,
+        sessionVersion: true,
+        session: { select: { revokedAt: true } },
+        user: { select: { sessionVersion: true } },
+      },
     });
 
     const body = JSON.stringify(payload);
@@ -143,6 +161,11 @@ export async function sendPushToCompany(companyId: string, payload: PushPayload)
         // Doble control: una fila vieja de antes de esta validación no debe
         // poder dirigir el POST a otro lado.
         if (!isAllowedPushEndpoint(subscription.endpoint)) {
+          goneIds.push(subscription.id);
+          return;
+        }
+        // Sesión cerrada o revocada, o contraseña cambiada desde que se activó.
+        if (subscription.session.revokedAt !== null || subscription.sessionVersion !== subscription.user.sessionVersion) {
           goneIds.push(subscription.id);
           return;
         }
