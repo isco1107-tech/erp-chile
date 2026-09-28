@@ -152,7 +152,8 @@ async function assertContact(companyId: string, contactId: string | null | undef
 async function uniqueSlug(base: string, excludeId?: string): Promise<string> {
   const root = base || 'sitio';
   for (let attempt = 0; attempt < 8; attempt += 1) {
-    const candidate = attempt === 0 ? root : `${root.slice(0, 44)}-${randomUUID().slice(0, 5)}`;
+    // Sin guion al final del tramo cortado: "…-" + "-xxxxx" daría un doble guion, que la regla de direcciones rechaza.
+    const candidate = attempt === 0 ? root : `${root.slice(0, 44).replace(/-+$/, '')}-${randomUUID().slice(0, 5)}`;
     const taken = await prisma.webSite.findFirst({ where: { slug: candidate, ...(excludeId ? { NOT: { id: excludeId } } : {}) }, select: { id: true } });
     if (!taken) return candidate;
   }
@@ -397,7 +398,7 @@ export async function duplicateWebSite(companyId: string, actor: { name: string 
   if (total >= MAX_SITES_PER_COMPANY) throw new WebSiteError(`Llegaste al máximo de ${MAX_SITES_PER_COMPANY} sitios activos.`);
   const source = await prisma.webSite.findFirst({ where: { id, companyId }, include: { assets: true } });
   if (!source) throw new WebSiteError('Sitio no encontrado');
-  const slug = await uniqueSlug(`${source.slug.slice(0, 40)}-copia`);
+  const slug = await uniqueSlug(slugify(`${source.slug.slice(0, 40)}-copia`));
   const copy = await prisma.webSite.create({
     data: {
       companyId,
