@@ -81,6 +81,11 @@ jobs:
       - name: Seed
         run: npx tsx prisma/seed.ts
 
+      - name: Seed multiempresa (solo base efímera)
+        run: npx tsx e2e/fixtures/seed-multi-company.ts
+        env:
+          E2E_DATABASE: '1'
+
       - name: Build
         run: npm run build
 

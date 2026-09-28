@@ -40,3 +40,15 @@ describe('buildAccessibleCompanies', () => {
     expect(buildAccessibleCompanies(null, [row('filial', 'ACTIVE', true)]).map((c) => c.isHome)).toEqual([false]);
   });
 });
+
+describe('rol por empresa en el selector', () => {
+  it('cada empresa lleva el rol con que la persona trabaja ahí', () => {
+    const list = buildAccessibleCompanies({ ...row('home', 'ACTIVE', false), roleLabel: 'Vendedor' }, [
+      { ...row('cliente', 'ACTIVE', true), roleLabel: 'Contador' },
+    ]);
+    expect(list.map((c) => [c.id, c.roleLabel])).toEqual([
+      ['home', 'Vendedor'],
+      ['cliente', 'Contador'],
+    ]);
+  });
+});

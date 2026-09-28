@@ -51,7 +51,9 @@ export function CompanyPicker({ companies }: { companies: SwitchableCompany[] })
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium text-foreground">{company.name}</span>
                 <span className="block text-xs text-muted-foreground">
-                  {!company.available ? 'No disponible: cuenta suspendida' : company.isHome ? 'Empresa principal' : 'Acceso adicional'}
+                  {!company.available
+                    ? 'No disponible: cuenta suspendida'
+                    : [company.isHome ? 'Empresa principal' : 'Acceso adicional', company.roleLabel].filter(Boolean).join(' · ')}
                 </span>
               </span>
               {chosen === company.id ? (

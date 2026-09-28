@@ -3,7 +3,8 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import type { Contact } from '@prisma/client';
-import { CreditCard, Package, PackagePlus, ReceiptText, Search, Target, UserPlus, Users, type LucideIcon } from 'lucide-react';
+import { toast } from 'sonner';
+import { Building2, CreditCard, Package, PackagePlus, ReceiptText, Search, Target, UserPlus, Users, type LucideIcon } from 'lucide-react';
 import { Dialog, DialogBackdrop, DialogDescription, DialogPortal, DialogTitle } from '@/components/ui/dialog';
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { cn } from '@/lib/utils';
@@ -15,6 +16,7 @@ import type { Permission } from '@/lib/auth/permissions';
 import type { CompanyFeatureFlags } from '@/lib/auth/modules';
 import { buildWorkspaceNav } from '@/lib/navigation/workspace-nav';
 import { NAV_ICONS } from './SidebarNav';
+import { listSwitchableCompaniesAction, switchActiveCompanyAction, type SwitchableCompany } from '@/lib/auth/actions/switch-company.actions';
 
 export interface CommandMenuProps {
   permissions: Permission[];
@@ -91,7 +93,11 @@ const QUICK_ACTIONS: QuickAction[] = [
 type FlatItem =
   | { kind: 'static'; entry: StaticEntry }
   | { kind: 'contact'; contact: Contact }
-  | { kind: 'product'; product: ProductWithStock };
+  | { kind: 'product'; product: ProductWithStock }
+  | { kind: 'company'; company: SwitchableCompany };
+
+/** Palabras con que alguien busca el cambio de empresa sin saber su nombre exacto. */
+const COMPANY_SWITCH_KEYWORDS = ['empresa', 'cambiar', 'multiempresa', 'sociedad', 'cliente'];
 
 // Rango de diacríticos combinantes construido con String.fromCharCode en vez
 // de escribirlo literal en el código fuente: ese rango de caracteres se
@@ -122,6 +128,7 @@ export default function CommandMenu({ permissions, features, isSuperAdmin, disab
   const [productResults, setProductResults] = React.useState<ProductWithStock[]>([]);
   const [searching, setSearching] = React.useState(false);
   const [searchFailed, setSearchFailed] = React.useState(false);
+  const [companies, setCompanies] = React.useState<SwitchableCompany[] | null>(null);
 
   const inputRef = React.useRef<HTMLInputElement>(null);
   const listRef = React.useRef<HTMLDivElement>(null);
@@ -176,6 +183,21 @@ export default function CommandMenu({ permissions, features, isSuperAdmin, disab
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  // Empresas a las que se puede cambiar: se piden una vez, al abrir por primera vez.
+  React.useEffect(() => {
+    if (!open || companies !== null) return;
+    listSwitchableCompaniesAction()
+      .then((result) => setCompanies(result.success ? result.data : []))
+      .catch(() => setCompanies([]));
+  }, [open, companies]);
+
+  const matchedCompanies = React.useMemo(() => {
+    const switchable = (companies ?? []).filter((company) => company.available && !company.isActive);
+    if (switchable.length === 0 || !normalizedQuery) return [];
+    const wantsSwitch = COMPANY_SWITCH_KEYWORDS.some((keyword) => keyword.startsWith(normalizedQuery) || normalizedQuery.startsWith(keyword));
+    return switchable.filter((company) => wantsSwitch || normalize(company.name).includes(normalizedQuery)).slice(0, MAX_LIVE_RESULTS);
+  }, [companies, normalizedQuery]);
 
   // Limpia el estado al cerrar, para que la próxima apertura empiece en blanco
   // y no muestre resultados de la búsqueda anterior por una fracción de segundo.
@@ -235,8 +257,9 @@ export default function CommandMenu({ permissions, features, isSuperAdmin, disab
     for (const entry of matchedModules) items.push({ kind: 'static', entry });
     for (const contact of contactResults) items.push({ kind: 'contact', contact });
     for (const product of productResults) items.push({ kind: 'product', product });
+    for (const company of matchedCompanies) items.push({ kind: 'company', company });
     return items;
-  }, [matchedModules, matchedActions, contactResults, productResults]);
+  }, [matchedModules, matchedActions, contactResults, productResults, matchedCompanies]);
 
   // El índice activo se recalcula con cada lista nueva: si no, sobrevive un
   // índice que ya no existe (ej. al borrar texto y perder resultados).
@@ -254,7 +277,20 @@ export default function CommandMenu({ permissions, features, isSuperAdmin, disab
     setOpen(false);
   }
 
-  function hrefFor(item: FlatItem): string {
+  function switchTo(company: SwitchableCompany) {
+    setOpen(false);
+    // Redirige por dentro en el camino feliz; si vuelve, fue un error.
+    void switchActiveCompanyAction(company.id).then((result) => {
+      if (!result.success) toast.error(result.error);
+    });
+  }
+
+  function activate(item: FlatItem) {
+    if (item.kind === 'company') switchTo(item.company);
+    else goTo(hrefFor(item));
+  }
+
+  function hrefFor(item: Exclude<FlatItem, { kind: 'company' }>): string {
     if (item.kind === 'static') return item.entry.href;
     if (item.kind === 'contact') return `/dashboard/contacts?edit=${item.contact.id}`;
     return `/dashboard/products?edit=${item.product.id}`;
@@ -270,7 +306,7 @@ export default function CommandMenu({ permissions, features, isSuperAdmin, disab
     } else if (event.key === 'Enter') {
       event.preventDefault();
       const item = flatItems[activeIndex];
-      if (item) goTo(hrefFor(item));
+      if (item) activate(item);
     }
   }
 
@@ -285,11 +321,13 @@ export default function CommandMenu({ permissions, features, isSuperAdmin, disab
     { heading: 'Módulos', rows: indexed.filter(({ item }) => item.kind === 'static' && item.entry.id.startsWith('nav-')) },
     { heading: 'Clientes y proveedores', rows: indexed.filter(({ item }) => item.kind === 'contact') },
     { heading: 'Productos', rows: indexed.filter(({ item }) => item.kind === 'product') },
+    { heading: 'Cambiar de empresa', rows: indexed.filter(({ item }) => item.kind === 'company') },
   ];
 
   function rowProps(item: FlatItem): { icon: LucideIcon; label: string; hint?: string } {
     if (item.kind === 'static') return { icon: item.entry.icon, label: item.entry.label, hint: item.entry.group };
     if (item.kind === 'contact') return { icon: Users, label: item.contact.razonSocial, hint: item.contact.rut };
+    if (item.kind === 'company') return { icon: Building2, label: `Cambiar a ${item.company.name}`, hint: item.company.roleLabel ?? undefined };
     return { icon: Package, label: item.product.name, hint: `${item.product.sku} · ${formatCurrency(item.product.netPrice)}` };
   }
 
@@ -359,7 +397,7 @@ export default function CommandMenu({ permissions, features, isSuperAdmin, disab
                             role="option"
                             aria-selected={active}
                             tabIndex={-1}
-                            onClick={() => goTo(hrefFor(item))}
+                            onClick={() => activate(item)}
                             onMouseMove={() => {
                               if (!active) setActiveIndex(index);
                             }}

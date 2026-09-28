@@ -4,6 +4,7 @@ import type { CompanyFeatures, TenantStatus } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { toFeatureFlags } from '@/lib/auth/modules';
 import { isOperationalTenant } from '@/lib/auth/tenant-status';
+import { ROLE_LABELS } from '@/lib/auth/roles';
 
 /**
  * Empresas en las que un mismo login puede trabajar: la hogar
@@ -19,6 +20,8 @@ export interface AccessibleCompany {
   status: TenantStatus;
   /** `false` si está suspendida o cancelada: se muestra, pero no se puede elegir. */
   operational: boolean;
+  /** Con qué rol trabaja en ESA empresa (puede ser distinto en cada una). */
+  roleLabel: string | null;
 }
 
 interface CompanyRow {
@@ -26,6 +29,7 @@ interface CompanyRow {
   businessName: string;
   status: TenantStatus;
   features: CompanyFeatures | null;
+  roleLabel?: string | null;
 }
 
 /** Parte pura (testeable): arma la lista a partir de la empresa hogar y las membresías. */
@@ -41,6 +45,7 @@ export function buildAccessibleCompanies(home: CompanyRow | null, memberships: C
       isHome,
       status: company.status,
       operational: isOperationalTenant(company.status),
+      roleLabel: company.roleLabel ?? null,
     });
   };
   if (home) push(home, true);
@@ -54,14 +59,21 @@ const companySelect = { id: true, businessName: true, status: true, features: tr
 
 export async function listAccessibleCompanies(userId: string): Promise<AccessibleCompany[]> {
   const [user, memberships] = await Promise.all([
-    prisma.user.findUnique({ where: { id: userId }, select: { company: { select: companySelect } } }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, customRole: { select: { name: true } }, company: { select: companySelect } },
+    }),
     prisma.companyMembership.findMany({
       where: { userId },
       orderBy: { createdAt: 'asc' },
-      select: { company: { select: companySelect } },
+      select: { role: true, customRole: { select: { name: true } }, company: { select: companySelect } },
     }),
   ]);
-  return buildAccessibleCompanies(user?.company ?? null, memberships.map((membership) => membership.company));
+  const home = user?.company ? { ...user.company, roleLabel: user.customRole?.name ?? ROLE_LABELS[user.role] } : null;
+  return buildAccessibleCompanies(
+    home,
+    memberships.map((membership) => ({ ...membership.company, roleLabel: membership.customRole?.name ?? ROLE_LABELS[membership.role] }))
+  );
 }
 
 /** Cuántas empresas puede elegir de verdad (operativas): con 2 o más, el login pregunta en cuál trabajar. */

@@ -27,6 +27,8 @@ export interface SwitchableCompany {
   isActive: boolean;
   /** `false` si está suspendida o cancelada: se muestra, pero no se puede elegir. */
   available: boolean;
+  /** Rol con que trabaja en esa empresa. */
+  roleLabel: string | null;
 }
 
 /**
@@ -48,6 +50,7 @@ export async function listSwitchableCompaniesAction(): Promise<ActionResult<Swit
         isHome: company.isHome,
         isActive: company.id === session.companyId,
         available: company.operational,
+        roleLabel: company.roleLabel,
       })),
     };
   } catch (error) {

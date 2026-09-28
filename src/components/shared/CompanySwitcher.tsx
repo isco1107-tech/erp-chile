@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { ChevronsUpDown } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -27,7 +27,29 @@ export function CompanySwitcher({
 }) {
   const [companies, setCompanies] = useState<SwitchableCompany[] | null>(null);
   const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState('');
   const [pending, startTransition] = useTransition();
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Se cierra con Escape o al hacer clic fuera, como cualquier menú.
+  useEffect(() => {
+    if (!open) {
+      setFilter('');
+      return;
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    const onPointer = (event: PointerEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onPointer);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', onPointer);
+    };
+  }, [open]);
 
   useEffect(() => {
     listSwitchableCompaniesAction().then((r) => {
@@ -37,8 +59,13 @@ export function CompanySwitcher({
 
   const canSwitch = companies !== null && companies.filter((c) => c.available).length > 1;
 
+  // Con muchas empresas (un estudio contable con sus clientes) se busca por nombre.
+  const searchable = (companies?.length ?? 0) > 5;
+  const needle = filter.trim().toLocaleLowerCase('es-CL');
+  const visible = (companies ?? []).filter((c) => !needle || c.name.toLocaleLowerCase('es-CL').includes(needle));
+
   return (
-    <div className="relative">
+    <div className="relative" ref={containerRef}>
       <button
         type="button"
         disabled={!canSwitch || pending}
@@ -60,7 +87,19 @@ export function CompanySwitcher({
 
       {open && canSwitch && (
         <div className="absolute inset-x-0 top-full z-20 mt-1 overflow-hidden rounded-[10px] border border-white/10 bg-sidebar-accent shadow-lg">
-          {companies!.map((c) => (
+          {searchable && (
+            <input
+              autoFocus
+              value={filter}
+              onChange={(event) => setFilter(event.target.value)}
+              placeholder="Buscar empresa…"
+              aria-label="Buscar empresa"
+              className="w-full border-b border-white/10 bg-transparent px-3 py-2 text-xs text-white outline-none placeholder:text-sidebar-foreground"
+            />
+          )}
+          <div className="max-h-72 overflow-y-auto">
+          {visible.length === 0 && <p className="px-3 py-2 text-xs text-sidebar-foreground">Sin coincidencias</p>}
+          {visible.map((c) => (
             <button
               key={c.id}
               type="button"
@@ -77,11 +116,15 @@ export function CompanySwitcher({
               }}
               className="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-white hover:bg-white/[0.06] disabled:cursor-default disabled:opacity-60"
             >
-              <span className="truncate">{c.name}</span>
-              {c.isActive && <span className="text-[10px] text-sidebar-primary">Actual</span>}
-              {!c.available && <span className="text-[10px] text-sidebar-foreground">Suspendida</span>}
+              <span className="min-w-0">
+                <span className="block truncate">{c.name}</span>
+                {c.roleLabel && <span className="block truncate text-[10px] text-sidebar-foreground">{c.roleLabel}</span>}
+              </span>
+              {c.isActive && <span className="shrink-0 text-[10px] text-sidebar-primary">Actual</span>}
+              {!c.available && <span className="shrink-0 text-[10px] text-sidebar-foreground">Suspendida</span>}
             </button>
           ))}
+          </div>
         </div>
       )}
     </div>

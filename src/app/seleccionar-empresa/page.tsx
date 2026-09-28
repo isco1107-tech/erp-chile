@@ -51,6 +51,7 @@ export default async function SelectCompanyPage() {
             isHome: company.isHome,
             isActive: company.id === context.companyId,
             available: company.operational,
+            roleLabel: company.roleLabel,
           }))}
         />
         <div className="mt-6 flex justify-center">
