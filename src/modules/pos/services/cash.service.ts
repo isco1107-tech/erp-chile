@@ -6,6 +6,7 @@ import { postCashShiftDifference } from '@/modules/accounting/posting-rules/inve
 import { computeDifference, computeExpectedAmount, sumCashPayments } from '../calc';
 import type { CashMovementInput, OpenShiftInput } from '../schema';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
+import { latidoCajaSupersuite } from '@/lib/supersuite';
 
 /**
  * Acepta tanto el cliente global de Prisma como un `tx` de transacción: las
@@ -117,7 +118,7 @@ export async function openShift(companyId: string, userId: string, input: OpenSh
   if (!register) throw new Error('Caja no encontrada');
 
   try {
-    return await prisma.cashShift.create({
+    const shift = await prisma.cashShift.create({
       data: {
         companyId,
         cashRegisterId: input.cashRegisterId,
@@ -126,6 +127,9 @@ export async function openShift(companyId: string, userId: string, input: OpenSh
         openingNotes: input.openingNotes || undefined,
       },
     });
+    // La caja aparece en línea en la Supersuite desde que abre el turno.
+    latidoCajaSupersuite(companyId, { id: register.id, name: register.name });
+    return shift;
   } catch (error) {
     const conflict = toShiftConflictError(error);
     if (conflict) throw conflict;
@@ -335,6 +339,8 @@ export async function closeShift(
   }, LOCKING_TX_OPTIONS);
 
   const cashRegister = await prisma.cashRegister.findFirst({ where: { id: shift.cashRegisterId, companyId }, select: { name: true } });
+  // Turno cerrado: en la Supersuite la caja queda "apagada", no "sin señal".
+  latidoCajaSupersuite(companyId, { id: shift.cashRegisterId, name: cashRegister?.name ?? 'Caja' }, true);
   void emitWorkflowEvent(companyId, 'CASH_SHIFT_CLOSED', {
     shiftId: shift.id,
     cashRegisterName: cashRegister?.name ?? null,

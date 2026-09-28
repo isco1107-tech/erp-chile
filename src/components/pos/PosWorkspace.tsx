@@ -1,8 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { posHeartbeatAction } from '@/modules/pos/actions/pos.actions';
 import PosTerminal from './PosTerminal';
 import CashPanel from './CashPanel';
+
+/** Cada cuánto la caja avisa a la Supersuite que sigue viva (el umbral de "sin señal" allá es 2 minutos). */
+const LATIDO_MS = 60_000;
 
 interface Props {
   shiftId: string;
@@ -16,6 +20,8 @@ interface Props {
   companyName: string;
   companyRut: string;
   companyAddress: string | null;
+  /** true si la Supersuite está configurada: la caja reporta latidos mientras esta pantalla esté abierta. */
+  reportarLatidos?: boolean;
 }
 
 /**
@@ -25,6 +31,17 @@ interface Props {
  */
 export default function PosWorkspace(props: Props) {
   const [tab, setTab] = useState<'terminal' | 'cash'>('terminal');
+
+  // Monitoreo de la caja: un latido por minuto mientras la pestaña está visible.
+  // Fallar un latido no afecta la venta, así que el resultado se ignora.
+  useEffect(() => {
+    if (!props.reportarLatidos) return;
+    const latir = () => { if (document.visibilityState === 'visible') void posHeartbeatAction(); };
+    latir();
+    const timer = window.setInterval(latir, LATIDO_MS);
+    document.addEventListener('visibilitychange', latir);
+    return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', latir); };
+  }, [props.reportarLatidos]);
 
   return (
     <div className="space-y-5">
