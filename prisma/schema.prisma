@@ -1419,6 +1419,8 @@ model Payment {
   @@index([companyId, paymentPlanInstallmentId])
   @@index([companyId, promissoryNoteId])
   @@index([companyId, sponsorshipContractId])
+  // Lo crea la migración 20260927040316; declararlo evita que un diff lo borre.
+  @@index([feeDocumentId])
 }
 
 /// Caja física del local. Se ata a una bodega porque toda venta del POS
