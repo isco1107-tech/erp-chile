@@ -35,7 +35,7 @@ export const saveWebSiteContentSchema = z.object({
   blocks: blocksSchema.optional(),
   theme: themeSchema.optional(),
   html: z.string().max(MAX_HTML_BYTES * 2, 'El HTML es demasiado largo').nullable().optional(),
-  /** `updatedAt` que el editor cargó: si cambió, otra persona guardó antes. */
+  /** Versión del contenido que el editor cargó (`WebSiteDetail.version`): si cambió, otra persona guardó antes. */
   expectedUpdatedAt: z.string().datetime().optional(),
 });
 

@@ -38,6 +38,7 @@ CREATE TABLE "WebSite" (
     "customDomain" TEXT,
     "customDomainVerifiedAt" TIMESTAMP(3),
     "createdByName" TEXT,
+    "contentUpdatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -112,3 +113,4 @@ ALTER TABLE "WebSiteMessage" ADD CONSTRAINT "WebSiteMessage_companyId_fkey" FORE
 
 -- AddForeignKey
 ALTER TABLE "WebSiteMessage" ADD CONSTRAINT "WebSiteMessage_siteId_fkey" FOREIGN KEY ("siteId") REFERENCES "WebSite"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+

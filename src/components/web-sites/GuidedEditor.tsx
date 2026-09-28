@@ -145,7 +145,7 @@ export function GuidedEditor({ kind, blocks, onBlocksChange, openId, onOpenChang
             ({blocks.length} de {MAX_BLOCKS})
           </span>
         </h2>
-        <Button type="button" size="sm" variant={adding ? 'secondary' : 'default'} disabled={readOnly || atMax} aria-expanded={adding} aria-controls="add-section-panel" onClick={() => setAdding((value) => !value)}>
+        <Button type="button" size="sm" variant={adding ? 'secondary' : 'default'} disabled={readOnly || atMax} aria-expanded={adding} aria-controls={adding ? 'add-section-panel' : undefined} onClick={() => setAdding((value) => !value)}>
           <Plus aria-hidden="true" /> Agregar sección
         </Button>
       </div>
@@ -216,7 +216,12 @@ export function GuidedEditor({ kind, blocks, onBlocksChange, openId, onOpenChang
 
 function KindGuide({ kind, blocks, canAdd, hasHero, onAdd }: { kind: WebSiteKind; blocks: WebSiteBlock[]; canAdd: boolean; hasHero: boolean; onAdd: (type: BlockType) => void }) {
   const info = KIND_INFO[kind];
-  const checks = info.mustHave.map((need) => ({ need, ok: blocks.some((block) => !block.hidden && block.type === need.type) }));
+  const checks = info.mustHave.map((need) => ({
+    need,
+    ok: blocks.some((block) => !block.hidden && block.type === need.type),
+    // La sección existe pero está oculta: no hace falta agregarla, solo mostrarla.
+    hiddenOnly: blocks.some((block) => block.hidden && block.type === need.type) && !blocks.some((block) => !block.hidden && block.type === need.type),
+  }));
   const done = checks.filter((check) => check.ok).length;
   return (
     <details className="group rounded-lg border border-border bg-card shadow-card" open>
@@ -232,15 +237,15 @@ function KindGuide({ kind, blocks, canAdd, hasHero, onAdd }: { kind: WebSiteKind
       <div className="border-t border-border px-4 py-3">
         <p className="mb-2 text-xs text-muted-foreground">Ejemplos: {info.examples}</p>
         <ul className="space-y-2">
-          {checks.map(({ need, ok }) => (
+          {checks.map(({ need, ok, hiddenOnly }) => (
             <li key={`${need.type}-${need.label}`} className="flex items-start gap-2 text-sm">
               {ok ? <Check className="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" /> : <Circle className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
               <span className="min-w-0 flex-1">
                 <span className={cn('font-medium', ok && 'text-muted-foreground line-through decoration-1')}>{need.label}</span>
                 <span className="sr-only">{ok ? ' (lista)' : ' (falta)'}</span>
-                {!ok ? <span className="block text-xs text-muted-foreground">{need.why}</span> : null}
+                {!ok ? <span className="block text-xs text-muted-foreground">{hiddenOnly ? 'Ya la tienes, pero está oculta: muéstrala con el botón del ojo.' : need.why}</span> : null}
               </span>
-              {!ok && canAdd && !(need.type === 'hero' && hasHero) ? (
+              {!ok && canAdd && !hiddenOnly && !(need.type === 'hero' && hasHero) ? (
                 <Button type="button" size="xs" variant="outline" onClick={() => onAdd(need.type)} aria-label={`Agregar sección: ${need.label}`}>
                   <Plus aria-hidden="true" /> Agregar
                 </Button>
@@ -283,7 +288,7 @@ const SectionCard = memo(function SectionCard({ block, index, total, open, readO
         <button
           type="button"
           aria-expanded={open}
-          aria-controls={bodyId}
+          aria-controls={open ? bodyId : undefined}
           onClick={() => onToggleOpen(block.id)}
           className="flex min-w-0 flex-1 items-center gap-3 rounded-md p-1 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
         >

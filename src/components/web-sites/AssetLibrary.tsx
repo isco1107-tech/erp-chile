@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { Copy, ImagePlus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useConfirm } from '@/components/ui/confirm-provider';
@@ -10,7 +11,6 @@ import { Label } from '@/components/ui/label';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { safeImageSrc } from '@/lib/web-sites/urls';
 import { deleteWebSiteAssetAction, updateWebSiteAssetAltAction } from '@/modules/web-sites/actions/web-sites.actions';
-import { toast } from 'sonner';
 import { ImageUploader } from './ImageUploader';
 import { copyText, formatBytes, useEditorAssets, type EditorAsset } from './editor-shared';
 

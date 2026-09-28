@@ -85,7 +85,7 @@ export interface WebSiteDetail {
   companyName: string;
   assets: WebSiteAssetRow[];
   unreadMessages: number;
-  /** ISO de `updatedAt`, para detectar ediciones simultáneas. */
+  /** ISO de `contentUpdatedAt`: versión del contenido, para detectar ediciones simultáneas. */
   version: string;
   createdAt: Date;
 }
@@ -232,7 +232,7 @@ export async function getWebSite(companyId: string, id: string): Promise<WebSite
     companyName: site.company.businessName,
     assets: site.assets.map((asset) => ({ id: asset.id, url: asset.url, fileName: asset.fileName, mimeType: asset.mimeType, sizeBytes: asset.sizeBytes, alt: asset.alt ?? '', createdAt: asset.createdAt })),
     unreadMessages,
-    version: site.updatedAt.toISOString(),
+    version: site.contentUpdatedAt.toISOString(),
     createdAt: site.createdAt,
   };
 }
@@ -289,7 +289,9 @@ export async function saveWebSiteContent(companyId: string, id: string, input: S
   if (!site) throw new WebSiteError('Sitio no encontrado');
   if (site.status === 'ARCHIVED') throw new WebSiteError('El sitio está archivado. Restáuralo para editarlo.');
 
-  const data: Prisma.WebSiteUpdateManyMutationInput = {};
+  // Fecha del guardado: es la nueva versión del contenido (y se devuelve tal cual).
+  const savedAt = new Date();
+  const data: Prisma.WebSiteUpdateManyMutationInput = { contentUpdatedAt: savedAt };
   if (input.blocks) {
     if (site.mode !== 'GUIDED') throw new WebSiteError('Este sitio usa HTML propio: no tiene secciones.');
     assertOwnImages(input.blocks.flatMap(blockImageUrls));
@@ -304,10 +306,9 @@ export async function saveWebSiteContent(companyId: string, id: string, input: S
   }
 
   const expected = input.expectedUpdatedAt ? new Date(input.expectedUpdatedAt) : null;
-  const result = await prisma.webSite.updateMany({ where: { id, companyId, ...(expected ? { updatedAt: expected } : {}) }, data });
+  const result = await prisma.webSite.updateMany({ where: { id, companyId, ...(expected ? { contentUpdatedAt: expected } : {}) }, data });
   if (result.count === 0) throw new WebSiteError('Otra persona guardó cambios en este sitio mientras lo editabas. Recarga la página para ver la última versión.');
-  const fresh = await prisma.webSite.findFirst({ where: { id, companyId }, select: { updatedAt: true } });
-  return { version: (fresh?.updatedAt ?? new Date()).toISOString() };
+  return { version: savedAt.toISOString() };
 }
 
 export async function updateWebSiteSettings(companyId: string, id: string, input: WebSiteSettingsInput): Promise<{ slug: string }> {

@@ -5295,6 +5295,10 @@ model WebSite {
   customDomain           String?       @unique
   customDomainVerifiedAt DateTime?
   createdByName          String?
+  /// Versión del contenido (bloques, tema, HTML): solo cambia al guardar
+  /// contenido, no al publicar ni al tocar ajustes o dominio. El editor la usa
+  /// para detectar que otra persona guardó antes (edición simultánea).
+  contentUpdatedAt       DateTime      @default(now())
   assets                 WebSiteAsset[]
   messages               WebSiteMessage[]
   createdAt              DateTime      @default(now())
