@@ -10,8 +10,10 @@ import type { EditorTab } from './editor-shared';
 export function readinessTarget(id: string, mode: 'GUIDED' | 'HTML'): EditorTab | null {
   if (id === 'theme') return 'design';
   if (id === 'seo-title' || id === 'seo-description' || id === 'logo') return 'settings';
+  if (id === 'pages') return mode === 'GUIDED' ? 'pages' : null;
+  if (id === 'navigation') return mode === 'GUIDED' ? 'layout' : null;
   if (id === 'images' || id === 'alt') return mode === 'GUIDED' ? 'content' : null;
-  if (id.startsWith('html-') || id.startsWith('must-') || ['hero', 'contact', 'links', 'sample', 'empty'].includes(id)) return 'content';
+  if (id.startsWith('html-') || id.startsWith('must-') || ['hero', 'contact', 'links', 'sample', 'empty', 'media'].includes(id)) return 'content';
   return null;
 }
 

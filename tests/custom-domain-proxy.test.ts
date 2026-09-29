@@ -134,3 +134,22 @@ describe('proxy y sitios web (/web/[slug])', () => {
     expect(response.headers.get('x-middleware-rewrite')).toContain(`/sitio/${OWN_DOMAIN}`);
   });
 });
+
+describe('proxy y páginas internas de un sitio web en dominio propio', () => {
+  it('/servicios se reescribe a /sitio/[dominio]/servicios (sin redirigir)', async () => {
+    const response = await proxy(request('www.minegocio.cl', '/servicios'));
+    expect(response.headers.get('x-middleware-rewrite')).toContain('/sitio/minegocio.cl/servicios');
+    expect(response.status).toBe(200);
+  });
+
+  it('las rutas reservadas siguen yendo a la plataforma', async () => {
+    const response = await proxy(request('minegocio.cl', '/login?x=1'));
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toBe('https://erp.aether.cl/login?x=1');
+  });
+
+  it('en la plataforma, /web/mi-sitio/servicios se ve sin sesión', async () => {
+    const response = await proxy(request('erp.aether.cl', '/web/mi-sitio/servicios'));
+    expect(response.headers.get('x-middleware-next')).toBe('1');
+  });
+});

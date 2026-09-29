@@ -6,11 +6,13 @@ import { prisma } from '@/lib/prisma';
 import { isUniqueConstraintError } from '@/lib/prisma-errors';
 import { getAppUrl } from '@/lib/email/mailer';
 import { blobPathnameStartsWith, isAllowedBlobUrl } from '@/lib/security/blob-url';
-import { blockImageUrls, blocksSchema, parseBlocks, type WebSiteBlock } from '@/lib/web-sites/blocks';
+import { blockImageUrls, type WebSiteBlock } from '@/lib/web-sites/blocks';
 import { MAX_HTML_BYTES, sanitizeHtml } from '@/lib/web-sites/html';
 import { evaluateReadiness, type ReadinessReport } from '@/lib/web-sites/readiness';
-import { starterBlocks, starterHtml } from '@/lib/web-sites/templates';
-import { parseTheme, type WebSiteTheme } from '@/lib/web-sites/theme';
+import { allBlocks, documentFromBlocks, homeOf, normalizeSiteDocument, parseSiteDocument, publishedPages, type SiteDocument } from '@/lib/web-sites/site';
+import { findIndustry, industryDocument } from '@/lib/web-sites/industries';
+import { starterDocument, starterHtml } from '@/lib/web-sites/templates';
+import { NEW_SITE_THEME, parseTheme, type WebSiteTheme } from '@/lib/web-sites/theme';
 import { slugify } from '@/lib/web-sites/urls';
 import type { CreateWebSiteInput, PublicWebSiteMessageInput, SaveWebSiteContentInput, WebSiteSettingsInput } from '../schema';
 
@@ -75,7 +77,8 @@ export interface WebSiteDetail {
   logoUrl: string;
   ogImageUrl: string;
   theme: WebSiteTheme;
-  blocks: WebSiteBlock[];
+  /** Borrador completo: páginas, encabezado, pie, redes y botón de WhatsApp. */
+  document: SiteDocument;
   html: string;
   publishedAt: Date | null;
   pendingChanges: boolean;
@@ -106,8 +109,15 @@ export function publicSiteUrl(slug: string): string {
   return `${getAppUrl().replace(/\/$/, '')}/web/${slug}`;
 }
 
+/** JSON con las claves ordenadas: el orden en que se armó un objeto no cuenta como diferencia. */
+function stableJson(value: unknown): string {
+  return JSON.stringify(value ?? null, (_key, current: unknown) =>
+    current && typeof current === 'object' && !Array.isArray(current) ? Object.fromEntries(Object.entries(current as Record<string, unknown>).sort(([x], [y]) => x.localeCompare(y))) : current
+  );
+}
+
 function sameJson(a: unknown, b: unknown): boolean {
-  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+  return stableJson(a) === stableJson(b);
 }
 
 /** ¿El borrador difiere de lo publicado? Solo tiene sentido en un sitio publicado. */
@@ -123,7 +133,8 @@ function hasPendingChanges(site: {
 }): boolean {
   if (site.status !== 'PUBLISHED') return false;
   if (site.mode === 'HTML') return sanitizeHtml(site.draftHtml ?? '').html !== (site.publishedHtml ?? '');
-  return !sameJson(site.draftBlocks, site.publishedBlocks) || !sameJson(parseTheme(site.theme), parseTheme(site.publishedTheme));
+  // Se comparan ya leídos: un borrador guardado en el formato nuevo y una copia publicada en el antiguo con el mismo contenido no son "cambios".
+  return !sameJson(parseSiteDocument(site.draftBlocks, site.theme), parseSiteDocument(site.publishedBlocks, site.publishedTheme)) || !sameJson(parseTheme(site.theme), parseTheme(site.publishedTheme));
 }
 
 /**
@@ -233,7 +244,7 @@ export async function getWebSite(companyId: string, id: string): Promise<WebSite
     logoUrl: site.logoUrl ?? '',
     ogImageUrl: site.ogImageUrl ?? '',
     theme: parseTheme(site.theme),
-    blocks: parseBlocks(site.draftBlocks),
+    document: parseSiteDocument(site.draftBlocks, site.theme),
     html: site.draftHtml ?? '',
     publishedAt: site.publishedAt,
     pendingChanges: hasPendingChanges(site),
@@ -250,15 +261,15 @@ export async function getWebSite(companyId: string, id: string): Promise<WebSite
 }
 
 /** Evaluación en el servidor (la misma que ve el editor), para no confiar en el navegador. */
-export function readinessOf(site: Pick<WebSiteDetail, 'kind' | 'mode' | 'seoTitle' | 'seoDescription' | 'logoUrl' | 'theme' | 'blocks' | 'html'>): ReadinessReport {
-  return evaluateReadiness({ kind: site.kind, mode: site.mode, seoTitle: site.seoTitle, seoDescription: site.seoDescription, logoUrl: site.logoUrl, theme: site.theme, blocks: site.blocks, html: site.html });
+export function readinessOf(site: Pick<WebSiteDetail, 'kind' | 'mode' | 'seoTitle' | 'seoDescription' | 'logoUrl' | 'theme' | 'document' | 'html'>): ReadinessReport {
+  return evaluateReadiness({ kind: site.kind, mode: site.mode, seoTitle: site.seoTitle, seoDescription: site.seoDescription, logoUrl: site.logoUrl, theme: site.theme, document: site.document, html: site.html });
 }
 
 // ---------------------------------------------------------------------------
 // Escritura
 // ---------------------------------------------------------------------------
 
-export async function createWebSite(companyId: string, actor: { name: string }, input: CreateWebSiteInput): Promise<{ id: string; slug: string }> {
+export async function createWebSite(companyId: string, actor: { name: string }, input: CreateWebSiteInput, options: { canReadContacts?: boolean } = {}): Promise<{ id: string; slug: string }> {
   const total = await prisma.webSite.count({ where: { companyId, status: { not: 'ARCHIVED' } } });
   if (total >= MAX_SITES_PER_COMPANY) throw new WebSiteError(`Llegaste al máximo de ${MAX_SITES_PER_COMPANY} sitios activos. Archiva o elimina alguno.`);
   const contactId = await assertContact(companyId, input.contactId);
@@ -272,19 +283,36 @@ export async function createWebSite(companyId: string, actor: { name: string }, 
     slug = await uniqueSlug(slugify(input.name));
   }
 
+  // Sitio por rubro: páginas, diseño y botón destacado del rubro, con los datos de contacto
+  // de la ficha del cliente (si se arma para uno) o de la empresa, siempre de ESTA empresa.
+  const industry = input.mode === 'GUIDED' ? findIndustry(input.industry) : null;
+  let guided: { document: SiteDocument; theme: WebSiteTheme } | null = null;
+  if (input.mode === 'GUIDED') {
+    if (industry) {
+      // Sin permiso para ver clientes, los datos salen de la ficha de la empresa, nunca de la del cliente.
+      const owner = contactId && options.canReadContacts !== false
+        ? await prisma.contact.findFirst({ where: { id: contactId, companyId }, select: { email: true, phone: true, address: true, comuna: true } })
+        : await prisma.company.findFirst({ where: { id: companyId }, select: { email: true, phone: true, address: true, comuna: true } });
+      const address = [owner?.address, owner?.comuna].filter((part) => part?.trim()).join(', ');
+      guided = industryDocument(industry, { name: input.name, contact: { email: owner?.email, phone: owner?.phone, address } });
+    } else {
+      guided = { document: starterDocument(input.kind, { name: input.name }), theme: NEW_SITE_THEME };
+    }
+  }
+
   try {
     const site = await prisma.webSite.create({
       data: {
         companyId,
         name: input.name,
         slug,
-        kind: input.kind,
+        kind: industry?.kind ?? input.kind,
         mode: input.mode,
         contactId,
         seoTitle: input.name.slice(0, 65),
         createdByName: actor.name,
-        theme: json(parseTheme({})),
-        draftBlocks: input.mode === 'GUIDED' ? json(starterBlocks(input.kind, { name: input.name })) : json([]),
+        theme: json(guided ? guided.theme : parseTheme({})),
+        draftBlocks: guided ? json(guided.document) : json([]),
         draftHtml: input.mode === 'HTML' ? starterHtml(input.name) : null,
       },
       select: { id: true, slug: true },
@@ -304,10 +332,12 @@ export async function saveWebSiteContent(companyId: string, id: string, input: S
   // Fecha del guardado: es la nueva versión del contenido (y se devuelve tal cual).
   const savedAt = new Date();
   const data: Prisma.WebSiteUpdateManyMutationInput = { contentUpdatedAt: savedAt };
-  if (input.blocks) {
+  // `document` es el sitio completo; `blocks` (sitio de una página) se acepta por compatibilidad.
+  const incoming: SiteDocument | null = input.document ? normalizeSiteDocument(input.document) : input.blocks ? documentFromBlocks(input.blocks, input.theme) : null;
+  if (incoming) {
     if (site.mode !== 'GUIDED') throw new WebSiteError('Este sitio usa HTML propio: no tiene secciones.');
-    assertOwnImages(companyId, input.blocks.flatMap(blockImageUrls));
-    data.draftBlocks = json(input.blocks);
+    assertOwnImages(companyId, allBlocks(incoming).flatMap(blockImageUrls));
+    data.draftBlocks = json(incoming);
   }
   if (input.theme) data.theme = json(input.theme);
   if (input.html !== undefined) {
@@ -372,7 +402,7 @@ export async function publishWebSite(companyId: string, id: string): Promise<{ p
     data: {
       status: 'PUBLISHED',
       publishedAt,
-      publishedBlocks: site.mode === 'GUIDED' ? json(site.blocks) : json([]),
+      publishedBlocks: site.mode === 'GUIDED' ? json(site.document) : json([]),
       publishedTheme: json(site.theme),
       publishedHtml: site.mode === 'HTML' ? sanitizeHtml(site.html).html : null,
     },
@@ -413,7 +443,7 @@ export async function duplicateWebSite(companyId: string, actor: { name: string 
       logoUrl: source.logoUrl,
       ogImageUrl: source.ogImageUrl,
       theme: json(parseTheme(source.theme)),
-      draftBlocks: json(parseBlocks(source.draftBlocks)),
+      draftBlocks: source.mode === 'GUIDED' ? json(parseSiteDocument(source.draftBlocks, source.theme)) : json([]),
       draftHtml: source.draftHtml,
       createdByName: actor.name,
       // Las imágenes se comparten por URL: se copian sus filas para que borrar
@@ -525,6 +555,9 @@ export interface PublicWebSite {
   logoUrl: string | null;
   ogImageUrl: string | null;
   theme: WebSiteTheme;
+  /** Sitio publicado completo (páginas, encabezado, pie…). */
+  document: SiteDocument;
+  /** Secciones de la página de inicio (atajo). */
   blocks: WebSiteBlock[];
   html: string;
   /** El sitio publicado tiene un formulario de contacto activo. */
@@ -546,7 +579,7 @@ function toPublic(site: PublicRow | null): PublicWebSite | null {
   if (!site || site.status !== 'PUBLISHED') return null;
   // Empresa suspendida/cancelada o sin el módulo: el sitio deja de verse en el acto.
   if (site.company.status === 'SUSPENDED' || site.company.status === 'CANCELLED' || !site.company.features?.hasWebSites) return null;
-  const blocks = parseBlocks(site.publishedBlocks);
+  const document = parseSiteDocument(site.publishedBlocks, site.publishedTheme);
   return {
     id: site.id,
     companyId: site.companyId,
@@ -559,9 +592,10 @@ function toPublic(site: PublicRow | null): PublicWebSite | null {
     logoUrl: site.logoUrl,
     ogImageUrl: site.ogImageUrl,
     theme: parseTheme(site.publishedTheme),
-    blocks,
+    document,
+    blocks: homeOf(document).blocks,
     html: site.publishedHtml ?? '',
-    acceptsMessages: blocks.some((block) => block.type === 'contact' && !block.hidden && block.showForm),
+    acceptsMessages: publishedPages(document).some((page) => page.blocks.some((block) => block.type === 'contact' && !block.hidden && block.showForm)),
     customDomain: site.customDomain,
     customDomainVerified: Boolean(site.customDomainVerifiedAt),
     publishedAt: site.publishedAt,
@@ -603,4 +637,37 @@ export async function countRecentMessages(companyId: string, siteId: string, min
 
 export async function countUnreadMessages(companyId: string): Promise<number> {
   return prisma.webSiteMessage.count({ where: { companyId, readAt: null } });
+}
+
+// ---------------------------------------------------------------------------
+// Productos del inventario para el catálogo del sitio
+// ---------------------------------------------------------------------------
+
+export interface CatalogProductRow {
+  id: string;
+  name: string;
+  sku: string;
+  description: string;
+  brand: string | null;
+  /** Precio con IVA (CLP enteros), el que ve el cliente final. */
+  grossPrice: number;
+  imageUrl: string | null;
+}
+
+/**
+ * Productos de ESTA empresa para armar un catálogo. Solo campos de vitrina
+ * (nada de costos ni stock): lo que salga de acá termina publicado.
+ */
+export async function listCatalogProducts(companyId: string, q?: string): Promise<CatalogProductRow[]> {
+  const search = q?.trim().slice(0, 100);
+  const rows = await prisma.product.findMany({
+    where: {
+      companyId,
+      ...(search ? { OR: [{ name: { contains: search, mode: 'insensitive' } }, { sku: { contains: search, mode: 'insensitive' } }, { brand: { contains: search, mode: 'insensitive' } }] } : {}),
+    },
+    orderBy: { name: 'asc' },
+    take: 60,
+    select: { id: true, name: true, sku: true, description: true, brand: true, grossPrice: true, imageUrl: true },
+  });
+  return rows.map((row) => ({ ...row, description: row.description ?? '', imageUrl: row.imageUrl && isAllowedBlobUrl(row.imageUrl) && blobPathnameStartsWith(row.imageUrl, `products/${companyId}/`) ? row.imageUrl : null }));
 }

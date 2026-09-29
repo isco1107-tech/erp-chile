@@ -1,6 +1,10 @@
 import type { WebSiteKind } from '@prisma/client';
 import { blockSchema, blockTexts, newBlockId, type BlockType, type WebSiteBlock } from './blocks';
-import { STARTER_CONTENT, type StarterKind } from './templates-content';
+import { industryDrafts } from './industries';
+import { PAGE_TEMPLATES } from './page-templates';
+import { documentFromBlocks, newPageId, type SiteDocument } from './site';
+import { NEW_SITE_THEME } from './theme';
+import { STARTER_CONTENT, type StarterDraft, type StarterKind } from './templates-content';
 
 /**
  * Tipos de sitio: para qué sirve cada uno, qué secciones no pueden faltar y el
@@ -87,18 +91,35 @@ export function starterBlocks(kind: WebSiteKind, ctx: { name: string }): WebSite
   });
 }
 
+/**
+ * Sitio nuevo en modo guiado: la página de inicio con el armado del tipo
+ * elegido, encabezado con menú automático y pie con columnas.
+ */
+export function starterDocument(kind: WebSiteKind, ctx: { name: string }): SiteDocument {
+  const doc = documentFromBlocks(starterBlocks(kind, ctx), NEW_SITE_THEME);
+  return {
+    ...doc,
+    pages: doc.pages.map((page) => ({ ...page, id: newPageId() })),
+    footer: { ...doc.footer, layout: 'columns' },
+  };
+}
+
+/** Secciones de una plantilla de página, con ids nuevos. */
+export function templateBlocks(drafts: StarterDraft[]): WebSiteBlock[] {
+  return drafts.map((draft) => blockSchema.parse({ ...draft, id: newBlockId() }));
+}
+
 let sampleTexts: Set<string> | null = null;
 
 /** Todos los textos de ejemplo (menos el título de portada, que sale del nombre del sitio). */
 function samples(): Set<string> {
   if (sampleTexts) return sampleTexts;
   const set = new Set<string>();
-  for (const drafts of Object.values(STARTER_CONTENT)) {
-    drafts.forEach((draft) => {
-      const block = blockSchema.parse({ ...draft, id: 'sample' });
-      blockTexts(block).forEach((text) => set.add(text.trim()));
-    });
-  }
+  const drafts = [...Object.values(STARTER_CONTENT).flat(), ...PAGE_TEMPLATES.flatMap((template) => template.blocks), ...industryDrafts()];
+  drafts.forEach((draft) => {
+    const block = blockSchema.parse({ ...draft, id: 'sample' });
+    blockTexts(block).forEach((text) => set.add(text.trim()));
+  });
   sampleTexts = set;
   return set;
 }

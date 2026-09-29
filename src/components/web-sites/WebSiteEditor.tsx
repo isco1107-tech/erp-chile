@@ -3,30 +3,37 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { AlertTriangle, ArrowLeft, ExternalLink, Globe, Loader2, Lock, RefreshCw, Save } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ExternalLink, Globe, Loader2, Lock, Redo2, RefreshCw, Save, Undo2 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { useConfirm } from '@/components/ui/confirm-provider';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { parseBlocks, type WebSiteBlock, blockImageUrls } from '@/lib/web-sites/blocks';
+import { blockImageUrls } from '@/lib/web-sites/blocks';
 import { htmlHints, sanitizeHtml, wrapHtmlDocument } from '@/lib/web-sites/html';
 import { evaluateReadiness, type ReadinessReport } from '@/lib/web-sites/readiness';
+import { allBlocks, findPage, homeOf, normalizeSiteDocument, pageBlockAnchors, siteDocumentSchema, type SiteDocument } from '@/lib/web-sites/site';
 import { KIND_INFO } from '@/lib/web-sites/templates';
 import { parseTheme, type WebSiteTheme } from '@/lib/web-sites/theme';
 import { siteSlugProblem, slugify } from '@/lib/web-sites/urls';
 import { getWebSiteAction, publishWebSiteAction, saveWebSiteContentAction, unpublishWebSiteAction, updateWebSiteSettingsAction } from '@/modules/web-sites/actions/web-sites.actions';
 import type { WebSiteDetail } from '@/modules/web-sites/services/web-sites.service';
+import { AddPageDialog } from './AddPageDialog';
 import { AssetLibrary } from './AssetLibrary';
 import { EditorTabs, tabId, tabPanelId, type EditorTabDef } from './EditorTabs';
 import { GuidedEditor } from './GuidedEditor';
 import { HtmlEditor } from './HtmlEditor';
-import { PreviewPane } from './PreviewPane';
+import { LayoutPanel } from './LayoutPanel';
+import { PageSwitcher } from './PageSwitcher';
+import { PagesPanel } from './PagesPanel';
+import { PreviewPane, type PreviewScrollRequest } from './PreviewPane';
 import { PublishDialog } from './PublishDialog';
 import { ReadinessPanel } from './ReadinessPanel';
 import { SettingsPanel } from './SettingsPanel';
+import { StartGuide } from './StartGuide';
 import { ThemePanel } from './ThemePanel';
 import WebSiteDomainPanel from './WebSiteDomainPanel';
 import WebSiteMessagesPanel from './WebSiteMessagesPanel';
+import { canRedo, canUndo, emptyHistory, recordChange, redoStep, structureSignature, undoStep, type HistoryState } from './editor-history';
 import { EditorAssetsContext, isEditorTab, settingsEqual, useDebouncedValue, type EditorAsset, type EditorAssetsContextValue, type EditorTab, type PreviewDevice, type SettingsDraft } from './editor-shared';
 
 interface WebSiteEditorProps {
@@ -42,17 +49,32 @@ interface WebSiteEditorProps {
 /** Mensaje del servidor cuando `expectedUpdatedAt` ya no coincide (otra persona guardó). */
 const CONFLICT_MARKER = 'Otra persona guardó cambios';
 
+/** Segundos de calma tras el último cambio antes de guardar el borrador solo. */
+const AUTOSAVE_MS = 4000;
+
 type Busy = 'saving' | 'publishing' | 'unpublishing' | 'settings' | null;
+type SaveMode = 'manual' | 'auto';
+
+/** Lo que se puede deshacer: el sitio armado y su tema. */
+interface Content {
+  document: SiteDocument;
+  theme: WebSiteTheme;
+}
+
+/** Lo último que se guardó, por referencia: mientras el contenido actual sea ese mismo objeto, no hay nada pendiente. */
+interface SavedContent extends Content {
+  html: string;
+}
 
 interface ContentSnapshot {
-  blocks: string;
+  document: string;
   theme: string;
   html: string;
 }
 
 /** Contenido tal como lo deja el servidor tras normalizarlo (mismo esquema): sirve para comparar sin ruido. */
-function snapshotOf(content: { blocks: WebSiteBlock[]; theme: WebSiteTheme; html: string }): ContentSnapshot {
-  return { blocks: JSON.stringify(parseBlocks(content.blocks)), theme: JSON.stringify(parseTheme(content.theme)), html: content.html };
+function snapshotOf(content: SavedContent): ContentSnapshot {
+  return { document: JSON.stringify(normalizeSiteDocument(content.document)), theme: JSON.stringify(parseTheme(content.theme)), html: content.html };
 }
 
 function draftOf(site: WebSiteDetail): SettingsDraft {
@@ -72,6 +94,28 @@ function formatMoment(value: Date | string): string {
   return new Date(value).toLocaleString('es-CL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'America/Santiago' });
 }
 
+function agoLabel(ms: number): string {
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 1) return 'hace un momento';
+  if (minutes < 60) return `hace ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  return `hace ${hours} h`;
+}
+
+/** Primer aviso del esquema que un usuario pueda entender (los mensajes propios; no los genéricos de la librería). */
+function friendlyIssue(issues: { message: string }[]): string {
+  const own = issues.find((issue) => !/^(Too (small|big)|Invalid|Expected|Unrecognized|Required)/.test(issue.message));
+  return own?.message ?? 'Revisa los textos del sitio: alguno es demasiado largo o no es válido.';
+}
+
+/** Campos donde escribir tiene su propio deshacer: ahí Ctrl+Z no se toca. */
+function isTextEntry(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable || target instanceof HTMLTextAreaElement) return true;
+  if (target instanceof HTMLInputElement) return !['checkbox', 'radio', 'button', 'submit', 'reset', 'range', 'color', 'file', 'image'].includes(target.type);
+  return false;
+}
+
 const NETWORK_ERROR = 'No se pudo completar la acción. Revisa tu conexión e inténtalo de nuevo.';
 
 export default function WebSiteEditor({ site, contacts, canWrite, canPublish, initialTab }: WebSiteEditorProps) {
@@ -82,33 +126,48 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, in
   const [status, setStatus] = useState(site.status);
   const [publishedAt, setPublishedAt] = useState<Date | string | null>(site.publishedAt);
   const [pendingChanges, setPendingChanges] = useState(site.pendingChanges);
-  const [blocks, setBlocks] = useState<WebSiteBlock[]>(site.blocks);
-  const [theme, setTheme] = useState<WebSiteTheme>(site.theme);
+  const [content, setContent] = useState<Content>(() => ({ document: site.document, theme: site.theme }));
   const [html, setHtml] = useState(site.html);
+  const [saved, setSaved] = useState<SavedContent>(() => ({ document: site.document, theme: site.theme, html: site.html }));
   const [settings, setSettings] = useState<SettingsDraft>(() => draftOf(site));
   const [savedSettings, setSavedSettings] = useState<SettingsDraft>(() => draftOf(site));
   const [assets, setAssets] = useState<EditorAsset[]>(() => site.assets.map(({ id, url, fileName, mimeType, sizeBytes, alt }) => ({ id, url, fileName, mimeType, sizeBytes, alt })));
   const [version, setVersion] = useState(site.version);
-  const [baseline, setBaseline] = useState<ContentSnapshot>(() => snapshotOf({ blocks: site.blocks, theme: site.theme, html: site.html }));
-  const [contentDirty, setContentDirty] = useState(false);
+  const [baseline, setBaseline] = useState<ContentSnapshot>(() => snapshotOf({ document: site.document, theme: site.theme, html: site.html }));
   const [busy, setBusy] = useState<Busy>(null);
   const [conflict, setConflict] = useState(false);
   const [device, setDevice] = useState<PreviewDevice>('desktop');
-  const [openId, setOpenId] = useState<string | null>(site.blocks[0]?.id ?? null);
+  const [currentPageId, setCurrentPageId] = useState(() => homeOf(site.document).id);
+  const [openId, setOpenId] = useState<string | null>(() => homeOf(site.document).blocks[0]?.id ?? null);
+  const [revealId, setRevealId] = useState<string | null>(null);
+  const [scrollRequest, setScrollRequest] = useState<PreviewScrollRequest | null>(null);
+  const [addPageOpen, setAddPageOpen] = useState(false);
   const [unread, setUnread] = useState(site.unreadMessages);
   const [publishOpen, setPublishOpen] = useState(false);
   const [publishReport, setPublishReport] = useState<ReadinessReport | null>(null);
+  const [historyFlags, setHistoryFlags] = useState({ undo: false, redo: false });
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+  const [now, setNow] = useState(0);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [failedFor, setFailedFor] = useState<SavedContent | null>(null);
 
-  // Cada edición suma 1: si el usuario sigue escribiendo mientras se guarda, "sin guardar" no se apaga.
-  const editSeq = useRef(0);
+  // Fuente de verdad síncrona del contenido: varias ediciones en el mismo instante se apilan sin perderse.
+  const contentRef = useRef(content);
+  const historyRef = useRef<HistoryState<Content>>(emptyHistory());
+  const lastKind = useRef<'document' | 'theme' | null>(null);
+  const scrollSeq = useRef(0);
   const reloading = useRef(false);
 
   const archived = status === 'ARCHIVED';
   const readOnly = !canWrite || archived;
+  const { document, theme } = content;
+  const contentDirty = document !== saved.document || theme !== saved.theme || html !== saved.html;
   const settingsDirty = !settingsEqual(settings, savedSettings);
   const anyDirty = contentDirty || settingsDirty;
   const publicBase = site.publicUrl.slice(0, Math.max(site.publicUrl.length - site.slug.length, 0));
   const publicUrl = `${publicBase}${savedSettings.slug}`;
+  const domainLive = Boolean(site.customDomain && site.customDomainVerifiedAt);
+  const addressBase = (domainLive && site.customDomain ? site.customDomain : publicUrl.replace(/^https?:\/\//, '')).replace(/\/$/, '');
   const platformUrl = useMemo(() => {
     try {
       return new URL(site.publicUrl).origin;
@@ -117,27 +176,101 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, in
     }
   }, [site.publicUrl]);
 
+  // Si la página que se edita ya no existe (se borró o se deshizo su creación), se vuelve a la de inicio.
+  const currentPage = findPage(document, currentPageId) ?? homeOf(document);
+  const pageId = currentPage.id;
+  const pageIdRef = useRef(pageId);
+  useEffect(() => {
+    pageIdRef.current = pageId;
+  }, [pageId]);
+
+  // "Páginas" y "Encabezado y pie" solo existen en el modo guiado.
+  const activeTab: EditorTab = !isGuided && (tab === 'pages' || tab === 'layout') ? 'content' : tab;
+
   // -------------------------------------------------------------------------
-  // Edición
+  // Edición con historial
   // -------------------------------------------------------------------------
 
-  const updateBlocks = useCallback((updater: (previous: WebSiteBlock[]) => WebSiteBlock[]) => {
-    editSeq.current += 1;
-    setBlocks(updater);
-    setContentDirty(true);
+  const syncHistoryFlags = useCallback(() => {
+    const next = { undo: canUndo(historyRef.current), redo: canRedo(historyRef.current) };
+    setHistoryFlags((previous) => (previous.undo === next.undo && previous.redo === next.redo ? previous : next));
   }, []);
 
-  const updateTheme = useCallback((patch: Partial<WebSiteTheme>) => {
-    editSeq.current += 1;
-    setTheme((previous) => ({ ...previous, ...patch }));
-    setContentDirty(true);
-  }, []);
+  const commit = useCallback(
+    (next: Content, kind: 'document' | 'theme') => {
+      const previous = contentRef.current;
+      if (next.document === previous.document && next.theme === previous.theme) return;
+      // Agregar, quitar o mover algo es una acción con su propio paso; escribir seguido se junta en uno.
+      const boundary = lastKind.current !== kind || (kind === 'document' && structureSignature(previous.document) !== structureSignature(next.document));
+      historyRef.current = recordChange(historyRef.current, previous, Date.now(), { boundary });
+      lastKind.current = kind;
+      contentRef.current = next;
+      setContent(next);
+      syncHistoryFlags();
+    },
+    [syncHistoryFlags]
+  );
 
-  const updateHtml = useCallback((next: string) => {
-    editSeq.current += 1;
-    setHtml(next);
-    setContentDirty(true);
-  }, []);
+  const updateDocument = useCallback(
+    (updater: (previous: SiteDocument) => SiteDocument) => {
+      const previous = contentRef.current;
+      commit({ ...previous, document: updater(previous.document) }, 'document');
+    },
+    [commit]
+  );
+
+  const updateTheme = useCallback(
+    (patch: Partial<WebSiteTheme>) => {
+      const previous = contentRef.current;
+      commit({ ...previous, theme: { ...previous.theme, ...patch } }, 'theme');
+    },
+    [commit]
+  );
+
+  const updateHtml = useCallback((next: string) => setHtml(next), []);
+
+  const undo = useCallback(() => {
+    const step = undoStep(historyRef.current, contentRef.current);
+    if (!step) return;
+    historyRef.current = step.history;
+    contentRef.current = step.value;
+    lastKind.current = null;
+    setContent(step.value);
+    syncHistoryFlags();
+    toast('Cambio deshecho', { id: 'ws-history', duration: 1500 });
+  }, [syncHistoryFlags]);
+
+  const redo = useCallback(() => {
+    const step = redoStep(historyRef.current, contentRef.current);
+    if (!step) return;
+    historyRef.current = step.history;
+    contentRef.current = step.value;
+    lastKind.current = null;
+    setContent(step.value);
+    syncHistoryFlags();
+    toast('Cambio rehecho', { id: 'ws-history', duration: 1500 });
+  }, [syncHistoryFlags]);
+
+  // Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z y Ctrl+Y — salvo dentro de un campo de texto, que ya sabe deshacer lo que se escribe en él.
+  const historyEnabled = isGuided && !readOnly;
+  useEffect(() => {
+    if (!historyEnabled) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+      const key = event.key.toLowerCase();
+      const wantsUndo = key === 'z' && !event.shiftKey;
+      const wantsRedo = (key === 'z' && event.shiftKey) || (key === 'y' && !event.metaKey);
+      if (!wantsUndo && !wantsRedo) return;
+      if (isTextEntry(event.target)) return;
+      // Con un diálogo abierto (publicar, agregar página) el cambio ocurriría por detrás sin verse.
+      if (window.document.querySelector('[role="dialog"]')) return;
+      event.preventDefault();
+      if (wantsUndo) undo();
+      else redo();
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [historyEnabled, undo, redo]);
 
   const updateSettings = useCallback((patch: Partial<SettingsDraft>) => setSettings((previous) => ({ ...previous, ...patch })), []);
 
@@ -146,17 +279,102 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, in
   const assetsContext = useMemo<EditorAssetsContextValue>(() => ({ siteId: site.id, assets, readOnly, addAsset }), [site.id, assets, readOnly, addAsset]);
 
   // -------------------------------------------------------------------------
+  // Navegación: página actual, sección abierta y vista previa
+  // -------------------------------------------------------------------------
+
+  const requestScroll = useCallback((request: Omit<PreviewScrollRequest, 'id'>) => {
+    scrollSeq.current += 1;
+    setScrollRequest({ id: scrollSeq.current, ...request });
+  }, []);
+
+  const selectPage = useCallback(
+    (nextId: string) => {
+      const page = findPage(contentRef.current.document, nextId);
+      if (!page) return;
+      setCurrentPageId(nextId);
+      setOpenId(page.blocks[0]?.id ?? null);
+      requestScroll({ pageId: nextId, target: 'top' });
+    },
+    [requestScroll]
+  );
+
+  const editPage = useCallback(
+    (nextId: string) => {
+      selectPage(nextId);
+      setTab('content');
+    },
+    [selectPage]
+  );
+
+  // Un clic en el menú o en un botón de la vista previa: se cambia de página sin salir del editor.
+  const previewNavigate = useCallback(
+    (targetPageId: string, anchor: string | null) => {
+      if (targetPageId !== pageIdRef.current) {
+        const page = findPage(contentRef.current.document, targetPageId);
+        if (!page) return;
+        setCurrentPageId(targetPageId);
+        setOpenId(page.blocks[0]?.id ?? null);
+      }
+      requestScroll({ pageId: targetPageId, target: anchor ? 'anchor' : 'top', anchor });
+    },
+    [requestScroll]
+  );
+
+  // Un clic en una sección de la vista previa: se abre para editarla y se lleva a la vista.
+  const previewSelectBlock = useCallback((blockId: string) => {
+    setTab('content');
+    setOpenId(blockId);
+    setRevealId(blockId);
+  }, []);
+
+  useEffect(() => {
+    if (activeTab !== 'content' || !revealId) return;
+    const id = revealId;
+    let inner = 0;
+    const outer = window.requestAnimationFrame(() => {
+      inner = window.requestAnimationFrame(() => {
+        const card = window.document.getElementById(`sec-${id}`);
+        const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        card?.scrollIntoView({ block: 'center', behavior: calm ? 'auto' : 'smooth' });
+        setRevealId(null);
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(outer);
+      window.cancelAnimationFrame(inner);
+    };
+  }, [activeTab, revealId]);
+
+  // Al abrir una sección en el editor, la vista previa la muestra.
+  const changeOpenSection = useCallback(
+    (id: string | null) => {
+      setOpenId(id);
+      if (!id) return;
+      const page = findPage(contentRef.current.document, pageIdRef.current);
+      requestScroll({ pageId: pageIdRef.current, target: 'block', blockId: id, anchor: page ? (pageBlockAnchors(page).get(id) ?? null) : null });
+    },
+    [requestScroll]
+  );
+
+  const focusArea = useCallback((area: 'top' | 'bottom') => requestScroll({ target: area }), [requestScroll]);
+
+  // En una ventana angosta la vista previa arranca como celular.
+  useEffect(() => {
+    if (window.matchMedia('(max-width: 1023px)').matches) setDevice('mobile');
+  }, []);
+
+  // -------------------------------------------------------------------------
   // Vista previa y "qué le falta" (con retraso: no se recalculan en cada tecla)
   // -------------------------------------------------------------------------
 
   const live = useMemo(
-    () => ({ blocks, theme, html, name: settings.name, seoTitle: settings.seoTitle, seoDescription: settings.seoDescription, logoUrl: settings.logoUrl }),
-    [blocks, theme, html, settings.name, settings.seoTitle, settings.seoDescription, settings.logoUrl]
+    () => ({ document, theme, html, pageId, name: settings.name, seoTitle: settings.seoTitle, seoDescription: settings.seoDescription, logoUrl: settings.logoUrl }),
+    [document, theme, html, pageId, settings.name, settings.seoTitle, settings.seoDescription, settings.logoUrl]
   );
   const debounced = useDebouncedValue(live, 150);
 
   const report = useMemo(
-    () => evaluateReadiness({ kind: site.kind, mode: site.mode, seoTitle: debounced.seoTitle, seoDescription: debounced.seoDescription, logoUrl: debounced.logoUrl, theme: debounced.theme, blocks: debounced.blocks, html: debounced.html }),
+    () => evaluateReadiness({ kind: site.kind, mode: site.mode, seoTitle: debounced.seoTitle, seoDescription: debounced.seoDescription, logoUrl: debounced.logoUrl, theme: debounced.theme, document: debounced.document, html: debounced.html }),
     [debounced, site.kind, site.mode]
   );
   const sanitized = useMemo(() => (isGuided ? null : sanitizeHtml(debounced.html)), [isGuided, debounced.html]);
@@ -167,33 +385,50 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, in
   );
 
   // Imágenes en uso (con el contenido actual, guardado o no): no se dejan eliminar desde la biblioteca.
-  const usedUrls = useMemo(() => new Set([...blocks.flatMap(blockImageUrls), settings.logoUrl, settings.ogImageUrl].filter(Boolean)), [blocks, settings.logoUrl, settings.ogImageUrl]);
+  const usedUrls = useMemo(() => new Set([...allBlocks(document).flatMap(blockImageUrls), settings.logoUrl, settings.ogImageUrl].filter(Boolean)), [document, settings.logoUrl, settings.ogImageUrl]);
   const isUsed = useCallback((url: string) => usedUrls.has(url) || (!isGuided && html.includes(url)), [usedUrls, isGuided, html]);
 
   // -------------------------------------------------------------------------
   // Guardar
   // -------------------------------------------------------------------------
 
-  async function saveContent(): Promise<boolean> {
-    const seq = editSeq.current;
-    const payload = isGuided ? { blocks, theme } : { html };
+  async function saveContent(mode: SaveMode): Promise<boolean> {
+    const sent: SavedContent = { document: contentRef.current.document, theme: contentRef.current.theme, html };
+    const fail = (message: string) => {
+      setSaveError(message);
+      setFailedFor(sent);
+      // Con la misma `id`, un aviso repetido reemplaza al anterior en vez de apilarse.
+      toast.error(message, { id: 'ws-save-error', duration: mode === 'auto' ? 6000 : 8000 });
+      return false;
+    };
+    if (isGuided) {
+      const check = siteDocumentSchema.safeParse(sent.document);
+      if (!check.success) return fail(friendlyIssue(check.error.issues));
+    }
+    const payload = isGuided ? { document: sent.document, theme: sent.theme } : { html: sent.html };
     let result = await saveWebSiteContentAction(site.id, { ...payload, expectedUpdatedAt: version });
     if (!result.success && result.error.includes(CONFLICT_MARKER)) {
       // Guardar ajustes, publicar o cambiar el dominio también mueve la versión del sitio sin tocar el contenido:
       // si el contenido del servidor sigue siendo el que cargamos, no hubo edición ajena y se reintenta.
       const latest = await getWebSiteAction(site.id);
-      if (latest.success && JSON.stringify(latest.data.blocks) === baseline.blocks && JSON.stringify(latest.data.theme) === baseline.theme && latest.data.html === baseline.html) {
+      if (latest.success && JSON.stringify(latest.data.document) === baseline.document && JSON.stringify(latest.data.theme) === baseline.theme && latest.data.html === baseline.html) {
         result = await saveWebSiteContentAction(site.id, { ...payload, expectedUpdatedAt: latest.data.version });
       }
     }
     if (!result.success) {
-      if (result.error.includes(CONFLICT_MARKER)) setConflict(true);
-      else toast.error(result.error);
-      return false;
+      if (result.error.includes(CONFLICT_MARKER)) {
+        setConflict(true);
+        return false;
+      }
+      return fail(result.error);
     }
     setVersion(result.data.version);
-    setBaseline(snapshotOf({ blocks, theme, html }));
-    if (editSeq.current === seq) setContentDirty(false);
+    setBaseline(snapshotOf(sent));
+    setSaved(sent);
+    setSaveError(null);
+    setFailedFor(null);
+    setLastSavedAt(Date.now());
+    setNow(Date.now());
     if (status === 'PUBLISHED') setPendingChanges(true);
     return true;
   }
@@ -222,23 +457,28 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, in
       toast.error(result.error);
       return false;
     }
-    const saved: SettingsDraft = { ...sent, slug: result.data.slug };
-    setSavedSettings(saved);
-    setSettings((current) => (settingsEqual(current, settings) ? saved : current));
+    const savedNow: SettingsDraft = { ...sent, slug: result.data.slug };
+    setSavedSettings(savedNow);
+    setSettings((current) => (settingsEqual(current, settings) ? savedNow : current));
     return true;
   }
 
-  async function saveAll(): Promise<boolean> {
+  /** Guarda el borrador. `auto` (el guardado solo) únicamente toca el contenido y no avisa si sale bien. */
+  async function saveAll(mode: SaveMode = 'manual'): Promise<boolean> {
     if (readOnly || busy || conflict) return false;
-    if (!anyDirty) return true;
+    if (mode === 'auto' ? !contentDirty : !anyDirty) return mode === 'manual';
     setBusy('saving');
     try {
-      if (contentDirty && !(await saveContent())) return false;
-      if (settingsDirty && !(await saveSettings())) return false;
-      toast.success(settingsDirty && !contentDirty ? 'Ajustes guardados' : 'Borrador guardado');
+      if (contentDirty && !(await saveContent(mode))) return false;
+      if (mode === 'manual') {
+        if (settingsDirty && !(await saveSettings())) return false;
+        toast.success(settingsDirty && !contentDirty ? 'Ajustes guardados' : 'Borrador guardado');
+      }
       return true;
     } catch {
-      toast.error(NETWORK_ERROR);
+      toast.error(NETWORK_ERROR, { id: 'ws-save-error' });
+      setSaveError(NETWORK_ERROR);
+      setFailedFor({ document: contentRef.current.document, theme: contentRef.current.theme, html });
       return false;
     } finally {
       setBusy(null);
@@ -266,12 +506,27 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, in
     function onKeyDown(event: KeyboardEvent) {
       if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 's') {
         event.preventDefault();
-        void saveRef.current();
+        void saveRef.current('manual');
       }
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
+
+  // Guardado solo: 4 s después del último cambio. Nunca publica. Si falló, no insiste hasta que haya un cambio nuevo.
+  const failedHere = failedFor !== null && failedFor.document === document && failedFor.theme === theme && failedFor.html === html;
+  useEffect(() => {
+    if (!contentDirty || readOnly || conflict || busy !== null || failedHere) return;
+    const timer = window.setTimeout(() => void saveRef.current('auto'), AUTOSAVE_MS);
+    return () => window.clearTimeout(timer);
+  }, [document, theme, html, contentDirty, readOnly, conflict, busy, failedHere]);
+
+  // "Guardado · hace 3 min" se va actualizando.
+  useEffect(() => {
+    if (lastSavedAt === null) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, [lastSavedAt]);
 
   // Aviso del navegador al cerrar o recargar con cambios sin guardar.
   useEffect(() => {
@@ -290,7 +545,7 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, in
   // -------------------------------------------------------------------------
 
   function openPublish() {
-    setPublishReport(evaluateReadiness({ kind: site.kind, mode: site.mode, seoTitle: settings.seoTitle, seoDescription: settings.seoDescription, logoUrl: settings.logoUrl, theme, blocks, html }));
+    setPublishReport(evaluateReadiness({ kind: site.kind, mode: site.mode, seoTitle: settings.seoTitle, seoDescription: settings.seoDescription, logoUrl: settings.logoUrl, theme, document, html }));
     setPublishOpen(true);
   }
 
@@ -298,7 +553,7 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, in
     if (busy || conflict) return;
     setBusy('publishing');
     try {
-      if (contentDirty && !(await saveContent())) {
+      if (contentDirty && !(await saveContent('manual'))) {
         setPublishOpen(false);
         return;
       }
@@ -363,6 +618,7 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, in
   const idPrefix = `ws-${site.id}`;
   const tabs: EditorTabDef[] = [
     { id: 'content', label: 'Contenido' },
+    ...(isGuided ? ([{ id: 'pages', label: 'Páginas' }, { id: 'layout', label: 'Encabezado y pie' }] satisfies EditorTabDef[]) : []),
     { id: 'design', label: 'Diseño' },
     { id: 'images', label: 'Imágenes' },
     { id: 'settings', label: 'Ajustes' },
@@ -373,10 +629,32 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, in
   const canSaveDraft = canWrite && !archived;
   const nothingToPublish = status === 'PUBLISHED' && !pendingChanges && !contentDirty;
 
+  // Estado del guardado, discreto y siempre visible.
+  let saveNote: { text: string; tone: 'warning' | 'danger' | 'muted'; title?: string; spinner?: boolean } | null = null;
+  if (busy === 'saving') saveNote = { text: 'Guardando…', tone: 'muted', spinner: true };
+  else if (saveError && contentDirty) saveNote = { text: 'No se pudo guardar', tone: 'danger', title: saveError };
+  else if (anyDirty) saveNote = { text: 'Cambios sin guardar', tone: 'warning', title: contentDirty && !readOnly && !conflict ? 'Se guardan solos unos segundos después del último cambio.' : undefined };
+  else if (lastSavedAt !== null) saveNote = { text: `Guardado · ${agoLabel(Math.max(0, now - lastSavedAt))}`, tone: 'muted' };
+
   const preview = (
     <div className="min-w-0 lg:sticky lg:top-4 lg:self-start">
       {isGuided ? (
-        <PreviewPane mode="GUIDED" device={device} onDeviceChange={setDevice} name={debounced.name || site.name} logoUrl={debounced.logoUrl || null} theme={debounced.theme} blocks={debounced.blocks} slug={savedSettings.slug} />
+        <PreviewPane
+          mode="GUIDED"
+          device={device}
+          onDeviceChange={setDevice}
+          name={debounced.name || site.name}
+          logoUrl={debounced.logoUrl || null}
+          theme={debounced.theme}
+          document={debounced.document}
+          pageId={debounced.pageId}
+          slug={savedSettings.slug}
+          onPageChange={selectPage}
+          onNavigate={previewNavigate}
+          onSelectBlock={previewSelectBlock}
+          selectedBlockId={openId}
+          scrollRequest={scrollRequest}
+        />
       ) : (
         <PreviewPane mode="HTML" device={device} onDeviceChange={setDevice} srcDoc={srcDoc} />
       )}
@@ -402,15 +680,26 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, in
           }
           actions={
             <div className="flex flex-wrap items-center justify-end gap-2">
-              <span aria-live="polite" className="flex items-center gap-1.5 text-xs font-medium text-warning">
-                {anyDirty ? (
+              <span aria-live="polite" title={saveNote?.title} className={`flex items-center gap-1.5 text-xs font-medium ${saveNote?.tone === 'warning' ? 'text-warning' : saveNote?.tone === 'danger' ? 'text-danger' : 'text-muted-foreground'}`}>
+                {saveNote ? (
                   <>
-                    <span className="size-1.5 rounded-full bg-warning" aria-hidden="true" /> Cambios sin guardar
+                    {saveNote.spinner ? <Loader2 className="size-3 animate-spin" aria-hidden="true" /> : <span className={`size-1.5 rounded-full ${saveNote.tone === 'warning' ? 'bg-warning' : saveNote.tone === 'danger' ? 'bg-danger' : 'bg-success'}`} aria-hidden="true" />}
+                    {saveNote.text}
                   </>
                 ) : null}
               </span>
+              {isGuided && canSaveDraft ? (
+                <div role="group" aria-label="Deshacer y rehacer" className="flex items-center gap-0.5">
+                  <Button type="button" variant="ghost" size="icon" disabled={!historyFlags.undo} title="Deshacer (Ctrl+Z)" aria-label="Deshacer" onClick={undo}>
+                    <Undo2 aria-hidden="true" />
+                  </Button>
+                  <Button type="button" variant="ghost" size="icon" disabled={!historyFlags.redo} title="Rehacer (Ctrl+Shift+Z)" aria-label="Rehacer" onClick={redo}>
+                    <Redo2 aria-hidden="true" />
+                  </Button>
+                </div>
+              ) : null}
               {canSaveDraft ? (
-                <Button type="button" variant="outline" disabled={!anyDirty || busy !== null || conflict} title="Guardar (Ctrl+S)" onClick={() => void saveAll()}>
+                <Button type="button" variant="outline" disabled={!anyDirty || busy !== null || conflict} title="Guardar ahora (Ctrl+S)" onClick={() => void saveAll('manual')}>
                   {busy === 'saving' ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Save aria-hidden="true" />} Guardar borrador
                 </Button>
               ) : null}
@@ -455,14 +744,19 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, in
           </p>
         ) : null}
 
-        <EditorTabs tabs={tabs} active={tab} onChange={setTab} idPrefix={idPrefix} />
+        <EditorTabs tabs={tabs} active={activeTab} onChange={setTab} idPrefix={idPrefix} />
 
-        <div role="tabpanel" id={tabPanelId(idPrefix)} aria-labelledby={tabId(idPrefix, tab)} tabIndex={0} className="outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
-          {tab === 'content' ? (
+        <div role="tabpanel" id={tabPanelId(idPrefix)} aria-labelledby={tabId(idPrefix, activeTab)} tabIndex={0} className="outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+          {activeTab === 'content' ? (
             <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
-              <div className="min-w-0">
+              <div className="min-w-0 space-y-4">
                 {isGuided ? (
-                  <GuidedEditor kind={site.kind} blocks={blocks} onBlocksChange={updateBlocks} openId={openId} onOpenChange={setOpenId} readOnly={readOnly} />
+                  <>
+                    {!readOnly ? <StartGuide onGoToTab={setTab} /> : null}
+                    <PageSwitcher doc={document} pageId={pageId} onSelect={selectPage} onAddPage={() => setAddPageOpen(true)} onManagePages={() => setTab('pages')} readOnly={readOnly} />
+                    <GuidedEditor kind={site.kind} document={document} pageId={pageId} onDocumentChange={updateDocument} openId={openId} onOpenChange={changeOpenSection} readOnly={readOnly} theme={theme} />
+                    <AddPageDialog open={addPageOpen} onOpenChange={setAddPageOpen} document={document} onDocumentChange={updateDocument} onAdded={selectPage} />
+                  </>
                 ) : (
                   <HtmlEditor html={html} onChange={updateHtml} siteName={settings.name || site.name} removed={sanitized?.removed ?? []} hints={hints} readOnly={readOnly} />
                 )}
@@ -471,7 +765,30 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, in
             </div>
           ) : null}
 
-          {tab === 'design' ? (
+          {activeTab === 'pages' && isGuided ? (
+            <PagesPanel
+              doc={document}
+              addressBase={addressBase}
+              published={status === 'PUBLISHED'}
+              siteName={settings.name || site.name}
+              currentPageId={pageId}
+              onDocumentChange={updateDocument}
+              onSelectPage={selectPage}
+              onEditPage={editPage}
+              readOnly={readOnly}
+            />
+          ) : null}
+
+          {activeTab === 'layout' && isGuided ? (
+            <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+              <div className="min-w-0">
+                <LayoutPanel doc={document} pageId={pageId} onDocumentChange={updateDocument} onFocusArea={focusArea} onGoToTab={setTab} disabled={readOnly} />
+              </div>
+              {preview}
+            </div>
+          ) : null}
+
+          {activeTab === 'design' ? (
             isGuided ? (
               <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
                 <div className="min-w-0">
@@ -490,7 +807,7 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, in
             )
           ) : null}
 
-          {tab === 'images' ? (
+          {activeTab === 'images' ? (
             <AssetLibrary
               isUsed={isUsed}
               onAltSaved={(assetId, alt) => setAssets((previous) => previous.map((asset) => (asset.id === assetId ? { ...asset, alt } : asset)))}
@@ -498,7 +815,7 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, in
             />
           ) : null}
 
-          {tab === 'settings' ? (
+          {activeTab === 'settings' ? (
             <div className="max-w-3xl space-y-6">
               <SettingsPanel
                 settings={settings}
@@ -518,13 +835,13 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, in
             </div>
           ) : null}
 
-          {tab === 'readiness' ? (
+          {activeTab === 'readiness' ? (
             <div className="max-w-3xl">
               <ReadinessPanel report={report} mode={site.mode} onGo={setTab} />
             </div>
           ) : null}
 
-          {tab === 'messages' ? <WebSiteMessagesPanel siteId={site.id} canWrite={canWrite} onUnreadChange={setUnread} /> : null}
+          {activeTab === 'messages' ? <WebSiteMessagesPanel siteId={site.id} canWrite={canWrite} onUnreadChange={setUnread} /> : null}
         </div>
 
         {publishReport ? (

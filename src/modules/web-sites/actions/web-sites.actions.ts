@@ -8,7 +8,7 @@ import { captureException } from '@/lib/observability';
 import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import { del } from '@/lib/storage/blob';
 import type { ReadinessReport } from '@/lib/web-sites/readiness';
-import { createWebSiteSchema, saveWebSiteContentSchema, webSiteAssetAltSchema, webSiteDomainSchema, webSiteSettingsSchema } from '../schema';
+import { catalogProductsQuerySchema, createWebSiteSchema, saveWebSiteContentSchema, webSiteAssetAltSchema, webSiteDomainSchema, webSiteSettingsSchema } from '../schema';
 import * as service from '../services/web-sites.service';
 import * as domains from '../services/web-site-domain.service';
 import type { WebSiteDetail, WebSiteMessageRow, WebSiteRow } from '../services/web-sites.service';
@@ -29,10 +29,12 @@ function revalidateSite(id?: string): void {
   if (id) revalidatePath(`/dashboard/web-sites/${id}`);
 }
 
-/** Vacía de la caché la página pública, la de dominio propio y su documento HTML. */
+/** Vacía de la caché la página pública, sus páginas internas y su documento HTML. */
 function revalidatePublic(slug: string): void {
   revalidatePath(`/web/${slug}`);
   revalidatePath(`/web/${slug}/raw`);
+  // Páginas internas (`/web/<slug>/<página>`): sus direcciones cambian con el contenido, así que se vacía el patrón completo.
+  revalidatePath('/web/[slug]/[page]', 'page');
 }
 
 const STATUS_FILTERS = ['ALL', 'DRAFT', 'PUBLISHED', 'ARCHIVED'] as const;
@@ -65,7 +67,8 @@ export async function createWebSiteAction(input: unknown): Promise<ActionResult<
     companyId = session.companyId;
     const parsed = createWebSiteSchema.safeParse(input);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
-    const created = await service.createWebSite(session.companyId, { name: session.name }, parsed.data);
+    // Precargar el contacto desde la ficha de un cliente es leer esa ficha: exige poder ver clientes.
+    const created = await service.createWebSite(session.companyId, { name: session.name }, parsed.data, { canReadContacts: can(session, 'contacts:read') });
     await createAuditLog({ companyId: session.companyId, userId: session.id, userEmail: session.email, action: 'CREATE', entity: 'WebSite', entityId: created.id, metadata: { name: parsed.data.name, kind: parsed.data.kind, mode: parsed.data.mode } });
     revalidateSite();
     return { success: true, data: created, message: 'Sitio creado. Completa las secciones y revisa la lista "Qué le falta".' };
@@ -308,5 +311,24 @@ export async function removeWebSiteDomainAction(siteId: string): Promise<ActionR
     return { success: true, data: view, message: 'Dominio quitado' };
   } catch (error) {
     return fail(error, companyId, { action: 'removeWebSiteDomain', siteId });
+  }
+}
+
+/**
+ * Productos del inventario para importarlos al catálogo del sitio. Exige
+ * editar sitios Y ver el catálogo de productos: quien no ve productos en el
+ * ERP tampoco los puede sacar por esta vía.
+ */
+export async function listCatalogProductsAction(q?: string): Promise<ActionResult<service.CatalogProductRow[]>> {
+  let companyId: string | undefined;
+  try {
+    const session = await requireAuthWithPermission('websites:write');
+    companyId = session.companyId;
+    if (!can(session, 'products:read')) return { success: false, error: 'No tienes permiso para ver los productos del inventario.' };
+    const query = catalogProductsQuerySchema.safeParse(q);
+    if (!query.success) return { success: false, error: 'Búsqueda inválida' };
+    return { success: true, data: await service.listCatalogProducts(session.companyId, query.data) };
+  } catch (error) {
+    return fail(error, companyId, { action: 'listCatalogProducts' });
   }
 }

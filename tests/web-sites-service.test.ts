@@ -58,6 +58,7 @@ import { isVercelDomainsConfigured } from '@/lib/hosting/vercel-domains';
 import { isAllowedBlobUrl } from '@/lib/security/blob-url';
 import { createBlock, type WebSiteBlock } from '@/lib/web-sites/blocks';
 import { MAX_HTML_BYTES } from '@/lib/web-sites/html';
+import { homeOf, parseSiteDocument, type SiteDocument } from '@/lib/web-sites/site';
 import { starterBlocks } from '@/lib/web-sites/templates';
 import { parseTheme } from '@/lib/web-sites/theme';
 import { siteSlugProblem } from '@/lib/web-sites/urls';
@@ -103,6 +104,7 @@ const MODEL_METHODS = {
   webSiteMessage: ['findMany', 'create', 'count', 'updateMany', 'deleteMany', 'groupBy'],
   contact: ['findFirst'],
   project: ['findFirst'],
+  company: ['findFirst'],
 } as const;
 
 interface Db {
@@ -111,6 +113,7 @@ interface Db {
   webSiteMessage: Mocks;
   contact: Mocks;
   project: Mocks;
+  company: Mocks;
 }
 
 function delegateOf(model: string): Delegate {
@@ -582,7 +585,10 @@ describe('publishWebSite: publicar exige la lista "qué falta"', () => {
     expect(where).toEqual({ id: SITE, companyId: COMPANY });
     expect(data.status).toBe('PUBLISHED');
     expect(data.publishedAt).toBe(publishedAt);
-    expect((data.publishedBlocks as WebSiteBlock[]).map((block) => (block.type === 'hero' ? block.title : block.type))).toEqual(['Paneles solares para tu casa', 'contact']);
+    // Lo publicado es el documento del sitio (formato multipágina), con la página de inicio del borrador.
+    const publishedDoc = data.publishedBlocks as SiteDocument;
+    expect(publishedDoc.version).toBe(2);
+    expect(homeOf(publishedDoc).blocks.map((block) => (block.type === 'hero' ? block.title : block.type))).toEqual(['Paneles solares para tu casa', 'contact']);
     expect(data.publishedBlocks).not.toEqual(oldPublished);
     expect(data).not.toHaveProperty('contentUpdatedAt'); // publicar no cuenta como editar el contenido
     expect(data.publishedTheme).toEqual(parseTheme({ primary: '#123456' }));
@@ -598,7 +604,10 @@ describe('publishWebSite: publicar exige la lista "qué falta"', () => {
 
     await publishWebSite(COMPANY, SITE);
 
-    expect(argsOf(db.webSite.updateMany).data.publishedBlocks).toEqual(JSON.parse(JSON.stringify(draft)));
+    // Un borrador del formato antiguo (lista de secciones) se publica convertido, sin perder ni alterar ninguna sección.
+    const published = argsOf(db.webSite.updateMany).data.publishedBlocks as SiteDocument;
+    expect(homeOf(published).blocks).toEqual(JSON.parse(JSON.stringify(parseSiteDocument(draft).pages[0]!.blocks)));
+    expect(homeOf(published).blocks.map((block) => block.id)).toEqual(draft.map((block) => block.id));
   });
 
   it('en modo HTML guarda publishedHtml YA sanitizado, sin scripts ni manejadores', async () => {
@@ -956,7 +965,10 @@ describe('createWebSite', () => {
     happyPath();
     await createWebSite(COMPANY, { name: 'Ana' }, base);
     const guided = argsOf(db.webSite.create).data;
-    expect((guided.draftBlocks as WebSiteBlock[])[0]).toMatchObject({ type: 'hero', title: 'Taller Los Andes' });
+    const starter = guided.draftBlocks as SiteDocument;
+    expect(starter.version).toBe(2);
+    expect(homeOf(starter).blocks[0]).toMatchObject({ type: 'hero', title: 'Taller Los Andes' });
+    expect(parseSiteDocument(starter)).toEqual(JSON.parse(JSON.stringify(starter)));
     expect(guided.draftHtml).toBeNull();
 
     await createWebSite(COMPANY, { name: 'Ana' }, { ...base, mode: 'HTML' });
@@ -1442,6 +1454,7 @@ describe('acciones de Sitios web: RBAC por rol', () => {
     ['saveWebSiteContentAction', () => actions.saveWebSiteContentAction('s', {}), WRITE],
     ['updateWebSiteSettingsAction', () => actions.updateWebSiteSettingsAction('s', {}), WRITE],
     ['duplicateWebSiteAction', () => actions.duplicateWebSiteAction('s'), WRITE],
+    ['listCatalogProductsAction', () => actions.listCatalogProductsAction('x'), WRITE],
     ['updateWebSiteAssetAltAction', () => actions.updateWebSiteAssetAltAction('a', { alt: 'x' }), WRITE],
     ['deleteWebSiteAssetAction', () => actions.deleteWebSiteAssetAction('a'), WRITE],
     ['setWebSiteMessageReadAction', () => actions.setWebSiteMessageReadAction('m', true), WRITE],
@@ -1800,5 +1813,170 @@ describe('permisos de Sitios web con la matriz real', () => {
     expect(links('OWNER', FULL)).toContain('web-sites');
     expect(links('OWNER', WITHOUT)).not.toContain('web-sites');
     expect(links('ACCOUNTANT', FULL)).not.toContain('web-sites');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Sitios de varias páginas
+// ---------------------------------------------------------------------------
+
+describe('sitios de varias páginas', () => {
+  const OTHER_COMPANY_ASSET = 'https://blob.test/web-sites/company-b/site-9/ajena.png';
+
+  function multiPage(extra: WebSiteBlock[] = [], hidden = false): SiteDocument {
+    const doc = parseSiteDocument(publishableBlocks());
+    return {
+      ...doc,
+      pages: [
+        ...doc.pages,
+        { ...doc.pages[0]!, id: 'servicios', title: 'Servicios', slug: 'servicios', hidden, blocks: [{ ...createBlock('text'), heading: 'Servicios', body: 'Instalamos paneles.' } as WebSiteBlock, ...extra] },
+      ],
+    };
+  }
+
+  function guidedSite() {
+    db.webSite.findFirst.mockResolvedValueOnce({ mode: 'GUIDED', status: 'DRAFT' });
+  }
+
+  it('guarda el documento completo y valida las imágenes de TODAS las páginas, fondos, equipo y logos', async () => {
+    const cases: WebSiteBlock[] = [
+      { ...createBlock('team'), items: [{ name: 'Ana', role: '', bio: '', photoUrl: 'https://cdn.evil.cl/ana.jpg' }] } as WebSiteBlock,
+      { ...createBlock('logos'), items: [{ imageUrl: OTHER_COMPANY_ASSET, alt: 'x', href: '' }] } as WebSiteBlock,
+      { ...createBlock('split'), heading: 'x', imageUrl: 'http://hotlink.cl/a.png' } as WebSiteBlock,
+      { ...createBlock('text'), heading: 'x', style: { background: 'image', backgroundImage: 'https://tracker.evil.cl/p.png', overlay: 50, spacing: 'auto', align: 'auto' } } as WebSiteBlock,
+    ];
+    for (const bad of cases) {
+      guidedSite();
+      await expect(saveWebSiteContent(COMPANY, SITE, { document: multiPage([bad]) })).rejects.toThrow(/biblioteca del sitio/);
+    }
+    expect(db.webSite.updateMany).not.toHaveBeenCalled();
+
+    guidedSite();
+    db.webSite.updateMany.mockResolvedValue({ count: 1 });
+    const good = { ...createBlock('team'), items: [{ name: 'Ana', role: '', bio: '', photoUrl: ASSET_URL }] } as WebSiteBlock;
+    await saveWebSiteContent(COMPANY, SITE, { document: multiPage([good]) });
+    const saved = argsOf(db.webSite.updateMany).data.draftBlocks as SiteDocument;
+    expect(saved.pages.map((page) => page.slug)).toEqual(['', 'servicios']);
+    expect(argsOf(db.webSite.updateMany).where).toMatchObject({ id: SITE, companyId: COMPANY });
+  });
+
+  it('repara al guardar lo que el navegador no debió mandar (inicio con dirección u oculta, direcciones repetidas o reservadas)', async () => {
+    guidedSite();
+    db.webSite.updateMany.mockResolvedValue({ count: 1 });
+    const doc = multiPage();
+    const broken: SiteDocument = {
+      ...doc,
+      pages: [{ ...doc.pages[0]!, slug: 'inicio', hidden: true }, doc.pages[1]!, { ...doc.pages[1]!, id: 'otra', slug: 'servicios', blocks: [] }, { ...doc.pages[1]!, id: 'login', title: 'Login', slug: 'login', blocks: [] }],
+    };
+    await saveWebSiteContent(COMPANY, SITE, { document: broken });
+    const saved = argsOf(db.webSite.updateMany).data.draftBlocks as SiteDocument;
+    expect(saved.pages[0]).toMatchObject({ slug: '', hidden: false });
+    const slugs = saved.pages.slice(1).map((page) => page.slug);
+    expect(new Set(slugs).size).toBe(slugs.length);
+    expect(slugs).not.toContain('login');
+  });
+
+  it('el público recibe el documento PUBLICADO sin las páginas ocultas en el menú, y acepta mensajes si el formulario está en otra página', async () => {
+    const published = multiPage([{ ...createBlock('contact'), heading: 'Escríbenos', showForm: true } as WebSiteBlock]);
+    db.webSite.findUnique.mockResolvedValue(publicRow({ publishedBlocks: published, draftBlocks: [{ ...createBlock('hero'), title: 'BORRADOR' }] }));
+    const site = await getPublicWebSite('solar-sur');
+    expect(site!.document.pages.map((page) => page.slug)).toEqual(['', 'servicios']);
+    expect(site!.acceptsMessages).toBe(true);
+    expect(JSON.stringify(site)).not.toContain('BORRADOR');
+
+    db.webSite.findUnique.mockResolvedValue(publicRow({ publishedBlocks: multiPage([{ ...createBlock('contact'), showForm: true } as WebSiteBlock], true) }));
+    // El formulario vive en una página oculta: no se publica, así que no se aceptan mensajes.
+    expect((await getPublicWebSite('solar-sur'))!.acceptsMessages).toBe(false);
+  });
+
+  it('un sitio antiguo (lista de secciones) guardado de nuevo en el formato nuevo no cuenta como "cambios sin publicar"', async () => {
+    const legacy = publishableBlocks();
+    db.webSite.findFirst.mockResolvedValue(siteRow({ status: 'PUBLISHED', publishedBlocks: legacy, publishedTheme: {}, draftBlocks: JSON.parse(JSON.stringify(parseSiteDocument(legacy))) }));
+    db.webSiteMessage.count.mockResolvedValue(0);
+    const site = await service.getWebSite(COMPANY, SITE);
+    expect(site!.pendingChanges).toBe(false);
+    expect(homeOf(site!.document).blocks).toHaveLength(2);
+  });
+});
+
+describe('createWebSite por rubro', () => {
+  const input = { name: 'Gasfitería Rápida', kind: 'LANDING' as const, mode: 'GUIDED' as const, industry: 'restaurant' };
+
+  function allowCreate() {
+    db.webSite.count.mockResolvedValue(0);
+    db.webSite.findFirst.mockResolvedValue(null);
+    db.webSite.create.mockResolvedValue({ id: 'new-site', slug: 'gasfiteria-rapida' });
+  }
+
+  it('arma el sitio del rubro con los datos de la ficha de ESTA empresa (consulta acotada por id)', async () => {
+    allowCreate();
+    db.company.findFirst.mockResolvedValue({ email: 'hola@rapida.cl', phone: '+56 9 8765 4321', address: 'Los Aromos 12', comuna: 'Maipú' });
+    await createWebSite(COMPANY, { name: 'Ana' }, input);
+
+    expect(argsOf(db.company.findFirst).where).toEqual({ id: COMPANY });
+    const { data } = argsOf(db.webSite.create);
+    const doc = data.draftBlocks as SiteDocument;
+    expect(doc.pages.length).toBeGreaterThan(1);
+    const contact = doc.pages.flatMap((page) => page.blocks).find((block) => block.type === 'contact');
+    expect(contact).toMatchObject({ email: 'hola@rapida.cl', phone: '+56 9 8765 4321', address: 'Los Aromos 12, Maipú' });
+    expect(doc.header.ctaLabel).not.toBe('');
+    expect(data.kind).toBe('LANDING');
+  });
+
+  it('para un cliente usa la ficha del cliente, siempre de la misma empresa', async () => {
+    allowCreate();
+    db.contact.findFirst.mockResolvedValueOnce({ id: 'contact-1' }).mockResolvedValueOnce({ email: 'cliente@x.cl', phone: null, address: null, comuna: null });
+    await createWebSite(COMPANY, { name: 'Ana' }, { ...input, contactId: 'contact-1' });
+    expect(argsOf(db.contact.findFirst, 1).where).toEqual({ id: 'contact-1', companyId: COMPANY });
+    expect(db.company.findFirst).not.toHaveBeenCalled();
+    const doc = argsOf(db.webSite.create).data.draftBlocks as SiteDocument;
+    expect(doc.pages.flatMap((page) => page.blocks).find((block) => block.type === 'contact')).toMatchObject({ email: 'cliente@x.cl' });
+  });
+
+  it('un rubro desconocido o el modo HTML no consultan la ficha y usan el armado normal', async () => {
+    allowCreate();
+    await createWebSite(COMPANY, { name: 'Ana' }, { ...input, industry: 'no-existe' });
+    await createWebSite(COMPANY, { name: 'Ana' }, { ...input, mode: 'HTML' });
+    expect(db.company.findFirst).not.toHaveBeenCalled();
+    expect(argsOf(db.webSite.create, 1).data.draftBlocks).toEqual([]);
+  });
+});
+
+describe('productos del inventario para el catálogo', () => {
+  it('acota por empresa, no expone costos ni stock y descarta fotos que no son de la empresa', async () => {
+    const spy = jest.spyOn(prisma.product, 'findMany').mockResolvedValue([
+      { id: 'p1', name: 'Mesa', sku: 'M1', description: null, brand: 'Roble', grossPrice: 119000, imageUrl: 'https://blob.test/products/company-a/m1.jpg' },
+      { id: 'p2', name: 'Silla', sku: 'S1', description: 'x', brand: null, grossPrice: 0, imageUrl: 'https://blob.test/products/company-b/ajena.jpg' },
+    ] as never);
+    const rows = await service.listCatalogProducts(COMPANY, '  me  ');
+    const args = spy.mock.calls[0]![0] as { where: Row; select: Row };
+    expect(args.where).toMatchObject({ companyId: COMPANY });
+    expect(Object.keys(args.select)).not.toEqual(expect.arrayContaining(['costPricePMP']));
+    expect(args.select).not.toHaveProperty('costPricePMP');
+    expect(args.select).not.toHaveProperty('stocks');
+    expect(rows[0]).toMatchObject({ imageUrl: 'https://blob.test/products/company-a/m1.jpg', description: '' });
+    expect(rows[1]!.imageUrl).toBeNull();
+  });
+
+  it('la acción exige editar sitios y además ver productos', async () => {
+    jest.mocked(requireAuthWithPermission).mockResolvedValue({ id: 'u1', companyId: COMPANY, email: 'a@b.cl', name: 'Ana', permissions: ['websites:write'] } as never);
+    const denied = await actions.listCatalogProductsAction('x');
+    expect(denied).toEqual({ success: false, error: expect.stringMatching(/productos/) });
+    expect(requireAuthWithPermission).toHaveBeenCalledWith('websites:write');
+  });
+});
+
+describe('createWebSite por rubro sin permiso para ver clientes', () => {
+  it('no precarga datos de la ficha del cliente: usa la de la empresa', async () => {
+    db.webSite.count.mockResolvedValue(0);
+    db.webSite.findFirst.mockResolvedValue(null);
+    db.webSite.create.mockResolvedValue({ id: 'new-site', slug: 'x' });
+    db.contact.findFirst.mockResolvedValueOnce({ id: 'contact-1' });
+    db.company.findFirst.mockResolvedValue({ email: 'empresa@x.cl', phone: null, address: null, comuna: null });
+    await createWebSite(COMPANY, { name: 'Ana' }, { name: 'Sitio', kind: 'LANDING', mode: 'GUIDED', industry: 'restaurant', contactId: 'contact-1' }, { canReadContacts: false });
+    // Solo la verificación de que el cliente existe; nunca se leen sus datos de contacto.
+    expect(db.contact.findFirst).toHaveBeenCalledTimes(1);
+    const doc = argsOf(db.webSite.create).data.draftBlocks as SiteDocument;
+    expect(doc.pages.flatMap((page) => page.blocks).find((block) => block.type === 'contact')).toMatchObject({ email: 'empresa@x.cl' });
   });
 });

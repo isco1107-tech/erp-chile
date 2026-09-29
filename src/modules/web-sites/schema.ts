@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { blocksSchema } from '@/lib/web-sites/blocks';
+import { siteDocumentSchema } from '@/lib/web-sites/site';
 import { MAX_HTML_BYTES } from '@/lib/web-sites/html';
 import { WEB_SITE_KINDS } from '@/lib/web-sites/templates';
 import { themeSchema } from '@/lib/web-sites/theme';
@@ -27,11 +28,16 @@ export const createWebSiteSchema = z.object({
   kind: z.enum(WEB_SITE_KINDS),
   mode: z.enum(WEB_SITE_MODES),
   contactId: z.string().min(1).nullable().optional(),
+  /** Rubro (`industries.ts`): arma el sitio completo de ese rubro en modo guiado. */
+  industry: z.string().trim().max(40).nullable().optional(),
 });
 
 export type CreateWebSiteInput = z.infer<typeof createWebSiteSchema>;
 
 export const saveWebSiteContentSchema = z.object({
+  /** Sitio completo en modo guiado (páginas, encabezado, pie…). */
+  document: siteDocumentSchema.optional(),
+  /** Compatibilidad: sitio de una sola página con estas secciones. */
   blocks: blocksSchema.optional(),
   theme: themeSchema.optional(),
   html: z.string().max(MAX_HTML_BYTES * 2, 'El HTML es demasiado largo').nullable().optional(),
@@ -53,6 +59,9 @@ export const webSiteSettingsSchema = z.object({
 });
 
 export type WebSiteSettingsInput = z.infer<typeof webSiteSettingsSchema>;
+
+/** Búsqueda de productos del inventario para el catálogo del sitio. */
+export const catalogProductsQuerySchema = z.string().trim().max(100).optional();
 
 export const webSiteAssetAltSchema = z.object({ alt: z.string().trim().max(160, 'La descripción puede tener hasta 160 caracteres') });
 
