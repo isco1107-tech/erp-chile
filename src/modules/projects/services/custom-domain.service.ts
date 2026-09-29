@@ -143,8 +143,11 @@ export async function setCustomDomain(companyId: string, projectId: string, rawD
   if (problem) throw new CustomDomainError(problem);
 
   if (project.customDomain !== domain) {
-    const taken = await prisma.project.findFirst({ where: { customDomain: domain, NOT: { id: projectId } }, select: { id: true } });
-    if (taken) throw new CustomDomainError('Ese dominio ya lo usa otro certamen de la plataforma');
+    const [taken, takenByWebSite] = await Promise.all([
+      prisma.project.findFirst({ where: { customDomain: domain, NOT: { id: projectId } }, select: { id: true } }),
+      prisma.webSite.findFirst({ where: { customDomain: domain }, select: { id: true } }),
+    ]);
+    if (taken || takenByWebSite) throw new CustomDomainError('Ese dominio ya lo usa otro certamen o sitio web de la plataforma');
     try {
       await prisma.project.updateMany({ where: { id: projectId, companyId }, data: { customDomain: domain, customDomainVerifiedAt: null } });
     } catch (error) {

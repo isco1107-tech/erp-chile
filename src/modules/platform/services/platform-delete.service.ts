@@ -81,6 +81,10 @@ async function hardDeleteTenant(tx: Prisma.TransactionClient, companyId: string)
   await tx.importShipment.deleteMany({ where: { companyId } });
   // Producción y servicio técnico: sus filas apuntan a Product, Warehouse y
   // Contact con RESTRICT, así que salen antes que ellos.
+  // Sitios web: mensajes y biblioteca cuelgan del sitio; el sitio apunta a Contact.
+  await tx.webSiteMessage.deleteMany({ where: { companyId } });
+  await tx.webSiteAsset.deleteMany({ where: { companyId } });
+  await tx.webSite.deleteMany({ where: { companyId } });
   await tx.serviceTicketEvent.deleteMany({ where: { companyId } });
   await tx.serviceTicketLine.deleteMany({ where: { companyId } });
   await tx.serviceTicket.deleteMany({ where: { companyId } });

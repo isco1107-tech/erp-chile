@@ -153,6 +153,9 @@ model Company {
   serviceTicketLines        ServiceTicketLine[]
   fixedAssetMaintenances    FixedAssetMaintenance[]
   serviceTicketEvents       ServiceTicketEvent[]
+  webSites                  WebSite[]
+  webSiteAssets             WebSiteAsset[]
+  webSiteMessages           WebSiteMessage[]
   salesDocumentItems        SalesDocumentItem[]
   purchaseDocuments         PurchaseDocument[]
   purchaseDocumentItems     PurchaseDocumentItem[]
@@ -540,6 +543,9 @@ model CompanyFeatures {
   hasProduction         Boolean  @default(false)
   /// Servicio técnico: órdenes de servicio con seguimiento para el cliente.
   hasServiceDesk        Boolean  @default(false)
+  /// Sitios web: constructor guiado (bloques) o HTML propio, publicados en
+  /// `/web/[slug]` o en un dominio propio, con bandeja de mensajes.
+  hasWebSites           Boolean  @default(false)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 }
@@ -784,6 +790,7 @@ model Contact {
   supplierQuotes            SupplierQuote[]
   importShipments           ImportShipment[]
   serviceTickets            ServiceTicket[]
+  webSites                  WebSite[]
   /// Portal del cliente (`/cliente/[token]`): se guarda solo el hash SHA-256
   /// del enlace; el enlace en claro se muestra una vez al generarlo.
   portalTokenHash           String?                 @unique
@@ -3531,6 +3538,8 @@ enum WorkflowTriggerEvent {
   SERVICE_TICKET_STATUS_CHANGED
   /// El cliente aprobó o rechazó el presupuesto desde su enlace de seguimiento.
   SERVICE_ESTIMATE_DECIDED
+  /// Alguien escribió desde el formulario de contacto de un sitio web publicado.
+  WEB_SITE_MESSAGE_RECEIVED
 }
 
 enum WorkflowActionType {
@@ -5220,4 +5229,118 @@ model ArchivedInvoice {
 
   @@index([companyId, supplierKey, issueDate])
   @@index([companyId, issueDate])
+}
+
+// ---------------------------------------------------------------------------
+// Sitios web (constructor guiado o HTML propio)
+// ---------------------------------------------------------------------------
+
+/// Para qué sirve el sitio: define la plantilla inicial y la lista de "qué
+/// debe tener" que guía al usuario. No cambia cómo se publica.
+enum WebSiteKind {
+  LANDING
+  CORPORATE
+  PORTFOLIO
+  CATALOG
+  EVENT
+  PERSONAL
+  BLANK
+}
+
+/// GUIDED: el sitio se arma con bloques (portada, textos, galería, contacto…).
+/// HTML: el usuario escribe su propio HTML/CSS; se publica aislado y sin scripts.
+enum WebSiteMode {
+  GUIDED
+  HTML
+}
+
+enum WebSiteStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model WebSite {
+  id                     String        @id @default(cuid())
+  companyId              String
+  company                Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// Nombre interno (el que ve el equipo en el panel).
+  name                   String
+  /// Dirección pública: `/web/[slug]`. Única en toda la plataforma.
+  slug                   String        @unique
+  kind                   WebSiteKind   @default(LANDING)
+  mode                   WebSiteMode   @default(GUIDED)
+  status                 WebSiteStatus @default(DRAFT)
+  /// Cliente para quien se arma el sitio (servicio de diseño web). Opcional.
+  contactId              String?
+  contact                Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  seoTitle               String?
+  seoDescription         String?
+  /// `false` agrega `noindex`: el sitio existe pero los buscadores no lo listan.
+  indexable              Boolean       @default(true)
+  logoUrl                String?
+  ogImageUrl             String?
+  /// `WebSiteTheme` (ver src/lib/web-sites/theme.ts): colores, tipografía, redondeo.
+  theme                  Json          @default("{}")
+  /// Borrador editable: `WebSiteBlock[]` (ver src/lib/web-sites/blocks.ts).
+  draftBlocks            Json          @default("[]")
+  /// Copia congelada al publicar: lo que ve el público no cambia hasta la
+  /// próxima publicación, aunque el equipo siga editando el borrador.
+  publishedBlocks        Json?
+  publishedTheme         Json?
+  draftHtml              String?
+  publishedHtml          String?
+  publishedAt            DateTime?
+  /// Dominio propio (ej. `minegocio.cl`). Mismo mecanismo que el de un certamen.
+  customDomain           String?       @unique
+  customDomainVerifiedAt DateTime?
+  createdByName          String?
+  /// Versión del contenido (bloques, tema, HTML): solo cambia al guardar
+  /// contenido, no al publicar ni al tocar ajustes o dominio. El editor la usa
+  /// para detectar que otra persona guardó antes (edición simultánea).
+  contentUpdatedAt       DateTime      @default(now())
+  assets                 WebSiteAsset[]
+  messages               WebSiteMessage[]
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+
+  @@index([companyId, status])
+  @@index([companyId, contactId])
+}
+
+/// Imagen subida a la biblioteca de un sitio. El archivo vive en el storage
+/// (R2 / Blob); acá queda la referencia y el texto alternativo.
+model WebSiteAsset {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  siteId    String
+  site      WebSite  @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  url       String
+  fileName  String
+  mimeType  String
+  sizeBytes Int
+  /// Descripción para lectores de pantalla y buscadores.
+  alt       String?
+  createdAt DateTime @default(now())
+
+  @@index([companyId, siteId])
+}
+
+/// Mensaje enviado desde el formulario de contacto de un sitio publicado.
+model WebSiteMessage {
+  id        String    @id @default(cuid())
+  companyId String
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  siteId    String
+  site      WebSite   @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  name      String
+  email     String
+  phone     String?
+  message   String
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([companyId, siteId, createdAt])
+  @@index([companyId, readAt])
 }

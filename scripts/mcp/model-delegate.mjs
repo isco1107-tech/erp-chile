@@ -48,6 +48,14 @@
  * - OPENROUTER_API_KEY   habilita OpenRouter como proveedor.
  * - OPENROUTER_MODEL     fija el modelo OpenRouter (si no, se autodetecta el mayor).
  * - *_BASE_URL           solo para pruebas (por defecto la API real).
+ * - NODE_USE_ENV_PROXY=1 (ya fijado en `.mcp.json`): el `fetch` de Node no lee
+ *                        HTTPS_PROXY por su cuenta. En una sesión en la nube
+ *                        con salida por proxy, sin esta variable NVIDIA y
+ *                        OpenRouter responden 403 aunque la red los permita.
+ *
+ * Si el modelo elegido ya no existe (410), no está habilitado para la key
+ * (404) o no hay créditos para él (402), se prueba el siguiente del catálogo.
+ * Con una key de OpenRouter de capa gratuita solo se eligen modelos `:free`.
  *
  * Sin ninguna clave configurada, la herramienta responde con un error claro
  * y Claude sigue haciendo el trabajo él mismo.
@@ -70,7 +78,8 @@ const PROVIDERS = {
     modelEnv: 'NVIDIA_MODEL',
     // Se usa solo si NVIDIA_MODEL no está fijado Y la autodetección por catálogo falla
     // (por ejemplo, sin red). Confirmar el catálogo vigente en build.nvidia.com.
-    fallbackModel: 'deepseek-ai/deepseek-v4-pro',
+    // Lista ordenada: si el primero ya no existe (404/410), se prueba el siguiente.
+    fallbackModels: ['nvidia/nemotron-3-ultra-550b-a55b', 'z-ai/glm-5.3'],
   },
   gemini: {
     label: 'Gemini (Google AI Studio)',
@@ -90,7 +99,10 @@ const PROVIDERS = {
     keyEnv: 'OPENROUTER_API_KEY',
     baseUrl: (process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1').replace(/\/$/, ''),
     modelEnv: 'OPENROUTER_MODEL',
-    fallbackModel: 'deepseek/deepseek-v3.2',
+    fallbackModels: ['deepseek/deepseek-v3.2'],
+    // Una key de capa gratuita (sin créditos) solo puede usar modelos `:free`:
+    // cualquier otro responde 402 apenas el prompt supera unos miles de tokens.
+    freeFallbackModels: ['nvidia/nemotron-3-ultra-550b-a55b:free', 'qwen/qwen3.8-27b:free'],
     extraHeaders: { 'X-Title': 'erp-chile (delegación desde Claude Code)' },
   },
 };
@@ -140,32 +152,58 @@ export function parseParamSizeB(modelId) {
  * de entrada más alto (en un catálogo de pago, un precio más alto suele
  * corresponder a un modelo más grande). Exportado para pruebas.
  */
-export function pickStrongestModel(models) {
+export function rankModels(models) {
   const candidates = models.filter((m) => typeof m?.id === 'string' && !NON_CHAT_MODEL.test(m.id));
-  if (candidates.length === 0) return null;
+  if (candidates.length === 0) return [];
 
   const withSize = candidates
     .map((m) => ({ model: m, size: parseParamSizeB(m.id) }))
     .filter((entry) => entry.size !== null);
   if (withSize.length > 0) {
     withSize.sort((a, b) => b.size - a.size);
-    return withSize[0].model.id;
+    return withSize.map((entry) => entry.model.id);
   }
 
   const byContext = [...candidates].sort((a, b) => (Number(b.context_length) || 0) - (Number(a.context_length) || 0));
-  if (Number(byContext[0]?.context_length) > 0) return byContext[0].id;
+  if (Number(byContext[0]?.context_length) > 0) return byContext.map((m) => m.id);
 
   const byPrice = [...candidates].sort((a, b) => (Number(b.pricing?.prompt) || 0) - (Number(a.pricing?.prompt) || 0));
-  if (Number(byPrice[0]?.pricing?.prompt) > 0) return byPrice[0].id;
+  if (Number(byPrice[0]?.pricing?.prompt) > 0) return byPrice.map((m) => m.id);
 
-  return candidates[0].id;
+  return candidates.map((m) => m.id);
 }
 
-const strongestModelCache = new Map(); // providerId -> Promise<string> (cacheado por proceso)
+/** El primero de `rankModels`, o null. Exportado para pruebas. */
+export function pickStrongestModel(models) {
+  return rankModels(models)[0] ?? null;
+}
 
-async function fetchStrongestModel(providerId) {
+// Cuántos candidatos del catálogo se prueban si el primero falla con 404/410
+// (retirado o no habilitado para la cuenta) o 402 (sin créditos).
+const MAX_MODEL_CANDIDATES = 4;
+
+const rankedModelsCache = new Map(); // providerId -> Promise<string[]> (cacheado por proceso)
+
+/** ¿La key de OpenRouter es de capa gratuita (sin créditos)? */
+async function isOpenRouterFreeTier(provider, apiKey) {
+  try {
+    const response = await fetch(`${provider.baseUrl}/key`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(MODELS_TIMEOUT_MS),
+    });
+    if (!response.ok) return false;
+    const json = await response.json();
+    return json?.data?.is_free_tier === true;
+  } catch {
+    return false;
+  }
+}
+
+async function fetchRankedModels(providerId) {
   const provider = PROVIDERS[providerId];
   const apiKey = process.env[provider.keyEnv]?.trim();
+  const freeOnly = providerId === 'openrouter' && apiKey ? await isOpenRouterFreeTier(provider, apiKey) : false;
+  const fallback = freeOnly ? provider.freeFallbackModels : provider.fallbackModels;
   try {
     const response = await fetch(`${provider.baseUrl}/models`, {
       headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
@@ -174,30 +212,31 @@ async function fetchStrongestModel(providerId) {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const json = await response.json();
     const models = Array.isArray(json?.data) ? json.data : [];
-    const strongest = pickStrongestModel(models);
-    if (!strongest) throw new Error('catálogo vacío');
-    return strongest;
+    const ranked = rankModels(freeOnly ? models.filter((m) => typeof m?.id === 'string' && m.id.endsWith(':free')) : models);
+    if (ranked.length === 0) throw new Error('catálogo vacío');
+    // Los de respaldo quedan al final: si todo el tope del catálogo falla, siguen ahí.
+    return [...new Set([...ranked.slice(0, MAX_MODEL_CANDIDATES), ...fallback])];
   } catch {
-    // Sin red, catálogo caído, o formato inesperado: seguir andando con el
-    // último modelo conocido de gran tamaño en vez de fallar la delegación.
-    return provider.fallbackModel;
+    // Sin red, catálogo caído, o formato inesperado: seguir andando con los
+    // últimos modelos conocidos de gran tamaño en vez de fallar la delegación.
+    return fallback;
   }
 }
 
 /**
- * Modelo a usar para un proveedor: argumento > variable de entorno > (según
+ * Modelos a probar, en orden, para un proveedor: argumento > variable de entorno > (según
  * el proveedor) catálogo autodetectado o modelo fijo de la capa gratuita.
  * `fixedModel: true` (Gemini) nunca consulta el catálogo ni "el más
  * potente": ver la nota de seguridad al inicio del archivo.
  */
-function resolveModel(providerId, explicitModel) {
-  if (explicitModel) return Promise.resolve(explicitModel);
+function resolveModels(providerId, explicitModel) {
+  if (explicitModel) return Promise.resolve([explicitModel]);
   const provider = PROVIDERS[providerId];
   const fromEnv = process.env[provider.modelEnv]?.trim();
-  if (fromEnv) return Promise.resolve(fromEnv);
-  if (provider.fixedModel) return Promise.resolve(provider.freeModel);
-  if (!strongestModelCache.has(providerId)) strongestModelCache.set(providerId, fetchStrongestModel(providerId));
-  return strongestModelCache.get(providerId);
+  if (fromEnv) return Promise.resolve([fromEnv]);
+  if (provider.fixedModel) return Promise.resolve([provider.freeModel]);
+  if (!rankedModelsCache.has(providerId)) rankedModelsCache.set(providerId, fetchRankedModels(providerId));
+  return rankedModelsCache.get(providerId);
 }
 
 const TOOL = {
@@ -309,12 +348,37 @@ async function delegate(args) {
 // tope también limita el cobro.
 const THINKING_HEADROOM = 8000;
 
+// Estados que dicen "este modelo no, otro sí podría": retirado (410), no
+// habilitado para la cuenta (404) o sin créditos para ese modelo (402).
+const RETRY_WITH_NEXT_MODEL = new Set([402, 404, 410]);
+
+class ModelUnavailableError extends Error {}
+
 async function callProvider(providerId, args, context, explicitModel) {
   const provider = PROVIDERS[providerId];
+  const models = await resolveModels(providerId, explicitModel);
+  const skipped = [];
+  for (const model of models) {
+    try {
+      const result = await callModel(providerId, provider, model, args, context);
+      return skipped.length > 0 ? `${result}\n(modelos descartados: ${skipped.join(' | ')})` : result;
+    } catch (error) {
+      if (!(error instanceof ModelUnavailableError)) throw error;
+      skipped.push(error.message);
+      // El modelo que no existe no debe volver a intentarse en esta sesión.
+      if (!explicitModel && rankedModelsCache.has(providerId)) {
+        const rest = models.filter((m) => m !== model);
+        rankedModelsCache.set(providerId, Promise.resolve(rest));
+      }
+    }
+  }
+  throw new Error(`${provider.label}: ningún modelo disponible (${skipped.join(' | ')})`);
+}
+
+async function callModel(providerId, provider, model, args, context) {
   const apiKey = process.env[provider.keyEnv].trim();
-  const model = await resolveModel(providerId, explicitModel);
   const maxTokens = Math.min(Math.max(Number(args.max_output_tokens) || 2000, 64), 8000);
-  const free = providerId === 'nvidia' || providerId === 'gemini';
+  const free = providerId === 'nvidia' || providerId === 'gemini' || model.endsWith(':free');
 
   const response = await fetch(`${provider.baseUrl}/chat/completions`, {
     method: 'POST',
@@ -339,16 +403,28 @@ async function callProvider(providerId, args, context, explicitModel) {
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
 
-  const json = await response.json().catch(() => null);
+  const raw = await response.text().catch(() => '');
+  let json = null;
+  try {
+    json = raw ? JSON.parse(raw) : null;
+  } catch {
+    json = null;
+  }
   if (!response.ok) {
     // Un 403 sin cuerpo JSON suele venir de un proxy o de la política de red
     // del entorno, no del proveedor: decirlo evita culpar a la API key.
-    const detail = json?.error?.message ?? `HTTP ${response.status}${json ? '' : ' sin cuerpo JSON (¿host bloqueado por la red?)'}`;
-    throw new Error(`${provider.label} rechazó la solicitud (${model}): ${detail}`);
+    const detail =
+      json?.error?.message ?? json?.detail ?? `HTTP ${response.status}${json ? '' : ` sin cuerpo JSON (¿host bloqueado por la red?${raw ? ` ${raw.slice(0, 120)}` : ''})`}`;
+    const message = `${provider.label} rechazó la solicitud (${model}): ${detail}`;
+    if (RETRY_WITH_NEXT_MODEL.has(response.status)) throw new ModelUnavailableError(message);
+    throw new Error(message);
   }
   const choice = json?.choices?.[0];
   let text = choice?.message?.content;
-  if (typeof text !== 'string' || !text) throw new Error(`${provider.label} no devolvió texto (${model})`);
+  if (typeof text !== 'string' || !text) {
+    const cut = choice?.finish_reason === 'length' ? ': se le acabaron los tokens pensando; repetir con un max_output_tokens mayor' : '';
+    throw new Error(`${provider.label} no devolvió texto (${model})${cut}`);
+  }
   if (text.length > MAX_RESULT_CHARS) text = `${text.slice(0, MAX_RESULT_CHARS)}\n…[recortado a ${MAX_RESULT_CHARS} caracteres]`;
   // Sin este aviso, una respuesta cortada por el tope parece completa (un JSON
   // a medias, una lista incompleta) y Claude la usaría como si lo fuera.
@@ -379,7 +455,7 @@ async function handle(message) {
           result: {
             protocolVersion: params?.protocolVersion ?? '2025-06-18',
             capabilities: { tools: {} },
-            serverInfo: { name: 'model-delegate', version: '4.1.0' },
+            serverInfo: { name: 'model-delegate', version: '4.2.0' },
           },
         });
       case 'ping':

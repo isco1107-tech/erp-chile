@@ -1,3 +1,24 @@
+/**
+ * CSP del documento HTML propio de un sitio web (`/web/[slug]/raw`). DEBE ser
+ * idéntica a `SANDBOX_CSP` de src/lib/web-sites/html.ts (un test las compara).
+ * Va acá y no solo en el route handler porque Next aplica primero las cabeceras
+ * globales de `/:path*` y no deja que el handler las reemplace: sin esta
+ * entrada, el HTML de un cliente correría con la CSP global (scripts permitidos)
+ * y con el origen de la plataforma. Ver docs/adr/0003.
+ */
+const WEB_SITE_SANDBOX_CSP = [
+  'sandbox allow-popups allow-popups-to-escape-sandbox',
+  "default-src 'none'",
+  "script-src 'none'",
+  "style-src 'unsafe-inline'",
+  'img-src https: data:',
+  'font-src https: data:',
+  'media-src https:',
+  "form-action 'none'",
+  "base-uri 'none'",
+  "frame-ancestors 'self'",
+].join('; ');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -72,6 +93,14 @@ const nextConfig = {
           // HSTS solo se respeta sobre HTTPS igualmente; en dev por HTTP el
           // navegador la ignora, así que no hace falta condicionarla a NODE_ENV.
           { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
+        ],
+      },
+      {
+        // Va DESPUÉS de la global a propósito: con la misma clave repetida gana la última.
+        source: '/web/:slug/raw',
+        headers: [
+          { key: 'Content-Security-Policy', value: WEB_SITE_SANDBOX_CSP },
+          { key: 'Referrer-Policy', value: 'no-referrer' },
         ],
       },
     ];

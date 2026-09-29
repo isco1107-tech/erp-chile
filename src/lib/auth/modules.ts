@@ -44,6 +44,7 @@ export type FeatureKey = keyof Pick<
   | 'hasExpenseReports'
   | 'hasProduction'
   | 'hasServiceDesk'
+  | 'hasWebSites'
 >;
 
 export type CompanyFeatureFlags = Record<FeatureKey, boolean>;
@@ -297,6 +298,14 @@ export const MODULES: ModuleDefinition[] = [
     permissions: ['service:read', 'service:write'],
     routes: ['/dashboard/service'],
   },
+  {
+    key: 'hasWebSites',
+    label: 'Sitios Web',
+    description:
+      'Constructor de sitios: guiado por secciones (con lista de "qué le falta") o con HTML propio, biblioteca de imágenes, publicación en una dirección de la plataforma o dominio propio y bandeja de mensajes del formulario de contacto. Sirve para la propia empresa o como servicio de diseño web para clientes.',
+    permissions: ['websites:read', 'websites:write', 'websites:publish'],
+    routes: ['/dashboard/web-sites'],
+  },
 ];
 
 export const MODULE_KEYS: FeatureKey[] = MODULES.map((m) => m.key);
@@ -337,6 +346,7 @@ export const DEFAULT_FEATURES: CompanyFeatureFlags = {
   hasExpenseReports: false,
   hasProduction: false,
   hasServiceDesk: false,
+  hasWebSites: false,
 };
 
 /** Índice inverso permiso → módulo, construido una vez al cargar el módulo. */
@@ -390,6 +400,7 @@ export function toFeatureFlags(features: CompanyFeatures | null): CompanyFeature
     hasExpenseReports: features.hasExpenseReports,
     hasProduction: features.hasProduction,
     hasServiceDesk: features.hasServiceDesk,
+    hasWebSites: features.hasWebSites,
   };
 }
 

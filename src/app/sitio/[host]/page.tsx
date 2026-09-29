@@ -4,7 +4,9 @@ import { redirect } from 'next/navigation';
 import { cache } from 'react';
 import { PageantSiteDocument, pageantSiteMetadata } from '@/components/public/pageant/PageantSiteDocument';
 import { domainFromHost, platformBaseUrl } from '@/lib/hosting/custom-domain';
+import { WebSiteDocument, webSiteMetadata } from '@/components/web-sites/WebSiteDocument';
 import { getPageantSlugByDomain, getPublicPageantSite } from '@/modules/projects/services/public-site.service';
+import { getPublicWebSiteByDomain } from '@/modules/web-sites/services/web-sites.service';
 
 /**
  * Micrositio servido en la raíz de un dominio propio (ej.
@@ -19,7 +21,12 @@ import { getPageantSlugByDomain, getPublicPageantSite } from '@/modules/projects
  */
 const loadSite = cache(async (domain: string, requestDomain: string) => {
   const slug = await getPageantSlugByDomain(domain, requestDomain === domain);
-  return slug ? getPublicPageantSite(slug) : null;
+  const pageant = slug ? await getPublicPageantSite(slug) : null;
+  if (pageant) return { kind: 'pageant' as const, site: pageant };
+  // Un dominio es de un solo destino (certamen o sitio web): si no es de un
+  // certamen, se busca entre los sitios web publicados.
+  const web = await getPublicWebSiteByDomain(domain, requestDomain === domain);
+  return web ? { kind: 'web' as const, site: web } : null;
 });
 
 async function resolveDomain(params: Promise<{ host: string }>): Promise<{ domain: string; requestDomain: string }> {
@@ -29,14 +36,15 @@ async function resolveDomain(params: Promise<{ host: string }>): Promise<{ domai
 
 export async function generateMetadata({ params }: { params: Promise<{ host: string }> }): Promise<Metadata> {
   const { domain, requestDomain } = await resolveDomain(params);
-  const site = await loadSite(domain, requestDomain);
-  return site ? pageantSiteMetadata(site) : { robots: { index: false } };
+  const found = await loadSite(domain, requestDomain);
+  if (!found) return { robots: { index: false } };
+  return found.kind === 'pageant' ? pageantSiteMetadata(found.site) : webSiteMetadata(found.site, `https://${domain}`);
 }
 
 export default async function CustomDomainSitePage({ params }: { params: Promise<{ host: string }> }) {
   const { domain, requestDomain } = await resolveDomain(params);
-  const site = await loadSite(domain, requestDomain);
-  if (!site || site.customDomain !== domain) redirect(platformBaseUrl());
+  const found = await loadSite(domain, requestDomain);
+  if (!found || found.site.customDomain !== domain) redirect(platformBaseUrl());
   if (requestDomain !== domain) redirect(`https://${domain}`);
-  return <PageantSiteDocument site={site} />;
+  return found.kind === 'pageant' ? <PageantSiteDocument site={found.site} /> : <WebSiteDocument site={found.site} />;
 }

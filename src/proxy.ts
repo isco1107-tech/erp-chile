@@ -50,6 +50,10 @@ const PUBLIC_ROUTES = [
   // auspiciador) no tiene cuenta ERP; la ruta valida el token ella misma
   // contra `CompanySettings.installmentPortalToken` / la orden de pago.
   '/pagar',
+  // Sitios web publicados (`/web/[slug]`): los ve cualquiera en internet; la
+  // página solo publica un sitio con estado PUBLISHED de una empresa operativa.
+  // Con barra final a propósito: `/web` a secas no es una ruta pública.
+  '/web/',
   // Portal del trabajador (`/trabajador/[token]`): el trabajador no tiene
   // cuenta ERP; la ruta valida el token ella misma contra el hash guardado en
   // `Employee.portalTokenHash`.

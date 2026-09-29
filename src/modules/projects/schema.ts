@@ -4,6 +4,9 @@ import type { ProjectStatus } from '@prisma/client';
 import { publicSlugProblem } from '@/lib/events/public-slug';
 import { DIRECTOR_TITLES } from '@/lib/events/pageant-site';
 
+/** Las columnas de monto son INT de PostgreSQL (32 bits): un valor mayor revienta al guardar en vez de avisar. */
+const MAX_CLP_INT = 2_147_483_647;
+
 export const PROJECT_STATUSES = ['PLANNING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'] as const;
 
 export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
@@ -16,8 +19,8 @@ export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
 export const projectCreateSchema = z.object({
   code: z.string().min(1, 'El código es obligatorio'),
   name: z.string().min(1, 'El nombre es obligatorio'),
-  budgetedIncome: z.number().int('El presupuesto de ingresos debe ser un número entero').nonnegative('No puede ser negativo').default(0),
-  budgetedExpense: z.number().int('El presupuesto de gastos debe ser un número entero').nonnegative('No puede ser negativo').default(0),
+  budgetedIncome: z.number().int('El presupuesto de ingresos debe ser un número entero').nonnegative('No puede ser negativo').max(MAX_CLP_INT, 'El presupuesto de ingresos no puede superar $2.147.483.647').default(0),
+  budgetedExpense: z.number().int('El presupuesto de gastos debe ser un número entero').nonnegative('No puede ser negativo').max(MAX_CLP_INT, 'El presupuesto de gastos no puede superar $2.147.483.647').default(0),
   startDate: z.coerce.date('Fecha de inicio inválida'),
   endDate: z.coerce.date('Fecha de término inválida').optional(),
   status: z.enum(PROJECT_STATUSES).default('PLANNING'),
