@@ -76,7 +76,7 @@ export const SITE_CSS = `
 @keyframes ws-fade{from{opacity:0}to{opacity:1}}
 @keyframes ws-rise{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:none}}
 @keyframes ws-zoom{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
-@media (prefers-reduced-motion:no-preference){
+@media screen and (prefers-reduced-motion:no-preference){
 @supports (animation-timeline:view()){
 .ws-root[data-anim=fade] .ws-reveal{animation:ws-fade linear both;animation-timeline:view();animation-range:entry 0% entry 40%}
 .ws-root[data-anim=rise] .ws-reveal{animation:ws-rise linear both;animation-timeline:view();animation-range:entry 0% entry 40%}
