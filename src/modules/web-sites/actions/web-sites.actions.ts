@@ -29,10 +29,12 @@ function revalidateSite(id?: string): void {
   if (id) revalidatePath(`/dashboard/web-sites/${id}`);
 }
 
-/** Vacía de la caché la página pública, la de dominio propio y su documento HTML. */
+/** Vacía de la caché la página pública, sus páginas internas y su documento HTML. */
 function revalidatePublic(slug: string): void {
   revalidatePath(`/web/${slug}`);
   revalidatePath(`/web/${slug}/raw`);
+  // Páginas internas (`/web/<slug>/<página>`): sus direcciones cambian con el contenido, así que se vacía el patrón completo.
+  revalidatePath('/web/[slug]/[page]', 'page');
 }
 
 const STATUS_FILTERS = ['ALL', 'DRAFT', 'PUBLISHED', 'ARCHIVED'] as const;

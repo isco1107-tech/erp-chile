@@ -1,9 +1,10 @@
 import type { WebSiteKind, WebSiteMode } from '@prisma/client';
-import { blockImageUrls, blockTexts, type WebSiteBlock } from './blocks';
+import { BLOCK_INFO, blockImageUrls, blockLinks, blockTexts, isBlockEmpty, type WebSiteBlock } from './blocks';
 import { htmlHints, MAX_HTML_BYTES, sanitizeHtml } from './html';
+import { chromeLinks, documentFromBlocks, homeOf, isValidSiteLink, publishedPages, type SiteDocument } from './site';
 import { isSampleText, KIND_INFO } from './templates';
 import { parseTheme, themeProblems } from './theme';
-import { safeHref, whatsappHref } from './urls';
+import { safeHref, videoEmbed, whatsappHref } from './urls';
 
 /**
  * "Qué le falta a mi sitio": la lista de comprobación que ve quien arma un
@@ -40,7 +41,10 @@ export interface ReadinessInput {
   seoDescription?: string | null;
   logoUrl?: string | null;
   theme?: unknown;
-  blocks: WebSiteBlock[];
+  /** Sitio completo (varias páginas). */
+  document?: SiteDocument | null;
+  /** Atajo: sitio de una sola página con estas secciones (formato antiguo, pruebas). */
+  blocks?: WebSiteBlock[];
   html?: string | null;
 }
 
@@ -52,24 +56,32 @@ function report(items: ReadinessItem[]): ReadinessReport {
 
 const item = (id: string, label: string, ok: boolean, required: boolean, hintOk: string, hintTodo: string): ReadinessItem => ({ id, label, ok, required, hint: ok ? hintOk : hintTodo });
 
-function linkProblems(blocks: WebSiteBlock[]): string[] {
+interface PlacedBlock {
+  block: WebSiteBlock;
+  /** Nombre de la página, para decirle al usuario dónde está el problema. */
+  page: string;
+  multiPage: boolean;
+}
+
+const where = (placed: PlacedBlock) => (placed.multiPage ? ` (página «${placed.page}»)` : '');
+
+function linkProblems(doc: SiteDocument, placed: PlacedBlock[]): string[] {
   const bad: string[] = [];
-  for (const block of blocks) {
-    if (block.type === 'hero' && block.ctaHref && !safeHref(block.ctaHref)) bad.push(`el botón de la portada ("${block.ctaHref}")`);
-    if (block.type === 'cta' && block.buttonHref && !safeHref(block.buttonHref)) bad.push(`el botón "${block.buttonLabel || 'llamado a la acción'}" ("${block.buttonHref}")`);
-    if (block.type === 'hero' && block.ctaHref && !block.ctaLabel) bad.push('el botón de la portada no tiene texto');
-    if (block.type === 'cta' && block.buttonHref && !block.buttonLabel) bad.push('un botón no tiene texto');
-    if (block.type === 'contact' && block.email && !safeHref(`mailto:${block.email}`)) bad.push(`el correo de contacto ("${block.email}")`);
+  for (const entry of placed) {
+    for (const found of blockLinks(entry.block)) {
+      if (!isValidSiteLink(found.href, doc)) bad.push(`${found.label}${where(entry)}: el enlace no funciona`);
+      else if (found.text !== null && !found.text.trim()) bad.push(`${found.label}${where(entry)} no tiene texto`);
+    }
+    if (entry.block.type === 'contact' && entry.block.email && !safeHref(`mailto:${entry.block.email}`)) bad.push(`el correo de contacto ("${entry.block.email}")`);
   }
+  for (const found of chromeLinks(doc)) if (!isValidSiteLink(found.href, doc)) bad.push(`${found.label}: el enlace no funciona`);
+  if (doc.header.enabled && doc.header.ctaHref.trim() && !doc.header.ctaLabel.trim()) bad.push('el botón del encabezado no tiene texto');
   return bad;
 }
 
-function hasContactWay(blocks: WebSiteBlock[]): boolean {
-  return blocks.some((block) => {
-    if (block.hidden) return false;
-    if (block.type === 'contact') return Boolean(block.showForm || block.email.trim() || block.phone.trim() || whatsappHref(block.whatsapp) || block.address.trim());
-    return false;
-  });
+function hasContactWay(doc: SiteDocument, placed: PlacedBlock[]): boolean {
+  if (doc.whatsapp.enabled && whatsappHref(doc.whatsapp.number)) return true;
+  return placed.some(({ block }) => block.type === 'contact' && Boolean(block.showForm || block.email.trim() || block.phone.trim() || whatsappHref(block.whatsapp) || block.address.trim()));
 }
 
 export function evaluateReadiness(input: ReadinessInput): ReadinessReport {
@@ -96,41 +108,53 @@ export function evaluateReadiness(input: ReadinessInput): ReadinessReport {
     ]);
   }
 
-  const blocks = input.blocks;
-  const visible = blocks.filter((block) => !block.hidden);
-  const hero = visible.find((block) => block.type === 'hero');
+  const doc = input.document ?? documentFromBlocks(input.blocks ?? [], input.theme);
+  const pages = publishedPages(doc);
+  const multiPage = pages.length > 1;
+  const placed: PlacedBlock[] = pages.flatMap((page) => page.blocks.filter((block) => !block.hidden).map((block) => ({ block, page: page.title, multiPage })));
+  const visible = placed.map((entry) => entry.block);
+  const home = homeOf(doc);
+  const hero = home.blocks.find((block) => !block.hidden && block.type === 'hero');
   const info = KIND_INFO[input.kind];
 
   const missingMustHave = info.mustHave.filter((need) => need.type !== 'hero' && need.type !== 'contact' && !visible.some((block) => block.type === need.type));
   const imagesWithoutAlt = visible.reduce((count, block) => {
-    if (block.type === 'image') return count + (block.imageUrl && !block.alt.trim() ? 1 : 0);
+    if (block.type === 'image' || block.type === 'split') return count + (block.imageUrl && !block.alt.trim() ? 1 : 0);
     if (block.type === 'gallery') return count + block.images.filter((image) => image.url && !image.alt.trim()).length;
+    if (block.type === 'logos') return count + block.items.filter((logoItem) => logoItem.imageUrl && !logoItem.alt.trim()).length;
     return count;
   }, 0);
   const sampleCount = visible.reduce((count, block) => count + blockTexts(block).filter(isSampleText).length, 0);
-  const emptyBlocks = visible.filter((block) => {
-    if (block.type === 'image') return !block.imageUrl;
-    if (block.type === 'gallery') return block.images.every((image) => !image.url);
-    if (block.type === 'features') return block.items.every((entry) => !entry.title && !entry.text);
-    if (block.type === 'faq') return block.items.every((entry) => !entry.question);
-    if (block.type === 'testimonials') return block.items.every((entry) => !entry.quote);
-    if (block.type === 'text') return !block.body;
-    return false;
-  });
-  const links = linkProblems(visible);
+  const emptyBlocks = placed.filter(({ block }) => block.type !== 'hero' && isBlockEmpty(block));
+  const emptyPages = pages.slice(1).filter((page) => !page.blocks.some((block) => !block.hidden && !isBlockEmpty(block)));
+  const links = linkProblems(doc, placed);
   const imageCount = visible.flatMap(blockImageUrls).length;
   const theme = parseTheme(input.theme);
   const themeIssues = themeProblems(theme);
+  const badMedia = placed.flatMap((entry) => {
+    const { block } = entry;
+    if (block.type === 'video' && block.url.trim() && !videoEmbed(block.url)) return [`el video${block.heading ? ` «${block.heading}»` : ''}${where(entry)} no es un enlace de YouTube ni de Vimeo`];
+    if (block.type === 'countdown' && block.target.trim() && Number.isNaN(Date.parse(block.target))) return [`la cuenta regresiva${where(entry)} no tiene una fecha válida`];
+    return [];
+  });
+  const whatsappBroken = doc.whatsapp.enabled && !whatsappHref(doc.whatsapp.number);
 
   return report([
-    item('hero', 'Portada con título', Boolean(hero && hero.type === 'hero' && hero.title.trim()), true, 'La portada dice qué ofreces.', 'Agrega una portada visible y ponle un título: es lo primero que se ve.'),
-    item('contact', 'Una forma de contacto', hasContactWay(blocks), true, 'Tus clientes pueden escribirte.', 'Agrega una sección de Contacto con correo, teléfono, WhatsApp o el formulario activado.'),
-    item('links', 'Los enlaces funcionan', links.length === 0, true, 'Todos los botones y correos son válidos.', `Revisa ${links.join('; ')}. Usa https://…, un correo, un teléfono o #contacto.`),
+    item('hero', 'Portada con título', Boolean(hero && hero.type === 'hero' && hero.title.trim()), true, 'La portada dice qué ofreces.', `Agrega una ${BLOCK_INFO.hero.label.toLowerCase()} visible en la página de inicio y ponle un título: es lo primero que se ve.`),
+    item('contact', 'Una forma de contacto', hasContactWay(doc, placed), true, 'Tus clientes pueden escribirte.', 'Agrega una sección de Contacto con correo, teléfono, WhatsApp o el formulario activado, o activa el botón flotante de WhatsApp.'),
+    item('links', 'Los enlaces funcionan', links.length === 0, true, 'Todos los botones, menús y correos son válidos.', `Revisa ${links.join('; ')}. Elige una página del sitio o usa https://…, un correo o un teléfono.`),
     ...info.mustHave
       .filter((need) => need.type !== 'hero' && need.type !== 'contact')
       .map((need) => item(`must-${need.type}-${need.label}`, need.label, !missingMustHave.includes(need), false, 'Incluido.', `${need.why} Agrega una sección "${need.label}".`)),
     item('sample', 'Reemplazaste los textos de ejemplo', sampleCount === 0, true, 'Ya no quedan textos de ejemplo.', `Quedan ${sampleCount} texto(s) de ejemplo tal cual. Cámbialos por los tuyos antes de publicar.`),
     item('empty', 'Sin secciones vacías', emptyBlocks.length === 0, false, 'Todas las secciones tienen contenido.', `Hay ${emptyBlocks.length} sección(es) sin contenido: complétalas o escóndelas.`),
+    ...(multiPage || doc.pages.length > 1
+      ? [
+          item('pages', 'Todas las páginas tienen contenido', emptyPages.length === 0, false, 'Cada página tiene algo que mostrar.', `${emptyPages.map((page) => `«${page.title}»`).join(', ')} no tiene contenido todavía: agrégale secciones u ocúltala.`),
+          item('navigation', 'Se puede navegar entre páginas', !multiPage || doc.header.enabled, false, 'El menú lleva a todas las páginas.', 'Tu sitio tiene varias páginas pero el encabezado está apagado: sin menú, nadie llega a las demás. Actívalo en "Encabezado y pie".'),
+        ]
+      : []),
+    item('media', 'Videos, fechas y WhatsApp correctos', badMedia.length === 0 && !whatsappBroken, false, 'Todo en orden.', [...badMedia, ...(whatsappBroken ? ['el número del botón flotante de WhatsApp no es válido'] : [])].join('; ') + '.'),
     item('images', 'Usas imágenes propias', imageCount > 0, false, 'El sitio tiene imágenes.', 'Sube al menos una foto propia; un sitio solo con texto se ve incompleto.'),
     item('alt', 'Las imágenes tienen descripción', imagesWithoutAlt === 0, false, 'Todas las imágenes están descritas.', `${imagesWithoutAlt} imagen(es) sin descripción. La leen los lectores de pantalla y ayuda a que te encuentren.`),
     item('theme', 'Colores legibles', themeIssues.length === 0, false, 'El texto se lee bien sobre el fondo.', themeIssues.join(' ')),

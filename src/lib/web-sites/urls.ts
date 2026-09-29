@@ -76,6 +76,118 @@ export function whatsappHref(raw: string | null | undefined, message?: string): 
   return `https://wa.me/${withCountry}${text}`;
 }
 
+// ---------------------------------------------------------------------------
+// Video, mapa y redes sociales
+// ---------------------------------------------------------------------------
+
+export interface VideoEmbed {
+  provider: 'youtube' | 'vimeo';
+  /** Dirección para el iframe (YouTube sin cookies de seguimiento). */
+  embedUrl: string;
+  /** Dirección para abrir el video en su plataforma. */
+  watchUrl: string;
+}
+
+const YOUTUBE_ID_RE = /^[A-Za-z0-9_-]{11}$/;
+
+/**
+ * Enlace de YouTube o Vimeo → dirección de inserción. Solo se aceptan esos dos
+ * servicios y el iframe se arma con el ID extraído, nunca con la URL que
+ * escribió el usuario: así no se puede incrustar cualquier página.
+ */
+export function videoEmbed(raw: string | null | undefined): VideoEmbed | null {
+  const value = (raw ?? '').trim();
+  if (!value || value.length > 300) return null;
+  let url: URL;
+  try {
+    url = new URL(/^https?:\/\//i.test(value) ? value : `https://${value}`);
+  } catch {
+    return null;
+  }
+  const host = url.hostname.toLowerCase().replace(/^(www\.|m\.)/, '');
+  let youtubeId: string | null = null;
+  if (host === 'youtu.be') youtubeId = url.pathname.split('/')[1] ?? null;
+  else if (host === 'youtube.com' || host === 'youtube-nocookie.com') {
+    if (url.pathname === '/watch') youtubeId = url.searchParams.get('v');
+    else {
+      const match = /^\/(?:embed|shorts|live)\/([^/?#]+)/.exec(url.pathname);
+      youtubeId = match?.[1] ?? null;
+    }
+  }
+  if (youtubeId && YOUTUBE_ID_RE.test(youtubeId)) {
+    return { provider: 'youtube', embedUrl: `https://www.youtube-nocookie.com/embed/${youtubeId}`, watchUrl: `https://www.youtube.com/watch?v=${youtubeId}` };
+  }
+  if (host === 'vimeo.com' || host === 'player.vimeo.com') {
+    const match = /^\/(?:video\/)?(\d{5,12})(?:[/?#]|$)/.exec(url.pathname);
+    if (match?.[1]) return { provider: 'vimeo', embedUrl: `https://player.vimeo.com/video/${match[1]}`, watchUrl: `https://vimeo.com/${match[1]}` };
+  }
+  return null;
+}
+
+/** Mapa de Google para una dirección escrita (sin llave de API). `null` si no hay dirección. */
+export function mapEmbedUrl(address: string | null | undefined): string | null {
+  const value = (address ?? '').trim();
+  if (value.length < 3 || value.length > 200) return null;
+  return `https://www.google.com/maps?q=${encodeURIComponent(value)}&output=embed`;
+}
+
+/** Enlace para abrir una dirección en Google Maps (en el celular abre la app). */
+export function mapLinkUrl(address: string | null | undefined): string | null {
+  const value = (address ?? '').trim();
+  if (value.length < 3 || value.length > 200) return null;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(value)}`;
+}
+
+export const SOCIAL_NETWORKS = ['instagram', 'facebook', 'tiktok', 'youtube', 'linkedin', 'x'] as const;
+export type SocialNetwork = (typeof SOCIAL_NETWORKS)[number];
+
+const SOCIAL_HOSTS: Record<SocialNetwork, string[]> = {
+  instagram: ['instagram.com'],
+  facebook: ['facebook.com', 'fb.com', 'fb.me'],
+  tiktok: ['tiktok.com'],
+  youtube: ['youtube.com', 'youtu.be'],
+  linkedin: ['linkedin.com'],
+  x: ['x.com', 'twitter.com'],
+};
+
+const SOCIAL_FROM_HANDLE: Record<SocialNetwork, (handle: string) => string> = {
+  instagram: (h) => `https://www.instagram.com/${h}`,
+  facebook: (h) => `https://www.facebook.com/${h}`,
+  tiktok: (h) => `https://www.tiktok.com/@${h}`,
+  youtube: (h) => `https://www.youtube.com/@${h}`,
+  linkedin: (h) => `https://www.linkedin.com/in/${h}`,
+  x: (h) => `https://x.com/${h}`,
+};
+
+export const SOCIAL_LABELS: Record<SocialNetwork, string> = {
+  instagram: 'Instagram',
+  facebook: 'Facebook',
+  tiktok: 'TikTok',
+  youtube: 'YouTube',
+  linkedin: 'LinkedIn',
+  x: 'X (Twitter)',
+};
+
+/**
+ * Perfil de una red social: acepta la dirección completa o solo el usuario
+ * (`@minegocio`). Una dirección de otro sitio se rechaza: el ícono de Instagram
+ * nunca lleva a una página cualquiera.
+ */
+export function socialHref(network: SocialNetwork, raw: string | null | undefined): string | null {
+  const value = (raw ?? '').trim();
+  if (!value || value.length > 200) return null;
+  const handle = value.replace(/^@/, '');
+  if (/^[A-Za-z0-9._-]{1,60}$/.test(handle) && !handle.includes('..') && !/\.[a-z]{2,}$/i.test(handle)) return SOCIAL_FROM_HANDLE[network](handle);
+  const href = safeHref(/^https?:\/\//i.test(value) ? value : `https://${value}`);
+  if (!href || !isExternalHref(href)) return null;
+  try {
+    const host = new URL(href).hostname.toLowerCase().replace(/^(www\.|m\.)/, '');
+    return SOCIAL_HOSTS[network].some((allowed) => host === allowed || host.endsWith(`.${allowed}`)) ? href : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Texto en `slug`: minúsculas, sin tildes, guiones. Vacío si no queda nada. */
 export function slugify(input: string, max = 50): string {
   return input

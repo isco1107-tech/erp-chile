@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { blocksSchema } from '@/lib/web-sites/blocks';
+import { siteDocumentSchema } from '@/lib/web-sites/site';
 import { MAX_HTML_BYTES } from '@/lib/web-sites/html';
 import { WEB_SITE_KINDS } from '@/lib/web-sites/templates';
 import { themeSchema } from '@/lib/web-sites/theme';
@@ -32,6 +33,9 @@ export const createWebSiteSchema = z.object({
 export type CreateWebSiteInput = z.infer<typeof createWebSiteSchema>;
 
 export const saveWebSiteContentSchema = z.object({
+  /** Sitio completo en modo guiado (páginas, encabezado, pie…). */
+  document: siteDocumentSchema.optional(),
+  /** Compatibilidad: sitio de una sola página con estas secciones. */
   blocks: blocksSchema.optional(),
   theme: themeSchema.optional(),
   html: z.string().max(MAX_HTML_BYTES * 2, 'El HTML es demasiado largo').nullable().optional(),
