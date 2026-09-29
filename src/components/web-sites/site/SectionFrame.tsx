@@ -34,7 +34,7 @@ export default function SectionFrame({ ctx, block, anchor, look, align, bleed = 
   return (
     <section
       id={`${ctx.idPrefix}${anchor}`}
-      data-ws-block={block.id}
+      data-block-id={block.id}
       data-ws-type={block.type}
       className={cx('ws-section ws-bg', `ws-tone-${look.tone}`, spacingClass(block), underHeader && 'ws-under-header', onSelect && 'group/sec isolate cursor-pointer')}
       onClick={onSelect ? () => onSelect(block.id) : undefined}

@@ -1,3 +1,5 @@
+import { isValidPageSlug } from '@/lib/web-sites/page-slugs';
+
 /**
  * Dominios propios de los micrositios de certámenes (ej. `missuniversotemuco.cl`).
  *
@@ -122,6 +124,12 @@ export type CustomDomainRoute =
   | { kind: 'site' }
   /** Ruta pública que se sirve igual. */
   | { kind: 'pass' }
+  /**
+   * `/<slug>` de un solo segmento con forma de página de un sitio web (no
+   * reservado): se reescribe a `/sitio/<dominio>/<slug>`, que decide si esa
+   * página existe (si no, va a la plataforma con la misma ruta).
+   */
+  | { kind: 'page'; slug: string }
   /** Cualquier otra (panel, login…): va a la plataforma, nunca bajo el dominio del certamen. */
   | { kind: 'platform' };
 
@@ -139,6 +147,8 @@ export function customDomainRoute(pathname: string): CustomDomainRoute {
   if (CUSTOM_DOMAIN_PASSTHROUGH.some((prefix) => pathname === prefix || pathname.startsWith(prefix.endsWith('/') ? prefix : `${prefix}/`))) {
     return { kind: 'pass' };
   }
+  const segment = pathname.replace(/^\/+/, '').replace(/\/$/, '');
+  if (segment && !segment.includes('/') && isValidPageSlug(segment)) return { kind: 'page', slug: segment };
   return { kind: 'platform' };
 }
 

@@ -92,7 +92,8 @@ const PUBLIC_ROUTES = [
 /**
  * Petición que llegó por el dominio propio de un certamen (ej.
  * missuniversotemuco.cl): la raíz muestra su micrositio, los flujos públicos
- * que enlaza (postulación, entradas, votación, pagos) se sirven igual, y todo
+ * que enlaza (postulación, entradas, votación, pagos) se sirven igual, las
+ * páginas internas de un sitio web (`/servicios`) se reescriben a `/sitio/[host]/[page]`, y todo
  * lo demás (login, panel) se manda a la plataforma: el ERP nunca se sirve
  * bajo el dominio de un cliente. Sin base de datos: `/sitio/[host]` resuelve
  * qué certamen es.
@@ -106,6 +107,12 @@ function routeCustomDomain(req: NextRequest, host: string): NextResponse {
     return NextResponse.rewrite(url);
   }
   if (route.kind === 'pass') return NextResponse.next();
+  if (route.kind === 'page') {
+    // Página interna de un sitio web (`minegocio.cl/servicios`): `/sitio/[host]/[page]` decide si existe.
+    const url = req.nextUrl.clone();
+    url.pathname = `/sitio/${encodeURIComponent(domainFromHost(host))}/${route.slug}`;
+    return NextResponse.rewrite(url);
+  }
   return NextResponse.redirect(`${platformBaseUrl()}${pathname}${search}`);
 }
 

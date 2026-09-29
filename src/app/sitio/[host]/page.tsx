@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import { cache } from 'react';
 import { PageantSiteDocument, pageantSiteMetadata } from '@/components/public/pageant/PageantSiteDocument';
 import { domainFromHost, platformBaseUrl } from '@/lib/hosting/custom-domain';
-import { WebSiteDocument, webSiteMetadata } from '@/components/web-sites/WebSiteDocument';
+import { findPublicPage, WebSiteDocument, webSiteMetadata } from '@/components/web-sites/WebSiteDocument';
 import { getPageantSlugByDomain, getPublicPageantSite } from '@/modules/projects/services/public-site.service';
 import { getPublicWebSiteByDomain } from '@/modules/web-sites/services/web-sites.service';
 
@@ -38,7 +38,7 @@ export async function generateMetadata({ params }: { params: Promise<{ host: str
   const { domain, requestDomain } = await resolveDomain(params);
   const found = await loadSite(domain, requestDomain);
   if (!found) return { robots: { index: false } };
-  return found.kind === 'pageant' ? pageantSiteMetadata(found.site) : webSiteMetadata(found.site, `https://${domain}`);
+  return found.kind === 'pageant' ? pageantSiteMetadata(found.site) : webSiteMetadata(found.site, `https://${domain}`, findPublicPage(found.site));
 }
 
 export default async function CustomDomainSitePage({ params }: { params: Promise<{ host: string }> }) {
@@ -46,5 +46,5 @@ export default async function CustomDomainSitePage({ params }: { params: Promise
   const found = await loadSite(domain, requestDomain);
   if (!found || found.site.customDomain !== domain) redirect(platformBaseUrl());
   if (requestDomain !== domain) redirect(`https://${domain}`);
-  return found.kind === 'pageant' ? <PageantSiteDocument site={found.site} /> : <WebSiteDocument site={found.site} />;
+  return found.kind === 'pageant' ? <PageantSiteDocument site={found.site} /> : <WebSiteDocument site={found.site} basePath="" siteUrl={`https://${domain}`} />;
 }

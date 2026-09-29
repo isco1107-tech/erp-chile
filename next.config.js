@@ -63,6 +63,12 @@ const nextConfig = {
           // postulación de candidatas, ver src/lib/security/turnstile.ts): su
           // script, su iframe y su verificación. Solo se usa si están las
           // llaves; permitirlo siempre no abre nada más.
+          // `frame-src` suma YouTube (sin cookies), Vimeo y Google Maps: son los
+          // únicos orígenes que los sitios web de los clientes pueden incrustar
+          // (secciones "Video" y "Mapa"; ver `videoEmbed`/`mapEmbedUrl` en
+          // src/lib/web-sites/urls.ts, que arman el iframe solo con esos
+          // hosts). El contenido del iframe corre en el origen de ellos, no en
+          // el nuestro, y el iframe va con `sandbox`.
           // `object-src 'none'` bloquea plugins (Flash/PDF embebido como
           // vector de XSS) y `upgrade-insecure-requests` sube a HTTPS cualquier
           // recurso http:// que se haya colado.
@@ -75,7 +81,7 @@ const nextConfig = {
               "img-src 'self' data: blob: https://*.public.blob.vercel-storage.com",
               "font-src 'self'",
               "connect-src 'self' https://generativelanguage.googleapis.com https://challenges.cloudflare.com",
-              "frame-src 'self' https://challenges.cloudflare.com",
+              "frame-src 'self' https://challenges.cloudflare.com https://www.youtube-nocookie.com https://player.vimeo.com https://www.google.com/maps",
               "object-src 'none'",
               "frame-ancestors 'self'",
               "base-uri 'self'",
