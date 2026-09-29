@@ -5,6 +5,7 @@ import { getOpenShiftForUser } from '@/modules/pos/services/cash.service';
 import { listWarehouses } from '@/modules/inventory/services/stock.service';
 import OpenShiftPanel from '@/components/pos/OpenShiftPanel';
 import PosWorkspace from '@/components/pos/PosWorkspace';
+import { supersuiteHabilitada } from '@/lib/supersuite';
 
 export const metadata = { title: 'Punto de Venta' };
 
@@ -53,6 +54,7 @@ export default async function PosPage() {
       companyName={company?.businessName ?? 'Empresa'}
       companyRut={company?.rut ?? ''}
       companyAddress={address}
+      reportarLatidos={supersuiteHabilitada()}
     />
   );
 }

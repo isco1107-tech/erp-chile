@@ -5,6 +5,7 @@ import type { AuditAction, Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { captureException } from '@/lib/observability';
 import { getClientIp } from '@/lib/security/cloudflare';
+import { empresaEliminadaSupersuite, registrarUsoSupersuite } from '@/lib/supersuite';
 
 /**
  * Escritura de la bitácora de auditoría.
@@ -59,6 +60,8 @@ export async function createAuditLog(input: CreateAuditLogInput): Promise<void> 
         ipAddress,
       },
     });
+    // Cada acción auditada cuenta como uso de su módulo en la Supersuite (no-op si no está configurada).
+    registrarUsoSupersuite(input);
   } catch (error) {
     captureException(error, { module: 'auth', companyId: input.companyId, userId: input.userId, extra: { reason: 'createAuditLog', entity: input.entity } });
   }
@@ -100,6 +103,7 @@ export async function createPlatformAuditLog(input: CreatePlatformAuditLogInput)
         ipAddress,
       },
     });
+    if (input.action === 'COMPANY_DELETED') empresaEliminadaSupersuite(input.companyId, input.companyBusinessName);
   } catch (error) {
     captureException(error, { module: 'platform', companyId: input.companyId, extra: { reason: 'createPlatformAuditLog', action: input.action } });
   }

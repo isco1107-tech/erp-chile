@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { Prisma, type CashMovement, type CashRegister, type CashShift } from '@prisma/client';
 import { requireAuthWithPermission, authErrorMessage, can } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
+import { latidoCajaSupersuite, supersuiteHabilitada } from '@/lib/supersuite';
 import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import {
   cashMovementSchema,
@@ -83,6 +84,23 @@ export async function getCurrentShiftAction(): Promise<ActionResult<OpenShiftDet
   try {
     const session = await requireAuthWithPermission('pos:operate');
     return { success: true, data: await cashService.getOpenShiftForUser(session.companyId, session.id) };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+/**
+ * Latido de la caja hacia la Supersuite mientras el POS está abierto en pantalla.
+ * Solo reporta un turno ABIERTO del propio usuario; no hace nada si la
+ * Supersuite no está configurada.
+ */
+export async function posHeartbeatAction(): Promise<ActionResult<null>> {
+  try {
+    const session = await requireAuthWithPermission('pos:operate');
+    if (!supersuiteHabilitada()) return { success: true, data: null };
+    const shift = await cashService.getOpenShiftForUser(session.companyId, session.id);
+    if (shift) latidoCajaSupersuite(session.companyId, { id: shift.cashRegister.id, name: shift.cashRegister.name });
+    return { success: true, data: null };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
   }
