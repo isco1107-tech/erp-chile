@@ -1,285 +1,131 @@
-import type { CSSProperties, ReactNode } from 'react';
-import { blockAnchors, buildNav, type BlockOf, type WebSiteBlock } from '@/lib/web-sites/blocks';
+import type { CSSProperties } from 'react';
+import { isBlockEmpty, type WebSiteBlock } from '@/lib/web-sites/blocks';
+import { documentFromBlocks, findPage, homeOf, pageBlockAnchors, publishedPages, type SiteDocument } from '@/lib/web-sites/site';
 import { themeVariables, type WebSiteTheme } from '@/lib/web-sites/theme';
-import { isExternalHref, safeHref, safeImageSrc, whatsappHref } from '@/lib/web-sites/urls';
-import ContactForm from './ContactForm';
+import { SITE_FONT_CLASSES } from './site-fonts';
+import type { RenderCtx } from './site/context';
+import { MobileActionBar, WhatsappFloat } from './site/FloatingActions';
+import { buildNavItems } from './site/nav';
+import { cx } from './site/parts';
+import SectionFrame, { EmptyBlock } from './site/SectionFrame';
+import { renderSection } from './site/sections';
+import SiteFooter from './site/SiteFooter';
+import SiteHeader, { Announcement } from './site/SiteHeader';
+import { SITE_CSS } from './site/site-css';
+import { blockHeadingText, resolveAlign, sectionLook, toneVariables } from './site/tone';
 
 /**
- * Pinta un sitio armado en modo guiado. Lo usan la página pública y la vista
- * previa del editor, así que lo que el usuario ve mientras edita es lo que
- * publica. Todo texto pasa como texto de React (escapado) y todo enlace/imagen
- * por `safeHref`/`safeImageSrc`: un bloque nunca puede inyectar HTML ni
+ * Pinta un sitio armado en modo guiado: encabezado con menú, las secciones de
+ * una página, pie, botón flotante de WhatsApp y barra de acciones del celular.
+ * Lo usan la página pública y la vista previa del editor, así que lo que se ve
+ * mientras se edita es lo que se publica.
+ *
+ * Seguridad: todo texto pasa como texto de React (escapado), todo enlace por
+ * `resolveLink` y toda imagen por `safeImageSrc`; el CSS es una constante y el
+ * tema llega como variables validadas. Un bloque nunca inyecta HTML ni
  * `javascript:`.
  *
- * Es responsivo por el ANCHO DEL CONTENEDOR (container queries de Tailwind,
- * `@md:`…), no por el de la ventana: así la vista previa "celular" del editor
- * se ve realmente como un celular.
+ * Es responsivo por el ANCHO DEL CONTENEDOR (container queries), no por el de
+ * la ventana: la vista "celular" del editor se ve como un celular real. El
+ * componente raíz no usa hooks (sirve desde un Server Component); las piezas
+ * interactivas (`Countdown`, `MobileMenu`, `ContactForm`) son componentes de
+ * cliente aparte.
  */
 
 export interface SiteRendererProps {
   name: string;
   logoUrl: string | null;
   theme: WebSiteTheme;
-  blocks: WebSiteBlock[];
+  /** Sitio completo. */
+  document?: SiteDocument;
+  /** Compatibilidad: sin `document`, un sitio de una página hecho con estas secciones. */
+  blocks?: WebSiteBlock[];
+  /** Página a pintar; por omisión la de inicio. */
+  pageId?: string;
   slug: string;
   mode: 'public' | 'preview';
+  /** `/web/<slug>` (por omisión) o `''` en un dominio propio. */
+  basePath?: string;
+  /** Solo vista previa: un enlace a otra página del sitio. */
+  onNavigate?: (pageId: string, anchor: string | null) => void;
+  /** Solo vista previa: clic en una sección para editarla. */
+  onSelectBlock?: (blockId: string) => void;
+  /** Solo vista previa: sección resaltada. */
+  selectedBlockId?: string | null;
 }
 
-function A({ href, preview, className, children }: { href: string | null; preview: boolean; className?: string; children: ReactNode }) {
-  if (!href) return <span className={className}>{children}</span>;
-  // En la vista previa nada navega: un clic no debe sacar al usuario del editor.
-  if (preview) return <span role="link" className={className}>{children}</span>;
-  const external = isExternalHref(href);
-  return (
-    <a href={href} className={className} {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
-      {children}
-    </a>
-  );
-}
-
-function Img({ src, alt, className }: { src: string | null; alt: string; className?: string }) {
-  const safe = safeImageSrc(src);
-  if (!safe) return null;
-  // Imágenes remotas del almacenamiento del cliente: no pasan por next/image.
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src={safe} alt={alt} loading="lazy" decoding="async" className={className} />;
-}
-
-const button = 'inline-block px-6 py-3 font-semibold rounded-[var(--ws-radius)] transition-opacity hover:opacity-90';
-const section = 'px-6 py-14 @2xl:py-20';
-const inner = 'mx-auto w-full max-w-5xl';
-const h2 = 'mb-6 text-2xl font-bold tracking-tight @2xl:text-3xl';
-
-function Paragraphs({ text }: { text: string }) {
-  return (
-    <div className="space-y-4 text-lg leading-relaxed">
-      {text
-        .split(/\n{2,}/)
-        .filter(Boolean)
-        .map((paragraph, index) => (
-          <p key={index} className="whitespace-pre-line">
-            {paragraph}
-          </p>
-        ))}
-    </div>
-  );
-}
-
-function Hero({ block, preview }: { block: BlockOf<'hero'>; preview: boolean }) {
-  const image = safeImageSrc(block.imageUrl);
-  const href = safeHref(block.ctaHref);
-  return (
-    <div className="relative isolate overflow-hidden bg-[color:var(--ws-primary)] px-6 py-20 text-center text-[color:var(--ws-on-primary)] @2xl:py-32">
-      {image && (
-        <>
-          <Img src={image} alt="" className="absolute inset-0 -z-20 h-full w-full object-cover" />
-          <div className="absolute inset-0 -z-10 bg-[color:var(--ws-primary)] opacity-70" />
-        </>
-      )}
-      <div className="mx-auto max-w-3xl">
-        {block.title && <h1 className="text-4xl leading-tight font-bold tracking-tight @2xl:text-6xl">{block.title}</h1>}
-        {block.subtitle && <p className="mx-auto mt-5 max-w-2xl text-lg opacity-90 @2xl:text-xl">{block.subtitle}</p>}
-        {block.ctaLabel && href && (
-          <A href={href} preview={preview} className={`${button} mt-8 bg-[color:var(--ws-accent)] text-[color:var(--ws-on-accent)]`}>
-            {block.ctaLabel}
-          </A>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function Contact({ block, slug, preview }: { block: BlockOf<'contact'>; slug: string; preview: boolean }) {
-  const mail = block.email ? safeHref(`mailto:${block.email}`) : null;
-  const tel = block.phone ? safeHref(`tel:${block.phone}`) : null;
-  const wa = whatsappHref(block.whatsapp);
-  const hasInfo = Boolean(mail || tel || wa || block.address);
-  return (
-    <div className={`${inner} grid gap-10 ${block.showForm && hasInfo ? '@2xl:grid-cols-2' : ''}`}>
-      <div>
-        {block.heading && <h2 className={h2}>{block.heading}</h2>}
-        {block.text && <p className="mb-6 text-lg leading-relaxed whitespace-pre-line">{block.text}</p>}
-        {hasInfo && (
-          <ul className="space-y-3 text-lg">
-            {mail && (
-              <li>
-                <A href={mail} preview={preview} className="underline underline-offset-4">
-                  {block.email}
-                </A>
-              </li>
-            )}
-            {tel && (
-              <li>
-                <A href={tel} preview={preview} className="underline underline-offset-4">
-                  {block.phone}
-                </A>
-              </li>
-            )}
-            {wa && (
-              <li>
-                <A href={wa} preview={preview} className={`${button} bg-[color:var(--ws-accent)] text-[color:var(--ws-on-accent)]`}>
-                  Escribir por WhatsApp
-                </A>
-              </li>
-            )}
-            {block.address && <li className="whitespace-pre-line">{block.address}</li>}
-          </ul>
-        )}
-      </div>
-      {block.showForm && <ContactForm slug={slug} preview={preview} />}
-    </div>
-  );
-}
-
-function renderBlock(block: WebSiteBlock, ctx: { slug: string; preview: boolean }): ReactNode {
-  switch (block.type) {
-    case 'hero':
-      return <Hero block={block} preview={ctx.preview} />;
-    case 'text':
-      return (
-        <div className={`${inner} max-w-3xl`}>
-          {block.heading && <h2 className={h2}>{block.heading}</h2>}
-          <Paragraphs text={block.body} />
-        </div>
-      );
-    case 'image':
-      return safeImageSrc(block.imageUrl) ? (
-        <figure className={`${inner} max-w-4xl`}>
-          <Img src={block.imageUrl} alt={block.alt} className="w-full object-cover rounded-[var(--ws-radius)]" />
-          {block.caption && <figcaption className="mt-3 text-center text-sm text-[color:var(--ws-muted)]">{block.caption}</figcaption>}
-        </figure>
-      ) : null;
-    case 'gallery': {
-      const images = block.images.filter((image) => safeImageSrc(image.url));
-      return (
-        <div className={inner}>
-          {block.heading && <h2 className={h2}>{block.heading}</h2>}
-          {images.length > 0 && (
-            <ul className="grid grid-cols-2 gap-3 @2xl:grid-cols-3 @2xl:gap-4">
-              {images.map((image, index) => (
-                <li key={index} className="aspect-square overflow-hidden rounded-[var(--ws-radius)]">
-                  <Img src={image.url} alt={image.alt} className="h-full w-full object-cover" />
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      );
-    }
-    case 'features': {
-      const items = block.items.filter((item) => item.title || item.text);
-      return (
-        <div className={inner}>
-          {block.heading && <h2 className={h2}>{block.heading}</h2>}
-          {block.intro && <p className="mb-8 max-w-2xl text-lg text-[color:var(--ws-muted)]">{block.intro}</p>}
-          <ul className="grid gap-5 @md:grid-cols-2 @3xl:grid-cols-3">
-            {items.map((item, index) => (
-              <li key={index} className="border border-[color:var(--ws-text)]/15 p-6 rounded-[var(--ws-radius)]">
-                <Img src={item.imageUrl} alt="" className="mb-4 aspect-video w-full object-cover rounded-[var(--ws-radius)]" />
-                {item.title && <h3 className="text-xl font-semibold">{item.title}</h3>}
-                {item.text && <p className="mt-2 leading-relaxed text-[color:var(--ws-muted)]">{item.text}</p>}
-              </li>
-            ))}
-          </ul>
-        </div>
-      );
-    }
-    case 'cta': {
-      const href = safeHref(block.buttonHref);
-      return (
-        <div className={`${inner} bg-[color:var(--ws-accent)] px-8 py-12 text-center text-[color:var(--ws-on-accent)] rounded-[var(--ws-radius)]`}>
-          {block.title && <h2 className="text-2xl font-bold @2xl:text-3xl">{block.title}</h2>}
-          {block.text && <p className="mx-auto mt-3 max-w-2xl text-lg opacity-90">{block.text}</p>}
-          {block.buttonLabel && href && (
-            <A href={href} preview={ctx.preview} className={`${button} mt-6 bg-[color:var(--ws-primary)] text-[color:var(--ws-on-primary)]`}>
-              {block.buttonLabel}
-            </A>
-          )}
-        </div>
-      );
-    }
-    case 'faq': {
-      const items = block.items.filter((item) => item.question);
-      return (
-        <div className={`${inner} max-w-3xl`}>
-          {block.heading && <h2 className={h2}>{block.heading}</h2>}
-          <div className="divide-y divide-[color:var(--ws-text)]/15 border-y border-[color:var(--ws-text)]/15">
-            {items.map((item, index) => (
-              <details key={index} className="group py-4">
-                <summary className="cursor-pointer text-lg font-semibold">{item.question}</summary>
-                {item.answer && <p className="mt-3 leading-relaxed whitespace-pre-line text-[color:var(--ws-muted)]">{item.answer}</p>}
-              </details>
-            ))}
-          </div>
-        </div>
-      );
-    }
-    case 'testimonials': {
-      const items = block.items.filter((item) => item.quote);
-      return (
-        <div className={inner}>
-          {block.heading && <h2 className={h2}>{block.heading}</h2>}
-          <ul className="grid gap-5 @2xl:grid-cols-2">
-            {items.map((item, index) => (
-              <li key={index}>
-                <blockquote className="h-full border-l-4 border-[color:var(--ws-accent)] bg-[color:var(--ws-text)]/5 p-6 rounded-[var(--ws-radius)]">
-                  <p className="text-lg leading-relaxed italic">“{item.quote}”</p>
-                  {(item.author || item.role) && (
-                    <footer className="mt-4 text-sm font-semibold">
-                      {item.author}
-                      {item.role && <span className="font-normal text-[color:var(--ws-muted)]"> · {item.role}</span>}
-                    </footer>
-                  )}
-                </blockquote>
-              </li>
-            ))}
-          </ul>
-        </div>
-      );
-    }
-    case 'contact':
-      return <Contact block={block} slug={ctx.slug} preview={ctx.preview} />;
-  }
-}
-
-export default function SiteRenderer({ name, logoUrl, theme, blocks, slug, mode }: SiteRendererProps) {
+export default function SiteRenderer({ name, logoUrl, theme, document, blocks, pageId, slug, mode, basePath, onNavigate, onSelectBlock, selectedBlockId }: SiteRendererProps) {
   const preview = mode === 'preview';
-  const visible = blocks.filter((block) => !block.hidden);
-  const anchors = blockAnchors(visible);
-  const nav = theme.showNav ? buildNav(blocks) : [];
-  const rootStyle = { ...themeVariables(theme), fontFamily: 'var(--ws-font)', background: 'var(--ws-bg)', color: 'var(--ws-text)' } as CSSProperties;
+  const doc = document ?? documentFromBlocks(blocks ?? [], theme);
+  const requested = pageId ? (preview ? findPage(doc, pageId) : publishedPages(doc).find((entry) => entry.id === pageId)) : null;
+  const page = requested ?? homeOf(doc);
+  const selectable = preview && Boolean(onSelectBlock);
+
+  // Se pintan las secciones visibles con contenido; en la vista previa, las vacías salen como marcador para poder elegirlas.
+  const shown = page.blocks.filter((block) => !block.hidden && (preview || !isBlockEmpty(block)));
+  const anchors = pageBlockAnchors(page);
+  const renderedAnchors = new Set(shown.flatMap((block) => (anchors.get(block.id) ? [anchors.get(block.id) as string] : [])));
+
+  const ctx: RenderCtx = {
+    doc,
+    page,
+    basePath: basePath ?? `/web/${slug}`,
+    slug,
+    preview,
+    idPrefix: preview ? 'wsp-' : '',
+    onNavigate,
+    navigate: true,
+    h1BlockId: shown.find((block) => blockHeadingText(block))?.id ?? null,
+  };
+  const bodyCtx: RenderCtx = selectable ? { ...ctx, navigate: false } : ctx;
+
+  const first = shown[0];
+  const firstEmpty = first ? isBlockEmpty(first) : false;
+  const overlayTone = first && first.type === 'hero' && !firstEmpty ? sectionLook(first).tone : null;
+  const overlay = doc.header.enabled && doc.header.style === 'transparent' && overlayTone !== null;
+  const items = doc.header.enabled || doc.footer.enabled ? buildNavItems(ctx, renderedAnchors) : [];
+
+  const rootStyle = { ...themeVariables(theme), ...toneVariables(theme) } as CSSProperties;
+  const mainId = `${ctx.idPrefix}main`;
 
   return (
-    <div className="@container" style={rootStyle}>
-      {theme.showNav && (
-        <header className="sticky top-0 z-10 border-b border-[color:var(--ws-text)]/10 bg-[color:var(--ws-bg)]/95 backdrop-blur">
-          <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-6 py-3">
-            <div className="flex min-w-0 items-center gap-3">
-              <Img src={logoUrl} alt="" className="h-9 w-auto max-w-[8rem] object-contain" />
-              <span className="truncate text-lg font-bold">{name}</span>
-            </div>
-            {nav.length > 0 && (
-              <nav aria-label="Secciones" className="hidden gap-5 text-sm font-medium @2xl:flex">
-                {nav.map((entry) => (
-                  <A key={entry.anchor} href={`#${entry.anchor}`} preview={preview} className="underline-offset-4 hover:underline">
-                    {entry.label}
-                  </A>
-                ))}
-              </nav>
-            )}
-          </div>
-        </header>
-      )}
-      <main>
-        {visible.map((block) => (
-          <section key={block.id} id={block.type === 'hero' ? undefined : anchors.get(block.id)} className={block.type === 'hero' ? undefined : `${section} scroll-mt-16`}>
-            {renderBlock(block, { slug, preview })}
-          </section>
-        ))}
-      </main>
-      <footer className="border-t border-[color:var(--ws-text)]/10 px-6 py-8 text-center text-sm text-[color:var(--ws-muted)]">
-        {theme.footerText || `© ${new Date().getFullYear()} ${name}`}
-      </footer>
+    <div className={cx('ws-root', SITE_FONT_CLASSES)} style={rootStyle} data-ws-root="" data-btn={theme.buttonStyle} data-anim={preview ? 'none' : theme.animation}>
+      <style>{SITE_CSS}</style>
+      <div className={cx('@container flex flex-col', !preview && 'min-h-dvh')}>
+        {!preview && (
+          <a href={`#${mainId}`} className="ws-skip">
+            Saltar al contenido
+          </a>
+        )}
+        {doc.header.enabled && <Announcement ctx={ctx} />}
+        {doc.header.enabled && <SiteHeader ctx={ctx} name={name} logoUrl={logoUrl} items={items} overlayTone={overlayTone} />}
+        <main id={mainId} tabIndex={-1} className="grow outline-none">
+          {shown.map((block, index) => {
+            const look = sectionLook(block);
+            const empty = isBlockEmpty(block);
+            return (
+              <SectionFrame
+                key={block.id}
+                ctx={bodyCtx}
+                block={block}
+                anchor={anchors.get(block.id) ?? block.id}
+                look={look}
+                align={resolveAlign(block)}
+                bleed={block.type === 'image' && block.size === 'full'}
+                glow={block.type === 'hero' && (block.variant === 'center' || block.variant === 'full')}
+                underHeader={overlay && index === 0}
+                onSelect={selectable ? onSelectBlock : undefined}
+                selected={selectable && selectedBlockId === block.id}
+              >
+                {empty ? <EmptyBlock block={block} /> : renderSection(block, bodyCtx, resolveAlign(block) === 'center', look)}
+              </SectionFrame>
+            );
+          })}
+        </main>
+        <SiteFooter ctx={ctx} name={name} logoUrl={logoUrl} items={items} />
+        <MobileActionBar ctx={ctx} />
+        <WhatsappFloat ctx={ctx} />
+      </div>
     </div>
   );
 }
