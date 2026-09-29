@@ -32,6 +32,9 @@ export const BLOCK_TYPES = [
   'testimonials',
   'quote',
   'logos',
+  'pricelist',
+  'catalog',
+  'schedule',
   'faq',
   'cta',
   'video',
@@ -49,6 +52,10 @@ export const MAX_STATS = 8;
 export const MAX_STEPS = 8;
 export const MAX_PLANS = 6;
 export const MAX_LOGOS = 16;
+export const MAX_PRICE_CATEGORIES = 8;
+export const MAX_PRICE_ITEMS = 20;
+export const MAX_CATALOG_ITEMS = 24;
+export const MAX_SCHEDULE_ROWS = 40;
 
 const text = (max: number) => z.string().trim().max(max).default('');
 const link = z.string().trim().max(500).default('');
@@ -237,6 +244,52 @@ export const logosBlockSchema = z.object({
   items: z.array(logoItemSchema).max(MAX_LOGOS).default([]),
 });
 
+export const priceItemSchema = z.object({ name: text(80), description: text(200), price: text(30), tag: text(24) });
+export const priceCategorySchema = z.object({ title: text(60), items: z.array(priceItemSchema).max(MAX_PRICE_ITEMS).default([]) });
+export const pricelistBlockSchema = z.object({
+  ...base,
+  type: z.literal('pricelist'),
+  heading: text(120),
+  intro: text(300),
+  /** Grupos de la lista ("Cortes", "Entradas", "Mantenciones"…). */
+  categories: z.array(priceCategorySchema).max(MAX_PRICE_CATEGORIES).default([]),
+  /** Aclaración final ("Precios con IVA incluido"). */
+  note: text(200),
+});
+
+export const catalogItemSchema = z.object({
+  imageUrl: link,
+  title: text(80),
+  price: text(30),
+  description: text(300),
+  /** Atributos en una línea ("3 dormitorios · 2 baños · 80 m²"). */
+  details: text(200),
+  /** Código o SKU: viaja en el mensaje de WhatsApp para saber qué se consulta. */
+  code: text(30),
+  badge: text(24),
+});
+export const catalogBlockSchema = z.object({
+  ...base,
+  type: z.literal('catalog'),
+  heading: text(120),
+  intro: text(300),
+  items: z.array(catalogItemSchema).max(MAX_CATALOG_ITEMS).default([]),
+  columns: choice(COLUMN_OPTIONS, '3'),
+  /** Número de WhatsApp para pedir; vacío = el del botón flotante del sitio. */
+  whatsapp: text(40),
+  buttonLabel: text(30),
+});
+
+export const scheduleRowSchema = z.object({ day: text(40), time: text(40), title: text(80), detail: text(160) });
+export const scheduleBlockSchema = z.object({
+  ...base,
+  type: z.literal('schedule'),
+  heading: text(120),
+  intro: text(300),
+  /** Filas seguidas con el mismo día se agrupan bajo ese día. */
+  rows: z.array(scheduleRowSchema).max(MAX_SCHEDULE_ROWS).default([]),
+});
+
 export const faqItemSchema = z.object({ question: text(200), answer: text(1000) });
 export const faqBlockSchema = z.object({
   ...base,
@@ -330,6 +383,9 @@ export const blockSchema = z.discriminatedUnion('type', [
   testimonialsBlockSchema,
   quoteBlockSchema,
   logosBlockSchema,
+  pricelistBlockSchema,
+  catalogBlockSchema,
+  scheduleBlockSchema,
   faqBlockSchema,
   ctaBlockSchema,
   videoBlockSchema,
@@ -410,6 +466,9 @@ export interface BlockTypeInfo {
     | 'Quote'
     | 'MessageSquareQuote'
     | 'Award'
+    | 'Receipt'
+    | 'ShoppingBag'
+    | 'CalendarClock'
     | 'HelpCircle'
     | 'MousePointerClick'
     | 'PlayCircle'
@@ -511,6 +570,27 @@ export const BLOCK_INFO: Record<BlockType, BlockTypeInfo> = {
     category: 'trust',
     icon: 'Award',
   },
+  pricelist: {
+    label: 'Lista de precios',
+    description: 'Carta, tarifas o servicios con precio, por categorías.',
+    help: 'Agrupa por categoría (Cortes, Entradas, Mantenciones…). Escribe precios claros: "desde" o "a consultar" espanta clientes. Aclara si incluyen IVA. Nunca subas la carta como foto o PDF: no se lee en el celular ni la encuentra Google.',
+    category: 'action',
+    icon: 'Receipt',
+  },
+  catalog: {
+    label: 'Catálogo',
+    description: 'Productos o propiedades con foto, precio y botón "Pedir por WhatsApp".',
+    help: 'Cada ficha con foto propia, nombre, precio y 2–4 datos clave. El botón abre WhatsApp con el nombre y el código del producto ya escritos: sabes al tiro qué te consultan. Usa fotos del mismo tamaño y fondo.',
+    category: 'action',
+    icon: 'ShoppingBag',
+  },
+  schedule: {
+    label: 'Horario o programa',
+    description: 'Clases, turnos o el programa de un evento, por día y hora.',
+    help: 'Una fila por actividad: día, hora, nombre y un detalle (sala, profesor, lugar). Nunca subas el horario como imagen: no se puede leer en el celular.',
+    category: 'content',
+    icon: 'CalendarClock',
+  },
   faq: {
     label: 'Preguntas frecuentes',
     description: 'Preguntas y respuestas que ahorran mensajes.',
@@ -592,6 +672,12 @@ export function createBlock(type: BlockType): WebSiteBlock {
       return quoteBlockSchema.parse({ id, type });
     case 'logos':
       return logosBlockSchema.parse({ id, type, items: [{}, {}, {}, {}] });
+    case 'pricelist':
+      return pricelistBlockSchema.parse({ id, type, categories: [{ items: [{}, {}, {}] }] });
+    case 'catalog':
+      return catalogBlockSchema.parse({ id, type, items: [{}, {}, {}], buttonLabel: 'Pedir por WhatsApp' });
+    case 'schedule':
+      return scheduleBlockSchema.parse({ id, type, rows: [{}, {}, {}] });
     case 'faq':
       return faqBlockSchema.parse({ id, type, items: [{}] });
     case 'cta':
@@ -631,6 +717,9 @@ export function blockNavLabel(block: WebSiteBlock): string {
     case 'team':
     case 'testimonials':
     case 'logos':
+    case 'pricelist':
+    case 'catalog':
+    case 'schedule':
     case 'faq':
     case 'video':
     case 'map':
@@ -719,6 +808,9 @@ export function blockImageUrls(block: WebSiteBlock): string[] {
       urls.push(...block.items.map((item) => item.photoUrl));
       break;
     case 'logos':
+      urls.push(...block.items.map((item) => item.imageUrl));
+      break;
+    case 'catalog':
       urls.push(...block.items.map((item) => item.imageUrl));
       break;
     default:
@@ -814,6 +906,12 @@ export function isBlockEmpty(block: WebSiteBlock): boolean {
       return !block.quote.trim();
     case 'logos':
       return block.items.every((item) => !item.imageUrl);
+    case 'pricelist':
+      return block.categories.every((category) => category.items.every((item) => !item.name.trim()));
+    case 'catalog':
+      return block.items.every((item) => !item.title.trim() && !item.imageUrl);
+    case 'schedule':
+      return block.rows.every((row) => !row.title.trim() && !row.time.trim());
     case 'faq':
       return block.items.every((item) => !item.question.trim());
     case 'cta':

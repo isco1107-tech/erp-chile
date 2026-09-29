@@ -1,7 +1,33 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { HelpCircle, Image as ImageIcon, Images, LayoutGrid, Mail, MousePointerClick, Quote, Sparkles, Type, type LucideIcon } from 'lucide-react';
+import {
+  Award,
+  BadgeDollarSign,
+  BarChart3,
+  Columns2,
+  HelpCircle,
+  Image as ImageIcon,
+  Images,
+  LayoutGrid,
+  ListOrdered,
+  Mail,
+  MapPin,
+  MessageSquareQuote,
+  Minus,
+  MousePointerClick,
+  PlayCircle,
+  Quote,
+  Receipt,
+  ShoppingBag,
+  CalendarClock,
+  Sparkles,
+  Timer,
+  Type,
+  Users,
+  type LucideIcon,
+} from 'lucide-react';
 import type { BlockTypeInfo, WebSiteBlock } from '@/lib/web-sites/blocks';
+import { richTextPlain } from '@/lib/web-sites/rich-text';
 
 /**
  * Tipos, constantes y utilidades que comparten los paneles del editor de
@@ -12,13 +38,27 @@ import type { BlockTypeInfo, WebSiteBlock } from '@/lib/web-sites/blocks';
 export const BLOCK_ICONS: Record<BlockTypeInfo['icon'], LucideIcon> = {
   Sparkles,
   Type,
+  Columns2,
   Image: ImageIcon,
   Images,
   LayoutGrid,
-  MousePointerClick,
-  HelpCircle,
+  BarChart3,
+  ListOrdered,
+  BadgeDollarSign,
+  Users,
   Quote,
+  MessageSquareQuote,
+  Award,
+  Receipt,
+  ShoppingBag,
+  CalendarClock,
+  HelpCircle,
+  MousePointerClick,
+  PlayCircle,
+  MapPin,
+  Timer,
   Mail,
+  Minus,
 };
 
 export interface EditorAsset {
@@ -55,15 +95,18 @@ export function settingsEqual(a: SettingsDraft, b: SettingsDraft): boolean {
   );
 }
 
-export const EDITOR_TABS = ['content', 'design', 'images', 'settings', 'readiness', 'messages'] as const;
+export const EDITOR_TABS = ['content', 'pages', 'layout', 'design', 'images', 'settings', 'readiness', 'messages'] as const;
 export type EditorTab = (typeof EDITOR_TABS)[number];
 
 export function isEditorTab(value: string | undefined | null): value is EditorTab {
   return EDITOR_TABS.some((tab) => tab === value);
 }
 
-export type PreviewDevice = 'desktop' | 'mobile';
+export type PreviewDevice = 'desktop' | 'tablet' | 'mobile';
 export const MOBILE_PREVIEW_WIDTH = 390;
+export const TABLET_PREVIEW_WIDTH = 768;
+/** Ancho al que se dibuja "Escritorio" cuando el panel es más angosto (se reduce hasta que quepa). */
+export const DESKTOP_PREVIEW_WIDTH = 1100;
 
 /** Mismo límite que el endpoint de subida (4 MB); el servidor tiene la última palabra. */
 export const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
@@ -95,7 +138,9 @@ export function blockSummary(block: WebSiteBlock): string {
     case 'hero':
       return clip(block.title) || 'Sin título todavía';
     case 'text':
-      return clip(block.heading || block.body) || 'Sin contenido todavía';
+      return clip(block.heading || richTextPlain(block.body)) || 'Sin contenido todavía';
+    case 'split':
+      return clip(block.heading || richTextPlain(block.body)) || (block.imageUrl ? 'Imagen sin texto' : 'Sin contenido todavía');
     case 'image':
       return clip(block.caption || block.alt) || (block.imageUrl ? 'Imagen sin descripción' : 'Sin imagen todavía');
     case 'gallery':
@@ -108,8 +153,34 @@ export function blockSummary(block: WebSiteBlock): string {
       return [clip(block.heading, 40), count(block.items.length, 'pregunta', 'preguntas')].filter(Boolean).join(' · ');
     case 'testimonials':
       return [clip(block.heading, 40), count(block.items.length, 'testimonio', 'testimonios')].filter(Boolean).join(' · ');
+    case 'stats':
+      return [clip(block.heading, 40), block.items.map((item) => item.value).filter(Boolean).join(' · ')].filter(Boolean).join(' — ') || 'Sin cifras todavía';
+    case 'steps':
+      return [clip(block.heading, 40), count(block.items.length, 'paso', 'pasos')].filter(Boolean).join(' · ');
+    case 'pricing':
+      return [clip(block.heading, 40), count(block.items.length, 'plan', 'planes')].filter(Boolean).join(' · ');
+    case 'team':
+      return [clip(block.heading, 40), count(block.items.length, 'persona', 'personas')].filter(Boolean).join(' · ');
+    case 'quote':
+      return clip(block.quote) || 'Sin frase todavía';
+    case 'logos':
+      return [clip(block.heading, 40), count(block.items.filter((item) => item.imageUrl).length, 'logo', 'logos')].filter(Boolean).join(' · ');
+    case 'pricelist':
+      return [clip(block.heading, 40), count(block.categories.reduce((sum, category) => sum + category.items.filter((item) => item.name.trim()).length, 0), 'precio', 'precios')].filter(Boolean).join(' · ');
+    case 'catalog':
+      return [clip(block.heading, 40), count(block.items.length, 'ficha', 'fichas')].filter(Boolean).join(' · ');
+    case 'schedule':
+      return [clip(block.heading, 40), count(block.rows.length, 'fila', 'filas')].filter(Boolean).join(' · ');
+    case 'video':
+      return clip(block.heading || block.url) || 'Sin video todavía';
+    case 'map':
+      return clip(block.address || block.heading) || 'Sin dirección todavía';
+    case 'countdown':
+      return clip(block.heading) || (block.target ? new Date(block.target).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' }) : 'Sin fecha todavía');
     case 'contact':
       return clip(block.heading || block.email || block.phone) || 'Sin datos todavía';
+    case 'divider':
+      return block.variant === 'space' ? 'Espacio' : block.variant === 'dots' ? 'Puntos' : 'Línea';
   }
 }
 

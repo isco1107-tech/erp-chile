@@ -129,6 +129,19 @@ export const whatsappButtonSchema = z.object({
 });
 export type WhatsappButton = z.infer<typeof whatsappButtonSchema>;
 
+/**
+ * Barra de acciones fija abajo en el celular: Llamar · WhatsApp · Cómo llegar.
+ * Es lo que más usan los rubros de urgencia (gasfíter, veterinaria, taller).
+ * WhatsApp sale del botón flotante; cada acción aparece solo si tiene dato.
+ */
+export const actionBarSchema = z.object({
+  enabled: z.boolean().default(false),
+  phone: text(40),
+  /** Dirección para "Cómo llegar" (abre Google Maps). */
+  address: text(200),
+});
+export type ActionBar = z.infer<typeof actionBarSchema>;
+
 export const pageSchema = z.object({
   id,
   /** Nombre de la página: aparece en el menú y en la pestaña del navegador. */
@@ -154,6 +167,7 @@ export const siteDocumentSchema = z
     footer: footerSchema.prefault({}),
     social: socialSchema.prefault({}),
     whatsapp: whatsappButtonSchema.prefault({}),
+    actionBar: actionBarSchema.prefault({}),
   })
   .superRefine((doc, ctx) => {
     const pageIds = new Set<string>();
@@ -212,6 +226,7 @@ export function documentFromBlocks(blocks: WebSiteBlock[], legacyTheme?: unknown
     footer: footerSchema.parse({ text: theme.footerText }),
     social: socialSchema.parse({}),
     whatsapp: whatsappButtonSchema.parse({}),
+    actionBar: actionBarSchema.parse({}),
   };
 }
 
@@ -285,7 +300,8 @@ export function parseSiteDocument(raw: unknown, legacyTheme?: unknown): SiteDocu
     const meta = rest.success ? rest.data : pageSchema.omit({ id: true, title: true, blocks: true, slug: true }).parse({});
     const slug = pages.length === 0 ? '' : uniquePageSlug(typeof record.slug === 'string' ? record.slug : '', title, slugs);
     pageIds.add(pageId);
-    pages.push({ ...meta, id: pageId, title, slug, blocks });
+    // Mismo orden de campos que el esquema: dos lecturas del mismo sitio dan el mismo JSON.
+    pages.push({ id: pageId, title, slug, ...meta, blocks });
   }
   if (pages.length === 0) pages.push(pageSchema.parse({ id: 'home', title: 'Inicio', slug: '', blocks: [] }));
   // La de inicio siempre se publica: ocultarla dejaría el sitio sin portada.
@@ -298,6 +314,7 @@ export function parseSiteDocument(raw: unknown, legacyTheme?: unknown): SiteDocu
     footer: tolerant(footerSchema, source.footer),
     social: tolerant(socialSchema, source.social),
     whatsapp: tolerant(whatsappButtonSchema, source.whatsapp),
+    actionBar: tolerant(actionBarSchema, source.actionBar),
   };
 }
 

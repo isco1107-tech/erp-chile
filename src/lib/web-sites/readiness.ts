@@ -135,6 +135,7 @@ export function evaluateReadiness(input: ReadinessInput): ReadinessReport {
     const { block } = entry;
     if (block.type === 'video' && block.url.trim() && !videoEmbed(block.url)) return [`el video${block.heading ? ` «${block.heading}»` : ''}${where(entry)} no es un enlace de YouTube ni de Vimeo`];
     if (block.type === 'countdown' && block.target.trim() && Number.isNaN(Date.parse(block.target))) return [`la cuenta regresiva${where(entry)} no tiene una fecha válida`];
+    if (block.type === 'catalog' && !isBlockEmpty(block) && !whatsappHref(block.whatsapp || doc.whatsapp.number)) return [`el catálogo${block.heading ? ` «${block.heading}»` : ''}${where(entry)} necesita un número de WhatsApp (en la sección o en el botón flotante) para que funcione "Pedir por WhatsApp"`];
     return [];
   });
   const whatsappBroken = doc.whatsapp.enabled && !whatsappHref(doc.whatsapp.number);

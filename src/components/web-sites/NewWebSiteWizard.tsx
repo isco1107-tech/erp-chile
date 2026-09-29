@@ -5,7 +5,39 @@ import type { FormEvent, ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, ArrowRight, Blocks, Building2, CalendarDays, Check, CodeXml, FilePlus, Images, Megaphone, Store, TriangleAlert, UserRound } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  Blocks,
+  Building,
+  Building2,
+  CalendarDays,
+  Camera,
+  Car,
+  Check,
+  CodeXml,
+  Cpu,
+  Dumbbell,
+  FilePlus,
+  GraduationCap,
+  Hammer,
+  HeartHandshake,
+  Images,
+  Lightbulb,
+  Megaphone,
+  PartyPopper,
+  PawPrint,
+  Scale,
+  Scissors,
+  ShoppingBag,
+  Sparkles,
+  Stethoscope,
+  Store,
+  TreePine,
+  TriangleAlert,
+  UserRound,
+  UtensilsCrossed,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { WebSiteKind, WebSiteMode } from '@prisma/client';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -13,7 +45,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { nativeSelectClass } from '@/components/ui/field-classes';
+import { findIndustry, INDUSTRY_TEMPLATES, type IndustryIcon } from '@/lib/web-sites/industries';
 import { KIND_INFO, WEB_SITE_KINDS } from '@/lib/web-sites/templates';
+import { FONT_STACKS } from '@/lib/web-sites/theme';
 import { SITE_SLUG_MAX, siteSlugProblem, slugify } from '@/lib/web-sites/urls';
 import { cn } from '@/lib/utils';
 import { createWebSiteAction } from '@/modules/web-sites/actions/web-sites.actions';
@@ -42,10 +76,32 @@ const KIND_ICON: Record<WebSiteKind, LucideIcon> = {
   BLANK: FilePlus,
 };
 
+const INDUSTRY_ICON: Record<IndustryIcon, LucideIcon> = {
+  UtensilsCrossed,
+  Stethoscope,
+  Scale,
+  Hammer,
+  Scissors,
+  Dumbbell,
+  Building,
+  GraduationCap,
+  ShoppingBag,
+  Camera,
+  PartyPopper,
+  TreePine,
+  Car,
+  HeartHandshake,
+  Cpu,
+  PawPrint,
+};
+
+/** Valor del grupo de rubros para "otro tipo de sitio" (se elige por propósito). */
+const OTHER = 'other';
+
 const MODE_LABEL: Record<WebSiteMode, string> = { GUIDED: 'Guiado', HTML: 'HTML propio' };
 
 const STEPS = [
-  { n: 1, label: 'Para qué es' },
+  { n: 1, label: 'Tu negocio' },
   { n: 2, label: 'Cómo armarlo' },
   { n: 3, label: 'Datos básicos' },
 ] as const;
@@ -110,6 +166,8 @@ export default function NewWebSiteWizard({ contacts = [], contactsTruncated = fa
   const uid = useId();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [kind, setKind] = useState<WebSiteKind | null>(null);
+  /** Rubro elegido (`industries.ts`) u `OTHER` para elegir por propósito. */
+  const [industryId, setIndustryId] = useState<string | null>(null);
   const [mode, setMode] = useState<WebSiteMode>('GUIDED');
   const [name, setName] = useState('');
   const [nameTouched, setNameTouched] = useState(false);
@@ -145,13 +203,16 @@ export default function NewWebSiteWizard({ contacts = [], contactsTruncated = fa
   const contactSelectId = `${uid}-contact`;
   const kindHelpId = `${uid}-kind-help`;
 
-  const kindInfo = kind ? KIND_INFO[kind] : null;
+  const industry = findIndustry(industryId);
+  const effectiveKind: WebSiteKind | null = industry ? industry.kind : industryId === OTHER ? kind : null;
+  const kindInfo = effectiveKind ? KIND_INFO[effectiveKind] : null;
+  const canContinue = Boolean(industry) || (industryId === OTHER && kind !== null);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (saving) return;
     setSubmitted(true);
-    if (!kind) {
+    if (!effectiveKind) {
       setStep(1);
       return;
     }
@@ -166,7 +227,7 @@ export default function NewWebSiteWizard({ contacts = [], contactsTruncated = fa
     setSaving(true);
     try {
       // Sin dirección propia se manda vacía: el servidor la arma del nombre y, si ya existe, le agrega un código.
-      const result = await createWebSiteAction({ name: trimmedName, slug: slugTouched ? effectiveSlug : undefined, kind, mode, contactId: contactId || null });
+      const result = await createWebSiteAction({ name: trimmedName, slug: slugTouched ? effectiveSlug : undefined, kind: effectiveKind, mode, contactId: contactId || null, industry: industry && mode === 'GUIDED' ? industry.id : null });
       if (!result.success) {
         toast.error(result.error);
         setSaving(false);
@@ -181,7 +242,7 @@ export default function NewWebSiteWizard({ contacts = [], contactsTruncated = fa
   }
 
   const headings: Record<1 | 2 | 3, { title: string; help: string }> = {
-    1: { title: '¿Para qué es tu sitio?', help: 'Elige la opción más parecida a lo que necesitas. Te mostramos qué secciones no pueden faltar para que el sitio cumpla su propósito.' },
+    1: { title: '¿De qué es tu negocio?', help: 'Elige tu rubro y te armamos un sitio completo: páginas, secciones en el orden que mejor funciona, colores, tipografías y el botón que más te conviene. Después solo cambias los textos de ejemplo.' },
     2: { title: '¿Cómo lo quieres armar?', help: 'Las dos formas publican un sitio real. Elige la que se ajuste a lo que sabes hacer.' },
     3: { title: 'Datos básicos', help: 'Solo necesitamos un nombre. Todo lo demás lo completas después en el editor.' },
   };
@@ -230,42 +291,121 @@ export default function NewWebSiteWizard({ contacts = [], contactsTruncated = fa
       </div>
 
       {step === 1 && (
-        <section className="space-y-4" aria-label="Tipo de sitio">
-          <div role="radiogroup" aria-labelledby={headingId} aria-describedby={kindHelpId} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {WEB_SITE_KINDS.map((value) => {
-              const info = KIND_INFO[value];
-              const Icon = KIND_ICON[value];
+        <section className="space-y-5" aria-label="Rubro del sitio">
+          <div role="radiogroup" aria-labelledby={headingId} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {INDUSTRY_TEMPLATES.map((item) => {
+              const Icon = INDUSTRY_ICON[item.icon];
               return (
-                <ChoiceCard key={value} name={`${uid}-kind`} value={value} checked={kind === value} onSelect={() => setKind(value)} labelledBy={`${uid}-kind-${value}-title`} describedBy={`${uid}-kind-${value}-desc`}>
+                <ChoiceCard key={item.id} name={`${uid}-industry`} value={item.id} checked={industryId === item.id} onSelect={() => setIndustryId(item.id)} labelledBy={`${uid}-ind-${item.id}-title`} describedBy={`${uid}-ind-${item.id}-desc`} className="gap-2 p-3.5">
                   <span className="flex items-center gap-3 pr-6">
-                    <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-foreground">
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-md text-white" style={{ background: item.colors.primary }}>
                       <Icon className="size-5" strokeWidth={1.75} aria-hidden="true" />
                     </span>
-                    <span id={`${uid}-kind-${value}-title`} className="text-sm font-semibold">
-                      {info.label}
+                    <span id={`${uid}-ind-${item.id}-title`} className="text-sm font-semibold leading-tight">
+                      {item.label}
                     </span>
                   </span>
-                  <span id={`${uid}-kind-${value}-desc`} className="flex flex-col gap-3">
-                    <span className="text-sm text-foreground">{info.description}</span>
-                    <span className="text-xs text-muted-foreground">Ej.: {info.examples}</span>
-                  </span>
-                  <span className="mt-auto space-y-1.5">
-                    <span className="block text-xs font-medium text-foreground">Debe tener:</span>
-                    <span className="flex flex-wrap gap-1">
-                      {info.mustHave.map((item) => (
-                        <span key={`${item.type}-${item.label}`} className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                          {item.label}
-                        </span>
-                      ))}
-                    </span>
+                  <span id={`${uid}-ind-${item.id}-desc`} className="text-xs text-muted-foreground">
+                    {item.examples}
                   </span>
                 </ChoiceCard>
               );
             })}
+            <ChoiceCard name={`${uid}-industry`} value={OTHER} checked={industryId === OTHER} onSelect={() => setIndustryId(OTHER)} labelledBy={`${uid}-ind-other-title`} describedBy={`${uid}-ind-other-desc`} className="gap-2 border-dashed p-3.5">
+              <span className="flex items-center gap-3 pr-6">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-foreground">
+                  <Sparkles className="size-5" strokeWidth={1.75} aria-hidden="true" />
+                </span>
+                <span id={`${uid}-ind-other-title`} className="text-sm font-semibold leading-tight">
+                  Otro tipo de sitio
+                </span>
+              </span>
+              <span id={`${uid}-ind-other-desc`} className="text-xs text-muted-foreground">
+                Elige por propósito: página de captación, portafolio, evento, en blanco…
+              </span>
+            </ChoiceCard>
           </div>
 
+          {industryId === OTHER ? (
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold">¿Para qué es tu sitio?</h3>
+              <div role="radiogroup" aria-label="Propósito del sitio" aria-describedby={kindHelpId} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {WEB_SITE_KINDS.map((value) => {
+                  const info = KIND_INFO[value];
+                  const Icon = KIND_ICON[value];
+                  return (
+                    <ChoiceCard key={value} name={`${uid}-kind`} value={value} checked={kind === value} onSelect={() => setKind(value)} labelledBy={`${uid}-kind-${value}-title`} describedBy={`${uid}-kind-${value}-desc`}>
+                      <span className="flex items-center gap-3 pr-6">
+                        <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-foreground">
+                          <Icon className="size-5" strokeWidth={1.75} aria-hidden="true" />
+                        </span>
+                        <span id={`${uid}-kind-${value}-title`} className="text-sm font-semibold">
+                          {info.label}
+                        </span>
+                      </span>
+                      <span id={`${uid}-kind-${value}-desc`} className="flex flex-col gap-3">
+                        <span className="text-sm text-foreground">{info.description}</span>
+                        <span className="text-xs text-muted-foreground">Ej.: {info.examples}</span>
+                      </span>
+                    </ChoiceCard>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
           <div id={kindHelpId} aria-live="polite">
-            {kindInfo ? (
+            {industry ? (
+              <div className="grid gap-4 rounded-lg border border-primary/30 bg-accent/30 p-4 lg:grid-cols-[1.2fr_1fr]">
+                <div className="space-y-3">
+                  <p className="text-sm font-semibold">Tu sitio de «{industry.label}» vendrá listo con</p>
+                  <ul className="space-y-1.5 text-sm">
+                    <li className="flex gap-2">
+                      <Check className="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" />
+                      <span>
+                        <span className="font-medium">{industry.pages.length} páginas:</span> <span className="text-muted-foreground">{industry.pages.map((page) => page.title).join(' · ')}</span>
+                      </span>
+                    </li>
+                    <li className="flex gap-2">
+                      <Check className="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" />
+                      <span>
+                        <span className="font-medium">Botón destacado «{industry.header.ctaLabel}»</span> <span className="text-muted-foreground">en el encabezado. Objetivo: {industry.goal.charAt(0).toLowerCase() + industry.goal.slice(1)}</span>
+                      </span>
+                    </li>
+                    <li className="flex gap-2">
+                      <Check className="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" />
+                      <span>
+                        <span className="font-medium">Tus datos de contacto</span> <span className="text-muted-foreground">(correo, teléfono y dirección) tomados de la ficha de tu empresa{industry.whatsappButton ? ', con botón de WhatsApp' : ''}{industry.actionBar ? ' y barra «Llamar · WhatsApp · Cómo llegar» en el celular' : ''}.</span>
+                      </span>
+                    </li>
+                  </ul>
+                  <div className="flex items-center gap-3">
+                    <span className="flex overflow-hidden rounded-md border border-border" aria-hidden="true">
+                      {[industry.colors.primary, industry.colors.accent, industry.colors.background, industry.colors.text].map((color) => (
+                        <span key={color} className="size-6" style={{ background: color }} />
+                      ))}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      Colores y tipografía{' '}
+                      <span className="font-medium text-foreground" style={{ fontFamily: FONT_STACKS[industry.headingFont === 'same' ? industry.font : industry.headingFont].css }}>
+                        {FONT_STACKS[industry.headingFont === 'same' ? industry.font : industry.headingFont].label}
+                      </span>{' '}
+                      pensados para el rubro (los cambias cuando quieras).
+                    </span>
+                  </div>
+                </div>
+                <div className="space-y-2 rounded-md bg-card p-3">
+                  <p className="flex items-center gap-2 text-sm font-semibold">
+                    <Lightbulb className="size-4 text-warning" aria-hidden="true" /> Errores comunes del rubro
+                  </p>
+                  <ul className="list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+                    {industry.tips.map((tip) => (
+                      <li key={tip}>{tip}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            ) : kindInfo ? (
               <div className="rounded-lg border border-primary/30 bg-accent/30 p-4">
                 <p className="text-sm font-semibold">Un sitio tipo «{kindInfo.label}» debe incluir</p>
                 <ul className="mt-2 space-y-1.5">
@@ -281,7 +421,7 @@ export default function NewWebSiteWizard({ contacts = [], contactsTruncated = fa
                 <p className="mt-3 text-xs text-muted-foreground">En modo guiado te las dejamos armadas con textos de ejemplo para que solo los cambies.</p>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">Elige una opción para ver qué incluirá tu sitio.</p>
+              <p className="text-sm text-muted-foreground">{industryId === OTHER ? 'Elige un propósito para ver qué incluirá tu sitio.' : 'Elige tu rubro para ver qué incluirá tu sitio.'}</p>
             )}
           </div>
 
@@ -289,7 +429,7 @@ export default function NewWebSiteWizard({ contacts = [], contactsTruncated = fa
             <Link href="/dashboard/web-sites" className={buttonVariants({ variant: 'ghost' })}>
               Cancelar
             </Link>
-            <Button type="button" disabled={!kind} onClick={() => setStep(2)}>
+            <Button type="button" disabled={!canContinue} onClick={() => setStep(2)}>
               Continuar <ArrowRight aria-hidden="true" />
             </Button>
           </div>
@@ -342,6 +482,12 @@ export default function NewWebSiteWizard({ contacts = [], contactsTruncated = fa
             </ChoiceCard>
           </div>
 
+          {industry && mode === 'HTML' ? (
+            <p className="flex gap-2 rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
+              <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" /> El sitio listo de «{industry.label}» se arma solo en modo guiado. En HTML propio partes de una página básica.
+            </p>
+          ) : null}
+
           <div className="flex items-center justify-between gap-3">
             <Button type="button" variant="ghost" onClick={() => setStep(1)}>
               <ArrowLeft aria-hidden="true" /> Atrás
@@ -357,9 +503,9 @@ export default function NewWebSiteWizard({ contacts = [], contactsTruncated = fa
         <form onSubmit={(event) => void submit(event)} noValidate className="space-y-5" aria-label="Datos básicos del sitio">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-border bg-muted/40 px-4 py-2.5 text-sm">
             <span>
-              <span className="text-muted-foreground">Tipo:</span> <span className="font-medium">{kindInfo?.label}</span>{' '}
+              <span className="text-muted-foreground">{industry && mode === 'GUIDED' ? 'Rubro:' : 'Tipo:'}</span> <span className="font-medium">{industry && mode === 'GUIDED' ? industry.label : kindInfo?.label}</span>{' '}
               <button type="button" onClick={() => setStep(1)} className="text-xs text-primary underline-offset-4 hover:underline">
-                Cambiar<span className="sr-only"> el tipo de sitio</span>
+                Cambiar<span className="sr-only"> el rubro o tipo de sitio</span>
               </button>
             </span>
             <span>
@@ -388,7 +534,7 @@ export default function NewWebSiteWizard({ contacts = [], contactsTruncated = fa
                 placeholder="Ej: Panadería Doña Rosa"
               />
               <p id={`${nameId}-hint`} className="text-xs text-muted-foreground">
-                Es el título de la portada y el nombre con que lo ves en tu lista. Lo puedes cambiar después.
+                Es el nombre que aparece en el encabezado y en tu lista de sitios. Lo puedes cambiar después.
               </p>
               {showNameError && (
                 <p id={`${nameId}-error`} role="alert" className="text-xs text-danger">

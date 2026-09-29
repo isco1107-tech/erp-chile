@@ -1,5 +1,6 @@
 import type { WebSiteKind } from '@prisma/client';
 import { blockSchema, blockTexts, newBlockId, type BlockType, type WebSiteBlock } from './blocks';
+import { industryDrafts } from './industries';
 import { PAGE_TEMPLATES } from './page-templates';
 import { documentFromBlocks, newPageId, type SiteDocument } from './site';
 import { NEW_SITE_THEME } from './theme';
@@ -114,7 +115,7 @@ let sampleTexts: Set<string> | null = null;
 function samples(): Set<string> {
   if (sampleTexts) return sampleTexts;
   const set = new Set<string>();
-  const drafts = [...Object.values(STARTER_CONTENT).flat(), ...PAGE_TEMPLATES.flatMap((template) => template.blocks)];
+  const drafts = [...Object.values(STARTER_CONTENT).flat(), ...PAGE_TEMPLATES.flatMap((template) => template.blocks), ...industryDrafts()];
   drafts.forEach((draft) => {
     const block = blockSchema.parse({ ...draft, id: 'sample' });
     blockTexts(block).forEach((text) => set.add(text.trim()));

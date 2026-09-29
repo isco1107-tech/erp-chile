@@ -177,7 +177,9 @@ export function socialHref(network: SocialNetwork, raw: string | null | undefine
   const value = (raw ?? '').trim();
   if (!value || value.length > 200) return null;
   const handle = value.replace(/^@/, '');
-  if (/^[A-Za-z0-9._-]{1,60}$/.test(handle) && !handle.includes('..') && !/\.[a-z]{2,}$/i.test(handle)) return SOCIAL_FROM_HANDLE[network](handle);
+  // Un usuario ("@mi.negocio") no tiene barras ni esquema; "instagram.com/x" o "www.…" es una dirección.
+  const looksLikeUrl = /[/:]/.test(value) || /^www\./i.test(value) || SOCIAL_HOSTS[network].some((host) => value.toLowerCase().includes(host));
+  if (!looksLikeUrl && /^[A-Za-z0-9._-]{1,60}$/.test(handle) && !handle.includes('..')) return SOCIAL_FROM_HANDLE[network](handle);
   const href = safeHref(/^https?:\/\//i.test(value) ? value : `https://${value}`);
   if (!href || !isExternalHref(href)) return null;
   try {

@@ -28,6 +28,8 @@ export const createWebSiteSchema = z.object({
   kind: z.enum(WEB_SITE_KINDS),
   mode: z.enum(WEB_SITE_MODES),
   contactId: z.string().min(1).nullable().optional(),
+  /** Rubro (`industries.ts`): arma el sitio completo de ese rubro en modo guiado. */
+  industry: z.string().trim().max(40).nullable().optional(),
 });
 
 export type CreateWebSiteInput = z.infer<typeof createWebSiteSchema>;

@@ -10,6 +10,7 @@ import { blockImageUrls, type WebSiteBlock } from '@/lib/web-sites/blocks';
 import { MAX_HTML_BYTES, sanitizeHtml } from '@/lib/web-sites/html';
 import { evaluateReadiness, type ReadinessReport } from '@/lib/web-sites/readiness';
 import { allBlocks, documentFromBlocks, homeOf, normalizeSiteDocument, parseSiteDocument, publishedPages, type SiteDocument } from '@/lib/web-sites/site';
+import { findIndustry, industryDocument } from '@/lib/web-sites/industries';
 import { starterDocument, starterHtml } from '@/lib/web-sites/templates';
 import { NEW_SITE_THEME, parseTheme, type WebSiteTheme } from '@/lib/web-sites/theme';
 import { slugify } from '@/lib/web-sites/urls';
@@ -108,8 +109,15 @@ export function publicSiteUrl(slug: string): string {
   return `${getAppUrl().replace(/\/$/, '')}/web/${slug}`;
 }
 
+/** JSON con las claves ordenadas: el orden en que se armó un objeto no cuenta como diferencia. */
+function stableJson(value: unknown): string {
+  return JSON.stringify(value ?? null, (_key, current: unknown) =>
+    current && typeof current === 'object' && !Array.isArray(current) ? Object.fromEntries(Object.entries(current as Record<string, unknown>).sort(([x], [y]) => x.localeCompare(y))) : current
+  );
+}
+
 function sameJson(a: unknown, b: unknown): boolean {
-  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+  return stableJson(a) === stableJson(b);
 }
 
 /** ¿El borrador difiere de lo publicado? Solo tiene sentido en un sitio publicado. */
@@ -275,19 +283,35 @@ export async function createWebSite(companyId: string, actor: { name: string }, 
     slug = await uniqueSlug(slugify(input.name));
   }
 
+  // Sitio por rubro: páginas, diseño y botón destacado del rubro, con los datos de contacto
+  // de la ficha del cliente (si se arma para uno) o de la empresa, siempre de ESTA empresa.
+  const industry = input.mode === 'GUIDED' ? findIndustry(input.industry) : null;
+  let guided: { document: SiteDocument; theme: WebSiteTheme } | null = null;
+  if (input.mode === 'GUIDED') {
+    if (industry) {
+      const owner = contactId
+        ? await prisma.contact.findFirst({ where: { id: contactId, companyId }, select: { email: true, phone: true, address: true, comuna: true } })
+        : await prisma.company.findFirst({ where: { id: companyId }, select: { email: true, phone: true, address: true, comuna: true } });
+      const address = [owner?.address, owner?.comuna].filter((part) => part?.trim()).join(', ');
+      guided = industryDocument(industry, { name: input.name, contact: { email: owner?.email, phone: owner?.phone, address } });
+    } else {
+      guided = { document: starterDocument(input.kind, { name: input.name }), theme: NEW_SITE_THEME };
+    }
+  }
+
   try {
     const site = await prisma.webSite.create({
       data: {
         companyId,
         name: input.name,
         slug,
-        kind: input.kind,
+        kind: industry?.kind ?? input.kind,
         mode: input.mode,
         contactId,
         seoTitle: input.name.slice(0, 65),
         createdByName: actor.name,
-        theme: json(input.mode === 'GUIDED' ? NEW_SITE_THEME : parseTheme({})),
-        draftBlocks: input.mode === 'GUIDED' ? json(starterDocument(input.kind, { name: input.name })) : json([]),
+        theme: json(guided ? guided.theme : parseTheme({})),
+        draftBlocks: guided ? json(guided.document) : json([]),
         draftHtml: input.mode === 'HTML' ? starterHtml(input.name) : null,
       },
       select: { id: true, slug: true },
