@@ -20,8 +20,9 @@ if (!enabled) {
   console.log('[migrate] omitido (solo corre en producción de Vercel o con MIGRATE_ON_BUILD=1)');
   process.exit(0);
 }
-if (!process.env.DIRECT_DATABASE_URL && !process.env.DATABASE_URL) {
-  console.error('[migrate] falta DIRECT_DATABASE_URL / DATABASE_URL: no se puede migrar. Build detenido.');
+const url = process.env.DIRECT_DATABASE_URL ?? process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL;
+if (!url) {
+  console.error('[migrate] falta DIRECT_DATABASE_URL / DATABASE_URL_UNPOOLED / DATABASE_URL: no se puede migrar. Build detenido.');
   process.exit(1);
 }
 
@@ -31,6 +32,10 @@ const run = (args) => {
   process.stdout.write(out);
   return { code: r.status ?? 1, out };
 };
+
+if (!process.env.DIRECT_DATABASE_URL && !process.env.DATABASE_URL_UNPOOLED) {
+  console.warn('[migrate] sin conexión directa (DIRECT_DATABASE_URL / DATABASE_URL_UNPOOLED): se usa la del pooler, que puede colgar las migraciones.');
+}
 
 let res = run(['migrate', 'deploy']);
 
