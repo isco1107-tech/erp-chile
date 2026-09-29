@@ -1965,3 +1965,18 @@ describe('productos del inventario para el catálogo', () => {
     expect(requireAuthWithPermission).toHaveBeenCalledWith('websites:write');
   });
 });
+
+describe('createWebSite por rubro sin permiso para ver clientes', () => {
+  it('no precarga datos de la ficha del cliente: usa la de la empresa', async () => {
+    db.webSite.count.mockResolvedValue(0);
+    db.webSite.findFirst.mockResolvedValue(null);
+    db.webSite.create.mockResolvedValue({ id: 'new-site', slug: 'x' });
+    db.contact.findFirst.mockResolvedValueOnce({ id: 'contact-1' });
+    db.company.findFirst.mockResolvedValue({ email: 'empresa@x.cl', phone: null, address: null, comuna: null });
+    await createWebSite(COMPANY, { name: 'Ana' }, { name: 'Sitio', kind: 'LANDING', mode: 'GUIDED', industry: 'restaurant', contactId: 'contact-1' }, { canReadContacts: false });
+    // Solo la verificación de que el cliente existe; nunca se leen sus datos de contacto.
+    expect(db.contact.findFirst).toHaveBeenCalledTimes(1);
+    const doc = argsOf(db.webSite.create).data.draftBlocks as SiteDocument;
+    expect(doc.pages.flatMap((page) => page.blocks).find((block) => block.type === 'contact')).toMatchObject({ email: 'empresa@x.cl' });
+  });
+});

@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { cache } from 'react';
 import { findPublicPage, WebSiteDocument, webSiteMetadata } from '@/components/web-sites/WebSiteDocument';
 import { domainFromHost, platformBaseUrl } from '@/lib/hosting/custom-domain';
+import { getPageantSlugByDomain } from '@/modules/projects/services/public-site.service';
 import { getPublicWebSiteByDomain } from '@/modules/web-sites/services/web-sites.service';
 
 /**
@@ -15,9 +16,23 @@ import { getPublicWebSiteByDomain } from '@/modules/web-sites/services/web-sites
  * u está oculta, se redirige a la plataforma con esa misma ruta, que es lo que
  * hacía el proxy antes de que existieran las páginas.
  */
-const loadSite = cache((domain: string, requestDomain: string) => getPublicWebSiteByDomain(domain, requestDomain === domain));
+const loadSite = cache(async (domain: string, requestDomain: string) => {
+  // Mismo orden que la raíz del dominio: si es de un certamen, el dominio es del certamen
+  // y ninguna página de un sitio web puede servirse bajo él.
+  if (await getPageantSlugByDomain(domain, requestDomain === domain)) return null;
+  return getPublicWebSiteByDomain(domain, requestDomain === domain);
+});
 
 type Params = Promise<{ host: string; page: string }>;
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+/** Query string original, para no perderlo al mandar a la plataforma. */
+function queryString(search: Record<string, string | string[] | undefined>): string {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(search)) for (const item of Array.isArray(value) ? value : value === undefined ? [] : [value]) query.append(key, item);
+  const text = query.toString();
+  return text ? `?${text}` : '';
+}
 
 async function resolve(params: Params) {
   const { host, page } = await params;
@@ -34,8 +49,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   return webSiteMetadata(site, `https://${domain}/${pageSlug}`, found);
 }
 
-export default async function CustomDomainInnerPage({ params }: { params: Params }) {
+export default async function CustomDomainInnerPage({ params, searchParams }: { params: Params; searchParams: SearchParams }) {
   const { pageSlug, site, found } = await resolve(params);
-  if (!site || !found) redirect(`${platformBaseUrl()}/${encodeURIComponent(pageSlug)}`);
+  if (!site || !found) redirect(`${platformBaseUrl()}/${encodeURIComponent(pageSlug)}${queryString(await searchParams)}`);
   return <WebSiteDocument site={site} pageSlug={pageSlug} basePath="" siteUrl={`https://${site.customDomain}`} />;
 }

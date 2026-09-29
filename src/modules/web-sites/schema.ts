@@ -60,6 +60,9 @@ export const webSiteSettingsSchema = z.object({
 
 export type WebSiteSettingsInput = z.infer<typeof webSiteSettingsSchema>;
 
+/** Búsqueda de productos del inventario para el catálogo del sitio. */
+export const catalogProductsQuerySchema = z.string().trim().max(100).optional();
+
 export const webSiteAssetAltSchema = z.object({ alt: z.string().trim().max(160, 'La descripción puede tener hasta 160 caracteres') });
 
 export const webSiteDomainSchema = z.object({ domain: z.string().trim().min(1, 'Escribe el dominio').max(253) });

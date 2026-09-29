@@ -269,7 +269,7 @@ export function readinessOf(site: Pick<WebSiteDetail, 'kind' | 'mode' | 'seoTitl
 // Escritura
 // ---------------------------------------------------------------------------
 
-export async function createWebSite(companyId: string, actor: { name: string }, input: CreateWebSiteInput): Promise<{ id: string; slug: string }> {
+export async function createWebSite(companyId: string, actor: { name: string }, input: CreateWebSiteInput, options: { canReadContacts?: boolean } = {}): Promise<{ id: string; slug: string }> {
   const total = await prisma.webSite.count({ where: { companyId, status: { not: 'ARCHIVED' } } });
   if (total >= MAX_SITES_PER_COMPANY) throw new WebSiteError(`Llegaste al máximo de ${MAX_SITES_PER_COMPANY} sitios activos. Archiva o elimina alguno.`);
   const contactId = await assertContact(companyId, input.contactId);
@@ -289,7 +289,8 @@ export async function createWebSite(companyId: string, actor: { name: string }, 
   let guided: { document: SiteDocument; theme: WebSiteTheme } | null = null;
   if (input.mode === 'GUIDED') {
     if (industry) {
-      const owner = contactId
+      // Sin permiso para ver clientes, los datos salen de la ficha de la empresa, nunca de la del cliente.
+      const owner = contactId && options.canReadContacts !== false
         ? await prisma.contact.findFirst({ where: { id: contactId, companyId }, select: { email: true, phone: true, address: true, comuna: true } })
         : await prisma.company.findFirst({ where: { id: companyId }, select: { email: true, phone: true, address: true, comuna: true } });
       const address = [owner?.address, owner?.comuna].filter((part) => part?.trim()).join(', ');

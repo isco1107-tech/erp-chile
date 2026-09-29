@@ -427,7 +427,7 @@ describe('secciones', () => {
   it('el CSS del sitio es constante: animaciones solo dentro de @supports y sin movimiento reducido', () => {
     const html = renderDoc(site(), { theme: { ...DEFAULT_THEME, animation: 'rise' } });
     expect(html).toContain('data-anim="rise"');
-    expect(html).toMatch(/@media \(prefers-reduced-motion:no-preference\)\{\s*@supports \(animation-timeline:view\(\)\)/);
+    expect(html).toMatch(/@media screen and \(prefers-reduced-motion:no-preference\)\{\s*@supports \(animation-timeline:view\(\)\)/);
     expect(renderDoc(site(), { theme: { ...DEFAULT_THEME, animation: 'rise' }, mode: 'preview' })).toContain('data-anim="none"');
   });
 });
