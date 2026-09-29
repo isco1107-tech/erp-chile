@@ -1,8 +1,14 @@
 -- CreateEnum
-CREATE TYPE "PurchaseRequestStatus" AS ENUM ('DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'ORDERED', 'CANCELLED');
+DO $$ BEGIN
+  CREATE TYPE "PurchaseRequestStatus" AS ENUM ('DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'ORDERED', 'CANCELLED');
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- CreateEnum
-CREATE TYPE "ImportShipmentStatus" AS ENUM ('OPEN', 'CLOSED', 'CANCELLED');
+DO $$ BEGIN
+  CREATE TYPE "ImportShipmentStatus" AS ENUM ('OPEN', 'CLOSED', 'CANCELLED');
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AlterEnum
 -- This migration adds more than one value to an enum.
@@ -12,14 +18,14 @@ CREATE TYPE "ImportShipmentStatus" AS ENUM ('OPEN', 'CLOSED', 'CANCELLED');
 -- the enum.
 
 
-ALTER TYPE "InternalDocumentKind" ADD VALUE 'PURCHASE_REQUEST';
-ALTER TYPE "InternalDocumentKind" ADD VALUE 'IMPORT_SHIPMENT';
+ALTER TYPE "InternalDocumentKind" ADD VALUE IF NOT EXISTS 'PURCHASE_REQUEST';
+ALTER TYPE "InternalDocumentKind" ADD VALUE IF NOT EXISTS 'IMPORT_SHIPMENT';
 
 -- AlterTable
-ALTER TABLE "PurchaseOrder" ADD COLUMN     "purchaseRequestId" TEXT;
+ALTER TABLE "PurchaseOrder" ADD COLUMN IF NOT EXISTS     "purchaseRequestId" TEXT;
 
 -- CreateTable
-CREATE TABLE "PurchaseRequest" (
+CREATE TABLE IF NOT EXISTS "PurchaseRequest" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "folio" INTEGER NOT NULL,
@@ -40,7 +46,7 @@ CREATE TABLE "PurchaseRequest" (
 );
 
 -- CreateTable
-CREATE TABLE "PurchaseRequestItem" (
+CREATE TABLE IF NOT EXISTS "PurchaseRequestItem" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "requestId" TEXT NOT NULL,
@@ -55,7 +61,7 @@ CREATE TABLE "PurchaseRequestItem" (
 );
 
 -- CreateTable
-CREATE TABLE "SupplierQuote" (
+CREATE TABLE IF NOT EXISTS "SupplierQuote" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "requestId" TEXT NOT NULL,
@@ -72,7 +78,7 @@ CREATE TABLE "SupplierQuote" (
 );
 
 -- CreateTable
-CREATE TABLE "SupplierQuoteLine" (
+CREATE TABLE IF NOT EXISTS "SupplierQuoteLine" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "quoteId" TEXT NOT NULL,
@@ -83,7 +89,7 @@ CREATE TABLE "SupplierQuoteLine" (
 );
 
 -- CreateTable
-CREATE TABLE "ImportShipment" (
+CREATE TABLE IF NOT EXISTS "ImportShipment" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "folio" INTEGER NOT NULL,
@@ -107,7 +113,7 @@ CREATE TABLE "ImportShipment" (
 );
 
 -- CreateTable
-CREATE TABLE "ImportShipmentItem" (
+CREATE TABLE IF NOT EXISTS "ImportShipmentItem" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "shipmentId" TEXT NOT NULL,
@@ -122,7 +128,7 @@ CREATE TABLE "ImportShipmentItem" (
 );
 
 -- CreateTable
-CREATE TABLE "ImportShipmentCost" (
+CREATE TABLE IF NOT EXISTS "ImportShipmentCost" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "shipmentId" TEXT NOT NULL,
@@ -135,95 +141,155 @@ CREATE TABLE "ImportShipmentCost" (
 );
 
 -- CreateIndex
-CREATE INDEX "PurchaseRequest_companyId_status_idx" ON "PurchaseRequest"("companyId", "status");
+CREATE INDEX IF NOT EXISTS "PurchaseRequest_companyId_status_idx" ON "PurchaseRequest"("companyId", "status");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "PurchaseRequest_companyId_folio_key" ON "PurchaseRequest"("companyId", "folio");
+CREATE UNIQUE INDEX IF NOT EXISTS "PurchaseRequest_companyId_folio_key" ON "PurchaseRequest"("companyId", "folio");
 
 -- CreateIndex
-CREATE INDEX "PurchaseRequestItem_companyId_requestId_idx" ON "PurchaseRequestItem"("companyId", "requestId");
+CREATE INDEX IF NOT EXISTS "PurchaseRequestItem_companyId_requestId_idx" ON "PurchaseRequestItem"("companyId", "requestId");
 
 -- CreateIndex
-CREATE INDEX "SupplierQuote_companyId_requestId_idx" ON "SupplierQuote"("companyId", "requestId");
+CREATE INDEX IF NOT EXISTS "SupplierQuote_companyId_requestId_idx" ON "SupplierQuote"("companyId", "requestId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "SupplierQuote_requestId_contactId_key" ON "SupplierQuote"("requestId", "contactId");
+CREATE UNIQUE INDEX IF NOT EXISTS "SupplierQuote_requestId_contactId_key" ON "SupplierQuote"("requestId", "contactId");
 
 -- CreateIndex
-CREATE INDEX "SupplierQuoteLine_companyId_quoteId_idx" ON "SupplierQuoteLine"("companyId", "quoteId");
+CREATE INDEX IF NOT EXISTS "SupplierQuoteLine_companyId_quoteId_idx" ON "SupplierQuoteLine"("companyId", "quoteId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "SupplierQuoteLine_quoteId_requestItemId_key" ON "SupplierQuoteLine"("quoteId", "requestItemId");
+CREATE UNIQUE INDEX IF NOT EXISTS "SupplierQuoteLine_quoteId_requestItemId_key" ON "SupplierQuoteLine"("quoteId", "requestItemId");
 
 -- CreateIndex
-CREATE INDEX "ImportShipment_companyId_status_idx" ON "ImportShipment"("companyId", "status");
+CREATE INDEX IF NOT EXISTS "ImportShipment_companyId_status_idx" ON "ImportShipment"("companyId", "status");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "ImportShipment_companyId_folio_key" ON "ImportShipment"("companyId", "folio");
+CREATE UNIQUE INDEX IF NOT EXISTS "ImportShipment_companyId_folio_key" ON "ImportShipment"("companyId", "folio");
 
 -- CreateIndex
-CREATE INDEX "ImportShipmentItem_companyId_shipmentId_idx" ON "ImportShipmentItem"("companyId", "shipmentId");
+CREATE INDEX IF NOT EXISTS "ImportShipmentItem_companyId_shipmentId_idx" ON "ImportShipmentItem"("companyId", "shipmentId");
 
 -- CreateIndex
-CREATE INDEX "ImportShipmentCost_companyId_shipmentId_idx" ON "ImportShipmentCost"("companyId", "shipmentId");
+CREATE INDEX IF NOT EXISTS "ImportShipmentCost_companyId_shipmentId_idx" ON "ImportShipmentCost"("companyId", "shipmentId");
 
 -- AddForeignKey
-ALTER TABLE "PurchaseOrder" ADD CONSTRAINT "PurchaseOrder_purchaseRequestId_fkey" FOREIGN KEY ("purchaseRequestId") REFERENCES "PurchaseRequest"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "PurchaseOrder" ADD CONSTRAINT "PurchaseOrder_purchaseRequestId_fkey" FOREIGN KEY ("purchaseRequestId") REFERENCES "PurchaseRequest"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "PurchaseRequest" ADD CONSTRAINT "PurchaseRequest_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "PurchaseRequest" ADD CONSTRAINT "PurchaseRequest_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "PurchaseRequestItem" ADD CONSTRAINT "PurchaseRequestItem_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "PurchaseRequestItem" ADD CONSTRAINT "PurchaseRequestItem_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "PurchaseRequestItem" ADD CONSTRAINT "PurchaseRequestItem_requestId_fkey" FOREIGN KEY ("requestId") REFERENCES "PurchaseRequest"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "PurchaseRequestItem" ADD CONSTRAINT "PurchaseRequestItem_requestId_fkey" FOREIGN KEY ("requestId") REFERENCES "PurchaseRequest"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "PurchaseRequestItem" ADD CONSTRAINT "PurchaseRequestItem_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "PurchaseRequestItem" ADD CONSTRAINT "PurchaseRequestItem_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "SupplierQuote" ADD CONSTRAINT "SupplierQuote_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "SupplierQuote" ADD CONSTRAINT "SupplierQuote_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "SupplierQuote" ADD CONSTRAINT "SupplierQuote_requestId_fkey" FOREIGN KEY ("requestId") REFERENCES "PurchaseRequest"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "SupplierQuote" ADD CONSTRAINT "SupplierQuote_requestId_fkey" FOREIGN KEY ("requestId") REFERENCES "PurchaseRequest"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "SupplierQuote" ADD CONSTRAINT "SupplierQuote_contactId_fkey" FOREIGN KEY ("contactId") REFERENCES "Contact"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "SupplierQuote" ADD CONSTRAINT "SupplierQuote_contactId_fkey" FOREIGN KEY ("contactId") REFERENCES "Contact"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "SupplierQuoteLine" ADD CONSTRAINT "SupplierQuoteLine_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "SupplierQuoteLine" ADD CONSTRAINT "SupplierQuoteLine_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "SupplierQuoteLine" ADD CONSTRAINT "SupplierQuoteLine_quoteId_fkey" FOREIGN KEY ("quoteId") REFERENCES "SupplierQuote"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "SupplierQuoteLine" ADD CONSTRAINT "SupplierQuoteLine_quoteId_fkey" FOREIGN KEY ("quoteId") REFERENCES "SupplierQuote"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "SupplierQuoteLine" ADD CONSTRAINT "SupplierQuoteLine_requestItemId_fkey" FOREIGN KEY ("requestItemId") REFERENCES "PurchaseRequestItem"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "SupplierQuoteLine" ADD CONSTRAINT "SupplierQuoteLine_requestItemId_fkey" FOREIGN KEY ("requestItemId") REFERENCES "PurchaseRequestItem"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ImportShipment" ADD CONSTRAINT "ImportShipment_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ImportShipment" ADD CONSTRAINT "ImportShipment_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ImportShipment" ADD CONSTRAINT "ImportShipment_contactId_fkey" FOREIGN KEY ("contactId") REFERENCES "Contact"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ImportShipment" ADD CONSTRAINT "ImportShipment_contactId_fkey" FOREIGN KEY ("contactId") REFERENCES "Contact"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ImportShipment" ADD CONSTRAINT "ImportShipment_warehouseId_fkey" FOREIGN KEY ("warehouseId") REFERENCES "Warehouse"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ImportShipment" ADD CONSTRAINT "ImportShipment_warehouseId_fkey" FOREIGN KEY ("warehouseId") REFERENCES "Warehouse"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ImportShipmentItem" ADD CONSTRAINT "ImportShipmentItem_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ImportShipmentItem" ADD CONSTRAINT "ImportShipmentItem_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ImportShipmentItem" ADD CONSTRAINT "ImportShipmentItem_shipmentId_fkey" FOREIGN KEY ("shipmentId") REFERENCES "ImportShipment"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ImportShipmentItem" ADD CONSTRAINT "ImportShipmentItem_shipmentId_fkey" FOREIGN KEY ("shipmentId") REFERENCES "ImportShipment"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ImportShipmentItem" ADD CONSTRAINT "ImportShipmentItem_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ImportShipmentItem" ADD CONSTRAINT "ImportShipmentItem_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ImportShipmentCost" ADD CONSTRAINT "ImportShipmentCost_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ImportShipmentCost" ADD CONSTRAINT "ImportShipmentCost_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ImportShipmentCost" ADD CONSTRAINT "ImportShipmentCost_shipmentId_fkey" FOREIGN KEY ("shipmentId") REFERENCES "ImportShipment"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ImportShipmentCost" ADD CONSTRAINT "ImportShipmentCost_shipmentId_fkey" FOREIGN KEY ("shipmentId") REFERENCES "ImportShipment"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ImportShipmentCost" ADD CONSTRAINT "ImportShipmentCost_purchaseDocumentId_fkey" FOREIGN KEY ("purchaseDocumentId") REFERENCES "PurchaseDocument"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ImportShipmentCost" ADD CONSTRAINT "ImportShipmentCost_purchaseDocumentId_fkey" FOREIGN KEY ("purchaseDocumentId") REFERENCES "PurchaseDocument"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 

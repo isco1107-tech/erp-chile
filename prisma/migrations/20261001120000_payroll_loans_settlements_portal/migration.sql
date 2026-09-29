@@ -3,28 +3,37 @@
 -- y portal del trabajador. 100% aditiva: tablas nuevas y columnas nullable o
 -- con default.
 -- CreateEnum
-CREATE TYPE "EmployeeLoanStatus" AS ENUM ('ACTIVE', 'PAID', 'CANCELLED');
+DO $$ BEGIN
+  CREATE TYPE "EmployeeLoanStatus" AS ENUM ('ACTIVE', 'PAID', 'CANCELLED');
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- CreateEnum
-CREATE TYPE "EmployeeAdvanceStatus" AS ENUM ('PENDING', 'DEDUCTED', 'CANCELLED');
+DO $$ BEGIN
+  CREATE TYPE "EmployeeAdvanceStatus" AS ENUM ('PENDING', 'DEDUCTED', 'CANCELLED');
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- CreateEnum
-CREATE TYPE "SettlementStatus" AS ENUM ('DRAFT', 'FINAL', 'CANCELLED');
+DO $$ BEGIN
+  CREATE TYPE "SettlementStatus" AS ENUM ('DRAFT', 'FINAL', 'CANCELLED');
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AlterTable
-ALTER TABLE "CompanySettings" ADD COLUMN     "payrollMutualCode" TEXT;
+ALTER TABLE "CompanySettings" ADD COLUMN IF NOT EXISTS     "payrollMutualCode" TEXT;
 
 -- AlterTable
-ALTER TABLE "Employee" ADD COLUMN     "nationality" TEXT,
-ADD COLUMN     "portalTokenCreatedAt" TIMESTAMP(3),
-ADD COLUMN     "portalTokenHash" TEXT;
+ALTER TABLE "Employee" ADD COLUMN IF NOT EXISTS     "nationality" TEXT,
+ADD COLUMN IF NOT EXISTS     "portalTokenCreatedAt" TIMESTAMP(3),
+ADD COLUMN IF NOT EXISTS     "portalTokenHash" TEXT;
 
 -- AlterTable
-ALTER TABLE "Payslip" ADD COLUMN     "deductionDetail" JSONB,
-ADD COLUMN     "loanDeduction" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "Payslip" ADD COLUMN IF NOT EXISTS     "deductionDetail" JSONB,
+ADD COLUMN IF NOT EXISTS     "loanDeduction" INTEGER NOT NULL DEFAULT 0;
 
 -- CreateTable
-CREATE TABLE "EmployeeLoan" (
+CREATE TABLE IF NOT EXISTS "EmployeeLoan" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "employeeId" TEXT NOT NULL,
@@ -44,7 +53,7 @@ CREATE TABLE "EmployeeLoan" (
 );
 
 -- CreateTable
-CREATE TABLE "EmployeeAdvance" (
+CREATE TABLE IF NOT EXISTS "EmployeeAdvance" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "employeeId" TEXT NOT NULL,
@@ -61,7 +70,7 @@ CREATE TABLE "EmployeeAdvance" (
 );
 
 -- CreateTable
-CREATE TABLE "EmployeeSettlement" (
+CREATE TABLE IF NOT EXISTS "EmployeeSettlement" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "employeeId" TEXT NOT NULL,
@@ -91,35 +100,53 @@ CREATE TABLE "EmployeeSettlement" (
 );
 
 -- CreateIndex
-CREATE INDEX "EmployeeLoan_companyId_employeeId_status_idx" ON "EmployeeLoan"("companyId", "employeeId", "status");
+CREATE INDEX IF NOT EXISTS "EmployeeLoan_companyId_employeeId_status_idx" ON "EmployeeLoan"("companyId", "employeeId", "status");
 
 -- CreateIndex
-CREATE INDEX "EmployeeAdvance_companyId_year_month_status_idx" ON "EmployeeAdvance"("companyId", "year", "month", "status");
+CREATE INDEX IF NOT EXISTS "EmployeeAdvance_companyId_year_month_status_idx" ON "EmployeeAdvance"("companyId", "year", "month", "status");
 
 -- CreateIndex
-CREATE INDEX "EmployeeAdvance_companyId_employeeId_idx" ON "EmployeeAdvance"("companyId", "employeeId");
+CREATE INDEX IF NOT EXISTS "EmployeeAdvance_companyId_employeeId_idx" ON "EmployeeAdvance"("companyId", "employeeId");
 
 -- CreateIndex
-CREATE INDEX "EmployeeSettlement_companyId_employeeId_idx" ON "EmployeeSettlement"("companyId", "employeeId");
+CREATE INDEX IF NOT EXISTS "EmployeeSettlement_companyId_employeeId_idx" ON "EmployeeSettlement"("companyId", "employeeId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Employee_portalTokenHash_key" ON "Employee"("portalTokenHash");
+CREATE UNIQUE INDEX IF NOT EXISTS "Employee_portalTokenHash_key" ON "Employee"("portalTokenHash");
 
 -- AddForeignKey
-ALTER TABLE "EmployeeLoan" ADD CONSTRAINT "EmployeeLoan_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "EmployeeLoan" ADD CONSTRAINT "EmployeeLoan_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "EmployeeLoan" ADD CONSTRAINT "EmployeeLoan_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "Employee"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "EmployeeLoan" ADD CONSTRAINT "EmployeeLoan_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "Employee"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "EmployeeAdvance" ADD CONSTRAINT "EmployeeAdvance_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "EmployeeAdvance" ADD CONSTRAINT "EmployeeAdvance_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "EmployeeAdvance" ADD CONSTRAINT "EmployeeAdvance_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "Employee"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "EmployeeAdvance" ADD CONSTRAINT "EmployeeAdvance_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "Employee"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "EmployeeSettlement" ADD CONSTRAINT "EmployeeSettlement_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "EmployeeSettlement" ADD CONSTRAINT "EmployeeSettlement_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "EmployeeSettlement" ADD CONSTRAINT "EmployeeSettlement_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "Employee"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "EmployeeSettlement" ADD CONSTRAINT "EmployeeSettlement_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "Employee"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 

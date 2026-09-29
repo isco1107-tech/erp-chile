@@ -1,20 +1,29 @@
 -- CreateEnum
-CREATE TYPE "WebSiteKind" AS ENUM ('LANDING', 'CORPORATE', 'PORTFOLIO', 'CATALOG', 'EVENT', 'PERSONAL', 'BLANK');
+DO $$ BEGIN
+  CREATE TYPE "WebSiteKind" AS ENUM ('LANDING', 'CORPORATE', 'PORTFOLIO', 'CATALOG', 'EVENT', 'PERSONAL', 'BLANK');
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- CreateEnum
-CREATE TYPE "WebSiteMode" AS ENUM ('GUIDED', 'HTML');
+DO $$ BEGIN
+  CREATE TYPE "WebSiteMode" AS ENUM ('GUIDED', 'HTML');
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- CreateEnum
-CREATE TYPE "WebSiteStatus" AS ENUM ('DRAFT', 'PUBLISHED', 'ARCHIVED');
+DO $$ BEGIN
+  CREATE TYPE "WebSiteStatus" AS ENUM ('DRAFT', 'PUBLISHED', 'ARCHIVED');
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AlterEnum
-ALTER TYPE "WorkflowTriggerEvent" ADD VALUE 'WEB_SITE_MESSAGE_RECEIVED';
+ALTER TYPE "WorkflowTriggerEvent" ADD VALUE IF NOT EXISTS 'WEB_SITE_MESSAGE_RECEIVED';
 
 -- AlterTable
-ALTER TABLE "CompanyFeatures" ADD COLUMN     "hasWebSites" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "CompanyFeatures" ADD COLUMN IF NOT EXISTS     "hasWebSites" BOOLEAN NOT NULL DEFAULT false;
 
 -- CreateTable
-CREATE TABLE "WebSite" (
+CREATE TABLE IF NOT EXISTS "WebSite" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -46,7 +55,7 @@ CREATE TABLE "WebSite" (
 );
 
 -- CreateTable
-CREATE TABLE "WebSiteAsset" (
+CREATE TABLE IF NOT EXISTS "WebSiteAsset" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "siteId" TEXT NOT NULL,
@@ -61,7 +70,7 @@ CREATE TABLE "WebSiteAsset" (
 );
 
 -- CreateTable
-CREATE TABLE "WebSiteMessage" (
+CREATE TABLE IF NOT EXISTS "WebSiteMessage" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "siteId" TEXT NOT NULL,
@@ -76,41 +85,59 @@ CREATE TABLE "WebSiteMessage" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "WebSite_slug_key" ON "WebSite"("slug");
+CREATE UNIQUE INDEX IF NOT EXISTS "WebSite_slug_key" ON "WebSite"("slug");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "WebSite_customDomain_key" ON "WebSite"("customDomain");
+CREATE UNIQUE INDEX IF NOT EXISTS "WebSite_customDomain_key" ON "WebSite"("customDomain");
 
 -- CreateIndex
-CREATE INDEX "WebSite_companyId_status_idx" ON "WebSite"("companyId", "status");
+CREATE INDEX IF NOT EXISTS "WebSite_companyId_status_idx" ON "WebSite"("companyId", "status");
 
 -- CreateIndex
-CREATE INDEX "WebSite_companyId_contactId_idx" ON "WebSite"("companyId", "contactId");
+CREATE INDEX IF NOT EXISTS "WebSite_companyId_contactId_idx" ON "WebSite"("companyId", "contactId");
 
 -- CreateIndex
-CREATE INDEX "WebSiteAsset_companyId_siteId_idx" ON "WebSiteAsset"("companyId", "siteId");
+CREATE INDEX IF NOT EXISTS "WebSiteAsset_companyId_siteId_idx" ON "WebSiteAsset"("companyId", "siteId");
 
 -- CreateIndex
-CREATE INDEX "WebSiteMessage_companyId_siteId_createdAt_idx" ON "WebSiteMessage"("companyId", "siteId", "createdAt");
+CREATE INDEX IF NOT EXISTS "WebSiteMessage_companyId_siteId_createdAt_idx" ON "WebSiteMessage"("companyId", "siteId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "WebSiteMessage_companyId_readAt_idx" ON "WebSiteMessage"("companyId", "readAt");
+CREATE INDEX IF NOT EXISTS "WebSiteMessage_companyId_readAt_idx" ON "WebSiteMessage"("companyId", "readAt");
 
 -- AddForeignKey
-ALTER TABLE "WebSite" ADD CONSTRAINT "WebSite_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "WebSite" ADD CONSTRAINT "WebSite_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "WebSite" ADD CONSTRAINT "WebSite_contactId_fkey" FOREIGN KEY ("contactId") REFERENCES "Contact"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "WebSite" ADD CONSTRAINT "WebSite_contactId_fkey" FOREIGN KEY ("contactId") REFERENCES "Contact"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "WebSiteAsset" ADD CONSTRAINT "WebSiteAsset_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "WebSiteAsset" ADD CONSTRAINT "WebSiteAsset_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "WebSiteAsset" ADD CONSTRAINT "WebSiteAsset_siteId_fkey" FOREIGN KEY ("siteId") REFERENCES "WebSite"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "WebSiteAsset" ADD CONSTRAINT "WebSiteAsset_siteId_fkey" FOREIGN KEY ("siteId") REFERENCES "WebSite"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "WebSiteMessage" ADD CONSTRAINT "WebSiteMessage_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "WebSiteMessage" ADD CONSTRAINT "WebSiteMessage_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "WebSiteMessage" ADD CONSTRAINT "WebSiteMessage_siteId_fkey" FOREIGN KEY ("siteId") REFERENCES "WebSite"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "WebSiteMessage" ADD CONSTRAINT "WebSiteMessage_siteId_fkey" FOREIGN KEY ("siteId") REFERENCES "WebSite"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 

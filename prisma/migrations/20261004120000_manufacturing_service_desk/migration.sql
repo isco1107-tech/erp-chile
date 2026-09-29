@@ -1,8 +1,14 @@
 -- CreateEnum
-CREATE TYPE "ProductionOrderStatus" AS ENUM ('PLANNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED');
+DO $$ BEGIN
+  CREATE TYPE "ProductionOrderStatus" AS ENUM ('PLANNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED');
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- CreateEnum
-CREATE TYPE "ServiceTicketStatus" AS ENUM ('RECEIVED', 'DIAGNOSING', 'WAITING_APPROVAL', 'APPROVED', 'IN_REPAIR', 'READY', 'DELIVERED', 'CANCELLED');
+DO $$ BEGIN
+  CREATE TYPE "ServiceTicketStatus" AS ENUM ('RECEIVED', 'DIAGNOSING', 'WAITING_APPROVAL', 'APPROVED', 'IN_REPAIR', 'READY', 'DELIVERED', 'CANCELLED');
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AlterEnum
 -- This migration adds more than one value to an enum.
@@ -12,8 +18,8 @@ CREATE TYPE "ServiceTicketStatus" AS ENUM ('RECEIVED', 'DIAGNOSING', 'WAITING_AP
 -- the enum.
 
 
-ALTER TYPE "InternalDocumentKind" ADD VALUE 'PRODUCTION_ORDER';
-ALTER TYPE "InternalDocumentKind" ADD VALUE 'SERVICE_TICKET';
+ALTER TYPE "InternalDocumentKind" ADD VALUE IF NOT EXISTS 'PRODUCTION_ORDER';
+ALTER TYPE "InternalDocumentKind" ADD VALUE IF NOT EXISTS 'SERVICE_TICKET';
 
 -- AlterEnum
 -- This migration adds more than one value to an enum.
@@ -23,16 +29,16 @@ ALTER TYPE "InternalDocumentKind" ADD VALUE 'SERVICE_TICKET';
 -- the enum.
 
 
-ALTER TYPE "WorkflowTriggerEvent" ADD VALUE 'PRODUCTION_ORDER_COMPLETED';
-ALTER TYPE "WorkflowTriggerEvent" ADD VALUE 'SERVICE_TICKET_STATUS_CHANGED';
-ALTER TYPE "WorkflowTriggerEvent" ADD VALUE 'SERVICE_ESTIMATE_DECIDED';
+ALTER TYPE "WorkflowTriggerEvent" ADD VALUE IF NOT EXISTS 'PRODUCTION_ORDER_COMPLETED';
+ALTER TYPE "WorkflowTriggerEvent" ADD VALUE IF NOT EXISTS 'SERVICE_TICKET_STATUS_CHANGED';
+ALTER TYPE "WorkflowTriggerEvent" ADD VALUE IF NOT EXISTS 'SERVICE_ESTIMATE_DECIDED';
 
 -- AlterTable
-ALTER TABLE "CompanyFeatures" ADD COLUMN     "hasProduction" BOOLEAN NOT NULL DEFAULT false,
-ADD COLUMN     "hasServiceDesk" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "CompanyFeatures" ADD COLUMN IF NOT EXISTS     "hasProduction" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN IF NOT EXISTS     "hasServiceDesk" BOOLEAN NOT NULL DEFAULT false;
 
 -- CreateTable
-CREATE TABLE "BillOfMaterials" (
+CREATE TABLE IF NOT EXISTS "BillOfMaterials" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "productId" TEXT NOT NULL,
@@ -47,7 +53,7 @@ CREATE TABLE "BillOfMaterials" (
 );
 
 -- CreateTable
-CREATE TABLE "BomComponent" (
+CREATE TABLE IF NOT EXISTS "BomComponent" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "bomId" TEXT NOT NULL,
@@ -59,7 +65,7 @@ CREATE TABLE "BomComponent" (
 );
 
 -- CreateTable
-CREATE TABLE "ProductionOrder" (
+CREATE TABLE IF NOT EXISTS "ProductionOrder" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "folio" INTEGER NOT NULL,
@@ -84,7 +90,7 @@ CREATE TABLE "ProductionOrder" (
 );
 
 -- CreateTable
-CREATE TABLE "ProductionOrderComponent" (
+CREATE TABLE IF NOT EXISTS "ProductionOrderComponent" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "orderId" TEXT NOT NULL,
@@ -98,7 +104,7 @@ CREATE TABLE "ProductionOrderComponent" (
 );
 
 -- CreateTable
-CREATE TABLE "ServiceTicket" (
+CREATE TABLE IF NOT EXISTS "ServiceTicket" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "folio" INTEGER NOT NULL,
@@ -130,7 +136,7 @@ CREATE TABLE "ServiceTicket" (
 );
 
 -- CreateTable
-CREATE TABLE "ServiceTicketLine" (
+CREATE TABLE IF NOT EXISTS "ServiceTicketLine" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "ticketId" TEXT NOT NULL,
@@ -145,7 +151,7 @@ CREATE TABLE "ServiceTicketLine" (
 );
 
 -- CreateTable
-CREATE TABLE "ServiceTicketEvent" (
+CREATE TABLE IF NOT EXISTS "ServiceTicketEvent" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "ticketId" TEXT NOT NULL,
@@ -159,95 +165,158 @@ CREATE TABLE "ServiceTicketEvent" (
 );
 
 -- CreateIndex
-CREATE INDEX "BillOfMaterials_companyId_productId_idx" ON "BillOfMaterials"("companyId", "productId");
+CREATE INDEX IF NOT EXISTS "BillOfMaterials_companyId_productId_idx" ON "BillOfMaterials"("companyId", "productId");
 
 -- CreateIndex
-CREATE INDEX "BomComponent_companyId_bomId_idx" ON "BomComponent"("companyId", "bomId");
+CREATE INDEX IF NOT EXISTS "BomComponent_companyId_bomId_idx" ON "BomComponent"("companyId", "bomId");
 
 -- CreateIndex
-CREATE INDEX "ProductionOrder_companyId_status_idx" ON "ProductionOrder"("companyId", "status");
+CREATE INDEX IF NOT EXISTS "ProductionOrder_companyId_status_idx" ON "ProductionOrder"("companyId", "status");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "ProductionOrder_companyId_folio_key" ON "ProductionOrder"("companyId", "folio");
+CREATE UNIQUE INDEX IF NOT EXISTS "ProductionOrder_companyId_folio_key" ON "ProductionOrder"("companyId", "folio");
 
 -- CreateIndex
-CREATE INDEX "ProductionOrderComponent_companyId_orderId_idx" ON "ProductionOrderComponent"("companyId", "orderId");
+CREATE INDEX IF NOT EXISTS "ProductionOrderComponent_companyId_orderId_idx" ON "ProductionOrderComponent"("companyId", "orderId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "ServiceTicket_trackingToken_key" ON "ServiceTicket"("trackingToken");
+CREATE UNIQUE INDEX IF NOT EXISTS "ServiceTicket_trackingToken_key" ON "ServiceTicket"("trackingToken");
 
 -- CreateIndex
-CREATE INDEX "ServiceTicket_companyId_status_idx" ON "ServiceTicket"("companyId", "status");
+CREATE INDEX IF NOT EXISTS "ServiceTicket_companyId_status_idx" ON "ServiceTicket"("companyId", "status");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "ServiceTicket_companyId_folio_key" ON "ServiceTicket"("companyId", "folio");
+CREATE UNIQUE INDEX IF NOT EXISTS "ServiceTicket_companyId_folio_key" ON "ServiceTicket"("companyId", "folio");
 
 -- CreateIndex
-CREATE INDEX "ServiceTicketLine_companyId_ticketId_idx" ON "ServiceTicketLine"("companyId", "ticketId");
+CREATE INDEX IF NOT EXISTS "ServiceTicketLine_companyId_ticketId_idx" ON "ServiceTicketLine"("companyId", "ticketId");
 
 -- CreateIndex
-CREATE INDEX "ServiceTicketEvent_companyId_ticketId_createdAt_idx" ON "ServiceTicketEvent"("companyId", "ticketId", "createdAt");
+CREATE INDEX IF NOT EXISTS "ServiceTicketEvent_companyId_ticketId_createdAt_idx" ON "ServiceTicketEvent"("companyId", "ticketId", "createdAt");
 
 -- AddForeignKey
-ALTER TABLE "BillOfMaterials" ADD CONSTRAINT "BillOfMaterials_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "BillOfMaterials" ADD CONSTRAINT "BillOfMaterials_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "BillOfMaterials" ADD CONSTRAINT "BillOfMaterials_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "BillOfMaterials" ADD CONSTRAINT "BillOfMaterials_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "BomComponent" ADD CONSTRAINT "BomComponent_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "BomComponent" ADD CONSTRAINT "BomComponent_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "BomComponent" ADD CONSTRAINT "BomComponent_bomId_fkey" FOREIGN KEY ("bomId") REFERENCES "BillOfMaterials"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "BomComponent" ADD CONSTRAINT "BomComponent_bomId_fkey" FOREIGN KEY ("bomId") REFERENCES "BillOfMaterials"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "BomComponent" ADD CONSTRAINT "BomComponent_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "BomComponent" ADD CONSTRAINT "BomComponent_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ProductionOrder" ADD CONSTRAINT "ProductionOrder_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ProductionOrder" ADD CONSTRAINT "ProductionOrder_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ProductionOrder" ADD CONSTRAINT "ProductionOrder_bomId_fkey" FOREIGN KEY ("bomId") REFERENCES "BillOfMaterials"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ProductionOrder" ADD CONSTRAINT "ProductionOrder_bomId_fkey" FOREIGN KEY ("bomId") REFERENCES "BillOfMaterials"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ProductionOrder" ADD CONSTRAINT "ProductionOrder_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ProductionOrder" ADD CONSTRAINT "ProductionOrder_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ProductionOrder" ADD CONSTRAINT "ProductionOrder_warehouseId_fkey" FOREIGN KEY ("warehouseId") REFERENCES "Warehouse"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ProductionOrder" ADD CONSTRAINT "ProductionOrder_warehouseId_fkey" FOREIGN KEY ("warehouseId") REFERENCES "Warehouse"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ProductionOrderComponent" ADD CONSTRAINT "ProductionOrderComponent_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ProductionOrderComponent" ADD CONSTRAINT "ProductionOrderComponent_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ProductionOrderComponent" ADD CONSTRAINT "ProductionOrderComponent_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "ProductionOrder"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ProductionOrderComponent" ADD CONSTRAINT "ProductionOrderComponent_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "ProductionOrder"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ProductionOrderComponent" ADD CONSTRAINT "ProductionOrderComponent_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ProductionOrderComponent" ADD CONSTRAINT "ProductionOrderComponent_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ServiceTicket" ADD CONSTRAINT "ServiceTicket_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ServiceTicket" ADD CONSTRAINT "ServiceTicket_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ServiceTicket" ADD CONSTRAINT "ServiceTicket_contactId_fkey" FOREIGN KEY ("contactId") REFERENCES "Contact"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ServiceTicket" ADD CONSTRAINT "ServiceTicket_contactId_fkey" FOREIGN KEY ("contactId") REFERENCES "Contact"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ServiceTicket" ADD CONSTRAINT "ServiceTicket_technicianId_fkey" FOREIGN KEY ("technicianId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ServiceTicket" ADD CONSTRAINT "ServiceTicket_technicianId_fkey" FOREIGN KEY ("technicianId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ServiceTicket" ADD CONSTRAINT "ServiceTicket_salesOrderId_fkey" FOREIGN KEY ("salesOrderId") REFERENCES "SalesOrder"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ServiceTicket" ADD CONSTRAINT "ServiceTicket_salesOrderId_fkey" FOREIGN KEY ("salesOrderId") REFERENCES "SalesOrder"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ServiceTicketLine" ADD CONSTRAINT "ServiceTicketLine_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ServiceTicketLine" ADD CONSTRAINT "ServiceTicketLine_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ServiceTicketLine" ADD CONSTRAINT "ServiceTicketLine_ticketId_fkey" FOREIGN KEY ("ticketId") REFERENCES "ServiceTicket"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ServiceTicketLine" ADD CONSTRAINT "ServiceTicketLine_ticketId_fkey" FOREIGN KEY ("ticketId") REFERENCES "ServiceTicket"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ServiceTicketLine" ADD CONSTRAINT "ServiceTicketLine_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ServiceTicketLine" ADD CONSTRAINT "ServiceTicketLine_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ServiceTicketEvent" ADD CONSTRAINT "ServiceTicketEvent_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ServiceTicketEvent" ADD CONSTRAINT "ServiceTicketEvent_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ServiceTicketEvent" ADD CONSTRAINT "ServiceTicketEvent_ticketId_fkey" FOREIGN KEY ("ticketId") REFERENCES "ServiceTicket"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ServiceTicketEvent" ADD CONSTRAINT "ServiceTicketEvent_ticketId_fkey" FOREIGN KEY ("ticketId") REFERENCES "ServiceTicket"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 

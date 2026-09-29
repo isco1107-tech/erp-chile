@@ -1,9 +1,9 @@
 -- AlterTable
-ALTER TABLE "Contact" ADD COLUMN     "portalTokenCreatedAt" TIMESTAMP(3),
-ADD COLUMN     "portalTokenHash" TEXT;
+ALTER TABLE "Contact" ADD COLUMN IF NOT EXISTS     "portalTokenCreatedAt" TIMESTAMP(3),
+ADD COLUMN IF NOT EXISTS     "portalTokenHash" TEXT;
 
 -- CreateTable
-CREATE TABLE "FixedAssetMaintenance" (
+CREATE TABLE IF NOT EXISTS "FixedAssetMaintenance" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "assetId" TEXT NOT NULL,
@@ -20,17 +20,23 @@ CREATE TABLE "FixedAssetMaintenance" (
 );
 
 -- CreateIndex
-CREATE INDEX "FixedAssetMaintenance_companyId_assetId_date_idx" ON "FixedAssetMaintenance"("companyId", "assetId", "date");
+CREATE INDEX IF NOT EXISTS "FixedAssetMaintenance_companyId_assetId_date_idx" ON "FixedAssetMaintenance"("companyId", "assetId", "date");
 
 -- CreateIndex
-CREATE INDEX "FixedAssetMaintenance_companyId_nextDueDate_idx" ON "FixedAssetMaintenance"("companyId", "nextDueDate");
+CREATE INDEX IF NOT EXISTS "FixedAssetMaintenance_companyId_nextDueDate_idx" ON "FixedAssetMaintenance"("companyId", "nextDueDate");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Contact_portalTokenHash_key" ON "Contact"("portalTokenHash");
+CREATE UNIQUE INDEX IF NOT EXISTS "Contact_portalTokenHash_key" ON "Contact"("portalTokenHash");
 
 -- AddForeignKey
-ALTER TABLE "FixedAssetMaintenance" ADD CONSTRAINT "FixedAssetMaintenance_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "FixedAssetMaintenance" ADD CONSTRAINT "FixedAssetMaintenance_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "FixedAssetMaintenance" ADD CONSTRAINT "FixedAssetMaintenance_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "FixedAsset"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "FixedAssetMaintenance" ADD CONSTRAINT "FixedAssetMaintenance_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "FixedAsset"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
