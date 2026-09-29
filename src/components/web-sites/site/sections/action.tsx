@@ -28,7 +28,7 @@ export function CtaSection({ block, ctx, center, tone }: SectionProps<'cta'> & {
   );
 }
 
-const DATE_FORMAT = new Intl.DateTimeFormat('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: 'America/Santiago' });
+const DATE_FORMAT = new Intl.DateTimeFormat('es-CL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'America/Santiago' });
 
 export function CountdownSection({ block, ctx, center }: SectionProps<'countdown'>) {
   const target = Date.parse(block.target);

@@ -78,6 +78,29 @@ describe('customDomainRoute', () => {
   });
 });
 
+describe('customDomainRoute: páginas internas de un sitio web', () => {
+  it('un solo segmento con forma de página se reescribe como página', () => {
+    expect(customDomainRoute('/servicios')).toEqual({ kind: 'page', slug: 'servicios' });
+    expect(customDomainRoute('/sobre-nosotros/')).toEqual({ kind: 'page', slug: 'sobre-nosotros' });
+    expect(customDomainRoute('/equipo-2')).toEqual({ kind: 'page', slug: 'equipo-2' });
+  });
+
+  it('las direcciones reservadas siguen yendo a la plataforma o se sirven como antes', () => {
+    for (const path of ['/login', '/dashboard', '/superadmin', '/api', '/web', '/raw', '/sitio', '/certamen', '/opengraph-image', '/manual']) {
+      expect(customDomainRoute(path)).toEqual({ kind: 'platform' });
+    }
+    expect(customDomainRoute('/register')).toEqual({ kind: 'pass' });
+    expect(customDomainRoute('/votar')).toEqual({ kind: 'pass' });
+  });
+
+  it('rutas con más de un segmento, mayúsculas, punto o caracteres raros no son páginas', () => {
+    for (const path of ['/servicios/extra', '/Servicios', '/servicios.html', '/a_b', '/-x', '/x-', '/a--b', '/sw.js', '/manifest.webmanifest', '/%2e%2e', '/a%2Fb']) {
+      expect(customDomainRoute(path)).toEqual({ kind: 'platform' });
+    }
+    expect(customDomainRoute('/' + 'a'.repeat(41))).toEqual({ kind: 'platform' });
+  });
+});
+
 describe('otros', () => {
   it('raíz vs. subdominio y host → dominio guardado', () => {
     expect(isApexDomain('missuniversotemuco.cl')).toBe(true);

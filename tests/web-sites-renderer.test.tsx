@@ -232,10 +232,11 @@ describe('SiteRenderer multipágina', () => {
 
   it('el encabezado transparente solo va superpuesto si la primera sección es una portada', () => {
     const withHero = renderDoc(site({ header: { style: 'transparent' } }));
-    expect(withHero).toContain('ws-under-header');
+    expect(withHero).toMatch(/<section[^>]*ws-under-header/);
+    expect(withHero).toMatch(/<header[^>]*absolute/);
     const doc = site({ header: { style: 'transparent' } });
     const withoutHero = renderDoc(doc, { pageId: 'p-serv' });
-    expect(withoutHero).not.toContain('ws-under-header');
+    expect(withoutHero).not.toMatch(/<section[^>]*ws-under-header/);
     expect(withoutHero).toMatch(/<header[^>]*sticky/);
   });
 
@@ -381,7 +382,7 @@ describe('secciones', () => {
     expect(youtube).toContain('src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ"');
     expect(youtube).toContain('title="Nuestro taller"');
     expect(youtube).toContain('loading="lazy"');
-    expect(youtube).toContain('referrerPolicy="strict-origin-when-cross-origin"'.replace('referrerPolicy', 'referrerpolicy'));
+    expect(youtube).toMatch(/<iframe[^>]*referrerPolicy="strict-origin-when-cross-origin"/i);
     expect(youtube).toContain('sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"');
     expect(render([block('video', { url: 'https://vimeo.com/123456789' })])).toContain('src="https://player.vimeo.com/video/123456789"');
     for (const url of ['https://evil.com/video', 'javascript:alert(1)', 'https://youtube.com.evil.com/watch?v=dQw4w9WgXcQ', 'https://www.youtube.com/watch?v="><script>']) {

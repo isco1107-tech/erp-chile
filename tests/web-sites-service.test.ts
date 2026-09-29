@@ -1920,7 +1920,7 @@ describe('createWebSite por rubro', () => {
     const contact = doc.pages.flatMap((page) => page.blocks).find((block) => block.type === 'contact');
     expect(contact).toMatchObject({ email: 'hola@rapida.cl', phone: '+56 9 8765 4321', address: 'Los Aromos 12, Maipú' });
     expect(doc.header.ctaLabel).not.toBe('');
-    expect(data.kind).toBe('CORPORATE');
+    expect(data.kind).toBe('LANDING');
   });
 
   it('para un cliente usa la ficha del cliente, siempre de la misma empresa', async () => {

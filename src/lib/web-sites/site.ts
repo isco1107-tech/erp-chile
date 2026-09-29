@@ -472,7 +472,11 @@ export function siteMenu(doc: SiteDocument, pageId: string): SiteNavItem[] {
     return pages.map((page) => ({ key: page.id, label: pageMenuLabel(page), href: pageLink(page.id), newTab: false, children: [] }));
   }
   const current = findPage(doc, pageId) ?? homeOf(doc);
-  return buildNav(current.blocks).map((entry) => ({ key: entry.anchor, label: entry.label, href: `#${entry.anchor}`, newTab: false, children: [] }));
+  // Solo secciones que se publican: una sección vacía no se pinta y su ancla no llevaría a nada.
+  // Las anclas se calculan con TODAS las secciones visibles (igual que el renderizador) y después se descartan las vacías.
+  const anchors = pageBlockAnchors(current);
+  const published = new Set(current.blocks.filter((block) => !block.hidden && !isBlockEmpty(block)).map((block) => anchors.get(block.id)));
+  return buildNav(current.blocks).filter((entry) => published.has(entry.anchor)).map((entry) => ({ key: entry.anchor, label: entry.label, href: `#${entry.anchor}`, newTab: false, children: [] }));
 }
 
 /** Menú automático convertido en editable (el punto de partida al pasar a "menú propio"). */
