@@ -118,7 +118,9 @@ Este archivo contiene las reglas arquitectónicas, estándares de seguridad y l�
    npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script
    ```
    (En Prisma 7 los flags `--from-schema-datasource` fueron reemplazados por `--from-config-datasource`.)
-4. Los seeds y scripts destructivos **no** se corren contra este `.env` sin confirmarlo antes con el dueño del proyecto.
+4. **El build de producción aplica las migraciones** (`scripts/migrate-deploy.mjs`, solo con `VERCEL_ENV=production` o `MIGRATE_ON_BUILD=1`): si una migración falla, el build falla y Vercel deja viva la versión anterior. Reintenta solo una migración marcada como fallida (P3009).
+5. **Toda migración desde 2026-09-27 debe ser idempotente** (`IF NOT EXISTS`, `IF EXISTS`, `DO $$ … EXCEPTION WHEN duplicate_object`): producción recibió parte del esquema con `prisma db push`, y crear de nuevo lo que ya existe rompía `migrate deploy` (P3018). `tests/migrations-idempotent.test.ts` lo exige.
+6. Los seeds y scripts destructivos **no** se corren contra este `.env` sin confirmarlo antes con el dueño del proyecto.
 
 ---
 

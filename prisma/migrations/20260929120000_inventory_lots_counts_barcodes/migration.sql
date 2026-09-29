@@ -2,26 +2,29 @@
 -- lotes con vencimiento y toma de inventario. 100% aditiva: tablas nuevas,
 -- columnas nullable o con default, e índices únicos que ignoran NULL.
 -- CreateEnum
-CREATE TYPE "InventoryCountStatus" AS ENUM ('OPEN', 'POSTED', 'CANCELLED');
+DO $$ BEGIN
+  CREATE TYPE "InventoryCountStatus" AS ENUM ('OPEN', 'POSTED', 'CANCELLED');
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AlterEnum
-ALTER TYPE "InternalDocumentKind" ADD VALUE 'INVENTORY_COUNT';
+ALTER TYPE "InternalDocumentKind" ADD VALUE IF NOT EXISTS 'INVENTORY_COUNT';
 
 -- AlterEnum (Postgres 12+ admite varios ADD VALUE en la misma migración; Neon corre 15+)
-ALTER TYPE "WorkflowTriggerEvent" ADD VALUE 'LOT_EXPIRING';
-ALTER TYPE "WorkflowTriggerEvent" ADD VALUE 'INVENTORY_COUNT_POSTED';
+ALTER TYPE "WorkflowTriggerEvent" ADD VALUE IF NOT EXISTS 'LOT_EXPIRING';
+ALTER TYPE "WorkflowTriggerEvent" ADD VALUE IF NOT EXISTS 'INVENTORY_COUNT_POSTED';
 
 -- AlterTable
-ALTER TABLE "Product" ADD COLUMN     "barcode" TEXT,
-ADD COLUMN     "brand" TEXT,
-ADD COLUMN     "imageUrl" TEXT,
-ADD COLUMN     "tracksLots" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS     "barcode" TEXT,
+ADD COLUMN IF NOT EXISTS     "brand" TEXT,
+ADD COLUMN IF NOT EXISTS     "imageUrl" TEXT,
+ADD COLUMN IF NOT EXISTS     "tracksLots" BOOLEAN NOT NULL DEFAULT false;
 
 -- AlterTable
-ALTER TABLE "InventoryMovement" ADD COLUMN     "lotAllocations" JSONB;
+ALTER TABLE "InventoryMovement" ADD COLUMN IF NOT EXISTS     "lotAllocations" JSONB;
 
 -- CreateTable
-CREATE TABLE "ProductPackaging" (
+CREATE TABLE IF NOT EXISTS "ProductPackaging" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "productId" TEXT NOT NULL,
@@ -34,7 +37,7 @@ CREATE TABLE "ProductPackaging" (
 );
 
 -- CreateTable
-CREATE TABLE "InventoryLot" (
+CREATE TABLE IF NOT EXISTS "InventoryLot" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "productId" TEXT NOT NULL,
@@ -49,7 +52,7 @@ CREATE TABLE "InventoryLot" (
 );
 
 -- CreateTable
-CREATE TABLE "InventoryCount" (
+CREATE TABLE IF NOT EXISTS "InventoryCount" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "folio" INTEGER NOT NULL,
@@ -67,7 +70,7 @@ CREATE TABLE "InventoryCount" (
 );
 
 -- CreateTable
-CREATE TABLE "InventoryCountLine" (
+CREATE TABLE IF NOT EXISTS "InventoryCountLine" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "countId" TEXT NOT NULL,
@@ -82,59 +85,89 @@ CREATE TABLE "InventoryCountLine" (
 );
 
 -- CreateIndex
-CREATE INDEX "ProductPackaging_companyId_productId_idx" ON "ProductPackaging"("companyId", "productId");
+CREATE INDEX IF NOT EXISTS "ProductPackaging_companyId_productId_idx" ON "ProductPackaging"("companyId", "productId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "ProductPackaging_companyId_barcode_key" ON "ProductPackaging"("companyId", "barcode");
+CREATE UNIQUE INDEX IF NOT EXISTS "ProductPackaging_companyId_barcode_key" ON "ProductPackaging"("companyId", "barcode");
 
 -- CreateIndex
-CREATE INDEX "InventoryLot_companyId_expiryDate_idx" ON "InventoryLot"("companyId", "expiryDate");
+CREATE INDEX IF NOT EXISTS "InventoryLot_companyId_expiryDate_idx" ON "InventoryLot"("companyId", "expiryDate");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "InventoryLot_companyId_productId_warehouseId_lotNumber_key" ON "InventoryLot"("companyId", "productId", "warehouseId", "lotNumber");
+CREATE UNIQUE INDEX IF NOT EXISTS "InventoryLot_companyId_productId_warehouseId_lotNumber_key" ON "InventoryLot"("companyId", "productId", "warehouseId", "lotNumber");
 
 -- CreateIndex
-CREATE INDEX "InventoryCount_companyId_status_idx" ON "InventoryCount"("companyId", "status");
+CREATE INDEX IF NOT EXISTS "InventoryCount_companyId_status_idx" ON "InventoryCount"("companyId", "status");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "InventoryCount_companyId_folio_key" ON "InventoryCount"("companyId", "folio");
+CREATE UNIQUE INDEX IF NOT EXISTS "InventoryCount_companyId_folio_key" ON "InventoryCount"("companyId", "folio");
 
 -- CreateIndex
-CREATE INDEX "InventoryCountLine_companyId_countId_idx" ON "InventoryCountLine"("companyId", "countId");
+CREATE INDEX IF NOT EXISTS "InventoryCountLine_companyId_countId_idx" ON "InventoryCountLine"("companyId", "countId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "InventoryCountLine_countId_productId_key" ON "InventoryCountLine"("countId", "productId");
+CREATE UNIQUE INDEX IF NOT EXISTS "InventoryCountLine_countId_productId_key" ON "InventoryCountLine"("countId", "productId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Product_companyId_barcode_key" ON "Product"("companyId", "barcode");
+CREATE UNIQUE INDEX IF NOT EXISTS "Product_companyId_barcode_key" ON "Product"("companyId", "barcode");
 
 -- AddForeignKey
-ALTER TABLE "ProductPackaging" ADD CONSTRAINT "ProductPackaging_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ProductPackaging" ADD CONSTRAINT "ProductPackaging_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ProductPackaging" ADD CONSTRAINT "ProductPackaging_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ProductPackaging" ADD CONSTRAINT "ProductPackaging_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "InventoryLot" ADD CONSTRAINT "InventoryLot_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "InventoryLot" ADD CONSTRAINT "InventoryLot_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "InventoryLot" ADD CONSTRAINT "InventoryLot_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "InventoryLot" ADD CONSTRAINT "InventoryLot_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "InventoryLot" ADD CONSTRAINT "InventoryLot_warehouseId_fkey" FOREIGN KEY ("warehouseId") REFERENCES "Warehouse"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "InventoryLot" ADD CONSTRAINT "InventoryLot_warehouseId_fkey" FOREIGN KEY ("warehouseId") REFERENCES "Warehouse"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "InventoryCount" ADD CONSTRAINT "InventoryCount_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "InventoryCount" ADD CONSTRAINT "InventoryCount_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "InventoryCount" ADD CONSTRAINT "InventoryCount_warehouseId_fkey" FOREIGN KEY ("warehouseId") REFERENCES "Warehouse"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "InventoryCount" ADD CONSTRAINT "InventoryCount_warehouseId_fkey" FOREIGN KEY ("warehouseId") REFERENCES "Warehouse"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "InventoryCountLine" ADD CONSTRAINT "InventoryCountLine_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "InventoryCountLine" ADD CONSTRAINT "InventoryCountLine_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "InventoryCountLine" ADD CONSTRAINT "InventoryCountLine_countId_fkey" FOREIGN KEY ("countId") REFERENCES "InventoryCount"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "InventoryCountLine" ADD CONSTRAINT "InventoryCountLine_countId_fkey" FOREIGN KEY ("countId") REFERENCES "InventoryCount"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "InventoryCountLine" ADD CONSTRAINT "InventoryCountLine_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "InventoryCountLine" ADD CONSTRAINT "InventoryCountLine_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
