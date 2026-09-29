@@ -637,3 +637,36 @@ export async function countRecentMessages(companyId: string, siteId: string, min
 export async function countUnreadMessages(companyId: string): Promise<number> {
   return prisma.webSiteMessage.count({ where: { companyId, readAt: null } });
 }
+
+// ---------------------------------------------------------------------------
+// Productos del inventario para el catálogo del sitio
+// ---------------------------------------------------------------------------
+
+export interface CatalogProductRow {
+  id: string;
+  name: string;
+  sku: string;
+  description: string;
+  brand: string | null;
+  /** Precio con IVA (CLP enteros), el que ve el cliente final. */
+  grossPrice: number;
+  imageUrl: string | null;
+}
+
+/**
+ * Productos de ESTA empresa para armar un catálogo. Solo campos de vitrina
+ * (nada de costos ni stock): lo que salga de acá termina publicado.
+ */
+export async function listCatalogProducts(companyId: string, q?: string): Promise<CatalogProductRow[]> {
+  const search = q?.trim().slice(0, 100);
+  const rows = await prisma.product.findMany({
+    where: {
+      companyId,
+      ...(search ? { OR: [{ name: { contains: search, mode: 'insensitive' } }, { sku: { contains: search, mode: 'insensitive' } }, { brand: { contains: search, mode: 'insensitive' } }] } : {}),
+    },
+    orderBy: { name: 'asc' },
+    take: 60,
+    select: { id: true, name: true, sku: true, description: true, brand: true, grossPrice: true, imageUrl: true },
+  });
+  return rows.map((row) => ({ ...row, description: row.description ?? '', imageUrl: row.imageUrl && isAllowedBlobUrl(row.imageUrl) && blobPathnameStartsWith(row.imageUrl, `products/${companyId}/`) ? row.imageUrl : null }));
+}

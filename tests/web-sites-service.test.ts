@@ -1454,6 +1454,7 @@ describe('acciones de Sitios web: RBAC por rol', () => {
     ['saveWebSiteContentAction', () => actions.saveWebSiteContentAction('s', {}), WRITE],
     ['updateWebSiteSettingsAction', () => actions.updateWebSiteSettingsAction('s', {}), WRITE],
     ['duplicateWebSiteAction', () => actions.duplicateWebSiteAction('s'), WRITE],
+    ['listCatalogProductsAction', () => actions.listCatalogProductsAction('x'), WRITE],
     ['updateWebSiteAssetAltAction', () => actions.updateWebSiteAssetAltAction('a', { alt: 'x' }), WRITE],
     ['deleteWebSiteAssetAction', () => actions.deleteWebSiteAssetAction('a'), WRITE],
     ['setWebSiteMessageReadAction', () => actions.setWebSiteMessageReadAction('m', true), WRITE],
@@ -1938,5 +1939,29 @@ describe('createWebSite por rubro', () => {
     await createWebSite(COMPANY, { name: 'Ana' }, { ...input, mode: 'HTML' });
     expect(db.company.findFirst).not.toHaveBeenCalled();
     expect(argsOf(db.webSite.create, 1).data.draftBlocks).toEqual([]);
+  });
+});
+
+describe('productos del inventario para el catálogo', () => {
+  it('acota por empresa, no expone costos ni stock y descarta fotos que no son de la empresa', async () => {
+    const spy = jest.spyOn(prisma.product, 'findMany').mockResolvedValue([
+      { id: 'p1', name: 'Mesa', sku: 'M1', description: null, brand: 'Roble', grossPrice: 119000, imageUrl: 'https://blob.test/products/company-a/m1.jpg' },
+      { id: 'p2', name: 'Silla', sku: 'S1', description: 'x', brand: null, grossPrice: 0, imageUrl: 'https://blob.test/products/company-b/ajena.jpg' },
+    ] as never);
+    const rows = await service.listCatalogProducts(COMPANY, '  me  ');
+    const args = spy.mock.calls[0]![0] as { where: Row; select: Row };
+    expect(args.where).toMatchObject({ companyId: COMPANY });
+    expect(Object.keys(args.select)).not.toEqual(expect.arrayContaining(['costPricePMP']));
+    expect(args.select).not.toHaveProperty('costPricePMP');
+    expect(args.select).not.toHaveProperty('stocks');
+    expect(rows[0]).toMatchObject({ imageUrl: 'https://blob.test/products/company-a/m1.jpg', description: '' });
+    expect(rows[1]!.imageUrl).toBeNull();
+  });
+
+  it('la acción exige editar sitios y además ver productos', async () => {
+    jest.mocked(requireAuthWithPermission).mockResolvedValue({ id: 'u1', companyId: COMPANY, email: 'a@b.cl', name: 'Ana', permissions: ['websites:write'] } as never);
+    const denied = await actions.listCatalogProductsAction('x');
+    expect(denied).toEqual({ success: false, error: expect.stringMatching(/productos/) });
+    expect(requireAuthWithPermission).toHaveBeenCalledWith('websites:write');
   });
 });

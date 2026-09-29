@@ -312,3 +312,20 @@ export async function removeWebSiteDomainAction(siteId: string): Promise<ActionR
     return fail(error, companyId, { action: 'removeWebSiteDomain', siteId });
   }
 }
+
+/**
+ * Productos del inventario para importarlos al catálogo del sitio. Exige
+ * editar sitios Y ver el catálogo de productos: quien no ve productos en el
+ * ERP tampoco los puede sacar por esta vía.
+ */
+export async function listCatalogProductsAction(q?: string): Promise<ActionResult<service.CatalogProductRow[]>> {
+  let companyId: string | undefined;
+  try {
+    const session = await requireAuthWithPermission('websites:write');
+    companyId = session.companyId;
+    if (!can(session, 'products:read')) return { success: false, error: 'No tienes permiso para ver los productos del inventario.' };
+    return { success: true, data: await service.listCatalogProducts(session.companyId, typeof q === 'string' ? q : undefined) };
+  } catch (error) {
+    return fail(error, companyId, { action: 'listCatalogProducts' });
+  }
+}
