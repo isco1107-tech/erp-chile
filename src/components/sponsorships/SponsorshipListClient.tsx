@@ -13,7 +13,7 @@ import {
 import {
   SPONSORSHIP_STATUS_LABELS,
   SPONSORSHIP_STATUSES,
-  SPONSORSHIP_TIER_LABELS,
+  sponsorshipCategoryLabel,
 } from '@/modules/sponsorships/schema';
 import type { SponsorshipContractWithRelations } from '@/modules/sponsorships/services/sponsorships.service';
 import { formatCurrency } from '@/lib/chile/tax';
@@ -128,7 +128,7 @@ export default function SponsorshipListClient({ canWrite }: { canWrite: boolean 
                     >
                       <Link href={`/dashboard/sponsorships/${contract.id}`} className="block">
                         <p className="font-medium">{contract.contact.razonSocial}</p>
-                        <p className="text-xs text-muted-foreground">{SPONSORSHIP_TIER_LABELS[contract.tier]}</p>
+                        <p className="text-xs text-muted-foreground">{sponsorshipCategoryLabel(contract)}</p>
 
                         <div className="mt-2 space-y-1 text-xs">
                           {contract.cashAmount > 0 && (

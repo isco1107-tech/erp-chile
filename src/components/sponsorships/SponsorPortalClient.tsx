@@ -7,7 +7,6 @@ import type { SponsorshipPortalView } from '@/modules/sponsorships/services/spon
 import {
   SPONSORSHIP_DELIVERABLE_TYPE_LABELS,
   SPONSORSHIP_STATUS_LABELS,
-  SPONSORSHIP_TIER_LABELS,
 } from '@/modules/sponsorships/schema';
 import { formatCurrency } from '@/lib/chile/tax';
 import {
@@ -91,7 +90,7 @@ export default function SponsorPortalClient({ token }: { token: string }) {
         <PublicCard glow>
           <PublicCardHeader
             icon={<Handshake size={22} strokeWidth={1.6} />}
-            eyebrow={SPONSORSHIP_TIER_LABELS[data.tier]}
+            eyebrow={data.tierLabel}
             title={data.razonSocial}
             subtitle={data.projectName}
             align="start"

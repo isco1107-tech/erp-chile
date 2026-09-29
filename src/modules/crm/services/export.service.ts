@@ -1,7 +1,7 @@
 import 'server-only';
 
 import ExcelJS from 'exceljs';
-import { SPONSORSHIP_TIER_LABELS } from '@/modules/sponsorships/schema';
+import { sponsorshipCategoryLabel } from '@/modules/sponsorships/schema';
 import { DEAL_TYPE_LABELS, PRIORITY_LABELS, STAGE_LABELS, type PipelineFilters } from '../schema';
 import { listAllOpportunities } from './crm.service';
 
@@ -57,7 +57,7 @@ export async function buildOpportunitiesWorkbook(companyId: string, filters: Pip
       party: o.contact ? `${o.contact.razonSocial} (${o.contact.rut})` : (o.prospectName ?? ''),
       person: o.person ? `${o.person.fullName}${o.person.jobTitle ? ` — ${o.person.jobTitle}` : ''}` : '',
       project: o.project ? `${o.project.name} (${o.project.code})` : '',
-      tier: o.package ? o.package.name : o.sponsorshipTier ? SPONSORSHIP_TIER_LABELS[o.sponsorshipTier] : '',
+      tier: o.package ? o.package.name : o.sponsorshipTier || o.sponsorshipCategory ? sponsorshipCategoryLabel({ tier: o.sponsorshipTier, category: o.sponsorshipCategory }) : '',
       amount: o.amount,
       barter: o.barterValuation,
       probability: o.probability / 100,

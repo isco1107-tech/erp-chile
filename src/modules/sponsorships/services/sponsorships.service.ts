@@ -7,14 +7,14 @@ import type {
   SponsorshipContract,
   SponsorshipDeliverable,
   SponsorshipStatus,
-  SponsorshipTier,
 } from '@prisma/client';
 import { getAppUrl, sendEmail } from '@/lib/email/mailer';
 import { buildSponsorAcceptedEmail, buildSponsorshipPaymentConfirmationEmail } from '@/lib/email/templates';
 import { pageantContact } from '@/lib/events/pageant-contact';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import { captureException } from '@/lib/observability';
-import { SPONSORSHIP_TIER_LABELS } from '../schema';
+import { sponsorshipCategoryLabel } from '../schema';
+import { assertCategoryChoice } from './categories.service';
 export { isSponsorAcceptance } from '../schema';
 import type {
   DeliverableCreateInput,
@@ -24,6 +24,7 @@ import type {
 } from '../schema';
 
 export type SponsorshipContractWithRelations = SponsorshipContract & {
+  category: { id: string; name: string } | null;
   contact: Contact;
   deliverables: SponsorshipDeliverable[];
 };
@@ -51,13 +52,15 @@ export async function createSponsorshipContract(
   data: SponsorshipContractCreateInput
 ): Promise<SponsorshipContract> {
   await assertOwnership(companyId, data.projectId, data.contactId);
+  await assertCategoryChoice(companyId, data.projectId, data);
 
   return prisma.sponsorshipContract.create({
     data: {
       companyId,
       projectId: data.projectId,
       contactId: data.contactId,
-      tier: data.tier,
+      tier: data.tier ?? null,
+      categoryId: data.categoryId ?? null,
       isBarter: data.isBarter,
       cashAmount: data.cashAmount,
       barterValuation: data.barterValuation,
@@ -76,16 +79,25 @@ export async function updateSponsorshipContract(
   // Si el update trae `projectId`/`contactId` nuevos, hay que revalidar la
   // pertenencia igual que en la creación — de lo contrario un update podría
   // reasignar el contrato a un proyecto o marca de otra empresa.
-  if (data.projectId || data.contactId) {
+  const changesCategory = data.tier !== undefined || data.categoryId !== undefined;
+  if (data.projectId || data.contactId || changesCategory) {
     const existing = await prisma.sponsorshipContract.findFirst({ where: { id, companyId } });
     if (!existing) throw new Error('Contrato de auspicio no encontrado');
-    await assertOwnership(companyId, data.projectId ?? existing.projectId, data.contactId ?? existing.contactId);
+    const projectId = data.projectId ?? existing.projectId;
+    await assertOwnership(companyId, projectId, data.contactId ?? existing.contactId);
+    if (changesCategory) {
+      await assertCategoryChoice(companyId, projectId, data);
+    } else if (data.projectId && data.projectId !== existing.projectId && existing.categoryId) {
+      // Una categoría propia pertenece a UN certamen: al mover el contrato a otro
+      // hay que elegir una categoría de ese certamen (o una fija).
+      throw new Error('Este contrato usa una categoría propia de su certamen. Elige una categoría del nuevo certamen.');
+    }
   }
 
   const updateData: Prisma.SponsorshipContractUncheckedUpdateManyInput = {
     projectId: data.projectId,
     contactId: data.contactId,
-    tier: data.tier,
+    ...(changesCategory ? { tier: data.tier ?? null, categoryId: data.categoryId ?? null } : {}),
     isBarter: data.isBarter,
     cashAmount: data.cashAmount,
     barterValuation: data.barterValuation,
@@ -115,6 +127,7 @@ export async function notifySponsorAccepted(companyId: string, contractId: strin
       where: { id: contractId, companyId },
       select: {
         tier: true,
+        category: { select: { name: true } },
         contact: { select: { email: true, razonSocial: true, nombreFantasia: true } },
         package: { select: { name: true } },
         project: { select: { name: true, publicContactEmail: true, publicWhatsapp: true, instagramHandle: true } },
@@ -131,7 +144,7 @@ export async function notifySponsorAccepted(companyId: string, contractId: strin
       contactName: contract.contact.nombreFantasia ?? contract.contact.razonSocial,
       projectName: contract.project.name,
       companyName: contract.company.businessName,
-      tierLabel: SPONSORSHIP_TIER_LABELS[contract.tier],
+      tierLabel: sponsorshipCategoryLabel(contract),
       packageName: contract.package?.name ?? null,
       portalUrl: `${getAppUrl()}/sponsors/${portalToken}`,
       contact: { email: contact.email, whatsapp: contact.whatsapp },
@@ -192,7 +205,7 @@ export async function updateSponsorshipPayment(
 
     const contract = await tx.sponsorshipContract.findFirst({
       where: { id, companyId },
-      include: { contact: true, project: { select: { name: true } } },
+      include: { contact: true, category: { select: { name: true } }, project: { select: { name: true } } },
     });
     if (!contract) throw new Error('Contrato de auspicio no encontrado');
     // Repetido server-side: la UI ya deshabilita el botón sobre el tope, pero
@@ -278,7 +291,7 @@ export async function updateSponsorshipPayment(
         contactName: contract.contact.razonSocial,
         projectName: contract.project.name,
         companyName: company?.businessName ?? '',
-        tierLabel: SPONSORSHIP_TIER_LABELS[contract.tier],
+        tierLabel: sponsorshipCategoryLabel(contract),
         paidAmount: data.paidAmount,
         isBarter: contract.isBarter,
       }),
@@ -295,7 +308,7 @@ export async function listSponsorshipContracts(
 ): Promise<SponsorshipContractWithRelations[]> {
   return prisma.sponsorshipContract.findMany({
     where: { companyId, projectId: projectId || undefined, contactId: contactId || undefined },
-    include: { contact: true, deliverables: { orderBy: { createdAt: 'asc' } } },
+    include: { contact: true, category: { select: { id: true, name: true } }, deliverables: { orderBy: { createdAt: 'asc' } } },
     orderBy: { createdAt: 'desc' },
   });
 }
@@ -306,7 +319,7 @@ export async function getSponsorshipContract(
 ): Promise<SponsorshipContractWithRelations | null> {
   return prisma.sponsorshipContract.findFirst({
     where: { companyId, id },
-    include: { contact: true, deliverables: { orderBy: { createdAt: 'asc' } } },
+    include: { contact: true, category: { select: { id: true, name: true } }, deliverables: { orderBy: { createdAt: 'asc' } } },
   });
 }
 
@@ -382,7 +395,7 @@ export interface SponsorshipComplianceRow {
 export async function getSponsorshipComplianceBoard(companyId: string, projectId?: string): Promise<SponsorshipComplianceRow[]> {
   const contracts = await prisma.sponsorshipContract.findMany({
     where: { companyId, projectId: projectId || undefined, status: { not: 'CANCELLED' } },
-    include: { contact: { select: { razonSocial: true } }, deliverables: { select: { isCompleted: true } } },
+    include: { contact: { select: { razonSocial: true } }, category: { select: { name: true } }, deliverables: { select: { isCompleted: true } } },
     orderBy: { createdAt: 'desc' },
   });
 
@@ -393,7 +406,7 @@ export async function getSponsorshipComplianceBoard(companyId: string, projectId
       contractId: contract.id,
       contactId: contract.contactId,
       razonSocial: contract.contact.razonSocial,
-      tier: contract.tier,
+      tier: sponsorshipCategoryLabel(contract),
       totalDeliverables,
       completedDeliverables,
       compliancePercent: totalDeliverables === 0 ? 0 : Math.round((completedDeliverables / totalDeliverables) * 100),
@@ -466,7 +479,8 @@ export async function regeneratePortalToken(companyId: string, contractId: strin
 
 export interface SponsorshipPortalView {
   razonSocial: string;
-  tier: SponsorshipTier;
+  /** Nombre de la categoría (fija o propia del certamen), ya resuelto. */
+  tierLabel: string;
   status: SponsorshipStatus;
   isBarter: boolean;
   cashAmount: number;
@@ -494,6 +508,7 @@ export async function getSponsorshipPortalByToken(portalToken: string): Promise<
     where: { portalToken },
     include: {
       contact: { select: { razonSocial: true } },
+      category: { select: { name: true } },
       deliverables: { orderBy: { createdAt: 'asc' } },
       project: { select: { name: true } },
       company: { select: { businessName: true, logoUrl: true } },
@@ -506,7 +521,7 @@ export async function getSponsorshipPortalByToken(portalToken: string): Promise<
 
   return {
     razonSocial: contract.contact.razonSocial,
-    tier: contract.tier,
+    tierLabel: sponsorshipCategoryLabel(contract),
     status: contract.status,
     isBarter: contract.isBarter,
     cashAmount: contract.cashAmount,

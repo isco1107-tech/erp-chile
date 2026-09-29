@@ -5,7 +5,8 @@ import { prisma } from '@/lib/prisma';
 import { startOfMonthSantiago, startOfTomorrowSantiago } from '@/lib/chile/timezone';
 import { median } from '@/lib/intelligence/stats';
 import { breakdownBy, forecastByMonth, normalizeTags, type BreakdownRow, type ForecastBucket } from '@/lib/crm/analytics';
-import { SPONSORSHIP_TIER_LABELS } from '@/modules/sponsorships/schema';
+import { sponsorshipCategoryLabel } from '@/modules/sponsorships/schema';
+import { assertCategoryChoice } from '@/modules/sponsorships/services/categories.service';
 import {
   DEAL_TYPE_LABELS,
   OPEN_STAGES,
@@ -42,7 +43,8 @@ const opportunityInclude = {
   owner: { select: { id: true, name: true } },
   project: { select: { id: true, name: true, code: true } },
   person: { select: { id: true, fullName: true, jobTitle: true } },
-  package: { select: { id: true, name: true, tier: true } },
+  package: { select: { id: true, name: true, tier: true, category: { select: { id: true, name: true } } } },
+  sponsorshipCategory: { select: { id: true, name: true } },
   activities: {
     where: { completedAt: null },
     orderBy: [{ dueAt: 'asc' as const }, { createdAt: 'asc' as const }],
@@ -59,8 +61,9 @@ const opportunityDetailInclude = {
   owner: { select: { id: true, name: true } },
   project: { select: { id: true, name: true, code: true } },
   person: { select: { id: true, fullName: true, jobTitle: true, email: true, phone: true, instagram: true, linkedinUrl: true, organizationName: true } },
-  package: { select: { id: true, name: true, tier: true, price: true, benefits: true, maxSlots: true } },
-  sponsorshipContract: { select: { id: true, status: true, tier: true } },
+  package: { select: { id: true, name: true, tier: true, category: { select: { id: true, name: true } }, price: true, benefits: true, maxSlots: true } },
+  sponsorshipCategory: { select: { id: true, name: true } },
+  sponsorshipContract: { select: { id: true, status: true, tier: true, category: { select: { id: true, name: true } } } },
   activities: {
     orderBy: [{ completedAt: 'asc' as const }, { dueAt: 'asc' as const }, { createdAt: 'desc' as const }],
     include: { user: { select: { name: true } } },
@@ -100,10 +103,13 @@ async function assertPerson(companyId: string, personId: string | undefined | nu
   if (!found) throw new Error('La persona de contacto no existe en tu empresa');
 }
 
-async function findPackage(companyId: string, packageId: string): Promise<{ id: string; projectId: string; tier: SponsorshipTier; price: number }> {
+async function findPackage(
+  companyId: string,
+  packageId: string
+): Promise<{ id: string; projectId: string; tier: SponsorshipTier | null; categoryId: string | null; price: number }> {
   const pkg = await prisma.sponsorshipPackage.findFirst({
     where: { id: packageId, companyId },
-    select: { id: true, projectId: true, tier: true, price: true },
+    select: { id: true, projectId: true, tier: true, categoryId: true, price: true },
   });
   if (!pkg) throw new Error('El plan de auspicio seleccionado no existe en tu empresa');
   return pkg;
@@ -120,16 +126,39 @@ async function findOwned(companyId: string, id: string): Promise<Opportunity> {
  * certamen sale del plan (o tiene que coincidir con él) y el nivel propuesto
  * se toma del plan cuando no viene uno explícito.
  */
+interface ResolvedSponsorship {
+  projectId: string | null;
+  packageId: string | null;
+  sponsorshipTier: SponsorshipTier | null;
+  sponsorshipCategoryId: string | null;
+}
+
 async function resolveSponsorshipFields(
   companyId: string,
   projectId: string | null,
   packageId: string | null,
-  tier: SponsorshipTier | null
-): Promise<{ projectId: string | null; packageId: string | null; sponsorshipTier: SponsorshipTier | null }> {
-  if (!packageId) return { projectId, packageId: null, sponsorshipTier: tier };
-  const pkg = await findPackage(companyId, packageId);
-  if (projectId && pkg.projectId !== projectId) throw new Error('El plan de auspicio elegido es de otro certamen');
-  return { projectId: pkg.projectId, packageId: pkg.id, sponsorshipTier: tier ?? pkg.tier };
+  tier: SponsorshipTier | null,
+  categoryId: string | null
+): Promise<ResolvedSponsorship> {
+  if (tier && categoryId) throw new Error('Elige una sola categoría de auspicio: fija o propia del certamen');
+  let resolved: ResolvedSponsorship = { projectId, packageId: null, sponsorshipTier: tier, sponsorshipCategoryId: categoryId };
+  if (packageId) {
+    const pkg = await findPackage(companyId, packageId);
+    if (projectId && pkg.projectId !== projectId) throw new Error('El plan de auspicio elegido es de otro certamen');
+    // Sin categoría explícita, el negocio hereda la del plan (fija o propia).
+    const inherit = !tier && !categoryId;
+    resolved = {
+      projectId: pkg.projectId,
+      packageId: pkg.id,
+      sponsorshipTier: inherit ? pkg.tier : tier,
+      sponsorshipCategoryId: inherit ? pkg.categoryId : categoryId,
+    };
+  }
+  // Una categoría propia es de UN certamen: se comprueba contra el certamen final del negocio.
+  if (resolved.sponsorshipCategoryId) {
+    await assertCategoryChoice(companyId, resolved.projectId, { categoryId: resolved.sponsorshipCategoryId });
+  }
+  return resolved;
 }
 
 // ---------------------------------------------------------------------------
@@ -183,8 +212,15 @@ export async function createOpportunity(companyId: string, input: OpportunityCre
     assertProject(companyId, input.projectId),
     assertPerson(companyId, input.personId),
   ]);
-  const sponsorship = await resolveSponsorshipFields(companyId, input.projectId ?? null, input.packageId ?? null, input.sponsorshipTier ?? null);
-  const dealType: DealTypeKey = input.dealType ?? (sponsorship.packageId || sponsorship.sponsorshipTier ? 'SPONSORSHIP' : 'OTHER');
+  const sponsorship = await resolveSponsorshipFields(
+    companyId,
+    input.projectId ?? null,
+    input.packageId ?? null,
+    input.sponsorshipTier ?? null,
+    input.sponsorshipCategoryId ?? null
+  );
+  const dealType: DealTypeKey =
+    input.dealType ?? (sponsorship.packageId || sponsorship.sponsorshipTier || sponsorship.sponsorshipCategoryId ? 'SPONSORSHIP' : 'OTHER');
   const closed = input.stage === 'WON' || input.stage === 'LOST';
   const isBarter = input.isBarter ?? false;
 
@@ -209,6 +245,7 @@ export async function createOpportunity(companyId: string, input: OpportunityCre
       projectId: sponsorship.projectId,
       packageId: sponsorship.packageId,
       sponsorshipTier: sponsorship.sponsorshipTier,
+      sponsorshipCategoryId: sponsorship.sponsorshipCategoryId,
       isBarter,
       barterValuation: isBarter ? (input.barterValuation ?? 0) : 0,
       barterDescription: isBarter ? (input.barterDescription ?? null) : null,
@@ -239,13 +276,17 @@ export async function updateOpportunity(companyId: string, id: string, input: Op
     party = input.contactId === null ? { contactId: null, prospectName } : { prospectName };
   }
 
-  const touchesSponsorship = input.projectId !== undefined || input.packageId !== undefined || input.sponsorshipTier !== undefined;
+  const changesCategory = input.sponsorshipTier !== undefined || input.sponsorshipCategoryId !== undefined;
+  const touchesSponsorship = input.projectId !== undefined || input.packageId !== undefined || changesCategory;
+  // Fija y propia son excluyentes: si el formulario manda una de las dos, la otra queda vacía.
+  // Si no manda ninguna, se conserva la que ya tenía el negocio.
   const sponsorship = touchesSponsorship
     ? await resolveSponsorshipFields(
         companyId,
         input.projectId === undefined ? existing.projectId : input.projectId,
         input.packageId === undefined ? existing.packageId : input.packageId,
-        input.sponsorshipTier === undefined ? existing.sponsorshipTier : input.sponsorshipTier
+        changesCategory ? (input.sponsorshipTier ?? null) : existing.sponsorshipTier,
+        changesCategory ? (input.sponsorshipCategoryId ?? null) : existing.sponsorshipCategoryId
       )
     : {};
 
@@ -349,6 +390,7 @@ export async function convertToSponsorship(
   }
 
   const projectId = opportunity.projectId;
+  await assertCategoryChoice(companyId, projectId, { tier: input.tier, categoryId: input.categoryId });
   const benefits = input.createDeliverables && pkg ? pkg.benefits.map((b) => b.trim()).filter(Boolean) : [];
 
   return prisma.$transaction(async (tx) => {
@@ -357,7 +399,8 @@ export async function convertToSponsorship(
         companyId,
         projectId,
         contactId,
-        tier: input.tier,
+        tier: input.tier ?? null,
+        categoryId: input.categoryId ?? null,
         isBarter: input.isBarter,
         cashAmount: input.cashAmount,
         barterValuation: input.isBarter ? input.barterValuation : 0,
@@ -734,7 +777,9 @@ export interface CrmPackageOption {
   id: string;
   projectId: string;
   name: string;
-  tier: SponsorshipTier;
+  tier: SponsorshipTier | null;
+  /** Categoría propia del certamen, si el plan usa una en vez de una fija. */
+  categoryId: string | null;
   tierLabel: string;
   price: number;
   maxSlots: number | null;
@@ -749,6 +794,8 @@ export async function listPackageOptions(companyId: string): Promise<CrmPackageO
       projectId: true,
       name: true,
       tier: true,
+      categoryId: true,
+      category: { select: { name: true } },
       price: true,
       maxSlots: true,
       _count: { select: { contracts: { where: { status: { in: [...SLOT_TAKING_STATUSES] } } } } },
@@ -761,7 +808,8 @@ export async function listPackageOptions(companyId: string): Promise<CrmPackageO
     projectId: p.projectId,
     name: p.name,
     tier: p.tier,
-    tierLabel: SPONSORSHIP_TIER_LABELS[p.tier],
+    categoryId: p.categoryId,
+    tierLabel: sponsorshipCategoryLabel(p),
     price: p.price,
     maxSlots: p.maxSlots,
     soldSlots: p._count.contracts,
@@ -804,7 +852,7 @@ export async function createInboundSponsorLead(
   const pkg = input.packageId
     ? await prisma.sponsorshipPackage.findFirst({
         where: { id: input.packageId, companyId, projectId: project.id, isPublic: true },
-        select: { id: true, name: true, tier: true, price: true },
+        select: { id: true, name: true, tier: true, categoryId: true, price: true },
       })
     : null;
   const noteLines = [
@@ -856,6 +904,7 @@ export async function createInboundSponsorLead(
         projectId: project.id,
         packageId: pkg?.id ?? null,
         sponsorshipTier: pkg?.tier ?? null,
+        sponsorshipCategoryId: pkg?.categoryId ?? null,
         tags: ['Web'],
         personId: person.id,
       },

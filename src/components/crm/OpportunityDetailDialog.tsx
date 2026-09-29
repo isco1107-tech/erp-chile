@@ -32,7 +32,7 @@ import {
   type ActivityTypeKey,
   type OpportunityStageKey,
 } from '@/modules/crm/schema';
-import { SPONSORSHIP_STATUS_LABELS, SPONSORSHIP_TIER_LABELS } from '@/modules/sponsorships/schema';
+import { SPONSORSHIP_STATUS_LABELS, sponsorshipCategoryLabel } from '@/modules/sponsorships/schema';
 import type { OpportunityDetail } from '@/modules/crm/services/crm.service';
 import { cn } from '@/lib/utils';
 import { ConvertToSponsorshipDialog } from './ConvertToSponsorshipDialog';
@@ -289,7 +289,9 @@ export function OpportunityDetailDialog({ opportunityId, canWrite, canConvert, o
                   <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Auspicio</p>
                   <p className="mt-1 text-foreground">
                     {detail.package ? detail.package.name : 'Sin plan del tarifario'}
-                    {detail.sponsorshipTier && <span className="text-muted-foreground"> · {SPONSORSHIP_TIER_LABELS[detail.sponsorshipTier]}</span>}
+                    {(detail.sponsorshipTier || detail.sponsorshipCategory) && (
+                      <span className="text-muted-foreground"> · {sponsorshipCategoryLabel({ tier: detail.sponsorshipTier, category: detail.sponsorshipCategory })}</span>
+                    )}
                   </p>
                   {detail.isBarter && detail.barterDescription && <p className="mt-1 text-xs text-muted-foreground">Canje: {detail.barterDescription}</p>}
                   {detail.sponsorshipContract ? (

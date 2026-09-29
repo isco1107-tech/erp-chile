@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { getSponsorshipContractAction } from '@/modules/sponsorships/actions/sponsorships.actions';
-import { SPONSORSHIP_STATUS_LABELS, SPONSORSHIP_TIER_LABELS } from '@/modules/sponsorships/schema';
+import { SPONSORSHIP_STATUS_LABELS, sponsorshipCategoryLabel } from '@/modules/sponsorships/schema';
 import { formatCurrency } from '@/lib/chile/tax';
 import { formatRut } from '@/lib/chile/rut';
 import { buttonVariants } from '@/components/ui/button';
@@ -58,7 +58,7 @@ export default async function SponsorshipContractDetailPage({ params }: { params
           <div>
             <h2 className="text-lg font-bold">{contract.contact.razonSocial}</h2>
             <p className="text-muted-foreground">
-              {formatRut(contract.contact.rut)} — {SPONSORSHIP_TIER_LABELS[contract.tier]}
+              {formatRut(contract.contact.rut)} — {sponsorshipCategoryLabel(contract)}
             </p>
           </div>
           <span className={`rounded-full px-3 py-1 text-xs font-medium ${STATUS_BADGE[contract.status]}`}>

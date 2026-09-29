@@ -15,15 +15,18 @@ import { nativeSelectClass, textareaClass } from '@/components/ui/field-classes'
 import { useConfirm } from '@/components/ui/confirm-provider';
 import { formatCurrency } from '@/lib/chile/tax';
 import { copyPackagesAction, createPackageAction, deletePackageAction, listPackagesAction, updatePackageAction } from '@/modules/sponsorships/actions/packages.actions';
+import { listCategoriesAction } from '@/modules/sponsorships/actions/categories.actions';
 import type { SponsorshipPackageRow } from '@/modules/sponsorships/services/packages.service';
-import { SPONSORSHIP_TIER_LABELS, SPONSORSHIP_TIERS } from '@/modules/sponsorships/schema';
+import type { SponsorshipCategoryRow } from '@/modules/sponsorships/services/categories.service';
+import { decodeCategoryChoice, encodeCategoryChoice, sponsorshipCategoryLabel } from '@/modules/sponsorships/schema';
+import { SponsorshipCategorySelect } from '@/components/sponsorships/SponsorshipCategorySelect';
+import { SponsorshipCategoriesManager } from '@/components/sponsorships/SponsorshipCategoriesManager';
 import { cn } from '@/lib/utils';
-
-type TierKey = (typeof SPONSORSHIP_TIERS)[number];
 
 interface PackageForm {
   id?: string;
-  tier: TierKey;
+  /** `tier:GOLD` (fija) o `cat:<id>` (propia del certamen). */
+  category: string;
   name: string;
   price: number;
   maxSlots: string;
@@ -35,7 +38,7 @@ interface PackageForm {
 }
 
 const EMPTY_FORM: PackageForm = {
-  tier: 'GOLD',
+  category: 'tier:GOLD',
   name: '',
   price: 0,
   maxSlots: '',
@@ -62,6 +65,7 @@ export function PackagesClient({ projects, canWrite }: { projects: Array<{ id: s
   const confirm = useConfirm();
   const [projectId, setProjectId] = useState(projects[0]?.id ?? '');
   const [packages, setPackages] = useState<SponsorshipPackageRow[] | null>(null);
+  const [categories, setCategories] = useState<SponsorshipCategoryRow[]>([]);
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState<PackageForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
@@ -69,9 +73,11 @@ export function PackagesClient({ projects, canWrite }: { projects: Array<{ id: s
 
   const load = useCallback(async () => {
     if (!projectId) return;
-    const result = await listPackagesAction(projectId);
+    const [result, categoriesResult] = await Promise.all([listPackagesAction(projectId), listCategoriesAction(projectId)]);
     if (result.success) setPackages(result.data);
     else toast.error(result.error);
+    if (categoriesResult.success) setCategories(categoriesResult.data);
+    else toast.error(categoriesResult.error);
   }, [projectId]);
 
   useEffect(() => {
@@ -98,7 +104,7 @@ export function PackagesClient({ projects, canWrite }: { projects: Array<{ id: s
   function openEdit(pkg: SponsorshipPackageRow) {
     setForm({
       id: pkg.id,
-      tier: pkg.tier,
+      category: encodeCategoryChoice({ tier: pkg.tier, categoryId: pkg.categoryId }),
       name: pkg.name,
       price: pkg.price,
       maxSlots: pkg.maxSlots ? String(pkg.maxSlots) : '',
@@ -114,8 +120,9 @@ export function PackagesClient({ projects, canWrite }: { projects: Array<{ id: s
   async function save() {
     setSaving(true);
     try {
+      const choice = decodeCategoryChoice(form.category);
       const payload = {
-        tier: form.tier,
+        ...choice,
         name: form.name,
         price: form.price,
         maxSlots: form.maxSlots ? Number(form.maxSlots) : null,
@@ -214,6 +221,8 @@ export function PackagesClient({ projects, canWrite }: { projects: Array<{ id: s
         <KpiCard label="Potencial a precio de lista" value={formatCurrency(totals.capacity)} icon={Layers} tone="neutral" hint="planes con cupos" trend="todos vendidos" />
       </section>
 
+      <SponsorshipCategoriesManager projectId={projectId} categories={categories} canWrite={canWrite} onChanged={load} />
+
       {!packages ? (
         <p className="text-sm text-muted-foreground">Cargando tarifario…</p>
       ) : packages.length === 0 ? (
@@ -232,7 +241,7 @@ export function PackagesClient({ projects, canWrite }: { projects: Array<{ id: s
               <li key={pkg.id} className="flex flex-col rounded-lg border border-border bg-card p-5 shadow-card">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">{SPONSORSHIP_TIER_LABELS[pkg.tier]}</p>
+                    <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">{sponsorshipCategoryLabel(pkg)}</p>
                     <h2 className="text-lg font-semibold text-foreground">{pkg.name}</h2>
                   </div>
                   <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" title={pkg.isPublic ? 'Visible en el sitio público' : 'Solo interno'}>
@@ -294,13 +303,7 @@ export function PackagesClient({ projects, canWrite }: { projects: Array<{ id: s
               </div>
               <div>
                 <Label htmlFor="pkg-tier">Nivel</Label>
-                <select id="pkg-tier" className={nativeSelectClass} value={form.tier} onChange={(e) => setForm({ ...form, tier: e.target.value as TierKey })}>
-                  {SPONSORSHIP_TIERS.map((t) => (
-                    <option key={t} value={t}>
-                      {SPONSORSHIP_TIER_LABELS[t]}
-                    </option>
-                  ))}
-                </select>
+                <SponsorshipCategorySelect id="pkg-tier" value={form.category} onChange={(category) => setForm({ ...form, category })} categories={categories} />
               </div>
               <div>
                 <Label htmlFor="pkg-price">Precio de lista (neto)</Label>

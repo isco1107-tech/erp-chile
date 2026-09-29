@@ -596,8 +596,19 @@ export const MANUAL_SECTIONS: ManualSection[] = [
         title: 'Registrar un contrato de auspicio',
         steps: [
           'Ve a Auspicios & Marcas → "Nuevo contrato".',
-          'Elige la marca (contacto), el proyecto, el tier de auspicio y si es en efectivo o canje.',
+          'Elige la marca (contacto), el proyecto, la categoría de auspicio (una fija o una propia de ese certamen) y si es en efectivo o canje.',
           'Agrega los entregables comprometidos (menciones, backstage, pauta, etc.) como un checklist.',
+        ],
+      },
+      {
+        id: 'categorias-auspicio',
+        title: 'Agregar categorías de auspicio propias de un certamen',
+        steps: [
+          'Las categorías fijas (Principal, Gold, Silver, Cobre, Bronce, Oficial, Media Partner y Canje) están siempre disponibles y no se editan.',
+          'Para una categoría que solo exista en un certamen (por ejemplo "Auspiciador Vestuario"), ve a Auspicios & Marcas → Tarifario, elige el certamen y agrégala en "Categorías de auspicio".',
+          'Aparece junto a las fijas al crear contratos, planes y negocios de ese certamen, y en el sitio público como un grupo más de auspiciadores.',
+          'Puedes renombrarla cuando quieras. Solo se elimina si ningún contrato, plan ni negocio la usa; el sistema te dice cuáles la usan.',
+          'Al copiar el tarifario a otro certamen, las categorías propias que usan los planes se copian con ellos.',
         ],
       },
       {

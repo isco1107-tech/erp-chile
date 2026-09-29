@@ -16,13 +16,15 @@ import {
   updateSponsorshipContractAction,
 } from '@/modules/sponsorships/actions/sponsorships.actions';
 import type { ProjectSelectOption, SponsorshipContractWithRelations } from '@/modules/sponsorships/services/sponsorships.service';
+import { listCategoriesAction } from '@/modules/sponsorships/actions/categories.actions';
 import {
+  decodeCategoryChoice,
+  encodeCategoryChoice,
   SPONSORSHIP_STATUS_LABELS,
   SPONSORSHIP_STATUSES,
-  SPONSORSHIP_TIER_LABELS,
-  SPONSORSHIP_TIERS,
   sponsorshipContractCreateSchema,
 } from '@/modules/sponsorships/schema';
+import { SponsorshipCategorySelect, type CategoryOption } from '@/components/sponsorships/SponsorshipCategorySelect';
 
 const selectClass =
   'h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30';
@@ -43,7 +45,11 @@ export default function SponsorshipForm({ editingContract }: Props) {
   const [selectedBrand, setSelectedBrand] = useState<Contact | null>(editingContract?.contact ?? null);
   const [brandQuery, setBrandQuery] = useState('');
   const [showQuickBrand, setShowQuickBrand] = useState(false);
-  const [tier, setTier] = useState<(typeof SPONSORSHIP_TIERS)[number]>(editingContract?.tier ?? 'GOLD');
+  // `tier:GOLD` (fija) o `cat:<id>` (propia del certamen elegido).
+  const [category, setCategory] = useState(
+    editingContract ? encodeCategoryChoice({ tier: editingContract.tier, categoryId: editingContract.categoryId }) : 'tier:GOLD'
+  );
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [isBarter, setIsBarter] = useState(editingContract?.isBarter ?? false);
   const [cashAmount, setCashAmount] = useState(editingContract?.cashAmount ?? 0);
   const [barterValuation, setBarterValuation] = useState(editingContract?.barterValuation ?? 0);
@@ -63,6 +69,22 @@ export default function SponsorshipForm({ editingContract }: Props) {
     });
   }, []);
 
+  useEffect(() => {
+    if (!projectId) {
+      setCategories([]);
+      return;
+    }
+    let cancelled = false;
+    listCategoriesAction(projectId).then((r) => {
+      if (cancelled) return;
+      if (r.success) setCategories(r.data.map(({ id, name }) => ({ id, name })));
+      else toast.error(r.error);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
+
   const filteredBrands = useMemo(() => {
     const q = brandQuery.trim().toLowerCase();
     if (!q) return [];
@@ -73,7 +95,7 @@ export default function SponsorshipForm({ editingContract }: Props) {
     return {
       projectId,
       contactId: selectedBrand?.id ?? contactId,
-      tier,
+      ...decodeCategoryChoice(category),
       isBarter,
       cashAmount,
       barterValuation: isBarter ? barterValuation : 0,
@@ -117,7 +139,16 @@ export default function SponsorshipForm({ editingContract }: Props) {
       <div className="grid grid-cols-1 gap-4 rounded-xl border border-border p-4 sm:grid-cols-2">
         <div>
           <Label htmlFor="project">Proyecto / Evento</Label>
-          <select id="project" value={projectId} onChange={(e) => setProjectId(e.target.value)} className={selectClass}>
+          <select
+            id="project"
+            value={projectId}
+            onChange={(e) => {
+              setProjectId(e.target.value);
+              // Una categoría propia es de un solo certamen: al cambiar de certamen se vuelve a una fija.
+              setCategory((current) => (current.startsWith('cat:') ? 'tier:GOLD' : current));
+            }}
+            className={selectClass}
+          >
             <option value="">Seleccione un proyecto</option>
             {projects.map((p) => (
               <option key={p.id} value={p.id}>
@@ -189,14 +220,8 @@ export default function SponsorshipForm({ editingContract }: Props) {
         </div>
 
         <div>
-          <Label htmlFor="tier">Nivel de auspicio</Label>
-          <select id="tier" value={tier} onChange={(e) => setTier(e.target.value as (typeof SPONSORSHIP_TIERS)[number])} className={selectClass}>
-            {SPONSORSHIP_TIERS.map((t) => (
-              <option key={t} value={t}>
-                {SPONSORSHIP_TIER_LABELS[t]}
-              </option>
-            ))}
-          </select>
+          <Label htmlFor="tier">Categoría de auspicio</Label>
+          <SponsorshipCategorySelect id="tier" value={category} onChange={setCategory} categories={categories} />
         </div>
 
         <div>

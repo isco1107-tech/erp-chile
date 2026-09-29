@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import type { CompanyFeatureFlags } from '@/lib/auth/modules';
 import { buildPageantReadiness, type ReadinessReport } from '@/lib/events/readiness';
 import { getProjectFinancialSummary, type ProjectFinancialSummary } from '@/lib/services/projects';
+import { sponsorshipCategoryLabel } from '@/modules/sponsorships/schema';
 
 /**
  * Centro de mando de un certamen: lee en paralelo cada módulo contratado y
@@ -33,6 +34,7 @@ export interface PageantHub {
     deliverablesDone: number;
     deliverablesOverdue: number;
     packages: number;
+    /** `tier` = nombre de la categoría (fija o propia del certamen), ya resuelto. */
     topSponsors: Array<{ name: string; tier: string; amount: number }>;
   } | null;
   ticketing: { ticketTypes: number; ticketsSold: number; revenue: number; pendingOrders: number; checkedIn: number; capacity: number | null } | null;
@@ -95,6 +97,7 @@ export async function getPageantHub(companyId: string, projectId: string, featur
             select: {
               status: true,
               tier: true,
+              category: { select: { name: true } },
               cashAmount: true,
               paidAmount: true,
               barterValuation: true,
@@ -175,7 +178,7 @@ export async function getPageantHub(companyId: string, projectId: string, featur
           topSponsors: [...live]
             .sort((a, b) => b.cashAmount + b.barterValuation - (a.cashAmount + a.barterValuation))
             .slice(0, 5)
-            .map((c) => ({ name: c.contact.nombreFantasia || c.contact.razonSocial, tier: c.tier, amount: c.cashAmount + c.barterValuation })),
+            .map((c) => ({ name: c.contact.nombreFantasia || c.contact.razonSocial, tier: sponsorshipCategoryLabel(c), amount: c.cashAmount + c.barterValuation })),
         };
       })()
     : null;

@@ -32,7 +32,6 @@ import type { ProjectStatus } from '@prisma/client';
 import DeleteProjectButton from '@/components/projects/DeleteProjectButton';
 import { ProjectFinanceCharts } from '@/components/projects/ProjectFinanceCharts';
 import { PublicLinkRow } from '@/components/projects/PublicLinkRow';
-import { SPONSORSHIP_TIER_LABELS } from '@/modules/sponsorships/schema';
 import { cn } from '@/lib/utils';
 
 export const metadata = { title: 'Centro de mando del certamen' };
@@ -278,7 +277,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                 {hub.sponsorships.topSponsors.map((s) => (
                   <li key={s.name} className="flex items-center justify-between gap-2">
                     <span className="min-w-0 truncate">
-                      {s.name} <span className="text-xs text-muted-foreground">· {SPONSORSHIP_TIER_LABELS[s.tier as keyof typeof SPONSORSHIP_TIER_LABELS]}</span>
+                      {s.name} <span className="text-xs text-muted-foreground">· {s.tier}</span>
                     </span>
                     <span className="shrink-0 tabular-nums">{formatCurrency(s.amount)}</span>
                   </li>

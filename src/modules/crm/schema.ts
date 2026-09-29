@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { SPONSORSHIP_TIERS } from '@/modules/sponsorships/schema';
+import { CATEGORY_REQUIRED_MESSAGE, hasExactlyOneCategory, SPONSORSHIP_TIERS } from '@/modules/sponsorships/schema';
 
 export const OPPORTUNITY_STAGES = ['LEAD', 'QUALIFIED', 'PROPOSAL', 'NEGOTIATION', 'WON', 'LOST'] as const;
 export type OpportunityStageKey = (typeof OPPORTUNITY_STAGES)[number];
@@ -131,6 +131,8 @@ const opportunityFields = z.object({
   projectId: optionalText(64),
   packageId: optionalText(64),
   sponsorshipTier: z.enum(SPONSORSHIP_TIERS).optional().or(z.literal('').transform(() => undefined)),
+  /** Categoría propia del certamen (alternativa a `sponsorshipTier`, nunca las dos). */
+  sponsorshipCategoryId: optionalText(64),
   isBarter: z.boolean().optional(),
   barterValuation: z.number().int('La valorización debe ser un número entero').min(0).max(100_000_000_000).optional(),
   barterDescription: optionalText(500),
@@ -181,6 +183,7 @@ export const opportunityUpdateSchema = z.object({
   projectId: clearableText(64),
   packageId: clearableText(64),
   sponsorshipTier: z.enum(SPONSORSHIP_TIERS).nullable().optional(),
+  sponsorshipCategoryId: clearableText(64),
   isBarter: z.boolean().optional(),
   barterValuation: z.number().int('La valorización debe ser un número entero').min(0).max(100_000_000_000).optional(),
   barterDescription: clearableText(500),
@@ -227,13 +230,15 @@ export const pipelineFiltersSchema = z.object({
 export const convertToSponsorshipSchema = z
   .object({
     contactId: optionalText(64),
-    tier: z.enum(SPONSORSHIP_TIERS, 'Elige el nivel del auspicio'),
+    tier: z.enum(SPONSORSHIP_TIERS).optional(),
+    categoryId: optionalText(64),
     cashAmount: z.number().int().min(0).max(100_000_000_000),
     isBarter: z.boolean().default(false),
     barterValuation: z.number().int().min(0).max(100_000_000_000).default(0),
     barterDescription: optionalText(500),
     createDeliverables: z.boolean().default(true),
   })
+  .refine((data) => hasExactlyOneCategory(data), { message: CATEGORY_REQUIRED_MESSAGE, path: ['tier'] })
   .refine((data) => data.isBarter || data.cashAmount > 0, {
     message: 'El contrato necesita un monto en efectivo o marcarse como canje',
     path: ['cashAmount'],

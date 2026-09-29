@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { ParagraphWriter, fillTemplate } from '@/lib/pdf/paragraph-writer';
 import { requireTemplate } from '@/modules/documents/services/document-template.service';
 import { formatCurrency } from '@/lib/chile/tax';
+import { sponsorshipCategoryLabel } from '../schema';
 
 const TIER_LABEL: Record<string, string> = {
   TITULAR_MAIN_SPONSOR: 'Auspiciador Titular',
@@ -21,7 +22,7 @@ const TIER_LABEL: Record<string, string> = {
 export async function renderCommitmentLetterPdf(companyId: string, contractId: string): Promise<Buffer> {
   const contract = await prisma.sponsorshipContract.findFirst({
     where: { id: contractId, companyId },
-    include: { contact: true, project: true },
+    include: { contact: true, category: { select: { name: true } }, project: true },
   });
   if (!contract) throw new Error('Contrato de auspicio no encontrado');
 
@@ -31,7 +32,9 @@ export async function renderCommitmentLetterPdf(companyId: string, contractId: s
     sponsorName: contract.contact.razonSocial,
     sponsorRut: contract.contact.rut,
     projectName: contract.project.name,
-    tier: TIER_LABEL[contract.tier] ?? contract.tier,
+    // Categoría propia del certamen: va con su nombre tal cual. Las fijas conservan el
+    // texto formal de la carta y, si no lo tienen (Cobre, Bronce), el nombre estándar.
+    tier: contract.category ? contract.category.name : ((contract.tier && TIER_LABEL[contract.tier]) || sponsorshipCategoryLabel(contract)),
     cashAmount: contract.isBarter ? '—' : formatCurrency(contract.cashAmount),
     barterDescription: contract.barterDescription ?? '—',
     date: new Date().toLocaleDateString('es-CL'),

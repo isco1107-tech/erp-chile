@@ -36,6 +36,119 @@ export const SPONSORSHIP_TIER_LABELS: Record<(typeof SPONSORSHIP_TIERS)[number],
   CANJE_BARTER: 'Canje/Barter',
 };
 
+export type SponsorshipTierKey = (typeof SPONSORSHIP_TIERS)[number];
+
+// ---------------------------------------------------------------------------
+// Categorías: las fijas (enum `SponsorshipTier`) + las propias de cada certamen
+// (`SponsorshipCategory`). Un contrato, plan o negocio lleva UNA de las dos.
+// ---------------------------------------------------------------------------
+
+/** Lo mínimo que hace falta para nombrar la categoría de un registro. */
+export interface SponsorshipCategoryRef {
+  tier?: SponsorshipTierKey | null;
+  category?: { name: string } | null;
+}
+
+/** Nombre a mostrar: el de la categoría propia si la hay, si no el de la fija. */
+export function sponsorshipCategoryLabel(ref: SponsorshipCategoryRef): string {
+  if (ref.category?.name) return ref.category.name;
+  if (ref.tier) return SPONSORSHIP_TIER_LABELS[ref.tier];
+  return 'Sin categoría';
+}
+
+export function isSponsorshipTier(value: unknown): value is SponsorshipTierKey {
+  return typeof value === 'string' && (SPONSORSHIP_TIERS as readonly string[]).includes(value);
+}
+
+/** Valor de un `<select>` que mezcla fijas y propias: `tier:GOLD` o `cat:<id>`. */
+export function encodeCategoryChoice(choice: { tier?: string | null; categoryId?: string | null }): string {
+  if (choice.categoryId) return `cat:${choice.categoryId}`;
+  if (choice.tier) return `tier:${choice.tier}`;
+  return '';
+}
+
+export function decodeCategoryChoice(value: string): { tier?: SponsorshipTierKey; categoryId?: string } {
+  if (value.startsWith('cat:') && value.length > 4) return { categoryId: value.slice(4) };
+  if (value.startsWith('tier:')) {
+    const tier = value.slice(5);
+    if (isSponsorshipTier(tier)) return { tier };
+  }
+  return {};
+}
+
+/** Exactamente una de las dos: la fija o la propia del certamen. */
+export function hasExactlyOneCategory(value: { tier?: unknown; categoryId?: unknown }): boolean {
+  return Boolean(value.tier) !== Boolean(value.categoryId);
+}
+
+export const CATEGORY_REQUIRED_MESSAGE = 'Elige la categoría del auspicio';
+
+export const SPONSORSHIP_CATEGORY_NAME_MAX = 60;
+
+const categoryNameSchema = z
+  .string()
+  .trim()
+  .min(2, 'Ponle un nombre de al menos 2 letras a la categoría')
+  .max(SPONSORSHIP_CATEGORY_NAME_MAX, `El nombre no puede pasar de ${SPONSORSHIP_CATEGORY_NAME_MAX} caracteres`);
+
+export const sponsorshipCategoryCreateSchema = z.object({
+  projectId: z.string().min(1, 'Seleccione un certamen'),
+  name: categoryNameSchema,
+});
+
+export const sponsorshipCategoryRenameSchema = z.object({ name: categoryNameSchema });
+
+/** Compara sin tildes ni mayúsculas: "Vestuario" y "vestuário" son la misma categoría. */
+export function normalizeCategoryName(name: string): string {
+  return name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+/** ¿El nombre choca con una categoría fija? (ej. "Gold", "Cobre", "Media Partner"). */
+export function collidesWithFixedCategory(name: string): boolean {
+  const wanted = normalizeCategoryName(name);
+  return SPONSORSHIP_TIERS.some((tier) => normalizeCategoryName(SPONSORSHIP_TIER_LABELS[tier]) === wanted);
+}
+
+export interface SponsorGroupInput {
+  tier?: SponsorshipTierKey | null;
+  category?: { id: string; name: string; order: number } | null;
+  name: string;
+}
+
+/**
+ * Auspiciadores agrupados por categoría para el sitio público: primero las
+ * fijas (de mayor a menor nivel, en el orden del catálogo), después las propias
+ * del certamen en el orden en que se crearon. Un grupo sin marcas no aparece y
+ * una marca repetida en una categoría se muestra una sola vez.
+ */
+export function groupSponsorsByCategory(rows: SponsorGroupInput[]): Array<{ key: string; label: string; names: string[] }> {
+  const namesOf = (subset: SponsorGroupInput[]) =>
+    [...new Set(subset.map((r) => r.name))].sort((a, b) => a.localeCompare(b, 'es-CL'));
+
+  const fixed = SPONSORSHIP_TIERS.map((tier) => ({
+    key: tier as string,
+    label: SPONSORSHIP_TIER_LABELS[tier],
+    names: namesOf(rows.filter((r) => !r.category && r.tier === tier)),
+  }));
+
+  const custom = new Map<string, { name: string; order: number }>();
+  for (const r of rows) if (r.category) custom.set(r.category.id, r.category);
+  const customGroups = [...custom.entries()]
+    .sort(([, a], [, b]) => a.order - b.order || a.name.localeCompare(b.name, 'es-CL'))
+    .map(([id, category]) => ({
+      key: `cat:${id}`,
+      label: category.name,
+      names: namesOf(rows.filter((r) => r.category?.id === id)),
+    }));
+
+  return [...fixed, ...customGroups].filter((group) => group.names.length > 0);
+}
+
 export const SPONSORSHIP_STATUSES = ['PROPOSAL', 'CONFIRMED', 'COMPLETED', 'CANCELLED'] as const;
 
 /**
@@ -68,7 +181,8 @@ export const SPONSORSHIP_STATUS_LABELS: Record<(typeof SPONSORSHIP_STATUSES)[num
 const sponsorshipContractShape = z.object({
   projectId: z.string().min(1, 'Seleccione un proyecto'),
   contactId: z.string().min(1, 'Seleccione una marca'),
-  tier: z.enum(SPONSORSHIP_TIERS, 'Selecciona un tier de auspicio'),
+  tier: z.enum(SPONSORSHIP_TIERS).optional(),
+  categoryId: z.string().min(1).optional(),
   isBarter: z.boolean().default(false),
   cashAmount: z.number().int('El monto debe ser un número entero').nonnegative('El monto no puede ser negativo').default(0),
   barterValuation: z
@@ -86,12 +200,20 @@ const sponsorshipContractShape = z.object({
 // si se llama la Server Action directo (sin pasar por el form). Va sobre el
 // `.object()` base, no sobre el `.partial()` de abajo: en la actualización un
 // contrato ya creado puede editarse sin tocar `cashAmount`/`isBarter`.
-export const sponsorshipContractCreateSchema = sponsorshipContractShape.refine(
-  (data) => data.isBarter || data.cashAmount > 0,
-  { message: 'Ingresa un monto en efectivo, o marca el contrato como canje/barter', path: ['cashAmount'] }
-);
+export const sponsorshipContractCreateSchema = sponsorshipContractShape
+  .refine((data) => hasExactlyOneCategory(data), { message: CATEGORY_REQUIRED_MESSAGE, path: ['tier'] })
+  .refine((data) => data.isBarter || data.cashAmount > 0, {
+    message: 'Ingresa un monto en efectivo, o marca el contrato como canje/barter',
+    path: ['cashAmount'],
+  });
 
-export const sponsorshipContractUpdateSchema = sponsorshipContractShape.partial();
+// En la edición la categoría puede omitirse (no se toca); si viene, es una sola.
+export const sponsorshipContractUpdateSchema = sponsorshipContractShape
+  .partial()
+  .refine((data) => (data.tier === undefined && data.categoryId === undefined) || hasExactlyOneCategory(data), {
+    message: CATEGORY_REQUIRED_MESSAGE,
+    path: ['tier'],
+  });
 
 export type SponsorshipContractCreateInput = z.infer<typeof sponsorshipContractCreateSchema>;
 export type SponsorshipContractUpdateInput = z.infer<typeof sponsorshipContractUpdateSchema>;
@@ -129,9 +251,10 @@ export type SponsorshipPaymentInput = z.infer<typeof sponsorshipPaymentSchema>;
 // Tarifario de auspicios (SponsorshipPackage)
 // ---------------------------------------------------------------------------
 
-export const sponsorshipPackageSchema = z.object({
+const sponsorshipPackageShape = z.object({
   projectId: z.string().min(1, 'Seleccione un certamen'),
-  tier: z.enum(SPONSORSHIP_TIERS, 'Selecciona el nivel del plan'),
+  tier: z.enum(SPONSORSHIP_TIERS).optional(),
+  categoryId: z.string().min(1).optional(),
   name: z.string().trim().min(2, 'Ponle un nombre al plan').max(120),
   price: z.number().int('El precio debe ser un número entero').min(0, 'El precio no puede ser negativo').max(100_000_000_000),
   maxSlots: z.number().int().min(1, 'Los cupos deben ser al menos 1').max(1000).nullable().optional(),
@@ -143,7 +266,14 @@ export const sponsorshipPackageSchema = z.object({
   order: z.number().int().min(0).max(1000).default(0),
 });
 
-export const sponsorshipPackageUpdateSchema = sponsorshipPackageSchema.omit({ projectId: true });
+export const sponsorshipPackageSchema = sponsorshipPackageShape.refine((data) => hasExactlyOneCategory(data), {
+  message: 'Elige el nivel del plan',
+  path: ['tier'],
+});
+
+export const sponsorshipPackageUpdateSchema = sponsorshipPackageShape
+  .omit({ projectId: true })
+  .refine((data) => hasExactlyOneCategory(data), { message: 'Elige el nivel del plan', path: ['tier'] });
 
 export type SponsorshipPackageInput = z.infer<typeof sponsorshipPackageSchema>;
 export type SponsorshipPackageUpdateInput = z.infer<typeof sponsorshipPackageUpdateSchema>;

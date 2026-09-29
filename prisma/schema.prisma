@@ -222,6 +222,7 @@ model Company {
   crmActivities             CrmActivity[]
   crmPeople                 CrmPerson[]
   sponsorshipPackages       SponsorshipPackage[]
+  sponsorshipCategories     SponsorshipCategory[]
   employees                 Employee[]
   payrollPeriods            PayrollPeriod[]
   payslips                  Payslip[]
@@ -1945,6 +1946,7 @@ model Project {
   expenseReports             ExpenseReport[]
   opportunities              Opportunity[]
   sponsorshipPackages        SponsorshipPackage[]
+  sponsorshipCategories      SponsorshipCategory[]
 
   // ── Gala y micrositio público del certamen ──────────────────────────────
   /// Fecha y hora de la gala final. Distinta de `startDate` (inicio del
@@ -2031,7 +2033,13 @@ model SponsorshipContract {
   project              Project                  @relation(fields: [projectId], references: [id])
   contactId            String
   contact              Contact                  @relation(fields: [contactId], references: [id])
-  tier                 SponsorshipTier
+  /// Categoría fija del catálogo. Exactamente una de `tier` / `categoryId`
+  /// viene informada (lo garantiza `sponsorshipCategoryChoice` en el schema
+  /// zod): `tier` para las categorías fijas, `categoryId` para las que cada
+  /// certamen agrega por su cuenta.
+  tier                 SponsorshipTier?
+  categoryId           String?
+  category             SponsorshipCategory?     @relation(fields: [categoryId], references: [id], onDelete: NoAction)
   isBarter             Boolean                  @default(false)
   cashAmount           Int                      @default(0)
   barterValuation      Int                      @default(0)
@@ -2073,6 +2081,7 @@ model SponsorshipContract {
   @@index([companyId, status])
   @@index([companyId, paymentStatus])
   @@index([packageId])
+  @@index([categoryId])
 }
 
 /// Plan del tarifario de auspicios de un certamen (ej. "Auspiciador Oro —
@@ -2086,7 +2095,11 @@ model SponsorshipPackage {
   company         Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
   projectId       String
   project         Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  tier            SponsorshipTier
+  /// Igual que en `SponsorshipContract`: una categoría fija (`tier`) o una
+  /// propia del certamen (`categoryId`), nunca ambas ni ninguna.
+  tier            SponsorshipTier?
+  categoryId      String?
+  category        SponsorshipCategory?  @relation(fields: [categoryId], references: [id], onDelete: NoAction)
   name            String
   /// Valor neto de lista en CLP entero. El precio real negociado queda en el
   /// contrato (`cashAmount`/`barterValuation`), no acá.
@@ -2104,6 +2117,31 @@ model SponsorshipPackage {
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
 
+  @@index([companyId, projectId])
+  @@index([categoryId])
+}
+
+/// Categoría de auspicio propia de un certamen o evento, además de las fijas
+/// del enum `SponsorshipTier` (que valen para todos y no se editan). Sirve
+/// para niveles que solo existen en esa edición: "Auspiciador Vestuario",
+/// "Aliado Salud"… El nombre es único dentro del certamen. No se puede borrar
+/// mientras un contrato, plan o negocio la use (`NoAction`, se comprueba al final de la sentencia para no estorbar el borrado en cascada de la empresa o del certamen): quedaría un
+/// registro sin ninguna categoría.
+model SponsorshipCategory {
+  id            String                @id @default(cuid())
+  companyId     String
+  company       Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  projectId     String
+  project       Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name          String
+  order         Int                   @default(0)
+  contracts     SponsorshipContract[]
+  packages      SponsorshipPackage[]
+  opportunities Opportunity[]
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  @@unique([projectId, name])
   @@index([companyId, projectId])
 }
 
@@ -3758,6 +3796,9 @@ model Opportunity {
   packageId             String?
   package               SponsorshipPackage?  @relation(fields: [packageId], references: [id], onDelete: SetNull)
   sponsorshipTier       SponsorshipTier?
+  /// Categoría propia del certamen (alternativa a `sponsorshipTier`).
+  sponsorshipCategoryId String?
+  sponsorshipCategory   SponsorshipCategory? @relation(fields: [sponsorshipCategoryId], references: [id], onDelete: NoAction)
   /// Parte del negocio que se paga en canje (productos/servicios), valorizada
   /// en CLP entero. `amount` sigue siendo solo lo que entra en efectivo.
   isBarter              Boolean              @default(false)
@@ -3781,6 +3822,7 @@ model Opportunity {
   @@index([companyId, dealType])
   @@index([personId])
   @@index([packageId])
+  @@index([sponsorshipCategoryId])
 }
 
 /// Qué vende una productora de certámenes y eventos.
@@ -5261,29 +5303,29 @@ enum WebSiteStatus {
 }
 
 model WebSite {
-  id                     String        @id @default(cuid())
+  id                     String           @id @default(cuid())
   companyId              String
-  company                Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company                Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
   /// Nombre interno (el que ve el equipo en el panel).
   name                   String
   /// Dirección pública: `/web/[slug]`. Única en toda la plataforma.
-  slug                   String        @unique
-  kind                   WebSiteKind   @default(LANDING)
-  mode                   WebSiteMode   @default(GUIDED)
-  status                 WebSiteStatus @default(DRAFT)
+  slug                   String           @unique
+  kind                   WebSiteKind      @default(LANDING)
+  mode                   WebSiteMode      @default(GUIDED)
+  status                 WebSiteStatus    @default(DRAFT)
   /// Cliente para quien se arma el sitio (servicio de diseño web). Opcional.
   contactId              String?
-  contact                Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  contact                Contact?         @relation(fields: [contactId], references: [id], onDelete: SetNull)
   seoTitle               String?
   seoDescription         String?
   /// `false` agrega `noindex`: el sitio existe pero los buscadores no lo listan.
-  indexable              Boolean       @default(true)
+  indexable              Boolean          @default(true)
   logoUrl                String?
   ogImageUrl             String?
   /// `WebSiteTheme` (ver src/lib/web-sites/theme.ts): colores, tipografía, redondeo.
-  theme                  Json          @default("{}")
+  theme                  Json             @default("{}")
   /// Borrador editable: `WebSiteBlock[]` (ver src/lib/web-sites/blocks.ts).
-  draftBlocks            Json          @default("[]")
+  draftBlocks            Json             @default("[]")
   /// Copia congelada al publicar: lo que ve el público no cambia hasta la
   /// próxima publicación, aunque el equipo siga editando el borrador.
   publishedBlocks        Json?
@@ -5292,17 +5334,17 @@ model WebSite {
   publishedHtml          String?
   publishedAt            DateTime?
   /// Dominio propio (ej. `minegocio.cl`). Mismo mecanismo que el de un certamen.
-  customDomain           String?       @unique
+  customDomain           String?          @unique
   customDomainVerifiedAt DateTime?
   createdByName          String?
   /// Versión del contenido (bloques, tema, HTML): solo cambia al guardar
   /// contenido, no al publicar ni al tocar ajustes o dominio. El editor la usa
   /// para detectar que otra persona guardó antes (edición simultánea).
-  contentUpdatedAt       DateTime      @default(now())
+  contentUpdatedAt       DateTime         @default(now())
   assets                 WebSiteAsset[]
   messages               WebSiteMessage[]
-  createdAt              DateTime      @default(now())
-  updatedAt              DateTime      @updatedAt
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
 
   @@index([companyId, status])
   @@index([companyId, contactId])

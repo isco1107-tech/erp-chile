@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { FileSignature } from 'lucide-react';
@@ -11,14 +11,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RutInput } from '@/components/ui/RutInput';
 import { Switch } from '@/components/ui/switch';
-import { nativeSelectClass } from '@/components/ui/field-classes';
 import { ContactSearchSelect, type ContactOption } from '@/components/shared/ContactSearchSelect';
 import { createContactAction } from '@/modules/contacts/actions/contacts.actions';
 import { convertToSponsorshipAction } from '@/modules/crm/actions/crm.actions';
 import type { OpportunityDetail } from '@/modules/crm/services/crm.service';
-import { SPONSORSHIP_TIER_LABELS, SPONSORSHIP_TIERS } from '@/modules/sponsorships/schema';
-
-type TierKey = (typeof SPONSORSHIP_TIERS)[number];
+import { listCategoriesAction } from '@/modules/sponsorships/actions/categories.actions';
+import { decodeCategoryChoice, encodeCategoryChoice } from '@/modules/sponsorships/schema';
+import { SponsorshipCategorySelect, type CategoryOption } from '@/components/sponsorships/SponsorshipCategorySelect';
 
 interface Props {
   opportunity: OpportunityDetail;
@@ -38,7 +37,13 @@ export function ConvertToSponsorshipDialog({ opportunity, open, onOpenChange, on
   const [creatingContact, setCreatingContact] = useState(false);
   const [newRut, setNewRut] = useState('');
   const [newName, setNewName] = useState(opportunity.prospectName ?? '');
-  const [tier, setTier] = useState<TierKey | ''>(opportunity.sponsorshipTier ?? opportunity.package?.tier ?? '');
+  // La categoría del contrato parte de la del negocio y, si no tiene, de la del plan (fija o propia).
+  const [category, setCategory] = useState(() => {
+    if (opportunity.sponsorshipTier) return encodeCategoryChoice({ tier: opportunity.sponsorshipTier });
+    if (opportunity.sponsorshipCategoryId) return encodeCategoryChoice({ categoryId: opportunity.sponsorshipCategoryId });
+    return encodeCategoryChoice({ tier: opportunity.package?.tier, categoryId: opportunity.package?.category?.id });
+  });
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [cashAmount, setCashAmount] = useState(opportunity.amount);
   const [isBarter, setIsBarter] = useState(opportunity.isBarter);
   const [barterValuation, setBarterValuation] = useState(opportunity.barterValuation);
@@ -46,6 +51,17 @@ export function ConvertToSponsorshipDialog({ opportunity, open, onOpenChange, on
   const [createDeliverables, setCreateDeliverables] = useState(true);
   const [busy, setBusy] = useState(false);
   const benefits = opportunity.package?.benefits ?? [];
+
+  useEffect(() => {
+    if (!opportunity.projectId) return;
+    let cancelled = false;
+    listCategoriesAction(opportunity.projectId).then((r) => {
+      if (!cancelled && r.success) setCategories(r.data.map(({ id, name }) => ({ id, name })));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [opportunity.projectId]);
 
   async function createContact() {
     setBusy(true);
@@ -74,15 +90,15 @@ export function ConvertToSponsorshipDialog({ opportunity, open, onOpenChange, on
       toast.error('Elige o crea la ficha de la marca');
       return;
     }
-    if (!tier) {
-      toast.error('Elige el nivel del auspicio');
+    if (!category) {
+      toast.error('Elige la categoría del auspicio');
       return;
     }
     setBusy(true);
     try {
       const result = await convertToSponsorshipAction(opportunity.id, {
         contactId: contact.id,
-        tier,
+        ...decodeCategoryChoice(category),
         cashAmount,
         isBarter,
         barterValuation: isBarter ? barterValuation : 0,
@@ -142,15 +158,8 @@ export function ConvertToSponsorshipDialog({ opportunity, open, onOpenChange, on
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <Label htmlFor="conv-tier">Nivel</Label>
-              <select id="conv-tier" className={nativeSelectClass} value={tier} onChange={(e) => setTier(e.target.value as TierKey | '')}>
-                <option value="">Elige el nivel…</option>
-                {SPONSORSHIP_TIERS.map((t) => (
-                  <option key={t} value={t}>
-                    {SPONSORSHIP_TIER_LABELS[t]}
-                  </option>
-                ))}
-              </select>
+              <Label htmlFor="conv-tier">Categoría</Label>
+              <SponsorshipCategorySelect id="conv-tier" value={category} onChange={setCategory} categories={categories} placeholder="Elige la categoría…" />
             </div>
             <div>
               <Label htmlFor="conv-cash">Monto en efectivo (neto)</Label>

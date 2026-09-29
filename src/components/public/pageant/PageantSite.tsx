@@ -1082,7 +1082,7 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
                   </div>
                   <div className="pgs-sponsors" data-reveal>
                     {site.sponsorsByTier.map((group, i) => (
-                      <div key={group.tier} className={`pgs-sponsor-tier${i === 0 ? ' is-top' : ''}`}>
+                      <div key={group.key} className={`pgs-sponsor-tier${i === 0 ? ' is-top' : ''}`}>
                         <p className="pgs-sponsor-label">
                           <span aria-hidden="true" />
                           {group.label}

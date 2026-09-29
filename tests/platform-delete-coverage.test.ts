@@ -63,6 +63,10 @@ const CASCADES_TO_COMPANY = new Set([
   // desde Project, y sus hijos (contratos, oportunidades) apuntan con `SetNull`.
   'CrmPerson',
   'SponsorshipPackage',
+  // Categorías de auspicio propias de un certamen: `Cascade` hacia Company y Project. Las FK
+  // de contratos, planes y negocios hacia ellas son `NoAction` (se comprueba al final de la
+  // sentencia), así que el borrado en cascada de la empresa no se atasca por el orden.
+  'SponsorshipCategory',
   'Employee',
   'PayrollPeriod',
   'Payslip',

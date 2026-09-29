@@ -26,14 +26,13 @@ import {
   type OpportunityStageKey,
   type PriorityKey,
 } from '@/modules/crm/schema';
-import { SPONSORSHIP_TIER_LABELS, SPONSORSHIP_TIERS } from '@/modules/sponsorships/schema';
+import { decodeCategoryChoice, encodeCategoryChoice } from '@/modules/sponsorships/schema';
+import { SponsorshipCategorySelect } from '@/components/sponsorships/SponsorshipCategorySelect';
 import type { OpportunityDetail, PersonOption } from '@/modules/crm/services/crm.service';
 import { cn } from '@/lib/utils';
 import { PersonSearchSelect } from './PersonSearchSelect';
 import { TagInput } from './TagInput';
 import { fromDateInput, toDateInput } from './crm-ui';
-
-type TierKey = (typeof SPONSORSHIP_TIERS)[number];
 
 export interface OpportunityFormValues {
   id?: string;
@@ -47,7 +46,8 @@ export interface OpportunityFormValues {
   person: PersonOption | null;
   projectId: string;
   packageId: string;
-  sponsorshipTier: TierKey | '';
+  /** `tier:GOLD` (fija), `cat:<id>` (propia del certamen) o vacío (por definir). */
+  sponsorshipCategory: string;
   isBarter: boolean;
   barterValuation: number;
   barterDescription: string;
@@ -72,7 +72,7 @@ export const EMPTY_OPPORTUNITY: OpportunityFormValues = {
   person: null,
   projectId: '',
   packageId: '',
-  sponsorshipTier: '',
+  sponsorshipCategory: '',
   isBarter: false,
   barterValuation: 0,
   barterDescription: '',
@@ -101,7 +101,7 @@ export function detailToForm(detail: OpportunityDetail): OpportunityFormValues {
       : null,
     projectId: detail.projectId ?? '',
     packageId: detail.packageId ?? '',
-    sponsorshipTier: detail.sponsorshipTier ?? '',
+    sponsorshipCategory: encodeCategoryChoice({ tier: detail.sponsorshipTier, categoryId: detail.sponsorshipCategoryId }),
     isBarter: detail.isBarter,
     barterValuation: detail.barterValuation,
     barterDescription: detail.barterDescription ?? '',
@@ -150,6 +150,10 @@ export function OpportunityFormDialog({ open, onOpenChange, initial, lookups, on
     () => lookups.packages.filter((pkg) => pkg.projectId === values.projectId),
     [lookups.packages, values.projectId]
   );
+  const projectCategories = useMemo(
+    () => lookups.categories.filter((category) => category.projectId === values.projectId),
+    [lookups.categories, values.projectId]
+  );
   const selectedPackage = lookups.packages.find((pkg) => pkg.id === values.packageId) ?? null;
 
   function choosePackage(packageId: string) {
@@ -157,7 +161,7 @@ export function OpportunityFormDialog({ open, onOpenChange, initial, lookups, on
     setValues((prev) => ({
       ...prev,
       packageId,
-      sponsorshipTier: pkg ? pkg.tier : prev.sponsorshipTier,
+      sponsorshipCategory: pkg ? encodeCategoryChoice({ tier: pkg.tier, categoryId: pkg.categoryId }) : prev.sponsorshipCategory,
       // El precio de lista entra solo si todavía no se escribió un monto:
       // nunca pisa una cifra negociada.
       amount: pkg && prev.amount === 0 ? pkg.price : prev.amount,
@@ -195,7 +199,8 @@ export function OpportunityFormDialog({ open, onOpenChange, initial, lookups, on
             prospectName: values.contact ? null : values.prospectName,
             personId: values.person?.id ?? null,
             ownerUserId: values.ownerUserId || null,
-            sponsorshipTier: isSponsorship && values.sponsorshipTier ? values.sponsorshipTier : null,
+            sponsorshipTier: (isSponsorship && decodeCategoryChoice(values.sponsorshipCategory).tier) || null,
+            sponsorshipCategoryId: (isSponsorship && decodeCategoryChoice(values.sponsorshipCategory).categoryId) || null,
             expectedCloseDate: fromDateInput(values.expectedCloseDate),
           })
         : await createOpportunityAction({
@@ -205,7 +210,8 @@ export function OpportunityFormDialog({ open, onOpenChange, initial, lookups, on
             prospectName: values.contact ? '' : values.prospectName,
             personId: values.person?.id ?? '',
             ownerUserId: values.ownerUserId,
-            sponsorshipTier: isSponsorship ? values.sponsorshipTier : '',
+            sponsorshipTier: (isSponsorship && decodeCategoryChoice(values.sponsorshipCategory).tier) || '',
+            sponsorshipCategoryId: (isSponsorship && decodeCategoryChoice(values.sponsorshipCategory).categoryId) || '',
             expectedCloseDate: fromDateInput(values.expectedCloseDate) ?? undefined,
             stage: values.stage,
           });
@@ -269,7 +275,15 @@ export function OpportunityFormDialog({ open, onOpenChange, initial, lookups, on
                   id="opp-project"
                   className={nativeSelectClass}
                   value={values.projectId}
-                  onChange={(e) => setValues((prev) => ({ ...prev, projectId: e.target.value, packageId: '' }))}
+                  onChange={(e) =>
+                    setValues((prev) => ({
+                      ...prev,
+                      projectId: e.target.value,
+                      packageId: '',
+                      // Una categoría propia es de un solo certamen.
+                      sponsorshipCategory: prev.sponsorshipCategory.startsWith('cat:') ? '' : prev.sponsorshipCategory,
+                    }))
+                  }
                 >
                   <option value="">Sin certamen</option>
                   {lookups.projects.map((project) => (
@@ -354,15 +368,14 @@ export function OpportunityFormDialog({ open, onOpenChange, initial, lookups, on
                   </select>
                 </div>
                 <div>
-                  <Label htmlFor="opp-tier">Nivel propuesto</Label>
-                  <select id="opp-tier" className={nativeSelectClass} value={values.sponsorshipTier} onChange={(e) => set('sponsorshipTier', e.target.value as TierKey | '')}>
-                    <option value="">Por definir</option>
-                    {SPONSORSHIP_TIERS.map((tier) => (
-                      <option key={tier} value={tier}>
-                        {SPONSORSHIP_TIER_LABELS[tier]}
-                      </option>
-                    ))}
-                  </select>
+                  <Label htmlFor="opp-tier">Categoría propuesta</Label>
+                  <SponsorshipCategorySelect
+                    id="opp-tier"
+                    value={values.sponsorshipCategory}
+                    onChange={(value) => set('sponsorshipCategory', value)}
+                    categories={projectCategories}
+                    placeholder="Por definir"
+                  />
                 </div>
               </div>
               {selectedPackage && (

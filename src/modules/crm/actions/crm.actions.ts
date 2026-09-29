@@ -1,5 +1,6 @@
 'use server';
 
+import { listCategoriesForCompany } from '@/modules/sponsorships/services/categories.service';
 import { revalidatePath } from 'next/cache';
 import { requireAuthWithPermission, authErrorMessage, can } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
@@ -52,6 +53,8 @@ export interface CrmLookups {
   users: Array<{ id: string; name: string }>;
   projects: CrmProjectOption[];
   packages: CrmPackageOption[];
+  /** Categorías de auspicio propias de cada certamen (además de las fijas). */
+  categories: Array<{ id: string; projectId: string; name: string }>;
   tags: string[];
   currentUserId: string;
   /** Puede convertir negocios ganados en contratos (CRM + Auspicios contratados y permiso de escritura en ambos). */
@@ -59,13 +62,14 @@ export interface CrmLookups {
 }
 
 async function loadLookups(companyId: string, userId: string, canConvert: boolean): Promise<CrmLookups> {
-  const [users, projects, packages, tags] = await Promise.all([
+  const [users, projects, packages, categories, tags] = await Promise.all([
     crmService.listAssignableUsers(companyId),
     crmService.listProjectOptions(companyId),
     crmService.listPackageOptions(companyId),
+    listCategoriesForCompany(companyId),
     crmService.listTagsInUse(companyId),
   ]);
-  return { users, projects, packages, tags, currentUserId: userId, canConvert };
+  return { users, projects, packages, categories, tags, currentUserId: userId, canConvert };
 }
 
 export interface PipelineBoard extends CrmLookups {

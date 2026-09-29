@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { prisma } from '@/lib/prisma';
-import { SPONSORSHIP_TIER_LABELS } from '@/modules/sponsorships/schema';
+import { sponsorshipCategoryLabel } from '@/modules/sponsorships/schema';
 import {
   CANDIDATE_STATUSES_REQUIRING_CONTRACT,
   candidateChecklistItem,
@@ -78,6 +78,7 @@ export async function getContractsOverview(companyId: string, scope: ContractsOv
             id: true,
             status: true,
             tier: true,
+            category: { select: { name: true } },
             cashAmount: true,
             agreementFileUrl: true,
             agreementGeneratedAt: true,
@@ -97,7 +98,7 @@ export async function getContractsOverview(companyId: string, scope: ContractsOv
   for (const sponsor of sponsors) {
     const item = sponsorChecklistItem({
         ...sponsor,
-        tierLabel: SPONSORSHIP_TIER_LABELS[sponsor.tier],
+        tierLabel: sponsorshipCategoryLabel(sponsor),
         contactName: sponsor.contact.nombreFantasia ?? sponsor.contact.razonSocial,
       }, now);
     if (item) items.push(item);

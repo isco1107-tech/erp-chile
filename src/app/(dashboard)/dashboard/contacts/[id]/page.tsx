@@ -10,7 +10,7 @@ import { listPromissoryNotesAction } from '@/modules/promissory-notes/actions/pr
 import { listPaymentPlansAction } from '@/modules/payment-plans/actions/payment-plans.actions';
 import { listSalesDocumentsAction } from '@/modules/sales/actions/sales.actions';
 import { listPurchaseDocumentsAction } from '@/modules/purchases/actions/purchases.actions';
-import { SPONSORSHIP_TIER_LABELS, SPONSORSHIP_STATUS_LABELS } from '@/modules/sponsorships/schema';
+import { sponsorshipCategoryLabel, SPONSORSHIP_STATUS_LABELS } from '@/modules/sponsorships/schema';
 import { PROMISSORY_NOTE_STATUS_LABELS, PAYMENT_STATUS_LABELS } from '@/modules/promissory-notes/schema';
 import { PAYMENT_STATUS_LABELS as INSTALLMENT_PAYMENT_STATUS_LABELS } from '@/modules/payment-plans/schema';
 import { DTE_TYPE_LABELS } from '@/modules/sales/schema';
@@ -153,7 +153,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
               <tbody>
                 {sponsorshipRows.map((row) => (
                   <tr key={row.id} className="border-t border-border">
-                    <td className="py-1.5 pr-3">{SPONSORSHIP_TIER_LABELS[row.tier]}</td>
+                    <td className="py-1.5 pr-3">{sponsorshipCategoryLabel(row)}</td>
                     <td className="py-1.5 pr-3">{SPONSORSHIP_STATUS_LABELS[row.status]}</td>
                     <td className="py-1.5 pr-3">{row.isBarter ? 'Canje' : formatCurrency(row.cashAmount)}</td>
                   </tr>

@@ -1,11 +1,11 @@
 import 'server-only';
 
-import type { CandidateStatus, SponsorshipTier } from '@prisma/client';
+import type { CandidateStatus } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { pageantContact } from '@/lib/events/pageant-contact';
 import type { DirectorTitle } from '@/lib/events/pageant-site';
 import { decodeVoteToken } from '@/modules/public-voting/schema';
-import { SPONSORSHIP_TIER_LABELS, SPONSORSHIP_TIERS } from '@/modules/sponsorships/schema';
+import { groupSponsorsByCategory, sponsorshipCategoryLabel } from '@/modules/sponsorships/schema';
 import type { PublicAccentKey } from '../schema';
 import { PUBLIC_ACCENTS } from '../schema';
 
@@ -49,7 +49,8 @@ export interface PublicPageantSite {
   contactEmail: string | null;
   whatsapp: { href: string; label: string } | null;
   candidates: PublicPageantCandidate[];
-  sponsorsByTier: Array<{ tier: SponsorshipTier; label: string; names: string[] }>;
+  /** Primero las categorías fijas (de mayor a menor nivel), luego las propias del certamen. */
+  sponsorsByTier: Array<{ key: string; label: string; names: string[] }>;
   packages: Array<{ id: string; name: string; tierLabel: string; price: number | null; benefits: string[]; description: string | null; slotsLeft: number | null }>;
   tickets: { href: string; fromPrice: number | null } | null;
   voting: { href: string; pricePerVote: number } | null;
@@ -105,7 +106,11 @@ export async function getPublicPageantSite(slug: string): Promise<PublicPageantS
     features.hasSponsorships && project.showSponsorsPublic
       ? prisma.sponsorshipContract.findMany({
           where: { ...where, status: { in: ['CONFIRMED', 'COMPLETED'] } },
-          select: { tier: true, contact: { select: { razonSocial: true, nombreFantasia: true } } },
+          select: {
+            tier: true,
+            category: { select: { id: true, name: true, order: true } },
+            contact: { select: { razonSocial: true, nombreFantasia: true } },
+          },
         })
       : Promise.resolve([]),
     features.hasSponsorships
@@ -115,6 +120,7 @@ export async function getPublicPageantSite(slug: string): Promise<PublicPageantS
             id: true,
             name: true,
             tier: true,
+            category: { select: { name: true } },
             price: true,
             showPricePublic: true,
             benefits: true,
@@ -165,11 +171,9 @@ export async function getPublicPageantSite(slug: string): Promise<PublicPageantS
       .filter((r): r is NonNullable<typeof r> => r !== null);
   }
 
-  const sponsorsByTier = SPONSORSHIP_TIERS.map((tier) => ({
-    tier,
-    label: SPONSORSHIP_TIER_LABELS[tier],
-    names: [...new Set(contracts.filter((c) => c.tier === tier).map((c) => c.contact.nombreFantasia || c.contact.razonSocial))].sort((a, b) => a.localeCompare(b, 'es-CL')),
-  })).filter((group) => group.names.length > 0);
+  const sponsorsByTier = groupSponsorsByCategory(
+    contracts.map((c) => ({ tier: c.tier, category: c.category, name: c.contact.nombreFantasia || c.contact.razonSocial }))
+  );
 
   const decodedVote = features.hasPublicVoting && project.voteSalesToken ? decodeVoteToken(project.voteSalesToken) : null;
   const registrationOpen =
@@ -210,7 +214,7 @@ export async function getPublicPageantSite(slug: string): Promise<PublicPageantS
     packages: packages.map((p) => ({
       id: p.id,
       name: p.name,
-      tierLabel: SPONSORSHIP_TIER_LABELS[p.tier],
+      tierLabel: sponsorshipCategoryLabel(p),
       price: p.showPricePublic ? p.price : null,
       benefits: p.benefits,
       description: p.description,
