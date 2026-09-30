@@ -258,6 +258,31 @@ export async function getPublicPageantSite(slug: string): Promise<PublicPageantS
   };
 }
 
+/**
+ * Certámenes publicados que viven en `/certamen/{slug}` de la plataforma, para
+ * su sitemap. Los que ya tienen dominio propio verificado se excluyen: esa
+ * dirección redirige (308) a su dominio, que publica su propio sitemap.
+ *
+ * Es un listado entre empresas A PROPÓSITO (por eso no filtra por `companyId`):
+ * solo sale el slug de sitios que sus dueños ya activaron para internet, con
+ * las mismas condiciones que `getPublicPageantSite` (empresa operativa y con
+ * el módulo de Eventos).
+ */
+export async function listIndexablePageantSlugs(): Promise<string[]> {
+  const rows = await prisma.project.findMany({
+    where: {
+      publicSiteEnabled: true,
+      publicSlug: { not: null },
+      customDomainVerifiedAt: null,
+      company: { status: { notIn: ['SUSPENDED', 'CANCELLED'] }, features: { is: { hasEventProjects: true } } },
+    },
+    select: { publicSlug: true },
+    orderBy: { publicSlug: 'asc' },
+    take: 5000,
+  });
+  return rows.map((row) => row.publicSlug).filter((slug): slug is string => Boolean(slug));
+}
+
 /** Lo mínimo para registrar un "Quiero ser sponsor": el formulario solo existe si el sitio lo muestra. */
 /**
  * Slug del certamen publicado bajo un dominio propio (para `/sitio/[host]`).

@@ -32,6 +32,22 @@ describe('proxy con dominio propio de un certamen', () => {
     expect(response.headers.get('x-middleware-next')).toBe('1');
   });
 
+  it('robots.txt y sitemap.xml se reescriben a los propios del dominio (Search Console exige el sitemap en el mismo dominio)', async () => {
+    for (const file of ['robots.txt', 'sitemap.xml']) {
+      const response = await proxy(request('www.missuniversotemuco.cl', `/${file}`));
+      expect(response.headers.get('x-middleware-rewrite')).toContain(`/sitio/missuniversotemuco.cl/${file}`);
+      expect(response.headers.get('location')).toBeNull();
+    }
+  });
+
+  it('en la plataforma, robots.txt y sitemap.xml siguen siendo los de siempre', async () => {
+    for (const file of ['robots.txt', 'sitemap.xml']) {
+      const response = await proxy(request('erp.aether.cl', `/${file}`));
+      expect(response.headers.get('x-middleware-next')).toBe('1');
+      expect(response.headers.get('x-middleware-rewrite')).toBeNull();
+    }
+  });
+
   it('el login y el panel nunca se sirven bajo el dominio del certamen', async () => {
     const response = await proxy(request('missuniversotemuco.cl', '/dashboard/sales?x=1'));
     expect(response.status).toBe(307);

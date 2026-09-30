@@ -3,6 +3,7 @@ import { PageantSite } from '@/components/public/pageant/PageantSite';
 import { formatCurrency } from '@/lib/chile/tax';
 import { getAppUrl } from '@/lib/email/mailer';
 import { buildPageantView } from '@/lib/events/pageant-site';
+import { pageantSeoDescription, pageantSeoTitle } from '@/lib/events/pageant-seo';
 import type { PublicPageantSite } from '@/modules/projects/services/public-site.service';
 
 /**
@@ -15,16 +16,31 @@ import type { PublicPageantSite } from '@/modules/projects/services/public-site.
 
 /** Metadatos para buscadores y redes; la URL canónica es el dominio propio si está verificado. */
 export function pageantSiteMetadata(site: PublicPageantSite): Metadata {
-  const description = site.tagline ?? site.description?.slice(0, 160) ?? `${site.name} — sitio oficial del certamen`;
-  const canonical = site.customDomain ? `https://${site.customDomain}` : `/certamen/${site.slug}`;
+  // Título y bajada con lo que la gente busca (candidatas, entradas, fecha y recinto de la gala), solo si el certamen lo tiene publicado.
+  const seo = {
+    name: site.name,
+    tagline: site.tagline,
+    description: site.description,
+    galaDate: site.galaDate,
+    venueName: site.venueName,
+    candidateCount: site.candidates.length,
+    hasTickets: site.tickets !== null,
+    registrationOpen: site.registration !== null,
+  };
+  const title = pageantSeoTitle(seo);
+  const description = pageantSeoDescription(seo);
+  // Siempre URLs absolutas: sin `metadataBase` en este layout, una canónica relativa se resolvería contra el host del despliegue (vercel.app), no contra la dirección pública.
+  const origin = site.customDomain ? `https://${site.customDomain}` : getAppUrl();
+  const canonical = site.customDomain ? origin : `${origin}/certamen/${site.slug}`;
   // La imagen para redes la genera `/certamen/[slug]/opengraph-image` (con la portada si existe).
-  const ogImage = `${site.customDomain ? `https://${site.customDomain}` : ''}/certamen/${site.slug}/opengraph-image`;
+  const ogImage = `${origin}/certamen/${site.slug}/opengraph-image`;
   return {
-    title: { absolute: site.name },
+    title: { absolute: title },
     description,
     alternates: { canonical },
-    openGraph: { title: site.name, description, type: 'website', locale: 'es_CL', siteName: site.name, url: canonical, images: [ogImage] },
-    twitter: { card: 'summary_large_image', title: site.name, description, images: [ogImage] },
+    robots: { index: true, follow: true },
+    openGraph: { title, description, type: 'website', locale: 'es_CL', siteName: site.name, url: canonical, images: [ogImage] },
+    twitter: { card: 'summary_large_image', title, description, images: [ogImage] },
   };
 }
 

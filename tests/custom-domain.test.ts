@@ -91,6 +91,12 @@ describe('customDomainRoute', () => {
     }
   });
 
+  it('robots.txt y sitemap.xml son propios del dominio, no los de la plataforma', () => {
+    expect(customDomainRoute('/robots.txt')).toEqual({ kind: 'seo', file: 'robots.txt' });
+    expect(customDomainRoute('/sitemap.xml')).toEqual({ kind: 'seo', file: 'sitemap.xml' });
+    expect(customDomainRoute('/sitemap.xml/extra')).toEqual({ kind: 'platform' });
+  });
+
   it('el panel, el login o rutas parecidas nunca se sirven bajo el dominio del certamen', () => {
     for (const path of ['/login', '/dashboard', '/dashboard/sales', '/superadmin', '/sitio/otro.cl', '/registerX', '/certamen']) {
       expect(customDomainRoute(path)).toEqual({ kind: 'platform' });

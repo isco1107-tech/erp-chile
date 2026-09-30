@@ -110,6 +110,12 @@ function routeCustomDomain(req: NextRequest, host: string): NextResponse {
     return NextResponse.rewrite(url);
   }
   if (route.kind === 'pass') return NextResponse.next();
+  if (route.kind === 'seo') {
+    // robots.txt y sitemap.xml propios del dominio: Search Console exige que el sitemap viva en el mismo dominio.
+    const url = req.nextUrl.clone();
+    url.pathname = `/sitio/${encodeURIComponent(domainFromHost(host))}/${route.file}`;
+    return NextResponse.rewrite(url);
+  }
   if (route.kind === 'page') {
     // Página interna de un sitio web (`minegocio.cl/servicios`): `/sitio/[host]/[page]` decide si existe.
     const url = req.nextUrl.clone();
