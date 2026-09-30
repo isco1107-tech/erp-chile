@@ -53,7 +53,7 @@ export default function CustomerCareClient({ canWrite }: { canWrite: boolean }) 
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [inactive, setInactive] = useState<InactiveCustomerRow[]>([]);
   const [followUps, setFollowUps] = useState<FollowUpRow[]>([]);
-  const [surveys, setSurveys] = useState<Array<SurveyRow & { url: string }>>([]);
+  const [surveys, setSurveys] = useState<Array<Omit<SurveyRow, 'token'> & { url: string | null }>>([]);
   const [customers, setCustomers] = useState<Array<{ id: string; name: string }>>([]);
   const [surveyCustomer, setSurveyCustomer] = useState('');
   const [channelPick, setChannelPick] = useState<Record<string, string>>({});
@@ -107,7 +107,8 @@ export default function CustomerCareClient({ canWrite }: { canWrite: boolean }) 
     await run(`close-${id}`, () => closeFollowUpAction(id, { status, outcome: outcomes[id]?.trim() || undefined }));
   }
 
-  async function copySurvey(row: SurveyRow & { url: string }) {
+  async function copySurvey(row: Omit<SurveyRow, 'token'> & { url: string | null }) {
+    if (!row.url) return;
     try {
       await navigator.clipboard.writeText(row.url);
     } catch {
@@ -376,7 +377,7 @@ export default function CustomerCareClient({ canWrite }: { canWrite: boolean }) 
                             {s.comment ?? '—'}
                           </td>
                           <td className="px-4 py-2.5 text-right">
-                            {canWrite && !s.respondedAt && (
+                            {canWrite && !s.respondedAt && s.url && (
                               <Button size="sm" variant="outline" onClick={() => copySurvey(s)}>
                                 <Copy aria-hidden="true" /> Copiar enlace
                               </Button>

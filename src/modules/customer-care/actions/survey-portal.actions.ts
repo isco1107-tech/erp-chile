@@ -30,7 +30,7 @@ export async function submitSurveyAction(token: string, input: unknown): Promise
         await notifyCompany(result.companyId, {
           severity: 'WARNING',
           title: 'Un cliente tuvo una mala experiencia',
-          message: `${result.contactName} respondió la encuesta con satisfacción ${result.csat}/5 y recomendación ${result.nps}/10. Se abrió un seguimiento.`,
+          message: 'Un cliente respondió la encuesta con una mala nota. Se abrió un seguimiento en Fidelización.',
           href: '/dashboard/customer-care',
           pushMessage: 'Un cliente respondió la encuesta con una mala nota. Revisa el seguimiento.',
         });

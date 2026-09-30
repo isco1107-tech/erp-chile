@@ -133,13 +133,15 @@ export async function setTaskStatus(actor: Actor, id: string, status: TeamTaskSt
   return prisma.$transaction(async (tx) => {
     const current = await tx.teamTask.findFirst({ where: { id, companyId: actor.companyId, ...visibleTo(actor) } });
     if (!current) throw new TaskError('Tarea no encontrada');
+    // Una tarea cerrada no se reabre: reabrir y volver a completar una recurrente generaría una copia nueva cada vez.
+    if (current.status === 'DONE' || current.status === 'CANCELLED') throw new TaskError('La tarea ya está cerrada');
     const closing = status === 'DONE' || status === 'CANCELLED';
     const result = await tx.teamTask.updateMany({
       where: { id, companyId: actor.companyId, status: current.status },
       data: { status, completedAt: closing ? now : null },
     });
     if (result.count === 0) throw new TaskError('La tarea cambió mientras la editabas. Recarga e inténtalo de nuevo');
-    if (status !== 'DONE' || current.status === 'DONE' || current.status === 'CANCELLED' || current.recurrence === 'NONE') return { nextDueDate: null };
+    if (status !== 'DONE' || current.recurrence === 'NONE') return { nextDueDate: null };
     const next = nextDueDate(current.dueDate, current.recurrence, now);
     if (!next) return { nextDueDate: null };
     await tx.teamTask.create({

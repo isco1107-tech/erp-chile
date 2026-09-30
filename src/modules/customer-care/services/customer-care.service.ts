@@ -220,7 +220,7 @@ export async function listFollowUps(companyId: string, status: FollowUpStatus | 
 
 async function assertAssignee(companyId: string, userId: string | null | undefined): Promise<void> {
   if (!userId) return;
-  const user = await prisma.user.findFirst({ where: { id: userId, companyId }, select: { id: true } });
+  const user = await prisma.user.findFirst({ where: { id: userId, companyId, isActive: true }, select: { id: true } });
   if (!user) throw new CustomerCareError('Responsable no encontrado');
 }
 

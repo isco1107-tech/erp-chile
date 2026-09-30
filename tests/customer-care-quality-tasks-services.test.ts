@@ -236,10 +236,10 @@ describe('Tareas', () => {
     expect(db.teamTask.create).not.toHaveBeenCalled();
   });
 
-  it('cerrar de nuevo una tarea ya hecha no genera otra', async () => {
+  it('una tarea cerrada no se reabre ni se vuelve a cerrar: no puede multiplicar la recurrente', async () => {
     db.teamTask.findFirst.mockResolvedValue({ ...weekly, status: 'DONE' });
-    db.teamTask.updateMany.mockResolvedValue({ count: 1 });
-    expect(await setTaskStatus(member, 't1', 'DONE')).toEqual({ nextDueDate: null });
+    for (const status of ['TODO', 'DOING', 'DONE'] as const) await expect(setTaskStatus(member, 't1', status)).rejects.toThrow('ya está cerrada');
+    expect(db.teamTask.updateMany).not.toHaveBeenCalled();
     expect(db.teamTask.create).not.toHaveBeenCalled();
   });
 

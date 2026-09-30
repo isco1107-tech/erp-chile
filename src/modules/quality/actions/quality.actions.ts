@@ -5,7 +5,6 @@ import { authErrorMessage, requireAuthWithPermission } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 import { captureException } from '@/lib/observability';
 import { notifyCompany } from '@/lib/notifications/company-notification';
-import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import { inspectionSchema, procedureSchema, supplierProfileSchema, templateSchema } from '../schema';
 import * as service from '../services/quality.service';
 import type { InspectionRow, ProcedureRow, QualityOverview, SupplierRow, TemplateRow } from '../services/quality.service';
@@ -16,8 +15,8 @@ function fail(error: unknown, companyId?: string, extra?: Record<string, unknown
   const authMessage = authErrorMessage(error);
   if (authMessage) return { success: false, error: authMessage };
   if (error instanceof service.QualityError) return { success: false, error: error.message };
-  if (!(error instanceof Error)) captureException(error, { module: 'calidad', companyId, extra });
-  return { success: false, error: toFriendlyErrorMessage(error) };
+  captureException(error, { module: 'calidad', companyId, extra });
+  return { success: false, error: 'No se pudo completar la operación. Intenta de nuevo' };
 }
 
 const firstIssue = (issues: Array<{ message: string }>) => issues[0]?.message ?? 'Datos inválidos';
@@ -51,8 +50,8 @@ export async function getProcedureAction(id: string): Promise<ActionResult<{ id:
     const session = await requireAuthWithPermission('quality:read');
     const procedure = await service.getProcedure(session.companyId, String(id));
     if (!procedure) return { success: false, error: 'Procedimiento no encontrado' };
-    // Un borrador solo lo ven quienes pueden gestionarlos.
-    if (procedure.status === 'DRAFT' && !session.permissions.includes('quality:manage')) return { success: false, error: 'Procedimiento no encontrado' };
+    // Solo los vigentes los ve todo el equipo: borradores y archivados, únicamente quien gestiona.
+    if (procedure.status !== 'ACTIVE' && !session.permissions.includes('quality:manage')) return { success: false, error: 'Procedimiento no encontrado' };
     const { id: pid, title, category, summary, content, version, status, reviewEveryDays } = procedure;
     return { success: true, data: { id: pid, title, category, summary, content, version, status, reviewEveryDays } };
   } catch (error) {

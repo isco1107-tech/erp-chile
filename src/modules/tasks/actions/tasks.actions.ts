@@ -5,9 +5,8 @@ import { z } from 'zod';
 import { authErrorMessage, can, requireAuthWithPermission, type AuthContext } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 import { captureException } from '@/lib/observability';
-import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import { DELEGATED_DECISIONS, evaluateDelegation, type DelegationCheck } from '@/lib/tasks/delegation';
-import { delegationRuleSchema, taskSchema, taskStatusSchema } from '../schema';
+import { delegationRuleSchema, MAX_INT4, taskSchema, taskStatusSchema } from '../schema';
 import * as service from '../services/tasks.service';
 import type { DelegationRuleRow, TaskRow, TaskScope, TasksOverview } from '../services/tasks.service';
 
@@ -17,8 +16,8 @@ function fail(error: unknown, companyId?: string, extra?: Record<string, unknown
   const authMessage = authErrorMessage(error);
   if (authMessage) return { success: false, error: authMessage };
   if (error instanceof service.TaskError) return { success: false, error: error.message };
-  if (!(error instanceof Error)) captureException(error, { module: 'tareas', companyId, extra });
-  return { success: false, error: toFriendlyErrorMessage(error) };
+  captureException(error, { module: 'tareas', companyId, extra });
+  return { success: false, error: 'No se pudo completar la operación. Intenta de nuevo' };
 }
 
 const firstIssue = (issues: Array<{ message: string }>) => issues[0]?.message ?? 'Datos inválidos';
@@ -175,7 +174,7 @@ export async function deleteDelegationRuleAction(id: string): Promise<ActionResu
 
 const checkSchema = z.object({
   decision: z.enum(DELEGATED_DECISIONS),
-  amount: z.number().int().min(0).max(10_000_000_000).optional(),
+  amount: z.number().int().min(0).max(MAX_INT4).optional(),
   percent: z.number().int().min(0).max(100).optional(),
 });
 

@@ -1,10 +1,9 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { authErrorMessage, requireAuthWithPermission } from '@/lib/auth/guards';
+import { authErrorMessage, can, requireAuthWithPermission } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 import { captureException } from '@/lib/observability';
-import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import { getAppUrl } from '@/lib/email/mailer';
 import { closeFollowUpSchema, contactChannelSchema, createSurveySchema, customerCareSettingsSchema, followUpSchema } from '../schema';
 import * as service from '../services/customer-care.service';
@@ -16,8 +15,8 @@ function fail(error: unknown, companyId?: string, extra?: Record<string, unknown
   const authMessage = authErrorMessage(error);
   if (authMessage) return { success: false, error: authMessage };
   if (error instanceof service.CustomerCareError) return { success: false, error: error.message };
-  if (!(error instanceof Error)) captureException(error, { module: 'fidelizacion', companyId, extra });
-  return { success: false, error: toFriendlyErrorMessage(error) };
+  captureException(error, { module: 'fidelizacion', companyId, extra });
+  return { success: false, error: 'No se pudo completar la operación. Intenta de nuevo' };
 }
 
 function revalidate(): void {
@@ -53,12 +52,14 @@ export async function listFollowUpsAction(status: string = 'OPEN'): Promise<Acti
   }
 }
 
-export async function listSurveysAction(): Promise<ActionResult<Array<SurveyRow & { url: string }>>> {
+export async function listSurveysAction(): Promise<ActionResult<Array<Omit<SurveyRow, 'token'> & { url: string | null }>>> {
   try {
     const session = await requireAuthWithPermission('customercare:read');
     const rows = await service.listSurveys(session.companyId);
     const base = getAppUrl();
-    return { success: true, data: rows.map((r) => ({ ...r, url: `${base}/encuesta/${r.token}` })) };
+    // El token es la única credencial para contestar: solo lo recibe quien puede enviar encuestas, y solo de las pendientes.
+    const canSend = can(session, 'customercare:write');
+    return { success: true, data: rows.map(({ token, ...row }) => ({ ...row, url: canSend && !row.respondedAt ? `${base}/encuesta/${token}` : null })) };
   } catch (error) {
     return fail(error);
   }
