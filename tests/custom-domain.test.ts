@@ -37,8 +37,28 @@ describe('customDomainProblem', () => {
 
   it('nunca permite registrar el dominio de la plataforma ni uno de sus subdominios', () => {
     expect(customDomainProblem('erp.aether.cl', ENV)).toMatch(/plataforma/);
-    expect(customDomainProblem('aether.cl', ENV)).toMatch(/plataforma/);
     expect(customDomainProblem('sitio.erp.aether.cl', ENV)).toMatch(/plataforma/);
+  });
+
+  it('el mensaje dice con qué host de la plataforma choca', () => {
+    expect(customDomainProblem('erp.aether.cl', ENV)).toContain('erp.aether.cl');
+  });
+
+  it('el dominio "padre" de la plataforma sí se puede usar como sitio de una empresa', () => {
+    expect(customDomainProblem('aether.cl', ENV)).toBeNull();
+    expect(isPlatformHost('aether.cl', ENV)).toBe(false);
+  });
+
+  it('un dominio de cliente agregado al proyecto de Vercel no pasa a ser "la plataforma"', () => {
+    // Vercel puede fijar VERCEL_PROJECT_PRODUCTION_URL al dominio más corto del proyecto.
+    const env = { APP_URL: 'https://erp.aether.cl', VERCEL_PROJECT_PRODUCTION_URL: 'miempresa.cl' };
+    expect(customDomainProblem('miempresa.cl', env)).toBeNull();
+    expect(isPlatformHost('miempresa.cl', env)).toBe(false);
+    expect(isPlatformHost('erp.aether.cl', env)).toBe(true);
+  });
+
+  it('sin APP_URL, VERCEL_PROJECT_PRODUCTION_URL sigue identificando la plataforma', () => {
+    expect(isPlatformHost('erp.aether.cl', { VERCEL_PROJECT_PRODUCTION_URL: 'erp.aether.cl' })).toBe(true);
   });
 });
 
