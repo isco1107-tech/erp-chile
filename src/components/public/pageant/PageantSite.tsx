@@ -78,6 +78,19 @@ function useReveal(rootRef: React.RefObject<HTMLDivElement | null>, key: string)
 }
 
 /** Sección visible en pantalla, para marcar el enlace activo del menú. */
+/** Marca `.is-offscreen` en las zonas con animaciones continuas cuando salen de la pantalla: el CSS las pausa. */
+function useOffscreenPause(rootRef: React.RefObject<HTMLDivElement | null>) {
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || !('IntersectionObserver' in window)) return;
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) entry.target.classList.toggle('is-offscreen', !entry.isIntersecting);
+    });
+    root.querySelectorAll('.pgs-hero, .pgs-ribbon').forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [rootRef]);
+}
+
 function useScrollSpy(ids: string[]) {
   const [active, setActive] = useState<string | null>(null);
   const key = ids.join('|');
@@ -235,6 +248,7 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
     ? { href: whatsappMessageUrl(site.whatsapp.href, whatsappGreeting(isSponsorView ? 'sponsor' : 'candidata', site.name)), label: isSponsorView ? 'Escríbenos por WhatsApp para ser sponsor' : 'Escríbenos por WhatsApp para ser candidata' }
     : null;
   useReveal(rootRef, isSponsorView ? 'sponsor' : 'candidata');
+  useOffscreenPause(rootRef);
   const [openPackages, setOpenPackages] = useState<Set<string>>(() => new Set());
   const togglePackage = (id: string) =>
     setOpenPackages((prev) => {
