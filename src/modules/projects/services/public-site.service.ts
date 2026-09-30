@@ -285,6 +285,20 @@ export async function getPageantSlugByDomain(domain: string, reachedViaDomain = 
   return project.publicSlug;
 }
 
+/**
+ * `true` si el dominio está registrado en un certamen o en un sitio web, esté o no
+ * publicado. Solo sirve para decidir entre "sitio no disponible" (dominio de un cliente
+ * cuyo sitio aún no se publica) y mandar a la plataforma (dominio desconocido); nunca
+ * devuelve datos del sitio.
+ */
+export async function isRegisteredCustomDomain(domain: string): Promise<boolean> {
+  const [project, site] = await Promise.all([
+    prisma.project.findUnique({ where: { customDomain: domain }, select: { id: true } }),
+    prisma.webSite.findUnique({ where: { customDomain: domain }, select: { id: true } }),
+  ]);
+  return Boolean(project || site);
+}
+
 export async function resolveSponsorLeadTarget(
   slug: string
 ): Promise<{
