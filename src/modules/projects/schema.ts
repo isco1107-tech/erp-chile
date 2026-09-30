@@ -123,3 +123,34 @@ export const projectPublicSiteSchema = z
   });
 
 export type ProjectPublicSiteInput = z.infer<typeof projectPublicSiteSchema>;
+
+// ---------------------------------------------------------------------------
+// Salón de la fama: ganadoras de ediciones anteriores (`PastWinner`)
+// ---------------------------------------------------------------------------
+
+/** Máximo de fotos por certamen: una galería más larga deja de ser un "salón de la fama" y pesa en el teléfono. */
+export const MAX_PAST_WINNERS = 24;
+
+/** Sugerencias para el título del pie de foto; el campo es libre (cada franquicia tiene sus propias coronas). */
+export const PAST_WINNER_TITLE_SUGGESTIONS = ['Ganadora', 'Virreina', 'Segunda virreina', 'Finalista', 'Reina de la Simpatía', 'Miss Fotogenia', 'Miss Elegancia'] as const;
+
+export const pastWinnerSchema = z.object({
+  name: z.string().trim().min(1, 'Escribe el nombre de la ganadora').max(120, 'El nombre admite hasta 120 caracteres'),
+  title: z
+    .string()
+    .trim()
+    .max(60, 'El título admite hasta 60 caracteres')
+    .optional()
+    .transform((value) => (value ? value : 'Ganadora')),
+  year: z
+    .number()
+    .int('El año debe ser un número entero')
+    .min(1950, 'El año debe ser 1950 o posterior')
+    .max(new Date().getFullYear() + 1, 'El año no puede ser futuro')
+    .nullish()
+    .transform((value) => value ?? null),
+  note: optionalText(160),
+  photoUrl: z.string().trim().url('La foto no es una URL válida').max(1000),
+});
+
+export type PastWinnerInput = z.infer<typeof pastWinnerSchema>;

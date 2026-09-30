@@ -3,9 +3,12 @@ import { notFound } from 'next/navigation';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { buttonVariants } from '@/components/ui/button';
 import { PublicSiteForm } from '@/components/projects/PublicSiteForm';
+import { DevicePreview } from '@/components/projects/DevicePreview';
+import { PastWinnersEditor } from '@/components/projects/PastWinnersEditor';
 import { can, checkPageAccess } from '@/lib/auth/guards';
 import { PageAccessNotice } from '@/components/shared/PageAccessNotice';
 import { getProject } from '@/modules/projects/services/projects.service';
+import { listPastWinners } from '@/modules/projects/services/past-winners.service';
 
 export const metadata = { title: 'Sitio público del certamen' };
 
@@ -16,6 +19,7 @@ export default async function ProjectPublicSitePage({ params }: { params: Promis
   const context = access.context;
   const project = await getProject(context.companyId, id);
   if (!project) notFound();
+  const winners = await listPastWinners(context.companyId, id);
 
   return (
     <div className="space-y-5">
@@ -28,6 +32,12 @@ export default async function ProjectPublicSitePage({ params }: { params: Promis
         description="La página oficial del certamen para el público, las marcas y las postulantes: portada con cuenta regresiva, candidatas, auspiciadores, entradas, votación y resultados."
       />
       <PublicSiteForm project={project} canWrite={can(context, 'projects:write')} />
+      <DevicePreview projectId={project.id} />
+      <PastWinnersEditor
+        projectId={project.id}
+        winners={winners.map((w) => ({ id: w.id, name: w.name, title: w.title, year: w.year, note: w.note, photoUrl: w.photoUrl }))}
+        canWrite={can(context, 'projects:write')}
+      />
     </div>
   );
 }

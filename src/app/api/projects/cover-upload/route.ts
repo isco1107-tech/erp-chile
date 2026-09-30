@@ -20,6 +20,8 @@ export async function POST(req: Request) {
     const session = await requireAuthWithPermission('projects:write');
     const form = await req.formData();
     const projectId = String(form.get('projectId') ?? '');
+    // `winner` = foto del salón de la fama (otra carpeta, para que una empresa solo pueda asociar fotos suyas).
+    const purpose = form.get('purpose') === 'winner' ? 'winner' : 'cover';
     const file = form.get('file');
 
     if (!projectId) return NextResponse.json({ success: false, error: 'Falta el certamen' }, { status: 400 });
@@ -32,9 +34,12 @@ export async function POST(req: Request) {
 
     const bytes = new Uint8Array(await file.arrayBuffer());
     const sniffed = sniffImageType(bytes);
-    if (!sniffed) return NextResponse.json({ success: false, error: 'La portada debe ser JPG o PNG' }, { status: 400 });
+    if (!sniffed) return NextResponse.json({ success: false, error: purpose === 'winner' ? 'La foto debe ser JPG, PNG o WEBP' : 'La portada debe ser JPG o PNG' }, { status: 400 });
 
-    const pathname = `pageant-covers/${session.companyId}/${projectId}-${Date.now()}.${SNIFFED_IMAGE_EXTENSION[sniffed]}`;
+    const pathname =
+      purpose === 'winner'
+        ? `pageant-winners/${session.companyId}/${projectId}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${SNIFFED_IMAGE_EXTENSION[sniffed]}`
+        : `pageant-covers/${session.companyId}/${projectId}-${Date.now()}.${SNIFFED_IMAGE_EXTENSION[sniffed]}`;
     const blob = await put(pathname, new Blob([bytes], { type: sniffed }), { access: 'public', contentType: sniffed, addRandomSuffix: false });
 
     await createAuditLog({
@@ -44,7 +49,7 @@ export async function POST(req: Request) {
       action: 'UPDATE',
       entity: 'Project',
       entityId: projectId,
-      metadata: { field: 'coverImageUrl', url: blob.url },
+      metadata: { field: purpose === 'winner' ? 'pastWinnerPhoto' : 'coverImageUrl', url: blob.url },
     });
 
     return NextResponse.json({ success: true, data: { url: blob.url } });

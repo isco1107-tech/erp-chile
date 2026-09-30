@@ -20,6 +20,7 @@ import type { PublicPageantCandidate, PublicPageantSite } from '@/modules/projec
 import { Arrow, Calendar, Check, Chevron, Close, Crown, Diamond, Instagram, Mail, Pin, Plus, Ticket, Tiara, Whatsapp } from './icons';
 import { PAGEANT_FONT_CLASSES } from './fonts';
 import { FitText } from './FitText';
+import { HallOfFame } from './HallOfFame';
 import { HeroSky, Kicker, pad } from './parts';
 import { SponsorLeadForm } from './SponsorLeadForm';
 import { CandidateApplicationForm } from './CandidateApplicationForm';
@@ -264,6 +265,8 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
     const list: Array<{ id: string; label: string; show: boolean }> = [
       { id: 'resultados', label: 'Resultados', show: candidateSide && Boolean(winner) },
       { id: 'certamen', label: 'El certamen', show: Boolean(site.description) || view.highlights.length > 0 },
+      // Salón de la fama: prueba de trayectoria para la candidata (a quién puede llegar a ser) y para la marca (dónde se asocia).
+      { id: 'ganadoras', label: 'Ganadoras', show: site.pastWinners.length > 0 },
       // Con la convocatoria abierta, "Así es el proceso" de la inscripción reemplaza al recorrido general.
       { id: 'camino', label: 'El camino', show: candidateSide && !site.registration && !site.registrationNotice },
       { id: 'postula', label: 'Inscripción', show: candidateSide && (Boolean(site.registration) || Boolean(site.registrationNotice)) },
@@ -275,7 +278,7 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
       { id: 'preguntas', label: 'Preguntas', show: candidateSide && view.faq.length > 0 },
     ];
     return list.filter((s) => s.show);
-  }, [winner, site.description, site.registration, site.registrationNotice, site.candidates.length, site.voteRanking, hasGala, hasSponsorSection, view.highlights.length, view.faq.length, isSponsorView, showAudienceSwitch, site.director]);
+  }, [winner, site.description, site.registration, site.registrationNotice, site.pastWinners.length, site.candidates.length, site.voteRanking, hasGala, hasSponsorSection, view.highlights.length, view.faq.length, isSponsorView, showAudienceSwitch, site.director]);
   const shows = (id: string) => sections.some((s) => s.id === id);
   const numberOf = (id: string) => pad(sections.findIndex((s) => s.id === id) + 1);
   const navItems = sections.filter((s) => !['camino', 'preguntas'].includes(s.id)).slice(0, 6);
@@ -662,6 +665,9 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
             )}
           </section>
         )}
+
+        {/* ── Salón de la fama ─────────────────────────────────────────── */}
+        {shows('ganadoras') && <HallOfFame winners={site.pastWinners} index={numberOf('ganadoras')} />}
 
         {/* ── El camino a la corona ───────────────────────────────────── */}
         {shows('camino') && (

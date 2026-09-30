@@ -753,4 +753,48 @@ export const PAGEANT_SITE_STYLES = `
 .pgs-brand-name { display: block; min-width: 0; max-width: 100%; }
 .pgs-card-name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; font-size: clamp(1.05rem, 4.4vw, 1.75rem); }
 @media (min-width: 760px) { .pgs-card-name { font-size: clamp(1.3rem, 2.2vw, 1.75rem); } }
+
+/* ── Salón de la fama (ganadoras de ediciones anteriores) ───────────────────
+   Diseño editorial: la más reciente grande, con el año como numeral de contorno
+   y el pie de foto en la tipografía de gala; el resto en un carrusel de tarjetas
+   verticales con snap. Mismo lenguaje que las tarjetas de candidatas. */
+.pgs-hof-span { margin: 0; font-family: var(--serif); font-style: italic; font-size: 1.25rem; color: var(--on-night-dim); }
+.pgs-hof-lead { position: relative; margin: 0; display: grid; gap: clamp(1.75rem, 4vw, 3.5rem); align-items: center; justify-items: center; }
+@media (min-width: 900px) { .pgs-hof-lead { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); justify-items: stretch; } .pgs-hof-lead.is-solo { grid-template-columns: minmax(0, 1fr); justify-items: center; text-align: center; } }
+.pgs-hof-photo { position: relative; display: block; width: 100%; max-width: 25rem; aspect-ratio: 3 / 4; border-radius: 10px; background: var(--night-2); }
+.pgs-hof-photo > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 18%; border-radius: 10px; box-shadow: 0 0 0 1px var(--a), 0 50px 100px -50px var(--a); }
+.pgs-hof-photo::after { content: ''; position: absolute; inset: 0.7rem; border: 1px solid color-mix(in srgb, var(--a) 55%, transparent); border-radius: 4px; pointer-events: none; }
+.pgs-hof-crown { position: absolute; z-index: 2; top: -1.5rem; left: 50%; width: 3rem; height: 3rem; margin-left: -1.5rem; color: var(--a); filter: drop-shadow(0 0 14px var(--a)); }
+.pgs-hof-copy { position: relative; display: flex; flex-direction: column; gap: 0.7rem; min-width: 0; text-align: center; }
+@media (min-width: 900px) { .pgs-hof-copy { text-align: left; } .pgs-hof-lead.is-solo .pgs-hof-copy { text-align: center; align-items: center; } }
+.pgs-hof-year { display: block; font-family: var(--numeric); font-size: clamp(5.5rem, 17vw, 11rem); line-height: 0.85; letter-spacing: -0.02em; color: transparent; -webkit-text-stroke: 1px color-mix(in srgb, var(--a) 65%, transparent); font-variant-numeric: lining-nums; }
+.pgs-hof-title { display: block; font-size: 0.75rem; line-height: 1.6; font-weight: 700; letter-spacing: 0.28em; text-transform: uppercase; color: var(--a); }
+.pgs-hof-title-icon { display: inline-block; width: 1.05rem; height: 1.05rem; margin-right: 0.55rem; vertical-align: -0.2em; }
+.pgs-hof-name { display: block; font-family: var(--display); font-size: clamp(2.1rem, 5.4vw, 4.2rem); line-height: 1.05; color: var(--on-night); overflow-wrap: break-word; }
+.pgs-hof-note { display: block; font-family: var(--serif); font-style: italic; font-size: 1.2rem; line-height: 1.4; color: var(--on-night-dim); }
+.pgs-hof-bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: clamp(2.5rem, 6vw, 4rem); }
+.pgs-hof-nav { display: none; gap: 0.6rem; }
+@media (hover: hover) and (min-width: 900px) { .pgs-hof-nav { display: flex; } }
+.pgs-hof-nav button { display: grid; place-items: center; width: 2.75rem; height: 2.75rem; padding: 0; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--a) 50%, transparent); background: transparent; color: var(--a); cursor: pointer; transition: background-color 0.3s, color 0.3s, opacity 0.3s; }
+.pgs-hof-nav button svg { width: 1.1rem; height: 1.1rem; }
+.pgs-hof-nav button:hover:not(:disabled) { background: var(--a); color: var(--ink); }
+.pgs-hof-nav button:disabled { opacity: 0.3; cursor: default; }
+.pgs-hof-rail { list-style: none; margin: 1.1rem calc(var(--gutter) * -1) 0; padding: 0.4rem var(--gutter) 1rem; display: flex; gap: clamp(0.9rem, 2vw, 1.4rem); overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scroll-padding-inline: var(--gutter); scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.pgs-hof-rail::-webkit-scrollbar { display: none; }
+.pgs-hof-rail > li { flex: 0 0 clamp(11.5rem, 64vw, 16.5rem); scroll-snap-align: start; }
+/* Si caben todas, quedan centradas; si no, empiezan pegadas al borde y se deslizan. */
+.pgs-hof-rail > li:first-child { margin-left: auto; }
+.pgs-hof-rail > li:last-child { margin-right: auto; }
+.pgs-hof-card { margin: 0; }
+.pgs-hof-card-photo { position: relative; display: block; aspect-ratio: 3 / 4; overflow: hidden; border-radius: 6px; background: var(--night-2); }
+.pgs-hof-card-photo > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 18%; transition: transform 1.2s var(--ease); }
+.pgs-hof-card:hover .pgs-hof-card-photo > img { transform: scale(1.05); }
+.pgs-hof-card-photo::after { content: ''; position: absolute; inset: 0.55rem; border: 1px solid color-mix(in srgb, var(--a) 45%, transparent); border-radius: 3px; pointer-events: none; }
+.pgs-hof-card-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(7, 10, 28, 0.15) 0%, rgba(7, 10, 28, 0) 30%, rgba(7, 10, 28, 0.6) 65%, rgba(7, 10, 28, 0.96) 100%); }
+.pgs-hof-card-year { position: absolute; top: 0.85rem; left: 1rem; font-family: var(--numeric); font-size: clamp(1.6rem, 3vw, 2.1rem); line-height: 1; color: transparent; -webkit-text-stroke: 1px var(--a-bright); }
+.pgs-hof-card-caption { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; display: flex; flex-direction: column; gap: 0.25rem; padding: 1rem 1.1rem 1.2rem; }
+.pgs-hof-card-title { font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; color: var(--a); overflow-wrap: break-word; }
+.pgs-hof-card-name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; font-family: var(--display); font-size: clamp(1.2rem, 2vw, 1.5rem); line-height: 1.12; color: var(--on-night); overflow-wrap: anywhere; }
+.pgs-hof-card-note { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; font-size: 0.8rem; line-height: 1.35; color: var(--on-night-dim); overflow-wrap: anywhere; }
+.pgs-hof-rail:focus-visible { outline-offset: 2px; border-radius: 6px; }
 `;

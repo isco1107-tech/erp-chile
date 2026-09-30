@@ -102,12 +102,21 @@ module.exports = function collectProblems(rootSelector) {
     if (size < 11 && text.trim().length > 3) problems.push({ kind: 'letra-muy-chica', detail: `${label} usa ${size}px` });
   }
 
-  // Imágenes que se salen de la pantalla.
+  // Imágenes que se salen de la pantalla (las de un carrusel con scroll propio quedan fuera a propósito,
+  // pero el carrusel mismo sí tiene que caber en la pantalla).
   for (const img of root.querySelectorAll('img')) {
     if (img.closest('[hidden]')) continue;
-    const r = img.getBoundingClientRect();
-    if (r.width > 0 && (r.left < -1 || r.right > vw + 1) && !img.closest('.pgs-rail')) {
-      problems.push({ kind: 'imagen-fuera-de-pantalla', detail: `${describe(img)} va de ${Math.round(r.left)} a ${Math.round(r.right)}px (pantalla ${vw}px)` });
+    let scroller = null;
+    for (let p = img.parentElement; p && p !== root.parentElement; p = p.parentElement) {
+      const o = getComputedStyle(p).overflowX;
+      if (o === 'auto' || o === 'scroll') {
+        scroller = p;
+        break;
+      }
+    }
+    const r = (scroller || img).getBoundingClientRect();
+    if (r.width > 0 && (r.left < -1 || r.right > vw + 1)) {
+      problems.push({ kind: 'imagen-fuera-de-pantalla', detail: `${describe(scroller || img)} va de ${Math.round(r.left)} a ${Math.round(r.right)}px (pantalla ${vw}px)` });
     }
   }
 
