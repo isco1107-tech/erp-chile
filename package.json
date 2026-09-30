@@ -15,6 +15,7 @@
     "seed": "ts-node prisma/seed.ts",
     "postinstall": "prisma generate",
     "verify:landing": "node scripts/verify-landing.cjs",
+    "verify:responsive": "node scripts/verify-responsive.mjs",
     "desktop:release": "node scripts/desktop-ci.cjs start",
     "desktop:status": "node scripts/desktop-ci.cjs status",
     "desktop:download": "node scripts/desktop-ci.cjs download",

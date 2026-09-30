@@ -232,6 +232,7 @@ model Company {
   crmActivities             CrmActivity[]
   crmPeople                 CrmPerson[]
   sponsorshipPackages       SponsorshipPackage[]
+  pastWinners               PastWinner[]
   employees                 Employee[]
   payrollPeriods            PayrollPeriod[]
   payslips                  Payslip[]
@@ -1971,6 +1972,7 @@ model Project {
   expenseReports             ExpenseReport[]
   opportunities              Opportunity[]
   sponsorshipPackages        SponsorshipPackage[]
+  pastWinners                PastWinner[]
 
   // ── Gala y micrositio público del certamen ──────────────────────────────
   /// Fecha y hora de la gala final. Distinta de `startDate` (inicio del
@@ -2132,6 +2134,30 @@ model SponsorshipPackage {
   opportunities   Opportunity[]
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
+
+  @@index([companyId, projectId])
+}
+
+/// "Salón de la fama" del micrositio público: fotos de ganadoras de ediciones
+/// anteriores del certamen, con pie de foto (nombre + título: Ganadora,
+/// Virreina, Reina de la Simpatía…). Todo lo que hay acá se publica tal cual en
+/// `/certamen/[slug]`, así que no guarda nada que no deba ser público.
+model PastWinner {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  /// Lo que fue en esa edición ("Ganadora", "Virreina", "Reina de la Simpatía").
+  title     String   @default("Ganadora")
+  /// Año de la edición; ordena la galería (la más reciente va destacada).
+  year      Int?
+  /// Línea extra opcional del pie de foto (ej. "Representó a Temuco").
+  note      String?
+  photoUrl  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([companyId, projectId])
 }

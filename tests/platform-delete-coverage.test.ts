@@ -63,6 +63,8 @@ const CASCADES_TO_COMPANY = new Set([
   // desde Project, y sus hijos (contratos, oportunidades) apuntan con `SetNull`.
   'CrmPerson',
   'SponsorshipPackage',
+  // Salón de la fama del micrositio: `onDelete: Cascade` directo hacia Company y hacia Project.
+  'PastWinner',
   'Employee',
   'PayrollPeriod',
   'Payslip',

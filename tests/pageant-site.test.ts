@@ -7,6 +7,7 @@ import {
   directorCopy,
   galaCalendarUrl,
   galaDateParts,
+  headingSize,
   initials,
   pageantFaq,
   pageantHighlights,
@@ -303,7 +304,7 @@ describe('hero por vista (candidata / sponsor)', () => {
     const hero = audienceHero('sponsor', base);
     expect(hero.kicker).toBe('Patrocinios oficiales 2026');
     expect(hero.heading).toBe('Sé sponsor de la corona');
-    expect(hero.pills).toEqual(['3 categorías', 'Desde $500.000 + IVA']);
+    expect(hero.pills).toEqual(['3 categorías', 'Desde $500.000']);
     expect(audienceHero('sponsor', { ...base, packagePrices: [] }).pills).toEqual([]);
   });
 });
@@ -360,5 +361,28 @@ describe('correo de confirmación al sponsor', () => {
     expect(email.html).toContain('Joyas &lt;Sur&gt;');
     expect(email.text).toContain('Paquete de interés: Diamond Sponsor.');
     expect(email.text).toContain('WhatsApp: +56 9 8990 1046');
+  });
+});
+
+describe('headingSize', () => {
+  it('nombres normales conservan el tamaño de siempre', () => {
+    expect(headingSize('Miss Universo Temuco')).toBe('');
+    expect(headingSize(null)).toBe('');
+    expect(headingSize('')).toBe('');
+  });
+
+  it('achica los títulos según el largo total del texto', () => {
+    expect(headingSize('Concurso Nacional de Belleza y Elegancia')).toBe('is-long');
+    expect(headingSize('Reina Internacional de la Solidaridad y el Turismo Sustentable de Sudamérica')).toBe('is-xlong');
+  });
+
+  it('una sola palabra enorme también lo achica, aunque el texto sea corto', () => {
+    expect(headingSize('Panamericana')).toBe('');
+    expect(headingSize('Internacionalizada')).toBe('is-long');
+    expect(headingSize('Superextraordinariamente')).toBe('is-xlong');
+  });
+
+  it('una barra separa palabras (Temuco/Longuimay no cuenta como una de 16 letras)', () => {
+    expect(headingSize('Temuco/Longuimay')).toBe('');
   });
 });

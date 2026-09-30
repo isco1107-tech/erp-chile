@@ -12,6 +12,8 @@ const config = [
   {
     ignores: [
       '.next/**',
+      // Salidas generadas (capturas y paquetes de verify:landing y verify:responsive).
+      '.vercel/**',
       'node_modules/**',
       'coverage/**',
       'prisma/migrations/**',
