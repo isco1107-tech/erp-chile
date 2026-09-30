@@ -5,6 +5,7 @@ import { formatCurrency } from '@/lib/chile/tax';
 import {
   audienceHero,
   directorCopy,
+  headingSize,
   initials,
   registrationProcess,
   splitPackageBenefits,
@@ -18,6 +19,7 @@ import {
 import type { PublicPageantCandidate, PublicPageantSite } from '@/modules/projects/services/public-site.service';
 import { Arrow, Calendar, Check, Chevron, Close, Crown, Diamond, Instagram, Mail, Pin, Plus, Ticket, Tiara, Whatsapp } from './icons';
 import { PAGEANT_FONT_CLASSES } from './fonts';
+import { FitText } from './FitText';
 import { HeroSky, Kicker, pad } from './parts';
 import { SponsorLeadForm } from './SponsorLeadForm';
 import { CandidateApplicationForm } from './CandidateApplicationForm';
@@ -343,7 +345,7 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
       <header className={`pgs-top${scrolled || menuOpen ? ' is-solid' : ''}`}>
         <a className="pgs-brand" href="#inicio" aria-label={`${site.name}, inicio`}>
           <Crown className="pgs-brand-mark" />
-          <span className="pgs-brand-name">
+          <span className="pgs-brand-name" data-truncate>
             {title.lead && <span className="pgs-brand-lead">{title.lead} </span>}
             {title.main}
           </span>
@@ -440,9 +442,9 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
                 <span className="pgs-title-rule" aria-hidden="true" />
               </span>
             )}
-            <span className="pgs-title-main pgs-foil pgs-rise" style={{ animationDelay: '0.42s' }}>
+            <FitText className="pgs-title-main pgs-foil pgs-rise" style={{ animationDelay: '0.42s' }}>
               {title.main}
-            </span>
+            </FitText>
             {title.edition && (
               <span className="pgs-title-edition pgs-rise" style={{ animationDelay: '0.56s' }}>
                 {title.edition}
@@ -622,7 +624,7 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
                 <Kicker index={numberOf('certamen')} tone="paper">
                   El certamen
                 </Kicker>
-                <h2 id="pgs-about-title" className="pgs-h2 is-ink">
+                <h2 id="pgs-about-title" className={`pgs-h2 is-ink ${headingSize(shortName)}`.trim()}>
                   {title.lead ? (
                     <>
                       {title.lead} <em>{title.main}</em>
@@ -851,7 +853,7 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
                           </span>
                         )}
                         <span className="pgs-card-caption">
-                          <span className="pgs-card-name">{c.name}</span>
+                          <span className="pgs-card-name" data-truncate>{c.name}</span>
                           {c.representing && <span className="pgs-card-rep">{c.representing}</span>}
                           <span className="pgs-card-more" aria-hidden="true">
                             Ver perfil <Arrow />
@@ -930,7 +932,7 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
                 )}
               </div>
               <div className="pgs-gala-info" data-reveal>
-                <h2 id="pgs-gala-title" className="pgs-h2 is-ink">
+                <h2 id="pgs-gala-title" className={`pgs-h2 is-ink ${headingSize(site.venueName)}`.trim()}>
                   {site.venueName ? site.venueName : <>Una noche <em>para recordar</em></>}
                 </h2>
                 {site.venueAddress && (
@@ -1292,9 +1294,9 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
             {site.registration && <a href={site.registration.href}>Postula al certamen</a>}
           </div>
         </div>
-        <p className="pgs-footer-word" aria-hidden="true">
+        <FitText as="p" className="pgs-footer-word" aria-hidden="true">
           {title.main}
-        </p>
+        </FitText>
         <div className="pgs-wrap pgs-footer-legal">
           <p>
             © {title.edition ?? ''} {shortName}

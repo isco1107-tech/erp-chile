@@ -178,7 +178,7 @@ export const PAGEANT_SITE_STYLES = `
 .pgs-count { position: relative; min-width: clamp(4.4rem, 12vw, 7rem); padding: 0 clamp(0.4rem, 1.5vw, 1.2rem); display: flex; flex-direction: column; align-items: center; }
 .pgs-count + .pgs-count::before { content: ''; position: absolute; left: 0; top: 12%; bottom: 22%; width: 1px; background: linear-gradient(180deg, transparent, var(--line-night) 20%, color-mix(in srgb, var(--a) 45%, transparent), var(--line-night) 80%, transparent); }
 .pgs-count-value { font-size: clamp(2.4rem, 5.4vw, 3.6rem); font-weight: 400; line-height: 1; font-variant-numeric: tabular-nums; color: var(--on-night); }
-.pgs-count-label { margin-top: 0.55rem; font-size: 0.62rem; font-weight: 600; letter-spacing: 0.3em; text-transform: uppercase; color: var(--a); }
+.pgs-count-label { margin-top: 0.55rem; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.3em; text-transform: uppercase; color: var(--a); }
 .pgs-hero-ctas { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.8rem; margin-top: 1.8rem; }
 .pgs-hero-note { display: inline-flex; align-items: center; gap: 0.6rem; margin: 1.4rem 0 0; font-size: 0.82rem; letter-spacing: 0.04em; color: var(--on-night-dim); }
 .pgs-live-dot { position: relative; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: #e0455f; flex: none; }
@@ -192,18 +192,18 @@ export const PAGEANT_SITE_STYLES = `
 @media (max-width: 640px) {
   .pgs-hero-inner { padding-top: 5.6rem; padding-bottom: 3.5rem; }
   .pgs-tiara { width: 5rem; margin-bottom: 0.7rem; }
-  .pgs-hero-eyebrow { margin-bottom: 0.8rem; font-size: 0.62rem; letter-spacing: 0.26em; }
+  .pgs-hero-eyebrow { margin-bottom: 0.8rem; font-size: 0.6875rem; letter-spacing: 0.26em; }
   .pgs-title-lead { letter-spacing: 0.4em; margin-right: -0.4em; gap: 0.7rem; }
   .pgs-tagline { font-size: 1.12rem; margin-top: 1.1rem; }
   .pgs-hero-meta { flex-direction: column; align-items: center; gap: 0.4rem; font-size: 0.84rem; margin-top: 1rem; }
   .pgs-countdown { margin-top: 1.3rem; min-height: 4rem; }
   .pgs-count { min-width: 0; flex: 1; max-width: 5.2rem; padding: 0 0.25rem; }
   .pgs-count-value { font-size: clamp(2rem, 9vw, 2.3rem); }
-  .pgs-count-label { font-size: 0.56rem; letter-spacing: 0.14em; }
+  .pgs-count-label { font-size: 0.6875rem; letter-spacing: 0.14em; }
   .pgs-hero-ctas { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; width: 100%; max-width: 24rem; margin-top: 1.5rem; }
   .pgs-hero-ctas > :first-child { grid-column: 1 / -1; }
   .pgs-hero-ctas > :only-child, .pgs-hero-ctas > :first-child:nth-last-child(2) ~ * { grid-column: 1 / -1; }
-  .pgs-hero-ctas .pgs-btn.is-ghost { min-height: 2.9rem; padding: 0.7rem 0.8rem; font-size: 0.68rem; letter-spacing: 0.1em; }
+  .pgs-hero-ctas .pgs-btn.is-ghost { min-height: 2.9rem; padding: 0.7rem 0.8rem; font-size: 0.6875rem; letter-spacing: 0.1em; }
   .pgs-lg { display: none; }
   .pgs-sm { display: inline; }
   .pgs-hero-note { margin-top: 1rem; font-size: 0.76rem; }
@@ -275,7 +275,7 @@ export const PAGEANT_SITE_STYLES = `
 .pgs-journey li.is-done .pgs-journey-node { background: linear-gradient(135deg, var(--a-bright), var(--a-mid)); color: var(--ink); border-color: transparent; }
 .pgs-journey li.is-current .pgs-journey-node { border-color: var(--a); color: var(--a); box-shadow: 0 0 0 6px color-mix(in srgb, var(--a) 12%, transparent), 0 0 30px color-mix(in srgb, var(--a) 40%, transparent); }
 .pgs-journey-title { font-family: var(--display); font-size: 1.7rem; line-height: 1.15; display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.7rem; padding-top: 0.3rem; }
-.pgs-journey-now { font-family: var(--sans); font-size: 0.6rem; font-weight: 700; letter-spacing: 0.24em; text-transform: uppercase; padding: 0.3rem 0.6rem; border-radius: 999px; background: color-mix(in srgb, var(--a) 16%, transparent); color: var(--a); border: 1px solid color-mix(in srgb, var(--a) 40%, transparent); }
+.pgs-journey-now { font-family: var(--sans); font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.24em; text-transform: uppercase; padding: 0.3rem 0.6rem; border-radius: 999px; background: color-mix(in srgb, var(--a) 16%, transparent); color: var(--a); border: 1px solid color-mix(in srgb, var(--a) 40%, transparent); }
 .pgs-journey-detail { font-size: 0.92rem; line-height: 1.55; color: var(--on-night-dim); }
 .pgs-journey li.is-upcoming .pgs-journey-title { color: var(--on-night-dim); }
 @media (min-width: 900px) {
@@ -298,7 +298,7 @@ export const PAGEANT_SITE_STYLES = `
 .pgs-apply-ctas { display: flex; flex-wrap: wrap; align-items: center; gap: 1.2rem 1.8rem; margin-top: 2.2rem; }
 .pgs-apply-side { display: flex; flex-direction: column; gap: 1.8rem; }
 .pgs-apply-countdown { padding: 1.4rem 1.6rem; border-radius: 18px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line-night); }
-.pgs-apply-countdown-label { margin: 0; font-size: 0.66rem; font-weight: 600; letter-spacing: 0.26em; text-transform: uppercase; color: var(--a); }
+.pgs-apply-countdown-label { margin: 0; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.26em; text-transform: uppercase; color: var(--a); }
 .pgs-apply-countdown-value { margin: 0.6rem 0 0; display: flex; align-items: baseline; gap: 0.4rem; font-family: var(--display); }
 .pgs-apply-countdown-value span { font-size: 3.4rem; line-height: 1; }
 .pgs-apply-countdown-value small { font-family: var(--sans); font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--on-night-dim); margin-right: 0.9rem; }
@@ -320,12 +320,12 @@ export const PAGEANT_SITE_STYLES = `
 .pgs-card:hover .pgs-card-photo > img, .pgs-card:hover .pgs-card-photo > .pgs-monogram { transform: scale(1.06); }
 .pgs-card-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(7,10,28,0) 45%, rgba(7,10,28,0.55) 70%, rgba(7,10,28,0.95) 100%); }
 .pgs-card-number { position: absolute; top: 0.9rem; left: 1rem; font-family: var(--display); font-size: clamp(1.6rem, 3vw, 2.2rem); line-height: 1; color: transparent; -webkit-text-stroke: 1px var(--a-bright); }
-.pgs-card-flag { position: absolute; top: 1rem; right: 1rem; display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.65rem; border-radius: 999px; font-size: 0.6rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; background: linear-gradient(120deg, var(--a-bright), var(--a-mid)); color: var(--ink); }
+.pgs-card-flag { position: absolute; top: 1rem; right: 1rem; display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.65rem; border-radius: 999px; font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; background: linear-gradient(120deg, var(--a-bright), var(--a-mid)); color: var(--ink); }
 .pgs-card-flag.is-soft { background: rgba(7, 10, 28, 0.7); color: var(--a); border: 1px solid color-mix(in srgb, var(--a) 50%, transparent); }
 .pgs-badge-icon { width: 0.95rem; height: 0.95rem; }
 .pgs-card-caption { position: absolute; left: 0; right: 0; bottom: 0; padding: 1rem 1.1rem 1.15rem; display: flex; flex-direction: column; gap: 0.2rem; }
 .pgs-card-name { font-family: var(--display); font-size: clamp(1.3rem, 2.2vw, 1.75rem); line-height: 1.1; color: var(--on-night); }
-.pgs-card-rep { font-size: 0.64rem; font-weight: 600; letter-spacing: 0.26em; text-transform: uppercase; color: var(--a); }
+.pgs-card-rep { font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.26em; text-transform: uppercase; color: var(--a); }
 .pgs-card-more { display: inline-flex; align-items: center; gap: 0.4rem; max-height: 0; opacity: 0; overflow: hidden; font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--on-night-dim); transition: max-height 0.6s var(--ease), opacity 0.6s var(--ease), margin 0.6s var(--ease); }
 .pgs-card-more svg { width: 0.9rem; height: 0.9rem; }
 .pgs-card:hover .pgs-card-more, .pgs-card:focus-visible .pgs-card-more { max-height: 1.5rem; opacity: 1; margin-top: 0.5rem; }
@@ -353,7 +353,7 @@ export const PAGEANT_SITE_STYLES = `
 .pgs-dialog-nav button { width: 2.6rem; height: 2.6rem; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--line-night); background: none; color: var(--on-night); cursor: pointer; transition: border-color 0.3s, color 0.3s; }
 .pgs-dialog-nav button:hover { border-color: var(--a); color: var(--a); }
 .pgs-dialog-nav svg { width: 1.1rem; height: 1.1rem; }
-.pgs-badge { display: inline-flex; align-items: center; gap: 0.4rem; margin: 0.2rem 0 0; padding: 0.35rem 0.8rem; border-radius: 999px; font-size: 0.64rem; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; background: linear-gradient(120deg, var(--a-bright), var(--a-mid)); color: var(--ink); }
+.pgs-badge { display: inline-flex; align-items: center; gap: 0.4rem; margin: 0.2rem 0 0; padding: 0.35rem 0.8rem; border-radius: 999px; font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; background: linear-gradient(120deg, var(--a-bright), var(--a-mid)); color: var(--ink); }
 .pgs-badge.is-soft { background: none; color: var(--a); border: 1px solid color-mix(in srgb, var(--a) 50%, transparent); }
 
 /* ── Votación ── */
@@ -366,12 +366,12 @@ export const PAGEANT_SITE_STYLES = `
 .pgs-ranking-pos svg { width: 1.8rem; height: 1.8rem; color: var(--a); }
 .pgs-ranking-body { display: flex; flex-direction: column; gap: 0.55rem; min-width: 0; }
 .pgs-ranking-name { font-family: var(--display); font-size: 1.35rem; line-height: 1.15; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.7rem; }
-.pgs-ranking-num { font-family: var(--sans); font-size: 0.66rem; letter-spacing: 0.2em; color: var(--on-night-dim); }
+.pgs-ranking-num { font-family: var(--sans); font-size: 0.6875rem; letter-spacing: 0.2em; color: var(--on-night-dim); }
 .pgs-bar { position: relative; display: block; height: 3px; border-radius: 3px; background: rgba(255, 255, 255, 0.07); overflow: hidden; }
 .pgs-bar span { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: linear-gradient(90deg, var(--a-mid), var(--a-bright)); transform-origin: left; transition: transform 1.6s 0.2s var(--ease); }
 .pgs[data-motion='on'] .pgs-ranking:not(.is-in) .pgs-bar span { transform: scaleX(0); }
 .pgs-ranking-votes { text-align: right; font-family: var(--display); font-size: 1.5rem; line-height: 1; font-variant-numeric: tabular-nums; }
-.pgs-ranking-votes small { display: block; margin-top: 0.3rem; font-family: var(--sans); font-size: 0.6rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--on-night-dim); }
+.pgs-ranking-votes small { display: block; margin-top: 0.3rem; font-family: var(--sans); font-size: 0.6875rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--on-night-dim); }
 .pgs-ranking li.is-first { padding: 1.5rem 0; }
 .pgs-ranking li.is-first .pgs-ranking-name { font-size: 1.9rem; }
 .pgs-ranking li.is-first .pgs-ranking-votes { font-size: 2rem; color: var(--a); }
@@ -394,7 +394,7 @@ export const PAGEANT_SITE_STYLES = `
 /* ── Auspicios ── */
 .pgs-sponsors { display: flex; flex-direction: column; gap: clamp(2.5rem, 5vw, 3.5rem); }
 .pgs-sponsor-tier { text-align: center; }
-.pgs-sponsor-label { display: flex; align-items: center; justify-content: center; gap: 1rem; margin: 0 0 1.4rem; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.32em; text-transform: uppercase; color: var(--a); }
+.pgs-sponsor-label { display: flex; align-items: center; justify-content: center; gap: 1rem; margin: 0 0 1.4rem; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.32em; text-transform: uppercase; color: var(--a); }
 .pgs-sponsor-label span { width: 3rem; height: 1px; background: linear-gradient(90deg, transparent, var(--a)); }
 .pgs-sponsor-label span:last-child { background: linear-gradient(90deg, var(--a), transparent); }
 .pgs-sponsor-tier ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0.8rem clamp(1.8rem, 5vw, 3.8rem); }
@@ -415,7 +415,7 @@ export const PAGEANT_SITE_STYLES = `
 .pgs-benefits { list-style: none; margin: 1.3rem 0 0; padding: 1.3rem 0 0; border-top: 1px solid var(--line-night); display: flex; flex-direction: column; gap: 0.7rem; }
 .pgs-benefits li { display: flex; align-items: flex-start; gap: 0.7rem; font-size: 0.92rem; line-height: 1.45; }
 .pgs-benefit-mark { flex: none; width: 0.55rem; height: 0.55rem; margin-top: 0.4rem; color: var(--a); }
-.pgs-slots { margin: auto 0 0; padding-top: 1.5rem; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; color: var(--a); }
+.pgs-slots { margin: auto 0 0; padding-top: 1.5rem; font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; color: var(--a); }
 .pgs-lead { margin-top: clamp(3.5rem, 8vw, 5.5rem); display: grid; gap: 2rem; padding: clamp(1.8rem, 5vw, 3.5rem); border-radius: 24px; background: var(--paper); color: var(--ink); }
 @media (min-width: 900px) { .pgs-lead { grid-template-columns: 4fr 7fr; gap: 4rem; } }
 .pgs-lead .pgs-h3 { margin: 0; text-align: left; color: var(--ink); }
@@ -426,7 +426,7 @@ export const PAGEANT_SITE_STYLES = `
 .pgs-form-grid { display: grid; gap: 1.1rem; grid-template-columns: 1fr; }
 @media (min-width: 640px) { .pgs-form-grid { grid-template-columns: 1fr 1fr; } }
 .pgs-field { display: flex; flex-direction: column; gap: 0.45rem; }
-.pgs-field label { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink); }
+.pgs-field label { font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink); }
 .pgs-field label span { font-weight: 500; letter-spacing: 0.08em; text-transform: none; color: var(--ink-soft); }
 .pgs-field input, .pgs-field select, .pgs-field textarea { width: 100%; padding: 0.85rem 1rem; border-radius: 12px; border: 1px solid var(--line-paper); background: #fff; color: var(--ink); font: 400 1rem/1.4 var(--sans); transition: border-color 0.3s, box-shadow 0.3s; }
 .pgs-field textarea { resize: vertical; min-height: 7rem; }
@@ -465,7 +465,7 @@ export const PAGEANT_SITE_STYLES = `
 .pgs-winner-rep { margin: 0; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.3em; text-transform: uppercase; color: var(--a); }
 .pgs-court { list-style: none; margin: 2.5rem 0 0; padding: 0; display: grid; gap: 0.8rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr)); }
 .pgs-court li { display: flex; flex-direction: column; gap: 0.2rem; padding: 1rem 1.2rem; border-radius: 14px; border: 1px solid var(--line-night); background: rgba(255,255,255,0.03); }
-.pgs-court-rank { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.24em; text-transform: uppercase; color: var(--a); }
+.pgs-court-rank { font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.24em; text-transform: uppercase; color: var(--a); }
 .pgs-court-name { font-family: var(--display); font-size: 1.35rem; }
 .pgs-court-rep { font-size: 0.8rem; color: var(--on-night-dim); }
 
@@ -507,10 +507,10 @@ export const PAGEANT_SITE_STYLES = `
 
 /* ── Vistas candidata / sponsor ─────────────────────────────────────── */
 .pgs-audience { display: inline-flex; padding: 3px; border-radius: 999px; border: 1px solid var(--line-night); background: rgba(7, 10, 28, 0.55); backdrop-filter: blur(8px); }
-.pgs-audience button { appearance: none; border: 0; background: transparent; color: var(--on-night); font: 600 0.68rem/1 var(--sans); letter-spacing: 0.12em; text-transform: uppercase; padding: 0.6rem 0.95rem; border-radius: 999px; cursor: pointer; white-space: nowrap; transition: background 0.3s, color 0.3s; }
+.pgs-audience button { appearance: none; border: 0; background: transparent; color: var(--on-night); font: 600 0.6875rem/1 var(--sans); letter-spacing: 0.12em; text-transform: uppercase; padding: 0.6rem 0.95rem; border-radius: 999px; cursor: pointer; white-space: nowrap; transition: background 0.3s, color 0.3s; }
 .pgs-audience button:hover { color: var(--a-bright); }
 .pgs-audience button.is-active { background: linear-gradient(120deg, var(--a-bright), var(--a) 45%, var(--a-mid)); color: var(--ink); }
-@media (max-width: 480px) { .pgs-audience button { padding: 0.55rem 0.7rem; font-size: 0.62rem; letter-spacing: 0.08em; } .pgs-top .pgs-brand-name { display: none; } }
+@media (max-width: 480px) { .pgs-audience button { padding: 0.55rem 0.7rem; font-size: 0.6875rem; letter-spacing: 0.08em; } .pgs-top .pgs-brand-name { display: none; } }
 .pgs-subhead { margin-top: clamp(3.5rem, 8vw, 5.5rem); margin-bottom: clamp(1.8rem, 4vw, 2.6rem); }
 .pgs-wrap > .pgs-subhead:first-child { margin-top: 0; }
 .pgs-eyebrow.is-ink { color: var(--a-deep); }
@@ -539,7 +539,7 @@ export const PAGEANT_SITE_STYLES = `
 .pgs-form .pgs-btn.pgs-btn-block { align-self: stretch; }
 .pgs-lead-pick { margin: 0; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 1rem; border-radius: 12px; background: color-mix(in srgb, var(--a) 22%, var(--paper)); color: var(--ink); font-size: 0.9rem; }
 .pgs-lead-pick button { appearance: none; border: 0; background: none; color: var(--ink-soft); font: 600 0.75rem/1 var(--sans); text-decoration: underline; cursor: pointer; }
-.pgs-package-group { margin: 1.3rem 0 0; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: var(--a); }
+.pgs-package-group { margin: 1.3rem 0 0; font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: var(--a); }
 .pgs-package-group + .pgs-benefits { margin-top: 0.8rem; padding-top: 0; border-top: 0; }
 .pgs-package-actions { margin-top: auto; padding-top: 1.5rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.8rem 1.2rem; }
 .pgs-package-actions .pgs-link { font-size: 0.7rem; }
@@ -555,7 +555,7 @@ export const PAGEANT_SITE_STYLES = `
 .pgs-pill-mark { width: 0.7rem; height: 0.7rem; color: var(--a); }
 .pgs-hero-link { margin-top: 1.4rem; }
 .pgs-head-note { margin: 0.9rem 0 0; font-size: 0.92rem; }
-@media (max-width: 640px) { .pgs-pills li { font-size: 0.64rem; padding: 0.45rem 0.75rem; letter-spacing: 0.06em; } }
+@media (max-width: 640px) { .pgs-pills li { font-size: 0.6875rem; padding: 0.45rem 0.75rem; letter-spacing: 0.06em; } }
 
 /* ── Paquetes desplegables ──────────────────────────────────────────── */
 .pgs-packages { align-items: start; }
@@ -701,7 +701,7 @@ export const PAGEANT_SITE_STYLES = `
 .pgs-footer-legal { color: color-mix(in srgb, var(--on-night) 70%, transparent); }
 
 /* "MISS UNIVERSO": protagonista junto al nombre, en la tipografía de display y a escala del ancho. */
-.pgs-title-lead { font-family: var(--display); font-weight: 400; font-size: min(3.1rem, calc(80vw / var(--pgs-lead-fit, 12))); letter-spacing: 0.2em; margin-right: -0.2em; gap: clamp(0.7rem, 2vw, 1.4rem); color: var(--on-night); text-shadow: 0 0 28px color-mix(in srgb, var(--a) 35%, transparent); }
+.pgs-title-lead { font-family: var(--display); font-weight: 400; font-size: clamp(0.85rem, calc(80vw / var(--pgs-lead-fit, 12)), 3.1rem); max-width: 100%; text-align: center; white-space: normal; text-wrap: balance; letter-spacing: 0.2em; margin-right: -0.2em; gap: clamp(0.7rem, 2vw, 1.4rem); color: var(--on-night); text-shadow: 0 0 28px color-mix(in srgb, var(--a) 35%, transparent); }
 .pgs-title-rule:last-child { margin-left: -0.2em; }
 .pgs-title-rule { width: clamp(1.2rem, 5vw, 4.5rem); }
 @media (max-width: 640px) { .pgs-title-lead { letter-spacing: 0.14em; margin-right: -0.14em; } .pgs-title-rule { width: 1rem; } .pgs-title-rule:last-child { margin-left: -0.14em; } }
@@ -712,4 +712,45 @@ export const PAGEANT_SITE_STYLES = `
 .pgs-hero.has-cover .pgs-sheen { opacity: 0.5; }
 
 @media (max-width: 640px) { .pgs-director-photo { max-width: 17rem; outline-offset: 8px; } }
+
+/* ── Blindaje de responsividad ─────────────────────────────────────────────
+   Reglas de red de seguridad: ningún texto (nombre de certamen, correo, URL,
+   palabra larguísima) puede ensanchar la página ni salirse de la pantalla.
+   Se verifican con \`npm run verify:responsive\` antes de publicar. */
+.pgs { overflow-wrap: anywhere; }
+/* Hijos de grid/flex pueden encogerse (por defecto su mínimo es el contenido y revientan el ancho). */
+:where(.pgs) :where(div, section, article, header, footer, nav, main, form, fieldset, label, ul, ol, li, dl, dt, dd, figure, p, h1, h2, h3, h4, span, a, small, strong, em, blockquote) { min-width: 0; }
+:where(.pgs) :where(img, video, svg) { max-width: 100%; }
+:where(.pgs) :where(h1, h2, h3, h4) { text-wrap: balance; }
+:where(.pgs) :where(p, li, dd, figcaption) { text-wrap: pretty; }
+/* Botones: la etiqueta puede pasar a dos líneas en pantallas angostas en vez de salirse. */
+.pgs-btn { white-space: normal; text-align: center; max-width: 100%; }
+.pgs-btn-icon, .pgs-inline-icon, .pgs-badge-icon { flex: none; }
+.pgs-gala-num { font-size: clamp(5.5rem, 22vw, 15rem); }
+/* Barra superior: los enlaces nunca se parten; si falta espacio se achica el espaciado y, antes que todo, el nombre (que trunca). */
+.pgs-nav { flex: 0 1 auto; gap: clamp(0.9rem, 1.7vw, 2rem); }
+.pgs-nav a { white-space: nowrap; letter-spacing: clamp(0.1em, 0.6vw, 0.2em); }
+.pgs-brand { flex: 0 1 auto; }
+.pgs-top-actions { flex: none; }
+/* Cifras y etiquetas: en pantallas muy angostas el espaciado entre letras se reduce para que la palabra entre completa. */
+@media (max-width: 420px) { .pgs-stat dt { letter-spacing: 0.1em; } .pgs-btn { letter-spacing: 0.08em; padding-left: 1.1rem; padding-right: 1.1rem; } }
+/* En teléfonos plegados (≤ 359 px) las candidatas van de a una: dos columnas dejarían cada tarjeta demasiado angosta. */
+@media (max-width: 359px) {
+  .pgs-grid { grid-template-columns: minmax(0, 1fr); }
+  .pgs-stats { grid-template-columns: minmax(0, 1fr); }
+  .pgs-stat, .pgs-stat + .pgs-stat, .pgs-stat:nth-child(odd) { padding-left: 0; border-left: 0; }
+  .pgs-btn { letter-spacing: 0.04em; padding-left: 0.8rem; padding-right: 0.8rem; font-size: 0.75rem; }
+}
+.pgs-footer-edition { white-space: nowrap; }
+/* Títulos de sección según el largo del nombre del certamen (ver headingSize en PageantSite). */
+.pgs-h2.is-long { font-size: clamp(2rem, 4.6vw, 3.6rem); }
+.pgs-h2.is-xlong { font-size: clamp(1.7rem, 3.4vw, 2.7rem); }
+/* El título grande se ajusta con FitText y el CSS de arriba: nunca parte una palabra a la mitad. */
+.pgs-title, .pgs-title * { overflow-wrap: normal; }
+/* Títulos de una línea que FitText ajusta al ancho real. */
+.pgs-title-main, .pgs-footer-word { display: block; max-width: 100%; white-space: nowrap; overflow-wrap: normal; }
+/* Truncados a propósito (el nombre completo está en el título y en el perfil): nunca invaden otra caja. */
+.pgs-brand-name { display: block; min-width: 0; max-width: 100%; }
+.pgs-card-name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; font-size: clamp(1.05rem, 4.4vw, 1.75rem); }
+@media (min-width: 760px) { .pgs-card-name { font-size: clamp(1.3rem, 2.2vw, 1.75rem); } }
 `;

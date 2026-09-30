@@ -456,3 +456,17 @@ export function audienceHero(
     pills,
   };
 }
+
+/**
+ * Clase de tamaño para un título de sección que lleva un texto del certamen
+ * (su nombre, la sede): el tamaño fijo de los títulos está pensado para
+ * nombres cortos, y uno de 80 letras o una palabra de 20 no cabe en una
+ * columna. Devuelve `''` si el tamaño normal alcanza.
+ */
+export function headingSize(text: string | null | undefined): '' | 'is-long' | 'is-xlong' {
+  const clean = (text ?? '').trim();
+  const longestWord = clean.split(/[\s/]+/).reduce((max, word) => Math.max(max, word.length), 0);
+  if (clean.length > 52 || longestWord > 18) return 'is-xlong';
+  if (clean.length > 28 || longestWord > 12) return 'is-long';
+  return '';
+}
