@@ -1,5 +1,3 @@
-import Link from 'next/link';
-
 /**
  * Marca de agua del producto: "hecho con Aether ERP", con el ícono de marca
  * en la esquina inferior derecha — lejos de la esquina inferior
@@ -13,10 +11,15 @@ import Link from 'next/link';
  * Enlaza a `/aether/privacidad` (ruta pública, exceptuada en `src/proxy.ts`):
  * es el único lugar del producto que apunta a la política de privacidad de
  * la plataforma Aether, distinta de la política de cada empresa cliente.
+ *
+ * Es un `<a>` y no un `Link` a propósito: en el dominio propio de un cliente
+ * `/aether/privacidad` redirige a la plataforma (otro origen), y la precarga de
+ * `Link` chocaba con el CSP (`connect-src 'self'`) dejando un error en cada carga.
+ * Una navegación normal no precarga nada y llega igual.
  */
 export default function AetherBadge() {
   return (
-    <Link
+    <a
       href="/aether/privacidad"
       aria-label="Hecho con Aether ERP Solutions — ver política de privacidad de la plataforma"
       className="aether-platform-badge fixed right-4 bottom-20 z-30 flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/90 px-2.5 py-1.5 text-[11px] font-medium text-slate-500 opacity-70 shadow-sm backdrop-blur-sm transition-opacity duration-150 hover:opacity-100 print:hidden"
@@ -25,6 +28,6 @@ export default function AetherBadge() {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/branding/logo-badge.png" alt="" aria-hidden="true" width={56} height={42} className="h-3.5 w-3.5 shrink-0 object-contain" />
       Hecho con Aether ERP
-    </Link>
+    </a>
   );
 }

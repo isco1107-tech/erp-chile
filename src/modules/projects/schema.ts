@@ -150,6 +150,8 @@ export const pastWinnerSchema = z.object({
     .nullish()
     .transform((value) => value ?? null),
   note: optionalText(160),
+  /** Reciente: foto completa. Todas las marcadas llevan el mismo formato; las demás van al carrusel de ediciones anteriores. */
+  featured: z.boolean().default(false),
   photoUrl: z.string().trim().url('La foto no es una URL válida').max(1000),
 });
 

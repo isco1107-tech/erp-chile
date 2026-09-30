@@ -7,6 +7,7 @@ import { ImagePlus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { useConfirm } from '@/components/ui/confirm-provider';
 import { createPastWinnerAction, deletePastWinnerAction, updatePastWinnerAction } from '@/modules/projects/actions/past-winners.actions';
 import { MAX_PAST_WINNERS, PAST_WINNER_TITLE_SUGGESTIONS } from '@/modules/projects/schema';
@@ -18,6 +19,7 @@ export interface PastWinnerRow {
   year: number | null;
   note: string | null;
   photoUrl: string;
+  featured: boolean;
 }
 
 interface Draft {
@@ -25,19 +27,20 @@ interface Draft {
   title: string;
   year: string;
   note: string;
+  featured: boolean;
 }
 
-const EMPTY: Draft = { name: '', title: 'Ganadora', year: '', note: '' };
+const EMPTY: Draft = { name: '', title: 'Ganadora', year: '', note: '', featured: false };
 const LIST_ID = 'past-winner-titles';
 
 function toInput(draft: Draft, photoUrl: string) {
   const year = draft.year.trim();
-  return { name: draft.name, title: draft.title, year: year ? Number(year) : null, note: draft.note, photoUrl };
+  return { name: draft.name, title: draft.title, year: year ? Number(year) : null, note: draft.note, featured: draft.featured, photoUrl };
 }
 
 /** Campos comunes (nombre, título del pie de foto, año, nota) de una ganadora nueva o existente. */
 function Fields({ value, onChange, disabled, idPrefix }: { value: Draft; onChange: (next: Draft) => void; disabled?: boolean; idPrefix: string }) {
-  const set = (key: keyof Draft) => (event: React.ChangeEvent<HTMLInputElement>) => onChange({ ...value, [key]: event.target.value });
+  const set = (key: 'name' | 'title' | 'year' | 'note') => (event: React.ChangeEvent<HTMLInputElement>) => onChange({ ...value, [key]: event.target.value });
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <div className="sm:col-span-2">
@@ -55,6 +58,15 @@ function Fields({ value, onChange, disabled, idPrefix }: { value: Draft; onChang
       <div className="sm:col-span-2">
         <Label htmlFor={`${idPrefix}-note`}>Detalle (opcional)</Label>
         <Input id={`${idPrefix}-note`} value={value.note} onChange={set('note')} maxLength={160} placeholder="Ej. Representó a Temuco" disabled={disabled} />
+      </div>
+      <div className="flex items-start justify-between gap-3 rounded-md border border-border p-3 sm:col-span-2">
+        <div>
+          <p className="text-sm font-medium">Reciente · foto completa</p>
+          <p className="text-xs text-muted-foreground">
+            Actívalo para las ganadoras de la última edición: se muestran grandes, todas con el mismo formato. Si lo dejas apagado, aparece en el carrusel de &quot;Ediciones anteriores&quot;.
+          </p>
+        </div>
+        <Switch checked={value.featured} onCheckedChange={(featured) => onChange({ ...value, featured })} label="Reciente, con foto completa" disabled={disabled} />
       </div>
     </div>
   );
@@ -78,10 +90,10 @@ function WinnerCard({ projectId, winner, canWrite }: { projectId: string; winner
   const router = useRouter();
   const confirm = useConfirm();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [draft, setDraft] = useState<Draft>({ name: winner.name, title: winner.title, year: winner.year ? String(winner.year) : '', note: winner.note ?? '' });
+  const [draft, setDraft] = useState<Draft>({ name: winner.name, title: winner.title, year: winner.year ? String(winner.year) : '', note: winner.note ?? '', featured: winner.featured });
   const [photoUrl, setPhotoUrl] = useState(winner.photoUrl);
   const [busy, setBusy] = useState(false);
-  const dirty = photoUrl !== winner.photoUrl || draft.name !== winner.name || draft.title !== winner.title || draft.year !== (winner.year ? String(winner.year) : '') || draft.note !== (winner.note ?? '');
+  const dirty = photoUrl !== winner.photoUrl || draft.name !== winner.name || draft.title !== winner.title || draft.year !== (winner.year ? String(winner.year) : '') || draft.note !== (winner.note ?? '') || draft.featured !== winner.featured;
 
   async function changePhoto(file: File) {
     setBusy(true);
@@ -163,7 +175,8 @@ function WinnerCard({ projectId, winner, canWrite }: { projectId: string; winner
 export function PastWinnersEditor({ projectId, winners, canWrite }: { projectId: string; winners: PastWinnerRow[]; canWrite: boolean }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [draft, setDraft] = useState<Draft>(EMPTY);
+  // La primera ganadora que se carga es, casi siempre, la reciente: parte encendido solo si todavía no hay ninguna.
+  const [draft, setDraft] = useState<Draft>({ ...EMPTY, featured: !winners.some((w) => w.featured) });
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -184,7 +197,7 @@ export function PastWinnersEditor({ projectId, winners, canWrite }: { projectId:
       const result = await createPastWinnerAction(projectId, toInput(draft, url));
       if (!result.success) return void toast.error(result.error);
       toast.success(result.message ?? 'Ganadora agregada');
-      setDraft(EMPTY);
+      setDraft({ ...EMPTY, featured: false });
       pick(null);
       if (fileRef.current) fileRef.current.value = '';
       router.refresh();
@@ -213,7 +226,7 @@ export function PastWinnersEditor({ projectId, winners, canWrite }: { projectId:
       {winners.length > 0 && (
         <ul className="space-y-3" aria-label="Ganadoras publicadas">
           {winners.map((winner) => (
-            <WinnerCard key={`${winner.id}-${winner.photoUrl}`} projectId={projectId} winner={winner} canWrite={canWrite} />
+            <WinnerCard key={`${winner.id}-${winner.photoUrl}-${winner.featured}`} projectId={projectId} winner={winner} canWrite={canWrite} />
           ))}
         </ul>
       )}

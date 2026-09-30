@@ -78,6 +78,13 @@ describe('pastWinnerSchema', () => {
     expect(parsed.title).toBe('Ganadora');
     expect(parsed.year).toBeNull();
     expect(parsed.note).toBeNull();
+    expect(parsed.featured).toBe(false);
+  });
+
+  it('la marca "reciente" se conserva y por defecto está apagada', () => {
+    expect(pastWinnerSchema.parse({ ...valid, featured: true }).featured).toBe(true);
+    expect(pastWinnerSchema.parse(valid).featured).toBe(false);
+    expect(pastWinnerSchema.safeParse({ ...valid, featured: 'si' }).success).toBe(false);
   });
 
   it('rechaza nombre vacío, año imposible y foto que no es URL', () => {
@@ -229,11 +236,11 @@ describe('sitio público', () => {
       publicAccent: 'gold',
       company: { businessName: 'Aurora SpA', status: 'ACTIVE', features: { hasEventProjects: true } },
     });
-    db.pwFindMany.mockResolvedValue([{ id: 'w1', name: 'Camila', title: 'Ganadora', year: 2025, note: null, photoUrl: OWN_PHOTO }]);
+    db.pwFindMany.mockResolvedValue([{ id: 'w1', name: 'Camila', title: 'Ganadora', year: 2025, note: null, photoUrl: OWN_PHOTO, featured: true }]);
     const site = await getPublicPageantSite('miss-sur');
-    expect(site?.pastWinners).toEqual([{ id: 'w1', name: 'Camila', title: 'Ganadora', year: 2025, note: null, photoUrl: OWN_PHOTO }]);
+    expect(site?.pastWinners).toEqual([{ id: 'w1', name: 'Camila', title: 'Ganadora', year: 2025, note: null, photoUrl: OWN_PHOTO, featured: true }]);
     const query = db.pwFindMany.mock.calls[0]![0];
     expect(query.where).toEqual({ companyId: COMPANY, projectId: PROJECT });
-    expect(Object.keys(query.select).sort()).toEqual(['id', 'name', 'note', 'photoUrl', 'title', 'year']);
+    expect(Object.keys(query.select).sort()).toEqual(['featured', 'id', 'name', 'note', 'photoUrl', 'title', 'year']);
   });
 });

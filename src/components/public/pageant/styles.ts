@@ -797,4 +797,13 @@ export const PAGEANT_SITE_STYLES = `
 .pgs-hof-card-name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; font-family: var(--display); font-size: clamp(1.2rem, 2vw, 1.5rem); line-height: 1.12; color: var(--on-night); overflow-wrap: anywhere; }
 .pgs-hof-card-note { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; font-size: 0.8rem; line-height: 1.35; color: var(--on-night-dim); overflow-wrap: anywhere; }
 .pgs-hof-rail:focus-visible { outline-offset: 2px; border-radius: 6px; }
+
+/* Varias recientes (p. ej. las dos ganadoras de la última edición): todas con el mismo formato, una junto a otra. */
+.pgs-hof-featured { display: flex; flex-wrap: wrap; justify-content: center; gap: clamp(2.5rem, 5vw, 4rem) clamp(1.5rem, 4vw, 3rem); }
+.pgs-hof-lead.is-multi { flex: 1 1 17rem; max-width: 26rem; display: flex; flex-direction: column; align-items: center; gap: 1.75rem; }
+.pgs-hof-lead.is-multi .pgs-hof-photo { max-width: 100%; }
+.pgs-hof-lead.is-multi .pgs-hof-copy { align-items: center; text-align: center; width: 100%; }
+.pgs-hof-lead.is-multi .pgs-hof-year { font-size: clamp(4rem, 8vw, 6rem); }
+.pgs-hof-lead.is-multi .pgs-hof-name { font-size: clamp(1.8rem, 3.2vw, 2.6rem); }
+.pgs-hof-bar.is-first { margin-top: 0; }
 `;
