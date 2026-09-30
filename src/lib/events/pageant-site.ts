@@ -470,3 +470,21 @@ export function headingSize(text: string | null | undefined): '' | 'is-long' | '
   if (clean.length > 28 || longestWord > 12) return 'is-long';
   return '';
 }
+
+/** Textos por grupo de la cinta que gira: con 12 o más, un grupo mide más que el monitor más ancho (≈ 230 px por texto). */
+export const RIBBON_MIN_ITEMS = 12;
+/** Segundos que tarda un texto en cruzar (≈ 55 px/s): visible pero tranquilo, y el mismo ritmo sea cual sea el largo de la cinta. */
+export const RIBBON_SECONDS_PER_ITEM = 4;
+
+/**
+ * Cinta tipo carrusel ("Postulaciones abiertas ◆ Gala · 12 de diciembre ◆ …"): repite los textos hasta que UN grupo
+ * cubra cualquier pantalla (dos grupos idénticos hacen el ciclo sin cortes) y calcula la duración para que la velocidad
+ * no dependa de cuántos textos haya. Antes, con un solo texto la cinta medía menos que la pantalla y casi no se movía.
+ */
+export function ribbonLoop(items: string[]): { group: string[]; seconds: number } {
+  if (items.length === 0) return { group: [], seconds: 0 };
+  const reps = Math.ceil(RIBBON_MIN_ITEMS / items.length);
+  const group = Array.from({ length: reps }, () => items).flat();
+  return { group, seconds: group.length * RIBBON_SECONDS_PER_ITEM };
+}
+

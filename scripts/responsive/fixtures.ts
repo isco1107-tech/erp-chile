@@ -40,6 +40,7 @@ export function baseSite(overrides: Partial<PublicPageantSite> = {}): PublicPage
     venueName: 'Teatro Municipal de Temuco',
     venueAddress: 'Av. Prat 1234, Temuco',
     coverImageUrl: null,
+    faviconUrl: null,
     accent: 'gold',
     instagramHandle: 'missuniversotemuco',
     contactEmail: 'contacto@missuniversotemuco.cl',

@@ -23,6 +23,8 @@ export function pageantSiteMetadata(site: PublicPageantSite): Metadata {
     title: { absolute: site.name },
     description,
     alternates: { canonical },
+    // Logo propio de la pestaña; sin él, el navegador usa el de la plataforma.
+    ...(site.faviconUrl ? { icons: { icon: site.faviconUrl, shortcut: site.faviconUrl, apple: site.faviconUrl } } : {}),
     openGraph: { title: site.name, description, type: 'website', locale: 'es_CL', siteName: site.name, url: canonical, images: [ogImage] },
     twitter: { card: 'summary_large_image', title: site.name, description, images: [ogImage] },
   };

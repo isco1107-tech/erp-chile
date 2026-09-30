@@ -213,7 +213,7 @@ export const PAGEANT_SITE_STYLES = `
 
 /* ── Cinta ── */
 .pgs-ribbon { position: relative; overflow: hidden; padding: 1.05rem 0; background: linear-gradient(90deg, var(--night-2), var(--night-3), var(--night-2)); border-block: 1px solid var(--line-night); }
-.pgs-ribbon-track { display: flex; width: max-content; animation: pgs-marquee 60s linear infinite; }
+.pgs-ribbon-track { display: flex; width: max-content; animation: pgs-marquee var(--pgs-ribbon-time, 48s) linear infinite; will-change: transform; }
 .pgs-ribbon:hover .pgs-ribbon-track { animation-play-state: paused; }
 .pgs-ribbon-group { display: flex; flex: none; }
 .pgs-ribbon-item { display: inline-flex; align-items: center; gap: 1.6rem; padding-right: 1.6rem; font-size: 0.74rem; font-weight: 600; letter-spacing: 0.3em; text-transform: uppercase; color: var(--on-night); white-space: nowrap; }
@@ -249,7 +249,7 @@ export const PAGEANT_SITE_STYLES = `
 
 /* Entrada al hacer scroll (solo con JS: sin él, todo visible). */
 .pgs[data-motion='on'] [data-reveal] { opacity: 0; transform: translateY(28px); transition: opacity 1s var(--ease), transform 1.1s var(--ease); }
-.pgs[data-motion='on'] [data-reveal].is-in { opacity: 1; transform: none; }
+.pgs[data-motion='on'] [data-reveal][data-in] { opacity: 1; transform: none; }
 
 /* ── El certamen ── */
 .pgs-about { display: grid; gap: clamp(2rem, 5vw, 5rem); grid-template-columns: 1fr; }
@@ -369,7 +369,7 @@ export const PAGEANT_SITE_STYLES = `
 .pgs-ranking-num { font-family: var(--sans); font-size: 0.6875rem; letter-spacing: 0.2em; color: var(--on-night-dim); }
 .pgs-bar { position: relative; display: block; height: 3px; border-radius: 3px; background: rgba(255, 255, 255, 0.07); overflow: hidden; }
 .pgs-bar span { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: linear-gradient(90deg, var(--a-mid), var(--a-bright)); transform-origin: left; transition: transform 1.6s 0.2s var(--ease); }
-.pgs[data-motion='on'] .pgs-ranking:not(.is-in) .pgs-bar span { transform: scaleX(0); }
+.pgs[data-motion='on'] .pgs-ranking:not([data-in]) .pgs-bar span { transform: scaleX(0); }
 .pgs-ranking-votes { text-align: right; font-family: var(--display); font-size: 1.5rem; line-height: 1; font-variant-numeric: tabular-nums; }
 .pgs-ranking-votes small { display: block; margin-top: 0.3rem; font-family: var(--sans); font-size: 0.6875rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--on-night-dim); }
 .pgs-ranking li.is-first { padding: 1.5rem 0; }

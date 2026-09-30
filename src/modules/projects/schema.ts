@@ -106,6 +106,15 @@ export const projectPublicSiteSchema = z
       .or(z.literal(''))
       .transform((value) => (value ? value : null)),
     // Un logro por ítem; se ignoran líneas vacías o repetidas antes de contar el máximo.
+    // Logo de la pestaña del navegador (favicon). Vacío = el de la plataforma.
+    faviconUrl: z
+      .string()
+      .trim()
+      .url('El logo de la pestaña no es una URL válida')
+      .max(1000)
+      .optional()
+      .or(z.literal(''))
+      .transform((value) => (value ? value : null)),
     directorHighlights: z.preprocess(
       (value) => (Array.isArray(value) ? [...new Set(value.map((item) => (typeof item === 'string' ? item.trim() : item)).filter((item) => item !== ''))] : value),
       z.array(z.string().max(200, 'Cada logro de la trayectoria tiene un máximo de 200 caracteres')).max(40, 'Máximo 40 logros en la trayectoria').default([])

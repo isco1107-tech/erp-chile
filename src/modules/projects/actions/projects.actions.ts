@@ -8,6 +8,7 @@ import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import { getProjectFinancialSummary, type ProjectFinancialSummary } from '@/lib/services/projects';
 import { projectCreateSchema, projectPublicSiteSchema, projectUpdateSchema } from '../schema';
 import { publicSlugProblem } from '@/lib/events/public-slug';
+import { blobPathnameStartsWith, isAllowedBlobUrl } from '@/lib/security/blob-url';
 import { getPageantHub, type PageantHub } from '../services/hub.service';
 import * as projectsService from '../services/projects.service';
 import * as customDomainService from '../services/custom-domain.service';
@@ -135,6 +136,10 @@ export async function updatePublicSiteAction(id: string, input: unknown): Promis
     const session = await requireAuthWithPermission('projects:write');
     const parsed = projectPublicSiteSchema.safeParse(input);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
+    // El logo de la pestaña tiene que haberlo subido esta empresa desde el panel (no se acepta una URL cualquiera).
+    if (parsed.data.faviconUrl && !(isAllowedBlobUrl(parsed.data.faviconUrl) && blobPathnameStartsWith(parsed.data.faviconUrl, `pageant-favicons/${session.companyId}/`))) {
+      return { success: false, error: 'El logo de la pestaña debe subirse desde este panel (PNG, JPG o WEBP)' };
+    }
     if (parsed.data.publicSlug && !(await projectsService.isPublicSlugAvailable(session.companyId, id, parsed.data.publicSlug))) {
       return { success: false, error: 'Esa dirección ya la usa otro certamen. Prueba agregando el año o la ciudad.' };
     }

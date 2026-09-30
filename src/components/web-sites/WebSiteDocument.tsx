@@ -103,6 +103,8 @@ export function webSiteMetadata(site: PublicWebSite, canonical: string, page?: S
     title,
     description,
     alternates: { canonical },
+    // Logo propio de la pestaña; sin él, el navegador usa el de la plataforma.
+    ...(site.faviconUrl ? { icons: { icon: site.faviconUrl, shortcut: site.faviconUrl, apple: site.faviconUrl } } : {}),
     robots: site.indexable ? { index: true, follow: true } : { index: false, follow: false },
     openGraph: {
       title,

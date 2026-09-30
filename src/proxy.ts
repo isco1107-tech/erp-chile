@@ -74,7 +74,7 @@ const PUBLIC_ROUTES = [
   '/branding',
   // Políticas de privacidad públicas: la de la empresa cliente (enlazada
   // desde el formulario público de postulación, sin sesión ERP) y la de la
-  // propia plataforma Aether (enlazada desde `AetherBadge`, visible en toda
+  // propia plataforma Aether (enlazada desde el pie de la landing y el login; el `AetherBadge` ahora lleva a la landing, visible en toda
   // la app, login incluido).
   '/politica-privacidad',
   '/aether',

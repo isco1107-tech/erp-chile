@@ -25,6 +25,7 @@ const MIN_SIZE = {
   cover: { width: 1000, height: 520, label: 'La portada', hint: 'de al menos 1600 × 900 px' },
   winner: { width: 600, height: 750, label: 'La foto', hint: 'vertical de al menos 800 × 1067 px' },
   director: null,
+  favicon: { width: 64, height: 64, label: 'El logo', hint: 'cuadrado, de al menos 64 × 64 px (ideal 512 × 512)' },
 } as const;
 
 export async function POST(req: Request) {
@@ -35,7 +36,7 @@ export async function POST(req: Request) {
     // `winner` = foto del salón de la fama (otra carpeta, para que una empresa solo pueda asociar fotos suyas);
     // `director` = foto de la directora (sin tamaño mínimo); por defecto, la portada.
     const rawPurpose = form.get('purpose');
-    const purpose: 'cover' | 'winner' | 'director' = rawPurpose === 'winner' ? 'winner' : rawPurpose === 'director' ? 'director' : 'cover';
+    const purpose: 'cover' | 'winner' | 'director' | 'favicon' = rawPurpose === 'winner' ? 'winner' : rawPurpose === 'director' ? 'director' : rawPurpose === 'favicon' ? 'favicon' : 'cover';
     const file = form.get('file');
 
     if (!projectId) return NextResponse.json({ success: false, error: 'Falta el certamen' }, { status: 400 });
@@ -54,6 +55,10 @@ export async function POST(req: Request) {
     if (min) {
       const size = readImageSize(bytes);
       if (!size) return NextResponse.json({ success: false, error: 'No se pudo leer el tamaño de la imagen. Prueba con otro archivo JPG o PNG.' }, { status: 400 });
+      // El logo de la pestaña se recorta en un cuadrado: uno muy alargado quedaría deformado o ilegible.
+      if (purpose === 'favicon' && Math.max(size.width, size.height) / Math.min(size.width, size.height) > 1.25) {
+        return NextResponse.json({ success: false, error: `El logo mide ${size.width} × ${size.height} px y no es cuadrado: en la pestaña se vería deformado. Sube una imagen cuadrada (ideal 512 × 512 px).` }, { status: 400 });
+      }
       if (size.width < min.width || size.height < min.height) {
         return NextResponse.json(
           { success: false, error: `${min.label} es muy chica (${size.width} × ${size.height} px) y se vería pixelada. Sube una imagen ${min.hint}.` },
@@ -63,7 +68,9 @@ export async function POST(req: Request) {
     }
 
     const pathname =
-      purpose === 'winner'
+      purpose === 'favicon'
+        ? `pageant-favicons/${session.companyId}/${projectId}-${Date.now()}.${SNIFFED_IMAGE_EXTENSION[sniffed]}`
+        : purpose === 'winner'
         ? `pageant-winners/${session.companyId}/${projectId}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${SNIFFED_IMAGE_EXTENSION[sniffed]}`
         : `pageant-covers/${session.companyId}/${projectId}-${Date.now()}.${SNIFFED_IMAGE_EXTENSION[sniffed]}`;
     const blob = await put(pathname, new Blob([bytes], { type: sniffed }), { access: 'public', contentType: sniffed, addRandomSuffix: false });
@@ -75,7 +82,7 @@ export async function POST(req: Request) {
       action: 'UPDATE',
       entity: 'Project',
       entityId: projectId,
-      metadata: { field: purpose === 'winner' ? 'pastWinnerPhoto' : 'coverImageUrl', url: blob.url },
+      metadata: { field: purpose === 'winner' ? 'pastWinnerPhoto' : purpose === 'favicon' ? 'faviconUrl' : 'coverImageUrl', url: blob.url },
     });
 
     return NextResponse.json({ success: true, data: { url: blob.url } });

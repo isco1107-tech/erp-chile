@@ -9,6 +9,7 @@ import { PAGEANT_FONT_CLASSES } from '@/components/public/pageant/fonts';
 import { Arrow, Calendar, Check, Crown, Instagram, Mail, Tiara, Whatsapp } from '@/components/public/pageant/icons';
 import { HeroSky, pad } from '@/components/public/pageant/parts';
 import { PAGEANT_SITE_STYLES } from '@/components/public/pageant/styles';
+import { startReveal } from '@/components/public/pageant/reveal';
 import { CandidateApplicationForm } from '@/components/public/pageant/CandidateApplicationForm';
 import { WhatsappFloat } from '@/components/public/pageant/WhatsappFloat';
 import { REGISTRATION_STYLES } from './registration-styles';
@@ -43,30 +44,12 @@ function useCountdown(target: Date | null) {
   };
 }
 
-/** Revelado al hacer scroll; sin IntersectionObserver o con movimiento reducido, todo se ve de inmediato. */
+/** Revelado al hacer scroll (ver `reveal.ts`); sin IntersectionObserver o con movimiento reducido, todo se ve de inmediato. */
 function useScrollReveal(ready: boolean) {
   useEffect(() => {
     if (!ready) return;
     const root = document.querySelector<HTMLElement>('.pgs');
-    const nodes = Array.from(document.querySelectorAll<HTMLElement>('[data-reveal]:not(.is-in)'));
-    if (!root || nodes.length === 0) return;
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || typeof IntersectionObserver === 'undefined') {
-      for (const node of nodes) node.classList.add('is-in');
-      return;
-    }
-    root.dataset.motion = 'on';
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
-          entry.target.classList.add('is-in');
-          observer.unobserve(entry.target);
-        }
-      },
-      { rootMargin: '0px 0px -8% 0px', threshold: 0.08 }
-    );
-    for (const node of nodes) observer.observe(node);
-    return () => observer.disconnect();
+    return root ? startReveal(root) : undefined;
   }, [ready]);
 }
 

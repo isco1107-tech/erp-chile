@@ -55,6 +55,7 @@ export const webSiteSettingsSchema = z.object({
   indexable: z.boolean(),
   logoUrl: optionalText(500),
   ogImageUrl: optionalText(500),
+  faviconUrl: optionalText(500),
   contactId: z.string().min(1).nullable().optional(),
 });
 
