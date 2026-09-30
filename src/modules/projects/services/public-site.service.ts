@@ -77,7 +77,7 @@ export interface PublicPageantSite {
   results: Array<{ rank: number; name: string; number: number | null; representing: string | null; photoUrl: string | null }> | null;
   sponsorLeadForm: boolean;
   /** Salón de la fama: ganadoras de ediciones anteriores, la más reciente primero (esa va destacada). */
-  pastWinners: Array<{ id: string; name: string; title: string; year: number | null; note: string | null; photoUrl: string }>;
+  pastWinners: Array<{ id: string; name: string; title: string; year: number | null; note: string | null; photoUrl: string; featured: boolean }>;
   /** "Conoce al Director" (null si el certamen no cargó un nombre). */
   director: { name: string; title: DirectorTitle | null; role: string | null; bio: string | null; photoUrl: string | null; highlights: string[] } | null;
   /** Nota para sponsors bajo los paquetes (exclusividad por rubro, etc.). */
@@ -167,10 +167,10 @@ async function assemblePageantSite(project: ProjectWithCompany, slug: string): P
           },
         })
       : Promise.resolve(null),
-    // Solo lo que se publica: nombre, título, año, nota y foto.
+    // Solo lo que se publica: nombre, título, año, nota, foto y si va con foto completa.
     prisma.pastWinner.findMany({
       where,
-      select: { id: true, name: true, title: true, year: true, note: true, photoUrl: true },
+      select: { id: true, name: true, title: true, year: true, note: true, photoUrl: true, featured: true },
       orderBy: [{ year: { sort: 'desc', nulls: 'last' } }, { createdAt: 'asc' }],
     }),
   ]);

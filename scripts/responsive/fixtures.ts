@@ -67,12 +67,12 @@ export function baseSite(overrides: Partial<PublicPageantSite> = {}): PublicPage
     director: { name: 'Marcela Alvarado', title: 'Directora', role: 'Directora nacional', bio: LOREM, photoUrl: PHOTO, highlights: ['Más de 15 años produciendo certámenes', 'Formadora de 200 candidatas'] },
     sponsorNote: 'Exclusividad por rubro: solo un sponsor por categoría.',
     pastWinners: [
-      { id: 'w1', name: 'Fernanda Silva', title: 'Ganadora', year: 2025, note: 'Representó a Temuco', photoUrl: PHOTO },
-      { id: 'w2', name: 'Catalina Muñoz', title: 'Ganadora', year: 2024, note: null, photoUrl: PHOTO },
-      { id: 'w3', name: 'Daniela Vera', title: 'Virreina', year: 2024, note: 'Representó a Pucón', photoUrl: PHOTO },
-      { id: 'w4', name: 'Sofía Bravo', title: 'Ganadora', year: 2023, note: null, photoUrl: PHOTO },
-      { id: 'w5', name: 'Paula Reyes', title: 'Reina de la Simpatía', year: 2022, note: null, photoUrl: PHOTO },
-      { id: 'w6', name: 'Trinidad Ossa', title: 'Ganadora', year: 2019, note: null, photoUrl: PHOTO },
+      { id: 'w1', name: 'Fernanda Silva', title: 'Ganadora', year: 2025, note: 'Representó a Temuco', photoUrl: PHOTO, featured: true },
+      { id: 'w2', name: 'Catalina Muñoz', title: 'Ganadora', year: 2024, note: null, photoUrl: PHOTO, featured: false },
+      { id: 'w3', name: 'Daniela Vera', title: 'Virreina', year: 2024, note: 'Representó a Pucón', photoUrl: PHOTO, featured: false },
+      { id: 'w4', name: 'Sofía Bravo', title: 'Ganadora', year: 2023, note: null, photoUrl: PHOTO, featured: false },
+      { id: 'w5', name: 'Paula Reyes', title: 'Reina de la Simpatía', year: 2022, note: null, photoUrl: PHOTO, featured: false },
+      { id: 'w6', name: 'Trinidad Ossa', title: 'Ganadora', year: 2019, note: null, photoUrl: PHOTO, featured: false },
     ],
     customDomain: null,
     ...overrides,
@@ -122,9 +122,9 @@ export const FIXTURES: Record<string, PublicPageantSite> = {
     sponsorNote: 'Exclusividad por rubro en toda la temporada: solo un sponsor por categoría, sin excepción, incluyendo transmisiones, redes sociales y actividades previas.',
     sponsorsByTier: [{ tier: 'GOLD', label: 'Oro', names: ['Corporación de Desarrollo Productivo y Turismo Sustentable de la Región', 'Banco'] }],
     pastWinners: [
-      { id: 'w1', name: 'María de los Ángeles Fernández-Villanueva de la Barra y Echeverría', title: 'Ganadora Absoluta Internacional de la Solidaridad', year: 2025, note: 'Representó a la Región Metropolitana de Santiago y alrededores en la gran final internacional', photoUrl: PHOTO },
-      { id: 'w2', name: 'Su', title: 'Virreina', year: null, note: null, photoUrl: PHOTO },
-      { id: 'w3', name: 'Constanza Alejandra Valenzuela Rodríguez-Castillo', title: 'Reina de la Simpatía y la Elegancia', year: 2023, note: 'Nota larga que explica quién fue, de dónde venía y qué hizo durante su reinado', photoUrl: PHOTO },
+      { id: 'w1', name: 'María de los Ángeles Fernández-Villanueva de la Barra y Echeverría', title: 'Ganadora Absoluta Internacional de la Solidaridad', year: 2025, note: 'Representó a la Región Metropolitana de Santiago y alrededores en la gran final internacional', photoUrl: PHOTO, featured: true },
+      { id: 'w2', name: 'Su', title: 'Virreina', year: null, note: null, photoUrl: PHOTO, featured: false },
+      { id: 'w3', name: 'Constanza Alejandra Valenzuela Rodríguez-Castillo', title: 'Reina de la Simpatía y la Elegancia', year: 2023, note: 'Nota larga que explica quién fue, de dónde venía y qué hizo durante su reinado', photoUrl: PHOTO, featured: false },
     ],
   }),
   sinDatos: baseSite({
@@ -151,12 +151,36 @@ export const FIXTURES: Record<string, PublicPageantSite> = {
     pastWinners: [],
   }),
   // Una sola ganadora: el diseño destacado sin carrusel.
-  unaGanadora: baseSite({ pastWinners: [{ id: 'w1', name: 'Fernanda Silva', title: 'Ganadora', year: 2025, note: 'Representó a Temuco', photoUrl: PHOTO }] }),
+  unaGanadora: baseSite({ pastWinners: [{ id: 'w1', name: 'Fernanda Silva', title: 'Ganadora', year: 2025, note: 'Representó a Temuco', photoUrl: PHOTO, featured: true }] }),
+  // Caso real: dos ganadoras de la MISMA última edición (Temuco y Loncoche): las dos con foto completa y el mismo formato.
+  dosRecientes: baseSite({
+    pastWinners: [
+      { id: 'w1', name: 'Krishna Sandoval', title: 'Miss Universo Temuco', year: 2026, note: null, photoUrl: PHOTO, featured: true },
+      { id: 'w2', name: 'Victoria Jimenez', title: 'Miss Universo Loncoche', year: 2026, note: null, photoUrl: PHOTO, featured: true },
+      { id: 'w3', name: 'Sofía Bravo', title: 'Ganadora', year: 2023, note: null, photoUrl: PHOTO, featured: false },
+      { id: 'w4', name: 'Paula Reyes', title: 'Virreina', year: 2022, note: null, photoUrl: PHOTO, featured: false },
+    ],
+  }),
+  // Tres recientes con nombres largos: el formato se mantiene y nada desborda.
+  tresRecientes: baseSite({
+    pastWinners: [
+      { id: 'w1', name: 'María de los Ángeles Fernández-Villanueva de la Barra', title: 'Miss Universo Temuco/Loncoche', year: 2026, note: 'Representó a la Región Metropolitana de Santiago', photoUrl: PHOTO, featured: true },
+      { id: 'w2', name: 'Victoria Jimenez', title: 'Miss Universo Loncoche', year: 2026, note: null, photoUrl: PHOTO, featured: true },
+      { id: 'w3', name: 'Krishna Sandoval', title: 'Miss Universo Temuco', year: 2026, note: null, photoUrl: PHOTO, featured: true },
+    ],
+  }),
+  // Ninguna marcada como reciente: todas van al carrusel de ediciones anteriores.
+  todasAnteriores: baseSite({
+    pastWinners: [
+      { id: 'w1', name: 'Sofía Bravo', title: 'Ganadora', year: 2023, note: null, photoUrl: PHOTO, featured: false },
+      { id: 'w2', name: 'Paula Reyes', title: 'Virreina', year: 2022, note: null, photoUrl: PHOTO, featured: false },
+    ],
+  }),
   // Sin año ni nota: nada se inventa.
   ganadorasSinAnio: baseSite({
     pastWinners: [
-      { id: 'w1', name: 'Fernanda Silva', title: 'Ganadora', year: null, note: null, photoUrl: PHOTO },
-      { id: 'w2', name: 'Catalina Muñoz', title: 'Virreina', year: null, note: null, photoUrl: PHOTO },
+      { id: 'w1', name: 'Fernanda Silva', title: 'Ganadora', year: null, note: null, photoUrl: PHOTO, featured: true },
+      { id: 'w2', name: 'Catalina Muñoz', title: 'Virreina', year: null, note: null, photoUrl: PHOTO, featured: false },
     ],
   }),
   convocatoriaCerrada: baseSite({ registration: null, registrationNotice: { state: 'soon', opensAtLabel: '19 de octubre' } }),

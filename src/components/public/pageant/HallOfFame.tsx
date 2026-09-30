@@ -28,8 +28,29 @@ function Photo({ winner, eager = false }: { winner: Winner; eager?: boolean }) {
   );
 }
 
+function FeaturedCaption({ winner }: { winner: Winner }) {
+  return (
+    <figcaption className="pgs-hof-copy">
+      {winner.year != null && (
+        <span className="pgs-hof-year" aria-hidden="true">
+          {winner.year}
+        </span>
+      )}
+      <span className="pgs-hof-title">
+        <Crown className="pgs-hof-title-icon" />
+        {winner.title}
+        {winner.year != null && <span className="pgs-sr"> {winner.year}</span>}
+      </span>
+      <span className="pgs-hof-name">{winner.name}</span>
+      {winner.note && <span className="pgs-hof-note">{winner.note}</span>}
+    </figcaption>
+  );
+}
+
 export function HallOfFame({ winners, index }: { winners: Winner[]; index: string }) {
-  const [lead, ...others] = winners;
+  // Las "recientes" (marcadas en el panel) van con foto completa y TODAS con el mismo formato; el resto, en el carrusel.
+  const featured = winners.filter((w) => w.featured);
+  const others = winners.filter((w) => !w.featured);
   const rail = useRef<HTMLUListElement>(null);
   const [edges, setEdges] = useState({ prev: false, next: false });
 
@@ -48,10 +69,10 @@ export function HallOfFame({ winners, index }: { winners: Winner[]; index: strin
     return () => observer?.disconnect();
   }, [measure, others.length]);
 
-  if (!lead) return null;
+  if (winners.length === 0) return null;
 
-  const years = winners.map((w) => w.year).filter((y): y is number => y != null);
-  const span = years.length > 1 ? `${Math.min(...years)} – ${Math.max(...years)}` : years.length === 1 ? String(years[0]) : null;
+  const years = [...new Set(winners.map((w) => w.year).filter((y): y is number => y != null))].sort((a, b) => a - b);
+  const span = years.length > 1 ? `Ediciones ${years[0]} – ${years[years.length - 1]}` : years.length === 1 && winners.length > 1 ? `Edición ${years[0]}` : null;
   const scrollBy = (direction: 1 | -1) => {
     const el = rail.current;
     if (!el) return;
@@ -62,40 +83,43 @@ export function HallOfFame({ winners, index }: { winners: Winner[]; index: strin
   return (
     <section id="ganadoras" className="pgs-section is-night is-deep pgs-hof" aria-labelledby="pgs-hof-title">
       <div className="pgs-wrap">
-        <div className={`pgs-section-head ${others.length === 0 ? 'is-center' : 'is-split'}`} data-reveal>
+        <div className={`pgs-section-head ${winners.length === 1 ? 'is-center' : 'is-split'}`} data-reveal>
           <div>
             <Kicker index={index}>Salón de la fama</Kicker>
             <h2 id="pgs-hof-title" className="pgs-h2">
-              Nuestras <em>{others.length === 0 && winners.length === 1 ? 'ganadora' : 'ganadoras'}</em>
+              Nuestras <em>{winners.length === 1 ? 'ganadora' : 'ganadoras'}</em>
             </h2>
           </div>
-          {span && others.length > 0 && <p className="pgs-hof-span">Ediciones {span}</p>}
+          {span && <p className="pgs-hof-span">{span}</p>}
         </div>
 
-        <figure className={`pgs-hof-lead${others.length === 0 ? ' is-solo' : ''}`} data-reveal>
-          <span className="pgs-hof-photo">
-            <Crown className="pgs-hof-crown" />
-            <Photo winner={lead} eager />
-          </span>
-          <figcaption className="pgs-hof-copy">
-            {lead.year != null && (
-              <span className="pgs-hof-year" aria-hidden="true">
-                {lead.year}
-              </span>
-            )}
-            <span className="pgs-hof-title">
-              <Crown className="pgs-hof-title-icon" />
-              {lead.title}
-              {lead.year != null && <span className="pgs-sr"> {lead.year}</span>}
+        {featured.length === 1 && (
+          <figure className={`pgs-hof-lead${others.length === 0 ? ' is-solo' : ''}`} data-reveal>
+            <span className="pgs-hof-photo">
+              <Crown className="pgs-hof-crown" />
+              <Photo winner={featured[0]!} eager />
             </span>
-            <span className="pgs-hof-name">{lead.name}</span>
-            {lead.note && <span className="pgs-hof-note">{lead.note}</span>}
-          </figcaption>
-        </figure>
+            <FeaturedCaption winner={featured[0]!} />
+          </figure>
+        )}
+
+        {featured.length > 1 && (
+          <div className="pgs-hof-featured">
+            {featured.map((w, i) => (
+              <figure key={w.id} className="pgs-hof-lead is-multi" data-reveal style={{ transitionDelay: `${i * 0.08}s` }}>
+                <span className="pgs-hof-photo">
+                  <Crown className="pgs-hof-crown" />
+                  <Photo winner={w} eager={i < 2} />
+                </span>
+                <FeaturedCaption winner={w} />
+              </figure>
+            ))}
+          </div>
+        )}
 
         {others.length > 0 && (
           <>
-            <div className="pgs-hof-bar" data-reveal>
+            <div className={`pgs-hof-bar${featured.length === 0 ? ' is-first' : ''}`} data-reveal>
               <p className="pgs-eyebrow">Ediciones anteriores</p>
               <div className="pgs-hof-nav">
                 <button type="button" onClick={() => scrollBy(-1)} disabled={!edges.prev} aria-label="Ver ganadoras anteriores">

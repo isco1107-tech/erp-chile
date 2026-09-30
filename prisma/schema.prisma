@@ -2156,6 +2156,10 @@ model PastWinner {
   /// Línea extra opcional del pie de foto (ej. "Representó a Temuco").
   note      String?
   photoUrl  String
+  /// Reciente: se muestra con foto completa en el salón de la fama. Todas las
+  /// marcadas comparten el mismo formato (varias ganadoras de la última edición);
+  /// las demás van en el carrusel de "Ediciones anteriores".
+  featured  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

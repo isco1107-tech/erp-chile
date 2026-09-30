@@ -4,6 +4,7 @@ import { AuthError, ModuleNotEnabledError, TenantInactiveError, requireAuthWithP
 import { createAuditLog } from '@/lib/auth/audit';
 import { captureException } from '@/lib/observability';
 import { sniffImageType, SNIFFED_IMAGE_EXTENSION } from '@/lib/security/file-signature';
+import { readImageSize } from '@/lib/images/dimensions';
 import { prisma } from '@/lib/prisma';
 
 /**
@@ -15,13 +16,26 @@ import { prisma } from '@/lib/prisma';
 
 const MAX_FILE_BYTES = 6 * 1024 * 1024;
 
+/**
+ * Tamaño mínimo por uso: la portada se estira a pantalla completa y la foto de una ganadora se
+ * muestra grande, así que una imagen chica se ve pixelada y borrosa (pasó con una portada de
+ * 150 × 150). Se rechaza al subir, con el motivo, en vez de publicarla mal.
+ */
+const MIN_SIZE = {
+  cover: { width: 1000, height: 520, label: 'La portada', hint: 'de al menos 1600 × 900 px' },
+  winner: { width: 600, height: 750, label: 'La foto', hint: 'vertical de al menos 800 × 1067 px' },
+  director: null,
+} as const;
+
 export async function POST(req: Request) {
   try {
     const session = await requireAuthWithPermission('projects:write');
     const form = await req.formData();
     const projectId = String(form.get('projectId') ?? '');
-    // `winner` = foto del salón de la fama (otra carpeta, para que una empresa solo pueda asociar fotos suyas).
-    const purpose = form.get('purpose') === 'winner' ? 'winner' : 'cover';
+    // `winner` = foto del salón de la fama (otra carpeta, para que una empresa solo pueda asociar fotos suyas);
+    // `director` = foto de la directora (sin tamaño mínimo); por defecto, la portada.
+    const rawPurpose = form.get('purpose');
+    const purpose: 'cover' | 'winner' | 'director' = rawPurpose === 'winner' ? 'winner' : rawPurpose === 'director' ? 'director' : 'cover';
     const file = form.get('file');
 
     if (!projectId) return NextResponse.json({ success: false, error: 'Falta el certamen' }, { status: 400 });
@@ -35,6 +49,18 @@ export async function POST(req: Request) {
     const bytes = new Uint8Array(await file.arrayBuffer());
     const sniffed = sniffImageType(bytes);
     if (!sniffed) return NextResponse.json({ success: false, error: purpose === 'winner' ? 'La foto debe ser JPG, PNG o WEBP' : 'La portada debe ser JPG o PNG' }, { status: 400 });
+
+    const min = MIN_SIZE[purpose];
+    if (min) {
+      const size = readImageSize(bytes);
+      if (!size) return NextResponse.json({ success: false, error: 'No se pudo leer el tamaño de la imagen. Prueba con otro archivo JPG o PNG.' }, { status: 400 });
+      if (size.width < min.width || size.height < min.height) {
+        return NextResponse.json(
+          { success: false, error: `${min.label} es muy chica (${size.width} × ${size.height} px) y se vería pixelada. Sube una imagen ${min.hint}.` },
+          { status: 400 }
+        );
+      }
+    }
 
     const pathname =
       purpose === 'winner'

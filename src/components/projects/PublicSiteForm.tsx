@@ -85,9 +85,10 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
     return () => window.clearTimeout(timer);
   }, [values.publicSlug, project.id, project.publicSlug]);
 
-  async function uploadImage(file: File): Promise<string | null> {
+  async function uploadImage(file: File, purpose: 'cover' | 'director' = 'cover'): Promise<string | null> {
     const form = new FormData();
     form.append('projectId', project.id);
+    form.append('purpose', purpose);
     form.append('file', file);
     const res = await fetch('/api/projects/cover-upload', { method: 'POST', body: form });
     const json = (await res.json()) as { success: boolean; data?: { url: string }; error?: string };
@@ -101,7 +102,7 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
   async function uploadDirectorPhoto(file: File) {
     setUploadingDirector(true);
     try {
-      const url = await uploadImage(file);
+      const url = await uploadImage(file, 'director');
       if (url) {
         set('directorPhotoUrl', url);
         toast.success('Foto cargada: guarda para publicarla');
@@ -200,7 +201,7 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
                       Quitar portada
                     </Button>
                   )}
-                  <p className="text-xs text-muted-foreground">JPG o PNG horizontal, hasta 6 MB.</p>
+                  <p className="text-xs text-muted-foreground">JPG o PNG horizontal de al menos 1600 × 900 px (mínimo 1000 × 520) y hasta 6 MB. Una imagen chica se ve pixelada a pantalla completa.</p>
                 </div>
               )}
             </div>

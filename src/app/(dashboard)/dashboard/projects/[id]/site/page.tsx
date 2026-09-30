@@ -35,7 +35,7 @@ export default async function ProjectPublicSitePage({ params }: { params: Promis
       <DevicePreview projectId={project.id} />
       <PastWinnersEditor
         projectId={project.id}
-        winners={winners.map((w) => ({ id: w.id, name: w.name, title: w.title, year: w.year, note: w.note, photoUrl: w.photoUrl }))}
+        winners={winners.map((w) => ({ id: w.id, name: w.name, title: w.title, year: w.year, note: w.note, photoUrl: w.photoUrl, featured: w.featured }))}
         canWrite={can(context, 'projects:write')}
       />
     </div>
