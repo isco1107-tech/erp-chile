@@ -17,9 +17,29 @@ interface ColumnSpec {
   key: string;
   width: number;
   numFmt?: string;
+  /** Costos y márgenes: solo salen con Reportes Avanzados. */
+  advanced?: true;
 }
 
-function addSheet(wb: ExcelJS.Workbook, name: string, columns: ColumnSpec[], rows: Record<string, unknown>[]) {
+/** Columnas que salen en el libro: sin las avanzadas cuando la empresa no las contrató. */
+function visibleColumns(columns: ColumnSpec[], advanced: boolean): ColumnSpec[] {
+  return advanced ? columns : columns.filter((c) => !c.advanced);
+}
+
+/** Letra de Excel de una columna dentro del libro ya filtrado. */
+function letterOf(columns: ColumnSpec[], key: string, advanced: boolean): string {
+  const index = visibleColumns(columns, advanced).findIndex((c) => c.key === key);
+  return String.fromCharCode(65 + index);
+}
+
+function addSheet(
+  wb: ExcelJS.Workbook,
+  name: string,
+  allColumns: ColumnSpec[],
+  rows: Record<string, unknown>[],
+  advanced: boolean
+) {
+  const columns = visibleColumns(allColumns, advanced);
   const ws = wb.addWorksheet(name, {
     views: [{ state: 'frozen', ySplit: 1 }],
   });
@@ -136,204 +156,18 @@ function kpiRows(ws: ExcelJS.Worksheet, startRow: number, kpis: Kpi[]): number {
   return row;
 }
 
-/**
- * Construye el libro completo. El panel usa fórmulas vivas (SUMIFS/COUNTIFS)
- * contra las hojas de datos en vez de valores precalculados: si el usuario
- * filtra, corrige o agrega filas en Excel, los indicadores se recalculan solos.
- */
-export async function buildWorkbook(data: ReportDataset): Promise<Buffer> {
-  const wb = new ExcelJS.Workbook();
-  wb.creator = 'ERP Chile';
-  wb.created = data.generadoEn;
-
-  const dash = wb.addWorksheet('Panel', { views: [{ state: 'frozen', ySplit: 2 }] });
-  dash.columns = [
-    { width: 30 },
-    { width: 14 },
-    { width: 10 },
-    { width: 18 },
-    { width: 10 },
-    { width: 46 },
-  ];
-
-  // ---------- Hojas de datos ----------
-  const wsProductos = addSheet(
-    wb,
-    'Productos',
-    [
-      { header: 'SKU', key: 'sku', width: 16 },
-      { header: 'Producto', key: 'nombre', width: 38 },
-      { header: 'Categoría', key: 'categoria', width: 18 },
-      { header: 'Unidad', key: 'unidad', width: 10 },
-      { header: 'Gestiona stock', key: 'gestionaStock', width: 14 },
-      { header: 'PMP', key: 'pmp', width: 14, numFmt: CLP_DEC },
-      { header: 'Precio neto', key: 'precioNeto', width: 14, numFmt: CLP },
-      { header: 'Precio bruto', key: 'precioBruto', width: 14, numFmt: CLP },
-      { header: 'Margen unitario', key: 'margenUnitario', width: 16, numFmt: CLP },
-      { header: 'Stock mínimo', key: 'stockMinimo', width: 13, numFmt: QTY },
-      { header: 'Stock total', key: 'stockTotal', width: 13, numFmt: QTY },
-      { header: 'Valorizado', key: 'valorizado', width: 16, numFmt: CLP },
-    ],
-    data.productos as unknown as Record<string, unknown>[]
-  );
-  addDataBar(wsProductos, 'L', data.productos.length + 1, 'FF5B9BD5');
-
-  const wsInventario = addSheet(
-    wb,
-    'Inventario',
-    [
+const INVENTARIO_COLUMNS: ColumnSpec[] = [
       { header: 'SKU', key: 'sku', width: 16 },
       { header: 'Producto', key: 'producto', width: 38 },
       { header: 'Bodega', key: 'bodega', width: 22 },
       { header: 'Cantidad', key: 'cantidad', width: 13, numFmt: QTY },
-      { header: 'PMP', key: 'pmp', width: 14, numFmt: CLP_DEC },
-      { header: 'Valorizado', key: 'valorizado', width: 16, numFmt: CLP },
+      { header: 'PMP', key: 'pmp', width: 14, numFmt: CLP_DEC, advanced: true },
+      { header: 'Valorizado', key: 'valorizado', width: 16, numFmt: CLP, advanced: true },
       { header: 'Stock mínimo', key: 'stockMinimo', width: 13, numFmt: QTY },
       { header: 'Bajo mínimo', key: 'bajoMinimo', width: 13 },
-    ],
-    data.inventario as unknown as Record<string, unknown>[]
-  );
-  addDataBar(wsInventario, 'F', data.inventario.length + 1, 'FF70AD47');
-  // Semáforo de quiebre de stock: la fila se pinta si la cantidad cae bajo el mínimo.
-  if (data.inventario.length > 0) {
-    wsInventario.addConditionalFormatting({
-      ref: `A2:H${data.inventario.length + 1}`,
-      rules: [
-        {
-          type: 'expression',
-          formulae: ['AND($G2>0,$D2<$G2)'],
-          style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFDE7E6' } } },
-          priority: 1,
-        } as ExcelJS.ExpressionRuleType,
-      ],
-    });
-  }
+    ];
 
-  addSheet(
-    wb,
-    'Kardex',
-    [
-      { header: 'Fecha', key: 'fecha', width: 12, numFmt: DATE_FMT },
-      { header: 'SKU', key: 'sku', width: 16 },
-      { header: 'Producto', key: 'producto', width: 34 },
-      { header: 'Bodega', key: 'bodega', width: 20 },
-      { header: 'Tipo movimiento', key: 'tipo', width: 20 },
-      { header: 'Cantidad', key: 'cantidad', width: 12, numFmt: QTY },
-      { header: 'Costo unitario', key: 'costoUnitario', width: 14, numFmt: CLP_DEC },
-      { header: 'Costo total', key: 'costoTotal', width: 14, numFmt: CLP },
-      { header: 'Stock anterior', key: 'stockAnterior', width: 13, numFmt: QTY },
-      { header: 'Stock nuevo', key: 'stockNuevo', width: 13, numFmt: QTY },
-      { header: 'PMP anterior', key: 'pmpAnterior', width: 14, numFmt: CLP_DEC },
-      { header: 'PMP nuevo', key: 'pmpNuevo', width: 14, numFmt: CLP_DEC },
-      { header: 'Referencia', key: 'referencia', width: 30 },
-    ],
-    data.kardex as unknown as Record<string, unknown>[]
-  );
-
-  const wsVentas = addSheet(
-    wb,
-    'Ventas',
-    [
-      { header: 'Fecha', key: 'fecha', width: 12, numFmt: DATE_FMT },
-      { header: 'Tipo DTE', key: 'tipoDte', width: 24 },
-      { header: 'Folio', key: 'folio', width: 10 },
-      { header: 'Estado', key: 'estado', width: 12 },
-      { header: 'Cliente', key: 'cliente', width: 32 },
-      { header: 'RUT', key: 'rutCliente', width: 14 },
-      { header: 'Neto', key: 'neto', width: 15, numFmt: CLP },
-      { header: 'Exento', key: 'exento', width: 13, numFmt: CLP },
-      { header: 'IVA', key: 'iva', width: 13, numFmt: CLP },
-      { header: 'Total', key: 'total', width: 16, numFmt: CLP },
-      { header: 'Pagado', key: 'pagado', width: 15, numFmt: CLP },
-      { header: 'Saldo', key: 'saldo', width: 15, numFmt: CLP },
-      { header: 'Estado pago', key: 'estadoPago', width: 13 },
-      { header: 'Costo de venta', key: 'costoVenta', width: 15, numFmt: CLP },
-      { header: 'Margen', key: 'margen', width: 15, numFmt: CLP },
-    ],
-    data.ventas as unknown as Record<string, unknown>[]
-  );
-  addDataBar(wsVentas, 'J', data.ventas.length + 1, 'FF5B9BD5');
-
-  addSheet(
-    wb,
-    'Ventas detalle',
-    [
-      { header: 'Fecha', key: 'fecha', width: 12, numFmt: DATE_FMT },
-      { header: 'Tipo DTE', key: 'tipoDte', width: 24 },
-      { header: 'Folio', key: 'folio', width: 10 },
-      { header: 'Cliente', key: 'cliente', width: 30 },
-      { header: 'SKU', key: 'sku', width: 16 },
-      { header: 'Descripción', key: 'descripcion', width: 36 },
-      { header: 'Cantidad', key: 'cantidad', width: 11, numFmt: QTY },
-      { header: 'Precio unitario', key: 'precioUnitario', width: 14, numFmt: CLP },
-      { header: 'Desc. %', key: 'descuentoPct', width: 10 },
-      { header: 'Exento', key: 'exento', width: 9 },
-      { header: 'Neto', key: 'neto', width: 14, numFmt: CLP },
-      { header: 'IVA', key: 'iva', width: 12, numFmt: CLP },
-      { header: 'Total', key: 'total', width: 14, numFmt: CLP },
-      { header: 'Costo unitario', key: 'costoUnitario', width: 14, numFmt: CLP_DEC },
-      { header: 'Margen línea', key: 'margenLinea', width: 14, numFmt: CLP },
-    ],
-    data.ventasDetalle as unknown as Record<string, unknown>[]
-  );
-
-  addSheet(
-    wb,
-    'Compras',
-    [
-      { header: 'Fecha', key: 'fecha', width: 12, numFmt: DATE_FMT },
-      { header: 'Tipo doc.', key: 'tipoDoc', width: 16 },
-      { header: 'Folio', key: 'folio', width: 12 },
-      { header: 'Estado', key: 'estado', width: 12 },
-      { header: 'Proveedor', key: 'proveedor', width: 32 },
-      { header: 'RUT', key: 'rutProveedor', width: 14 },
-      { header: 'Neto', key: 'neto', width: 15, numFmt: CLP },
-      { header: 'Exento', key: 'exento', width: 13, numFmt: CLP },
-      { header: 'IVA', key: 'iva', width: 13, numFmt: CLP },
-      { header: 'Total', key: 'total', width: 16, numFmt: CLP },
-      { header: 'Pagado', key: 'pagado', width: 15, numFmt: CLP },
-      { header: 'Saldo', key: 'saldo', width: 15, numFmt: CLP },
-      { header: 'Estado pago', key: 'estadoPago', width: 13 },
-    ],
-    data.compras as unknown as Record<string, unknown>[]
-  );
-
-  addSheet(
-    wb,
-    'Compras detalle',
-    [
-      { header: 'Fecha', key: 'fecha', width: 12, numFmt: DATE_FMT },
-      { header: 'Tipo doc.', key: 'tipoDoc', width: 16 },
-      { header: 'Folio', key: 'folio', width: 12 },
-      { header: 'Proveedor', key: 'proveedor', width: 30 },
-      { header: 'SKU', key: 'sku', width: 16 },
-      { header: 'Descripción', key: 'descripcion', width: 36 },
-      { header: 'Cantidad', key: 'cantidad', width: 11, numFmt: QTY },
-      { header: 'Costo unitario', key: 'costoUnitario', width: 14, numFmt: CLP },
-      { header: 'Exento', key: 'exento', width: 9 },
-      { header: 'Neto', key: 'neto', width: 14, numFmt: CLP },
-      { header: 'IVA', key: 'iva', width: 12, numFmt: CLP },
-      { header: 'Total', key: 'total', width: 14, numFmt: CLP },
-    ],
-    data.comprasDetalle as unknown as Record<string, unknown>[]
-  );
-
-  const wsPagos = addSheet(
-    wb,
-    'Pagos',
-    [
-      { header: 'Fecha', key: 'fecha', width: 12, numFmt: DATE_FMT },
-      { header: 'Dirección', key: 'direccion', width: 12 },
-      { header: 'Contraparte', key: 'contraparte', width: 32 },
-      { header: 'Medio de pago', key: 'medioPago', width: 18 },
-      { header: 'Documento', key: 'documento', width: 24 },
-      { header: 'Monto', key: 'monto', width: 16, numFmt: CLP },
-      { header: 'Referencia', key: 'referencia', width: 20 },
-    ],
-    data.pagos as unknown as Record<string, unknown>[]
-  );
-  addDataBar(wsPagos, 'F', data.pagos.length + 1, 'FFED7D31');
-
+function buildPanel(dash: ExcelJS.Worksheet, data: ReportDataset) {
   // ---------- Panel ----------
   titleBlock(dash, data);
 
@@ -424,6 +258,213 @@ export async function buildWorkbook(data: ReportDataset): Promise<Buffer> {
     c.alignment = { vertical: 'middle', indent: 1, wrapText: true };
     row++;
   }
+}
+
+/**
+ * Construye el libro completo. El panel usa fórmulas vivas (SUMIFS/COUNTIFS)
+ * contra las hojas de datos en vez de valores precalculados: si el usuario
+ * filtra, corrige o agrega filas en Excel, los indicadores se recalculan solos.
+ */
+export async function buildWorkbook(data: ReportDataset, options: { advanced?: boolean } = {}): Promise<Buffer> {
+  // Sin Reportes Avanzados el libro no trae panel, Kardex, costos ni márgenes.
+  const advanced = options.advanced ?? true;
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'ERP Chile';
+  wb.created = data.generadoEn;
+
+  const dash = advanced ? wb.addWorksheet('Panel', { views: [{ state: 'frozen', ySplit: 2 }] }) : null;
+  if (dash) {
+    dash.columns = [
+      { width: 30 },
+      { width: 14 },
+      { width: 10 },
+      { width: 18 },
+      { width: 10 },
+      { width: 46 },
+    ];
+  }
+
+  // ---------- Hojas de datos ----------
+  const wsProductos = addSheet(
+    wb,
+    'Productos',
+    [
+      { header: 'SKU', key: 'sku', width: 16 },
+      { header: 'Producto', key: 'nombre', width: 38 },
+      { header: 'Categoría', key: 'categoria', width: 18 },
+      { header: 'Unidad', key: 'unidad', width: 10 },
+      { header: 'Gestiona stock', key: 'gestionaStock', width: 14 },
+      { header: 'PMP', key: 'pmp', width: 14, numFmt: CLP_DEC, advanced: true },
+      { header: 'Precio neto', key: 'precioNeto', width: 14, numFmt: CLP },
+      { header: 'Precio bruto', key: 'precioBruto', width: 14, numFmt: CLP },
+      { header: 'Margen unitario', key: 'margenUnitario', width: 16, numFmt: CLP, advanced: true },
+      { header: 'Stock mínimo', key: 'stockMinimo', width: 13, numFmt: QTY },
+      { header: 'Stock total', key: 'stockTotal', width: 13, numFmt: QTY },
+      { header: 'Valorizado', key: 'valorizado', width: 16, numFmt: CLP, advanced: true },
+    ],
+    data.productos as unknown as Record<string, unknown>[],
+    advanced
+  );
+  if (advanced) addDataBar(wsProductos, 'L', data.productos.length + 1, 'FF5B9BD5');
+
+  const wsInventario = addSheet(
+    wb,
+    'Inventario',
+    INVENTARIO_COLUMNS,
+    data.inventario as unknown as Record<string, unknown>[],
+    advanced
+  );
+  if (advanced) addDataBar(wsInventario, 'F', data.inventario.length + 1, 'FF70AD47');
+  const inventarioCols = visibleColumns(INVENTARIO_COLUMNS, advanced);
+  const lastLetter = String.fromCharCode(64 + inventarioCols.length);
+  const minLetter = letterOf(INVENTARIO_COLUMNS, 'stockMinimo', advanced);
+  // Semáforo de quiebre de stock: la fila se pinta si la cantidad cae bajo el mínimo.
+  if (data.inventario.length > 0) {
+    wsInventario.addConditionalFormatting({
+      ref: `A2:${lastLetter}${data.inventario.length + 1}`,
+      rules: [
+        {
+          type: 'expression',
+          formulae: [`AND($${minLetter}2>0,$D2<$${minLetter}2)`],
+          style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFDE7E6' } } },
+          priority: 1,
+        } as ExcelJS.ExpressionRuleType,
+      ],
+    });
+  }
+
+  if (advanced) addSheet(
+    wb,
+    'Kardex',
+    [
+      { header: 'Fecha', key: 'fecha', width: 12, numFmt: DATE_FMT },
+      { header: 'SKU', key: 'sku', width: 16 },
+      { header: 'Producto', key: 'producto', width: 34 },
+      { header: 'Bodega', key: 'bodega', width: 20 },
+      { header: 'Tipo movimiento', key: 'tipo', width: 20 },
+      { header: 'Cantidad', key: 'cantidad', width: 12, numFmt: QTY },
+      { header: 'Costo unitario', key: 'costoUnitario', width: 14, numFmt: CLP_DEC, advanced: true },
+      { header: 'Costo total', key: 'costoTotal', width: 14, numFmt: CLP },
+      { header: 'Stock anterior', key: 'stockAnterior', width: 13, numFmt: QTY },
+      { header: 'Stock nuevo', key: 'stockNuevo', width: 13, numFmt: QTY },
+      { header: 'PMP anterior', key: 'pmpAnterior', width: 14, numFmt: CLP_DEC },
+      { header: 'PMP nuevo', key: 'pmpNuevo', width: 14, numFmt: CLP_DEC },
+      { header: 'Referencia', key: 'referencia', width: 30 },
+    ],
+    data.kardex as unknown as Record<string, unknown>[],
+    advanced
+  );
+
+  const wsVentas = addSheet(
+    wb,
+    'Ventas',
+    [
+      { header: 'Fecha', key: 'fecha', width: 12, numFmt: DATE_FMT },
+      { header: 'Tipo DTE', key: 'tipoDte', width: 24 },
+      { header: 'Folio', key: 'folio', width: 10 },
+      { header: 'Estado', key: 'estado', width: 12 },
+      { header: 'Cliente', key: 'cliente', width: 32 },
+      { header: 'RUT', key: 'rutCliente', width: 14 },
+      { header: 'Neto', key: 'neto', width: 15, numFmt: CLP },
+      { header: 'Exento', key: 'exento', width: 13, numFmt: CLP },
+      { header: 'IVA', key: 'iva', width: 13, numFmt: CLP },
+      { header: 'Total', key: 'total', width: 16, numFmt: CLP },
+      { header: 'Pagado', key: 'pagado', width: 15, numFmt: CLP },
+      { header: 'Saldo', key: 'saldo', width: 15, numFmt: CLP },
+      { header: 'Estado pago', key: 'estadoPago', width: 13 },
+      { header: 'Costo de venta', key: 'costoVenta', width: 15, numFmt: CLP, advanced: true },
+      { header: 'Margen', key: 'margen', width: 15, numFmt: CLP, advanced: true },
+    ],
+    data.ventas as unknown as Record<string, unknown>[],
+    advanced
+  );
+  addDataBar(wsVentas, 'J', data.ventas.length + 1, 'FF5B9BD5');
+
+  addSheet(
+    wb,
+    'Ventas detalle',
+    [
+      { header: 'Fecha', key: 'fecha', width: 12, numFmt: DATE_FMT },
+      { header: 'Tipo DTE', key: 'tipoDte', width: 24 },
+      { header: 'Folio', key: 'folio', width: 10 },
+      { header: 'Cliente', key: 'cliente', width: 30 },
+      { header: 'SKU', key: 'sku', width: 16 },
+      { header: 'Descripción', key: 'descripcion', width: 36 },
+      { header: 'Cantidad', key: 'cantidad', width: 11, numFmt: QTY },
+      { header: 'Precio unitario', key: 'precioUnitario', width: 14, numFmt: CLP },
+      { header: 'Desc. %', key: 'descuentoPct', width: 10 },
+      { header: 'Exento', key: 'exento', width: 9 },
+      { header: 'Neto', key: 'neto', width: 14, numFmt: CLP },
+      { header: 'IVA', key: 'iva', width: 12, numFmt: CLP },
+      { header: 'Total', key: 'total', width: 14, numFmt: CLP },
+      { header: 'Costo unitario', key: 'costoUnitario', width: 14, numFmt: CLP_DEC, advanced: true },
+      { header: 'Margen línea', key: 'margenLinea', width: 14, numFmt: CLP, advanced: true },
+    ],
+    data.ventasDetalle as unknown as Record<string, unknown>[],
+    advanced
+  );
+
+  addSheet(
+    wb,
+    'Compras',
+    [
+      { header: 'Fecha', key: 'fecha', width: 12, numFmt: DATE_FMT },
+      { header: 'Tipo doc.', key: 'tipoDoc', width: 16 },
+      { header: 'Folio', key: 'folio', width: 12 },
+      { header: 'Estado', key: 'estado', width: 12 },
+      { header: 'Proveedor', key: 'proveedor', width: 32 },
+      { header: 'RUT', key: 'rutProveedor', width: 14 },
+      { header: 'Neto', key: 'neto', width: 15, numFmt: CLP },
+      { header: 'Exento', key: 'exento', width: 13, numFmt: CLP },
+      { header: 'IVA', key: 'iva', width: 13, numFmt: CLP },
+      { header: 'Total', key: 'total', width: 16, numFmt: CLP },
+      { header: 'Pagado', key: 'pagado', width: 15, numFmt: CLP },
+      { header: 'Saldo', key: 'saldo', width: 15, numFmt: CLP },
+      { header: 'Estado pago', key: 'estadoPago', width: 13 },
+    ],
+    data.compras as unknown as Record<string, unknown>[],
+    advanced
+  );
+
+  addSheet(
+    wb,
+    'Compras detalle',
+    [
+      { header: 'Fecha', key: 'fecha', width: 12, numFmt: DATE_FMT },
+      { header: 'Tipo doc.', key: 'tipoDoc', width: 16 },
+      { header: 'Folio', key: 'folio', width: 12 },
+      { header: 'Proveedor', key: 'proveedor', width: 30 },
+      { header: 'SKU', key: 'sku', width: 16 },
+      { header: 'Descripción', key: 'descripcion', width: 36 },
+      { header: 'Cantidad', key: 'cantidad', width: 11, numFmt: QTY },
+      { header: 'Costo unitario', key: 'costoUnitario', width: 14, numFmt: CLP },
+      { header: 'Exento', key: 'exento', width: 9 },
+      { header: 'Neto', key: 'neto', width: 14, numFmt: CLP },
+      { header: 'IVA', key: 'iva', width: 12, numFmt: CLP },
+      { header: 'Total', key: 'total', width: 14, numFmt: CLP },
+    ],
+    data.comprasDetalle as unknown as Record<string, unknown>[],
+    advanced
+  );
+
+  const wsPagos = addSheet(
+    wb,
+    'Pagos',
+    [
+      { header: 'Fecha', key: 'fecha', width: 12, numFmt: DATE_FMT },
+      { header: 'Dirección', key: 'direccion', width: 12 },
+      { header: 'Contraparte', key: 'contraparte', width: 32 },
+      { header: 'Medio de pago', key: 'medioPago', width: 18 },
+      { header: 'Documento', key: 'documento', width: 24 },
+      { header: 'Monto', key: 'monto', width: 16, numFmt: CLP },
+      { header: 'Referencia', key: 'referencia', width: 20 },
+    ],
+    data.pagos as unknown as Record<string, unknown>[],
+    advanced
+  );
+  addDataBar(wsPagos, 'F', data.pagos.length + 1, 'FFED7D31');
+
+  if (dash) buildPanel(dash, data);
 
   const buffer = await wb.xlsx.writeBuffer();
   return Buffer.from(buffer);

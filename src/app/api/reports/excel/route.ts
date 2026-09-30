@@ -4,6 +4,7 @@ import {
   AuthError,
   ModuleNotEnabledError,
   TenantInactiveError,
+  can,
   requireAuthWithPermission,
 } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
@@ -30,9 +31,16 @@ function defaultRange(): { from: Date; to: Date } {
 export async function GET(req: Request) {
   try {
     // El proxy no intercepta /api, así que la autorización tiene que vivir aquí.
-    // El workbook agrega costos, márgenes y PMP de toda la empresa: exige el
-    // permiso y, con él, que el plan incluya Reportes Avanzados.
-    const session = await requireAuthWithPermission('reports:read');
+    // Con Reportes Avanzados (`reports:read`) el libro trae costos, márgenes,
+    // PMP, Kardex y panel; sin él, `reports:basic` (Core) baja el libro básico.
+    let session;
+    try {
+      session = await requireAuthWithPermission('reports:read');
+    } catch (error) {
+      if (!(error instanceof AuthError) && !(error instanceof ModuleNotEnabledError)) throw error;
+      session = await requireAuthWithPermission('reports:basic');
+    }
+    const advanced = can(session, 'reports:read');
 
     const url = new URL(req.url);
     const rawFrom = url.searchParams.get('from');
@@ -53,7 +61,7 @@ export async function GET(req: Request) {
     range.to = new Date(range.to.getFullYear(), range.to.getMonth(), range.to.getDate(), 23, 59, 59, 999);
 
     const dataset = await buildReportDataset(session.companyId, range);
-    const buffer = await buildWorkbook(dataset);
+    const buffer = await buildWorkbook(dataset, { advanced });
 
     await createAuditLog({
       companyId: session.companyId,
@@ -63,6 +71,7 @@ export async function GET(req: Request) {
       entity: 'Report',
       entityId: 'excel',
       metadata: {
+        advanced,
         from: range.from.toISOString(),
         to: range.to.toISOString(),
         filas: {

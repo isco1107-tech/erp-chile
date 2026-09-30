@@ -199,7 +199,7 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
   }
 
   const ventas: NavLink[] = [];
-  if (features.hasDteBilling && allow('sales:read')) {
+  if (allow('sales:read')) {
     ventas.push(
       { id: 'sales', href: '/dashboard/sales', label: 'Ventas & Facturación', icon: 'sales', keywords: ['factura', 'boleta', 'dte', 'cotizacion', 'nota de credito'] },
       { id: 'sales-orders', href: '/dashboard/sales/orders', label: 'Notas de venta', icon: 'salesOrders', keywords: ['pedido', 'nota de venta', 'orden de venta', 'despacho parcial', 'reserva'] },
@@ -277,9 +277,11 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
     );
   }
   const reportes: NavLink[] = [];
+  if (allow('reports:basic') || allow('reports:read')) {
+    reportes.push({ id: 'reports', href: '/dashboard/reports', label: 'Reportes Excel', icon: 'reports', keywords: ['excel', 'libro de ventas', 'libro de compras', 'exportar'] });
+  }
   if (features.hasAdvancedReports && allow('reports:read')) {
     reportes.push(
-      { id: 'reports', href: '/dashboard/reports', label: 'Reportes Excel', icon: 'reports', keywords: ['excel', 'libro de ventas', 'libro de compras', 'exportar'] },
       { id: 'reports-f29', href: '/dashboard/reports/f29', label: 'Formulario 29 (F29)', icon: 'reports', keywords: ['f29', 'iva', 'sii', 'ppm', 'impuestos'] },
       { id: 'reports-rcv', href: '/dashboard/reports/rcv', label: 'Registro de Compras y Ventas', icon: 'rcv', keywords: ['rcv', 'sii', 'libro de compras', 'libro de ventas', 'cuadratura', 'credito fiscal'] }
     );

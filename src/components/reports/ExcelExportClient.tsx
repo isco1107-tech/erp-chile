@@ -50,19 +50,19 @@ const PRESETS = [
   },
 ] as const;
 
-const SHEETS = [
-  { name: 'Panel', desc: 'Indicadores con fórmulas vivas: margen, IVA F29, inventario, flujo' },
-  { name: 'Productos', desc: 'Catálogo con PMP, precios, margen unitario y valorización' },
-  { name: 'Inventario', desc: 'Stock por bodega, valorizado, con alerta de quiebre' },
-  { name: 'Kardex', desc: 'Trazabilidad de cada movimiento con PMP antes y después' },
-  { name: 'Ventas', desc: 'Documentos emitidos con costo de venta y margen' },
-  { name: 'Ventas detalle', desc: 'Línea a línea, con margen por línea' },
+const SHEETS: { name: string; desc: string; advanced?: true }[] = [
+  { name: 'Panel', advanced: true, desc: 'Indicadores con fórmulas vivas: margen, IVA F29, inventario, flujo' },
+  { name: 'Productos', desc: 'Catálogo con precios y stock (con Reportes Avanzados: PMP, margen y valorización)' },
+  { name: 'Inventario', desc: 'Stock por bodega con alerta de quiebre (con Reportes Avanzados: valorizado)' },
+  { name: 'Kardex', advanced: true, desc: 'Trazabilidad de cada movimiento con PMP antes y después' },
+  { name: 'Ventas', desc: 'Documentos emitidos y su estado de pago (con Reportes Avanzados: costo y margen)' },
+  { name: 'Ventas detalle', desc: 'Línea a línea (con Reportes Avanzados: margen por línea)' },
   { name: 'Compras', desc: 'Facturas de proveedor con saldo pendiente' },
   { name: 'Compras detalle', desc: 'Línea a línea, con enlace a producto' },
   { name: 'Pagos', desc: 'Cobros y pagos del período' },
 ];
 
-export default function ExcelExportClient() {
+export default function ExcelExportClient({ advanced }: { advanced: boolean }) {
   const initial = useMemo(() => PRESETS[0].build(), []);
   const [from, setFrom] = useState(isoDate(initial.from));
   const [to, setTo] = useState(isoDate(initial.to));
@@ -154,7 +154,7 @@ export default function ExcelExportClient() {
         </CardHeader>
         <CardContent>
           <ul className="divide-y divide-border">
-            {SHEETS.map((sheet) => (
+            {SHEETS.filter((sheet) => advanced || !sheet.advanced).map((sheet) => (
               <li key={sheet.name} className="flex flex-col gap-0.5 py-2.5 sm:flex-row sm:gap-4">
                 <span className="min-w-40 text-sm font-medium">{sheet.name}</span>
                 <span className="text-sm text-muted-foreground">{sheet.desc}</span>

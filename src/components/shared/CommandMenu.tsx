@@ -47,7 +47,7 @@ const QUICK_ACTIONS: QuickAction[] = [
     href: '/dashboard/sales/new',
     icon: CreditCard,
     keywords: ['factura', 'boleta', 'emitir'],
-    visible: (permissions, features) => features.hasDteBilling && permissions.includes('sales:write'),
+    visible: (permissions) => permissions.includes('sales:write'),
     navItem: 'sales',
   },
   {

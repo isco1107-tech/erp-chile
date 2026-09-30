@@ -37,6 +37,9 @@ describe('catálogo de precios', () => {
   it('los flags del paquete encienden el Core y solo lo contratado', () => {
     const core = packageFeatureFlags('Core');
     expect(core.hasInventory && core.hasPurchases && core.hasTeamTasks).toBe(true);
+    // Ventas y el libro Excel básico van con toda empresa; DTE no se vende.
+    expect(core.hasDteBilling).toBe(false);
+    expect(core.hasAdvancedReports).toBe(false);
     expect(core.hasAccounting).toBe(false);
     expect(packageFeatureFlags('Completo').hasAccounting).toBe(true);
     expect(packageFeatureFlags('Gestión').hasAccounting).toBe(false);

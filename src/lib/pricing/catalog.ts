@@ -91,16 +91,11 @@ export const EXTRAS = {
 /** Precio del Core: base de cualquier contratación. */
 export const CORE_PRICE_UF = 0.86;
 
-/** Módulos que trae el Core. Ventas y clientes/proveedores no tienen flag propio (ver `SALES_GATE_FLAG`). */
-export const CORE_MODULES: readonly FeatureKey[] = ['hasInventory', 'hasPmpCosting', 'hasPurchases', 'hasTeamTasks'];
-
 /**
- * Hoy las pantallas y permisos de Ventas cuelgan de `hasDteBilling` (ver
- * `MODULES` en modules.ts). Mientras no se separen, el Core lo enciende para
- * que Ventas funcione; NO da timbre ni envío al SII (eso depende de cargar un
- * CAF) y en la landing no se ofrece como módulo.
+ * Módulos que trae el Core. Ventas, clientes/proveedores y el libro Excel básico
+ * no tienen flag propio: van con toda empresa (permisos `sales:*`, `reports:basic`).
  */
-export const SALES_GATE_FLAG: FeatureKey = 'hasDteBilling';
+export const CORE_MODULES: readonly FeatureKey[] = ['hasInventory', 'hasPmpCosting', 'hasPurchases', 'hasTeamTasks'];
 
 export const PACKAGE_NAMES = ['Core', 'Gestión', 'Completo', 'Eventos'] as const;
 export type PackageName = (typeof PACKAGE_NAMES)[number];
@@ -198,13 +193,13 @@ export const PACKAGES: Record<PackageName, PackageDefinition> = {
   },
 };
 
-/** Flags de un paquete: el Core, sus módulos propios y la llave de Ventas. Todo lo demás, apagado. */
+/** Flags de un paquete: el Core y sus módulos propios. Todo lo demás, apagado. */
 export function packageFeatureFlags(name: PackageName): Record<FeatureKey, boolean> {
-  const on = new Set<FeatureKey>([...CORE_MODULES, SALES_GATE_FLAG, ...PACKAGES[name].modules]);
+  const on = new Set<FeatureKey>([...CORE_MODULES, ...PACKAGES[name].modules]);
   return Object.fromEntries(MODULE_KEYS.map((key) => [key, on.has(key)])) as Record<FeatureKey, boolean>;
 }
 
-/** Suma a precio suelto: Core más los módulos vendibles del paquete (sin la llave de Ventas). */
+/** Suma a precio suelto: Core más los módulos vendibles del paquete. */
 export function looseTotalUf(name: PackageName): number {
   const modulesUf = PACKAGES[name].modules.reduce((sum, key) => sum + MODULE_PRICES[key].priceUf, 0);
   return Math.round((CORE_PRICE_UF + modulesUf) * 100) / 100;

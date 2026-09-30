@@ -156,17 +156,16 @@ describe('roles de agentes visibles', () => {
   });
 
   it('un rol sin módulos con datos no corre', () => {
-    // Productora con CRM pero sin Inventario ni ventas: ni COO ni Ventas ni CFO;
-    // el CEO queda porque resume a Finanzas de producción.
-    expect(visibleAgentRoles(flags({ hasCrm: true, hasEventProjects: true }))).toEqual(['CEO', 'EVENT_FINANCE']);
-    // Sin Inventario no hay COO; con POS (sin facturación) sí hay Ventas.
+    // Ventas viene con el Core: toda empresa con Agentes tiene documentos de
+    // venta que analizar (CFO y Ventas). Sin Inventario no hay COO.
     expect(visibleAgentRoles(flags({ hasCrm: true, hasPos: true }))).toEqual(['CEO', 'CFO', 'SALES']);
-    // Solo Tesorería: el CFO igual tiene qué mirar.
-    expect(visibleAgentRoles(flags({ hasCrm: true, hasTreasury: true }))).toEqual(['CEO', 'CFO']);
+    // Con Eventos, además del CEO aparece Finanzas de producción.
+    expect(visibleAgentRoles(flags({ hasCrm: true, hasEventProjects: true }))).toContain('EVENT_FINANCE');
+    expect(visibleAgentRoles(flags({ hasCrm: true, hasInventory: false }))).not.toContain('COO');
   });
 
-  it('sin agentes que resumir no hay CEO', () => {
-    expect(visibleAgentRoles(flags({ hasCrm: true }))).toEqual([]);
+  it('con Ventas en el Core, Agentes siempre tiene qué resumir', () => {
+    expect(visibleAgentRoles(flags({ hasCrm: true }))).toEqual(['CEO', 'CFO', 'SALES']);
   });
 });
 
