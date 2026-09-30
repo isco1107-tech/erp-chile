@@ -303,7 +303,7 @@ describe('hero por vista (candidata / sponsor)', () => {
     const hero = audienceHero('sponsor', base);
     expect(hero.kicker).toBe('Patrocinios oficiales 2026');
     expect(hero.heading).toBe('Sé sponsor de la corona');
-    expect(hero.pills).toEqual(['3 categorías', 'Desde $500.000 + IVA']);
+    expect(hero.pills).toEqual(['3 categorías', 'Desde $500.000']);
     expect(audienceHero('sponsor', { ...base, packagePrices: [] }).pills).toEqual([]);
   });
 });

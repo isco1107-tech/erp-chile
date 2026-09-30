@@ -3,7 +3,7 @@ import 'server-only';
 import type { CandidateStatus, SponsorshipTier } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { pageantContact } from '@/lib/events/pageant-contact';
-import type { DirectorTitle } from '@/lib/events/pageant-site';
+import { shortDate, type DirectorTitle } from '@/lib/events/pageant-site';
 import { decodeVoteToken } from '@/modules/public-voting/schema';
 import { SPONSORSHIP_TIER_LABELS, SPONSORSHIP_TIERS } from '@/modules/sponsorships/schema';
 import type { PublicAccentKey } from '../schema';
@@ -64,6 +64,15 @@ export interface PublicPageantSite {
     benefits: string[];
     classesNote: string | null;
   } | null;
+  /**
+   * La cara "Ser candidata" del sitio existe siempre que la empresa tenga el módulo de
+   * candidatas, esté abierta la convocatoria o no: así el sitio ofrece SIEMPRE las dos
+   * opciones (candidata / sponsor). Con la convocatoria sin abrir, `registration` es
+   * `null` y `registrationNotice` explica el estado en vez de mostrar un formulario que
+   * el servidor rechazaría.
+   */
+  candidateSide: boolean;
+  registrationNotice: { state: 'soon' | 'closed'; opensAtLabel: string | null } | null;
   voteRanking: Array<{ name: string; number: number | null; votes: number }> | null;
   results: Array<{ rank: number; name: string; number: number | null; representing: string | null; photoUrl: string | null }> | null;
   sponsorLeadForm: boolean;
@@ -179,6 +188,18 @@ export async function getPublicPageantSite(slug: string): Promise<PublicPageantS
     (!project.registrationOpensAt || project.registrationOpensAt <= now) &&
     (!project.registrationClosesAt || project.registrationClosesAt > now);
 
+  const registrationEnded =
+    project.registrationStatus === 'CLOSED' ||
+    project.registrationStatus === 'ARCHIVED' ||
+    Boolean(project.registrationClosesAt && project.registrationClosesAt <= now);
+  const opensLater = Boolean(project.registrationOpensAt && project.registrationOpensAt > now);
+  const registrationNotice: PublicPageantSite['registrationNotice'] =
+    !features.hasCandidates || registrationOpen
+      ? null
+      : registrationEnded
+        ? { state: 'closed', opensAtLabel: null }
+        : { state: 'soon', opensAtLabel: opensLater && project.registrationOpensAt ? shortDate(project.registrationOpensAt.toISOString()) : null };
+
   const contact = pageantContact(project);
 
   return {
@@ -230,6 +251,8 @@ export async function getPublicPageantSite(slug: string): Promise<PublicPageantS
             classesNote: project.registrationClassesNote,
           }
         : null,
+    candidateSide: features.hasCandidates,
+    registrationNotice,
     voteRanking,
     results:
       finalRound && finalRound.contestants.length > 0

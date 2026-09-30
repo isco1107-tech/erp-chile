@@ -431,7 +431,7 @@ export function audienceHero(
     const prices = input.packagePrices.filter((p): p is number => p != null);
     const pills = [
       input.packagePrices.length > 0 ? `${input.packagePrices.length} ${input.packagePrices.length === 1 ? 'categoría' : 'categorías'}` : null,
-      prices.length > 0 ? `Desde ${input.formatMoney(Math.min(...prices))} + IVA` : null,
+      prices.length > 0 ? `Desde ${input.formatMoney(Math.min(...prices))}` : null,
     ].filter((p): p is string => Boolean(p));
     return {
       kicker: `Patrocinios oficiales${edition}`,

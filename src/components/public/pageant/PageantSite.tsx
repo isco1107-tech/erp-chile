@@ -211,7 +211,8 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
 
   // Dos caras del sitio, como la convocatoria de referencia: "Quiero ser
   // candidata" y "Ser sponsor". El selector solo aparece si existen las dos.
-  const hasCandidateSide = Boolean(site.registration) || site.candidates.length > 0 || Boolean(site.voting) || Boolean(site.results);
+  // Con el módulo de candidatas contratado la cara "candidata" existe siempre (aunque la convocatoria no esté abierta).
+  const hasCandidateSide = site.candidateSide || Boolean(site.registration) || site.candidates.length > 0 || Boolean(site.voting) || Boolean(site.results);
   const hasSponsorSide = site.packages.length > 0 || site.sponsorLeadForm || site.sponsorsByTier.length > 0;
   const showAudienceSwitch = hasCandidateSide && hasSponsorSide;
   const [audience, setAudience] = useState<PageantAudience>(hasCandidateSide ? 'candidata' : 'sponsor');
@@ -262,8 +263,8 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
       { id: 'resultados', label: 'Resultados', show: candidateSide && Boolean(winner) },
       { id: 'certamen', label: 'El certamen', show: Boolean(site.description) || view.highlights.length > 0 },
       // Con la convocatoria abierta, "Así es el proceso" de la inscripción reemplaza al recorrido general.
-      { id: 'camino', label: 'El camino', show: candidateSide && !site.registration },
-      { id: 'postula', label: 'Inscripción', show: candidateSide && Boolean(site.registration) },
+      { id: 'camino', label: 'El camino', show: candidateSide && !site.registration && !site.registrationNotice },
+      { id: 'postula', label: 'Inscripción', show: candidateSide && (Boolean(site.registration) || Boolean(site.registrationNotice)) },
       { id: 'candidatas', label: 'Candidatas', show: site.candidates.length > 0 },
       { id: 'votacion', label: 'Votación', show: candidateSide && Boolean(site.voteRanking && site.voteRanking.length > 0) },
       { id: 'gala', label: 'La gala', show: hasGala },
@@ -272,7 +273,7 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
       { id: 'preguntas', label: 'Preguntas', show: candidateSide && view.faq.length > 0 },
     ];
     return list.filter((s) => s.show);
-  }, [winner, site.description, site.registration, site.candidates.length, site.voteRanking, hasGala, hasSponsorSection, view.highlights.length, view.faq.length, isSponsorView, showAudienceSwitch, site.director]);
+  }, [winner, site.description, site.registration, site.registrationNotice, site.candidates.length, site.voteRanking, hasGala, hasSponsorSection, view.highlights.length, view.faq.length, isSponsorView, showAudienceSwitch, site.director]);
   const shows = (id: string) => sections.some((s) => s.id === id);
   const numberOf = (id: string) => pad(sections.findIndex((s) => s.id === id) + 1);
   const navItems = sections.filter((s) => !['camino', 'preguntas'].includes(s.id)).slice(0, 6);
@@ -526,9 +527,9 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
                 )}
               </>
             ) : (
-              site.registration && (
-                <a className="pgs-btn is-gold" href="#postula">
-                  <span>Quiero inscribirme</span>
+              (site.registration || site.registrationNotice) && (
+                <a className={`pgs-btn ${site.registration ? 'is-gold' : 'is-ghost'}`} href="#postula">
+                  <span>{site.registration ? 'Quiero inscribirme' : site.registrationNotice?.state === 'closed' ? 'Postulaciones cerradas' : 'Postulaciones próximamente'}</span>
                   <Arrow className="pgs-btn-icon" />
                 </a>
               )
@@ -776,6 +777,48 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
           </section>
         )}
 
+        {/* ── Inscripción aún sin abrir (o ya cerrada) ─────────────────── */}
+        {shows('postula') && !site.registration && site.registrationNotice && (
+          <section id="postula" className="pgs-section is-night is-deep" aria-labelledby="pgs-apply-title">
+            <div className="pgs-wrap">
+              <div className="pgs-section-head is-center" data-reveal>
+                <Kicker index={numberOf('postula')}>Tu camino a la corona</Kicker>
+                <h2 id="pgs-apply-title" className="pgs-h2">
+                  {site.registrationNotice.state === 'closed' ? (
+                    <>
+                      Las postulaciones <em>ya cerraron</em>
+                    </>
+                  ) : (
+                    <>
+                      Las postulaciones <em>abrirán pronto</em>
+                    </>
+                  )}
+                </h2>
+                <p className="pgs-note">
+                  {site.registrationNotice.state === 'closed'
+                    ? `La convocatoria de ${site.name} ya no recibe postulaciones.`
+                    : site.registrationNotice.opensAtLabel
+                      ? `La convocatoria de ${site.name} abre el ${site.registrationNotice.opensAtLabel}.`
+                      : `Aún no está abierta la convocatoria de ${site.name}.`}{' '}
+                  {site.whatsapp || site.contactEmail ? 'Escríbenos y te avisamos cuando haya novedades.' : 'Vuelve pronto para postular.'}
+                </p>
+                <div className="pgs-hero-ctas">
+                  {site.whatsapp && (
+                    <a className="pgs-btn is-gold" href={whatsappMessageUrl(site.whatsapp.href, whatsappGreeting('candidata', site.name))} target="_blank" rel="noopener noreferrer">
+                      <span>Escríbenos por WhatsApp</span>
+                    </a>
+                  )}
+                  {site.contactEmail && (
+                    <a className="pgs-btn is-ghost" href={`mailto:${site.contactEmail}`}>
+                      <span>{site.contactEmail}</span>
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* ── Candidatas ───────────────────────────────────────────────── */}
         {site.candidates.length > 0 && (
           <section id="candidatas" className="pgs-section is-night" aria-labelledby="pgs-candidates-title">
@@ -961,7 +1004,7 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
                   <ul className="pgs-packages">
                     {site.packages.map((p, i) => {
                       const exclusive = packageBenefits.exclusive[p.id] ?? [];
-                      const priceLabel = p.price != null ? `${formatCurrency(p.price)} + IVA` : null;
+                      const priceLabel = p.price != null ? formatCurrency(p.price) : null;
                       return (
                         <li key={p.id} className={`pgs-package${i === 0 ? ' is-featured' : ''}${p.slotsLeft === 0 ? ' is-soldout' : ''}${openPackages.has(p.id) ? ' is-open' : ''}`} data-reveal style={{ transitionDelay: `${i * 0.08}s` }}>
                           <button type="button" className="pgs-package-toggle" aria-expanded={openPackages.has(p.id)} aria-controls={`paquete-${p.id}`} onClick={() => togglePackage(p.id)}>
@@ -970,7 +1013,7 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
                               <span className="pgs-package-name">{p.name}</span>
                               {p.price != null && (
                                 <span className="pgs-package-price">
-                                  {formatCurrency(p.price)} <span>+ IVA</span>
+                                  {formatCurrency(p.price)}
                                 </span>
                               )}
                             </span>
