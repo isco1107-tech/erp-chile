@@ -14,18 +14,9 @@ import { formatWhatsappNumber } from '@/lib/events/pageant-contact';
 import { slugify } from '@/lib/events/public-slug';
 import { DIRECTOR_TITLES, directorCopy, type DirectorTitle } from '@/lib/events/pageant-site';
 import { checkPublicSlugAction, updatePublicSiteAction } from '@/modules/projects/actions/projects.actions';
-import { PUBLIC_ACCENT_LABELS, PUBLIC_ACCENTS, type PublicAccentKey } from '@/modules/projects/schema';
+import { PUBLIC_ACCENT_LABELS, PUBLIC_ACCENT_SWATCH, PUBLIC_ACCENTS, type PublicAccentKey } from '@/modules/projects/schema';
 import { cn } from '@/lib/utils';
 import { CustomDomainSection } from './CustomDomainSection';
-
-/** Muestras de color de los acentos del sistema público (los mismos de `PublicShell`). */
-const ACCENT_SWATCH: Record<PublicAccentKey, string> = {
-  gold: 'linear-gradient(135deg, #e7cd97, #a8823f)',
-  violet: 'linear-gradient(135deg, #b39bff, #6d28d9)',
-  rose: 'linear-gradient(135deg, #fda4b4, #be123c)',
-  cyan: 'linear-gradient(135deg, #67e8f9, #0e7490)',
-  emerald: 'linear-gradient(135deg, #6ee7b7, #047857)',
-};
 
 type Toggle = 'showCandidatesPublic' | 'showSponsorsPublic' | 'showVoteRankingPublic' | 'showResultsPublic' | 'sponsorLeadFormEnabled';
 
@@ -274,7 +265,7 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
                   onClick={() => set('publicAccent', accent)}
                   className={cn('flex items-center gap-2 rounded-full border px-3 py-1 text-xs', values.publicAccent === accent ? 'border-foreground font-medium' : 'border-border text-muted-foreground')}
                 >
-                  <span className="size-3.5 rounded-full" style={{ background: ACCENT_SWATCH[accent] }} aria-hidden="true" />
+                  <span className="size-3.5 rounded-full" style={{ background: PUBLIC_ACCENT_SWATCH[accent] }} aria-hidden="true" />
                   {PUBLIC_ACCENT_LABELS[accent]}
                 </button>
               ))}
@@ -434,7 +425,7 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={values.coverImageUrl} alt="" className="absolute inset-0 size-full object-cover opacity-60" aria-hidden="true" />
               )}
-              <span className="absolute inset-x-0 bottom-0 h-1" style={{ background: ACCENT_SWATCH[values.publicAccent] }} aria-hidden="true" />
+              <span className="absolute inset-x-0 bottom-0 h-1" style={{ background: PUBLIC_ACCENT_SWATCH[values.publicAccent] }} aria-hidden="true" />
             </div>
             <div className="p-4">
               <p className="text-lg font-semibold">{project.name}</p>
