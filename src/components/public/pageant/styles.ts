@@ -487,7 +487,6 @@ export const PAGEANT_SITE_STYLES = `
 .pgs-footer-nav a:hover, .pgs-footer-contact a:hover { color: var(--a); }
 .pgs-footer-contact { display: flex; flex-direction: column; gap: 0.8rem; }
 .pgs-footer-contact a { display: inline-flex; align-items: center; gap: 0.55rem; overflow-wrap: anywhere; }
-.pgs-footer-word { margin: clamp(3rem, 8vw, 5rem) 0 0; text-align: center; font-family: var(--display); font-size: min(26vw, 22rem); line-height: 0.8; letter-spacing: 0.02em; color: transparent; -webkit-text-stroke: 1px color-mix(in srgb, var(--a) 26%, transparent); white-space: nowrap; user-select: none; }
 .pgs-footer-legal { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.6rem 2rem; margin-top: 2rem; font-size: 0.78rem; color: var(--on-night-dim); }
 .pgs-footer-legal p { margin: 0; }
 .pgs-footer-legal a { color: inherit; }
@@ -692,14 +691,6 @@ export const PAGEANT_SITE_STYLES = `
 .pgs-footer-brand .pgs-brand-mark { filter: drop-shadow(0 0 10px color-mix(in srgb, var(--a) 60%, transparent)); }
 .pgs-footer-nav a, .pgs-footer-contact a { color: color-mix(in srgb, var(--on-night) 86%, transparent); }
 .pgs-footer-contact .pgs-inline-icon { color: var(--a); }
-.pgs-footer-word {
-  color: transparent;
-  -webkit-text-stroke: 1px color-mix(in srgb, var(--a) 55%, transparent);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--a-bright) 70%, transparent) 0%, color-mix(in srgb, var(--a) 45%, transparent) 45%, color-mix(in srgb, var(--a-mid) 10%, transparent) 100%);
-  -webkit-background-clip: text; background-clip: text;
-  background-size: 100% 100%;
-}
-.pgs-footer-word::selection { background: transparent; }
 .pgs-footer-legal { color: color-mix(in srgb, var(--on-night) 70%, transparent); }
 
 /* "MISS UNIVERSO": protagonista junto al nombre, en la tipografía de display y a escala del ancho. */
@@ -753,7 +744,7 @@ export const PAGEANT_SITE_STYLES = `
    siguen costando CPU aunque no se vean, y en equipos modestos hacían temblar el scroll. */
 .pgs .is-offscreen, .pgs .is-offscreen *, .pgs .is-offscreen *::before, .pgs .is-offscreen *::after { animation-play-state: paused !important; }
 /* Títulos de una línea que FitText ajusta al ancho real. */
-.pgs-title-main, .pgs-footer-word { display: block; max-width: 100%; white-space: nowrap; overflow-wrap: normal; }
+.pgs-title-main { display: block; max-width: 100%; white-space: nowrap; overflow-wrap: normal; }
 /* Truncados a propósito (el nombre completo está en el título y en el perfil): nunca invaden otra caja. */
 .pgs-brand-name { display: block; min-width: 0; max-width: 100%; }
 .pgs-card-name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; font-size: clamp(1.05rem, 4.4vw, 1.75rem); }

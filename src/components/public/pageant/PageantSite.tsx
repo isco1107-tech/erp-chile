@@ -1314,9 +1314,6 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
             {site.registration && <a href={site.registration.href}>Postula al certamen</a>}
           </div>
         </div>
-        <FitText as="p" className="pgs-footer-word" aria-hidden="true">
-          {title.main}
-        </FitText>
         <div className="pgs-wrap pgs-footer-legal">
           <p>
             © {title.edition ?? ''} {shortName}
