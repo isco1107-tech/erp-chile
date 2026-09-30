@@ -25,7 +25,15 @@ export function normalizeDomain(input: string): string {
   return value;
 }
 
-/** Hosts donde vive la propia plataforma: nunca pueden registrarse como dominio de un certamen. */
+/**
+ * Hosts donde vive la propia plataforma: nunca pueden registrarse como dominio de un certamen o sitio.
+ *
+ * `APP_URL` manda. `VERCEL_PROJECT_PRODUCTION_URL` solo sirve de respaldo sin `APP_URL`:
+ * Vercel lo fija al dominio de producción MÁS CORTO del proyecto, y cada dominio de
+ * cliente que se agrega al proyecto puede pasar a serlo. Si se leyera siempre, el
+ * dominio de una empresa terminaría contado como "de la plataforma": se le negaría a
+ * su dueña, o peor, el proxy serviría el ERP bajo el dominio del cliente.
+ */
 export function appHosts(env: Record<string, string | undefined> = process.env): string[] {
   const fromUrl = (raw: string | undefined): string | null => {
     if (!raw?.trim()) return null;
@@ -36,8 +44,7 @@ export function appHosts(env: Record<string, string | undefined> = process.env):
     }
   };
   const hosts = [
-    fromUrl(env.APP_URL),
-    fromUrl(env.VERCEL_PROJECT_PRODUCTION_URL),
+    fromUrl(env.APP_URL) ?? fromUrl(env.VERCEL_PROJECT_PRODUCTION_URL),
     fromUrl(env.VERCEL_URL),
     fromUrl(env.VERCEL_BRANCH_URL),
     ...(env.APP_HOSTS ?? '').split(',').map((host) => fromUrl(host)),
@@ -60,10 +67,11 @@ export function customDomainProblem(domain: string, env: Record<string, string |
   if (!/^[a-z]{2,63}$/.test(labels[labels.length - 1]!)) return 'La terminación del dominio no es válida';
   if (domain === 'localhost' || domain.endsWith('.localhost')) return 'Ese dominio no es público';
   if (domain.endsWith('.vercel.app') || domain.endsWith('.vercel.sh')) return 'Usa un dominio propio, no uno de vercel.app';
-  const platform = appHosts(env);
-  if (platform.some((host) => host === domain || domain.endsWith(`.${host}`) || host.endsWith(`.${domain}`))) {
-    return 'Ese dominio es el de la plataforma; usa uno propio del certamen';
-  }
+  // Solo choca el host exacto de la plataforma o un subdominio suyo. El "padre" sí se
+  // permite (plataforma en `app.miempresa.cl`, sitio de la empresa en `miempresa.cl`):
+  // el proxy decide por host exacto, así que no puede desviar la app.
+  const clash = appHosts(env).find((host) => host === domain || domain.endsWith(`.${host}`));
+  if (clash) return `Ese dominio (${clash}) es el de la plataforma; usa uno propio de la empresa`;
   return null;
 }
 
