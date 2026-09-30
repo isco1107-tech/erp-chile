@@ -2,10 +2,12 @@ import 'server-only';
 
 import type { SponsorshipPackage } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import type { SponsorshipPackageInput, SponsorshipPackageUpdateInput } from '../schema';
+import { GENERAL_TARIFF, type SponsorshipPackageInput, type SponsorshipPackageUpdateInput } from '../schema';
 
 /**
- * Tarifario de auspicios por certamen. Los cupos vendidos se cuentan desde
+ * Tarifario de auspicios por certamen, más un tarifario general (planes sin
+ * certamen, `projectId: null`) para preparar precios antes de que exista un
+ * certamen y copiarlos después. Los cupos vendidos se cuentan desde
  * los contratos confirmados o completados que salieron de cada plan — nunca
  * se guarda un contador que haya que mantener sincronizado.
  */
@@ -16,7 +18,13 @@ export interface SponsorshipPackageRow extends SponsorshipPackage {
   soldSlots: number;
   /** Suma de lo contratado (efectivo + canje) en contratos vigentes de este plan. */
   soldValue: number;
-  project: { id: string; name: string; code: string };
+  /** `null` en los planes del tarifario general. */
+  project: { id: string; name: string; code: string } | null;
+}
+
+/** `'GENERAL'` o vacío → `null` (sin certamen); cualquier otro valor es el id de un certamen. */
+export function projectIdOrNull(value: string | null | undefined): string | null {
+  return !value || value === GENERAL_TARIFF ? null : value;
 }
 
 async function assertProject(companyId: string, projectId: string): Promise<void> {
@@ -24,9 +32,11 @@ async function assertProject(companyId: string, projectId: string): Promise<void
   if (!project) throw new Error('El certamen no existe o no pertenece a tu empresa');
 }
 
-export async function listPackages(companyId: string, projectId?: string): Promise<SponsorshipPackageRow[]> {
+/** `scope`: id de un certamen, `'GENERAL'` (tarifario sin certamen) o vacío (todos). */
+export async function listPackages(companyId: string, scope?: string): Promise<SponsorshipPackageRow[]> {
+  const where = scope === GENERAL_TARIFF ? { projectId: null } : scope ? { projectId: scope } : {};
   const packages = await prisma.sponsorshipPackage.findMany({
-    where: { companyId, ...(projectId ? { projectId } : {}) },
+    where: { companyId, ...where },
     include: {
       project: { select: { id: true, name: true, code: true } },
       contracts: { where: { companyId, status: { in: [...SLOT_TAKING_STATUSES] } }, select: { cashAmount: true, barterValuation: true } },
@@ -43,11 +53,12 @@ export async function listPackages(companyId: string, projectId?: string): Promi
 const clean = (benefits: string[]) => benefits.map((b) => b.trim()).filter(Boolean);
 
 export async function createPackage(companyId: string, input: SponsorshipPackageInput): Promise<SponsorshipPackage> {
-  await assertProject(companyId, input.projectId);
+  const projectId = projectIdOrNull(input.projectId);
+  if (projectId) await assertProject(companyId, projectId);
   return prisma.sponsorshipPackage.create({
     data: {
       companyId,
-      projectId: input.projectId,
+      projectId,
       tier: input.tier,
       name: input.name,
       price: input.price,
@@ -85,10 +96,14 @@ export async function deletePackage(companyId: string, id: string): Promise<void
   if (result.count === 0) throw new Error('El plan no existe o fue eliminado');
 }
 
-/** Copia el tarifario de un certamen a otro (típico al abrir la edición del año siguiente). */
-export async function copyPackages(companyId: string, fromProjectId: string, toProjectId: string): Promise<number> {
-  if (fromProjectId === toProjectId) throw new Error('Elige un certamen de destino distinto al de origen');
-  await Promise.all([assertProject(companyId, fromProjectId), assertProject(companyId, toProjectId)]);
+/**
+ * Copia un tarifario a otro (típico al abrir la edición del año siguiente, o
+ * al llevar el tarifario general a un certamen nuevo). Origen y destino son el
+ * id de un certamen o `null` (tarifario general).
+ */
+export async function copyPackages(companyId: string, fromProjectId: string | null, toProjectId: string | null): Promise<number> {
+  if (fromProjectId === toProjectId) throw new Error('Elige un tarifario de destino distinto al de origen');
+  await Promise.all([fromProjectId ? assertProject(companyId, fromProjectId) : null, toProjectId ? assertProject(companyId, toProjectId) : null]);
   const source = await prisma.sponsorshipPackage.findMany({ where: { companyId, projectId: fromProjectId } });
   if (source.length === 0) return 0;
   const result = await prisma.sponsorshipPackage.createMany({

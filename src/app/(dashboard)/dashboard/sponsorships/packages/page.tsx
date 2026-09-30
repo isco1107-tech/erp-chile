@@ -17,7 +17,7 @@ export default async function SponsorshipPackagesPage() {
       <PageHeader
         eyebrow="Auspicios & Marcas"
         title="Tarifario de auspicios"
-        description="Los planes que ofreces a las marcas en cada certamen: nivel, precio, cupos y beneficios. Se usan en el CRM, en el sitio público y al convertir un negocio ganado en contrato."
+        description="Los planes que ofreces a las marcas: nivel, precio, cupos y beneficios. Prepáralos en el tarifario general sin necesidad de un certamen y cópialos al crear uno; los de cada certamen se usan en el CRM, en el sitio público y al convertir un negocio ganado en contrato."
       />
       <PackagesClient projects={projects} canWrite={can(context, 'sponsorships:write')} />
     </div>

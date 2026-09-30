@@ -106,7 +106,9 @@ async function findPackage(companyId: string, packageId: string): Promise<{ id: 
     select: { id: true, projectId: true, tier: true, price: true },
   });
   if (!pkg) throw new Error('El plan de auspicio seleccionado no existe en tu empresa');
-  return pkg;
+  // Los planes del tarifario general (sin certamen) son plantillas: hay que copiarlos a un certamen antes de ofrecerlos.
+  if (!pkg.projectId) throw new Error('Ese plan es del tarifario general. Cópialo a un certamen para usarlo en un negocio');
+  return { ...pkg, projectId: pkg.projectId };
 }
 
 async function findOwned(companyId: string, id: string): Promise<Opportunity> {
@@ -743,7 +745,7 @@ export interface CrmPackageOption {
 
 export async function listPackageOptions(companyId: string): Promise<CrmPackageOption[]> {
   const packages = await prisma.sponsorshipPackage.findMany({
-    where: { companyId },
+    where: { companyId, projectId: { not: null } },
     select: {
       id: true,
       projectId: true,
@@ -756,16 +758,22 @@ export async function listPackageOptions(companyId: string): Promise<CrmPackageO
     orderBy: [{ projectId: 'asc' }, { order: 'asc' }, { price: 'desc' }],
     take: 500,
   });
-  return packages.map((p) => ({
-    id: p.id,
-    projectId: p.projectId,
-    name: p.name,
-    tier: p.tier,
-    tierLabel: SPONSORSHIP_TIER_LABELS[p.tier],
-    price: p.price,
-    maxSlots: p.maxSlots,
-    soldSlots: p._count.contracts,
-  }));
+  return packages.flatMap((p) =>
+    p.projectId
+      ? [
+          {
+            id: p.id,
+            projectId: p.projectId,
+            name: p.name,
+            tier: p.tier,
+            tierLabel: SPONSORSHIP_TIER_LABELS[p.tier],
+            price: p.price,
+            maxSlots: p.maxSlots,
+            soldSlots: p._count.contracts,
+          },
+        ]
+      : []
+  );
 }
 
 /** Etiquetas en uso (para el filtro del tablero y las sugerencias del formulario). */
