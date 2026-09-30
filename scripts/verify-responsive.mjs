@@ -5,6 +5,7 @@
  *   npm run verify:responsive                 → todos los casos en todos los dispositivos
  *   npm run verify:responsive -- --only=slash → un solo caso
  *   npm run verify:responsive -- --device=iphone-se
+ *   npm run verify:perf                       → además mide la FLUIDEZ (cuadros por segundo) de la portada
  *
  * Renderiza el sitio real (mismos componentes y estilos que producción, con las
  * fuentes reales) con datos incómodos (`scripts/responsive/fixtures.ts`) en una
@@ -150,6 +151,50 @@ for (const name of fixtures) {
     await context.close();
   }
 }
+
+// 3b) Fluidez (solo con --perf): la portada tiene capas animadas enormes; si alguien vuelve a poner un blur o una mezcla
+// sobre ellas, el sitio "tirita" en equipos modestos. Se mide con la CPU frenada (x4 escritorio, x6 teléfono) y
+// falla bajo el umbral. Emulación por software: sirve para comparar antes/después, no como cifra absoluta.
+const perfFailures = [];
+if (args.has('perf')) {
+  const PERF = [
+    { id: 'escritorio', width: 1440, height: 900, mobile: false, rate: 4, minIdle: 25, minScroll: 25 },
+    { id: 'teléfono', width: 390, height: 844, mobile: true, rate: 6, minIdle: 35, minScroll: 30 },
+  ];
+  for (const cfg of PERF) {
+    const context = await browser.newContext({ viewport: { width: cfg.width, height: cfg.height }, isMobile: cfg.mobile, hasTouch: cfg.mobile, deviceScaleFactor: cfg.mobile ? 2 : 1, locale: 'es-CL' });
+    const page = await context.newPage();
+    await page.setContent(wrapper(), { waitUntil: 'load' });
+    await page.addScriptTag({ content: browserScript });
+    await page.evaluate(() => window.mountPageant('normal'));
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForTimeout(2500);
+    const cdp = await context.newCDPSession(page);
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: cfg.rate });
+    const m = await page.evaluate(async () => {
+      const frames = [];
+      let last = performance.now();
+      let run = true;
+      const tick = (t) => { frames.push(t - last); last = t; if (run) requestAnimationFrame(tick); };
+      requestAnimationFrame(tick);
+      await new Promise((r) => setTimeout(r, 2500));
+      const idleCount = frames.length;
+      for (let k = 0; k < 2; k++) {
+        for (let y = 0; y <= innerHeight * 1.2; y += 25) { scrollTo(0, y); await new Promise((r) => setTimeout(r, 16)); }
+        for (let y = innerHeight * 1.2; y >= 0; y -= 25) { scrollTo(0, y); await new Promise((r) => setTimeout(r, 16)); }
+      }
+      run = false;
+      frames.shift();
+      const fps = (a) => Math.round(1000 / (a.reduce((x, v) => x + v, 0) / a.length));
+      return { idle: fps(frames.slice(0, idleCount)), scroll: fps(frames.slice(idleCount)) };
+    });
+    await context.close();
+    const ok = m.idle >= cfg.minIdle && m.scroll >= cfg.minScroll;
+    console.log(`${ok ? '✓' : '✗'} fluidez ${cfg.id} (CPU x${cfg.rate}): reposo ${m.idle} fps (mín. ${cfg.minIdle}) · scroll ${m.scroll} fps (mín. ${cfg.minScroll})`);
+    if (!ok) perfFailures.push(cfg.id);
+  }
+}
+
 await browser.close();
 
 // 4) Visualizador: una fila por caso, una columna por dispositivo.
@@ -202,6 +247,10 @@ if (args.has('warnings')) {
     bySel.set(key, (bySel.get(key) ?? 0) + 1);
   }
   for (const [k, n] of [...bySel].sort((a, b) => b[1] - a[1]).slice(0, 40)) console.log(`  ${n}× ${k}`);
+}
+if (perfFailures.length) {
+  console.log(`✗ Fluidez insuficiente en: ${perfFailures.join(', ')}. Revisa filter/blur, mix-blend-mode y animaciones sobre capas grandes.`);
+  process.exit(1);
 }
 if (failures) {
   console.log(`✗ ${failures} problema(s) de responsividad. No publicar hasta corregirlos.`);

@@ -59,14 +59,14 @@ export const PAGEANT_SITE_STYLES = `
 .pgs-wrap { width: 100%; max-width: 76rem; margin: 0 auto; padding: 0 var(--gutter); }
 .pgs-eyebrow { margin: 0; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.28em; text-transform: uppercase; color: var(--a); }
 
-/* Texto metálico: degradado del acento que se desliza lento. */
+/* Texto metálico: degradado del acento. ESTÁTICO a propósito: animar el degradado de un texto gigante
+   (background-position con background-clip: text) obliga a repintar todas sus letras en cada cuadro, aunque
+   esté fuera de pantalla, y al reiniciar el ciclo se veía un salto en las letras finales. */
 .pgs-foil {
-  background: linear-gradient(100deg, var(--a-mid) 0%, var(--a-bright) 22%, var(--a) 40%, var(--a-mid) 58%, var(--a-bright) 78%, var(--a) 100%);
-  background-size: 220% auto;
+  background: linear-gradient(100deg, var(--a-mid) 0%, var(--a-bright) 24%, var(--a) 46%, var(--a-bright) 70%, var(--a-mid) 100%);
+  background-size: 100% auto;
   -webkit-background-clip: text; background-clip: text; color: transparent;
-  animation: pgs-foil 9s linear infinite;
 }
-@keyframes pgs-foil { to { background-position: -220% center; } }
 
 
 /* ── Botones ── */
@@ -166,7 +166,7 @@ export const PAGEANT_SITE_STYLES = `
 .pgs-title-lead { display: inline-flex; align-items: center; gap: 1.1rem; font-family: var(--sans); font-size: clamp(0.8rem, 1.5vw, 1.05rem); font-weight: 500; letter-spacing: 0.55em; text-transform: uppercase; color: var(--on-night); margin-right: -0.55em; }
 .pgs-title-rule { width: clamp(1.5rem, 6vw, 4.5rem); height: 1px; background: linear-gradient(90deg, transparent, var(--a)); }
 .pgs-title-rule:last-child { background: linear-gradient(90deg, var(--a), transparent); margin-left: -0.55em; }
-.pgs-title-main { display: block; font-family: var(--display); font-weight: 400; font-size: min(12rem, calc(90vw / var(--pgs-fit, 4)), 20vh); line-height: 0.92; letter-spacing: 0.01em; margin: 0.6rem 0 0.3rem; padding: 0 0.06em; white-space: nowrap; filter: drop-shadow(0 10px 40px rgba(0, 0, 0, 0.35)); }
+.pgs-title-main { display: block; font-family: var(--display); font-weight: 400; font-size: min(12rem, calc(90vw / var(--pgs-fit, 4)), 20vh); line-height: 0.92; letter-spacing: 0.01em; margin: 0.6rem 0 0.3rem; padding: 0 0.06em; white-space: nowrap; }
 .pgs-title-edition { display: inline-flex; align-items: center; gap: 1rem; font-family: var(--sans); font-size: clamp(0.8rem, 1.4vw, 1rem); font-weight: 600; letter-spacing: 0.6em; margin-right: -0.6em; color: var(--a); }
 .pgs-title-edition::before, .pgs-title-edition::after { content: ''; width: 0.45rem; height: 0.45rem; transform: rotate(45deg); border: 1px solid var(--a); }
 .pgs-title-edition::after { margin-left: -0.6em; }
@@ -601,7 +601,9 @@ export const PAGEANT_SITE_STYLES = `
 .pgs-dust { position: absolute; bottom: -2rem; border-radius: 50%; background: radial-gradient(circle, var(--a-bright), color-mix(in srgb, var(--a) 40%, transparent) 55%, transparent 72%); filter: blur(0.6px); opacity: 0; animation: pgs-float 18s linear infinite; }
 @keyframes pgs-float { 0% { transform: translate3d(0, 0, 0); opacity: 0; } 12% { opacity: 0.85; } 80% { opacity: 0.5; } 100% { transform: translate3d(var(--pgs-drift, 0px), -105vh, 0); opacity: 0; } }
 .pgs-stage { position: absolute; left: 50%; bottom: -22vh; width: 130vw; height: 42vh; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(closest-side, color-mix(in srgb, var(--a) 34%, transparent), color-mix(in srgb, var(--a) 8%, transparent) 60%, transparent); filter: blur(10px); }
-.pgs-title-main { filter: drop-shadow(0 0 34px color-mix(in srgb, var(--a) 38%, transparent)); }
+.pgs-title { position: relative; isolation: isolate; }
+/* Resplandor detrás del título: degradado fijo (se pinta una vez), no un filter sobre las letras. */
+.pgs-title::before { content: ''; position: absolute; z-index: -1; inset: 8% -6% -4%; pointer-events: none; background: radial-gradient(closest-side, color-mix(in srgb, var(--a) 26%, transparent), transparent 72%); }
 .pgs-tiara { filter: drop-shadow(0 0 14px color-mix(in srgb, var(--a) 60%, transparent)); }
 
 /* Secciones nocturnas con halos de color y una línea dorada entre una y otra (en vez de fondo plano). */
@@ -747,6 +749,9 @@ export const PAGEANT_SITE_STYLES = `
 .pgs-h2.is-xlong { font-size: clamp(1.7rem, 3.4vw, 2.7rem); }
 /* El título grande se ajusta con FitText y el CSS de arriba: nunca parte una palabra a la mitad. */
 .pgs-title, .pgs-title * { overflow-wrap: normal; }
+/* Lo que sale de la pantalla deja de animarse (portada, cinta): las animaciones que no son de transform/opacity
+   siguen costando CPU aunque no se vean, y en equipos modestos hacían temblar el scroll. */
+.pgs .is-offscreen, .pgs .is-offscreen *, .pgs .is-offscreen *::before, .pgs .is-offscreen *::after { animation-play-state: paused !important; }
 /* Títulos de una línea que FitText ajusta al ancho real. */
 .pgs-title-main, .pgs-footer-word { display: block; max-width: 100%; white-space: nowrap; overflow-wrap: normal; }
 /* Truncados a propósito (el nombre completo está en el título y en el perfil): nunca invaden otra caja. */
@@ -806,4 +811,18 @@ export const PAGEANT_SITE_STYLES = `
 .pgs-hof-lead.is-multi .pgs-hof-year { font-size: clamp(4rem, 8vw, 6rem); }
 .pgs-hof-lead.is-multi .pgs-hof-name { font-size: clamp(1.8rem, 3.2vw, 2.6rem); }
 .pgs-hof-bar.is-first { margin-top: 0; }
+
+/* Rendimiento de la portada: el cielo animado se veía bien pero era carísimo. Un filter: blur(80px) más una mezcla
+   (mix-blend-mode) sobre capas enormes obliga a recalcular el desenfoque y la mezcla en cada cuadro: 6 cuadros por
+   segundo con CPU modesta y un scroll que "tiritaba". Los degradados radiales ya son suaves por sí mismos, así que
+   el aspecto casi no cambia y el costo se va. Medido con npm run verify:responsive (perf) antes y después. */
+.pgs-aurora { filter: none; mix-blend-mode: normal; opacity: 0.5; }
+.pgs-stage { filter: none; }
+.pgs-dust { filter: none; }
+.pgs-grain { mix-blend-mode: normal; opacity: 0.045; }
+/* Rayos de escenario: un cono de luz hecho con conic-gradient (bordes suaves de origen). Sin clip-path, sin máscara, sin
+   blur ni mezcla: girar una capa enorme con esos efectos la vuelve a pintar entera en cada cuadro. */
+.pgs-beam { filter: none; mix-blend-mode: normal; clip-path: none; -webkit-mask-image: none; mask-image: none; height: 110%;
+  background: conic-gradient(from 170deg at 50% 0%, transparent 0deg, color-mix(in srgb, var(--a-bright) 30%, transparent) 10deg, transparent 20deg, transparent 360deg); }
+.pgs-beam.is-left, .pgs-beam.is-right { opacity: 0.3; }
 `;
