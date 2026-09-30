@@ -4,8 +4,10 @@
  * palabra, la que ve la persona en pantalla.
  */
 
+import { PACKAGES, type PackageName } from '@/lib/pricing/catalog';
+
 export const faqs: [question: string, answer: string][] = [
-  ['¿Cuánto cuesta y cómo lo contrato?', 'La cotización se prepara según los módulos y el alcance que necesita tu empresa. Selecciona tus áreas de interés en el formulario y solicita una demo por correo. Antes de contratar, podrás revisar la propuesta y resolver tus dudas con el equipo de Aether.'],
+  ['¿Cuánto cuesta y cómo lo contrato?', 'Parte desde 0,86 UF + IVA al mes con el Core, y los paquetes Gestión, Completo y Eventos suman módulos con descuento. Los precios son en UF y se facturan en pesos al valor de la UF del día. Cada módulo también se contrata por separado; pide tu cotización en el formulario y revisa la propuesta antes de contratar.'],
   ['¿Qué incluye Aether ERP?', 'Aether reúne gestión comercial, inventario, compras, tesorería, contabilidad y producción de certámenes y eventos. Los módulos disponibles para tu empresa dependen de su configuración y de los servicios contratados.'],
   ['¿Está preparado para empresas chilenas?', 'Incluye RUT, IVA, folios CAF, timbre electrónico y reportes como F29. La firma digital y el envío automático al SII todavía no están disponibles. Revisa con nuestro equipo el alcance tributario y la configuración que necesita tu empresa antes de contratar.'],
   ['¿Puedo traer los datos que ya tengo?', 'Sí. Puedes cargar productos, clientes, proveedores, stock inicial e historial de ventas y compras desde planillas Excel o CSV. La carga revisa los datos antes de confirmarlos, así que no empiezas de cero ni digitas todo de nuevo.'],
@@ -42,51 +44,74 @@ export interface Plan {
   name: string;
   audience: string;
   /**
-   * Precio mensual "desde", en CLP enteros y sin IVA. `null` muestra "Precio
-   * según módulos". Poner aquí solo precios reales vigentes: lo que se publica
-   * en el landing es una oferta comercial.
+   * Precio mensual en UF, sin IVA. Sale de `PACKAGES` (src/lib/pricing/catalog.ts):
+   * lo que se publica en el landing es una oferta comercial, así que no se
+   * escribe aquí a mano.
    */
-  priceFrom: number | null;
+  priceUf: number;
+  /** Usuarios y empresas (RUT) que incluye. */
+  scope: string;
   featured?: boolean;
   includes: string[];
 }
 
+const scopeOf = (name: PackageName) => {
+  const { maxUsers, companies } = PACKAGES[name];
+  return `${maxUsers} usuarios · ${companies} ${companies === 1 ? 'empresa (RUT)' : 'empresas (RUT)'}`;
+};
+
 export const plans: Plan[] = [
   {
-    name: 'Comercio',
-    audience: 'Para quien vende productos y mueve bodega: tiendas, distribuidoras y ferreterías.',
-    priceFrom: null,
+    name: 'Core',
+    audience: PACKAGES.Core.audience,
+    priceUf: PACKAGES.Core.priceUf,
+    scope: scopeOf('Core'),
     includes: [
-      'Ventas y facturación con folios CAF y timbre',
-      'Punto de venta con boleta y arqueo de caja',
-      'Inventario multibodega con costo PMP',
-      'Compras, órdenes y recepción',
-      'Clientes, proveedores y reportes Excel',
+      'Ventas, cotizaciones, clientes y proveedores',
+      'Inventario y catálogo con costo PMP',
+      'Compras y recepción de mercadería',
+      'Tareas y delegación del equipo',
+      'Reportes en Excel',
     ],
   },
   {
-    name: 'Gestión completa',
-    audience: 'Para la empresa que quiere operación, finanzas y contabilidad en el mismo sistema.',
-    priceFrom: null,
+    name: 'Gestión',
+    audience: PACKAGES.Gestión.audience,
+    priceUf: PACKAGES.Gestión.priceUf,
+    scope: scopeOf('Gestión'),
+    includes: [
+      'Todo lo del Core',
+      'Producción con recetas y órdenes',
+      'Tesorería y cobranzas',
+      'CRM comercial y presupuestos',
+      'Fidelización, calidad e Inteligencia 360',
+    ],
+  },
+  {
+    name: 'Completo',
+    audience: PACKAGES.Completo.audience,
+    priceUf: PACKAGES.Completo.priceUf,
+    scope: scopeOf('Completo'),
     featured: true,
     includes: [
-      'Todo lo del plan Comercio',
-      'Cuentas por cobrar y pagar con antigüedad de saldos',
-      'Contabilidad automática: diario, mayor y balance de 8 columnas',
-      'F29 del período y cuadraturas contra el mayor',
-      'Presupuestos, automatizaciones y agentes de IA',
+      'Todo lo de Gestión',
+      'Contabilidad con F29',
+      'Remuneraciones y activo fijo',
+      'Rendición de gastos y multibodega',
+      'Agentes de IA, honorarios y organigrama',
     ],
   },
   {
-    name: 'Eventos y certámenes',
-    audience: 'Para productoras que además de producir tienen que rendir cuentas.',
-    priceFrom: null,
+    name: 'Eventos',
+    audience: PACKAGES.Eventos.audience,
+    priceUf: PACKAGES.Eventos.priceUf,
+    scope: scopeOf('Eventos'),
     includes: [
-      'Proyectos con presupuesto por evento',
+      'Todo lo del Core',
       'Escaleta en vivo, vestuario y acreditaciones QR',
-      'Auspicios con portal para cada marca',
+      'Auspicios, candidatas y jurado con escrutinio',
       'Venta de entradas y votación del público',
-      'Jurado con escrutinio en línea',
+      'Cuotas, pagarés y honorarios',
     ],
   },
 ];

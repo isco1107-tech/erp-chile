@@ -38,7 +38,7 @@ export default function Onboarding() {
           <div className={s.pricingCopy}>
             <p className={s.kicker}>Y EL VALOR, ¿CÓMO SE DEFINE?</p>
             <h3>Una cotización que se parece a tu empresa.</h3>
-            <p>No hay una lista de precios que te cobre por lo que no usas. La propuesta se arma sobre tres cosas, y la revisas antes de contratar.</p>
+            <p>Los precios están publicados en UF y no te cobran por lo que no usas. La propuesta se arma sobre tres cosas, y la revisas antes de contratar.</p>
             <a href="#cotizar">Pedir mi cotización <ArrowUpRight size={16} aria-hidden="true" /></a>
           </div>
           <ul className={s.pricingFactors}>

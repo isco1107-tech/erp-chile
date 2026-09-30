@@ -109,7 +109,7 @@ export const security = {
 export const implementation = {
   kicker: 'DE LA DECISIÓN AL PRIMER DOCUMENTO',
   title: 'De la decisión al primer documento.',
-  closing: 'El valor se cotiza según los módulos que activas, tu tamaño y el acompañamiento que necesites para partir. Sin lista de precios genérica ni cobro por lo que no usas.',
+  closing: 'El valor parte del Core (0,86 UF + IVA al mes) y suma solo los módulos que activas, tu tamaño y el acompañamiento que necesites para partir. Sin cobro por lo que no usas.',
 };
 
 export const eventsSection = {

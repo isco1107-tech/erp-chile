@@ -7,7 +7,7 @@ import { segments } from '../Segments';
 import EventMock, { type EventMockView } from './EventMock';
 import { moduleGroups } from '../catalog';
 import { faqs, outcomes, plans } from '../content';
-import { formatCurrency } from '@/lib/chile/tax';
+import { formatUf } from '@/lib/pricing/catalog';
 import { ViewLink } from './LandingShell';
 import s from './v2.module.css';
 
@@ -117,7 +117,8 @@ export function EventScene() {
 }
 
 /**
- * Planes: los precios salen solo de content.ts; hoy todos se cotizan. Cada
+ * Planes: los precios salen de content.ts, que a su vez los toma del catálogo
+ * comercial (UF + IVA al mes). Cada
  * tarjeta muestra lo principal de lo que incluye; el detalle va en la cotización.
  */
 const PLAN_HIGHLIGHTS = 4;
@@ -133,7 +134,7 @@ export function PlansScene() {
             <span className={`${s.display} ${s.gold}`}>Suma módulos cuando crezcas.</span>
           </h2>
         </div>
-        <p className={s.body}>Cada plan es un punto de partida: los módulos se activan por separado, así que pagas por las áreas que tu empresa usa de verdad.</p>
+        <p className={s.body}>Precios en UF, facturados en pesos al valor del día. Cada paquete es un punto de partida: los módulos también se contratan por separado, así que pagas por las áreas que tu empresa usa de verdad.</p>
       </div>
       <div className={s.planGrid}>
         {plans.map((plan, index) => (
@@ -142,18 +143,15 @@ export function PlansScene() {
             <h3>{plan.name}</h3>
             <p>{plan.audience}</p>
             <div className={s.planPrice}>
-              {plan.priceFrom !== null ? (
-                <><strong>Desde {formatCurrency(plan.priceFrom)}</strong><span>+ IVA al mes</span></>
-              ) : (
-                <><strong>Precio según módulos</strong><span>Cotización a medida, sin compromiso</span></>
-              )}
+              <strong>{formatUf(plan.priceUf)}</strong>
+              <span>+ IVA al mes · {plan.scope}</span>
             </div>
             <ul>{plan.includes.slice(0, PLAN_HIGHLIGHTS).map(item => <li key={item}><Check size={16} aria-hidden="true" />{item}</li>)}</ul>
             <a className={s.planLink} href="#cotizar">Cotizar {plan.name.toLowerCase()} <ArrowUpRight size={16} aria-hidden="true" /></a>
           </article>
         ))}
       </div>
-      <p className={s.note}>¿Tu empresa combina varias cosas? Arma tu propia mezcla de módulos: la cotización se ajusta a lo que activas.</p>
+      <p className={s.note}>¿Tu empresa combina varias cosas? Arma tu propia mezcla: parte del Core y suma módulos desde 0,12 UF + IVA al mes. Usuario adicional 0,12 UF, empresa (RUT) adicional 0,37 UF. Facturación electrónica: disponible cuando exista el envío al SII.</p>
     </section>
   );
 }
