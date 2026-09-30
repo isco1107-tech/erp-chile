@@ -383,9 +383,6 @@ export default function CandidateRegistrationClient({ token }: { token: string }
             </a>
           </div>
         </div>
-        <p className="pgs-footer-word" aria-hidden="true">
-          {title.main}
-        </p>
         <div className="pgs-wrap pgs-footer-legal">
           <p>
             © {title.edition ?? ''} {shortName}
