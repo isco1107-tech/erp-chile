@@ -175,6 +175,13 @@ export const TOTP_RATE_LIMIT: RateLimitConfig = {
   windowMs: 60_000,
 };
 
+/** Conector MCP (`/api/mcp`): 20 tokens inválidos por minuto por IP. Solo cuenta los fallos; un cliente con token válido no se limita. */
+export const MCP_AUTH_FAILURE_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'mcp-auth-failure-ip',
+  limit: 20,
+  windowMs: 60_000,
+};
+
 /** Password reset: 3 requests cada 5 minutos por IP. */
 export const RESET_RATE_LIMIT: RateLimitConfig = {
   prefix: 'reset-ip',

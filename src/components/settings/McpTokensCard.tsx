@@ -62,6 +62,15 @@ export default function McpTokensCard({ connectorEnabled, initialTokens }: Props
     toast.success(result.message);
   }
 
+  const serverUrl = publicUrl('/api/mcp');
+  const tokenPlaceholder = revealed?.token ?? 'TU_TOKEN';
+  const claudeCodeCommand = `claude mcp add --transport http aether ${serverUrl} --header "Authorization: Bearer ${tokenPlaceholder}"`;
+  const desktopConfig = JSON.stringify(
+    { mcpServers: { aether: { command: 'npx', args: ['-y', 'mcp-remote', serverUrl, '--header', `Authorization:Bearer ${tokenPlaceholder}`] } } },
+    null,
+    2
+  );
+
   if (!connectorEnabled) {
     return (
       <div className="space-y-2 rounded-lg border border-border bg-card p-4">
@@ -106,6 +115,25 @@ export default function McpTokensCard({ connectorEnabled, initialTokens }: Props
           </div>
         </div>
       )}
+
+      <details className="rounded-md border border-border p-3 text-sm">
+        <summary className="cursor-pointer font-medium">Cómo conectarlo</summary>
+        <div className="mt-3 space-y-3 text-muted-foreground">
+          <p>
+            El conector usa un token de acceso (<code className="rounded bg-muted px-1 py-0.5 text-xs">Authorization: Bearer …</code>). Funciona con los clientes MCP que permiten enviar ese encabezado:
+            Claude Code, Claude Desktop (con <code className="rounded bg-muted px-1 py-0.5 text-xs">mcp-remote</code>), Cursor, etc. Los conectores personalizados de claude.ai en el navegador piden inicio de sesión OAuth, que este conector todavía no ofrece.
+          </p>
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-foreground">Claude Code (terminal)</p>
+            <pre className="overflow-x-auto rounded bg-muted p-2 text-xs text-foreground">{claudeCodeCommand}</pre>
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-foreground">Claude Desktop y otros (archivo de configuración MCP)</p>
+            <pre className="overflow-x-auto rounded bg-muted p-2 text-xs text-foreground">{desktopConfig}</pre>
+          </div>
+          <p className="text-xs">Una vez conectado, pídele a tu IA que use la herramienta «whoami» para confirmar que te reconoce.</p>
+        </div>
+      </details>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="flex-1 space-y-1">

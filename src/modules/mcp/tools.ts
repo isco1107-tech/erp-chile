@@ -6,6 +6,7 @@ import { resolveMcpSession, type McpSession } from './services/tokens.service';
 import { DATA_TOOLS, availableDataTools, canSeeMargins, type DataToolName } from '@/modules/agents/assistant-data-tools';
 import { getSalesMarginSummary, getOverdueBalances, getVatProjection, formatToolResultForPrompt } from '@/modules/agents/services/copilot-tools';
 import { getVisibleManualSections } from '@/modules/manual/content';
+import { captureException } from '@/lib/observability';
 
 /**
  * Tools que expone el servidor MCP (`/api/mcp`) a un Claude/ChatGPT PERSONAL
@@ -117,7 +118,13 @@ export function registerMcpTools(server: McpServer): void {
         const missing = definition.requires.find((permission) => !session.permissions.includes(permission));
         if (missing) return denied(missing);
 
-        const result = await callDataTool(name, session.companyId, args);
+        let result: Awaited<ReturnType<typeof callDataTool>>;
+        try {
+          result = await callDataTool(name, session.companyId, args);
+        } catch (error) {
+          captureException(error, { module: 'mcp', companyId: session.companyId, extra: { tool: name } });
+          return { content: [{ type: 'text' as const, text: 'No se pudo completar la consulta en Aether. Revisa los parámetros e inténtalo de nuevo.' }], isError: true };
+        }
         const summary = formatToolResultForPrompt(name, result, { includeMargin: canSeeMargins(session.permissions) });
         return {
           content: [
@@ -130,6 +137,9 @@ export function registerMcpTools(server: McpServer): void {
   }
 }
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const MAX_RANGE_DAYS = 731;
+
 /**
  * `DATA_TOOLS` describe sus parámetros como JSON Schema (para Gemini); acá
  * hace falta el mismo contrato en Zod. Se define a mano en vez de convertir
@@ -139,18 +149,24 @@ export function registerMcpTools(server: McpServer): void {
 function jsonSchemaToZodShape(name: DataToolName) {
   switch (name) {
     case 'getSalesMarginSummary':
-      return z.object({
-        from: z.string().describe('Fecha inicial, formato ISO YYYY-MM-DD'),
-        to: z.string().describe('Fecha final, formato ISO YYYY-MM-DD'),
-      });
+      // Rango acotado: lo consulta una IA externa y carga los documentos con sus líneas.
+      return z
+        .object({
+          from: z.string().regex(ISO_DATE, 'Usa el formato YYYY-MM-DD').describe('Fecha inicial, formato ISO YYYY-MM-DD'),
+          to: z.string().regex(ISO_DATE, 'Usa el formato YYYY-MM-DD').describe('Fecha final, formato ISO YYYY-MM-DD'),
+        })
+        .refine(({ from, to }) => {
+          const days = (Date.parse(to) - Date.parse(from)) / 86_400_000;
+          return Number.isFinite(days) && days >= 0 && days <= MAX_RANGE_DAYS;
+        }, `El rango debe ser válido (desde ≤ hasta) y de máximo ${MAX_RANGE_DAYS} días`);
     case 'getOverdueBalances':
       return z.object({
-        minDaysOverdue: z.number().optional().describe('Días mínimos de mora a considerar (0 = cualquier documento vencido)'),
+        minDaysOverdue: z.number().int().min(0).max(3650).optional().describe('Días mínimos de mora a considerar (0 = cualquier documento vencido)'),
       });
     case 'getVatProjection':
       return z.object({
-        year: z.number().optional().describe('Año, ej. 2026'),
-        month: z.number().optional().describe('Mes de 1 a 12'),
+        year: z.number().int().min(2000).max(2100).optional().describe('Año, ej. 2026'),
+        month: z.number().int().min(1).max(12).optional().describe('Mes de 1 a 12'),
       });
   }
 }
