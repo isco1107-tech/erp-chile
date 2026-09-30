@@ -1,6 +1,7 @@
 import { ImageResponse } from 'next/og';
 import { galaDateParts, splitPageantTitle } from '@/lib/events/pageant-site';
 import { captureException } from '@/lib/observability';
+import { fetchGoogleFontSubset, fetchImageAsDataUrl } from '@/lib/images/subset-font';
 import { getPublicPageantSite } from '@/modules/projects/services/public-site.service';
 
 /**
@@ -21,33 +22,6 @@ const ACCENTS: Record<string, { a: string; mid: string }> = {
   emerald: { a: '#c4e6d2', mid: '#2f7d5b' },
 };
 
-/** Italiana (la del sitio) recortada a los caracteres usados; si Google Fonts no responde se usa la fuente por defecto. */
-async function loadDisplayFont(text: string): Promise<ArrayBuffer | null> {
-  try {
-    const css = await (await fetch(`https://fonts.googleapis.com/css2?family=Italiana&text=${encodeURIComponent(text)}`)).text();
-    const url = /src: url\((.+?)\) format\('(?:opentype|truetype)'\)/.exec(css)?.[1];
-    if (!url) return null;
-    const response = await fetch(url);
-    return response.ok ? await response.arrayBuffer() : null;
-  } catch {
-    return null;
-  }
-}
-
-/** Portada como data URL: si no se puede descargar, la imagen se genera sin ella en vez de fallar. */
-async function loadCover(url: string | null): Promise<string | null> {
-  if (!url) return null;
-  try {
-    const response = await fetch(url);
-    if (!response.ok) return null;
-    const type = response.headers.get('content-type') ?? 'image/jpeg';
-    if (!/^image\/(jpeg|png|webp)/.test(type)) return null;
-    return `data:${type};base64,${Buffer.from(await response.arrayBuffer()).toString('base64')}`;
-  } catch {
-    return null;
-  }
-}
-
 export default async function OpengraphImage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const site = await getPublicPageantSite(slug).catch((error: unknown) => {
@@ -60,7 +34,7 @@ export default async function OpengraphImage({ params }: { params: Promise<{ slu
   const meta = [gala ? `${gala.day} de ${gala.month} · ${gala.time} h` : null, site?.venueName ?? null].filter(Boolean).join('   ·   ');
   // Todo el texto de la imagen va en el recorte de la fuente: si falta un carácter, se mezclaría con la de respaldo.
   const allText = [title.lead.toUpperCase(), title.main, title.edition ?? '', meta].join('');
-  const [font, cover] = await Promise.all([loadDisplayFont(allText), loadCover(site?.coverImageUrl ?? null)]);
+  const [font, cover] = await Promise.all([fetchGoogleFontSubset('Italiana', allText), fetchImageAsDataUrl(site?.coverImageUrl ?? null)]);
   const mainSize = Math.min(210, Math.floor(1000 / Math.max(title.main.length * 0.62, 3.2)));
 
   return new ImageResponse(

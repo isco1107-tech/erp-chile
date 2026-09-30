@@ -53,6 +53,15 @@ export const PUBLIC_ACCENT_LABELS: Record<PublicAccentKey, string> = {
   emerald: 'Esmeralda',
 };
 
+/** Muestras de color de los acentos del sistema público (los mismos de `PublicShell`). Compartido entre el formulario del sitio y el generador de afiches. */
+export const PUBLIC_ACCENT_SWATCH: Record<PublicAccentKey, string> = {
+  gold: 'linear-gradient(135deg, #e7cd97, #a8823f)',
+  violet: 'linear-gradient(135deg, #b39bff, #6d28d9)',
+  rose: 'linear-gradient(135deg, #fda4b4, #be123c)',
+  cyan: 'linear-gradient(135deg, #67e8f9, #0e7490)',
+  emerald: 'linear-gradient(135deg, #6ee7b7, #047857)',
+};
+
 const optionalText = (max: number) =>
   z
     .string()

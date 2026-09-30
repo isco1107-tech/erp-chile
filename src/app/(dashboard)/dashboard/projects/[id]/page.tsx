@@ -11,6 +11,7 @@ import {
   Gift,
   Globe,
   Handshake,
+  Megaphone,
   ListVideo,
   Target,
   Ticket,
@@ -96,18 +97,24 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
         <Link href="/dashboard/projects" className={buttonVariants({ variant: 'outline' })}>
           ← Volver a certámenes
         </Link>
-        {canWrite && (
-          <div className="flex flex-wrap items-center gap-2">
-            <Link href={`/dashboard/projects/${project.id}/site`} className={buttonVariants({ variant: 'outline' })}>
-              <Globe aria-hidden="true" />
-              Sitio público
-            </Link>
-            <Link href={`/dashboard/projects/${project.id}/edit`} className={buttonVariants({ variant: 'default' })}>
-              Editar certamen
-            </Link>
-            <DeleteProjectButton projectId={project.id} projectName={project.name} />
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href={`/dashboard/projects/${project.id}/poster`} className={buttonVariants({ variant: 'outline' })}>
+            <Megaphone aria-hidden="true" />
+            Afiche
+          </Link>
+          {canWrite && (
+            <>
+              <Link href={`/dashboard/projects/${project.id}/site`} className={buttonVariants({ variant: 'outline' })}>
+                <Globe aria-hidden="true" />
+                Sitio público
+              </Link>
+              <Link href={`/dashboard/projects/${project.id}/edit`} className={buttonVariants({ variant: 'default' })}>
+                Editar certamen
+              </Link>
+              <DeleteProjectButton projectId={project.id} projectName={project.name} />
+            </>
+          )}
+        </div>
       </div>
 
       <section className="relative overflow-hidden rounded-xl border border-border bg-foreground text-background shadow-card">
