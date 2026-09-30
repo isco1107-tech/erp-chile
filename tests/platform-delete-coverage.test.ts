@@ -89,6 +89,20 @@ const CASCADES_TO_COMPANY = new Set([
   // Conector MCP: token personal para IA externa. `onDelete: Cascade`
   // directo hacia Company (y hacia User).
   'McpPersonalToken',
+  // Fidelización, calidad y tareas: todos con `onDelete: Cascade` directo hacia
+  // Company (y `CustomerSurvey`/`CustomerFollowUp`/`SupplierProfile` también
+  // hacia Contact, `ProcedureAck` hacia Procedure). Ninguno usa Restrict, así
+  // que no pueden bloquear `company.delete()`.
+  'CustomerCareSettings',
+  'CustomerSurvey',
+  'CustomerFollowUp',
+  'SupplierProfile',
+  'Procedure',
+  'ProcedureAck',
+  'QualityTemplate',
+  'QualityInspection',
+  'TeamTask',
+  'DelegationRule',
 ]);
 
 /** Cascadean desde `Project`, que se borra explícito en `hardDeleteTenant`. */

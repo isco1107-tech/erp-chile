@@ -211,6 +211,24 @@ export const PERMISSIONS = {
   'websites:write': ['OWNER', 'ADMIN', 'SALES'],
   'websites:publish': ['OWNER', 'ADMIN'],
 
+  // Fidelización y voz del cliente: lo trabaja el equipo comercial; el
+  // contador no lo necesita.
+  'customercare:read': ['OWNER', 'ADMIN', 'SALES'],
+  'customercare:write': ['OWNER', 'ADMIN', 'SALES'],
+
+  // Calidad y procedimientos: los procedimientos los lee todo el equipo; las
+  // inspecciones y fichas de productor las registra planta/bodega; publicar
+  // procedimientos y armar plantillas es nivel gerencial.
+  'quality:read': ALL_ROLES,
+  'quality:write': ['OWNER', 'ADMIN', 'WAREHOUSE'],
+  'quality:manage': ['OWNER', 'ADMIN'],
+
+  // Tareas del equipo: cada persona ve y mueve las suyas; asignar a otros y
+  // fijar reglas de delegación es del dueño y los administradores.
+  'tasks:read': ALL_ROLES,
+  'tasks:write': ALL_ROLES,
+  'tasks:manage': ['OWNER', 'ADMIN'],
+
   // Mensajería interna: entorno de productividad transversal, no un módulo
   // vertical del negocio — todo el equipo puede usarla, mismo criterio que
   // contacts:read.
@@ -343,6 +361,14 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'websites:read': 'Ver sitios web y sus mensajes',
   'websites:write': 'Crear y editar sitios web (borrador, imágenes y mensajes)',
   'websites:publish': 'Publicar sitios web y configurar su dominio propio',
+  'customercare:read': 'Ver encuestas de satisfacción, canales de origen y seguimientos de clientes',
+  'customercare:write': 'Enviar encuestas, registrar seguimientos y ajustar la fidelización',
+  'quality:read': 'Ver procedimientos, inspecciones de calidad y fichas de productores',
+  'quality:write': 'Registrar inspecciones de calidad y fichas de productores',
+  'quality:manage': 'Publicar procedimientos y crear plantillas de inspección',
+  'tasks:read': 'Ver tareas del equipo y reglas de delegación',
+  'tasks:write': 'Crear tareas propias y actualizar las asignadas',
+  'tasks:manage': 'Asignar tareas a otros y definir reglas de delegación',
   'messaging:use': 'Usar la mensajería interna de la empresa',
 };
 

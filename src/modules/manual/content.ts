@@ -1280,6 +1280,133 @@ export const MANUAL_SECTIONS: ManualSection[] = [
       },
     ]
   },
+  {
+    key: 'hasCustomerCare',
+    title: 'Fidelización y clientes',
+    route: '/dashboard/customer-care',
+    topics: [
+      {
+        id: 'resumen-indicadores',
+        title: 'Ver los indicadores y registrar cómo te encontró cada cliente',
+        steps: [
+          'Entra a la pestaña Resumen.',
+          'Revisa NPS, Satisfacción, Tasa de respuesta y Clientes inactivos. El NPS muestra "—" mientras nadie responda: no se inventan cifras.',
+          'En "Cómo nos encontraron" ves de qué canal llegan tus clientes.',
+          'Pregunta "¿cómo nos encontraste?" a cada cliente nuevo y anótalo en "Clientes sin canal registrado": elige el canal y haz clic en Guardar.',
+        ],
+      },
+      {
+        id: 'seguimientos-inactivos',
+        title: 'Volver a contactar a clientes que dejaron de comprar',
+        steps: [
+          'Ve a la pestaña Seguimientos.',
+          'Haz clic en "Crear seguimientos de inactivos": crea uno por cada cliente que lleva los días definidos sin comprar. Si ya tiene uno abierto, no lo duplica.',
+          'En la lista de clientes inactivos usa el botón WhatsApp: abre la conversación con el mensaje ya escrito.',
+          'En "Seguimientos abiertos" anota "¿Qué pasó?" y marca Listo, o Descartar si ya no corresponde.',
+        ],
+      },
+      {
+        id: 'encuestas-enviar',
+        title: 'Medir la satisfacción con una encuesta por enlace',
+        steps: [
+          'Ve a la pestaña Encuestas, elige un cliente y haz clic en "Crear enlace de encuesta". El enlace queda copiado: pégalo en WhatsApp o en un correo.',
+          'El cliente responde 3 preguntas (satisfacción, recomendación y si llegó a tiempo) sin necesitar cuenta.',
+          'Si la nota es mala (satisfacción 1 o 2, o recomendación de 0 a 6) se abre un seguimiento y se avisa en la campanita.',
+          'Usa "Copiar enlace" para volver a compartir una encuesta que aún no fue contestada. Cada enlace se puede responder una sola vez.',
+        ],
+      },
+      {
+        id: 'ajustes-configurar',
+        title: 'Ajustar los días de inactividad y los mensajes (con permiso de edición)',
+        steps: [
+          'Ve a la pestaña Ajustes.',
+          'Define cuántos días sin comprar hacen inactivo a un cliente (por defecto 60) y el plazo estándar de entrega.',
+          'Edita el texto de invitación a la encuesta y el mensaje de seguimiento; puedes usar {{cliente}} y {{empresa}}.',
+        ],
+      },
+    ],
+  },
+  {
+    key: 'hasQuality',
+    title: 'Calidad y procedimientos',
+    route: '/dashboard/quality',
+    topics: [
+      {
+        id: 'procedimientos-gestionar',
+        title: 'Documentar procedimientos y confirmar su lectura',
+        steps: [
+          'Ve a la pestaña Procedimientos. Con "Cargar paquete inicial" se crean 7 procedimientos en borrador y 4 plantillas de inspección para ajustar a tu forma de trabajar.',
+          'Crea un "Nuevo procedimiento" o usa Editar. Si editas uno vigente, sube de versión y el equipo debe leerlo de nuevo.',
+          'Publica el borrador cuando esté listo; usa "Marcar revisado" en los vigentes y Archivar en los que ya no se usan.',
+          'Cada persona abre el procedimiento con Leer y confirma con "Leí y entendí". En cada tarjeta ves cuántas personas del equipo ya lo leyeron.',
+        ],
+      },
+      {
+        id: 'inspecciones-realizar',
+        title: 'Registrar una inspección de calidad',
+        steps: [
+          'Ve a la pestaña Inspecciones y haz clic en "Nueva inspección".',
+          'Elige la plantilla; en una de recepción elige también al productor. Agrega el número de lote.',
+          'Completa cada parámetro: una medición, o "Cumple" / "No cumple". Verás "Aprobaría" o "No aprobaría" antes de guardar.',
+          'Si no aprueba, anota la "Acción correctiva" (qué harás con el lote): es obligatoria y se avisa en la campanita.',
+        ],
+      },
+      {
+        id: 'productores-ver',
+        title: 'Conocer a tus productores y proveedores',
+        steps: [
+          'Ve a la pestaña Productores: aparecen los contactos marcados como proveedor en Clientes & Proveedores.',
+          'Haz clic en "Completar ficha" (o "Editar ficha") para anotar el tipo, qué te entrega y sus certificaciones.',
+          'Revisa el porcentaje de lotes aprobados en las inspecciones de recepción de cada uno.',
+        ],
+      },
+      {
+        id: 'plantillas-parametros',
+        title: 'Fijar los rangos de las plantillas de inspección',
+        steps: [
+          'Ve a la pestaña Plantillas y haz clic en Editar.',
+          'En cada medición define unidad, mínimo y máximo. Las plantillas iniciales vienen sin límites: fíjalos según la resolución sanitaria de tu producto.',
+          'Agrega o quita parámetros y guarda la plantilla.',
+        ],
+      },
+    ],
+  },
+  {
+    key: 'hasTeamTasks',
+    title: 'Tareas y delegación',
+    route: '/dashboard/tasks',
+    topics: [
+      {
+        id: 'tareas-crear-gestionar',
+        title: 'Crear tareas y hacer que se repitan solas',
+        steps: [
+          'En la pestaña Mis tareas haz clic en "Nueva tarea".',
+          'Define la fecha, la prioridad, el responsable y "Se repite" (cada día, semana o mes). Solo el dueño y los administradores pueden asignar tareas a otras personas.',
+          'Con "Cargar rutinas recomendadas" se crean las rutinas de cierre semanal, stock, canal de origen, clientes inactivos y revisión de procedimientos.',
+          'Usa Empezar, Hecha, Editar o Eliminar en cada tarea. Al marcar Hecha una tarea que se repite, se crea la siguiente.',
+        ],
+      },
+      {
+        id: 'tareas-equipo-ver',
+        title: 'Ver las tareas del equipo y las ya cerradas',
+        steps: [
+          'La pestaña "Todo el equipo" muestra las tareas abiertas de todas las personas (para quien no administra, "Creadas por mí").',
+          'Las vencidas se marcan en rojo y suman en el indicador de la parte superior.',
+          'La pestaña Cerradas guarda las tareas hechas o canceladas.',
+        ],
+      },
+      {
+        id: 'delegacion-reglas',
+        title: 'Escribir qué decisiones puede tomar cada persona',
+        steps: [
+          'Ve a la pestaña Delegación y haz clic en "Nueva regla" (o parte de una de las ideas sugeridas).',
+          'Elige la decisión, la persona o el rol, y el monto y porcentaje máximos (vacío significa sin tope). Puedes agregar condiciones.',
+          'Cualquier persona puede consultar "¿Puedo decidir esto yo?" e indicar un monto para saber si actúa sola o consulta al dueño.',
+          'Las reglas orientan al equipo; los permisos de cada rol siguen mandando en el sistema. El indicador "Decisiones delegadas" parte con la meta de 3.',
+        ],
+      },
+    ],
+  },
 ];
 
 /**

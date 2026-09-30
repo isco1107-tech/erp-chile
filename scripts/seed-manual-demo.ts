@@ -55,6 +55,9 @@ const ALL_FEATURES_ON: CompanyFeatureFlags = {
   hasProduction: true,
   hasServiceDesk: true,
   hasWebSites: true,
+  hasCustomerCare: true,
+  hasQuality: true,
+  hasTeamTasks: true,
 };
 
 async function main() {

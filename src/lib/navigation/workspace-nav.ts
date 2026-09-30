@@ -90,7 +90,12 @@ export type NavIconKey =
   | 'boms'
   | 'serviceDesk'
   | 'webSites'
-  | 'invoiceArchive';
+  | 'invoiceArchive'
+  | 'customerCare'
+  | 'quality'
+  | 'procedures'
+  | 'tasks'
+  | 'delegation';
 
 export interface NavLink {
   /** Identificador estable (ver comentario del archivo). */
@@ -207,6 +212,9 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
   if (allow('contacts:read')) {
     ventas.push({ id: 'contacts', href: '/dashboard/contacts', label: 'Clientes & Proveedores', icon: 'contacts', keywords: ['contactos', 'rut', 'clientes', 'proveedores'] });
   }
+  if (features.hasCustomerCare && allow('customercare:read')) {
+    ventas.push({ id: 'customer-care', href: '/dashboard/customer-care', label: 'Fidelización', icon: 'customerCare', keywords: ['encuesta', 'satisfaccion', 'nps', 'csat', 'recompra', 'clientes inactivos', 'seguimiento', 'canal de origen', 'como nos encontraste', 'postventa'] });
+  }
   push('Ventas', ventas);
 
   const compras: NavLink[] = [];
@@ -241,6 +249,12 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
   }
   if (features.hasServiceDesk && allow('service:read')) {
     operaciones.push({ id: 'service-desk', href: '/dashboard/service', label: 'Servicio técnico', icon: 'serviceDesk', keywords: ['reparacion', 'taller', 'garantia', 'orden de servicio', 'presupuesto', 'soporte'] });
+  }
+  if (features.hasQuality && allow('quality:read')) {
+    operaciones.push({ id: 'quality', href: '/dashboard/quality', label: 'Calidad y procedimientos', icon: 'quality', keywords: ['sop', 'procedimiento', 'inspeccion', 'control de calidad', 'lote', 'productores', 'proveedores', 'higiene', 'induccion', 'trazabilidad', 'checklist'] });
+  }
+  if (features.hasTeamTasks && allow('tasks:read')) {
+    operaciones.push({ id: 'tasks', href: '/dashboard/tasks', label: 'Tareas y delegación', icon: 'tasks', keywords: ['tarea', 'pendientes', 'rutina', 'recordatorio', 'responsable', 'delegar', 'delegacion', 'decisiones', 'checklist', 'semanal'] });
   }
   push('Operaciones', operaciones);
 
