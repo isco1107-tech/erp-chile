@@ -7,7 +7,8 @@ import { segments } from '../Segments';
 import EventMock, { type EventMockView } from './EventMock';
 import { moduleGroups } from '../catalog';
 import { faqs, outcomes, plans } from '../content';
-import { formatUf } from '@/lib/pricing/catalog';
+import { MODULES } from '@/lib/auth/modules';
+import { EXTRAS, MODULE_PRICES, formatUf, type PriceTier } from '@/lib/pricing/catalog';
 import { ViewLink } from './LandingShell';
 import s from './v2.module.css';
 
@@ -123,6 +124,23 @@ export function EventScene() {
  */
 const PLAN_HIGHLIGHTS = 4;
 
+/** Módulos que se contratan por separado, agrupados por rango de precio. Salen del catálogo. */
+const MODULE_PRICE_GROUPS: { tier: PriceTier; title: string }[] = [
+  { tier: 'liviano', title: 'Livianos' },
+  { tier: 'medio', title: 'Medios' },
+  { tier: 'pesado', title: 'Avanzados' },
+  { tier: 'eventos', title: 'Certámenes y eventos' },
+];
+
+const priceGroups = MODULE_PRICE_GROUPS.map(({ tier, title }) => ({
+  title,
+  items: MODULES.filter(({ key }) => MODULE_PRICES[key].tier === tier && MODULE_PRICES[key].sellable)
+    .map(({ key, label }) => ({ key, label, ...MODULE_PRICES[key] }))
+    .sort((a, b) => a.priceUf - b.priceUf),
+}));
+
+const EXTRA_ROWS = [EXTRAS.additionalUser, EXTRAS.additionalCompany, EXTRAS.additionalWarehouse, EXTRAS.additionalStorage10Gb];
+
 export function PlansScene() {
   return (
     <section id="planes" className={`${s.section} ${s.plans}`} aria-labelledby="planes-title">
@@ -151,7 +169,34 @@ export function PlansScene() {
           </article>
         ))}
       </div>
-      <p className={s.note}>¿Tu empresa combina varias cosas? Arma tu propia mezcla: parte del Core y suma módulos desde 0,12 UF + IVA al mes. Usuario adicional 0,12 UF, empresa (RUT) adicional 0,37 UF. Facturación electrónica: disponible cuando exista el envío al SII.</p>
+      <details className={s.priceList}>
+        <summary>Precio de cada módulo por separado<ChevronDown size={18} aria-hidden="true" /></summary>
+        <div className={s.priceGroups}>
+          {priceGroups.map(group => (
+            <div key={group.title}>
+              <h3>{group.title}</h3>
+              <ul>
+                {group.items.map(item => (
+                  <li key={item.key}>
+                    <span>{item.label}{item.note && <small>{item.note}</small>}</span>
+                    <strong>{formatUf(item.priceUf)}</strong>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+          <div>
+            <h3>Extras</h3>
+            <ul>
+              {EXTRA_ROWS.map(extra => (
+                <li key={extra.label}><span>{extra.label}</span><strong>{formatUf(extra.priceUf)}</strong></li>
+              ))}
+            </ul>
+          </div>
+        </div>
+        <p>Valores en UF + IVA al mes. Se facturan en pesos al valor de la UF del día.</p>
+      </details>
+      <p className={s.note}>¿Tu empresa combina varias cosas? Arma tu propia mezcla: parte del Core y suma los módulos que necesites. La facturación electrónica con envío al SII aún no está disponible y no se vende todavía.</p>
     </section>
   );
 }

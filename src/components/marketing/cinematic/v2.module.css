@@ -869,6 +869,18 @@
 
 /* ── Escena 7: planes y preguntas ───────────────────────────────────────── */
 .planGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(12px, 1.6vw, 24px); }
+.priceList { margin-top: clamp(28px, 3vw, 44px); border-block: 1px solid var(--line); }
+.priceList summary { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 64px; font-size: 17px; font-weight: 500; list-style: none; cursor: pointer; }
+.priceList summary::-webkit-details-marker { display: none; }
+.priceList summary svg { flex: none; color: var(--gold); transition: transform .35s var(--ease); }
+.priceList[open] summary svg { transform: rotate(180deg); }
+.priceGroups { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: clamp(20px, 3vw, 44px); padding: 8px 0 24px; }
+.priceGroups h3 { margin: 0 0 12px; color: var(--gold); font-size: 12px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; }
+.priceGroups ul { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.priceGroups li { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; font-size: 14.5px; line-height: 1.4; color: #dcd7cd; }
+.priceGroups li small { display: block; margin-top: 2px; font-size: 12px; color: var(--faint); }
+.priceGroups li strong { flex: none; font-weight: 600; color: var(--text); }
+.priceList > p { margin: 0 0 22px; font-size: 13px; color: var(--faint); }
 @media (max-width: 1280px) { .planGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 .plan {
