@@ -2110,8 +2110,11 @@ model SponsorshipPackage {
   id              String                @id @default(cuid())
   companyId       String
   company         Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  projectId       String
-  project         Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// `null` = plantilla del tarifario general (sin certamen): sirve para
+  /// preparar planes antes de tener un certamen y se copia al crearlo. Nunca
+  /// se publica ni se usa en el CRM hasta copiarla a un certamen.
+  projectId       String?
+  project         Project?              @relation(fields: [projectId], references: [id], onDelete: Cascade)
   tier            SponsorshipTier
   name            String
   /// Valor neto de lista en CLP entero. El precio real negociado queda en el

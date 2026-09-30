@@ -129,8 +129,12 @@ export type SponsorshipPaymentInput = z.infer<typeof sponsorshipPaymentSchema>;
 // Tarifario de auspicios (SponsorshipPackage)
 // ---------------------------------------------------------------------------
 
+/** Valor con el que la pantalla y las acciones nombran al tarifario general (planes sin certamen). */
+export const GENERAL_TARIFF = 'GENERAL';
+
 export const sponsorshipPackageSchema = z.object({
-  projectId: z.string().min(1, 'Seleccione un certamen'),
+  /** Vacío o `null` = tarifario general (sin certamen). */
+  projectId: z.string().min(1).nullable().optional(),
   tier: z.enum(SPONSORSHIP_TIERS, 'Selecciona el nivel del plan'),
   name: z.string().trim().min(2, 'Ponle un nombre al plan').max(120),
   price: z.number().int('El precio debe ser un número entero').min(0, 'El precio no puede ser negativo').max(100_000_000_000),
