@@ -45,6 +45,9 @@ export type FeatureKey = keyof Pick<
   | 'hasProduction'
   | 'hasServiceDesk'
   | 'hasWebSites'
+  | 'hasCustomerCare'
+  | 'hasQuality'
+  | 'hasTeamTasks'
 >;
 
 export type CompanyFeatureFlags = Record<FeatureKey, boolean>;
@@ -306,6 +309,30 @@ export const MODULES: ModuleDefinition[] = [
     permissions: ['websites:read', 'websites:write', 'websites:publish'],
     routes: ['/dashboard/web-sites'],
   },
+  {
+    key: 'hasCustomerCare',
+    label: 'Fidelización y Clientes',
+    description:
+      'Canal de origen de cada cliente ("¿cómo nos encontraste?"), encuesta breve de satisfacción por enlace (CSAT y NPS), y seguimiento de clientes que dejaron de comprar.',
+    permissions: ['customercare:read', 'customercare:write'],
+    routes: ['/dashboard/customer-care'],
+  },
+  {
+    key: 'hasQuality',
+    label: 'Calidad y Procedimientos',
+    description:
+      'Procedimientos operativos con versión y acuse de lectura del equipo, inspecciones de calidad por plantilla (materia prima, proceso y producto terminado) y ficha de productores y proveedores clave.',
+    permissions: ['quality:read', 'quality:write', 'quality:manage'],
+    routes: ['/dashboard/quality'],
+  },
+  {
+    key: 'hasTeamTasks',
+    label: 'Tareas y Delegación',
+    description:
+      'Tareas del equipo con responsable, plazo y repetición semanal o mensual, y reglas escritas de qué decisiones puede tomar cada persona y hasta qué monto.',
+    permissions: ['tasks:read', 'tasks:write', 'tasks:manage'],
+    routes: ['/dashboard/tasks'],
+  },
 ];
 
 export const MODULE_KEYS: FeatureKey[] = MODULES.map((m) => m.key);
@@ -347,6 +374,9 @@ export const DEFAULT_FEATURES: CompanyFeatureFlags = {
   hasProduction: false,
   hasServiceDesk: false,
   hasWebSites: false,
+  hasCustomerCare: false,
+  hasQuality: false,
+  hasTeamTasks: false,
 };
 
 /** Índice inverso permiso → módulo, construido una vez al cargar el módulo. */
@@ -401,6 +431,9 @@ export function toFeatureFlags(features: CompanyFeatures | null): CompanyFeature
     hasProduction: features.hasProduction,
     hasServiceDesk: features.hasServiceDesk,
     hasWebSites: features.hasWebSites,
+    hasCustomerCare: features.hasCustomerCare,
+    hasQuality: features.hasQuality,
+    hasTeamTasks: features.hasTeamTasks,
   };
 }
 

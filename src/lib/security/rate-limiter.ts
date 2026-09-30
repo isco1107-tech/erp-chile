@@ -353,3 +353,17 @@ export const WEB_SITE_CONTACT_SITE_RATE_LIMIT: RateLimitConfig = {
   limit: 60,
   windowMs: 60 * 60_000,
 };
+
+/** Encuesta pública de satisfacción: vistas por IP. */
+export const SURVEY_VIEW_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'survey-view-ip',
+  limit: 60,
+  windowMs: 15 * 60_000,
+};
+
+/** Encuesta pública de satisfacción: envíos por IP y enlace. */
+export const SURVEY_SUBMIT_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'survey-submit',
+  limit: 5,
+  windowMs: 60 * 60_000,
+};

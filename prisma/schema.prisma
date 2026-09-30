@@ -154,6 +154,16 @@ model Company {
   fixedAssetMaintenances    FixedAssetMaintenance[]
   serviceTicketEvents       ServiceTicketEvent[]
   webSites                  WebSite[]
+  customerCareSettings      CustomerCareSettings?
+  customerSurveys           CustomerSurvey[]
+  customerFollowUps         CustomerFollowUp[]
+  supplierProfiles          SupplierProfile[]
+  procedures                Procedure[]
+  procedureAcks             ProcedureAck[]
+  qualityTemplates          QualityTemplate[]
+  qualityInspections        QualityInspection[]
+  teamTasks                 TeamTask[]
+  delegationRules           DelegationRule[]
   webSiteAssets             WebSiteAsset[]
   webSiteMessages           WebSiteMessage[]
   salesDocumentItems        SalesDocumentItem[]
@@ -546,6 +556,15 @@ model CompanyFeatures {
   /// Sitios web: constructor guiado (bloques) o HTML propio, publicados en
   /// `/web/[slug]` o en un dominio propio, con bandeja de mensajes.
   hasWebSites           Boolean  @default(false)
+  /// Fidelización y voz del cliente: canal de origen, encuesta de satisfacción
+  /// (CSAT/NPS) por enlace público y seguimiento de clientes inactivos.
+  hasCustomerCare       Boolean  @default(false)
+  /// Calidad y procedimientos: SOP con versión y acuse de lectura, inspecciones
+  /// por plantilla (materia prima, proceso, producto terminado) y ficha de
+  /// productores/proveedores.
+  hasQuality            Boolean  @default(false)
+  /// Tareas del equipo (con recurrencia) y reglas de delegación de decisiones.
+  hasTeamTasks          Boolean  @default(false)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 }
@@ -791,6 +810,13 @@ model Contact {
   importShipments           ImportShipment[]
   serviceTickets            ServiceTicket[]
   webSites                  WebSite[]
+  /// Canal por el que llegó el cliente ("¿Cómo nos encontraste?"): valor de
+  /// `ACQUISITION_CHANNELS` (src/lib/customer-care/channels.ts) o `null`.
+  acquisitionChannel        String?
+  acquisitionNote           String?
+  customerSurveys           CustomerSurvey[]
+  customerFollowUps         CustomerFollowUp[]
+  supplierProfile           SupplierProfile?
   /// Portal del cliente (`/cliente/[token]`): se guarda solo el hash SHA-256
   /// del enlace; el enlace en claro se muestra una vez al generarlo.
   portalTokenHash           String?                 @unique
@@ -5261,29 +5287,29 @@ enum WebSiteStatus {
 }
 
 model WebSite {
-  id                     String        @id @default(cuid())
+  id                     String           @id @default(cuid())
   companyId              String
-  company                Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company                Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
   /// Nombre interno (el que ve el equipo en el panel).
   name                   String
   /// Dirección pública: `/web/[slug]`. Única en toda la plataforma.
-  slug                   String        @unique
-  kind                   WebSiteKind   @default(LANDING)
-  mode                   WebSiteMode   @default(GUIDED)
-  status                 WebSiteStatus @default(DRAFT)
+  slug                   String           @unique
+  kind                   WebSiteKind      @default(LANDING)
+  mode                   WebSiteMode      @default(GUIDED)
+  status                 WebSiteStatus    @default(DRAFT)
   /// Cliente para quien se arma el sitio (servicio de diseño web). Opcional.
   contactId              String?
-  contact                Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  contact                Contact?         @relation(fields: [contactId], references: [id], onDelete: SetNull)
   seoTitle               String?
   seoDescription         String?
   /// `false` agrega `noindex`: el sitio existe pero los buscadores no lo listan.
-  indexable              Boolean       @default(true)
+  indexable              Boolean          @default(true)
   logoUrl                String?
   ogImageUrl             String?
   /// `WebSiteTheme` (ver src/lib/web-sites/theme.ts): colores, tipografía, redondeo.
-  theme                  Json          @default("{}")
+  theme                  Json             @default("{}")
   /// Borrador editable: `WebSiteBlock[]` (ver src/lib/web-sites/blocks.ts).
-  draftBlocks            Json          @default("[]")
+  draftBlocks            Json             @default("[]")
   /// Copia congelada al publicar: lo que ve el público no cambia hasta la
   /// próxima publicación, aunque el equipo siga editando el borrador.
   publishedBlocks        Json?
@@ -5292,17 +5318,17 @@ model WebSite {
   publishedHtml          String?
   publishedAt            DateTime?
   /// Dominio propio (ej. `minegocio.cl`). Mismo mecanismo que el de un certamen.
-  customDomain           String?       @unique
+  customDomain           String?          @unique
   customDomainVerifiedAt DateTime?
   createdByName          String?
   /// Versión del contenido (bloques, tema, HTML): solo cambia al guardar
   /// contenido, no al publicar ni al tocar ajustes o dominio. El editor la usa
   /// para detectar que otra persona guardó antes (edición simultánea).
-  contentUpdatedAt       DateTime      @default(now())
+  contentUpdatedAt       DateTime         @default(now())
   assets                 WebSiteAsset[]
   messages               WebSiteMessage[]
-  createdAt              DateTime      @default(now())
-  updatedAt              DateTime      @updatedAt
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
 
   @@index([companyId, status])
   @@index([companyId, contactId])
@@ -5343,4 +5369,297 @@ model WebSiteMessage {
 
   @@index([companyId, siteId, createdAt])
   @@index([companyId, readAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fidelización y voz del cliente (`hasCustomerCare`)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum FollowUpReason {
+  INACTIVE
+  POST_SALE
+  DETRACTOR
+  MANUAL
+}
+
+enum FollowUpStatus {
+  OPEN
+  DONE
+  SKIPPED
+}
+
+/// Parámetros del módulo por empresa (1:1). Sin fila = valores por defecto.
+model CustomerCareSettings {
+  id                String   @id @default(cuid())
+  companyId         String   @unique
+  company           Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// Días sin comprar para que un cliente se considere inactivo.
+  inactiveAfterDays Int      @default(60)
+  /// Plazo estándar de entrega que se comunica al cliente (días hábiles).
+  deliveryLeadDays  Int?
+  /// Texto de invitación que acompaña al enlace de la encuesta.
+  surveyIntro       String?
+  /// Mensaje tipo de seguimiento a clientes inactivos.
+  followUpMessage   String?
+  updatedAt         DateTime @updatedAt
+}
+
+/// Encuesta breve de satisfacción. `token` es la llave del enlace público
+/// `/encuesta/[token]`: resuelve la empresa y el cliente, quien responde
+/// nunca manda un `companyId`. Se responde una sola vez.
+model CustomerSurvey {
+  id              String    @id @default(cuid())
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contactId       String
+  contact         Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  /// Venta que originó la encuesta (informativo; sin FK).
+  salesDocumentId String?
+  token           String    @unique
+  createdById     String?
+  sentAt          DateTime?
+  respondedAt     DateTime?
+  /// Satisfacción general 1-5.
+  csat            Int?
+  /// Probabilidad de recomendar 0-10.
+  nps             Int?
+  deliveryOnTime  Boolean?
+  comment         String?
+  createdAt       DateTime  @default(now())
+
+  @@index([companyId, respondedAt])
+  @@index([companyId, contactId])
+  @@index([contactId])
+}
+
+/// Tarea de seguimiento comercial sobre un cliente.
+model CustomerFollowUp {
+  id           String         @id @default(cuid())
+  companyId    String
+  company      Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contactId    String
+  contact      Contact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  reason       FollowUpReason @default(MANUAL)
+  status       FollowUpStatus @default(OPEN)
+  dueDate      DateTime
+  assignedToId String?
+  note         String?
+  outcome      String?
+  completedAt  DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([companyId, status, dueDate])
+  @@index([companyId, contactId])
+  @@index([contactId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Calidad y procedimientos (`hasQuality`)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum ProcedureCategory {
+  OPERACION
+  CALIDAD
+  HIGIENE
+  VENTAS
+  ADMINISTRACION
+  INDUCCION
+}
+
+enum ProcedureStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum InspectionKind {
+  INCOMING
+  IN_PROCESS
+  FINISHED
+}
+
+enum InspectionStatus {
+  PASSED
+  FAILED
+}
+
+/// Ficha del productor o proveedor clave (1:1 con el contacto proveedor).
+model SupplierProfile {
+  id               String   @id @default(cuid())
+  companyId        String
+  company          Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contactId        String   @unique
+  contact          Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  /// PRODUCTOR | PROVEEDOR_INSUMOS | ENVASES | TRANSPORTE | OTRO.
+  supplierType     String   @default("PRODUCTOR")
+  suppliedProducts String?
+  /// Certificaciones o resoluciones sanitarias vigentes (texto libre).
+  certifications   String?
+  isLocalProducer  Boolean  @default(true)
+  isActive         Boolean  @default(true)
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([companyId, isActive])
+}
+
+/// Procedimiento operativo estándar. Al publicar una nueva versión, los
+/// acuses de lectura de la anterior dejan de valer.
+model Procedure {
+  id              String            @id @default(cuid())
+  companyId       String
+  company         Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  title           String
+  category        ProcedureCategory @default(OPERACION)
+  summary         String?
+  content         String
+  version         Int               @default(1)
+  status          ProcedureStatus   @default(DRAFT)
+  ownerId         String?
+  reviewEveryDays Int?
+  lastReviewedAt  DateTime?
+  acks            ProcedureAck[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([companyId, status, category])
+}
+
+model ProcedureAck {
+  id             String    @id @default(cuid())
+  companyId      String
+  company        Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  procedureId    String
+  procedure      Procedure @relation(fields: [procedureId], references: [id], onDelete: Cascade)
+  userId         String
+  version        Int
+  acknowledgedAt DateTime  @default(now())
+
+  @@unique([procedureId, userId, version])
+  @@index([companyId, userId])
+}
+
+/// Plantilla de inspección: lista de parámetros medibles con su rango.
+/// `parameters`: arreglo validado por `qualityParameterSchema`.
+model QualityTemplate {
+  id         String         @id @default(cuid())
+  companyId  String
+  company    Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name       String
+  kind       InspectionKind @default(FINISHED)
+  parameters Json
+  isActive   Boolean        @default(true)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  @@index([companyId, isActive])
+}
+
+/// Inspección realizada. Guarda copia de la plantilla y de los resultados, de
+/// modo que cambiar la plantilla después no reescribe la historia.
+model QualityInspection {
+  id                String           @id @default(cuid())
+  companyId         String
+  company           Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  templateId        String?
+  templateName      String
+  kind              InspectionKind
+  /// Producto y productor/proveedor inspeccionados (sin FK; validados por empresa).
+  productId         String?
+  contactId         String?
+  lotNumber         String?
+  productionOrderId String?
+  parameters        Json
+  results           Json
+  status            InspectionStatus
+  failedParameters  String[]         @default([])
+  inspectorId       String?
+  notes             String?
+  correctiveAction  String?
+  inspectedAt       DateTime         @default(now())
+  createdAt         DateTime         @default(now())
+
+  @@index([companyId, inspectedAt])
+  @@index([companyId, contactId])
+  @@index([companyId, lotNumber])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tareas y delegación (`hasTeamTasks`)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum TeamTaskStatus {
+  TODO
+  DOING
+  DONE
+  CANCELLED
+}
+
+enum TeamTaskPriority {
+  LOW
+  NORMAL
+  HIGH
+}
+
+enum TeamTaskRecurrence {
+  NONE
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum DelegatedDecision {
+  PURCHASE_APPROVAL
+  EXPENSE_APPROVAL
+  DISCOUNT
+  PRICE_CHANGE
+  REFUND
+  STOCK_ADJUSTMENT
+  SUPPLIER_PAYMENT
+  OTHER
+}
+
+model TeamTask {
+  id          String             @id @default(cuid())
+  companyId   String
+  company     Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  status      TeamTaskStatus     @default(TODO)
+  priority    TeamTaskPriority   @default(NORMAL)
+  dueDate     DateTime?
+  assigneeId  String?
+  createdById String?
+  recurrence  TeamTaskRecurrence @default(NONE)
+  completedAt DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([companyId, status, dueDate])
+  @@index([companyId, assigneeId, status])
+}
+
+/// Regla escrita de delegación: quién puede decidir qué y hasta cuánto.
+/// Es un registro consultable por el equipo y por `evaluateDelegation`; no
+/// reemplaza a los permisos (RBAC), que siguen mandando.
+model DelegationRule {
+  id           String            @id @default(cuid())
+  companyId    String
+  company      Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  decision     DelegatedDecision
+  title        String
+  delegateeId  String?
+  delegateRole Role?
+  /// CLP entero. `null` = sin tope de monto.
+  maxAmount    Int?
+  /// Porcentaje (solo para descuentos). `null` = sin tope.
+  maxPercent   Int?
+  conditions   String?
+  isActive     Boolean           @default(true)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@index([companyId, isActive, decision])
 }

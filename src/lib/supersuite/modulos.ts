@@ -34,6 +34,9 @@ export const FLAG_A_MODULO: Partial<Record<FeatureKey, string>> = {
   hasInstallmentPlans: 'cuotas',
   hasPromissoryNotes: 'pagares',
   hasBudgets: 'presupuestos',
+  hasCustomerCare: 'fidelizacion',
+  hasQuality: 'calidad',
+  hasTeamTasks: 'tareas',
 };
 
 /**
@@ -65,6 +68,9 @@ const ENTIDAD_A_MODULO: Record<string, string> = {
   PaymentPlan: 'cuotas', PaymentPlanInstallment: 'cuotas',
   PromissoryNote: 'pagares',
   Budget: 'presupuestos', BudgetLine: 'presupuestos',
+  CustomerSurvey: 'fidelizacion', CustomerFollowUp: 'fidelizacion', CustomerCareSettings: 'fidelizacion',
+  Procedure: 'calidad', QualityInspection: 'calidad', QualityTemplate: 'calidad', SupplierProfile: 'calidad',
+  TeamTask: 'tareas', DelegationRule: 'tareas',
 };
 
 /** Entidades cuyo cambio modifica la ficha de la empresa en la Supersuite (nombre, plan, módulos, estado). */

@@ -4,6 +4,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
+  HeartHandshake,
+  FileText,
+  UserCheck,
   FileSignature,
   ClipboardList,
   Tags,
@@ -151,6 +154,11 @@ export const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   serviceDesk: Wrench,
   webSites: Globe,
   invoiceArchive: Archive,
+  customerCare: HeartHandshake,
+  quality: ShieldCheck,
+  procedures: FileText,
+  tasks: ListChecks,
+  delegation: UserCheck,
   crmTasks: CalendarCheck,
   crmPeople: Contact,
   crmReports: BarChart3,

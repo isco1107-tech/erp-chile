@@ -62,6 +62,9 @@ const PUBLIC_ROUTES = [
   // tiene cuenta ERP; la ruta valida el token ella misma contra
   // `ServiceTicket.trackingToken`.
   '/servicio',
+  // Encuesta de satisfacción (`/encuesta/[token]`): el cliente no tiene cuenta
+  // ERP; la ruta valida el token contra `CustomerSurvey.token`.
+  '/encuesta',
   // Portal de clientes (`/cliente/[token]`): el cliente no tiene cuenta ERP;
   // la ruta valida el token ella misma contra `Contact.portalTokenHash`.
   '/cliente',
