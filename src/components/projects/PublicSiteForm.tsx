@@ -59,11 +59,14 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
     directorRole: project.directorRole ?? '',
     directorBio: project.directorBio ?? '',
     directorPhotoUrl: project.directorPhotoUrl ?? '',
+    faviconUrl: project.faviconUrl ?? '',
     sponsorExclusivityNote: project.sponsorExclusivityNote ?? '',
   });
   // La trayectoria se edita como texto, un logro por línea.
   const [highlightsText, setHighlightsText] = useState(project.directorHighlights.join('\n'));
   const [uploadingDirector, setUploadingDirector] = useState(false);
+  const [uploadingFavicon, setUploadingFavicon] = useState(false);
+  const faviconFileRef = useRef<HTMLInputElement>(null);
   const directorFileRef = useRef<HTMLInputElement>(null);
   const [slugState, setSlugState] = useState<{ available: boolean; problem: string | null } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -85,7 +88,7 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
     return () => window.clearTimeout(timer);
   }, [values.publicSlug, project.id, project.publicSlug]);
 
-  async function uploadImage(file: File, purpose: 'cover' | 'director' = 'cover'): Promise<string | null> {
+  async function uploadImage(file: File, purpose: 'cover' | 'director' | 'favicon' = 'cover'): Promise<string | null> {
     const form = new FormData();
     form.append('projectId', project.id);
     form.append('purpose', purpose);
@@ -110,6 +113,20 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
     } finally {
       setUploadingDirector(false);
       if (directorFileRef.current) directorFileRef.current.value = '';
+    }
+  }
+
+  async function uploadFavicon(file: File) {
+    setUploadingFavicon(true);
+    try {
+      const url = await uploadImage(file, 'favicon');
+      if (url) {
+        set('faviconUrl', url);
+        toast.success('Logo cargado: guarda para publicarlo');
+      }
+    } finally {
+      setUploadingFavicon(false);
+      if (faviconFileRef.current) faviconFileRef.current.value = '';
     }
   }
 
@@ -202,6 +219,36 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
                     </Button>
                   )}
                   <p className="text-xs text-muted-foreground">JPG o PNG horizontal de al menos 1600 × 900 px (mínimo 1000 × 520) y hasta 6 MB. Una imagen chica se ve pixelada a pantalla completa.</p>
+                </div>
+              )}
+            </div>
+          </div>
+          <div>
+            <Label>Logo de la pestaña del navegador</Label>
+            <div className="mt-1 flex flex-wrap items-center gap-3">
+              <div className="flex size-14 items-center justify-center overflow-hidden rounded-md border border-border bg-muted">
+                {values.faviconUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={values.faviconUrl} alt="Logo de la pestaña" className="size-full object-cover" />
+                ) : (
+                  <span className="px-1 text-center text-[10px] text-muted-foreground">Aether</span>
+                )}
+              </div>
+              {canWrite && (
+                <div className="flex flex-col gap-1.5">
+                  <input ref={faviconFileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => e.target.files?.[0] && void uploadFavicon(e.target.files[0])} />
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" size="sm" variant="outline" disabled={uploadingFavicon} onClick={() => faviconFileRef.current?.click()}>
+                      <ImagePlus aria-hidden="true" />
+                      {uploadingFavicon ? 'Subiendo…' : values.faviconUrl ? 'Cambiar logo' : 'Subir logo'}
+                    </Button>
+                    {values.faviconUrl && (
+                      <Button type="button" size="sm" variant="ghost" onClick={() => set('faviconUrl', '')}>
+                        Quitar logo
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">El ícono chico de la pestaña y los favoritos. Cuadrado, ideal 512 × 512 px (mínimo 64 × 64). Sin logo, se ve el de Aether.</p>
                 </div>
               )}
             </div>

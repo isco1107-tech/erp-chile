@@ -76,6 +76,7 @@ export interface WebSiteDetail {
   indexable: boolean;
   logoUrl: string;
   ogImageUrl: string;
+  faviconUrl: string;
   theme: WebSiteTheme;
   /** Borrador completo: páginas, encabezado, pie, redes y botón de WhatsApp. */
   document: SiteDocument;
@@ -243,6 +244,7 @@ export async function getWebSite(companyId: string, id: string): Promise<WebSite
     indexable: site.indexable,
     logoUrl: site.logoUrl ?? '',
     ogImageUrl: site.ogImageUrl ?? '',
+    faviconUrl: site.faviconUrl ?? '',
     theme: parseTheme(site.theme),
     document: parseSiteDocument(site.draftBlocks, site.theme),
     html: site.draftHtml ?? '',
@@ -357,7 +359,7 @@ export async function updateWebSiteSettings(companyId: string, id: string, input
   const site = await prisma.webSite.findFirst({ where: { id, companyId }, select: { id: true, slug: true } });
   if (!site) throw new WebSiteError('Sitio no encontrado');
   const contactId = await assertContact(companyId, input.contactId);
-  assertOwnImages(companyId, [input.logoUrl ?? '', input.ogImageUrl ?? '']);
+  assertOwnImages(companyId, [input.logoUrl ?? '', input.ogImageUrl ?? '', input.faviconUrl ?? '']);
   if (input.slug !== site.slug) {
     const taken = await prisma.webSite.findFirst({ where: { slug: input.slug, NOT: { id } }, select: { id: true } });
     if (taken) throw new WebSiteError('Esa dirección ya la usa otro sitio. Prueba con otra.');
@@ -373,6 +375,7 @@ export async function updateWebSiteSettings(companyId: string, id: string, input
         indexable: input.indexable,
         logoUrl: input.logoUrl || null,
         ogImageUrl: input.ogImageUrl || null,
+        faviconUrl: input.faviconUrl || null,
         contactId,
       },
     });
@@ -442,6 +445,7 @@ export async function duplicateWebSite(companyId: string, actor: { name: string 
       indexable: source.indexable,
       logoUrl: source.logoUrl,
       ogImageUrl: source.ogImageUrl,
+      faviconUrl: source.faviconUrl,
       theme: json(parseTheme(source.theme)),
       draftBlocks: source.mode === 'GUIDED' ? json(parseSiteDocument(source.draftBlocks, source.theme)) : json([]),
       draftHtml: source.draftHtml,
@@ -499,10 +503,10 @@ export async function updateAssetAlt(companyId: string, assetId: string, alt: st
 
 /** Devuelve la URL a borrar del almacenamiento (`null` si otro sitio todavía la usa). */
 export async function deleteAsset(companyId: string, assetId: string): Promise<{ urlToDelete: string | null }> {
-  const asset = await prisma.webSiteAsset.findFirst({ where: { id: assetId, companyId }, include: { site: { select: { draftBlocks: true, publishedBlocks: true, logoUrl: true, ogImageUrl: true, draftHtml: true, publishedHtml: true } } } });
+  const asset = await prisma.webSiteAsset.findFirst({ where: { id: assetId, companyId }, include: { site: { select: { draftBlocks: true, publishedBlocks: true, logoUrl: true, ogImageUrl: true, faviconUrl: true, draftHtml: true, publishedHtml: true } } } });
   if (!asset) throw new WebSiteError('Imagen no encontrada');
   const usedHere = [asset.site.draftBlocks, asset.site.publishedBlocks].some((value) => JSON.stringify(value ?? null).includes(asset.url)) ||
-    [asset.site.logoUrl, asset.site.ogImageUrl, asset.site.draftHtml, asset.site.publishedHtml].some((value) => (value ?? '').includes(asset.url));
+    [asset.site.logoUrl, asset.site.ogImageUrl, asset.site.faviconUrl, asset.site.draftHtml, asset.site.publishedHtml].some((value) => (value ?? '').includes(asset.url));
   if (usedHere) throw new WebSiteError('Esta imagen se usa en el sitio. Quítala de las secciones (y despublica o vuelve a publicar) antes de eliminarla.');
   await prisma.webSiteAsset.deleteMany({ where: { id: assetId, companyId } });
   const others = await prisma.webSiteAsset.count({ where: { url: asset.url, companyId } });
@@ -554,6 +558,7 @@ export interface PublicWebSite {
   indexable: boolean;
   logoUrl: string | null;
   ogImageUrl: string | null;
+  faviconUrl: string | null;
   theme: WebSiteTheme;
   /** Sitio publicado completo (páginas, encabezado, pie…). */
   document: SiteDocument;
@@ -568,7 +573,7 @@ export interface PublicWebSite {
 }
 
 const PUBLIC_SELECT = {
-  id: true, companyId: true, name: true, slug: true, mode: true, status: true, seoTitle: true, seoDescription: true, indexable: true, logoUrl: true, ogImageUrl: true,
+  id: true, companyId: true, name: true, slug: true, mode: true, status: true, seoTitle: true, seoDescription: true, indexable: true, logoUrl: true, ogImageUrl: true, faviconUrl: true,
   publishedBlocks: true, publishedTheme: true, publishedHtml: true, publishedAt: true, customDomain: true, customDomainVerifiedAt: true,
   company: { select: { businessName: true, status: true, features: { select: { hasWebSites: true } } } },
 } satisfies Prisma.WebSiteSelect;
@@ -591,6 +596,7 @@ function toPublic(site: PublicRow | null): PublicWebSite | null {
     indexable: site.indexable,
     logoUrl: site.logoUrl,
     ogImageUrl: site.ogImageUrl,
+    faviconUrl: site.faviconUrl,
     theme: parseTheme(site.publishedTheme),
     document,
     blocks: homeOf(document).blocks,

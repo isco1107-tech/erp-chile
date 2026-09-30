@@ -6,6 +6,7 @@ import {
   audienceHero,
   directorCopy,
   headingSize,
+  ribbonLoop,
   initials,
   registrationProcess,
   splitPackageBenefits,
@@ -21,6 +22,7 @@ import { Arrow, Calendar, Check, Chevron, Close, Crown, Diamond, Instagram, Mail
 import { PAGEANT_FONT_CLASSES } from './fonts';
 import { FitText } from './FitText';
 import { HallOfFame } from './HallOfFame';
+import { startReveal } from './reveal';
 import { HeroSky, Kicker, pad } from './parts';
 import { SponsorLeadForm } from './SponsorLeadForm';
 import { CandidateApplicationForm } from './CandidateApplicationForm';
@@ -54,30 +56,14 @@ function useCountdown(target: string | null) {
   return { days: Math.floor(total / 86400), hours: Math.floor((total % 86400) / 3600), minutes: Math.floor((total % 3600) / 60), seconds: total % 60 };
 }
 
-/** Animaciones de entrada al hacer scroll. Solo se activan con JS y sin "reducir movimiento": sin eso, todo se ve de inmediato. */
-function useReveal(rootRef: React.RefObject<HTMLDivElement | null>, key: string) {
+/** Animaciones de entrada al hacer scroll (ver `reveal.ts`): solo con JS y sin "reducir movimiento"; sin eso, todo se ve de inmediato. */
+function useReveal(rootRef: React.RefObject<HTMLDivElement | null>) {
   useEffect(() => {
     const root = rootRef.current;
-    if (!root || window.matchMedia('(prefers-reduced-motion: reduce)').matches || !('IntersectionObserver' in window)) return;
-    root.dataset.motion = 'on';
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('is-in');
-            observer.unobserve(entry.target);
-          }
-        }
-      },
-      { rootMargin: '0px 0px -8% 0px', threshold: 0.08 }
-    );
-    root.querySelectorAll('[data-reveal]:not(.is-in)').forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
-    // `key` cambia al pasar de la vista de candidatas a la de sponsors: las secciones nuevas también se revelan.
-  }, [rootRef, key]);
+    return root ? startReveal(root) : undefined;
+  }, [rootRef]);
 }
 
-/** Sección visible en pantalla, para marcar el enlace activo del menú. */
 /** Marca `.is-offscreen` en las zonas con animaciones continuas cuando salen de la pantalla: el CSS las pausa. */
 function useOffscreenPause(rootRef: React.RefObject<HTMLDivElement | null>) {
   useEffect(() => {
@@ -247,7 +233,7 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
   const whatsappFloat = site.whatsapp
     ? { href: whatsappMessageUrl(site.whatsapp.href, whatsappGreeting(isSponsorView ? 'sponsor' : 'candidata', site.name)), label: isSponsorView ? 'Escríbenos por WhatsApp para ser sponsor' : 'Escríbenos por WhatsApp para ser candidata' }
     : null;
-  useReveal(rootRef, isSponsorView ? 'sponsor' : 'candidata');
+  useReveal(rootRef);
   useOffscreenPause(rootRef);
   const [openPackages, setOpenPackages] = useState<Set<string>>(() => new Set());
   const togglePackage = (id: string) =>
@@ -336,6 +322,8 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
     site.voting ? 'Votación del público abierta' : null,
     site.tickets ? 'Entradas a la venta' : null,
   ].filter((item): item is string => Boolean(item));
+
+  const ribbonMotion = ribbonLoop(ribbon);
 
   const hero = audienceHero(isSponsorView ? 'sponsor' : 'candidata', {
     name: site.name,
@@ -584,10 +572,10 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
       {/* ── Cinta ──────────────────────────────────────────────────────── */}
       {ribbon.length > 0 && (
         <div className="pgs-ribbon" aria-hidden="true">
-          <div className="pgs-ribbon-track">
+          <div className="pgs-ribbon-track" style={{ '--pgs-ribbon-time': `${ribbonMotion.seconds}s` } as CSSProperties}>
             {[0, 1].map((copy) => (
               <span key={copy} className="pgs-ribbon-group">
-                {[...ribbon, ...ribbon].map((item, i) => (
+                {ribbonMotion.group.map((item, i) => (
                   <span key={`${item}-${i}`} className="pgs-ribbon-item">
                     <Diamond className="pgs-ribbon-diamond" />
                     {item}

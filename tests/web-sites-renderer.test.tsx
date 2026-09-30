@@ -88,7 +88,7 @@ describe('SiteRenderer', () => {
 
 describe('WebSiteDocument', () => {
   const site: PublicWebSite = {
-    id: 's1', companyId: 'c1', name: 'Sitio', slug: 'mi-sitio', mode: 'HTML', title: 'Mi sitio', description: 'Descripción', indexable: false, logoUrl: null, ogImageUrl: null,
+    id: 's1', companyId: 'c1', name: 'Sitio', slug: 'mi-sitio', mode: 'HTML', title: 'Mi sitio', description: 'Descripción', indexable: false, logoUrl: null, ogImageUrl: null, faviconUrl: null,
     theme: DEFAULT_THEME, document: parseSiteDocument([]), blocks: [], html: '<p>x</p>', acceptsMessages: false, customDomain: null, customDomainVerified: false, publishedAt: null,
   };
 
@@ -443,7 +443,7 @@ describe('datos estructurados y metadatos por página', () => {
   });
   const base: PublicWebSite = {
     id: 's1', companyId: 'c1', name: 'Taller Sur', slug: 'taller-sur', mode: 'GUIDED', title: 'Taller Sur · Mecánica', description: 'Descripción general', indexable: true, logoUrl: 'https://cdn.test/logo.png',
-    ogImageUrl: null, theme: DEFAULT_THEME, document: doc, blocks: [], html: '', acceptsMessages: true, customDomain: null, customDomainVerified: false, publishedAt: null,
+    ogImageUrl: null, faviconUrl: null, theme: DEFAULT_THEME, document: doc, blocks: [], html: '', acceptsMessages: true, customDomain: null, customDomainVerified: false, publishedAt: null,
   };
 
   it('título y descripción por página', () => {

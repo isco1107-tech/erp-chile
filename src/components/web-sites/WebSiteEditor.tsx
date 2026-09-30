@@ -86,6 +86,7 @@ function draftOf(site: WebSiteDetail): SettingsDraft {
     indexable: site.indexable,
     logoUrl: site.logoUrl,
     ogImageUrl: site.ogImageUrl,
+    faviconUrl: site.faviconUrl,
     contactId: site.contactId,
   };
 }
@@ -385,7 +386,7 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, in
   );
 
   // Imágenes en uso (con el contenido actual, guardado o no): no se dejan eliminar desde la biblioteca.
-  const usedUrls = useMemo(() => new Set([...allBlocks(document).flatMap(blockImageUrls), settings.logoUrl, settings.ogImageUrl].filter(Boolean)), [document, settings.logoUrl, settings.ogImageUrl]);
+  const usedUrls = useMemo(() => new Set([...allBlocks(document).flatMap(blockImageUrls), settings.logoUrl, settings.ogImageUrl, settings.faviconUrl].filter(Boolean)), [document, settings.logoUrl, settings.ogImageUrl, settings.faviconUrl]);
   const isUsed = useCallback((url: string) => usedUrls.has(url) || (!isGuided && html.includes(url)), [usedUrls, isGuided, html]);
 
   // -------------------------------------------------------------------------
@@ -451,6 +452,7 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, in
       indexable: sent.indexable,
       logoUrl: sent.logoUrl,
       ogImageUrl: sent.ogImageUrl,
+      faviconUrl: sent.faviconUrl,
       contactId: sent.contactId,
     });
     if (!result.success) {

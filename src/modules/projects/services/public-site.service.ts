@@ -44,6 +44,8 @@ export interface PublicPageantSite {
   venueName: string | null;
   venueAddress: string | null;
   coverImageUrl: string | null;
+  /** Logo de la pestaña del navegador (favicon); `null` = el de la plataforma. */
+  faviconUrl: string | null;
   accent: PublicAccentKey;
   instagramHandle: string | null;
   contactEmail: string | null;
@@ -235,6 +237,7 @@ async function assemblePageantSite(project: ProjectWithCompany, slug: string): P
     venueName: project.venueName,
     venueAddress: project.venueAddress,
     coverImageUrl: project.coverImageUrl,
+    faviconUrl: project.faviconUrl,
     accent: isAccent(project.publicAccent) ? project.publicAccent : 'gold',
     instagramHandle: contact.instagram?.handle ?? null,
     contactEmail: contact.email,

@@ -135,6 +135,7 @@ export function SettingsPanel({ settings, onChange, disabled, savedSlug, isPubli
           suggestion={companyLogoUrl ? { url: companyLogoUrl, label: 'Usar el logo de la empresa' } : null}
         />
         <ImagePicker label="Imagen para redes" value={settings.ogImageUrl} onChange={(ogImageUrl) => onChange({ ogImageUrl })} hint="Se ve cuando compartes el enlace por WhatsApp, Facebook o LinkedIn. Ideal: horizontal, 1200 × 630 px." />
+        <ImagePicker label="Logo de la pestaña del navegador" value={settings.faviconUrl} onChange={(faviconUrl) => onChange({ faviconUrl })} hint="El ícono chico que se ve en la pestaña del navegador y en los favoritos. Ideal: cuadrado, de 512 × 512 px (mínimo 64 × 64). Sin logo, se ve el de Aether." />
       </section>
 
       <div className="flex flex-wrap items-center justify-end gap-3">

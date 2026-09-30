@@ -79,6 +79,7 @@ export interface SettingsDraft {
   indexable: boolean;
   logoUrl: string;
   ogImageUrl: string;
+  faviconUrl: string;
   contactId: string | null;
 }
 
@@ -91,6 +92,7 @@ export function settingsEqual(a: SettingsDraft, b: SettingsDraft): boolean {
     a.indexable === b.indexable &&
     a.logoUrl === b.logoUrl &&
     a.ogImageUrl === b.ogImageUrl &&
+    a.faviconUrl === b.faviconUrl &&
     a.contactId === b.contactId
   );
 }

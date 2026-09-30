@@ -120,6 +120,12 @@ module.exports = function collectProblems(rootSelector) {
     }
   }
 
+  // Cinta que gira: un grupo tiene que cubrir la pantalla completa, o al desplazarse queda vacío a la derecha.
+  const ribbonGroup = root.querySelector('.pgs-ribbon-group');
+  if (ribbonGroup && ribbonGroup.getBoundingClientRect().width < vw) {
+    problems.push({ kind: 'cinta-corta', detail: `La cinta mide ${Math.round(ribbonGroup.getBoundingClientRect().width)}px y la pantalla ${vw}px: al girar quedaría vacía` });
+  }
+
   // Deduplica (mismo tipo y detalle).
   const unique = new Map(problems.map((p) => [`${p.kind}|${p.detail}`, p]));
   return Array.from(unique.values());

@@ -142,14 +142,82 @@ for (const name of fixtures) {
     await page.evaluate(() => document.fonts.ready);
     // Deja que los efectos (ajuste de títulos, revelado) corran con la fuente real.
     await page.waitForTimeout(250);
-    await page.evaluate(() => document.querySelectorAll('[data-reveal]').forEach((el) => el.classList.add('is-in')));
+    await page.evaluate(() => document.querySelectorAll('[data-reveal]').forEach((el) => el.setAttribute('data-in', '')));
     await page.waitForTimeout(100);
     const problems = await page.evaluate(collectProblems, '.pgs');
+    // La cinta tiene que estar girando de verdad (no solo existir): la posición cambia y la animación corre.
+    const ribbon = await page.evaluate(async () => {
+      const track = document.querySelector('.pgs-ribbon-track');
+      if (!track) return null;
+      // Fuera de pantalla se pausa a propósito (ahorra CPU): se lleva a la vista antes de medir.
+      document.querySelector('.pgs-ribbon')?.scrollIntoView();
+      await new Promise((r) => setTimeout(r, 500));
+      const x = () => new DOMMatrix(getComputedStyle(track).transform).m41;
+      const before = x();
+      await new Promise((r) => setTimeout(r, 1200));
+      const anim = track.getAnimations().find((a) => a.animationName === 'pgs-marquee');
+      return { moved: Math.abs(x() - before), running: anim?.playState === 'running' };
+    });
+    if (ribbon && (!ribbon.running || ribbon.moved < 20)) {
+      problems.push({ kind: 'cinta-quieta', detail: `La cinta no gira (se movió ${Math.round(ribbon.moved)}px en 1,2 s; debería avanzar ≈ 65px)` });
+    }
     const shot = `shots/${name}__${device.id}.jpg`;
     await page.screenshot({ path: path.join(out, shot), fullPage: true, type: 'jpeg', quality: 55 });
     results.push({ fixture: name, device, problems, shot });
     await context.close();
   }
+}
+
+// 3a) Interacciones: lo que una persona toca no puede hacer desaparecer contenido. Se probó en producción que tocar un
+// paquete de sponsor lo dejaba en opacity 0 (React borraba la marca de "revelado"), dejando un hueco en blanco.
+const interactionFailures = [];
+if (!only || only === 'normal') {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, locale: 'es-CL' });
+  const page = await ctx.newPage();
+  await page.setContent(wrapper(), { waitUntil: 'load' });
+  await page.addScriptTag({ content: browserScript });
+  await page.evaluate(() => window.mountPageant('normal'));
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForTimeout(800);
+  // Sin forzar el revelado: se usa el real, por scroll.
+  const invisible = () =>
+    page.evaluate(() => {
+      const vh = innerHeight;
+      return [...document.querySelectorAll('[data-reveal], .pgs-package, .pgs-faq-list details, .pgs-card')]
+        .filter((el) => {
+          const r = el.getBoundingClientRect();
+          return r.bottom > 0 && r.top < vh && r.height > 0 && Number(getComputedStyle(el).opacity) < 0.5;
+        })
+        .map((el) => `${el.tagName.toLowerCase()}.${String(el.className).split(' ').slice(0, 2).join('.')}`);
+    });
+  const check = async (label) => {
+    await page.waitForTimeout(1300);
+    const hidden = await invisible();
+    if (hidden.length) interactionFailures.push(`${label}: quedó invisible → ${[...new Set(hidden)].join(', ')}`);
+  };
+  await page.getByRole('button', { name: /sponsor/i }).first().click();
+  await page.waitForTimeout(900);
+  await page.evaluate(() => document.getElementById('paquetes')?.scrollIntoView());
+  await check('al ver los paquetes de sponsor');
+  const toggles = page.locator('.pgs-package-toggle');
+  for (let i = 0; i < Math.min(await toggles.count(), 3); i++) {
+    await toggles.nth(i).tap();
+    await check(`al tocar el paquete ${i + 1} para ver qué incluye`);
+    await toggles.nth(i).tap();
+    await check(`al cerrar el paquete ${i + 1}`);
+  }
+  await page.locator('.pgs-package-toggle').first().tap();
+  await page.getByRole('button', { name: /candidata/i }).first().click();
+  await check('al volver a la vista de candidata');
+  await page.evaluate(() => document.getElementById('preguntas')?.scrollIntoView());
+  await page.waitForTimeout(600);
+  const faq = page.locator('#preguntas details summary, #preguntas button[aria-expanded]').first();
+  if (await faq.count()) {
+    await faq.click();
+    await check('al abrir una pregunta frecuente');
+  }
+  await ctx.close();
+  for (const f of interactionFailures) console.log(`✗ [interacción] ${f}`);
 }
 
 // 3b) Fluidez (solo con --perf): la portada tiene capas animadas enormes; si alguien vuelve a poner un blur o una mezcla
@@ -247,6 +315,10 @@ if (args.has('warnings')) {
     bySel.set(key, (bySel.get(key) ?? 0) + 1);
   }
   for (const [k, n] of [...bySel].sort((a, b) => b[1] - a[1]).slice(0, 40)) console.log(`  ${n}× ${k}`);
+}
+if (interactionFailures.length) {
+  console.log(`✗ ${interactionFailures.length} interacción(es) dejan contenido invisible. No publicar hasta corregirlo.`);
+  process.exit(1);
 }
 if (perfFailures.length) {
   console.log(`✗ Fluidez insuficiente en: ${perfFailures.join(', ')}. Revisa filter/blur, mix-blend-mode y animaciones sobre capas grandes.`);

@@ -1997,6 +1997,8 @@ model Project {
   publicTagline           String?
   publicDescription       String?
   coverImageUrl           String?
+  /// Logo que se ve en la pestaña del navegador (favicon) del micrositio. `null` = el de la plataforma.
+  faviconUrl              String?
   /// Acento visual del micrositio (`gold`, `violet`, `rose`, `cyan`,
   /// `emerald` — los de `PublicShell`). Texto y no enum para poder sumar
   /// acentos sin migración; Zod valida los permitidos.
@@ -5339,6 +5341,8 @@ model WebSite {
   indexable              Boolean          @default(true)
   logoUrl                String?
   ogImageUrl             String?
+  /// Logo que se ve en la pestaña del navegador (favicon). `null` = el de la plataforma.
+  faviconUrl             String?
   /// `WebSiteTheme` (ver src/lib/web-sites/theme.ts): colores, tipografía, redondeo.
   theme                  Json             @default("{}")
   /// Borrador editable: `WebSiteBlock[]` (ver src/lib/web-sites/blocks.ts).

@@ -8,6 +8,9 @@ import {
   galaCalendarUrl,
   galaDateParts,
   headingSize,
+  ribbonLoop,
+  RIBBON_MIN_ITEMS,
+  RIBBON_SECONDS_PER_ITEM,
   initials,
   pageantFaq,
   pageantHighlights,
@@ -386,3 +389,31 @@ describe('headingSize', () => {
     expect(headingSize('Temuco/Longuimay')).toBe('');
   });
 });
+
+describe('ribbonLoop (cinta que gira)', () => {
+  it('sin textos no hay cinta', () => {
+    expect(ribbonLoop([])).toEqual({ group: [], seconds: 0 });
+  });
+
+  it('con un solo texto lo repite hasta cubrir cualquier pantalla (antes medía menos que el monitor y casi no se movía)', () => {
+    const { group } = ribbonLoop(['Postulaciones abiertas']);
+    expect(group).toHaveLength(RIBBON_MIN_ITEMS);
+    expect(new Set(group)).toEqual(new Set(['Postulaciones abiertas']));
+  });
+
+  it('con varios textos conserva el orden y los repite completos', () => {
+    const items = ['Temporada 2026', 'Postulaciones abiertas', 'Gala · 12 de diciembre'];
+    const { group } = ribbonLoop(items);
+    expect(group.length).toBeGreaterThanOrEqual(RIBBON_MIN_ITEMS);
+    expect(group.length % items.length).toBe(0);
+    expect(group.slice(0, 3)).toEqual(items);
+  });
+
+  it('la velocidad no depende de cuántos textos haya: siempre los mismos segundos por texto', () => {
+    for (const n of [1, 2, 5, 7, 13]) {
+      const { group, seconds } = ribbonLoop(Array.from({ length: n }, (_, i) => `texto ${i}`));
+      expect(seconds).toBe(group.length * RIBBON_SECONDS_PER_ITEM);
+    }
+  });
+});
+
