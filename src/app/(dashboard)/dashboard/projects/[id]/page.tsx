@@ -100,7 +100,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
         <div className="flex flex-wrap items-center gap-2">
           <Link href={`/dashboard/projects/${project.id}/poster`} className={buttonVariants({ variant: 'outline' })}>
             <Megaphone aria-hidden="true" />
-            Afiche
+            Afiches
           </Link>
           {canWrite && (
             <>

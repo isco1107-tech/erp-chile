@@ -2,33 +2,30 @@ import { ImageResponse } from 'next/og';
 import { NextResponse } from 'next/server';
 import { AuthError, ModuleNotEnabledError, TenantInactiveError, requireAuthWithPermission } from '@/lib/auth/guards';
 import { captureException } from '@/lib/observability';
-import { getAppUrl } from '@/lib/email/mailer';
-import { fetchGoogleFontSubset, fetchImageAsDataUrl } from '@/lib/images/subset-font';
-import { getPageantSitePreview } from '@/modules/projects/services/public-site.service';
+import { isPosterFormat } from '@/lib/posters/formats';
+import { cleanPosterNote, isPosterPiece } from '@/lib/posters/pieces';
+import { isPosterStyle } from '@/lib/posters/styles';
 import { PUBLIC_ACCENTS, type PublicAccentKey } from '@/modules/projects/schema';
-import { POSTER_FORMATS, POSTER_SIZES, posterDisplayText, renderPosterElement, type PosterFormat } from '@/modules/projects/services/poster-render';
+import { buildPosterImage } from '@/modules/projects/services/poster.service';
 
 /**
- * Afiche de convocatoria en PNG, listo para publicar (Instagram feed, story
- * o cuadrado), armado con los datos reales del certamen — los mismos que
- * alimentan su micrositio público, nunca inventados. Autenticado con
- * `projects:read`: es una herramienta del panel, no una ruta pública (a
- * diferencia de `/certamen/[slug]/opengraph-image`, que sí lo es).
+ * Afiche del certamen en PNG (ver `src/lib/posters/`), con los datos reales de
+ * su micrositio. Herramienta del panel (`projects:read`), no ruta pública.
  *
- * `?format=feed|story|square` (por defecto `feed`), `?accent=<acento>`
- * (por defecto el del micrositio) para previsualizar otro color sin
- * guardar nada, y `?download=1` para que el navegador lo baje como archivo
- * en vez de mostrarlo inline (así la misma URL sirve para la vista previa
- * `<img>` y para el botón "Descargar").
+ * Parámetros, todos opcionales y validados (uno inválido toma su valor por
+ * defecto, nunca rompe): `piece` (convocatoria…), `style` (gala, editorial,
+ * impacto), `format` (feed, story, square, landscape, print), `accent` (por
+ * defecto el del micrositio), `candidate` (id, para la pieza "candidata"),
+ * `note` (mensaje propio, no se guarda), `qr` (1/0; por defecto según el
+ * formato) y `download=1` para bajarlo como archivo.
  */
-
-function isFormat(value: string | null): value is PosterFormat {
-  return (POSTER_FORMATS as readonly string[]).includes(value ?? '');
-}
 
 function isAccent(value: string | null): value is PublicAccentKey {
   return (PUBLIC_ACCENTS as readonly string[]).includes(value ?? '');
 }
+
+// Un mosaico de 30 fotos a tamaño de impresión puede tardar varios segundos.
+export const maxDuration = 60;
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   let companyId: string | undefined;
@@ -36,43 +33,32 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const session = await requireAuthWithPermission('projects:read');
     companyId = session.companyId;
     const { id } = await params;
-    const { searchParams } = new URL(request.url);
-    const format = isFormat(searchParams.get('format')) ? (searchParams.get('format') as PosterFormat) : 'feed';
-    const download = searchParams.get('download') === '1';
+    const query = new URL(request.url).searchParams;
+    const piece = query.get('piece');
+    const style = query.get('style');
+    const format = query.get('format');
+    const accent = query.get('accent');
+    const qr = query.get('qr');
 
-    const site = await getPageantSitePreview(session.companyId, id);
-    if (!site) return NextResponse.json({ success: false, error: 'Certamen no encontrado' }, { status: 404 });
+    const build = await buildPosterImage(session.companyId, id, {
+      piece: isPosterPiece(piece) ? piece : 'convocatoria',
+      style: isPosterStyle(style) ? style : 'gala',
+      format: isPosterFormat(format) ? format : 'feed',
+      accent: isAccent(accent) ? accent : null,
+      candidateId: query.get('candidate')?.slice(0, 64) || null,
+      note: cleanPosterNote(query.get('note')),
+      qr: qr === '1' ? true : qr === '0' ? false : null,
+    });
+    if (!build.ok) return NextResponse.json({ success: false, error: build.error }, { status: build.status });
 
-    const accent = isAccent(searchParams.get('accent')) ? (searchParams.get('accent') as PublicAccentKey) : site.accent;
-    // `vista-previa` es el marcador de "sin dirección pública usable todavía" (ver `getPageantSitePreview`): sin
-    // dominio propio ni `publicSlug`, no hay enlace real que ofrecer — el afiche muestra el contacto en su lugar.
-    const siteUrl = site.slug === 'vista-previa' ? null : site.customDomain ? `https://${site.customDomain}` : `${getAppUrl()}/certamen/${site.slug}`;
-
-    const input = {
-      name: site.name,
-      tagline: site.tagline,
-      galaDate: site.galaDate,
-      venueName: site.venueName,
-      coverDataUrl: null as string | null,
-      accent,
-      registration: site.registration ? { minAge: site.registration.minAge, closesAt: site.registration.closesAt } : null,
-      registrationOpensAtLabel: site.registrationNotice?.state === 'soon' ? site.registrationNotice.opensAtLabel : null,
-      contactEmail: site.contactEmail,
-      whatsappLabel: site.whatsapp?.label ?? null,
-      instagramHandle: site.instagramHandle,
-      siteUrl,
-      format,
-    };
-
-    const [font, cover] = await Promise.all([fetchGoogleFontSubset('Italiana', posterDisplayText(input)), fetchImageAsDataUrl(site.coverImageUrl)]);
-
-    const { width, height } = POSTER_SIZES[format];
-    const filename = `afiche-${site.slug}-${format}.png`;
-    return new ImageResponse(renderPosterElement({ ...input, coverDataUrl: cover }), {
-      width,
-      height,
-      fonts: font ? [{ name: 'Italiana', data: font, style: 'normal', weight: 400 }] : undefined,
-      headers: download ? { 'Content-Disposition': `attachment; filename="${filename}"` } : undefined,
+    return new ImageResponse(build.element, {
+      width: build.width,
+      height: build.height,
+      fonts: build.fonts.length > 0 ? build.fonts : undefined,
+      headers: {
+        'Cache-Control': 'private, no-store',
+        ...(query.get('download') === '1' ? { 'Content-Disposition': `attachment; filename="${build.filename}"` } : {}),
+      },
     });
   } catch (error) {
     if (error instanceof AuthError) return NextResponse.json({ success: false, error: error.message }, { status: error.status });

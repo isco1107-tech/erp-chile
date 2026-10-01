@@ -1,149 +1,109 @@
 /**
- * Ruta del afiche (`GET /api/projects/[id]/poster`): permisos, multi-tenant y
- * validación de parámetros. La composición visual real (satori/`ImageResponse`)
- * se prueba aparte (`poster-render.test.tsx`, pura) y se comprobó a mano
- * generando PNGs reales (ver el PR) — acá solo se cablea el llamador.
+ * Ruta del afiche (`GET /api/projects/[id]/poster`): permisos, multi-tenant,
+ * validación de parámetros y respuestas. La composición (`composePoster`) se
+ * prueba aparte (`poster-compose.test.tsx`); acá solo se cablea el llamador.
  */
 
 jest.mock('jose', () => ({ jwtVerify: jest.fn(), SignJWT: jest.fn() }));
-jest.mock('@/lib/email/mailer', () => ({ getAppUrl: () => 'https://app.test' }));
 jest.mock('@/lib/observability', () => ({ captureException: jest.fn() }));
 jest.mock('@/lib/auth/guards', () => ({ ...jest.requireActual('@/lib/auth/guards'), requireAuthWithPermission: jest.fn() }));
-jest.mock('@/lib/images/subset-font', () => ({ fetchGoogleFontSubset: jest.fn().mockResolvedValue(null), fetchImageAsDataUrl: jest.fn().mockResolvedValue(null) }));
-jest.mock('@/modules/projects/services/public-site.service', () => ({ getPageantSitePreview: jest.fn() }));
-jest.mock('@/modules/projects/services/poster-render', () => {
-  const actual = jest.requireActual('@/modules/projects/services/poster-render');
-  return { ...actual, renderPosterElement: jest.fn(() => null) };
-});
-jest.mock('next/og', () => ({ ImageResponse: jest.fn().mockImplementation(() => ({ headers: new Map() })) }));
+jest.mock('@/modules/projects/services/poster.service', () => ({ buildPosterImage: jest.fn() }));
+jest.mock('next/og', () => ({ ImageResponse: jest.fn().mockImplementation(() => ({ ok: true })) }));
 
+import { ImageResponse } from 'next/og';
 import { GET } from '@/app/api/projects/[id]/poster/route';
 import { AuthError, requireAuthWithPermission } from '@/lib/auth/guards';
 import { captureException } from '@/lib/observability';
-import { fetchImageAsDataUrl } from '@/lib/images/subset-font';
-import { getPageantSitePreview } from '@/modules/projects/services/public-site.service';
-import { renderPosterElement } from '@/modules/projects/services/poster-render';
-import { ImageResponse } from 'next/og';
+import { buildPosterImage } from '@/modules/projects/services/poster.service';
 
-const SITE = {
-  slug: 'miss-sur',
-  name: 'Miss Sur',
-  organizer: 'Aurora SpA',
-  tagline: null,
-  description: null,
-  galaDate: null,
-  venueName: null,
-  venueAddress: null,
-  coverImageUrl: 'https://x.public.blob.vercel-storage.com/pageant-covers/co1/foto.jpg',
-  faviconUrl: null,
-  accent: 'gold' as const,
-  instagramHandle: 'misssur',
-  contactEmail: null,
-  whatsapp: null,
-  candidates: [],
-  sponsorsByTier: [],
-  packages: [],
-  tickets: null,
-  voting: null,
-  registration: { href: '/register/candidate/abc', token: 'abc', closesAt: null, minAge: 18, maxCandidates: null, benefits: [], classesNote: null },
-  candidateSide: true,
-  registrationNotice: null,
-  voteRanking: null,
-  results: null,
-  sponsorLeadForm: true,
-  pastWinners: [],
-  director: null,
-  sponsorNote: null,
-  customDomain: null,
-};
+const requireAuth = requireAuthWithPermission as jest.Mock;
+const build = buildPosterImage as jest.Mock;
+const imageResponse = ImageResponse as unknown as jest.Mock;
 
-function call(url: string, id = 'p1') {
-  return GET(new Request(url), { params: Promise.resolve({ id }) });
+const OK = { ok: true, element: 'elemento', width: 1080, height: 1350, fonts: [{ name: 'PosterSans', data: new ArrayBuffer(1), weight: 500, style: 'normal' }], filename: 'afiche-miss-sur-gala-feed.png' };
+
+function call(query = '') {
+  return GET(new Request(`https://app.test/api/projects/p1/poster${query}`), { params: Promise.resolve({ id: 'p1' }) });
 }
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (requireAuthWithPermission as jest.Mock).mockResolvedValue({ id: 'u1', email: 'a@b.cl', companyId: 'co1' });
-  (getPageantSitePreview as jest.Mock).mockResolvedValue(SITE);
+  requireAuth.mockResolvedValue({ companyId: 'co1', userId: 'u1' });
+  build.mockResolvedValue(OK);
 });
 
 describe('GET /api/projects/[id]/poster', () => {
   it('exige projects:read', async () => {
-    await call('https://app.test/api/projects/p1/poster');
-    expect(requireAuthWithPermission).toHaveBeenCalledWith('projects:read');
+    requireAuth.mockRejectedValue(new AuthError('No autorizado', 403));
+    const response = await call();
+    expect(response.status).toBe(403);
+    expect(requireAuth).toHaveBeenCalledWith('projects:read');
+    expect(build).not.toHaveBeenCalled();
   });
 
-  it('sin sesión, no consulta el certamen', async () => {
-    (requireAuthWithPermission as jest.Mock).mockRejectedValue(new AuthError('No tienes sesión', 401));
-    const res = await call('https://app.test/api/projects/p1/poster');
-    expect(res.status).toBe(401);
-    expect(getPageantSitePreview).not.toHaveBeenCalled();
+  it('la empresa sale de la sesión, nunca de la URL', async () => {
+    await call('?companyId=otra');
+    expect(build).toHaveBeenCalledWith('co1', 'p1', expect.any(Object));
   });
 
-  it('busca el certamen con el companyId de la SESIÓN, nunca uno del cuerpo o la URL', async () => {
-    await call('https://app.test/api/projects/p1/poster', 'p1');
-    expect(getPageantSitePreview).toHaveBeenCalledWith('co1', 'p1');
+  it('sin parámetros usa los valores por defecto', async () => {
+    await call();
+    expect(build.mock.calls[0]![2]).toEqual({ piece: 'convocatoria', style: 'gala', format: 'feed', accent: null, candidateId: null, note: null, qr: null });
   });
 
-  it('certamen de otra empresa (o inexistente): 404, nunca genera la imagen', async () => {
-    (getPageantSitePreview as jest.Mock).mockResolvedValue(null);
-    const res = await call('https://app.test/api/projects/ajeno/poster', 'ajeno');
-    expect(res.status).toBe(404);
-    expect(ImageResponse).not.toHaveBeenCalled();
+  it('pasa los parámetros válidos', async () => {
+    await call('?piece=candidata&style=impacto&format=print&accent=rose&candidate=c2&note=Casting%20s%C3%A1bado&qr=1');
+    expect(build.mock.calls[0]![2]).toEqual({ piece: 'candidata', style: 'impacto', format: 'print', accent: 'rose', candidateId: 'c2', note: 'Casting sábado', qr: true });
   });
 
-  it('formato inválido cae al valor por defecto (feed), nunca lanza', async () => {
-    const res = await call('https://app.test/api/projects/p1/poster?format=banner');
-    expect(res.status).not.toBe(500);
-    const input = (renderPosterElement as jest.Mock).mock.calls[0][0];
-    expect(input.format).toBe('feed');
+  it('un parámetro inválido toma su valor por defecto, nunca rompe', async () => {
+    await call('?piece=hackeo&style=<script>&format=gigante&accent=negro&qr=talvez');
+    expect(build.mock.calls[0]![2]).toMatchObject({ piece: 'convocatoria', style: 'gala', format: 'feed', accent: null, qr: null });
   });
 
-  it('acento inválido cae al del sitio, nunca lanza', async () => {
-    await call('https://app.test/api/projects/p1/poster?accent=neon');
-    const input = (renderPosterElement as jest.Mock).mock.calls[0][0];
-    expect(input.accent).toBe('gold');
+  it('limpia el mensaje propio y acota el id de candidata', async () => {
+    await call(`?note=${encodeURIComponent('  hola\n\tmundo ')}&candidate=${'x'.repeat(200)}&qr=0`);
+    expect(build.mock.calls[0]![2]).toMatchObject({ note: 'hola mundo', candidateId: 'x'.repeat(64), qr: false });
   });
 
-  it('acento válido en la URL reemplaza al del sitio (solo vista previa, no se guarda nada)', async () => {
-    await call('https://app.test/api/projects/p1/poster?accent=rose');
-    const input = (renderPosterElement as jest.Mock).mock.calls[0][0];
-    expect(input.accent).toBe('rose');
+  it('dibuja el PNG con el tamaño y las fuentes de la composición, sin caché compartida', async () => {
+    await call();
+    const [element, options] = imageResponse.mock.calls[0]!;
+    expect(element).toBe('elemento');
+    expect(options).toMatchObject({ width: 1080, height: 1350, fonts: OK.fonts, headers: { 'Cache-Control': 'private, no-store' } });
+    expect(options.headers['Content-Disposition']).toBeUndefined();
   });
 
-  it('sin publicSlug real ("vista-previa"), no arma una URL pública falsa', async () => {
-    (getPageantSitePreview as jest.Mock).mockResolvedValue({ ...SITE, slug: 'vista-previa' });
-    await call('https://app.test/api/projects/p1/poster');
-    const input = (renderPosterElement as jest.Mock).mock.calls[0][0];
-    expect(input.siteUrl).toBeNull();
+  it('download=1 lo baja como archivo', async () => {
+    await call('?download=1');
+    expect(imageResponse.mock.calls[0]![1].headers['Content-Disposition']).toBe('attachment; filename="afiche-miss-sur-gala-feed.png"');
   });
 
-  it('con dominio propio, la URL del afiche es ese dominio, no /certamen/slug', async () => {
-    (getPageantSitePreview as jest.Mock).mockResolvedValue({ ...SITE, customDomain: 'misssur.cl' });
-    await call('https://app.test/api/projects/p1/poster');
-    const input = (renderPosterElement as jest.Mock).mock.calls[0][0];
-    expect(input.siteUrl).toBe('https://misssur.cl');
+  it('sin fuentes descargadas, deja la de reserva del renderizador', async () => {
+    build.mockResolvedValue({ ...OK, fonts: [] });
+    await call();
+    expect(imageResponse.mock.calls[0]![1].fonts).toBeUndefined();
   });
 
-  it('trae la portada real del certamen para incrustarla (nunca una URL cualquiera del pedido)', async () => {
-    await call('https://app.test/api/projects/p1/poster');
-    expect(fetchImageAsDataUrl).toHaveBeenCalledWith(SITE.coverImageUrl);
+  it('certamen de otra empresa o inexistente: 404', async () => {
+    build.mockResolvedValue({ ok: false, status: 404, error: 'Certamen no encontrado' });
+    const response = await call();
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ success: false, error: 'Certamen no encontrado' });
   });
 
-  it('?download=1 pide la descarga como archivo; sin el parámetro, no', async () => {
-    await call('https://app.test/api/projects/p1/poster?download=1');
-    const opts = (ImageResponse as unknown as jest.Mock).mock.calls[0][1];
-    expect(opts.headers?.['Content-Disposition']).toContain('attachment');
-    (ImageResponse as unknown as jest.Mock).mockClear();
-    await call('https://app.test/api/projects/p1/poster');
-    const opts2 = (ImageResponse as unknown as jest.Mock).mock.calls[0][1];
-    expect(opts2.headers).toBeUndefined();
+  it('pieza no disponible: 409 con el motivo accionable', async () => {
+    build.mockResolvedValue({ ok: false, status: 409, error: 'La votación del público no está abierta.' });
+    const response = await call('?piece=votacion');
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toBe('La votación del público no está abierta.');
   });
 
-  it('un fallo inesperado se reporta con el companyId y responde 500 en español, nunca 200 con basura', async () => {
-    (getPageantSitePreview as jest.Mock).mockRejectedValue(new Error('boom'));
-    const res = await call('https://app.test/api/projects/p1/poster');
-    expect(res.status).toBe(500);
-    expect(captureException).toHaveBeenCalledWith(expect.any(Error), expect.objectContaining({ companyId: 'co1' }));
+  it('error inesperado: 500 en español y a observabilidad', async () => {
+    build.mockRejectedValue(new Error('boom'));
+    const response = await call();
+    expect(response.status).toBe(500);
+    expect((await response.json()).error).toBe('No se pudo generar el afiche');
+    expect(captureException).toHaveBeenCalledWith(expect.any(Error), expect.objectContaining({ module: 'proyectos', companyId: 'co1' }));
   });
 });

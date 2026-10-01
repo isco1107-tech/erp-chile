@@ -3,10 +3,17 @@
  * van a dibujar (`text=`), para que `ImageResponse` (satori) la use en vez de
  * su fuente por defecto. Si Google Fonts no responde, `null`: la imagen se
  * genera igual, con la fuente de reserva — nunca falla por esto.
+ *
+ * Las descargas buenas quedan en memoria mientras viva la instancia: al
+ * cambiar de color o de formato en la vista previa, el texto es el mismo y
+ * la fuente no se vuelve a pedir.
  */
-export async function fetchGoogleFontSubset(family: string, text: string): Promise<ArrayBuffer | null> {
+const FONT_CACHE_LIMIT = 80;
+const fontCache = new Map<string, Promise<ArrayBuffer | null>>();
+
+async function downloadFont(cssUrl: string): Promise<ArrayBuffer | null> {
   try {
-    const css = await (await fetch(`https://fonts.googleapis.com/css2?family=${encodeURIComponent(family)}&text=${encodeURIComponent(text)}`)).text();
+    const css = await (await fetch(cssUrl)).text();
     const url = /src: url\((.+?)\) format\('(?:opentype|truetype)'\)/.exec(css)?.[1];
     if (!url) return null;
     const response = await fetch(url);
@@ -14,6 +21,23 @@ export async function fetchGoogleFontSubset(family: string, text: string): Promi
   } catch {
     return null;
   }
+}
+
+export function fetchGoogleFontSubset(family: string, text: string, variant: { weight?: number; italic?: boolean } = {}): Promise<ArrayBuffer | null> {
+  // Google recorta los espacios de los extremos de `text=`: el espacio va en medio, o la fuente quedaría sin él.
+  const unique = Array.from(new Set(Array.from(text))).sort().filter((char) => char.trim() !== '');
+  const chars = /\s/.test(text) ? [unique[0] ?? '', ' ', ...unique.slice(1)].join('') : unique.join('');
+  const axis = variant.weight !== undefined || variant.italic ? `:ital,wght@${variant.italic ? 1 : 0},${variant.weight ?? 400}` : '';
+  const cssUrl = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family)}${axis}&text=${encodeURIComponent(chars)}`;
+  const cached = fontCache.get(cssUrl);
+  if (cached) return cached;
+  const pending = downloadFont(cssUrl).then((font) => {
+    if (!font) fontCache.delete(cssUrl);
+    return font;
+  });
+  if (fontCache.size >= FONT_CACHE_LIMIT) fontCache.delete(fontCache.keys().next().value!);
+  fontCache.set(cssUrl, pending);
+  return pending;
 }
 
 /**
