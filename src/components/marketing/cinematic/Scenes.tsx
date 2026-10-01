@@ -7,7 +7,8 @@ import { segments } from '../Segments';
 import EventMock, { type EventMockView } from './EventMock';
 import { moduleGroups } from '../catalog';
 import { faqs, outcomes, plans } from '../content';
-import { formatCurrency } from '@/lib/chile/tax';
+import { MODULES } from '@/lib/auth/modules';
+import { EXTRAS, MODULE_PRICES, formatUf, type PriceTier } from '@/lib/pricing/catalog';
 import { ViewLink } from './LandingShell';
 import s from './v2.module.css';
 
@@ -117,10 +118,28 @@ export function EventScene() {
 }
 
 /**
- * Planes: los precios salen solo de content.ts; hoy todos se cotizan. Cada
+ * Planes: los precios salen de content.ts, que a su vez los toma del catálogo
+ * comercial (UF + IVA al mes). Cada
  * tarjeta muestra lo principal de lo que incluye; el detalle va en la cotización.
  */
 const PLAN_HIGHLIGHTS = 4;
+
+/** Módulos que se contratan por separado, agrupados por rango de precio. Salen del catálogo. */
+const MODULE_PRICE_GROUPS: { tier: PriceTier; title: string }[] = [
+  { tier: 'liviano', title: 'Livianos' },
+  { tier: 'medio', title: 'Medios' },
+  { tier: 'pesado', title: 'Avanzados' },
+  { tier: 'eventos', title: 'Certámenes y eventos' },
+];
+
+const priceGroups = MODULE_PRICE_GROUPS.map(({ tier, title }) => ({
+  title,
+  items: MODULES.filter(({ key }) => MODULE_PRICES[key].tier === tier && MODULE_PRICES[key].sellable)
+    .map(({ key, label }) => ({ key, label, ...MODULE_PRICES[key] }))
+    .sort((a, b) => a.priceUf - b.priceUf),
+}));
+
+const EXTRA_ROWS = [EXTRAS.additionalUser, EXTRAS.additionalCompany, EXTRAS.additionalWarehouse, EXTRAS.additionalStorage10Gb];
 
 export function PlansScene() {
   return (
@@ -133,7 +152,7 @@ export function PlansScene() {
             <span className={`${s.display} ${s.gold}`}>Suma módulos cuando crezcas.</span>
           </h2>
         </div>
-        <p className={s.body}>Cada plan es un punto de partida: los módulos se activan por separado, así que pagas por las áreas que tu empresa usa de verdad.</p>
+        <p className={s.body}>Precios en UF, facturados en pesos al valor del día. Cada paquete es un punto de partida: los módulos también se contratan por separado, así que pagas por las áreas que tu empresa usa de verdad.</p>
       </div>
       <div className={s.planGrid}>
         {plans.map((plan, index) => (
@@ -142,18 +161,42 @@ export function PlansScene() {
             <h3>{plan.name}</h3>
             <p>{plan.audience}</p>
             <div className={s.planPrice}>
-              {plan.priceFrom !== null ? (
-                <><strong>Desde {formatCurrency(plan.priceFrom)}</strong><span>+ IVA al mes</span></>
-              ) : (
-                <><strong>Precio según módulos</strong><span>Cotización a medida, sin compromiso</span></>
-              )}
+              <strong>{formatUf(plan.priceUf)}</strong>
+              <span>+ IVA al mes · {plan.scope}</span>
             </div>
             <ul>{plan.includes.slice(0, PLAN_HIGHLIGHTS).map(item => <li key={item}><Check size={16} aria-hidden="true" />{item}</li>)}</ul>
             <a className={s.planLink} href="#cotizar">Cotizar {plan.name.toLowerCase()} <ArrowUpRight size={16} aria-hidden="true" /></a>
           </article>
         ))}
       </div>
-      <p className={s.note}>¿Tu empresa combina varias cosas? Arma tu propia mezcla de módulos: la cotización se ajusta a lo que activas.</p>
+      <details className={s.priceList}>
+        <summary>Precio de cada módulo por separado<ChevronDown size={18} aria-hidden="true" /></summary>
+        <div className={s.priceGroups}>
+          {priceGroups.map(group => (
+            <div key={group.title}>
+              <h3>{group.title}</h3>
+              <ul>
+                {group.items.map(item => (
+                  <li key={item.key}>
+                    <span>{item.label}{item.note && <small>{item.note}</small>}</span>
+                    <strong>{formatUf(item.priceUf)}</strong>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+          <div>
+            <h3>Extras</h3>
+            <ul>
+              {EXTRA_ROWS.map(extra => (
+                <li key={extra.label}><span>{extra.label}</span><strong>{formatUf(extra.priceUf)}</strong></li>
+              ))}
+            </ul>
+          </div>
+        </div>
+        <p>Valores en UF + IVA al mes. Se facturan en pesos al valor de la UF del día.</p>
+      </details>
+      <p className={s.note}>¿Tu empresa combina varias cosas? Arma tu propia mezcla: parte del Core y suma los módulos que necesites. La facturación electrónica con envío al SII aún no está disponible y no se vende todavía.</p>
     </section>
   );
 }

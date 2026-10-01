@@ -66,15 +66,15 @@ export const NAVIGATION_MAP: NavigationEntry[] = [
   { label: 'Agenda comercial', route: '/dashboard/crm/tasks', group: 'CRM Comercial', requires: 'hasSalesPipeline', permission: 'crm:read', purpose: 'Llamadas, reuniones y tareas de seguimiento agrupadas en vencidas, hoy, mañana y próximos días.' },
   { label: 'Contactos comerciales', route: '/dashboard/crm/people', group: 'CRM Comercial', requires: 'hasSalesPipeline', permission: 'crm:read', purpose: 'Personas detrás de cada marca (gerentes de marketing, agencias) con sus negocios.' },
   { label: 'Reportes comerciales', route: '/dashboard/crm/reports', group: 'CRM Comercial', requires: 'hasSalesPipeline', permission: 'crm:read', purpose: 'Pronóstico por mes y rendimiento por tipo de negocio, certamen, origen y responsable.' },
-  { label: 'Ventas & Facturación', route: '/dashboard/sales', group: 'Ventas', requires: 'hasDteBilling', permission: 'sales:read', purpose: 'Emitir boletas, facturas, notas de crédito y cotizaciones.' },
-  { label: 'Nueva venta', route: '/dashboard/sales/new', group: 'Ventas', requires: 'hasDteBilling', permission: 'sales:write', purpose: 'Formulario para emitir un documento de venta nuevo.' },
+  { label: 'Ventas & Facturación', route: '/dashboard/sales', group: 'Ventas', permission: 'sales:read', purpose: 'Emitir boletas, facturas, notas de crédito y cotizaciones.' },
+  { label: 'Nueva venta', route: '/dashboard/sales/new', group: 'Ventas', permission: 'sales:write', purpose: 'Formulario para emitir un documento de venta nuevo.' },
   { label: 'Clientes & Proveedores', route: '/dashboard/contacts', group: 'Ventas', permission: 'contacts:read', purpose: 'Ficha de cada cliente y proveedor, con RUT, contacto y límite de crédito.' },
   { label: 'Compras', route: '/dashboard/purchases', group: 'Compras', requires: 'hasPurchases', permission: 'purchases:read', purpose: 'Facturas de proveedor, recepción de mercadería y costeo.' },
   { label: 'Órdenes de compra', route: '/dashboard/purchases/orders', group: 'Compras', requires: 'hasPurchases', permission: 'purchases:orders', purpose: 'Pedidos a proveedor antes de que llegue la mercadería.' },
   { label: 'Cuentas por Cobrar', route: '/dashboard/treasury/cxc', group: 'Finanzas', requires: 'hasTreasury', permission: 'treasury:read', purpose: 'Qué te deben los clientes y qué está vencido.' },
   { label: 'Cuentas por Pagar', route: '/dashboard/treasury/cxp', group: 'Finanzas', requires: 'hasTreasury', permission: 'treasury:read', purpose: 'Qué le debes a tus proveedores y cuándo vence.' },
   { label: 'Flujo de Caja', route: '/dashboard/treasury/cashflow', group: 'Finanzas', requires: 'hasTreasury', permission: 'treasury:read', purpose: 'Proyección de entradas y salidas de dinero.' },
-  { label: 'Reportes Excel', route: '/dashboard/reports', group: 'Finanzas', requires: 'hasAdvancedReports', permission: 'reports:read', purpose: 'Libro de ventas y compras, Kardex valorizado y márgenes, en Excel.' },
+  { label: 'Reportes Excel', route: '/dashboard/reports', group: 'Finanzas', anyOfPermissions: ['reports:basic', 'reports:read'], purpose: 'Libro de ventas, compras, pagos e inventario en Excel; con Reportes Avanzados suma Kardex valorizado y márgenes.' },
   { label: 'Formulario 29 (F29)', route: '/dashboard/reports/f29', group: 'Finanzas', requires: 'hasAdvancedReports', permission: 'reports:read', purpose: 'IVA débito, crédito, remanente, PPM e impuesto determinado del mes.' },
   { label: 'Presupuestos', route: '/dashboard/budgets', group: 'Finanzas', requires: 'hasBudgets', permission: 'budgets:read', purpose: 'Presupuesto del período y comparación contra lo real.' },
   { label: 'Rendición de Gastos', route: '/dashboard/expenses', group: 'Finanzas', requires: 'hasExpenseReports', permission: 'expenses:submit', purpose: 'Rendir boletas, aprobarlas y registrar su reembolso.' },
@@ -143,7 +143,6 @@ export const WORKFLOWS: Workflow[] = [
   },
   {
     title: 'Ciclo completo de una venta a crédito, de la cotización al cobro',
-    requires: 'hasDteBilling',
     alsoRequires: ['hasTreasury'],
     steps: [
       'Crea la cotización en Ventas y envíasela al cliente.',
@@ -239,7 +238,6 @@ export const TROUBLESHOOTING: TroubleshootingItem[] = [
   },
   {
     problem: 'Emití un documento con un error',
-    requires: 'hasDteBilling',
     answer: [
       'Un documento emitido no se edita ni se borra: se corrige con una nota de crédito que lo anula total o parcialmente.',
       'Después emites el documento correcto. Así el correlativo de folios y el libro de ventas quedan consistentes.',

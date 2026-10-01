@@ -325,7 +325,7 @@ export const MANUAL_SECTIONS: ManualSection[] = [
     ],
   },
   {
-    key: 'hasDteBilling',
+    key: 'always',
     title: 'Ventas y Facturación',
     route: '/dashboard/sales',
     screenshot: '/manual/screenshots/sales.png',

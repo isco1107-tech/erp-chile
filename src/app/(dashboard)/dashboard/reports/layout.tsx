@@ -1,10 +1,7 @@
 import React from 'react';
-import ModuleGate from '@/components/ModuleGate';
 
+// El libro Excel básico viene con el Core y la página valida su permiso. F29 y
+// RCV piden Reportes Avanzados: lo aplican sus propios layouts.
 export default function ReportsLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <ModuleGate moduleKey="hasAdvancedReports" permission="reports:read">
-      {children}
-    </ModuleGate>
-  );
+  return <>{children}</>;
 }

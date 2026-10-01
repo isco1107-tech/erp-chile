@@ -126,7 +126,7 @@ export default async function DashboardPage() {
   // meses iniciales del gráfico. `select` liviano (sin `contact`, sin más
   // campos de `items` que los que entran al costo) porque esta consulta ya
   // no está acotada y puede traer varios miles de filas en empresas grandes.
-  const salesAggregationQuery = canReadSales && context.features.hasDteBilling
+  const salesAggregationQuery = canReadSales
     ? prisma.salesDocument.findMany({
         where: {
           companyId: context.companyId,
@@ -148,7 +148,7 @@ export default async function DashboardPage() {
   // Tabla de "ventas recientes": solo necesita las últimas 5, con datos del
   // contacto — separada de la agregación de arriba para no cargar `contact`
   // en las miles de filas que esa consulta puede traer.
-  const recentSalesQuery = canReadSales && context.features.hasDteBilling
+  const recentSalesQuery = canReadSales
     ? prisma.salesDocument.findMany({
         where: {
           companyId: context.companyId,
@@ -385,7 +385,7 @@ export default async function DashboardPage() {
   // entra al dashboard.
   const capitalizedName = context.name.trim().split(/\s+/)[0] || context.email.split('@')[0];
 
-  const hasSalesModule = canReadSales && context.features.hasDteBilling;
+  const hasSalesModule = canReadSales;
   const hasInventoryModule = canReadInventory && context.features.hasInventory;
   const hasCostsModule = canReadCosts && context.features.hasPmpCosting;
 
@@ -566,7 +566,7 @@ export default async function DashboardPage() {
       href: '/dashboard/inventory?openStockForm=1',
       icon: PackagePlus,
     };
-  } else if (context.features.hasDteBilling && can(context, 'sales:write')) {
+  } else if (can(context, 'sales:write')) {
     suggestedAction = {
       title: 'Emitir nueva venta',
       description: 'Generar una factura o boleta electrónica',

@@ -126,11 +126,14 @@ describe('resolvePermissions — rol base', () => {
 });
 
 describe('resolvePermissions — el plan recorta al rol', () => {
-  it('sin DTE contratado nadie puede vender, ni siquiera el OWNER', () => {
+  it('Ventas y el libro Excel básico vienen con el Core; sin DTE solo falta cargar CAF', () => {
     const owner = resolvePermissions({ role: 'OWNER', customRolePermissions: null, features: STARTER });
-    expect(owner).not.toContain('sales:write');
-    expect(owner).not.toContain('sales:read');
-    expect(owner).not.toContain('sales:cancel');
+    expect(owner).toContain('sales:write');
+    expect(owner).toContain('sales:read');
+    expect(owner).toContain('sales:cancel');
+    expect(owner).toContain('reports:basic');
+    expect(owner).not.toContain('dte:manage_caf');
+    expect(owner).not.toContain('reports:read');
     // Lo transversal sigue disponible: la empresa no queda inutilizable.
     expect(owner).toContain('contacts:read');
     expect(owner).toContain('settings:users');
@@ -155,15 +158,16 @@ describe('resolvePermissions — el plan recorta al rol', () => {
     expect(conDte).toContain('sales:write');
     expect(conDte).toContain('purchases:write');
 
-    const sinDte = resolvePermissions({
+    const sinCompras = resolvePermissions({
       role: 'SALES',
-      customRolePermissions: custom,
-      features: { ...FULL, hasDteBilling: false },
+      customRolePermissions: [...custom, 'dte:manage_caf'],
+      features: { ...FULL, hasPurchases: false, hasDteBilling: false },
     });
-    expect(sinDte).not.toContain('sales:write');
-    // Los demás permisos del mismo rol sobreviven.
-    expect(sinDte).toContain('purchases:write');
-    expect(sinDte).toContain('contacts:read');
+    expect(sinCompras).not.toContain('purchases:write');
+    expect(sinCompras).not.toContain('dte:manage_caf');
+    // Ventas es del Core: sobrevive aunque falten Compras y DTE.
+    expect(sinCompras).toContain('sales:write');
+    expect(sinCompras).toContain('contacts:read');
   });
 
   it('quitar el costeo PMP oculta los costos sin tocar el catálogo', () => {
@@ -225,7 +229,7 @@ describe('sanitizePermissions — lo que se persiste en un rol', () => {
       ['contacts:read', 'contacts:read', 'sales:write', 'treasury:write', 'inventado'],
       STARTER
     );
-    expect(result).toEqual(['contacts:read']);
+    expect(result).toEqual(['contacts:read', 'sales:write']);
   });
 
   it('conserva lo contratado', () => {
@@ -245,9 +249,13 @@ describe('sanitizePermissions — lo que se persiste en un rol', () => {
 describe('Bloqueo de rutas por módulo', () => {
   it('bloquea la ruta del módulo y también sus subrutas', () => {
     const sinDte = { ...FULL, hasDteBilling: false };
-    expect(blockedModuleForRoute('/dashboard/sales', sinDte)?.key).toBe('hasDteBilling');
-    expect(blockedModuleForRoute('/dashboard/sales/new', sinDte)?.key).toBe('hasDteBilling');
-    expect(blockedModuleForRoute('/dashboard/sales/abc123', sinDte)?.key).toBe('hasDteBilling');
+    expect(blockedModuleForRoute('/dashboard/settings/folios', sinDte)?.key).toBe('hasDteBilling');
+    // Ventas y el libro Excel básico son del Core: ningún flag los bloquea.
+    expect(blockedModuleForRoute('/dashboard/sales/new', sinDte)).toBeUndefined();
+    const sinReportes = { ...FULL, hasAdvancedReports: false };
+    expect(blockedModuleForRoute('/dashboard/reports', sinReportes)).toBeUndefined();
+    expect(blockedModuleForRoute('/dashboard/reports/f29', sinReportes)?.key).toBe('hasAdvancedReports');
+    expect(blockedModuleForRoute('/dashboard/reports/rcv', sinReportes)?.key).toBe('hasAdvancedReports');
   });
 
   it('no bloquea rutas de módulos contratados', () => {
@@ -270,7 +278,9 @@ describe('Constructor de roles — casillas ofrecidas al cliente', () => {
 
     expect(offered).toContain('products:read');
     expect(offered).toContain('contacts:read');
-    expect(offered).not.toContain('sales:write');
+    expect(offered).toContain('sales:write');
+    expect(offered).toContain('reports:basic');
+    expect(offered).not.toContain('dte:manage_caf');
     expect(offered).not.toContain('treasury:write');
     expect(offered).not.toContain('reports:read');
   });

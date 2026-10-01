@@ -304,3 +304,35 @@ describe('Panel — los valores resueltos cuadran con el dataset', () => {
     expect(ws.getCell(`${col}3`).value).toBe(true);
   });
 });
+
+describe('libro básico (sin Reportes Avanzados)', () => {
+  let basic: ExcelJS.Workbook;
+
+  beforeAll(async () => {
+    const buffer = await buildWorkbook(dataset(), { advanced: false });
+    basic = new ExcelJS.Workbook();
+    await basic.xlsx.load(buffer as unknown as ArrayBuffer);
+  });
+
+  const headers = (sheet: string) =>
+    (basic.getWorksheet(sheet)!.getRow(1).values as unknown[]).filter(Boolean).map(String);
+
+  it('no trae el panel ni el Kardex valorizado', () => {
+    expect(basic.getWorksheet('Panel')).toBeUndefined();
+    expect(basic.getWorksheet('Kardex')).toBeUndefined();
+    expect(basic.getWorksheet('Ventas')).toBeDefined();
+    expect(basic.getWorksheet('Compras')).toBeDefined();
+    expect(basic.getWorksheet('Pagos')).toBeDefined();
+  });
+
+  it('no filtra costos ni márgenes en ninguna hoja', () => {
+    for (const sheet of ['Productos', 'Inventario', 'Ventas', 'Ventas detalle']) {
+      const cols = headers(sheet).join('|');
+      expect(cols).not.toMatch(/PMP|Margen|Costo|Valorizado/);
+    }
+  });
+
+  it('conserva el stock mínimo y el semáforo de quiebre bien anclado', () => {
+    expect(headers('Inventario')).toEqual(['SKU', 'Producto', 'Bodega', 'Cantidad', 'Stock mínimo', 'Bajo mínimo']);
+  });
+});

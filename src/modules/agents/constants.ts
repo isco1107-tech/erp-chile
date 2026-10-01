@@ -40,7 +40,8 @@ export interface AgentDataScope {
 }
 
 export function agentDataScope(features: CompanyFeatureFlags): AgentDataScope {
-  const sales = features.hasDteBilling || features.hasPos;
+  // Ventas viene con el Core: toda empresa tiene documentos de venta.
+  const sales = true;
   return {
     sales,
     margins: sales && features.hasPmpCosting,

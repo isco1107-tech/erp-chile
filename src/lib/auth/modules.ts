@@ -80,16 +80,16 @@ export const MODULES: ModuleDefinition[] = [
   {
     key: 'hasDteBilling',
     label: 'Facturación Electrónica (DTE)',
-    // La descripción decía "con folio SII" cuando el folio era un contador
-    // interno sin respaldo del SII. Ahora los folios sí salen de un CAF
-    // autorizado y los documentos se timbran (TED), pero el envío al SII
-    // todavía no está: la descripción dice exactamente hasta dónde llega hoy,
-    // porque prometer emisión ante el SII y no cumplirla es un problema
-    // legal para el cliente, no una imprecisión de marketing.
+    // Ventas (documentos, cotizaciones, notas de venta) NO depende de este
+    // módulo: viene con el Core y sus permisos `sales:*` son transversales.
+    // Este módulo solo agrega lo tributario: folios autorizados del SII (CAF) y
+    // timbre electrónico. La descripción dice exactamente hasta dónde llega hoy
+    // (el envío al SII no está), porque prometer emisión ante el SII y no
+    // cumplirla es un problema legal para el cliente, no una imprecisión.
     description:
-      'Boletas, facturas y notas con folios autorizados del SII (CAF) y timbre electrónico. El envío automático al SII aún no está disponible.',
-    permissions: ['sales:read', 'sales:write', 'sales:cancel', 'dte:manage_caf'],
-    routes: ['/dashboard/sales', '/dashboard/settings/folios'],
+      'Folios autorizados del SII (CAF) y timbre electrónico para boletas, facturas y notas. El envío automático al SII aún no está disponible.',
+    permissions: ['dte:manage_caf'],
+    routes: ['/dashboard/settings/folios'],
   },
   {
     key: 'hasPurchases',
@@ -116,9 +116,12 @@ export const MODULES: ModuleDefinition[] = [
   {
     key: 'hasAdvancedReports',
     label: 'Reportes Avanzados',
-    description: 'Libro Excel con F29 estimado, márgenes analíticos y Kardex valorizado.',
+    // El libro Excel básico viene con el Core (`reports:basic`, pantalla
+    // /dashboard/reports); aquí queda lo que cuesta: márgenes, Kardex
+    // valorizado, panel con F29 estimado, F29 real y RCV.
+    description: 'Márgenes analíticos, Kardex valorizado, panel con F29 estimado, F29 y Registro de Compras y Ventas.',
     permissions: ['reports:read'],
-    routes: ['/dashboard/reports'],
+    routes: ['/dashboard/reports/f29', '/dashboard/reports/rcv'],
   },
   {
     key: 'hasMultipleWarehouses',

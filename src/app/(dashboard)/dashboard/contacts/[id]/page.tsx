@@ -79,7 +79,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
     context.features.hasInstallmentPlans && can(context, 'paymentplans:read')
       ? listPaymentPlansAction(id)
       : Promise.resolve(null),
-    context.features.hasDteBilling && can(context, 'sales:read')
+    can(context, 'sales:read')
       ? listSalesDocumentsAction(undefined, undefined, undefined, 1, 10, 'issueDate', 'desc', id)
       : Promise.resolve(null),
     context.features.hasPurchases && can(context, 'purchases:read')
@@ -125,7 +125,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
         </div>
       </SectionCard>
 
-      {contact.isCustomer && context.features.hasDteBilling && can(context, 'contacts:write') && (
+      {contact.isCustomer && can(context, 'contacts:write') && (
         <CustomerPortalCard
           contactId={contact.id}
           contactName={contact.razonSocial}

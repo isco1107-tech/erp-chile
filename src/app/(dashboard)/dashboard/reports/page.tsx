@@ -7,20 +7,21 @@ export const metadata = {
 };
 
 export default async function ReportsPage() {
-  // El feature gate del plan lo aplica el layout del módulo; acá solo queda el
-  // permiso del usuario, resuelto con `can` para respetar los roles personalizados.
+  // Libro básico: `reports:basic` (Core). Con Reportes Avanzados contratado y
+  // `reports:read` el libro trae además márgenes, Kardex y panel de F29.
   const context = await getAuthContext();
-  if (!can(context, 'reports:read')) redirect('/dashboard');
+  const advanced = can(context, 'reports:read');
+  if (!advanced && !can(context, 'reports:basic')) redirect('/dashboard');
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold" data-tutorial="module-header">Reportes Excel</h1>
         <p className="text-sm text-muted-foreground">
-          Descarga la base completa de productos, inventario y finanzas en un libro con panel de indicadores.
+          Descarga tus productos, inventario, ventas, compras y pagos en un libro de Excel.{advanced ? ' Incluye el panel de indicadores, márgenes y Kardex valorizado.' : ''}
         </p>
       </div>
-      <ExcelExportClient />
+      <ExcelExportClient advanced={advanced} />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { validateRut } from '@/lib/chile/rut';
 import { MODULE_KEYS, type FeatureKey } from '@/lib/auth/modules';
 import { passwordPolicySchema } from '@/lib/auth/password-policy';
+import { PACKAGES, PACKAGE_NAMES, packageFeatureFlags, type PackageName } from '@/lib/pricing/catalog';
 
 export const TENANT_STATUSES = ['ACTIVE', 'TRIAL', 'SUSPENDED', 'CANCELLED'] as const;
 
@@ -19,140 +20,24 @@ export const TENANT_STATUS_BADGE_CLASS: Record<(typeof TENANT_STATUSES)[number],
   CANCELLED: 'bg-destructive/10 text-destructive',
 };
 
-/** Planes de referencia: precargan flags y límites al crear una empresa. */
-export const PLAN_PRESETS = {
-  Starter: {
-    maxUsers: 3,
-    maxWarehouses: 1,
-    features: {
-      hasInventory: true,
-      hasPmpCosting: true,
-      hasDteBilling: false,
-      hasPurchases: false,
-      hasTreasury: false,
-      hasAdvancedReports: false,
-      hasMultipleWarehouses: false,
-      hasPos: false,
-      hasAccounting: false,
-      hasCrm: false,
-      hasEventProjects: false,
-      hasSponsorships: false,
-      hasFeeDocuments: false,
-      hasCandidates: false,
-      hasOrgChart: false,
-      hasLiveProduction: false,
-      hasJudging: false,
-      // Apagados por defecto en todos los planes, mismo criterio que hasCrm:
-      // ningún preset activa un módulo nuevo, el superadmin lo prende a mano.
-      hasMultiCompany: false,
-      hasBudgets: false,
-      hasPromissoryNotes: false,
-      hasInstallmentPlans: false,
-      hasTicketing: false,
-      hasPublicVoting: false,
-      hasIntelligence: false,
-      hasSalesPipeline: false,
-      hasPayroll: false,
-      hasFixedAssets: false,
-      hasExpenseReports: false,
-      hasProduction: false,
-      hasServiceDesk: false,
-      hasWebSites: false,
-      hasCustomerCare: false,
-      hasQuality: false,
-      hasTeamTasks: false,
+/**
+ * Planes de referencia: precargan flags y límites al crear una empresa. Salen
+ * del catálogo comercial (`src/lib/pricing/catalog.ts`), que es la fuente de
+ * los paquetes y sus precios en UF. Ningún módulo fuera del paquete se activa:
+ * el superadmin lo prende a mano.
+ */
+export const PLAN_PRESETS = Object.fromEntries(
+  PACKAGE_NAMES.map((name) => [
+    name,
+    {
+      maxUsers: PACKAGES[name].maxUsers,
+      maxWarehouses: PACKAGES[name].maxWarehouses,
+      features: packageFeatureFlags(name),
     },
-  },
-  Profesional: {
-    maxUsers: 10,
-    maxWarehouses: 3,
-    features: {
-      hasInventory: true,
-      hasPmpCosting: true,
-      hasDteBilling: true,
-      hasPurchases: true,
-      hasTreasury: false,
-      hasAdvancedReports: false,
-      hasMultipleWarehouses: true,
-      hasPos: true,
-      hasAccounting: false,
-      hasCrm: false,
-      hasEventProjects: false,
-      hasSponsorships: false,
-      hasFeeDocuments: false,
-      hasCandidates: false,
-      hasOrgChart: false,
-      hasLiveProduction: false,
-      hasJudging: false,
-      // Apagados por defecto en todos los planes, mismo criterio que hasCrm:
-      // ningún preset activa un módulo nuevo, el superadmin lo prende a mano.
-      hasMultiCompany: false,
-      hasBudgets: false,
-      hasPromissoryNotes: false,
-      hasInstallmentPlans: false,
-      hasTicketing: false,
-      hasPublicVoting: false,
-      hasIntelligence: false,
-      hasSalesPipeline: false,
-      hasPayroll: false,
-      hasFixedAssets: false,
-      hasExpenseReports: false,
-      hasProduction: false,
-      hasServiceDesk: false,
-      hasWebSites: false,
-      hasCustomerCare: false,
-      hasQuality: false,
-      hasTeamTasks: false,
-    },
-  },
-  Enterprise: {
-    maxUsers: 50,
-    maxWarehouses: 20,
-    features: {
-      hasInventory: true,
-      hasPmpCosting: true,
-      hasDteBilling: true,
-      hasPurchases: true,
-      hasTreasury: true,
-      hasAdvancedReports: true,
-      hasMultipleWarehouses: true,
-      hasPos: true,
-      hasAccounting: true,
-      // Apagado por defecto incluso en el plan más alto: es un módulo nuevo
-      // que ninguna empresa debe recibir activado hasta que el superadmin lo
-      // prenda a propósito (ver comentario en CompanyFeatures.hasCrm).
-      hasCrm: false,
-      hasEventProjects: false,
-      hasSponsorships: false,
-      hasFeeDocuments: false,
-      hasCandidates: false,
-      hasOrgChart: false,
-      hasLiveProduction: false,
-      hasJudging: false,
-      // Apagados por defecto en todos los planes, mismo criterio que hasCrm:
-      // ningún preset activa un módulo nuevo, el superadmin lo prende a mano.
-      hasMultiCompany: false,
-      hasBudgets: false,
-      hasPromissoryNotes: false,
-      hasInstallmentPlans: false,
-      hasTicketing: false,
-      hasPublicVoting: false,
-      hasIntelligence: false,
-      hasSalesPipeline: false,
-      hasPayroll: false,
-      hasFixedAssets: false,
-      hasExpenseReports: false,
-      hasProduction: false,
-      hasServiceDesk: false,
-      hasWebSites: false,
-      hasCustomerCare: false,
-      hasQuality: false,
-      hasTeamTasks: false,
-    },
-  },
-} as const satisfies Record<string, { maxUsers: number; maxWarehouses: number; features: Record<FeatureKey, boolean> }>;
+  ])
+) as Record<PackageName, { maxUsers: number; maxWarehouses: number; features: Record<FeatureKey, boolean> }>;
 
-export const PLAN_NAMES = Object.keys(PLAN_PRESETS) as Array<keyof typeof PLAN_PRESETS>;
+export const PLAN_NAMES: readonly PackageName[] = PACKAGE_NAMES;
 
 const featureShape = MODULE_KEYS.reduce<Record<string, z.ZodBoolean>>((shape, key) => {
   shape[key] = z.boolean();

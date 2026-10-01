@@ -63,6 +63,10 @@ export const PERMISSIONS = {
   'treasury:read': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
   'treasury:write': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
 
+  // Libro Excel básico (ventas, compras, pagos, stock), incluido en el Core. Los
+  // márgenes, el Kardex valorizado y el panel de F29 piden `reports:read`, que
+  // solo existe con Reportes Avanzados.
+  'reports:basic': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
   'reports:read': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
 
   'settings:company': ['OWNER', 'ADMIN'],
@@ -300,7 +304,8 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'pos:close': 'Cerrar caja y hacer el arqueo',
   'treasury:read': 'Ver cuentas por cobrar y pagar',
   'treasury:write': 'Registrar pagos y cobranzas',
-  'reports:read': 'Descargar reportes y libro Excel',
+  'reports:basic': 'Descargar el libro Excel básico (sin márgenes ni Kardex valorizado)',
+  'reports:read': 'Descargar reportes avanzados: márgenes, Kardex valorizado, F29 y RCV',
   'settings:company': 'Editar datos de la empresa',
   'company:export': 'Descargar el respaldo completo de la empresa',
   'automation:manage': 'Crear y administrar reglas de automatización (flujos de trabajo)',
@@ -381,6 +386,10 @@ export const CORE_PERMISSION_GROUP = {
   permissions: [
     'contacts:read',
     'contacts:write',
+    'sales:read',
+    'sales:write',
+    'sales:cancel',
+    'reports:basic',
     'invoicearchive:read',
     'invoicearchive:write',
     'settings:company',
