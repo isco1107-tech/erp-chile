@@ -4,6 +4,7 @@ import type { PublicPageantSite } from '@/modules/projects/services/public-site.
 import { approximateMeasurer, measurerFor, parseFontMetrics, type Measurer } from './font-metrics';
 import { POSTER_FORMAT_SPECS, type PosterFormat } from './formats';
 import { NIGHT, POSTER_PALETTES } from './palettes';
+import { applyPosterOverrides, type PosterOverrides } from './overrides';
 import { buildPosterContent, pieceAvailability, posterGlyphs, type PosterContent, type PosterPiece } from './pieces';
 import { renderPoster, type PosterImages, type PosterTypeKit } from './render';
 import { FONT_ROLES, ROLE_FAMILY, STYLE_FONTS, type FontRole, type PosterStyle } from './styles';
@@ -26,6 +27,8 @@ export interface PosterRequest {
   note: string | null;
   /** `null` = lo que corresponda al formato (encendido en pantalla e impresión). */
   qr: boolean | null;
+  /** Personalización del estudio (ya validada); sin ella, todo automático. */
+  overrides?: PosterOverrides;
 }
 
 export interface PosterFont {
@@ -36,13 +39,16 @@ export interface PosterFont {
 }
 
 export type PosterBuild =
-  | { ok: true; element: ReturnType<typeof renderPoster>; width: number; height: number; fonts: PosterFont[]; filename: string }
-  | { ok: false; status: 404 | 409; error: string };
+  | { ok: true; element: ReturnType<typeof renderPoster>; width: number; height: number; fonts: PosterFont[]; filename: string; omitted: string[] }
+  | { ok: false; status: 400 | 404 | 409; error: string };
 
 export interface PosterDeps {
   loadFont(family: string, glyphs: string, variant: { weight: number; italic: boolean }): Promise<ArrayBuffer | null>;
-  /** Foto como `data:` URL, achicada a `maxSide`; `null` si no se puede usar. */
-  loadPhoto(url: string, maxSide: number): Promise<string | null>;
+  /**
+   * Imagen como `data:` URL, achicada a `maxSide`; `null` si no se puede usar.
+   * `logo` conserva la transparencia (PNG); `photo` puede ir en JPEG.
+   */
+  loadPhoto(url: string, maxSide: number, kind: 'photo' | 'logo'): Promise<string | null>;
   onFontError?(error: unknown, family: string): void;
 }
 
@@ -87,13 +93,15 @@ async function loadImages(content: PosterContent, format: PosterFormat, deps: Po
   const hero = content.hero;
   const tileUrls = hero.kind === 'mosaic' ? hero.tiles.slice(0, MAX_MOSAIC_PHOTOS).map((tile) => tile.photoUrl) : [];
   const tileSide = tileUrls.length > 12 ? 380 : tileUrls.length > 4 ? 540 : 800;
-  const load = (url: string | null, side: number) => (url ? deps.loadPhoto(url, side).catch(() => null) : Promise.resolve(null));
-  const [background, portrait, ...tiles] = await Promise.all([
+  const load = (url: string | null, side: number, kind: 'photo' | 'logo' = 'photo') => (url ? deps.loadPhoto(url, side, kind).catch(() => null) : Promise.resolve(null));
+  const [background, portrait, logo, sponsorLogos, tiles] = await Promise.all([
     load(content.backgroundUrl, big),
     load(hero.kind === 'portrait' ? hero.photoUrl : null, big),
-    ...tileUrls.map((url) => load(url, tileSide)),
+    load(content.decor.logoUrl, 600, 'logo'),
+    Promise.all(content.decor.sponsorLogos.map((url) => load(url, 400, 'logo'))),
+    Promise.all(tileUrls.map((url) => load(url, tileSide))),
   ]);
-  return { background, portrait, tiles };
+  return { background, portrait, tiles, logo, sponsorLogos: sponsorLogos.filter((src): src is string => Boolean(src)) };
 }
 
 /** QR en SVG (vectorial: nítido también impreso, y sin codificar un PNG en cada afiche). */
@@ -104,7 +112,8 @@ async function qrDataUrl(url: string): Promise<string> {
 
 export async function composePoster(site: PublicPageantSite, request: PosterRequest, place: PosterPlace, deps: PosterDeps, now: Date): Promise<PosterBuild> {
   const qr = request.qr ?? POSTER_FORMAT_SPECS[request.format].qrByDefault;
-  const content = buildPosterContent(site, { piece: request.piece, candidateId: request.candidateId, note: request.note, qr, origin: place.origin, siteUrl: place.siteUrl, now });
+  const automatic = buildPosterContent(site, { piece: request.piece, candidateId: request.candidateId, note: request.note, qr, origin: place.origin, siteUrl: place.siteUrl, now });
+  const content = automatic && request.overrides ? applyPosterOverrides(automatic, request.overrides) : automatic;
   if (!content) {
     const availability = pieceAvailability(site, now)[request.piece];
     return { ok: false, status: 409, error: availability.available ? 'Esta pieza no está disponible' : availability.reason };
@@ -117,7 +126,8 @@ export async function composePoster(site: PublicPageantSite, request: PosterRequ
   ]);
 
   const { width, height } = POSTER_FORMAT_SPECS[request.format];
-  const element = renderPoster({ content, format: request.format, style: request.style, palette: POSTER_PALETTES[request.accent ?? site.accent], type, images, qrDataUrl: qrImage });
+  const report = { omitted: [] as string[] };
+  const element = renderPoster({ content, format: request.format, style: request.style, palette: POSTER_PALETTES[request.accent ?? site.accent], type, images, qrDataUrl: qrImage, report });
   const slug = site.slug === 'vista-previa' ? 'certamen' : site.slug;
-  return { ok: true, element, width, height, fonts, filename: `afiche-${slug}-${request.piece}-${request.format}.png` };
+  return { ok: true, element, width, height, fonts, filename: `afiche-${slug}-${request.piece}-${request.format}.png`, omitted: report.omitted };
 }

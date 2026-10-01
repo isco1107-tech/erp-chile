@@ -4,7 +4,7 @@ import { alpha } from '../palettes';
 import { initialsOf, type PosterContent } from '../pieces';
 import { heroCrowdMin, solveGrid, solveStack, type StackBlock } from '../layout';
 import { fitGroups } from '../text-fit';
-import { Arrow, Box, Check, Lines, NameLines, QrCard, Sparkle, fit, fontOf, qrCardHeight, upper, type PosterRenderInput, type PosterTypeKit } from './primitives';
+import { Arrow, Box, Check, ContainedImage, Lines, NameLines, QrCard, Sparkle, SponsorStrip, fit, fontOf, logoBox, photoObjectPosition, qrCardHeight, sponsorStripHeight, upper, reportOmitted, type PosterRenderInput, type PosterTypeKit } from './primitives';
 
 /**
  * Estilo "Impacto": moderno y para detener el scroll. Foto a sangre arriba
@@ -183,6 +183,12 @@ function Hero({ content, images, width, height, ctx }: { content: PosterContent;
   );
 }
 
+/** Alto máximo del titular: una quinta parte del afiche (un tercio en horizontal, donde va en su columna). */
+function headlineCap(format: PosterRenderInput['format']): number {
+  const spec = POSTER_FORMAT_SPECS[format];
+  return spec.height * (spec.orientation === 'landscape' ? 0.32 : 0.2);
+}
+
 interface Blocks {
   stack: StackBlock[];
   render: Record<string, ReactNode>;
@@ -216,7 +222,7 @@ function textBlocks(input: PosterRenderInput, width: number, ctx: Ctx, opts: { b
 
   if (content.kicker) {
     const kickerFit = fit(type, 'accent', upper(content.kicker), { maxWidth: width, maxLines: 1, maxSize: (square ? 30 : 38) * u, minSize: 12, letterSpacingEm: 0.02 });
-    stack.push({ key: 'kicker', height: kickerFit.height, gap: 18 * u, drop: 1 });
+    stack.push({ key: 'kicker', height: kickerFit.height, gap: 18 * u, drop: 2 });
     render.kicker = <Lines fit={kickerFit} type={type} role="accent" color={pal.main} align="left" letterSpacingEm={0.02} />;
   }
 
@@ -224,8 +230,10 @@ function textBlocks(input: PosterRenderInput, width: number, ctx: Ctx, opts: { b
   const heavy = content.hero.kind === 'mosaic' || content.hero.kind === 'names';
   const headlineFit = fit(type, 'display', upper(content.headline), {
     maxWidth: width,
+    // Tope de alto: un titular largo se reparte en líneas a un tamaño sensato en vez de comerse el afiche.
+    maxHeight: headlineCap(input.format),
     maxLines: person ? 2 : 3,
-    maxSize: (story ? 280 : square ? 170 : 240) * u * (person ? 0.62 : heavy ? 0.62 : 1),
+    maxSize: (story ? 280 : square ? 170 : 240) * u * (person ? 0.62 : heavy ? 0.62 : 1) * content.decor.titleScale,
     minSize: 40,
     // Las mayúsculas con tilde de Anton (Í, Ó, É) chocan con la línea de arriba si se aprieta más.
     lineHeight: 1.02,
@@ -302,8 +310,8 @@ function textBlocks(input: PosterRenderInput, width: number, ctx: Ctx, opts: { b
   }
 
   if (content.note) {
-    const noteFit = fit(type, 'accent', content.note, { maxWidth: width, maxLines: 2, maxSize: (square ? 28 : 34) * u, minSize: 12, lineHeight: 1.2 });
-    stack.push({ key: 'note', height: noteFit.height, gap: 22 * u, drop: 2 });
+    const noteFit = fit(type, 'accent', content.note, { maxWidth: width, maxLines: 3, maxSize: (square ? 28 : 34) * u, minSize: 12, lineHeight: 1.2 });
+    stack.push({ key: 'note', height: noteFit.height, gap: 22 * u, drop: 1 });
     render.note = <Lines fit={noteFit} type={type} role="accent" color={pal.main} align="left" lineHeight={1.2} />;
   }
 
@@ -329,6 +337,11 @@ function textBlocks(input: PosterRenderInput, width: number, ctx: Ctx, opts: { b
         {content.qr && qrDataUrl && <QrCard src={qrDataUrl} size={qrSize} caption={content.qr.caption} type={type} ink={pal.ink} radius={14 * u} />}
       </Box>
     );
+  }
+
+  if (input.images.sponsorLogos.length > 0) {
+    stack.push({ key: 'sponsors', height: sponsorStripHeight(input.images.sponsorLogos.length, width, u), gap: 26 * u, drop: 1 });
+    render.sponsors = <SponsorStrip logos={input.images.sponsorLogos} width={width} u={u} type={type} label="AUSPICIAN" labelColor={pal.ink} panel="#ffffff" radius={14 * u} />;
   }
 
   if (content.contact.length > 0) {
@@ -376,7 +389,17 @@ export function renderImpacto(input: PosterRenderInput) {
   const padX = 64 * u;
   const safeTop = (story ? 210 : 56) * u;
   const padBottom = (story ? 210 : 60) * u;
-  const position = content.hero.kind === 'portrait' ? 'center 8%' : 'center 30%';
+  const position = photoObjectPosition(content.decor.photoPosition, content.hero.kind === 'portrait' ? 'center 8%' : 'center 30%');
+  // Logo propio arriba a la derecha, sobre una placa blanca: se lee igual sobre la foto o las franjas.
+  const logoPad = 12 * u;
+  const logo = images.logo ? logoBox(images.logo, 230 * u, 80 * u) : null;
+  const logoBadge = (right: number) =>
+    logo && images.logo ? (
+      <Box style={{ position: 'absolute', top: safeTop - 8 * u, right, padding: logoPad, background: '#ffffff', borderRadius: 12 * u }}>
+        <ContainedImage src={images.logo} width={logo.width} height={logo.height} />
+      </Box>
+    ) : null;
+  const logoSpace = logo ? logo.width + logoPad * 2 + 30 * u : 0;
   const background = (
     <>
       <div style={{ display: 'flex', position: 'absolute', top: 0, left: 0, width: W, height: H, backgroundImage: `linear-gradient(170deg, ${pal.deep} 0%, ${bg} 70%)` }} />
@@ -391,6 +414,7 @@ export function renderImpacto(input: PosterRenderInput) {
     const blocks = textBlocks(input, textW, ctx, { bleedWidth: W - leftW, padX: 60 * u, withHero: false });
     const innerH = H - safeTop - padBottom;
     const solution = solveStack(blocks.stack, innerH, 0);
+    reportOmitted(input.report, blocks.stack, solution.kept);
     return (
       <div style={{ display: 'flex', width: W, height: H, position: 'relative', backgroundColor: bg }}>
         {background}
@@ -406,6 +430,7 @@ export function renderImpacto(input: PosterRenderInput) {
         <Box style={{ position: 'absolute', top: safeTop, left: padX, maxWidth: leftW - padX }}>
           <Eyebrow text={content.eyebrow} ctx={ctx} maxWidth={leftW - padX * 2} />
         </Box>
+        {logoBadge(padX)}
         <Box style={{ position: 'absolute', top: safeTop, left: textX, width: textW, height: innerH, flexDirection: 'column', justifyContent: 'center' }}>
           {blocks.stack
             .filter((block) => solution.kept.has(block.key))
@@ -424,6 +449,7 @@ export function renderImpacto(input: PosterRenderInput) {
   // La foto (o la pieza central) arranca en el borde superior; el texto se ordena debajo.
   const available = H - padBottom;
   const solution = solveStack(blocks.stack, available - (photo ? 0 : safeTop + 70 * u), Math.max(heroMin(content, Boolean(photo), u), heroCrowdMin(content.hero, u)));
+  reportOmitted(input.report, blocks.stack, solution.kept);
   const heroH = solution.flex;
   const heroTop = photo ? 0 : safeTop + 70 * u;
   const textBlocksKept = blocks.stack.filter((block) => block.key !== 'hero' && solution.kept.has(block.key));
@@ -435,8 +461,9 @@ export function renderImpacto(input: PosterRenderInput) {
         {photo ? <PhotoLayer src={photo} width={W} height={heroH} ctx={ctx} fade="bottom" position={position} /> : <Hero content={content} images={images} width={contentW} height={heroH} ctx={ctx} />}
       </Box>
       <Box style={{ position: 'absolute', top: safeTop, left: padX }}>
-        <Eyebrow text={content.eyebrow} ctx={ctx} maxWidth={contentW} />
+        <Eyebrow text={content.eyebrow} ctx={ctx} maxWidth={contentW - logoSpace} />
       </Box>
+      {logoBadge(padX)}
       <Box style={{ position: 'absolute', top: heroTop + heroH, left: padX, width: contentW, flexDirection: 'column' }}>
         {textBlocksKept.map((block, index) => (
           <Box key={block.key} style={{ marginTop: index === 0 ? block.gap : block.gap, flexDirection: 'column' }}>

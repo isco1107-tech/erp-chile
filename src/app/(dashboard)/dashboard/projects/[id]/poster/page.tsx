@@ -4,8 +4,9 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { buttonVariants } from '@/components/ui/button';
 import { PosterStudio } from '@/components/projects/PosterStudio';
 import { PageAccessNotice } from '@/components/shared/PageAccessNotice';
-import { checkPageAccess } from '@/lib/auth/guards';
-import { pieceAvailability, posterCandidateOptions } from '@/lib/posters/pieces';
+import { can, checkPageAccess } from '@/lib/auth/guards';
+import { getAppUrl } from '@/lib/email/mailer';
+import { listPosterDesigns } from '@/modules/projects/services/poster-designs.service';
 import { posterSiteUrl } from '@/modules/projects/services/poster.service';
 import { getPageantSitePreview } from '@/modules/projects/services/public-site.service';
 
@@ -15,7 +16,8 @@ export default async function ProjectPosterPage({ params }: { params: Promise<{ 
   const { id } = await params;
   const access = await checkPageAccess('projects:read');
   if (access.denied) return <PageAccessNotice denied={access.denied} />;
-  const site = await getPageantSitePreview(access.context.companyId, id);
+  const { companyId } = access.context;
+  const [site, designs] = await Promise.all([getPageantSitePreview(companyId, id), listPosterDesigns(companyId, id)]);
   if (!site) notFound();
 
   return (
@@ -26,15 +28,16 @@ export default async function ProjectPosterPage({ params }: { params: Promise<{ 
       <PageHeader
         eyebrow={site.name}
         title="Afiches del certamen"
-        description="Piezas listas para Instagram, pantallas e impresión, armadas con los datos reales del sitio público. Lo que el certamen no tiene configurado, no aparece."
+        description="Piezas listas para Instagram, pantallas e impresión, armadas con los datos reales del sitio público. Personaliza textos e imágenes y guarda tus diseños."
       />
       <PosterStudio
         projectId={id}
         slug={site.slug === 'vista-previa' ? 'certamen' : site.slug}
-        defaultAccent={site.accent}
-        availability={pieceAvailability(site, new Date())}
-        candidates={posterCandidateOptions(site)}
-        hasPublicUrl={posterSiteUrl(site) !== null}
+        site={site}
+        origin={site.customDomain ? `https://${site.customDomain}` : getAppUrl()}
+        siteUrl={posterSiteUrl(site)}
+        canWrite={can(access.context, 'projects:write')}
+        initialDesigns={designs}
       />
     </div>
   );

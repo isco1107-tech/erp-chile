@@ -233,6 +233,7 @@ model Company {
   crmPeople                 CrmPerson[]
   sponsorshipPackages       SponsorshipPackage[]
   pastWinners               PastWinner[]
+  posterDesigns             PosterDesign[]
   employees                 Employee[]
   payrollPeriods            PayrollPeriod[]
   payslips                  Payslip[]
@@ -1973,6 +1974,7 @@ model Project {
   opportunities              Opportunity[]
   sponsorshipPackages        SponsorshipPackage[]
   pastWinners                PastWinner[]
+  posterDesigns              PosterDesign[]
 
   // ── Gala y micrositio público del certamen ──────────────────────────────
   /// Fecha y hora de la gala final. Distinta de `startDate` (inicio del
@@ -2164,6 +2166,34 @@ model PastWinner {
   featured  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([companyId, projectId])
+}
+
+/// Diseño de afiche guardado en el estudio (`/dashboard/projects/[id]/poster`):
+/// la pieza, el estilo, el formato y la personalización (textos propios, datos,
+/// imágenes subidas por la empresa). Los datos del certamen NO se copian: al
+/// abrirlo se vuelven a leer, así una fecha corregida aparece sola.
+model PosterDesign {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  piece       String
+  style       String
+  format      String
+  /// `null` = el acento del micrositio.
+  accent      String?
+  candidateId String?
+  /// `null` = según el formato.
+  qr          Boolean?
+  /// Validado con `posterOverridesSchema` al guardar y al leer.
+  overrides   Json
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([companyId, projectId])
 }

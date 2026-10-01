@@ -146,7 +146,25 @@ export interface PosterContent {
   organizer: string;
   /** Foto de fondo (portada del certamen) para las piezas que la usan. */
   backgroundUrl: string | null;
+  /** Lo que agrega la personalización del estudio (ver `overrides.ts`); por defecto, nada. */
+  decor: PosterDecor;
 }
+
+export const PHOTO_POSITIONS = ['top', 'center', 'bottom'] as const;
+export type PhotoPosition = (typeof PHOTO_POSITIONS)[number];
+
+export interface PosterDecor {
+  /** Logo del certamen u organización, arriba del afiche. */
+  logoUrl: string | null;
+  /** Franja de logos de auspiciadores. */
+  sponsorLogos: string[];
+  /** Encuadre vertical de la foto principal; `null` = el de cada estilo. */
+  photoPosition: PhotoPosition | null;
+  /** Escala del titular (1 = automático). */
+  titleScale: number;
+}
+
+export const DEFAULT_DECOR: PosterDecor = { logoUrl: null, sponsorLogos: [], photoPosition: null, titleScale: 1 };
 
 export interface PosterContentOptions {
   piece: PosterPiece;
@@ -230,6 +248,7 @@ export function buildPosterContent(site: PublicPageantSite, options: PosterConte
     brand: site.name,
     organizer: site.organizer,
     backgroundUrl: site.coverImageUrl,
+    decor: DEFAULT_DECOR,
   };
 
   const galaFact = gala ? { label: 'Gran final', value: gala.short } : null;
