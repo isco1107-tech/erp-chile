@@ -10,7 +10,7 @@ import type {
   SponsorshipTier,
 } from '@prisma/client';
 import { getAppUrl, sendEmail } from '@/lib/email/mailer';
-import { buildSponsorAcceptedEmail, buildSponsorshipPaymentConfirmationEmail } from '@/lib/email/templates';
+import { buildSponsorAcceptedEmail, buildSponsorTierChangedEmail, buildSponsorshipPaymentConfirmationEmail } from '@/lib/email/templates';
 import { pageantContact } from '@/lib/events/pageant-contact';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import { captureException } from '@/lib/observability';
@@ -139,6 +139,60 @@ export async function notifySponsorAccepted(companyId: string, contractId: strin
     await sendEmail({ to, ...email, ...(contact.email ? { replyTo: contact.email } : {}) });
   } catch (error) {
     captureException(error, { module: 'sponsorships', companyId, extra: { reason: 'sponsor-accepted-email', contractId } });
+  }
+}
+
+/**
+ * Aviso a la marca de que su categoría de auspicio cambió, con qué implica.
+ * Mismo contrato que `notifySponsorAccepted`: después de guardar, nunca lanza.
+ * Solo sale para contratos ya aceptados (`CONFIRMED`/`COMPLETED`): mientras es
+ * una propuesta el nivel todavía se está negociando y avisarlo confundiría.
+ */
+export async function notifySponsorTierChanged(
+  companyId: string,
+  contractId: string,
+  previousTier: SponsorshipTier
+): Promise<void> {
+  try {
+    const contract = await prisma.sponsorshipContract.findFirst({
+      where: { id: contractId, companyId },
+      select: {
+        tier: true,
+        status: true,
+        isBarter: true,
+        cashAmount: true,
+        barterValuation: true,
+        contact: { select: { email: true, razonSocial: true, nombreFantasia: true } },
+        package: { select: { name: true } },
+        deliverables: { select: { title: true }, orderBy: { createdAt: 'asc' } },
+        project: { select: { name: true, publicContactEmail: true, publicWhatsapp: true, instagramHandle: true } },
+        company: { select: { businessName: true } },
+      },
+    });
+    if (!contract || contract.tier === previousTier) return;
+    if (contract.status !== 'CONFIRMED' && contract.status !== 'COMPLETED') return;
+    const to = contract.contact.email?.trim();
+    if (!to) return;
+
+    const portalToken = await getOrCreatePortalToken(companyId, contractId);
+    const contact = pageantContact(contract.project);
+    const email = buildSponsorTierChangedEmail({
+      contactName: contract.contact.nombreFantasia ?? contract.contact.razonSocial,
+      projectName: contract.project.name,
+      companyName: contract.company.businessName,
+      previousTierLabel: SPONSORSHIP_TIER_LABELS[previousTier],
+      tierLabel: SPONSORSHIP_TIER_LABELS[contract.tier],
+      packageName: contract.package?.name ?? null,
+      cashAmount: contract.cashAmount,
+      isBarter: contract.isBarter,
+      barterValuation: contract.barterValuation,
+      deliverableTitles: contract.deliverables.map((d) => d.title),
+      portalUrl: `${getAppUrl()}/sponsors/${portalToken}`,
+      contact: { email: contact.email, whatsapp: contact.whatsapp },
+    });
+    await sendEmail({ to, ...email, ...(contact.email ? { replyTo: contact.email } : {}) });
+  } catch (error) {
+    captureException(error, { module: 'sponsorships', companyId, extra: { reason: 'sponsor-tier-changed-email', contractId } });
   }
 }
 

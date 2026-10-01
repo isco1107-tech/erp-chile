@@ -1,5 +1,5 @@
 import type { CandidateStatus } from '@prisma/client';
-import { buildCandidateStatusChangeEmail, buildSponsorAcceptedEmail } from '@/lib/email/templates';
+import { buildCandidateStatusChangeEmail, buildSponsorAcceptedEmail, buildSponsorTierChangedEmail } from '@/lib/email/templates';
 import { isSponsorAcceptance } from '@/modules/sponsorships/schema';
 
 const base = { fullName: 'Ana Pérez', projectName: 'Miss Ejemplo 2026', companyName: 'Productora Demo' };
@@ -82,5 +82,35 @@ describe('buildSponsorAcceptedEmail', () => {
     expect(email.html).toContain('Plan Gala');
     expect(email.html).toContain('Productora &lt;Demo&gt;');
     expect(email.text).toContain('hola@ejemplo.cl');
+  });
+});
+
+describe('buildSponsorTierChangedEmail', () => {
+  const base = {
+    contactName: 'Marca <b>X</b>',
+    projectName: 'Miss Ejemplo 2026',
+    companyName: 'Producciones SpA',
+    previousTierLabel: 'Silver',
+    tierLabel: 'Gold',
+    packageName: null,
+    cashAmount: 3000000,
+    isBarter: false,
+    barterValuation: 0,
+    deliverableTitles: ['Mención en escenario'],
+    portalUrl: 'https://app.test/sponsors/abc',
+    contact: { email: 'hola@ej.cl', whatsapp: null },
+  };
+
+  it('dice de qué categoría a cuál y qué implica', () => {
+    const email = buildSponsorTierChangedEmail(base);
+    expect(email.subject).toContain('Miss Ejemplo 2026');
+    expect(email.text).toContain('Antes: Silver → Ahora: Gold');
+    expect(email.text).toContain('Qué implica');
+    expect(email.text).toContain('Mención en escenario');
+    expect(email.text).toContain('https://app.test/sponsors/abc');
+  });
+
+  it('escapa HTML del nombre', () => {
+    expect(buildSponsorTierChangedEmail(base).html).not.toContain('<b>X</b>');
   });
 });
