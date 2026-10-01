@@ -4,7 +4,7 @@ import { NIGHT, alpha } from '../palettes';
 import { initialsOf, type PosterContent, type PosterHero } from '../pieces';
 import { heroCrowdMin, seededRandom, solveGrid, solveStack, type StackBlock } from '../layout';
 import { fitGroups } from '../text-fit';
-import { Box, Check, Crown, Diamond, Lines, NameLines, QrCard, Sparkle, fit, fontOf, qrCardHeight, upper, type PosterRenderInput, type PosterTypeKit } from './primitives';
+import { Box, Check, ContainedImage, Crown, Diamond, Lines, NameLines, QrCard, Sparkle, SponsorStrip, fit, fontOf, logoBox, photoObjectPosition, qrCardHeight, sponsorStripHeight, upper, reportOmitted, type PosterRenderInput, type PosterTypeKit } from './primitives';
 
 /**
  * Estilo "Gala": noche azul del micrositio, dorados en degradado, Italiana
@@ -35,7 +35,7 @@ function archRadius(width: number, u: number) {
   return { borderTopLeftRadius: width / 2, borderTopRightRadius: width / 2, borderBottomLeftRadius: 18 * u, borderBottomRightRadius: 18 * u };
 }
 
-function ArchPhoto({ src, monogram, width, height, ctx, badge }: { src: string | null; monogram: string; width: number; height: number; ctx: Ctx; badge: string | null }) {
+function ArchPhoto({ src, monogram, width, height, ctx, badge, position }: { src: string | null; monogram: string; width: number; height: number; ctx: Ctx; badge: string | null; position: string }) {
   const { u, pal, type } = ctx;
   const ring = 14 * u;
   const badgeSize = Math.round(Math.min(110 * u, width * 0.26));
@@ -47,7 +47,7 @@ function ArchPhoto({ src, monogram, width, height, ctx, badge }: { src: string |
         {src ? (
           // El arco va en la propia foto: recortar la caja con `overflow: hidden` es mucho más lento de dibujar.
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={src} alt="" width={width} height={height} style={{ width, height, objectFit: 'cover', objectPosition: 'center 22%', ...archRadius(width, u) }} />
+          <img src={src} alt="" width={width} height={height} style={{ width, height, objectFit: 'cover', objectPosition: position, ...archRadius(width, u) }} />
         ) : (
           <div style={{ display: 'flex', ...fontOf(type, 'display'), fontSize: width * 0.36, color: pal.light }}>{monogram}</div>
         )}
@@ -85,14 +85,14 @@ function Hero({ content, images, width, height, ctx }: { content: PosterContent;
     if (!images.background || height < 200 * u) return null;
     const archH = height - 14 * u;
     const archW = Math.min(width * 0.86, archH * 0.82);
-    return <ArchPhoto src={images.background} monogram="" width={archW} height={archH} ctx={ctx} badge={null} />;
+    return <ArchPhoto src={images.background} monogram="" width={archW} height={archH} ctx={ctx} badge={null} position={photoObjectPosition(content.decor.photoPosition, 'center 30%')} />;
   }
 
   if (hero.kind === 'portrait') {
     const badgeSpace = hero.badge ? Math.min(110 * u, width * 0.26) / 2 : 0;
     const archH = height - 14 * u - badgeSpace;
     const archW = Math.min(width * 0.86, archH * 0.78);
-    return <ArchPhoto src={images.portrait} monogram={hero.monogram} width={archW} height={archH} ctx={ctx} badge={hero.badge} />;
+    return <ArchPhoto src={images.portrait} monogram={hero.monogram} width={archW} height={archH} ctx={ctx} badge={hero.badge} position={photoObjectPosition(content.decor.photoPosition, 'center 12%')} />;
   }
 
   if (hero.kind === 'date') {
@@ -219,6 +219,12 @@ function Hero({ content, images, width, height, ctx }: { content: PosterContent;
 // Bloques de texto
 // ---------------------------------------------------------------------------
 
+/** Alto máximo del titular: una quinta parte del afiche (un tercio en horizontal, donde va en su columna). */
+function headlineCap(format: PosterRenderInput['format']): number {
+  const spec = POSTER_FORMAT_SPECS[format];
+  return spec.height * (spec.orientation === 'landscape' ? 0.32 : 0.2);
+}
+
 interface Blocks {
   stack: StackBlock[];
   render: Record<string, ReactNode>;
@@ -236,10 +242,13 @@ function textBlocks(input: PosterRenderInput, width: number, ctx: Ctx, landscape
   const eyebrowFit = fit(type, 'sansBold', upper(content.eyebrow), { maxWidth: width - 80 * u, maxLines: 1, maxSize: 22 * u, minSize: 11, letterSpacingEm: 0.3 });
   const crownW = (square ? 52 : 66) * u;
   const pillH = eyebrowFit.fontSize * 1.25 + 24 * u;
-  stack.push({ key: 'top', height: crownW * 0.62 + 16 * u + pillH, gap: 0, drop: 0 });
+  // Con logo propio, el logo ocupa el lugar de la corona.
+  const logo = input.images.logo ? logoBox(input.images.logo, Math.min(width * 0.6, 340 * u), (square ? 72 : 100) * u) : null;
+  const markH = logo ? logo.height : crownW * 0.62;
+  stack.push({ key: 'top', height: markH + 16 * u + pillH, gap: 0, drop: 0 });
   render.top = (
     <Box style={{ flexDirection: 'column', alignItems: landscape ? 'flex-start' : 'center' }}>
-      <Crown width={crownW} color={pal.light} />
+      {logo && input.images.logo ? <ContainedImage src={input.images.logo} width={logo.width} height={logo.height} /> : <Crown width={crownW} color={pal.light} />}
       <Box style={{ marginTop: 16 * u, padding: `${12 * u}px ${30 * u}px`, borderRadius: 999, border: `${1.5 * u}px solid ${alpha(pal.light, 0.75)}`, background: alpha(pal.light, 0.08) }}>
         <Lines fit={eyebrowFit} type={type} role="sansBold" color={pal.light} letterSpacingEm={0.3} lineHeight={1.25} />
       </Box>
@@ -248,7 +257,7 @@ function textBlocks(input: PosterRenderInput, width: number, ctx: Ctx, landscape
 
   if (content.kicker) {
     const kickerFit = fit(type, 'sansBold', upper(content.kicker), { maxWidth: width - (landscape ? 0 : 200 * u), maxLines: 1, maxSize: 30 * u, minSize: 12, letterSpacingEm: 0.3 });
-    stack.push({ key: 'kicker', height: kickerFit.height, gap: (square ? 30 : 44) * u, drop: 1 });
+    stack.push({ key: 'kicker', height: kickerFit.height, gap: (square ? 30 : 44) * u, drop: 2 });
     render.kicker = (
       <Box style={{ alignItems: 'center' }}>
         {!landscape && <Box style={{ width: 70 * u, height: 1.5 * u, background: alpha(pal.light, 0.7), marginRight: 26 * u }} />}
@@ -261,8 +270,10 @@ function textBlocks(input: PosterRenderInput, width: number, ctx: Ctx, landscape
   const personHeadline = content.piece === 'candidata' || content.piece === 'resultados';
   const headlineFit = fit(type, 'display', content.headline, {
     maxWidth: width,
+    // Tope de alto: un titular largo se reparte en líneas a un tamaño sensato en vez de comerse el afiche.
+    maxHeight: headlineCap(input.format),
     maxLines: personHeadline ? 2 : 3,
-    maxSize: (story ? 230 : square ? 150 : landscape ? 190 : 200) * u * (personHeadline ? 0.62 : content.hero.kind === 'mosaic' || content.hero.kind === 'names' ? 0.72 : 1),
+    maxSize: (story ? 230 : square ? 150 : landscape ? 190 : 200) * u * (personHeadline ? 0.62 : content.hero.kind === 'mosaic' || content.hero.kind === 'names' ? 0.72 : 1) * content.decor.titleScale,
     minSize: 40,
     lineHeight: 1,
   });
@@ -338,8 +349,8 @@ function textBlocks(input: PosterRenderInput, width: number, ctx: Ctx, landscape
   }
 
   if (content.note) {
-    const noteFit = fit(type, 'accent', content.note, { maxWidth: width * 0.9, maxLines: 2, maxSize: (square ? 34 : 40) * u, minSize: 14, lineHeight: 1.2 });
-    stack.push({ key: 'note', height: noteFit.height + 22 * u, gap: 26 * u, drop: 2 });
+    const noteFit = fit(type, 'accent', content.note, { maxWidth: width * 0.9, maxLines: 3, maxSize: (square ? 34 : 40) * u, minSize: 14, lineHeight: 1.2 });
+    stack.push({ key: 'note', height: noteFit.height + 22 * u, gap: 26 * u, drop: 1 });
     render.note = (
       <Box style={{ flexDirection: 'column', alignItems: 'center' }}>
         <Sparkle size={18 * u} color={pal.light} />
@@ -374,6 +385,12 @@ function textBlocks(input: PosterRenderInput, width: number, ctx: Ctx, landscape
         )}
       </Box>
     );
+  }
+
+  if (input.images.sponsorLogos.length > 0) {
+    const stripW = Math.min(width, 900 * u);
+    stack.push({ key: 'sponsors', height: sponsorStripHeight(input.images.sponsorLogos.length, stripW, u), gap: 30 * u, drop: 1 });
+    render.sponsors = <SponsorStrip logos={input.images.sponsorLogos} width={stripW} u={u} type={type} label="AUSPICIAN" labelColor={pal.mid} panel="rgba(255,255,255,0.94)" radius={18 * u} />;
   }
 
   if (content.contact.length > 0) {
@@ -451,6 +468,7 @@ export function renderGala(input: PosterRenderInput) {
     const rightW = W - padX * 2 - leftW - 70 * u;
     const blocks = textBlocks(input, leftW, ctx, true);
     const solution = solveStack(blocks.stack, innerH, 0);
+    reportOmitted(input.report, blocks.stack, solution.kept);
     const heroEl = <Hero content={content} images={images} width={rightW} height={innerH} ctx={ctx} />;
     return (
       <div style={{ display: 'flex', width: W, height: H, position: 'relative', color: ctx.text, backgroundColor: NIGHT.bottom }}>
@@ -473,6 +491,7 @@ export function renderGala(input: PosterRenderInput) {
   const blocks = textBlocks(input, contentW, ctx, false);
   const hasPhoto = Boolean(images.background || images.portrait);
   const solution = solveStack(blocks.stack, innerH, Math.max(heroMinHeight(content.hero, hasPhoto, u), heroCrowdMin(content.hero, u)));
+  reportOmitted(input.report, blocks.stack, solution.kept);
   return (
     <div style={{ display: 'flex', width: W, height: H, position: 'relative', color: ctx.text, backgroundColor: NIGHT.bottom }}>
       {background}

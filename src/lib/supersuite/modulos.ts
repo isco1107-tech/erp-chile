@@ -59,7 +59,7 @@ const ENTIDAD_A_MODULO: Record<string, string> = {
   ProductionOrder: 'produccion', BillOfMaterials: 'produccion',
   ServiceTicket: 'servicio_tecnico',
   FeeDocument: 'honorarios',
-  Project: 'certamenes', PastWinner: 'certamenes', StageTimelineItem: 'certamenes', WardrobeItem: 'certamenes', StaffAccreditation: 'certamenes', BadgeTemplate: 'certamenes',
+  Project: 'certamenes', PastWinner: 'certamenes', PosterDesign: 'certamenes', StageTimelineItem: 'certamenes', WardrobeItem: 'certamenes', StaffAccreditation: 'certamenes', BadgeTemplate: 'certamenes',
   SponsorshipContract: 'auspicios', SponsorshipPackage: 'auspicios', SponsorshipDeliverable: 'auspicios',
   Candidate: 'candidatas', CandidateDocument: 'candidatas', CandidateSession: 'candidatas',
   TicketType: 'entradas', TicketSale: 'entradas',

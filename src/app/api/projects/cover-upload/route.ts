@@ -26,7 +26,13 @@ const MIN_SIZE = {
   winner: { width: 600, height: 750, label: 'La foto', hint: 'vertical de al menos 800 × 1067 px' },
   director: null,
   favicon: { width: 64, height: 64, label: 'El logo', hint: 'cuadrado, de al menos 64 × 64 px (ideal 512 × 512)' },
+  // Afiches: la foto principal llena buena parte del afiche; un logo puede ser chico y alargado.
+  'poster-photo': { width: 600, height: 600, label: 'La foto', hint: 'de al menos 1080 × 1080 px' },
+  'poster-logo': { width: 80, height: 40, label: 'El logo', hint: 'de al menos 300 px de ancho, ideal PNG con fondo transparente' },
 } as const;
+
+type Purpose = keyof typeof MIN_SIZE;
+const PURPOSES = Object.keys(MIN_SIZE) as Purpose[];
 
 export async function POST(req: Request) {
   try {
@@ -34,9 +40,10 @@ export async function POST(req: Request) {
     const form = await req.formData();
     const projectId = String(form.get('projectId') ?? '');
     // `winner` = foto del salón de la fama (otra carpeta, para que una empresa solo pueda asociar fotos suyas);
-    // `director` = foto de la directora (sin tamaño mínimo); por defecto, la portada.
-    const rawPurpose = form.get('purpose');
-    const purpose: 'cover' | 'winner' | 'director' | 'favicon' = rawPurpose === 'winner' ? 'winner' : rawPurpose === 'director' ? 'director' : rawPurpose === 'favicon' ? 'favicon' : 'cover';
+    // `director` = foto de la directora (sin tamaño mínimo); `poster-*` = imágenes del estudio de afiches;
+    // por defecto, la portada.
+    const rawPurpose = String(form.get('purpose') ?? '');
+    const purpose: Purpose = (PURPOSES as string[]).includes(rawPurpose) ? (rawPurpose as Purpose) : 'cover';
     const file = form.get('file');
 
     if (!projectId) return NextResponse.json({ success: false, error: 'Falta el certamen' }, { status: 400 });
@@ -49,7 +56,7 @@ export async function POST(req: Request) {
 
     const bytes = new Uint8Array(await file.arrayBuffer());
     const sniffed = sniffImageType(bytes);
-    if (!sniffed) return NextResponse.json({ success: false, error: purpose === 'winner' ? 'La foto debe ser JPG, PNG o WEBP' : 'La portada debe ser JPG o PNG' }, { status: 400 });
+    if (!sniffed) return NextResponse.json({ success: false, error: purpose === 'cover' ? 'La portada debe ser JPG o PNG' : 'La imagen debe ser JPG, PNG o WEBP' }, { status: 400 });
 
     const min = MIN_SIZE[purpose];
     if (min) {
@@ -68,7 +75,9 @@ export async function POST(req: Request) {
     }
 
     const pathname =
-      purpose === 'favicon'
+      purpose === 'poster-photo' || purpose === 'poster-logo'
+        ? `pageant-posters/${session.companyId}/${projectId}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${SNIFFED_IMAGE_EXTENSION[sniffed]}`
+        : purpose === 'favicon'
         ? `pageant-favicons/${session.companyId}/${projectId}-${Date.now()}.${SNIFFED_IMAGE_EXTENSION[sniffed]}`
         : purpose === 'winner'
         ? `pageant-winners/${session.companyId}/${projectId}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${SNIFFED_IMAGE_EXTENSION[sniffed]}`
@@ -82,7 +91,7 @@ export async function POST(req: Request) {
       action: 'UPDATE',
       entity: 'Project',
       entityId: projectId,
-      metadata: { field: purpose === 'winner' ? 'pastWinnerPhoto' : purpose === 'favicon' ? 'faviconUrl' : 'coverImageUrl', url: blob.url },
+      metadata: { field: purpose === 'winner' ? 'pastWinnerPhoto' : purpose === 'favicon' ? 'faviconUrl' : purpose.startsWith('poster') ? 'posterImage' : 'coverImageUrl', url: blob.url },
     });
 
     return NextResponse.json({ success: true, data: { url: blob.url } });

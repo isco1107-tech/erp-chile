@@ -8,10 +8,13 @@ jest.mock('jose', () => ({ jwtVerify: jest.fn(), SignJWT: jest.fn() }));
 jest.mock('@/lib/observability', () => ({ captureException: jest.fn() }));
 jest.mock('@/lib/auth/guards', () => ({ ...jest.requireActual('@/lib/auth/guards'), requireAuthWithPermission: jest.fn() }));
 jest.mock('@/modules/projects/services/poster.service', () => ({ buildPosterImage: jest.fn() }));
+jest.mock('@/modules/projects/services/poster-designs.service', () => ({ getPosterDesign: jest.fn() }));
 jest.mock('next/og', () => ({ ImageResponse: jest.fn().mockImplementation(() => ({ ok: true })) }));
 
 import { ImageResponse } from 'next/og';
-import { GET } from '@/app/api/projects/[id]/poster/route';
+import { GET, POST } from '@/app/api/projects/[id]/poster/route';
+import { EMPTY_OVERRIDES } from '@/lib/posters/overrides';
+import { getPosterDesign } from '@/modules/projects/services/poster-designs.service';
 import { AuthError, requireAuthWithPermission } from '@/lib/auth/guards';
 import { captureException } from '@/lib/observability';
 import { buildPosterImage } from '@/modules/projects/services/poster.service';
@@ -19,8 +22,13 @@ import { buildPosterImage } from '@/modules/projects/services/poster.service';
 const requireAuth = requireAuthWithPermission as jest.Mock;
 const build = buildPosterImage as jest.Mock;
 const imageResponse = ImageResponse as unknown as jest.Mock;
+const getDesign = getPosterDesign as jest.Mock;
 
-const OK = { ok: true, element: 'elemento', width: 1080, height: 1350, fonts: [{ name: 'PosterSans', data: new ArrayBuffer(1), weight: 500, style: 'normal' }], filename: 'afiche-miss-sur-gala-feed.png' };
+const OK = { ok: true, element: 'elemento', width: 1080, height: 1350, fonts: [{ name: 'PosterSans', data: new ArrayBuffer(1), weight: 500, style: 'normal' }], filename: 'afiche-miss-sur-gala-feed.png', omitted: [] as string[] };
+
+function post(body: unknown, query = '') {
+  return POST(new Request(`https://app.test/api/projects/p1/poster${query}`, { method: 'POST', body: JSON.stringify(body) }), { params: Promise.resolve({ id: 'p1' }) });
+}
 
 function call(query = '') {
   return GET(new Request(`https://app.test/api/projects/p1/poster${query}`), { params: Promise.resolve({ id: 'p1' }) });
@@ -106,4 +114,51 @@ describe('GET /api/projects/[id]/poster', () => {
     expect((await response.json()).error).toBe('No se pudo generar el afiche');
     expect(captureException).toHaveBeenCalledWith(expect.any(Error), expect.objectContaining({ module: 'proyectos', companyId: 'co1' }));
   });
+
+  it('avisa los bloques que no cupieron', async () => {
+    build.mockResolvedValue({ ...OK, omitted: ['facts', 'list'] });
+    await call();
+    expect(imageResponse.mock.calls[0]![1].headers['X-Poster-Omitted']).toBe('facts,list');
+  });
+
+  it('un diseño guardado se busca en este certamen y empresa', async () => {
+    getDesign.mockResolvedValue({ id: 'd1', name: 'Mío', updatedAt: '', request: { piece: 'gala', style: 'impacto', format: 'story', accent: null, candidateId: null, qr: true, overrides: EMPTY_OVERRIDES } });
+    await call('?design=d1');
+    expect(getDesign).toHaveBeenCalledWith('co1', 'p1', 'd1');
+    expect(build.mock.calls[0]![2]).toEqual({ piece: 'gala', style: 'impacto', format: 'story', accent: null, candidateId: null, qr: true, overrides: EMPTY_OVERRIDES, note: null });
+  });
+
+  it('un diseño de otro certamen o empresa: 404', async () => {
+    getDesign.mockResolvedValue(null);
+    expect((await call('?design=ajeno')).status).toBe(404);
+    expect(build).not.toHaveBeenCalled();
+  });
 });
+
+describe('POST /api/projects/[id]/poster', () => {
+  it('dibuja con la personalización validada (solo projects:read: dibujar no guarda)', async () => {
+    await post({ piece: 'candidata', style: 'editorial', format: 'square', candidateId: 'c2', overrides: { texts: { headline: '  Gran  final ' }, titleScale: 1.1 } });
+    expect(requireAuth).toHaveBeenCalledWith('projects:read');
+    expect(build.mock.calls[0]![0]).toBe('co1');
+    expect(build.mock.calls[0]![2]).toMatchObject({ piece: 'candidata', style: 'editorial', format: 'square', candidateId: 'c2', accent: null, qr: null, note: null, overrides: { texts: { headline: 'Gran final' }, titleScale: 1.1 } });
+  });
+
+  it('un cuerpo inválido es 400 con el motivo, sin dibujar', async () => {
+    const response = await post({ piece: 'convocatoria', style: 'gala', format: 'feed', overrides: { texts: { headline: 'x'.repeat(200) } } });
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toBe('Titular: máximo 80 caracteres');
+    expect(build).not.toHaveBeenCalled();
+  });
+
+  it('un JSON roto es 400', async () => {
+    const response = await POST(new Request('https://app.test/api/projects/p1/poster', { method: 'POST', body: '{roto' }), { params: Promise.resolve({ id: 'p1' }) });
+    expect(response.status).toBe(400);
+  });
+
+  it('imágenes ajenas: el servicio responde 400 y la ruta lo pasa', async () => {
+    build.mockResolvedValue({ ok: false, status: 400, error: 'Las imágenes del afiche deben subirse desde el estudio de afiches' });
+    const response = await post({ piece: 'gala', style: 'gala', format: 'feed', overrides: { logoUrl: 'https://evil.test/x.png' } });
+    expect(response.status).toBe(400);
+  });
+});
+

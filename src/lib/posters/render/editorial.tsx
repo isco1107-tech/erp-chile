@@ -4,7 +4,7 @@ import { alpha } from '../palettes';
 import { initialsOf, type PosterContent } from '../pieces';
 import { heroCrowdMin, solveGrid, solveStack, type StackBlock } from '../layout';
 import { fitGroups } from '../text-fit';
-import { Arrow, Box, Lines, NameLines, QrCard, fit, fontOf, qrCardHeight, upper, type PosterRenderInput, type PosterTypeKit } from './primitives';
+import { Arrow, Box, ContainedImage, Lines, NameLines, QrCard, SponsorStrip, fit, fontOf, logoBox, photoObjectPosition, qrCardHeight, sponsorStripHeight, upper, reportOmitted, type PosterRenderInput, type PosterTypeKit } from './primitives';
 
 /**
  * Estilo "Editorial": portada de revista. Papel claro teñido del acento,
@@ -56,7 +56,7 @@ function Hero({ content, images, width, height, ctx, bleed }: { content: PosterC
       return (
         <Box style={{ position: 'relative', width, height }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={photo} alt="" width={width} height={height} style={{ width, height, objectFit: 'cover', objectPosition: hero.kind === 'portrait' ? 'center 6%' : 'center 30%' }} />
+          <img src={photo} alt="" width={width} height={height} style={{ width, height, objectFit: 'cover', objectPosition: photoObjectPosition(content.decor.photoPosition, hero.kind === 'portrait' ? 'center 6%' : 'center 30%') }} />
           <Box style={{ position: 'absolute', top: bleed ? 40 * u : 0, left: bleed ? 40 * u : 0 }}>
             <Tag text={content.eyebrow} ctx={ctx} maxWidth={width * 0.8} />
           </Box>
@@ -204,6 +204,12 @@ function Hero({ content, images, width, height, ctx, bleed }: { content: PosterC
   );
 }
 
+/** Alto máximo del titular: una quinta parte del afiche (un tercio en horizontal, donde va en su columna). */
+function headlineCap(format: PosterRenderInput['format']): number {
+  const spec = POSTER_FORMAT_SPECS[format];
+  return spec.height * (spec.orientation === 'landscape' ? 0.32 : 0.2);
+}
+
 interface Blocks {
   stack: StackBlock[];
   render: Record<string, ReactNode>;
@@ -213,16 +219,31 @@ function brandWithoutYear(content: PosterContent): string {
   return content.brand.replace(/\s(?:19|20)\d{2}$/, '');
 }
 
-function Masthead({ content, width, ctx }: { content: PosterContent; width: number; ctx: Ctx }) {
+/** Cabecera de revista: logo propio (si lo hay), nombre del certamen y edición, sobre filetes. */
+function Masthead({ content, width, ctx, logo }: { content: PosterContent; width: number; ctx: Ctx; logo: string | null }) {
   const { u, type } = ctx;
   const edition = /\s((?:19|20)\d{2})$/.exec(content.brand)?.[1];
   const right = edition ? `EDICIÓN ${edition}` : null;
+  const box = logo ? logoBox(logo, width * 0.4, MASTHEAD_LOGO_H * u) : null;
   const rightFit = right ? fit(type, 'sansBold', right, { maxWidth: width * 0.3, maxLines: 1, maxSize: 18 * u, minSize: 9, letterSpacingEm: 0.24 }) : null;
-  const leftFit = fit(type, 'sansBold', upper(brandWithoutYear(content)), { maxWidth: width - (rightFit ? rightFit.width + 40 * u : 0), maxLines: 1, maxSize: 22 * u, minSize: 10, letterSpacingEm: 0.28 });
+  const leftFit = fit(type, 'sansBold', upper(brandWithoutYear(content)), {
+    maxWidth: width - (rightFit ? rightFit.width + 40 * u : 0) - (box ? box.width + 22 * u : 0),
+    maxLines: 1,
+    maxSize: 22 * u,
+    minSize: 10,
+    letterSpacingEm: 0.28,
+  });
   return (
     <Box style={{ flexDirection: 'column', width }}>
-      <Box style={{ width, justifyContent: 'space-between', alignItems: 'flex-end' }}>
-        <Lines fit={leftFit} type={type} role="sansBold" color={INK} align="left" letterSpacingEm={0.28} lineHeight={1.3} />
+      <Box style={{ width, height: mastheadRowHeight(u, Boolean(logo)), justifyContent: 'space-between', alignItems: 'flex-end' }}>
+        <Box style={{ alignItems: 'flex-end' }}>
+          {box && logo && (
+            <Box style={{ marginRight: 22 * u }}>
+              <ContainedImage src={logo} width={box.width} height={box.height} />
+            </Box>
+          )}
+          <Lines fit={leftFit} type={type} role="sansBold" color={INK} align="left" letterSpacingEm={0.28} lineHeight={1.3} />
+        </Box>
         {rightFit && <Lines fit={rightFit} type={type} role="sansBold" color={INK} align="right" letterSpacingEm={0.24} lineHeight={1.3} />}
       </Box>
       <Box style={{ width, height: 3 * u, background: INK, marginTop: 12 * u }} />
@@ -231,8 +252,14 @@ function Masthead({ content, width, ctx }: { content: PosterContent; width: numb
   );
 }
 
-function mastheadHeight(u: number): number {
-  return 22 * u * 1.3 + 12 * u + 3 * u + 5 * u + 1 * u;
+const MASTHEAD_LOGO_H = 64;
+
+function mastheadRowHeight(u: number, withLogo: boolean): number {
+  return withLogo ? MASTHEAD_LOGO_H * u : 22 * u * 1.3;
+}
+
+function mastheadHeight(u: number, withLogo: boolean): number {
+  return mastheadRowHeight(u, withLogo) + 12 * u + 3 * u + 5 * u + 1 * u;
 }
 
 function textBlocks(input: PosterRenderInput, width: number, ctx: Ctx, options: { photoHero: boolean; withHeroSlot: boolean }): Blocks {
@@ -251,7 +278,7 @@ function textBlocks(input: PosterRenderInput, width: number, ctx: Ctx, options: 
 
   if (content.kicker) {
     const kickerFit = fit(type, 'accent', content.kicker, { maxWidth: width, maxLines: 1, maxSize: (square ? 34 : 44) * u, minSize: 14 });
-    stack.push({ key: 'kicker', height: kickerFit.height, gap: 30 * u, drop: 1 });
+    stack.push({ key: 'kicker', height: kickerFit.height, gap: 30 * u, drop: 2 });
     render.kicker = <Lines fit={kickerFit} type={type} role="accent" color={pal.mid} align="left" />;
   }
 
@@ -259,8 +286,10 @@ function textBlocks(input: PosterRenderInput, width: number, ctx: Ctx, options: 
   const heavy = content.hero.kind === 'mosaic' || content.hero.kind === 'names';
   const headlineFit = fit(type, 'display', content.headline, {
     maxWidth: width,
+    // Tope de alto: un titular largo se reparte en líneas a un tamaño sensato en vez de comerse el afiche.
+    maxHeight: headlineCap(input.format),
     maxLines: person ? 2 : 3,
-    maxSize: (story ? 210 : square ? 128 : 180) * u * (person ? 0.72 : heavy ? 0.66 : 1),
+    maxSize: (story ? 210 : square ? 128 : 180) * u * (person ? 0.72 : heavy ? 0.66 : 1) * content.decor.titleScale,
     minSize: 36,
     lineHeight: 0.98,
     letterSpacingEm: -0.01,
@@ -313,8 +342,8 @@ function textBlocks(input: PosterRenderInput, width: number, ctx: Ctx, options: 
   }
 
   if (content.note) {
-    const noteFit = fit(type, 'accent', content.note, { maxWidth: width - 30 * u, maxLines: 2, maxSize: (square ? 30 : 36) * u, minSize: 13, lineHeight: 1.2 });
-    stack.push({ key: 'note', height: noteFit.height, gap: 24 * u, drop: 2 });
+    const noteFit = fit(type, 'accent', content.note, { maxWidth: width - 30 * u, maxLines: 3, maxSize: (square ? 30 : 36) * u, minSize: 13, lineHeight: 1.2 });
+    stack.push({ key: 'note', height: noteFit.height, gap: 24 * u, drop: 1 });
     render.note = (
       <Box style={{ borderLeft: `${5 * u}px solid ${pal.mid}`, paddingLeft: 22 * u }}>
         <Lines fit={noteFit} type={type} role="accent" color={INK} align="left" lineHeight={1.2} />
@@ -348,6 +377,11 @@ function textBlocks(input: PosterRenderInput, width: number, ctx: Ctx, options: 
         )}
       </Box>
     );
+  }
+
+  if (input.images.sponsorLogos.length > 0) {
+    stack.push({ key: 'sponsors', height: sponsorStripHeight(input.images.sponsorLogos.length, width, u), gap: 26 * u, drop: 1 });
+    render.sponsors = <SponsorStrip logos={input.images.sponsorLogos} width={width} u={u} type={type} label="AUSPICIAN" labelColor={pal.mid} panel="#ffffff" radius={0} />;
   }
 
   if (content.contact.length > 0) {
@@ -395,15 +429,16 @@ export function renderEditorial(input: PosterRenderInput) {
     const leftW = W * 0.5 - padX - 30 * u;
     const rightX = W * 0.5 + 10 * u;
     const rightW = W - rightX - (photo ? 0 : padX);
-    const masthead = mastheadHeight(u);
+    const masthead = mastheadHeight(u, Boolean(images.logo));
     const blocks = textBlocks(input, leftW, ctx, { photoHero: Boolean(photo), withHeroSlot: false });
     const innerH = H - padTop - padBottom - masthead - 30 * u;
     const solution = solveStack(blocks.stack, innerH, 0);
+    reportOmitted(input.report, blocks.stack, solution.kept);
     return (
       <div style={{ display: 'flex', width: W, height: H, position: 'relative', backgroundColor: pal.paper }}>
         {background}
         <Box style={{ position: 'absolute', top: padTop, left: padX, width: leftW, flexDirection: 'column' }}>
-          <Masthead content={content} width={leftW} ctx={ctx} />
+          <Masthead content={content} width={leftW} ctx={ctx} logo={images.logo} />
         </Box>
         <Box style={{ position: 'absolute', top: padTop + masthead + 30 * u, left: padX, width: leftW, height: innerH, flexDirection: 'column', justifyContent: 'center' }}>
           {blocks.stack
@@ -422,15 +457,16 @@ export function renderEditorial(input: PosterRenderInput) {
   }
 
   const contentW = W - padX * 2;
-  const masthead = mastheadHeight(u);
+  const masthead = mastheadHeight(u, Boolean(images.logo));
   const blocks = textBlocks(input, contentW, ctx, { photoHero: Boolean(photo), withHeroSlot: true });
   const innerH = H - padTop - padBottom - masthead - 26 * u;
   const solution = solveStack(blocks.stack, innerH, Math.max(heroMin(content, Boolean(photo), u), heroCrowdMin(content.hero, u)));
+  reportOmitted(input.report, blocks.stack, solution.kept);
   return (
     <div style={{ display: 'flex', width: W, height: H, position: 'relative', backgroundColor: pal.paper }}>
       {background}
       <Box style={{ position: 'absolute', top: padTop, left: padX, width: contentW, flexDirection: 'column' }}>
-        <Masthead content={content} width={contentW} ctx={ctx} />
+        <Masthead content={content} width={contentW} ctx={ctx} logo={images.logo} />
         <Box style={{ flexDirection: 'column', marginTop: 26 * u, width: contentW, height: innerH }}>
           {blocks.stack
             .filter((block) => solution.kept.has(block.key))

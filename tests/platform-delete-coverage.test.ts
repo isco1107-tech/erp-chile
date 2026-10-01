@@ -65,6 +65,8 @@ const CASCADES_TO_COMPANY = new Set([
   'SponsorshipPackage',
   // Salón de la fama del micrositio: `onDelete: Cascade` directo hacia Company y hacia Project.
   'PastWinner',
+  // Diseños guardados del estudio de afiches: igual que PastWinner, cascada directa hacia Company y Project.
+  'PosterDesign',
   'Employee',
   'PayrollPeriod',
   'Payslip',

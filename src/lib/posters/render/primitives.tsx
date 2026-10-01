@@ -1,9 +1,10 @@
 import type { CSSProperties, ReactNode } from 'react';
 import type { Measurer } from '../font-metrics';
-import type { PosterContent } from '../pieces';
+import type { PhotoPosition, PosterContent } from '../pieces';
 import type { PosterFormat } from '../formats';
 import type { PosterPalette } from '../palettes';
 import type { FontRole, PosterStyle } from '../styles';
+import { readImageSize } from '@/lib/images/dimensions';
 import { fitText, type FitOptions, type FitResult } from '../text-fit';
 
 /**
@@ -24,6 +25,10 @@ export interface PosterImages {
   portrait: string | null;
   /** Alineado con `hero.tiles` cuando la pieza central es un mosaico. */
   tiles: Array<string | null>;
+  /** Logo del estudio (PNG con transparencia), si se subió. */
+  logo: string | null;
+  /** Logos de auspiciadores que se pudieron cargar, en orden. */
+  sponsorLogos: string[];
 }
 
 export interface PosterRenderInput {
@@ -34,6 +39,18 @@ export interface PosterRenderInput {
   type: PosterTypeKit;
   images: PosterImages;
   qrDataUrl: string | null;
+  /** Si viene, el estilo anota aquí los bloques que no cupieron en el formato (para avisar en el estudio). */
+  report?: PosterReport;
+}
+
+export interface PosterReport {
+  omitted: string[];
+}
+
+/** Anota los bloques que el reparto vertical tuvo que dejar fuera. */
+export function reportOmitted(report: PosterReport | undefined, stack: Array<{ key: string }>, kept: Set<string>): void {
+  if (!report) return;
+  for (const block of stack) if (block.key !== 'hero' && !kept.has(block.key) && !report.omitted.includes(block.key)) report.omitted.push(block.key);
 }
 
 /** El renderizador falla con una propiedad CSS en `undefined`: se quitan antes de pasarle el estilo. */
@@ -186,4 +203,73 @@ export function NameLines({ lines, type, role, size, color, separator, separator
       ))}
     </div>
   );
+}
+
+/** Encuadre vertical de la foto: el que eligió el usuario o el del estilo. */
+export function photoObjectPosition(position: PhotoPosition | null, fallback: string): string {
+  if (position === 'top') return 'center 0%';
+  if (position === 'bottom') return 'center 100%';
+  if (position === 'center') return 'center 50%';
+  return fallback;
+}
+
+/** Imagen contenida (logo): entra completa en la caja, sin recortarse ni deformarse. */
+export function ContainedImage({ src, width, height }: { src: string; width: number; height: number }) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={src} alt="" width={width} height={height} style={{ width, height, objectFit: 'contain' }} />
+  );
+}
+
+/** Alto de la franja de logos de auspiciadores (rótulo + una o dos filas). */
+export function sponsorStripHeight(count: number, width: number, u: number): number {
+  if (count === 0) return 0;
+  const { rows, cellH } = sponsorStripGrid(count, width, u);
+  return 18 * u * 1.4 + 12 * u + rows * cellH + (rows - 1) * 12 * u + 28 * u;
+}
+
+function sponsorStripGrid(count: number, width: number, u: number) {
+  const rows = count > 5 ? 2 : 1;
+  const perRow = Math.ceil(count / rows);
+  const inner = width - 40 * u;
+  const cellW = (inner - (perRow - 1) * 18 * u) / perRow;
+  const cellH = Math.min(66 * u, cellW * 0.5);
+  return { rows, perRow, cellW, cellH };
+}
+
+/**
+ * Franja de logos de auspiciadores sobre un panel claro: los logos suelen
+ * venir en colores pensados para fondo blanco, y sobre un fondo oscuro un
+ * logo negro desaparecería.
+ */
+export function SponsorStrip({ logos, width, u, type, label, labelColor, panel, radius }: { logos: string[]; width: number; u: number; type: PosterTypeKit; label: string; labelColor: string; panel: string; radius: number }) {
+  const { perRow, cellW, cellH } = sponsorStripGrid(logos.length, width, u);
+  const rows: string[][] = [];
+  for (let i = 0; i < logos.length; i += perRow) rows.push(logos.slice(i, i + perRow));
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width, padding: `${12 * u}px ${20 * u}px ${16 * u}px`, background: panel, borderRadius: radius }}>
+      <div style={{ display: 'flex', ...fontOf(type, 'sansBold'), fontSize: 18 * u, lineHeight: 1.4, letterSpacing: '0.28em', color: labelColor, marginBottom: 12 * u }}>{label}</div>
+      {rows.map((row, index) => (
+        <div key={index} style={{ display: 'flex', justifyContent: 'center', gap: 18 * u, marginTop: index === 0 ? 0 : 12 * u }}>
+          {row.map((src, i) => (
+            <ContainedImage key={i} src={src} width={cellW} height={cellH} />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Tamaño con que se dibuja un logo dentro de `maxWidth` × `maxHeight`,
+ * respetando su proporción real (leída de la cabecera de la imagen): así un
+ * logo alineado a la izquierda queda pegado al margen y no centrado en una
+ * caja más ancha que él.
+ */
+export function logoBox(dataUrl: string, maxWidth: number, maxHeight: number): { width: number; height: number } {
+  const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
+  const size = readImageSize(Uint8Array.from(Buffer.from(base64.slice(0, 200_000), 'base64')));
+  if (!size || size.width === 0 || size.height === 0) return { width: maxWidth, height: maxHeight };
+  const scale = Math.min(maxWidth / size.width, maxHeight / size.height);
+  return { width: Math.floor(size.width * scale), height: Math.floor(size.height * scale) };
 }

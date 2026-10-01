@@ -5,6 +5,7 @@ import { composePoster, type PosterDeps } from '@/lib/posters/compose';
 import { POSTER_FORMATS } from '@/lib/posters/formats';
 import { POSTER_PIECES, pieceAvailability } from '@/lib/posters/pieces';
 import { POSTER_STYLES } from '@/lib/posters/styles';
+import { posterOverridesSchema } from '@/lib/posters/overrides';
 import { posterSite } from './helpers/poster-site';
 
 /**
@@ -88,6 +89,44 @@ describe('composePoster', () => {
       });
     }
   }
+
+  const IMG = 'https://x.public.blob.vercel-storage.com/pageant-posters/co1/p1-1.png';
+  const custom = posterOverridesSchema.parse({
+    texts: { eyebrow: '¡Último llamado!', headline: 'Casting abierto en Temuco', subline: 'Una bajada propia', cta: 'Inscríbete', url: 'misssur.cl', note: 'Casting presencial el sábado 18 en el Hotel Dreams, de 10:00 a 14:00 h, trae tu carnet' },
+    facts: [{ label: 'Casting', value: 'Sábado 18' }, { label: 'Lugar', value: 'Hotel Dreams' }],
+    list: { title: 'Requisitos', items: ['Carnet', 'Foto de cuerpo entero', 'Autorización si eres menor'] },
+    hidden: ['contact'],
+    photoUrl: IMG,
+    photoPosition: 'top',
+    logoUrl: IMG,
+    sponsorLogos: Array(8).fill(IMG),
+    titleScale: 1.3,
+  });
+
+  for (const style of POSTER_STYLES) {
+    it(`${style}: personalización completa con estructura válida en todos los formatos`, async () => {
+      for (const format of POSTER_FORMATS) {
+        for (const piece of ['convocatoria', 'candidata', 'gala'] as const) {
+          const build = await composePoster(site, { piece, style, format, accent: null, candidateId: null, note: null, qr: true, overrides: custom }, PLACE, deps, NOW);
+          if (!build.ok) throw new Error(build.error);
+          const problems: Problem[] = [];
+          const texts: string[] = [];
+          inspect(build.element, `${style}/${piece}/${format}/custom`, problems, texts);
+          expect(problems).toEqual([]);
+          expect(texts.join(' ')).toContain('¡ÚLTIMO LLAMADO!'.slice(0, 3));
+          expect(Array.isArray(build.omitted)).toBe(true);
+        }
+      }
+    });
+  }
+
+  it('las imágenes propias se piden como logo (con transparencia) o foto', async () => {
+    loadPhoto.mockClear();
+    await composePoster(site, { piece: 'convocatoria', style: 'gala', format: 'feed', accent: null, candidateId: null, note: null, qr: false, overrides: custom }, PLACE, deps, NOW);
+    const kinds = loadPhoto.mock.calls.map((call) => (call as unknown[])[2]);
+    expect(kinds.filter((kind) => kind === 'logo')).toHaveLength(9);
+    expect(loadPhoto.mock.calls.some((call) => (call as unknown[])[0] === IMG && (call as unknown[])[2] === 'photo')).toBe(true);
+  });
 
   it('el titular y los datos reales llegan al dibujo', async () => {
     const build = await composePoster(site, { piece: 'gala', style: 'gala', format: 'feed', accent: 'rose', candidateId: null, note: null, qr: false }, PLACE, deps, NOW);
