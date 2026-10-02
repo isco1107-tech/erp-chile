@@ -28,6 +28,8 @@ import ManualAssistantWidget from '@/components/shared/ManualAssistantWidget';
 import ModuleTutorial from '@/components/tutorial/ModuleTutorial';
 import HowToUseButton from '@/components/tutorial/HowToUseButton';
 import { getOnboardingStatus } from '@/lib/services/onboarding.service';
+import { getVisibleManualSections } from '@/modules/manual/content';
+import { toManualHints } from '@/modules/manual/hints';
 import { prisma } from '@/lib/prisma';
 
 export const metadata = {
@@ -96,6 +98,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
     onboardingEligible = status.eligible;
     defaultWarehouseId = defaultWarehouse?.id ?? null;
   }
+
+  // Índice liviano del manual de ESTE usuario (módulos + permisos) para que el
+  // tutorial y el asistente enlacen la sección del manual de cada pantalla.
+  const manualHints = toManualHints(getVisibleManualSections(features, context.permissions));
 
   const displayName = context.name;
   const roleLabel = context.customRoleName ?? ROLE_LABELS[context.role];
@@ -244,8 +250,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
             autoOpen={onboardingEligible}
           />
         )}
-        <ManualAssistantWidget />
-        <ModuleTutorial userId={context.id} />
+        <ManualAssistantWidget userId={context.id} manualHints={manualHints} />
+        <ModuleTutorial userId={context.id} manualHints={manualHints} />
       </ConfirmProvider>
     </div>
   );

@@ -104,11 +104,20 @@ describe('registerMcpTools — aislamiento y permisos', () => {
     expect(result.content[0].text.length).toBeGreaterThan(0);
   });
 
-  it('registra exactamente las tools esperadas (whoami, search_manual y las 3 de datos)', () => {
+  it('registra exactamente las tools esperadas (whoami, search_manual y las 6 de datos)', () => {
     const server = fakeServer();
     registerMcpTools(server as never);
     expect([...server.handlers.keys()].sort()).toEqual(
-      ['getOverdueBalances', 'getSalesMarginSummary', 'getVatProjection', 'search_manual', 'whoami'].sort()
+      [
+        'findProducts',
+        'getContactBalance',
+        'getLowStockProducts',
+        'getOverdueBalances',
+        'getSalesMarginSummary',
+        'getVatProjection',
+        'search_manual',
+        'whoami',
+      ].sort()
     );
   });
 });

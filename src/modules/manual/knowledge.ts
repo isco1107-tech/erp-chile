@@ -1,27 +1,25 @@
-import type { CompanyFeatureFlags, FeatureKey } from '@/lib/auth/modules';
-import type { Permission } from '@/lib/auth/permissions';
-import type { ManualSection } from './content';
+import { MODULE_KEYS, type CompanyFeatureFlags, type FeatureKey } from '@/lib/auth/modules';
+import { ALL_PERMISSIONS, type Permission } from '@/lib/auth/permissions';
+import { buildAvailableWorkspaceNav } from '@/lib/navigation/workspace-nav';
+import type { ManualSection } from './types';
 
 /**
  * Conocimiento del asistente que NO es "pasos de un módulo" y por eso no vive
- * en `content.ts` (que además se renderiza e imprime en `/dashboard/manual`):
+ * en `content.ts`:
  *
- * - `NAVIGATION_MAP`: dónde queda cada pantalla. Es lo que le permite al
- *   asistente responder algo útil ("está en Finanzas → Cuentas por Cobrar")
- *   incluso cuando la pregunta no calza con ningún tema del manual, en vez de
- *   contestar "no tengo información" y dejar al usuario sin nada.
+ * - Mapa de pantallas: dónde queda cada pantalla y para qué sirve. Es lo que
+ *   le permite al asistente orientar ("está en Finanzas → Cobranza") aunque
+ *   la pregunta no calce con ningún tema del manual. Se DERIVA del menú real
+ *   (`buildAvailableWorkspaceNav`), así que nunca menciona una pantalla que
+ *   el usuario no ve en su propio menú, ni se desfasa cuando se agrega una:
+ *   `SCREEN_PURPOSES` solo aporta el "para qué sirve" (un test exige que cada
+ *   ítem del menú tenga el suyo).
  * - `WORKFLOWS`: recetas que cruzan varios módulos (cotizar → vender →
- *   cobrar, cierre de mes, puesta en marcha). El manual documenta cada módulo
- *   por separado; la pregunta real de un usuario casi siempre cruza dos o tres.
- * - `TROUBLESHOOTING`: síntoma → causa probable → qué hacer, para las trabas
- *   que se explican por una regla de negocio del sistema (stock negativo,
- *   permisos, documentos en borrador) y no por un error.
- * - `GLOSSARY`: vocabulario tributario chileno, para que el asistente pueda
- *   explicar QUÉ es un PMP o un remanente de crédito fiscal sin inventar.
- *
- * Todo se filtra por módulos contratados y permisos del usuario con el mismo
- * criterio que el sidebar (`src/app/(dashboard)/layout.tsx`), así el prompt
- * nunca menciona una pantalla que esa persona no puede abrir.
+ *   cobrar, cierre de mes, puesta en marcha).
+ * - `TROUBLESHOOTING`: síntoma → causa → qué hacer, para las trabas que se
+ *   explican por una regla de negocio y no por un error.
+ * - `GLOSSARY`: vocabulario tributario y del sistema, para explicar QUÉ es
+ *   algo sin inventar.
  */
 
 interface Gated {
@@ -29,12 +27,7 @@ interface Gated {
   requires?: FeatureKey;
   /** Permiso que el usuario debe tener. Sin esto, disponible para todo rol. */
   permission?: Permission;
-  /**
-   * Basta con tener UNO de estos permisos. Para las pantallas que el sidebar
-   * muestra con un OR (Configuración aparece si tienes cualquiera de sus
-   * secciones); sin esto no habría forma de replicar ese gate y el asistente
-   * mandaría al usuario a un enlace que él no ve en su propio menú.
-   */
+  /** Basta con tener UNO de estos permisos. */
   anyOfPermissions?: Permission[];
 }
 
@@ -47,80 +40,154 @@ export interface NavigationEntry extends Gated {
   purpose: string;
 }
 
+/** Para qué sirve cada ítem del menú lateral, por su `id` estable de `workspace-nav.ts`. */
+export const SCREEN_PURPOSES: Record<string, string> = {
+  home: 'Resumen del negocio al entrar: ventas, compras, IVA, stock crítico y accesos rápidos.',
+  pos: 'Vender en mostrador: abrir la caja, cobrar con boleta y cerrar el turno con arqueo.',
+  messaging: 'Chat interno cifrado con el equipo de la empresa.',
+  intelligence: 'Salud de la empresa, señales de alerta, clientes RFM, productos ABC y simulador de decisiones.',
+  'intelligence-cash': 'Saldo de caja proyectado semana a semana con todos los compromisos con fecha.',
+  'intelligence-flows': 'De cotización a cobro y de compra a pago, con tiempos y cuellos de botella.',
+  agents: 'Recomendaciones de los agentes ejecutivos (CEO, CFO, COO, Ventas) sobre tus datos reales.',
+  products: 'Crear y editar productos, precios, códigos de barras, categorías, empaques y si son exentos de IVA.',
+  inventory: 'Existencias por bodega, Kardex de cada producto, ajustes de stock y transferencias.',
+  'inventory-counts': 'Toma de inventario: contar la bodega (a mano o con lector) y ajustar el stock a lo contado.',
+  'inventory-lots': 'Saldo por lote y fechas de vencimiento; las salidas consumen primero lo que vence antes.',
+  'inventory-labels': 'Imprimir etiquetas con código de barras en hoja A4 o rollo.',
+  crm: 'Embudo de negocios por etapa (auspicios, eventos, entradas corporativas…), con pronóstico ponderado.',
+  'crm-tasks': 'Agenda comercial: llamadas, reuniones y seguimientos vencidos, de hoy y próximos.',
+  'crm-people': 'Personas detrás de cada marca (gerentes de marketing, agencias) con sus negocios.',
+  'crm-reports': 'Pronóstico por mes y rendimiento por tipo de negocio, certamen, origen y responsable.',
+  sales: 'Emitir facturas, boletas, guías, notas de crédito/débito y cotizaciones; anular y duplicar documentos.',
+  'sales-orders': 'Notas de venta (pedidos): reservan stock y se facturan o despachan por partes.',
+  'price-lists': 'Listas de precios por tipo de cliente y por volumen, asignables a cada cliente.',
+  'sales-commissions': 'Comisión de cada vendedor según su venta neta del mes y su tasa.',
+  contacts: 'Ficha de clientes y proveedores: RUT, contacto, crédito, lista de precios, datos bancarios y portal del cliente.',
+  'customer-care': 'Canal de origen de clientes, encuestas de satisfacción (CSAT y NPS) y seguimiento de clientes inactivos.',
+  'invoice-archive': 'Archivo de facturas de proveedores con su foto o PDF e histórico por proveedor.',
+  purchases: 'Registrar facturas de proveedores, aprobar compras y anularlas.',
+  'purchase-requests': 'Solicitudes de compra del equipo, aprobación, comparativo de cotizaciones y generación de órdenes de compra.',
+  'purchase-orders': 'Órdenes de compra a proveedores, recepción de mercadería por entregas y facturación de lo recibido.',
+  'purchases-imports': 'Carpetas de importación: FOB y costos hasta bodega repartidos para ingresar la mercadería a su costo real.',
+  'purchases-inbox': 'DTE recibidos de proveedores: cargar el XML, verificar el timbre, aceptar o reclamar y pasarlos a Compras.',
+  manufacturing: 'Órdenes de producción que consumen insumos y dejan el producto terminado a su costo real.',
+  'manufacturing-boms': 'Recetas (lista de materiales): qué insumos y cuánto lleva cada producto que fabricas.',
+  'service-desk': 'Servicio técnico: recepción de equipos, diagnóstico, presupuesto aprobado por el cliente, reparación, entrega y cobro.',
+  quality: 'Procedimientos con acuse de lectura, inspecciones de calidad por plantilla y ficha de productores.',
+  tasks: 'Tareas del equipo con responsable y repetición, y reglas de delegación de decisiones.',
+  'web-sites': 'Crear y publicar sitios web (guiado o HTML propio), dominio propio y mensajes del formulario de contacto.',
+  'treasury-cxc': 'Cuentas por cobrar: qué te deben los clientes, lo vencido, registrar cobros y enviar recordatorios.',
+  'treasury-cxp': 'Cuentas por pagar: qué le debes a tus proveedores, lo que vence pronto y registrar pagos.',
+  'treasury-cashflow': 'Ingresos y egresos reales del período por medio de pago, exportables a CSV.',
+  'treasury-collections': 'Cobranza: antigüedad de la deuda por cliente, gestiones, promesas de pago y recordatorios automáticos.',
+  'treasury-banks': 'Cuentas bancarias y conciliación de la cartola con tus cobros y pagos.',
+  'treasury-cheques': 'Cartera de cheques recibidos y girados: depositar, cobrar o protestar.',
+  'treasury-payment-batches': 'Nóminas de pago a proveedores: archivo para el banco y registro del pago de cada factura.',
+  reports: 'Excel del período con libro de ventas y compras, Kardex valorizado, márgenes y pagos.',
+  'reports-f29': 'F29 del mes: IVA débito y crédito, remanente, PPM, retenciones e impuesto determinado.',
+  'reports-rcv': 'Cuadrar el Registro de Compras y Ventas del SII con tus documentos antes de declarar.',
+  budgets: 'Presupuesto del período por categoría y su desviación.',
+  expenses: 'Rendición de gastos: rendir boletas, aprobarlas y registrar su reembolso.',
+  'fixed-assets': 'Bienes de uso con depreciación, valor libro, mantenciones, etiquetas y bajas.',
+  'promissory-notes': 'Pagarés firmados, su vencimiento y los abonos recibidos.',
+  'payment-plans': 'Planes de pago en cuotas, cobro de cada cuota, multas, recordatorios y pago en línea.',
+  fees: 'Boletas de honorarios con su retención de 2ª categoría.',
+  'financial-statements': 'Balance general, estado de resultados y flujo de efectivo desde los asientos contables.',
+  'accounting-journal': 'Libro Diario: todos los asientos del período con su documento de origen.',
+  'accounting-ledger': 'Libro Mayor: movimientos y saldo acumulado de una cuenta.',
+  'accounting-trial-balance': 'Balance de comprobación de 8 columnas al cierre del período.',
+  'accounting-reconciliation': 'Cuadraturas: cada saldo contable comparado con su fuente operativa.',
+  projects: 'Certámenes y eventos con su centro de mando: checklist "¿listos para la gala?", indicadores, finanzas, sitio público y afiches.',
+  calendar: 'Calendario de certámenes, galas y cumpleaños, sincronizado con Google Calendar.',
+  sponsorships: 'Contratos de auspicio en efectivo o canje, entregables con evidencia, pagos y portal de la marca.',
+  'sponsorships-packages': 'Tarifario de planes de auspicio con precio, cupos y beneficios, por certamen.',
+  'sponsorships-compliance': 'Qué entregables de auspicio están pendientes, por marca.',
+  'sponsorships-template': 'Texto de la carta de compromiso de auspicio.',
+  candidates: 'Fichas de candidatas y staff, convocatoria con postulación pública, documentos, fotos y contrato de imagen.',
+  'candidates-casting': 'Tablero de casting: mover fichas entre etapas, numerar oficiales y definir su presentación pública.',
+  'candidates-attendance': 'Asistencia por sesión a talleres, ensayos y eventos.',
+  'candidates-compliance': 'Asistencia, pagos y documentos de cada candidata en un tablero.',
+  'candidates-template': 'Texto del contrato de imagen que se envía a firmar.',
+  contracts: 'Checklist de contratos de imagen y cartas de compromiso firmados y pendientes, de todos los certámenes.',
+  'production-timeline': 'Escaleta minuto a minuto, modo show en vivo con atraso acumulado e impresión para cabina.',
+  'production-wardrobe': 'Looks por candidata y bloque: pruebas, entregas, devoluciones y valor declarado.',
+  'production-accreditation': 'Credenciales con QR para staff y proveedores, diseño de credencial y check-in.',
+  judging: 'Rondas, criterios ponderados, enlaces de jurado, votación en vivo, escrutinio y acta.',
+  ticketing: 'Tipos de entrada, confirmación de pagos y control de acceso con QR.',
+  voting: 'Votación pagada del público: confirmación de pagos y ranking en vivo.',
+  'hr-employees': 'Ficha de trabajadores: contrato, sueldo, previsión, préstamos, anticipos, finiquito y portal del trabajador.',
+  'hr-payroll': 'Liquidaciones del mes, libro de remuneraciones, planilla de cotizaciones y cierre del período.',
+  'hr-leave': 'Vacaciones y permisos con aprobación y saldo de feriado legal.',
+  'org-chart': 'Organigrama: cargos del equipo y quién reporta a quién.',
+  manual: 'El manual de usuario de los módulos de tu empresa, con buscador, capturas y descarga en Word.',
+  settings: 'Punto de entrada a empresa, folios, equipo, roles, módulos del menú, importación, automatizaciones y auditoría.',
+  platform: 'Panel de administración de la plataforma (solo superadministradores).',
+};
+
 /**
- * Mapa de pantallas, con las mismas condiciones de visibilidad que el menú
- * lateral. Incluye pantallas navegables que no están en el sidebar
- * (subpáginas de Configuración, F29, plantillas).
+ * Pantallas navegables que NO son un ítem del menú (subpáginas de
+ * Configuración, formularios de alta, vistas secundarias). Llevan su propio
+ * gate con el mismo criterio que la pantalla.
  */
-export const NAVIGATION_MAP: NavigationEntry[] = [
-  { label: 'Dashboard', route: '/dashboard', group: 'Principal', purpose: 'Resumen general del negocio al entrar.' },
-  { label: 'Punto de Venta', route: '/dashboard/pos', group: 'Principal', requires: 'hasPos', permission: 'pos:operate', purpose: 'Vender en mostrador, abrir y cerrar la caja del turno.' },
-  { label: 'Mensajería', route: '/dashboard/messaging', group: 'Principal', permission: 'messaging:use', purpose: 'Chat interno cifrado con el equipo de la empresa.' },
-  { label: 'Radiografía 360', route: '/dashboard/intelligence', group: 'Inteligencia de Negocio', requires: 'hasIntelligence', permission: 'intelligence:view', purpose: 'Salud de la empresa, señales, clientes RFM, productos ABC, simulador y calendario tributario.' },
-  { label: 'Caja a 13 semanas', route: '/dashboard/intelligence/cash-forecast', group: 'Inteligencia de Negocio', requires: 'hasIntelligence', permission: 'intelligence:view', purpose: 'Saldo de caja proyectado semana a semana con todos los compromisos con fecha.' },
-  { label: 'Flujos del negocio', route: '/dashboard/intelligence/flows', group: 'Inteligencia de Negocio', requires: 'hasIntelligence', permission: 'intelligence:view', purpose: 'De cotización a cobro y de compra a pago, con tiempos y cuellos de botella.' },
-  { label: 'Catálogo de Productos', route: '/dashboard/products', group: 'Inventario', requires: 'hasInventory', permission: 'products:read', purpose: 'Crear y editar productos, precios y categorías.' },
-  { label: 'Inventario', route: '/dashboard/inventory', group: 'Inventario', requires: 'hasInventory', permission: 'products:read', purpose: 'Existencias por bodega, Kardex por producto y stock valorizado.' },
-  { label: 'Embudo de negocios', route: '/dashboard/crm', group: 'CRM Comercial', requires: 'hasSalesPipeline', permission: 'crm:read', purpose: 'Negocios por etapa (auspicios, eventos, entradas corporativas, presentaciones), arrastrables entre etapas, con pronóstico ponderado. Un auspicio ganado se convierte en contrato con un clic.' },
+const EXTRA_SCREENS: (NavigationEntry & Gated)[] = [
+  { label: 'Nueva venta', route: '/dashboard/sales/new', group: 'Ventas', requires: 'hasDteBilling', permission: 'sales:write', purpose: 'Formulario para emitir una factura, boleta, guía, nota o cotización.' },
+  { label: 'Nueva factura de proveedor', route: '/dashboard/purchases/new', group: 'Compras', requires: 'hasPurchases', permission: 'purchases:write', purpose: 'Formulario para registrar una factura o nota de un proveedor.' },
   { label: 'Lista de oportunidades', route: '/dashboard/crm/list', group: 'CRM Comercial', requires: 'hasSalesPipeline', permission: 'crm:read', purpose: 'Todos los negocios en tabla, ordenables, con alertas de riesgo y exportación a Excel.' },
-  { label: 'Agenda comercial', route: '/dashboard/crm/tasks', group: 'CRM Comercial', requires: 'hasSalesPipeline', permission: 'crm:read', purpose: 'Llamadas, reuniones y tareas de seguimiento agrupadas en vencidas, hoy, mañana y próximos días.' },
-  { label: 'Contactos comerciales', route: '/dashboard/crm/people', group: 'CRM Comercial', requires: 'hasSalesPipeline', permission: 'crm:read', purpose: 'Personas detrás de cada marca (gerentes de marketing, agencias) con sus negocios.' },
-  { label: 'Reportes comerciales', route: '/dashboard/crm/reports', group: 'CRM Comercial', requires: 'hasSalesPipeline', permission: 'crm:read', purpose: 'Pronóstico por mes y rendimiento por tipo de negocio, certamen, origen y responsable.' },
-  { label: 'Ventas & Facturación', route: '/dashboard/sales', group: 'Ventas', requires: 'hasDteBilling', permission: 'sales:read', purpose: 'Emitir boletas, facturas, notas de crédito y cotizaciones.' },
-  { label: 'Nueva venta', route: '/dashboard/sales/new', group: 'Ventas', requires: 'hasDteBilling', permission: 'sales:write', purpose: 'Formulario para emitir un documento de venta nuevo.' },
-  { label: 'Clientes & Proveedores', route: '/dashboard/contacts', group: 'Ventas', permission: 'contacts:read', purpose: 'Ficha de cada cliente y proveedor, con RUT, contacto y límite de crédito.' },
-  { label: 'Compras', route: '/dashboard/purchases', group: 'Compras', requires: 'hasPurchases', permission: 'purchases:read', purpose: 'Facturas de proveedor, recepción de mercadería y costeo.' },
-  { label: 'Órdenes de compra', route: '/dashboard/purchases/orders', group: 'Compras', requires: 'hasPurchases', permission: 'purchases:orders', purpose: 'Pedidos a proveedor antes de que llegue la mercadería.' },
-  { label: 'Cuentas por Cobrar', route: '/dashboard/treasury/cxc', group: 'Finanzas', requires: 'hasTreasury', permission: 'treasury:read', purpose: 'Qué te deben los clientes y qué está vencido.' },
-  { label: 'Cuentas por Pagar', route: '/dashboard/treasury/cxp', group: 'Finanzas', requires: 'hasTreasury', permission: 'treasury:read', purpose: 'Qué le debes a tus proveedores y cuándo vence.' },
-  { label: 'Flujo de Caja', route: '/dashboard/treasury/cashflow', group: 'Finanzas', requires: 'hasTreasury', permission: 'treasury:read', purpose: 'Proyección de entradas y salidas de dinero.' },
-  { label: 'Reportes Excel', route: '/dashboard/reports', group: 'Finanzas', requires: 'hasAdvancedReports', permission: 'reports:read', purpose: 'Libro de ventas y compras, Kardex valorizado y márgenes, en Excel.' },
-  { label: 'Formulario 29 (F29)', route: '/dashboard/reports/f29', group: 'Finanzas', requires: 'hasAdvancedReports', permission: 'reports:read', purpose: 'IVA débito, crédito, remanente, PPM e impuesto determinado del mes.' },
-  { label: 'Presupuestos', route: '/dashboard/budgets', group: 'Finanzas', requires: 'hasBudgets', permission: 'budgets:read', purpose: 'Presupuesto del período y comparación contra lo real.' },
-  { label: 'Rendición de Gastos', route: '/dashboard/expenses', group: 'Finanzas', requires: 'hasExpenseReports', permission: 'expenses:submit', purpose: 'Rendir boletas, aprobarlas y registrar su reembolso.' },
-  { label: 'Activo Fijo', route: '/dashboard/fixed-assets', group: 'Finanzas', requires: 'hasFixedAssets', permission: 'assets:read', purpose: 'Bienes de uso con su depreciación y valor libro.' },
-  { label: 'Pagarés', route: '/dashboard/promissory-notes', group: 'Finanzas', requires: 'hasPromissoryNotes', permission: 'promissorynotes:read', purpose: 'Pagarés firmados y su estado de cobro.' },
-  { label: 'Cuotas & Mensualidades', route: '/dashboard/payment-plans', group: 'Finanzas', requires: 'hasInstallmentPlans', permission: 'paymentplans:read', purpose: 'Planes de pago en cuotas y registro de cada cuota pagada.' },
-  { label: 'Estados Financieros', route: '/dashboard/financial-statements', group: 'Contabilidad', requires: 'hasAccounting', permission: 'reports:financial', purpose: 'Balance, estado de resultados y asientos contables.' },
-  { label: 'Agentes', route: '/dashboard/agents', group: 'Inteligencia de Negocio', requires: 'hasCrm', permission: 'agents:view', purpose: 'Recomendaciones automáticas de los agentes sobre tus datos reales.' },
-  { label: 'Certámenes & Eventos', route: '/dashboard/projects', group: 'Producción de Eventos', requires: 'hasEventProjects', permission: 'projects:read', purpose: 'Cada certamen con su centro de mando: checklist "¿listos para la gala?", indicadores de candidatas, auspicios, entradas, votación, jurado y escaleta, finanzas y enlaces públicos. Desde ahí se configura el sitio público del certamen.' },
-  { label: 'Calendario & Google Sync', route: '/dashboard/calendar', group: 'Producción de Eventos', requires: 'hasEventProjects', permission: 'projects:read', purpose: 'Sincronizar hitos y cumpleaños con Google Calendar.' },
-  { label: 'Auspicios & Marcas', route: '/dashboard/sponsorships', group: 'Producción de Eventos', requires: 'hasSponsorships', permission: 'sponsorships:read', purpose: 'Contratos de auspicio, montos y entregables comprometidos.' },
-  { label: 'Tarifario de Auspicios', route: '/dashboard/sponsorships/packages', group: 'Producción de Eventos', requires: 'hasSponsorships', permission: 'sponsorships:read', purpose: 'Planes de auspicio por certamen con precio, cupos y beneficios; se usan en el CRM y en el sitio público.' },
-  { label: 'Cumplimiento de Auspicios', route: '/dashboard/sponsorships/compliance', group: 'Plantillas y Cumplimiento', requires: 'hasSponsorships', permission: 'sponsorships:read', purpose: 'Tablero de qué entregables de auspicio están pendientes.' },
-  { label: 'Plantilla: Carta de Compromiso', route: '/dashboard/sponsorships/template', group: 'Plantillas y Cumplimiento', requires: 'hasSponsorships', permission: 'sponsorships:write', purpose: 'Editar el texto de la carta de compromiso de auspicio.' },
-  { label: 'Boletas de Honorarios', route: '/dashboard/fees', group: 'Producción de Eventos', requires: 'hasFeeDocuments', permission: 'fees:read', purpose: 'Registrar boletas de honorarios y su retención.' },
-  { label: 'Candidatas & Staff', route: '/dashboard/candidates', group: 'Producción de Eventos', requires: 'hasCandidates', permission: 'candidates:read', purpose: 'Fichas, contratos y postulaciones de candidatas y staff.' },
-  { label: 'Tablero de casting', route: '/dashboard/candidates/casting', group: 'Producción de Eventos', requires: 'hasCandidates', permission: 'candidates:read', purpose: 'Kanban de postulante a ganadora: mover fichas entre etapas, numerar oficiales y definir su presentación pública (número, a quién representan, bio del sitio).' },
-  { label: 'Asistencia', route: '/dashboard/candidates/attendance', group: 'Producción de Eventos', requires: 'hasCandidates', permission: 'candidates:read', purpose: 'Pasar asistencia por sesión a talleres, ensayos y eventos.' },
-  { label: 'Cumplimiento de Candidatas', route: '/dashboard/candidates/compliance', group: 'Plantillas y Cumplimiento', requires: 'hasCandidates', permission: 'candidates:read', purpose: 'Tablero de asistencia, pagos y documentos por candidata.' },
-  { label: 'Plantilla: Contrato de Imagen', route: '/dashboard/candidates/template', group: 'Plantillas y Cumplimiento', requires: 'hasCandidates', permission: 'candidates:write', purpose: 'Editar el texto del contrato de imagen que se envía a firmar.' },
-  { label: 'Acreditaciones', route: '/dashboard/production/accreditation', group: 'Producción de Eventos', requires: 'hasLiveProduction', permission: 'production:read', purpose: 'Acreditar staff y proveedores para el día del evento.' },
-  { label: 'Escaleta en vivo', route: '/dashboard/production/timeline', group: 'Producción de Eventos', requires: 'hasLiveProduction', permission: 'production:read', purpose: 'Bloques del show con segmento, candidata, pies técnicos y looks; modo show a pantalla completa con cuenta regresiva y atraso acumulado; impresión para cabina.' },
-  { label: 'Vestuario', route: '/dashboard/production/wardrobe', group: 'Producción de Eventos', requires: 'hasLiveProduction', permission: 'production:read', purpose: 'Looks por candidata y por bloque, pruebas, entregas, devoluciones y valor declarado; genera el plan de looks desde la escaleta.' },
-  { label: 'Votación & Escrutinio', route: '/dashboard/judging', group: 'Producción de Eventos', requires: 'hasJudging', permission: 'judging:read', purpose: 'Categorías de evaluación, notas del jurado y escrutinio.' },
-  { label: 'Venta de Entradas', route: '/dashboard/ticketing', group: 'Producción de Eventos', requires: 'hasTicketing', permission: 'ticketing:read', purpose: 'Tipos de entrada, cupos y ventas del evento.' },
-  { label: 'Votación Pagada', route: '/dashboard/voting', group: 'Producción de Eventos', requires: 'hasPublicVoting', permission: 'publicvoting:read', purpose: 'Link público donde el público paga por votar, y su ranking.' },
-  { label: 'Trabajadores', route: '/dashboard/hr', group: 'Personas & Equipo', requires: 'hasPayroll', permission: 'payroll:read', purpose: 'Ficha de cada trabajador: contrato, sueldo, AFP y salud.' },
-  { label: 'Remuneraciones', route: '/dashboard/hr/payroll', group: 'Personas & Equipo', requires: 'hasPayroll', permission: 'payroll:read', purpose: 'Liquidaciones del mes, libro de remuneraciones y cierre del período.' },
-  { label: 'Vacaciones & Permisos', route: '/dashboard/hr/leave', group: 'Personas & Equipo', requires: 'hasPayroll', permission: 'payroll:read', purpose: 'Solicitudes con aprobación y saldo de feriado legal de cada trabajador.' },
-  { label: 'Organigrama', route: '/dashboard/org-chart', group: 'Personas & Equipo', requires: 'hasOrgChart', permission: 'orgchart:read', purpose: 'Estructura del equipo y quién reporta a quién.' },
-  { label: 'Sitios web', route: '/dashboard/web-sites', group: 'Sitios web', requires: 'hasWebSites', permission: 'websites:read', purpose: 'Crear sitios para tu empresa o para un cliente: guiado por secciones (con lista de qué le falta) o con HTML propio; imágenes, publicación en una dirección de la plataforma o dominio propio y bandeja de mensajes del formulario de contacto.' },
-  { label: 'Fidelización', route: '/dashboard/customer-care', group: 'Ventas', requires: 'hasCustomerCare', permission: 'customercare:read', purpose: 'Canal de origen de cada cliente, encuestas de satisfacción (CSAT y NPS) por enlace y seguimiento de clientes que dejaron de comprar.' },
-  { label: 'Calidad y procedimientos', route: '/dashboard/quality', group: 'Operaciones', requires: 'hasQuality', permission: 'quality:read', purpose: 'Procedimientos con acuse de lectura del equipo, inspecciones de calidad por plantilla y ficha con desempeño de productores y proveedores.' },
-  { label: 'Tareas y delegación', route: '/dashboard/tasks', group: 'Operaciones', requires: 'hasTeamTasks', permission: 'tasks:read', purpose: 'Tareas del equipo con repetición semanal o mensual y reglas escritas de qué decisiones puede tomar cada persona y hasta qué monto.' },
-  { label: 'Manual de Usuario', route: '/dashboard/manual', group: 'Ayuda', purpose: 'El manual completo, con buscador y opción de imprimir.' },
-  { label: 'Configuración', route: '/dashboard/settings', group: 'Configuración', anyOfPermissions: ['settings:company', 'settings:users', 'audit:read'], purpose: 'Punto de entrada a empresa, equipo, roles, seguridad e importación.' },
+  { label: 'Nuevo certamen', route: '/dashboard/projects/new', group: 'Certámenes & Eventos', requires: 'hasEventProjects', permission: 'projects:write', purpose: 'Formulario para crear un certamen o evento con fechas, presupuesto y gala.' },
+  { label: 'Recibir equipo', route: '/dashboard/service/new', group: 'Operaciones', requires: 'hasServiceDesk', permission: 'service:write', purpose: 'Registrar el ingreso de un equipo al servicio técnico.' },
+  { label: 'Tesorería & Cobranza (resumen)', route: '/dashboard/treasury', group: 'Finanzas', requires: 'hasTreasury', permission: 'treasury:read', purpose: 'Resumen de lo que entra y sale de la caja y el banco, y lo que falta por cobrar y pagar.' },
+  { label: 'Perfil de Empresa', route: '/dashboard/settings/company', group: 'Configuración', permission: 'settings:company', purpose: 'Razón social, RUT, giro, logo, parámetros tributarios (PPM, retención), stock negativo y umbral de aprobación de compras.' },
   { label: 'Módulos y Menú', route: '/dashboard/settings/modules', group: 'Configuración', permission: 'settings:company', purpose: 'Encender o apagar cada sección del menú lateral para todo el equipo.' },
-  { label: 'Datos de la Empresa', route: '/dashboard/settings/company', group: 'Configuración', permission: 'settings:company', purpose: 'Razón social, RUT, giro y parámetros tributarios (PPM, retención, stock negativo).' },
-  { label: 'Equipo / Usuarios', route: '/dashboard/settings/users', group: 'Configuración', permission: 'settings:users', purpose: 'Invitar gente, cambiar su rol y desactivar a quien ya no trabaja contigo.' },
-  { label: 'Roles Personalizados', route: '/dashboard/settings/roles', group: 'Configuración', permission: 'settings:users', purpose: 'Crear roles a medida con la lista exacta de permisos que necesitas.' },
-  { label: 'Auditoría', route: '/dashboard/settings/audit', group: 'Configuración', permission: 'audit:read', purpose: 'Registro de quién hizo qué y cuándo.' },
-  { label: 'Importación Masiva', route: '/dashboard/settings/import', group: 'Configuración', permission: 'import:data', purpose: 'Cargar productos, contactos, stock e históricos desde Excel o fotos.' },
-  { label: 'Mi Perfil', route: '/dashboard/settings/profile', group: 'Configuración', purpose: 'Tus datos de contacto y tu actividad reciente.' },
+  { label: 'Folios del SII', route: '/dashboard/settings/folios', group: 'Configuración', requires: 'hasDteBilling', permission: 'dte:manage_caf', purpose: 'Cargar los CAF del SII y ver cuántos folios quedan por tipo de documento.' },
+  { label: 'Equipo & Colaboradores', route: '/dashboard/settings/users', group: 'Configuración', permission: 'settings:users', purpose: 'Invitar personas, cambiar su rol, restablecer contraseñas y desactivar a quien ya no trabaja contigo.' },
+  { label: 'Roles Personalizados', route: '/dashboard/settings/roles', group: 'Configuración', permission: 'settings:users', purpose: 'Crear roles a medida con la lista exacta de permisos.' },
+  { label: 'Importación Masiva', route: '/dashboard/settings/import', group: 'Configuración', permission: 'import:data', purpose: 'Cargar productos, contactos, stock e históricos desde Excel, texto o fotos.' },
+  { label: 'Automatizaciones', route: '/dashboard/settings/automations', group: 'Configuración', permission: 'automation:manage', purpose: 'Reglas "cuando pase X, hacer Z": correo, aviso en la campanita o webhook.' },
+  { label: 'Auditoría & Trazabilidad', route: '/dashboard/settings/audit', group: 'Configuración', permission: 'audit:read', purpose: 'Registro de quién hizo qué y cuándo.' },
+  { label: 'Mi Perfil', route: '/dashboard/settings/profile', group: 'Configuración', purpose: 'Tus datos de contacto, tu foto y tu actividad reciente.' },
   { label: 'Seguridad', route: '/dashboard/settings/security', group: 'Configuración', purpose: 'Activar la verificación en dos pasos (2FA) de tu cuenta.' },
   { label: 'Dispositivos Activos', route: '/dashboard/settings/sessions', group: 'Configuración', purpose: 'Sesiones abiertas de tu cuenta, para cerrar las que no reconozcas.' },
 ];
+
+function isAvailable(item: Gated, features: CompanyFeatureFlags, permissions: readonly Permission[]): boolean {
+  if (item.requires && !features[item.requires]) return false;
+  if (item.permission && !permissions.includes(item.permission)) return false;
+  if (item.anyOfPermissions && !item.anyOfPermissions.some((permission) => permissions.includes(permission))) return false;
+  return true;
+}
+
+/** Pantallas que este usuario en particular puede abrir de verdad: su menú lateral más las subpantallas a las que tiene acceso. */
+export function getVisibleNavigation(features: CompanyFeatureFlags, permissions: readonly Permission[]): NavigationEntry[] {
+  const fromMenu = buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin: false }).flatMap((group) =>
+    group.links.map((link) => ({
+      label: link.label,
+      route: link.href,
+      group: group.label,
+      purpose: SCREEN_PURPOSES[link.id] ?? link.label,
+    }))
+  );
+  const menuRoutes = new Set(fromMenu.map((entry) => entry.route));
+  const extras = EXTRA_SCREENS.filter((entry) => !menuRoutes.has(entry.route) && isAvailable(entry, features, permissions));
+  return [...fromMenu, ...extras];
+}
+
+const ALL_FEATURES = Object.fromEntries(MODULE_KEYS.map((key) => [key, true])) as CompanyFeatureFlags;
+
+/** El mapa completo (todo contratado, todos los permisos). */
+export const NAVIGATION_MAP: NavigationEntry[] = getVisibleNavigation(ALL_FEATURES, ALL_PERMISSIONS);
+
+/**
+ * Pantalla en la que está parado el usuario, para que el asistente pueda
+ * responder "en esta pantalla..." sin que se lo expliquen. Elige la ruta más
+ * específica que sea prefijo del path actual.
+ */
+export function describeCurrentScreen(path: string): NavigationEntry | null {
+  const matches = NAVIGATION_MAP.filter((entry) =>
+    entry.route === '/dashboard' ? path === '/dashboard' : path === entry.route || path.startsWith(`${entry.route}/`)
+  );
+  if (matches.length === 0) return null;
+  return matches.reduce((best, entry) => (entry.route.length > best.route.length ? entry : best));
+}
 
 export interface Workflow extends Gated {
   title: string;
@@ -129,16 +196,18 @@ export interface Workflow extends Gated {
   steps: string[];
 }
 
-/** Recetas end-to-end que cruzan módulos — el manual documenta cada módulo por separado. */
+/** Recetas de punta a punta que cruzan módulos — el manual documenta cada módulo por separado. */
 export const WORKFLOWS: Workflow[] = [
   {
     title: 'Puesta en marcha: dejar el sistema listo para operar',
     steps: [
-      'Completa los datos de tu empresa en Configuración → Datos de la Empresa (razón social, RUT, giro y los parámetros tributarios).',
-      'Invita a tu equipo en Configuración → Equipo y asígnale a cada uno su rol; si ningún rol base calza, crea uno a medida en Roles Personalizados.',
-      'Carga tu catálogo y tu cartera de clientes/proveedores con Configuración → Importación Masiva, en vez de crearlos uno por uno.',
-      'Carga el stock inicial de cada producto (también desde Importación Masiva, o con un ajuste de inventario).',
-      'Recién ahí empieza a emitir documentos: si vendes antes de cargar el stock, el Kardex parte descuadrado.',
+      'Completa los datos de tu empresa en Configuración → Perfil de Empresa (razón social, RUT, giro, logo y parámetros tributarios).',
+      'Si emites documentos tributarios, carga tus folios del SII (CAF) en Configuración → Folios del SII.',
+      'Invita a tu equipo en Configuración → Equipo & Colaboradores con su rol; si ningún rol calza, crea uno en Roles Personalizados.',
+      'Carga tu catálogo y tu cartera de clientes y proveedores con Configuración → Importación Masiva, en vez de crearlos uno por uno.',
+      'Carga el stock inicial de cada producto (Importación Masiva → stock inicial, o un ajuste de inventario).',
+      'Recién entonces empieza a vender: si vendes antes de cargar el stock, el Kardex parte descuadrado.',
+      'Apaga en Configuración → Módulos y Menú las secciones que tu equipo no usará, para que el menú quede simple.',
     ],
   },
   {
@@ -146,69 +215,123 @@ export const WORKFLOWS: Workflow[] = [
     requires: 'hasDteBilling',
     alsoRequires: ['hasTreasury'],
     steps: [
-      'Crea la cotización en Ventas y envíasela al cliente.',
-      'Cuando la acepte, conviértela en el documento de venta (boleta o factura) desde la misma cotización, para no volver a tipear las líneas.',
-      'Si es a crédito, indica la condición de pago al emitir: el documento genera solo la cuenta por cobrar.',
-      'El saldo aparece en Finanzas → Cuentas por Cobrar, donde registras los pagos, totales o parciales.',
-      'Si el cliente no paga, filtra Cuentas por Cobrar por vencidas y usa el recordatorio de cobranza.',
-      'Si hay que anular o corregir el documento, se hace con una nota de crédito, nunca borrando el original.',
+      'Crea la cotización en Ventas → Nueva Venta (tipo Cotización) y envíasela al cliente.',
+      'Cuando la acepte, ábrela y usa "Convertir en nota de venta"; desde la nota emite la factura (o la boleta) sin volver a tipear las líneas.',
+      'Elige "Crédito 30 días" como forma de pago: la factura queda en Finanzas → Cuentas por Cobrar.',
+      'Si el cliente se atrasa, regístralo en Finanzas → Cobranza (gestiones, promesas y recordatorios automáticos).',
+      'Cuando pague, usa "Registrar pago" en Cuentas por Cobrar indicando la cuenta bancaria, para que se concilie sola con la cartola.',
+      'Si hay que corregir la factura, se hace con una nota de crédito, nunca borrándola.',
     ],
   },
   {
-    title: 'Ciclo completo de una compra, del pedido al pago',
+    title: 'Pedido con despacho por partes',
+    requires: 'hasDteBilling',
+    steps: [
+      'Registra el pedido en Ventas → Notas de venta: el stock queda reservado.',
+      'En cada entrega, abre la nota y usa "Guía de despacho" (o "Facturar") con solo lo que sale ese día.',
+      'Cuando se formaliza, factura las guías desde la misma nota: la factura no vuelve a descontar stock.',
+      'La nota muestra por producto lo pedido, despachado y facturado, y se concluye sola al completarse.',
+    ],
+  },
+  {
+    title: 'Compra completa: de la necesidad al pago',
     requires: 'hasPurchases',
     steps: [
-      'Si el proveedor lo pide, emite primero una orden de compra en Compras → Órdenes de compra.',
-      'Cuando llega la mercadería, registra la factura del proveedor y recepciona las cantidades reales que llegaron, no las pedidas.',
-      'La recepción actualiza el stock y recalcula el costo PMP de cada producto automáticamente.',
-      'Si tu empresa exige aprobación, la compra queda pendiente hasta que alguien con ese permiso la apruebe.',
-      'El saldo por pagar aparece en Finanzas → Cuentas por Pagar, donde después registras el pago.',
+      'Quien necesita algo lo pide en Compras → Solicitudes de compra; su jefatura la aprueba.',
+      'Agrega las cotizaciones de varios proveedores, adjudica al mejor precio y genera las órdenes de compra.',
+      'Cuando llega la mercadería, registra la recepción en la orden con las cantidades reales (el stock sube y el PMP se recalcula).',
+      'Con la factura del proveedor, usa "Facturar" en la orden (o regístrala desde DTE recibidos).',
+      'Si supera el umbral de aprobación, queda pendiente hasta que alguien con permiso la apruebe.',
+      'Págala en Finanzas → Cuentas por Pagar o, si son varias, con una Nómina de pago.',
     ],
   },
   {
     title: 'Cierre de mes: qué revisar antes de declarar',
     requires: 'hasAdvancedReports',
     steps: [
-      'Verifica que no queden documentos de venta en borrador del mes: si no están emitidos, no entran al F29.',
-      'Registra todas las compras del mes; una factura de proveedor sin registrar es crédito fiscal que pierdes.',
-      'Cuadra la caja del POS: todos los turnos del mes deben estar cerrados con su arqueo.',
-      'Revisa Cuentas por Cobrar y por Pagar para detectar saldos mal registrados.',
-      'Abre Finanzas → Formulario 29 (F29) y revisa débito, crédito, remanente y PPM del período.',
-      'Descarga el libro de ventas y compras en Reportes Excel y mándaselo a tu contador junto con el F29.',
+      'Verifica que no queden ventas en borrador del mes: si no están emitidas, no entran al F29.',
+      'Registra todas las facturas de compra del mes (DTE recibidos te ayuda a no olvidar ninguna).',
+      'Cuadra el RCV en Reportes & SII → Registro de Compras y Ventas con el archivo que bajas del SII.',
+      'Cierra todos los turnos de caja del POS del mes con su arqueo.',
+      'Concilia tus cuentas en Finanzas → Bancos y conciliación.',
+      'Si tienes Contabilidad, revisa Contabilidad → Cuadraturas: todo debe cuadrar.',
+      'Abre Reportes & SII → Formulario 29 y descarga el Excel del mes para tu contador.',
     ],
   },
   {
-    title: 'Cuadrar el inventario cuando el stock del sistema no calza con la bodega',
+    title: 'Conciliar el banco una vez al mes',
+    requires: 'hasTreasury',
+    steps: [
+      'Descarga la cartola del mes desde el portal de tu banco.',
+      'En Finanzas → Bancos y conciliación abre la cuenta, presiona "Conciliar" y sube la cartola.',
+      'Usa "Conciliar automáticamente" y resuelve lo pendiente: aceptar sugerencia, "Buscar en registros" o "Sin registro en libros".',
+      'La cuadratura debe quedar en cero; si no, revisa el saldo inicial y la fecha desde la que concilias.',
+    ],
+  },
+  {
+    title: 'Remuneraciones del mes',
+    requires: 'hasPayroll',
+    steps: [
+      'Antes de fin de mes, aprueba las vacaciones pendientes y registra anticipos y préstamos en la ficha de cada trabajador.',
+      'En Personas & Equipo → Remuneraciones abre el período y confirma UF, UTM, topes y tasas contra previred.com.',
+      'Ajusta días, horas extra, bonos y descuentos y presiona "Calcular liquidaciones".',
+      'Revisa las liquidaciones, cuadra la "Planilla de cotizaciones" con Previred y descarga el libro de remuneraciones.',
+      'Cierra el período: las liquidaciones quedan congeladas y visibles en el portal de cada trabajador.',
+    ],
+  },
+  {
+    title: 'Cuadrar el inventario cuando el stock no calza con la bodega',
     requires: 'hasInventory',
     steps: [
-      'Haz el conteo físico real de los productos que te preocupan.',
-      'Abre Inventario, filtra por la bodega correspondiente y compara con tu conteo.',
-      'Para cada diferencia, abre el Kardex del producto y busca en qué movimiento se descuadró (una venta sin descontar, una recepción cargada dos veces, un ajuste mal hecho).',
-      'Corrige con un ajuste de inventario indicando el motivo real (merma, robo, error de conteo). No edites el producto para "arreglar" el número.',
-      'Los ajustes quedan en el Kardex y en Auditoría, así que son trazables.',
+      'Abre una toma de inventario en Inventario → Toma de inventario para la bodega que te preocupa.',
+      'Cuenta con el lector o a mano y revisa el filtro "Con diferencia".',
+      'Para diferencias grandes, abre el Kardex del producto y busca el movimiento que descuadró (una venta sin descontar, una recepción duplicada).',
+      'Contabiliza la toma: el stock se ajusta a lo contado y queda trazado en el Kardex y en Auditoría.',
+    ],
+  },
+  {
+    title: 'Reparar un equipo de punta a punta',
+    requires: 'hasServiceDesk',
+    steps: [
+      'Recibe el equipo en Operaciones → Servicio técnico → "Recibir equipo" y entrega el comprobante con el enlace de seguimiento.',
+      'Diagnostica, arma el presupuesto (repuestos y mano de obra) y envíalo al cliente: lo aprueba desde su enlace.',
+      'Repara y márcalo "Listo para retiro" (el cliente lo ve en su enlace).',
+      'Genera la nota de venta del cobro, emite la boleta o factura y entrega el equipo.',
+    ],
+  },
+  {
+    title: 'Fabricar un producto y conocer su costo real',
+    requires: 'hasProduction',
+    steps: [
+      'Crea los insumos y el producto terminado en el Catálogo de Productos.',
+      'Arma su receta en Operaciones → Recetas.',
+      'Crea una orden en Operaciones → Producción, iníciala y, al terminar, registra el consumo real y la mano de obra.',
+      'El producto entra a bodega con su costo unitario real y ya puedes venderlo con margen correcto.',
     ],
   },
   {
     title: 'Alguien nuevo entra al equipo (o alguien se va)',
     permission: 'settings:users',
     steps: [
-      'Entra: invítalo en Configuración → Equipo con su correo y su rol. Recibe un correo con un link para poner su contraseña.',
-      'Si ningún rol base calza con lo que tiene que hacer, crea un rol personalizado con los permisos exactos y asígnaselo.',
-      'Se va: desactívalo en Configuración → Equipo. No lo elimines: sus documentos y su rastro en Auditoría tienen que seguir existiendo.',
+      'Entra: en Configuración → Equipo & Colaboradores usa "+ Agregar Colaborador" con su correo y su rol.',
+      'Si ningún rol base calza, crea un rol personalizado con los permisos exactos y asígnaselo.',
+      'Se va: desactívalo en la misma pantalla. No lo elimines: sus documentos y su rastro en Auditoría deben seguir existiendo.',
       'Desactivar corta el acceso de inmediato, no cuando expire su sesión.',
     ],
   },
   {
-    title: 'Montar un certamen o evento de principio a fin',
+    title: 'Montar un certamen de principio a fin',
     requires: 'hasEventProjects',
     steps: [
-      'Crea el proyecto/certamen con sus fechas y su presupuesto.',
-      'Carga las candidatas o el staff y envíales el contrato a firmar por correo.',
-      'Registra los auspicios y sus entregables comprometidos, y usa el tablero de cumplimiento para no dejar ninguno afuera.',
-      'Configura las entradas y, si corresponde, la votación pagada del público.',
-      'Durante el proceso, pasa asistencia por sesión a talleres y ensayos, y cobra las cuotas con los planes de pago.',
-      'El día del evento, acredita staff y proveedores desde Acreditaciones, y usa Votación & Escrutinio para las notas del jurado.',
-      'Al final, revisa la rentabilidad del proyecto: ingresos por auspicios y entradas contra los costos cargados.',
+      'Crea el certamen en Certámenes & Eventos con su fecha de gala, recinto y presupuesto.',
+      'Abre la convocatoria en Candidatas & Staff y comparte el enlace de postulación; avanza las fichas en el Tablero de casting y numera a las oficiales.',
+      'Envía los contratos de imagen a firmar y controla los pendientes en Contratos firmados.',
+      'Arma el tarifario de auspicios, registra los contratos y cumple sus entregables con evidencia.',
+      'Publica el sitio del certamen y crea los afiches de campaña.',
+      'Configura entradas y votación del público; cobra las cuotas de las candidatas con Cuotas & Mensualidades.',
+      'Arma la escaleta, el vestuario, las credenciales y las rondas del jurado; usa el checklist "¿Listos para la gala?" del centro de mando.',
+      'El día del evento: modo show, check-in de entradas y credenciales, votación del jurado y acta.',
+      'Al final revisa las finanzas del certamen en su centro de mando.',
     ],
   },
 ];
@@ -223,72 +346,126 @@ export const TROUBLESHOOTING: TroubleshootingItem[] = [
   {
     problem: 'No veo un módulo o una opción que sé que existe',
     answer: [
-      'Son dos cosas distintas: el plan de tu empresa (qué módulos se contrataron) y tu rol (qué permisos te dieron dentro de esos módulos).',
-      'Si nadie de tu empresa lo ve, es el plan: lo tiene que activar el dueño de la cuenta con soporte.',
-      'Si otros lo ven y tú no, es tu rol: pídele al administrador que lo revise en Configuración → Equipo o en Roles Personalizados.',
+      'Son dos cosas distintas: el plan de tu empresa (qué módulos se contrataron) y tu rol (qué permisos te dieron).',
+      'Si nadie de tu empresa lo ve, es el plan o la sección está apagada en Configuración → Módulos y Menú.',
+      'Si otros lo ven y tú no, es tu rol: pide al administrador que lo revise en Configuración → Equipo & Colaboradores o en Roles Personalizados.',
     ],
   },
   {
     problem: 'El sistema no me deja vender porque no hay stock',
     requires: 'hasInventory',
     answer: [
-      'Por defecto está bloqueado vender más de lo que hay en la bodega, para que el Kardex no quede en negativo.',
-      'Si el stock del sistema está mal, corrígelo con un ajuste de inventario, no forzando la venta.',
-      'Si tu negocio vende contra pedido de verdad, el dueño de la cuenta puede activar "permitir stock negativo" en Configuración → Datos de la Empresa.',
+      'Por defecto está bloqueado vender más de lo que hay en la bodega, para que el Kardex no quede negativo.',
+      'Si el stock del sistema está mal, corrígelo con un ajuste o una toma de inventario, no forzando la venta.',
+      'Si tu negocio vende contra pedido, el Dueño puede activar "Permitir ventas con stock negativo" en Configuración → Perfil de Empresa.',
     ],
   },
   {
     problem: 'Emití un documento con un error',
     requires: 'hasDteBilling',
     answer: [
-      'Un documento emitido no se edita ni se borra: se corrige con una nota de crédito que lo anula total o parcialmente.',
-      'Después emites el documento correcto. Así el correlativo de folios y el libro de ventas quedan consistentes.',
-      'Si todavía está en borrador (no emitido), ahí sí lo puedes editar directamente.',
+      'Si todavía está en borrador, edítalo y emítelo.',
+      'Si ya está emitido y no se envió al SII, usa "Anular" en el listado de Ventas: repone stock y revierte pagos.',
+      'Si es una boleta de un turno de caja ya cerrado, no se puede anular: emite una Nota de Crédito que la referencie.',
+      'Después emite el documento correcto (con "Duplicar" ahorras tipear de nuevo).',
+    ],
+  },
+  {
+    problem: 'Mis documentos salen sin validez tributaria o con folio interno',
+    requires: 'hasDteBilling',
+    answer: [
+      'Sin un CAF vigente, el sistema numera con un contador interno y el documento no tiene validez ante el SII.',
+      'Carga los folios en Configuración → Folios del SII (descárgalos en sii.cl → Timbraje Electrónico) antes de seguir emitiendo.',
     ],
   },
   {
     problem: 'Los números del F29 no me cuadran',
     requires: 'hasAdvancedReports',
     answer: [
-      'Revisa que todos los documentos de venta del período estén emitidos y no en borrador.',
-      'Revisa que estén registradas todas las facturas de compra del mes, que son tu crédito fiscal.',
-      'El remanente de crédito fiscal del mes anterior se arrastra al siguiente, así que un mes puede salir en cero por eso.',
-      'Los productos marcados como exentos no generan IVA: si un producto afecto quedó marcado exento en el catálogo, el débito sale bajo.',
+      'Revisa que todas las ventas del período estén emitidas y no en borrador.',
+      'Revisa que estén registradas todas las facturas de compra del mes: son tu crédito fiscal. El RCV te muestra las que faltan.',
+      'El remanente de crédito fiscal del mes anterior se arrastra al siguiente: un mes puede salir en cero por eso.',
+      'Si un producto afecto quedó marcado exento en el catálogo, el débito sale bajo.',
     ],
   },
   {
     problem: 'El costo de un producto cambió solo',
     requires: 'hasInventory',
     answer: [
-      'Es el Precio Medio Ponderado (PMP): al recepcionar una compra, el costo se recalcula como promedio ponderado entre lo que tenías y lo que compraste.',
-      'Es el comportamiento correcto y no hay que corregirlo a mano.',
-      'Si el costo saltó a un valor raro, revisa el Kardex del producto: casi siempre es una compra cargada con la cantidad o el precio equivocados.',
+      'Es el Precio Medio Ponderado (PMP): al recibir una compra, el costo se recalcula como promedio entre lo que tenías y lo que entró.',
+      'Si el costo saltó a un valor raro, revisa el Kardex: casi siempre es una compra con la cantidad o el precio mal ingresados.',
     ],
   },
   {
     problem: 'La caja del POS no cuadra al cerrar el turno',
     requires: 'hasPos',
     answer: [
-      'El arqueo compara lo que el sistema esperaba en caja contra lo que contaste físicamente.',
-      'Revisa las ventas anuladas del turno y los pagos registrados con el medio de pago equivocado (efectivo vs. tarjeta).',
-      'Cierra el turno igual con la diferencia declarada: dejarlo abierto para "arreglarlo después" descuadra también el día siguiente.',
+      'El arqueo compara el efectivo esperado con lo contado. Débito, crédito y transferencias no cuentan para el cajón.',
+      'Revisa las boletas anuladas (ya están descontadas: no registres además un retiro) y los pagos con el medio equivocado.',
+      'Cierra igual el turno con la diferencia explicada: dejarlo abierto descuadra el día siguiente.',
+    ],
+  },
+  {
+    problem: 'No puedo cerrar la caja',
+    requires: 'hasPos',
+    answer: ['Cerrar caja requiere el permiso de cierre (por defecto Dueño y Administrador). Avisa a quien lo tenga para hacer el arqueo.'],
+  },
+  {
+    problem: 'Una compra quedó "Pendiente de aprobación" o "No coincide con OC"',
+    requires: 'hasPurchases',
+    answer: [
+      'Pendiente de aprobación: supera el umbral definido en Perfil de Empresa; alguien con permiso de aprobar compras debe aprobarla.',
+      'No coincide con OC: la factura difiere de su orden de compra; corrígela o pide a quien tenga el permiso que autorice la diferencia. Mientras tanto no se puede pagar.',
+    ],
+  },
+  {
+    problem: 'Un cliente no recibe los recordatorios de cobranza',
+    requires: 'hasTreasury',
+    answer: [
+      'Revisa que tenga correo en su ficha de Clientes & Proveedores.',
+      'Revisa que los recordatorios estén activados en Finanzas → Cobranza y que ese cliente no los tenga pausados.',
+      'Cada documento recibe cada aviso una sola vez.',
+    ],
+  },
+  {
+    problem: 'La conciliación bancaria no cuadra',
+    requires: 'hasTreasury',
+    answer: [
+      'Revisa el saldo inicial y la fecha "Conciliar desde" de la cuenta.',
+      'Revisa los movimientos "Sin registro en libros" y los cobros registrados en otra cuenta bancaria.',
+    ],
+  },
+  {
+    problem: 'No puedo publicar un sitio web',
+    requires: 'hasWebSites',
+    answer: [
+      'Abre la pestaña "Qué le falta": los ítems obligatorios (portada con título, forma de contacto, enlaces válidos, textos de ejemplo reemplazados) bloquean la publicación.',
+      'Publicar requiere el permiso de publicar sitios (Dueño o Administrador).',
+    ],
+  },
+  {
+    problem: 'Un jurado no puede votar',
+    requires: 'hasJudging',
+    answer: [
+      'La ronda debe estar abierta con "Votar ahora" y tener al menos un criterio.',
+      'Revisa que el jurado use su propio enlace (botón "Link") y que su planilla no esté ya enviada: una vez enviada queda bloqueada.',
     ],
   },
   {
     problem: 'Olvidé mi contraseña o no puedo entrar',
     answer: [
-      'Usa la opción de recuperar contraseña en la pantalla de inicio de sesión.',
-      'Si tienes 2FA activo y perdiste el teléfono, necesitas uno de tus códigos de respaldo.',
-      'Si tu usuario fue desactivado, ningún reseteo te va a dejar entrar: tiene que reactivarte el administrador de tu empresa.',
+      'Usa "¿La olvidaste?" en la pantalla de inicio de sesión.',
+      'Si tienes 2FA y perdiste el teléfono, usa uno de tus códigos de respaldo.',
+      'Si tu usuario fue desactivado, tiene que reactivarte el administrador de tu empresa.',
     ],
   },
   {
     problem: 'Cargué un archivo por importación y quedó mal',
     permission: 'import:data',
     answer: [
-      'La importación siempre muestra una vista previa antes de guardar: si algo se ve mal ahí, cancela y corrige el archivo.',
-      'Si ya confirmaste, corrige los registros afectados en su propia pantalla (producto, contacto), o con un ajuste de inventario si fue stock.',
-      'Para tandas grandes, importa un archivo chico de prueba primero y revisa el resultado antes de subir las 2.000 filas.',
+      'La importación muestra una vista previa antes de guardar: si algo se ve mal ahí, no confirmes y corrige el archivo.',
+      'Si ya confirmaste, corrige los registros en su propia pantalla, o con un ajuste de inventario si fue stock.',
+      'Para tandas grandes, prueba primero con un archivo chico.',
     ],
   },
 ];
@@ -298,111 +475,102 @@ export interface GlossaryTerm {
   definition: string;
 }
 
-/** Vocabulario tributario y de negocio chileno que el asistente puede explicar sin inventar. */
+/** Vocabulario tributario y del sistema que el asistente puede explicar sin inventar. */
 export const GLOSSARY: GlossaryTerm[] = [
-  { term: 'IVA', definition: 'Impuesto al Valor Agregado, 19% en Chile, aplicado sobre el monto neto de las líneas afectas. Los productos marcados como exentos no lo pagan.' },
-  { term: 'Neto / Bruto', definition: 'El neto es el monto sin IVA; el bruto es el neto más el IVA. En este sistema los montos finales se manejan en pesos enteros, sin decimales.' },
+  { term: 'IVA', definition: 'Impuesto al Valor Agregado, 19% en Chile, sobre el monto neto de las líneas afectas. Los productos marcados como exentos no lo pagan.' },
+  { term: 'Neto / Bruto', definition: 'El neto es el monto sin IVA; el bruto es el neto más el IVA. Los montos finales se manejan en pesos enteros.' },
   { term: 'Débito fiscal', definition: 'El IVA que recaudaste en tus ventas del período y le debes al SII.' },
   { term: 'Crédito fiscal', definition: 'El IVA que pagaste en tus compras del período y puedes descontar del débito.' },
-  { term: 'Remanente de crédito fiscal', definition: 'Cuando el crédito del mes supera al débito, la diferencia no se pierde: queda como remanente y se arrastra al mes siguiente.' },
-  { term: 'F29', definition: 'Formulario mensual del SII donde se declara el IVA y el PPM. El sistema lo calcula sobre tus documentos reales del período como apoyo; la declaración formal la hace tu contador.' },
-  { term: 'PPM', definition: 'Pago Provisional Mensual: un anticipo del impuesto a la renta, calculado como un porcentaje de tus ventas netas. La tasa se configura en los datos de la empresa.' },
+  { term: 'Remanente de crédito fiscal', definition: 'Cuando el crédito del mes supera al débito, la diferencia queda como remanente y se arrastra al mes siguiente.' },
+  { term: 'F29', definition: 'Formulario mensual del SII donde se declara el IVA y el PPM. El sistema lo calcula sobre tus documentos reales como apoyo; la declaración la hace tu contador.' },
+  { term: 'PPM', definition: 'Pago Provisional Mensual: anticipo del impuesto a la renta, un porcentaje de tus ventas netas. La tasa se configura en el Perfil de Empresa.' },
+  { term: 'RCV', definition: 'Registro de Compras y Ventas: el libro que el SII arma con los documentos electrónicos informados. Se cuadra con el ERP antes de declarar.' },
   { term: 'DTE', definition: 'Documento Tributario Electrónico: boleta (39), factura afecta (33), factura exenta (34), guía de despacho (52), nota de débito (56) y nota de crédito (61).' },
-  { term: 'Folio', definition: 'El número correlativo de cada documento tributario. No se reutiliza ni se salta: por eso un documento emitido se corrige con nota de crédito y no borrándolo.' },
-  { term: 'Nota de crédito', definition: 'Documento que anula o rebaja, total o parcialmente, uno emitido antes. Es la forma correcta de corregir una factura o boleta ya emitida.' },
-  { term: 'PMP', definition: 'Precio Medio Ponderado: el costo unitario de un producto, recalculado en cada compra como promedio entre el stock que tenías a su costo y lo que entró al suyo.' },
-  { term: 'Kardex', definition: 'El historial de movimientos de un producto: cada entrada, salida, ajuste y transferencia, con su cantidad, su costo y el documento que lo originó.' },
-  { term: 'Stock valorizado', definition: 'La cantidad en bodega multiplicada por el costo PMP vigente. Es el valor contable de tu inventario.' },
-  { term: 'Boleta de honorarios', definition: 'Documento que emite un profesional independiente por sus servicios. Lleva una retención de impuesto que el sistema calcula con la tasa configurada en tu empresa.' },
+  { term: 'Folio', definition: 'Número correlativo de cada documento tributario. No se reutiliza ni se salta: un documento emitido se corrige con nota de crédito, no borrándolo.' },
+  { term: 'CAF', definition: 'Código de Autorización de Folios: archivo del SII que autoriza un rango de folios para un tipo de documento y trae la llave con que se timbra.' },
+  { term: 'Timbre electrónico (TED)', definition: 'Firma que va en cada documento emitido con CAF; permite verificar que no fue alterado.' },
+  { term: 'Cotización', definition: 'Propuesta de precio al cliente. No es un documento tributario: no usa folio ni mueve stock.' },
+  { term: 'Nota de venta', definition: 'Pedido del cliente que reserva stock y se factura o despacha por partes.' },
+  { term: 'Guía de despacho', definition: 'Documento que acompaña la mercadería que sale; mueve stock y después se factura.' },
+  { term: 'Nota de crédito', definition: 'Documento que anula o rebaja, total o parcialmente, uno emitido antes.' },
+  { term: 'PMP', definition: 'Precio Medio Ponderado: el costo unitario de un producto, recalculado en cada compra como promedio entre el stock que tenías y lo que entró.' },
+  { term: 'Kardex', definition: 'Historial de movimientos de un producto: cada entrada, salida, ajuste y transferencia, con cantidad, costo y documento de origen.' },
+  { term: 'Stock valorizado', definition: 'La cantidad en bodega multiplicada por su costo PMP vigente: el valor contable del inventario.' },
+  { term: 'Lote / FEFO', definition: 'Un lote agrupa unidades con la misma fecha de vencimiento. FEFO ("primero en vencer, primero en salir") es la regla con que se despachan.' },
+  { term: 'Boleta de honorarios', definition: 'Documento de un profesional independiente por sus servicios, con una retención de impuesto calculada con la tasa de tu empresa.' },
   { term: 'Cuenta por cobrar (CxC)', definition: 'Lo que un cliente te debe por un documento a crédito todavía no pagado del todo.' },
-  { term: 'Cuenta por pagar (CxP)', definition: 'Lo que le debes a un proveedor por una factura de compra todavía no pagada del todo.' },
-  { term: 'Arqueo de caja', definition: 'El conteo del efectivo al cerrar un turno del POS, comparado contra lo que el sistema esperaba, para dejar la diferencia declarada.' },
+  { term: 'Cuenta por pagar (CxP)', definition: 'Lo que le debes a un proveedor por una factura todavía no pagada del todo.' },
+  { term: 'Conciliación bancaria', definition: 'Comparar la cartola del banco con tus cobros y pagos registrados para que ambos saldos calcen.' },
+  { term: 'Nómina de pago', definition: 'Lote de facturas de proveedores que se pagan juntas con un archivo para el portal del banco.' },
+  { term: 'Arqueo de caja', definition: 'Conteo del efectivo al cerrar un turno del POS, comparado contra lo esperado, dejando la diferencia declarada.' },
+  { term: 'Liquidación de sueldo', definition: 'Detalle mensual del sueldo de un trabajador: haberes, descuentos previsionales, impuesto único y líquido a pagar.' },
+  { term: 'Previred', definition: 'Plataforma donde se pagan las cotizaciones previsionales y que publica cada mes los indicadores (UF, UTM, topes y tasas) que usa el cálculo de sueldos.' },
+  { term: 'UF / UTM', definition: 'Unidades reajustables chilenas. Se usan para topes previsionales, planes de salud y tramos del impuesto único; su valor se confirma cada mes.' },
+  { term: 'Finiquito', definition: 'Documento que cierra la relación laboral con el cálculo de lo que se le debe al trabajador al término del contrato.' },
+  { term: 'NPS / CSAT', definition: 'Indicadores de satisfacción: CSAT mide qué tan conforme quedó el cliente (1 a 5) y NPS cuánto te recomendaría (0 a 10).' },
+  { term: 'RFM', definition: 'Segmentación de clientes por Recencia (cuándo compró), Frecuencia (cuántas veces) y Monto (cuánto).' },
+  { term: 'Canje', definition: 'Aporte de un auspiciador en productos o servicios en vez de dinero; se valoriza y se reporta aparte del efectivo.' },
 ];
 
-function isAvailable(item: Gated, features: CompanyFeatureFlags, permissions: Permission[]): boolean {
-  if (item.requires && !features[item.requires]) return false;
-  if (item.permission && !permissions.includes(item.permission)) return false;
-  if (item.anyOfPermissions && !item.anyOfPermissions.some((permission) => permissions.includes(permission))) return false;
-  return true;
-}
-
-/** Pantallas que este usuario en particular puede abrir de verdad. */
-export function getVisibleNavigation(features: CompanyFeatureFlags, permissions: Permission[]): NavigationEntry[] {
-  return NAVIGATION_MAP.filter((entry) => isAvailable(entry, features, permissions));
-}
-
 /** Flujos cuyos módulos están todos contratados y a los que el usuario tiene acceso. */
-export function getVisibleWorkflows(features: CompanyFeatureFlags, permissions: Permission[]): Workflow[] {
+export function getVisibleWorkflows(features: CompanyFeatureFlags, permissions: readonly Permission[]): Workflow[] {
   return WORKFLOWS.filter(
-    (workflow) =>
-      isAvailable(workflow, features, permissions) && (workflow.alsoRequires ?? []).every((key) => features[key])
+    (workflow) => isAvailable(workflow, features, permissions) && (workflow.alsoRequires ?? []).every((key) => features[key])
   );
 }
 
 /** Problemas frecuentes aplicables al plan y al rol de este usuario. */
-export function getVisibleTroubleshooting(features: CompanyFeatureFlags, permissions: Permission[]): TroubleshootingItem[] {
+export function getVisibleTroubleshooting(features: CompanyFeatureFlags, permissions: readonly Permission[]): TroubleshootingItem[] {
   return TROUBLESHOOTING.filter((item) => isAvailable(item, features, permissions));
 }
 
 /**
- * Pantalla en la que está parado el usuario, para que el asistente pueda
- * responder "en esta pantalla..." sin que se lo expliquen. Elige la ruta más
- * específica que sea prefijo del path actual.
- */
-export function describeCurrentScreen(path: string): NavigationEntry | null {
-  const matches = NAVIGATION_MAP.filter((entry) => path === entry.route || path.startsWith(`${entry.route}/`));
-  if (matches.length === 0) return null;
-  return matches.reduce((best, entry) => (entry.route.length > best.route.length ? entry : best));
-}
-
-/**
  * Los flujos, los problemas frecuentes y el glosario, con la forma de una
- * sección del manual, para poder mostrarlos en `/dashboard/manual` con el
- * mismo buscador y la misma impresión que el resto — no solo dentro del chat
- * del asistente. Filtrado con el mismo criterio que usa el prompt.
+ * sección del manual, para mostrarlos en `/dashboard/manual` y en el Word con
+ * el mismo buscador e impresión que el resto. Sin `permissions` (manual de
+ * la empresa) se filtran solo por módulos contratados.
  */
-export function getKnowledgeAsManualSections(features: CompanyFeatureFlags, permissions: Permission[]): ManualSection[] {
+export function getKnowledgeAsManualSections(features: CompanyFeatureFlags, permissions?: readonly Permission[]): ManualSection[] {
+  const effectivePermissions = permissions ?? ALL_PERMISSIONS;
   const sections: ManualSection[] = [];
 
-  const workflows = getVisibleWorkflows(features, permissions);
+  const workflows = getVisibleWorkflows(features, effectivePermissions);
   if (workflows.length > 0) {
     sections.push({
+      id: 'flujos',
       key: 'always',
+      chapter: 'Referencia',
       title: 'Flujos completos (de principio a fin)',
+      summary: 'Las tareas reales casi siempre cruzan varios módulos. Aquí están en orden, de punta a punta.',
       route: '/dashboard',
-      topics: workflows.map((workflow, index) => ({
-        id: `flujo-${index}`,
-        title: workflow.title,
-        steps: workflow.steps,
-      })),
+      screenshot: null,
+      topics: workflows.map((workflow, index) => ({ id: `flujo-${index}`, title: workflow.title, steps: workflow.steps })),
     });
   }
 
-  const troubleshooting = getVisibleTroubleshooting(features, permissions);
+  const troubleshooting = getVisibleTroubleshooting(features, effectivePermissions);
   if (troubleshooting.length > 0) {
     sections.push({
+      id: 'problemas-frecuentes',
       key: 'always',
+      chapter: 'Referencia',
       title: 'Problemas frecuentes',
+      summary: 'Cuando el sistema "no te deja", casi siempre es una regla de negocio que te protege. Aquí está la causa y qué hacer.',
       route: '/dashboard',
-      topics: troubleshooting.map((item, index) => ({
-        id: `problema-${index}`,
-        title: item.problem,
-        steps: item.answer,
-      })),
+      screenshot: null,
+      topics: troubleshooting.map((item, index) => ({ id: `problema-${index}`, title: item.problem, steps: item.answer })),
     });
   }
 
   sections.push({
+    id: 'glosario',
     key: 'always',
+    chapter: 'Referencia',
     title: 'Glosario',
+    summary: 'Los términos tributarios y del sistema explicados en simple.',
     route: '/dashboard',
-    topics: [
-      {
-        id: 'glosario',
-        title: 'Qué significa cada término',
-        steps: GLOSSARY.map((entry) => `${entry.term}: ${entry.definition}`),
-      },
-    ],
+    screenshot: null,
+    topics: [{ id: 'glosario', title: 'Qué significa cada término', steps: GLOSSARY.map((entry) => `${entry.term}: ${entry.definition}`) }],
   });
 
   return sections;

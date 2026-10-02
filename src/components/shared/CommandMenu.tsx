@@ -299,6 +299,7 @@ export default function CommandMenu({ permissions, features, isSuperAdmin, disab
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Buscar clientes, productos o módulos (Ctrl+K)"
+        data-tutorial="command-search"
         className="flex h-10 w-full max-w-[360px] items-center gap-2 rounded-[10px] border border-transparent bg-muted px-3 text-sm text-muted-foreground transition-colors duration-150 hover:border-border hover:bg-muted/80 focus-visible:outline-2 focus-visible:outline-ring"
       >
         <Search className="size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />

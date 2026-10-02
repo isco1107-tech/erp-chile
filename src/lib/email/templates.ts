@@ -477,6 +477,70 @@ export function buildSponsorAcceptedEmail(input: SponsorAcceptedEmailInput): { s
   return { subject, html, text };
 }
 
+export interface SponsorTierChangedEmailInput {
+  contactName: string;
+  projectName: string;
+  companyName: string;
+  previousTierLabel: string;
+  tierLabel: string;
+  packageName: string | null;
+  /** Monto en efectivo vigente del contrato (CLP entero, neto), si hay. */
+  cashAmount: number;
+  isBarter: boolean;
+  barterValuation: number;
+  /** Entregables que hoy tiene el contrato (los acordados para su nueva categoría). */
+  deliverableTitles: string[];
+  portalUrl: string;
+  contact: { email: string | null; whatsapp: { href: string; label: string } | null };
+}
+
+/**
+ * Aviso a la marca de que la organización cambió su categoría de auspicio.
+ * Explica qué implica sin inventar condiciones: lo que cambia es el nivel; los
+ * montos y entregables que se muestran son los vigentes en el contrato, y el
+ * detalle completo vive en el portal.
+ */
+export function buildSponsorTierChangedEmail(input: SponsorTierChangedEmailInput): { subject: string; html: string; text: string } {
+  const subject = `Cambió tu categoría de auspicio en ${input.projectName}`;
+  const contactLines = [
+    input.contact.whatsapp ? `WhatsApp: <a href="${escapeHtml(input.contact.whatsapp.href)}" style="color:${BRAND};">${escapeHtml(input.contact.whatsapp.label)}</a>` : null,
+    input.contact.email ? `Correo: <a href="mailto:${escapeHtml(input.contact.email)}" style="color:${BRAND};">${escapeHtml(input.contact.email)}</a>` : null,
+  ].filter((line): line is string => line !== null);
+  const terms = [
+    input.cashAmount > 0 ? `Aporte en efectivo vigente: <strong>${escapeHtml(formatCurrency(input.cashAmount))}</strong> + IVA` : null,
+    input.isBarter && input.barterValuation > 0 ? `Canje valorizado en: <strong>${escapeHtml(formatCurrency(input.barterValuation))}</strong>` : null,
+  ].filter((line): line is string => line !== null);
+  const html = layout({
+    title: input.projectName,
+    body: `
+      <p style="margin:0 0 12px;">Hola <strong>${escapeHtml(input.contactName)}</strong>, te avisamos que la categoría de auspicio de tu marca en <strong>${escapeHtml(input.projectName)}</strong> fue modificada.</p>
+      <p style="margin:0 0 12px;">Antes: <strong>${escapeHtml(input.previousTierLabel)}</strong> → Ahora: <strong>${escapeHtml(input.tierLabel)}</strong>${input.packageName ? ` · Plan: <strong>${escapeHtml(input.packageName)}</strong>` : ''}.</p>
+      <p style="margin:0 0 12px;">¿Qué implica? Los beneficios, los entregables y las condiciones económicas de tu auspicio se rigen desde ahora por la nueva categoría.</p>
+      ${terms.length ? `<p style="margin:0 0 12px;">${terms.join('<br>')}</p>` : ''}
+      ${input.deliverableTitles.length ? `<p style="margin:0 0 6px;font-weight:600;">Entregables acordados hoy:</p><ul style="margin:0 0 12px;padding-left:20px;">${input.deliverableTitles.map((t) => `<li>${escapeHtml(t)}</li>`).join('')}</ul>` : ''}
+      <p style="margin:0 0 12px;">Revisa el detalle actualizado en tu portal. Si algo no coincide con lo conversado, respóndenos y lo vemos contigo.</p>
+      ${contactLines.length ? `<p style="margin:16px 0 6px;font-weight:600;">¿Dudas? Escríbenos:</p>${contactLines.map((line) => `<p style="margin:0 0 4px;">${line}</p>`).join('')}` : ''}
+    `,
+    ctaLabel: 'Ver mi portal de sponsor',
+    ctaUrl: input.portalUrl,
+    footer: `${escapeHtml(input.companyName)} · Si no reconoces este auspicio, responde este correo.`,
+  });
+  const text = [
+    `Hola ${input.contactName}, la categoría de auspicio de tu marca en ${input.projectName} fue modificada.`,
+    `Antes: ${input.previousTierLabel} → Ahora: ${input.tierLabel}${input.packageName ? ` · Plan: ${input.packageName}` : ''}.`,
+    'Qué implica: los beneficios, los entregables y las condiciones económicas de tu auspicio se rigen desde ahora por la nueva categoría.',
+    input.cashAmount > 0 ? `Aporte en efectivo vigente: ${formatCurrency(input.cashAmount)} + IVA` : null,
+    input.isBarter && input.barterValuation > 0 ? `Canje valorizado en: ${formatCurrency(input.barterValuation)}` : null,
+    input.deliverableTitles.length ? `Entregables acordados hoy:\n${input.deliverableTitles.map((t) => `- ${t}`).join('\n')}` : null,
+    `Detalle actualizado en tu portal: ${input.portalUrl}`,
+    input.contact.whatsapp ? `WhatsApp: ${input.contact.whatsapp.label}` : null,
+    input.contact.email ? `Correo: ${input.contact.email}` : null,
+  ]
+    .filter((line): line is string => line !== null)
+    .join('\n');
+  return { subject, html, text };
+}
+
 export interface PaymentReminderDocument {
   dteLabel: string;
   folio: number | null;

@@ -11,7 +11,7 @@ import type { Permission } from '@/lib/auth/permissions';
  * Compras no ve la de IVA. Sin I/O: los ejecutores viven en `copilot-tools.ts`.
  */
 
-export type DataToolName = 'getSalesMarginSummary' | 'getOverdueBalances' | 'getVatProjection';
+export type DataToolName = 'getSalesMarginSummary' | 'getOverdueBalances' | 'getVatProjection' | 'findProducts' | 'getLowStockProducts' | 'getContactBalance';
 
 interface DataToolDefinition {
   /** Todos estos permisos son necesarios para ofrecer la consulta. */
@@ -64,6 +64,44 @@ export const DATA_TOOLS: Record<DataToolName, DataToolDefinition> = {
           year: { type: 'number', description: 'Año, ej. 2026' },
           month: { type: 'number', description: 'Mes de 1 a 12' },
         },
+      },
+    },
+  },
+  findProducts: {
+    requires: ['products:read'],
+    summary: 'precio, stock total y por bodega de productos buscados por nombre, SKU o código de barras',
+    declaration: {
+      name: 'findProducts',
+      description: 'Busca productos del catálogo por nombre, SKU o código de barras y devuelve su precio (neto y con IVA), si es exento y su stock total y por bodega.',
+      parametersJsonSchema: {
+        type: 'object',
+        properties: { query: { type: 'string', description: 'Nombre, parte del nombre, SKU o código de barras' } },
+        required: ['query'],
+      },
+    },
+  },
+  getLowStockProducts: {
+    requires: ['products:read'],
+    summary: 'productos cuyo stock está en o bajo su stock mínimo',
+    declaration: {
+      name: 'getLowStockProducts',
+      description: 'Lista los productos con stock mínimo definido cuyo stock total está en o bajo ese mínimo (lo que conviene reponer).',
+      parametersJsonSchema: {
+        type: 'object',
+        properties: { limit: { type: 'number', description: 'Máximo de productos a listar (por defecto 15)' } },
+      },
+    },
+  },
+  getContactBalance: {
+    requires: ['contacts:read', 'treasury:read'],
+    summary: 'cuánto le debe un cliente a la empresa (y cuánto le debe la empresa a un proveedor), con lo vencido',
+    declaration: {
+      name: 'getContactBalance',
+      description: 'Saldo pendiente por cobrar y por pagar de un cliente o proveedor, con lo vencido y la cantidad de documentos.',
+      parametersJsonSchema: {
+        type: 'object',
+        properties: { query: { type: 'string', description: 'Razón social o RUT del contacto' } },
+        required: ['query'],
       },
     },
   },

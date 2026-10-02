@@ -1,0 +1,197 @@
+import type { ManualSection } from '../types';
+
+/** Lo que pasa dentro de la empresa: fabricar, reparar, controlar calidad y repartir el trabajo. */
+export const OPERACIONES_SECTIONS: ManualSection[] = [
+  {
+    id: 'produccion',
+    key: 'hasProduction',
+    permission: 'manufacturing:read',
+    chapter: 'Operaciones',
+    title: 'Producción (recetas y órdenes de producción)',
+    summary:
+      'Para lo que fabricas o elaboras: la receta dice qué insumos lleva cada producto, y cada orden de producción descuenta esos insumos y deja el producto terminado en bodega a su costo real (insumos al PMP más mano de obra).',
+    route: '/dashboard/manufacturing',
+    topics: [
+      {
+        id: 'crear-receta',
+        title: 'Crear la receta de un producto',
+        permission: 'manufacturing:write',
+        route: '/dashboard/manufacturing/boms',
+        steps: [
+          'Ve a Operaciones → Recetas y haz clic en "Nueva receta".',
+          'Busca el producto terminado, ponle nombre a la receta e indica cuánto produce (ej. 10 unidades).',
+          'Agrega cada insumo con su cantidad. Abajo verás el costo de insumos por unidad.',
+          'Escribe las notas del proceso si sirven, deja la receta activa y guarda.',
+        ],
+        tip: 'Los insumos y el producto terminado deben existir en el Catálogo de Productos antes de armar la receta.',
+      },
+      {
+        id: 'orden-produccion',
+        title: 'Fabricar con una orden de producción',
+        permission: 'manufacturing:write',
+        steps: [
+          'Ve a Operaciones → Producción y haz clic en "Nueva orden": elige la receta, la cantidad a producir, la fecha y la bodega (de donde salen los insumos y a la que entra el producto).',
+          'Abre la orden y presiona "Iniciar". La tabla de insumos muestra lo planificado y lo disponible en bodega; si falta algo, avisa antes de terminar.',
+          'Al terminar, presiona "Terminar producción": confirma la cantidad producida, el consumo real de insumos y la mano de obra y otros costos.',
+          'El producto entra a bodega con su costo unitario real. "Anular" cancela una orden que no se hizo (no mueve inventario).',
+        ],
+      },
+    ],
+  },
+  {
+    id: 'servicio-tecnico',
+    key: 'hasServiceDesk',
+    permission: 'service:read',
+    chapter: 'Operaciones',
+    title: 'Servicio técnico',
+    summary:
+      'Recepción de equipos, diagnóstico, presupuesto que el cliente aprueba desde su enlace, reparación y entrega. El cliente sigue el estado de su equipo sin llamar, y el cobro sale como nota de venta.',
+    route: '/dashboard/service',
+    topics: [
+      {
+        id: 'recibir-equipo',
+        title: 'Recibir un equipo',
+        permission: 'service:write',
+        route: '/dashboard/service/new',
+        steps: [
+          'Ve a Operaciones → Servicio técnico y haz clic en "Recibir equipo".',
+          'Registra el cliente, el equipo, su N° de serie, los accesorios que deja y la falla reportada.',
+          'Al guardar se abre el comprobante para imprimir o enviar, con el enlace de seguimiento del cliente.',
+        ],
+        tip: 'Si el cliente no tiene correo registrado no le llegarán los avisos automáticos: compártele el enlace por WhatsApp.',
+      },
+      {
+        id: 'diagnostico-presupuesto',
+        title: 'Diagnosticar y presupuestar',
+        permission: 'service:write',
+        steps: [
+          'Abre la orden y usa "Iniciar diagnóstico". Escribe "Qué tiene el equipo" (lo ve el cliente), asigna técnico, fecha comprometida y prioridad, y presiona "Guardar".',
+          'En "Presupuesto" agrega repuestos del catálogo y "Mano de obra", y presiona "Guardar presupuesto".',
+          'Usa "Enviar presupuesto al cliente": lo verá en su enlace (con IVA) y podrá aprobarlo o rechazarlo. Si lo aprueba en persona, marca "Aprobado en mesón".',
+        ],
+      },
+      {
+        id: 'reparar-entregar',
+        title: 'Reparar, avisar y entregar',
+        permission: 'service:write',
+        steps: [
+          'Con el presupuesto aprobado, "Pasar a reparación" y luego "Listo para retiro".',
+          'Cada cambio de estado puede llevar una nota; marca "Visible para el cliente" si quieres que la vea en su enlace. La bitácora guarda todo el historial.',
+          'Cuando retira, "Entregar al cliente".',
+        ],
+      },
+      {
+        id: 'cobrar-servicio',
+        title: 'Cobrar la reparación',
+        permission: 'service:write',
+        steps: [
+          'En la sección "Cobro", elige la bodega de los repuestos y la forma de pago y presiona "Generar nota de venta": los repuestos quedan reservados.',
+          'Desde ahí usa "Emitir boleta o factura". Una reparación en garantía se cierra sin cobro.',
+        ],
+      },
+      {
+        id: 'tablero-servicio',
+        title: 'Controlar el taller',
+        steps: [
+          'Arriba del listado ves cuántos equipos hay en taller, esperando aprobación, listos para retiro y atrasados.',
+          'Filtra por estado y busca por N°, cliente, equipo o serie.',
+        ],
+      },
+    ],
+  },
+  {
+    id: 'calidad',
+    key: 'hasQuality',
+    permission: 'quality:read',
+    chapter: 'Operaciones',
+    title: 'Calidad y procedimientos',
+    summary:
+      'Procedimientos escritos con acuse de lectura del equipo, inspecciones de calidad por plantilla (materia prima, proceso y producto terminado) y la ficha de tus productores y proveedores con su % de lotes aprobados.',
+    route: '/dashboard/quality',
+    topics: [
+      {
+        id: 'procedimientos-gestionar',
+        title: 'Documentar procedimientos y confirmar su lectura',
+        steps: [
+          'Ve a la pestaña Procedimientos. Con "Cargar paquete inicial" se crean 7 procedimientos en borrador y 4 plantillas de inspección para ajustar a tu forma de trabajar.',
+          'Crea un "Nuevo procedimiento" o usa Editar. Si editas uno vigente, sube de versión y el equipo debe leerlo de nuevo.',
+          'Publica el borrador cuando esté listo; usa "Marcar revisado" en los vigentes y Archivar en los que ya no se usan.',
+          'Cada persona abre el procedimiento con Leer y confirma con "Leí y entendí". En cada tarjeta ves cuántas personas del equipo ya lo leyeron.',
+        ],
+      },
+      {
+        id: 'inspecciones-realizar',
+        title: 'Registrar una inspección de calidad',
+        permission: 'quality:write',
+        steps: [
+          'Ve a la pestaña Inspecciones y haz clic en "Nueva inspección".',
+          'Elige la plantilla; en una de recepción elige también al productor. Agrega el número de lote.',
+          'Completa cada parámetro: una medición, o "Cumple" / "No cumple". Verás "Aprobaría" o "No aprobaría" antes de guardar.',
+          'Si no aprueba, anota la "Acción correctiva" (qué harás con el lote): es obligatoria y se avisa en la campanita.',
+        ],
+        tip: 'El resultado lo calcula el sistema con los rangos de la plantilla: no se puede "aprobar a mano" una inspección que no cumple.',
+      },
+      {
+        id: 'productores-ver',
+        title: 'Conocer a tus productores y proveedores',
+        steps: [
+          'Ve a la pestaña Productores: aparecen los contactos marcados como proveedor en Clientes & Proveedores.',
+          'Haz clic en "Completar ficha" (o "Editar ficha") para anotar el tipo, qué te entrega y sus certificaciones.',
+          'Revisa el porcentaje de lotes aprobados en las inspecciones de recepción de cada uno.',
+        ],
+      },
+      {
+        id: 'plantillas-parametros',
+        title: 'Fijar los rangos de las plantillas de inspección',
+        permission: 'quality:manage',
+        steps: [
+          'Ve a la pestaña Plantillas y haz clic en Editar.',
+          'En cada medición define unidad, mínimo y máximo. Las plantillas iniciales vienen sin límites: fíjalos según la resolución sanitaria de tu producto.',
+          'Agrega o quita parámetros y guarda la plantilla.',
+        ],
+      },
+    ],
+  },
+  {
+    id: 'tareas',
+    key: 'hasTeamTasks',
+    permission: 'tasks:read',
+    chapter: 'Operaciones',
+    title: 'Tareas y delegación',
+    summary:
+      'Quién hace qué y para cuándo, con rutinas que se repiten solas, y las decisiones que cada persona puede tomar sin consultar al dueño (y hasta qué monto).',
+    route: '/dashboard/tasks',
+    topics: [
+      {
+        id: 'tareas-crear-gestionar',
+        title: 'Crear tareas y hacer que se repitan solas',
+        steps: [
+          'En la pestaña Mis tareas haz clic en "Nueva tarea".',
+          'Define la fecha, la prioridad, el responsable y "Se repite" (cada día, semana o mes). Solo el dueño y los administradores pueden asignar tareas a otras personas.',
+          'Con "Cargar rutinas recomendadas" se crean las rutinas de cierre semanal, stock, canal de origen, clientes inactivos y revisión de procedimientos.',
+          'Usa Empezar, Hecha, Editar o Eliminar en cada tarea. Al marcar Hecha una tarea que se repite, se crea la siguiente.',
+        ],
+        tip: 'También puedes pedírselo al Asistente: "créame una tarea para revisar el stock todos los lunes".',
+      },
+      {
+        id: 'tareas-equipo-ver',
+        title: 'Ver las tareas del equipo y las ya cerradas',
+        steps: [
+          'La pestaña "Todo el equipo" muestra las tareas abiertas de todas las personas (para quien no administra, "Creadas por mí").',
+          'Las vencidas se marcan en rojo y suman en el indicador de la parte superior.',
+          'La pestaña Cerradas guarda las tareas hechas o canceladas.',
+        ],
+      },
+      {
+        id: 'delegacion-reglas',
+        title: 'Escribir qué decisiones puede tomar cada persona',
+        steps: [
+          'Ve a la pestaña Delegación y haz clic en "Nueva regla" (o parte de una de las ideas sugeridas).',
+          'Elige la decisión, la persona o el rol, y el monto y porcentaje máximos (vacío significa sin tope). Puedes agregar condiciones.',
+          'Cualquier persona puede consultar "¿Puedo decidir esto yo?" e indicar un monto para saber si actúa sola o consulta al dueño.',
+          'Las reglas orientan al equipo; los permisos de cada rol siguen mandando en el sistema.',
+        ],
+      },
+    ],
+  },
+];

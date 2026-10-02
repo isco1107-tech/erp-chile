@@ -45,7 +45,10 @@ export function KpiCard({ label, labelExtra, value, icon: Icon, tone = 'accent',
   return (
     <article
       className={cn(
-        'group rounded-lg border border-border bg-card p-5 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-hover',
+        // `@container` + `min-w-0`: en grillas de 5-6 columnas a 1366 px la
+        // cifra grande se cortaba ("$20.900.00"); ahora se achica según el
+        // ancho real de la tarjeta.
+        '@container group min-w-0 rounded-lg border border-border bg-card p-5 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-hover',
         className
       )}
     >
@@ -59,7 +62,7 @@ export function KpiCard({ label, labelExtra, value, icon: Icon, tone = 'accent',
         </span>
       </div>
 
-      <p className="mt-3 text-3xl font-bold tracking-[-0.02em] tabular-nums text-foreground">{value}</p>
+      <p className="mt-3 text-xl font-bold tracking-[-0.02em] tabular-nums text-foreground @min-[11.5rem]:text-2xl @min-[14rem]:text-3xl">{value}</p>
 
       {trend && (
         <div className="mt-4 flex items-center gap-2">

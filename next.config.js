@@ -25,6 +25,11 @@ const nextConfig = {
   // Dominio de la plataforma para los enlaces que se copian desde el panel
   // (ver src/lib/public-url.ts). Es una URL pública, no un secreto.
   env: { NEXT_PUBLIC_APP_URL: process.env.APP_URL ?? '' },
+  // La descarga del manual en Word lee las capturas desde `public/` con `fs`:
+  // en Vercel `public/` se sirve desde el CDN y no entra sola a la función.
+  outputFileTracingIncludes: {
+    '/api/manual/docx': ['./public/manual/screenshots/**/*'],
+  },
   async headers() {
     return [
       {

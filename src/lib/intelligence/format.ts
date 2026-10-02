@@ -12,7 +12,9 @@ export function formatSignedPct(value: number | null | undefined, decimals = 1):
 
 export function formatDays(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return '—';
-  return `${Math.round(value).toLocaleString('es-CL')} ${Math.abs(Math.round(value)) === 1 ? 'día' : 'días'}`;
+  // `|| 0` evita el "-0 días" que daba redondear un valor negativo chico.
+  const days = Math.round(value) || 0;
+  return `${days.toLocaleString('es-CL')} ${Math.abs(days) === 1 ? 'día' : 'días'}`;
 }
 
 /** $1,2 M / $350 mil — para ejes y cifras de contexto, nunca para montos exactos. */

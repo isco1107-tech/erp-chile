@@ -5,7 +5,7 @@ import { createAuditLog } from '@/lib/auth/audit';
 import { captureException } from '@/lib/observability';
 import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import { checkRateLimit, MANUAL_ASSISTANT_CONFIRM_RATE_LIMIT } from '@/lib/security/rate-limiter';
-import { getAgentAction } from '@/modules/agent-actions/registry';
+import { getAgentAction, type AgentActor } from '@/modules/agent-actions/registry';
 import { consumePendingActionJti, recordPendingActionResult, verifyPendingActionToken } from '@/modules/agent-actions/token';
 import type { Permission } from '@/lib/auth/permissions';
 
@@ -68,9 +68,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Esta acción ya fue confirmada antes' }, { status: 409 });
     }
 
+    const actor: AgentActor = { companyId: session.companyId, userId: session.id, userName: session.name, permissions: session.permissions };
     let result;
     try {
-      result = await action.execute(session.companyId, pending.payload);
+      result = await action.execute(actor, pending.payload);
     } catch (error) {
       await recordResultBestEffort(session.companyId, confirmationId, 'FAILED', toFriendlyErrorMessage(error));
       // Nunca reenviar un mensaje crudo del driver de base de datos al chat
@@ -91,12 +92,15 @@ export async function POST(req: Request) {
       userId: session.id,
       userEmail: session.email,
       action: 'CREATE',
-      entity: pending.actionType,
+      // La misma entidad que deja el formulario del módulo (así la
+      // auditoría y la telemetría de uso lo cuentan igual); el tipo de
+      // acción y que vino del asistente quedan en la metadata.
+      entity: action.auditEntity,
       entityId: result.entityId,
-      metadata: { viaAgent: true, payload: pending.payload },
+      metadata: { viaAgent: true, actionType: pending.actionType, payload: pending.payload },
     });
 
-    return NextResponse.json({ success: true, data: { message: result.message } });
+    return NextResponse.json({ success: true, data: { message: result.message, href: result.href ?? null } });
   } catch (error) {
     if (error instanceof AuthError) {
       return NextResponse.json({ success: false, error: error.message }, { status: error.status });

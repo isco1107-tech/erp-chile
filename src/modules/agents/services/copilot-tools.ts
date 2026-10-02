@@ -172,6 +172,146 @@ export async function getVatProjection(companyId: string, args: { year?: number;
   return { year, month, debitVat, creditVat, netVat: debitVat - creditVat };
 }
 
+export interface ProductLookupRow {
+  sku: string;
+  name: string;
+  unit: string;
+  netPrice: number;
+  grossPrice: number;
+  isExempt: boolean;
+  minStock: number;
+  totalStock: number;
+  stockByWarehouse: { warehouse: string; quantity: number }[];
+  costPMP: number;
+}
+
+export interface ProductLookup {
+  query: string;
+  products: ProductLookupRow[];
+  /** Hubo más coincidencias que las devueltas: conviene afinar la búsqueda. */
+  truncated: boolean;
+}
+
+const PRODUCT_LOOKUP_LIMIT = 8;
+
+/** Productos por SKU, código de barras o nombre, con precio y stock por bodega. */
+export async function findProducts(companyId: string, args: { query: string }): Promise<ProductLookup> {
+  const query = (args.query ?? '').trim();
+  if (!query) throw new Error('Indica el nombre, SKU o código del producto');
+  const products = await prisma.product.findMany({
+    where: {
+      companyId,
+      OR: [{ sku: { contains: query, mode: 'insensitive' } }, { name: { contains: query, mode: 'insensitive' } }, { barcode: query }],
+    },
+    select: {
+      id: true,
+      sku: true,
+      name: true,
+      unit: true,
+      netPrice: true,
+      grossPrice: true,
+      isExempt: true,
+      minStock: true,
+      costPricePMP: true,
+      stocks: { where: { companyId }, select: { quantity: true, warehouse: { select: { name: true } } } },
+    },
+    orderBy: { name: 'asc' },
+    take: PRODUCT_LOOKUP_LIMIT + 1,
+  });
+
+  return {
+    query,
+    truncated: products.length > PRODUCT_LOOKUP_LIMIT,
+    products: products.slice(0, PRODUCT_LOOKUP_LIMIT).map((product) => ({
+      sku: product.sku,
+      name: product.name,
+      unit: product.unit,
+      netPrice: product.netPrice,
+      grossPrice: product.grossPrice,
+      isExempt: product.isExempt,
+      minStock: product.minStock,
+      costPMP: product.costPricePMP,
+      totalStock: product.stocks.reduce((sum, stock) => sum + stock.quantity, 0),
+      stockByWarehouse: product.stocks.map((stock) => ({ warehouse: stock.warehouse.name, quantity: stock.quantity })),
+    })),
+  };
+}
+
+export interface LowStockProducts {
+  products: { sku: string; name: string; unit: string; totalStock: number; minStock: number }[];
+  total: number;
+}
+
+/** Productos con stock mínimo definido cuyo stock total (todas las bodegas) está en o bajo ese mínimo. */
+export async function getLowStockProducts(companyId: string, args: { limit?: number }): Promise<LowStockProducts> {
+  const limit = Math.min(Math.max(Math.round(args.limit ?? 15), 1), 50);
+  const [products, stockGroups] = await Promise.all([
+    prisma.product.findMany({ where: { companyId, minStock: { gt: 0 } }, select: { id: true, sku: true, name: true, unit: true, minStock: true } }),
+    prisma.stock.groupBy({ by: ['productId'], where: { companyId }, _sum: { quantity: true } }),
+  ]);
+  const stockByProduct = new Map(stockGroups.map((group) => [group.productId, group._sum.quantity ?? 0]));
+  const low = products
+    .map((product) => ({ sku: product.sku, name: product.name, unit: product.unit, minStock: product.minStock, totalStock: stockByProduct.get(product.id) ?? 0 }))
+    .filter((product) => product.totalStock <= product.minStock)
+    .sort((a, b) => a.totalStock - a.minStock - (b.totalStock - b.minStock));
+  return { products: low.slice(0, limit), total: low.length };
+}
+
+export interface ContactBalanceRow {
+  razonSocial: string;
+  rut: string;
+  receivable: number;
+  receivableOverdue: number;
+  receivableDocuments: number;
+  payable: number;
+  payableOverdue: number;
+  payableDocuments: number;
+}
+
+/**
+ * Saldo pendiente de un cliente o proveedor. Mismo criterio que Tesorería
+ * (`getContactOutstandingBalance`): documentos emitidos no pagados, sin
+ * contar la guía de despacho que después formaliza una factura.
+ */
+export async function getContactBalance(companyId: string, args: { query: string }): Promise<{ query: string; contacts: ContactBalanceRow[] }> {
+  const query = (args.query ?? '').trim();
+  if (!query) throw new Error('Indica el nombre o RUT del cliente o proveedor');
+  const contacts = await prisma.contact.findMany({
+    where: { companyId, OR: [{ razonSocial: { contains: query, mode: 'insensitive' } }, { rut: { contains: query } }] },
+    select: { id: true, razonSocial: true, rut: true },
+    take: 5,
+  });
+  const now = new Date();
+  const rows = await Promise.all(
+    contacts.map(async (contact) => {
+      const salesWhere = { companyId, contactId: contact.id, status: 'ISSUED' as const, paymentStatus: { not: 'PAID' as const }, dteType: { not: 'GUIA_DESPACHO_52' as const } };
+      const purchaseWhere = { companyId, contactId: contact.id, status: 'ISSUED' as const, paymentStatus: { not: 'PAID' as const } };
+      const [sales, salesOverdue, purchases, purchasesOverdue] = await Promise.all([
+        prisma.salesDocument.aggregate({ where: salesWhere, _sum: { totalAmount: true, paidAmount: true }, _count: true }),
+        prisma.salesDocument.aggregate({ where: { ...salesWhere, dueDate: { lt: now } }, _sum: { totalAmount: true, paidAmount: true } }),
+        prisma.purchaseDocument.aggregate({ where: purchaseWhere, _sum: { totalAmount: true, paidAmount: true }, _count: true }),
+        prisma.purchaseDocument.aggregate({ where: { ...purchaseWhere, dueDate: { lt: now } }, _sum: { totalAmount: true, paidAmount: true } }),
+      ]);
+      const pending = (agg: { _sum: { totalAmount: number | null; paidAmount: number | null } }) => (agg._sum.totalAmount ?? 0) - (agg._sum.paidAmount ?? 0);
+      return {
+        razonSocial: contact.razonSocial,
+        rut: contact.rut,
+        receivable: pending(sales),
+        receivableOverdue: pending(salesOverdue),
+        receivableDocuments: sales._count,
+        payable: pending(purchases),
+        payableOverdue: pending(purchasesOverdue),
+        payableDocuments: purchases._count,
+      };
+    })
+  );
+  return { query, contacts: rows };
+}
+
+function formatQuantity(value: number): string {
+  return value.toLocaleString('es-CL', { maximumFractionDigits: 2 });
+}
+
 /** Formatea el resultado de una tool en texto plano en español para pasárselo de vuelta al modelo — nunca se le pide que "recuerde" o invente un número que no esté acá. */
 export function formatToolResultForPrompt(toolName: string, result: unknown, options: { includeMargin: boolean } = { includeMargin: true }): string {
   switch (toolName) {
@@ -190,6 +330,35 @@ export function formatToolResultForPrompt(toolName: string, result: unknown, opt
     case 'getVatProjection': {
       const r = result as VatProjection;
       return `IVA del ${r.month}/${r.year}: débito ${formatCurrency(r.debitVat)}, crédito ${formatCurrency(r.creditVat)}, neto ${formatCurrency(r.netVat)} (${r.netVat >= 0 ? 'a pagar' : 'a favor'}).`;
+    }
+    case 'findProducts': {
+      const r = result as ProductLookup;
+      if (r.products.length === 0) return `No hay productos que coincidan con "${r.query}".`;
+      const lines = r.products.map((p) => {
+        const price = p.isExempt ? `${formatCurrency(p.netPrice)} (exento)` : `${formatCurrency(p.netPrice)} neto / ${formatCurrency(p.grossPrice)} con IVA`;
+        const byWarehouse = p.stockByWarehouse.length > 1 ? ` [${p.stockByWarehouse.map((w) => `${w.warehouse}: ${formatQuantity(w.quantity)}`).join(', ')}]` : '';
+        // El costo PMP revela el margen: sin `products:costs` no se le entrega al modelo.
+        const cost = options.includeMargin ? `, costo PMP ${formatCurrency(Math.round(p.costPMP))}` : '';
+        const low = p.minStock > 0 && p.totalStock <= p.minStock ? ' (bajo el mínimo)' : '';
+        return `- ${p.name} (SKU ${p.sku}): precio ${price}${cost}; stock ${formatQuantity(p.totalStock)} ${p.unit}${low}${byWarehouse}`;
+      });
+      return `${lines.join('\n')}${r.truncated ? '\nHay más coincidencias: pide un nombre o SKU más preciso.' : ''}`;
+    }
+    case 'getLowStockProducts': {
+      const r = result as LowStockProducts;
+      if (r.total === 0) return 'Ningún producto está bajo su stock mínimo.';
+      const lines = r.products.map((p) => `- ${p.name} (SKU ${p.sku}): ${formatQuantity(p.totalStock)} ${p.unit}, mínimo ${formatQuantity(p.minStock)}`);
+      return `${r.total} producto(s) en o bajo su stock mínimo${r.total > r.products.length ? ` (se muestran ${r.products.length})` : ''}:\n${lines.join('\n')}`;
+    }
+    case 'getContactBalance': {
+      const r = result as { query: string; contacts: ContactBalanceRow[] };
+      if (r.contacts.length === 0) return `No hay contactos que coincidan con "${r.query}".`;
+      return r.contacts
+        .map(
+          (c) =>
+            `- ${c.razonSocial} (RUT ${c.rut}): te debe ${formatCurrency(c.receivable)} en ${c.receivableDocuments} documento(s), vencido ${formatCurrency(c.receivableOverdue)}; le debes ${formatCurrency(c.payable)} en ${c.payableDocuments} documento(s), vencido ${formatCurrency(c.payableOverdue)}.`
+        )
+        .join('\n');
     }
     default:
       return JSON.stringify(result);

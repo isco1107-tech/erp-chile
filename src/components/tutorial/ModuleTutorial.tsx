@@ -2,9 +2,13 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { BookOpen, MessageCircleQuestion } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { findHintForPath, type ManualHint } from '@/modules/manual/hints';
+import { openAssistant } from '@/components/shared/assistant-events';
 import { getModuleKeyForPath } from './tutorial-routes';
 import { TUTORIAL_CONTENT, type TutorialStep } from './tutorial-content';
 import { computeTooltipPosition, type Rect } from './spotlight-position';
@@ -17,6 +21,30 @@ const HELP_BUTTON_TARGET = 'module-help-button';
 
 function storageKey(userId: string, moduleKey: string): string {
   return `tutorial-seen:${userId}:${moduleKey}`;
+}
+
+/** Ancla de URL con la que el Manual pide abrir el tutorial de una pantalla ("Ver tutorial guiado"). */
+export const TUTORIAL_URL_HASH = '#tutorial';
+
+function autoOpenKey(userId: string): string {
+  return `tutorial-auto-off:${userId}`;
+}
+
+/** El usuario pidió no ver más guías automáticas (las sigue teniendo con "Cómo usar"). */
+function autoOpenDisabled(userId: string): boolean {
+  try {
+    return window.localStorage.getItem(autoOpenKey(userId)) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function disableAutoOpen(userId: string): void {
+  try {
+    window.localStorage.setItem(autoOpenKey(userId), '1');
+  } catch {
+    // Sin storage, se volverán a ofrecer: degradación aceptable.
+  }
 }
 
 function hasSeen(userId: string, moduleKey: string): boolean {
@@ -47,7 +75,7 @@ function buildSteps(steps: TutorialStep[]): Required<TutorialStep>[] {
     ...withDefaults,
     {
       title: 'Vuelve a verlo cuando quieras',
-      description: 'Este botón abre de nuevo esta guía en cualquier momento, sin tener que esperar a que reaparezca sola.',
+      description: 'El botón "Cómo usar" abre de nuevo esta guía en cualquier momento. Para el detalle paso a paso, lee el manual o pregúntale al asistente.',
       target: HELP_BUTTON_TARGET,
       placement: 'bottom',
     },
@@ -57,6 +85,8 @@ function buildSteps(steps: TutorialStep[]): Required<TutorialStep>[] {
 interface ModuleTutorialProps {
   /** `context.id` del usuario logueado — el "visto" se recuerda por usuario, no por navegador a secas. */
   userId: string;
+  /** Secciones del manual de este usuario: el último paso enlaza la que documenta esta pantalla. */
+  manualHints: ManualHint[];
 }
 
 const DEFAULT_TOOLTIP_SIZE = { width: 340, height: 168 };
@@ -74,11 +104,12 @@ const RETRY_DELAYS_MS = [0, 120, 250, 400, 600, 900];
  * sola vez en el layout del dashboard — detecta el módulo actual por
  * `usePathname()`, ninguna página de módulo necesita importarlo.
  */
-export default function ModuleTutorial({ userId }: ModuleTutorialProps) {
+export default function ModuleTutorial({ userId, manualHints }: ModuleTutorialProps) {
   const pathname = usePathname();
   const moduleKey = getModuleKeyForPath(pathname);
   const content = moduleKey ? TUTORIAL_CONTENT[moduleKey] : undefined;
   const steps = useMemo(() => (content ? buildSteps(content.steps) : []), [content]);
+  const manualHint = useMemo(() => findHintForPath(manualHints, pathname), [manualHints, pathname]);
 
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
@@ -104,7 +135,15 @@ export default function ModuleTutorial({ userId }: ModuleTutorialProps) {
       setOpen(false);
       return;
     }
-    if (hasSeen(userId, moduleKey)) {
+    // Pedido explícito desde el Manual ("Ver tutorial guiado"): se abre siempre
+    // y se limpia el ancla para que recargar no lo vuelva a abrir.
+    if (window.location.hash === TUTORIAL_URL_HASH) {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      markSeen(userId, moduleKey);
+      setOpen(true);
+      return;
+    }
+    if (hasSeen(userId, moduleKey) || autoOpenDisabled(userId)) {
       setOpen(false);
       return;
     }
@@ -184,10 +223,17 @@ export default function ModuleTutorial({ userId }: ModuleTutorialProps) {
       if (el) updateFromElement(el);
     }
 
+    // Un elemento montado pero fuera de la pantalla (el menú lateral cerrado
+    // en el celular) no sirve de ancla: el paso se muestra centrado.
+    function isOnScreen(el: Element): boolean {
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0 && r.right > 0 && r.left < window.innerWidth;
+    }
+
     function locate() {
       if (cancelled) return;
       const el = document.querySelector(`[data-tutorial="${target}"]`);
-      if (el) {
+      if (el && isOnScreen(el)) {
         el.scrollIntoView({ block: 'center', behavior: 'smooth' });
         scrollTimeout = setTimeout(() => {
           if (cancelled) return;
@@ -315,6 +361,30 @@ export default function ModuleTutorial({ userId }: ModuleTutorialProps) {
           <p className="text-sm leading-relaxed text-muted-foreground">{current.description}</p>
         </div>
 
+        {isLast && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {manualHint && (
+              <Link
+                href={`/dashboard/manual#${manualHint.id}`}
+                onClick={close}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted"
+              >
+                <BookOpen className="size-3.5" aria-hidden="true" /> Leer el manual paso a paso
+              </Link>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                close();
+                openAssistant('¿Qué puedo hacer en esta pantalla?');
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted"
+            >
+              <MessageCircleQuestion className="size-3.5" aria-hidden="true" /> Preguntar al asistente
+            </button>
+          </div>
+        )}
+
         <div className="mt-3 flex items-center justify-center gap-1.5">
           {steps.map((tutorialStep, index) => (
             <span
@@ -338,6 +408,17 @@ export default function ModuleTutorial({ userId }: ModuleTutorialProps) {
             )}
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            disableAutoOpen(userId);
+            close();
+          }}
+          className="mt-3 text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+        >
+          No mostrar guías automáticamente (seguirán en &ldquo;Cómo usar&rdquo;)
+        </button>
       </div>
     </div>,
     document.body
