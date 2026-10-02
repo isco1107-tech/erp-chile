@@ -104,6 +104,8 @@ export async function updateSponsorshipContractAction(
     revalidateSponsorships(id);
     if (sponsorshipsService.isSponsorAcceptance(previous?.status ?? null, data.status)) {
       await sponsorshipsService.notifySponsorAccepted(session.companyId, data.id);
+    } else if (previous && previous.tier !== data.tier) {
+      await sponsorshipsService.notifySponsorTierChanged(session.companyId, data.id, previous.tier);
     }
     return { success: true, data, message: 'Contrato de auspicio actualizado correctamente' };
   } catch (error) {
