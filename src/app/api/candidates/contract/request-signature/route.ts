@@ -5,7 +5,8 @@ import { createAuditLog } from '@/lib/auth/audit';
 import { prisma } from '@/lib/prisma';
 import { renderCandidateContractPdf } from '@/modules/candidates/services/contract-pdf.service';
 import { saveZapsignRequest, upsertGeneratedContract } from '@/modules/candidates/services/documents.service';
-import { createDocument } from '@/lib/zapsign/client';
+import { ZapsignApiError, createDocument, isSandboxConfig } from '@/lib/zapsign/client';
+import { getCompanyZapsignConfig } from '@/lib/integrations/company-integrations';
 import { captureException } from '@/lib/observability';
 
 /**
@@ -46,16 +47,23 @@ export async function GET(req: Request) {
 
     const document = await upsertGeneratedContract(session.companyId, candidateId, blob.url);
 
-    const zapsign = await createDocument({
-      name: `Contrato de imagen — ${candidate.fullName}`,
-      pdfBuffer: buffer,
-      signerName: candidate.fullName,
-      signerEmail: candidate.email,
-    });
+    // Cuenta de ZapSign de la empresa; `null` cae a la de la plataforma.
+    const zapsignConfig = await getCompanyZapsignConfig(session.companyId);
+    const zapsign = await createDocument(
+      {
+        name: `Contrato de imagen — ${candidate.fullName}`,
+        pdfBuffer: buffer,
+        signerName: candidate.fullName,
+        signerEmail: candidate.email,
+      },
+      zapsignConfig
+    );
 
     const updated = await saveZapsignRequest(session.companyId, document.id, {
       zapsignDocToken: zapsign.docToken,
       zapsignSignUrl: zapsign.signUrl,
+      // Se recuerda en qué entorno se creó: una firma de sandbox no tiene validez legal.
+      zapsignSandbox: isSandboxConfig(zapsignConfig),
     });
 
     await createAuditLog({
@@ -65,10 +73,10 @@ export async function GET(req: Request) {
       action: 'UPDATE',
       entity: 'CandidateDocument',
       entityId: document.id,
-      metadata: { candidateId, action: 'request_signature', zapsignDocToken: zapsign.docToken },
+      metadata: { candidateId, action: 'request_signature', zapsignDocToken: zapsign.docToken, sandbox: updated.zapsignSandbox },
     });
 
-    return NextResponse.json({ success: true, data: { documentId: updated.id, signUrl: zapsign.signUrl } });
+    return NextResponse.json({ success: true, data: { documentId: updated.id, signUrl: zapsign.signUrl, sandbox: updated.zapsignSandbox } });
   } catch (error) {
     if (error instanceof AuthError) {
       return NextResponse.json({ success: false, error: error.message }, { status: error.status });
@@ -78,6 +86,10 @@ export async function GET(req: Request) {
     }
     if (error instanceof TenantInactiveError) {
       return NextResponse.json({ success: false, error: error.message }, { status: 403 });
+    }
+    if (error instanceof ZapsignApiError) {
+      captureException(error, { module: 'candidates', extra: { reason: 'zapsign-create', detail: error.detail } });
+      return NextResponse.json({ success: false, error: error.message }, { status: 502 });
     }
     if (error instanceof Error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 400 });

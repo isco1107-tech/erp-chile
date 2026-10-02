@@ -314,6 +314,7 @@ export async function confirmTicketPayment(companyId: string, id: string, data: 
     const company = await prisma.company.findUnique({ where: { id: companyId }, select: { businessName: true } });
     void sendEmail({
       to: sale.buyerEmail,
+      companyId,
       ...buildTicketConfirmationEmail({
         buyerName: sale.buyerName,
         projectName: sale.project.name,

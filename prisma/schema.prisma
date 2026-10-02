@@ -227,6 +227,8 @@ model Company {
   workflowRules             WorkflowRule[]
   workflowExecutions        WorkflowExecution[]
   workflowNotifications     WorkflowNotification[]
+  dataSubjectRequests       DataSubjectRequest[]
+  privacyIncidents          PrivacyIncident[]
   pushSubscriptions         PushSubscription[]
   opportunities             Opportunity[]
   crmActivities             CrmActivity[]
@@ -633,11 +635,29 @@ model CompanySettings {
   /// visitante nunca manda un `companyId`. `null` hasta que alguien comparte
   /// el portal desde Cuotas & Mensualidades.
   installmentPortalToken     String?      @unique
+  /// Token del formulario público de solicitudes de derechos sobre datos
+  /// personales (`/derechos/[token]`). Mismo patrón que `installmentPortalToken`:
+  /// el token resuelve la empresa, el visitante nunca manda un `companyId`.
+  privacyPortalToken         String?      @unique
   /// API key de la cuenta de cobro de Khipu de ESTA empresa, cifrada con
   /// AES-256-GCM (`src/lib/payments/crypto.ts`). Decide a qué cuenta llega el
   /// dinero, por eso solo se edita con `settings:company`. El nombre termina
   /// en "Credential" para que el respaldo lo excluya por patrón.
   khipuApiCredential         String?
+  /// API key de Brevo de ESTA empresa, cifrada con AES-256-GCM
+  /// (`src/lib/integrations/crypto.ts`). Con ella el correo de la empresa
+  /// (invitaciones, cobranza, comprobantes, automatizaciones) sale por su
+  /// propia cuenta y remitente. `null` = se usa la cuenta de la plataforma.
+  brevoApiCredential         String?
+  /// Remitente verificado en Brevo (nombre y dirección). Brevo solo envía
+  /// desde direcciones verificadas, así que se comprueba al guardar.
+  emailFromName              String?
+  emailFromAddress           String?
+  /// Token de la API de ZapSign de ESTA empresa (contratos de candidatas),
+  /// cifrado igual que la de Brevo. `null` = cuenta de la plataforma.
+  zapsignApiCredential       String?
+  /// `true` apunta al sandbox de ZapSign (no envía correos reales).
+  zapsignSandbox             Boolean      @default(false)
   /// Interruptor de la empresa (OWNER/ADMIN, `settings:company`) para el
   /// conector MCP — ver `McpPersonalToken`. `false` por defecto: nadie puede
   /// generarse un token personal hasta que la empresa lo habilite, porque
@@ -2543,98 +2563,106 @@ model FeeDocument {
 /// fecha de nacimiento, contacto de emergencia): RBAC restringido a
 /// OWNER/ADMIN (ver src/lib/auth/permissions.ts).
 model Candidate {
-  id                    String                @id @default(cuid())
-  companyId             String
-  company               Company               @relation(fields: [companyId], references: [id])
-  projectId             String
-  project               Project               @relation(fields: [projectId], references: [id])
-  rut                   String
-  rutClean              String
-  fullName              String
-  stageName             String?
-  email                 String?
-  phone                 String?
+  id                      String                @id @default(cuid())
+  companyId               String
+  company                 Company               @relation(fields: [companyId], references: [id])
+  projectId               String
+  project                 Project               @relation(fields: [projectId], references: [id])
+  rut                     String
+  rutClean                String
+  fullName                String
+  stageName               String?
+  email                   String?
+  phone                   String?
   /// Obligatoria en fichas creadas desde el panel; `null` en postulaciones del
   /// formulario público, que solo pide la edad (`declaredAge`).
-  birthDate             DateTime?
+  birthDate               DateTime?
   /// Edad declarada por la postulante en el formulario público, al momento de
   /// postular. Solo se usa cuando no hay `birthDate`.
-  declaredAge           Int?
-  dressSize             String?
-  shoeSize              String?
-  heightCm              Int?
-  emergencyContactName  String?
-  emergencyContactPhone String?
+  declaredAge             Int?
+  dressSize               String?
+  shoeSize                String?
+  heightCm                Int?
+  emergencyContactName    String?
+  emergencyContactPhone   String?
   /// Nombre/RUT del padre, madre o representante legal — solo se completa si
   /// la candidata es menor de edad. El contrato de imagen incluye un tercer
   /// bloque de firma para el tutor únicamente cuando `guardianName` está
   /// cargado (ver `contract-pdf.service.ts`); si es null, ese bloque se omite
   /// en vez de dejarse en blanco sin sentido.
-  guardianName          String?
-  guardianRut           String?
-  status                CandidateStatus       @default(APPLICANT)
-  photoUrl              String?
-  notes                 String?
+  guardianName            String?
+  guardianRut             String?
+  status                  CandidateStatus       @default(APPLICANT)
+  photoUrl                String?
+  notes                   String?
   /// Folio público entregado a la postulante al enviar el formulario
   /// (`{Project.code}-{año}-{correlativo}`, ver `InternalDocumentSequence`
   /// con `kind = CANDIDATE_APPLICATION`). `null` en fichas creadas a mano
   /// desde el panel interno, que no pasan por auto-inscripción.
-  folio                 String?
+  folio                   String?
   // ── Campos del formulario público de postulación (Sección 5 del módulo) ──
-  comuna                String?
-  direccion             String?
-  ocupacion             String?
-  instagram             String?
-  idiomas               String?
-  experiencia           String?
-  motivacion            String?
-  causaSocial           String?
+  comuna                  String?
+  direccion               String?
+  ocupacion               String?
+  instagram               String?
+  idiomas                 String?
+  experiencia             String?
+  motivacion              String?
+  causaSocial             String?
   /// Alergias o condiciones médicas relevantes declaradas por la propia
   /// candidata (ej. alergia a un maquillaje, condición que el equipo de
   /// producción deba conocer para ensayos/pasarela). Texto libre, no
   /// reemplaza un certificado médico real — para eso existe el documento
   /// `MEDICAL_CERTIFICATE` en `CandidateDocument`.
-  condicionesMedicas    String?
-  aceptaMarketing       Boolean               @default(false)
+  condicionesMedicas      String?
+  aceptaMarketing         Boolean               @default(false)
   /// Motivo obligatorio al pasar a `REJECTED` — no se usa para `WITHDRAWN`.
-  motivoDescarte        String?
+  motivoDescarte          String?
   /// Metadatos de origen del envío público, solo para envíos que llegaron por
   /// `submitCandidateRegistration` — nunca para fichas creadas a mano.
-  ipOrigen              String?
-  userAgent             String?
+  ipOrigen                String?
+  userAgent               String?
+  /// Constancia del consentimiento dado en el formulario público (Ley 21.719):
+  /// cuándo se aceptó y QUÉ versión de la política se mostró. `null` en fichas
+  /// creadas a mano o anteriores a este registro. `privacyGuardianProvided`
+  /// indica que la postulante es menor y el formulario exigió los datos de su
+  /// madre, padre o apoderado.
+  privacyConsentAt        DateTime?
+  privacyPolicyVersion    String?
+  privacyGuardianProvided Boolean               @default(false)
   /// Datos del empleador (texto libre, completado a mano o vía búsqueda web
   /// en `lookupCompaniesByName` — ver `src/modules/contacts/services/company-lookup.service.ts`).
   /// No hay relación estructurada con `Contact`: es solo un dato informativo
   /// de la ficha, no un cliente/proveedor de la empresa.
-  employerName          String?
-  employerRut           String?
-  employerAddress       String?
+  employerName            String?
+  employerRut             String?
+  employerAddress         String?
   // ── Presentación pública (micrositio, votación, escaleta) ───────────────
   /// Número oficial de candidata en el certamen ("Candidata N° 7"). Único
   /// por proyecto; `null` mientras no se numera (Postgres admite varios NULL
   /// bajo un índice único).
-  candidateNumber       Int?
+  candidateNumber         Int?
   /// Ciudad, región o país que representa ("Valparaíso", "Chile"): el
   /// "Miss ___" de la banda.
-  representing          String?
+  representing            String?
   /// Texto de presentación para el micrositio, escrito por el equipo — no se
   /// reutiliza nada del formulario privado de postulación sin que alguien lo
   /// decida y lo escriba acá.
-  publicBio             String?
+  publicBio               String?
   /// Permite ocultar a una candidata oficial del micrositio sin cambiar su
   /// estado en el certamen.
-  showOnPublicSite      Boolean               @default(true)
-  attendances           CandidateAttendance[]
-  documents             CandidateDocument[]
-  wardrobeItems         WardrobeItem[]
-  stageTimelineItems    StageTimelineItem[]
-  scoreSheets           ScoreSheet[]
-  roundEntries          RoundContestant[]
-  promissoryNotes       PromissoryNote[]
-  paymentPlans          PaymentPlan[]
-  voteOrders            VoteOrder[]
-  createdAt             DateTime              @default(now())
-  updatedAt             DateTime              @updatedAt
+  showOnPublicSite        Boolean               @default(true)
+  attendances             CandidateAttendance[]
+  documents               CandidateDocument[]
+  wardrobeItems           WardrobeItem[]
+  stageTimelineItems      StageTimelineItem[]
+  scoreSheets             ScoreSheet[]
+  roundEntries            RoundContestant[]
+  promissoryNotes         PromissoryNote[]
+  paymentPlans            PaymentPlan[]
+  voteOrders              VoteOrder[]
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
 
   @@unique([companyId, projectId, rutClean])
   // Folio único por empresa, no global: cada empresa tiene su propio
@@ -2729,33 +2757,39 @@ enum CandidateDocumentType {
 /// `services/documents.service.ts`, no se puede expresar como unique parcial
 /// en Prisma.
 model CandidateDocument {
-  id               String                  @id @default(cuid())
-  companyId        String
-  company          Company                 @relation(fields: [companyId], references: [id])
-  candidateId      String
-  candidate        Candidate               @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  title            String
-  documentType     CandidateDocumentType   @default(OTHER)
-  fileUrl          String
-  signedAt         DateTime?
-  expiresAt        DateTime?
-  status           CandidateDocumentStatus @default(PENDING)
+  id                  String                  @id @default(cuid())
+  companyId           String
+  company             Company                 @relation(fields: [companyId], references: [id])
+  candidateId         String
+  candidate           Candidate               @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  title               String
+  documentType        CandidateDocumentType   @default(OTHER)
+  fileUrl             String
+  signedAt            DateTime?
+  expiresAt           DateTime?
+  status              CandidateDocumentStatus @default(PENDING)
   /// Token del documento en ZapSign — correlaciona el webhook de firma con
   /// esta fila. `null` para documentos subidos a mano (sin firma electrónica).
-  zapsignDocToken  String?                 @unique
+  zapsignDocToken     String?                 @unique
+  /// El documento se envió a firmar al SANDBOX de ZapSign (cuenta de prueba).
+  /// Una firma de sandbox no tiene validez legal: nunca llena `signedAt` (que
+  /// es lo que cuentan el casting, el centro de mando y el contrato vigente),
+  /// solo `zapsignTestSignedAt`.
+  zapsignSandbox      Boolean                 @default(false)
+  zapsignTestSignedAt DateTime?
   /// Link de firma de ZapSign, guardado como respaldo por si el correo
   /// automático no llega — mismo criterio que `SponsorshipContract.portalToken`,
   /// salvo que este link lo emite y controla ZapSign, no nosotros.
-  zapsignSignUrl   String?
+  zapsignSignUrl      String?
   /// Metadatos capturados al recibir el archivo — solo poblados para
   /// `PHOTO_FACE`/`PHOTO_FULL_BODY` subidas por el formulario público
   /// (tipo MIME real leído de los primeros bytes, tamaño y hash SHA-256).
   /// `null` en documentos previos a este campo y en los subidos a mano.
-  mimeType         String?
-  fileSizeBytes    Int?
-  sha256Hash       String?
-  originalFileName String?
-  createdAt        DateTime                @default(now())
+  mimeType            String?
+  fileSizeBytes       Int?
+  sha256Hash          String?
+  originalFileName    String?
+  createdAt           DateTime                @default(now())
 
   @@index([companyId, candidateId])
 }
@@ -5729,4 +5763,85 @@ model DelegationRule {
   updatedAt    DateTime          @updatedAt
 
   @@index([companyId, isActive, decision])
+}
+
+/// Derechos del titular de datos personales (Ley 21.719): acceso, rectificación,
+/// supresión, oposición, portabilidad y bloqueo.
+enum DataSubjectRequestType {
+  ACCESS
+  RECTIFICATION
+  ERASURE
+  OPPOSITION
+  PORTABILITY
+  BLOCKING
+}
+
+enum DataSubjectRequestStatus {
+  RECEIVED
+  IN_PROGRESS
+  RESOLVED
+  REJECTED
+}
+
+/// Solicitud de un titular a la empresa (la responsable de sus datos). El plazo
+/// de respuesta corre desde `receivedAt`; `dueAt` lo calcula el servidor con
+/// `src/lib/privacy/deadlines.ts`, nunca el cliente.
+model DataSubjectRequest {
+  id                 String                   @id @default(cuid())
+  companyId          String
+  company            Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  type               DataSubjectRequestType
+  status             DataSubjectRequestStatus @default(RECEIVED)
+  requesterName      String
+  requesterEmail     String
+  /// RUT sin formato (solo dígitos y dígito verificador), opcional.
+  requesterRutClean  String?
+  details            String?
+  /// `PUBLIC_FORM` (portal público) o `MANUAL` (registrada por el equipo).
+  source             String
+  receivedAt         DateTime                 @default(now())
+  dueAt              DateTime
+  /// Si se prorrogó el plazo, hasta cuándo y por qué.
+  extendedUntil      DateTime?
+  extensionReason    String?
+  /// El equipo comprobó que quien pide es el titular (o su representante).
+  identityVerifiedAt DateTime?
+  resolvedAt         DateTime?
+  resolutionNote     String?
+  handledById        String?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  @@index([companyId, status, dueAt])
+  @@index([companyId, requesterEmail])
+}
+
+enum PrivacyIncidentStatus {
+  OPEN
+  CONTAINED
+  CLOSED
+}
+
+/// Registro de vulneraciones de seguridad de datos personales. Sirve para
+/// decidir y dejar constancia de a quién se avisó (Agencia y titulares) y cuándo.
+model PrivacyIncident {
+  id                   String                @id @default(cuid())
+  companyId            String
+  company              Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  title                String
+  description          String
+  detectedAt           DateTime
+  status               PrivacyIncidentStatus @default(OPEN)
+  affectsSensitiveData Boolean               @default(false)
+  affectsMinors        Boolean               @default(false)
+  affectsEconomicData  Boolean               @default(false)
+  recordsAffected      Int?
+  containmentActions   String?
+  agencyNotifiedAt     DateTime?
+  subjectsNotifiedAt   DateTime?
+  createdById          String?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+
+  @@index([companyId, status])
 }

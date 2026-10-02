@@ -107,6 +107,8 @@ const CASCADES_TO_COMPANY = new Set([
   'QualityInspection',
   'TeamTask',
   'DelegationRule',
+  'DataSubjectRequest',
+  'PrivacyIncident',
 ]);
 
 /** Cascadean desde `Project`, que se borra explícito en `hardDeleteTenant`. */

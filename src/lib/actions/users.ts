@@ -200,7 +200,7 @@ async function deliverInvitationEmail(
     acceptUrl,
     expiresInDays: INVITATION_TTL_DAYS,
   });
-  return sendEmail({ to: invitation.email, ...email });
+  return sendEmail({ to: invitation.email, companyId: invitation.companyId, ...email });
 }
 
 function invitationMessage(status: EmailResult['status'], email: string): string {

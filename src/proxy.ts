@@ -78,6 +78,11 @@ const PUBLIC_ROUTES = [
   // la app, login incluido).
   '/politica-privacidad',
   '/aether',
+  // Formulario público de derechos sobre datos personales (`/derechos/[token]`):
+  // el titular no tiene cuenta ERP; la ruta valida el token contra
+  // `CompanySettings.privacyPortalToken`.
+  // Con barra final a propósito (como `/web/`): `/derechos-x` no debe quedar público por accidente.
+  '/derechos/',
   // Metadatos de rastreo de la landing (`src/app/robots.ts` y
   // `src/app/sitemap.ts`): un buscador los pide sin cookies, así que si
   // cayeran en el redirect a /login la landing quedaría sin robots ni sitemap.

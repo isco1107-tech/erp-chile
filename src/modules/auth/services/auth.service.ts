@@ -142,7 +142,7 @@ async function notifyAccountLocked(userId: string, companyId: string | null): Pr
       lockoutMinutes: LOCKOUT_MS / 60000,
       maxAttempts: MAX_ATTEMPTS,
     });
-    await Promise.all(recipients.map((r) => sendEmail({ to: r.email, subject: email.subject, html: email.html, text: email.text })));
+    await Promise.all(recipients.map((r) => sendEmail({ to: r.email, subject: email.subject, html: email.html, text: email.text, companyId })));
   } catch (error) {
     captureException(error, { module: 'auth', extra: { reason: 'account-locked-notice' } });
   }

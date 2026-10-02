@@ -157,6 +157,7 @@ export async function sendUpcomingEventsReminder(
 
   const delivery = await sendEmail({
     to: recipient,
+    companyId,
     subject: emailContent.subject,
     html: emailContent.html,
     text: emailContent.text,

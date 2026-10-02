@@ -203,6 +203,7 @@ export async function confirmVotePayment(companyId: string, id: string, data: Co
     const company = await prisma.company.findUnique({ where: { id: companyId }, select: { businessName: true } });
     void sendEmail({
       to: order.buyerEmail,
+      companyId,
       ...buildVoteConfirmationEmail({
         projectName: order.project.name,
         companyName: company?.businessName ?? '',

@@ -58,17 +58,21 @@ export interface CompanySettingsInput {
 
 /**
  * Vista de `CompanySettings` segura para el cliente: `siiApiKey`/`siiApiSecret`
- * nunca viajan al navegador (ni cifradas), solo si hay una credencial guardada.
+ * y las credenciales de Khipu, Brevo y ZapSign nunca viajan al navegador (ni
+ * cifradas): su estado se consulta aparte (`getIntegrationsStatus`).
  * El valor real solo se descifra en el servidor, en el punto de uso
  * (`getCompanySiiApiConfig`), nunca para mostrarlo de vuelta en un formulario.
  */
-export type CompanySettingsView = Omit<CompanySettings, 'siiApiKey' | 'siiApiSecret'> & {
+export type CompanySettingsView = Omit<
+  CompanySettings,
+  'siiApiKey' | 'siiApiSecret' | 'khipuApiCredential' | 'brevoApiCredential' | 'zapsignApiCredential'
+> & {
   siiApiKeySet: boolean;
   siiApiSecretSet: boolean;
 };
 
 function toCompanySettingsView(settings: CompanySettings): CompanySettingsView {
-  const { siiApiKey, siiApiSecret, ...rest } = settings;
+  const { siiApiKey, siiApiSecret, khipuApiCredential, brevoApiCredential, zapsignApiCredential, ...rest } = settings;
   return { ...rest, siiApiKeySet: Boolean(siiApiKey), siiApiSecretSet: Boolean(siiApiSecret) };
 }
 

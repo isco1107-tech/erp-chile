@@ -136,7 +136,7 @@ export async function notifySponsorAccepted(companyId: string, contractId: strin
       portalUrl: `${getAppUrl()}/sponsors/${portalToken}`,
       contact: { email: contact.email, whatsapp: contact.whatsapp },
     });
-    await sendEmail({ to, ...email, ...(contact.email ? { replyTo: contact.email } : {}) });
+    await sendEmail({ to, companyId, ...email, ...(contact.email ? { replyTo: contact.email } : {}) });
   } catch (error) {
     captureException(error, { module: 'sponsorships', companyId, extra: { reason: 'sponsor-accepted-email', contractId } });
   }
@@ -190,7 +190,7 @@ export async function notifySponsorTierChanged(
       portalUrl: `${getAppUrl()}/sponsors/${portalToken}`,
       contact: { email: contact.email, whatsapp: contact.whatsapp },
     });
-    await sendEmail({ to, ...email, ...(contact.email ? { replyTo: contact.email } : {}) });
+    await sendEmail({ to, companyId, ...email, ...(contact.email ? { replyTo: contact.email } : {}) });
   } catch (error) {
     captureException(error, { module: 'sponsorships', companyId, extra: { reason: 'sponsor-tier-changed-email', contractId } });
   }
@@ -328,6 +328,7 @@ export async function updateSponsorshipPayment(
     const company = await prisma.company.findUnique({ where: { id: companyId }, select: { businessName: true } });
     void sendEmail({
       to: contract.contact.email,
+      companyId,
       ...buildSponsorshipPaymentConfirmationEmail({
         contactName: contract.contact.razonSocial,
         projectName: contract.project.name,

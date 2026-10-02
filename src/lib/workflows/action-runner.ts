@@ -23,7 +23,7 @@ export async function runWorkflowAction(action: WorkflowActionConfig, payload: W
   try {
     switch (action.type) {
       case 'SEND_EMAIL':
-        return await runSendEmail(action, payload);
+        return await runSendEmail(action, payload, context);
       case 'CREATE_NOTIFICATION':
         return await runCreateNotification(action, payload, context);
       case 'CALL_WEBHOOK':
@@ -35,7 +35,7 @@ export async function runWorkflowAction(action: WorkflowActionConfig, payload: W
   }
 }
 
-async function runSendEmail(action: Extract<WorkflowActionConfig, { type: 'SEND_EMAIL' }>, payload: WorkflowEventPayload): Promise<WorkflowActionResult> {
+async function runSendEmail(action: Extract<WorkflowActionConfig, { type: 'SEND_EMAIL' }>, payload: WorkflowEventPayload, context: WorkflowActionRunContext): Promise<WorkflowActionResult> {
   const to = renderTemplate(action.to, payload).text.trim();
   if (!EMAIL_REGEX.test(to)) {
     return { type: 'SEND_EMAIL', success: false, detail: `Destinatario inválido tras resolver la plantilla: "${to}"` };
@@ -51,9 +51,9 @@ async function runSendEmail(action: Extract<WorkflowActionConfig, { type: 'SEND_
   // (`src/lib/email/templates.ts`) — este es el único punto que lo saltaba.
   const html = escapeHtml(bodyResult.text).replace(/\n/g, '<br>');
 
-  const delivery = await sendEmail({ to, subject, html, text: bodyResult.text });
+  const delivery = await sendEmail({ to, subject, html, text: bodyResult.text, companyId: context.companyId });
   if (delivery.status === 'failed') {
-    return { type: 'SEND_EMAIL', success: false, detail: `Falló el envío a ${to}: ${delivery.error ?? 'sin detalle'}` };
+    return { type: 'SEND_EMAIL', success: false, detail: `Falló el envío a ${to}: el proveedor de correo no lo aceptó. Revisa tu cuenta de Brevo en Configuración → Perfil de Empresa → Integraciones.` };
   }
   const note = bodyResult.unknownFields.length > 0 ? ` (campos desconocidos en la plantilla: ${bodyResult.unknownFields.join(', ')})` : '';
   return { type: 'SEND_EMAIL', success: true, detail: `Enviado a ${to}${note}` };

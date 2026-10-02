@@ -197,7 +197,7 @@ async function notifyCandidateStatusChange(
     previousStatus,
   });
   if (!email) return;
-  await sendEmail({ to: candidate.email, ...email, ...(context.replyTo ? { replyTo: context.replyTo } : {}) });
+  await sendEmail({ to: candidate.email, companyId, ...email, ...(context.replyTo ? { replyTo: context.replyTo } : {}) });
 }
 
 export async function listCandidatesAction(filters: CandidateListFilters = {}): Promise<ActionResult<CandidateListResult>> {

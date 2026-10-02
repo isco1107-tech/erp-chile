@@ -25,10 +25,48 @@ function cleanEnvValue(value: string): string {
 
 const ZAPSIGN_BASE_URL = cleanEnvValue(process.env.ZAPSIGN_BASE_URL || 'https://sandbox.api.zapsign.com.br');
 
-function requireToken(): string {
+/**
+ * Credenciales con las que se llama a ZapSign. Cada empresa puede conectar la
+ * suya (`getCompanyZapsignConfig`); sin ella se usa la de la plataforma
+ * (variables de entorno), que es como operan los clientes que no conectaron
+ * nada.
+ */
+export interface ZapsignConfig {
+  token: string;
+  baseUrl: string;
+}
+
+export function platformZapsignConfig(): ZapsignConfig {
   const token = process.env.ZAPSIGN_API_TOKEN;
-  if (!token) throw new Error('ZAPSIGN_API_TOKEN no está configurado');
-  return cleanEnvValue(token);
+  if (!token) throw new Error('ZapSign no está configurado: conecta tu cuenta en Configuración → Empresa → Integraciones');
+  return { token: cleanEnvValue(token), baseUrl: ZAPSIGN_BASE_URL };
+}
+
+export const ZAPSIGN_PRODUCTION_URL = 'https://api.zapsign.com.br';
+export const ZAPSIGN_SANDBOX_URL = 'https://sandbox.api.zapsign.com.br';
+
+/** ¿Estas credenciales apuntan al sandbox (firmas de prueba, sin validez legal)? */
+export function isSandboxConfig(config?: ZapsignConfig | null): boolean {
+  return resolveConfig(config).baseUrl === ZAPSIGN_SANDBOX_URL;
+}
+
+/** `null` = la empresa no conectó la suya; se usa la de la plataforma. */
+function resolveConfig(config?: ZapsignConfig | null): ZapsignConfig {
+  return config ?? platformZapsignConfig();
+}
+
+/**
+ * Error de la API de ZapSign. `message` es apto para mostrar; la respuesta
+ * cruda del proveedor queda en `detail` solo para observabilidad.
+ */
+export class ZapsignApiError extends Error {
+  constructor(
+    message: string,
+    readonly detail: string
+  ) {
+    super(message);
+    this.name = 'ZapsignApiError';
+  }
 }
 
 export interface CreateDocumentInput {
@@ -43,10 +81,11 @@ export interface CreateDocumentResult {
   signUrl: string | null;
 }
 
-export async function createDocument(input: CreateDocumentInput): Promise<CreateDocumentResult> {
-  const response = await fetch(`${ZAPSIGN_BASE_URL}/api/v1/docs/`, {
+export async function createDocument(input: CreateDocumentInput, config?: ZapsignConfig | null): Promise<CreateDocumentResult> {
+  const { token, baseUrl } = resolveConfig(config);
+  const response = await fetch(`${baseUrl}/api/v1/docs/`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${requireToken()}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       name: input.name,
       base64_pdf: input.pdfBuffer.toString('base64'),
@@ -56,7 +95,10 @@ export async function createDocument(input: CreateDocumentInput): Promise<Create
   });
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(`ZapSign rechazó la creación del documento (${response.status}): ${body.slice(0, 300)}`);
+    throw new ZapsignApiError(
+      'ZapSign no aceptó el documento. Revisa que el token de tu cuenta sea válido en Configuración → Empresa → Integraciones.',
+      `creación (${response.status}): ${body.slice(0, 300)}`
+    );
   }
   const data = await response.json();
   return { docToken: data.token, signUrl: data.signers?.[0]?.sign_url ?? null };
@@ -74,9 +116,10 @@ export interface DocumentStatus {
  * webhooks con HMAC. Esta llamada, autenticada con nuestro propio token, es
  * la verificación real.
  */
-export async function getDocumentStatus(docToken: string): Promise<DocumentStatus> {
-  const response = await fetch(`${ZAPSIGN_BASE_URL}/api/v1/docs/${docToken}/`, {
-    headers: { Authorization: `Bearer ${requireToken()}` },
+export async function getDocumentStatus(docToken: string, config?: ZapsignConfig | null): Promise<DocumentStatus> {
+  const { token, baseUrl } = resolveConfig(config);
+  const response = await fetch(`${baseUrl}/api/v1/docs/${docToken}/`, {
+    headers: { Authorization: `Bearer ${token}` },
   });
   if (!response.ok) {
     const body = await response.text();

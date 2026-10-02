@@ -53,6 +53,7 @@ export async function runWeeklyReportCron(): Promise<{ processedCompanies: numbe
       for (const recipient of recipients) {
         const delivery = await sendEmail({
           to: recipient.email,
+          companyId: company.id,
           subject: email.subject,
           html: email.html,
           text: email.text,
