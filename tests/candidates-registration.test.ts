@@ -1,3 +1,4 @@
+import { PRIVACY_POLICY_VERSION } from '@/lib/privacy/constants';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import {
@@ -546,5 +547,40 @@ describe('submitCandidateRegistration — auto-inscripción pública por token',
     expect(capturedCreateArgs?.data.companyId).toBe('company-real');
     expect(capturedCreateArgs?.data.projectId).toBe('proj-real');
     expect(capturedCreateArgs?.data.status).toBe('APPLICANT');
+  });
+  describe('constancia del consentimiento (Ley 21.719)', () => {
+    async function submitAndCapture(input: ReturnType<typeof buildRegistrationInput>, project: Parameters<typeof buildProjectRecord>[0] = {}) {
+      jest.spyOn(prisma.project, 'findUnique').mockResolvedValue(buildProjectRecord(project) as never);
+      jest.spyOn(prisma.candidate, 'findFirst').mockResolvedValue(null);
+      let captured: { data: Record<string, unknown> } | undefined;
+      jest.spyOn(prisma, '$transaction').mockImplementation((async (cb: (tx: unknown) => unknown) => {
+        const tx = {
+          internalDocumentSequence: { upsert: jest.fn().mockResolvedValue({ currentFolio: 1 }) },
+          candidate: {
+            create: jest.fn().mockImplementation((args: { data: Record<string, unknown> }) => {
+              captured = args;
+              return Promise.resolve({ id: 'cand-new' });
+            }),
+          },
+          auditLog: { create: jest.fn().mockResolvedValue({}) },
+        };
+        return cb(tx);
+      }) as never);
+      await submitCandidateRegistration('token-x', input, {});
+      return captured!.data;
+    }
+
+    it('guarda cuándo aceptó y qué versión de la política vio', async () => {
+      const data = await submitAndCapture(buildRegistrationInput());
+      expect(data.privacyConsentAt).toBeInstanceOf(Date);
+      expect(data.privacyPolicyVersion).toBe(PRIVACY_POLICY_VERSION);
+      expect(data.privacyGuardianProvided).toBe(false);
+    });
+
+    it('si es menor, deja constancia de que el formulario exigió a su apoderado', async () => {
+      // Un certamen que acepta menores: sin edad mínima de 18.
+      const data = await submitAndCapture(buildRegistrationInput({ age: 16, guardianName: 'María Soto', guardianRut: '12.345.678-5' }), { minCandidateAge: 14 });
+      expect(data.privacyGuardianProvided).toBe(true);
+    });
   });
 });

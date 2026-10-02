@@ -24,7 +24,20 @@ export function escapeHtml(value: string): string {
     .replace(/"/g, '&quot;');
 }
 
-function layout(options: { title: string; body: string; ctaLabel: string; ctaUrl: string; footer: string }): string {
+/** `ctaLabel`/`ctaUrl` son opcionales: un acuse de recibo no necesita botón. */
+function layout(options: { title: string; body: string; ctaLabel?: string; ctaUrl?: string; footer: string }): string {
+  const cta =
+    options.ctaLabel && options.ctaUrl
+      ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0;">
+                <tr>
+                  <td style="background:${BRAND};border-radius:8px;">
+                    <a href="${options.ctaUrl}" style="display:inline-block;padding:12px 22px;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;">${escapeHtml(options.ctaLabel)}</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:0 0 6px;color:#64748b;font-size:13px;">Si el botón no funciona, copia y pega este enlace:</p>
+              <p style="margin:0;word-break:break-all;"><a href="${options.ctaUrl}" style="color:${BRAND};font-size:13px;">${options.ctaUrl}</a></p>`
+      : '';
   return `<!doctype html>
 <html lang="es">
 <body style="margin:0;padding:0;background:#f4f6f8;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
@@ -40,15 +53,7 @@ function layout(options: { title: string; body: string; ctaLabel: string; ctaUrl
           <tr>
             <td style="padding:24px;color:#1f2933;font-size:15px;line-height:1.6;">
               ${options.body}
-              <table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0;">
-                <tr>
-                  <td style="background:${BRAND};border-radius:8px;">
-                    <a href="${options.ctaUrl}" style="display:inline-block;padding:12px 22px;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;">${escapeHtml(options.ctaLabel)}</a>
-                  </td>
-                </tr>
-              </table>
-              <p style="margin:0 0 6px;color:#64748b;font-size:13px;">Si el botón no funciona, copia y pega este enlace:</p>
-              <p style="margin:0;word-break:break-all;"><a href="${options.ctaUrl}" style="color:${BRAND};font-size:13px;">${options.ctaUrl}</a></p>
+              ${cta}
             </td>
           </tr>
           <tr>
@@ -1905,3 +1910,42 @@ export function buildInstallmentPaymentReceiptEmail(input: InstallmentPaymentRec
 
   return { subject, html, text };
 }
+
+export interface DataSubjectRequestAckEmailInput {
+  companyName: string;
+  typeLabel: string;
+  dueDateLabel: string;
+  contactEmail: string | null;
+}
+
+/**
+ * Acuse de recibo al titular: confirma que la solicitud llegó y cuándo se responderá como máximo.
+ * Saluda sin nombre a propósito: el nombre lo escribe quien llena el formulario público, y un
+ * tercero podría usarlo para meter un mensaje en un correo con la marca de la empresa.
+ */
+export function buildDataSubjectRequestAckEmail(input: DataSubjectRequestAckEmailInput): { subject: string; html: string; text: string } {
+  const subject = `Recibimos tu solicitud de ${input.typeLabel.toLowerCase()} de datos personales`;
+  const contactHtml = input.contactEmail ? ` Si tienes dudas, escríbenos a <a href="mailto:${escapeHtml(input.contactEmail)}">${escapeHtml(input.contactEmail)}</a>.` : '';
+  const contactText = input.contactEmail ? ` Si tienes dudas, escríbenos a ${input.contactEmail}.` : '';
+
+  const html = layout({
+    title: 'Recibimos tu solicitud',
+    body: `<p style="margin:0 0 12px;">Hola,</p>
+    <p style="margin:0 0 12px;">${escapeHtml(input.companyName)} recibió tu solicitud de <strong>${escapeHtml(input.typeLabel.toLowerCase())}</strong> sobre tus datos personales.</p>
+    <p style="margin:0 0 12px;">Antes de responder vamos a verificar tu identidad, y te contestaremos a más tardar el <strong>${escapeHtml(input.dueDateLabel)}</strong>.${contactHtml}</p>
+    <p style="margin:0;color:#64748b;font-size:13px;">Si tú no hiciste esta solicitud, puedes ignorar este correo.</p>`,
+    footer: `Acuse de recibo automático de ${escapeHtml(input.companyName)}.`,
+  });
+
+  const text = [
+    'Hola,',
+    '',
+    `${input.companyName} recibió tu solicitud de ${input.typeLabel.toLowerCase()} sobre tus datos personales.`,
+    `Antes de responder vamos a verificar tu identidad, y te contestaremos a más tardar el ${input.dueDateLabel}.${contactText}`,
+    '',
+    'Si tú no hiciste esta solicitud, puedes ignorar este correo.',
+  ].join('\n');
+
+  return { subject, html, text };
+}
+

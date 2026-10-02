@@ -10,10 +10,9 @@ export const dynamic = 'force-dynamic';
  * elimina postulaciones `REJECTED` con más de N meses. Mismo patrón de
  * autenticación por `CRON_SECRET` que `app/api/calendar/reminders/cron`.
  *
- * NO está agregada a `vercel.json` todavía — agregar un cron nuevo cambia lo
- * que corre automáticamente contra la base de datos compartida de
- * producción, así que se deja para que la organización decida el horario y
- * la habilite explícitamente (ver resumen final de la tarea).
+ * Corre el día 1 de cada mes a las 04:00 UTC (ver `vercel.json`). Es la
+ * garantía de que una postulación descartada no queda indefinidamente en el
+ * sistema, como lo promete la política de privacidad (Ley 21.719).
  */
 export async function GET(req: Request) {
   try {

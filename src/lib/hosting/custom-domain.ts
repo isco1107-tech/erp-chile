@@ -121,6 +121,7 @@ const CUSTOM_DOMAIN_PASSTHROUGH = [
   '/votar',
   '/pagar',
   '/politica-privacidad',
+  '/derechos/',
   '/icon.png',
   '/favicon.ico',
   '/branding',

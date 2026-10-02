@@ -165,6 +165,20 @@ export const ADMINISTRACION_SECTIONS: ManualSection[] = [
         tip: 'Las claves se guardan cifradas y no se vuelven a mostrar: para cambiarlas, escribe una nueva. Si desconectas ZapSign con contratos pendientes de firma, esos no se actualizarán solos.',
       },
       {
+        id: 'proteccion-datos',
+        title: 'Atender los derechos de los titulares de datos (Ley 21.719)',
+        permission: 'settings:company',
+        route: '/dashboard/settings/privacy',
+        steps: [
+          'Ve a Configuración → Protección de datos. En "Solicitudes de titulares" haz clic en "Generar enlace del formulario" y publica ese enlace en tu política de privacidad y en tu sitio.',
+          'Cuando una persona usa el formulario, la solicitud aparece con su plazo legal y te llega un aviso en la campanita. Si la recibiste por otro medio, haz clic en "Registrar solicitud recibida por otro medio".',
+          'Abre la solicitud, haz clic en "Buscar sus datos" para ver todo lo que tienes de esa persona y, si pidió acceso o portabilidad, usa "Descargar copia (JSON)".',
+          'Marca "Identidad verificada" cuando compruebes que quien pide es el titular, escribe la constancia de lo que hiciste y haz clic en "Resolver" (o en "Rechazar" con el motivo). Si necesitas más tiempo, usa "Prorrogar" con su motivo.',
+          'En "Registro de actividades" revisa y descarga qué datos trata tu empresa, y en "Incidentes de seguridad" deja constancia de cualquier filtración o acceso no autorizado y de a quién avisaste.',
+        ],
+        tip: 'Eliminar o corregir datos se hace desde la ficha de cada registro (el buscador te lleva a ella). Los documentos tributarios, contables y laborales no se pueden eliminar mientras dure el plazo legal de conservación. Valida los plazos y textos con tu asesoría legal.',
+      },
+      {
         id: 'invitar-usuario',
         title: 'Invitar a alguien de tu equipo',
         permission: 'settings:users',

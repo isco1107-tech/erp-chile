@@ -295,6 +295,28 @@ export const INSTALLMENT_LOOKUP_RATE_LIMIT: RateLimitConfig = {
   windowMs: 15 * 60_000,
 };
 
+/** Formulario público de solicitudes de derechos sobre datos personales: pocas por IP, es un trámite, no una consulta. */
+export const PRIVACY_REQUEST_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'privacy-request-ip',
+  limit: 5,
+  windowMs: 60 * 60_000,
+};
+
+/**
+ * Mismo formulario, por enlace (empresa) y por correo del solicitante: el tope por IP no basta
+ * si alguien rota de dirección. Frenan el spam de solicitudes y de acuses a un tercero.
+ */
+export const PRIVACY_REQUEST_TOKEN_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'privacy-request-token',
+  limit: 30,
+  windowMs: 60 * 60_000,
+};
+export const PRIVACY_REQUEST_EMAIL_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'privacy-request-email',
+  limit: 3,
+  windowMs: 24 * 60 * 60_000,
+};
+
 /** Portal público de pago de cuotas, creación del cobro en la pasarela. */
 export const INSTALLMENT_CHECKOUT_RATE_LIMIT: RateLimitConfig = {
   prefix: 'installment-checkout-ip',

@@ -6,6 +6,7 @@ import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { captureException } from '@/lib/observability';
 import { cleanRut, formatRut, validateRut } from '@/lib/chile/rut';
 import { constraintInvolves } from '@/lib/prisma-errors';
+import { PRIVACY_POLICY_VERSION, isLegalEntityRut } from '@/lib/privacy/constants';
 import type {
   CandidateCreateInput,
   CandidateSelfRegistrationInput,
@@ -815,12 +816,41 @@ export async function getRegistrationProjectByToken(token: string): Promise<Regi
  * organización y correo de contacto), a partir del mismo token del link de
  * postulación. No evalúa la ventana: la política se puede leer siempre.
  */
-export async function getRegistrationPrivacyInfo(token: string): Promise<{ projectName: string; companyName: string; contactEmail: string | null } | null> {
+export interface RegistrationPrivacyInfo {
+  projectName: string;
+  companyName: string;
+  contactEmail: string | null;
+  /** RUT y domicilio de la organización responsable, si los tiene cargados (si no, la política deja el dato a completar). */
+  companyRut: string | null;
+  companyAddress: string | null;
+  /** Token del formulario público de derechos de la empresa, si lo activó. */
+  privacyPortalToken: string | null;
+}
+
+export async function getRegistrationPrivacyInfo(token: string): Promise<RegistrationPrivacyInfo | null> {
   const project = await prisma.project.findUnique({
     where: { candidateRegistrationToken: token },
-    select: { name: true, publicContactEmail: true, company: { select: { businessName: true } } },
+    select: {
+      name: true,
+      publicContactEmail: true,
+      company: { select: { businessName: true, rut: true, status: true, address: true, comuna: true, ciudad: true, settings: { select: { privacyPortalToken: true } } } },
+    },
   });
-  return project ? { projectName: project.name, companyName: project.company.businessName, contactEmail: project.publicContactEmail } : null;
+  if (!project) return null;
+  const { company } = project;
+  // Una empresa suspendida o cancelada no publica nada más que lo mínimo.
+  const operational = company.status === 'ACTIVE' || company.status === 'TRIAL';
+  // Solo una persona jurídica publica su RUT y domicilio: el de una persona natural es su dato personal.
+  const publishIdentity = operational && isLegalEntityRut(cleanRut(company.rut));
+  const address = [company.address, company.comuna, company.ciudad].filter(Boolean).join(', ');
+  return {
+    projectName: project.name,
+    companyName: company.businessName,
+    contactEmail: project.publicContactEmail,
+    companyRut: publishIdentity ? company.rut : null,
+    companyAddress: publishIdentity ? address || null : null,
+    privacyPortalToken: operational ? (company.settings?.privacyPortalToken ?? null) : null,
+  };
 }
 
 type ProjectRegistrationFields = {
@@ -957,6 +987,11 @@ export async function submitCandidateRegistration(
           motivacion: data.motivacion,
           ipOrigen: meta.ipOrigen || undefined,
           userAgent: meta.userAgent || undefined,
+          // Constancia del consentimiento (Ley 21.719): `aceptaTratamientoDatos` ya vino validado
+          // como `true` por el esquema; se guarda cuándo y QUÉ versión de la política se mostró.
+          privacyConsentAt: new Date(),
+          privacyPolicyVersion: PRIVACY_POLICY_VERSION,
+          privacyGuardianProvided: Boolean(data.guardianName),
         },
       });
 
