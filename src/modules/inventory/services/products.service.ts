@@ -223,8 +223,49 @@ export async function updateProduct(companyId: string, id: string, input: Produc
 }
 
 export async function deleteProduct(companyId: string, id: string): Promise<void> {
-  const result = await prisma.product.deleteMany({ where: { companyId, id } });
-  if (result.count === 0) throw new Error('Producto no encontrado');
+  await prisma.$transaction(async (tx) => {
+    const product = await tx.product.findFirst({
+      where: { companyId, id },
+      select: {
+        _count: {
+          select: {
+            movements: true,
+            salesDocumentItems: true,
+            salesOrderItems: true,
+            purchaseItems: true,
+            purchaseOrderItems: true,
+            goodsReceiptItems: true,
+            journalLines: true,
+            purchaseRequestItems: true,
+            importShipmentItems: true,
+            billsOfMaterials: true,
+            bomComponents: true,
+            productionOrders: true,
+            productionComponents: true,
+            serviceTicketLines: true,
+            inventoryCountLines: true,
+          },
+        },
+        stocks: { select: { quantity: true } },
+      },
+    });
+    if (!product) throw new Error('Producto no encontrado');
+
+    const hasHistory = Object.values(product._count).some((count) => count > 0);
+    if (hasHistory) {
+      throw new Error(
+        'No se puede eliminar: el producto ya tiene movimientos, ventas, compras u otros documentos asociados. Déjalo sin stock y deja de usarlo, o edítalo si solo quieres corregirlo.'
+      );
+    }
+    if (product.stocks.some((stock) => stock.quantity !== 0)) {
+      throw new Error('No se puede eliminar: el producto aún tiene stock. Ajusta el stock a cero primero.');
+    }
+
+    // Filas vacías de stock (en 0) no cuentan como historial: se retiran junto con el producto.
+    await tx.stock.deleteMany({ where: { companyId, productId: id } });
+    const result = await tx.product.deleteMany({ where: { companyId, id } });
+    if (result.count === 0) throw new Error('Producto no encontrado');
+  });
 }
 
 export async function listCategories(companyId: string): Promise<Category[]> {
