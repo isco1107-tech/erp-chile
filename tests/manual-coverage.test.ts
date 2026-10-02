@@ -4,7 +4,7 @@ import { MODULE_KEYS, type CompanyFeatureFlags, type FeatureKey } from '@/lib/au
 import { ALL_PERMISSIONS } from '@/lib/auth/permissions';
 import { buildAvailableWorkspaceNav } from '@/lib/navigation/workspace-nav';
 import { MANUAL_CHAPTERS, MANUAL_SECTIONS, findManualSectionForPath, sectionRoutes, sectionScreenshot } from '@/modules/manual/content';
-import { SCREEN_PURPOSES } from '@/modules/manual/knowledge';
+import { SCREEN_PURPOSES, getKnowledgeAsManualSections } from '@/modules/manual/knowledge';
 import { TUTORIAL_CONTENT } from '@/components/tutorial/tutorial-content';
 import { getModuleKeyForPath, tutorialRoutes } from '@/components/tutorial/tutorial-routes';
 
@@ -109,6 +109,16 @@ describe('Estructura del manual', () => {
       expect(text).not.toContain(phrase);
     }
   );
+
+  /**
+   * El e2e detecta la pantalla de error del panel buscando "Algo salió mal"
+   * (sin distinguir mayúsculas): si el manual usa la frase, la pantalla del
+   * manual parece rota aunque cargue bien.
+   */
+  it('no usa la frase de la pantalla de error del panel', () => {
+    const text = JSON.stringify([...MANUAL_SECTIONS, ...getKnowledgeAsManualSections(ALL_FEATURES)]).toLowerCase();
+    expect(text).not.toContain('algo salió mal');
+  });
 });
 
 describe('Capturas de pantalla', () => {

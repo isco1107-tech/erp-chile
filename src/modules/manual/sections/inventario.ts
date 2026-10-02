@@ -115,7 +115,7 @@ export const INVENTARIO_SECTIONS: ManualSection[] = [
         steps: [
           'Si recorriste toda la bodega, "No contados en cero" deja en 0 lo que no encontraste.',
           'Presiona "Contabilizar": el stock se ajusta a lo contado (los no contados no se tocan) y se genera el asiento. No se puede deshacer.',
-          'Si algo salió mal, "Anular" descarta el conteo sin cambiar el stock.',
+          'Mientras no lo contabilices, "Anular" descarta el conteo sin cambiar el stock.',
         ],
       },
     ],
