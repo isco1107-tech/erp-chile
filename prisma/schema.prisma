@@ -920,6 +920,9 @@ model Product {
   /// Maneja lotes con vencimiento: las entradas registran lote y las salidas
   /// consumen primero el que vence antes (FEFO). Ver `InventoryLot`.
   tracksLots           Boolean                    @default(false)
+  /// Archivado = `false`: sale del POS y de los selectores de venta/compra, pero
+  /// conserva su historial. Es la salida para productos que ya no se pueden borrar.
+  isActive             Boolean                    @default(true)
   packagings           ProductPackaging[]
   lots                 InventoryLot[]
   inventoryCountLines  InventoryCountLine[]

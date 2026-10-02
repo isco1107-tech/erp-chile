@@ -7,9 +7,10 @@ export type ProductWithStock = Product & { category: Category | null; totalStock
 
 export async function listProducts(
   companyId: string,
-  options?: { query?: string; categoryId?: string }
+  options?: { query?: string; categoryId?: string; includeArchived?: boolean }
 ): Promise<ProductWithStock[]> {
   const where: Prisma.ProductWhereInput = { companyId };
+  if (!options?.includeArchived) where.isActive = true;
   const trimmed = options?.query?.trim();
   if (trimmed) {
     const like: Prisma.StringFilter = { contains: trimmed, mode: 'insensitive' };
@@ -55,6 +56,7 @@ export interface ProductListItem {
   brand: string | null;
   imageUrl: string | null;
   tracksLots: boolean;
+  isActive: boolean;
 }
 
 export interface ListProductsResult {
@@ -75,9 +77,10 @@ const PRODUCTS_DEFAULT_PAGE_SIZE = 25;
  */
 export async function listProductsPage(
   companyId: string,
-  options?: { query?: string; categoryId?: string; page?: number; pageSize?: number }
+  options?: { query?: string; categoryId?: string; page?: number; pageSize?: number; includeArchived?: boolean }
 ): Promise<ListProductsResult> {
   const where: Prisma.ProductWhereInput = { companyId };
+  if (!options?.includeArchived) where.isActive = true;
   const trimmed = options?.query?.trim();
   if (trimmed) {
     const like: Prisma.StringFilter = { contains: trimmed, mode: 'insensitive' };
@@ -109,6 +112,7 @@ export async function listProductsPage(
         brand: true,
         imageUrl: true,
         tracksLots: true,
+        isActive: true,
         stocks: { select: { quantity: true } },
       },
       orderBy: { name: 'asc' },
@@ -222,6 +226,11 @@ export async function updateProduct(companyId: string, id: string, input: Produc
   return updated;
 }
 
+export async function setProductActive(companyId: string, id: string, isActive: boolean): Promise<void> {
+  const result = await prisma.product.updateMany({ where: { companyId, id }, data: { isActive } });
+  if (result.count === 0) throw new Error('Producto no encontrado');
+}
+
 export async function deleteProduct(companyId: string, id: string): Promise<void> {
   await prisma.$transaction(async (tx) => {
     const product = await tx.product.findFirst({
@@ -254,7 +263,7 @@ export async function deleteProduct(companyId: string, id: string): Promise<void
     const hasHistory = Object.values(product._count).some((count) => count > 0);
     if (hasHistory) {
       throw new Error(
-        'No se puede eliminar: el producto ya tiene movimientos, ventas, compras u otros documentos asociados. Déjalo sin stock y deja de usarlo, o edítalo si solo quieres corregirlo.'
+        'No se puede eliminar: el producto ya tiene movimientos, ventas, compras u otros documentos asociados. Puedes archivarlo para que deje de aparecer en el POS y en los selectores.'
       );
     }
     if (product.stocks.some((stock) => stock.quantity !== 0)) {
