@@ -4,13 +4,16 @@ import type { Content, FunctionDeclaration } from '@google/genai';
 import { AuthError, TenantInactiveError, getAuthContext } from '@/lib/auth/guards';
 import { captureException } from '@/lib/observability';
 import { generateAgentWithTools } from '@/modules/agents/services/gemini-agent';
-import { buildManualSystemPrompt } from '@/modules/manual/prompt';
+import { MANUAL_LOOKUP_TOOL, buildManualSystemPrompt, lookupManual } from '@/modules/manual/prompt';
 import { checkRateLimit, MANUAL_ASSISTANT_RATE_LIMIT } from '@/lib/security/rate-limiter';
-import { getAgentAction } from '@/modules/agent-actions/registry';
+import { getAgentAction, type AgentActor } from '@/modules/agent-actions/registry';
 import { signPendingAction } from '@/modules/agent-actions/token';
 import { DATA_TOOLS, availableDataTools, canSeeMargins, type DataToolName } from '@/modules/agents/assistant-data-tools';
 import {
+  findProducts,
   formatToolResultForPrompt,
+  getContactBalance,
+  getLowStockProducts,
   getOverdueBalances,
   getSalesMarginSummary,
   getVatProjection,
@@ -64,6 +67,19 @@ function toGeminiContents(messages: z.infer<typeof requestSchema>['messages']): 
   }));
 }
 
+const MANUAL_LOOKUP_DECLARATION: FunctionDeclaration = {
+  name: MANUAL_LOOKUP_TOOL,
+  description:
+    'Devuelve los pasos exactos del manual de usuario (solo de los módulos y permisos de este usuario) para una sección del índice o para palabras clave. Úsala antes de explicar un procedimiento que no esté detallado en tus instrucciones.',
+  parametersJsonSchema: {
+    type: 'object',
+    properties: {
+      seccion: { type: 'string', description: 'Id de la sección, el que aparece entre corchetes en el ÍNDICE DEL MANUAL (opcional)' },
+      consulta: { type: 'string', description: 'Palabras clave de lo que se busca, ej. "anular boleta" (opcional)' },
+    },
+  },
+};
+
 const PROPOSE_ACTION_TOOL: FunctionDeclaration = {
   name: 'proposeAction',
   description:
@@ -115,6 +131,7 @@ export async function POST(req: Request) {
     // se captura acá, fuera de la conversación, y se manda aparte en la
     // respuesta HTTP para que el widget renderice los botones de confirmar.
     let pendingAction: { token: string; summary: string } | null = null;
+    const actor: AgentActor = { companyId: session.companyId, userId: session.id, userName: session.name, permissions: session.permissions };
 
     const executors: Record<string, (args: Record<string, unknown>) => Promise<unknown>> = {
       proposeAction: async (args) => {
@@ -127,7 +144,7 @@ export async function POST(req: Request) {
 
         const rawPayload = args.payload && typeof args.payload === 'object' ? (args.payload as Record<string, unknown>) : {};
         try {
-          const resolved = await action.resolve(session.companyId, rawPayload);
+          const resolved = await action.resolve(actor, rawPayload);
           const token = signPendingAction({
             actionType,
             payload: resolved.payload,
@@ -141,6 +158,7 @@ export async function POST(req: Request) {
           return { error: error instanceof Error ? error.message : 'No se pudo procesar la acción' };
         }
       },
+      [MANUAL_LOOKUP_TOOL]: async (args) => ({ manual: lookupManual(session.features, session.permissions, args) }),
     };
 
     // Consultas de datos: solo las habilitadas para este usuario, y el
@@ -152,6 +170,9 @@ export async function POST(req: Request) {
       getSalesMarginSummary: (args) => getSalesMarginSummary(companyId, args as { from: string; to: string }),
       getOverdueBalances: (args) => getOverdueBalances(companyId, args as { minDaysOverdue?: number }),
       getVatProjection: (args) => getVatProjection(companyId, args as { year?: number; month?: number }),
+      findProducts: (args) => findProducts(companyId, args as { query: string }),
+      getLowStockProducts: (args) => getLowStockProducts(companyId, args as { limit?: number }),
+      getContactBalance: (args) => getContactBalance(companyId, args as { query: string }),
     };
     for (const name of dataToolNames) {
       executors[name] = async (args) => ({ resumen: formatToolResultForPrompt(name, await dataExecutors[name](args), { includeMargin }) });
@@ -160,7 +181,7 @@ export async function POST(req: Request) {
     const reply = await generateAgentWithTools(
       systemPrompt,
       toGeminiContents(parsed.data.messages),
-      [PROPOSE_ACTION_TOOL, ...dataToolNames.map((name) => DATA_TOOLS[name].declaration)],
+      [PROPOSE_ACTION_TOOL, MANUAL_LOOKUP_DECLARATION, ...dataToolNames.map((name) => DATA_TOOLS[name].declaration)],
       executors,
       'reasoning'
     );

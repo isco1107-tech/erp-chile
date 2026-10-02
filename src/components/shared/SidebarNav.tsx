@@ -206,7 +206,7 @@ export function SidebarNav({ groups }: { groups: NavGroup[] }) {
     });
 
   return (
-    <nav aria-label="Módulos" className="hud-scroll -mr-2 flex-1 space-y-2 overflow-y-auto pr-2">
+    <nav aria-label="Módulos" data-tutorial="sidebar-nav" className="hud-scroll -mr-2 flex-1 space-y-2 overflow-y-auto pr-2">
       {groups.map((group, index) => {
         const groupHasActiveLink = group.links.some(isLinkActive);
         // Por defecto solo quedan abiertos "Principal" y el grupo de la pantalla actual;

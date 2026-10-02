@@ -267,6 +267,15 @@ export const MANUAL_ASSISTANT_CONFIRM_RATE_LIMIT: RateLimitConfig = {
   windowMs: 60_000,
 };
 
+/** Descarga del manual en Word (`GET /api/manual/docx`): arma el archivo con
+ * todas las capturas en cada pedido, así que se limita por usuario para que un
+ * doble clic insistente o un script no lo genere decenas de veces seguidas. */
+export const MANUAL_DOCX_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'manual-docx-user',
+  limit: 6,
+  windowMs: 60_000,
+};
+
 /** Formulario comercial del landing (`POST /api/public/leads`): público y sin
  * sesión, mismo criterio que las postulaciones — 5 solicitudes por hora por IP
  * alcanzan para cualquier persona real y frenan el spam automatizado. */
