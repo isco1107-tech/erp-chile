@@ -139,7 +139,7 @@ async function notifyWithoutCrm(target: SponsorLeadTarget, lead: PublicSponsorLe
         packageName: pkg?.name ?? null,
         dashboardUrl: `${getAppUrl()}/dashboard/projects/${target.project.id}`,
       });
-      await Promise.all(recipients.map((to) => sendEmail({ to, ...notice, replyTo: lead.email })));
+      await Promise.all(recipients.map((to) => sendEmail({ to, companyId: target.companyId, ...notice, replyTo: lead.email })));
     } catch (error) {
       captureException(error, { module: 'crm', companyId: target.companyId, extra: { reason: 'sponsor-lead-email' } });
     }
@@ -164,7 +164,7 @@ function confirmToSponsor(target: SponsorLeadTarget, lead: PublicSponsorLeadInpu
         siteUrl: `${getAppUrl()}/certamen/${slug}`,
         contact: { email: target.contactEmail, whatsapp: target.whatsapp },
       });
-      await sendEmail({ to: lead.email, ...confirmation, ...(target.contactEmail ? { replyTo: target.contactEmail } : {}) });
+      await sendEmail({ to: lead.email, companyId: target.companyId, ...confirmation, ...(target.contactEmail ? { replyTo: target.contactEmail } : {}) });
     } catch (error) {
       captureException(error, { module: 'crm', companyId: target.companyId, extra: { reason: 'sponsor-lead-confirmation' } });
     }

@@ -25,10 +25,26 @@ function cleanEnvValue(value: string): string {
 
 const ZAPSIGN_BASE_URL = cleanEnvValue(process.env.ZAPSIGN_BASE_URL || 'https://sandbox.api.zapsign.com.br');
 
-function requireToken(): string {
+/**
+ * Credenciales con las que se llama a ZapSign. Cada empresa puede conectar la
+ * suya (`getCompanyZapsignConfig`); sin ella se usa la de la plataforma
+ * (variables de entorno), que es como operan los clientes que no conectaron
+ * nada.
+ */
+export interface ZapsignConfig {
+  token: string;
+  baseUrl: string;
+}
+
+export function platformZapsignConfig(): ZapsignConfig {
   const token = process.env.ZAPSIGN_API_TOKEN;
-  if (!token) throw new Error('ZAPSIGN_API_TOKEN no está configurado');
-  return cleanEnvValue(token);
+  if (!token) throw new Error('ZapSign no está configurado: conecta tu cuenta en Configuración → Empresa → Integraciones');
+  return { token: cleanEnvValue(token), baseUrl: ZAPSIGN_BASE_URL };
+}
+
+/** `null` = la empresa no conectó la suya; se usa la de la plataforma. */
+function resolveConfig(config?: ZapsignConfig | null): ZapsignConfig {
+  return config ?? platformZapsignConfig();
 }
 
 export interface CreateDocumentInput {
@@ -43,10 +59,11 @@ export interface CreateDocumentResult {
   signUrl: string | null;
 }
 
-export async function createDocument(input: CreateDocumentInput): Promise<CreateDocumentResult> {
-  const response = await fetch(`${ZAPSIGN_BASE_URL}/api/v1/docs/`, {
+export async function createDocument(input: CreateDocumentInput, config?: ZapsignConfig | null): Promise<CreateDocumentResult> {
+  const { token, baseUrl } = resolveConfig(config);
+  const response = await fetch(`${baseUrl}/api/v1/docs/`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${requireToken()}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       name: input.name,
       base64_pdf: input.pdfBuffer.toString('base64'),
@@ -74,9 +91,10 @@ export interface DocumentStatus {
  * webhooks con HMAC. Esta llamada, autenticada con nuestro propio token, es
  * la verificación real.
  */
-export async function getDocumentStatus(docToken: string): Promise<DocumentStatus> {
-  const response = await fetch(`${ZAPSIGN_BASE_URL}/api/v1/docs/${docToken}/`, {
-    headers: { Authorization: `Bearer ${requireToken()}` },
+export async function getDocumentStatus(docToken: string, config?: ZapsignConfig | null): Promise<DocumentStatus> {
+  const { token, baseUrl } = resolveConfig(config);
+  const response = await fetch(`${baseUrl}/api/v1/docs/${docToken}/`, {
+    headers: { Authorization: `Bearer ${token}` },
   });
   if (!response.ok) {
     const body = await response.text();

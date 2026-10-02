@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { renderCandidateContractPdf } from '@/modules/candidates/services/contract-pdf.service';
 import { saveZapsignRequest, upsertGeneratedContract } from '@/modules/candidates/services/documents.service';
 import { createDocument } from '@/lib/zapsign/client';
+import { getCompanyZapsignConfig } from '@/lib/integrations/company-integrations';
 import { captureException } from '@/lib/observability';
 
 /**
@@ -46,12 +47,16 @@ export async function GET(req: Request) {
 
     const document = await upsertGeneratedContract(session.companyId, candidateId, blob.url);
 
-    const zapsign = await createDocument({
-      name: `Contrato de imagen — ${candidate.fullName}`,
-      pdfBuffer: buffer,
-      signerName: candidate.fullName,
-      signerEmail: candidate.email,
-    });
+    const zapsign = await createDocument(
+      {
+        name: `Contrato de imagen — ${candidate.fullName}`,
+        pdfBuffer: buffer,
+        signerName: candidate.fullName,
+        signerEmail: candidate.email,
+      },
+      // Cuenta de ZapSign de la empresa; `null` cae a la de la plataforma.
+      await getCompanyZapsignConfig(session.companyId)
+    );
 
     const updated = await saveZapsignRequest(session.companyId, document.id, {
       zapsignDocToken: zapsign.docToken,

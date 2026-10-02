@@ -7,6 +7,7 @@
 
 jest.mock('@/lib/zapsign/client', () => ({ getDocumentStatus: jest.fn() }));
 jest.mock('@/lib/storage/blob', () => ({ put: jest.fn() }));
+jest.mock('@/lib/integrations/company-integrations', () => ({ getCompanyZapsignConfig: jest.fn() }));
 jest.mock('@/lib/auth/audit', () => ({ createAuditLog: jest.fn() }));
 jest.mock('@/lib/email/mailer', () => ({ sendEmail: jest.fn(), getAppUrl: () => 'https://app.test' }));
 jest.mock('@/lib/observability', () => ({ captureException: jest.fn() }));
@@ -17,6 +18,7 @@ jest.mock('@/modules/candidates/services/documents.service', () => ({
 
 import { prisma } from '@/lib/prisma';
 import { getDocumentStatus } from '@/lib/zapsign/client';
+import { getCompanyZapsignConfig } from '@/lib/integrations/company-integrations';
 import { put } from '@/lib/storage/blob';
 import { captureException } from '@/lib/observability';
 import {
@@ -32,6 +34,9 @@ function makeRequest(body: unknown): Request {
   });
 }
 
+const COMPANY_ZAPSIGN = { token: 'token-de-la-empresa', baseUrl: 'https://api.zapsign.com.br' };
+
+beforeEach(() => (getCompanyZapsignConfig as jest.Mock).mockResolvedValue(COMPANY_ZAPSIGN));
 afterEach(() => jest.restoreAllMocks());
 afterEach(() => jest.clearAllMocks());
 
@@ -105,6 +110,9 @@ describe('Webhook de ZapSign — orden de validación (SEG-12)', () => {
 
     expect(response.status).toBe(200);
     expect(json.success).toBe(true);
+    // El estado se reconsulta con la cuenta de ZapSign de la empresa dueña del documento, no con la de otra.
+    expect(getCompanyZapsignConfig).toHaveBeenCalledWith('c1');
+    expect(getDocumentStatus).toHaveBeenCalledWith('token-real', COMPANY_ZAPSIGN);
     expect(markContractSignedByZapsignToken).toHaveBeenCalledWith('token-real', 'https://blob.test/candidates/zapsign-signed/token-real.pdf');
   });
 });

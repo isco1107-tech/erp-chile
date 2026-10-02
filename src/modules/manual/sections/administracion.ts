@@ -151,6 +151,20 @@ export const ADMINISTRACION_SECTIONS: ManualSection[] = [
         tip: 'Estos datos salen impresos en tus facturas y boletas: revísalos antes de emitir el primer documento.',
       },
       {
+        id: 'conectar-cuentas',
+        title: 'Conectar tus propias cuentas (Brevo, ZapSign, Khipu)',
+        permission: 'settings:company',
+        route: '/dashboard/settings/company',
+        steps: [
+          'Ve a Configuración → Perfil de Empresa y baja hasta "Integraciones". Sin conectar nada, tu empresa usa las cuentas de la plataforma.',
+          'Correo (Brevo): pega la API key, escribe el nombre y el correo del remitente (debe estar verificado en Brevo) y haz clic en "Conectar Brevo". Después puedes usar "Enviarme un correo de prueba".',
+          'Firma de contratos (ZapSign): pega el token de tu cuenta, deja el modo de prueba apagado si tu token es de producción y haz clic en "Conectar ZapSign".',
+          'Cobro en línea (Khipu): pega la API key de tu cuenta de cobro y haz clic en "Guardar".',
+          'Para volver a las cuentas de la plataforma usa "Desconectar" en cada una. La sección "Dominio propio" te lleva a donde se configura el dominio de cada certamen o sitio web.',
+        ],
+        tip: 'Las claves se guardan cifradas y no se vuelven a mostrar: para cambiarlas, escribe una nueva. Si desconectas ZapSign con contratos pendientes de firma, esos no se actualizarán solos.',
+      },
+      {
         id: 'invitar-usuario',
         title: 'Invitar a alguien de tu equipo',
         permission: 'settings:users',

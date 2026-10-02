@@ -45,7 +45,7 @@ export async function recordSession(input: RecordSessionInput): Promise<void> {
     // señal de seguridad real — se avisa por correo fuera de este await
     // para no demorar el login por un problema de SMTP.
     if (ipAddress) {
-      void checkAndNotifyNewLoginLocation(input.userId, ipAddress, input.userAgent ?? null);
+      void checkAndNotifyNewLoginLocation(input.userId, ipAddress, input.userAgent ?? null, input.companyId);
     }
 
     await prisma.userSession.create({
@@ -72,7 +72,7 @@ export async function recordSession(input: RecordSessionInput): Promise<void> {
  * de una cuenta nueva siempre es "una IP nunca vista", y avisar ahí sería
  * ruido, no una señal de seguridad.
  */
-async function checkAndNotifyNewLoginLocation(userId: string, ipAddress: string, userAgent: string | null): Promise<void> {
+async function checkAndNotifyNewLoginLocation(userId: string, ipAddress: string, userAgent: string | null, companyId?: string | null): Promise<void> {
   try {
     const [priorSessionCount, sameIpCount] = await Promise.all([
       prisma.userSession.count({ where: { userId } }),
@@ -85,7 +85,7 @@ async function checkAndNotifyNewLoginLocation(userId: string, ipAddress: string,
     if (!user) return;
 
     const email = buildNewLoginNoticeEmail({ userName: user.name, ipAddress, userAgent, loginAt: new Date() });
-    await sendEmail({ to: user.email, subject: email.subject, html: email.html, text: email.text });
+    await sendEmail({ to: user.email, subject: email.subject, html: email.html, text: email.text, ...(companyId ? { companyId } : {}) });
   } catch (error) {
     captureException(error, { module: 'auth', userId, extra: { reason: 'checkAndNotifyNewLoginLocation' } });
   }

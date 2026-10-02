@@ -58,7 +58,7 @@ export async function runOverdueInstallmentsReminderCron(): Promise<{ processedC
           totalDue,
         });
 
-        const delivery = await sendEmail({ to: contact.email, subject: email.subject, html: email.html, text: email.text });
+        const delivery = await sendEmail({ to: contact.email, subject: email.subject, html: email.html, text: email.text, companyId: company.id });
 
         await createAuditLog({
           companyId: company.id,

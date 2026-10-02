@@ -35,6 +35,13 @@ export interface SendEmailInput {
   attachments?: EmailAttachment[];
   /** Dirección a la que va la respuesta (p. ej. el interesado de un formulario). */
   replyTo?: string;
+  /**
+   * Empresa en cuyo nombre sale el correo. Si tiene su propia cuenta de Brevo
+   * (Configuración → Empresa → Integraciones) el correo sale por ella y con su
+   * remitente; si no, por la cuenta de la plataforma. Los correos de la propia
+   * plataforma (p. ej. el formulario comercial) no la llevan.
+   */
+  companyId?: string;
 }
 
 export type EmailDeliveryStatus = 'sent' | 'logged' | 'failed';
@@ -78,8 +85,8 @@ export function isEmailConfigured(): boolean {
   return getEmailProvider() !== 'none';
 }
 
-async function sendViaBrevo(input: SendEmailInput, apiKey: string): Promise<EmailResult> {
-  const sender = parseSender(getFromAddress());
+async function sendViaBrevo(input: SendEmailInput, apiKey: string, senderOverride?: SenderAddress): Promise<EmailResult> {
+  const sender = senderOverride ?? parseSender(getFromAddress());
   const response = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: { 'api-key': apiKey, 'Content-Type': 'application/json', accept: 'application/json' },
@@ -130,6 +137,29 @@ async function sendViaResend(input: SendEmailInput, apiKey: string): Promise<Ema
 }
 
 export async function sendEmail(input: SendEmailInput): Promise<EmailResult> {
+  // Cuenta propia de la empresa: si la tiene, es la única que se usa (no hay
+  // respaldo a la de la plataforma si falla, para no enviar con otra marca ni
+  // gastar su cuota sin que lo sepa). Import dinámico: así el mailer sigue
+  // siendo utilizable sin base de datos cuando no hay `companyId`.
+  if (input.companyId) {
+    try {
+      const { getCompanyEmailConfig } = await import('@/lib/integrations/company-integrations');
+      const own = await getCompanyEmailConfig(input.companyId);
+      if (own) {
+        try {
+          return await sendViaBrevo(input, own.apiKey, own.sender);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          captureException(error, { module: 'email', companyId: input.companyId, extra: { provider: 'brevo', source: 'empresa', to: input.to } });
+          return { status: 'failed', provider: 'brevo', error: message };
+        }
+      }
+    } catch (error) {
+      // No se pudo leer la configuración: se sigue con la plataforma en vez de perder el correo.
+      captureException(error, { module: 'email', companyId: input.companyId, extra: { reason: 'config-empresa' } });
+    }
+  }
+
   const provider = getEmailProvider();
 
   if (provider === 'none') {

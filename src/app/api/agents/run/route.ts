@@ -109,7 +109,7 @@ async function sendCeoDigestEmail(companyId: string, companyName: string, since:
 
     await Promise.all(
       recipients.map((r) =>
-        sendEmail({ to: r.email, subject: email.subject, html: email.html, text: email.text }).catch((error) =>
+        sendEmail({ to: r.email, subject: email.subject, html: email.html, text: email.text, companyId }).catch((error) =>
           captureException(error, { module: 'agents', companyId, extra: { reason: 'sendCeoDigestEmail', recipient: r.email } })
         )
       )

@@ -638,6 +638,20 @@ model CompanySettings {
   /// dinero, por eso solo se edita con `settings:company`. El nombre termina
   /// en "Credential" para que el respaldo lo excluya por patrón.
   khipuApiCredential         String?
+  /// API key de Brevo de ESTA empresa, cifrada con AES-256-GCM
+  /// (`src/lib/integrations/crypto.ts`). Con ella el correo de la empresa
+  /// (invitaciones, cobranza, comprobantes, automatizaciones) sale por su
+  /// propia cuenta y remitente. `null` = se usa la cuenta de la plataforma.
+  brevoApiCredential         String?
+  /// Remitente verificado en Brevo (nombre y dirección). Brevo solo envía
+  /// desde direcciones verificadas, así que se comprueba al guardar.
+  emailFromName              String?
+  emailFromAddress           String?
+  /// Token de la API de ZapSign de ESTA empresa (contratos de candidatas),
+  /// cifrado igual que la de Brevo. `null` = cuenta de la plataforma.
+  zapsignApiCredential       String?
+  /// `true` apunta al sandbox de ZapSign (no envía correos reales).
+  zapsignSandbox             Boolean      @default(false)
   /// Interruptor de la empresa (OWNER/ADMIN, `settings:company`) para el
   /// conector MCP — ver `McpPersonalToken`. `false` por defecto: nadie puede
   /// generarse un token personal hasta que la empresa lo habilite, porque

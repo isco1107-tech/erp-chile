@@ -10,6 +10,7 @@ import { prisma } from '@/lib/prisma';
 import { sendEmail, getAppUrl } from '@/lib/email/mailer';
 import { buildContractSignedNoticeEmail } from '@/lib/email/templates';
 import { captureException } from '@/lib/observability';
+import { getCompanyZapsignConfig } from '@/lib/integrations/company-integrations';
 
 /**
  * Webhook de ZapSign — dedicado, no pasa por el `/api/webhooks` genérico
@@ -56,7 +57,8 @@ export async function POST(req: Request) {
 
   let status;
   try {
-    status = await getDocumentStatus(docToken);
+    // El documento se creó con la cuenta de SU empresa: se reconsulta con esa misma.
+    status = await getDocumentStatus(docToken, await getCompanyZapsignConfig(localDoc.companyId));
   } catch (error) {
     captureException(error, { module: 'candidates', companyId: localDoc.companyId, extra: { reason: 'zapsign-webhook-status', candidateId: localDoc.candidateId } });
     return NextResponse.json({ success: false, error: 'No se pudo consultar el estado del documento en ZapSign' }, { status: 502 });
@@ -119,7 +121,7 @@ export async function POST(req: Request) {
         });
         await Promise.all(
           recipients.map((r) =>
-            sendEmail({ to: r.email, subject: email.subject, html: email.html, text: email.text }).catch((error) =>
+            sendEmail({ to: r.email, subject: email.subject, html: email.html, text: email.text, companyId: document.companyId }).catch((error) =>
               captureException(error, { module: 'candidates', companyId: document.companyId, extra: { reason: 'zapsign-signed-notice', recipient: r.email } })
             )
           )

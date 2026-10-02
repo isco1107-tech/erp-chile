@@ -577,13 +577,14 @@ async function sendReceiptEmails(orderId: string): Promise<void> {
   };
   const attachments = [{ filename: receiptFilename(data.pdfData.receiptNumber), content: pdf, contentType: 'application/pdf' }];
 
-  await sendEmail({ to: order.payerEmail, attachments, ...buildInstallmentPaymentReceiptEmail({ ...base, recipientName: order.payerName }) });
+  await sendEmail({ to: order.payerEmail, companyId: order.companyId, attachments, ...buildInstallmentPaymentReceiptEmail({ ...base, recipientName: order.payerName }) });
 
   // Copia a la candidata cuando pagó otra persona (familia, auspiciador).
   const candidateEmail = data.candidateEmail?.trim().toLowerCase();
   if (candidateEmail && candidateEmail !== order.payerEmail) {
     await sendEmail({
       to: candidateEmail,
+      companyId: order.companyId,
       attachments,
       ...buildInstallmentPaymentReceiptEmail({ ...base, recipientName: maskPersonName(order.candidateName) }),
     });

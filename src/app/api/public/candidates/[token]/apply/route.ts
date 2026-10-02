@@ -159,7 +159,7 @@ async function sendConfirmationEmails(
       contact,
     });
     // Si la postulante responde el correo, la respuesta llega al certamen, no a la plataforma.
-    await sendEmail({ to: candidate.email, ...confirmation, ...(contact.email ? { replyTo: contact.email } : {}) });
+    await sendEmail({ to: candidate.email, companyId, ...confirmation, ...(contact.email ? { replyTo: contact.email } : {}) });
   }
 
   const owners = await prisma.user.findMany({ where: { companyId, role: 'OWNER', isActive: true }, select: { email: true } });
@@ -170,7 +170,7 @@ async function sendConfirmationEmails(
     comuna: candidate.comuna ?? '—',
     dashboardUrl: `${getAppUrl()}/dashboard/candidates`,
   });
-  await Promise.all(owners.map((owner) => sendEmail({ to: owner.email, ...notice })));
+  await Promise.all(owners.map((owner) => sendEmail({ to: owner.email, companyId, ...notice })));
 }
 
 async function emitCandidateRegisteredEvent(candidate: { id: string; fullName: string; projectId: string }, companyId: string): Promise<void> {

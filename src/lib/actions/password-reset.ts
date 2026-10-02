@@ -101,7 +101,7 @@ export async function requestPasswordResetAction(input: unknown): Promise<Action
         resetUrl,
         expiresInMinutes: RESET_TOKEN_TTL_MINUTES,
       });
-      await sendEmail({ to: created.user.email, ...email });
+      await sendEmail({ to: created.user.email, ...(created.user.companyId ? { companyId: created.user.companyId } : {}), ...email });
     }
 
     const userAgent = await getServerActionUserAgent();
