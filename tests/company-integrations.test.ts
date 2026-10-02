@@ -156,3 +156,36 @@ describe('correos de acceso a la cuenta', () => {
     expect(call).not.toContain('companyId');
   });
 });
+
+describe('verificación del token de ZapSign', () => {
+  const { verifyZapsignToken } = require('@/lib/integrations/zapsign') as typeof import('@/lib/integrations/zapsign');
+
+  it('token válido: lista documentos en producción con Bearer', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 200 });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    expect(await verifyZapsignToken('tok-123456789', false)).toEqual({ ok: true });
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe('https://api.zapsign.com.br/api/v1/docs/?page=1');
+    expect(init.headers.Authorization).toBe('Bearer tok-123456789');
+  });
+
+  it('en modo prueba consulta el sandbox', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 200 });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    await verifyZapsignToken('tok-123456789', true);
+    expect(fetchMock.mock.calls[0]![0]).toBe('https://sandbox.api.zapsign.com.br/api/v1/docs/?page=1');
+  });
+
+  it('401 / 403: rechaza con un mensaje que orienta sobre el modo', async () => {
+    global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 401 }) as unknown as typeof fetch;
+    const result = await verifyZapsignToken('malo-1234567', false);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/modo de prueba/);
+  });
+
+  it('sin conexión: no guarda a ciegas', async () => {
+    global.fetch = jest.fn().mockRejectedValue(new Error('ECONNRESET')) as unknown as typeof fetch;
+    const result = await verifyZapsignToken('tok-123456789', false);
+    expect(result.ok).toBe(false);
+  });
+});

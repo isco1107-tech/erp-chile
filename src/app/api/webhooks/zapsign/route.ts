@@ -4,6 +4,7 @@ import { getDocumentStatus } from '@/lib/zapsign/client';
 import {
   findCandidateDocumentByZapsignToken,
   markContractSignedByZapsignToken,
+  markTestSignatureByZapsignToken,
 } from '@/modules/candidates/services/documents.service';
 import { createAuditLog } from '@/lib/auth/audit';
 import { prisma } from '@/lib/prisma';
@@ -56,10 +57,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, message: 'Documento ya estaba firmado — evento ya procesado' });
   }
 
+  if (localDoc.zapsignTestSignedAt) {
+    return NextResponse.json({ success: true, message: 'Firma de prueba ya registrada — evento ya procesado' });
+  }
+
   let status;
   try {
-    // El documento se creó con la cuenta de SU empresa: se reconsulta con esa misma.
-    status = await getDocumentStatus(docToken, await getCompanyZapsignConfig(localDoc.companyId));
+    // El documento se creó con la cuenta de SU empresa y en SU entorno (producción o
+    // sandbox): se reconsulta con esa misma, aunque la empresa haya cambiado el modo después.
+    status = await getDocumentStatus(docToken, await getCompanyZapsignConfig(localDoc.companyId, localDoc.zapsignSandbox));
   } catch (error) {
     captureException(error, { module: 'candidates', companyId: localDoc.companyId, extra: { reason: 'zapsign-webhook-status', candidateId: localDoc.candidateId } });
     return NextResponse.json({ success: false, error: 'No se pudo consultar el estado del documento en ZapSign' }, { status: 502 });
@@ -67,6 +73,27 @@ export async function POST(req: Request) {
 
   if (status.status !== 'signed' || !status.signedFileUrl) {
     return NextResponse.json({ success: true, message: 'Documento aún no está firmado según ZapSign — nada que hacer' });
+  }
+
+  // Firma hecha en el sandbox de ZapSign: no tiene validez legal. Se deja constancia, pero el
+  // contrato sigue pendiente (no se descarga el PDF de prueba ni se avisa como "firmado").
+  if (localDoc.zapsignSandbox) {
+    try {
+      if (await markTestSignatureByZapsignToken(docToken)) {
+        await createAuditLog({
+          companyId: localDoc.companyId,
+          userEmail: 'webhook:zapsign',
+          action: 'UPDATE',
+          entity: 'CandidateDocument',
+          entityId: localDoc.id,
+          metadata: { candidateId: localDoc.candidateId, action: 'test_signature_received', zapsignDocToken: docToken },
+        });
+      }
+    } catch (error) {
+      captureException(error, { module: 'candidates', companyId: localDoc.companyId, extra: { reason: 'zapsign-webhook-test-signature', candidateId: localDoc.candidateId } });
+      return NextResponse.json({ success: false, error: 'No se pudo registrar la firma de prueba' }, { status: 500 });
+    }
+    return NextResponse.json({ success: true, message: 'Firma de prueba registrada (sandbox): el contrato sigue pendiente' });
   }
 
   let blobUrl: string;

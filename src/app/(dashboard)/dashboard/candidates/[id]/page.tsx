@@ -263,7 +263,14 @@ export default async function CandidateDetailPage({ params }: { params: Promise<
             document={
               documents
                 .filter((d) => d.documentType === 'CONTRACT_IMAGE')
-                .map((d) => ({ id: d.id, status: d.status, fileUrl: d.fileUrl, zapsignSignUrl: d.zapsignSignUrl }))[0] ?? null
+                .map((d) => ({
+                  id: d.id,
+                  status: d.status,
+                  fileUrl: d.fileUrl,
+                  zapsignSignUrl: d.zapsignSignUrl,
+                  zapsignSandbox: d.zapsignSandbox,
+                  zapsignTestSignedAt: d.zapsignTestSignedAt?.toISOString() ?? null,
+                }))[0] ?? null
             }
           />
         )}

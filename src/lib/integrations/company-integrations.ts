@@ -2,6 +2,7 @@ import 'server-only';
 
 import { prisma } from '@/lib/prisma';
 import { captureException } from '@/lib/observability';
+import { ZAPSIGN_PRODUCTION_URL, ZAPSIGN_SANDBOX_URL } from '@/lib/zapsign/client';
 import { decryptIntegrationCredential, encryptIntegrationCredential } from './crypto';
 
 /**
@@ -24,8 +25,6 @@ export interface CompanyZapsignConfig {
   baseUrl: string;
 }
 
-export const ZAPSIGN_PRODUCTION_URL = 'https://api.zapsign.com.br';
-export const ZAPSIGN_SANDBOX_URL = 'https://sandbox.api.zapsign.com.br';
 
 /**
  * Config de correo propia de la empresa, o `null` si no tiene (se usa la de la
@@ -49,8 +48,12 @@ export async function getCompanyEmailConfig(companyId: string): Promise<CompanyE
   }
 }
 
-/** Config de ZapSign de la empresa, o `null` si no tiene (se usa la de la plataforma). */
-export async function getCompanyZapsignConfig(companyId: string): Promise<CompanyZapsignConfig | null> {
+/**
+ * Config de ZapSign de la empresa, o `null` si no tiene (se usa la de la
+ * plataforma). `sandboxOverride` fuerza el entorno: un documento se reconsulta
+ * donde se creó aunque la empresa haya cambiado el modo después.
+ */
+export async function getCompanyZapsignConfig(companyId: string, sandboxOverride?: boolean): Promise<CompanyZapsignConfig | null> {
   const settings = await prisma.companySettings.findUnique({
     where: { companyId },
     select: { zapsignApiCredential: true, zapsignSandbox: true },
@@ -59,7 +62,7 @@ export async function getCompanyZapsignConfig(companyId: string): Promise<Compan
   try {
     return {
       token: decryptIntegrationCredential(settings.zapsignApiCredential),
-      baseUrl: settings.zapsignSandbox ? ZAPSIGN_SANDBOX_URL : ZAPSIGN_PRODUCTION_URL,
+      baseUrl: (sandboxOverride ?? settings.zapsignSandbox) ? ZAPSIGN_SANDBOX_URL : ZAPSIGN_PRODUCTION_URL,
     };
   } catch (error) {
     captureException(error, { module: 'integraciones', companyId, extra: { reason: 'zapsign-descifrado' } });

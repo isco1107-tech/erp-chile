@@ -53,7 +53,7 @@ async function runSendEmail(action: Extract<WorkflowActionConfig, { type: 'SEND_
 
   const delivery = await sendEmail({ to, subject, html, text: bodyResult.text, companyId: context.companyId });
   if (delivery.status === 'failed') {
-    return { type: 'SEND_EMAIL', success: false, detail: `Falló el envío a ${to}: ${delivery.error ?? 'sin detalle'}` };
+    return { type: 'SEND_EMAIL', success: false, detail: `Falló el envío a ${to}: el proveedor de correo no lo aceptó. Revisa tu cuenta de Brevo en Configuración → Perfil de Empresa → Integraciones.` };
   }
   const note = bodyResult.unknownFields.length > 0 ? ` (campos desconocidos en la plantilla: ${bodyResult.unknownFields.join(', ')})` : '';
   return { type: 'SEND_EMAIL', success: true, detail: `Enviado a ${to}${note}` };

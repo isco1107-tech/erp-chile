@@ -42,6 +42,14 @@ export function platformZapsignConfig(): ZapsignConfig {
   return { token: cleanEnvValue(token), baseUrl: ZAPSIGN_BASE_URL };
 }
 
+export const ZAPSIGN_PRODUCTION_URL = 'https://api.zapsign.com.br';
+export const ZAPSIGN_SANDBOX_URL = 'https://sandbox.api.zapsign.com.br';
+
+/** ¿Estas credenciales apuntan al sandbox (firmas de prueba, sin validez legal)? */
+export function isSandboxConfig(config?: ZapsignConfig | null): boolean {
+  return resolveConfig(config).baseUrl === ZAPSIGN_SANDBOX_URL;
+}
+
 /** `null` = la empresa no conectó la suya; se usa la de la plataforma. */
 function resolveConfig(config?: ZapsignConfig | null): ZapsignConfig {
   return config ?? platformZapsignConfig();

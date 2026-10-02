@@ -2757,6 +2757,12 @@ model CandidateDocument {
   /// Token del documento en ZapSign — correlaciona el webhook de firma con
   /// esta fila. `null` para documentos subidos a mano (sin firma electrónica).
   zapsignDocToken  String?                 @unique
+  /// El documento se envió a firmar al SANDBOX de ZapSign (cuenta de prueba).
+  /// Una firma de sandbox no tiene validez legal: nunca llena `signedAt` (que
+  /// es lo que cuentan el casting, el centro de mando y el contrato vigente),
+  /// solo `zapsignTestSignedAt`.
+  zapsignSandbox   Boolean                 @default(false)
+  zapsignTestSignedAt DateTime?
   /// Link de firma de ZapSign, guardado como respaldo por si el correo
   /// automático no llega — mismo criterio que `SponsorshipContract.portalToken`,
   /// salvo que este link lo emite y controla ZapSign, no nosotros.

@@ -6,9 +6,11 @@ import { createAuditLog } from '@/lib/auth/audit';
 import { sendEmail } from '@/lib/email/mailer';
 import { captureException } from '@/lib/observability';
 import { verifyBrevoSender } from '@/lib/integrations/brevo';
+import { verifyZapsignToken } from '@/lib/integrations/zapsign';
 import { brevoConfigSchema, zapsignConfigSchema } from '@/lib/integrations/schema';
 import {
   getCompanyEmailConfig,
+  getCompanyZapsignConfig,
   getIntegrationsStatus,
   setBrevoConfig,
   setZapsignConfig,
@@ -139,6 +141,12 @@ export async function saveZapsignConfigAction(input: unknown): Promise<ActionRes
     const parsed = zapsignConfigSchema.safeParse(input);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
     const { token, sandbox } = parsed.data;
+
+    // Se verifica contra ZapSign, en el entorno elegido: con el token nuevo o, si solo cambia el modo, con el ya guardado.
+    const tokenToVerify = token ?? (await getCompanyZapsignConfig(session.companyId))?.token;
+    if (!tokenToVerify) return { success: false, error: 'Pega el token de ZapSign para conectar tu cuenta' };
+    const check = await verifyZapsignToken(tokenToVerify, sandbox);
+    if (!check.ok) return { success: false, error: check.error };
 
     if (token) {
       await setZapsignConfig(session.companyId, { token, sandbox });
