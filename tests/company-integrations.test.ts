@@ -135,3 +135,24 @@ describe('ZapSign de la plataforma', () => {
     expect(() => platformZapsignConfig()).toThrow(/Integraciones/);
   });
 });
+
+describe('correos de acceso a la cuenta', () => {
+  // Quien administra el Brevo de una empresa puede leer lo que sale por él: un
+  // enlace de recuperación o un aviso de login jamás deben llevar companyId.
+  const { readFileSync } = jest.requireActual<typeof import('node:fs')>('node:fs');
+  const read = (file: string) => readFileSync(file, 'utf8');
+
+  it('el enlace de recuperación de contraseña sale siempre por la plataforma', () => {
+    const source = read('src/lib/actions/password-reset.ts');
+    const call = source.match(/sendEmail\(\{[^}]*\}\)/)?.[0] ?? '';
+    expect(call).toContain('created.user.email');
+    expect(call).not.toContain('companyId');
+  });
+
+  it('el aviso de inicio de sesión desde una IP nueva sale por la plataforma', () => {
+    const source = read('src/lib/auth/sessions.ts');
+    const call = source.match(/sendEmail\(\{[^}]*\}\)/)?.[0] ?? '';
+    expect(call).toContain('user.email');
+    expect(call).not.toContain('companyId');
+  });
+});

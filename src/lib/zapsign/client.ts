@@ -47,6 +47,20 @@ function resolveConfig(config?: ZapsignConfig | null): ZapsignConfig {
   return config ?? platformZapsignConfig();
 }
 
+/**
+ * Error de la API de ZapSign. `message` es apto para mostrar; la respuesta
+ * cruda del proveedor queda en `detail` solo para observabilidad.
+ */
+export class ZapsignApiError extends Error {
+  constructor(
+    message: string,
+    readonly detail: string
+  ) {
+    super(message);
+    this.name = 'ZapsignApiError';
+  }
+}
+
 export interface CreateDocumentInput {
   name: string;
   pdfBuffer: Buffer;
@@ -73,7 +87,10 @@ export async function createDocument(input: CreateDocumentInput, config?: Zapsig
   });
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(`ZapSign rechazó la creación del documento (${response.status}): ${body.slice(0, 300)}`);
+    throw new ZapsignApiError(
+      'ZapSign no aceptó el documento. Revisa que el token de tu cuenta sea válido en Configuración → Empresa → Integraciones.',
+      `creación (${response.status}): ${body.slice(0, 300)}`
+    );
   }
   const data = await response.json();
   return { docToken: data.token, signUrl: data.signers?.[0]?.sign_url ?? null };

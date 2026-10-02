@@ -40,6 +40,10 @@ export interface SendEmailInput {
    * (Configuración → Empresa → Integraciones) el correo sale por ella y con su
    * remitente; si no, por la cuenta de la plataforma. Los correos de la propia
    * plataforma (p. ej. el formulario comercial) no la llevan.
+   *
+   * NUNCA en correos de acceso a la cuenta (recuperación de contraseña, aviso de
+   * inicio de sesión): quien administra el Brevo de una empresa puede leer lo que
+   * sale por él, y una cuenta de usuario es de toda la plataforma, no de una empresa.
    */
   companyId?: string;
 }

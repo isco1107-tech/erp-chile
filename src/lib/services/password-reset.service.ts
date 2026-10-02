@@ -25,7 +25,7 @@ function hashToken(token: string): string {
 
 export interface CreatedResetToken {
   token: string;
-  user: { id: string; email: string; name: string; companyId: string | null };
+  user: { id: string; email: string; name: string };
   expiresAt: Date;
 }
 
@@ -62,7 +62,7 @@ export async function createPasswordResetToken(email: string): Promise<CreatedRe
     });
   });
 
-  return { token, user: { id: user.id, email: user.email, name: user.name, companyId: user.companyId }, expiresAt };
+  return { token, user: { id: user.id, email: user.email, name: user.name }, expiresAt };
 }
 
 export type ResetTokenState = 'valid' | 'not_found' | 'expired' | 'used';

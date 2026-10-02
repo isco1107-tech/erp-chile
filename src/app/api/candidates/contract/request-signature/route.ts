@@ -5,7 +5,7 @@ import { createAuditLog } from '@/lib/auth/audit';
 import { prisma } from '@/lib/prisma';
 import { renderCandidateContractPdf } from '@/modules/candidates/services/contract-pdf.service';
 import { saveZapsignRequest, upsertGeneratedContract } from '@/modules/candidates/services/documents.service';
-import { createDocument } from '@/lib/zapsign/client';
+import { ZapsignApiError, createDocument } from '@/lib/zapsign/client';
 import { getCompanyZapsignConfig } from '@/lib/integrations/company-integrations';
 import { captureException } from '@/lib/observability';
 
@@ -83,6 +83,10 @@ export async function GET(req: Request) {
     }
     if (error instanceof TenantInactiveError) {
       return NextResponse.json({ success: false, error: error.message }, { status: 403 });
+    }
+    if (error instanceof ZapsignApiError) {
+      captureException(error, { module: 'candidates', extra: { reason: 'zapsign-create', detail: error.detail } });
+      return NextResponse.json({ success: false, error: error.message }, { status: 502 });
     }
     if (error instanceof Error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 400 });

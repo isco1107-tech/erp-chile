@@ -101,7 +101,8 @@ export async function requestPasswordResetAction(input: unknown): Promise<Action
         resetUrl,
         expiresInMinutes: RESET_TOKEN_TTL_MINUTES,
       });
-      await sendEmail({ to: created.user.email, ...(created.user.companyId ? { companyId: created.user.companyId } : {}), ...email });
+      // Sin `companyId`: un enlace de acceso nunca debe pasar por la cuenta de correo de una empresa (quien administra su Brevo podría leerlo).
+      await sendEmail({ to: created.user.email, ...email });
     }
 
     const userAgent = await getServerActionUserAgent();

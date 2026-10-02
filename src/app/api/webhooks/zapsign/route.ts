@@ -10,6 +10,7 @@ import { prisma } from '@/lib/prisma';
 import { sendEmail, getAppUrl } from '@/lib/email/mailer';
 import { buildContractSignedNoticeEmail } from '@/lib/email/templates';
 import { captureException } from '@/lib/observability';
+import { isSafeOutboundWebhookUrl } from '@/lib/security/outbound-url';
 import { getCompanyZapsignConfig } from '@/lib/integrations/company-integrations';
 
 /**
@@ -70,6 +71,9 @@ export async function POST(req: Request) {
 
   let blobUrl: string;
   try {
+    // Defensa en profundidad: la URL viene de la respuesta de un tercero.
+    const safe = isSafeOutboundWebhookUrl(status.signedFileUrl);
+    if (!safe.ok) throw new Error(`URL del PDF firmado no permitida: ${safe.reason}`);
     const fileResponse = await fetch(status.signedFileUrl);
     if (!fileResponse.ok) {
       throw new Error(`No se pudo descargar el PDF firmado desde ZapSign (${fileResponse.status})`);
