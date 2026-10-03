@@ -77,6 +77,9 @@ const PUBLIC_ROUTES = [
   // propia plataforma Aether (enlazada desde el pie de la landing y el login; el `AetherBadge` ahora lleva a la landing, visible en toda
   // la app, login incluido).
   '/politica-privacidad',
+  // Aviso de privacidad de los demás formularios públicos (entradas, votos,
+  // cuotas, auspiciador, encuesta): la empresa sale del token del enlace.
+  '/aviso-privacidad',
   '/aether',
   // Formulario público de derechos sobre datos personales (`/derechos/[token]`):
   // el titular no tiene cuenta ERP; la ruta valida el token contra

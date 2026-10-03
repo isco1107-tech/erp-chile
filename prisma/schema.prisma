@@ -359,6 +359,12 @@ model User {
   /// activado el conector.
   mcpPersonalTokens                McpPersonalToken[]
 
+  /// Aceptación de los Términos de servicio y la política de privacidad de la
+  /// plataforma al activar la cuenta (`TERMS_VERSION` en `src/lib/legal/constants.ts`).
+  /// `null` en cuentas creadas antes de 2026-10-03 o por el superadmin.
+  termsAcceptedAt DateTime?
+  termsVersion    String?
+
   @@index([companyId])
   @@index([customRoleId])
   @@index([jobPositionId])

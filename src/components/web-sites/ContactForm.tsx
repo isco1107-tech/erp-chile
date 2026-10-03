@@ -103,7 +103,13 @@ export default function ContactForm({ slug, preview }: { slug: string; preview: 
           {status === 'sending' ? 'Enviando…' : 'Enviar mensaje'}
         </button>
         {preview && <p className="mt-2 text-sm opacity-70">Vista previa: el formulario funciona solo en el sitio publicado.</p>}
-        <p className="mt-3 text-xs opacity-70">Usaremos tus datos solo para responderte.</p>
+        <p className="mt-3 text-xs opacity-70">
+          Usaremos tus datos solo para responderte, según el{' '}
+          <a href={`/aviso-privacidad?flujo=sitio&t=${encodeURIComponent(slug)}`} target="_blank" rel="noopener" className="underline underline-offset-2">
+            aviso de privacidad
+          </a>
+          .
+        </p>
       </div>
     </form>
   );

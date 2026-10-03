@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import type { AuditAction, Invitation, Prisma, Role } from '@prisma/client';
 import { generateRandomPassword } from '@/lib/auth/password-policy';
+import { TERMS_VERSION } from '@/lib/legal/constants';
 
 export const INVITATION_TTL_DAYS = 7;
 const INVITATION_TTL_HOURS = INVITATION_TTL_DAYS * 24;
@@ -129,7 +130,7 @@ interface AcceptInvitationResult {
 
 export async function acceptInvitation(
   token: string,
-  data: { name: string; password: string }
+  data: { name: string; password: string; acceptTerms: true }
 ): Promise<AcceptInvitationResult> {
   const invitation = await prisma.invitation.findUnique({
     where: { token },
@@ -177,6 +178,9 @@ export async function acceptInvitation(
         role: invitation.role,
         companyId: invitation.companyId,
         customRoleId,
+        // Prueba de aceptación: qué versión de los términos y cuándo.
+        termsAcceptedAt: new Date(),
+        termsVersion: TERMS_VERSION,
       },
       select: { id: true, companyId: true, role: true, email: true, sessionVersion: true, isSuperAdmin: true },
     });

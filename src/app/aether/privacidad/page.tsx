@@ -21,7 +21,7 @@ export default function AetherPrivacidadPage() {
     <LegalDocumentLayout
       eyebrow="Aether ERP Solutions"
       title="Política de privacidad de la plataforma"
-      lastUpdated="2 de octubre de 2026"
+      lastUpdated="3 de octubre de 2026"
       backHref="/login"
       backLabel="Volver al inicio"
     >
@@ -53,6 +53,7 @@ export default function AetherPrivacidadPage() {
       <p>A nivel de plataforma (no del negocio de cada cliente), Aether recopila:</p>
       <ul>
         <li>Datos de cuenta de las personas usuarias del sistema: correo electrónico, rol y empresa a la que pertenecen.</li>
+        <li>La fecha y la versión de los Términos de servicio y de esta política que cada persona aceptó al activar su cuenta, como prueba de esa aceptación.</li>
         <li>Registros de sesión: cookies de sesión cifradas, con una vigencia máxima de 8 horas.</li>
         <li>Bitácora de auditoría: qué acción se realizó, quién la realizó y cuándo, para trazabilidad y seguridad — nunca el contenido íntegro de los datos personales de terceros que gestiona cada empresa usuaria.</li>
         <li>Direcciones IP y metadatos técnicos de las solicitudes, con fines de seguridad (por ejemplo, limitar intentos de acceso automatizados a formularios públicos).</li>
