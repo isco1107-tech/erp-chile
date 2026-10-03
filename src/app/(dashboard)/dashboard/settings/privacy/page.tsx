@@ -22,6 +22,7 @@ const MODULE_BY_FLAG = {
   hasInstallmentPlans: 'payment-plans',
   hasSponsorships: 'sponsorships',
   hasCustomerCare: 'customer-care',
+  hasWebSites: 'web-sites',
 } as const;
 
 export default async function PrivacyPage() {

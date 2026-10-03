@@ -24,7 +24,7 @@ export interface ProcessingActivity {
   id: string;
   name: string;
   /** Módulo contratado que la genera, para mostrarla solo si aplica; `always` = todas las empresas. */
-  module: 'always' | 'candidates' | 'hr' | 'ticketing' | 'public-voting' | 'payment-plans' | 'sponsorships' | 'customer-care' | 'messaging';
+  module: 'always' | 'candidates' | 'hr' | 'ticketing' | 'public-voting' | 'payment-plans' | 'sponsorships' | 'customer-care' | 'messaging' | 'web-sites';
   dataSubjects: string;
   dataCategories: string[];
   purpose: string;
@@ -164,6 +164,19 @@ export const PROCESSING_ACTIVITIES: readonly ProcessingActivity[] = [
     retention: 'Hasta 24 meses sugeridos desde la respuesta.',
     recipients: ['Equipo de ventas y atención'],
     subprocessors: ['neon', 'vercel', 'brevo'],
+  },
+  {
+    id: 'web-contact',
+    name: 'Formulario de contacto de sitios web',
+    module: 'web-sites',
+    dataSubjects: 'Visitantes que escriben desde el sitio web de la empresa',
+    dataCategories: ['Nombre', 'Correo', 'Teléfono (opcional)', 'Mensaje'],
+    purpose: 'Responder la consulta enviada desde el sitio web.',
+    legalBasis: ['CONSENT'],
+    sensitive: false,
+    retention: 'Hasta responder la consulta; sugerido hasta 12 meses si no hay relación comercial.',
+    recipients: ['Equipo de la empresa dueña del sitio'],
+    subprocessors: ['neon', 'vercel'],
   },
   {
     id: 'messaging',

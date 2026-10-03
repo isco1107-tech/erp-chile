@@ -1,6 +1,6 @@
 # Protección de datos personales (Ley 21.719)
 
-Estado al 2026-10-02. La ley entra en vigencia el **1 de diciembre de 2026**. Este documento dice qué hace hoy el sistema, qué falta y qué debe decidir o validar una persona (no es asesoría legal: los textos y plazos deben revisarse con un abogado).
+Estado al 2026-10-03. La ley entra en vigencia el **1 de diciembre de 2026**. Este documento dice qué hace hoy el sistema, qué falta y qué debe decidir o validar una persona (no es asesoría legal: los textos y plazos deben revisarse con un abogado).
 
 ## Roles
 
@@ -17,6 +17,7 @@ Estado al 2026-10-02. La ley entra en vigencia el **1 de diciembre de 2026**. Es
 | Encontrar y entregar los datos de una persona | Pestaña "Buscar datos de una persona" (correo/RUT). Respeta los permisos sensibles de quien consulta (`candidates:sensitive`, `payroll:read`). La copia JSON exige `company:export` y sale solo de una solicitud de acceso o portabilidad con identidad verificada. Cada consulta queda en auditoría con una huella, no con el dato |
 | Registro de actividades de tratamiento | `src/lib/privacy/processing-activities.ts`; pestaña "Registro de actividades" (descarga CSV) |
 | Encargados y transferencias internacionales | `src/lib/privacy/subprocessors.ts`; página pública `/aether/subencargados` |
+| Aceptación de términos de la plataforma | `User.termsAcceptedAt` + `termsVersion` al activar la cuenta (`TERMS_VERSION` en `src/lib/legal/constants.ts`) |
 | Consentimiento demostrable (postulación) | `Candidate.privacyConsentAt` + `privacyPolicyVersion` + `privacyGuardianProvided` |
 | Política de privacidad de la postulación | `/politica-privacidad?certamen=…`. RUT y domicilio salen de la empresa solo si es persona jurídica (RUT desde 50.000.000); una persona natural debe completarlos a mano |
 | Formulario público de derechos con freno al abuso | Tope por IP, por enlace y por correo, señuelo y Turnstile; el acuse no incluye el nombre escrito |
@@ -30,8 +31,8 @@ Al cambiar el texto de `src/app/politica-privacidad/page.tsx`, **sube `PRIVACY_P
 
 1. **Bloqueo**: se registra la solicitud, pero no hay un indicador en las fichas que impida usar los datos. Hoy es una medida manual.
 2. **Supresión**: solo las postulaciones se eliminan a pedido desde su ficha. Clientes, trabajadores, compras y pagos tienen obligación de conservación tributaria, contable o laboral: el buscador lo indica y permite rectificar.
-3. **Formularios públicos sin aviso de privacidad**: venta de entradas, compra de votos, portal de pago de cuotas, contacto de sitios web y formulario de auspiciadores no muestran qué datos tratan ni enlazan una política. La ley exige informar **antes** de recopilar. Falta una política por flujo (o una política general por empresa) y un enlace en cada formulario.
-4. **Archivos en almacenamiento público** (fotos, contratos, certificados médicos): la dirección no se puede adivinar, pero quien la tenga puede abrirla (SEG-06 del `ROADMAP.md`). Los certificados médicos son datos sensibles: conviene pasarlos a almacenamiento privado con enlaces que expiran.
+3. ~~Formularios públicos sin aviso de privacidad~~ **Resuelto (3 oct 2026):** entradas, votos, cuotas, portal del auspiciador, encuesta y contacto de sitios web enlazan `/aviso-privacidad?flujo=…&t=…`, que identifica al responsable a partir del token del enlace (`public-notice.service.ts`).
+4. **Archivos en almacenamiento público:** los documentos de candidatas (certificado médico, contratos) se suben al bucket privado de R2 (`putPrivate`) cuando existe `R2_PRIVATE_BUCKET_NAME`. **Falta** crear ese bucket en producción y migrar los archivos ya subidos. Fotos y logos siguen siendo públicos a propósito (se muestran en sitios).
 5. **Plazos de conservación** del registro de actividades son sugerencias: cada empresa debe definirlos.
 6. **Evaluación de impacto, delegado de protección de datos y modelo de prevención de infracciones**: voluntarios, pero atenúan sanciones. No están implementados.
 7. **Avisos de plazo**: el panel marca solicitudes vencidas y por vencer, y la campanita avisa al recibir; no hay recordatorio diario por correo.
@@ -44,3 +45,5 @@ Al cambiar el texto de `src/app/politica-privacidad/page.tsx`, **sube `PRIVACY_P
 - **Sentry**: sin `SENTRY_DSN` no hay alertas de errores.
 - **IA**: el plan gratuito de Gemini puede usar lo enviado para mejorar sus productos; con datos reales de clientes, pasar al plan de pago.
 - **Datos de contacto**: completar `AETHER_SALES_EMAIL` (contacto de la política de la plataforma).
+
+Políticas internas (seguridad, incidentes, conservación, continuidad) y la lista de lanzamiento: `docs/legal/`.

@@ -34,3 +34,10 @@ graphify-out/
 /e2e/.auth/
 /test-results/
 /playwright-report/
+
+# Archivos sueltos que no son código (hallazgo CF-06): exportaciones de
+# empresas, logs del servidor de desarrollo y capturas.
+/ERP_*.xlsx
+*.log
+/images*.jpg
+/Factura-*.webp

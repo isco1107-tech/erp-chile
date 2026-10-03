@@ -6,6 +6,22 @@ import { postInventoryAdjustmentEntry } from '@/modules/accounting/posting-rules
 import { allocateFefo, normalizeLotNumber, NO_LOT, type LotAllocation } from '@/lib/inventory/lots';
 import type { WarehouseCreateInput } from '../schema';
 
+/** Tope de la columna `InventoryMovement.totalCost` (Int de Postgres). */
+const MAX_MOVEMENT_TOTAL = 2_147_483_647;
+
+/**
+ * Costo total del movimiento, validado antes de escribir: una cantidad o un
+ * costo con ceros de más (p. ej. 11.111.100.000) desbordaba la columna y el
+ * usuario recibía un error genérico en vez de saber qué corregir.
+ */
+function movementTotalCost(quantity: number, unitCost: number): number {
+  const total = Math.round(quantity * unitCost);
+  if (!Number.isFinite(total) || Math.abs(total) > MAX_MOVEMENT_TOTAL) {
+    throw new Error('El costo total del movimiento es demasiado grande (máximo $2.147.483.647). Revisa la cantidad y el costo unitario.');
+  }
+  return total;
+}
+
 export type TxClient = Prisma.TransactionClient;
 
 export interface StockInLot {
@@ -101,7 +117,7 @@ export async function applyStockIn(tx: TxClient, companyId: string, params: Stoc
       type,
       quantity,
       unitCost,
-      totalCost: Math.round(quantity * unitCost),
+      totalCost: movementTotalCost(quantity, unitCost),
       previousStock: localPreviousStock,
       newStock: localNewStock,
       previousPmp: product.costPricePMP,
@@ -199,7 +215,7 @@ export async function applyStockOut(tx: TxClient, companyId: string, params: Sto
       type,
       quantity,
       unitCost,
-      totalCost: Math.round(quantity * unitCost),
+      totalCost: movementTotalCost(quantity, unitCost),
       previousStock: localPreviousStock,
       newStock: localNewStock,
       previousPmp: product.costPricePMP,

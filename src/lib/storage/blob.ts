@@ -27,8 +27,9 @@
  * igual que antes de esta migración. Así el código se puede desplegar antes de
  * contratar R2 sin dejar caídas las 13 rutas de subida.
  */
-import { DeleteObjectCommand, DeleteObjectsCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, DeleteObjectsCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { captureException, captureMessage } from '@/lib/observability';
+import { PRIVATE_REF_PREFIX, privateKeyFromRef } from '@/lib/security/blob-url';
 
 const VERCEL_BLOB_HOST_SUFFIX = '.public.blob.vercel-storage.com';
 
@@ -173,6 +174,66 @@ export async function put(
   return { url: `${publicBaseUrl()}/${pathname}`, pathname };
 }
 
+/**
+ * Almacenamiento PRIVADO (datos sensibles: certificado médico, contratos).
+ *
+ * Va a un bucket de R2 distinto (`R2_PRIVATE_BUCKET_NAME`) que NO tiene URL
+ * pública: el objeto solo se puede leer con las credenciales del servidor, y
+ * el único camino hacia el navegador es una ruta autenticada que además deja
+ * registro de la descarga. En la base se guarda una referencia
+ * `r2private:///<clave>` (no una URL: nada en ella se puede abrir desde fuera).
+ *
+ * Si el bucket privado aún no está configurado se sube como hasta ahora (URL
+ * pública con nombre impredecible) y se avisa a observabilidad: es deliberado,
+ * un despliegue previo a crear el bucket no debe dejar sin subida de
+ * documentos. Con el bucket configurado, nada sensible vuelve a quedar público.
+ */
+function privateBucketName(): string | null {
+  return process.env.R2_PRIVATE_BUCKET_NAME || null;
+}
+
+function privateStorageConfigured(): boolean {
+  return Boolean(
+    privateBucketName() && process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY
+  );
+}
+
+/** Sube un archivo sensible. Devuelve una referencia privada o, sin bucket privado, la URL pública de siempre. */
+export async function putPrivate(
+  pathname: string,
+  body: Blob | Buffer | ArrayBuffer | Uint8Array,
+  options: { contentType: string }
+): Promise<PutBlobResult> {
+  if (!privateStorageConfigured()) {
+    captureMessage(
+      'storage/blob: R2_PRIVATE_BUCKET_NAME no está configurado, un archivo sensible se subió con URL pública. Crea el bucket privado.',
+      'warn',
+      { module: 'storage.blob' }
+    );
+    return put(pathname, body, { access: 'public', contentType: options.contentType, addRandomSuffix: false });
+  }
+  const bytes = await toBuffer(body);
+  await r2Client().send(
+    new PutObjectCommand({
+      Bucket: privateBucketName() as string,
+      Key: pathname,
+      Body: bytes,
+      ContentType: options.contentType,
+    })
+  );
+  return { url: `${PRIVATE_REF_PREFIX}${pathname}`, pathname };
+}
+
+/** Lee un objeto del bucket privado como flujo web, para servirlo por una ruta autenticada. */
+export async function getPrivate(ref: string): Promise<{ body: ReadableStream; contentType: string | null } | null> {
+  const key = privateKeyFromRef(ref);
+  const Bucket = privateBucketName();
+  if (!key || !Bucket || !privateStorageConfigured()) return null;
+  const result = await r2Client().send(new GetObjectCommand({ Bucket, Key: key }));
+  if (!result.Body) return null;
+  return { body: result.Body.transformToWebStream(), contentType: result.ContentType ?? null };
+}
+
 /** Borra uno o varios archivos por URL — misma forma que `del()` de `@vercel/blob`. */
 export async function del(urlOrUrls: string | string[]): Promise<void> {
   const urls = Array.isArray(urlOrUrls) ? urlOrUrls : [urlOrUrls];
@@ -180,10 +241,14 @@ export async function del(urlOrUrls: string | string[]): Promise<void> {
 
   const base = tryPublicBaseUrl();
   const r2Keys: string[] = [];
+  const privateKeys: string[] = [];
   const legacyVercelUrls: string[] = [];
 
   for (const url of urls) {
-    if (base && url.startsWith(`${base}/`)) {
+    const privateKey = privateKeyFromRef(url);
+    if (privateKey) {
+      privateKeys.push(privateKey);
+    } else if (base && url.startsWith(`${base}/`)) {
       r2Keys.push(url.slice(base.length + 1));
     } else if (new URL(url).host.endsWith(VERCEL_BLOB_HOST_SUFFIX)) {
       legacyVercelUrls.push(url);
@@ -204,6 +269,13 @@ export async function del(urlOrUrls: string | string[]): Promise<void> {
       // esta app son por candidata/documento individual, muy por debajo del límite.
       await client.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: r2Keys.map((Key) => ({ Key })) } }));
     }
+  }
+
+  const privateBucket = privateBucketName();
+  if (privateKeys.length > 0 && privateBucket) {
+    await r2Client().send(
+      new DeleteObjectsCommand({ Bucket: privateBucket, Delete: { Objects: privateKeys.map((Key) => ({ Key })) } })
+    );
   }
 
   if (legacyVercelUrls.length > 0) {

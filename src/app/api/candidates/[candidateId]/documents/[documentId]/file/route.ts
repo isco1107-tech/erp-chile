@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { AuthError, ModuleNotEnabledError, TenantInactiveError, requireAuthWithPermission } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 import { prisma } from '@/lib/prisma';
-import { isAllowedBlobUrl } from '@/lib/security/blob-url';
+import { isAllowedStoredFile, isPrivateRef } from '@/lib/security/blob-url';
+import { getPrivate } from '@/lib/storage/blob';
 import { captureException, captureMessage } from '@/lib/observability';
 
 /**
@@ -34,7 +35,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ candida
     // sea que haya en la columna — una fila más vieja que esa validación, o
     // escrita por otro camino, no debe poder convertir este proxy en un
     // oráculo hacia una URL interna arbitraria.
-    if (!isAllowedBlobUrl(document.fileUrl)) {
+    if (!isAllowedStoredFile(document.fileUrl)) {
       captureMessage('candidate document file: fileUrl con origen no permitido, se rechaza', 'warn', {
         module: 'candidates',
         companyId: session.companyId,
@@ -43,9 +44,24 @@ export async function GET(_req: Request, { params }: { params: Promise<{ candida
       return NextResponse.json({ success: false, error: 'No se pudo obtener el archivo' }, { status: 502 });
     }
 
-    const upstream = await fetch(document.fileUrl);
-    if (!upstream.ok || !upstream.body) {
-      return NextResponse.json({ success: false, error: 'No se pudo obtener el archivo' }, { status: 502 });
+    // Archivo del bucket privado: se lee con las credenciales del servidor.
+    // Archivo legacy (URL pública): se pide por HTTP como antes.
+    let fileBody: ReadableStream;
+    let upstreamType: string | null;
+    if (isPrivateRef(document.fileUrl)) {
+      const privateFile = await getPrivate(document.fileUrl);
+      if (!privateFile) {
+        return NextResponse.json({ success: false, error: 'No se pudo obtener el archivo' }, { status: 502 });
+      }
+      fileBody = privateFile.body;
+      upstreamType = privateFile.contentType;
+    } else {
+      const upstream = await fetch(document.fileUrl);
+      if (!upstream.ok || !upstream.body) {
+        return NextResponse.json({ success: false, error: 'No se pudo obtener el archivo' }, { status: 502 });
+      }
+      fileBody = upstream.body;
+      upstreamType = upstream.headers.get('content-type');
     }
 
     await createAuditLog({
@@ -58,10 +74,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ candida
       metadata: { candidateId },
     });
 
-    return new NextResponse(upstream.body, {
+    return new NextResponse(fileBody, {
       status: 200,
       headers: {
-        'Content-Type': document.mimeType ?? upstream.headers.get('content-type') ?? 'application/octet-stream',
+        'Content-Type': document.mimeType ?? upstreamType ?? 'application/octet-stream',
         'Cache-Control': 'private, no-store',
         'X-Content-Type-Options': 'nosniff',
       },

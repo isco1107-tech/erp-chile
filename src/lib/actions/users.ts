@@ -69,6 +69,7 @@ const createUserDirectSchema = z.object({
 const acceptInvitationSchema = z.object({
   name: z.string().min(2, 'El nombre es obligatorio'),
   password: passwordPolicySchema,
+  acceptTerms: z.literal(true, { error: 'Debes aceptar los Términos de servicio y la Política de privacidad' }),
 });
 
 function toErrorMessage(error: unknown): string {

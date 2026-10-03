@@ -412,7 +412,8 @@ describe('secciones', () => {
     expect(html).toContain('Lun a Vie 9:00 a 18:00');
     expect(html).toContain('www.google.com/maps?q=');
     expect(html).toContain('href="tel:+56912345678"');
-    expect(html).toContain('Usaremos tus datos solo para responderte.');
+    expect(html).toContain('Usaremos tus datos solo para responderte');
+    expect(html).toContain('/aviso-privacidad?flujo=sitio&amp;t=');
     expect(render([block('contact', { address: 'Calle 1', showMap: false })])).not.toContain('<iframe');
   });
 

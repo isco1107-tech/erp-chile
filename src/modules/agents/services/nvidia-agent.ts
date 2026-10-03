@@ -36,11 +36,32 @@ const MIN_INTERVAL_MS = 1_600;
 const MAX_RETRIES = 2;
 const RETRY_BACKOFF_MS = [1_500, 3_000];
 
-class NvidiaHttpError extends Error {
+export class NvidiaHttpError extends Error {
   constructor(readonly status: number) {
     super(`NVIDIA respondió HTTP ${status}`);
     this.name = 'NvidiaHttpError';
   }
+}
+
+/**
+ * Modelos que NVIDIA dio de baja (404/410) en esta instancia. El catálogo
+ * gratuito retira IDs sin aviso: reintentar en cada llamada solo suma
+ * latencia y un error por consulta. Se recuerda hasta que la instancia se
+ * recicla; mientras, todo va directo a Gemini.
+ */
+const retiredModels = new Set<string>();
+
+export function isNvidiaModelRetired(model: string): boolean {
+  return retiredModels.has(model);
+}
+
+/** `true` si el error dice que el modelo ya no existe; lo marca como retirado. */
+export function markIfModelRetired(error: unknown, model: string): boolean {
+  if (error instanceof NvidiaHttpError && (error.status === 404 || error.status === 410)) {
+    retiredModels.add(model);
+    return true;
+  }
+  return false;
 }
 
 function sleep(ms: number): Promise<void> {

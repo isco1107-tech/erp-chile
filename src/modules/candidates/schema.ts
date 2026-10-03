@@ -3,7 +3,7 @@ import { contactEmailField, contactWhatsappField, instagramHandleField, normaliz
 import type { CandidateStatus } from '@prisma/client';
 import { cleanRut, validateRut } from '@/lib/chile/rut';
 import { regions } from '@/lib/chile/locations';
-import { isAllowedBlobUrl } from '@/lib/security/blob-url';
+import { isAllowedStoredFile } from '@/lib/security/blob-url';
 
 const rutField = z
   .string()
@@ -290,7 +290,8 @@ export const documentCreateSchema = z.object({
   // Restringido al dominio real de Vercel Blob: sin esto, un usuario con
   // `candidates:write` podría apuntar `fileUrl` a una dirección interna
   // (SSRF) que la ruta de descarga después reenviaría con `fetch()`.
-  fileUrl: z.string().min(1, 'Falta el archivo').refine(isAllowedBlobUrl, 'URL de archivo no permitida'),
+  // También acepta la referencia al bucket privado (`r2private:///...`).
+  fileUrl: z.string().min(1, 'Falta el archivo').refine(isAllowedStoredFile, 'URL de archivo no permitida'),
   signedAt: z.coerce.date().nullable().optional(),
   expiresAt: z.coerce.date().nullable().optional(),
 });

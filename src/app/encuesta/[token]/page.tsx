@@ -5,6 +5,7 @@ import { PublicStatus } from '@/components/public/PublicShell';
 import { checkRateLimit, SURVEY_VIEW_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { getClientIp } from '@/lib/security/cloudflare';
 import { getPublicSurvey } from '@/modules/customer-care/services/customer-care.service';
+import PublicPrivacyFooter from '@/components/legal/PublicPrivacyFooter';
 
 export const metadata: Metadata = { title: 'Tu opinión nos importa', robots: { index: false, follow: false } };
 export const dynamic = 'force-dynamic';
@@ -22,5 +23,10 @@ export default async function SurveyPage({ params }: { params: Promise<{ token: 
   if (view.answered) {
     return <PublicStatus accent="gold" variant="success" title="¡Gracias!" message={`Ya recibimos tu opinión sobre ${view.companyName}.`} />;
   }
-  return <SurveyClient token={token} companyName={view.companyName} intro={view.intro} />;
+  return (
+    <>
+      <SurveyClient token={token} companyName={view.companyName} intro={view.intro} />
+      <PublicPrivacyFooter flow="encuesta" token={token} />
+    </>
+  );
 }
