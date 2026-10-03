@@ -383,7 +383,7 @@ export interface PosProduct {
  */
 export async function listPosProducts(companyId: string, warehouseId: string): Promise<PosProduct[]> {
   const products = await prisma.product.findMany({
-    where: { companyId },
+    where: { companyId, isActive: true },
     include: {
       stocks: { where: { warehouseId }, select: { quantity: true } },
       packagings: { where: { barcode: { not: null } }, select: { barcode: true, factor: true, name: true } },

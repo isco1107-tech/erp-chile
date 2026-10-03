@@ -56,11 +56,12 @@ export async function listProductsPageAction(
   query?: string,
   categoryId?: string,
   page = 1,
-  pageSize = 25
+  pageSize = 25,
+  includeArchived = false
 ): Promise<ActionResult<ListProductsResult>> {
   try {
     const session = await requireAuthWithPermission('products:read');
-    const result = await productsService.listProductsPage(session.companyId, { query, categoryId, page, pageSize });
+    const result = await productsService.listProductsPage(session.companyId, { query, categoryId, page, pageSize, includeArchived });
     // Misma redacción de PMP que en `listProductsAction`.
     if (!can(session, 'products:costs')) {
       return { success: true, data: { items: result.items.map(redactCosts), total: result.total } };
@@ -148,6 +149,27 @@ export async function deleteProductAction(id: string): Promise<ActionResult<null
     revalidatePath('/dashboard/products');
     revalidatePath('/dashboard/inventory');
     return { success: true, data: null, message: 'Producto eliminado' };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+export async function setProductActiveAction(id: string, isActive: boolean): Promise<ActionResult<null>> {
+  try {
+    const session = await requireAuthWithPermission('products:write');
+    await productsService.setProductActive(session.companyId, id, isActive);
+    await createAuditLog({
+      companyId: session.companyId,
+      userId: session.id,
+      userEmail: session.email,
+      action: 'UPDATE',
+      entity: 'Product',
+      entityId: id,
+      metadata: { isActive },
+    });
+    revalidatePath('/dashboard/products');
+    revalidatePath('/dashboard/inventory');
+    return { success: true, data: null, message: isActive ? 'Producto restaurado' : 'Producto archivado' };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
   }

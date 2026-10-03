@@ -26,6 +26,18 @@ export const INVENTARIO_SECTIONS: ManualSection[] = [
         tip: 'Para cargar muchos productos de una vez usa Configuración → Importación Masiva con la plantilla Excel.',
       },
       {
+        id: 'eliminar-archivar-producto',
+        title: 'Eliminar o archivar un producto',
+        permission: 'products:write',
+        steps: [
+          'Ve a Inventario → Catálogo de Productos y busca el producto.',
+          'Haz clic en "Eliminar" si fue un error de carga: solo se puede si nunca tuvo movimientos, ventas, compras ni documentos y su stock es cero.',
+          'Si ya tiene historial, haz clic en "Archivar": deja de aparecer en el Punto de Venta y en los selectores, pero conserva su historial.',
+          'Para verlo de nuevo, marca "Mostrar archivados" y haz clic en "Restaurar".',
+        ],
+        tip: 'Si el sistema no te deja eliminar un producto, el mensaje te dice el motivo: archívalo en vez de borrarlo.',
+      },
+      {
         id: 'ver-kardex',
         title: 'Ver existencias y el Kardex de un producto',
         route: '/dashboard/inventory',
