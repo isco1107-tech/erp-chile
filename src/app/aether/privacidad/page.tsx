@@ -55,6 +55,7 @@ export default function AetherPrivacidadPage() {
         <li>Datos de cuenta de las personas usuarias del sistema: correo electrónico, rol y empresa a la que pertenecen.</li>
         <li>La fecha y la versión de los Términos de servicio y de esta política que cada persona aceptó al activar su cuenta, como prueba de esa aceptación.</li>
         <li>Registros de sesión: cookies de sesión cifradas, con una vigencia máxima de 8 horas.</li>
+        <li>Estadística de visitas de las páginas propias de Aether (portada, ingreso y panel) con Vercel Web Analytics: no usa cookies ni identifica a la persona, y no se aplica a los micrositios, sitios web ni formularios públicos de las empresas usuarias.</li>
         <li>Bitácora de auditoría: qué acción se realizó, quién la realizó y cuándo, para trazabilidad y seguridad — nunca el contenido íntegro de los datos personales de terceros que gestiona cada empresa usuaria.</li>
         <li>Direcciones IP y metadatos técnicos de las solicitudes, con fines de seguridad (por ejemplo, limitar intentos de acceso automatizados a formularios públicos).</li>
       </ul>

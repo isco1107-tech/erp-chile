@@ -39,8 +39,8 @@ export const SUBPROCESSORS: readonly Subprocessor[] = [
   {
     id: 'vercel',
     name: 'Vercel',
-    service: 'Alojamiento de la aplicación, ejecución de funciones y archivos subidos antes de la migración a R2 (Vercel Blob)',
-    data: 'Tráfico de la aplicación (incluye direcciones IP) y archivos subidos.',
+    service: 'Alojamiento de la aplicación, ejecución de funciones, archivos subidos antes de la migración a R2 (Vercel Blob) y estadística de visitas (Web Analytics)',
+    data: 'Tráfico de la aplicación (incluye direcciones IP) y archivos subidos. La estadística de visitas no usa cookies y solo cuenta las páginas propias de Aether, sin tokens ni datos de los sitios de las empresas.',
     location: 'Estados Unidos',
     international: true,
     scope: 'PLATFORM',
