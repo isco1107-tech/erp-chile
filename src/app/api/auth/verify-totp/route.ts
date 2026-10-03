@@ -10,7 +10,8 @@ import { issueSession } from '@/lib/auth/issue-session';
 import { checkIpAllowlist } from '@/lib/auth/ip-allowlist-guard';
 import { extractClientIp } from '@/lib/auth/ip-allowlist';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
-import { checkRateLimit, TOTP_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { checkRateLimitShared } from '@/lib/security/rate-limiter-shared';
+import { TOTP_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { logSecurityEvent, extractRequestInfo } from '@/lib/security/security-logger';
 
 const OPERATIONAL_STATUSES = ['ACTIVE', 'TRIAL'];
@@ -56,7 +57,7 @@ async function tryBackupCode(tx: Prisma.TransactionClient, userId: string, code:
 export async function POST(req: Request) {
   // ── Rate limit por IP: frena brute force de TOTP ──────────────────────
   const clientIp = extractClientIp(req) ?? 'unknown';
-  const rl = checkRateLimit(clientIp, TOTP_RATE_LIMIT);
+  const rl = await checkRateLimitShared(clientIp, TOTP_RATE_LIMIT);
   if (!rl.allowed) {
     const { userAgent } = extractRequestInfo(req);
     logSecurityEvent({

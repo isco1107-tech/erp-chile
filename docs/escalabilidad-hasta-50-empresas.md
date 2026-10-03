@@ -96,12 +96,17 @@ Intervalos: campanita 20 s; mensajería, hilo abierto 4 s y lista de conversacio
 
 Pendiente: un servicio de tiempo real (Pusher/Ably) para mensajería y modo show si el volumen lo justifica.
 
-### 3.6 Picos públicos
+### 3.6 Picos públicos y rate limit — **IMPLEMENTADO (falta activarlo en producción)**
 
-Votación del público, venta de entradas y postulaciones son tráfico anónimo y en ráfagas.
+`src/lib/security/rate-limiter-shared.ts` complementa el limitador en memoria con un contador global en Redis (Upstash, por `fetch`, sin dependencias nuevas). Los 27 puntos de uso (login, TOTP, reseteo de clave, postulaciones, votos, entradas, pago de cuotas, portales con token, contacto de sitios, privacidad, webhooks) ahora pasan por él.
 
-- Mantener el limitador actual, pero **reforzarlo con el WAF de Vercel o Upstash**, porque el de memoria no se comparte entre instancias.
-- Probar un pico simulado (ver sección 5) en la ruta de votos y de entradas antes de un certamen real.
+- Primero corre el límite local (rechaza gratis una ráfaga en una instancia); si pasa, cuenta en Redis en una sola ida y vuelta (ventana fija).
+- **Si no configuras Redis, todo sigue como antes.** Para activarlo, define `UPSTASH_REDIS_REST_URL` y `UPSTASH_REDIS_REST_TOKEN` (o las `KV_REST_API_*` de la integración de Vercel) en Vercel y vuelve a desplegar.
+- **Si Redis falla o tarda más de 0,8 s, nadie queda bloqueado**: se usa solo el límite local, se reporta y se evita insistir 30 s. Un fallo del límite no debe tumbar el login.
+- Las claves se guardan con hash SHA-256: IPs, correos y tokens de portal no viajan en claro a un tercero.
+- Alternativa o complemento: reglas de rate limit del WAF de Vercel (incluido en Pro) sobre las rutas `/api/public/*` y `/api/auth/*`, que filtran antes de ejecutar la función.
+
+Pendiente: probar un pico simulado de votos y entradas (sección 5) antes de un certamen real.
 
 ---
 

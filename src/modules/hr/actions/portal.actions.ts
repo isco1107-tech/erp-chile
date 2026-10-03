@@ -1,7 +1,8 @@
 'use server';
 
 import { headers } from 'next/headers';
-import { checkRateLimit, EMPLOYEE_PORTAL_REQUEST_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { checkRateLimitShared } from '@/lib/security/rate-limiter-shared';
+import { EMPLOYEE_PORTAL_REQUEST_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { getClientIp } from '@/lib/security/cloudflare';
 import { captureException } from '@/lib/observability';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
@@ -20,7 +21,7 @@ export async function requestLeaveFromPortalAction(token: string, input: unknown
   try {
     const ip = getClientIp(await headers()) ?? 'unknown';
     const tokenKey = hashPortalToken(String(token)).slice(0, 16);
-    if (!checkRateLimit(`${ip}:${tokenKey}`, EMPLOYEE_PORTAL_REQUEST_RATE_LIMIT).allowed) {
+    if (!(await checkRateLimitShared(`${ip}:${tokenKey}`, EMPLOYEE_PORTAL_REQUEST_RATE_LIMIT)).allowed) {
       return { success: false, error: 'Demasiadas solicitudes seguidas. Intenta más tarde' };
     }
     const parsed = portalLeaveSchema.safeParse(input);

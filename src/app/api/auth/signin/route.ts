@@ -5,14 +5,15 @@ import { issueSession } from '@/lib/auth/issue-session';
 import { createTotpChallengeToken } from '@/lib/auth/totp-challenge';
 import { checkIpAllowlist } from '@/lib/auth/ip-allowlist-guard';
 import { extractClientIp } from '@/lib/auth/ip-allowlist';
-import { checkRateLimit, LOGIN_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { checkRateLimitShared } from '@/lib/security/rate-limiter-shared';
+import { LOGIN_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { logSecurityEvent, extractRequestInfo } from '@/lib/security/security-logger';
 import { TURNSTILE_FIELD, verifyTurnstile } from '@/lib/security/turnstile';
 
 export async function POST(req: Request) {
   // ── Rate limit por IP: frena credential stuffing multi-cuenta ──────────
   const clientIp = extractClientIp(req) ?? 'unknown';
-  const rl = checkRateLimit(clientIp, LOGIN_RATE_LIMIT);
+  const rl = await checkRateLimitShared(clientIp, LOGIN_RATE_LIMIT);
   if (!rl.allowed) {
     const { userAgent } = extractRequestInfo(req);
     logSecurityEvent({

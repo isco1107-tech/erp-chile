@@ -21,7 +21,7 @@ interface WindowEntry {
   windowMs: number;
 }
 
-interface RateLimitResult {
+export interface RateLimitResult {
   allowed: boolean;
   /** Cuántos requests quedan en la ventana actual. */
   remaining: number;

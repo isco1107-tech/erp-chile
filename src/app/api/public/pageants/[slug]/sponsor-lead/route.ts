@@ -1,7 +1,8 @@
 import { NextResponse, after } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { extractClientIp } from '@/lib/auth/ip-allowlist';
-import { checkRateLimit, SPONSOR_LEAD_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { checkRateLimitShared } from '@/lib/security/rate-limiter-shared';
+import { SPONSOR_LEAD_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { captureException } from '@/lib/observability';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import { notifyCompany, type CompanyNotificationInput } from '@/lib/notifications/company-notification';
@@ -27,7 +28,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
   const { slug } = await params;
 
   const clientIp = extractClientIp(req) ?? 'unknown';
-  const rl = checkRateLimit(clientIp, SPONSOR_LEAD_RATE_LIMIT);
+  const rl = await checkRateLimitShared(clientIp, SPONSOR_LEAD_RATE_LIMIT);
   if (!rl.allowed) {
     const retryAfter = rl.retryAfterMs ? Math.ceil((rl.retryAfterMs - Date.now()) / 1000) : 3600;
     return NextResponse.json(

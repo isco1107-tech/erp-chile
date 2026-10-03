@@ -10,7 +10,8 @@ import {
   DuplicateApplicationError,
 } from '@/modules/candidates/services/candidates.service';
 import { extractClientIp } from '@/lib/auth/ip-allowlist';
-import { checkRateLimit, peekRateLimit, CANDIDATE_APPLICATION_ATTEMPT_RATE_LIMIT, CANDIDATE_APPLICATION_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { checkRateLimitShared, peekRateLimitShared } from '@/lib/security/rate-limiter-shared';
+import { CANDIDATE_APPLICATION_ATTEMPT_RATE_LIMIT, CANDIDATE_APPLICATION_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { sendEmail, getAppUrl } from '@/lib/email/mailer';
 import { pageantContact } from '@/lib/events/pageant-contact';
 import { buildCandidateApplicationConfirmationEmail, buildNewCandidateApplicationNoticeEmail } from '@/lib/email/templates';
@@ -38,8 +39,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   const clientIp = extractClientIp(req) ?? 'unknown';
   // Dos topes: intentos (holgado, cuenta todo) y postulaciones enviadas
   // (estricto, se consulta acá y se registra solo al tener éxito, más abajo).
-  const attempts = checkRateLimit(clientIp, CANDIDATE_APPLICATION_ATTEMPT_RATE_LIMIT);
-  const rl = attempts.allowed ? peekRateLimit(clientIp, CANDIDATE_APPLICATION_RATE_LIMIT) : attempts;
+  const attempts = await checkRateLimitShared(clientIp, CANDIDATE_APPLICATION_ATTEMPT_RATE_LIMIT);
+  const rl = attempts.allowed ? await peekRateLimitShared(clientIp, CANDIDATE_APPLICATION_RATE_LIMIT) : attempts;
   if (!rl.allowed) {
     const retryAfter = rl.retryAfterMs ? Math.ceil((rl.retryAfterMs - Date.now()) / 1000) : 3600;
     return NextResponse.json(
@@ -100,7 +101,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       userAgent: req.headers.get('user-agent') ?? undefined,
     });
 
-    checkRateLimit(clientIp, CANDIDATE_APPLICATION_RATE_LIMIT);
+    await checkRateLimitShared(clientIp, CANDIDATE_APPLICATION_RATE_LIMIT);
 
     // Fuera de la transacción a propósito: un fallo de SMTP no revierte la
     // postulación. Con `after()` para que Vercel no congele la función antes

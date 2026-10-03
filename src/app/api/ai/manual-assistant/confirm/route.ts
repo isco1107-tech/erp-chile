@@ -4,7 +4,8 @@ import { AuthError, TenantInactiveError, getAuthContext } from '@/lib/auth/guard
 import { createAuditLog } from '@/lib/auth/audit';
 import { captureException } from '@/lib/observability';
 import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
-import { checkRateLimit, MANUAL_ASSISTANT_CONFIRM_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { checkRateLimitShared } from '@/lib/security/rate-limiter-shared';
+import { MANUAL_ASSISTANT_CONFIRM_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { getAgentAction, type AgentActor } from '@/modules/agent-actions/registry';
 import { consumePendingActionJti, recordPendingActionResult, verifyPendingActionToken } from '@/modules/agent-actions/token';
 import type { Permission } from '@/lib/auth/permissions';
@@ -25,7 +26,7 @@ export async function POST(req: Request) {
   try {
     const session = await getAuthContext();
 
-    const rateLimit = checkRateLimit(session.id, MANUAL_ASSISTANT_CONFIRM_RATE_LIMIT);
+    const rateLimit = await checkRateLimitShared(session.id, MANUAL_ASSISTANT_CONFIRM_RATE_LIMIT);
     if (!rateLimit.allowed) {
       return NextResponse.json({ success: false, error: 'Demasiadas confirmaciones seguidas. Espera un minuto.' }, { status: 429 });
     }

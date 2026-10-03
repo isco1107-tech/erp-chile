@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getPublicOrderStatus } from '@/modules/payment-plans/services/online-payment.service';
 import { extractClientIp } from '@/lib/auth/ip-allowlist';
-import { checkRateLimit, INSTALLMENT_STATUS_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { checkRateLimitShared } from '@/lib/security/rate-limiter-shared';
+import { INSTALLMENT_STATUS_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { captureException } from '@/lib/observability';
 
 export const dynamic = 'force-dynamic';
@@ -10,7 +11,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: Request, { params }: { params: Promise<{ accessToken: string }> }) {
   const { accessToken } = await params;
 
-  const rl = checkRateLimit(extractClientIp(req) ?? 'unknown', INSTALLMENT_STATUS_RATE_LIMIT);
+  const rl = await checkRateLimitShared(extractClientIp(req) ?? 'unknown', INSTALLMENT_STATUS_RATE_LIMIT);
   if (!rl.allowed) {
     return NextResponse.json({ success: false, error: 'Demasiadas consultas. Espera un momento.' }, { status: 429 });
   }

@@ -7,7 +7,8 @@ import {
   TicketSoldOutError,
 } from '@/modules/ticketing/services/ticketing.service';
 import { extractClientIp } from '@/lib/auth/ip-allowlist';
-import { checkRateLimit, TICKET_PURCHASE_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { checkRateLimitShared } from '@/lib/security/rate-limiter-shared';
+import { TICKET_PURCHASE_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { captureException } from '@/lib/observability';
 
 /**
@@ -29,7 +30,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   const { token } = await params;
 
   const clientIp = extractClientIp(req) ?? 'unknown';
-  const rl = checkRateLimit(clientIp, TICKET_PURCHASE_RATE_LIMIT);
+  const rl = await checkRateLimitShared(clientIp, TICKET_PURCHASE_RATE_LIMIT);
   if (!rl.allowed) {
     const retryAfter = rl.retryAfterMs ? Math.ceil((rl.retryAfterMs - Date.now()) / 1000) : 3600;
     return NextResponse.json(

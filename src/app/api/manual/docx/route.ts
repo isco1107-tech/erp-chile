@@ -4,7 +4,8 @@ import { NextResponse } from 'next/server';
 import { AuthError, TenantInactiveError, getAuthContext } from '@/lib/auth/guards';
 import { ROLE_LABELS } from '@/lib/auth/roles';
 import { captureException } from '@/lib/observability';
-import { checkRateLimit, MANUAL_DOCX_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { checkRateLimitShared } from '@/lib/security/rate-limiter-shared';
+import { MANUAL_DOCX_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { getManualSections, sectionScreenshot, type ManualScope } from '@/modules/manual/content';
 import { getKnowledgeAsManualSections } from '@/modules/manual/knowledge';
 import { buildManualDocx, readImageSize, type ManualDocxImage } from '@/modules/manual/docx';
@@ -55,7 +56,7 @@ export async function GET(req: Request) {
     const session = await getAuthContext();
     companyId = session.companyId;
 
-    const rateLimit = checkRateLimit(session.id, MANUAL_DOCX_RATE_LIMIT);
+    const rateLimit = await checkRateLimitShared(session.id, MANUAL_DOCX_RATE_LIMIT);
     if (!rateLimit.allowed) {
       return NextResponse.json({ success: false, error: 'Ya descargaste el manual varias veces seguidas. Espera un minuto y vuelve a intentar.' }, { status: 429 });
     }

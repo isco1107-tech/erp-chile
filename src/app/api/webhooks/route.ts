@@ -8,7 +8,8 @@ import {
   DocumentNotFoundError,
   InvalidEventPayloadError,
 } from '@/modules/webhooks/services/n8n-handler.service';
-import { checkRateLimit, N8N_WEBHOOK_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { checkRateLimitShared } from '@/lib/security/rate-limiter-shared';
+import { N8N_WEBHOOK_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { captureException } from '@/lib/observability';
 import { createAuditLog } from '@/lib/auth/audit';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
@@ -61,7 +62,7 @@ export async function POST(req: NextRequest) {
     // Rate limit por empresa (no por IP): n8n/Zapier suelen correr desde IPs
     // fijas de infraestructura compartida entre muchos clientes de ese
     // proveedor, así que limitar por IP penalizaría a otras empresas.
-    const rl = checkRateLimit(`company:${company.companyId}`, N8N_WEBHOOK_RATE_LIMIT);
+    const rl = await checkRateLimitShared(`company:${company.companyId}`, N8N_WEBHOOK_RATE_LIMIT);
     if (!rl.allowed) {
       const retryAfter = rl.retryAfterMs ? Math.max(1, Math.ceil((rl.retryAfterMs - Date.now()) / 1000)) : 60;
       return NextResponse.json(

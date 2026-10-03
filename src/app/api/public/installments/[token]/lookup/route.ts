@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { publicInstallmentLookupSchema } from '@/modules/payment-plans/schema';
 import { lookupPublicInstallments, PortalNotFoundError } from '@/modules/payment-plans/services/online-payment.service';
 import { extractClientIp } from '@/lib/auth/ip-allowlist';
-import { checkRateLimit, INSTALLMENT_LOOKUP_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { checkRateLimitShared } from '@/lib/security/rate-limiter-shared';
+import { INSTALLMENT_LOOKUP_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { captureException } from '@/lib/observability';
 
 /**
@@ -12,7 +13,7 @@ import { captureException } from '@/lib/observability';
 export async function POST(req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
 
-  const rl = checkRateLimit(extractClientIp(req) ?? 'unknown', INSTALLMENT_LOOKUP_RATE_LIMIT);
+  const rl = await checkRateLimitShared(extractClientIp(req) ?? 'unknown', INSTALLMENT_LOOKUP_RATE_LIMIT);
   if (!rl.allowed) {
     const retryAfter = rl.retryAfterMs ? Math.max(1, Math.ceil((rl.retryAfterMs - Date.now()) / 1000)) : 900;
     return NextResponse.json(

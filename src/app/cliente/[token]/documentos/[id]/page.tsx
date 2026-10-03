@@ -5,7 +5,8 @@ import { ArrowLeft } from 'lucide-react';
 import PrintButton from '@/components/PrintButton';
 import SalesDocumentPaper from '@/components/sales/SalesDocumentPaper';
 import { PublicStatus } from '@/components/public/PublicShell';
-import { checkRateLimit, CUSTOMER_PORTAL_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { checkRateLimitShared } from '@/lib/security/rate-limiter-shared';
+import { CUSTOMER_PORTAL_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { getClientIp } from '@/lib/security/cloudflare';
 import { getCustomerPortalDocument } from '@/modules/contacts/services/customer-portal.service';
 
@@ -15,7 +16,7 @@ export const dynamic = 'force-dynamic';
 export default async function CustomerPortalDocumentPage({ params }: { params: Promise<{ token: string; id: string }> }) {
   const { token, id } = await params;
   const ip = getClientIp(await headers()) ?? 'unknown';
-  if (!checkRateLimit(ip, CUSTOMER_PORTAL_RATE_LIMIT).allowed) {
+  if (!(await checkRateLimitShared(ip, CUSTOMER_PORTAL_RATE_LIMIT)).allowed) {
     return <PublicStatus accent="gold" variant="error" title="Demasiadas consultas" message="Espera unos minutos y vuelve a intentarlo." />;
   }
   const document = await getCustomerPortalDocument(token, id);

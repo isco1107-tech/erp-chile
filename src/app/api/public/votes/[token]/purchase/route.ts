@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { publicVotePurchaseSchema, VOTE_PURCHASE_HONEYPOT_FIELD } from '@/modules/public-voting/schema';
 import { createPublicVoteOrder, InvalidCandidateError, VoteSalesNotFoundError } from '@/modules/public-voting/services/public-voting.service';
 import { extractClientIp } from '@/lib/auth/ip-allowlist';
-import { checkRateLimit, VOTE_PURCHASE_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { checkRateLimitShared } from '@/lib/security/rate-limiter-shared';
+import { VOTE_PURCHASE_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { captureException } from '@/lib/observability';
 
 /**
@@ -19,7 +20,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   const { token } = await params;
 
   const clientIp = extractClientIp(req) ?? 'unknown';
-  const rl = checkRateLimit(clientIp, VOTE_PURCHASE_RATE_LIMIT);
+  const rl = await checkRateLimitShared(clientIp, VOTE_PURCHASE_RATE_LIMIT);
   if (!rl.allowed) {
     const retryAfter = rl.retryAfterMs ? Math.ceil((rl.retryAfterMs - Date.now()) / 1000) : 3600;
     return NextResponse.json(

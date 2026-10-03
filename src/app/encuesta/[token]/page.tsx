@@ -2,7 +2,8 @@ import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import SurveyClient from '@/components/customer-care/SurveyClient';
 import { PublicStatus } from '@/components/public/PublicShell';
-import { checkRateLimit, SURVEY_VIEW_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { checkRateLimitShared } from '@/lib/security/rate-limiter-shared';
+import { SURVEY_VIEW_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { getClientIp } from '@/lib/security/cloudflare';
 import { getPublicSurvey } from '@/modules/customer-care/services/customer-care.service';
 
@@ -12,7 +13,7 @@ export const dynamic = 'force-dynamic';
 export default async function SurveyPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const ip = getClientIp(await headers()) ?? 'unknown';
-  if (!checkRateLimit(ip, SURVEY_VIEW_RATE_LIMIT).allowed) {
+  if (!(await checkRateLimitShared(ip, SURVEY_VIEW_RATE_LIMIT)).allowed) {
     return <PublicStatus accent="gold" variant="error" title="Demasiadas consultas" message="Espera unos minutos y vuelve a intentarlo." />;
   }
   const view = await getPublicSurvey(token);

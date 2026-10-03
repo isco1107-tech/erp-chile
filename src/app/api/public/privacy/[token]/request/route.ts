@@ -1,6 +1,7 @@
 import { NextResponse, after } from 'next/server';
 import { extractClientIp } from '@/lib/auth/ip-allowlist';
-import { checkRateLimit, PRIVACY_REQUEST_EMAIL_RATE_LIMIT, PRIVACY_REQUEST_RATE_LIMIT, PRIVACY_REQUEST_TOKEN_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { checkRateLimitShared } from '@/lib/security/rate-limiter-shared';
+import { PRIVACY_REQUEST_EMAIL_RATE_LIMIT, PRIVACY_REQUEST_RATE_LIMIT, PRIVACY_REQUEST_TOKEN_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { TURNSTILE_FIELD, verifyTurnstile } from '@/lib/security/turnstile';
 import { publicDataSubjectRequestSchema } from '@/lib/privacy/schema';
 import { REQUEST_TYPE_LABELS } from '@/lib/privacy/constants';
@@ -30,7 +31,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   const { token } = await params;
   const clientIp = extractClientIp(req) ?? 'unknown';
 
-  const rl = checkRateLimit(clientIp, PRIVACY_REQUEST_RATE_LIMIT);
+  const rl = await checkRateLimitShared(clientIp, PRIVACY_REQUEST_RATE_LIMIT);
   if (!rl.allowed) {
     const retryAfter = rl.retryAfterMs ? Math.max(1, Math.ceil((rl.retryAfterMs - Date.now()) / 1000)) : 3600;
     return NextResponse.json(
@@ -72,12 +73,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   if (!portal) return jsonError('Este enlace no es válido o ya no está disponible', 404);
 
   // Por enlace: frena un ataque repartido en muchas IP contra una misma empresa.
-  if (!checkRateLimit(token, PRIVACY_REQUEST_TOKEN_RATE_LIMIT).allowed) {
+  if (!(await checkRateLimitShared(token, PRIVACY_REQUEST_TOKEN_RATE_LIMIT)).allowed) {
     return jsonError('Estamos recibiendo muchas solicitudes. Intenta de nuevo más tarde.', 429);
   }
   // Por correo: nadie puede usar este formulario para llenar de correos a un tercero. Pasado el tope se
   // responde igual que si se hubiera recibido, para no revelar el límite ni confirmar que el correo existe.
-  if (!checkRateLimit(parsed.data.requesterEmail, PRIVACY_REQUEST_EMAIL_RATE_LIMIT).allowed) {
+  if (!(await checkRateLimitShared(parsed.data.requesterEmail, PRIVACY_REQUEST_EMAIL_RATE_LIMIT)).allowed) {
     return NextResponse.json({ success: true, data: { received: true } });
   }
 

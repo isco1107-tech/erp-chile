@@ -5,7 +5,8 @@ import { AuthError, TenantInactiveError, getAuthContext } from '@/lib/auth/guard
 import { captureException } from '@/lib/observability';
 import { generateAgentWithTools } from '@/modules/agents/services/gemini-agent';
 import { MANUAL_LOOKUP_TOOL, buildManualSystemPrompt, lookupManual } from '@/modules/manual/prompt';
-import { checkRateLimit, MANUAL_ASSISTANT_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { checkRateLimitShared } from '@/lib/security/rate-limiter-shared';
+import { MANUAL_ASSISTANT_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { getAgentAction, type AgentActor } from '@/modules/agent-actions/registry';
 import { signPendingAction } from '@/modules/agent-actions/token';
 import { DATA_TOOLS, availableDataTools, canSeeMargins, type DataToolName } from '@/modules/agents/assistant-data-tools';
@@ -102,7 +103,7 @@ export async function POST(req: Request) {
     // arriba), este límite por usuario es lo único que evita que una sola
     // persona acapare la cuota gratuita de Gemini compartida por toda la
     // plataforma (agentes CEO/CFO/COO de otras empresas).
-    const rateLimit = checkRateLimit(session.id, MANUAL_ASSISTANT_RATE_LIMIT);
+    const rateLimit = await checkRateLimitShared(session.id, MANUAL_ASSISTANT_RATE_LIMIT);
     if (!rateLimit.allowed) {
       return NextResponse.json(
         { success: false, error: 'Has hecho demasiadas preguntas seguidas. Espera un minuto y vuelve a intentar.' },

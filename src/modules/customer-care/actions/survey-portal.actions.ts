@@ -1,7 +1,8 @@
 'use server';
 
 import { headers } from 'next/headers';
-import { checkRateLimit, SURVEY_SUBMIT_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { checkRateLimitShared } from '@/lib/security/rate-limiter-shared';
+import { SURVEY_SUBMIT_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { getClientIp } from '@/lib/security/cloudflare';
 import { captureException } from '@/lib/observability';
 import { notifyCompany } from '@/lib/notifications/company-notification';
@@ -18,7 +19,7 @@ export type ActionResult<T> = { success: true; data: T; message?: string } | { s
 export async function submitSurveyAction(token: string, input: unknown): Promise<ActionResult<null>> {
   try {
     const ip = getClientIp(await headers()) ?? 'unknown';
-    if (!checkRateLimit(`${ip}:${String(token).slice(0, 12)}`, SURVEY_SUBMIT_RATE_LIMIT).allowed) {
+    if (!(await checkRateLimitShared(`${ip}:${String(token).slice(0, 12)}`, SURVEY_SUBMIT_RATE_LIMIT)).allowed) {
       return { success: false, error: 'Demasiados intentos seguidos. Intenta más tarde' };
     }
     const parsed = surveyResponseSchema.safeParse(input);

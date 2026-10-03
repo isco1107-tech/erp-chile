@@ -4,7 +4,8 @@ import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import PrintButton from '@/components/PrintButton';
 import { PayslipDocument } from '@/components/hr/PayslipDocument';
-import { checkRateLimit, EMPLOYEE_PORTAL_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { checkRateLimitShared } from '@/lib/security/rate-limiter-shared';
+import { EMPLOYEE_PORTAL_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { getClientIp } from '@/lib/security/cloudflare';
 import { getPortalPayslip } from '@/modules/hr/services/employee-portal.service';
 
@@ -14,7 +15,7 @@ export const dynamic = 'force-dynamic';
 export default async function PortalPayslipPage({ params }: { params: Promise<{ token: string; payslipId: string }> }) {
   const { token, payslipId } = await params;
   const ip = getClientIp(await headers()) ?? 'unknown';
-  if (!checkRateLimit(ip, EMPLOYEE_PORTAL_RATE_LIMIT).allowed) notFound();
+  if (!(await checkRateLimitShared(ip, EMPLOYEE_PORTAL_RATE_LIMIT)).allowed) notFound();
   const slip = await getPortalPayslip(token, payslipId);
   if (!slip) notFound();
   return (

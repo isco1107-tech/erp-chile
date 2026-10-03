@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { extractClientIp } from '@/lib/auth/ip-allowlist';
-import { checkRateLimit, SALES_LEAD_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { checkRateLimitShared } from '@/lib/security/rate-limiter-shared';
+import { SALES_LEAD_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { captureException, captureMessage } from '@/lib/observability';
 import { sendEmail } from '@/lib/email/mailer';
 import { buildSalesLeadEmail, salesLeadSchema, SALES_LEAD_HONEYPOT_FIELD } from '@/lib/marketing/sales-lead';
@@ -19,7 +20,7 @@ function jsonError(message: string, status: number) {
 
 export async function POST(req: Request) {
   const clientIp = extractClientIp(req) ?? 'unknown';
-  const rl = checkRateLimit(clientIp, SALES_LEAD_RATE_LIMIT);
+  const rl = await checkRateLimitShared(clientIp, SALES_LEAD_RATE_LIMIT);
   if (!rl.allowed) {
     const retryAfter = rl.retryAfterMs ? Math.ceil((rl.retryAfterMs - Date.now()) / 1000) : 3600;
     return NextResponse.json(
