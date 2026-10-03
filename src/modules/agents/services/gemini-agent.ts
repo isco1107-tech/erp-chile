@@ -2,10 +2,10 @@ import 'server-only';
 
 import { GoogleGenAI, type Content, type FunctionDeclaration, type Part } from '@google/genai';
 
-import { captureException } from '@/lib/observability';
+import { captureException, captureMessage } from '@/lib/observability';
 
 import { resolveAgentModel, resolveNvidiaTarget, type AgentModelTier, type NvidiaTarget } from './model-tiers';
-import { generateNvidiaText, generateNvidiaWithTools } from './nvidia-agent';
+import { generateNvidiaText, generateNvidiaWithTools, isNvidiaModelRetired, markIfModelRetired } from './nvidia-agent';
 
 /**
  * Cliente Gemini compartido por todos los agentes automáticos.
@@ -120,6 +120,16 @@ async function callWithRetry(request: GenerateContentRequest): Promise<string | 
 
 /** El usuario igual recibe respuesta (de Gemini); esto deja rastro de que NVIDIA falló y por qué. */
 function reportNvidiaFallback(error: unknown, target: NvidiaTarget, call: 'text' | 'tools'): void {
+  // Modelo dado de baja: es configuración, no un error por consulta. Un aviso
+  // (una vez por instancia) con lo que hay que hacer, y no se vuelve a intentar.
+  if (markIfModelRetired(error, target.model)) {
+    captureMessage(
+      `NVIDIA retiró el modelo ${target.model}: los agentes siguen con Gemini. Define NVIDIA_MODEL_REASONING con un modelo vigente del catálogo.`,
+      'warn',
+      { module: 'agents', extra: { provider: 'nvidia', model: target.model, call } }
+    );
+    return;
+  }
   captureException(error, { module: 'agents', extra: { provider: 'nvidia', model: target.model, call, fallback: 'gemini' } });
 }
 
@@ -133,7 +143,7 @@ export async function generateAgentText(
   tier: AgentModelTier = 'standard'
 ): Promise<string> {
   const nvidia = resolveNvidiaTarget(tier);
-  if (nvidia) {
+  if (nvidia && !isNvidiaModelRetired(nvidia.model)) {
     try {
       return await generateNvidiaText(nvidia, systemPrompt, userPrompt);
     } catch (error) {
@@ -231,7 +241,7 @@ export async function generateAgentWithTools(
   tier: AgentModelTier = 'standard'
 ): Promise<string> {
   const nvidia = resolveNvidiaTarget(tier);
-  if (nvidia) {
+  if (nvidia && !isNvidiaModelRetired(nvidia.model)) {
     try {
       return await generateNvidiaWithTools(nvidia, systemPrompt, initialContents, tools, executors, MAX_TOOL_ITERATIONS);
     } catch (error) {
