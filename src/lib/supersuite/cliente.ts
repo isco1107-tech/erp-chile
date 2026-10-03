@@ -1,6 +1,5 @@
 // COPIA del SDK de la Supersuite (repo supersuite, packages/sdk/src/index.ts).
 // No editar aquí: si cambia, se vuelve a copiar entero desde la supersuite.
-
 /**
  * SDK de la Supersuite.
  *
@@ -22,7 +21,7 @@
  *   after(() => monitor.flush());   // import { after } from 'next/server'
  */
 
-type Tipo = 'eventos' | 'latidos' | 'clientes' | 'alertas';
+type Tipo = 'eventos' | 'latidos' | 'clientes' | 'alertas' | 'presencia';
 
 export interface OpcionesSupersuite {
   apiKey: string;
@@ -70,7 +69,7 @@ export function crearSupersuite(op: OpcionesSupersuite) {
   const loteMax = Math.min(op.loteMax ?? 200, 500);
   const colaMax = op.colaMax ?? 10_000;
   const base = op.url.replace(/\/$/, '');
-  const colas: Record<Tipo, unknown[]> = { eventos: [], latidos: [], clientes: [], alertas: [] };
+  const colas: Record<Tipo, unknown[]> = { eventos: [], latidos: [], clientes: [], alertas: [], presencia: [] };
   let enviando = false;
   let fallos = 0;
   let pausaHasta = 0;
@@ -153,6 +152,10 @@ export function crearSupersuite(op: OpcionesSupersuite) {
     /** La condición de una alerta con esa clave ya no se cumple: la supersuite la cierra. */
     resolverAlerta(clave: string, clienteId?: string | number) {
       encolar('alertas', { clave, resuelta: true, clienteId: clienteId === undefined ? undefined : String(clienteId) });
+    },
+    /** Un usuario está conectado (al iniciar sesión y cada ~60 s mientras usa la app). Solo un id opaco: nunca correo ni nombre. */
+    presencia(clienteId: string | number, usuarioId: string | number) {
+      encolar('presencia', { clienteId: String(clienteId), usuarioId: String(usuarioId), fecha: new Date().toISOString() });
     },
     /** Fuerza el envío (antes de apagar el servidor, o al final de cada request en serverless). Nunca lanza. */
     async flush() { pausaHasta = 0; await vaciar(); },

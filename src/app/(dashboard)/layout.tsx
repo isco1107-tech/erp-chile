@@ -31,6 +31,8 @@ import { getOnboardingStatus } from '@/lib/services/onboarding.service';
 import { getVisibleManualSections } from '@/modules/manual/content';
 import { toManualHints } from '@/modules/manual/hints';
 import { prisma } from '@/lib/prisma';
+import { supersuiteHabilitada } from '@/lib/supersuite';
+import SupersuitePresence from '@/components/shared/SupersuitePresence';
 
 export const metadata = {
   title: { default: 'Panel', template: '%s · Aether ERP' },
@@ -154,6 +156,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         />
       )}
 
+      {supersuiteHabilitada() && <SupersuitePresence />}
       <ConfirmProvider>
         <MobileNavProvider>
           <MobileNavBackdrop />

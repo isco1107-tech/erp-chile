@@ -130,6 +130,23 @@ export async function avisarFoliosSupersuite(companyId: string, bajos: { dteType
 }
 
 /**
+ * Un usuario está conectado: se llama al iniciar sesión y desde el latido del
+ * dashboard (cada ~60 s con la pestaña visible). Sale solo el id opaco del
+ * usuario: nunca correo ni nombre. La Supersuite cuenta como "activo" a quien
+ * tuvo señal en los últimos 5 minutos.
+ */
+export function presenciaUsuarioSupersuite(companyId: string, userId: string): void {
+  try {
+    const m = monitor();
+    if (!m) return;
+    m.presencia(companyId, userId);
+    enviarAlFinal(m);
+  } catch (error) {
+    captureException(error, { module: 'supersuite', companyId, userId, extra: { step: 'presenciaUsuario' } });
+  }
+}
+
+/**
  * Latido de una caja POS. `apagada` = se cerró el turno: la Supersuite la muestra
  * apagada (no "sin señal") y no levanta alertas hasta el próximo turno.
  */

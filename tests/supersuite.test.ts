@@ -80,6 +80,7 @@ describe('sin configuración', () => {
     const { s, findFirst } = cargar({});
     s.registrarUsoSupersuite({ companyId: 'c1', entity: 'SalesDocument', action: 'CREATE' });
     s.latidoCajaSupersuite('c1', { id: 'r1', name: 'Caja 1' });
+    s.presenciaUsuarioSupersuite('c1', 'u1');
     await s.sincronizarEmpresaSupersuite('c1');
     await esperarEnvios();
     expect(s.supersuiteHabilitada()).toBe(false);
@@ -113,6 +114,15 @@ describe('con configuración', () => {
     const [envio] = cuerposEnviados();
     expect(envio.url).toBe('https://ss.test/ingesta/clientes');
     expect(envio.cuerpo[0]).toMatchObject({ clienteId: 'c1', nombre: 'Ferretería Sur', ciudad: 'Temuco', plan: 'Profesional', activo: false, modulos: ['pos', 'inventario'] });
+  });
+
+  it('la presencia manda solo el id de la empresa y el del usuario', async () => {
+    const { s } = cargar(env);
+    s.presenciaUsuarioSupersuite('c1', 'u1');
+    await esperarEnvios();
+    const [envio] = cuerposEnviados();
+    expect(envio.url).toBe('https://ss.test/ingesta/presencia');
+    expect(envio.cuerpo).toEqual([{ clienteId: 'c1', usuarioId: 'u1', fecha: expect.any(String) }]);
   });
 
   it('cerrar turno deja la caja apagada', async () => {
