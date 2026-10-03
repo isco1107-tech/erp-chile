@@ -1,4 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { createCompanyCursor } from '@/lib/cron/batch-core';
+import { createCronBudget, parseCronCursor, scheduleCronContinuation } from '@/lib/cron/batch';
 import { prisma } from '@/lib/prisma';
 import { runAgent } from '@/modules/agents/engine';
 import { ROLE_FEATURE, ROLE_RUNNERS, isAgentRole } from '@/modules/agents/runners';
@@ -29,6 +31,9 @@ import { captureException } from '@/lib/observability';
  * empresas distintas (ver src/modules/agents/services/gemini-agent.ts).
  */
 
+/** Tope de duración de la función; el cron corta el lote antes (ver `src/lib/cron/batch.ts`). */
+export const maxDuration = 300;
+
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
@@ -44,13 +49,20 @@ export async function GET(request: NextRequest) {
   const runner = ROLE_RUNNERS[role];
 
   const startedAt = new Date();
+  const { after, hop } = parseCronCursor(request);
+  // Cada empresa llama a Gemini (hasta 40 s por llamada): reserva más margen que un cron sin IA.
+  const budget = createCronBudget({ reserveSeconds: 90 });
   const companies = await prisma.company.findMany({
-    where: { features: { [ROLE_FEATURE[role]]: true } },
+    where: { ...(after ? { id: { gt: after } } : {}), features: { [ROLE_FEATURE[role]]: true } },
     select: { id: true, businessName: true },
+    orderBy: { id: 'asc' },
   });
 
-  // En secuencia, no en paralelo (ver comentario de cabecera).
+  // En secuencia, no en paralelo (ver comentario de cabecera). Si el tiempo
+  // no alcanza para todas, el cursor corta y la ruta se llama a sí misma.
+  const cursor = createCompanyCursor(budget);
   for (const company of companies) {
+    if (cursor.stopBefore(company.id)) break;
     // Además del módulo que habilita el rol, debe haber algún módulo activo
     // con datos para él (ej. COO sin Inventario no corre): ver `visibleAgentRoles`.
     if (!visibleAgentRoles(await getCompanyFeatures(company.id)).includes(role)) continue;
@@ -69,9 +81,13 @@ export async function GET(request: NextRequest) {
     where: { role, status: 'FAILED', startedAt: { gte: startedAt } },
   });
 
+  const continued = scheduleCronContinuation(request, cursor.nextAfter, hop, 'cron:agents');
+
   return NextResponse.json({
     role,
     companiesProcessed: companies.length,
+    pending: cursor.nextAfter !== null,
+    continued,
     failed: failedCount,
   });
 }

@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { createCompanyCursor, type CronRunOptions } from '@/lib/cron/batch-core';
 import { buildReportDataset } from './dataset.service';
 import { buildWorkbook } from './workbook.service';
 import { sendEmail, getAppUrl } from '@/lib/email/mailer';
@@ -16,19 +17,22 @@ const OPERATIONAL_STATUSES = ['ACTIVE', 'TRIAL'] as const;
  * con `hasAdvancedReports` activo (el mismo flag que gatea `reports:read`),
  * cubriendo los últimos 7 días. Pensado para correr los lunes.
  */
-export async function runWeeklyReportCron(): Promise<{ processedCompanies: number; emailsSent: number }> {
+export async function runWeeklyReportCron(options: CronRunOptions = {}): Promise<{ processedCompanies: number; emailsSent: number; nextAfter: string | null }> {
   const to = new Date();
   const from = new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000);
 
   const companies = await prisma.company.findMany({
-    where: { status: { in: [...OPERATIONAL_STATUSES] }, features: { hasAdvancedReports: true } },
+    where: { ...(options.after ? { id: { gt: options.after } } : {}), status: { in: [...OPERATIONAL_STATUSES] }, features: { hasAdvancedReports: true } },
     select: { id: true, businessName: true },
+    orderBy: { id: 'asc' },
   });
 
   let processedCompanies = 0;
   let emailsSent = 0;
 
+  const cursor = createCompanyCursor(options.budget);
   for (const company of companies) {
+    if (cursor.stopBefore(company.id)) break;
     try {
       const recipients = await prisma.user.findMany({
         where: { companyId: company.id, role: { in: ['OWNER', 'ADMIN', 'ACCOUNTANT'] }, isActive: true },
@@ -77,5 +81,5 @@ export async function runWeeklyReportCron(): Promise<{ processedCompanies: numbe
     }
   }
 
-  return { processedCompanies, emailsSent };
+  return { processedCompanies, emailsSent, nextAfter: cursor.nextAfter };
 }

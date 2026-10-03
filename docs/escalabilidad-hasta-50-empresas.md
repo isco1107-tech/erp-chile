@@ -42,7 +42,9 @@ Costo mensual base orientativo para operar comercialmente: **US$60–150** (Verc
 
 Ordenado por qué se rompería primero con datos y empresas.
 
-### 3.1 Los cron recorren las empresas de una en una, sin límite de tiempo declarado
+### 3.1 Los cron recorren las empresas de una en una, sin límite de tiempo declarado — **IMPLEMENTADO**
+
+> Estado: resuelto. Todas las rutas de cron declaran `maxDuration = 300` y procesan empresas por lotes con presupuesto de tiempo (`src/lib/cron/`). Si el tiempo no alcanza, la ruta se llama a sí misma con `?after=<última empresa>` (cada empresa se procesa en una sola invocación; máximo 25 continuaciones) y deja una alerta en observabilidad. Los agentes reservan 90 s por la IA. El texto de abajo describe el problema original.
 
 Hay siete servicios que hacen `company.findMany` y recorren todas las empresas (agentes, alertas, cobranza, cierre mensual, reporte semanal, recordatorios de calendario, recordatorio de cuotas). El de agentes (`src/app/api/agents/run/route.ts`) además:
 

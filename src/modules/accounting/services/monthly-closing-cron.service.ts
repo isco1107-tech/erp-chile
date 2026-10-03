@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { createCompanyCursor, type CronRunOptions } from '@/lib/cron/batch-core';
 import { sendEmail, getAppUrl } from '@/lib/email/mailer';
 import { buildMonthlyClosingEmail } from '@/lib/email/templates';
 import { createAuditLog } from '@/lib/auth/audit';
@@ -24,21 +25,24 @@ const OPERATIONAL_STATUSES = ['ACTIVE', 'TRIAL'] as const;
  * Pensado para correr los primeros días de cada mes, cerrando el mes
  * calendario anterior — ver `vercel.json` (día 5, 08:00).
  */
-export async function runMonthlyClosingCron(): Promise<{ processedCompanies: number; emailsSent: number }> {
+export async function runMonthlyClosingCron(options: CronRunOptions = {}): Promise<{ processedCompanies: number; emailsSent: number; nextAfter: string | null }> {
   const now = new Date();
   // Cierra el mes calendario anterior al que corre el cron, en el calendario
   // de Santiago (auditoría 2026-09-27, hallazgo FIN-01/TRI-03) — no en UTC.
   const { year, month } = santiagoDateParts(addMonthsSantiago(now, -1));
 
   const companies = await prisma.company.findMany({
-    where: { status: { in: [...OPERATIONAL_STATUSES] }, features: { hasDteBilling: true } },
+    where: { ...(options.after ? { id: { gt: options.after } } : {}), status: { in: [...OPERATIONAL_STATUSES] }, features: { hasDteBilling: true } },
     select: { id: true, businessName: true },
+    orderBy: { id: 'asc' },
   });
 
   let processedCompanies = 0;
   let emailsSent = 0;
 
+  const cursor = createCompanyCursor(options.budget);
   for (const company of companies) {
+    if (cursor.stopBefore(company.id)) break;
     try {
       const { f29, checks } = await runReconciliationWithF29(company.id, { year, month });
 
@@ -89,5 +93,5 @@ export async function runMonthlyClosingCron(): Promise<{ processedCompanies: num
     }
   }
 
-  return { processedCompanies, emailsSent };
+  return { processedCompanies, emailsSent, nextAfter: cursor.nextAfter };
 }

@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { createCompanyCursor, type CronRunOptions } from '@/lib/cron/batch-core';
 import { sendEmail } from '@/lib/email/mailer';
 import { buildInstallmentReminderEmail } from '@/lib/email/templates';
 import { createAuditLog } from '@/lib/auth/audit';
@@ -16,16 +17,19 @@ const OPERATIONAL_STATUSES = ['ACTIVE', 'TRIAL'] as const;
  * `src/modules/calendar/services/event-reminders.service.ts`: itera todas las
  * empresas operativas, nunca deja que el fallo de una interrumpa a las demás.
  */
-export async function runOverdueInstallmentsReminderCron(): Promise<{ processedCompanies: number; remindersSent: number }> {
+export async function runOverdueInstallmentsReminderCron(options: CronRunOptions = {}): Promise<{ processedCompanies: number; remindersSent: number; nextAfter: string | null }> {
   const companies = await prisma.company.findMany({
-    where: { status: { in: [...OPERATIONAL_STATUSES] }, features: { hasInstallmentPlans: true } },
+    where: { ...(options.after ? { id: { gt: options.after } } : {}), status: { in: [...OPERATIONAL_STATUSES] }, features: { hasInstallmentPlans: true } },
     select: { id: true, businessName: true, rut: true, phone: true },
+    orderBy: { id: 'asc' },
   });
 
   let processedCompanies = 0;
   let remindersSent = 0;
 
+  const cursor = createCompanyCursor(options.budget);
   for (const company of companies) {
+    if (cursor.stopBefore(company.id)) break;
     try {
       await applyOverduePenalties(company.id);
       const groups = await listOverdueInstallments(company.id);
@@ -78,5 +82,5 @@ export async function runOverdueInstallmentsReminderCron(): Promise<{ processedC
     }
   }
 
-  return { processedCompanies, remindersSent };
+  return { processedCompanies, remindersSent, nextAfter: cursor.nextAfter };
 }

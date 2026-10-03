@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
 import { runMonthlyClosingCron } from '@/modules/accounting/services/monthly-closing-cron.service';
+import { createCronBudget, parseCronCursor, scheduleCronContinuation } from '@/lib/cron/batch';
 import { isCronAuthorized } from '@/lib/security/cron-auth';
 import { captureExceptionAndFlush } from '@/lib/observability';
 
 export const dynamic = 'force-dynamic';
+/** Tope de duración de la función; el cron corta el lote antes (ver `src/lib/cron/batch.ts`). */
+export const maxDuration = 300;
 
 /**
  * Cierre mensual: calcula el F29 del mes recién terminado y las cuadraturas
@@ -17,12 +20,17 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: false, error: 'No autorizado' }, { status: 401 });
     }
 
-    const result = await runMonthlyClosingCron();
+    const { after, hop } = parseCronCursor(req);
+    const budget = createCronBudget();
+    const result = await runMonthlyClosingCron({ after, budget });
+    const continued = scheduleCronContinuation(req, result.nextAfter, hop, 'cron:monthly-closing');
 
     return NextResponse.json({
       success: true,
       processedCompanies: result.processedCompanies,
       emailsSent: result.emailsSent,
+      pending: result.nextAfter !== null,
+      continued,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

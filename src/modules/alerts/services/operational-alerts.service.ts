@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { createCompanyCursor, type CronRunOptions } from '@/lib/cron/batch-core';
 import { sendEmail, getAppUrl } from '@/lib/email/mailer';
 import {
   buildOperationalAlertEmail,
@@ -198,12 +199,14 @@ export interface CompanyOperationalAlerts {
  * Mismo patrón que `runOverdueInstallmentsReminderCron`: itera todas las
  * empresas, un fallo en una no interrumpe a las demás.
  */
-export async function runOperationalAlertsCron(): Promise<{ processedCompanies: number; alertsSent: number; companies: CompanyOperationalAlerts[] }> {
+export async function runOperationalAlertsCron(options: CronRunOptions = {}): Promise<{ processedCompanies: number; alertsSent: number; companies: CompanyOperationalAlerts[]; nextAfter: string | null }> {
   const companies = await prisma.company.findMany({
     where: {
+      ...(options.after ? { id: { gt: options.after } } : {}),
       status: { in: [...OPERATIONAL_STATUSES] },
       features: { OR: [{ hasInventory: true }, { hasPurchases: true }, { hasTreasury: true }, { hasCandidates: true }, { hasDteBilling: true }] },
     },
+    orderBy: { id: 'asc' },
     select: {
       id: true,
       businessName: true,
@@ -215,7 +218,9 @@ export async function runOperationalAlertsCron(): Promise<{ processedCompanies: 
   let alertsSent = 0;
   const results: CompanyOperationalAlerts[] = [];
 
+  const cursor = createCompanyCursor(options.budget);
   for (const company of companies) {
+    if (cursor.stopBefore(company.id)) break;
     try {
       const [lowStock, pendingApprovals, overdueReceivables, expiringContracts, mismatchedPurchases, lowFolios] = await Promise.all([
         company.features?.hasInventory ? findLowStockProducts(company.id) : Promise.resolve([]),
@@ -315,5 +320,5 @@ export async function runOperationalAlertsCron(): Promise<{ processedCompanies: 
     }
   }
 
-  return { processedCompanies, alertsSent, companies: results };
+  return { processedCompanies, alertsSent, companies: results, nextAfter: cursor.nextAfter };
 }

@@ -1,5 +1,6 @@
 import type { CollectionNote, CollectionNoteKind } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { createCompanyCursor, type CronRunOptions } from '@/lib/cron/batch-core';
 import { sendEmail } from '@/lib/email/mailer';
 import { buildPaymentReminderEmail } from '@/lib/email/templates';
 import { createAuditLog } from '@/lib/auth/audit';
@@ -208,16 +209,19 @@ const OPERATIONAL_STATUSES = ['ACTIVE', 'TRIAL'] as const;
  * hito una sola vez (`CollectionReminderLog`), así que reintentar el cron no
  * duplica correos. Un cliente pausado o sin correo no recibe nada.
  */
-export async function runCollectionRemindersCron(now: Date = new Date()): Promise<{ processedCompanies: number; emailsSent: number }> {
+export async function runCollectionRemindersCron(now: Date = new Date(), options: CronRunOptions = {}): Promise<{ processedCompanies: number; emailsSent: number; nextAfter: string | null }> {
   const companies = await prisma.company.findMany({
-    where: { status: { in: [...OPERATIONAL_STATUSES] }, features: { hasTreasury: true }, settings: { collectionRemindersEnabled: true } },
+    where: { ...(options.after ? { id: { gt: options.after } } : {}), status: { in: [...OPERATIONAL_STATUSES] }, features: { hasTreasury: true }, settings: { collectionRemindersEnabled: true } },
+    orderBy: { id: 'asc' },
     select: { id: true, businessName: true, rut: true, phone: true, settings: { select: { collectionReminderDays: true } } },
   });
   const today = startOfTodaySantiago(now);
   let processedCompanies = 0;
   let emailsSent = 0;
 
+  const cursor = createCompanyCursor(options.budget);
   for (const company of companies) {
+    if (cursor.stopBefore(company.id)) break;
     try {
       const stages = normalizeReminderDays(company.settings?.collectionReminderDays ?? []);
       if (stages.length === 0) continue;
@@ -283,5 +287,5 @@ export async function runCollectionRemindersCron(now: Date = new Date()): Promis
       captureException(error, { module: 'cobranza', companyId: company.id, extra: { reason: 'collection-reminders-cron' } });
     }
   }
-  return { processedCompanies, emailsSent };
+  return { processedCompanies, emailsSent, nextAfter: cursor.nextAfter };
 }

@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { createCompanyCursor, type CronRunOptions } from '@/lib/cron/batch-core';
 import { sendEmail } from '@/lib/email/mailer';
 import { createAuditLog } from '@/lib/auth/audit';
 import { captureException } from '@/lib/observability';
@@ -189,14 +190,17 @@ export async function sendUpcomingEventsReminder(
 }
 
 /** Ejecuta recordatorios automáticos para todas las empresas activas (usado por el Cron diario). */
-export async function runDailyRemindersCron(baseUrl: string): Promise<{ processedCompanies: number }> {
+export async function runDailyRemindersCron(baseUrl: string, options: CronRunOptions = {}): Promise<{ processedCompanies: number; nextAfter: string | null }> {
   const companies = await prisma.company.findMany({
-    where: { status: { in: ['ACTIVE', 'TRIAL'] } },
+    where: { ...(options.after ? { id: { gt: options.after } } : {}), status: { in: ['ACTIVE', 'TRIAL'] } },
     select: { id: true },
+    orderBy: { id: 'asc' },
   });
 
   let count = 0;
+  const cursor = createCompanyCursor(options.budget);
   for (const c of companies) {
+    if (cursor.stopBefore(c.id)) break;
     try {
       await sendUpcomingEventsReminder(c.id, baseUrl);
       count++;
@@ -205,5 +209,5 @@ export async function runDailyRemindersCron(baseUrl: string): Promise<{ processe
     }
   }
 
-  return { processedCompanies: count };
+  return { processedCompanies: count, nextAfter: cursor.nextAfter };
 }

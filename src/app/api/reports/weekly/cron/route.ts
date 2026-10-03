@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
 import { runWeeklyReportCron } from '@/modules/reports/services/weekly-report-cron.service';
+import { createCronBudget, parseCronCursor, scheduleCronContinuation } from '@/lib/cron/batch';
 import { isCronAuthorized } from '@/lib/security/cron-auth';
 import { captureExceptionAndFlush } from '@/lib/observability';
 
 export const dynamic = 'force-dynamic';
+/** Tope de duración de la función; el cron corta el lote antes (ver `src/lib/cron/batch.ts`). */
+export const maxDuration = 300;
 
 /**
  * Entrega semanal del libro Excel (ventas, compras, inventario, kardex) por
@@ -16,12 +19,17 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: false, error: 'No autorizado' }, { status: 401 });
     }
 
-    const result = await runWeeklyReportCron();
+    const { after, hop } = parseCronCursor(req);
+    const budget = createCronBudget();
+    const result = await runWeeklyReportCron({ after, budget });
+    const continued = scheduleCronContinuation(req, result.nextAfter, hop, 'cron:weekly-report');
 
     return NextResponse.json({
       success: true,
       processedCompanies: result.processedCompanies,
       emailsSent: result.emailsSent,
+      pending: result.nextAfter !== null,
+      continued,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

@@ -4,6 +4,7 @@ import { isCronAuthorized } from '@/lib/security/cron-auth';
 import { captureExceptionAndFlush } from '@/lib/observability';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 300;
 
 /**
  * Purga por retención programada (Sección 7 del módulo de postulaciones):
