@@ -223,5 +223,7 @@ export const config = {
   // src/app/api/** DEBE llamar `requireAuthWithPermission()` (o `requireSuperAdmin()`)
   // por su cuenta y devolver 401/403 con cuerpo JSON. Si agregas una ruta API
   // nueva, ese guard no es opcional.
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+  // `_vercel` (Web Analytics y Speed Insights) queda fuera: sin sesión, el proxy
+  // lo mandaba a /login y en un dominio propio lo reescribía al micrositio.
+  matcher: ['/((?!api|_next/static|_next/image|_vercel|favicon.ico).*)'],
 };
