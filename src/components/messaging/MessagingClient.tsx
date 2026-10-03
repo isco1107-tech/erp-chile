@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { MessageSquarePlus, Paperclip, Send, X, FileText, Lock, ArrowLeft, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { usePolling } from '@/hooks/use-polling';
 import {
   listConversationsAction,
   listMessagesAction,
@@ -17,7 +18,10 @@ import type { ConversationSummary, MessageView, MessageAttachmentView } from '@/
 import { ConfirmDialog } from '@/components/ui/alert-dialog';
 import NewConversationDialog from './NewConversationDialog';
 
+/** Hilo abierto: lo más cercano a tiempo real. */
 const POLL_MS = 4000;
+/** Lista de conversaciones y contadores. */
+const LIST_POLL_MS = 8000;
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -90,24 +94,22 @@ export default function MessagingClient({
 
   useEffect(() => {
     refreshConversations();
-    const interval = setInterval(refreshConversations, POLL_MS);
-    return () => clearInterval(interval);
   }, [refreshConversations]);
+  // La lista de conversaciones se actualiza más lento que el hilo abierto.
+  usePolling(refreshConversations, LIST_POLL_MS);
 
   // Trae mensajes nuevos de la conversación activa sin releer el hilo completo.
-  useEffect(() => {
+  const pollNewMessages = useCallback(async () => {
     if (!activeId) return;
-    const interval = setInterval(async () => {
-      const lastId = messagesRef.current[messagesRef.current.length - 1]?.id;
-      if (!lastId) return;
-      const result = await listNewMessagesAction(activeId, lastId);
-      if (result.success && result.data.length > 0 && activeIdRef.current === activeId) {
-        setMessages((current) => [...current, ...result.data]);
-        markConversationReadAction({ conversationId: activeId });
-      }
-    }, POLL_MS);
-    return () => clearInterval(interval);
+    const lastId = messagesRef.current[messagesRef.current.length - 1]?.id;
+    if (!lastId) return;
+    const result = await listNewMessagesAction(activeId, lastId);
+    if (result.success && result.data.length > 0 && activeIdRef.current === activeId) {
+      setMessages((current) => [...current, ...result.data]);
+      markConversationReadAction({ conversationId: activeId });
+    }
   }, [activeId]);
+  usePolling(pollNewMessages, POLL_MS, { enabled: Boolean(activeId) });
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ block: 'end' });

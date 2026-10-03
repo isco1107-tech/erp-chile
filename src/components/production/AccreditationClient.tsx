@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { usePolling } from '@/hooks/use-polling';
 import type { AccreditationLevel, BadgeBackgroundMode, BadgeImageDisplayMode, BadgeTemplate, StaffAccreditation } from '@prisma/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -114,11 +115,7 @@ export default function AccreditationClient({ canWrite, canDesign }: { canWrite:
     reloadTemplates();
   }, [projectId, reload, reloadTemplates]);
 
-  useEffect(() => {
-    if (!projectId) return;
-    const interval = setInterval(reload, POLL_MS);
-    return () => clearInterval(interval);
-  }, [projectId, reload]);
+  usePolling(reload, POLL_MS, { enabled: Boolean(projectId) });
 
   async function handleAdd() {
     if (!fullName.trim() || !role.trim() || !badgeCode.trim()) {

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { usePolling } from '@/hooks/use-polling';
 import type { CompetitionRound, JudgeAssignment, JudgingCategory } from '@prisma/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -141,11 +142,7 @@ export default function JudgingDirectorClient({ canWrite }: { canWrite: boolean 
     reload();
   }, [roundId, reload]);
 
-  useEffect(() => {
-    if (!roundId) return;
-    const interval = setInterval(reload, POLL_MS);
-    return () => clearInterval(interval);
-  }, [roundId, reload]);
+  usePolling(reload, POLL_MS, { enabled: Boolean(roundId) });
 
   const selectedRound = rounds.find((r) => r.id === roundId) ?? null;
 

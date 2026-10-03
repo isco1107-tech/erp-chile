@@ -60,11 +60,18 @@ Qué hacer:
 3. Registrar cuántas empresas no alcanzaron a procesarse y avisar (hoy solo se cuenta `failed`).
 4. Declarar `maxDuration` explícito en cada ruta de cron.
 
-### 3.2 Listados sin paginación comprobada
+### 3.2 Listados sin paginación — **AUDITADO Y CORREGIDO EN PARTE**
 
-De ~406 usos de `findMany` en `src/`, solo ~115 usan `take:` en la misma sentencia y solo 14 archivos usan `skip`/`pageSize`. Esto es un conteo textual, no una auditoría: puede haber paginación en otra línea o en otra capa. Pero un listado que trae **todos** los documentos, movimientos o asientos de una empresa funciona con cientos de filas y se cae con cientos de miles.
+> **Corrección:** la primera versión de este documento decía que casi todos los listados podían traer tablas completas, a partir de un conteo textual (solo ~115 de ~406 `findMany` llevan `take:`). La auditoría posterior mostró que **exageraba**: las pantallas principales ya paginan o acotan en el servidor (`listProductsPage`, `listContactsPage`, `listSalesDocuments`, `listPurchaseDocuments`, y topes en órdenes, solicitudes y aprobaciones), y la mayoría de los `findMany` sin `take` están acotados por una lista de ids, un turno de caja, un certamen o un rango de fechas.
 
-Qué hacer: auditar las pantallas de ventas, kardex, contabilidad, tesorería, reportes y exportaciones, y poner paginación en servidor (cursor) y tope en toda consulta que pueda crecer.
+Lo que sí era riesgoso y **ya está corregido**:
+- **Campanita de notificaciones** (`src/lib/actions/notifications.ts`): traía todas las filas de stock a memoria en cada carga para contar productos bajo el mínimo. Ahora cuenta con una consulta SQL.
+- **Libro Mayor** (`ledger.service.ts`): traía todos los movimientos de una cuenta en el período. Ahora trae hasta 5.000 (`LEDGER_MAX_LINES`), avisa en pantalla cuando recorta y calcula el saldo final y los totales en la base, así que siguen siendo exactos.
+
+Pendiente (sin medir, no urgente):
+- `listStockByWarehouse` (inventario por bodega) y `listPosProducts` (catálogo del POS, que se carga completo a propósito para buscar por código de barras sin esperar) traen todo el catálogo. Con catálogos de decenas de miles de productos conviene paginar o cargar por demanda; medirlo con la prueba de carga.
+- Exportaciones de reportes (`reports/dataset.service.ts`) arman el Excel entero en memoria por período. Si una empresa muy grande exporta un rango largo, puede agotar memoria: conviene un tope con mensaje claro o escritura en streaming.
+- Análisis (`intelligence/`, F29, reconciliación) leen documentos del período; están acotados por fecha, pero crecen con el volumen.
 
 ### 3.3 Reportes e inteligencia calculados al vuelo
 
@@ -78,13 +85,16 @@ Qué hacer: limitar el rango por defecto, cachear resultados por período cerrad
 - Las búsquedas de texto (`razonSocial`, `name`) con `contains` no usan índices B-tree normales: con mucho catálogo, evaluar índices `pg_trgm`.
 - Revisar `list_slow_queries` de Neon cada semana una vez que haya clientes: es la forma más barata de saber qué indexar.
 
-### 3.5 Polling
+### 3.5 Polling — **IMPLEMENTADO**
 
-Intervalos actuales: mensajería 4 s, escaleta 5 s (3 s en vivo), jurado 8 s, campanita 20 s. Cada consulta es una invocación y una consulta a la base.
+Se reemplazó el `setInterval` de siete pantallas por `usePolling` (`src/hooks/use-polling.ts`, lógica en `src/lib/polling/poller.ts`, con tests):
+- **no se solapa:** la siguiente consulta se agenda cuando termina la anterior, así un servidor lento no acumula peticiones;
+- **se pausa con la pestaña oculta** y refresca de inmediato al volver;
+- **variación aleatoria de ±10 %** del intervalo para que los clientes no consulten todos en el mismo segundo.
 
-Aproximación: 200 usuarios con la mensajería abierta ≈ 50 consultas por segundo solo por eso.
+Intervalos: campanita 20 s; mensajería, hilo abierto 4 s y lista de conversaciones 8 s (antes 4 s); jurado 8 s; director de jurado 4 s; acreditación 5 s; escaleta 5 s. **En modo show en vivo (3 s) no se pausa con la pestaña oculta**, porque la pantalla puede estar visible sin estar en primer plano.
 
-Qué hacer: subir los intervalos cuando la pestaña está oculta (`document.visibilityState`), usar *backoff* cuando no hay cambios, y reservar el intervalo corto para el modo show y el jurado. Más adelante, un servicio de tiempo real (Pusher/Ably) solo para esos dos casos.
+Pendiente: un servicio de tiempo real (Pusher/Ably) para mensajería y modo show si el volumen lo justifica.
 
 ### 3.6 Picos públicos
 

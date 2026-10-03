@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
+import { usePolling } from '@/hooks/use-polling';
 import type { StageItemStatus } from '@prisma/client';
 import { ArrowDown, ArrowUp, Copy, Lightbulb, Link2, ListVideo, Music, Pencil, Play, Printer, RotateCcw, Shirt, SkipForward, Square, Trash2, Video } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -105,11 +106,9 @@ export default function ProductionTimelineClient({ canWrite }: { canWrite: boole
     });
   }, [projectId, reload]);
 
-  useEffect(() => {
-    if (!projectId) return;
-    const interval = setInterval(() => void reload(), live ? LIVE_POLL_MS : POLL_MS);
-    return () => clearInterval(interval);
-  }, [projectId, reload, live]);
+  // En modo show la pantalla puede quedar visible sin estar en primer plano
+  // (proyector, segundo monitor): ahí no se pausa con la pestaña oculta.
+  usePolling(reload, live ? LIVE_POLL_MS : POLL_MS, { enabled: Boolean(projectId), keepAliveWhenHidden: live });
 
   const state = useMemo(() => {
     const blocks: RunOfShowBlock[] = items.map((i) => ({

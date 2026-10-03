@@ -141,23 +141,42 @@ export interface LedgerResult {
   openingBalance: number;
   lines: (LedgerLine & { runningBalance: number })[];
   closingBalance: number;
+  /** Total del período: sale de la base completa aunque `lines` esté recortado. */
+  periodDebit: number;
+  periodCredit: number;
+  /** `true` si el período tiene más de `LEDGER_MAX_LINES` movimientos: `lines` trae solo los primeros. */
+  truncated: boolean;
 }
+
+/**
+ * Tope de movimientos que se traen a memoria para dibujar el mayor de una
+ * cuenta en un período. Una cuenta muy movida (caja de un POS, ventas) puede
+ * tener decenas de miles de líneas en un mes; sin tope, una sola pantalla
+ * puede agotar la memoria de la función. Los totales y el saldo final siguen
+ * siendo exactos porque se calculan en la base, no sumando las líneas traídas.
+ */
+export const LEDGER_MAX_LINES = 5000;
 
 /** Mayor de una cuenta: cada movimiento con saldo corrido, partiendo del saldo antes de `dateFrom`. */
 export async function getLedger(companyId: string, accountId: string, dateFrom: Date, dateTo: Date): Promise<LedgerResult> {
   const opening = await getAccountBalance(companyId, accountId, undefined, new Date(dateFrom.getTime() - 1));
 
-  const lines = await prisma.journalLine.findMany({
-    where: {
-      companyId,
-      accountId,
-      entry: { status: { in: [...POSTED_STATUSES] }, date: { gte: dateFrom, lte: dateTo } },
-    },
+  const periodWhere = {
+    companyId,
+    accountId,
+    entry: { status: { in: [...POSTED_STATUSES] }, date: { gte: dateFrom, lte: dateTo } },
+  };
+  const fetched = await prisma.journalLine.findMany({
+    where: periodWhere,
+    take: LEDGER_MAX_LINES + 1,
     include: {
       entry: { select: { entryNumber: true, year: true, date: true, description: true, status: true, sourceType: true, sourceId: true } },
     },
     orderBy: [{ entry: { date: 'asc' } }, { entry: { entryNumber: 'asc' } }, { lineNumber: 'asc' }],
   });
+
+  const truncated = fetched.length > LEDGER_MAX_LINES;
+  const lines = truncated ? fetched.slice(0, LEDGER_MAX_LINES) : fetched;
 
   let running = opening.net;
   const withRunning = lines.map((line) => {
@@ -165,5 +184,29 @@ export async function getLedger(companyId: string, accountId: string, dateFrom: 
     return { ...line, runningBalance: running };
   });
 
-  return { accountId, openingBalance: opening.net, lines: withRunning, closingBalance: running };
+  if (!truncated) {
+    return {
+      accountId,
+      openingBalance: opening.net,
+      lines: withRunning,
+      closingBalance: running,
+      periodDebit: lines.reduce((sum, line) => sum + line.debit, 0),
+      periodCredit: lines.reduce((sum, line) => sum + line.credit, 0),
+      truncated: false,
+    };
+  }
+
+  // Recortado: el saldo final y los totales salen de la base completa.
+  const totals = await prisma.journalLine.aggregate({ where: periodWhere, _sum: { debit: true, credit: true } });
+  const periodDebit = totals._sum.debit ?? 0;
+  const periodCredit = totals._sum.credit ?? 0;
+  return {
+    accountId,
+    openingBalance: opening.net,
+    lines: withRunning,
+    closingBalance: opening.net + periodDebit - periodCredit,
+    periodDebit,
+    periodCredit,
+    truncated: true,
+  };
 }

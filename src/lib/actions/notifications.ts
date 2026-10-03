@@ -72,12 +72,19 @@ export async function getNotificationSummaryAction(): Promise<ActionResult<Notif
       // (src/app/(dashboard)/dashboard/page.tsx, src/modules/agents/roles/coo.ts):
       // producto trackeable, con mínimo configurado, stock actual bajo ese
       // mínimo. Es una comparación entre columnas de tablas distintas —no
-      // expresable en un `where` de Prisma— así que se filtra en memoria.
-      const stocks = await prisma.stock.findMany({
-        where: { companyId: context.companyId, product: { isTrackable: true, minStock: { gt: 0 } } },
-        select: { quantity: true, product: { select: { minStock: true } } },
-      });
-      const criticalCount = stocks.filter((s) => s.quantity <= s.product.minStock).length;
+      // expresable en un `where` de Prisma—, así que se cuenta en la base con
+      // SQL en vez de traer todas las filas de stock a memoria en cada carga
+      // de la campanita.
+      const [{ count }] = await prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(*) AS count
+        FROM "Stock" s
+        JOIN "Product" p ON p.id = s."productId"
+        WHERE s."companyId" = ${context.companyId}
+          AND p."companyId" = ${context.companyId}
+          AND p."isTrackable" = true
+          AND p."minStock" > 0
+          AND s.quantity <= p."minStock"`;
+      const criticalCount = Number(count);
       if (criticalCount > 0) {
         items.push({
           id: 'stock-critical',

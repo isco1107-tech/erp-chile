@@ -4,7 +4,7 @@ import { checkPageAccess } from '@/lib/auth/guards';
 import { PageAccessNotice } from '@/components/shared/PageAccessNotice';
 import { formatCurrency } from '@/lib/chile/tax';
 import { listPostableAccounts } from '@/modules/accounting/services/books.service';
-import { getLedger } from '@/modules/accounting/services/ledger.service';
+import { LEDGER_MAX_LINES, getLedger } from '@/modules/accounting/services/ledger.service';
 import { parseAccountingPeriod } from '@/components/accounting/period';
 import { PeriodFilter } from '@/components/accounting/PeriodFilter';
 import { SOURCE_LABELS, sourceHref } from '@/components/accounting/labels';
@@ -37,8 +37,8 @@ export default async function LedgerPage({
   const ledger = selected
     ? await getLedger(session.companyId, selected.id, period.from, new Date(period.to.getTime() - 1))
     : null;
-  const periodDebit = ledger?.lines.reduce((sum, line) => sum + line.debit, 0) ?? 0;
-  const periodCredit = ledger?.lines.reduce((sum, line) => sum + line.credit, 0) ?? 0;
+  const periodDebit = ledger?.periodDebit ?? 0;
+  const periodCredit = ledger?.periodCredit ?? 0;
   const dateFormat = new Intl.DateTimeFormat('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Santiago' });
 
   return (
@@ -91,6 +91,11 @@ export default async function LedgerPage({
             </h2>
             <p className="text-sm text-muted-foreground">{period.label}</p>
           </div>
+          {ledger.truncated && (
+            <p role="status" className="border-b border-border bg-warning-soft px-4 py-2.5 text-sm text-warning">
+              Esta cuenta tiene más de {LEDGER_MAX_LINES.toLocaleString('es-CL')} movimientos en el período: se muestran los primeros. Los totales y el saldo final son exactos; para ver el resto, elige un período más corto.
+            </p>
+          )}
           <table className="w-full min-w-[820px] text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/50 text-left text-xs text-muted-foreground">

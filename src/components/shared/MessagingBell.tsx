@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { MessageSquare } from 'lucide-react';
 import { getTotalUnreadCountAction } from '@/modules/messaging/actions/messaging.actions';
+import { usePolling } from '@/hooks/use-polling';
 
 const POLL_MS = 20000;
 
@@ -55,19 +56,24 @@ export default function MessagingBell() {
   const originalFaviconHref = useRef<string | null>(null);
   const pathname = usePathname();
 
+  const mountedRef = useRef(true);
   useEffect(() => {
-    let cancelled = false;
-    async function poll() {
-      const result = await getTotalUnreadCountAction();
-      if (!cancelled && result.success) setUnread(result.data);
-    }
-    poll();
-    const interval = setInterval(poll, POLL_MS);
+    mountedRef.current = true;
     return () => {
-      cancelled = true;
-      clearInterval(interval);
+      mountedRef.current = false;
     };
   }, []);
+
+  const poll = useCallback(async () => {
+    const result = await getTotalUnreadCountAction();
+    if (mountedRef.current && result.success) setUnread(result.data);
+  }, []);
+
+  // Primera carga al montar; después, sondeo que se pausa con la pestaña oculta.
+  useEffect(() => {
+    void poll();
+  }, [poll]);
+  usePolling(poll, POLL_MS);
 
   useEffect(() => {
     const link = document.querySelector<HTMLLinkElement>('link[rel~="icon"]');

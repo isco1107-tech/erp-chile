@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { usePolling } from '@/hooks/use-polling';
 import { Gavel } from 'lucide-react';
 import { getJudgeContextAction, saveDraftScoreAction, submitScoreAction } from '@/modules/judging/actions/public-judging.actions';
 import type { JudgeContext } from '@/modules/judging/services/judging.service';
@@ -59,9 +60,8 @@ export default function JudgeScoringClient({ token }: { token: string }) {
 
   useEffect(() => {
     void reload();
-    const interval = setInterval(() => void reload(), 8000);
-    return () => clearInterval(interval);
   }, [reload]);
+  usePolling(reload, 8000);
 
   if (loading) return <PublicStatus variant="loading" message="Cargando tu panel de jurado…" />;
 
