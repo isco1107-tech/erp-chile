@@ -20,14 +20,15 @@ Leyenda: **[Tú]** lo hace el dueño en un panel u oficina · **[Abogado]** requ
 - [x] **[Código]** Certificados médicos y documentos de candidatas en un bucket privado (requiere el paso siguiente).
 - [ ] **[Tú]** Crear el bucket **privado** en Cloudflare R2 y las variables `R2_*` y `R2_PRIVATE_BUCKET_NAME` en Vercel. **Hoy producción no tiene R2 configurado**: todo sigue en Vercel Blob público.
 - [ ] **[Tú]** Migrar al bucket privado los certificados médicos ya subidos (pedirlo: hay que escribir un script y probarlo en una rama de Neon).
-- [ ] **[Tú]** **Borrar las 7 ramas de Neon `preview/*`, `vercel-dev` y `ensayo-categorias-auspicio`**: son copias completas de producción, con datos personales reales, creadas por la integración de Neon con Vercel. Después, configurar la integración para que las vistas previas no copien datos de producción.
+- [x] **Hecho (3 oct 2026):** borradas las 7 ramas `preview/*` y `ensayo-categorias-auspicio` de Neon, copias de producción con datos reales que nunca se usaron (cero escrituras). Antes se creó el snapshot `respaldo-antes-de-limpieza-2026-10-03`. Se conservó `vercel-dev` porque la usa la integración de Vercel para el entorno de desarrollo.
+- [ ] **[Tú]** Configurar la integración de Neon con Vercel para que las vistas previas no copien datos de producción (o borrar las ramas `preview/*` que vuelva a crear al terminar cada prueba).
 - [ ] **[Tú]** Pasar Gemini a un plan de pago antes de procesar datos reales de clientes (en el plan gratuito, Google puede usar lo enviado para mejorar sus productos).
 - [ ] **[Abogado]** Evaluación de impacto para el módulo de candidatas (datos sensibles de salud y de menores) y decidir si se nombra un delegado de protección de datos. Ambos son voluntarios, pero atenúan sanciones.
 - [ ] **[Código, pendiente]** Al eliminar una empresa, borrar también sus archivos en R2/Blob (hoy es manual; ver conservación y respaldos).
 
 ### Infraestructura
 - [ ] **[Tú]** **Neon: pasar el proyecto `erp` del plan gratuito a Launch.** Hoy tiene restauración de solo 6 horas y un tope de 1 GB por rama.
-- [ ] **[Tú]** Neon: marcar la rama `production` como **protegida** (hoy no lo está).
+- [ ] **[Tú]** Neon: marcar la rama `production` como **protegida**. Se intentó el 3 oct 2026 y el plan gratuito no lo permite: hacerlo apenas se pase a Launch.
 - [ ] **[Tú]** Dejar de usar la base de producción desde el `.env` local: crear una rama `desarrollo` y apuntar ahí.
 - [ ] **[Tú]** Vercel Pro (uso comercial y 13 tareas programadas).
 - [ ] **[Tú]** Verificación en dos pasos en Vercel, Neon, Cloudflare, GitHub y el proveedor de correo, y una **segunda persona** con acceso de administrador.
