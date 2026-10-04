@@ -5,6 +5,7 @@ import { recordSession } from './sessions';
 import { getClientIp } from '@/lib/security/cloudflare';
 import { captureException } from '@/lib/observability';
 import { listAccessibleCompanies, selectableCount } from './accessible-companies';
+import { presenciaUsuarioSupersuite } from '@/lib/supersuite';
 
 /** Pantalla donde quien tiene acceso a varias empresas elige en cuál trabajar. */
 export const COMPANY_PICKER_PATH = '/seleccionar-empresa';
@@ -54,6 +55,8 @@ export async function issueSession(user: IssuableUser, req: Request): Promise<Ne
       userAgent: req.headers.get('user-agent'),
       ipAddress: getClientIp(req.headers),
     });
+    // La Supersuite ve entrar al usuario al instante (no-op si no está configurada).
+    presenciaUsuarioSupersuite(user.companyId, user.id);
   }
 
   // Si la consulta falla, se entra igual a la empresa hogar: el selector de
