@@ -3,15 +3,13 @@ import { extractClientIp } from '@/lib/auth/ip-allowlist';
 import { checkRateLimit, SALES_LEAD_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { captureException, captureMessage } from '@/lib/observability';
 import { sendEmail } from '@/lib/email/mailer';
-import { buildSalesLeadEmail, salesLeadSchema, SALES_LEAD_HONEYPOT_FIELD } from '@/lib/marketing/sales-lead';
+import { buildSalesLeadEmail, getSalesEmail, salesLeadSchema, SALES_LEAD_HONEYPOT_FIELD } from '@/lib/marketing/sales-lead';
 
 /**
  * Solicitud de demo/cotización del landing. Público y sin sesión (como el
  * resto de `/api/public/**`): rate limit por IP + honeypot + Zod. No toca la
  * base de datos — el destino es el correo de ventas (`AETHER_SALES_EMAIL`).
  */
-
-const SALES_EMAIL = process.env.AETHER_SALES_EMAIL ?? 'aethererp1@gmail.com';
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ success: false, error: message }, { status });
@@ -48,7 +46,7 @@ export async function POST(req: Request) {
 
   try {
     const email = buildSalesLeadEmail(parsed.data);
-    const result = await sendEmail({ to: SALES_EMAIL, replyTo: parsed.data.email, ...email });
+    const result = await sendEmail({ to: getSalesEmail(), replyTo: parsed.data.email, ...email });
     if (result.status === 'failed') {
       captureMessage('marketing:lead:envio-fallido', 'error', { module: 'marketing', extra: { provider: result.provider } });
       return jsonError('No pudimos registrar tu solicitud. Escríbenos directamente por correo.', 502);

@@ -14,7 +14,7 @@ const base: CompanyCreateInput = {
   rut: '76.086.428-5',
   businessName: 'Segunda SpA',
   email: '',
-  planName: 'Starter',
+  planName: 'Base',
   maxUsers: 3,
   maxWarehouses: 1,
   status: 'ACTIVE',
@@ -79,6 +79,12 @@ describe('createTenant con un correo que ya tiene cuenta', () => {
     const input = { ...base, rut: '76.086.428-5' };
     expect(companyCreateSchema.safeParse({ ...input, adminPassword: '' }).success).toBe(true);
     expect(companyCreateSchema.safeParse({ ...input, adminPassword: 'corta' }).success).toBe(false);
+  });
+
+  it('al crear solo acepta los planes vigentes (los anteriores no se ofrecen)', () => {
+    const input = { ...base, rut: '76.086.428-5', adminPassword: '' };
+    expect(companyCreateSchema.safeParse({ ...input, planName: 'Gestión' }).success).toBe(true);
+    expect(companyCreateSchema.safeParse({ ...input, planName: 'Starter' }).success).toBe(false);
   });
 });
 

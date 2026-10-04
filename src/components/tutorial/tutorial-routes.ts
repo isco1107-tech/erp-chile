@@ -18,6 +18,7 @@ const TUTORIAL_ROUTES: readonly (readonly [string, string])[] = [
   ['/dashboard/settings', 'settings'],
   ['/dashboard/settings/company', 'settings-company'],
   ['/dashboard/settings/modules', 'settings-modules'],
+  ['/dashboard/settings/plans', 'settings-plans'],
   ['/dashboard/settings/users', 'settings-users'],
   ['/dashboard/settings/roles', 'roles'],
   ['/dashboard/settings/folios', 'dte'],

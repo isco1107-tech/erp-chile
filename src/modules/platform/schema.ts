@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { validateRut } from '@/lib/chile/rut';
 import { MODULE_KEYS, type FeatureKey } from '@/lib/auth/modules';
 import { passwordPolicySchema } from '@/lib/auth/password-policy';
+import { MAX_WAREHOUSES, PLAN_NAMES } from '@/lib/pricing/presets';
 
 export const TENANT_STATUSES = ['ACTIVE', 'TRIAL', 'SUSPENDED', 'CANCELLED'] as const;
 
@@ -19,140 +20,12 @@ export const TENANT_STATUS_BADGE_CLASS: Record<(typeof TENANT_STATUSES)[number],
   CANCELLED: 'bg-destructive/10 text-destructive',
 };
 
-/** Planes de referencia: precargan flags y límites al crear una empresa. */
-export const PLAN_PRESETS = {
-  Starter: {
-    maxUsers: 3,
-    maxWarehouses: 1,
-    features: {
-      hasInventory: true,
-      hasPmpCosting: true,
-      hasDteBilling: false,
-      hasPurchases: false,
-      hasTreasury: false,
-      hasAdvancedReports: false,
-      hasMultipleWarehouses: false,
-      hasPos: false,
-      hasAccounting: false,
-      hasCrm: false,
-      hasEventProjects: false,
-      hasSponsorships: false,
-      hasFeeDocuments: false,
-      hasCandidates: false,
-      hasOrgChart: false,
-      hasLiveProduction: false,
-      hasJudging: false,
-      // Apagados por defecto en todos los planes, mismo criterio que hasCrm:
-      // ningún preset activa un módulo nuevo, el superadmin lo prende a mano.
-      hasMultiCompany: false,
-      hasBudgets: false,
-      hasPromissoryNotes: false,
-      hasInstallmentPlans: false,
-      hasTicketing: false,
-      hasPublicVoting: false,
-      hasIntelligence: false,
-      hasSalesPipeline: false,
-      hasPayroll: false,
-      hasFixedAssets: false,
-      hasExpenseReports: false,
-      hasProduction: false,
-      hasServiceDesk: false,
-      hasWebSites: false,
-      hasCustomerCare: false,
-      hasQuality: false,
-      hasTeamTasks: false,
-    },
-  },
-  Profesional: {
-    maxUsers: 10,
-    maxWarehouses: 3,
-    features: {
-      hasInventory: true,
-      hasPmpCosting: true,
-      hasDteBilling: true,
-      hasPurchases: true,
-      hasTreasury: false,
-      hasAdvancedReports: false,
-      hasMultipleWarehouses: true,
-      hasPos: true,
-      hasAccounting: false,
-      hasCrm: false,
-      hasEventProjects: false,
-      hasSponsorships: false,
-      hasFeeDocuments: false,
-      hasCandidates: false,
-      hasOrgChart: false,
-      hasLiveProduction: false,
-      hasJudging: false,
-      // Apagados por defecto en todos los planes, mismo criterio que hasCrm:
-      // ningún preset activa un módulo nuevo, el superadmin lo prende a mano.
-      hasMultiCompany: false,
-      hasBudgets: false,
-      hasPromissoryNotes: false,
-      hasInstallmentPlans: false,
-      hasTicketing: false,
-      hasPublicVoting: false,
-      hasIntelligence: false,
-      hasSalesPipeline: false,
-      hasPayroll: false,
-      hasFixedAssets: false,
-      hasExpenseReports: false,
-      hasProduction: false,
-      hasServiceDesk: false,
-      hasWebSites: false,
-      hasCustomerCare: false,
-      hasQuality: false,
-      hasTeamTasks: false,
-    },
-  },
-  Enterprise: {
-    maxUsers: 50,
-    maxWarehouses: 20,
-    features: {
-      hasInventory: true,
-      hasPmpCosting: true,
-      hasDteBilling: true,
-      hasPurchases: true,
-      hasTreasury: true,
-      hasAdvancedReports: true,
-      hasMultipleWarehouses: true,
-      hasPos: true,
-      hasAccounting: true,
-      // Apagado por defecto incluso en el plan más alto: es un módulo nuevo
-      // que ninguna empresa debe recibir activado hasta que el superadmin lo
-      // prenda a propósito (ver comentario en CompanyFeatures.hasCrm).
-      hasCrm: false,
-      hasEventProjects: false,
-      hasSponsorships: false,
-      hasFeeDocuments: false,
-      hasCandidates: false,
-      hasOrgChart: false,
-      hasLiveProduction: false,
-      hasJudging: false,
-      // Apagados por defecto en todos los planes, mismo criterio que hasCrm:
-      // ningún preset activa un módulo nuevo, el superadmin lo prende a mano.
-      hasMultiCompany: false,
-      hasBudgets: false,
-      hasPromissoryNotes: false,
-      hasInstallmentPlans: false,
-      hasTicketing: false,
-      hasPublicVoting: false,
-      hasIntelligence: false,
-      hasSalesPipeline: false,
-      hasPayroll: false,
-      hasFixedAssets: false,
-      hasExpenseReports: false,
-      hasProduction: false,
-      hasServiceDesk: false,
-      hasWebSites: false,
-      hasCustomerCare: false,
-      hasQuality: false,
-      hasTeamTasks: false,
-    },
-  },
-} as const satisfies Record<string, { maxUsers: number; maxWarehouses: number; features: Record<FeatureKey, boolean> }>;
-
-export const PLAN_NAMES = Object.keys(PLAN_PRESETS) as Array<keyof typeof PLAN_PRESETS>;
+/**
+ * Planes que se ofrecen al crear una empresa o cambiarla de plan. Se derivan del
+ * tarifario (`src/lib/pricing/`), la misma fuente que ve el cliente en
+ * Configuración → Planes y módulos: Base, Comercio, Gestión, Eventos y Total.
+ */
+export { MAX_WAREHOUSES, PLAN_NAMES, PLAN_PRESETS } from '@/lib/pricing/presets';
 
 const featureShape = MODULE_KEYS.reduce<Record<string, z.ZodBoolean>>((shape, key) => {
   shape[key] = z.boolean();
@@ -165,9 +38,11 @@ export const companyCreateSchema = z.object({
   rut: z.string().refine(validateRut, 'El RUT de la empresa no es válido'),
   businessName: z.string().min(1, 'Ingrese la razón social'),
   email: z.string().email('Correo de la empresa inválido').optional().or(z.literal('')),
-  planName: z.string().min(1, 'Seleccione un plan'),
+  // Al crear solo se ofrecen los planes vigentes. Al editar (más abajo) se
+  // acepta cualquier nombre: las empresas con un plan anterior lo conservan.
+  planName: z.string().refine((name) => PLAN_NAMES.includes(name), 'Selecciona uno de los planes disponibles'),
   maxUsers: z.number().int().min(1, 'Debe permitir al menos 1 usuario'),
-  maxWarehouses: z.number().int().min(1, 'Debe permitir al menos 1 bodega'),
+  maxWarehouses: z.number().int().min(1, 'Debe permitir al menos 1 bodega').max(MAX_WAREHOUSES, `El máximo de bodegas es ${MAX_WAREHOUSES}`),
   status: z.enum(TENANT_STATUSES, 'Selecciona un estado de cuenta'),
   features: companyFeaturesSchema,
   // Primer usuario administrador del tenant. Sin él la empresa nace inaccesible.
@@ -183,7 +58,7 @@ export type CompanyCreateInput = z.infer<typeof companyCreateSchema>;
 export const companyPlanUpdateSchema = z.object({
   planName: z.string().min(1, 'Seleccione un plan'),
   maxUsers: z.number().int().min(1, 'Debe permitir al menos 1 usuario'),
-  maxWarehouses: z.number().int().min(1, 'Debe permitir al menos 1 bodega'),
+  maxWarehouses: z.number().int().min(1, 'Debe permitir al menos 1 bodega').max(MAX_WAREHOUSES, `El máximo de bodegas es ${MAX_WAREHOUSES}`),
   features: companyFeaturesSchema,
   /** Pantallas del menú apagadas para la empresa (se sanean contra el registro al guardar). */
   disabledNavItems: z.array(z.string().max(80)).max(300).optional(),

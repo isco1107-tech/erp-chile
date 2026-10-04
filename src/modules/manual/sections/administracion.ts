@@ -221,7 +221,19 @@ export const ADMINISTRACION_SECTIONS: ManualSection[] = [
           'Ve a Configuración → Módulos y Menú.',
           'Cada sección del menú tiene un interruptor: apágala para ocultarla a todo el equipo (también de la búsqueda Ctrl+K y de su dirección web). También hay "Activar todo" y "Ocultar todo".',
           'Apagar una sección no borra datos ni cambia permisos: al encenderla vuelve tal como estaba. Inicio y Configuración siempre quedan visibles.',
-          'Al final ves los módulos que no están en tu plan: pídeselos a tu ejecutivo de Aether.',
+          'Al final ves los módulos que no están en tu plan; para contratarlos, ve a Configuración → Planes y Módulos.',
+        ],
+      },
+      {
+        id: 'planes-modulos',
+        title: 'Ver precios y pedir más módulos',
+        permission: 'settings:company',
+        route: '/dashboard/settings/plans',
+        steps: [
+          'Ve a Configuración → Planes y Módulos. Arriba están los planes (Comercio, Gestión, Eventos y Total) con su precio mensual, los usuarios que incluyen y cuánto ahorras frente a comprar sus módulos por separado.',
+          'Abajo están los módulos por separado, agrupados por área. Los que ya tienes aparecen con "Ya lo tienes". Todos los precios son en pesos chilenos, más IVA, por mes.',
+          'Elige un plan con "Elegir este plan" y/o marca los módulos que quieras. En la barra inferior ves el total sin IVA y con IVA.',
+          'Pulsa "Solicitar contratación" y confirma con "Enviar solicitud". Un ejecutivo de Aether te contactará para activarlo: no se activa ni se cobra nada hasta entonces.',
         ],
       },
       {

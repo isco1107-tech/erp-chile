@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Lock, PackageOpen } from 'lucide-react';
@@ -167,7 +168,11 @@ export default function WorkspaceModulesClient({ groups, initialDisabled, uncont
             <h2 className="text-sm font-semibold text-foreground">Disponibles para agregar a tu plan</h2>
           </div>
           <p className="mb-4 text-xs text-muted-foreground">
-            Estos módulos no están incluidos en tu plan actual. Pídele a tu ejecutivo de Aether que los active y aparecerán aquí para encenderlos.
+            Estos módulos no están incluidos en tu plan actual. Mira sus precios y pide contratarlos en{' '}
+            <Link href="/dashboard/settings/plans" className="font-medium text-primary underline-offset-4 hover:underline">
+              Planes y módulos
+            </Link>
+            ; cuando Aether los active aparecerán aquí para encenderlos.
           </p>
           <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {uncontracted.map((mod) => (

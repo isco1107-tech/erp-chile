@@ -221,6 +221,16 @@ export const SPONSOR_LEAD_RATE_LIMIT: RateLimitConfig = {
   windowMs: 60 * 60_000,
 };
 
+/** Solicitud de contratación de módulos desde el panel
+ * (`requestModulesAction`): clave por empresa, no por IP — ya hay sesión y
+ * varias personas de una misma empresa comparten salida a internet. Pocas
+ * solicitudes legítimas por hora; más es insistencia o un script. */
+export const MODULE_REQUEST_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'module-request-company',
+  limit: 5,
+  windowMs: 60 * 60_000,
+};
+
 /** Compra pública de votos (`/api/public/votes/[token]/purchase`): mismo
  * criterio que `TICKET_PURCHASE_RATE_LIMIT`. */
 export const VOTE_PURCHASE_RATE_LIMIT: RateLimitConfig = {
