@@ -108,6 +108,7 @@ describe('sin configuración', () => {
     const { s, findFirst } = cargar({});
     s.registrarUsoSupersuite({ companyId: 'c1', entity: 'SalesDocument', action: 'CREATE' });
     s.latidoCajaSupersuite('c1', { id: 'r1', name: 'Caja 1' });
+    s.presenciaSupersuite('c1', 'u1');
     await s.sincronizarEmpresaSupersuite('c1');
     await esperarEnvios();
     expect(s.supersuiteHabilitada()).toBe(false);
@@ -128,6 +129,15 @@ describe('con configuración', () => {
     expect(envio.url).toBe('https://ss.test/ingesta/eventos');
     expect(envio.cuerpo).toEqual([expect.objectContaining({ clienteId: 'c1', modulo: 'ventas', accion: 'sales_document_issue_dte' })]);
     expect((fetchMock.mock.calls[0][1] as RequestInit).headers).toMatchObject({ 'X-Api-Key': 'ss_aether_x' });
+  });
+
+  it('la presencia sale solo con el id de empresa y el id opaco del usuario', async () => {
+    const { s } = cargar(env);
+    s.presenciaSupersuite('c1', 'u1');
+    await esperarEnvios();
+    const [envio] = cuerposEnviados();
+    expect(envio.url).toBe('https://ss.test/ingesta/presencia');
+    expect(envio.cuerpo).toEqual([{ clienteId: 'c1', usuarioId: 'u1', fecha: expect.any(String) }]);
   });
 
   it('un cambio de la empresa manda su ficha con los módulos contratados', async () => {

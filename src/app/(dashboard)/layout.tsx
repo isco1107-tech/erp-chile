@@ -24,6 +24,7 @@ import { SidebarNav } from '@/components/shared/SidebarNav';
 import { CompanySwitcher } from '@/components/shared/CompanySwitcher';
 import { ConfirmProvider } from '@/components/ui/confirm-provider';
 import OnboardingWizard from '@/components/onboarding/OnboardingWizard';
+import PresenceHeartbeat from '@/components/shared/PresenceHeartbeat';
 import ManualAssistantWidget from '@/components/shared/ManualAssistantWidget';
 import ModuleTutorial from '@/components/tutorial/ModuleTutorial';
 import HowToUseButton from '@/components/tutorial/HowToUseButton';
@@ -250,6 +251,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             autoOpen={onboardingEligible}
           />
         )}
+        <PresenceHeartbeat />
         <ManualAssistantWidget userId={context.id} manualHints={manualHints} />
         <ModuleTutorial userId={context.id} manualHints={manualHints} />
       </ConfirmProvider>
