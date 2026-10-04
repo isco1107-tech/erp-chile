@@ -8,7 +8,8 @@ jest.mock('next/server', () => ({ after: jest.fn((tarea: () => unknown) => { voi
 jest.mock('@/lib/observability', () => ({ captureException: jest.fn() }));
 jest.mock('@/lib/prisma', () => ({ prisma: { company: { findFirst: jest.fn() } } }));
 
-import { accionDeAuditoria, alertaDeFolios, empresaActiva, moduloDeEntidad, modulosContratados } from '@/lib/supersuite/modulos';
+import { accionDeAuditoria, alertaDeFolios, alertaDeSolicitud, empresaActiva, fichaComercial, moduloDeEntidad, modulosContratados } from '@/lib/supersuite/modulos';
+import { PLAN_PRESETS } from '@/lib/pricing/presets';
 
 const fetchMock = jest.fn();
 global.fetch = fetchMock as unknown as typeof fetch;
@@ -75,6 +76,33 @@ describe('equivalencias con la Supersuite', () => {
   });
 });
 
+describe('lo que la empresa le paga a Aether', () => {
+  const sinExtras = (plan: string) => fichaComercial({ planName: plan, features: PLAN_PRESETS[plan]!.features, maxUsers: PLAN_PRESETS[plan]!.maxUsers, maxWarehouses: 1 });
+
+  it('un plan sin cambios cuesta exactamente su precio y no tiene extras ni usuarios adicionales', () => {
+    const ficha = sinExtras('Gestión');
+    expect(ficha.tarifaMensual).toBe(84990);
+    expect(ficha.metadata).toMatchObject({ planVigente: true, modulosExtra: [], usuariosAdicionales: 0 });
+  });
+
+  it('el tope de usuarios heredado no infla la tarifa: va aparte', () => {
+    const ficha = fichaComercial({ planName: 'Personalizado', features: PLAN_PRESETS.Base!.features, maxUsers: 50, maxWarehouses: 1 });
+    expect(ficha.tarifaMensual).toBe(14990);
+    expect(ficha.metadata).toMatchObject({ usuariosAdicionales: 48, tarifaUsuariosAdicionales: 48 * 2990 });
+  });
+
+  it('la ficha lista todo lo contratado según el tarifario, incluso lo que la Supersuite aún no mide', () => {
+    const ficha = fichaComercial({ planName: 'Personalizado', features: { ...PLAN_PRESETS.Base!.features, hasOrgChart: true }, maxUsers: 2, maxWarehouses: 1 });
+    expect(ficha.metadata.modulosAether).toEqual(['org-chart']);
+  });
+
+  it('la alerta de solicitud no se pasa de 500 caracteres ni lleva datos personales', () => {
+    const alerta = alertaDeSolicitud({ planLabel: null, modulos: Array.from({ length: 40 }, (_, i) => `Módulo número ${i}`), net: 1, total: 1 });
+    expect(alerta.mensaje.length).toBeLessThanOrEqual(500);
+    expect(alerta.severidad).toBe('media');
+  });
+});
+
 describe('sin configuración', () => {
   it('no envía nada ni consulta la base', async () => {
     const { s, findFirst } = cargar({});
@@ -106,13 +134,51 @@ describe('con configuración', () => {
     const { s, findFirst } = cargar(env);
     findFirst.mockResolvedValue({
       businessName: 'Ferretería Sur', rut: '76.111.111-1', ciudad: 'Temuco', comuna: null, planName: 'Profesional',
-      status: 'SUSPENDED', createdAt: new Date('2025-01-10'), features: { hasPos: true, hasInventory: true },
+      status: 'SUSPENDED', createdAt: new Date('2025-01-10'), maxUsers: 10, maxWarehouses: 3, features: { hasPos: true, hasInventory: true },
     });
     s.registrarUsoSupersuite({ companyId: 'c1', entity: 'CompanyFeatures', action: 'UPDATE' });
     await esperarEnvios();
     const [envio] = cuerposEnviados();
     expect(envio.url).toBe('https://ss.test/ingesta/clientes');
     expect(envio.cuerpo[0]).toMatchObject({ clienteId: 'c1', nombre: 'Ferretería Sur', ciudad: 'Temuco', plan: 'Profesional', activo: false, modulos: ['pos', 'inventario'] });
+    // Un plan anterior no tiene tarifa de lista: no se inventa una.
+    expect(envio.cuerpo[0]).not.toHaveProperty('tarifaMensual');
+    expect(envio.cuerpo[0].metadata).toMatchObject({ planVigente: false, usuariosMax: 10, bodegasMax: 3 });
+  });
+
+  it('la ficha lleva lo que la empresa le paga a Aether: tarifa, extras y usuarios adicionales', async () => {
+    const { s, findFirst } = cargar(env);
+    findFirst.mockResolvedValue({
+      businessName: 'Ferretería Sur', rut: '76.111.111-1', ciudad: null, comuna: null, planName: 'Comercio',
+      status: 'ACTIVE', createdAt: new Date('2025-01-10'), maxUsers: 5, maxWarehouses: 1,
+      features: { ...PLAN_PRESETS.Comercio!.features, hasAccounting: true },
+    });
+    s.registrarUsoSupersuite({ companyId: 'c1', entity: 'CompanyFeatures', action: 'UPDATE' });
+    await esperarEnvios();
+    const [envio] = cuerposEnviados();
+    expect(envio.cuerpo[0]).toMatchObject({ plan: 'Comercio', tarifaMensual: 32990 + 17990 });
+    expect(envio.cuerpo[0].metadata).toMatchObject({
+      planVigente: true, tarifaIncluyeIva: false, modulosExtra: ['accounting'], usuariosAdicionales: 2, tarifaUsuariosAdicionales: 5980,
+    });
+  });
+
+  it('una solicitud de módulos llega como alerta, cerrando antes la anterior, sin datos de la persona', async () => {
+    const { s } = cargar(env);
+    s.solicitudModulosSupersuite('c1', { planLabel: 'Gestión', modulos: ['Remuneraciones'], net: 97980, total: 116596 });
+    await esperarEnvios();
+    const alertas = cuerposEnviados().find((e) => e.url.endsWith('/ingesta/alertas'))!.cuerpo as Record<string, unknown>[];
+    expect(alertas[0]).toMatchObject({ clave: 'solicitud-modulos', resuelta: true, clienteId: 'c1' });
+    expect(alertas[1]).toMatchObject({ severidad: 'media', clave: 'solicitud-modulos', clienteId: 'c1' });
+    expect(String(alertas[1]!.mensaje)).toContain('plan Gestión + Remuneraciones');
+    expect(String(alertas[1]!.mensaje)).toContain('$97.980 + IVA');
+  });
+
+  it('atender la solicitud (cambio de plan o módulos) cierra su alerta', async () => {
+    const { s } = cargar(env);
+    s.solicitudModulosAtendidaSupersuite('c1');
+    await esperarEnvios();
+    const alertas = cuerposEnviados().find((e) => e.url.endsWith('/ingesta/alertas'))!.cuerpo as Record<string, unknown>[];
+    expect(alertas).toEqual([{ clave: 'solicitud-modulos', resuelta: true, clienteId: 'c1' }]);
   });
 
   it('cerrar turno deja la caja apagada', async () => {

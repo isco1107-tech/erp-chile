@@ -4,6 +4,7 @@ import { requireAuthWithPermission, authErrorMessage } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 import { sendEmail } from '@/lib/email/mailer';
 import { getSalesEmail } from '@/lib/marketing/sales-lead';
+import { solicitudModulosSupersuite } from '@/lib/supersuite';
 import { buildModuleRequestEmail, moduleRequestSchema, quoteModuleRequest } from '@/lib/pricing/module-request';
 import { captureException, captureMessage } from '@/lib/observability';
 import { prisma } from '@/lib/prisma';
@@ -61,6 +62,14 @@ export async function requestModulesAction(input: unknown): Promise<ActionResult
       entity: 'ModuleRequest',
       entityId: session.companyId,
       metadata: { plan: quote.plan?.id ?? null, modules: quote.items.map((m) => m.id), net: quote.net },
+    });
+
+    // El correo avisa a ventas; la Supersuite es donde se toma la acción.
+    solicitudModulosSupersuite(session.companyId, {
+      planLabel: quote.plan?.label ?? null,
+      modulos: quote.items.map((m) => m.label),
+      net: quote.net,
+      total: quote.total,
     });
 
     return {

@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { Prisma, type Company, type Role, type TenantStatus } from '@prisma/client';
 import { AuthError, requireSuperAdmin } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
+import { solicitudModulosAtendidaSupersuite } from '@/lib/supersuite';
 import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import {
   companyCreateSchema,
@@ -111,6 +112,8 @@ export async function updateTenantPlanAction(companyId: string, input: unknown):
       entityId: companyId,
       metadata: { plan: parsed.data.planName, features: parsed.data.features, disabledNavItems: parsed.data.disabledNavItems ?? null },
     });
+    // Si la empresa había pedido módulos o un plan, ya se atendió: se cierra su alerta en la Supersuite.
+    solicitudModulosAtendidaSupersuite(companyId);
 
     revalidatePath(`/superadmin/companies/${companyId}`);
     revalidatePath('/superadmin/companies');

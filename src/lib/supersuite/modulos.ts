@@ -1,5 +1,10 @@
-import type { AuditAction } from '@prisma/client';
-import type { FeatureKey } from '@/lib/auth/modules';
+import type { AuditAction, CompanyFeatures } from '@prisma/client';
+import { toFeatureFlags, type CompanyFeatureFlags, type FeatureKey } from '@/lib/auth/modules';
+import type { DatosCliente } from './cliente';
+import { formatCurrency } from '@/lib/chile/tax';
+import { EXTRA_USER_PRICE, PRICED_MODULES } from '@/lib/pricing/catalog';
+import { isModuleContracted } from '@/lib/pricing/quote';
+import { tenantListPrice } from '@/lib/pricing/presets';
 import { DTE_TYPE_LABELS } from '@/modules/sales/schema';
 
 /**
@@ -112,5 +117,89 @@ export function alertaDeFolios(dteType: string, restantes: number): { severidad:
       ? `Sin folios autorizados de ${documento}: no puede emitir hasta cargar un CAF nuevo.`
       : `Quedan ${restantes} folios autorizados de ${documento}. Hay que pedir un CAF nuevo al SII.`,
     clave: `folios:${dteType}`,
+  };
+}
+
+/**
+ * Lo que la empresa le paga a Aether, para la ficha de la Supersuite. Montos en
+ * CLP netos (sin IVA) por mes, a precio de lista. `tarifaMensual` es el plan más
+ * los módulos que el plan no trae; los usuarios por sobre los que incluye el plan
+ * van aparte, porque el tope de usuarios de las empresas con un plan anterior es
+ * heredado y no algo contratado. Un plan que ya no se ofrece NO lleva tarifa: no
+ * se inventa una (la Supersuite conserva la que ya tenía).
+ */
+export function fichaComercial(input: {
+  planName: string;
+  features: CompanyFeatureFlags;
+  maxUsers: number;
+  maxWarehouses: number;
+}): { tarifaMensual?: number; metadata: Record<string, unknown> } {
+  const modulos = tenantListPrice(input.planName, input.features, 0);
+  const conUsuarios = tenantListPrice(input.planName, input.features, input.maxUsers);
+  const usuariosAdicionales = conUsuarios?.extraUsers ?? 0;
+  return {
+    tarifaMensual: modulos?.net,
+    metadata: {
+      planVigente: modulos !== null,
+      // Todo lo que tiene contratado según el tarifario (incluye módulos que la Supersuite aún no mide como uso).
+      modulosAether: PRICED_MODULES.filter((m) => isModuleContracted(m, input.features)).map((m) => m.id),
+      tarifaIncluyeIva: false,
+      modulosExtra: modulos?.extras.map((m) => m.id) ?? [],
+      modulosDelPlanApagados: modulos?.missingFromPlan.map((m) => m.id) ?? [],
+      usuariosMax: input.maxUsers,
+      usuariosAdicionales,
+      tarifaUsuariosAdicionales: usuariosAdicionales * EXTRA_USER_PRICE,
+      bodegasMax: input.maxWarehouses,
+    },
+  };
+}
+
+/** Clave de la solicitud de módulos abierta de una empresa: una por empresa, la última reemplaza a la anterior. */
+export const CLAVE_SOLICITUD_MODULOS = 'solicitud-modulos';
+
+/**
+ * Una empresa pide contratar módulos o cambiar de plan → alerta accionable en la
+ * Supersuite. Solo viaja qué pide y cuánto cuesta (sin datos de la persona que lo
+ * pidió: el correo con su contacto va aparte al equipo de ventas).
+ */
+export function alertaDeSolicitud(solicitud: {
+  planLabel: string | null;
+  modulos: string[];
+  net: number;
+  total: number;
+}): { severidad: 'media'; mensaje: string; clave: string } {
+  const partes = [...(solicitud.planLabel ? [`plan ${solicitud.planLabel}`] : []), ...solicitud.modulos];
+  const mensaje = `Solicita contratar ${partes.join(' + ')}: ${formatCurrency(solicitud.net)} + IVA al mes (${formatCurrency(solicitud.total)} con IVA). Se activa desde el panel de plataforma de Aether.`;
+  return { severidad: 'media', mensaje: mensaje.length > 500 ? `${mensaje.slice(0, 497)}...` : mensaje, clave: CLAVE_SOLICITUD_MODULOS };
+}
+
+/** Ficha de una empresa tal como la lee la Supersuite (armada igual al sincronizar y desde los scripts). */
+export function fichaDeEmpresa(empresa: {
+  businessName: string;
+  rut: string;
+  ciudad: string | null;
+  comuna: string | null;
+  planName: string;
+  status: string;
+  createdAt: Date;
+  maxUsers: number;
+  maxWarehouses: number;
+  features: CompanyFeatures | null;
+}): DatosCliente {
+  const comercial = fichaComercial({
+    planName: empresa.planName,
+    features: toFeatureFlags(empresa.features),
+    maxUsers: empresa.maxUsers,
+    maxWarehouses: empresa.maxWarehouses,
+  });
+  return {
+    nombre: empresa.businessName,
+    ciudad: empresa.comuna ?? empresa.ciudad ?? undefined,
+    plan: empresa.planName,
+    tarifaMensual: comercial.tarifaMensual,
+    clienteDesde: empresa.createdAt,
+    activo: empresaActiva(empresa.status),
+    modulos: modulosContratados(empresa.features),
+    metadata: { rut: empresa.rut, estadoAether: empresa.status, ...comercial.metadata },
   };
 }
