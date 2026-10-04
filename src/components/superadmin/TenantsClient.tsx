@@ -14,6 +14,7 @@ import {
   createTenantAction,
   listTenantsAction,
   setTenantStatusAction,
+  syncTenantsSupersuiteAction,
 } from '@/modules/platform/actions/platform.actions';
 import type { TenantListItem } from '@/modules/platform/services/platform.service';
 import {
@@ -88,6 +89,14 @@ export default function TenantsClient() {
     });
   }
 
+  function handleSyncSupersuite() {
+    startTransition(async () => {
+      const result = await syncTenantsSupersuiteAction();
+      if (result.success) toast.success(result.message ?? 'Empresas enviadas a la Supersuite');
+      else toast.error(result.error);
+    });
+  }
+
   async function handleCreate() {
     const preset = PLAN_PRESETS[form.planName];
     setSaving(true);
@@ -148,7 +157,12 @@ export default function TenantsClient() {
           />
           <Button type="submit" variant="outline">Buscar</Button>
         </form>
-        <Button type="button" onClick={() => setCreateOpen(true)}>+ Crear Nueva Empresa</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" disabled={pending} onClick={handleSyncSupersuite}>
+            Sincronizar con la Supersuite
+          </Button>
+          <Button type="button" onClick={() => setCreateOpen(true)}>+ Crear Nueva Empresa</Button>
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-border">

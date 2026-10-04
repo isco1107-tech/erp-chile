@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { Prisma, type Company, type Role, type TenantStatus } from '@prisma/client';
 import { AuthError, requireSuperAdmin } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
-import { solicitudModulosAtendidaSupersuite } from '@/lib/supersuite';
+import { sincronizarEmpresaSupersuite, solicitudModulosAtendidaSupersuite, supersuiteHabilitada } from '@/lib/supersuite';
 import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import {
   companyCreateSchema,
@@ -41,6 +41,25 @@ export async function listTenantsAction(query?: string): Promise<ActionResult<Te
   try {
     await requireSuperAdmin();
     return { success: true, data: await platformService.listTenants(query) };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+/**
+ * Reenvía a la Supersuite la ficha actual de TODAS las empresas (plan, tarifa, módulos,
+ * usuarios, bodegas). Hace falta cuando se cambió algo directo en la base —un script, un
+ * ajuste manual— y por tanto no pasó por la bitácora que normalmente la sincroniza.
+ */
+export async function syncTenantsSupersuiteAction(): Promise<ActionResult<{ empresas: number }>> {
+  try {
+    await requireSuperAdmin();
+    if (!supersuiteHabilitada()) {
+      return { success: false, error: 'La Supersuite no está configurada en este entorno (faltan SUPERSUITE_URL y SUPERSUITE_KEY).' };
+    }
+    const empresas = await platformService.listTenants();
+    for (const empresa of empresas) await sincronizarEmpresaSupersuite(empresa.id);
+    return { success: true, data: { empresas: empresas.length }, message: `Se enviaron ${empresas.length} empresas a la Supersuite` };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
   }
