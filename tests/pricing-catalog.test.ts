@@ -1,7 +1,7 @@
 import { DEFAULT_FEATURES, MODULES, type CompanyFeatureFlags } from '@/lib/auth/modules';
 import { PRICED_MODULES, PRICING_PLANS, UNPRICED_FEATURES, INCLUDED_IN_BASE } from '@/lib/pricing/catalog';
 import { buildModuleRequestEmail, moduleRequestSchema, quoteModuleRequest } from '@/lib/pricing/module-request';
-import { MULTI_WAREHOUSE_LIMIT, PLAN_NAMES, PLAN_PRESETS, planListPrice, tenantListPrice } from '@/lib/pricing/presets';
+import { MAX_WAREHOUSES, PLAN_NAMES, inferPlanName, PLAN_PRESETS, planListPrice, tenantListPrice } from '@/lib/pricing/presets';
 import { buildQuote, comparePlan, isModuleContracted } from '@/lib/pricing/quote';
 
 /**
@@ -142,11 +142,21 @@ describe('planes al crear una empresa', () => {
     expect(PLAN_PRESETS.Base!.maxWarehouses).toBe(1);
   });
 
-  it('solo los planes con Multibodega permiten más de una bodega', () => {
-    for (const [name, preset] of Object.entries(PLAN_PRESETS)) {
-      expect(preset.maxWarehouses).toBe(preset.features.hasMultipleWarehouses ? MULTI_WAREHOUSE_LIMIT : 1);
-      expect(name).toBeTruthy();
+  it('solo los planes con Multibodega permiten más de una bodega, y nunca más de 5', () => {
+    expect(MAX_WAREHOUSES).toBe(5);
+    for (const preset of Object.values(PLAN_PRESETS)) {
+      expect(preset.maxWarehouses).toBe(preset.features.hasMultipleWarehouses ? 5 : 1);
+      expect(preset.maxWarehouses).toBeLessThanOrEqual(5);
     }
+    expect(PLAN_PRESETS.Gestión!.maxWarehouses).toBe(5);
+    expect(PLAN_PRESETS.Total!.maxWarehouses).toBe(5);
+  });
+
+  it('la plataforma rechaza más de 5 bodegas al crear y al editar', () => {
+    const { companyPlanUpdateSchema } = jest.requireActual('@/modules/platform/schema') as typeof import('@/modules/platform/schema');
+    const base = { planName: 'Total', maxUsers: 25, features: PLAN_PRESETS.Total!.features };
+    expect(companyPlanUpdateSchema.safeParse({ ...base, maxWarehouses: 5 }).success).toBe(true);
+    expect(companyPlanUpdateSchema.safeParse({ ...base, maxWarehouses: 6 }).success).toBe(false);
   });
 
   it('el precio de lista de una empresa suma plan, módulos extra y usuarios extra', () => {
@@ -167,5 +177,54 @@ describe('planes al crear una empresa', () => {
     const price = tenantListPrice('Comercio', features, 3)!;
     expect(price.missingFromPlan.map((m) => m.id)).toEqual(['pos']);
     expect(price.net).toBe(32990);
+  });
+});
+
+describe('retiro de la facturación electrónica y de las boletas de honorarios', () => {
+  it('no se venden ni entran a ningún plan, y el catálogo no menciona al SII', () => {
+    expect(PRICED_MODULES.flatMap((m) => m.grants)).not.toContain('hasDteBilling');
+    expect(PRICED_MODULES.flatMap((m) => m.grants)).not.toContain('hasFeeDocuments');
+    for (const preset of Object.values(PLAN_PRESETS)) {
+      expect(preset.features.hasDteBilling).toBe(false);
+      expect(preset.features.hasFeeDocuments).toBe(false);
+    }
+    expect(JSON.stringify({ PRICED_MODULES, PRICING_PLANS })).not.toMatch(/\bSII\b|\bDTE\b|facturaci[oó]n|honorario/i);
+  });
+});
+
+describe('plan que le corresponde a una empresa existente', () => {
+  it('con solo la base, Base', () => {
+    expect(inferPlanName(PLAN_PRESETS.Base!.features, 2).planName).toBe('Base');
+  });
+
+  it('con exactamente los módulos de un plan, ese plan', () => {
+    for (const name of ['Comercio', 'Gestión', 'Eventos', 'Total']) {
+      const preset = PLAN_PRESETS[name]!;
+      const fit = inferPlanName(preset.features, preset.maxUsers);
+      expect(fit.planName).toBe(name);
+      expect(fit.price.extras).toEqual([]);
+    }
+  });
+
+  it('un plan con módulos que la empresa no tiene no califica: se cobraría lo que no usa', () => {
+    const features = { ...PLAN_PRESETS.Comercio!.features, hasPurchases: false };
+    // Comercio exige Compras; sin ellas queda Base + Punto de Venta suelto.
+    const fit = inferPlanName(features, 3);
+    expect(fit.planName).toBe('Base');
+    expect(fit.price.extras.map((m) => m.id)).toEqual(['pos']);
+  });
+
+  it('elige el plan más barato contando extras: Comercio + un módulo vs. Gestión', () => {
+    const features = { ...PLAN_PRESETS.Comercio!.features, hasAccounting: true };
+    const fit = inferPlanName(features, 3);
+    expect(fit.planName).toBe('Comercio');
+    expect(fit.price.net).toBe(32990 + 17990);
+  });
+
+  it('entradas y votación cuentan como contratadas solo si están las dos', () => {
+    const half = { ...PLAN_PRESETS.Base!.features, hasTicketing: true };
+    expect(inferPlanName(half, 2).price.extras).toEqual([]);
+    const both = { ...half, hasPublicVoting: true };
+    expect(inferPlanName(both, 2).price.extras.map((m) => m.id)).toEqual(['ticketing-voting']);
   });
 });

@@ -19,7 +19,7 @@ import {
 } from '@/modules/platform/schema';
 import { type CompanyFeatureFlags, type FeatureKey } from '@/lib/auth/modules';
 import { EXTRA_USER_PRICE, PRICED_MODULES } from '@/lib/pricing/catalog';
-import { planListPrice, tenantListPrice } from '@/lib/pricing/presets';
+import { MAX_WAREHOUSES, inferPlanName, planListPrice, tenantListPrice } from '@/lib/pricing/presets';
 import { calculateIva } from '@/lib/chile/tax';
 import { formatCurrency } from '@/lib/chile/tax';
 import { buildModuleCatalog, type CatalogItem } from '@/lib/navigation/module-catalog';
@@ -135,6 +135,7 @@ export default function TenantModulesForm(props: Props) {
   const [saving, setSaving] = useState(false);
 
   const listPrice = tenantListPrice(planName, features, Number(maxUsers) || 0);
+  const fit = inferPlanName(features, Number(maxUsers) || 0);
 
   function applyPreset(name: string) {
     setPlanName(name);
@@ -146,7 +147,10 @@ export default function TenantModulesForm(props: Props) {
   }
 
   function toggleModule(key: FeatureKey, value: boolean) {
-    setFeatures((prev) => ({ ...prev, [key]: value }));
+    // Lo que se vende como un solo ítem (Entradas y votación del público) se
+    // enciende y se apaga junto: no se contrata una mitad.
+    const bundle = PRICED_MODULES.find((m) => m.grants.includes(key))?.grants ?? [key];
+    setFeatures((prev) => ({ ...prev, ...Object.fromEntries(bundle.map((k) => [k, value])) }));
   }
 
   async function handleSave() {
@@ -157,8 +161,8 @@ export default function TenantModulesForm(props: Props) {
       toast.error('El máximo de usuarios debe ser un entero mayor a cero');
       return;
     }
-    if (!Number.isInteger(warehouses) || warehouses < 1) {
-      toast.error('El máximo de bodegas debe ser un entero mayor a cero');
+    if (!Number.isInteger(warehouses) || warehouses < 1 || warehouses > MAX_WAREHOUSES) {
+      toast.error(`El máximo de bodegas debe ser un entero entre 1 y ${MAX_WAREHOUSES}`);
       return;
     }
     // Bajar el límite por debajo de lo ya usado no borra nada, pero deja al
@@ -263,6 +267,7 @@ export default function TenantModulesForm(props: Props) {
               id="maxWarehouses"
               type="number"
               min={1}
+              max={MAX_WAREHOUSES}
               value={maxWarehouses}
               onChange={(e) => setMaxWarehouses(e.target.value)}
             />
@@ -293,6 +298,17 @@ export default function TenantModulesForm(props: Props) {
           <p className="text-xs text-muted-foreground">
             El plan «{planName}» ya no se ofrece, así que no hay precio de lista. Elige uno de los planes vigentes para ver cuánto corresponde.
           </p>
+        )}
+        {fit.planName !== planName && (
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 p-3 text-xs">
+            <p className="min-w-0 flex-1">
+              Según los módulos que tiene encendidos le corresponde el plan <strong>{fit.planName}</strong>
+              {fit.price.extras.length > 0 && ` + ${fit.price.extras.map((m) => m.label).join(', ')}`}: {formatCurrency(fit.price.net)} + IVA al mes.
+            </p>
+            <Button type="button" size="sm" variant="outline" onClick={() => setPlanName(fit.planName)}>
+              Usar «{fit.planName}»
+            </Button>
+          </div>
         )}
         <p className="mt-2 text-xs text-muted-foreground">
           Referencial: es la lista pública de Configuración → Planes y módulos. Aether no cobra desde aquí.

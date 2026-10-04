@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Check, Send, TriangleAlert } from 'lucide-react';
+import { Check, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useConfirm } from '@/components/ui/confirm-provider';
@@ -186,12 +186,6 @@ export default function PlansAndModulesClient({ features }: { features: CompanyF
                           {covered && <StatusBadge tone="info">Incluido en el plan elegido</StatusBadge>}
                         </span>
                         <span className="mt-0.5 block text-xs text-muted-foreground">{item.summary}</span>
-                        {item.caveat && !contracted && (
-                          <span className="mt-1 flex items-start gap-1.5 text-xs text-warning">
-                            <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-                            <span>{item.caveat}</span>
-                          </span>
-                        )}
                       </label>
                       <p className="shrink-0 text-right text-sm font-medium text-foreground">
                         {formatCurrency(item.price)}

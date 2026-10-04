@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { validateRut } from '@/lib/chile/rut';
 import { MODULE_KEYS, type FeatureKey } from '@/lib/auth/modules';
 import { passwordPolicySchema } from '@/lib/auth/password-policy';
-import { PLAN_NAMES } from '@/lib/pricing/presets';
+import { MAX_WAREHOUSES, PLAN_NAMES } from '@/lib/pricing/presets';
 
 export const TENANT_STATUSES = ['ACTIVE', 'TRIAL', 'SUSPENDED', 'CANCELLED'] as const;
 
@@ -25,7 +25,7 @@ export const TENANT_STATUS_BADGE_CLASS: Record<(typeof TENANT_STATUSES)[number],
  * tarifario (`src/lib/pricing/`), la misma fuente que ve el cliente en
  * Configuración → Planes y módulos: Base, Comercio, Gestión, Eventos y Total.
  */
-export { PLAN_NAMES, PLAN_PRESETS } from '@/lib/pricing/presets';
+export { MAX_WAREHOUSES, PLAN_NAMES, PLAN_PRESETS } from '@/lib/pricing/presets';
 
 const featureShape = MODULE_KEYS.reduce<Record<string, z.ZodBoolean>>((shape, key) => {
   shape[key] = z.boolean();
@@ -42,7 +42,7 @@ export const companyCreateSchema = z.object({
   // acepta cualquier nombre: las empresas con un plan anterior lo conservan.
   planName: z.string().refine((name) => PLAN_NAMES.includes(name), 'Selecciona uno de los planes disponibles'),
   maxUsers: z.number().int().min(1, 'Debe permitir al menos 1 usuario'),
-  maxWarehouses: z.number().int().min(1, 'Debe permitir al menos 1 bodega'),
+  maxWarehouses: z.number().int().min(1, 'Debe permitir al menos 1 bodega').max(MAX_WAREHOUSES, `El máximo de bodegas es ${MAX_WAREHOUSES}`),
   status: z.enum(TENANT_STATUSES, 'Selecciona un estado de cuenta'),
   features: companyFeaturesSchema,
   // Primer usuario administrador del tenant. Sin él la empresa nace inaccesible.
@@ -58,7 +58,7 @@ export type CompanyCreateInput = z.infer<typeof companyCreateSchema>;
 export const companyPlanUpdateSchema = z.object({
   planName: z.string().min(1, 'Seleccione un plan'),
   maxUsers: z.number().int().min(1, 'Debe permitir al menos 1 usuario'),
-  maxWarehouses: z.number().int().min(1, 'Debe permitir al menos 1 bodega'),
+  maxWarehouses: z.number().int().min(1, 'Debe permitir al menos 1 bodega').max(MAX_WAREHOUSES, `El máximo de bodegas es ${MAX_WAREHOUSES}`),
   features: companyFeaturesSchema,
   /** Pantallas del menú apagadas para la empresa (se sanean contra el registro al guardar). */
   disabledNavItems: z.array(z.string().max(80)).max(300).optional(),

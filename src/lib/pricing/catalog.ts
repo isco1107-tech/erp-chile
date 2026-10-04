@@ -39,8 +39,6 @@ export interface PricedModule {
   grants: FeatureKey[];
   /** Qué resuelve, en una línea. */
   summary: string;
-  /** Aviso honesto que debe verse junto al precio (límites reales del módulo). */
-  caveat?: string;
 }
 
 /** Plataforma base: todos los clientes la tienen; se muestra como referencia. */
@@ -55,15 +53,6 @@ export const PRICED_MODULES: readonly PricedModule[] = [
   { id: 'warehouses', label: 'Multibodega', category: 'Núcleo comercial', price: 6990, grants: ['hasMultipleWarehouses'], summary: 'Más de una bodega y transferencias entre ellas.' },
   { id: 'manufacturing', label: 'Producción', category: 'Núcleo comercial', price: 14990, grants: ['hasProduction'], summary: 'Recetas y órdenes de producción que consumen insumos y dejan el producto terminado a su costo real.' },
   { id: 'service-desk', label: 'Servicio Técnico', category: 'Núcleo comercial', price: 9990, grants: ['hasServiceDesk'], summary: 'Órdenes de servicio con diagnóstico y presupuesto que el cliente aprueba desde su enlace.' },
-  {
-    id: 'dte',
-    label: 'Facturación Electrónica (DTE)',
-    category: 'Núcleo comercial',
-    price: 9990,
-    grants: ['hasDteBilling'],
-    summary: 'Boletas, facturas y notas con folios autorizados (CAF) y timbre electrónico.',
-    caveat: 'El envío automático al SII aún no está disponible: hoy se timbra y se genera el XML, pero el despacho al SII no es automático.',
-  },
   { id: 'treasury', label: 'Tesorería y Cobranzas', category: 'Finanzas', price: 9990, grants: ['hasTreasury'], summary: 'Cuentas por cobrar y pagar, pagos y flujo de caja.' },
   { id: 'accounting', label: 'Contabilidad', category: 'Finanzas', price: 17990, grants: ['hasAccounting'], summary: 'Asientos automáticos, libro diario y mayor, balance y cierre mensual.' },
   { id: 'reports', label: 'Reportes Avanzados', category: 'Finanzas', price: 6990, grants: ['hasAdvancedReports'], summary: 'Libro Excel con F29 estimado, márgenes y Kardex valorizado.' },
@@ -110,13 +99,13 @@ export interface PricingPlan {
 }
 
 export const PRICING_PLANS: readonly PricingPlan[] = [
-  { id: 'comercio', label: 'Comercio', price: 32990, includedUsers: 3, moduleIds: ['pos', 'purchases', 'dte'], tagline: 'Vender, comprar y facturar.' },
+  { id: 'comercio', label: 'Comercio', price: 32990, includedUsers: 3, moduleIds: ['pos', 'purchases'], tagline: 'Punto de venta y compras con proveedores.' },
   {
     id: 'gestion',
     label: 'Gestión',
     price: 84990,
     includedUsers: 8,
-    moduleIds: ['pos', 'purchases', 'warehouses', 'dte', 'treasury', 'accounting', 'reports', 'budgets', 'crm'],
+    moduleIds: ['pos', 'purchases', 'warehouses', 'treasury', 'accounting', 'reports', 'budgets', 'crm'],
     tagline: 'Comercio más finanzas, contabilidad y seguimiento comercial.',
   },
   {
@@ -137,5 +126,12 @@ export const PRICING_PLANS: readonly PricingPlan[] = [
   },
 ];
 
-/** Módulos de `CompanyFeatures` que Aether sabe vender pero no tienen precio publicado. */
-export const UNPRICED_FEATURES: readonly FeatureKey[] = ['hasFeeDocuments'];
+/**
+ * Módulos de `CompanyFeatures` que existen en el producto pero NO se venden ni
+ * entran en ningún plan por ahora:
+ * - `hasDteBilling` (Facturación Electrónica): se retira de la oferta mientras
+ *   no exista la integración con el SII. Sigue siendo el flag que habilita
+ *   Ventas y Folios, así que el superadmin puede encenderlo a mano.
+ * - `hasFeeDocuments` (Boletas de Honorarios): fuera de la oferta comercial.
+ */
+export const UNPRICED_FEATURES: readonly FeatureKey[] = ['hasDteBilling', 'hasFeeDocuments'];

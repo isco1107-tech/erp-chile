@@ -24,11 +24,11 @@ import {
 export const BASE_PLAN_NAME = 'Base';
 
 /**
- * Tope de bodegas cuando el plan incluye Multibodega. El presupuesto no fija un
- * límite por plan; se mantiene el tope más alto que tenía el plan anterior más
- * grande (Enterprise) para no recortar a nadie. Se ajusta por empresa.
+ * Tope de bodegas de cualquier empresa. Los planes con Multibodega traen
+ * exactamente este máximo y los demás una sola bodega; ninguna empresa puede
+ * pasar de aquí (lo exige el esquema de la plataforma).
  */
-export const MULTI_WAREHOUSE_LIMIT = 20;
+export const MAX_WAREHOUSES = 5;
 
 export interface PlanPreset {
   maxUsers: number;
@@ -50,7 +50,7 @@ export function featuresForModuleIds(moduleIds: readonly string[]): CompanyFeatu
 
 function buildPreset(maxUsers: number, moduleIds: readonly string[]): PlanPreset {
   const features = featuresForModuleIds(moduleIds);
-  return { maxUsers, maxWarehouses: features.hasMultipleWarehouses ? MULTI_WAREHOUSE_LIMIT : 1, features };
+  return { maxUsers, maxWarehouses: features.hasMultipleWarehouses ? MAX_WAREHOUSES : 1, features };
 }
 
 export const PLAN_PRESETS = {
@@ -97,4 +97,27 @@ export function tenantListPrice(planName: string, features: CompanyFeatureFlags,
   const extraUsers = Math.max(0, maxUsers - includedUsers);
   const net = planPrice + extras.reduce((sum, m) => sum + m.price, 0) + extraUsers * EXTRA_USER_PRICE;
   return { planPrice, extras, extraUsers, missingFromPlan, net };
+}
+
+export interface PlanFit {
+  planName: string;
+  price: TenantListPrice;
+}
+
+/**
+ * Plan que le corresponde a una empresa según los módulos que tiene
+ * encendidos: de los planes cuyos módulos TODOS tiene (así nunca se le
+ * cobraría un módulo que no usa), el de menor precio de lista contando
+ * módulos extra y usuarios adicionales. A igual precio gana el plan mayor,
+ * que deja menos módulos sueltos. `Base` siempre califica.
+ */
+export function inferPlanName(features: CompanyFeatureFlags, maxUsers: number): PlanFit {
+  let best: PlanFit | null = null;
+  for (const planName of PLAN_NAMES) {
+    const price = tenantListPrice(planName, features, maxUsers);
+    if (!price || price.missingFromPlan.length > 0) continue;
+    if (!best || price.net <= best.price.net) best = { planName, price };
+  }
+  // `Base` nunca tiene módulos faltantes, así que siempre hay candidato.
+  return best as PlanFit;
 }
