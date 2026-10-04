@@ -119,7 +119,7 @@ describe('solicitud de contratación', () => {
 
 describe('planes al crear una empresa', () => {
   it('ofrece Base y los cuatro planes del presupuesto, en orden', () => {
-    expect([...PLAN_NAMES]).toEqual(['Base', 'Comercio', 'Gestión', 'Eventos', 'Total']);
+    expect([...PLAN_NAMES]).toEqual(['Base', 'Comercio', 'Gestión', 'Eventos', 'Total', 'Personalizado']);
   });
 
   it('cada plan activa exactamente los módulos que muestra el tarifario, más la base', () => {
@@ -208,9 +208,9 @@ describe('plan que le corresponde a una empresa existente', () => {
 
   it('un plan con módulos que la empresa no tiene no califica: se cobraría lo que no usa', () => {
     const features = { ...PLAN_PRESETS.Comercio!.features, hasPurchases: false };
-    // Comercio exige Compras; sin ellas queda Base + Punto de Venta suelto.
+    // Comercio exige Compras; sin ellas queda la base + Punto de Venta suelto.
     const fit = inferPlanName(features, 3);
-    expect(fit.planName).toBe('Base');
+    expect(fit.planName).toBe('Personalizado');
     expect(fit.price.extras.map((m) => m.id)).toEqual(['pos']);
   });
 
@@ -226,5 +226,12 @@ describe('plan que le corresponde a una empresa existente', () => {
     expect(inferPlanName(half, 2).price.extras).toEqual([]);
     const both = { ...half, hasPublicVoting: true };
     expect(inferPlanName(both, 2).price.extras.map((m) => m.id)).toEqual(['ticketing-voting']);
+    expect(inferPlanName(both, 2).planName).toBe('Personalizado');
+  });
+
+  it('el tope de usuarios heredado no cambia el plan elegido', () => {
+    const features = PLAN_PRESETS.Gestión!.features;
+    expect(inferPlanName(features, 50).planName).toBe('Gestión');
+    expect(inferPlanName(features, 8).planName).toBe('Gestión');
   });
 });

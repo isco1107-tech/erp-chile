@@ -24,6 +24,12 @@ import {
 export const BASE_PLAN_NAME = 'Base';
 
 /**
+ * Plataforma base más los módulos que la empresa contrata uno a uno, sin
+ * calzar con ningún plan. Parte con los mismos módulos y límites que `Base`.
+ */
+export const CUSTOM_PLAN_NAME = 'Personalizado';
+
+/**
  * Tope de bodegas de cualquier empresa. Los planes con Multibodega traen
  * exactamente este máximo y los demás una sola bodega; ninguna empresa puede
  * pasar de aquí (lo exige el esquema de la plataforma).
@@ -55,15 +61,16 @@ function buildPreset(maxUsers: number, moduleIds: readonly string[]): PlanPreset
 
 export const PLAN_PRESETS = {
   [BASE_PLAN_NAME]: buildPreset(BASE_PLATFORM.includedUsers, []),
+  [CUSTOM_PLAN_NAME]: buildPreset(BASE_PLATFORM.includedUsers, []),
   ...Object.fromEntries(PRICING_PLANS.map((plan) => [plan.label, buildPreset(plan.includedUsers, plan.moduleIds)])),
 } as Record<string, PlanPreset>;
 
 /** Nombres ofrecidos, en orden de menor a mayor. */
-export const PLAN_NAMES: readonly string[] = [BASE_PLAN_NAME, ...PRICING_PLANS.map((p) => p.label)];
+export const PLAN_NAMES: readonly string[] = [BASE_PLAN_NAME, ...PRICING_PLANS.map((p) => p.label), CUSTOM_PLAN_NAME];
 
 /** Precio mensual (CLP, sin IVA) de la plataforma sola o de un plan; `null` si el nombre no es de un plan vigente. */
 export function planListPrice(planName: string): number | null {
-  if (planName === BASE_PLAN_NAME) return BASE_PLATFORM.price;
+  if (planName === BASE_PLAN_NAME || planName === CUSTOM_PLAN_NAME) return BASE_PLATFORM.price;
   return PRICING_PLANS.find((p) => p.label === planName)?.price ?? null;
 }
 
@@ -106,18 +113,25 @@ export interface PlanFit {
 
 /**
  * Plan que le corresponde a una empresa según los módulos que tiene
- * encendidos: de los planes cuyos módulos TODOS tiene (así nunca se le
- * cobraría un módulo que no usa), el de menor precio de lista contando
- * módulos extra y usuarios adicionales. A igual precio gana el plan mayor,
- * que deja menos módulos sueltos. `Base` siempre califica.
+ * encendidos. Entre los planes cuyos módulos TODOS tiene (así nunca se le
+ * cobraría un módulo que no usa) elige el de menor precio de lista contando
+ * los módulos extra; a igual precio gana el plan mayor, que deja menos módulos
+ * sueltos. La elección NO depende del tope de usuarios: es un límite heredado
+ * del plan anterior, no algo contratado. Si lo mejor es la plataforma base con
+ * módulos sueltos, el plan es `Personalizado`; si no tiene ninguno, `Base`.
+ * El precio devuelto sí cuenta los usuarios sobre lo que incluye el plan.
  */
 export function inferPlanName(features: CompanyFeatureFlags, maxUsers: number): PlanFit {
-  let best: PlanFit | null = null;
+  let best: { planName: string; net: number } | null = null;
   for (const planName of PLAN_NAMES) {
-    const price = tenantListPrice(planName, features, maxUsers);
+    if (planName === CUSTOM_PLAN_NAME) continue;
+    const price = tenantListPrice(planName, features, 0);
     if (!price || price.missingFromPlan.length > 0) continue;
-    if (!best || price.net <= best.price.net) best = { planName, price };
+    if (!best || price.net <= best.net) best = { planName, net: price.net };
   }
   // `Base` nunca tiene módulos faltantes, así que siempre hay candidato.
-  return best as PlanFit;
+  let planName = (best as { planName: string }).planName;
+  const chosen = tenantListPrice(planName, features, maxUsers) as TenantListPrice;
+  if (planName === BASE_PLAN_NAME && chosen.extras.length > 0) planName = CUSTOM_PLAN_NAME;
+  return { planName, price: chosen };
 }
