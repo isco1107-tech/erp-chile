@@ -692,6 +692,14 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       note('Sin perder nada', 'Apagar no borra datos ni cambia permisos; al encender, vuelve igual.'),
     ],
   },
+  'settings-plans': {
+    title: 'Planes y Módulos',
+    steps: [
+      header('Lo que puedes sumar a tu cuenta', 'Precios mensuales de cada plan y de cada módulo, siempre más IVA.'),
+      note('Arma tu selección', 'Elige un plan o marca módulos sueltos: abajo ves el total con y sin IVA.'),
+      note('Solicitar contratación', 'Envía la solicitud a Aether: un ejecutivo te contacta y activa los módulos. No se cobra nada antes.'),
+    ],
+  },
   'settings-users': {
     title: 'Equipo & Colaboradores',
     steps: [

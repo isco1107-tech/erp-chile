@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Building2, FileCheck2, KeyRound, Laptop, LayoutGrid, Lock, ShieldCheck, ShieldQuestion, Upload, UserCircle, Users, Zap } from 'lucide-react';
+import { Building2, FileCheck2, KeyRound, Laptop, LayoutGrid, Lock, PackagePlus, ShieldCheck, ShieldQuestion, Upload, UserCircle, Users, Zap } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AuthError, TenantInactiveError, can, getAuthContext } from '@/lib/auth/guards';
 import type { Permission } from '@/lib/auth/permissions';
@@ -28,6 +28,13 @@ const SECTIONS: Array<{ href: string; icon: typeof Building2; title: string; des
     icon: LayoutGrid,
     title: 'Módulos y Menú',
     description: 'Enciende o apaga cada sección del menú lateral para todo tu equipo, sin perder datos.',
+    permission: 'settings:company',
+  },
+  {
+    href: '/dashboard/settings/plans',
+    icon: PackagePlus,
+    title: 'Planes y Módulos',
+    description: 'Precios de cada módulo y plan de Aether: arma tu selección y pide contratar más módulos.',
     permission: 'settings:company',
   },
   {

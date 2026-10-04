@@ -24,12 +24,14 @@ import {
   TENANT_STATUS_LABELS,
 } from '@/modules/platform/schema';
 import { MODULES } from '@/lib/auth/modules';
+import { BASE_PLAN_NAME, planListPrice } from '@/lib/pricing/presets';
+import { formatCurrency } from '@/lib/chile/tax';
 
 import { useConfirm } from '@/components/ui/confirm-provider';
 const selectClass =
   'h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30';
 
-type PlanName = (typeof PLAN_NAMES)[number];
+type PlanName = string;
 
 export default function TenantsClient() {
   const confirm = useConfirm();
@@ -44,7 +46,7 @@ export default function TenantsClient() {
     rut: '',
     businessName: '',
     email: '',
-    planName: 'Starter' as PlanName,
+    planName: BASE_PLAN_NAME as PlanName,
     status: 'TRIAL' as TenantStatus,
     adminName: '',
     adminEmail: '',
@@ -113,7 +115,7 @@ export default function TenantsClient() {
         rut: '',
         businessName: '',
         email: '',
-        planName: 'Starter',
+        planName: BASE_PLAN_NAME,
         status: 'TRIAL',
         adminName: '',
         adminEmail: '',
@@ -253,7 +255,7 @@ export default function TenantsClient() {
                   onChange={(e) => setForm((f) => ({ ...f, planName: e.target.value as PlanName }))}
                 >
                   {PLAN_NAMES.map((plan) => (
-                    <option key={plan} value={plan}>{plan}</option>
+                    <option key={plan} value={plan}>{plan} — {formatCurrency(planListPrice(plan) ?? 0)} + IVA/mes</option>
                   ))}
                 </select>
               </div>
@@ -274,7 +276,7 @@ export default function TenantsClient() {
 
             <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs">
               <p className="font-medium">
-                Incluye {preset.maxUsers} usuarios y {preset.maxWarehouses} bodega(s):
+                Plan {form.planName}: {formatCurrency(planListPrice(form.planName) ?? 0)} + IVA al mes. Incluye {preset.maxUsers} usuarios y hasta {preset.maxWarehouses} bodega(s):
               </p>
               <p className="mt-1 text-muted-foreground">
                 {includedModules.map((mod) => mod.label).join(' · ')}

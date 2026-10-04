@@ -18,6 +18,10 @@ import {
   TENANT_STATUS_LABELS,
 } from '@/modules/platform/schema';
 import { type CompanyFeatureFlags, type FeatureKey } from '@/lib/auth/modules';
+import { EXTRA_USER_PRICE, PRICED_MODULES } from '@/lib/pricing/catalog';
+import { planListPrice, tenantListPrice } from '@/lib/pricing/presets';
+import { calculateIva } from '@/lib/chile/tax';
+import { formatCurrency } from '@/lib/chile/tax';
 import { buildModuleCatalog, type CatalogItem } from '@/lib/navigation/module-catalog';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -97,6 +101,12 @@ function ScreenRow({ item, visible, blocked, onChange }: { item: CatalogItem; vi
   );
 }
 
+/** Precio de lista del ítem del tarifario que activa este módulo (si se vende). */
+function priceLabel(key: FeatureKey): string | null {
+  const item = PRICED_MODULES.find((m) => m.grants.includes(key));
+  return item ? `Lista: ${formatCurrency(item.price)} + IVA/mes${item.grants.length > 1 ? ` (precio único de «${item.label}»)` : ''}` : null;
+}
+
 export default function TenantModulesForm(props: Props) {
   const confirm = useConfirm();
   const router = useRouter();
@@ -123,6 +133,8 @@ export default function TenantModulesForm(props: Props) {
   const [maxWarehouses, setMaxWarehouses] = useState(String(props.initialMaxWarehouses));
   const [status, setStatus] = useState<TenantStatus>(props.initialStatus);
   const [saving, setSaving] = useState(false);
+
+  const listPrice = tenantListPrice(planName, features, Number(maxUsers) || 0);
 
   function applyPreset(name: string) {
     setPlanName(name);
@@ -233,11 +245,9 @@ export default function TenantModulesForm(props: Props) {
           <div>
             <Label htmlFor="planName">Plan</Label>
             <select id="planName" className={selectClass} value={planName} onChange={(e) => applyPreset(e.target.value)}>
-              {!PLAN_NAMES.includes(planName as (typeof PLAN_NAMES)[number]) && (
-                <option value={planName}>{planName} (personalizado)</option>
-              )}
+              {!PLAN_NAMES.includes(planName) && <option value={planName}>{planName} (plan anterior)</option>}
               {PLAN_NAMES.map((plan) => (
-                <option key={plan} value={plan}>{plan}</option>
+                <option key={plan} value={plan}>{plan} — {formatCurrency(planListPrice(plan) ?? 0)} + IVA/mes</option>
               ))}
             </select>
             <p className="mt-1 text-xs text-muted-foreground">Cambiar el plan precarga módulos y límites.</p>
@@ -259,6 +269,34 @@ export default function TenantModulesForm(props: Props) {
             <p className="mt-1 text-xs text-muted-foreground">En uso: {props.warehouseCount}</p>
           </div>
         </div>
+      </div>
+
+      <div className="rounded-xl border border-border p-4">
+        <h2 className="mb-2 text-sm font-semibold">Precio de lista</h2>
+        {listPrice ? (
+          <div className="space-y-1 text-sm">
+            <p>
+              Plan {planName}: {formatCurrency(listPrice.planPrice)}
+              {listPrice.extras.map((m) => ` + ${m.label} ${formatCurrency(m.price)}`).join('')}
+              {listPrice.extraUsers > 0 && ` + ${listPrice.extraUsers} usuario(s) adicional(es) ${formatCurrency(listPrice.extraUsers * EXTRA_USER_PRICE)}`}
+            </p>
+            <p className="font-semibold">
+              {formatCurrency(listPrice.net)} + IVA al mes ({formatCurrency(listPrice.net + calculateIva(listPrice.net))} con IVA)
+            </p>
+            {listPrice.missingFromPlan.length > 0 && (
+              <p className="text-xs text-warning">
+                Tiene apagados módulos que trae el plan ({listPrice.missingFromPlan.map((m) => m.label).join(', ')}); el precio del plan no se rebaja por eso.
+              </p>
+            )}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            El plan «{planName}» ya no se ofrece, así que no hay precio de lista. Elige uno de los planes vigentes para ver cuánto corresponde.
+          </p>
+        )}
+        <p className="mt-2 text-xs text-muted-foreground">
+          Referencial: es la lista pública de Configuración → Planes y módulos. Aether no cobra desde aquí.
+        </p>
       </div>
 
       <div className="rounded-xl border border-border p-4">
@@ -315,6 +353,7 @@ export default function TenantModulesForm(props: Props) {
                               {mod.label}
                             </Label>
                             <p className="text-xs text-muted-foreground">{mod.description}</p>
+                            {priceLabel(mod.key) && <p className="text-xs font-medium text-foreground">{priceLabel(mod.key)}</p>}
                           </div>
                           <Toggle id={`toggle-${mod.key}`} label={`${mod.label}: módulo contratado`} checked={features[mod.key]} onChange={(value) => toggleModule(mod.key, value)} />
                         </div>

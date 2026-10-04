@@ -404,7 +404,7 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
   push('Ayuda', [{ id: 'manual', href: '/dashboard/manual', label: 'Manual de Usuario', icon: 'help', keywords: ['ayuda', 'como usar', 'tutorial'] }]);
 
   if (SETTINGS_PERMISSIONS.some(allow)) {
-    push('Configuración', [{ id: 'settings', href: '/dashboard/settings', label: 'Configuración', icon: 'settings', keywords: ['empresa', 'usuarios', 'folios', 'caf', 'roles', 'modulos', 'menu'] }]);
+    push('Configuración', [{ id: 'settings', href: '/dashboard/settings', label: 'Configuración', icon: 'settings', keywords: ['empresa', 'usuarios', 'folios', 'caf', 'roles', 'modulos', 'menu', 'planes', 'precios', 'contratar'] }]);
   }
 
   if (isSuperAdmin) {
