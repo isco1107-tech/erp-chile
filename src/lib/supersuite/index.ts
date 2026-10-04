@@ -139,6 +139,23 @@ export function latidoCajaSupersuite(companyId: string, caja: { id: string; name
 }
 
 /**
+ * Un usuario de la empresa está conectado (lo llama el latido del panel, ~60 s).
+ * La Supersuite cuenta como activo a quien tuvo señal en los últimos 5 minutos.
+ * Sale solo el id del usuario (opaco): nunca correo ni nombre. Al personal de
+ * Aether (superadmin) no se le cuenta como usuario de la empresa.
+ */
+export function presenciaSupersuite(companyId: string, userId: string): void {
+  try {
+    const m = monitor();
+    if (!m) return;
+    m.presencia(companyId, userId);
+    enviarAlFinal(m);
+  } catch (error) {
+    captureException(error, { module: 'supersuite', companyId, extra: { step: 'presencia' } });
+  }
+}
+
+/**
  * Una empresa pidió contratar módulos o cambiar de plan. Queda una sola solicitud
  * abierta por empresa: la última reemplaza a la anterior (la Supersuite ignora una
  * alerta nueva mientras haya otra abierta con la misma clave, así que primero se
