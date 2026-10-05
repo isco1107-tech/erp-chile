@@ -29,7 +29,7 @@ export function posterSite(overrides: Partial<PublicPageantSite> = {}): PublicPa
     ],
     tickets: { href: '/tickets/tk', fromPrice: 15000 },
     voting: { href: '/votar/vt', pricePerVote: 1000 },
-    registration: { href: '/register/candidate/rg', token: 'rg', closesAt: '2026-10-19T23:59:00.000Z', minAge: 17, maxCandidates: 20, benefits: ['Clases de pasarela'], classesNote: null },
+    registration: { href: '/register/candidate/rg', token: 'rg', closesAt: '2026-10-19T23:59:00.000Z', minAge: 17, requirements: { minAge: 17, chileanNationality: true, instagram: true, photo: true }, maxCandidates: 20, benefits: ['Clases de pasarela'], classesNote: null },
     candidateSide: true,
     registrationNotice: null,
     voteRanking: null,

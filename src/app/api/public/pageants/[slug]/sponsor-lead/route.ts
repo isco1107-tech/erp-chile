@@ -135,6 +135,7 @@ async function notifyWithoutCrm(target: SponsorLeadTarget, lead: PublicSponsorLe
         companyName: lead.companyName,
         email: lead.email,
         phone: lead.phone,
+        instagram: lead.instagram,
         activity: lead.message,
         packageName: pkg?.name ?? null,
         dashboardUrl: `${getAppUrl()}/dashboard/projects/${target.project.id}`,

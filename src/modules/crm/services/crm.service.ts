@@ -818,6 +818,7 @@ export async function createInboundSponsorLead(
   const noteLines = [
     `Solicitud recibida desde el sitio público del certamen.`,
     `Contacto: ${input.contactName}${input.jobTitle ? ` (${input.jobTitle})` : ''} · ${email}${input.phone ? ` · ${input.phone}` : ''}`,
+    `Instagram de la empresa: ${input.instagram}`,
     pkg ? `Plan de interés: ${pkg.name}` : null,
     input.message ? `Mensaje: ${input.message}` : null,
   ].filter((line): line is string => line !== null);
@@ -844,6 +845,7 @@ export async function createInboundSponsorLead(
         organizationName: input.companyName,
         email,
         phone: input.phone ?? null,
+        instagram: input.instagram,
         tags: ['Web'],
       },
     });

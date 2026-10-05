@@ -1,3 +1,4 @@
+import { requirementsFromProject, type RegistrationRequirements } from '@/lib/events/registration-requirements';
 import 'server-only';
 
 import type { CandidateStatus, Prisma, SponsorshipTier } from '@prisma/client';
@@ -61,6 +62,8 @@ export interface PublicPageantSite {
     token: string;
     closesAt: string | null;
     minAge: number;
+    /** Requisitos de inscripción que marcó la organización (edad, chilena, Instagram, foto). */
+    requirements: RegistrationRequirements;
     /** Cupo de preseleccionadas, si la convocatoria lo definió. */
     maxCandidates: number | null;
     benefits: string[];
@@ -272,6 +275,7 @@ async function assemblePageantSite(project: ProjectWithCompany, slug: string): P
             token: project.candidateRegistrationToken,
             closesAt: project.registrationClosesAt?.toISOString() ?? null,
             minAge: project.minCandidateAge,
+            requirements: requirementsFromProject(project),
             maxCandidates: project.maxCandidates,
             benefits: project.registrationBenefits,
             classesNote: project.registrationClassesNote,

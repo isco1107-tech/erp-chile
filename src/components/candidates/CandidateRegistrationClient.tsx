@@ -317,7 +317,7 @@ export default function CandidateRegistrationClient({ token }: { token: string }
                   {project.maxCandidates ? ` (solo ${project.maxCandidates} candidatas)` : ''}.
                 </p>
               </div>
-              <CandidateApplicationForm token={token} minAge={project.minCandidateAge} privacyHref={privacyHref} />
+              <CandidateApplicationForm token={token} requirements={project.requirements} privacyHref={privacyHref} />
             </div>
           </div>
         </section>

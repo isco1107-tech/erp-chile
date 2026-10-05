@@ -130,12 +130,14 @@ export const candidateSelfRegistrationSchema = z
       .regex(/^[+\d\s().-]+$/, 'El teléfono solo puede tener números'),
     email: z.string().trim().email('Escribe un correo válido').max(180, 'Máximo 180 caracteres'),
     // Usuario, "@usuario" o el link del perfil → "@usuario"; se rechaza lo que no sea un usuario válido.
+    // Que sea obligatorio lo decide el certamen (`requireCandidateInstagram`): vacío = sin dato.
     instagram: z
       .string()
       .trim()
-      .min(1, 'Escribe tu usuario de Instagram')
       .max(120, 'Máximo 120 caracteres')
+      .optional()
       .transform((value, ctx) => {
+        if (!value) return undefined;
         const handle = normalizeInstagramHandle(value);
         if (!handle) {
           ctx.addIssue({ code: 'custom', message: 'Escribe solo tu usuario de Instagram (ej. @tuusuario)' });
@@ -143,6 +145,11 @@ export const candidateSelfRegistrationSchema = z
         }
         return `@${handle}`;
       }),
+    // Foto subida por la propia postulante (`/api/public/candidates/{token}/photo`); el servidor
+    // comprueba que sea de la carpeta de postulaciones de esa empresa.
+    photoUrl: z.string().trim().url('La foto no es válida').max(1000).optional(),
+    // Casilla "Declaro ser chilena": solo se exige si el certamen lo pide.
+    declaraNacionalidadChilena: z.boolean().optional(),
     motivacion: z.string().trim().min(10, 'Cuéntanos por qué quieres participar').max(2000, 'Máximo 2000 caracteres'),
     // Solo se piden si declara ser menor de edad (el contrato de imagen lleva su firma).
     guardianName: z.string().trim().max(150, 'Máximo 150 caracteres').optional(),
@@ -191,6 +198,9 @@ export const registrationSettingsSchema = z
     registrationOpensAt: z.coerce.date('Fecha de apertura inválida').nullable().optional(),
     registrationClosesAt: z.coerce.date('Fecha de cierre inválida').nullable().optional(),
     minCandidateAge: z.number().int().min(1).max(99).default(18),
+    requireChileanNationality: z.boolean().default(false),
+    requireCandidateInstagram: z.boolean().default(true),
+    requireCandidatePhoto: z.boolean().default(false),
     maxCandidates: z.number().int().positive().nullable().optional(),
     // Contacto del certamen para las postulantes (mismas columnas que edita el micrositio).
     contactEmail: contactEmailField,

@@ -14,6 +14,7 @@ import {
 } from '@/modules/candidates/actions/candidates.actions';
 import { CANDIDATE_REGISTRATION_STATUSES, CANDIDATE_REGISTRATION_STATUS_LABELS } from '@/modules/candidates/schema';
 import type { RegistrationSettings } from '@/modules/candidates/services/candidates.service';
+import RegistrationRequirementsFields from '@/components/projects/RegistrationRequirementsFields';
 
 const selectClass =
   'h-9 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30';
@@ -59,6 +60,9 @@ export default function RegistrationSettingsButton({ projectId }: { projectId: s
       registrationOpensAt: settings.registrationOpensAt,
       registrationClosesAt: settings.registrationClosesAt,
       minCandidateAge: settings.minCandidateAge,
+      requireChileanNationality: settings.requireChileanNationality,
+      requireCandidateInstagram: settings.requireCandidateInstagram,
+      requireCandidatePhoto: settings.requireCandidatePhoto,
       maxCandidates: settings.maxCandidates,
       contactEmail: settings.contactEmail ?? '',
       contactWhatsapp: settings.contactWhatsapp ?? '',
@@ -131,28 +135,28 @@ export default function RegistrationSettingsButton({ projectId }: { projectId: s
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor="reg-min-age">Edad mínima</Label>
-                <Input
-                  id="reg-min-age"
-                  type="number"
-                  min={1}
-                  max={99}
-                  value={settings.minCandidateAge}
-                  onChange={(e) => setSettings({ ...settings, minCandidateAge: Number(e.target.value) })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="reg-max">Cupo máximo (opcional)</Label>
-                <Input
-                  id="reg-max"
-                  type="number"
-                  min={1}
-                  value={settings.maxCandidates ?? ''}
-                  onChange={(e) => setSettings({ ...settings, maxCandidates: e.target.value ? Number(e.target.value) : null })}
-                />
-              </div>
+            <div className="max-w-40">
+              <Label htmlFor="reg-max">Cupo máximo (opcional)</Label>
+              <Input
+                id="reg-max"
+                type="number"
+                min={1}
+                value={settings.maxCandidates ?? ''}
+                onChange={(e) => setSettings({ ...settings, maxCandidates: e.target.value ? Number(e.target.value) : null })}
+              />
+            </div>
+
+            <div className="border-t border-border pt-4">
+              <RegistrationRequirementsFields
+                idPrefix="reg"
+                value={{
+                  minCandidateAge: settings.minCandidateAge,
+                  requireChileanNationality: settings.requireChileanNationality,
+                  requireCandidateInstagram: settings.requireCandidateInstagram,
+                  requireCandidatePhoto: settings.requireCandidatePhoto,
+                }}
+                onChange={(next) => setSettings({ ...settings, ...next })}
+              />
             </div>
 
             <fieldset className="space-y-3 border-t border-border pt-4">

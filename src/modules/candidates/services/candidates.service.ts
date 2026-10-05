@@ -1,5 +1,7 @@
 import { formatWhatsappNumber, pageantContact, type PageantContact } from '@/lib/events/pageant-contact';
 import crypto from 'crypto';
+import { applicationPhotoPrefix, checkRegistrationRequirements, requirementsFromProject, type RegistrationRequirements } from '@/lib/events/registration-requirements';
+import { blobPathnameStartsWith } from '@/lib/security/blob-url';
 import { prisma } from '@/lib/prisma';
 import { Prisma, type Candidate, type CandidateStatus, type PaymentPlanStatus, type PaymentStatus, type PromissoryNoteStatus } from '@prisma/client';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
@@ -94,6 +96,8 @@ export class RegistrationNotOpenError extends Error {}
  * condiciones de "no abierta" que solo dependen de fecha/estado. */
 export class RegistrationFullError extends Error {}
 export class BelowMinimumAgeError extends Error {}
+/** La postulación no cumple un requisito que marcó el certamen (chilena, Instagram, foto). */
+export class RegistrationRequirementError extends Error {}
 export class DuplicateApplicationError extends Error {}
 
 async function assertProjectOwnership(companyId: string, projectId: string): Promise<void> {
@@ -674,6 +678,9 @@ export interface RegistrationSettings {
   registrationOpensAt: Date | null;
   registrationClosesAt: Date | null;
   minCandidateAge: number;
+  requireChileanNationality: boolean;
+  requireCandidateInstagram: boolean;
+  requireCandidatePhoto: boolean;
   maxCandidates: number | null;
   /** Contacto del certamen que ven las postulantes (vacío = no se muestra). */
   contactEmail: string | null;
@@ -703,6 +710,9 @@ export async function getRegistrationSettings(companyId: string, projectId: stri
       registrationOpensAt: true,
       registrationClosesAt: true,
       minCandidateAge: true,
+      requireChileanNationality: true,
+      requireCandidateInstagram: true,
+      requireCandidatePhoto: true,
       maxCandidates: true,
       publicContactEmail: true,
       publicWhatsapp: true,
@@ -737,6 +747,9 @@ export async function updateRegistrationSettings(
       registrationOpensAt: data.registrationOpensAt ?? null,
       registrationClosesAt: data.registrationClosesAt ?? null,
       minCandidateAge: data.minCandidateAge,
+      requireChileanNationality: data.requireChileanNationality,
+      requireCandidateInstagram: data.requireCandidateInstagram,
+      requireCandidatePhoto: data.requireCandidatePhoto,
       maxCandidates: data.maxCandidates ?? null,
       publicContactEmail: data.contactEmail,
       publicWhatsapp: data.contactWhatsapp,
@@ -758,6 +771,8 @@ export interface RegistrationProjectInfo {
   closedReason: string | null;
   registrationClosesAt: Date | null;
   minCandidateAge: number;
+  /** Requisitos que marcó la organización (edad, chilena, Instagram, foto). */
+  requirements: RegistrationRequirements;
   /** Fecha y hora de la gala (`Project.galaDate`), no el inicio del proyecto. */
   galaDate: Date | null;
   venueName: string | null;
@@ -800,6 +815,7 @@ export async function getRegistrationProjectByToken(token: string): Promise<Regi
     closedReason: reason,
     registrationClosesAt: project.registrationClosesAt,
     minCandidateAge: project.minCandidateAge,
+    requirements: requirementsFromProject(project),
     galaDate: project.galaDate,
     venueName: project.venueName,
     accent: project.publicAccent,
@@ -913,7 +929,19 @@ export async function submitCandidateRegistration(
 ): Promise<{ candidate: Candidate; folio: string }> {
   const project = await prisma.project.findUnique({
     where: { candidateRegistrationToken: token },
-    select: { id: true, companyId: true, code: true, registrationStatus: true, registrationOpensAt: true, registrationClosesAt: true, minCandidateAge: true, maxCandidates: true },
+    select: {
+      id: true,
+      companyId: true,
+      code: true,
+      registrationStatus: true,
+      registrationOpensAt: true,
+      registrationClosesAt: true,
+      minCandidateAge: true,
+      requireChileanNationality: true,
+      requireCandidateInstagram: true,
+      requireCandidatePhoto: true,
+      maxCandidates: true,
+    },
   });
   if (!project) throw new RegistrationNotFoundError('Link de inscripción inválido o expirado');
 
@@ -926,6 +954,20 @@ export async function submitCandidateRegistration(
   if (data.age < project.minCandidateAge) {
     throw new BelowMinimumAgeError(`Debes tener al menos ${project.minCandidateAge} años cumplidos para postular.`);
   }
+
+  // Requisitos que marcó la organización: la barrera real (el formulario solo avisa antes).
+  // La foto debe ser de la carpeta de postulaciones de ESTA empresa, no una URL cualquiera.
+  if (data.photoUrl && !blobPathnameStartsWith(data.photoUrl, applicationPhotoPrefix(project.companyId))) {
+    throw new RegistrationRequirementError('La foto no es válida. Súbela de nuevo.');
+  }
+  const unmet = checkRegistrationRequirements(requirementsFromProject(project), {
+    age: data.age,
+    instagram: data.instagram,
+    photoUrl: data.photoUrl,
+    declaraNacionalidadChilena: data.declaraNacionalidadChilena,
+  });
+  const firstUnmet = Object.values(unmet)[0];
+  if (firstUnmet) throw new RegistrationRequirementError(firstUnmet);
 
   // Chequeo temprano fuera de la transacción: da un 409 rápido en el caso
   // común (RUT repetido) sin gastar una transacción completa. La garantía
@@ -984,6 +1026,7 @@ export async function submitCandidateRegistration(
           folio,
           comuna: data.comuna,
           instagram: data.instagram,
+          photoUrl: data.photoUrl || undefined,
           motivacion: data.motivacion,
           ipOrigen: meta.ipOrigen || undefined,
           userAgent: meta.userAgent || undefined,
