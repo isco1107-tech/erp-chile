@@ -150,6 +150,7 @@ export const GESTION_SECTIONS: ManualSection[] = [
         title: 'Recibir marcas desde el sitio del certamen',
         steps: [
           'Con el formulario "Quiero auspiciar" activo en el sitio público, cada solicitud entra como oportunidad de Auspicio en etapa Prospecto, con su persona de contacto y una tarea para responder al día siguiente.',
+          'El formulario pide el "Instagram de tu empresa" (obligatorio): queda en la ficha de la persona de contacto y en las notas del negocio.',
           'Además llega un aviso a la campanita y se dispara la automatización "Prospecto de auspicio desde el sitio del certamen".',
         ],
       },
