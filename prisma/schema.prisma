@@ -1983,6 +1983,13 @@ model Project {
   registrationClosesAt       DateTime?
   /// Edad mínima exigida al momento del envío del formulario público.
   minCandidateAge            Int                         @default(18)
+  /// Requisitos de inscripción que la organización marca al crear el certamen.
+  /// La edad mínima es `minCandidateAge`. Ser chilena se declara con una casilla
+  /// (no se valida contra ningún registro); el Instagram y la foto de la
+  /// postulante se vuelven obligatorios en el formulario público.
+  requireChileanNationality  Boolean                     @default(false)
+  requireCandidateInstagram  Boolean                     @default(true)
+  requireCandidatePhoto      Boolean                     @default(false)
   /// Cupo máximo de postulaciones aceptadas; `null` = sin límite.
   maxCandidates              Int?
   /// Costo pagado a la franquicia matriz por candidata aceptada (CLP), y lo

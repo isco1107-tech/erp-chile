@@ -11,6 +11,8 @@
  * Cada cifra, etapa o pregunta sale de algo configurado en el proyecto.
  */
 
+import type { RegistrationRequirements } from '@/lib/events/registration-requirements';
+
 const TIME_ZONE = 'America/Santiago';
 
 export interface PageantTitle {
@@ -175,7 +177,7 @@ export function pageantHighlights(input: HighlightInput, now: Date): PageantHigh
 
 export interface FaqInput {
   name: string;
-  registration: { closesAt: string | null; minAge: number } | null;
+  registration: { closesAt: string | null; minAge: number; requirements?: RegistrationRequirements } | null;
   voting: { pricePerVote: number } | null;
   tickets: { fromPrice: number | null } | null;
   galaDate: string | null;
@@ -191,13 +193,24 @@ export interface PageantFaq {
   a: string;
 }
 
+/** Los requisitos de la convocatoria en una frase ("Debes tener al menos 18 años, ser chilena y subir una foto tuya."). */
+function requirementsSentence(registration: { minAge: number; requirements?: RegistrationRequirements }): string {
+  const requirements = registration.requirements;
+  if (!requirements) return `Debes tener al menos ${registration.minAge} años.`;
+  const parts = [`tener al menos ${requirements.minAge} años`];
+  if (requirements.chileanNationality) parts.push('ser chilena');
+  if (requirements.instagram) parts.push('tener Instagram');
+  if (requirements.photo) parts.push('subir una foto tuya');
+  return `Debes ${parts.length > 1 ? `${parts.slice(0, -1).join(', ')} y ${parts[parts.length - 1]}` : parts[0]}.`;
+}
+
 /** Preguntas frecuentes armadas solo con lo que el certamen tiene habilitado. */
 export function pageantFaq(input: FaqInput): PageantFaq[] {
   const faq: PageantFaq[] = [];
   if (input.registration) {
     faq.push({
       q: '¿Cómo postulo al certamen?',
-      a: `Completa el formulario de inscripción de este sitio con tus datos de contacto y cuéntanos por qué quieres participar. Debes tener al menos ${input.registration.minAge} años. Al enviarlo recibes tu folio al instante y la organización te avisa por llamado, correo o WhatsApp el resultado de tu preselección.${input.registration.closesAt ? ` Las postulaciones cierran el ${shortDate(input.registration.closesAt)}.` : ''}`,
+      a: `Completa el formulario de inscripción de este sitio con tus datos de contacto y cuéntanos por qué quieres participar. ${requirementsSentence(input.registration)} Al enviarlo recibes tu folio al instante y la organización te avisa por llamado, correo o WhatsApp el resultado de tu preselección.${input.registration.closesAt ? ` Las postulaciones cierran el ${shortDate(input.registration.closesAt)}.` : ''}`,
     });
   }
   if (input.voting) {
@@ -267,7 +280,7 @@ export interface PageantViewSource {
   sponsorsByTier: Array<{ names: string[] }>;
   tickets: { fromPrice: number | null } | null;
   voting: { pricePerVote: number } | null;
-  registration: { closesAt: string | null; minAge: number } | null;
+  registration: { closesAt: string | null; minAge: number; requirements?: RegistrationRequirements } | null;
   results: unknown[] | null;
   sponsorLeadForm: boolean;
   packages: unknown[];

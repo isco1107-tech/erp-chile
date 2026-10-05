@@ -56,7 +56,7 @@ export function baseSite(overrides: Partial<PublicPageantSite> = {}): PublicPage
     ],
     tickets: { href: '/tickets/abc', fromPrice: 15000 },
     voting: { href: '/votar/abc', pricePerVote: 1000 },
-    registration: { href: '/register/candidate/abc', token: 'abc', closesAt: '2026-10-19T23:00:00.000Z', minAge: 18, maxCandidates: 12, benefits: ['Clases de pasarela', 'Sesión de fotos profesional'], classesNote: 'Sábados 10:00 h, Gimnasio Municipal' },
+    registration: { href: '/register/candidate/abc', token: 'abc', closesAt: '2026-10-19T23:00:00.000Z', minAge: 18, requirements: { minAge: 18, chileanNationality: true, instagram: true, photo: true }, maxCandidates: 12, benefits: ['Clases de pasarela', 'Sesión de fotos profesional'], classesNote: 'Sábados 10:00 h, Gimnasio Municipal' },
     candidateSide: true,
     registrationNotice: null,
     voteRanking: [

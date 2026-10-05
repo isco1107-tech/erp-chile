@@ -11,6 +11,7 @@ import { CurrencyInput } from '@/components/ui/CurrencyInput';
 import { PROJECT_STATUSES, PROJECT_STATUS_LABELS, projectCreateSchema, projectUpdateSchema } from '@/modules/projects/schema';
 import { createProjectAction, updateProjectAction } from '@/modules/projects/actions/projects.actions';
 import { formatWhatsappNumber } from '@/lib/events/pageant-contact';
+import RegistrationRequirementsFields from './RegistrationRequirementsFields';
 
 function toDateInputValue(date: Date | string | null | undefined): string {
   if (!date) return '';
@@ -47,6 +48,11 @@ export default function ProjectForm({ editingProject }: ProjectFormProps) {
     venueName: editingProject?.venueName ?? '',
     venueAddress: editingProject?.venueAddress ?? '',
     publicWhatsapp: editingProject?.publicWhatsapp ? formatWhatsappNumber(editingProject.publicWhatsapp) : '',
+    instagramHandle: editingProject?.instagramHandle ? `@${editingProject.instagramHandle.replace(/^@/, '')}` : '',
+    minCandidateAge: editingProject?.minCandidateAge ?? 18,
+    requireChileanNationality: editingProject?.requireChileanNationality ?? false,
+    requireCandidateInstagram: editingProject?.requireCandidateInstagram ?? true,
+    requireCandidatePhoto: editingProject?.requireCandidatePhoto ?? false,
   }));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -72,6 +78,11 @@ export default function ProjectForm({ editingProject }: ProjectFormProps) {
       venueName: form.venueName,
       venueAddress: form.venueAddress,
       publicWhatsapp: form.publicWhatsapp,
+      instagramHandle: form.instagramHandle,
+      minCandidateAge: form.minCandidateAge,
+      requireChileanNationality: form.requireChileanNationality,
+      requireCandidateInstagram: form.requireCandidateInstagram,
+      requireCandidatePhoto: form.requireCandidatePhoto,
     };
 
     const schema = editingProject ? projectUpdateSchema : projectCreateSchema;
@@ -215,6 +226,37 @@ export default function ProjectForm({ editingProject }: ProjectFormProps) {
               Aparece como botón flotante en el sitio del certamen y en la inscripción, con un mensaje listo para candidatas y sponsors.
             </p>
           )}
+        </div>
+
+        <div className="sm:col-span-2">
+          <Label htmlFor="instagramHandle">Instagram del certamen</Label>
+          <Input
+            id="instagramHandle"
+            autoComplete="off"
+            placeholder="@tucertamen"
+            value={form.instagramHandle}
+            onChange={(e) => update('instagramHandle', e.target.value)}
+            aria-invalid={!!errors.instagramHandle}
+          />
+          {errors.instagramHandle ? (
+            <p className="mt-1 text-sm text-destructive">{errors.instagramHandle}</p>
+          ) : (
+            <p className="mt-1 text-xs text-muted-foreground">Se muestra en el sitio y en la inscripción para que las postulantes te sigan.</p>
+          )}
+        </div>
+
+        <div className="border-t border-border pt-4 sm:col-span-2">
+          <RegistrationRequirementsFields
+            idPrefix="project"
+            value={{
+              minCandidateAge: form.minCandidateAge,
+              requireChileanNationality: form.requireChileanNationality,
+              requireCandidateInstagram: form.requireCandidateInstagram,
+              requireCandidatePhoto: form.requireCandidatePhoto,
+            }}
+            onChange={(next) => setForm((prev) => ({ ...prev, ...next }))}
+            error={errors.minCandidateAge}
+          />
         </div>
 
         <div className="sm:col-span-2">

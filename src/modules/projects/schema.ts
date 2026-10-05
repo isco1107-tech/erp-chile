@@ -31,6 +31,13 @@ export const projectCreateSchema = z.object({
   venueAddress: z.string().trim().max(300).optional(),
   /** WhatsApp del certamen para responder dudas (botón flotante del sitio y de la postulación). */
   publicWhatsapp: contactWhatsappField,
+  /** Instagram del certamen (@usuario o enlace); vacío = sin dato. */
+  instagramHandle: instagramHandleField,
+  // Requisitos de inscripción (los marca la organización al crear el certamen).
+  minCandidateAge: z.number().int('La edad mínima debe ser un número entero').min(1, 'La edad mínima debe ser al menos 1').max(99, 'La edad mínima no puede superar 99').optional(),
+  requireChileanNationality: z.boolean().optional(),
+  requireCandidateInstagram: z.boolean().optional(),
+  requireCandidatePhoto: z.boolean().optional(),
 });
 
 export type ProjectCreateInput = z.infer<typeof projectCreateSchema>;

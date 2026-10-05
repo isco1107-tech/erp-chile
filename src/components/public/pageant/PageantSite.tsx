@@ -779,7 +779,7 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
                 </div>
                 <CandidateApplicationForm
                   token={site.registration.token}
-                  minAge={site.registration.minAge}
+                  requirements={site.registration.requirements}
                   privacyHref={`/politica-privacidad?certamen=${encodeURIComponent(site.registration.token)}`}
                 />
               </div>

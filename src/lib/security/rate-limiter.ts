@@ -203,6 +203,13 @@ export const CANDIDATE_APPLICATION_ATTEMPT_RATE_LIMIT: RateLimitConfig = {
   windowMs: 60 * 60_000,
 };
 
+/** Foto que sube la postulante desde el formulario público: 15 por hora por IP (cubre reintentos y cambiar de foto). */
+export const CANDIDATE_PHOTO_UPLOAD_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'candidate-photo-ip',
+  limit: 15,
+  windowMs: 60 * 60_000,
+};
+
 /** Compra pública de entradas (`/api/public/tickets/[token]/purchase`): 5
  * órdenes por hora por IP — mismo criterio y misma cifra que la postulación
  * de candidatas, es el mismo tipo de endpoint público sin sesión. */
