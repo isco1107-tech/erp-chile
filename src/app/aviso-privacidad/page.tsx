@@ -41,6 +41,8 @@ const FLOW_DETAIL: Record<PublicNoticeFlow, string> = {
   auspicio:
     'Usamos los datos de la persona de contacto de la marca para gestionar el contrato de auspicio, sus entregables y sus pagos.',
   sitio: 'Usamos tus datos solo para responder la consulta que enviaste desde este sitio web. No te inscribimos en listas de correo sin tu autorización.',
+  academia:
+    'Usamos los datos de la alumna y, si es menor de edad, de su apoderado, para revisar la inscripción, contactarte, asignar un grupo y llevar la asistencia y las mensualidades. La autorización del uso de imagen es opcional y puedes retirarla cuando quieras.',
   encuesta:
     'Usamos tu respuesta para medir la calidad del servicio y, si la nota es baja, para que la empresa pueda contactarte y resolver el problema.',
 };

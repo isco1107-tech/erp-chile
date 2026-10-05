@@ -24,7 +24,7 @@ export interface ProcessingActivity {
   id: string;
   name: string;
   /** Módulo contratado que la genera, para mostrarla solo si aplica; `always` = todas las empresas. */
-  module: 'always' | 'candidates' | 'hr' | 'ticketing' | 'public-voting' | 'payment-plans' | 'sponsorships' | 'customer-care' | 'messaging' | 'web-sites';
+  module: 'always' | 'candidates' | 'hr' | 'ticketing' | 'public-voting' | 'payment-plans' | 'sponsorships' | 'customer-care' | 'messaging' | 'web-sites' | 'academy';
   dataSubjects: string;
   dataCategories: string[];
   purpose: string;
@@ -176,6 +176,19 @@ export const PROCESSING_ACTIVITIES: readonly ProcessingActivity[] = [
     sensitive: false,
     retention: 'Hasta responder la consulta; sugerido hasta 12 meses si no hay relación comercial.',
     recipients: ['Equipo de la empresa dueña del sitio'],
+    subprocessors: ['neon', 'vercel'],
+  },
+  {
+    id: 'academy-enrollment',
+    name: 'Academia: inscripción, asistencia y mensualidades',
+    module: 'academy',
+    dataSubjects: 'Alumnas de la academia y, si son menores de edad, sus madres, padres o apoderados',
+    dataCategories: ['Nombre', 'RUT', 'Fecha de nacimiento', 'Teléfono', 'Correo', 'Datos del apoderado', 'Autorización de uso de imagen', 'Asistencia a clases', 'Mensualidades pagadas'],
+    purpose: 'Revisar inscripciones, asignar grupos, controlar la asistencia y el pago de la mensualidad.',
+    legalBasis: ['CONSENT', 'CONTRACT'],
+    sensitive: false,
+    retention: 'Mientras la alumna esté inscrita; sugerido hasta 12 meses después de su baja. Una inscripción rechazada se puede eliminar de inmediato.',
+    recipients: ['Equipo de la academia'],
     subprocessors: ['neon', 'vercel'],
   },
   {

@@ -216,6 +216,18 @@ export const OPERACIONES_SECTIONS: ManualSection[] = [
         ],
       },
       {
+        id: 'academia-inscripcion',
+        title: 'Recibir inscripciones con un link',
+        steps: [
+          'Ve a la pestaña Inscripciones y haz clic en "Ver link de inscripción". Con "Copiar" lo llevas al portapapeles para compartirlo por WhatsApp, Instagram o tu sitio web.',
+          'Quien se inscribe llena sus datos (y los de su apoderado si es menor de edad), elige un grupo de interés si quiere y acepta el aviso de privacidad. Su inscripción queda pendiente: todavía no es alumna.',
+          'Te llega un aviso a la campanita y la pestaña muestra "Inscripciones" con el número por revisar.',
+          'En cada inscripción elige el grupo y el primer mes de cobro, y haz clic en "Aprobar" para crear su ficha de alumna, o en "Rechazar".',
+          'Si el link se difundió donde no debía, "Generar link nuevo" (solo dueño y administradores) invalida el anterior.',
+        ],
+        tip: 'El link solo funciona con el módulo Academia activo. Quien ya es alumna o ya tiene una inscripción pendiente no genera un duplicado.',
+      },
+      {
         id: 'academia-fichas',
         title: 'Crear y consultar la ficha de una alumna',
         steps: [

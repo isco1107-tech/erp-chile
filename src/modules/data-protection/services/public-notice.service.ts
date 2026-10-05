@@ -14,7 +14,7 @@ import { isLegalEntityRut } from '@/lib/privacy/constants';
  * usar para enumerar empresas ni para mostrar datos de otra.
  */
 
-export const PUBLIC_NOTICE_FLOWS = ['entradas', 'votos', 'cuotas', 'auspicio', 'encuesta', 'sitio'] as const;
+export const PUBLIC_NOTICE_FLOWS = ['entradas', 'votos', 'cuotas', 'auspicio', 'encuesta', 'sitio', 'academia'] as const;
 export type PublicNoticeFlow = (typeof PUBLIC_NOTICE_FLOWS)[number];
 
 /** Flujo → id de `PROCESSING_ACTIVITIES` que describe sus datos. */
@@ -25,6 +25,7 @@ export const FLOW_ACTIVITY: Record<PublicNoticeFlow, string> = {
   auspicio: 'sponsorships',
   encuesta: 'customer-care',
   sitio: 'web-contact',
+  academia: 'academy-enrollment',
 };
 
 export const FLOW_LABELS: Record<PublicNoticeFlow, string> = {
@@ -34,6 +35,7 @@ export const FLOW_LABELS: Record<PublicNoticeFlow, string> = {
   auspicio: 'Portal del auspiciador',
   encuesta: 'Encuesta de satisfacción',
   sitio: 'Formulario de contacto',
+  academia: 'Inscripción a la academia',
 };
 
 export interface PublicNoticeInfo {
@@ -111,6 +113,13 @@ async function resolveSource(
       // Solo sitios publicados: un borrador no debe revelar a qué empresa pertenece.
       const site = await prisma.webSite.findFirst({ where: { slug: token, status: 'PUBLISHED' }, select: { company: { select: companySelect } } });
       return site ? { company: site.company, projectName: null, contactEmail: null } : null;
+    }
+    case 'academia': {
+      const settings = await prisma.companySettings.findFirst({
+        where: { academyEnrollmentToken: token },
+        select: { company: { select: companySelect } },
+      });
+      return settings ? { company: settings.company, projectName: null, contactEmail: null } : null;
     }
     case 'encuesta': {
       const survey = await prisma.customerSurvey.findFirst({ where: { token }, select: { company: { select: companySelect } } });
