@@ -4,8 +4,11 @@ import { revalidatePath } from 'next/cache';
 import { authErrorMessage, requireAuthWithPermission } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 import { captureException } from '@/lib/observability';
-import { attendanceSchema, groupSchema, monthPaymentSchema, periodSchema, studentSchema, isoDay } from '../schema';
+import { getAppUrl } from '@/lib/email/mailer';
+import { approveApplicationSchema, attendanceSchema, groupSchema, monthPaymentSchema, periodSchema, studentSchema, isoDay } from '../schema';
 import * as service from '../services/academy.service';
+import * as enrollment from '../services/academy-enrollment.service';
+import type { ApplicationRow } from '../services/academy-enrollment.service';
 import type { AttendanceSheetRow, GroupRow, PaymentBoardRow, StudentDetail, StudentRow } from '../services/academy.service';
 
 export type ActionResult<T> = { success: true; data: T; message?: string } | { success: false; error: string };
@@ -177,5 +180,85 @@ export async function setMonthPaidAction(input: unknown): Promise<ActionResult<n
     return { success: true, data: null, message: parsed.data.paid ? 'Mensualidad marcada como pagada' : 'Pago desmarcado' };
   } catch (error) {
     return fail(error, companyId, { action: 'setMonthPaid' });
+  }
+}
+
+// ── Inscripción pública ──────────────────────────────────────────────────────
+
+function enrollmentUrl(token: string): string {
+  return `${getAppUrl()}/academia/inscripcion/${token}`;
+}
+
+/** Idempotente: compartir el link varias veces no invalida uno que ya circula. */
+export async function shareEnrollmentLinkAction(): Promise<ActionResult<string>> {
+  let companyId: string | undefined;
+  try {
+    const session = await requireAuthWithPermission('academy:write');
+    companyId = session.companyId;
+    const token = await enrollment.getOrCreateEnrollmentToken(session.companyId);
+    return { success: true, data: enrollmentUrl(token) };
+  } catch (error) {
+    return fail(error, companyId, { action: 'shareEnrollmentLink' });
+  }
+}
+
+/** Invalida el link anterior: el que ya circuló deja de funcionar. */
+export async function regenerateEnrollmentLinkAction(): Promise<ActionResult<string>> {
+  let companyId: string | undefined;
+  try {
+    const session = await requireAuthWithPermission('academy:manage');
+    companyId = session.companyId;
+    const token = await enrollment.regenerateEnrollmentToken(session.companyId);
+    await createAuditLog({ companyId: session.companyId, userId: session.id, userEmail: session.email, action: 'UPDATE', entity: 'AcademyEnrollmentLink', entityId: 'enrollment-link', metadata: { regenerated: true } });
+    return { success: true, data: enrollmentUrl(token), message: 'Link nuevo generado: el anterior ya no funciona' };
+  } catch (error) {
+    return fail(error, companyId, { action: 'regenerateEnrollmentLink' });
+  }
+}
+
+export async function listApplicationsAction(status: 'PENDING' | 'REVIEWED' = 'PENDING'): Promise<ActionResult<ApplicationRow[]>> {
+  try {
+    const session = await requireAuthWithPermission('academy:read');
+    return { success: true, data: await enrollment.listApplications(session.companyId, status === 'REVIEWED' ? 'REVIEWED' : 'PENDING') };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function countPendingApplicationsAction(): Promise<ActionResult<number>> {
+  try {
+    const session = await requireAuthWithPermission('academy:read');
+    return { success: true, data: await enrollment.countPendingApplications(session.companyId) };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function approveApplicationAction(id: string, input: unknown): Promise<ActionResult<{ studentId: string }>> {
+  let companyId: string | undefined;
+  try {
+    const session = await requireAuthWithPermission('academy:write');
+    companyId = session.companyId;
+    const parsed = approveApplicationSchema.safeParse(input);
+    if (!parsed.success) return { success: false, error: firstIssue(parsed.error.issues) };
+    const result = await enrollment.approveApplication(session.companyId, String(id), parsed.data);
+    await createAuditLog({ companyId: session.companyId, userId: session.id, userEmail: session.email, action: 'CREATE', entity: 'AcademyStudent', entityId: result.studentId, metadata: { fromApplication: String(id) } });
+    revalidate();
+    return { success: true, data: result, message: 'Inscripción aprobada: la ficha de la alumna ya está creada' };
+  } catch (error) {
+    return fail(error, companyId, { action: 'approveApplication' });
+  }
+}
+
+export async function rejectApplicationAction(id: string): Promise<ActionResult<null>> {
+  let companyId: string | undefined;
+  try {
+    const session = await requireAuthWithPermission('academy:write');
+    companyId = session.companyId;
+    await enrollment.rejectApplication(session.companyId, String(id));
+    revalidate();
+    return { success: true, data: null, message: 'Inscripción rechazada' };
+  } catch (error) {
+    return fail(error, companyId, { action: 'rejectApplication' });
   }
 }

@@ -415,3 +415,18 @@ export const SURVEY_SUBMIT_RATE_LIMIT: RateLimitConfig = {
   limit: 5,
   windowMs: 60 * 60_000,
 };
+
+/** Inscripción pública a la academia: envíos por IP. Una familia puede inscribir
+ * a unas pocas hermanas desde la misma conexión; más es spam. */
+export const ACADEMY_APPLICATION_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'academy-application-ip',
+  limit: 5,
+  windowMs: 60 * 60_000,
+};
+
+/** Mismo formulario, por empresa: tope global para que un ataque distribuido no llene la bandeja. */
+export const ACADEMY_APPLICATION_COMPANY_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'academy-application-company',
+  limit: 60,
+  windowMs: 60 * 60_000,
+};

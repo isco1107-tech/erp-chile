@@ -167,6 +167,7 @@ model Company {
   academyStudents           AcademyStudent[]
   academyAttendance         AcademyAttendance[]
   academyPayments           AcademyMonthlyPayment[]
+  academyApplications       AcademyApplication[]
   delegationRules           DelegationRule[]
   webSiteAssets             WebSiteAsset[]
   webSiteMessages           WebSiteMessage[]
@@ -651,6 +652,10 @@ model CompanySettings {
   /// personales (`/derechos/[token]`). Mismo patrón que `installmentPortalToken`:
   /// el token resuelve la empresa, el visitante nunca manda un `companyId`.
   privacyPortalToken         String?      @unique
+  /// Token del formulario público de inscripción a la academia
+  /// (`/academia/inscripcion/[token]`). El token resuelve la empresa; el
+  /// visitante nunca manda un `companyId`.
+  academyEnrollmentToken     String?      @unique
   /// API key de la cuenta de cobro de Khipu de ESTA empresa, cifrada con
   /// AES-256-GCM (`src/lib/payments/crypto.ts`). Decide a qué cuenta llega el
   /// dinero, por eso solo se edita con `settings:company`. El nombre termina
@@ -5961,4 +5966,42 @@ model AcademyMonthlyPayment {
 
   @@unique([studentId, period])
   @@index([companyId, period])
+}
+
+enum AcademyApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+/// Preinscripción enviada desde el formulario público de la academia. No es
+/// una alumna: el equipo la revisa y, al aprobarla, se crea la ficha
+/// (`studentId`). Mientras tanto no aparece en listas ni mensualidades.
+model AcademyApplication {
+  id               String                   @id @default(cuid())
+  companyId        String
+  company          Company                  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  status           AcademyApplicationStatus @default(PENDING)
+  fullName         String
+  rut              String
+  rutClean         String
+  birthDate        DateTime
+  email            String?
+  phone            String
+  guardianName     String?
+  guardianPhone    String?
+  guardianEmail    String?
+  photoConsent     Boolean                  @default(false)
+  /// Cuándo aceptó el aviso de privacidad al enviar (constancia de consentimiento).
+  consentAt        DateTime
+  /// Grupo que eligió en el formulario (puede ser `null`: "aún no lo sé").
+  preferredGroupId String?
+  message          String?
+  /// Ficha creada al aprobar.
+  studentId        String?
+  reviewedAt       DateTime?
+  createdAt        DateTime                 @default(now())
+
+  @@index([companyId, status, createdAt])
+  @@index([companyId, rutClean])
 }

@@ -1,18 +1,33 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import StudentsPanel from './StudentsPanel';
 import AttendancePanel from './AttendancePanel';
 import PaymentsPanel from './PaymentsPanel';
 import GroupsPanel from './GroupsPanel';
+import ApplicationsPanel from './ApplicationsPanel';
+import { countPendingApplicationsAction } from '@/modules/academy/actions/academy.actions';
 
-type Tab = 'STUDENTS' | 'ATTENDANCE' | 'PAYMENTS' | 'GROUPS';
+type Tab = 'STUDENTS' | 'APPLICATIONS' | 'ATTENDANCE' | 'PAYMENTS' | 'GROUPS';
 
 export default function AcademyClient({ canWrite, canManage }: { canWrite: boolean; canManage: boolean }) {
   const [tab, setTab] = useState<Tab>('STUDENTS');
+  const [pending, setPending] = useState(0);
+  const [version, setVersion] = useState(0);
+  const refresh = useCallback(() => setVersion((v) => v + 1), []);
+  useEffect(() => {
+    let active = true;
+    void countPendingApplicationsAction().then((result) => {
+      if (active && result.success) setPending(result.data);
+    });
+    return () => {
+      active = false;
+    };
+  }, [version]);
   const tabs: Array<{ value: Tab; label: string }> = [
     { value: 'STUDENTS', label: 'Alumnas' },
+    { value: 'APPLICATIONS', label: pending > 0 ? `Inscripciones (${pending})` : 'Inscripciones' },
     { value: 'ATTENDANCE', label: 'Pasar lista' },
     { value: 'PAYMENTS', label: 'Mensualidades' },
     { value: 'GROUPS', label: 'Grupos' },
@@ -27,6 +42,7 @@ export default function AcademyClient({ canWrite, canManage }: { canWrite: boole
         ))}
       </div>
       {tab === 'STUDENTS' && <StudentsPanel canWrite={canWrite} canManage={canManage} />}
+      {tab === 'APPLICATIONS' && <ApplicationsPanel canWrite={canWrite} canManage={canManage} onChanged={refresh} />}
       {tab === 'ATTENDANCE' && <AttendancePanel canWrite={canWrite} />}
       {tab === 'PAYMENTS' && <PaymentsPanel canWrite={canWrite} />}
       {tab === 'GROUPS' && <GroupsPanel canManage={canManage} />}

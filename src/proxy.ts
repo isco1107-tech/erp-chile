@@ -65,6 +65,10 @@ const PUBLIC_ROUTES = [
   // Encuesta de satisfacción (`/encuesta/[token]`): el cliente no tiene cuenta
   // ERP; la ruta valida el token contra `CustomerSurvey.token`.
   '/encuesta',
+  // Inscripción pública a la academia (`/academia/inscripcion/[token]`): la
+  // interesada no tiene cuenta ERP; la ruta valida el token contra
+  // `CompanySettings.academyEnrollmentToken`. Con barra final a propósito.
+  '/academia/',
   // Portal de clientes (`/cliente/[token]`): el cliente no tiene cuenta ERP;
   // la ruta valida el token ella misma contra `Contact.portalTokenHash`.
   '/cliente',

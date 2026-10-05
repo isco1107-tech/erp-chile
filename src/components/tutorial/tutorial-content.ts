@@ -250,6 +250,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
     title: 'Academia',
     steps: [
       header('Tu academia en un lugar', 'Ficha de cada alumna, lista de asistencia y mensualidades pagadas.'),
+      note('Inscripciones', 'Comparte el link de inscripción y aprueba o rechaza lo que llega.'),
       note('Alumnas', 'Crea la ficha con sus datos, su apoderado si es menor y la autorización de imagen.'),
       note('Pasar lista', 'Elige el grupo y la fecha y marca presente, atrasada, ausente o justificada.'),
       note('Mensualidad', 'Marca cada mes como pagado; los meses sin pago aparecen en rojo.'),
