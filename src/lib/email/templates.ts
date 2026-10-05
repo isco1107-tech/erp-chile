@@ -357,6 +357,7 @@ export interface SponsorLeadNoticeEmailInput {
   companyName: string;
   email: string;
   phone: string;
+  instagram: string;
   activity: string;
   packageName: string | null;
   dashboardUrl: string;
@@ -370,6 +371,7 @@ export function buildSponsorLeadNoticeEmail(input: SponsorLeadNoticeEmailInput):
     ['Empresa', input.companyName],
     ['Correo', input.email],
     ['Teléfono', input.phone],
+    ['Instagram de la empresa', input.instagram],
     ['A qué se dedica', input.activity],
     ...(input.packageName ? ([['Paquete de interés', input.packageName]] as Array<[string, string]>) : []),
   ];

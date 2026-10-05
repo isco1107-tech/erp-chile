@@ -84,3 +84,19 @@ describe('pregunta frecuente de postulación', () => {
     expect(faq[0]?.a).toContain('Debes tener al menos 21 años, ser chilena, tener Instagram y subir una foto tuya.');
   });
 });
+
+describe('formulario de sponsor: Instagram de la empresa', () => {
+  const base = { companyName: 'Marca SpA', contactName: 'Luis Soto', email: 'luis@marca.cl', phone: '+56 9 8765 4321', message: 'Cosmética' };
+  const { publicSponsorLeadSchema } = jest.requireActual('@/modules/crm/schema') as typeof import('@/modules/crm/schema');
+
+  it('lo exige', () => {
+    expect(publicSponsorLeadSchema.safeParse(base).success).toBe(false);
+    expect(publicSponsorLeadSchema.safeParse({ ...base, instagram: '' }).success).toBe(false);
+  });
+
+  it('lo normaliza a @usuario y rechaza lo que no es un usuario', () => {
+    const ok = publicSponsorLeadSchema.safeParse({ ...base, instagram: 'https://www.instagram.com/marca.cl/' });
+    expect(ok.success && ok.data.instagram).toBe('@marca.cl');
+    expect(publicSponsorLeadSchema.safeParse({ ...base, instagram: 'mi marca!!' }).success).toBe(false);
+  });
+});
