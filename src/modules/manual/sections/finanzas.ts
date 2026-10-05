@@ -38,8 +38,8 @@ export const FINANZAS_SECTIONS: ManualSection[] = [
         id: 'recordatorio-pago',
         title: 'Enviar un recordatorio de pago a un cliente',
         steps: [
-          'En Cuentas por Cobrar usa "Recordar por email" en el documento: le llega un correo al cliente con el detalle.',
-          'Si aparece "Sin correo", el cliente no tiene correo registrado: agrégalo en su ficha de Clientes & Proveedores.',
+          'En Cuentas por Cobrar abre el menú "⋯" de la fila (junto a "Registrar pago") y elige "Recordar por email": le llega un correo al cliente con el detalle.',
+          'Si en el menú aparece "Agregar correo", el cliente no tiene correo registrado: el enlace abre su ficha en Clientes & Proveedores para que lo escribas.',
           'Para recordatorios automáticos, configúralos en Finanzas → Cobranza.',
         ],
       },

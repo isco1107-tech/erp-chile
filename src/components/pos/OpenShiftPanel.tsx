@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Lock } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -101,6 +103,43 @@ export default function OpenShiftPanel({ canManageRegisters, warehouses }: Props
     load();
   }
 
+  const noRegisters = !loading && registers.length === 0;
+  const noWarehouses = warehouses.length === 0;
+  // Sin cajas, quien administra ve el formulario ya abierto: es lo único que puede hacer en esta pantalla.
+  const createOpen = canManageRegisters && (showCreate || noRegisters);
+
+  const createForm = (
+    <div className="mt-3 space-y-2 text-left">
+      <div>
+        <Label htmlFor="new-name">Nombre</Label>
+        <Input
+          id="new-name"
+          placeholder="Ej: Caja 2 Mesón"
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+        />
+      </div>
+      <div>
+        <Label htmlFor="new-warehouse">Bodega</Label>
+        <select
+          id="new-warehouse"
+          className={selectClass}
+          value={newWarehouseId}
+          onChange={(e) => setNewWarehouseId(e.target.value)}
+        >
+          {warehouses.map((warehouse) => (
+            <option key={warehouse.id} value={warehouse.id}>
+              {warehouse.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <Button type="button" size="sm" onClick={handleCreateRegister}>
+        Crear caja
+      </Button>
+    </div>
+  );
+
   return (
     <div className="mx-auto max-w-lg space-y-4">
       <div className="flex flex-col items-center gap-2 text-center">
@@ -113,60 +152,91 @@ export default function OpenShiftPanel({ canManageRegisters, warehouses }: Props
         </p>
       </div>
 
-      <div className="border border-border bg-card shadow-card space-y-4 rounded-2xl p-5">
-        <div>
-          <Label htmlFor="register">Caja</Label>
-          <select
-            id="register"
-            className={selectClass}
-            value={cashRegisterId}
-            onChange={(e) => setCashRegisterId(e.target.value)}
-            disabled={loading || registers.length === 0}
+      {noRegisters ? (
+        <div className="border border-border bg-card shadow-card rounded-2xl p-5">
+          {canManageRegisters ? (
+            noWarehouses ? (
+              <EmptyState
+                title="Primero crea una bodega"
+                description="Cada caja descuenta stock de una bodega. Crea la bodega en Inventario y vuelve aquí para crear la primera caja."
+                action={
+                  <Link href="/dashboard/inventory" className={buttonVariants({ size: 'sm' })}>
+                    Ir a Inventario
+                  </Link>
+                }
+              />
+            ) : (
+              <>
+                <EmptyState
+                  title="Crea la primera caja"
+                  description="Aún no hay cajas en este local. Ponle un nombre y elige la bodega de la que descontará el stock; luego podrás abrir el turno."
+                />
+                {createForm}
+              </>
+            )
+          ) : (
+            <EmptyState
+              title="Todavía no hay cajas"
+              description="Pídele a un administrador que cree una caja entrando a Punto de Venta: en la pantalla «Abrir caja» le aparece «Crea la primera caja». Cuando exista, vuelve aquí para abrir tu turno."
+            />
+          )}
+        </div>
+      ) : (
+        <div className="border border-border bg-card shadow-card space-y-4 rounded-2xl p-5">
+          <div>
+            <Label htmlFor="register">Caja</Label>
+            <select
+              id="register"
+              className={selectClass}
+              value={cashRegisterId}
+              onChange={(e) => setCashRegisterId(e.target.value)}
+              disabled={loading || registers.length === 0}
+            >
+              {registers.length === 0 && <option value="">Sin cajas disponibles</option>}
+              {registers.map((register) => (
+                <option key={register.id} value={register.id}>
+                  {register.name} — {register.warehouse.name}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Las ventas descuentan stock desde la bodega asociada a la caja.
+            </p>
+          </div>
+
+          <div>
+            <Label htmlFor="initial">Monto inicial en caja</Label>
+            <Input
+              id="initial"
+              type="number"
+              min={0}
+              step={1}
+              value={initialAmount}
+              onChange={(e) => setInitialAmount(e.target.value)}
+              className="h-12 text-lg"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              {formatCurrency(Number(initialAmount) || 0)} en efectivo al iniciar el turno.
+            </p>
+          </div>
+
+          <div>
+            <Label htmlFor="notes">Observaciones (opcional)</Label>
+            <Input id="notes" value={openingNotes} onChange={(e) => setOpeningNotes(e.target.value)} />
+          </div>
+
+          <Button
+            type="button"
+            className="h-11 w-full"
+            disabled={saving || loading || registers.length === 0}
+            onClick={handleOpen}
           >
-            {registers.length === 0 && <option value="">Sin cajas disponibles</option>}
-            {registers.map((register) => (
-              <option key={register.id} value={register.id}>
-                {register.name} — {register.warehouse.name}
-              </option>
-            ))}
-          </select>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Las ventas descuentan stock desde la bodega asociada a la caja.
-          </p>
+            {saving ? 'Abriendo...' : 'Abrir caja y comenzar a vender'}
+          </Button>
         </div>
+      )}
 
-        <div>
-          <Label htmlFor="initial">Monto inicial en caja</Label>
-          <Input
-            id="initial"
-            type="number"
-            min={0}
-            step={1}
-            value={initialAmount}
-            onChange={(e) => setInitialAmount(e.target.value)}
-            className="h-12 text-lg"
-          />
-          <p className="mt-1 text-xs text-muted-foreground">
-            {formatCurrency(Number(initialAmount) || 0)} en efectivo al iniciar el turno.
-          </p>
-        </div>
-
-        <div>
-          <Label htmlFor="notes">Observaciones (opcional)</Label>
-          <Input id="notes" value={openingNotes} onChange={(e) => setOpeningNotes(e.target.value)} />
-        </div>
-
-        <Button
-          type="button"
-          className="h-11 w-full"
-          disabled={saving || loading || registers.length === 0}
-          onClick={handleOpen}
-        >
-          {saving ? 'Abriendo...' : 'Abrir caja y comenzar a vender'}
-        </Button>
-      </div>
-
-      {canManageRegisters && (
+      {canManageRegisters && !noRegisters && (
         <div className="border border-border bg-card shadow-card rounded-2xl p-4">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium">Cajas del local</p>
@@ -174,37 +244,7 @@ export default function OpenShiftPanel({ canManageRegisters, warehouses }: Props
               {showCreate ? 'Cerrar' : '+ Nueva caja'}
             </Button>
           </div>
-          {showCreate && (
-            <div className="mt-3 space-y-2">
-              <div>
-                <Label htmlFor="new-name">Nombre</Label>
-                <Input
-                  id="new-name"
-                  placeholder="Ej: Caja 2 Mesón"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="new-warehouse">Bodega</Label>
-                <select
-                  id="new-warehouse"
-                  className={selectClass}
-                  value={newWarehouseId}
-                  onChange={(e) => setNewWarehouseId(e.target.value)}
-                >
-                  {warehouses.map((warehouse) => (
-                    <option key={warehouse.id} value={warehouse.id}>
-                      {warehouse.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <Button type="button" size="sm" onClick={handleCreateRegister}>
-                Crear caja
-              </Button>
-            </div>
-          )}
+          {createOpen && createForm}
         </div>
       )}
     </div>

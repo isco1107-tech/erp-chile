@@ -81,7 +81,12 @@ export default function PurchaseRequestsClient({ scopeAll }: { scopeAll: boolean
         <EmptyState
           icon={<ClipboardList className="size-10 text-muted-foreground/40" aria-hidden="true" />}
           title="No hay solicitudes en esta vista"
-          description={scopeAll ? 'Cuando alguien del equipo pida una compra, aparece aquí para aprobarla y cotizarla.' : 'Pide lo que necesitas: jefatura lo aprueba y compras lo cotiza con proveedores.'}
+          description={scopeAll ? 'Cuando alguien del equipo pida una compra, aparece aquí para aprobarla y cotizarla. También puedes crear una tú.' : 'Pide lo que necesitas: jefatura lo aprueba y compras lo cotiza con proveedores.'}
+          action={
+            <Link href="/dashboard/purchase-requests/new" className={buttonVariants({ size: 'sm' })}>
+              <Plus className="size-4" aria-hidden="true" /> Nueva solicitud
+            </Link>
+          }
         />
       ) : (
         <div className="overflow-x-auto">

@@ -86,6 +86,13 @@ export default function ProductsClient() {
   // edición del producto elegido en la búsqueda en vivo.
   useEffect(() => {
     const editId = searchParams.get('edit');
+    // `?new=1`: enlace desde Inventario cuando aún no hay productos.
+    if (!editId && searchParams.get('new')) {
+      setEditingProduct(null);
+      setShowForm(true);
+      router.replace('/dashboard/products');
+      return;
+    }
     if (!editId) return;
     getProductAction(editId).then((result) => {
       if (result.success) {
@@ -111,7 +118,11 @@ export default function ProductsClient() {
   }
 
   async function handleDelete(product: ProductListItem) {
-    if (!await confirm(`¿Eliminar el producto "${product.name}"?`)) return;
+    if (!await confirm({
+      title: `¿Eliminar el producto "${product.name}"?`,
+      description: 'Se borra del catálogo y no se puede deshacer. Solo es posible si nunca tuvo movimientos, ventas ni compras y su stock está en cero; si ya tiene historial, usa «Archivar»: deja de aparecer en el POS y en los selectores, pero conserva sus registros.',
+      confirmLabel: 'Eliminar',
+    })) return;
     const result = await deleteProductAction(product.id);
     if (!result.success) {
       toast.error(result.error);
@@ -214,7 +225,7 @@ export default function ProductsClient() {
                       description={
                         query || categoryId
                           ? 'Prueba con otro SKU, nombre o categoría.'
-                          : 'Crea tu primer producto o impórtalos masivamente desde Excel.'
+                          : 'El catálogo es la base para vender, comprar y controlar stock. Crea tu primer producto o impórtalos masivamente desde Excel en Configuración → Importación Masiva.'
                       }
                       actionLabel={query || categoryId ? undefined : 'Nuevo producto'}
                       onAction={query || categoryId ? undefined : () => setShowForm(true)}

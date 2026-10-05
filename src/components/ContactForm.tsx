@@ -2,12 +2,14 @@
 
 import { useEffect, useState, type FormEvent } from 'react';
 import type { Contact } from '@prisma/client';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import type { ContactListItem } from '@/modules/contacts/services/contacts.service';
 import { Button } from '@/components/ui/button';
 import { CurrencyInput } from '@/components/ui/CurrencyInput';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { FieldLabel } from '@/components/ui/FieldLabel';
 import { nativeSelectClass } from '@/components/ui/field-classes';
 import { BANK_ACCOUNT_TYPES, BANK_ACCOUNT_TYPE_LABELS, CHILEAN_BANKS } from '@/lib/treasury/banks';
 import { RutInput } from '@/components/ui/RutInput';
@@ -51,6 +53,7 @@ interface ContactFormProps {
 }
 
 export default function ContactForm({ editingContact, onSaved, onCancelEdit }: ContactFormProps) {
+  const router = useRouter();
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -185,7 +188,16 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
         return;
       }
 
-      toast.success(result.message ?? 'Contacto guardado');
+      const message = result.message ?? 'Contacto guardado';
+      // Tras crear un proveedor, el paso siguiente es registrarle una compra.
+      // (Para clientes falta que la pantalla de ventas lea `contactId`; ver informe.)
+      if (!editingContact && result.data.isSupplier) {
+        toast.success(message, {
+          action: { label: 'Registrar compra', onClick: () => router.push('/dashboard/purchases/new') },
+        });
+      } else {
+        toast.success(message);
+      }
       setForm(EMPTY_FORM);
       onSaved(result.data);
     } finally {
@@ -247,13 +259,13 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <Label htmlFor="rut">RUT</Label>
+          <FieldLabel htmlFor="rut" term="rut">RUT</FieldLabel>
           <RutInput id="rut" value={form.rut} onChange={(value) => update('rut', value)} invalid={!!errors.rut} />
           {errors.rut && <p className="mt-1 text-sm text-destructive">{errors.rut}</p>}
         </div>
 
         <div>
-          <Label htmlFor="razonSocial">Razón Social</Label>
+          <FieldLabel htmlFor="razonSocial" term="razonSocial">Razón social</FieldLabel>
           <Input
             id="razonSocial"
             value={form.razonSocial}
@@ -269,7 +281,7 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
         </div>
 
         <div>
-          <Label htmlFor="giro">Giro</Label>
+          <FieldLabel htmlFor="giro" term="giro">Giro</FieldLabel>
           <Input id="giro" value={form.giro} onChange={(e) => update('giro', e.target.value)} />
         </div>
 

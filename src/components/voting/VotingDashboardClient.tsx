@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { Trophy, Vote, Wallet } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { Label } from '@/components/ui/label';
 import { CurrencyInput } from '@/components/ui/CurrencyInput';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -123,7 +125,19 @@ export default function VotingDashboardClient({ canWrite }: { canWrite: boolean 
         {canWrite && projectId && <VotingLinkButton projectId={projectId} currentPrice={currentPrice} />}
       </div>
 
-      {!projectId && <p className="text-sm text-muted-foreground">No hay proyectos/certámenes creados todavía.</p>}
+      {!projectId && (
+        <Card>
+          <EmptyState
+            title="Primero crea un certamen"
+            description="Para recibir votos del público necesitas un certamen o evento: la votación se configura dentro de cada uno. Crea el primero y vuelve aquí."
+            action={
+              <Link href="/dashboard/projects/new" className={buttonVariants({ size: 'sm' })}>
+                Crear certamen
+              </Link>
+            }
+          />
+        </Card>
+      )}
 
       {projectId && (
         <>
@@ -136,7 +150,11 @@ export default function VotingDashboardClient({ canWrite }: { canWrite: boolean 
           <Card>
             <CardHeader><CardTitle>Ranking en vivo</CardTitle></CardHeader>
             <CardContent className="space-y-2">
-              {leaderboard.length === 0 && <p className="text-sm text-muted-foreground">Todavía no hay votos confirmados.</p>}
+              {leaderboard.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Todavía no hay votos confirmados. El ranking se llena cuando el público vota con el link de votación y tú confirmas el pago de cada orden.
+                </p>
+              )}
               {leaderboard.map((row, i) => (
                 <div key={row.candidateId} className="flex items-center justify-between rounded-lg border border-border p-3 text-sm">
                   <div className="flex items-center gap-3">
@@ -158,7 +176,7 @@ export default function VotingDashboardClient({ canWrite }: { canWrite: boolean 
             getRowId={(o) => o.id}
             loading={loading}
             emptyTitle="Sin órdenes todavía"
-            emptyDescription="Comparte el link público de votación para recibir compras de votos."
+            emptyDescription="Comparte el link público de votación («Copiar link de votación») para recibir compras de votos."
           />
         </>
       )}

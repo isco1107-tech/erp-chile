@@ -10,7 +10,7 @@ import type {
   SalesDocumentItem,
   Warehouse,
 } from '@prisma/client';
-import { applyStockIn, applyStockOut } from '@/modules/inventory/services/stock.service';
+import { applyStockIn, applyStockOut, lockProductRows } from '@/modules/inventory/services/stock.service';
 import { getContactOutstandingBalance } from '@/modules/treasury/services/treasury.service';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { constraintInvolves } from '@/lib/prisma-errors';
@@ -225,17 +225,6 @@ export async function createSalesDocument(
     const sellerId = input.sellerId ?? orderSellerId ?? null;
     if (sellerId) await assertSellerInCompany(tx, companyId, sellerId);
 
-    // Folio: sale de un CAF autorizado por el SII si la empresa tiene folios
-    // cargados, y del contador interno si no (ver `assignSalesFolio`). La
-    // asignación va DENTRO de esta transacción para que, si la emisión falla
-    // más abajo, el folio vuelva atrás y no quede un hueco en la numeración —
-    // el SII exige justificar cada folio no utilizado.
-    let folioAssignment: FolioAssignment | null = null;
-    if (needsFolio) {
-      folioAssignment = await assignSalesFolio(tx, companyId, input.dteType);
-      folio = folioAssignment.folio;
-    }
-
     // Cuánto ya se acreditó contra el documento original por notas de crédito
     // previas, para no poder devolver más unidades de las que realmente se
     // vendieron acumulando varias NC contra el mismo folio.
@@ -310,7 +299,15 @@ export async function createSalesDocument(
     // Una Nota de Crédito en borrador no devuelve mercadería: su asiento recién
     // nace al emitirse, y mover stock antes dejaba inventario sin respaldo
     // contable (N-01).
+    // Movimientos de Kardex de este documento: nacen antes de conocer el folio
+    // (ver más abajo) y su referencia se completa al asignarlo.
+    const movementIds: string[] = [];
     if (affectsStock || (isCreditNote && isIssuing)) {
+      // Todos los productos del documento se bloquean juntos y en orden de id
+      // antes del primer movimiento: tomados línea por línea, una factura
+      // [A, B] y una boleta [B, A] simultáneas se bloqueaban en círculo
+      // (deadlock), ver `lockProductRows`.
+      await lockProductRows(tx, companyId, computedItems.map((item) => item.productId));
       const sourceItems = isCreditNote && referencedDocument ? referencedDocument.items : computedItems;
       for (const item of computedItems) {
         if (!item.productId) continue;
@@ -343,14 +340,15 @@ export async function createSalesDocument(
           previouslyCreditedByProduct?.set(item.productId, alreadyCredited + item.quantity);
           const restockUnitCost = sourceItem?.unitCostPMP ?? item.unitCostPMP;
           restockedForAccounting.push({ unitCostPMP: restockUnitCost, quantity: item.quantity });
-          await applyStockIn(tx, companyId, {
+          const restock = await applyStockIn(tx, companyId, {
             productId: item.productId,
             warehouseId: input.warehouseId,
             type: 'ADJUSTMENT_IN',
             quantity: item.quantity,
             unitCost: restockUnitCost,
-            reference: `DTE ${dteLabel} Folio #${folio ?? '-'}`,
+            reference: `DTE ${dteLabel} Folio #-`,
           });
+          movementIds.push(restock.id);
         } else {
           // El costo contable y el que se persiste en la línea salen del
           // movimiento real (`movement.unitCost`), no del PMP leído antes del
@@ -361,12 +359,38 @@ export async function createSalesDocument(
             warehouseId: input.warehouseId,
             type: 'SALE_OUT',
             quantity: item.quantity,
-            reference: `DTE ${dteLabel} Folio #${folio ?? '-'}`,
+            reference: `DTE ${dteLabel} Folio #-`,
           });
+          movementIds.push(movement.id);
           costByProduct.set(item.productId, movement.unitCost);
           costedItemsForAccounting.push({ unitCostPMP: movement.unitCost, quantity: item.quantity });
         }
       }
+    }
+
+    // Folio: sale de un CAF autorizado por el SII si la empresa tiene folios
+    // cargados, y del contador interno si no (ver `assignSalesFolio`). La
+    // asignación va DENTRO de esta transacción para que, si la emisión falla
+    // más abajo, el folio vuelva atrás y no quede un hueco en la numeración —
+    // el SII exige justificar cada folio no utilizado.
+    //
+    // Va DESPUÉS de validar y mover el stock, lo más cerca posible del
+    // `create`: la fila del correlativo (o del CAF) queda bloqueada hasta el
+    // commit y serializa TODAS las emisiones de ese tipo en la empresa. Tomada
+    // al principio, cada boleta esperaba también el Kardex de las demás; con la
+    // base a ~11 ms por consulta eso dejaba el POS en ~3 ventas/s y las
+    // emisiones en cola vencían el timeout de la transacción
+    // (`scripts/stress/concurrency.ts`).
+    let folioAssignment: FolioAssignment | null = null;
+    if (needsFolio) {
+      folioAssignment = await assignSalesFolio(tx, companyId, input.dteType);
+      folio = folioAssignment.folio;
+    }
+    if (folio !== null && movementIds.length > 0) {
+      await tx.inventoryMovement.updateMany({
+        where: { companyId, id: { in: movementIds } },
+        data: { reference: `DTE ${dteLabel} Folio #${folio}` },
+      });
     }
 
     // Un documento emitido con forma de pago inmediata (todo menos crédito) se
@@ -667,6 +691,9 @@ export async function cancelSalesDocument(companyId: string, id: string, reason?
       });
     }
 
+    // Todos los productos juntos y en orden de id antes del primer movimiento
+    // (evita deadlocks; ver `lockProductRows`).
+    await lockProductRows(tx, companyId, document.items.map((item) => item.productId));
     if (documentMovedStockOnIssue) {
       for (const item of document.items) {
         if (!item.productId) continue;
@@ -900,5 +927,94 @@ export async function getSalesDocument(companyId: string, id: string): Promise<S
   return prisma.salesDocument.findFirst({
     where: { id, companyId },
     include: { items: true, contact: true, warehouse: true, company: true },
+  });
+}
+
+// ─── Borradores ──────────────────────────────────────────────────────────────
+// Un borrador nunca asigna folio, mueve stock, postea asiento ni cobra (ver
+// `createSalesDocument`: todo eso exige `status === 'ISSUED'`). Por eso se
+// puede editar re-emitiéndolo y descartar sin dejar rastro contable.
+
+export interface SalesDraftPrefill {
+  id: string;
+  contactId: string;
+  warehouseId: string;
+  dteType: DteType;
+  paymentMethod: string;
+  /** `yyyy-mm-dd` o cadena vacía. */
+  dueDate: string;
+  referenceFolio: number | null;
+  referenceType: DteType | null;
+  notes: string;
+  sellerId: string | null;
+  salesOrderId: string | null;
+  createdAt: string;
+  items: Array<{
+    salesOrderItemId: string | null;
+    productId: string | null;
+    sku: string | null;
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    isExempt: boolean;
+    discountPercent: number;
+  }>;
+}
+
+/** Lee un borrador para volver a editarlo. `null` si no existe, es de otra empresa o ya se emitió. */
+export async function getSalesDraftForEdit(companyId: string, id: string): Promise<SalesDraftPrefill | null> {
+  const draft = await prisma.salesDocument.findFirst({
+    where: { id, companyId, status: 'DRAFT' },
+    include: { items: { orderBy: { id: 'asc' } } },
+  });
+  if (!draft) return null;
+  return {
+    id: draft.id,
+    contactId: draft.contactId,
+    warehouseId: draft.warehouseId,
+    dteType: draft.dteType,
+    paymentMethod: draft.paymentMethod,
+    dueDate: draft.dueDate ? draft.dueDate.toISOString().slice(0, 10) : '',
+    referenceFolio: draft.referenceFolio,
+    referenceType: draft.referenceType,
+    notes: draft.notes ?? '',
+    sellerId: draft.sellerId,
+    salesOrderId: draft.salesOrderId,
+    createdAt: draft.createdAt.toISOString(),
+    items: draft.items.map((item) => ({
+      salesOrderItemId: item.salesOrderItemId,
+      productId: item.productId,
+      sku: item.sku,
+      description: item.description,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      isExempt: item.isExempt,
+      discountPercent: item.discountPercent,
+    })),
+  };
+}
+
+/**
+ * Elimina un borrador. Rechaza cualquier documento que no sea borrador: un
+ * documento emitido solo se anula, nunca se borra.
+ */
+export async function deleteSalesDraft(companyId: string, id: string): Promise<{ id: string; dteType: DteType; totalAmount: number }> {
+  return prisma.$transaction(async (tx) => {
+    const draft = await tx.salesDocument.findFirst({
+      where: { id, companyId },
+      select: { id: true, status: true, dteType: true, totalAmount: true },
+    });
+    if (!draft) throw new Error('Documento no encontrado');
+    if (draft.status !== 'DRAFT') {
+      throw new Error('Solo se pueden eliminar borradores. Un documento emitido se anula, no se elimina');
+    }
+    const payments = await tx.payment.count({ where: { companyId, salesDocumentId: id } });
+    if (payments > 0) throw new Error('Este borrador tiene pagos asociados y no se puede eliminar');
+
+    // El filtro de estado va también en el borrado: si el documento se emitió
+    // entre la lectura y este punto, no se toca.
+    const deleted = await tx.salesDocument.deleteMany({ where: { id, companyId, status: 'DRAFT' } });
+    if (deleted.count === 0) throw new Error('El borrador ya no existe o se emitió mientras tanto');
+    return { id: draft.id, dteType: draft.dteType, totalAmount: draft.totalAmount };
   });
 }

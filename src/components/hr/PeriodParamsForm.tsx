@@ -4,7 +4,9 @@ import { useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { FieldLabel } from '@/components/ui/FieldLabel';
 import { nativeSelectClass } from '@/components/ui/field-classes';
+import type { GlossaryKey } from '@/lib/chile/glossary';
 import { AFP_INSTITUTIONS, AFP_LABELS, type AfpInstitutionKey } from '@/lib/chile/payroll';
 
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -97,9 +99,15 @@ export function PeriodParamsForm({
     emit(next);
   }
 
-  const field = (id: string, label: string, key: Exclude<keyof typeof text, 'afp'>, suffix?: string, placeholder?: string) => (
+  const field = (id: string, label: string, key: Exclude<keyof typeof text, 'afp'>, suffix?: string, placeholder?: string, term?: GlossaryKey, hint?: string) => (
     <div>
-      <Label htmlFor={id}>{label}</Label>
+      {term ? (
+        <FieldLabel htmlFor={id} term={term} hint={hint}>
+          {label}
+        </FieldLabel>
+      ) : (
+        <Label htmlFor={id}>{label}</Label>
+      )}
       <div className="relative">
         <Input id={id} inputMode="decimal" value={text[key]} onChange={(e) => setField(key, e.target.value)} placeholder={placeholder} className={suffix ? 'pr-10' : undefined} />
         {suffix && <span className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-xs text-muted-foreground">{suffix}</span>}
@@ -111,7 +119,13 @@ export function PeriodParamsForm({
     <div className="space-y-5">
       <p className="flex gap-2 rounded-md bg-warning-soft p-3 text-xs text-warning">
         <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
-        Confirma estos valores en los indicadores previsionales de previred.com antes de calcular. Vienen precargados del último período o son de referencia, y cambian mes a mes o cada año.
+        <span>
+          Confirma estos valores en los indicadores previsionales de{' '}
+          <a href="https://www.previred.com" target="_blank" rel="noopener noreferrer" className="font-medium underline underline-offset-2">
+            previred.com
+          </a>{' '}
+          antes de calcular. Vienen precargados del último período o son de referencia, y cambian mes a mes o cada año.
+        </span>
       </p>
 
       {editablePeriod && (
@@ -152,10 +166,10 @@ export function PeriodParamsForm({
       )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {field('param-uf', 'UF del último día del mes', 'uf', '$', 'Ej.: 39850,12')}
-        {field('param-utm', 'UTM del mes', 'utm', '$', 'Ej.: 69542')}
+        {field('param-uf', 'UF del último día del mes', 'uf', '$', 'Ej.: 39850,12', 'ufUtm')}
+        {field('param-utm', 'UTM del mes', 'utm', '$', 'Ej.: 69542', 'ufUtm')}
         {field('param-imm', 'Ingreso mínimo mensual', 'imm', '$')}
-        {field('param-cap', 'Tope imponible AFP/salud', 'taxableCap', 'UF')}
+        {field('param-cap', 'Tope imponible AFP/salud', 'taxableCap', 'UF', undefined, 'sueldoImponible', 'El tope es el máximo de sueldo imponible sobre el que se cotiza; se expresa en UF.')}
         {field('param-ucap', 'Tope seguro de cesantía', 'unemploymentCap', 'UF')}
       </div>
 

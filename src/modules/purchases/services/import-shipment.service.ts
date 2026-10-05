@@ -2,7 +2,7 @@ import type { ImportShipmentStatus, Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { computeLandedCost, IMPORT_COST_LABELS, type AllocationMethod, type ImportCostKind, type LandedCostResult } from '@/lib/purchases/landed-cost';
-import { applyStockIn } from '@/modules/inventory/services/stock.service';
+import { applyStockIn, lockProductRows } from '@/modules/inventory/services/stock.service';
 import { createAndPostEntry, resolveMappedAccountId } from '@/modules/accounting/services/journal.service';
 import { isLedgerActive } from '@/modules/accounting/posting-rules/shared';
 import type { ImportShipmentInput } from '../schema';
@@ -312,6 +312,8 @@ export async function closeImportShipment(companyId: string, userId: string, id:
     const landed = landedFor({ ...shipment, items, costs });
     const reference = `Importación N° ${shipment.folio} (${shipment.reference})`;
 
+    // Todos los productos juntos y en orden de id (evita deadlocks; ver `lockProductRows`).
+    await lockProductRows(tx, companyId, items.map((item) => item.productId));
     for (const item of items) {
       const result = landed.items.find((line) => line.id === item.id)!;
       await applyStockIn(tx, companyId, {

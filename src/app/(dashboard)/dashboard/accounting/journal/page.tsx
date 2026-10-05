@@ -7,6 +7,7 @@ import { listJournalEntries } from '@/modules/accounting/services/books.service'
 import { parseAccountingPeriod } from '@/components/accounting/period';
 import { PeriodFilter } from '@/components/accounting/PeriodFilter';
 import { SOURCE_LABELS, sourceHref } from '@/components/accounting/labels';
+import { EmptyBookActions } from '@/components/accounting/EmptyBookActions';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -76,7 +77,8 @@ export default async function JournalBookPage({
           <EmptyState
             icon={<BookOpenText className="size-10 text-muted-foreground/50" aria-hidden="true" />}
             title={`Sin asientos en ${period.label}`}
-            description="Los asientos se generan solos al emitir ventas y compras, registrar pagos y cerrar turnos de caja."
+            description="No hay que registrarlos a mano: los asientos se generan solos al emitir ventas y compras, registrar pagos y cerrar turnos de caja. Si ya operaste en este período, prueba con otro mes."
+            action={<EmptyBookActions />}
           />
         </div>
       ) : (

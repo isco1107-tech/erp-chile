@@ -3,7 +3,7 @@ import type { InventoryCountStatus, Prisma } from '@prisma/client';
 import { BATCH_TX_OPTIONS } from '@/lib/prisma-tx';
 import { adjustmentAtPosting, summarizeCount, type CountSummary } from '@/lib/inventory/count';
 import { postInventoryAdjustmentEntry } from '@/modules/accounting/posting-rules/inventory-posting';
-import { applyStockIn, applyStockOut } from './stock.service';
+import { applyStockIn, applyStockOut, lockProductRows } from './stock.service';
 
 /**
  * Toma de inventario: se abre con la foto del stock de una bodega (todos los
@@ -251,7 +251,7 @@ export async function postInventoryCount(companyId: string, id: string, userId: 
     // Un solo lock, en orden de id, para todos los productos contados: evita
     // abrazos mortales con ventas que bloquean los mismos productos.
     const productIds = [...new Set(count.lines.map((line) => line.productId))].sort();
-    await tx.$queryRaw`SELECT id FROM "Product" WHERE "companyId" = ${companyId} AND id = ANY(${productIds}) ORDER BY id FOR UPDATE`;
+    await lockProductRows(tx, companyId, productIds);
 
     const [stocks, products] = await Promise.all([
       tx.stock.findMany({ where: { companyId, warehouseId: count.warehouseId, productId: { in: productIds } }, select: { productId: true, quantity: true } }),

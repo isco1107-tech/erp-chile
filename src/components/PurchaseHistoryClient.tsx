@@ -83,7 +83,11 @@ export default function PurchaseHistoryClient({ canApprove }: { canApprove: bool
   }
 
   async function handleCancel(id: string) {
-    if (!await confirm('¿Anular este documento de compra?')) return;
+    if (!await confirm({
+      title: '¿Anular este documento de compra?',
+      description: 'Queda marcado como anulado y no se puede reabrir. Solo es posible si no tiene pagos registrados, y si ya ingresó mercadería a bodega el sistema te pedirá registrar una Nota de Crédito del proveedor en vez de anularlo, porque anular no devuelve el stock.',
+      confirmLabel: 'Anular',
+    })) return;
     const result = await cancelPurchaseDocumentAction(id);
     if (!result.success) {
       toast.error(result.error);

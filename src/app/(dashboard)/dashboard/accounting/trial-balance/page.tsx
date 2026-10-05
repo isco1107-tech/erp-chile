@@ -5,6 +5,7 @@ import { formatCurrency } from '@/lib/chile/tax';
 import { getEightColumnBalance } from '@/modules/accounting/services/books.service';
 import { parseAccountingPeriod } from '@/components/accounting/period';
 import { PeriodFilter } from '@/components/accounting/PeriodFilter';
+import { EmptyBookActions } from '@/components/accounting/EmptyBookActions';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -73,7 +74,8 @@ export default async function TrialBalancePage({
           <EmptyState
             icon={<Sheet className="size-10 text-muted-foreground/50" aria-hidden="true" />}
             title="Todavía no hay movimientos contables"
-            description="El balance se arma solo a partir de los asientos que generan ventas, compras, pagos y cierres de caja."
+            description="No se carga a mano: el balance se arma solo a partir de los asientos que generan ventas, compras, pagos y cierres de caja. Emite o registra tu primera operación y aparecerá aquí."
+            action={<EmptyBookActions />}
           />
         </div>
       ) : (

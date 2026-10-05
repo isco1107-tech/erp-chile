@@ -2,7 +2,7 @@ import type { Prisma, ProductionOrderStatus } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { estimateOrderCost, findShortages, finishedCost, scaleBom, validateBom, type Shortage } from '@/lib/manufacturing/production';
-import { applyStockIn, applyStockOut } from '@/modules/inventory/services/stock.service';
+import { applyStockIn, applyStockOut, lockProductRows } from '@/modules/inventory/services/stock.service';
 import { createAndPostEntry, resolveMappedAccountId } from '@/modules/accounting/services/journal.service';
 import { isLedgerActive } from '@/modules/accounting/posting-rules/shared';
 import type { BomInput, CompleteProductionInput, ProductionOrderInput } from '../schema';
@@ -309,6 +309,9 @@ export async function completeProductionOrder(
     if (order.status !== 'PLANNED' && order.status !== 'IN_PROGRESS') throw new ManufacturingError('La orden ya está terminada o anulada');
     const reference = `Orden de producción N° ${order.folio}`;
 
+    // Insumos y producto terminado juntos y en orden de id antes del primer
+    // movimiento (evita deadlocks con ventas/compras; ver `lockProductRows`).
+    await lockProductRows(tx, companyId, [...order.components.map((component) => component.productId), order.productId]);
     let materials = 0;
     for (const component of order.components) {
       const quantity = input.consumed[component.id] ?? component.plannedQuantity;

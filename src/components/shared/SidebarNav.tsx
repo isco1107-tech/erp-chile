@@ -179,7 +179,7 @@ function findActiveHref(groups: NavGroup[], pathname: string): string | null {
 
 const NAV_GROUPS_STORAGE_KEY = 'aether.sidebar.groups';
 
-export function SidebarNav({ groups }: { groups: NavGroup[] }) {
+export function SidebarNav({ groups, purposes }: { groups: NavGroup[]; purposes?: Record<string, string> }) {
   const pathname = usePathname();
   const activeHref = findActiveHref(groups, pathname);
   const isLinkActive = (link: NavLink) => link.href === activeHref;
@@ -239,6 +239,7 @@ export function SidebarNav({ groups }: { groups: NavGroup[] }) {
                     <li key={link.href}>
                       <Link
                         href={link.href}
+                        title={purposes?.[link.id]}
                         aria-current={active ? 'page' : undefined}
                         className={cn(
                           'flex h-9 items-center gap-3 rounded-[10px] border-l-[3px] pr-3 pl-[9px] text-[13.5px] transition-colors duration-150 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-sidebar-ring',

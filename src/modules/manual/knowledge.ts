@@ -1,6 +1,7 @@
 import { MODULE_KEYS, type CompanyFeatureFlags, type FeatureKey } from '@/lib/auth/modules';
 import { ALL_PERMISSIONS, type Permission } from '@/lib/auth/permissions';
 import { buildAvailableWorkspaceNav } from '@/lib/navigation/workspace-nav';
+import { GLOSSARY_LIST } from '@/lib/chile/glossary';
 import type { ManualSection } from './types';
 
 /**
@@ -42,7 +43,7 @@ export interface NavigationEntry extends Gated {
 
 /** Para qué sirve cada ítem del menú lateral, por su `id` estable de `workspace-nav.ts`. */
 export const SCREEN_PURPOSES: Record<string, string> = {
-  home: 'Resumen del negocio al entrar: ventas, compras, IVA, stock crítico y accesos rápidos.',
+  home: 'Resumen del negocio al entrar: lo que falta para dejar la empresa lista (Primeros pasos), ventas, compras, IVA, stock crítico y accesos rápidos.',
   pos: 'Vender en mostrador: abrir la caja, cobrar con boleta y cerrar el turno con arqueo.',
   messaging: 'Chat interno cifrado con el equipo de la empresa.',
   intelligence: 'Salud de la empresa, señales de alerta, clientes RFM, productos ABC y simulador de decisiones.',
@@ -58,7 +59,7 @@ export const SCREEN_PURPOSES: Record<string, string> = {
   'crm-tasks': 'Agenda comercial: llamadas, reuniones y seguimientos vencidos, de hoy y próximos.',
   'crm-people': 'Personas detrás de cada marca (gerentes de marketing, agencias) con sus negocios.',
   'crm-reports': 'Pronóstico por mes y rendimiento por tipo de negocio, certamen, origen y responsable.',
-  sales: 'Emitir facturas, boletas, guías, notas de crédito/débito y cotizaciones; anular y duplicar documentos.',
+  sales: 'Emitir facturas, boletas, guías, notas de crédito/débito y cotizaciones; anular, duplicar y terminar de editar borradores.',
   'sales-orders': 'Notas de venta (pedidos): reservan stock y se facturan o despachan por partes.',
   'price-lists': 'Listas de precios por tipo de cliente y por volumen, asignables a cada cliente.',
   'sales-commissions': 'Comisión de cada vendedor según su venta neta del mes y su tasa.',
@@ -203,7 +204,8 @@ export const WORKFLOWS: Workflow[] = [
   {
     title: 'Puesta en marcha: dejar el sistema listo para operar',
     steps: [
-      'Completa los datos de tu empresa en Configuración → Perfil de Empresa (razón social, RUT, giro, logo y parámetros tributarios).',
+      'Abre Inicio: arriba aparece la tarjeta "Primeros pasos · X de Y" con lo que le falta a tu empresa, en el orden recomendado y según los módulos que contrataste. El botón "Hacerlo ahora" (en el siguiente paso) o "Ir" (en los demás) te lleva a la pantalla exacta; cada paso se marca solo cuando lo completas, y la tarjeta desaparece al llegar al 100%.',
+      'Completa los datos de tu empresa en Configuración → Perfil de Empresa (razón social, RUT, giro, dirección, comuna, logo y parámetros tributarios).',
       'Si emites documentos tributarios, carga tus folios del SII (CAF) en Configuración → Folios del SII.',
       'Invita a tu equipo en Configuración → Equipo & Colaboradores con su rol; si ningún rol calza, crea uno en Roles Personalizados.',
       'Carga tu catálogo y tu cartera de clientes y proveedores con Configuración → Importación Masiva, en vez de crearlos uno por uno.',
@@ -366,10 +368,10 @@ export const TROUBLESHOOTING: TroubleshootingItem[] = [
     problem: 'Emití un documento con un error',
     requires: 'hasDteBilling',
     answer: [
-      'Si todavía está en borrador, edítalo y emítelo.',
+      'Si todavía está en borrador, ábrelo y usa "Editar y emitir" (o "Eliminar borrador" si ya no sirve).',
       'Si ya está emitido y no se envió al SII, usa "Anular" en el listado de Ventas: repone stock y revierte pagos.',
       'Si es una boleta de un turno de caja ya cerrado, no se puede anular: emite una Nota de Crédito que la referencie.',
-      'Después emite el documento correcto (con "Duplicar" ahorras tipear de nuevo).',
+      'Después emite el documento correcto (con "Duplicar" ahorras tipear de nuevo: el aviso trae "Abrir borrador").',
     ],
   },
   {
@@ -477,42 +479,13 @@ export interface GlossaryTerm {
   definition: string;
 }
 
-/** Vocabulario tributario y del sistema que el asistente puede explicar sin inventar. */
-export const GLOSSARY: GlossaryTerm[] = [
-  { term: 'IVA', definition: 'Impuesto al Valor Agregado, 19% en Chile, sobre el monto neto de las líneas afectas. Los productos marcados como exentos no lo pagan.' },
-  { term: 'Neto / Bruto', definition: 'El neto es el monto sin IVA; el bruto es el neto más el IVA. Los montos finales se manejan en pesos enteros.' },
-  { term: 'Débito fiscal', definition: 'El IVA que recaudaste en tus ventas del período y le debes al SII.' },
-  { term: 'Crédito fiscal', definition: 'El IVA que pagaste en tus compras del período y puedes descontar del débito.' },
-  { term: 'Remanente de crédito fiscal', definition: 'Cuando el crédito del mes supera al débito, la diferencia queda como remanente y se arrastra al mes siguiente.' },
-  { term: 'F29', definition: 'Formulario mensual del SII donde se declara el IVA y el PPM. El sistema lo calcula sobre tus documentos reales como apoyo; la declaración la hace tu contador.' },
-  { term: 'PPM', definition: 'Pago Provisional Mensual: anticipo del impuesto a la renta, un porcentaje de tus ventas netas. La tasa se configura en el Perfil de Empresa.' },
-  { term: 'RCV', definition: 'Registro de Compras y Ventas: el libro que el SII arma con los documentos electrónicos informados. Se cuadra con el ERP antes de declarar.' },
-  { term: 'DTE', definition: 'Documento Tributario Electrónico: boleta (39), factura afecta (33), factura exenta (34), guía de despacho (52), nota de débito (56) y nota de crédito (61).' },
-  { term: 'Folio', definition: 'Número correlativo de cada documento tributario. No se reutiliza ni se salta: un documento emitido se corrige con nota de crédito, no borrándolo.' },
-  { term: 'CAF', definition: 'Código de Autorización de Folios: archivo del SII que autoriza un rango de folios para un tipo de documento y trae la llave con que se timbra.' },
-  { term: 'Timbre electrónico (TED)', definition: 'Firma que va en cada documento emitido con CAF; permite verificar que no fue alterado.' },
-  { term: 'Cotización', definition: 'Propuesta de precio al cliente. No es un documento tributario: no usa folio ni mueve stock.' },
-  { term: 'Nota de venta', definition: 'Pedido del cliente que reserva stock y se factura o despacha por partes.' },
-  { term: 'Guía de despacho', definition: 'Documento que acompaña la mercadería que sale; mueve stock y después se factura.' },
-  { term: 'Nota de crédito', definition: 'Documento que anula o rebaja, total o parcialmente, uno emitido antes.' },
-  { term: 'PMP', definition: 'Precio Medio Ponderado: el costo unitario de un producto, recalculado en cada compra como promedio entre el stock que tenías y lo que entró.' },
-  { term: 'Kardex', definition: 'Historial de movimientos de un producto: cada entrada, salida, ajuste y transferencia, con cantidad, costo y documento de origen.' },
-  { term: 'Stock valorizado', definition: 'La cantidad en bodega multiplicada por su costo PMP vigente: el valor contable del inventario.' },
-  { term: 'Lote / FEFO', definition: 'Un lote agrupa unidades con la misma fecha de vencimiento. FEFO ("primero en vencer, primero en salir") es la regla con que se despachan.' },
-  { term: 'Boleta de honorarios', definition: 'Documento de un profesional independiente por sus servicios, con una retención de impuesto calculada con la tasa de tu empresa.' },
-  { term: 'Cuenta por cobrar (CxC)', definition: 'Lo que un cliente te debe por un documento a crédito todavía no pagado del todo.' },
-  { term: 'Cuenta por pagar (CxP)', definition: 'Lo que le debes a un proveedor por una factura todavía no pagada del todo.' },
-  { term: 'Conciliación bancaria', definition: 'Comparar la cartola del banco con tus cobros y pagos registrados para que ambos saldos calcen.' },
-  { term: 'Nómina de pago', definition: 'Lote de facturas de proveedores que se pagan juntas con un archivo para el portal del banco.' },
-  { term: 'Arqueo de caja', definition: 'Conteo del efectivo al cerrar un turno del POS, comparado contra lo esperado, dejando la diferencia declarada.' },
-  { term: 'Liquidación de sueldo', definition: 'Detalle mensual del sueldo de un trabajador: haberes, descuentos previsionales, impuesto único y líquido a pagar.' },
-  { term: 'Previred', definition: 'Plataforma donde se pagan las cotizaciones previsionales y que publica cada mes los indicadores (UF, UTM, topes y tasas) que usa el cálculo de sueldos.' },
-  { term: 'UF / UTM', definition: 'Unidades reajustables chilenas. Se usan para topes previsionales, planes de salud y tramos del impuesto único; su valor se confirma cada mes.' },
-  { term: 'Finiquito', definition: 'Documento que cierra la relación laboral con el cálculo de lo que se le debe al trabajador al término del contrato.' },
-  { term: 'NPS / CSAT', definition: 'Indicadores de satisfacción: CSAT mide qué tan conforme quedó el cliente (1 a 5) y NPS cuánto te recomendaría (0 a 10).' },
-  { term: 'RFM', definition: 'Segmentación de clientes por Recencia (cuándo compró), Frecuencia (cuántas veces) y Monto (cuánto).' },
-  { term: 'Canje', definition: 'Aporte de un auspiciador en productos o servicios en vez de dinero; se valoriza y se reporta aparte del efectivo.' },
-];
+/**
+ * Vocabulario tributario y del sistema que el asistente puede explicar sin
+ * inventar. Se deriva del glosario único (`src/lib/chile/glossary.ts`), el
+ * mismo que alimenta los tooltips de los formularios, para que el manual y la
+ * pantalla nunca digan cosas distintas.
+ */
+export const GLOSSARY: GlossaryTerm[] = GLOSSARY_LIST.map(({ term, definition }) => ({ term, definition }));
 
 /** Flujos cuyos módulos están todos contratados y a los que el usuario tiene acceso. */
 export function getVisibleWorkflows(features: CompanyFeatureFlags, permissions: readonly Permission[]): Workflow[] {

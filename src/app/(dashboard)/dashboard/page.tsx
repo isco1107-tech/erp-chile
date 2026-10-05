@@ -24,9 +24,16 @@ import {
   Ticket,
   Vote,
   Briefcase,
+  Rocket,
 } from 'lucide-react';
 import { getAuthContext, can } from '@/lib/auth/guards';
 import { MODULES } from '@/lib/auth/modules';
+import { buildWorkspaceNav } from '@/lib/navigation/workspace-nav';
+import { getDisabledNavItems } from '@/modules/workspace/services/workspace.service';
+import { getCompanySetupReadiness } from '@/modules/setup/services/setup.service';
+import { SetupChecklistCard } from '@/components/setup/SetupChecklistCard';
+import { captureException } from '@/lib/observability';
+import { buttonVariants } from '@/components/ui/button';
 import { prisma } from '@/lib/prisma';
 import { formatCurrency } from '@/lib/chile/tax';
 import { addMonthsSantiago, santiagoDateParts, startOfMonthSantiago, startOfTodaySantiago, startOfTomorrowSantiago } from '@/lib/chile/timezone';
@@ -112,6 +119,13 @@ export default async function DashboardPage() {
   const canReadSales = can(context, 'sales:read');
   const canReadInventory = can(context, 'products:read');
   const canReadCosts = can(context, 'products:costs');
+
+  // "Primeros pasos": se pide en paralelo con el resto del panel. Si falla,
+  // el Inicio sigue funcionando sin la tarjeta (nunca debe tumbar la pantalla).
+  const setupPromise = getCompanySetupReadiness(context).catch((error: unknown) => {
+    captureException(error, { module: 'setup', companyId: context.companyId });
+    return null;
+  });
 
   const now = new Date();
   const currentMonth = startOfMonthSantiago(now);
@@ -373,6 +387,23 @@ export default async function DashboardPage() {
     .filter((stock) => stock.product.isTrackable && stock.quantity <= stock.product.minStock && stock.product.minStock > 0)
     .sort((a, b) => a.quantity - b.quantity);
   const criticalStock = criticalStockAll.slice(0, 5);
+  // Productos con alerta posible: un mínimo en 0 significa "no avisar".
+  const productsWithMinStock = new Set(inventoryStocks.filter((stock) => stock.product.isTrackable && stock.product.minStock > 0).map((stock) => stock.productId)).size;
+
+  const setup = await setupPromise;
+  const setupTodo = (id: string): boolean => setup?.items.some((item) => item.id === id && item.status === 'todo') ?? false;
+
+  // Cada chip de "Módulos contratados" lleva a la primera pantalla de ese
+  // módulo que esta persona puede abrir (la misma que ve en el menú).
+  const disabledNavItems = await getDisabledNavItems(context.companyId);
+  const navLinks = buildWorkspaceNav({
+    permissions: context.permissions,
+    features: context.features,
+    isSuperAdmin: context.isSuperAdmin,
+    disabledNavItems,
+  }).flatMap((group) => group.links);
+  const moduleHref = (routes: string[]): string | null =>
+    navLinks.find((link) => routes.some((route) => link.href === route || link.href.startsWith(`${route}/`)))?.href ?? null;
 
   const mixData = SALES_TYPES.filter((type) => (mixCounts.get(type) ?? 0) > 0).map((type, index) => ({
     name: DTE_TYPE_LABELS[type] ?? type,
@@ -556,6 +587,10 @@ export default async function DashboardPage() {
   // certámenes (Candidatas, Proyectos) sin esos dos módulos nunca veía nada
   // acá, cayendo directo al estado "activa un módulo" aunque sí tuviera
   // módulos contratados y pagados.
+  // Una venta sin productos o sin clientes no se puede emitir: en vez de
+  // sugerirla, se cae al siguiente paso de la puesta en marcha.
+  const noProducts = setupTodo('products') || (hasInventoryModule && productCount === 0);
+  const noCustomers = setupTodo('customers');
   type SuggestedAction = { title: string; description: string; actionLabel: string; href: string; icon: typeof ShoppingCart };
   let suggestedAction: SuggestedAction | null = null;
   if (criticalStockAll.length > 0 && hasInventoryModule && can(context, 'inventory:write')) {
@@ -566,7 +601,7 @@ export default async function DashboardPage() {
       href: '/dashboard/inventory?openStockForm=1',
       icon: PackagePlus,
     };
-  } else if (context.features.hasDteBilling && can(context, 'sales:write')) {
+  } else if (context.features.hasDteBilling && can(context, 'sales:write') && !noProducts && !noCustomers) {
     suggestedAction = {
       title: 'Emitir nueva venta',
       description: 'Generar una factura o boleta electrónica',
@@ -589,6 +624,15 @@ export default async function DashboardPage() {
       actionLabel: 'Nuevo proyecto',
       href: '/dashboard/projects/new',
       icon: CalendarRange,
+    };
+  } else if (setup?.next) {
+    // Nada urgente que sugerir: el siguiente paso de la puesta en marcha.
+    suggestedAction = {
+      title: setup.next.label,
+      description: `Primeros pasos · ${setup.done} de ${setup.total}`,
+      actionLabel: 'Hacerlo ahora',
+      href: setup.next.href,
+      icon: Rocket,
     };
   }
 
@@ -644,6 +688,11 @@ export default async function DashboardPage() {
           </p>
         </div>
       </div>
+
+      {/* Primeros pasos: checklist de puesta en marcha con datos reales y
+          adaptado a los módulos y permisos de esta persona. Desaparece solo al
+          llegar al 100%; se puede ocultar y volver a mostrar. */}
+      {setup && <SetupChecklistCard companyId={context.companyId} report={setup} />}
 
       {/* Alertas de hoy: mismo dato que el correo diario, en vivo — ver
           `todayAlerts` más arriba. Ausente por completo si no hay nada que
@@ -749,7 +798,12 @@ export default async function DashboardPage() {
 
       {/* Gráfico de barras + donut (Client Component: recharts no puede vivir en el Server Component, ver DashboardCharts.tsx) */}
       {hasSalesModule && (
-        <DashboardCharts monthlyBuckets={monthlyBuckets} mixData={mixData} currentMonthDocCount={currentMonthDocCount} />
+        <DashboardCharts
+          monthlyBuckets={monthlyBuckets}
+          mixData={mixData}
+          currentMonthDocCount={currentMonthDocCount}
+          canIssueSale={can(context, 'sales:write')}
+        />
       )}
 
       {/* Tabla reciente + actividad */}
@@ -777,7 +831,19 @@ export default async function DashboardPage() {
                 </div>
 
                 <div className="mt-5 space-y-4">
-                  {criticalStock.length > 0 ? (
+                  {productCount === 0 ? (
+                    <EmptyState
+                      title="Todavía no tienes productos"
+                      description="Sin productos no puedes vender ni controlar stock. Crea el primero, o cárgalos todos juntos desde un Excel."
+                      action={
+                        can(context, 'products:write') ? (
+                          <Link href="/dashboard/products" className={buttonVariants({ size: 'sm' })}>
+                            Crear mis productos
+                          </Link>
+                        ) : undefined
+                      }
+                    />
+                  ) : criticalStock.length > 0 ? (
                     criticalStock.map((stock) => (
                       <ProgressRow
                         key={stock.id}
@@ -787,7 +853,14 @@ export default async function DashboardPage() {
                       />
                     ))
                   ) : (
-                    <EmptyState title="Sin productos bajo el mínimo" description="Todo el catálogo está sobre su stock mínimo de bodega." />
+                    <EmptyState
+                      title="Sin productos bajo el mínimo"
+                      description={
+                        productsWithMinStock === 0
+                          ? 'Ningún producto tiene stock mínimo definido: con mínimo 0 el sistema no avisa. Defínelo en la ficha de cada producto para recibir la alerta.'
+                          : 'Todos los productos con stock mínimo definido están sobre ese mínimo. Los que tienen mínimo 0 no generan alerta.'
+                      }
+                    />
                   )}
                 </div>
               </div>
@@ -815,15 +888,25 @@ export default async function DashboardPage() {
             <h3 className="text-base font-semibold text-foreground">Módulos contratados</h3>
             {contracted.length > 0 ? (
               <div className="mt-3 flex flex-wrap gap-2">
-                {contracted.map((mod) => (
-                  <span
-                    key={mod.key}
-                    className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-xs font-medium text-foreground"
-                  >
-                    <span className="size-1.5 shrink-0 rounded-full bg-primary" />
-                    {mod.label}
-                  </span>
-                ))}
+                {contracted.map((mod) => {
+                  const href = moduleHref(mod.routes);
+                  const chipClass = 'inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-xs font-medium text-foreground';
+                  const content = (
+                    <>
+                      <span className="size-1.5 shrink-0 rounded-full bg-primary" />
+                      {mod.label}
+                    </>
+                  );
+                  return href ? (
+                    <Link key={mod.key} href={href} className={`${chipClass} transition-colors duration-150 hover:bg-accent hover:text-accent-foreground`}>
+                      {content}
+                    </Link>
+                  ) : (
+                    <span key={mod.key} className={chipClass}>
+                      {content}
+                    </span>
+                  );
+                })}
               </div>
             ) : (
               <p className="mt-3 text-sm text-muted-foreground">Sin módulos contratados. Contacta a tu administrador.</p>

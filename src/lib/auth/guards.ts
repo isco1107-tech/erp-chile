@@ -3,9 +3,10 @@ import { cookies, headers } from 'next/headers';
 import type { Role, TenantStatus } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { verifySessionToken, type SessionPayload } from './session';
-import type { Permission } from './permissions';
+import { PERMISSION_LABELS, type Permission } from './permissions';
 import {
   DEFAULT_FEATURES,
+  getModule,
   moduleForPermission,
   toFeatureFlags,
   type CompanyFeatureFlags,
@@ -87,6 +88,26 @@ export class ModuleNotEnabledError extends Error {
     super('Módulo no incluido en el plan actual');
     this.moduleKey = moduleKey;
   }
+}
+
+/** Mensaje accionable cuando falta el permiso: dice cuál y a quién pedirlo. */
+export function missingPermissionMessage(permission: Permission): string {
+  const label = PERMISSION_LABELS[permission];
+  return label
+    ? `Tu rol no tiene permiso para «${label}». Pídeselo al dueño de la cuenta (Configuración → Equipo & Colaboradores)`
+    : 'Tu rol no tiene permiso para esta acción. Pídeselo al dueño de la cuenta (Configuración → Equipo & Colaboradores)';
+}
+
+/** Mensaje accionable cuando el plan no trae el módulo: lo nombra y dice cómo pedirlo. */
+export function moduleNotEnabledMessage(moduleKey: FeatureKey): string {
+  let label: string | null = null;
+  try {
+    label = getModule(moduleKey).label;
+  } catch {
+    label = null;
+  }
+  const subject = label ? ` («${label}»)` : '';
+  return `Módulo no incluido en tu plan actual${subject}. Pídele al dueño de la cuenta que lo solicite en Configuración → Planes y Módulos`;
 }
 
 
@@ -269,7 +290,7 @@ export async function requireAuthWithPermission(permission: Permission): Promise
   if (!can(context, permission)) {
     const moduleKey = moduleForPermission(permission);
     if (moduleKey && !context.features[moduleKey]) throw new ModuleNotEnabledError(moduleKey);
-    throw new AuthError('No autorizado para esta acción', 403);
+    throw new AuthError(missingPermissionMessage(permission), 403);
   }
   return context;
 }
@@ -372,7 +393,7 @@ export function authErrorMessage(error: unknown): string | null {
   if (error instanceof AuthError) return error.message;
   if (error instanceof TenantInactiveError) return error.message;
   if (error instanceof ModuleNotEnabledError) {
-    return 'Módulo no incluido en tu plan actual. Contacta al administrador para habilitarlo';
+    return moduleNotEnabledMessage(error.moduleKey);
   }
   return null;
 }

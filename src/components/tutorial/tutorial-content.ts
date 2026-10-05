@@ -40,7 +40,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
   dashboard: {
     title: 'Bienvenida',
     steps: [
-      header('Tu resumen del negocio', 'Al entrar ves ventas, compras, IVA y stock crítico, con la tendencia respecto al período anterior, y accesos rápidos a lo que más se usa.'),
+      header('Tu resumen del negocio', 'Al entrar ves ventas, compras, IVA y stock crítico, con la tendencia respecto al período anterior, y accesos rápidos a lo que más se usa. Mientras falte configurar algo, arriba aparece "Primeros pasos": un checklist con lo que le falta a tu empresa, que se marca solo.'),
       { title: 'El menú de tu empresa', description: 'A la izquierda están solo los módulos que tu empresa contrató y que tu rol puede usar, agrupados por área.', target: 'sidebar-nav', placement: 'right' },
       { title: 'Busca cualquier pantalla', description: 'Con Ctrl+K (Cmd+K en Mac) o este buscador saltas a cualquier pantalla escribiendo lo que necesitas: "factura", "cobranza", "stock"…', target: 'command-search' },
       { title: 'Tu asistente', description: 'Pregúntale con tus palabras cómo hacer algo, pídele cifras de tu empresa o que haga tareas por ti (crear un cliente, un producto, una tarea…). Siempre te pide confirmar antes de guardar.', target: 'assistant-button' },

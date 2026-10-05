@@ -5,10 +5,17 @@ import { Tooltip as TooltipPrimitive } from '@base-ui/react/tooltip';
 import { HelpCircle } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+import { GLOSSARY_ENTRIES, type GlossaryKey } from '@/lib/chile/glossary';
 
 export interface InfoTooltipProps {
-  /** Explicación corta en español simple, sin jerga. */
-  text: string;
+  /** Explicación corta en español simple, sin jerga. Obligatoria si no se pasa `term`. */
+  text?: string;
+  /**
+   * Clave del glosario único (`src/lib/chile/glossary.ts`): el texto sale de
+   * ahí para que el tooltip y el manual nunca digan cosas distintas. Si se
+   * pasan ambos, `text` manda.
+   */
+  term?: GlossaryKey;
   /** Texto accesible para lectores de pantalla; por defecto usa `text`. */
   label?: string;
   className?: string;
@@ -25,13 +32,15 @@ export interface InfoTooltipProps {
  * que nunca dispare el submit de un formulario si este ícono queda dentro de
  * un `<form>` (ej. checkbox "Exento IVA" en el formulario de venta/compra).
  */
-export function InfoTooltip({ text, label, className }: InfoTooltipProps) {
+export function InfoTooltip({ text: textProp, term, label, className }: InfoTooltipProps) {
+  const text = textProp ?? (term ? GLOSSARY_ENTRIES[term].short : '');
+  if (!text) return null;
   return (
     <TooltipPrimitive.Root>
       <TooltipPrimitive.Trigger
         type="button"
         delay={200}
-        aria-label={label ?? text}
+        aria-label={label ?? (term ? `¿Qué es ${GLOSSARY_ENTRIES[term].term}? ${text}` : text)}
         className={cn(
           'inline-flex size-4 shrink-0 items-center justify-center rounded-full text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50',
           className

@@ -101,7 +101,21 @@ export default function SuppliersPanel({ canWrite }: { canWrite: boolean }) {
         {loading ? (
           <p className="p-4 text-sm text-muted-foreground">Cargando…</p>
         ) : visible.length === 0 ? (
-          <EmptyState title="Sin productores ni proveedores" description="Crea contactos y márcalos como proveedor en Clientes & Proveedores; aparecerán aquí para completar su ficha." />
+          <EmptyState
+            title={rows.length === 0 ? 'Sin productores ni proveedores' : 'Sin resultados'}
+            description={
+              rows.length === 0
+                ? 'Crea contactos y márcalos como proveedor en Clientes & Proveedores; aparecerán aquí para completar su ficha.'
+                : 'Prueba con otro nombre.'
+            }
+            action={
+              rows.length === 0 ? (
+                <Link href="/dashboard/contacts?new=1" className={buttonVariants({ size: 'sm' })}>
+                  Crear proveedor
+                </Link>
+              ) : undefined
+            }
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">

@@ -8,6 +8,7 @@ import { getLedger } from '@/modules/accounting/services/ledger.service';
 import { parseAccountingPeriod } from '@/components/accounting/period';
 import { PeriodFilter } from '@/components/accounting/PeriodFilter';
 import { SOURCE_LABELS, sourceHref } from '@/components/accounting/labels';
+import { EmptyBookActions } from '@/components/accounting/EmptyBookActions';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { EmptyState } from '@/components/ui/EmptyState';
 import PrintButton from '@/components/PrintButton';
@@ -78,9 +79,10 @@ export default async function LedgerPage({
             title={accounts.length === 0 ? 'El plan de cuentas está vacío' : 'Elige una cuenta para ver su mayor'}
             description={
               accounts.length === 0
-                ? 'Configura el plan de cuentas de la empresa para empezar a contabilizar.'
-                : 'Selecciona la cuenta y el período, y presiona "Ver período".'
+                ? 'Sin plan de cuentas no se registra ningún asiento. Usa el botón «Crear plan de cuentas base» del aviso de arriba (si no lo ves, pídeselo a quien administra la contabilidad).'
+                : 'Selecciona la cuenta y el período, y presiona "Ver período". El mayor muestra cada movimiento de esa cuenta, que salen de ventas, compras y pagos.'
             }
+            action={accounts.length === 0 ? undefined : <EmptyBookActions />}
           />
         </div>
       ) : (
@@ -110,7 +112,7 @@ export default async function LedgerPage({
               {ledger.lines.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                    Sin movimientos en {period.label}.
+                    Sin movimientos en {period.label}. Prueba con otro período u otra cuenta.
                   </td>
                 </tr>
               )}

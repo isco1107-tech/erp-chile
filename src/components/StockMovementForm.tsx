@@ -2,27 +2,31 @@
 
 import { useState, type FormEvent } from 'react';
 import type { Warehouse } from '@prisma/client';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { FieldHint, FieldLabel } from '@/components/ui/FieldLabel';
 import { CurrencyInput } from '@/components/ui/CurrencyInput';
 import { MOVEMENT_TYPES, stockMovementSchema } from '@/modules/inventory/schema';
 import { registerStockMovementAction } from '@/modules/inventory/actions/inventory.actions';
 import type { ProductWithStock } from '@/modules/inventory/services/products.service';
 
 const MOVEMENT_LABELS: Record<(typeof MOVEMENT_TYPES)[number], string> = {
-  PURCHASE_IN: 'Entrada por Compra',
-  ADJUSTMENT_IN: 'Entrada por Ajuste',
-  SALE_OUT: 'Salida por Venta',
-  ADJUSTMENT_OUT: 'Salida por Ajuste',
-  TRANSFER: 'Transferencia entre Bodegas',
+  PURCHASE_IN: 'Entrada por compra (solo mueve stock)',
+  ADJUSTMENT_IN: 'Stock inicial / ajuste positivo',
+  SALE_OUT: 'Salida por venta (solo mueve stock)',
+  ADJUSTMENT_OUT: 'Merma / ajuste negativo',
+  TRANSFER: 'Transferencia entre bodegas',
 };
 
 const EMPTY_FORM = {
   productId: '',
   warehouseId: '',
-  type: 'PURCHASE_IN' as (typeof MOVEMENT_TYPES)[number],
+  // Lo habitual al abrir este formulario es cargar stock inicial o corregir un
+  // conteo; las compras y ventas reales se registran en sus propios módulos.
+  type: 'ADJUSTMENT_IN' as (typeof MOVEMENT_TYPES)[number],
   quantity: '',
   unitCost: '',
   targetWarehouseId: '',
@@ -39,10 +43,12 @@ interface StockMovementFormProps {
   warehouses: Warehouse[];
   onSaved: () => void;
   onCancel: () => void;
+  /** Producto que parte seleccionado (ej. recién creado, desde "Cargar stock inicial"). */
+  defaultProductId?: string;
 }
 
-export default function StockMovementForm({ products, warehouses, onSaved, onCancel }: StockMovementFormProps) {
-  const [form, setForm] = useState<FormState>(EMPTY_FORM);
+export default function StockMovementForm({ products, warehouses, onSaved, onCancel, defaultProductId }: StockMovementFormProps) {
+  const [form, setForm] = useState<FormState>({ ...EMPTY_FORM, productId: defaultProductId ?? '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
@@ -114,6 +120,15 @@ export default function StockMovementForm({ products, warehouses, onSaved, onCan
               <option key={t} value={t}>{MOVEMENT_LABELS[t]}</option>
             ))}
           </select>
+          {(form.type === 'PURCHASE_IN' || form.type === 'SALE_OUT') && (
+            <FieldHint>
+              Esto solo mueve el stock: no crea documento ni IVA. Las compras y ventas reales se registran en{' '}
+              <Link href="/dashboard/purchases/new" className="font-medium text-primary underline underline-offset-2">Compras</Link>{' '}
+              y{' '}
+              <Link href="/dashboard/sales/new" className="font-medium text-primary underline underline-offset-2">Ventas</Link>,
+              que descuentan o suman el stock solas.
+            </FieldHint>
+          )}
         </div>
 
         <div>
@@ -133,7 +148,7 @@ export default function StockMovementForm({ products, warehouses, onSaved, onCan
         </div>
 
         <div>
-          <Label htmlFor="mv-warehouse">{isTransfer ? 'Bodega de origen' : 'Bodega'}</Label>
+          <FieldLabel htmlFor="mv-warehouse" term="bodega">{isTransfer ? 'Bodega de origen' : 'Bodega'}</FieldLabel>
           <select
             id="mv-warehouse"
             value={form.warehouseId}
@@ -182,7 +197,9 @@ export default function StockMovementForm({ products, warehouses, onSaved, onCan
 
         {isIn && (
           <div>
-            <Label htmlFor="mv-cost">Costo unitario</Label>
+            <FieldLabel htmlFor="mv-cost" term="pmp" hint="Al ingresar stock, este costo se promedia con el que ya tenías y recalcula el costo promedio (PMP).">
+              Costo unitario (sin IVA)
+            </FieldLabel>
             <CurrencyInput
               id="mv-cost"
               value={Number(form.unitCost) || 0}

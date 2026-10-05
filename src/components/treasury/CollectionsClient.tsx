@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { BellRing, HandCoins, Mail, PauseCircle, PlayCircle, Search, X } from 'lucide-react';
@@ -82,7 +83,13 @@ export default function CollectionsClient({ overview, settings, canWrite }: Prop
             </dl>
           </>
         ) : (
-          <p className="mt-2 text-sm text-muted-foreground">No hay deuda de clientes pendiente.</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            No hay deuda de clientes pendiente. Aquí aparecerán los clientes que te deban dinero, apenas emitas ventas que queden por cobrar; el pago se registra en{' '}
+            <Link href="/dashboard/treasury/cxc" className="text-primary underline-offset-2 hover:underline">
+              Cuentas por Cobrar
+            </Link>
+            .
+          </p>
         )}
       </section>
 
@@ -103,7 +110,13 @@ export default function CollectionsClient({ overview, settings, canWrite }: Prop
           <EmptyState
             icon={<HandCoins className="size-10 text-muted-foreground/40" aria-hidden="true" />}
             title={query ? 'Sin resultados' : onlyOverdue ? 'Ningún cliente con deuda vencida' : 'Sin clientes con saldo'}
-            description={onlyOverdue && !query ? 'Buen trabajo: la cartera está al día.' : undefined}
+            description={
+              query
+                ? 'Prueba con otro nombre o RUT.'
+                : onlyOverdue
+                  ? 'Buen trabajo: la cartera está al día. Desmarca «Solo clientes con deuda vencida» para ver también lo que vence después.'
+                  : 'Un cliente aparece aquí cuando tiene una venta con saldo por cobrar.'
+            }
           />
         ) : (
           <div className="overflow-x-auto">
@@ -459,7 +472,9 @@ function CustomerCollectionDialog({ row, canWrite, onClose }: { row: CollectionC
           <div>
             <p className="mb-2 text-sm font-medium">Historial</p>
             {detail && detail.notes.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Aún no hay gestiones registradas.</p>
+              <p className="text-sm text-muted-foreground">
+                Aún no hay gestiones registradas.{canWrite ? ' Anota aquí cada llamada, correo o promesa de pago para no perder el hilo.' : ''}
+              </p>
             ) : (
               <ol className="space-y-2">
                 {detail?.notes.map((item) => (

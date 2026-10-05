@@ -121,7 +121,9 @@ export function CrmPeopleClient({ canWrite }: { canWrite: boolean }) {
         <div className="rounded-lg border border-border bg-card">
           <EmptyState
             title={people.length === 0 ? 'Todavía no hay contactos comerciales' : 'Sin resultados'}
-            description={people.length === 0 ? 'Agrega a las personas con las que conversas en cada marca. También se crean solos desde el formulario "Quiero auspiciar" del sitio del certamen.' : 'Prueba con otra búsqueda.'}
+            description={people.length === 0 ? 'Agrega a las personas con las que conversas en cada marca (gerentes, agencias) y vincúlalas a sus negocios. También se crean solas desde el formulario "Quiero auspiciar" del sitio del certamen.' : 'Prueba con otra búsqueda.'}
+            actionLabel={people.length === 0 && canWrite ? 'Nuevo contacto' : undefined}
+            onAction={people.length === 0 && canWrite ? () => openForm(EMPTY_PERSON) : undefined}
           />
         </div>
       ) : (

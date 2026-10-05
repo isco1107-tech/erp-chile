@@ -5,6 +5,7 @@ import { Prisma, type DocumentStatus, type DteType } from '@prisma/client';
 import { requireAuthWithPermission, authErrorMessage, can } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
+import { captureException } from '@/lib/observability';
 import { salesDocumentCreateSchema } from '../schema';
 import * as salesService from '../services/sales.service';
 import type {
@@ -174,5 +175,37 @@ export async function duplicateSalesDocumentAction(id: string): Promise<ActionRe
     return { success: true, data, message: 'Documento duplicado como borrador' };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+/**
+ * Elimina un borrador de venta (el "Eliminar borrador" del detalle y el
+ * descarte automático al emitirlo desde el formulario). Mismo permiso que crear
+ * ventas; el servicio rechaza todo lo que no sea borrador.
+ */
+export async function deleteSalesDraftAction(id: string): Promise<ActionResult<null>> {
+  try {
+    const session = await requireAuthWithPermission('sales:write');
+    if (!id) return { success: false, error: 'Falta indicar el borrador' };
+    const deleted = await salesService.deleteSalesDraft(session.companyId, id);
+    await createAuditLog({
+      companyId: session.companyId,
+      userId: session.id,
+      userEmail: session.email,
+      action: 'DELETE',
+      entity: 'SalesDocument',
+      entityId: deleted.id,
+      metadata: { dteType: deleted.dteType, totalAmount: deleted.totalAmount, status: 'DRAFT' },
+    });
+    revalidatePath('/dashboard/sales');
+    return { success: true, data: null, message: 'Borrador eliminado' };
+  } catch (error) {
+    const authMessage = authErrorMessage(error);
+    if (authMessage) return { success: false, error: authMessage };
+    if (error instanceof Error && /borrador|Documento no encontrado/.test(error.message)) {
+      return { success: false, error: error.message };
+    }
+    captureException(error, { module: 'ventas', extra: { reason: 'deleteSalesDraft', id } });
+    return { success: false, error: 'No se pudo eliminar el borrador. Vuelve a intentarlo' };
   }
 }

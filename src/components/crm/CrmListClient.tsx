@@ -182,7 +182,25 @@ export function CrmListClient({ canWrite }: { canWrite: boolean }) {
 
       {rows.length === 0 ? (
         <div className="rounded-lg border border-border bg-card">
-          <EmptyState title="Sin oportunidades con estos filtros" description="Cambia los filtros o crea una nueva oportunidad." />
+          {data.opportunities.length === 0 && JSON.stringify(filters) === JSON.stringify(EMPTY_CRM_FILTERS) ? (
+            <EmptyState
+              title="Aún no hay oportunidades"
+              description={
+                canWrite
+                  ? 'Una oportunidad es un posible negocio (un auspicio, un evento, entradas corporativas). Crea la primera y muévela por las etapas del embudo hasta cerrarla.'
+                  : 'Cuando alguien del equipo registre un posible negocio, aparecerá aquí con su etapa y su monto.'
+              }
+              actionLabel={canWrite ? 'Nueva oportunidad' : undefined}
+              onAction={canWrite ? () => openNew() : undefined}
+            />
+          ) : (
+            <EmptyState
+              title="Sin oportunidades con estos filtros"
+              description={status === 'open' ? 'Cambia los filtros o mira «Todos» para incluir ganados y perdidos.' : 'Cambia los filtros o la pestaña de estado para ver más negocios.'}
+              actionLabel={canWrite ? 'Nueva oportunidad' : undefined}
+              onAction={canWrite ? () => openNew() : undefined}
+            />
+          )}
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border bg-card shadow-card">

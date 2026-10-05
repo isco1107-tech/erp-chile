@@ -163,7 +163,21 @@ export function EmployeesClient({ canWrite }: { canWrite: boolean }) {
         <div className="rounded-lg border border-border bg-card shadow-card">
           <EmptyState
             title={data.employees.length === 0 ? 'Aún no hay trabajadores registrados' : 'Sin resultados'}
-            description={data.employees.length === 0 ? 'Crea la ficha de cada trabajador dependiente para calcular sus liquidaciones.' : 'Prueba con otra búsqueda.'}
+            description={
+              data.employees.length === 0
+                ? canWrite
+                  ? 'Crea la ficha de cada trabajador dependiente (RUT, cargo, sueldo y previsión). Con ella podrás calcular sus liquidaciones.'
+                  : 'Pídele a quien administra la empresa que cree las fichas de los trabajadores para poder calcular sus liquidaciones.'
+                : 'Prueba con otra búsqueda o activa «Mostrar desvinculados».'
+            }
+            action={
+              data.employees.length === 0 && canWrite ? (
+                <Button type="button" size="sm" onClick={() => openForm(EMPTY_EMPLOYEE)}>
+                  <Plus aria-hidden="true" />
+                  Nuevo trabajador
+                </Button>
+              ) : undefined
+            }
           />
         </div>
       ) : (

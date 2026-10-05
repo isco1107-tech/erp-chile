@@ -13,6 +13,7 @@ import {
   openShiftSchema,
   posSaleSchema,
 } from '../schema';
+import { hasFoliosAvailable } from '@/modules/dte/services/caf.service';
 import * as cashService from '../services/cash.service';
 import * as posService from '../services/pos.service';
 import type {
@@ -48,6 +49,36 @@ export async function listCashRegistersAction(): Promise<ActionResult<CashRegist
     // pasar antes por configuración.
     await cashService.ensureDefaultCashRegister(session.companyId);
     return { success: true, data: await cashService.listCashRegisters(session.companyId) };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+export interface PosFolioStatus {
+  /** La empresa tiene Facturación Electrónica (folios del SII) contratada. */
+  hasDteBilling: boolean;
+  /** Quedan folios autorizados para BOLETA_39. */
+  hasFolios: boolean;
+  /** Puede ir a la pantalla de Folios a cargar un CAF. */
+  canManageFolios: boolean;
+}
+
+/**
+ * Para avisar en el POS, antes de cobrar, si las boletas saldrán con folio del
+ * SII o con numeración interna (sin validez tributaria).
+ */
+export async function getPosFolioStatusAction(): Promise<ActionResult<PosFolioStatus>> {
+  try {
+    const session = await requireAuthWithPermission('pos:operate');
+    const hasFolios = await hasFoliosAvailable(session.companyId, 'BOLETA_39');
+    return {
+      success: true,
+      data: {
+        hasDteBilling: session.features.hasDteBilling,
+        hasFolios,
+        canManageFolios: session.features.hasDteBilling && can(session, 'dte:manage_caf'),
+      },
+    };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
   }

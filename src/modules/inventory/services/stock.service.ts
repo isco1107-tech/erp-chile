@@ -69,7 +69,47 @@ async function getCompanyStockTotal(tx: TxClient, companyId: string, productId: 
  * quedan consistentes.
  */
 async function lockProductRow(tx: TxClient, companyId: string, productId: string): Promise<void> {
+  const locked = lockedProductsByTx.get(tx);
+  if (locked?.has(productId)) return;
   await tx.$queryRaw`SELECT id FROM "Product" WHERE id = ${productId} AND "companyId" = ${companyId} FOR UPDATE`;
+  rememberLocked(tx, [productId]);
+}
+
+/**
+ * Productos ya bloqueados en cada transacción (la clave es el cliente `tx`,
+ * que es el mismo objeto durante todo el callback de `$transaction`). Un lock
+ * de fila dura hasta el fin de la transacción, así que repetir el `FOR UPDATE`
+ * no aporta nada y cuesta un viaje a la base por línea —con la base en otra
+ * región, ~11 ms cada uno, todos mientras se retienen los locks—.
+ */
+const lockedProductsByTx = new WeakMap<TxClient, Set<string>>();
+
+function rememberLocked(tx: TxClient, productIds: string[]): void {
+  const locked = lockedProductsByTx.get(tx) ?? new Set<string>();
+  for (const id of productIds) locked.add(id);
+  lockedProductsByTx.set(tx, locked);
+}
+
+/**
+ * Bloquea de una vez TODOS los productos que va a mover la transacción, en
+ * orden de id. Debe llamarse antes del primer movimiento de un documento con
+ * varias líneas.
+ *
+ * Sin esto cada línea tomaba su lock en el orden en que venía en el documento:
+ * una compra [A, B] y otra [B, A] confirmando a la vez se bloqueaban
+ * mutuamente y Postgres abortaba una con "deadlock detected" (la prueba de
+ * estrés `scripts/stress/concurrency.ts`, escenario `purchase-lock-order`, lo
+ * reproducía en 196 de 200 compras; lo mismo pasaba entre una factura y una
+ * boleta, que no comparten correlativo de folio). Con un orden global único
+ * —el mismo `ORDER BY id` que ya usaba la toma de inventario— dos
+ * transacciones solo pueden esperar una a la otra, nunca en círculo.
+ */
+export async function lockProductRows(tx: TxClient, companyId: string, productIds: Iterable<string | null | undefined>): Promise<void> {
+  const locked = lockedProductsByTx.get(tx);
+  const ids = [...new Set([...productIds].filter((id): id is string => Boolean(id) && !locked?.has(id as string)))].sort();
+  if (ids.length === 0) return;
+  await tx.$queryRaw`SELECT id FROM "Product" WHERE "companyId" = ${companyId} AND id = ANY(${ids}) ORDER BY id FOR UPDATE`;
+  rememberLocked(tx, ids);
 }
 
 export async function applyStockIn(tx: TxClient, companyId: string, params: StockInParams): Promise<InventoryMovement> {

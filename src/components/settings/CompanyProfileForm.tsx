@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { CurrencyInput } from '@/components/ui/CurrencyInput';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { FieldHint, FieldLabel } from '@/components/ui/FieldLabel';
+import { InfoTooltip } from '@/components/ui/InfoTooltip';
 import { RutInput } from '@/components/ui/RutInput';
 import { updateCompanyProfileAction, updateCompanySettingsAction } from '@/lib/actions/company';
 import { extractBrandPalette } from '@/lib/branding/extract-color';
@@ -137,15 +139,15 @@ export default function CompanyProfileForm({ company, settings }: CompanyProfile
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <Label htmlFor="businessName">Razón Social</Label>
+          <FieldLabel htmlFor="businessName" term="razonSocial">Razón social</FieldLabel>
           <Input id="businessName" value={businessName} onChange={(e) => setBusinessName(e.target.value)} required />
         </div>
         <div>
-          <Label htmlFor="rut">RUT Emisor</Label>
+          <FieldLabel htmlFor="rut" term="rut" hint="Es el RUT con que emites tus documentos.">RUT emisor</FieldLabel>
           <RutInput id="rut" value={rut} onChange={setRut} required />
         </div>
         <div className="sm:col-span-2">
-          <Label htmlFor="giro">Giro Comercial</Label>
+          <FieldLabel htmlFor="giro" term="giro">Giro comercial</FieldLabel>
           <Input id="giro" value={giro} onChange={(e) => setGiro(e.target.value)} placeholder="Ej: Venta al por menor de..." />
         </div>
         <div className="sm:col-span-2">
@@ -165,7 +167,7 @@ export default function CompanyProfileForm({ company, settings }: CompanyProfile
           <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
         </div>
         <div>
-          <Label htmlFor="actividadEconomicaCodigo">Código Actividad Económica</Label>
+          <FieldLabel htmlFor="actividadEconomicaCodigo" term="codigoActividad">Código de actividad económica</FieldLabel>
           <Input id="actividadEconomicaCodigo" value={actividadEconomicaCodigo} onChange={(e) => setActividadEconomicaCodigo(e.target.value)} />
         </div>
       </div>
@@ -211,12 +213,20 @@ export default function CompanyProfileForm({ company, settings }: CompanyProfile
       <div className="border-t border-border pt-4">
         <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase mb-3">Configuración operativa y tributaria</p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div><Label htmlFor="industryType">Industria</Label><select id="industryType" className="h-10 w-full rounded-xl border border-input bg-muted px-3 text-sm text-foreground" value={industryType} onChange={(e) => setIndustryType(e.target.value as typeof industryType)}><option value="SERVICES">Servicios</option><option value="COMMERCE">Comercio</option><option value="DISTRIBUTION">Distribución</option><option value="RETAIL">Retail</option><option value="LIGHT_MANUFACTURING">Manufactura ligera</option></select></div>
-          <div><Label htmlFor="ppmRate">Tasa PPM (%)</Label><Input id="ppmRate" type="number" min="0" max="100" step="0.01" value={ppmRate} onChange={(e) => setPpmRate(e.target.value)} /></div>
-          <div><Label htmlFor="retentionRate">Retención honorarios (%)</Label><Input id="retentionRate" type="number" min="0" max="100" step="0.01" value={retentionRate} onChange={(e) => setRetentionRate(e.target.value)} /></div>
+          <div><FieldLabel htmlFor="industryType" term="industria">Industria</FieldLabel><select id="industryType" className="h-10 w-full rounded-xl border border-input bg-muted px-3 text-sm text-foreground" value={industryType} onChange={(e) => setIndustryType(e.target.value as typeof industryType)}><option value="SERVICES">Servicios</option><option value="COMMERCE">Comercio</option><option value="DISTRIBUTION">Distribución</option><option value="RETAIL">Retail</option><option value="LIGHT_MANUFACTURING">Manufactura ligera</option></select><FieldHint>Define el plan de cuentas inicial: con «Servicios» las cuentas de Existencias y Costo de ventas quedan desactivadas. No cambia un plan ya creado.</FieldHint></div>
+          <div><FieldLabel htmlFor="ppmRate" term="ppm" hint="Tu contador te informa la tasa que te corresponde.">Tasa PPM (%)</FieldLabel><Input id="ppmRate" type="number" min="0" max="100" step="0.01" value={ppmRate} onChange={(e) => setPpmRate(e.target.value)} /></div>
+          <div><FieldLabel htmlFor="retentionRate" term="retencionHonorarios">Retención de honorarios (%)</FieldLabel><Input id="retentionRate" type="number" min="0" max="100" step="0.01" value={retentionRate} onChange={(e) => setRetentionRate(e.target.value)} /></div>
           <div><Label htmlFor="fiscalYear">Año fiscal</Label><Input id="fiscalYear" type="number" min="2020" max="2100" value={fiscalYear} onChange={(e) => setFiscalYear(e.target.value)} /></div>
         </div>
-        <label className="mt-4 flex items-center gap-2 text-sm text-foreground"><input type="checkbox" checked={allowNegativeStock} onChange={(e) => setAllowNegativeStock(e.target.checked)} /> Permitir ventas con stock negativo</label>
+        <div className="mt-4 flex items-center gap-1.5">
+          <label className="flex items-center gap-2 text-sm text-foreground"><input type="checkbox" checked={allowNegativeStock} onChange={(e) => setAllowNegativeStock(e.target.checked)} /> Permitir ventas con stock negativo</label>
+          <InfoTooltip term="stockNegativo" />
+        </div>
+        <FieldHint>
+          {allowNegativeStock
+            ? 'Activado: se puede vender sin stock registrado y el saldo queda en negativo hasta que ingreses la compra o el stock.'
+            : 'Desactivado: el sistema bloquea la venta si no hay stock suficiente (lo más seguro para el inventario).'}
+        </FieldHint>
 
         <div className="mt-4 border-t border-border pt-4">
           <Label htmlFor="approvalThreshold">Umbral de aprobación de compras</Label>

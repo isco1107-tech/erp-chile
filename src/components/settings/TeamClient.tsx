@@ -178,7 +178,19 @@ export default function TeamClient() {
     load();
   }
 
-  async function handleToggleStatus(userId: string) {
+  async function handleToggleStatus(user: { id: string; name: string; email: string; isActive: boolean }) {
+    const userId = user.id;
+    if (
+      user.isActive &&
+      !(await confirm({
+        title: `¿Suspender a ${user.name || user.email}?`,
+        description:
+          'Pierde el acceso de inmediato: no podrá iniciar sesión ni usar el sistema. Su cuenta, sus datos y lo que registró se conservan, y libera una licencia de tu plan. Puedes reactivarlo cuando quieras con «Reactivar».',
+        confirmLabel: 'Suspender',
+      }))
+    ) {
+      return;
+    }
     const result = await toggleUserStatusAction(userId);
     if (!result.success) {
       toast.error(result.error);
@@ -189,7 +201,11 @@ export default function TeamClient() {
   }
 
   async function handleDeleteUser(userId: string, email: string) {
-    if (!await confirm(`¿Eliminar la cuenta de ${email}? Esto la borra por completo y libera el correo para invitarlo o crearlo de nuevo. No se puede deshacer.`)) return;
+    if (!await confirm({
+      title: `¿Eliminar la cuenta de ${email}?`,
+      description: 'Se borra por completo y libera el correo para invitarlo o crearlo de nuevo. No se puede deshacer. Los turnos de caja, asientos y demás registros que hizo se conservan con sus montos intactos, pero sin su nombre. Si solo quieres quitarle el acceso por un tiempo, usa «Suspender».',
+      confirmLabel: 'Eliminar',
+    })) return;
     const result = await deleteUserAction(userId);
     if (!result.success) {
       toast.error(result.error);
@@ -230,7 +246,11 @@ export default function TeamClient() {
   }
 
   async function handleRevoke(id: string) {
-    if (!await confirm('¿Revocar esta invitación?')) return;
+    if (!await confirm({
+      title: '¿Revocar esta invitación?',
+      description: 'El enlace enviado deja de funcionar y se libera la licencia que ocupaba. Si cambias de idea, tendrás que invitar de nuevo a la persona.',
+      confirmLabel: 'Revocar',
+    })) return;
     const result = await revokeInvitationAction(id);
     if (!result.success) {
       toast.error(result.error);
@@ -338,7 +358,7 @@ export default function TeamClient() {
                 <tr><td className="p-4 text-center text-muted-foreground" colSpan={8}>Cargando...</td></tr>
               )}
               {!loading && users.length === 0 && (
-                <tr><td className="p-4 text-center text-muted-foreground" colSpan={8}>Sin usuarios</td></tr>
+                <tr><td className="p-4 text-center text-muted-foreground" colSpan={8}>Aún no hay usuarios. Usa «+ Agregar Colaborador» para invitar a tu equipo por correo o crear su cuenta.</td></tr>
               )}
               {!loading && users.map((user) => (
                 <tr key={user.id} className="border-t border-border">
@@ -394,7 +414,7 @@ export default function TeamClient() {
                   </td>
                   <td className="p-2">
                     <div className="flex flex-wrap gap-2">
-                      <Button type="button" size="sm" variant={user.isActive ? 'destructive' : 'outline'} onClick={() => handleToggleStatus(user.id)}>
+                      <Button type="button" size="sm" variant={user.isActive ? 'destructive' : 'outline'} onClick={() => handleToggleStatus(user)}>
                         {user.isActive ? 'Suspender' : 'Reactivar'}
                       </Button>
                       <Button type="button" size="sm" variant="outline" onClick={() => handleResetPassword(user.id)}>
@@ -430,7 +450,7 @@ export default function TeamClient() {
                 <tr><td className="p-4 text-center text-muted-foreground" colSpan={4}>Cargando...</td></tr>
               )}
               {!loading && invitations.length === 0 && (
-                <tr><td className="p-4 text-center text-muted-foreground" colSpan={4}>Sin invitaciones pendientes</td></tr>
+                <tr><td className="p-4 text-center text-muted-foreground" colSpan={4}>Sin invitaciones pendientes. Las invitaciones que envíes con «+ Agregar Colaborador» aparecen aquí hasta que la persona las acepte.</td></tr>
               )}
               {!loading && invitations.map((inv) => {
                 const expired = new Date(inv.expiresAt) < new Date();

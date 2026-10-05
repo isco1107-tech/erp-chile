@@ -110,7 +110,11 @@ export default function ContactsClient() {
   }
 
   async function handleDelete(contact: ContactListItem) {
-    if (!await confirm(`¿Eliminar el contacto "${contact.razonSocial}"?`)) return;
+    if (!await confirm({
+      title: `¿Eliminar el contacto "${contact.razonSocial}"?`,
+      description: 'Se borra su ficha junto con sus encuestas, seguimientos y ficha de productor, y no se puede deshacer. Si ya tiene ventas, compras, pagos, pagarés o planes de pago, el sistema no lo permitirá: esos documentos necesitan al contacto.',
+      confirmLabel: 'Eliminar',
+    })) return;
     const result = await deleteContactAction(contact.id);
     if (!result.success) {
       toast.error(result.error);
@@ -194,7 +198,7 @@ export default function ContactsClient() {
                       description={
                         query
                           ? 'Prueba con otro RUT o razón social.'
-                          : 'Registra tu primer cliente o proveedor para empezar a facturar.'
+                          : 'Un cliente o proveedor (con su RUT) es lo que necesitas para emitir facturas, registrar compras y cobrar o pagar. Registra el primero.'
                       }
                       actionLabel={query ? undefined : 'Nuevo contacto'}
                       onAction={query ? undefined : () => setShowForm(true)}

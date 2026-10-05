@@ -7,8 +7,9 @@ import { prisma } from '@/lib/prisma';
  */
 
 jest.mock('@/modules/inventory/services/stock.service', () => ({
-  applyStockIn: jest.fn(),
-  applyStockOut: jest.fn(),
+  lockProductRows: jest.fn().mockResolvedValue(undefined),
+  applyStockIn: jest.fn().mockResolvedValue({ id: 'mov-in', unitCost: 0 }),
+  applyStockOut: jest.fn().mockResolvedValue({ id: 'mov-out', unitCost: 0 }),
 }));
 jest.mock('@/modules/dte/services/stamping.service', () => ({
   assignSalesFolio: jest.fn().mockResolvedValue({ folio: 900, stamping: null }),
@@ -44,6 +45,7 @@ function fakeTx(overrides: Record<string, Record<string, jest.Mock>> = {}) {
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     company: { findUnique: jest.fn().mockResolvedValue(null) },
+    inventoryMovement: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
     payment: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn() },
     ...overrides,
   };

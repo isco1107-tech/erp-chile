@@ -28,6 +28,7 @@ import {
 } from '@/modules/purchases/schema';
 import { formatCurrency } from '@/lib/chile/tax';
 import { InfoTooltip } from '@/components/ui/InfoTooltip';
+import { FieldLabel } from '@/components/ui/FieldLabel';
 import { TAX_GLOSSARY } from '@/lib/chile/glossary';
 
 import { useConfirm } from '@/components/ui/confirm-provider';
@@ -311,7 +312,7 @@ export default function PurchaseDocumentForm({ editingDocument }: Props) {
       )}
       <div className="grid grid-cols-1 gap-4 rounded-xl border border-border p-4 sm:grid-cols-2 lg:grid-cols-3">
         <div>
-          <Label htmlFor="documentType">Tipo de Documento</Label>
+          <FieldLabel htmlFor="documentType" term="dte">Tipo de documento</FieldLabel>
           <select
             id="documentType"
             value={documentType}
@@ -325,16 +326,13 @@ export default function PurchaseDocumentForm({ editingDocument }: Props) {
         </div>
 
         <div>
-          <Label htmlFor="folio" className="inline-flex items-center gap-1.5">
-            Folio del Proveedor
-            <InfoTooltip text={TAX_GLOSSARY.folio} />
-          </Label>
+          <FieldLabel htmlFor="folio" term="folio">Folio del proveedor</FieldLabel>
           <Input id="folio" value={folio} onChange={(e) => setFolio(e.target.value)} placeholder="N° de factura/boleta" />
         </div>
 
         {documentType === 'NOTA_CREDITO' && (
           <div>
-            <Label htmlFor="referenceFolio">Folio que corrige</Label>
+            <FieldLabel htmlFor="referenceFolio" term="notaCreditoDebito" hint="Aquí va el folio del documento que esta nota corrige.">Folio que corrige</FieldLabel>
             <Input
               id="referenceFolio"
               value={referenceFolio}
@@ -354,9 +352,9 @@ export default function PurchaseDocumentForm({ editingDocument }: Props) {
 
         {stockDirection !== 'NONE' && (
           <div>
-            <Label htmlFor="warehouse">
+            <FieldLabel htmlFor="warehouse" term="bodega">
               {stockDirection === 'IN' ? 'Bodega de recepción' : 'Bodega de salida'}
-            </Label>
+            </FieldLabel>
             <select id="warehouse" value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} className={selectClass}>
               <option value="">Sin movimiento de mercadería</option>
               {warehouses.map((w) => (
@@ -484,7 +482,12 @@ export default function PurchaseDocumentForm({ editingDocument }: Props) {
                 <th className="p-2 font-medium">Producto</th>
                 <th className="p-2 font-medium">Descripción</th>
                 <th className="p-2 font-medium">Cantidad</th>
-                <th className="p-2 font-medium">Costo Unit.</th>
+                <th className="p-2 font-medium">
+                  <span className="inline-flex items-center gap-1.5">
+                    Costo unit. (neto)
+                    <InfoTooltip text={`${TAX_GLOSSARY.neto} Al recibir stock, el costo se promedia con el que ya tenías (PMP).`} />
+                  </span>
+                </th>
                 <th className="p-2 font-medium">
                   <span className="inline-flex items-center gap-1.5">
                     Exento
@@ -492,7 +495,12 @@ export default function PurchaseDocumentForm({ editingDocument }: Props) {
                   </span>
                 </th>
                 <th className="p-2 font-medium">Subtotal</th>
-                <th className="p-2 font-medium">IVA</th>
+                <th className="p-2 font-medium">
+                  <span className="inline-flex items-center gap-1.5">
+                    IVA
+                    <InfoTooltip term="iva" />
+                  </span>
+                </th>
                 <th className="p-2 font-medium">Total</th>
                 <th className="p-2 font-medium"></th>
               </tr>

@@ -22,6 +22,8 @@ export interface CommandMenuProps {
   isSuperAdmin: boolean;
   /** Ítems que la empresa apagó: tampoco deben aparecer en la paleta. */
   disabledNavItems?: readonly string[];
+  /** "Para qué sirve" de cada módulo, por id de menú: se muestra como segunda línea de cada fila. */
+  purposes?: Record<string, string>;
 }
 
 interface StaticEntry {
@@ -31,6 +33,8 @@ interface StaticEntry {
   icon: LucideIcon;
   /** Grupo del sidebar al que pertenece; se muestra como pista a la derecha. */
   group?: string;
+  /** Una línea en lenguaje simple de para qué sirve la pantalla. */
+  purpose?: string;
   keywords?: string[];
 }
 
@@ -112,7 +116,7 @@ function matches(entry: StaticEntry, normalizedQuery: string): boolean {
 const MAX_LIVE_RESULTS = 5;
 const OPTION_ID_PREFIX = 'command-option-';
 
-export default function CommandMenu({ permissions, features, isSuperAdmin, disabledNavItems }: CommandMenuProps) {
+export default function CommandMenu({ permissions, features, isSuperAdmin, disabledNavItems, purposes }: CommandMenuProps) {
   const router = useRouter();
 
   const [open, setOpen] = React.useState(false);
@@ -136,10 +140,11 @@ export default function CommandMenu({ permissions, features, isSuperAdmin, disab
           href: link.href,
           icon: NAV_ICONS[link.icon],
           group: group.label,
+          purpose: purposes?.[link.id],
           keywords: link.keywords,
         }))
       ),
-    [permissions, features, isSuperAdmin, disabledNavItems]
+    [permissions, features, isSuperAdmin, disabledNavItems, purposes]
   );
   const visibleActions = React.useMemo(
     () =>
@@ -287,8 +292,8 @@ export default function CommandMenu({ permissions, features, isSuperAdmin, disab
     { heading: 'Productos', rows: indexed.filter(({ item }) => item.kind === 'product') },
   ];
 
-  function rowProps(item: FlatItem): { icon: LucideIcon; label: string; hint?: string } {
-    if (item.kind === 'static') return { icon: item.entry.icon, label: item.entry.label, hint: item.entry.group };
+  function rowProps(item: FlatItem): { icon: LucideIcon; label: string; hint?: string; purpose?: string } {
+    if (item.kind === 'static') return { icon: item.entry.icon, label: item.entry.label, hint: item.entry.group, purpose: item.entry.purpose };
     if (item.kind === 'contact') return { icon: Users, label: item.contact.razonSocial, hint: item.contact.rut };
     return { icon: Package, label: item.product.name, hint: `${item.product.sku} · ${formatCurrency(item.product.netPrice)}` };
   }
@@ -350,7 +355,7 @@ export default function CommandMenu({ permissions, features, isSuperAdmin, disab
                     <div key={section.heading} role="group" aria-label={section.heading} className="mb-1">
                       <p className="px-3 pt-2 pb-1 text-xs font-medium text-muted-foreground">{section.heading}</p>
                       {section.rows.map(({ item, index }) => {
-                        const { icon: Icon, label, hint } = rowProps(item);
+                        const { icon: Icon, label, hint, purpose } = rowProps(item);
                         const active = index === activeIndex;
                         return (
                           <button
@@ -370,7 +375,14 @@ export default function CommandMenu({ permissions, features, isSuperAdmin, disab
                             )}
                           >
                             <Icon className={cn('size-4 shrink-0', active ? 'text-accent-foreground' : 'text-muted-foreground')} aria-hidden="true" />
-                            <span className="flex-1 truncate">{label}</span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate">{label}</span>
+                              {purpose && (
+                                <span className={cn('block truncate text-xs', active ? 'text-accent-foreground/80' : 'text-muted-foreground')}>
+                                  {purpose}
+                                </span>
+                              )}
+                            </span>
                             {hint && <span className="shrink-0 truncate text-xs text-muted-foreground">{hint}</span>}
                           </button>
                         );
