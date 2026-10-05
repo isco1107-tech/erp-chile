@@ -48,6 +48,7 @@ export type FeatureKey = keyof Pick<
   | 'hasCustomerCare'
   | 'hasQuality'
   | 'hasTeamTasks'
+  | 'hasAcademy'
 >;
 
 export type CompanyFeatureFlags = Record<FeatureKey, boolean>;
@@ -333,6 +334,14 @@ export const MODULES: ModuleDefinition[] = [
     permissions: ['tasks:read', 'tasks:write', 'tasks:manage'],
     routes: ['/dashboard/tasks'],
   },
+  {
+    key: 'hasAcademy',
+    label: 'Academia',
+    description:
+      'Ficha de cada alumna, lista de asistencia por clase y control de la mensualidad pagada, para academias de modelaje y similares.',
+    permissions: ['academy:read', 'academy:write', 'academy:manage'],
+    routes: ['/dashboard/academy'],
+  },
 ];
 
 export const MODULE_KEYS: FeatureKey[] = MODULES.map((m) => m.key);
@@ -377,6 +386,7 @@ export const DEFAULT_FEATURES: CompanyFeatureFlags = {
   hasCustomerCare: false,
   hasQuality: false,
   hasTeamTasks: false,
+  hasAcademy: false,
 };
 
 /** Índice inverso permiso → módulo, construido una vez al cargar el módulo. */
@@ -434,6 +444,7 @@ export function toFeatureFlags(features: CompanyFeatures | null): CompanyFeature
     hasCustomerCare: features.hasCustomerCare,
     hasQuality: features.hasQuality,
     hasTeamTasks: features.hasTeamTasks,
+    hasAcademy: features.hasAcademy,
   };
 }
 

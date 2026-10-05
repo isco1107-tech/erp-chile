@@ -74,6 +74,7 @@ export const SCREEN_PURPOSES: Record<string, string> = {
   'manufacturing-boms': 'Recetas (lista de materiales): qué insumos y cuánto lleva cada producto que fabricas.',
   'service-desk': 'Servicio técnico: recepción de equipos, diagnóstico, presupuesto aprobado por el cliente, reparación, entrega y cobro.',
   quality: 'Procedimientos con acuse de lectura, inspecciones de calidad por plantilla y ficha de productores.',
+  academy: 'Ficha de cada alumna de la academia, lista de asistencia por clase y control de la mensualidad pagada.',
   tasks: 'Tareas del equipo con responsable y repetición, y reglas de delegación de decisiones.',
   'web-sites': 'Crear y publicar sitios web (guiado o HTML propio), dominio propio y mensajes del formulario de contacto.',
   'treasury-cxc': 'Cuentas por cobrar: qué te deben los clientes, lo vencido, registrar cobros y enviar recordatorios.',

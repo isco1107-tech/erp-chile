@@ -194,4 +194,58 @@ export const OPERACIONES_SECTIONS: ManualSection[] = [
       },
     ],
   },
+  {
+    id: 'academia',
+    key: 'hasAcademy',
+    permission: 'academy:read',
+    chapter: 'Operaciones',
+    title: 'Academia',
+    summary:
+      'Para una academia de modelaje o similar: la ficha de cada alumna, la lista de asistencia por clase y el control de qué mensualidades están pagadas.',
+    route: '/dashboard/academy',
+    // Sin captura todavía: se genera con scripts/capture-manual-screenshots.ts contra una base local.
+    screenshot: null,
+    topics: [
+      {
+        id: 'academia-grupos',
+        title: 'Crear los grupos de clases',
+        steps: [
+          'Ve a la pestaña Grupos y haz clic en "Nuevo grupo".',
+          'Escribe el nombre (por ejemplo "Modelaje juvenil"), el horario y, si quieres, la mensualidad en pesos. Con ella, marcar un mes como pagado no pide el monto.',
+          'Haz clic en "Guardar grupo". Solo el dueño y los administradores pueden crear o desactivar grupos.',
+        ],
+      },
+      {
+        id: 'academia-fichas',
+        title: 'Crear y consultar la ficha de una alumna',
+        steps: [
+          'En la pestaña Alumnas haz clic en "Nueva alumna".',
+          'Completa nombre, RUT, contacto, grupo y el "Primer mes de cobro". Si es menor de edad, agrega a su apoderado, y marca la autorización de imagen cuando la entregue.',
+          'Haz clic en "Guardar ficha". Para verla de nuevo, haz clic en su nombre: muestra sus datos, los meses que debe y su asistencia.',
+          'Con "Editar ficha" cambias sus datos y con "Dar de baja" (solo dueño y administradores) deja de aparecer en las listas, sin perder su historial.',
+        ],
+        tip: 'En la lista, "Debe N meses" y "N ausencias seguidas" te avisan a quién hay que contactar.',
+      },
+      {
+        id: 'academia-asistencia',
+        title: 'Pasar lista',
+        steps: [
+          'Ve a la pestaña Pasar lista, elige el grupo y la fecha de la clase.',
+          'Marca a cada alumna como Presente, Atrasada, Ausente o Justificada. "Todas presentes" marca a todas de una vez, y vuelves a tocar un botón para quitarlo.',
+          'Haz clic en "Guardar lista". Si vuelves a abrir la misma fecha, la lista está como la dejaste.',
+          'Una ausencia justificada no baja el porcentaje de asistencia de la alumna.',
+        ],
+      },
+      {
+        id: 'academia-mensualidades',
+        title: 'Marcar la mensualidad pagada',
+        steps: [
+          'Ve a la pestaña Mensualidades y elige el mes (y, si quieres, el grupo).',
+          'Cada alumna aparece como Pendiente o Pagada. Haz clic en "Marcar pagada"; si su grupo no tiene mensualidad, escribe antes el monto.',
+          '"Desmarcar" deshace un pago marcado por error.',
+          'Esto es solo un control interno: no emite boletas ni registra el pago en Tesorería.',
+        ],
+      },
+    ],
+  },
 ];

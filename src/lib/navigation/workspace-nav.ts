@@ -89,6 +89,7 @@ export type NavIconKey =
   | 'manufacturing'
   | 'boms'
   | 'serviceDesk'
+  | 'academy'
   | 'webSites'
   | 'invoiceArchive'
   | 'customerCare'
@@ -255,6 +256,9 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
   }
   if (features.hasTeamTasks && allow('tasks:read')) {
     operaciones.push({ id: 'tasks', href: '/dashboard/tasks', label: 'Tareas y delegación', icon: 'tasks', keywords: ['tarea', 'pendientes', 'rutina', 'recordatorio', 'responsable', 'delegar', 'delegacion', 'decisiones', 'checklist', 'semanal'] });
+  }
+  if (features.hasAcademy && allow('academy:read')) {
+    operaciones.push({ id: 'academy', href: '/dashboard/academy', label: 'Academia', icon: 'academy', keywords: ['alumnas', 'alumnos', 'modelaje', 'asistencia', 'pasar lista', 'mensualidad', 'ficha', 'curso', 'clases'] });
   }
   push('Operaciones', operaciones);
 

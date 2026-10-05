@@ -56,6 +56,7 @@ const FULL: CompanyFeatureFlags = {
   hasCustomerCare: true,
   hasQuality: true,
   hasTeamTasks: true,
+  hasAcademy: true,
 };
 
 const STARTER: CompanyFeatureFlags = { ...DEFAULT_FEATURES };

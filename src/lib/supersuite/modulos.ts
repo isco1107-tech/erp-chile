@@ -42,6 +42,7 @@ export const FLAG_A_MODULO: Partial<Record<FeatureKey, string>> = {
   hasCustomerCare: 'fidelizacion',
   hasQuality: 'calidad',
   hasTeamTasks: 'tareas',
+  hasAcademy: 'academia',
 };
 
 /**
@@ -76,6 +77,7 @@ const ENTIDAD_A_MODULO: Record<string, string> = {
   CustomerSurvey: 'fidelizacion', CustomerFollowUp: 'fidelizacion', CustomerCareSettings: 'fidelizacion',
   Procedure: 'calidad', QualityInspection: 'calidad', QualityTemplate: 'calidad', SupplierProfile: 'calidad',
   TeamTask: 'tareas', DelegationRule: 'tareas',
+  AcademyStudent: 'academia', AcademyGroup: 'academia', AcademyAttendance: 'academia', AcademyMonthlyPayment: 'academia',
 };
 
 /** Entidades cuyo cambio modifica la ficha de la empresa en la Supersuite (nombre, plan, módulos, estado). */
