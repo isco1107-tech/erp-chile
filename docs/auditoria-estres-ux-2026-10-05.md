@@ -135,7 +135,7 @@ Se partió de la auditoría de ayuda del 2026-10-02 (manual, tutoriales y asiste
 
 | Prioridad | Recomendación | Por qué |
 |---|---|---|
-| **Alta** | **Mover las funciones de Vercel a `cle1` (Cleveland)**, la misma región que Neon (us-east-2). Es una línea en `vercel.json`: `"regions": ["cle1"]` | Medido: con ~1 ms por consulta en vez de ~11 ms, todo rinde unas **4 veces más** (producto muy vendido: de 2,5 a 11,4 ventas/s; p95 bajo 4 s). Es el cambio de mayor impacto y no toca código |
+| **Aplicada** | **Funciones de Vercel en `cle1` (Cleveland)**, la misma región que Neon (us-east-2): `"regions": ["cle1"]` en `vercel.json` | Medido: con ~1 ms por consulta en vez de ~11 ms, todo rinde unas **4 veces más** (producto muy vendido: de 2,5 a 11,4 ventas/s; p95 bajo 4 s). Es el cambio de mayor impacto y no toca código |
 | Alta | Limitador de peticiones compartido (Upstash Redis o reglas del WAF de Vercel) para `/api/public/*` y `/api/auth/*` | El limitador actual vive en memoria de cada instancia (`rate-limiter.ts`): no frena a un atacante repartido entre instancias |
 | Alta | Entradas: que las órdenes impagas venzan y liberen su cupo, y Turnstile en la compra | Hoy una orden impaga ocupa cupo para siempre: un bot puede agotar un evento |
 | Media | `bcrypt` fuera de la transacción del login | Cada login retiene 1 de las 5 conexiones de la instancia mientras calcula el hash (~300 ms) |
