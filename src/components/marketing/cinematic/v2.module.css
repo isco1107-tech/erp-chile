@@ -166,15 +166,15 @@
   transition: translate .45s var(--ease), background .2s, transform .2s var(--ease);
 }
 
-/* Franja de palabras gigantes que corre de lado mientras pasa por la pantalla. */
+/* Franja de palabras que corre de lado mientras pasa por la pantalla (una fila). */
 .marquee {
   position: relative;
   overflow: hidden;
   contain: layout paint;
-  padding-block: clamp(36px, 6vw, 88px);
+  padding-block: clamp(18px, 2.6vw, 36px);
   border-block: 1px solid var(--line);
   font-family: var(--display);
-  font-size: clamp(54px, 10vw, 168px);
+  font-size: clamp(38px, 5.6vw, 92px);
   line-height: .95;
   text-transform: uppercase;
   white-space: nowrap;
@@ -187,10 +187,8 @@
   gap: .32em;
   width: max-content;
   will-change: transform;
-  transform: translate3d(calc(-18% + (var(--view, .5) - .5) * -56vw), 0, 0);
+  transform: translate3d(calc(-22% + (var(--view, .5) - .5) * -48vw), 0, 0);
 }
-
-.marqueeRow + .marqueeRow { transform: translate3d(calc(-34% + (var(--view, .5) - .5) * 56vw), 0, 0); }
 
 .marqueeRow > span { flex: none; }
 .marqueeRow > i { flex: none; width: .14em; height: .14em; border-radius: 50%; background: var(--gold); }
@@ -371,7 +369,9 @@
 .menu .menuCorporate { gap: 10px; color: var(--gold); font-weight: 600; }
 
 /* ── Tipografía y piezas comunes ────────────────────────────────────────── */
-.section { padding: clamp(88px, 11vw, 168px) var(--inline); }
+/* Ritmo vertical contenido: la página se recorre en pocas pantallas. */
+.section { padding: clamp(56px, 6.6vw, 104px) var(--inline); }
+.section + .section { border-top: 1px solid var(--line); }
 
 /*
  * Rendimiento: lo que está fuera de pantalla no se estila ni se maqueta hasta
@@ -383,17 +383,17 @@
 .closing,
 .footer {
   content-visibility: auto;
-  contain-intrinsic-size: auto 1200px;
+  contain-intrinsic-size: auto 900px;
 }
-.footer { contain-intrinsic-size: auto 420px; }
+.footer { contain-intrinsic-size: auto 760px; }
 .root[data-full-render] :is(.section, .contact, .closing, .footer) { content-visibility: visible; }
 
 .sectionHead {
   display: grid;
   grid-template-columns: minmax(0, 1.3fr) minmax(0, .7fr);
   align-items: end;
-  gap: clamp(24px, 5vw, 96px);
-  margin-bottom: clamp(40px, 6vw, 88px);
+  gap: clamp(20px, 5vw, 96px);
+  margin-bottom: clamp(32px, 4.4vw, 64px);
 }
 
 .kicker {
@@ -410,7 +410,7 @@
 .display {
   display: block;
   font-family: var(--display);
-  font-size: clamp(52px, 8vw, 132px);
+  font-size: clamp(48px, 6.8vw, 116px);
   font-weight: 400;
   line-height: .88;
   letter-spacing: .004em;
@@ -418,7 +418,8 @@
   text-wrap: balance;
 }
 
-.headingMid .display { font-size: clamp(42px, 5.4vw, 92px); }
+.headingMid .display { font-size: clamp(40px, 4.6vw, 80px); }
+.headingSmall .display { font-size: clamp(34px, 3.4vw, 58px); }
 .gold { color: var(--gold); }
 
 .subhead {
@@ -442,11 +443,14 @@
 
 .note {
   max-width: 72ch;
-  margin: clamp(32px, 4vw, 48px) 0 0;
+  margin: clamp(24px, 3vw, 36px) 0 0;
   font-size: 14px;
   line-height: 1.7;
   color: var(--faint);
 }
+
+.inlineLink { color: var(--gold); text-decoration: underline; text-underline-offset: 4px; }
+.inlineLink:hover { color: #ead8a5; }
 
 .textLink {
   display: inline-flex;
@@ -483,28 +487,7 @@
 
 .button:hover { background: #ead8a5; transform: translateY(-1px); }
 
-/* ── Resultados (después de la pista) ───────────────────────────────────── */
-.outcomes { padding-top: clamp(72px, 9vw, 136px); }
-
-.outcomeGrid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  border-top: 1px solid var(--line);
-}
-
-.outcome {
-  display: flex;
-  flex-direction: column;
-  padding: 36px clamp(20px, 3vw, 44px) 0 0;
-}
-
-.outcome + .outcome { padding-left: clamp(20px, 3vw, 44px); border-left: 1px solid var(--line); }
-.outcome > svg { color: var(--gold); }
-.outcome h3 { margin: 12px 0 14px; font-size: clamp(24px, 2.2vw, 31px); font-weight: 500; line-height: 1.2; }
-.outcome > p:not(.cardLabel) { margin: 0 0 18px; max-width: 40ch; color: var(--muted); line-height: 1.7; }
-.outcome .textLink { margin-top: auto; }
-
-/* ── Escena 3: «Todo cuadra.» ───────────────────────────────────────────── */
+/* ── Plataforma: «Todo cuadra.» ─────────────────────────────────────────── */
 .product {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -705,176 +688,178 @@
   color: var(--ink);
 }
 
-/* ── Escena 4: «Un dato entra una vez.» (fija) ─────────────────────────── */
-/* Pista corta: cinco pasos en poco más de dos pantallas de scroll. */
-.flow { position: relative; height: 320vh; }
+/* ── Cómo funciona: línea de tiempo de cinco pasos ─────────────────────── */
+.flowTrack { position: relative; }
 
-.flowStage {
-  position: sticky;
-  top: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-  align-items: center;
-  gap: clamp(32px, 6vw, 120px);
-  height: 100vh;
-  height: 100svh;
-  padding: calc(var(--header-h) + 16px) var(--inline) 32px;
-}
-
-.flowSide .heading .display { font-size: min(clamp(46px, 5.6vw, 96px), 11svh); }
-.flowSide .subhead { margin-top: 14px; }
-.flowSide .body { margin-top: clamp(14px, 2.4svh, 24px); }
-
-.flowNav { position: relative; margin-top: clamp(18px, 4svh, 44px); padding-left: 24px; }
-
+/* Riel que une los pasos: se dibuja de izquierda a derecha al entrar. */
 .flowRail {
   position: absolute;
-  top: 8px;
-  bottom: 8px;
+  top: 21px;
+  right: 0;
   left: 0;
-  width: 1px;
-  background: var(--line);
+  height: 1px;
+  background: var(--line-strong);
 }
 
 .flowRail > span {
   display: block;
   width: 100%;
   height: 100%;
-  background: var(--gold);
-  transform: scaleY(var(--flow, 0));
-  transform-origin: 50% 0;
+  background: linear-gradient(90deg, var(--gold), rgb(219 192 118 / .35));
+  transform: scaleX(var(--in, 1));
+  transform-origin: 0 50%;
 }
 
-.flowNav ol { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
-
-.flowNav a {
-  display: flex;
-  align-items: baseline;
-  gap: 16px;
-  min-height: 40px;
-  padding: 8px 0;
-  font-size: 17px;
-  font-weight: 500;
-  color: var(--faint);
-  transition: color .4s var(--ease);
-}
-
-.flowNav a[data-done] { color: var(--muted); }
-.flowNav a[data-active] { color: var(--text); }
-.flowNav a:hover { color: var(--text); }
-.flowNumber { font-family: var(--display); font-size: 18px; font-weight: 400; }
-.flowNav a[data-active] .flowNumber { color: var(--gold); }
-
-.flowPanels { display: grid; min-width: 0; }
-
-.flowPanel {
+.flowSteps {
   position: relative;
-  grid-area: 1 / 1;
-  padding: clamp(28px, 4vw, 60px);
-  border: 1px solid var(--line);
-  background: linear-gradient(180deg, rgb(255 255 255 / .035), rgb(255 255 255 / 0) 70%);
-  opacity: 0;
-  visibility: hidden;
-  transform: translate3d(0, 18px, 0);
-  transition: opacity 600ms var(--ease), transform 600ms var(--ease), visibility 0s linear 600ms;
-}
-
-.flowPanel[data-active] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
-
-.flowGhost {
-  position: absolute;
-  top: clamp(4px, 1vw, 16px);
-  right: clamp(16px, 3vw, 40px);
-  font-family: var(--display);
-  font-size: clamp(110px, 15vw, 240px);
-  line-height: 1;
-  color: rgb(255 255 255 / .045);
-  pointer-events: none;
-}
-
-.flowPanel > svg { color: var(--gold); }
-
-.flowTag {
-  margin: 22px 0 12px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: .18em;
-  color: var(--gold);
-}
-
-.flowPanel h3 {
-  margin: 0;
-  font-family: var(--display);
-  font-size: min(clamp(52px, 6.6vw, 112px), 12svh);
-  font-weight: 400;
-  line-height: .9;
-  text-transform: uppercase;
-}
-
-.flowPanel > p:last-child { max-width: 44ch; margin: 20px 0 0; font-size: 17px; line-height: 1.7; color: var(--muted); }
-
-/* ── Escena 5: «Hecho para Chile.» y grillas con líneas ─────────────────── */
-.chileGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: clamp(16px, 2.2vw, 36px);
   margin: 0;
   padding: 0;
   list-style: none;
-  border-top: 1px solid var(--line);
-  border-left: 1px solid var(--line);
 }
 
-.chileGrid li {
-  padding: clamp(24px, 3vw, 44px);
-  border-right: 1px solid var(--line);
+.flowSteps li { min-width: 0; }
+
+.flowNode {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgb(219 192 118 / .55);
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--gold);
+}
+
+.flowTag {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 22px 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .16em;
+  color: var(--faint);
+}
+
+.flowNumber { font-family: var(--display); font-size: 18px; font-weight: 400; letter-spacing: 0; color: var(--gold); }
+
+.flowSteps h3 {
+  margin: 0 0 10px;
+  font-family: var(--display);
+  font-size: clamp(26px, 2.2vw, 36px);
+  font-weight: 400;
+  line-height: .95;
+  text-transform: uppercase;
+}
+
+.flowSteps li > p:last-child { margin: 0; font-size: 14.5px; line-height: 1.65; color: var(--muted); text-wrap: pretty; }
+
+/* ── Tributación: titular a la izquierda, tres puntos a la derecha ──────── */
+.chile {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  align-items: start;
+  gap: clamp(32px, 6vw, 112px);
+}
+
+.chileIntro .body { margin-top: 24px; }
+.chileList { display: grid; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+
+.chileList li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 20px;
+  padding: clamp(20px, 2.4vw, 30px) clamp(4px, 1vw, 16px);
   border-bottom: 1px solid var(--line);
 }
 
-.chileGrid svg { color: var(--gold); }
-
-.chileGrid h3 { margin: 22px 0 10px; font-size: 19px; font-weight: 600; line-height: 1.3; }
-
-.chileGrid p { margin: 0; font-size: 15px; line-height: 1.7; color: var(--muted); }
-
-/* ── Escena 6: certámenes (galería) ─────────────────────────────────────── */
-.gallery {
+.chileIcon {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: clamp(12px, 1.6vw, 24px);
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--line-strong);
+  color: var(--gold);
 }
 
-.gallery figure { margin: 0; }
+.chileList h3 { margin: 2px 0 6px; font-size: 19px; font-weight: 600; line-height: 1.3; }
+.chileList p { margin: 0; font-size: 15px; line-height: 1.7; color: var(--muted); }
+
+/* ── Certámenes: lista a la izquierda, una pantalla a la vez ────────────── */
+.events {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  align-items: center;
+  gap: clamp(32px, 6vw, 112px);
+}
+
+.eventsSide .body { margin-top: 22px; }
+
+.eventTabs { display: grid; margin: clamp(24px, 3vw, 40px) 0 12px; border-top: 1px solid var(--line); }
+
+.eventTabs [role='tab'] {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  min-height: 60px;
+  padding: 16px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  color: var(--muted);
+  font-size: 17px;
+  font-weight: 500;
+  text-align: left;
+  transition: color .25s, padding .35s var(--ease);
+}
+
+.eventTabs [role='tab'] > span { font-family: var(--display); font-size: 20px; font-weight: 400; color: var(--faint); transition: color .25s; }
+.eventTabs [role='tab']:hover { color: var(--text); }
+.eventTabs [role='tab'][aria-selected='true'] { padding-left: 14px; color: var(--text); box-shadow: inset 2px 0 0 var(--gold); }
+.eventTabs [role='tab'][aria-selected='true'] > span { color: var(--gold); }
+
+.eventStage { display: grid; min-width: 0; }
+
+.eventPanel { margin: 0; min-width: 0; }
+
+/* Con JavaScript, las tres pantallas comparten celda y se funden; sin él quedan apiladas. */
+@media (scripting: enabled) {
+  .eventPanel {
+    grid-area: 1 / 1;
+    transition: opacity 450ms var(--ease), transform 450ms var(--ease), visibility 0s linear 450ms;
+  }
+
+  .eventPanel:not([data-active]) { opacity: 0; visibility: hidden; transform: translate3d(0, 12px, 0); }
+  .eventPanel[data-active] { transition-delay: 0s; }
+}
 
 .galleryFrame {
   position: relative;
   aspect-ratio: 4 / 5;
+  max-height: min(680px, 78svh);
+  margin-inline: auto;
   overflow: hidden;
   background: #111520;
+  box-shadow: 0 40px 90px -50px rgb(219 192 118 / .4);
 }
 
 .galleryFrame svg { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
 
-.galleryNote { margin: 24px 0 0; font-size: 13px; color: var(--faint); }
+.eventPanel figcaption { max-width: 60ch; margin: 18px auto 0; font-size: 14.5px; line-height: 1.65; color: var(--muted); }
+.eventPanel figcaption strong { font-weight: 600; color: var(--text); }
+.eventPanel figcaption span { display: block; margin-top: 6px; font-size: 12px; color: var(--faint); }
 
-.gallery figcaption {
-  display: flex;
-  align-items: baseline;
-  gap: 14px;
-  margin-top: 16px;
-  font-size: 17px;
-  font-weight: 500;
-}
-
-.gallery figcaption span { font-family: var(--display); font-size: 20px; font-weight: 400; color: var(--gold); }
-
-/* ── Escena 7: planes y preguntas ───────────────────────────────────────── */
+/* ── Planes y preguntas ─────────────────────────────────────────────────── */
 .planGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(12px, 1.6vw, 24px); }
 
 .plan {
   position: relative;
   display: flex;
   flex-direction: column;
-  padding: clamp(28px, 3vw, 42px);
+  padding: clamp(24px, 2.6vw, 38px);
   border: 1px solid var(--line-strong);
   background: rgb(255 255 255 / .02);
 }
@@ -887,7 +872,7 @@
 .planTag {
   position: absolute;
   top: -12px;
-  left: clamp(28px, 3vw, 42px);
+  left: clamp(24px, 2.6vw, 38px);
   padding: 4px 10px;
   background: var(--gold);
   color: var(--ink);
@@ -897,12 +882,13 @@
   text-transform: uppercase;
 }
 
-.plan h3 { margin: 0 0 14px; font-family: var(--display); font-size: clamp(34px, 3vw, 46px); font-weight: 400; line-height: .95; text-transform: uppercase; }
-.plan > p { margin: 0; color: var(--muted); line-height: 1.65; }
-.planPrice { display: grid; gap: 4px; margin: 26px 0; padding: 18px 0; border-block: 1px solid var(--line); }
+.plan h3 { margin: 0 0 12px; font-family: var(--display); font-size: clamp(30px, 2.6vw, 40px); font-weight: 400; line-height: .95; text-transform: uppercase; }
+.plan > p { margin: 0 0 22px; padding-bottom: 22px; border-bottom: 1px solid var(--line); color: var(--muted); line-height: 1.65; }
+.plansTerms { display: block; margin-top: 14px; font-size: 14px; font-weight: 600; color: var(--gold); }
+.planPrice { display: grid; gap: 4px; margin: 0 0 22px; }
 .planPrice strong { font-size: 20px; font-weight: 600; }
 .planPrice span { font-size: 13px; color: var(--faint); }
-.plan ul { display: grid; gap: 11px; margin: 0 0 30px; padding: 0; list-style: none; }
+.plan ul { display: grid; gap: 10px; margin: 0 0 26px; padding: 0; list-style: none; }
 .plan li { display: flex; align-items: flex-start; gap: 10px; font-size: 14.5px; line-height: 1.5; color: #dcd7cd; }
 .plan li svg { flex: none; margin-top: 2px; color: var(--gold); }
 
@@ -941,9 +927,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  min-height: 72px;
-  padding: 20px 0;
-  font-size: 18px;
+  min-height: 64px;
+  padding: 16px 0;
+  font-size: 17px;
   font-weight: 500;
   line-height: 1.4;
   list-style: none;
@@ -953,14 +939,14 @@
 .faqList summary::-webkit-details-marker { display: none; }
 .faqList summary svg { flex: none; color: var(--gold); transition: transform .35s var(--ease); }
 .faqList details[open] summary svg { transform: rotate(180deg); }
-.faqList p { max-width: 64ch; margin: 0 0 26px; line-height: 1.75; color: var(--muted); }
+.faqList p { max-width: 64ch; margin: 0 0 22px; line-height: 1.75; color: var(--muted); }
 
 /*
  * Formulario de cotización (SalesContact, compartido con `/`): se viste de
  * oscuro desde aquí, anclado a #cotizar, sin tocar landing.module.css.
  */
 .contact :global(#cotizar) {
-  padding-block: clamp(96px, 11vw, 168px);
+  padding-block: clamp(56px, 6.6vw, 104px);
   border-top: 1px solid var(--line);
   background: var(--bg);
   color: var(--text);
@@ -971,7 +957,7 @@
 
 .contact :global(#cotizar) h2 {
   font-family: var(--display);
-  font-size: clamp(48px, 5.6vw, 96px);
+  font-size: clamp(44px, 4.8vw, 84px);
   font-weight: 400;
   line-height: .9;
   letter-spacing: .004em;
@@ -1032,24 +1018,34 @@
 .contact :global(#cotizar) [role='status'] p { color: var(--muted); }
 .contact :global(#cotizar) [role='status'] strong { color: var(--text); }
 
-/* ── Descargas ──────────────────────────────────────────────────────────── */
-.downloadGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(12px, 1.6vw, 24px); }
-
-.download {
-  display: flex;
-  flex-direction: column;
-  padding: clamp(24px, 3vw, 38px);
-  border: 1px solid var(--line-strong);
+/* ── Descargas: franja compacta ─────────────────────────────────────────── */
+.downloads {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  align-items: center;
+  gap: clamp(28px, 6vw, 112px);
 }
 
-.downloadTop { display: flex; justify-content: space-between; align-items: center; color: var(--gold); }
-.downloadTop span { font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
-.download h3 { margin: 28px 0 8px; font-family: var(--display); font-size: 36px; font-weight: 400; line-height: 1; text-transform: uppercase; }
-.download > p { margin: 0; color: var(--muted); }
-.downloadMeta { display: grid; gap: 8px; margin: 22px 0; padding-top: 18px; border-top: 1px solid var(--line); font-size: 13px; color: var(--faint); }
-.downloadMeta label { display: grid; gap: 8px; color: var(--muted); }
+.downloadsIntro .body { margin: 18px 0 8px; }
+.downloadList { display: grid; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
 
-.downloadMeta select {
+.download {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.downloadIcon { display: grid; place-items: center; width: 48px; height: 48px; border: 1px solid var(--line-strong); color: var(--gold); }
+.downloadInfo { display: grid; gap: 4px; min-width: 0; }
+.downloadInfo h3 { margin: 0; font-family: var(--display); font-size: 26px; font-weight: 400; line-height: 1; text-transform: uppercase; }
+.downloadInfo p { margin: 0; font-size: 13px; color: var(--faint); }
+.downloadInfo label { display: block; max-width: 300px; }
+
+.downloadInfo select {
+  width: 100%;
   min-height: 44px;
   padding: 0 10px;
   border: 1px solid #8b877f;
@@ -1065,70 +1061,53 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  min-height: 50px;
-  margin-top: auto;
-  background: var(--gold);
-  color: var(--ink);
+  min-height: 48px;
+  padding: 0 20px;
+  border: 1px solid var(--gold);
+  color: var(--gold);
   font-size: 14px;
   font-weight: 600;
-  transition: background .2s;
+  white-space: nowrap;
+  transition: background .2s, color .2s;
 }
 
-.downloadButton:hover { background: #ead8a5; }
-.downloadFormat { margin-top: 10px; font-size: 12px; text-align: center; color: var(--faint); }
+.downloadButton:hover { background: var(--gold); color: var(--ink); }
 
-.fineprint { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 28px 0 0; font-size: 13px; color: var(--faint); }
+.fineprint { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 16px 0 0; font-size: 13px; color: var(--faint); }
 .fineprint a { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; color: var(--gold); }
 
-.webOption {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px 24px;
-  margin-top: 20px;
-  padding: 22px 28px;
-  border: 1px solid var(--line);
+/* ── Pie, con el cierre de la página arriba ─────────────────────────────── */
+.footer {
+  padding: 0 var(--inline) 32px;
+  border-top: 1px solid var(--line);
+  background:
+    radial-gradient(ellipse 60% 42% at 50% 0%, rgb(219 192 118 / .12), rgb(219 192 118 / 0) 70%),
+    #080a0f;
 }
 
-.webOption > div { display: flex; align-items: center; gap: 16px; }
-.webOption > div > svg { flex: none; color: var(--gold); }
-.webOption p { display: grid; gap: 2px; margin: 0; }
-.webOption span { font-size: 14px; color: var(--muted); }
-
-/* ── Escena 9: cierre y pie ─────────────────────────────────────────────── */
 .closing {
-  padding: clamp(120px, 16vw, 240px) var(--inline) clamp(96px, 12vw, 180px);
-  border-top: 1px solid var(--line);
-  background: radial-gradient(ellipse 70% 60% at 50% 110%, rgb(219 192 118 / .13), rgb(219 192 118 / 0) 70%);
+  padding: clamp(56px, 6.6vw, 104px) 0 clamp(40px, 5vw, 72px);
+  margin-bottom: clamp(32px, 4vw, 56px);
+  border-bottom: 1px solid var(--line);
   text-align: center;
 }
 
-.closing .kicker { margin-bottom: 28px; }
+.closing .kicker { margin-bottom: 22px; }
 
 .closingTitle {
   margin: 0;
   font-family: var(--display);
-  font-size: clamp(60px, 11.5vw, 196px);
+  font-size: clamp(44px, 6.4vw, 104px);
   font-weight: 400;
-  line-height: .88;
+  line-height: .9;
   text-transform: uppercase;
+  text-wrap: balance;
 }
 
 .closingTitle > span { display: block; }
 
-.closingActions {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 18px;
-  margin-top: clamp(36px, 5vw, 64px);
-}
-
-.backTop { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font-size: 14px; color: var(--muted); transition: color .2s; }
+.backTop { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin-top: clamp(20px, 3vw, 36px); font-size: 14px; color: var(--muted); transition: color .2s; }
 .backTop:hover { color: var(--gold); }
-
-.footer { padding: clamp(56px, 7vw, 88px) var(--inline) 32px; border-top: 1px solid var(--line); background: #080a0f; }
 .footerGrid { display: grid; grid-template-columns: 1.6fr repeat(3, minmax(0, 1fr)); gap: 40px; }
 .footerBrand p { max-width: 36ch; margin: 18px 0 0; font-size: 14px; line-height: 1.7; color: var(--muted); }
 .footerCol h3 { margin: 0 0 16px; font-size: 12px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: var(--faint); }
@@ -1141,7 +1120,7 @@
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 48px;
+  margin-top: 40px;
   padding-top: 22px;
   border-top: 1px solid var(--line);
   font-size: 12.5px;
@@ -1151,7 +1130,7 @@
 /* Barra fija y «volver arriba» (StickyActions, compartido con `/`). */
 .sticky > button { border-color: var(--line-strong); background: var(--bg-raise); color: var(--gold); box-shadow: none; }
 .sticky > button:hover { border-color: var(--gold); background: var(--gold); color: var(--ink); }
-/* Mientras una escena está fijada (el video o los pasos), nada flota encima. */
+/* Mientras el video del hero está fijado, nada flota encima. */
 .root[data-pinned] .sticky { visibility: hidden; }
 
 @media (max-width: 960px) {
@@ -1160,31 +1139,24 @@
   .menuButton { display: grid; }
   .headerCta { margin-left: auto; }
   .sectionHead { grid-template-columns: minmax(0, 1fr); align-items: start; }
-  .outcomeGrid { grid-template-columns: minmax(0, 1fr); }
-  .outcome { padding: 32px 0; }
-  .outcome + .outcome { padding-left: 0; border-top: 1px solid var(--line); border-left: 0; }
-  .chileGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .chile, .events, .downloads { grid-template-columns: minmax(0, 1fr); }
   .planGrid { grid-template-columns: minmax(0, 1fr); row-gap: 28px; }
   .faq { grid-template-columns: minmax(0, 1fr); }
   .faqHead { position: static; }
-  .downloadGrid { grid-template-columns: minmax(0, 1fr); }
   .footerGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .footerBrand { grid-column: 1 / -1; }
 
-  .flow { height: 300vh; }
-  .flowStage { grid-template-columns: minmax(0, 1fr); align-content: center; gap: 22px; padding: calc(var(--header-h) + 12px) var(--gutter) 24px; }
-  .flowSide .heading .display { font-size: clamp(40px, 9vw, 72px); }
-  .flowNav { margin-top: 20px; padding: 0 0 14px; }
-  .flowRail { top: auto; right: 0; bottom: 0; width: auto; height: 1px; }
-  .flowRail > span { transform: scaleX(var(--flow, 0)); transform-origin: 0 50%; }
-  .flowNav ol { grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
-  .flowNav a { justify-content: center; }
-  .flowNumber { font-size: 22px; }
-  .flowTitle { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .flowPanel { padding: 24px; }
-  .flowPanel h3 { font-size: clamp(44px, 11vw, 72px); }
-  .flowPanel > p:last-child { font-size: 15px; }
-  .flowGhost { font-size: 110px; }
+  /* La línea de tiempo pasa a vertical: el riel corre por la izquierda. */
+  .flowRail { top: 0; right: auto; bottom: 0; left: 21px; width: 1px; height: auto; }
+  .flowRail > span { background: linear-gradient(180deg, var(--gold), rgb(219 192 118 / .35)); transform: scaleY(var(--in, 1)); transform-origin: 50% 0; }
+  .flowSteps { grid-template-columns: minmax(0, 1fr); gap: 26px; }
+  .flowSteps li { display: grid; grid-template-columns: 44px minmax(0, 1fr); column-gap: 18px; }
+  .flowNode { grid-row: 1 / 4; }
+  .flowTag { margin: 4px 0 6px; }
+  .flowSteps h3 { font-size: 28px; }
+
+  .galleryFrame { max-height: none; max-width: 520px; }
+  .eventTabs { margin-bottom: 4px; }
 }
 
 @media (max-width: 760px) {
@@ -1194,11 +1166,25 @@
   .display { font-size: clamp(46px, 13vw, 64px); }
   .headingMid .display { font-size: clamp(36px, 10.5vw, 52px); }
   .tabs [role='tab'] { flex: 1 1 auto; min-height: 52px; padding: 0 14px; font-size: 13px; }
-  .chileGrid { grid-template-columns: minmax(0, 1fr); }
-  .gallery { grid-template-columns: minmax(0, 1fr); gap: 36px; }
+  .chileList li { gap: 16px; padding-inline: 0; }
+  .chileIcon { width: 42px; height: 42px; }
   .faqList summary { font-size: 16px; }
-  .webOption { padding: 20px; }
-  .footerGrid { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  /* Planes: lo principal de cada uno; el detalle completo va en la cotización. */
+  .plan li:nth-child(n + 4) { display: none; }
+  .plan > p { margin-bottom: 18px; padding-bottom: 18px; }
+  .plan ul { margin-bottom: 22px; }
+
+  /* Descargas: nombre y datos a la izquierda, botón a la derecha; el selector de procesador ocupa la fila. */
+  .download { grid-template-columns: minmax(0, 1fr) auto; grid-auto-flow: row dense; column-gap: 14px; row-gap: 4px; }
+  .downloadIcon { display: none; }
+  .downloadInfo { display: contents; }
+  .downloadInfo > * { grid-column: 1; }
+  .downloadInfo label { grid-column: 1 / -1; max-width: none; margin-block: 6px 2px; }
+  .downloadButton { grid-column: 2; grid-row: 1 / span 2; align-self: start; padding: 0 16px; }
+
+  .footerGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 20px; }
+  .footerCol a { overflow-wrap: anywhere; }
+  .footerLegal { margin-top: 28px; }
   .pageProgress { display: none; }
 }
 
@@ -1208,40 +1194,10 @@
   .headerLogin { margin-left: auto; }
 }
 
+/* Sin JavaScript no hay pestañas: las vistas y las pantallas de certámenes quedan apiladas. */
 @media (scripting: none) {
-  .tabs { display: none; }
-}
-
-/*
- * La escena de pasos fija necesita alto. Sin JavaScript o en pantallas bajas
- * los cinco pasos se ven apilados.
- */
-@media (scripting: none), (max-height: 620px), (max-width: 960px) and (max-height: 760px) {
-  .flow { height: auto; }
-  .flowStage { position: relative; display: block; height: auto; padding: clamp(96px, 12vw, 160px) var(--inline) 40px; }
-  .flowNav { display: none; }
-  .flowPanels { gap: 16px; margin-top: 40px; }
-  .flowPanel { grid-area: auto; opacity: 1; visibility: visible; transform: none; }
-}
-
-/*
- * Galería: una cortina del color del fondo se recoge hacia arriba y descubre
- * la pantalla, que se asienta en su marco. La cortina es transform (scaleY):
- * antes era un clip-path que repintaba la imagen en cada cuadro.
- */
-.gallery figure[data-reveal] .galleryFrame::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--bg);
-  transform: scaleY(calc(1 - var(--in, 1)));
-  transform-origin: 50% 0;
-  pointer-events: none;
-}
-
-/* Termina a escala 1: la pantalla se lee entera, sin recorte. */
-.gallery figure[data-reveal] .galleryFrame svg {
-  transform: scale(calc(1.08 - .08 * var(--in, 1)));
+  .tabs, .eventTabs { display: none; }
+  .eventStage { gap: 40px; }
 }
 
 /* El cuadro de producto se endereza al entrar y se inclina hacia el puntero. */
@@ -1437,8 +1393,7 @@
  * los brillos animados; las franjas de palabras quedan quietas.
  */
 .root[data-lite] .cosmos::after { display: none; }
-.root[data-lite] .marqueeRow { transform: translate3d(-18%, 0, 0); will-change: auto; }
-.root[data-lite] .marqueeRow + .marqueeRow { transform: translate3d(-34%, 0, 0); }
+.root[data-lite] .marqueeRow { transform: translate3d(-22%, 0, 0); will-change: auto; }
 
 @media (prefers-reduced-motion: reduce) {
   .root *,
