@@ -7,8 +7,6 @@ import { ENTER_FROM, ENTER_SPAN, MAX_STAGGER, enterProgress, viewProgress } from
 import { linkStrength, makeStars, streakLength, traceAmounts, wrap } from '../src/components/marketing/cinematic/constellation';
 import { weightedScore } from '../src/components/marketing/cinematic/EventMock';
 import { CONSTELLATIONS, centerFocus, constellationY, projectStars, starRadius } from '../src/components/marketing/cinematic/constellations';
-import { outcomes } from '../src/components/marketing/content';
-import { views } from '../src/components/marketing/catalog';
 import manifest from '../public/marketing/cinematic/seq/manifest.json';
 import { approach, isWheelNotch, wheelPixels } from '../src/components/marketing/cinematic/smoothWheel';
 
@@ -199,12 +197,6 @@ describe('landing v2 · fotogramas generados', () => {
   it('funde la unión v1→v2 cuando los cuadros no calzan', () => {
     const { ssim, crossfadeMs } = manifest.boundary;
     expect(crossfadeMs).toBe(ssim !== null && ssim >= 0.9 ? 0 : 300);
-  });
-});
-
-describe('landing v2 · contenido restaurado', () => {
-  it('cada tarjeta de resultados abre la vista que nombra', () => {
-    expect(outcomes.map(item => views[item.view]?.label)).toEqual(['Ventas', 'Inventario', 'Finanzas']);
   });
 });
 

@@ -58,19 +58,13 @@ interface ProductView {
   setView: (index: number) => void;
 }
 
-/** La pestaña activa de «Todo cuadra» también se elige desde otras secciones. */
+/** La pestaña activa de «Todo cuadra» vive en la página para que cualquier sección pueda elegirla. */
 const ProductViewContext = createContext<ProductView | null>(null);
 
 export function useProductView(): ProductView {
   const value = useContext(ProductViewContext);
   if (!value) throw new Error('useProductView se usa dentro de LandingShell');
   return value;
-}
-
-/** Enlace a #plataforma que además deja seleccionada una vista del producto. */
-export function ViewLink({ view, className, children }: { view: number; className?: string; children: ReactNode }) {
-  const { setView } = useProductView();
-  return <a href="#plataforma" className={className} onClick={() => setView(view)}>{children}</a>;
 }
 
 export default function LandingShell({ className, children }: { className?: string; children: ReactNode }) {

@@ -8,9 +8,13 @@
  * quedar nunca debajo de esa barra.
  */
 
+/*
+ * La pista mide lo justo para que el video se lea sin apuro: con 520vh el
+ * recorrido se sentía interminable antes de llegar al contenido.
+ */
 .track {
   position: relative;
-  height: 520vh;
+  height: 340vh;
   background: var(--bg);
 }
 
@@ -382,7 +386,7 @@
 }
 
 @media (max-width: 760px) {
-  .track { height: 400vh; }
+  .track { height: 290vh; }
 
   .intro {
     justify-content: flex-end;

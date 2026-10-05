@@ -5,7 +5,10 @@ import s from './empresas.module.css';
 import MobileMenu from './MobileMenu';
 import { navLinks } from './content';
 
-/** Encabezado fijo, blanco, sin blur ni animación (ver brief §3.1). */
+/**
+ * Encabezado fijo, blanco, sin blur ni animación. En pantallas chicas queda
+ * «Ingresar» a la vista junto al menú: quien ya es cliente no tiene que abrirlo.
+ */
 export default function CorporateHeader() {
   return (
     <header className={s.header}>
@@ -34,6 +37,9 @@ export default function CorporateHeader() {
           </a>
         </div>
 
+        <Link href="/login" className={s.headerLoginMobile}>
+          Ingresar
+        </Link>
         <MobileMenu navLinks={navLinks} />
       </div>
     </header>

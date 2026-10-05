@@ -34,8 +34,7 @@ export const trustFacts: TrustFact[] = [
  * ── Textos restaurados para /landing-v2 ──────────────────────────────────
  * Salieron de `/` en el commit 60927e9 (rediseño de la landing), pero la
  * landing cinematográfica los usa. Se copiaron palabra por palabra desde
- * 60927e9^ (Plans en content.ts, los pares de Shift.tsx y las tarjetas de
- * resultados de Landing.tsx): no reescribirlos sin revisar ambas landings.
+ * 60927e9^ (Plans en content.ts): no reescribirlos sin revisar ambas landings.
  */
 
 export interface Plan {
@@ -89,20 +88,4 @@ export const plans: Plan[] = [
       'Jurado con escrutinio en línea',
     ],
   },
-];
-
-export interface Outcome {
-  label: string;
-  title: [first: string, second: string];
-  text: string;
-  link: string;
-  /** Índice de la vista de `catalog.ts` que abre el enlace en #plataforma. */
-  view: number;
-}
-
-/** Tarjetas de «QUE TU SISTEMA TRABAJE CONTIGO». */
-export const outcomes: Outcome[] = [
-  { label: 'VENDE CON CONTEXTO', title: ['Una venta.', 'Toda la historia.'], text: 'Revisa el cliente, el documento y sus pagos sin reconstruir la operación entre archivos.', link: 'Conoce el área comercial', view: 1 },
-  { label: 'ANTICIPA TU OPERACIÓN', title: ['El stock correcto.', 'La decisión a tiempo.'], text: 'Consulta existencias, movimientos y costos por bodega para preparar tu próxima compra.', link: 'Explora el inventario', view: 2 },
-  { label: 'MIRA HACIA ADELANTE', title: ['Conoce tu caja.', 'Planifica lo que viene.'], text: 'Ten a la vista cobros, pagos y vencimientos para decidir con el panorama financiero completo.', link: 'Descubre las finanzas', view: 3 },
 ];
