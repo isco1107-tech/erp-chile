@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MAX_DOCUMENT_LINES, MAX_DOCUMENT_LINES_MESSAGE } from '@/lib/document-limits';
 
 export const PURCHASE_DOCUMENT_TYPES = ['FACTURA', 'BOLETA', 'NOTA_CREDITO', 'NOTA_DEBITO', 'GUIA_DESPACHO', 'OTRO'] as const;
 
@@ -76,7 +77,7 @@ export const purchaseDocumentCreateSchema = z.object({
   dueDate: z.string().optional(),
   paymentMethod: z.string().optional(),
   notes: z.string().optional(),
-  items: z.array(purchaseDocumentItemSchema).min(1, 'Agregue al menos un ítem'),
+  items: z.array(purchaseDocumentItemSchema).min(1, 'Agregue al menos un ítem').max(MAX_DOCUMENT_LINES, MAX_DOCUMENT_LINES_MESSAGE),
   // Presente solo cuando la factura formaliza una Orden de Compra ya
   // recibida: activa el matching de 3 vías y suprime el movimiento de stock
   // (la Recepción de Mercadería ya lo aplicó).
@@ -113,7 +114,7 @@ export const purchaseOrderCreateSchema = z.object({
   contactId: z.string().min(1, 'Seleccione un proveedor'),
   expectedDate: z.string().optional(),
   notes: z.string().optional(),
-  items: z.array(purchaseOrderItemSchema).min(1, 'Agregue al menos un ítem'),
+  items: z.array(purchaseOrderItemSchema).min(1, 'Agregue al menos un ítem').max(MAX_DOCUMENT_LINES, MAX_DOCUMENT_LINES_MESSAGE),
 });
 
 export type PurchaseOrderCreateInput = z.infer<typeof purchaseOrderCreateSchema>;
@@ -132,7 +133,7 @@ export const goodsReceiptCreateSchema = z.object({
   orderId: z.string().min(1, 'Seleccione una orden de compra'),
   warehouseId: z.string().min(1, 'Seleccione una bodega'),
   notes: z.string().optional(),
-  items: z.array(goodsReceiptItemSchema).min(1, 'Agregue al menos un ítem a recibir'),
+  items: z.array(goodsReceiptItemSchema).min(1, 'Agregue al menos un ítem a recibir').max(MAX_DOCUMENT_LINES, MAX_DOCUMENT_LINES_MESSAGE),
 });
 
 export type GoodsReceiptCreateInput = z.infer<typeof goodsReceiptCreateSchema>;

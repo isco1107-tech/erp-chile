@@ -1,8 +1,8 @@
 import crypto from 'crypto';
-import type { FollowUpReason, FollowUpStatus } from '@prisma/client';
+import { Prisma, type FollowUpReason, type FollowUpStatus } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { channelBreakdown, type ChannelShare } from '@/lib/customer-care/channels';
-import { findInactiveCustomers, type InactiveCustomer } from '@/lib/customer-care/inactive';
+import { findInactiveFromSummaries, type InactiveCustomer } from '@/lib/customer-care/inactive';
 import { computeSurveyMetrics, needsFollowUp, type SurveyMetrics } from '@/lib/customer-care/metrics';
 import { DEFAULT_FOLLOW_UP_MESSAGE, DEFAULT_SURVEY_INTRO } from '@/lib/customer-care/messages';
 import type { CustomerCareSettingsInput, FollowUpInput, SurveyResponseInput } from '../schema';
@@ -130,12 +130,20 @@ export interface InactiveCustomerRow extends InactiveCustomer {
 }
 
 async function listInactiveCustomers(companyId: string, inactiveAfterDays: number, now: Date): Promise<InactiveCustomer[]> {
-  const documents = await prisma.salesDocument.findMany({
-    where: { companyId, status: 'ISSUED', dteType: { in: [...PURCHASE_DTE_TYPES] } },
-    select: { contactId: true, issueDate: true, totalAmount: true, contact: { select: { rutClean: true } } },
-  });
-  return findInactiveCustomers(
-    documents.map((d) => ({ contactId: d.contactId, rutClean: d.contact.rutClean, issueDate: d.issueDate, totalAmount: d.totalAmount })),
+  // Una fila por cliente, agregada en la base (antes: todas las ventas de la
+  // historia con su contacto). La regla de quién está inactivo sigue siendo la
+  // función pura.
+  const rows = await prisma.$queryRaw<{ contactId: string; rutClean: string; lastPurchaseAt: Date; purchaseCount: number; totalSpent: bigint | number }[]>`
+    SELECT d."contactId", c."rutClean", MAX(d."issueDate") AS "lastPurchaseAt", COUNT(*)::int AS "purchaseCount", SUM(d."totalAmount") AS "totalSpent"
+    FROM "SalesDocument" d
+    JOIN "Contact" c ON c.id = d."contactId" AND c."companyId" = ${companyId}
+    WHERE d."companyId" = ${companyId}
+      AND d."status" = 'ISSUED'
+      AND d."dteType"::text IN (${Prisma.join([...PURCHASE_DTE_TYPES])})
+    GROUP BY d."contactId", c."rutClean"
+  `;
+  return findInactiveFromSummaries(
+    rows.map((row) => ({ ...row, totalSpent: Number(row.totalSpent) })),
     now,
     inactiveAfterDays
   );

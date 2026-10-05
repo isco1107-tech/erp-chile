@@ -204,7 +204,10 @@ describe('Confirmación de pago de entradas', () => {
 
     const actualizado: Array<Record<string, unknown>> = [];
     jest.spyOn(prisma.ticketSale, 'findFirst').mockResolvedValue(venta as never);
-    jest.spyOn(prisma.ticketSale, 'updateMany').mockImplementation((async ({ data }: { data: Record<string, unknown> }) => {
+    // Se comporta como la base: el UPDATE condicionado a "aún no pagada" no
+    // toca nada si la orden ya estaba PAID.
+    jest.spyOn(prisma.ticketSale, 'updateMany').mockImplementation((async ({ where, data }: { where: { paymentStatus?: { not?: string } }; data: Record<string, unknown> }) => {
+      if (where.paymentStatus?.not && venta.paymentStatus === where.paymentStatus.not) return { count: 0 };
       actualizado.push(data);
       return { count: 1 };
     }) as never);
@@ -404,7 +407,10 @@ describe('Confirmación de pago de votos', () => {
 
     const actualizado: Array<Record<string, unknown>> = [];
     jest.spyOn(prisma.voteOrder, 'findFirst').mockResolvedValue(orden as never);
-    jest.spyOn(prisma.voteOrder, 'updateMany').mockImplementation((async ({ data }: { data: Record<string, unknown> }) => {
+    // Se comporta como la base: el UPDATE condicionado a "aún no pagada" no
+    // toca nada si la orden ya estaba PAID.
+    jest.spyOn(prisma.voteOrder, 'updateMany').mockImplementation((async ({ where, data }: { where: { paymentStatus?: { not?: string } }; data: Record<string, unknown> }) => {
+      if (where.paymentStatus?.not && orden.paymentStatus === where.paymentStatus.not) return { count: 0 };
       actualizado.push(data);
       return { count: 1 };
     }) as never);
@@ -432,5 +438,33 @@ describe('Confirmación de pago de votos', () => {
     mockOrder({ paymentStatus: 'PAID', paidAmount: 6000 });
     await confirmVotePayment('cmp_1', 'vo_1', { paidAmount: 6000 } as never);
     expect(sendEmail).not.toHaveBeenCalled();
+  });
+});
+
+describe('Confirmaciones simultáneas (auditoría de estrés 2026-10-05)', () => {
+  beforeEach(() => {
+    jest.restoreAllMocks();
+    (sendEmail as jest.Mock).mockClear();
+  });
+
+  it('dos confirmaciones a la vez de la misma entrada mandan UN solo correo', async () => {
+    // Ambas leen "UNPAID" antes de que la otra escriba; solo una gana el UPDATE condicionado.
+    let status = 'UNPAID';
+    jest.spyOn(prisma.ticketSale, 'findFirst').mockResolvedValue({
+      id: 'venta_1', companyId: 'cmp_1', buyerName: 'Ana', buyerEmail: 'ana@correo.cl', quantity: 1, totalAmount: 1000, paidAmount: 0,
+      paymentStatus: 'UNPAID', qrCode: 'qr-1', ticketType: { name: 'General' }, project: { name: 'Gala' },
+    } as never);
+    jest.spyOn(prisma.ticketSale, 'updateMany').mockImplementation((async ({ where }: { where: { paymentStatus?: { not?: string } } }) => {
+      if (where.paymentStatus?.not && status === where.paymentStatus.not) return { count: 0 };
+      status = 'PAID';
+      return { count: 1 };
+    }) as never);
+    jest.spyOn(prisma.company, 'findUnique').mockResolvedValue({ businessName: 'Productora' } as never);
+
+    await Promise.all([
+      confirmTicketPayment('cmp_1', 'venta_1', { paidAmount: 1000 } as never),
+      confirmTicketPayment('cmp_1', 'venta_1', { paidAmount: 1000 } as never),
+    ]);
+    expect(sendEmail).toHaveBeenCalledTimes(1);
   });
 });

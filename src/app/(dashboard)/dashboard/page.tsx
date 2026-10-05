@@ -35,6 +35,7 @@ import { SetupChecklistCard } from '@/components/setup/SetupChecklistCard';
 import { captureException } from '@/lib/observability';
 import { buttonVariants } from '@/components/ui/button';
 import { prisma } from '@/lib/prisma';
+import { getMonthlySalesSummary } from '@/modules/sales/services/sales-summary.service';
 import { formatCurrency } from '@/lib/chile/tax';
 import { addMonthsSantiago, santiagoDateParts, startOfMonthSantiago, startOfTodaySantiago, startOfTomorrowSantiago } from '@/lib/chile/timezone';
 import { KpiCard, type TrendDirection } from '@/components/ui/KpiCard';
@@ -133,30 +134,14 @@ export default async function DashboardPage() {
   const previousMonth = addMonthsSantiago(now, -1);
   const trendStart = addMonthsSantiago(now, -11);
 
-  // Ventana completa de 12 meses para agregar KPIs y el gráfico de tendencia
-  // — SIN `take`: un límite acá (antes `take: 1000`, ordenado desc) descarta
-  // silenciosamente los documentos más antiguos de la ventana en cualquier
-  // empresa con más de 1.000 documentos emitidos en el año, subestimando los
-  // meses iniciales del gráfico. `select` liviano (sin `contact`, sin más
-  // campos de `items` que los que entran al costo) porque esta consulta ya
-  // no está acotada y puede traer varios miles de filas en empresas grandes.
+  // Ventana completa de 12 meses para los KPIs y el gráfico de tendencia,
+  // agregada EN LA BASE por mes y tipo de documento (≤ 12 × tipos filas). Antes
+  // se traían todos los documentos del año con sus líneas para sumarlos acá:
+  // con 150.000 ventas al año eran ~80.000 documentos y ~160.000 líneas en
+  // cada carga del Inicio (auditoría de estrés 2026-10-05). Sin `take`, por la
+  // misma razón de siempre: un límite subestimaba los meses más antiguos.
   const salesAggregationQuery = canReadSales && context.features.hasDteBilling
-    ? prisma.salesDocument.findMany({
-        where: {
-          companyId: context.companyId,
-          status: 'ISSUED',
-          dteType: { in: SALES_TYPES },
-          issueDate: { gte: trendStart, lt: nextMonth },
-        },
-        select: {
-          dteType: true,
-          issueDate: true,
-          netAmount: true,
-          exemptAmount: true,
-          ivaAmount: true,
-          items: { select: { quantity: true, unitCostPMP: true } },
-        },
-      })
+    ? getMonthlySalesSummary(context.companyId, SALES_TYPES, trendStart, nextMonth)
     : Promise.resolve([]);
 
   // Tabla de "ventas recientes": solo necesita las últimas 5, con datos del
@@ -349,24 +334,26 @@ export default async function DashboardPage() {
   let currentMonthDocCount = 0;
   const mixCounts = new Map<DteType, number>();
 
-  for (const document of salesDocuments) {
-    const sign = documentSign(document.dteType);
-    const bucket = bucketByKey.get(monthKey(document.issueDate));
-    const revenue = sign * (document.netAmount + document.exemptAmount);
-    const cost = sign * document.items.reduce((sum, item) => sum + Math.round(item.quantity * item.unitCostPMP), 0);
+  const currentMonthKey = monthKey(currentMonth);
+  const previousMonthKey = monthKey(previousMonth);
+  for (const row of salesDocuments) {
+    const sign = documentSign(row.dteType);
+    const bucket = bucketByKey.get(row.month);
+    const revenue = sign * (row.netAmount + row.exemptAmount);
+    const cost = sign * row.costOfSales;
     if (bucket) {
       bucket.netSales += revenue;
       bucket.costOfSales += cost;
     }
-    if (document.issueDate >= currentMonth && document.issueDate < nextMonth) {
-      monthNetSales += sign * document.netAmount;
-      monthVat += sign * document.ivaAmount;
+    if (row.month === currentMonthKey) {
+      monthNetSales += sign * row.netAmount;
+      monthVat += sign * row.ivaAmount;
       monthCost += cost;
       monthRevenue += revenue;
-      currentMonthDocCount += 1;
-      mixCounts.set(document.dteType, (mixCounts.get(document.dteType) ?? 0) + 1);
-    } else if (document.issueDate >= previousMonth && document.issueDate < currentMonth) {
-      prevMonthNetSales += sign * document.netAmount;
+      currentMonthDocCount += row.documents;
+      mixCounts.set(row.dteType, (mixCounts.get(row.dteType) ?? 0) + row.documents);
+    } else if (row.month === previousMonthKey) {
+      prevMonthNetSales += sign * row.netAmount;
       prevMonthCost += cost;
       prevMonthRevenue += revenue;
     }

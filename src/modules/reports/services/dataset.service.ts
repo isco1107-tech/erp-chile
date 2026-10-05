@@ -192,6 +192,29 @@ const label = (map: Record<string, string>, key: string) => map[key] ?? key;
  * `companyId`: este dataset cruza la frontera hacia un archivo descargable, así
  * que una fuga entre empresas aquí sería definitiva.
  */
+/**
+ * Tope de filas transaccionales (ventas + compras + movimientos de Kardex +
+ * pagos) que un solo Excel puede llevar. El libro se arma completo en memoria
+ * (documentos con sus líneas, productos y contactos): en la prueba de volumen
+ * (auditoría de estrés 2026-10-05) 12 meses de una empresa con 150.000 ventas
+ * tardaron 15 s y ocuparon 1,4 GB de memoria — más de lo que tiene una
+ * función de Vercel, que muere sin dar explicación. Sobre el tope se pide un
+ * rango más corto en vez de intentar y caerse.
+ */
+export const REPORT_MAX_ROWS = 30_000;
+
+/** Cuenta las filas que llevaría el Excel del rango, con consultas `count` baratas. */
+export async function countReportRows(companyId: string, range: ReportRange): Promise<number> {
+  const period = { gte: range.from, lte: range.to };
+  const [sales, purchases, movements, payments] = await Promise.all([
+    prisma.salesDocument.count({ where: { companyId, issueDate: period } }),
+    prisma.purchaseDocument.count({ where: { companyId, issueDate: period } }),
+    prisma.inventoryMovement.count({ where: { companyId, createdAt: period } }),
+    prisma.payment.count({ where: { companyId, paymentDate: period } }),
+  ]);
+  return sales + purchases + movements + payments;
+}
+
 export async function buildReportDataset(companyId: string, range: ReportRange): Promise<ReportDataset> {
   const period = { gte: range.from, lte: range.to };
 

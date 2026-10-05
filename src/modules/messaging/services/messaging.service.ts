@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import type { ConversationType } from '@prisma/client';
+import { Prisma, type ConversationType } from '@prisma/client';
 import { decryptMessageText, encryptMessageText } from '@/lib/messaging/crypto';
 import type { SendMessageInput } from '../schema';
 
@@ -67,14 +67,23 @@ async function canViewDeletedMessages(userId: string): Promise<boolean> {
 async function computeUnreadCounts(
   participations: Array<{ conversationId: string; lastReadAt: Date | null }>
 ): Promise<Map<string, number>> {
-  const counts = await Promise.all(
-    participations.map((p) =>
-      prisma.message.count({
-        where: { conversationId: p.conversationId, deletedAt: null, createdAt: { gt: p.lastReadAt ?? new Date(0) } },
-      })
-    )
-  );
-  return new Map(participations.map((p, i) => [p.conversationId, counts[i]]));
+  if (participations.length === 0) return new Map();
+  // UNA consulta para todas las conversaciones (antes, un `count` por cada
+  // una). La campanita la pide cada ~20 s cada usuario conectado: con 30
+  // conversaciones eran 30 consultas por usuario y por sondeo, compitiendo
+  // por las 5 conexiones del pool con las ventas (auditoría de estrés
+  // 2026-10-05). `createdAt` se guarda como instante UTC sin zona, igual que
+  // el `Date` que se compara.
+  const rows = await prisma.$queryRaw<Array<{ conversationId: string; unread: number }>>`
+    SELECT v."conversationId", COUNT(m.id)::int AS "unread"
+    FROM (VALUES ${Prisma.join(
+      participations.map((p) => Prisma.sql`(${p.conversationId}::text, ${p.lastReadAt ?? new Date(0)}::timestamp(3))`)
+    )}) AS v("conversationId", "lastReadAt")
+    LEFT JOIN "Message" m
+      ON m."conversationId" = v."conversationId" AND m."deletedAt" IS NULL AND m."createdAt" > v."lastReadAt"
+    GROUP BY v."conversationId"
+  `;
+  return new Map(rows.map((row) => [row.conversationId, row.unread]));
 }
 
 export async function listConversations(companyId: string, userId: string): Promise<ConversationSummary[]> {

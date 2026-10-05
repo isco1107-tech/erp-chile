@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MAX_DOCUMENT_LINES, MAX_DOCUMENT_LINES_MESSAGE } from '@/lib/document-limits';
 
 /**
  * Medios de pago aceptados en el mostrador. Es un subconjunto de
@@ -65,7 +66,7 @@ export const posSaleItemSchema = z.object({
 
 export const posSaleSchema = z
   .object({
-    items: z.array(posSaleItemSchema).min(1, 'Agregue al menos un producto'),
+    items: z.array(posSaleItemSchema).min(1, 'Agregue al menos un producto').max(MAX_DOCUMENT_LINES, MAX_DOCUMENT_LINES_MESSAGE),
     paymentMethod: z.enum(POS_PAYMENT_METHODS, 'Selecciona una forma de pago'),
     /** Efectivo entregado por el cliente; sirve para calcular el vuelto. */
     cashReceived: z.number().int().min(0).optional(),

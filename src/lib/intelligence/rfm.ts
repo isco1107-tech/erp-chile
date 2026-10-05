@@ -83,10 +83,40 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 function rankScores(values: readonly number[], higherIsBetter: boolean): number[] {
   const n = values.length;
   if (n === 1) return [3];
+  // Conteo de "peores" con búsqueda binaria sobre los valores ordenados, no
+  // comparando cada cliente contra todos: O(n log n) en vez de O(n²). Con
+  // 50.000 clientes la versión cuadrática hacía 2.500 millones de
+  // comparaciones por eje y la Radiografía tardaba ~45 s (auditoría de estrés
+  // 2026-10-05). Mismo resultado exacto, empates incluidos.
+  const sorted = [...values].sort((a, b) => a - b);
   return values.map((value) => {
-    const worse = values.filter((other) => (higherIsBetter ? other < value : other > value)).length;
+    const worse = higherIsBetter ? countBelow(sorted, value) : n - countAtOrBelow(sorted, value);
     return 1 + Math.round((4 * worse) / (n - 1));
   });
+}
+
+/** Cuántos elementos de `sorted` (ascendente) son estrictamente menores que `value`. */
+function countBelow(sorted: readonly number[], value: number): number {
+  let low = 0;
+  let high = sorted.length;
+  while (low < high) {
+    const mid = (low + high) >>> 1;
+    if (sorted[mid]! < value) low = mid + 1;
+    else high = mid;
+  }
+  return low;
+}
+
+/** Cuántos elementos de `sorted` (ascendente) son menores o iguales que `value`. */
+function countAtOrBelow(sorted: readonly number[], value: number): number {
+  let low = 0;
+  let high = sorted.length;
+  while (low < high) {
+    const mid = (low + high) >>> 1;
+    if (sorted[mid]! <= value) low = mid + 1;
+    else high = mid;
+  }
+  return low;
 }
 
 export function segmentFor(r: number, f: number, m: number): RfmSegment {

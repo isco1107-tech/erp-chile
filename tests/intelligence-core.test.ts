@@ -409,3 +409,36 @@ describe('señales automáticas', () => {
     expect(generateInsights({ ...BASE, dayOfMonth: 2, monthToDateNetSales: 1 }).some((i) => i.id === 'sales-pace-down')).toBe(false);
   });
 });
+
+describe('scoreRfm a escala (auditoría de estrés 2026-10-05)', () => {
+  // Referencia cuadrática original: el puntaje rápido debe ser idéntico.
+  function referenceRank(values: number[], higherIsBetter: boolean): number[] {
+    const n = values.length;
+    if (n === 1) return [3];
+    return values.map((value) => 1 + Math.round((4 * values.filter((o) => (higherIsBetter ? o < value : o > value)).length) / (n - 1)));
+  }
+
+  it('da exactamente los mismos puntajes que el conteo cuadrático, con empates', () => {
+    const now = new Date('2026-10-05T12:00:00Z');
+    const customers = Array.from({ length: 400 }, (_, i) => ({
+      id: `c${i}`,
+      name: `Cliente ${i}`,
+      lastPurchase: new Date(now.getTime() - ((i * 37) % 90) * 86_400_000),
+      frequency: (i * 7) % 13,
+      monetary: ((i * 9973) % 50) * 1000,
+    }));
+    const scored = scoreRfm(customers, now);
+    const recency = scored.map((c) => c.recencyDays);
+    expect(scored.map((c) => c.r)).toEqual(referenceRank(recency, false));
+    expect(scored.map((c) => c.f)).toEqual(referenceRank(customers.map((c) => c.frequency), true));
+    expect(scored.map((c) => c.m)).toEqual(referenceRank(customers.map((c) => c.monetary), true));
+  });
+
+  it('50.000 clientes se puntúan en menos de un segundo', () => {
+    const now = new Date();
+    const customers = Array.from({ length: 50_000 }, (_, i) => ({ id: `c${i}`, name: '', lastPurchase: new Date(now.getTime() - (i % 365) * 86_400_000), frequency: i % 30, monetary: (i * 31) % 100_000 }));
+    const started = performance.now();
+    scoreRfm(customers, now);
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
+});

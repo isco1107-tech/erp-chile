@@ -142,20 +142,28 @@ async function* readModelRows(
   }
 
   const select = Object.fromEntries(model.fields.map((field) => [field, true]));
+  // Paginación por clave ("dame los siguientes después del último id"), no
+  // por OFFSET: con `skip` cada página volvía a recorrer todas las anteriores
+  // (O(n²)); con 300.000 líneas de venta el respaldo no alcanzaba a terminar
+  // dentro del tiempo de la función (auditoría de estrés 2026-10-05). Un
+  // modelo sin columna `id` sigue con OFFSET.
+  const keyset = model.fields.includes('id');
+  let lastId: string | null = null;
   let skip = 0;
 
   for (;;) {
     const rows = await delegate.findMany({
-      where: { companyId },
+      where: keyset && lastId !== null ? { companyId, id: { gt: lastId } } : { companyId },
       select,
       orderBy: { id: 'asc' },
       take: PAGE_SIZE,
-      skip,
+      ...(keyset ? {} : { skip }),
     });
     if (rows.length === 0) return;
     yield rows;
     if (rows.length < PAGE_SIZE) return;
     skip += rows.length;
+    if (keyset) lastId = String(rows[rows.length - 1]!.id);
   }
 }
 

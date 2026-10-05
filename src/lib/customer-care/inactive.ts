@@ -25,24 +25,43 @@ export interface InactiveCustomer {
  * tiempo para llamar, se llama a esos. El consumidor final genérico no cuenta.
  */
 export function findInactiveCustomers(rows: PurchaseRow[], now: Date, inactiveAfterDays: number): InactiveCustomer[] {
-  if (!Number.isFinite(inactiveAfterDays) || inactiveAfterDays < 1) return [];
-  const byContact = new Map<string, { last: Date; count: number; total: number }>();
+  const byContact = new Map<string, PurchaseSummary>();
   for (const row of rows) {
-    if (row.rutClean.startsWith(GENERIC_CONSUMER_RUT_PREFIX)) continue;
     const current = byContact.get(row.contactId);
     if (!current) {
-      byContact.set(row.contactId, { last: row.issueDate, count: 1, total: row.totalAmount });
+      byContact.set(row.contactId, { contactId: row.contactId, rutClean: row.rutClean, lastPurchaseAt: row.issueDate, purchaseCount: 1, totalSpent: row.totalAmount });
     } else {
-      if (row.issueDate > current.last) current.last = row.issueDate;
-      current.count += 1;
-      current.total += row.totalAmount;
+      if (row.issueDate > current.lastPurchaseAt) current.lastPurchaseAt = row.issueDate;
+      current.purchaseCount += 1;
+      current.totalSpent += row.totalAmount;
     }
   }
+  return findInactiveFromSummaries([...byContact.values()], now, inactiveAfterDays);
+}
+
+/** Compras de un cliente ya agregadas (una fila por cliente, p. ej. un `GROUP BY` en la base). */
+export interface PurchaseSummary {
+  contactId: string;
+  rutClean: string;
+  lastPurchaseAt: Date;
+  purchaseCount: number;
+  totalSpent: number;
+}
+
+/**
+ * Misma regla que `findInactiveCustomers`, sobre compras ya agregadas por
+ * cliente: así la base puede devolver una fila por cliente en vez de todas
+ * las ventas de la historia (con 150.000 ventas, el panel de Fidelización
+ * tardaba 2 s solo en traerlas — auditoría de estrés 2026-10-05).
+ */
+export function findInactiveFromSummaries(summaries: PurchaseSummary[], now: Date, inactiveAfterDays: number): InactiveCustomer[] {
+  if (!Number.isFinite(inactiveAfterDays) || inactiveAfterDays < 1) return [];
   const result: InactiveCustomer[] = [];
-  for (const [contactId, info] of byContact) {
-    const daysSince = Math.floor((now.getTime() - info.last.getTime()) / DAY_MS);
+  for (const summary of summaries) {
+    if (summary.rutClean.startsWith(GENERIC_CONSUMER_RUT_PREFIX)) continue;
+    const daysSince = Math.floor((now.getTime() - summary.lastPurchaseAt.getTime()) / DAY_MS);
     if (daysSince >= inactiveAfterDays) {
-      result.push({ contactId, lastPurchaseAt: info.last, daysSince, purchaseCount: info.count, totalSpent: info.total });
+      result.push({ contactId: summary.contactId, lastPurchaseAt: summary.lastPurchaseAt, daysSince, purchaseCount: summary.purchaseCount, totalSpent: summary.totalSpent });
     }
   }
   return result.sort((a, b) => b.totalSpent - a.totalSpent || b.daysSince - a.daysSince);
