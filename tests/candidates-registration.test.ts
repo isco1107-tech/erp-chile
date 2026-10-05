@@ -64,10 +64,16 @@ describe('candidateSelfRegistrationSchema — formulario público de inscripció
     expect(candidateSelfRegistrationSchema.safeParse(buildValidRegistration({ comuna: '' })).success).toBe(false);
   });
 
-  it.each(['fullName', 'rut', 'age', 'comuna', 'phone', 'email', 'instagram', 'motivacion'] as const)('exige %s', (field) => {
+  it.each(['fullName', 'rut', 'age', 'comuna', 'phone', 'email', 'motivacion'] as const)('exige %s', (field) => {
     const { [field]: removed, ...rest } = buildValidRegistration();
     void removed;
     expect(candidateSelfRegistrationSchema.safeParse(rest).success).toBe(false);
+  });
+
+  it('el Instagram lo exige cada certamen en el servidor, no el esquema', () => {
+    const { instagram: removed, ...rest } = buildValidRegistration();
+    void removed;
+    expect(candidateSelfRegistrationSchema.safeParse(rest).success).toBe(true);
   });
 
   it('rechaza una edad fuera de rango o con decimales', () => {

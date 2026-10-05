@@ -535,6 +535,13 @@ export const PAGEANT_SITE_STYLES = `
 .pgs-consent a { color: var(--ink); }
 .pgs-consent.has-error label { color: var(--copihue); }
 .pgs-consent .pgs-field-error { margin-top: 0.35rem; }
+.pgs-reqs { margin: 0 0 0.4rem; padding: 0.9rem 1.1rem; border-radius: 12px; background: color-mix(in srgb, var(--a) 18%, var(--paper)); color: var(--ink); font-size: 0.9rem; line-height: 1.5; }
+.pgs-reqs strong { display: block; margin-bottom: 0.35rem; font-size: 0.75rem; letter-spacing: 0.14em; text-transform: uppercase; }
+.pgs-reqs ul { margin: 0; padding-left: 1.1rem; }
+.pgs-photo { display: flex; align-items: center; gap: 0.9rem; min-width: 0; }
+.pgs-photo img { flex: none; width: 4.5rem; height: 4.5rem; border-radius: 12px; object-fit: cover; }
+.pgs-photo input[type=file] { min-width: 0; max-width: 100%; font-size: 0.85rem; }
+.pgs-photo-hint { margin: 0.3rem 0 0; font-size: 0.8rem; color: var(--ink-soft); }
 .pgs-form .pgs-btn.pgs-btn-block { align-self: stretch; }
 .pgs-lead-pick { margin: 0; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 1rem; border-radius: 12px; background: color-mix(in srgb, var(--a) 22%, var(--paper)); color: var(--ink); font-size: 0.9rem; }
 .pgs-lead-pick button { appearance: none; border: 0; background: none; color: var(--ink-soft); font: 600 0.75rem/1 var(--sans); text-decoration: underline; cursor: pointer; }
