@@ -325,7 +325,7 @@ export const WORKFLOWS: Workflow[] = [
     title: 'Montar un certamen de principio a fin',
     requires: 'hasEventProjects',
     steps: [
-      'Crea el certamen en Certámenes & Eventos con su fecha de gala, recinto y presupuesto.',
+      'Crea el certamen en Certámenes & Eventos con su fecha de gala, recinto y presupuesto, y marca los requisitos de inscripción (edad, ser chilena, Instagram, foto).',
       'Abre la convocatoria en Candidatas & Staff y comparte el enlace de postulación; avanza las fichas en el Tablero de casting y numera a las oficiales.',
       'Envía los contratos de imagen a firmar y controla los pendientes en Contratos firmados.',
       'Arma el tarifario de auspicios, registra los contratos y cumple sus entregables con evidencia.',
