@@ -163,6 +163,10 @@ model Company {
   qualityTemplates          QualityTemplate[]
   qualityInspections        QualityInspection[]
   teamTasks                 TeamTask[]
+  academyGroups             AcademyGroup[]
+  academyStudents           AcademyStudent[]
+  academyAttendance         AcademyAttendance[]
+  academyPayments           AcademyMonthlyPayment[]
   delegationRules           DelegationRule[]
   webSiteAssets             WebSiteAsset[]
   webSiteMessages           WebSiteMessage[]
@@ -575,6 +579,8 @@ model CompanyFeatures {
   hasQuality            Boolean  @default(false)
   /// Tareas del equipo (con recurrencia) y reglas de delegación de decisiones.
   hasTeamTasks          Boolean  @default(false)
+  /// Academia: ficha de alumnas, lista de asistencia y mensualidad pagada.
+  hasAcademy            Boolean  @default(false)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 }
@@ -5853,4 +5859,99 @@ model PrivacyIncident {
   updatedAt            DateTime              @updatedAt
 
   @@index([companyId, status])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Academia de modelaje (`hasAcademy`): ficha de alumnas, lista de asistencia y
+// control de la mensualidad. Deliberadamente simple: no genera documentos
+// tributarios ni cuotas de tesorería.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum AcademyAttendanceStatus {
+  PRESENT
+  LATE
+  ABSENT
+  JUSTIFIED
+}
+
+/// Curso o grupo de clases ("Modelaje juvenil – sábados").
+model AcademyGroup {
+  id          String           @id @default(cuid())
+  companyId   String
+  company     Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  name        String
+  schedule    String?
+  /// Mensualidad sugerida (CLP entero); `null` = se indica al marcar el pago.
+  monthlyFee  Int?
+  isActive    Boolean          @default(true)
+  students    AcademyStudent[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([companyId, isActive])
+}
+
+model AcademyStudent {
+  id            String                  @id @default(cuid())
+  companyId     String
+  company       Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  groupId       String?
+  group         AcademyGroup?           @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  rut           String
+  rutClean      String
+  fullName      String
+  birthDate     DateTime?
+  email         String?
+  phone         String?
+  /// Solo si es menor de edad.
+  guardianName  String?
+  guardianPhone String?
+  guardianEmail String?
+  /// Autorización del uso de su imagen (fotos y videos de la academia).
+  photoConsent  Boolean                 @default(false)
+  notes         String?
+  /// Primer mes que se le cobra (día 1, 12:00 UTC). Antes de ese mes no debe nada.
+  startMonth    DateTime
+  isActive      Boolean                 @default(true)
+  attendance    AcademyAttendance[]
+  payments      AcademyMonthlyPayment[]
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+
+  @@unique([companyId, rutClean])
+  @@index([companyId, isActive])
+  @@index([companyId, groupId])
+}
+
+model AcademyAttendance {
+  id        String                  @id @default(cuid())
+  companyId String
+  company   Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  studentId String
+  student   AcademyStudent          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  /// Día de la clase (12:00 UTC).
+  date      DateTime
+  status    AcademyAttendanceStatus
+  createdAt DateTime                @default(now())
+
+  @@unique([studentId, date])
+  @@index([companyId, date])
+}
+
+/// Mensualidad pagada. Que exista la fila = pagada; desmarcar la borra.
+model AcademyMonthlyPayment {
+  id        String         @id @default(cuid())
+  companyId String
+  company   Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  studentId String
+  student   AcademyStudent @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  /// "YYYY-MM"
+  period    String
+  /// CLP entero.
+  amount    Int
+  paidAt    DateTime       @default(now())
+  note      String?
+
+  @@unique([studentId, period])
+  @@index([companyId, period])
 }

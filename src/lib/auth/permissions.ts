@@ -228,6 +228,9 @@ export const PERMISSIONS = {
   'tasks:read': ALL_ROLES,
   'tasks:write': ALL_ROLES,
   'tasks:manage': ['OWNER', 'ADMIN'],
+  'academy:read': ['OWNER', 'ADMIN', 'SALES'],
+  'academy:write': ['OWNER', 'ADMIN', 'SALES'],
+  'academy:manage': ['OWNER', 'ADMIN'],
 
   // Mensajería interna: entorno de productividad transversal, no un módulo
   // vertical del negocio — todo el equipo puede usarla, mismo criterio que
@@ -369,6 +372,9 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'tasks:read': 'Ver tareas del equipo y reglas de delegación',
   'tasks:write': 'Crear tareas propias y actualizar las asignadas',
   'tasks:manage': 'Asignar tareas a otros y definir reglas de delegación',
+  'academy:read': 'Ver alumnas, grupos, asistencia y mensualidades de la academia',
+  'academy:write': 'Crear y editar alumnas, pasar lista y marcar mensualidades pagadas',
+  'academy:manage': 'Crear grupos, dar de baja alumnas y borrar registros de la academia',
   'messaging:use': 'Usar la mensajería interna de la empresa',
 };
 

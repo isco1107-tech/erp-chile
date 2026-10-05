@@ -246,6 +246,15 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       note('Productores', 'Revisa el % de lotes aprobados de cada proveedor.'),
     ],
   },
+  academy: {
+    title: 'Academia',
+    steps: [
+      header('Tu academia en un lugar', 'Ficha de cada alumna, lista de asistencia y mensualidades pagadas.'),
+      note('Alumnas', 'Crea la ficha con sus datos, su apoderado si es menor y la autorización de imagen.'),
+      note('Pasar lista', 'Elige el grupo y la fecha y marca presente, atrasada, ausente o justificada.'),
+      note('Mensualidad', 'Marca cada mes como pagado; los meses sin pago aparecen en rojo.'),
+    ],
+  },
   tasks: {
     title: 'Tareas y delegación',
     steps: [

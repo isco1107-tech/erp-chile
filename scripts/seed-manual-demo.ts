@@ -58,6 +58,7 @@ const ALL_FEATURES_ON: CompanyFeatureFlags = {
   hasCustomerCare: true,
   hasQuality: true,
   hasTeamTasks: true,
+  hasAcademy: true,
 };
 
 async function main() {

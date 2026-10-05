@@ -88,6 +88,10 @@ async function hardDeleteTenant(tx: Prisma.TransactionClient, companyId: string)
   await tx.serviceTicketEvent.deleteMany({ where: { companyId } });
   await tx.serviceTicketLine.deleteMany({ where: { companyId } });
   await tx.serviceTicket.deleteMany({ where: { companyId } });
+  await tx.academyAttendance.deleteMany({ where: { companyId } });
+  await tx.academyMonthlyPayment.deleteMany({ where: { companyId } });
+  await tx.academyStudent.deleteMany({ where: { companyId } });
+  await tx.academyGroup.deleteMany({ where: { companyId } });
   await tx.productionOrderComponent.deleteMany({ where: { companyId } });
   await tx.productionOrder.deleteMany({ where: { companyId } });
   await tx.bomComponent.deleteMany({ where: { companyId } });
