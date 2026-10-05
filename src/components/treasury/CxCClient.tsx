@@ -99,6 +99,12 @@ export default function CxCClient() {
         </section>
       </div>
 
+      {!loading && !failed && summary && summary.openCount > rows.length && (
+        <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+          Se muestran los {rows.length} documentos más antiguos de {summary.openCount.toLocaleString('es-CL')} pendientes (los totales de arriba sí incluyen todos). Para ver un documento en particular, búscalo en <Link href="/dashboard/sales" className="font-medium underline underline-offset-2">Ventas</Link>.
+        </p>
+      )}
+
       <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-card">
         <table className="w-full min-w-[1000px] text-sm">
           <thead className="border-b border-border bg-muted/50 text-left text-xs text-muted-foreground">

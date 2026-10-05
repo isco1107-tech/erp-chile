@@ -106,6 +106,9 @@ export async function createSalesDocument(
     if (!warehouse) throw new Error('Bodega no encontrada');
 
     const withCost = [];
+    // Productos que de verdad mueven Kardex: solo esos se bloquean más abajo
+    // (un servicio que aparece en muchas facturas no debe serializarlas).
+    const trackableProductIds = new Set<string>();
     for (const item of input.items) {
       let unitCostPMP = 0;
       let isExempt = item.isExempt ?? false;
@@ -113,6 +116,7 @@ export async function createSalesDocument(
         const product = await tx.product.findFirst({ where: { id: item.productId, companyId } });
         if (!product) throw new Error(`Producto no encontrado: ${item.description}`);
         unitCostPMP = product.costPricePMP;
+        if (product.isTrackable) trackableProductIds.add(product.id);
         // La condición de exento la fija el catálogo, no el formulario: es un
         // atributo tributario del producto. Antes se tomaba `item.isExempt` del
         // cliente, así que vender un producto exento desde Ventas le cargaba el
@@ -307,7 +311,11 @@ export async function createSalesDocument(
       // antes del primer movimiento: tomados línea por línea, una factura
       // [A, B] y una boleta [B, A] simultáneas se bloqueaban en círculo
       // (deadlock), ver `lockProductRows`.
-      await lockProductRows(tx, companyId, computedItems.map((item) => item.productId));
+      await lockProductRows(
+        tx,
+        companyId,
+        computedItems.filter((item) => item.productId && trackableProductIds.has(item.productId) && item.quantity > 0).map((item) => item.productId)
+      );
       const sourceItems = isCreditNote && referencedDocument ? referencedDocument.items : computedItems;
       for (const item of computedItems) {
         if (!item.productId) continue;
@@ -692,8 +700,11 @@ export async function cancelSalesDocument(companyId: string, id: string, reason?
     }
 
     // Todos los productos juntos y en orden de id antes del primer movimiento
-    // (evita deadlocks; ver `lockProductRows`).
-    await lockProductRows(tx, companyId, document.items.map((item) => item.productId));
+    // (evita deadlocks; ver `lockProductRows`). Solo si esta anulación mueve
+    // stock: una factura que solo formalizaba una guía no toca el Kardex.
+    if (documentMovedStockOnIssue || document.dteType === 'NOTA_CREDITO_61') {
+      await lockProductRows(tx, companyId, document.items.filter((item) => item.quantity > 0).map((item) => item.productId));
+    }
     if (documentMovedStockOnIssue) {
       for (const item of document.items) {
         if (!item.productId) continue;
@@ -998,23 +1009,26 @@ export async function getSalesDraftForEdit(companyId: string, id: string): Promi
  * Elimina un borrador. Rechaza cualquier documento que no sea borrador: un
  * documento emitido solo se anula, nunca se borra.
  */
+/** Rechazo esperado al eliminar un borrador: su mensaje se muestra tal cual al usuario. */
+export class SalesDraftError extends Error {}
+
 export async function deleteSalesDraft(companyId: string, id: string): Promise<{ id: string; dteType: DteType; totalAmount: number }> {
   return prisma.$transaction(async (tx) => {
     const draft = await tx.salesDocument.findFirst({
       where: { id, companyId },
       select: { id: true, status: true, dteType: true, totalAmount: true },
     });
-    if (!draft) throw new Error('Documento no encontrado');
+    if (!draft) throw new SalesDraftError('Documento no encontrado');
     if (draft.status !== 'DRAFT') {
-      throw new Error('Solo se pueden eliminar borradores. Un documento emitido se anula, no se elimina');
+      throw new SalesDraftError('Solo se pueden eliminar borradores. Un documento emitido se anula, no se elimina');
     }
     const payments = await tx.payment.count({ where: { companyId, salesDocumentId: id } });
-    if (payments > 0) throw new Error('Este borrador tiene pagos asociados y no se puede eliminar');
+    if (payments > 0) throw new SalesDraftError('Este borrador tiene pagos asociados y no se puede eliminar');
 
     // El filtro de estado va también en el borrado: si el documento se emitió
     // entre la lectura y este punto, no se toca.
     const deleted = await tx.salesDocument.deleteMany({ where: { id, companyId, status: 'DRAFT' } });
-    if (deleted.count === 0) throw new Error('El borrador ya no existe o se emitió mientras tanto');
+    if (deleted.count === 0) throw new SalesDraftError('El borrador ya no existe o se emitió mientras tanto');
     return { id: draft.id, dteType: draft.dteType, totalAmount: draft.totalAmount };
   });
 }

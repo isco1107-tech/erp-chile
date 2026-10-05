@@ -587,13 +587,14 @@ export async function enrichPurchaseDocumentWithItems(
     // mueve stock, ese asiento quedó mal clasificado — se reversa y se postea
     // de nuevo con el detalle correcto, en vez de dejar ambos asientos
     // sumando la deuda con el proveedor dos veces.
+    // Productos ANTES del reverso: el reverso crea un asiento y toma el
+    // correlativo contable, y todas las demás rutas toman productos → asiento.
+    // En el orden inverso, agregar detalle a una compra mientras se vende el
+    // mismo producto podía terminar en deadlock (ver `lockProductRows`).
+    if (direction === 'IN') await lockProductRows(tx, companyId, computedItems.map((item) => item.productId));
     await reversePurchaseDocumentPosting(tx, companyId, doc.id, 'Detalle de productos agregado: re-posteo con costeo correcto');
 
     if (direction === 'IN') {
-      // Todos los productos juntos y en orden de id antes del primer movimiento
-      // (evita deadlocks entre documentos con las mismas líneas en otro orden;
-      // ver `lockProductRows`).
-      await lockProductRows(tx, companyId, computedItems.map((item) => item.productId));
       for (const item of computedItems) {
         if (!item.productId) continue;
         const product = await tx.product.findFirst({ where: { id: item.productId, companyId } });

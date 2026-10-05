@@ -14,7 +14,11 @@ jest.mock('@/modules/accounting/posting-rules/inventory-posting', () => ({ postI
 import { applyStockOut, lockProductRows, type TxClient } from '@/modules/inventory/services/stock.service';
 
 function fakeTx() {
-  const $queryRaw = jest.fn().mockResolvedValue([]);
+  // Como Postgres: el FOR UPDATE de varios ids devuelve una fila por cada id existente.
+  const $queryRaw = jest.fn(async (_sql: TemplateStringsArray, ...values: unknown[]) => {
+    const ids = values.find(Array.isArray) as string[] | undefined;
+    return (ids ?? []).filter((id) => id !== 'ajeno').map((id) => ({ id }));
+  });
   const tx = {
     $queryRaw,
     product: { findFirst: jest.fn().mockResolvedValue({ id: 'b', isTrackable: true, tracksLots: false, costPricePMP: 100 }) },
@@ -57,6 +61,13 @@ describe('lockProductRows', () => {
     await lockProductRows(tx, 'c1', ['c', 'a']);
     expect($queryRaw).toHaveBeenCalledTimes(2);
     expect(params($queryRaw.mock.calls[1]!)).toEqual(['c1', ['c']]);
+  });
+
+  it('un id que la base no devolvió (otra empresa o inexistente) no queda marcado como bloqueado', async () => {
+    const { tx, $queryRaw } = fakeTx();
+    await lockProductRows(tx, 'c1', ['a', 'ajeno']);
+    await lockProductRows(tx, 'c1', ['ajeno']);
+    expect($queryRaw).toHaveBeenCalledTimes(2);
   });
 
   it('sin productos no consulta', async () => {

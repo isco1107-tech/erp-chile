@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import ContactForm from './ContactForm';
-import { listContactsAction } from '@/modules/contacts/actions/contacts.actions';
+import { getContactAction, listContactsAction } from '@/modules/contacts/actions/contacts.actions';
 import { listWarehousesAction } from '@/modules/inventory/actions/inventory.actions';
 import { findProductByCodeAction, listProductsAction } from '@/modules/inventory/actions/products.actions';
 import type { ProductWithStock } from '@/modules/inventory/services/products.service';
@@ -86,6 +86,8 @@ interface SalesDocumentFormProps {
   initialType?: (typeof DTE_TYPES)[number];
   /** Borrador que se edita: al emitir (o guardar de nuevo) el borrador original se descarta. */
   initialDraft?: SalesDraftPrefill;
+  /** Cliente con el que abre la venta (p. ej. "Venderle" tras crear un contacto). */
+  initialContactId?: string;
   folioStatus?: SalesFolioStatus;
 }
 
@@ -93,7 +95,7 @@ function isPaymentMethod(value: string): value is (typeof PAYMENT_METHODS)[numbe
   return (PAYMENT_METHODS as readonly string[]).includes(value);
 }
 
-export default function SalesDocumentForm({ orderId, initialType, initialDraft, folioStatus }: SalesDocumentFormProps = {}) {
+export default function SalesDocumentForm({ orderId, initialType, initialDraft, initialContactId, folioStatus }: SalesDocumentFormProps = {}) {
   const confirm = useConfirm();
   const router = useRouter();
   const idempotency = useRef(createIdempotencyTracker());
@@ -204,6 +206,20 @@ export default function SalesDocumentForm({ orderId, initialType, initialDraft, 
       setSelectedContact(contact);
     }
   }, [initialDraft, contacts]);
+
+  // Venta abierta desde "Venderle" (tras crear un contacto): el cliente llega
+  // por id y se busca aparte, porque puede no estar en la primera página de
+  // la lista. Una nota de venta o un borrador mandan sobre este parámetro.
+  useEffect(() => {
+    if (!initialContactId || orderId || initialDraft) return;
+    let cancelled = false;
+    getContactAction(initialContactId).then((result) => {
+      if (!cancelled && result.success) setSelectedContact((current) => current ?? result.data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [initialContactId, orderId, initialDraft]);
 
   // Lista de precios del cliente: propone el precio de cada producto nuevo.
   useEffect(() => {

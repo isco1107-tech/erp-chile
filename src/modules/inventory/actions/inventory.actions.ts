@@ -8,7 +8,7 @@ import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import { prisma } from '@/lib/prisma';
 import { stockMovementSchema, warehouseCreateSchema } from '../schema';
 import * as stockService from '../services/stock.service';
-import type { StockByWarehouseRow } from '../services/stock.service';
+import type { StockByWarehousePage } from '../services/stock.service';
 import { normalizeLotNumber, parseExpiryDate } from '@/lib/inventory/lots';
 
 export type ActionResult<T> =
@@ -76,13 +76,20 @@ export async function createWarehouseAction(input: unknown): Promise<ActionResul
 
 export async function listStockByWarehouseAction(
   query?: string,
-  warehouseId?: string
-): Promise<ActionResult<StockByWarehouseRow[]>> {
+  warehouseId?: string,
+  page?: number,
+  pageSize?: number
+): Promise<ActionResult<StockByWarehousePage>> {
   try {
     const session = await requireAuthWithPermission('products:read');
-    const data = await stockService.listStockByWarehouse(session.companyId, { query, warehouseId });
+    const data = await stockService.listStockByWarehouse(session.companyId, {
+      query: typeof query === 'string' ? query : undefined,
+      warehouseId: typeof warehouseId === 'string' ? warehouseId : undefined,
+      page: typeof page === 'number' && Number.isFinite(page) ? page : undefined,
+      pageSize: typeof pageSize === 'number' && Number.isFinite(pageSize) ? pageSize : undefined,
+    });
     if (!can(session, 'products:costs')) {
-      return { success: true, data: data.map((row) => ({ ...row, pmp: 0, valued: 0 })) };
+      return { success: true, data: { ...data, rows: data.rows.map((row) => ({ ...row, pmp: 0, valued: 0 })) } };
     }
     return { success: true, data };
   } catch (error) {

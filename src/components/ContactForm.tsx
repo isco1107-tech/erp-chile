@@ -189,9 +189,15 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
       }
 
       const message = result.message ?? 'Contacto guardado';
-      // Tras crear un proveedor, el paso siguiente es registrarle una compra.
-      // (Para clientes falta que la pantalla de ventas lea `contactId`; ver informe.)
-      if (!editingContact && result.data.isSupplier) {
+      // Tras crear un contacto, el toast ofrece el paso siguiente: venderle a
+      // un cliente (la venta abre con él ya elegido) o registrarle una compra
+      // a un proveedor.
+      if (!editingContact && result.data.isCustomer) {
+        const contactId = result.data.id;
+        toast.success(message, {
+          action: { label: 'Venderle', onClick: () => router.push(`/dashboard/sales/new?contactId=${encodeURIComponent(contactId)}`) },
+        });
+      } else if (!editingContact && result.data.isSupplier) {
         toast.success(message, {
           action: { label: 'Registrar compra', onClick: () => router.push('/dashboard/purchases/new') },
         });

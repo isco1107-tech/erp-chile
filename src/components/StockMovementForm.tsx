@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import type { Warehouse } from '@prisma/client';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -11,6 +11,7 @@ import { FieldHint, FieldLabel } from '@/components/ui/FieldLabel';
 import { CurrencyInput } from '@/components/ui/CurrencyInput';
 import { MOVEMENT_TYPES, stockMovementSchema } from '@/modules/inventory/schema';
 import { registerStockMovementAction } from '@/modules/inventory/actions/inventory.actions';
+import { getProductAction, listProductsAction } from '@/modules/inventory/actions/products.actions';
 import type { ProductWithStock } from '@/modules/inventory/services/products.service';
 
 const MOVEMENT_LABELS: Record<(typeof MOVEMENT_TYPES)[number], string> = {
@@ -51,6 +52,45 @@ export default function StockMovementForm({ products, warehouses, onSaved, onCan
   const [form, setForm] = useState<FormState>({ ...EMPTY_FORM, productId: defaultProductId ?? '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  // La lista que llega por props es la primera página del catálogo (máx. 300
+  // por orden alfabético). Con catálogos grandes el producto buscado puede no
+  // estar ahí: el buscador consulta al servidor, y el producto preseleccionado
+  // ("Cargar stock inicial") se trae aparte si no vino en la lista.
+  const [productQuery, setProductQuery] = useState('');
+  const [searched, setSearched] = useState<ProductWithStock[] | null>(null);
+  const [preselected, setPreselected] = useState<ProductWithStock | null>(null);
+
+  useEffect(() => {
+    const term = productQuery.trim();
+    if (term.length < 2) {
+      setSearched(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      listProductsAction(term).then((result) => {
+        if (!cancelled && result.success) setSearched(result.data);
+      });
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [productQuery]);
+
+  useEffect(() => {
+    if (!defaultProductId || products.some((p) => p.id === defaultProductId)) return;
+    let cancelled = false;
+    getProductAction(defaultProductId).then((result) => {
+      if (!cancelled && result.success) setPreselected(result.data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [defaultProductId, products]);
+
+  const baseOptions = searched ?? products;
+  const productOptions = preselected && !baseOptions.some((p) => p.id === preselected.id) ? [preselected, ...baseOptions] : baseOptions;
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -58,7 +98,7 @@ export default function StockMovementForm({ products, warehouses, onSaved, onCan
 
   const isIn = form.type === 'PURCHASE_IN' || form.type === 'ADJUSTMENT_IN';
   const isTransfer = form.type === 'TRANSFER';
-  const selectedProduct = products.find((p) => p.id === form.productId);
+  const selectedProduct = productOptions.find((p) => p.id === form.productId) ?? products.find((p) => p.id === form.productId);
   const capturesLot = isIn && !!selectedProduct?.tracksLots;
 
   async function handleSubmit(e: FormEvent) {
@@ -133,14 +173,27 @@ export default function StockMovementForm({ products, warehouses, onSaved, onCan
 
         <div>
           <Label htmlFor="mv-product">Producto</Label>
+          <Input
+            type="search"
+            value={productQuery}
+            onChange={(e) => setProductQuery(e.target.value)}
+            placeholder="Buscar por SKU o nombre"
+            aria-label="Buscar producto por SKU o nombre"
+            className="mb-1.5"
+          />
           <select
             id="mv-product"
             value={form.productId}
-            onChange={(e) => update('productId', e.target.value)}
+            onChange={(e) => {
+              // Se fija el elegido para que no desaparezca al cambiar la búsqueda.
+              const chosen = productOptions.find((p) => p.id === e.target.value) ?? null;
+              if (chosen) setPreselected(chosen);
+              update('productId', e.target.value);
+            }}
             className="h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
           >
             <option value="">Seleccione producto</option>
-            {products.filter((p) => p.isTrackable).map((p) => (
+            {productOptions.filter((p) => p.isTrackable || p.id === form.productId).map((p) => (
               <option key={p.id} value={p.id}>{p.sku} — {p.name}</option>
             ))}
           </select>

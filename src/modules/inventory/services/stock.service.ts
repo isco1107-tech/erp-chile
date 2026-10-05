@@ -105,11 +105,13 @@ function rememberLocked(tx: TxClient, productIds: string[]): void {
  * transacciones solo pueden esperar una a la otra, nunca en círculo.
  */
 export async function lockProductRows(tx: TxClient, companyId: string, productIds: Iterable<string | null | undefined>): Promise<void> {
-  const locked = lockedProductsByTx.get(tx);
-  const ids = [...new Set([...productIds].filter((id): id is string => Boolean(id) && !locked?.has(id as string)))].sort();
+  const alreadyLocked = lockedProductsByTx.get(tx);
+  const ids = [...new Set([...productIds].filter((id): id is string => Boolean(id) && !alreadyLocked?.has(id as string)))].sort();
   if (ids.length === 0) return;
-  await tx.$queryRaw`SELECT id FROM "Product" WHERE "companyId" = ${companyId} AND id = ANY(${ids}) ORDER BY id FOR UPDATE`;
-  rememberLocked(tx, ids);
+  const locked = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM "Product" WHERE "companyId" = ${companyId} AND id = ANY(${ids}) ORDER BY id FOR UPDATE`;
+  // Solo cuenta como bloqueado lo que la base devolvió (un id ajeno o
+  // inexistente no se marca).
+  rememberLocked(tx, Array.isArray(locked) ? locked.map((row) => row.id) : []);
 }
 
 export async function applyStockIn(tx: TxClient, companyId: string, params: StockInParams): Promise<InventoryMovement> {
@@ -378,24 +380,45 @@ export interface StockByWarehouseRow {
   valued: number;
 }
 
+/** Máximo de filas por página del listado de stock. */
+export const STOCK_LIST_MAX_PAGE_SIZE = 200;
+
+export interface StockByWarehousePage {
+  rows: StockByWarehouseRow[];
+  total: number;
+}
+
+/**
+ * Stock por producto y bodega, paginado. Antes devolvía TODAS las filas: con
+ * 20.000 productos la pantalla de Inventario dibujaba 20.450 filas (123.000
+ * nodos, 6 s y la pestaña al borde de colgarse — auditoría de estrés
+ * 2026-10-05). Ahora va por páginas, como Productos y Contactos.
+ */
 export async function listStockByWarehouse(
   companyId: string,
-  options?: { query?: string; warehouseId?: string }
-): Promise<StockByWarehouseRow[]> {
+  options?: { query?: string; warehouseId?: string; page?: number; pageSize?: number }
+): Promise<StockByWarehousePage> {
   const where: Prisma.StockWhereInput = { companyId };
   if (options?.warehouseId) where.warehouseId = options.warehouseId;
   const trimmed = options?.query?.trim();
   if (trimmed) {
     where.product = { OR: [{ sku: { contains: trimmed, mode: 'insensitive' } }, { name: { contains: trimmed, mode: 'insensitive' } }] };
   }
+  const pageSize = Math.min(Math.max(1, Math.floor(options?.pageSize ?? 50)), STOCK_LIST_MAX_PAGE_SIZE);
+  const page = Math.max(1, Math.floor(options?.page ?? 1));
 
-  const rows = await prisma.stock.findMany({
-    where,
-    include: { product: true, warehouse: true },
-    orderBy: [{ product: { name: 'asc' } }, { warehouse: { name: 'asc' } }],
-  });
+  const [rows, total] = await Promise.all([
+    prisma.stock.findMany({
+      where,
+      include: { product: true, warehouse: true },
+      orderBy: [{ product: { name: 'asc' } }, { warehouse: { name: 'asc' } }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.stock.count({ where }),
+  ]);
 
-  return rows.map((row) => ({
+  return { total, rows: rows.map((row) => ({
     productId: row.productId,
     productName: row.product.name,
     productSku: row.product.sku,
@@ -404,5 +427,5 @@ export async function listStockByWarehouse(
     quantity: row.quantity,
     pmp: row.product.costPricePMP,
     valued: Math.round(row.quantity * row.product.costPricePMP),
-  }));
+  })) };
 }

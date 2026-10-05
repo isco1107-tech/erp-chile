@@ -54,7 +54,7 @@ export const INVENTARIO_SECTIONS: ManualSection[] = [
         route: '/dashboard/inventory',
         steps: [
           'En Inventario haz clic en "Ajuste de Stock / Entrada Directa".',
-          'Elige el tipo: Entrada por Ajuste, Salida por Ajuste o Transferencia entre Bodegas (con Multibodega).',
+          'Elige el tipo: "Stock inicial / ajuste positivo" para cargar lo que ya tienes en bodega, "Merma / ajuste negativo" para pérdidas o diferencias, o "Transferencia entre bodegas" (con Multibodega). Las compras y ventas reales se registran en Compras y Ventas: ahí quedan con su documento e IVA.',
           'Elige producto, bodega, cantidad y costo unitario (en las entradas), y escribe la referencia y el motivo real (merma, error de conteo, etc.).',
           'Con Multibodega, "+ Bodega" crea una bodega nueva con nombre y código.',
         ],

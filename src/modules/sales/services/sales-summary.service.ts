@@ -10,7 +10,7 @@ export interface MonthlySalesSummaryRow {
   netAmount: number;
   exemptAmount: number;
   ivaAmount: number;
-  /** Σ round(cantidad × PMP de la línea): el mismo costo de venta que se calculaba en JS. */
+  /** Σ Math.round(cantidad × PMP de la línea): el mismo costo de venta que se calculaba en JS. */
   costOfSales: number;
 }
 
@@ -55,7 +55,10 @@ export async function getMonthlySalesSummary(
       SUM(COALESCE(c."cost", 0)) AS "costOfSales"
     FROM "SalesDocument" d
     LEFT JOIN LATERAL (
-      SELECT SUM(ROUND(i."quantity" * i."unitCostPMP")) AS "cost"
+      -- FLOOR(x + 0.5) y no ROUND: sobre double precision Postgres redondea los
+      -- empates al par (1234,5 → 1234) y el resto del sistema usa Math.round
+      -- (→ 1235). Las cantidades nunca son negativas (esquema de ventas).
+      SELECT SUM(FLOOR(i."quantity" * i."unitCostPMP" + 0.5)) AS "cost"
       FROM "SalesDocumentItem" i
       WHERE i."documentId" = d.id AND i."companyId" = ${companyId}
     ) c ON TRUE

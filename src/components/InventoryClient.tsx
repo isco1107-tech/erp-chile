@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/input';
+import { Pagination } from '@/components/ui/pagination';
 import StockMovementForm from './StockMovementForm';
 import {
   createWarehouseAction,
@@ -33,8 +34,12 @@ const MOVEMENT_LABELS: Record<InventoryMovement['type'], string> = {
 export default function InventoryClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [stockProductId, setStockProductId] = useState<string | undefined>(undefined);
 
   const [rows, setRows] = useState<StockByWarehouseRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSizeState] = useState(50);
   const [products, setProducts] = useState<ProductWithStock[]>([]);
   const [productsLoaded, setProductsLoaded] = useState(false);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -51,9 +56,11 @@ export default function InventoryClient() {
 
   async function loadStock(q?: string, wId?: string) {
     setLoading(true);
-    const result = await listStockByWarehouseAction(q, wId || undefined);
-    if (result.success) setRows(result.data);
-    else toast.error(result.error);
+    const result = await listStockByWarehouseAction(q, wId || undefined, page, pageSize);
+    if (result.success) {
+      setRows(result.data.rows);
+      setTotal(result.data.total);
+    } else toast.error(result.error);
     setLoading(false);
   }
 
@@ -79,6 +86,9 @@ export default function InventoryClient() {
   // formulario de movimiento directamente.
   useEffect(() => {
     if (searchParams.get('openStockForm')) {
+      // "Cargar stock inicial" tras crear un producto llega con su id: el
+      // formulario abre con ese producto ya elegido.
+      setStockProductId(searchParams.get('productId') ?? undefined);
       setShowMovementForm(true);
       router.replace('/dashboard/inventory');
     }
@@ -89,10 +99,21 @@ export default function InventoryClient() {
     const timer = setTimeout(() => loadStock(query || undefined, warehouseId), 300);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, warehouseId, page, pageSize]);
+
+  // Un filtro nuevo vuelve a la primera página.
+  useEffect(() => {
+    setPage(1);
   }, [query, warehouseId]);
+
+  function setPageSize(size: number) {
+    setPageSizeState(size);
+    setPage(1);
+  }
 
   async function handleMovementSaved() {
     setShowMovementForm(false);
+    setStockProductId(undefined);
     await Promise.all([loadStock(query || undefined, warehouseId), loadProducts()]);
     if (selectedProduct) handleSelectProduct(selectedProduct.id, selectedProduct.label);
   }
@@ -176,10 +197,15 @@ export default function InventoryClient() {
 
       {showMovementForm && (
         <StockMovementForm
+          key={stockProductId ?? 'nuevo'}
+          defaultProductId={stockProductId}
           products={products}
           warehouses={warehouses}
           onSaved={handleMovementSaved}
-          onCancel={() => setShowMovementForm(false)}
+          onCancel={() => {
+            setShowMovementForm(false);
+            setStockProductId(undefined);
+          }}
         />
       )}
 
@@ -254,6 +280,16 @@ export default function InventoryClient() {
           </tbody>
         </table>
       </div>
+      {total > 0 && (
+        <Pagination
+          page={page}
+          pageCount={Math.max(1, Math.ceil(total / pageSize))}
+          pageSize={pageSize}
+          totalItems={total}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+        />
+      )}
 
       {selectedProduct && (
         <div className="rounded-lg border border-border bg-card p-5 shadow-card">

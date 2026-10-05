@@ -6,6 +6,8 @@
 --
 --   psql postgresql://postgres@localhost:5433/erp_stress -f scripts/stress/volume-seed.sql
 \set ON_ERROR_STOP on
+-- Solo para una base LOCAL de pruebas: aborta en cualquier otra (la DATABASE_URL del .env es producción).
+DO $$ BEGIN IF current_database() <> 'erp_stress' THEN RAISE EXCEPTION 'volume-seed.sql solo corre en la base local erp_stress (esta es %)', current_database(); END IF; END $$;
 BEGIN;
 CREATE TEMP TABLE v AS
   SELECT c.id AS company_id, w.id AS warehouse_id

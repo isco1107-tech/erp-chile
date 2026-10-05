@@ -15,9 +15,15 @@ type DteTypeParam = (typeof DTE_TYPES)[number];
 export default async function NewSalesDocumentPage({
   searchParams,
 }: {
-  searchParams: Promise<{ orderId?: string; type?: string; draft?: string }>;
+  searchParams: Promise<{ orderId?: string | string[]; type?: string | string[]; draft?: string | string[]; contactId?: string | string[] }>;
 }) {
-  const { orderId, type, draft: draftId } = await searchParams;
+  const params = await searchParams;
+  // Un parámetro repetido (`?draft=a&draft=b`) llega como arreglo: solo se acepta texto.
+  const single = (value: unknown): string | undefined => (typeof value === 'string' && value ? value : undefined);
+  const orderId = single(params.orderId);
+  const type = single(params.type);
+  const draftId = single(params.draft);
+  const contactId = single(params.contactId);
 
   // Emitir exige `sales:write`: quien solo puede ver ventas ve el motivo en vez de un formulario que fallaría al guardar.
   const access = await checkPageAccess('sales:write');
@@ -55,7 +61,7 @@ export default async function NewSalesDocumentPage({
       <h1 className="mb-4 text-2xl font-bold">
         {orderId ? 'Emitir desde nota de venta' : draft ? 'Editar y emitir borrador' : 'Nueva Venta / Facturador'}
       </h1>
-      <SalesDocumentForm orderId={orderId} initialType={initialType} initialDraft={draft ?? undefined} folioStatus={folioStatus} />
+      <SalesDocumentForm orderId={orderId} initialType={initialType} initialDraft={draft ?? undefined} initialContactId={contactId} folioStatus={folioStatus} />
     </div>
   );
 }

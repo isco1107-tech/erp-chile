@@ -65,6 +65,7 @@ async function canViewDeletedMessages(userId: string): Promise<boolean> {
 }
 
 async function computeUnreadCounts(
+  companyId: string,
   participations: Array<{ conversationId: string; lastReadAt: Date | null }>
 ): Promise<Map<string, number>> {
   if (participations.length === 0) return new Map();
@@ -80,7 +81,7 @@ async function computeUnreadCounts(
       participations.map((p) => Prisma.sql`(${p.conversationId}::text, ${p.lastReadAt ?? new Date(0)}::timestamp(3))`)
     )}) AS v("conversationId", "lastReadAt")
     LEFT JOIN "Message" m
-      ON m."conversationId" = v."conversationId" AND m."deletedAt" IS NULL AND m."createdAt" > v."lastReadAt"
+      ON m."conversationId" = v."conversationId" AND m."companyId" = ${companyId} AND m."deletedAt" IS NULL AND m."createdAt" > v."lastReadAt"
     GROUP BY v."conversationId"
   `;
   return new Map(rows.map((row) => [row.conversationId, row.unread]));
@@ -115,6 +116,7 @@ export async function listConversations(companyId: string, userId: string): Prom
   });
 
   const unreadCounts = await computeUnreadCounts(
+    companyId,
     participations.map((p) => ({ conversationId: p.conversationId, lastReadAt: p.lastReadAt }))
   );
 
@@ -386,7 +388,7 @@ export async function getTotalUnreadCount(companyId: string, userId: string): Pr
     where: { userId, hiddenAt: null, conversation: { companyId } },
     select: { conversationId: true, lastReadAt: true },
   });
-  const counts = await computeUnreadCounts(participations);
+  const counts = await computeUnreadCounts(companyId, participations);
   let total = 0;
   for (const count of counts.values()) total += count;
   return total;
