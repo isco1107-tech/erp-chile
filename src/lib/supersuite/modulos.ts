@@ -4,7 +4,7 @@ import type { DatosCliente } from './cliente';
 import { formatCurrency } from '@/lib/chile/tax';
 import { EXTRA_USER_PRICE, PRICED_MODULES } from '@/lib/pricing/catalog';
 import { isModuleContracted } from '@/lib/pricing/quote';
-import { tenantListPrice } from '@/lib/pricing/presets';
+import { MAX_WAREHOUSES, PLAN_NAMES, PLAN_PRESETS, tenantListPrice } from '@/lib/pricing/presets';
 import { DTE_TYPE_LABELS } from '@/modules/sales/schema';
 
 /**
@@ -102,9 +102,59 @@ export function modulosContratados(features: Partial<Record<FeatureKey, boolean>
   return [...new Set(modulos)];
 }
 
-/** Aether marca ACTIVE y TRIAL como operativas; SUSPENDED y CANCELLED quedan como bajas en la Supersuite. */
+/**
+ * Sigue siendo cliente en la Supersuite: todo menos CANCELLED. Una empresa
+ * SUSPENDED no es una baja (se puede reactivar desde la consola SaaS): viaja
+ * como cliente con `suspendida: true`.
+ */
 export function empresaActiva(status: string): boolean {
-  return status === 'ACTIVE' || status === 'TRIAL';
+  return status !== 'CANCELLED';
+}
+
+export const empresaSuspendida = (status: string): boolean => status === 'SUSPENDED';
+
+// ── Órdenes de la consola SaaS (funciones puras) ─────────────────────
+
+const normalizar = (texto: string) => texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+
+/**
+ * Flags que enciende o apaga la orden de un módulo. Acepta el nombre de módulo
+ * de la Supersuite (`pos`, `rrhh`…) o el id del tarifario de Aether
+ * (`purchases`, `payroll`…). Lo que se vende como un solo ítem (Entradas y
+ * votación del público) va junto, igual que en el formulario del superadmin.
+ */
+export function flagsDeModulo(modulo: string): FeatureKey[] {
+  const clave = normalizar(modulo);
+  const delTarifario = PRICED_MODULES.find((m) => m.id === clave);
+  if (delTarifario) return [...delTarifario.grants];
+  const flag = (Object.entries(FLAG_A_MODULO) as [FeatureKey, string][]).find(([, m]) => m === clave)?.[0];
+  if (!flag) return [];
+  return [...(PRICED_MODULES.find((m) => m.grants.includes(flag))?.grants ?? [flag])];
+}
+
+/** Nombre del plan de Aether que corresponde (sin importar tildes ni mayúsculas), o null si no existe. */
+export function planDeAether(plan: string): string | null {
+  return PLAN_NAMES.find((nombre) => normalizar(nombre) === normalizar(plan)) ?? null;
+}
+
+/**
+ * Cambio de plan pedido por la Supersuite: el plan nuevo con sus módulos y
+ * límites, SIN quitar nada de lo que la empresa ya tenía (quitar un módulo es
+ * una orden aparte, explícita). Los límites nunca bajan.
+ */
+export function cuentaConPlan(
+  plan: string,
+  actual: { features: CompanyFeatureFlags; maxUsers: number; maxWarehouses: number }
+): { features: CompanyFeatureFlags; maxUsers: number; maxWarehouses: number } | null {
+  const preset = PLAN_PRESETS[plan];
+  if (!preset) return null;
+  const features = { ...actual.features };
+  for (const [flag, valor] of Object.entries(preset.features) as [FeatureKey, boolean][]) if (valor) features[flag] = true;
+  return {
+    features,
+    maxUsers: Math.max(actual.maxUsers, preset.maxUsers),
+    maxWarehouses: Math.min(MAX_WAREHOUSES, Math.max(actual.maxWarehouses, preset.maxWarehouses)),
+  };
 }
 
 /**
@@ -201,6 +251,7 @@ export function fichaDeEmpresa(empresa: {
     tarifaMensual: comercial.tarifaMensual,
     clienteDesde: empresa.createdAt,
     activo: empresaActiva(empresa.status),
+    suspendida: empresaSuspendida(empresa.status),
     modulos: modulosContratados(empresa.features),
     metadata: { rut: empresa.rut, estadoAether: empresa.status, ...comercial.metadata },
   };
