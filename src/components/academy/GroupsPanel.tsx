@@ -7,21 +7,26 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { listGroupsAction, saveGroupAction, setGroupActiveAction } from '@/modules/academy/actions/academy.actions';
-import type { GroupRow } from '@/modules/academy/services/academy.service';
+import { cn } from '@/lib/utils';
+import { listGroupsAction, listStudentsAction, moveStudentToGroupAction, saveGroupAction, setGroupActiveAction } from '@/modules/academy/actions/academy.actions';
+import type { GroupRow, StudentRow } from '@/modules/academy/services/academy.service';
+import { fieldClass } from './shared';
 
 interface Draft { id: string | null; name: string; schedule: string; monthlyFee: string }
 
-export default function GroupsPanel({ canManage }: { canManage: boolean }) {
+export default function GroupsPanel({ canManage, canWrite }: { canManage: boolean; canWrite: boolean }) {
   const [rows, setRows] = useState<GroupRow[]>([]);
+  const [students, setStudents] = useState<StudentRow[]>([]);
+  const [dragOver, setDragOver] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
 
   const load = useCallback(async () => {
-    const result = await listGroupsAction();
-    if (result.success) setRows(result.data);
-    else toast.error(result.error);
+    const [groups, list] = await Promise.all([listGroupsAction(), listStudentsAction({})]);
+    if (groups.success) setRows(groups.data);
+    else toast.error(groups.error);
+    if (list.success) setStudents(list.data);
     setLoading(false);
   }, []);
   useEffect(() => {
@@ -38,6 +43,19 @@ export default function GroupsPanel({ canManage }: { canManage: boolean }) {
     if (!result.success) return void toast.error(result.error);
     toast.success(result.message ?? 'Guardado');
     setDraft(null);
+    await load();
+  }
+
+  /** `''` = columna «Sin grupo». */
+  async function move(studentId: string, column: string) {
+    setDragOver(null);
+    const student = students.find((x) => x.id === studentId);
+    const target = column || null;
+    if (!student || student.groupId === target) return;
+    // Optimista: la alumna cambia de columna al instante; si el servidor rechaza, se recarga.
+    setStudents((prev) => prev.map((x) => (x.id === studentId ? { ...x, groupId: target, groupName: rows.find((g) => g.id === target)?.name ?? null } : x)));
+    const result = await moveStudentToGroupAction({ studentId, groupId: target });
+    if (!result.success) toast.error(result.error);
     await load();
   }
 
@@ -69,33 +87,82 @@ export default function GroupsPanel({ canManage }: { canManage: boolean }) {
           </div>
         </form>
       )}
-      <section className="rounded-lg border border-border bg-card" aria-label="Grupos">
-        {loading ? (
-          <p className="p-4 text-sm text-muted-foreground">Cargando…</p>
-        ) : rows.length === 0 ? (
+      {loading ? (
+        <p className="text-sm text-muted-foreground">Cargando…</p>
+      ) : rows.length === 0 && students.length === 0 ? (
+        <section className="rounded-lg border border-border bg-card" aria-label="Grupos">
           <EmptyState title="Aún no hay grupos" description="Crea un grupo (por ejemplo «Modelaje juvenil») para organizar a las alumnas y pasar lista." />
-        ) : (
-          <ul className="divide-y divide-border">
-            {rows.map((row) => (
-              <li key={row.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
-                <div className="min-w-0 space-y-1">
-                  <p className="text-sm font-medium">{row.name}</p>
-                  <p className="text-xs text-muted-foreground">{[row.schedule, row.monthlyFee !== null ? `Mensualidad $${row.monthlyFee.toLocaleString('es-CL')}` : null, `${row.students} alumnas`].filter(Boolean).join(' · ')}</p>
+        </section>
+      ) : (
+        <section aria-label="Tablero de grupos" className="overflow-x-auto pb-2">
+          {canWrite && <p className="mb-2 text-xs text-muted-foreground">Arrastra a cada alumna a su grupo, o usa el selector de la tarjeta.</p>}
+          <div className="flex min-w-max gap-3">
+            {[{ id: '', name: 'Sin grupo', schedule: null, monthlyFee: null, isActive: true, students: 0 } as GroupRow, ...rows.filter((g) => g.isActive || students.some((x) => x.groupId === g.id)), ].map((column) => {
+              const members = students.filter((x) => (x.groupId ?? '') === column.id);
+              const real = column.id !== '';
+              return (
+                <div
+                  key={column.id || 'none'}
+                  onDragOver={(event) => {
+                    if (!canWrite) return;
+                    event.preventDefault();
+                    setDragOver(column.id || 'none');
+                  }}
+                  onDragLeave={() => setDragOver((current) => (current === (column.id || 'none') ? null : current))}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    const id = event.dataTransfer.getData('text/plain');
+                    if (canWrite && id) void move(id, column.id);
+                  }}
+                  className={cn('flex min-h-[220px] w-64 shrink-0 flex-col rounded-lg border bg-muted/40 p-2 transition-colors', dragOver === (column.id || 'none') ? 'border-primary bg-accent' : 'border-border')}
+                >
+                  <div className="mb-2 space-y-1 px-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="truncate text-sm font-semibold">{column.name}</h3>
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">{members.length}</span>
+                    </div>
+                    {real && <p className="text-xs text-muted-foreground">{[column.schedule, column.monthlyFee !== null ? `$${column.monthlyFee.toLocaleString('es-CL')}/mes` : null].filter(Boolean).join(' · ') || ' '}</p>}
+                    {real && (
+                      <div className="flex items-center gap-1">
+                        {!column.isActive && <StatusBadge tone="neutral">Inactivo</StatusBadge>}
+                        {canManage && (
+                          <>
+                            <Button size="sm" variant="ghost" onClick={() => setDraft({ id: column.id, name: column.name, schedule: column.schedule ?? '', monthlyFee: column.monthlyFee !== null ? String(column.monthlyFee) : '' })}>Editar</Button>
+                            <Button size="sm" variant="ghost" onClick={() => toggle(column)}>{column.isActive ? 'Desactivar' : 'Reactivar'}</Button>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <ul className="flex flex-1 flex-col gap-2">
+                    {members.map((student) => (
+                      <li
+                        key={student.id}
+                        draggable={canWrite}
+                        onDragStart={(event) => {
+                          event.dataTransfer.setData('text/plain', student.id);
+                          event.dataTransfer.effectAllowed = 'move';
+                        }}
+                        className={cn('rounded-md border border-border bg-card p-2 shadow-card', canWrite && 'cursor-grab active:cursor-grabbing')}
+                      >
+                        <p className="truncate text-sm font-medium">{student.fullName}</p>
+                        <p className="truncate text-xs text-muted-foreground">{student.rut}</p>
+                        {student.pendingMonths > 0 && <div className="mt-1"><StatusBadge tone="danger">Debe {student.pendingMonths} {student.pendingMonths === 1 ? 'mes' : 'meses'}</StatusBadge></div>}
+                        {canWrite && (
+                          <select aria-label={`Grupo de ${student.fullName}`} className={cn(fieldClass, 'mt-2 py-1 text-xs')} value={student.groupId ?? ''} onChange={(e) => void move(student.id, e.target.value)}>
+                            <option value="">Sin grupo</option>
+                            {rows.filter((g) => g.isActive || g.id === student.groupId).map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                          </select>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-                <div className="flex items-center gap-2">
-                  {!row.isActive && <StatusBadge tone="neutral">Inactivo</StatusBadge>}
-                  {canManage && (
-                    <>
-                      <Button size="sm" variant="ghost" onClick={() => setDraft({ id: row.id, name: row.name, schedule: row.schedule ?? '', monthlyFee: row.monthlyFee !== null ? String(row.monthlyFee) : '' })}>Editar</Button>
-                      <Button size="sm" variant="ghost" onClick={() => toggle(row)}>{row.isActive ? 'Desactivar' : 'Reactivar'}</Button>
-                    </>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+              );
+            })}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

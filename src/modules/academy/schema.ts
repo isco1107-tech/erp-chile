@@ -23,7 +23,18 @@ export const groupSchema = z.object({
 });
 export type GroupInput = z.infer<typeof groupSchema>;
 
+/** Ficha ampliada, igual a la de candidatas: dirección, contacto de emergencia y tallas. */
+const profileFields = {
+  address: optionalText(200),
+  emergencyContactName: optionalText(120),
+  emergencyContactPhone: optionalText(30),
+  pantsSize: optionalText(20),
+  shirtSize: optionalText(20),
+  shoeSize: optionalText(20),
+};
+
 export const studentSchema = z.object({
+  ...profileFields,
   rut: z.string().trim().refine(validateRut, 'RUT inválido'),
   fullName: z.string().trim().min(3, 'Escribe el nombre completo').max(120),
   groupId: z.string().min(1).nullable().optional(),
@@ -39,6 +50,11 @@ export const studentSchema = z.object({
   startMonth: periodSchema,
 });
 export type StudentInput = z.infer<typeof studentSchema>;
+
+export const moveStudentSchema = z.object({
+  studentId: z.string().min(1),
+  groupId: z.string().min(1).nullable(),
+});
 
 export const attendanceSchema = z.object({
   groupId: z.string().min(1, 'Elige un grupo'),
@@ -73,6 +89,7 @@ export const publicApplicationSchema = z
     birthDate: isoDay,
     phone: z.string().trim().min(8, 'Escribe un teléfono de contacto').max(30),
     email: z.string().trim().email('Correo inválido').max(120).optional().or(z.literal('')),
+    ...profileFields,
     guardianName: optionalText(120),
     guardianPhone: optionalText(30),
     guardianEmail: z.string().trim().email('Correo del apoderado inválido').max(120).optional().or(z.literal('')),

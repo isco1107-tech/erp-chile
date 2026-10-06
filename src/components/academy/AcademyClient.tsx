@@ -45,7 +45,7 @@ export default function AcademyClient({ canWrite, canManage }: { canWrite: boole
       {tab === 'APPLICATIONS' && <ApplicationsPanel canWrite={canWrite} canManage={canManage} onChanged={refresh} />}
       {tab === 'ATTENDANCE' && <AttendancePanel canWrite={canWrite} />}
       {tab === 'PAYMENTS' && <PaymentsPanel canWrite={canWrite} />}
-      {tab === 'GROUPS' && <GroupsPanel canManage={canManage} />}
+      {tab === 'GROUPS' && <GroupsPanel canManage={canManage} canWrite={canWrite} />}
     </div>
   );
 }

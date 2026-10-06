@@ -31,6 +31,12 @@ export default function AcademyEnrollmentForm({ token, companyName, groups }: { 
   const [birthDate, setBirthDate] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [address, setAddress] = useState('');
+  const [emergencyContactName, setEmergencyContactName] = useState('');
+  const [emergencyContactPhone, setEmergencyContactPhone] = useState('');
+  const [pantsSize, setPantsSize] = useState('');
+  const [shirtSize, setShirtSize] = useState('');
+  const [shoeSize, setShoeSize] = useState('');
   const [guardianName, setGuardianName] = useState('');
   const [guardianPhone, setGuardianPhone] = useState('');
   const [guardianEmail, setGuardianEmail] = useState('');
@@ -55,6 +61,12 @@ export default function AcademyEnrollmentForm({ token, companyName, groups }: { 
       birthDate,
       phone,
       email,
+      address,
+      emergencyContactName,
+      emergencyContactPhone,
+      pantsSize,
+      shirtSize,
+      shoeSize,
       guardianName,
       guardianPhone,
       guardianEmail,
@@ -135,6 +147,25 @@ export default function AcademyEnrollmentForm({ token, companyName, groups }: { 
               <input id="email" type="email" autoComplete="email" maxLength={120} value={email} onChange={(e) => setEmail(e.target.value)} />
             </PublicField>
 
+            <PublicField id="address" label="Dirección" optional error={errors.address}>
+              <input id="address" autoComplete="street-address" maxLength={200} value={address} onChange={(e) => setAddress(e.target.value)} />
+            </PublicField>
+            <PublicField id="emergencyContactName" label="Contacto de emergencia (nombre)" optional error={errors.emergencyContactName}>
+              <input id="emergencyContactName" maxLength={120} value={emergencyContactName} onChange={(e) => setEmergencyContactName(e.target.value)} />
+            </PublicField>
+            <PublicField id="emergencyContactPhone" label="Contacto de emergencia (teléfono)" optional error={errors.emergencyContactPhone}>
+              <input id="emergencyContactPhone" type="tel" inputMode="tel" maxLength={30} value={emergencyContactPhone} onChange={(e) => setEmergencyContactPhone(e.target.value)} />
+            </PublicField>
+            <PublicField id="pantsSize" label="Talla de pantalón" optional error={errors.pantsSize}>
+              <input id="pantsSize" maxLength={20} value={pantsSize} onChange={(e) => setPantsSize(e.target.value)} />
+            </PublicField>
+            <PublicField id="shirtSize" label="Talla de polera" optional error={errors.shirtSize}>
+              <input id="shirtSize" maxLength={20} value={shirtSize} onChange={(e) => setShirtSize(e.target.value)} />
+            </PublicField>
+            <PublicField id="shoeSize" label="Talla de zapatos" optional error={errors.shoeSize}>
+              <input id="shoeSize" maxLength={20} value={shoeSize} onChange={(e) => setShoeSize(e.target.value)} />
+            </PublicField>
+
             {minor && (
               <>
                 <p className="pub-hint">Como es menor de edad, necesitamos los datos de su madre, padre o apoderado.</p>
@@ -162,7 +193,7 @@ export default function AcademyEnrollmentForm({ token, companyName, groups }: { 
                 </select>
               </PublicField>
             )}
-            <PublicField id="message" label="Algo que quieras contarnos" optional error={errors.message}>
+            <PublicField id="message" label="Observación especial (alergias, salud u otra)" optional error={errors.message}>
               <textarea id="message" maxLength={500} value={message} onChange={(e) => setMessage(e.target.value)} />
             </PublicField>
 
