@@ -5,7 +5,7 @@ import { authErrorMessage, requireAuthWithPermission } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 import { captureException } from '@/lib/observability';
 import { getAppUrl } from '@/lib/email/mailer';
-import { approveApplicationSchema, attendanceSchema, groupSchema, monthPaymentSchema, periodSchema, studentSchema, isoDay } from '../schema';
+import { approveApplicationSchema, attendanceSchema, groupSchema, monthPaymentSchema, moveStudentSchema, periodSchema, studentSchema, isoDay } from '../schema';
 import * as service from '../services/academy.service';
 import * as enrollment from '../services/academy-enrollment.service';
 import type { ApplicationRow } from '../services/academy-enrollment.service';
@@ -126,6 +126,36 @@ export async function setStudentActiveAction(id: string, isActive: boolean): Pro
     return { success: true, data: null, message: isActive ? 'Alumna reactivada' : 'Alumna dada de baja' };
   } catch (error) {
     return fail(error, companyId, { action: 'setStudentActive' });
+  }
+}
+
+export async function moveStudentToGroupAction(input: unknown): Promise<ActionResult<null>> {
+  let companyId: string | undefined;
+  try {
+    const session = await requireAuthWithPermission('academy:write');
+    companyId = session.companyId;
+    const parsed = moveStudentSchema.safeParse(input);
+    if (!parsed.success) return { success: false, error: firstIssue(parsed.error.issues) };
+    await service.moveStudentToGroup(session.companyId, parsed.data.studentId, parsed.data.groupId);
+    await createAuditLog({ companyId: session.companyId, userId: session.id, userEmail: session.email, action: 'UPDATE', entity: 'AcademyStudent', entityId: parsed.data.studentId, metadata: { groupId: parsed.data.groupId } });
+    revalidate();
+    return { success: true, data: null, message: parsed.data.groupId ? 'Alumna movida de grupo' : 'Alumna sin grupo' };
+  } catch (error) {
+    return fail(error, companyId, { action: 'moveStudentToGroup' });
+  }
+}
+
+export async function deleteStudentAction(id: string): Promise<ActionResult<{ keptPayments: number }>> {
+  let companyId: string | undefined;
+  try {
+    const session = await requireAuthWithPermission('academy:manage');
+    companyId = session.companyId;
+    const result = await service.deleteStudent(session.companyId, String(id));
+    await createAuditLog({ companyId: session.companyId, userId: session.id, userEmail: session.email, action: 'DELETE', entity: 'AcademyStudent', entityId: String(id), metadata: { keptPayments: result.keptPayments } });
+    revalidate();
+    return { success: true, data: result, message: result.keptPayments > 0 ? `Alumna eliminada. Sus ${result.keptPayments} pagos quedan registrados` : 'Alumna eliminada' };
+  } catch (error) {
+    return fail(error, companyId, { action: 'deleteStudent' });
   }
 }
 

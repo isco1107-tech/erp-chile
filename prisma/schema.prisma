@@ -5915,12 +5915,20 @@ model AcademyStudent {
   birthDate     DateTime?
   email         String?
   phone         String?
+  address       String?
+  /// Misma ficha que la de candidatas: contacto de emergencia y tallas.
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  pantsSize     String?
+  shirtSize     String?
+  shoeSize      String?
   /// Solo si es menor de edad.
   guardianName  String?
   guardianPhone String?
   guardianEmail String?
   /// Autorización del uso de su imagen (fotos y videos de la academia).
   photoConsent  Boolean                 @default(false)
+  /// Observación especial (alergias, salud, etc.).
   notes         String?
   /// Primer mes que se le cobra (día 1, 12:00 UTC). Antes de ese mes no debe nada.
   startMonth    DateTime
@@ -5955,8 +5963,12 @@ model AcademyMonthlyPayment {
   id        String         @id @default(cuid())
   companyId String
   company   Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  studentId String
-  student   AcademyStudent @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  /// `null` si la alumna fue eliminada: el pago se conserva con su nombre y RUT.
+  studentId String?
+  student   AcademyStudent? @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  /// Copia del nombre y RUT al momento del pago, para que el registro sobreviva a la ficha.
+  studentName String?
+  studentRut  String?
   /// "YYYY-MM"
   period    String
   /// CLP entero.
@@ -5988,6 +6000,12 @@ model AcademyApplication {
   birthDate        DateTime
   email            String?
   phone            String
+  address               String?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  pantsSize             String?
+  shirtSize             String?
+  shoeSize              String?
   guardianName     String?
   guardianPhone    String?
   guardianEmail    String?

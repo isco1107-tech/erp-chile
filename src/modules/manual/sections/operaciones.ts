@@ -213,6 +213,7 @@ export const OPERACIONES_SECTIONS: ManualSection[] = [
           'Ve a la pestaña Grupos y haz clic en "Nuevo grupo".',
           'Escribe el nombre (por ejemplo "Modelaje juvenil"), el horario y, si quieres, la mensualidad en pesos. Con ella, marcar un mes como pagado no pide el monto.',
           'Haz clic en "Guardar grupo". Solo el dueño y los administradores pueden crear o desactivar grupos.',
+          'La pestaña Grupos es un tablero: una columna por grupo y una "Sin grupo". Arrastra a cada alumna a la columna de su grupo, o cámbialo con el selector de su tarjeta.',
         ],
       },
       {
@@ -232,9 +233,9 @@ export const OPERACIONES_SECTIONS: ManualSection[] = [
         title: 'Crear y consultar la ficha de una alumna',
         steps: [
           'En la pestaña Alumnas haz clic en "Nueva alumna".',
-          'Completa nombre, RUT, contacto, grupo y el "Primer mes de cobro". Si es menor de edad, agrega a su apoderado, y marca la autorización de imagen cuando la entregue.',
+          'Completa nombre, RUT, fecha de nacimiento, dirección, contacto, contacto de emergencia, tallas (pantalón, polera, zapatos), observación especial (alergias), grupo y el "Primer mes de cobro". Si es menor de edad, agrega a su apoderado, y marca la autorización de imagen cuando la entregue.',
           'Haz clic en "Guardar ficha". Para verla de nuevo, haz clic en su nombre: muestra sus datos, los meses que debe y su asistencia.',
-          'Con "Editar ficha" cambias sus datos y con "Dar de baja" (solo dueño y administradores) deja de aparecer en las listas, sin perder su historial.',
+          'Con "Editar ficha" cambias sus datos y con "Dar de baja" (solo dueño y administradores) deja de aparecer en las listas, sin perder su historial. Con "Eliminar" (solo dueño y administradores) se borra la ficha, pero las mensualidades que pagó quedan registradas.',
         ],
         tip: 'En la lista, "Debe N meses" y "N ausencias seguidas" te avisan a quién hay que contactar.',
       },

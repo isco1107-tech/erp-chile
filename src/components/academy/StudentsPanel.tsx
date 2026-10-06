@@ -10,7 +10,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useConfirm } from '@/components/ui/confirm-provider';
 import { ATTENDANCE_LABELS } from '@/lib/academy/billing';
-import { getStudentAction, listGroupsAction, listStudentsAction, saveStudentAction, setStudentActiveAction } from '@/modules/academy/actions/academy.actions';
+import { deleteStudentAction, getStudentAction, listGroupsAction, listStudentsAction, saveStudentAction, setStudentActiveAction } from '@/modules/academy/actions/academy.actions';
 import type { GroupRow, StudentDetail, StudentRow } from '@/modules/academy/services/academy.service';
 import { currentPeriod, fieldClass, periodLabel } from './shared';
 
@@ -22,6 +22,12 @@ interface Draft {
   birthDate: string;
   email: string;
   phone: string;
+  address: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  pantsSize: string;
+  shirtSize: string;
+  shoeSize: string;
   guardianName: string;
   guardianPhone: string;
   guardianEmail: string;
@@ -30,10 +36,10 @@ interface Draft {
   startMonth: string;
 }
 
-const emptyDraft = (): Draft => ({ id: null, rut: '', fullName: '', groupId: '', birthDate: '', email: '', phone: '', guardianName: '', guardianPhone: '', guardianEmail: '', photoConsent: false, notes: '', startMonth: currentPeriod() });
+const emptyDraft = (): Draft => ({ id: null, rut: '', fullName: '', groupId: '', birthDate: '', email: '', phone: '', address: '', emergencyContactName: '', emergencyContactPhone: '', pantsSize: '', shirtSize: '', shoeSize: '', guardianName: '', guardianPhone: '', guardianEmail: '', photoConsent: false, notes: '', startMonth: currentPeriod() });
 
 function toDraft(s: StudentDetail): Draft {
-  return { id: s.id, rut: s.rut, fullName: s.fullName, groupId: s.groupId ?? '', birthDate: s.birthDate ?? '', email: s.email ?? '', phone: s.phone ?? '', guardianName: s.guardianName ?? '', guardianPhone: s.guardianPhone ?? '', guardianEmail: s.guardianEmail ?? '', photoConsent: s.photoConsent, notes: s.notes ?? '', startMonth: s.startMonth };
+  return { id: s.id, rut: s.rut, fullName: s.fullName, groupId: s.groupId ?? '', birthDate: s.birthDate ?? '', email: s.email ?? '', phone: s.phone ?? '', address: s.address ?? '', emergencyContactName: s.emergencyContactName ?? '', emergencyContactPhone: s.emergencyContactPhone ?? '', pantsSize: s.pantsSize ?? '', shirtSize: s.shirtSize ?? '', shoeSize: s.shoeSize ?? '', guardianName: s.guardianName ?? '', guardianPhone: s.guardianPhone ?? '', guardianEmail: s.guardianEmail ?? '', photoConsent: s.photoConsent, notes: s.notes ?? '', startMonth: s.startMonth };
 }
 
 export default function StudentsPanel({ canWrite, canManage }: { canWrite: boolean; canManage: boolean }) {
@@ -82,6 +88,12 @@ export default function StudentsPanel({ canWrite, canManage }: { canWrite: boole
       birthDate: draft.birthDate || null,
       email: draft.email,
       phone: draft.phone,
+      address: draft.address,
+      emergencyContactName: draft.emergencyContactName,
+      emergencyContactPhone: draft.emergencyContactPhone,
+      pantsSize: draft.pantsSize,
+      shirtSize: draft.shirtSize,
+      shoeSize: draft.shoeSize,
       guardianName: draft.guardianName,
       guardianPhone: draft.guardianPhone,
       guardianEmail: draft.guardianEmail,
@@ -102,6 +114,15 @@ export default function StudentsPanel({ canWrite, canManage }: { canWrite: boole
     const result = await setStudentActiveAction(student.id, !student.isActive);
     if (!result.success) return void toast.error(result.error);
     toast.success(result.message ?? 'Listo');
+    setDetail(null);
+    await load();
+  }
+
+  async function remove(student: StudentDetail) {
+    if (!(await confirm({ title: `¿Eliminar a ${student.fullName}?`, description: 'Se borra su ficha y su asistencia. Sus mensualidades pagadas quedan registradas en la base de datos. No se puede deshacer; si solo dejó de venir, mejor «Dar de baja».', confirmLabel: 'Eliminar alumna' }))) return;
+    const result = await deleteStudentAction(student.id);
+    if (!result.success) return void toast.error(result.error);
+    toast.success(result.message ?? 'Alumna eliminada');
     setDetail(null);
     await load();
   }
@@ -129,8 +150,9 @@ export default function StudentsPanel({ canWrite, canManage }: { canWrite: boole
             <label className="space-y-1 text-sm font-medium">Nombre completo<Input required maxLength={120} value={draft.fullName} onChange={(e) => setDraft({ ...draft, fullName: e.target.value })} /></label>
             <label className="space-y-1 text-sm font-medium">RUT<RutInput value={draft.rut} onChange={(rut) => setDraft({ ...draft, rut })} /></label>
             <label className="space-y-1 text-sm font-medium">Fecha de nacimiento<Input type="date" value={draft.birthDate} onChange={(e) => setDraft({ ...draft, birthDate: e.target.value })} /></label>
-            <label className="space-y-1 text-sm font-medium">Teléfono<Input maxLength={30} value={draft.phone} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} /></label>
-            <label className="space-y-1 text-sm font-medium">Correo<Input type="email" maxLength={120} value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value })} /></label>
+            <label className="space-y-1 text-sm font-medium">Número de contacto<Input maxLength={30} value={draft.phone} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} /></label>
+            <label className="space-y-1 text-sm font-medium">Dirección<Input maxLength={200} value={draft.address} onChange={(e) => setDraft({ ...draft, address: e.target.value })} /></label>
+            <label className="space-y-1 text-sm font-medium">Correo electrónico<Input type="email" maxLength={120} value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value })} /></label>
             <label className="space-y-1 text-sm font-medium">Grupo
               <select className={fieldClass} value={draft.groupId} onChange={(e) => setDraft({ ...draft, groupId: e.target.value })}>
                 <option value="">Sin grupo</option>
@@ -140,6 +162,21 @@ export default function StudentsPanel({ canWrite, canManage }: { canWrite: boole
             <label className="space-y-1 text-sm font-medium">Primer mes de cobro<Input required type="month" value={draft.startMonth} onChange={(e) => setDraft({ ...draft, startMonth: e.target.value })} /></label>
           </div>
           <fieldset className="space-y-3 rounded-md border border-border p-3">
+            <legend className="px-1 text-xs font-medium text-muted-foreground">Contacto de emergencia</legend>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="space-y-1 text-sm font-medium">Nombre<Input maxLength={120} value={draft.emergencyContactName} onChange={(e) => setDraft({ ...draft, emergencyContactName: e.target.value })} /></label>
+              <label className="space-y-1 text-sm font-medium">Número de contacto<Input maxLength={30} value={draft.emergencyContactPhone} onChange={(e) => setDraft({ ...draft, emergencyContactPhone: e.target.value })} /></label>
+            </div>
+          </fieldset>
+          <fieldset className="space-y-3 rounded-md border border-border p-3">
+            <legend className="px-1 text-xs font-medium text-muted-foreground">Tallas</legend>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <label className="space-y-1 text-sm font-medium">Pantalón<Input maxLength={20} value={draft.pantsSize} onChange={(e) => setDraft({ ...draft, pantsSize: e.target.value })} /></label>
+              <label className="space-y-1 text-sm font-medium">Polera<Input maxLength={20} value={draft.shirtSize} onChange={(e) => setDraft({ ...draft, shirtSize: e.target.value })} /></label>
+              <label className="space-y-1 text-sm font-medium">Zapatos<Input maxLength={20} value={draft.shoeSize} onChange={(e) => setDraft({ ...draft, shoeSize: e.target.value })} /></label>
+            </div>
+          </fieldset>
+          <fieldset className="space-y-3 rounded-md border border-border p-3">
             <legend className="px-1 text-xs font-medium text-muted-foreground">Apoderado (si es menor de edad)</legend>
             <div className="grid gap-4 sm:grid-cols-3">
               <label className="space-y-1 text-sm font-medium">Nombre<Input maxLength={120} value={draft.guardianName} onChange={(e) => setDraft({ ...draft, guardianName: e.target.value })} /></label>
@@ -148,7 +185,7 @@ export default function StudentsPanel({ canWrite, canManage }: { canWrite: boole
             </div>
           </fieldset>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.photoConsent} onChange={(e) => setDraft({ ...draft, photoConsent: e.target.checked })} /> Autoriza el uso de su imagen (fotos y videos)</label>
-          <label className="block space-y-1 text-sm font-medium">Observaciones (opcional)<textarea rows={2} maxLength={1000} className={fieldClass} value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} /></label>
+          <label className="block space-y-1 text-sm font-medium">Observación especial (alergias, salud)<textarea rows={2} maxLength={1000} className={fieldClass} value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} /></label>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => setDraft(null)}>Cancelar</Button>
             <Button type="submit" disabled={busy}>Guardar ficha</Button>
@@ -166,15 +203,19 @@ export default function StudentsPanel({ canWrite, canManage }: { canWrite: boole
             <div className="flex flex-wrap gap-2">
               {canWrite && <Button size="sm" variant="outline" onClick={() => setDraft(toDraft(detail))}>Editar ficha</Button>}
               {canManage && <Button size="sm" variant="ghost" onClick={() => toggleActive(detail)}>{detail.isActive ? 'Dar de baja' : 'Reactivar'}</Button>}
+              {canManage && <Button size="sm" variant="ghost" className="text-destructive" onClick={() => remove(detail)}>Eliminar</Button>}
               <Button size="sm" variant="ghost" onClick={() => setDetail(null)}>Cerrar</Button>
             </div>
           </div>
           <dl className="grid gap-3 text-sm sm:grid-cols-3">
             <div><dt className="text-xs text-muted-foreground">Contacto</dt><dd>{[detail.phone, detail.email].filter(Boolean).join(' · ') || '—'}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">Dirección</dt><dd>{detail.address || '—'}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">Contacto de emergencia</dt><dd>{[detail.emergencyContactName, detail.emergencyContactPhone].filter(Boolean).join(' · ') || '—'}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">Tallas</dt><dd>{[detail.pantsSize && `Pantalón ${detail.pantsSize}`, detail.shirtSize && `Polera ${detail.shirtSize}`, detail.shoeSize && `Zapatos ${detail.shoeSize}`].filter(Boolean).join(' · ') || '—'}</dd></div>
             <div><dt className="text-xs text-muted-foreground">Apoderado</dt><dd>{detail.guardianName ? [detail.guardianName, detail.guardianPhone, detail.guardianEmail].filter(Boolean).join(' · ') : '—'}</dd></div>
             <div><dt className="text-xs text-muted-foreground">Autorización de imagen</dt><dd>{detail.photoConsent ? 'Sí' : 'No'}</dd></div>
           </dl>
-          {detail.notes && <p className="text-sm text-muted-foreground">{detail.notes}</p>}
+          {detail.notes && <p className="text-sm text-muted-foreground"><span className="font-medium">Observación especial: </span>{detail.notes}</p>}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <h4 className="text-sm font-semibold">Mensualidades</h4>

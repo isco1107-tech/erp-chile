@@ -127,6 +127,12 @@ export interface StudentDetail {
   birthDate: string | null;
   email: string | null;
   phone: string | null;
+  address: string | null;
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
+  pantsSize: string | null;
+  shirtSize: string | null;
+  shoeSize: string | null;
   guardianName: string | null;
   guardianPhone: string | null;
   guardianEmail: string | null;
@@ -158,6 +164,12 @@ export async function getStudent(companyId: string, id: string, now: Date = new 
     birthDate: s.birthDate ? s.birthDate.toISOString().slice(0, 10) : null,
     email: s.email,
     phone: s.phone,
+    address: s.address,
+    emergencyContactName: s.emergencyContactName,
+    emergencyContactPhone: s.emergencyContactPhone,
+    pantsSize: s.pantsSize,
+    shirtSize: s.shirtSize,
+    shoeSize: s.shoeSize,
     guardianName: s.guardianName,
     guardianPhone: s.guardianPhone,
     guardianEmail: s.guardianEmail,
@@ -181,6 +193,12 @@ function studentValues(data: StudentInput) {
     birthDate: data.birthDate ? dayToDate(data.birthDate) : null,
     email: data.email || null,
     phone: data.phone ?? null,
+    address: data.address ?? null,
+    emergencyContactName: data.emergencyContactName ?? null,
+    emergencyContactPhone: data.emergencyContactPhone ?? null,
+    pantsSize: data.pantsSize ?? null,
+    shirtSize: data.shirtSize ?? null,
+    shoeSize: data.shoeSize ?? null,
     guardianName: data.guardianName ?? null,
     guardianPhone: data.guardianPhone ?? null,
     guardianEmail: data.guardianEmail || null,
@@ -216,6 +234,29 @@ export async function updateStudent(companyId: string, id: string, data: Student
 export async function setStudentActive(companyId: string, id: string, isActive: boolean): Promise<void> {
   const updated = await prisma.academyStudent.updateMany({ where: { id, companyId }, data: { isActive } });
   if (updated.count === 0) throw new AcademyError('La alumna no existe');
+}
+
+export async function moveStudentToGroup(companyId: string, studentId: string, groupId: string | null): Promise<void> {
+  await assertGroup(companyId, groupId);
+  const updated = await prisma.academyStudent.updateMany({ where: { id: studentId, companyId }, data: { groupId } });
+  if (updated.count === 0) throw new AcademyError('La alumna no existe');
+}
+
+/**
+ * Elimina la ficha de la alumna (y su asistencia). Sus mensualidades se
+ * conservan: el pago ya guarda la copia de su nombre y RUT y solo pierde el
+ * vínculo con la ficha (`onDelete: SetNull`).
+ */
+export async function deleteStudent(companyId: string, id: string): Promise<{ keptPayments: number }> {
+  return prisma.$transaction(async (tx) => {
+    const student = await tx.academyStudent.findFirst({ where: { id, companyId }, select: { fullName: true, rut: true } });
+    if (!student) throw new AcademyError('La alumna no existe');
+    // Respaldo del nombre en pagos antiguos que aún no lo tengan.
+    await tx.academyMonthlyPayment.updateMany({ where: { companyId, studentId: id, studentName: null }, data: { studentName: student.fullName, studentRut: student.rut } });
+    const keptPayments = await tx.academyMonthlyPayment.count({ where: { companyId, studentId: id } });
+    await tx.academyStudent.deleteMany({ where: { id, companyId } });
+    return { keptPayments };
+  });
 }
 
 // ── Asistencia ───────────────────────────────────────────────────────────────
@@ -290,7 +331,7 @@ export async function getPaymentBoard(companyId: string, period: string, groupId
 }
 
 export async function setMonthPaid(companyId: string, data: MonthPaymentInput): Promise<void> {
-  const student = await prisma.academyStudent.findFirst({ where: { id: data.studentId, companyId }, select: { id: true, group: { select: { monthlyFee: true } } } });
+  const student = await prisma.academyStudent.findFirst({ where: { id: data.studentId, companyId }, select: { id: true, fullName: true, rut: true, group: { select: { monthlyFee: true } } } });
   if (!student) throw new AcademyError('La alumna no existe');
   if (!data.paid) {
     await prisma.academyMonthlyPayment.deleteMany({ where: { companyId, studentId: data.studentId, period: data.period } });
@@ -300,7 +341,7 @@ export async function setMonthPaid(companyId: string, data: MonthPaymentInput): 
   if (amount === undefined || amount === null) throw new AcademyError('Indica el monto pagado');
   await prisma.academyMonthlyPayment.upsert({
     where: { studentId_period: { studentId: data.studentId, period: data.period } },
-    create: { companyId, studentId: data.studentId, period: data.period, amount, note: data.note ?? null },
+    create: { companyId, studentId: data.studentId, studentName: student.fullName, studentRut: student.rut, period: data.period, amount, note: data.note ?? null },
     update: { amount, note: data.note ?? null, paidAt: new Date() },
   });
 }
