@@ -63,10 +63,11 @@ describe('equivalencias con la Supersuite', () => {
     expect(modulosContratados(null)).toEqual([]);
   });
 
-  it('solo ACTIVE y TRIAL cuentan como empresa activa', () => {
+  it('solo CANCELLED es baja: una empresa suspendida sigue siendo cliente', () => {
     expect(empresaActiva('ACTIVE')).toBe(true);
     expect(empresaActiva('TRIAL')).toBe(true);
-    expect(empresaActiva('SUSPENDED')).toBe(false);
+    expect(empresaActiva('SUSPENDED')).toBe(true);
+    expect(empresaActiva('CANCELLED')).toBe(false);
   });
 
   it('sin folios la alerta es crítica; con pocos, alta; la clave es estable por tipo', () => {
@@ -150,7 +151,7 @@ describe('con configuración', () => {
     await esperarEnvios();
     const [envio] = cuerposEnviados();
     expect(envio.url).toBe('https://ss.test/ingesta/clientes');
-    expect(envio.cuerpo[0]).toMatchObject({ clienteId: 'c1', nombre: 'Ferretería Sur', ciudad: 'Temuco', plan: 'Profesional', activo: false, modulos: ['pos', 'inventario'] });
+    expect(envio.cuerpo[0]).toMatchObject({ clienteId: 'c1', nombre: 'Ferretería Sur', ciudad: 'Temuco', plan: 'Profesional', activo: true, suspendida: true, modulos: ['pos', 'inventario'] });
     // Un plan anterior no tiene tarifa de lista: no se inventa una.
     expect(envio.cuerpo[0]).not.toHaveProperty('tarifaMensual');
     expect(envio.cuerpo[0].metadata).toMatchObject({ planVigente: false, usuariosMax: 10, bodegasMax: 3 });
