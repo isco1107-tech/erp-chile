@@ -1,8 +1,9 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import {
-  BarChart3, Bot, Boxes, Building2, ClipboardCheck, FileSignature,
+  ArrowUpRight, BarChart3, Bot, Boxes, Building2, ClipboardCheck, FileSignature,
   Gauge, Handshake, Landmark, Monitor, ReceiptText, ShoppingCart, UsersRound, WalletCards,
   type LucideIcon,
 } from 'lucide-react';
@@ -106,6 +107,7 @@ export default function ModulesSection() {
         </div>
 
         <p className={s.modulesNote}>{modulesSection.note}</p>
+        <Link className={s.textLink} href="/#modulos">Ver cada módulo con sus pantallas reales <ArrowUpRight size={16} aria-hidden="true" /></Link>
       </div>
     </section>
   );
