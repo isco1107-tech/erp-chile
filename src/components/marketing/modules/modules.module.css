@@ -1,0 +1,463 @@
+/*
+ * Vitrina de módulos (landing y páginas de módulo), carrito y formulario de
+ * cotización. Mismo sistema visual que la landing cinematográfica: fondo casi
+ * negro, un solo acento dorado y líneas blancas al 12 %. Las variables se
+ * declaran en cada raíz (la grilla, la barra y el diálogo, que vive en la capa
+ * superior y no hereda de la página).
+ */
+
+.tokens {
+  --mod-bg: #0b0e14;
+  --mod-raise: #10131a;
+  --mod-ink: #12161f;
+  --mod-gold: #dbc076;
+  --mod-gold-soft: #ead8a5;
+  --mod-text: #f4f1ea;
+  --mod-muted: #b3ada2;
+  --mod-faint: #8e8980;
+  --mod-line: rgb(255 255 255 / .12);
+  --mod-line-strong: rgb(255 255 255 / .22);
+  --mod-ease: cubic-bezier(.2, .75, .25, 1);
+}
+
+.tokens *,
+.tokens *::before,
+.tokens *::after { box-sizing: border-box; }
+
+.tokens :is(a, button, input, select, textarea):focus-visible {
+  outline: 2px solid var(--mod-gold);
+  outline-offset: 3px;
+}
+
+/* ── Filtros por área ───────────────────────────────────────────────────── */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 clamp(20px, 2.6vw, 32px);
+  padding: 0;
+  list-style: none;
+}
+
+.filters button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  max-width: 100%;
+  padding: 8px 14px;
+  border: 1px solid var(--mod-line-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--mod-muted);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.25;
+  text-align: left;
+  cursor: pointer;
+  transition: color .2s, border-color .2s, background .2s;
+}
+
+.filters button:hover { color: var(--mod-text); border-color: var(--mod-gold); }
+.filters button[aria-pressed='true'] { border-color: var(--mod-gold); background: var(--mod-gold); color: var(--mod-ink); }
+.filters button span { font-size: 12px; opacity: .7; }
+
+/* ── Grilla y tarjetas ──────────────────────────────────────────────────── */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr));
+  gap: clamp(12px, 1.4vw, 20px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.grid > li { display: flex; min-width: 0; }
+
+/* Vista «Todos» plegada: dos filas a la vista y el botón para ver el resto. Sin JavaScript se ve todo. */
+@media (scripting: enabled) {
+  .grid[data-collapsed] > li:nth-child(n + 9) { display: none; }
+}
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--mod-line-strong);
+  background: rgb(255 255 255 / .025);
+  transition: border-color .25s, transform .35s var(--mod-ease), background .25s;
+}
+
+.card:hover { border-color: rgb(219 192 118 / .6); background: rgb(255 255 255 / .045); transform: translate3d(0, -3px, 0); }
+.card[data-selected] { border-color: var(--mod-gold); box-shadow: inset 0 0 0 1px var(--mod-gold); }
+
+.cardMedia {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-bottom: 1px solid var(--mod-line);
+  background: #e8e8ea;
+}
+
+/* La captura incluye el menú lateral del panel: se encuadra el contenido (arriba a la derecha). */
+.cardMedia img { object-fit: cover; object-position: 100% 0; }
+
+.cardPlaceholder { display: grid; place-items: center; width: 100%; height: 100%; background: var(--mod-raise); color: var(--mod-gold); }
+
+.cardBody { display: flex; flex: 1; flex-direction: column; gap: 8px; min-width: 0; padding: 16px 18px 18px; }
+
+.cardCategory {
+  margin: 0;
+  padding-right: 44px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--mod-gold);
+}
+
+.cardTitle { margin: 0; font-size: 17px; font-weight: 600; line-height: 1.3; color: var(--mod-text); overflow-wrap: break-word; }
+
+/* Todo el recuadro abre la página del módulo; la casilla de cotizar queda encima. */
+.cardLink::after { content: ''; position: absolute; inset: 0; z-index: 1; }
+.cardLink:focus-visible { outline: none; }
+.card:has(.cardLink:focus-visible) { outline: 2px solid var(--mod-gold); outline-offset: 3px; }
+
+.cardSummary { margin: 0; font-size: 14px; line-height: 1.55; color: var(--mod-muted); }
+
+.cardMore {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--mod-gold);
+}
+
+.card:hover .cardMore { text-decoration: underline; text-underline-offset: 4px; }
+
+/* Casilla de la esquina: agrega o quita el módulo de la cotización. */
+.toggle {
+  position: absolute;
+  z-index: 2;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgb(18 22 31 / .25);
+  border-radius: 8px;
+  background: rgb(255 255 255 / .94);
+  color: var(--mod-ink);
+  box-shadow: 0 6px 18px rgb(0 0 0 / .28);
+  cursor: pointer;
+  transition: background .2s, transform .2s var(--mod-ease);
+}
+
+.toggle:hover { transform: scale(1.06); }
+.toggle input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.toggle:has(input:focus-visible) { outline: 2px solid var(--mod-gold); outline-offset: 3px; }
+.toggle:has(input:checked) { border-color: var(--mod-gold); background: var(--mod-gold); }
+.toggle svg { pointer-events: none; }
+
+.included {
+  position: absolute;
+  z-index: 2;
+  top: 10px;
+  right: 10px;
+  padding: 5px 9px;
+  border-radius: 6px;
+  background: var(--mod-ink);
+  color: var(--mod-gold);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.more {
+  display: flex;
+  justify-content: center;
+  margin-top: clamp(20px, 2.4vw, 30px);
+}
+
+.moreButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 48px;
+  max-width: 100%;
+  padding: 10px 22px;
+  border: 1px solid var(--mod-gold);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--mod-gold);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.moreButton:hover { background: var(--mod-gold); color: var(--mod-ink); }
+
+.hint { margin: 0 0 18px; font-size: 14px; line-height: 1.6; color: var(--mod-faint); }
+.hint strong { color: var(--mod-text); font-weight: 600; }
+
+/* Teléfonos: tarjeta en fila (captura a la izquierda) para que la lista no se haga eterna. */
+@media (max-width: 560px) {
+  .card { display: grid; grid-template-columns: minmax(0, 104px) minmax(0, 1fr); }
+  .cardMedia { aspect-ratio: auto; min-height: 100%; border-right: 1px solid var(--mod-line); border-bottom: 0; }
+  .cardBody { gap: 6px; padding: 12px 14px 14px; }
+  .cardCategory { padding-right: 46px; font-size: 11px; letter-spacing: .1em; }
+  .cardTitle { padding-right: 46px; font-size: 15.5px; }
+  .cardSummary { font-size: 13.5px; }
+  .toggle { top: 8px; right: 8px; }
+  /* En fila, la categoría ya dice «Incluido en la base»: la etiqueta chocaría con ella. */
+  .included { display: none; }
+}
+
+@media (max-width: 340px) {
+  .card { grid-template-columns: minmax(0, 1fr); }
+  .cardMedia { aspect-ratio: 16 / 9; border-right: 0; border-bottom: 1px solid var(--mod-line); }
+  .cardCategory { padding-right: 0; }
+  .included { display: block; top: 8px; right: 8px; padding: 4px 7px; font-size: 11px; }
+}
+
+/* ── Barra del carrito (fija abajo) ─────────────────────────────────────── */
+.bar {
+  position: fixed;
+  z-index: 60;
+  left: 50%;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(640px, calc(100% - 24px));
+  padding: 10px 10px 10px 16px;
+  border: 1px solid rgb(219 192 118 / .55);
+  border-radius: 12px;
+  background: rgb(16 19 26 / .97);
+  color: var(--mod-text);
+  box-shadow: 0 18px 50px rgb(0 0 0 / .5);
+  transform: translateX(-50%);
+  animation: barIn .35s var(--mod-ease);
+}
+
+@keyframes barIn {
+  from { opacity: 0; transform: translate(-50%, 24px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar { animation: none; }
+  .card, .toggle { transition: none; }
+  .card:hover { transform: none; }
+}
+
+.barCount {
+  display: grid;
+  place-items: center;
+  flex: none;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--mod-gold);
+  color: var(--mod-ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.barText { flex: 1; min-width: 0; margin: 0; font-size: 14px; line-height: 1.35; }
+.barText span { display: block; font-size: 12.5px; color: var(--mod-faint); }
+
+.barClear {
+  flex: none;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--mod-muted);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.barClear:hover { color: var(--mod-text); }
+
+.primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: none;
+  min-height: 46px;
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--mod-gold);
+  color: var(--mod-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.primary:hover { background: var(--mod-gold-soft); }
+.primary:disabled { opacity: .6; cursor: wait; }
+
+@media (max-width: 420px) {
+  .bar { gap: 8px; padding: 8px 8px 8px 12px; }
+  .barText span { display: none; }
+  .barClear { display: none; }
+  .primary { padding: 10px 14px; }
+}
+
+/* ── Diálogo de cotización ──────────────────────────────────────────────── */
+.dialog {
+  width: min(560px, calc(100% - 24px));
+  max-height: calc(100dvh - 24px);
+  margin: auto;
+  padding: 0;
+  overflow: auto;
+  border: 1px solid var(--mod-line-strong);
+  border-radius: 14px;
+  background: var(--mod-raise);
+  color: var(--mod-text);
+  font-size: 15px;
+  line-height: 1.5;
+  overscroll-behavior: contain;
+}
+
+.dialog::backdrop { background: rgb(5 7 11 / .72); }
+
+.dialogInner { padding: clamp(18px, 4vw, 30px); }
+
+.dialogHead { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.dialogHead h2 { margin: 0; font-size: clamp(20px, 4.4vw, 24px); font-weight: 600; line-height: 1.25; }
+.dialogHead p { margin: 6px 0 0; font-size: 14px; color: var(--mod-muted); }
+
+.close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--mod-line-strong);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--mod-text);
+  cursor: pointer;
+}
+
+.close:hover { border-color: var(--mod-gold); color: var(--mod-gold); }
+
+.selected { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 20px; padding: 0; list-style: none; }
+
+.selected li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 4px 4px 4px 12px;
+  border: 1px solid rgb(219 192 118 / .5);
+  border-radius: 999px;
+  background: rgb(219 192 118 / .1);
+  font-size: 13.5px;
+}
+
+.selected li > span { min-width: 0; overflow-wrap: anywhere; }
+
+.selected button {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--mod-muted);
+  cursor: pointer;
+}
+
+.selected button:hover { background: rgb(255 255 255 / .1); color: var(--mod-text); }
+
+.fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.wide { grid-column: 1 / -1; }
+
+.field { display: grid; gap: 6px; min-width: 0; font-size: 13px; color: var(--mod-muted); }
+.field strong { font-weight: 600; color: var(--mod-text); }
+
+.field input,
+.field textarea {
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid var(--mod-line-strong);
+  border-radius: 6px;
+  background: var(--mod-bg);
+  color: var(--mod-text);
+  font: inherit;
+  font-size: 16px;
+}
+
+.field textarea { min-height: 84px; resize: vertical; }
+.field input::placeholder,
+.field textarea::placeholder { color: #8a857c; }
+.field input:focus,
+.field textarea:focus { border-color: var(--mod-gold); outline: none; }
+
+.honeypot { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+
+.submit { width: 100%; margin-top: 20px; }
+
+.formNote { margin: 12px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--mod-faint); }
+.error { margin: 12px 0 0; padding: 10px 12px; border-radius: 6px; background: rgb(220 80 60 / .14); color: #ffb4a6; font-size: 14px; }
+.error a { color: inherit; text-decoration: underline; }
+
+.done { display: grid; justify-items: center; gap: 10px; padding: 12px 0 6px; text-align: center; }
+.done svg { color: var(--mod-gold); }
+.done h2 { margin: 0; font-size: 22px; font-weight: 600; }
+.done p { max-width: 40ch; margin: 0; color: var(--mod-muted); overflow-wrap: anywhere; }
+.done p strong { color: var(--mod-text); }
+
+@media (max-width: 520px) {
+  .fields { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ── Botón grande «Agregar a la cotización» (página del módulo) ─────────── */
+.addButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 50px;
+  max-width: 100%;
+  padding: 12px 22px;
+  border: 1px solid var(--mod-gold);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--mod-gold);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.addButton:hover { background: rgb(219 192 118 / .12); }
+.addButton[aria-pressed='true'] { background: var(--mod-gold); color: var(--mod-ink); }
+
+
+/* Mientras la barra del carrito está a la vista, lo que recibe el foco no queda debajo de ella. */
+:global(html[data-quote-cart]) { scroll-padding-bottom: 96px; }

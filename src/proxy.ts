@@ -176,6 +176,9 @@ export async function proxy(req: NextRequest) {
     // Incluye `/empresas/opengraph-image`: las redes la piden sin sesión.
     pathname === '/empresas' ||
     pathname.startsWith('/empresas/') ||
+    // Vitrina de módulos: una página pública por módulo (`/modulos/[slug]`).
+    pathname === '/modulos' ||
+    pathname.startsWith('/modulos/') ||
     pathname.startsWith('/marketing/') ||
     pathname.startsWith('/downloads/') ||
     pathname.startsWith('/manual/screenshots/') ||

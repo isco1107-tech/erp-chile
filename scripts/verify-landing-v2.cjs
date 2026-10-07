@@ -236,15 +236,15 @@ async function page2(browser) {
   await page.waitForSelector('#plataforma[data-tabs-ready]');
   await page.waitForSelector('main[data-in-track]');
 
-  const anchors = ['contenido', 'como-funciona', 'plataforma', 'tributacion', 'para-quien', 'planes', 'preguntas', 'cotizar', 'descargas'];
+  const anchors = ['contenido', 'modulos', 'como-funciona', 'plataforma', 'tributacion', 'planes', 'preguntas', 'cotizar', 'descargas'];
   const missing = await page.evaluate(ids => ids.filter(id => !document.getElementById(id)), anchors);
   check('Anclas presentes', missing.length === 0, missing.join(', '));
   check('Enlace «Ir al contenido»', await page.getByRole('link', { name: 'Ir al contenido' }).count() === 1);
-  check('Navegación: 6 enlaces (con «Saber más» y «Descargar») + «Cotización»', await page.locator('nav[aria-label="Navegación principal"] a').count() === 6 && await page.locator('header').getByRole('link', { name: /^Cotización/ }).count() === 1);
+  check('Navegación: 6 anclas (con «Módulos», «Saber más» y «Descargar») + «Para empresas» + «Cotización»', await page.locator('nav[aria-label="Navegación principal"] a').count() === 7 && await page.locator('header').getByRole('link', { name: /^Cotización/ }).count() === 1);
   check('JSON-LD presente', await page.locator('script[type="application/ld+json"]').count() === 1);
 
   // Las secciones lejanas usan content-visibility: el salto debe caer justo en la sección.
-  for (const [label, id] of [['Planes', 'planes'], ['Certámenes', 'para-quien']]) {
+  for (const [label, id] of [['Planes', 'planes'], ['Módulos', 'modulos']]) {
     await page.evaluate(() => { document.documentElement.style.scrollBehavior = 'auto'; window.scrollTo(0, 0); });
     await page.locator('nav[aria-label="Navegación principal"]').getByRole('link', { name: label, exact: true }).click();
     await page.waitForFunction(target => {
@@ -284,14 +284,29 @@ async function page2(browser) {
   check('Los 5 pasos en la línea de tiempo', new Set(flow).size === 5, flow.join(' → '));
   check('Cómo funciona no queda fija', await page.$eval('#como-funciona', node => node.offsetHeight < window.innerHeight * 1.5));
 
-  // Certámenes: una pantalla a la vez, elegida en la lista.
-  const eventTabs = page.locator('[role="tablist"][aria-label="Pantallas de certámenes"] [role="tab"]');
-  check('Tres pantallas de certámenes en pestañas', await eventTabs.count() === 3);
-  await page.locator('#para-quien').scrollIntoViewIfNeeded();
-  await eventTabs.nth(1).click();
-  await page.waitForTimeout(500);
-  const visiblePanels = await page.$$eval('#para-quien [role="tabpanel"]', nodes => nodes.filter(node => getComputedStyle(node).visibility === 'visible').map(node => node.id));
-  check('La pestaña muestra solo su pantalla', visiblePanels.length === 1 && visiblePanels[0] === 'event-panel-show', visiblePanels.join(', '));
+  // Módulos: dos filas plegadas, filtro por área, casilla de cotizar y su barra (sin enviar).
+  await page.locator('#modulos').scrollIntoViewIfNeeded();
+  const cards = () => page.$$eval('#modulos-grilla > li', nodes => nodes.filter(node => getComputedStyle(node).display !== 'none').length);
+  check('Módulos: «Todos» plegado en dos filas', await cards() === 8);
+  await page.getByRole('button', { name: /^Ver los \d+ módulos/ }).click();
+  const total = await cards();
+  check('Módulos: «Ver todos» despliega la vitrina', total >= 28, `${total} recuadros`);
+  await page.locator('#modulos').getByRole('button', { name: /^Finanzas/ }).click();
+  const finance = await page.$$eval('#modulos-grilla article p:first-child', nodes => [...new Set(nodes.map(node => node.textContent))]);
+  check('Módulos: el filtro deja solo su área', finance.length === 1 && finance[0] === 'Finanzas', finance.join(', '));
+  check('Módulos: sin precios en la vitrina', !(await page.locator('#modulos').innerText()).includes('$'));
+  await page.locator('#modulos-grilla input[type="checkbox"]').first().check();
+  await page.locator('#modulos-grilla input[type="checkbox"]').nth(1).check();
+  check('Módulos: la casilla abre la barra del carrito', await page.getByRole('region', { name: 'Tu cotización' }).getByText('2 módulos en tu cotización').isVisible());
+  await page.getByRole('region', { name: 'Tu cotización' }).getByRole('button', { name: /^Cotizar/ }).click();
+  const quote = page.getByRole('dialog', { name: 'Cotiza tus módulos' });
+  check('Módulos: «Cotizar» abre el formulario con lo elegido', await quote.isVisible() && await quote.locator('ul li').count() === 2);
+  check('Módulos: pide correo y teléfono', await quote.getByLabel('Correo').getAttribute('required') !== null && await quote.getByLabel('Teléfono o WhatsApp').getAttribute('required') !== null);
+  await page.screenshot({ path: path.join(out, 'cotizacion.png') });
+  await page.keyboard.press('Escape');
+  await page.getByRole('region', { name: 'Tu cotización' }).getByRole('button', { name: 'Vaciar' }).click();
+  check('Módulos: «Vaciar» quita la barra', await page.getByRole('region', { name: 'Tu cotización' }).count() === 0);
+  await page.locator('#modulos').getByRole('button', { name: /^Todos/ }).click();
 
   // Formulario (sin enviar).
   await page.locator('#cotizar').scrollIntoViewIfNeeded();
@@ -338,7 +353,7 @@ async function sceneState(page) {
       painted: track.hasAttribute('data-painted'),
       steps: document.querySelectorAll('#como-funciona ol > li').length,
       stepsVisible: [...document.querySelectorAll('#como-funciona ol > li')].filter(step => getComputedStyle(step).visibility === 'visible').length,
-      eventScreensVisible: [...document.querySelectorAll('#para-quien [role="tabpanel"]')].filter(panel => getComputedStyle(panel).visibility === 'visible').length,
+      moduleCards: [...document.querySelectorAll('#modulos-grilla > li')].filter(card => getComputedStyle(card).display !== 'none').length,
       copies: [...document.querySelectorAll('#product-panel h3')].map(node => node.textContent),
     };
   });
@@ -360,7 +375,7 @@ async function staticModes(browser) {
     check(`${tag}: sin pista larga`, state.trackHeight < Math.max(viewport.height, 560) * 2.2 && state.stagePosition !== 'sticky', `alto ${state.trackHeight}px, escenario ${state.stagePosition}`);
     check(`${tag}: «Ahora, estás dentro.» visible y sin canvas`, state.insideVisible && !state.painted);
     check(`${tag}: los 5 pasos a la vista`, state.steps === 5 && state.stepsVisible === 5);
-    if (options.javaScriptEnabled === false) check(`${tag}: las 3 pantallas de certámenes apiladas`, state.eventScreensVisible === 3);
+    if (options.javaScriptEnabled === false) check(`${tag}: todos los módulos a la vista`, state.moduleCards >= 28, `${state.moduleCards} recuadros`);
     check(`${tag}: las 5 vistas en el HTML`, state.copies.length === 5, state.copies.join(' / '));
     await page.screenshot({ path: path.join(out, `${tag}.png`), fullPage: tag === 'sin-js-390' });
     await context.close();
@@ -447,14 +462,6 @@ async function liveMotion(browser) {
   await scrollTo('#tributacion ul li', 0.9);
   const cascade = await page.$$eval('#tributacion ul li', nodes => nodes.slice(0, 3).map(node => Number(node.style.getPropertyValue('--in'))));
   check('Las tarjetas entran en cascada', cascade[0] > cascade[1] && cascade[1] >= cascade[2], cascade.map(value => value.toFixed(2)).join(' > '));
-
-  const marquee = async fraction => {
-    await scrollTo('[data-cinematic-track] + div', fraction);
-    return page.$eval('[data-cinematic-track] + div > div[aria-hidden]', node => new DOMMatrix(getComputedStyle(node).transform).m41);
-  };
-  const shiftA = await marquee(0.8);
-  const shiftB = await marquee(0.2);
-  check('La franja de módulos corre con el scroll', Math.abs(shiftA - shiftB) > 100, `${Math.round(shiftA)} → ${Math.round(shiftB)} px`);
 
   // El cielo es un solo canvas: lo que dibuja cambia con el scroll.
   const skyPixels = () => page.evaluate(() => {

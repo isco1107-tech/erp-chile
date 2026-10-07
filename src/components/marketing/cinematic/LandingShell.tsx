@@ -19,10 +19,10 @@ const liveClasses = [s.display, s.kicker] as const;
  * línea que se llena con el scroll. La estrella de la sección actual brilla.
  */
 const starMap = [
+  ['#modulos', 'Módulos'],
   ['#plataforma', 'Plataforma'],
   ['#como-funciona', 'Cómo funciona'],
   ['#tributacion', 'Tributación'],
-  ['#para-quien', 'Certámenes'],
   ['#planes', 'Planes'],
   ['#preguntas', 'Preguntas'],
   ['#cotizar', 'Cotizar'],
@@ -33,9 +33,9 @@ const starMap = [
  * preguntas frecuentes), las descargas y el botón de cotización.
  */
 const primaryNav = [
+  ['#modulos', 'Módulos'],
   ['#plataforma', 'Plataforma'],
   ['#tributacion', 'Tributación'],
-  ['#para-quien', 'Certámenes'],
   ['#planes', 'Planes'],
   ['#preguntas', 'Saber más'],
   ['#descargas', 'Descargar'],
@@ -43,10 +43,10 @@ const primaryNav = [
 
 /** El menú móvil lleva todas las anclas, en el orden de la página. */
 const menuNav = [
-  ['#como-funciona', 'Cómo funciona'],
+  ['#modulos', 'Módulos'],
   ['#plataforma', 'La plataforma'],
+  ['#como-funciona', 'Cómo funciona'],
   ['#tributacion', 'Tributación chilena'],
-  ['#para-quien', 'Para quién'],
   ['#planes', 'Planes'],
   ['#preguntas', 'Saber más'],
   ['#cotizar', 'Cotización'],
