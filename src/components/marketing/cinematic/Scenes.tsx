@@ -1,9 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { Fragment } from 'react';
 import { ArrowUp, ArrowUpRight, Check, ChevronDown } from 'lucide-react';
 import { points } from '../ChileSection';
-import { moduleGroups } from '../catalog';
 import { faqs, plans } from '../content';
 import { formatCurrency } from '@/lib/chile/tax';
 import s from './v2.module.css';
@@ -11,7 +9,7 @@ import s from './v2.module.css';
 /*
  * Escenas de la landing que no necesitan JavaScript: se renderizan en el
  * servidor. Los textos salen de los mismos archivos que usa el resto del
- * sitio (ChileSection, catalog.ts, content.ts).
+ * sitio (ChileSection, content.ts).
  */
 
 /**
@@ -93,7 +91,7 @@ export function PlansScene() {
           </article>
         ))}
       </div>
-      <p className={s.note}>¿Tu empresa combina varias cosas? Arma tu propia mezcla de módulos: la cotización se ajusta a lo que activas.</p>
+      <p className={s.note}>¿Tu empresa combina varias cosas? <a className={s.inlineLink} href="#modulos">Arma tu propia mezcla de módulos</a>: la cotización se ajusta a lo que activas.</p>
     </section>
   );
 }
@@ -118,31 +116,6 @@ export function FaqScene() {
     </section>
   );
 }
-
-/**
- * Franja de palabras que corre de lado con el scroll (--view de
- * useLiveMotion). Una sola fila: separa el hero del contenido sin alargar la
- * página. Las palabras se repiten y se ocultan a los lectores de pantalla;
- * `label` las dice una sola vez.
- */
-export function Marquee({ words, label }: { words: readonly string[]; label: string }) {
-  return (
-    <div className={s.marquee} data-live>
-      <p className={s.srOnly}>{label}: {words.join(', ')}.</p>
-      <div className={s.marqueeRow} aria-hidden="true">
-        {[0, 1, 2].flatMap(() => words).map((word, index) => (
-          <Fragment key={index}>
-            <span className={index % 2 === 0 ? s.marqueeOutline : s.marqueeGold}>{word}</span>
-            <i />
-          </Fragment>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/** Los nombres de los módulos que existen hoy (los mismos de la escena Módulos). */
-export const moduleWords = moduleGroups.flatMap(group => group.modules.map(item => item.title));
 
 /**
  * Pie con el cierre de la página arriba: la frase final y la vuelta al
@@ -171,6 +144,7 @@ export function Footer({ salesEmail, legalName, legalRut }: { salesEmail: string
         <nav className={s.footerCol} aria-label="Producto">
           <h3>Producto</h3>
           <ul>
+            <li><a href="#modulos">Módulos</a></li>
             <li><a href="#plataforma">La plataforma</a></li>
             <li><a href="#como-funciona">Cómo funciona</a></li>
             <li><a href="#tributacion">Tributación chilena</a></li>

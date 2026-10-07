@@ -302,6 +302,15 @@ export const SALES_LEAD_RATE_LIMIT: RateLimitConfig = {
   windowMs: 60 * 60_000,
 };
 
+/** Cotización de módulos desde la vitrina de la landing
+ * (`POST /api/public/module-quote`): mismo criterio que el formulario
+ * comercial, con su propio contador para que uno no agote al otro. */
+export const MODULE_QUOTE_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'module-quote-ip',
+  limit: 5,
+  windowMs: 60 * 60_000,
+};
+
 /** Portal público de pago de cuotas, consulta por RUT
  * (`/api/public/installments/[token]/lookup`): el RUT no es secreto, así que
  * el límite apunta a frenar el barrido de RUTs, no a una familia que
