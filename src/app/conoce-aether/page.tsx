@@ -15,7 +15,6 @@ export default function ProductPage() {
       className={displayFont.variable}
       releases={releases}
       salesEmail={salesEmail}
-      salesWhatsapp={process.env.AETHER_SALES_WHATSAPP}
       legalName={process.env.AETHER_LEGAL_NAME}
       legalRut={process.env.AETHER_LEGAL_RUT}
     />

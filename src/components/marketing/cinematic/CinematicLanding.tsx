@@ -1,4 +1,3 @@
-import SalesContact from '../SalesContact';
 import type { DesktopRelease } from '../Landing';
 import QuoteCart from '../modules/QuoteCart';
 import { getShowcaseCards } from '@/lib/marketing/module-showcase-content';
@@ -19,14 +18,14 @@ import s from './v2.module.css';
  * Recorrido compacto (la versión anterior medía ~20 pantallas): hero con
  * video · módulos (recuadros con su página propia y carrito de cotización) ·
  * plataforma · cómo funciona (línea de tiempo) · tributación · planes ·
- * preguntas · cotización · descargas · pie con el cierre. Una sola escena
+ * preguntas · descargas · pie con el cierre. Se cotiza desde la vitrina
+ * (carrito), sin formulario de demo aparte. Una sola escena
  * fija: el video del hero. Los certámenes ya no tienen escena propia: sus
  * módulos están en la vitrina, cada uno con sus pantallas reales.
  */
-export default function CinematicLanding({ releases, salesEmail, salesWhatsapp, legalName, legalRut, className }: {
+export default function CinematicLanding({ releases, salesEmail, legalName, legalRut, className }: {
   releases: DesktopRelease[];
   salesEmail: string;
-  salesWhatsapp?: string;
   legalName?: string;
   legalRut?: string;
   className?: string;
@@ -41,8 +40,7 @@ export default function CinematicLanding({ releases, salesEmail, salesWhatsapp, 
       <FlowScene />
       <ChileScene />
       <PlansScene />
-      <FaqScene />
-      <div className={s.contact}><SalesContact email={salesEmail} whatsapp={salesWhatsapp} /></div>
+      <FaqScene salesEmail={salesEmail} />
       <Downloads releases={releases} />
       <Footer salesEmail={salesEmail} legalName={legalName} legalRut={legalRut} />
       {/* Fuera de las secciones: content-visibility no debe contener la barra fija. Siempre a la vista:

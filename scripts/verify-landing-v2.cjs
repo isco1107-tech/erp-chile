@@ -236,11 +236,11 @@ async function page2(browser) {
   await page.waitForSelector('#plataforma[data-tabs-ready]');
   await page.waitForSelector('main[data-in-track]');
 
-  const anchors = ['contenido', 'modulos', 'como-funciona', 'plataforma', 'tributacion', 'planes', 'preguntas', 'cotizar', 'descargas'];
+  const anchors = ['contenido', 'modulos', 'como-funciona', 'plataforma', 'tributacion', 'planes', 'preguntas', 'descargas'];
   const missing = await page.evaluate(ids => ids.filter(id => !document.getElementById(id)), anchors);
   check('Anclas presentes', missing.length === 0, missing.join(', '));
   check('Enlace «Ir al contenido»', await page.getByRole('link', { name: 'Ir al contenido' }).count() === 1);
-  check('Navegación: 6 anclas (con «Módulos», «Saber más» y «Descargar») + «Para empresas» + «Cotización»', await page.locator('nav[aria-label="Navegación principal"] a').count() === 7 && await page.locator('header').getByRole('link', { name: /^Cotización/ }).count() === 1);
+  check('Navegación: 6 anclas (con «Módulos», «Saber más» y «Descargar») + «Para empresas» + «Cotizar»', await page.locator('nav[aria-label="Navegación principal"] a').count() === 7 && await page.locator('header').getByRole('link', { name: /^Cotizar/ }).count() === 1);
   check('JSON-LD presente', await page.locator('script[type="application/ld+json"]').count() === 1);
 
   // Las secciones lejanas usan content-visibility: el salto debe caer justo en la sección.
@@ -308,10 +308,9 @@ async function page2(browser) {
   check('Módulos: «Vaciar» quita la barra', await page.getByRole('region', { name: 'Tu cotización' }).count() === 0);
   await page.locator('#modulos').getByRole('button', { name: /^Todos/ }).click();
 
-  // Formulario (sin enviar).
-  await page.locator('#cotizar').scrollIntoViewIfNeeded();
-  await page.getByLabel('Tu nombre', { exact: false }).fill('Prueba');
-  check('Formulario operativo', await page.locator('#cotizar form').count() === 1 && await page.getByRole('button', { name: /Solicitar demo y cotización/ }).isEnabled());
+  // Sin formulario de demo aparte: se cotiza desde la vitrina.
+  check('Sin formulario de demo en la landing', await page.locator('#cotizar').count() === 0 && await page.locator('a[href="#cotizar"]').count() === 0);
+  check('El cierre lleva a armar la cotización', await page.locator('footer a[href="#modulos"]').count() >= 1);
   check('Descargas', await page.locator('#descargas a[download], #descargas a[href="/login"]').count() >= 3);
 
   // Recorre toda la página para que aparezca lo que se revela al entrar y guarda la captura completa.

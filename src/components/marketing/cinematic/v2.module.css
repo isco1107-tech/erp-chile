@@ -346,14 +346,13 @@
  * data-full-render para que el salto calcule con los altos reales.
  */
 .section,
-.contact,
 .closing,
 .footer {
   content-visibility: auto;
   contain-intrinsic-size: auto 900px;
 }
 .footer { contain-intrinsic-size: auto 760px; }
-.root[data-full-render] :is(.section, .contact, .closing, .footer) { content-visibility: visible; }
+.root[data-full-render] :is(.section, .closing, .footer) { content-visibility: visible; }
 
 .sectionHead {
   display: grid;
@@ -851,83 +850,6 @@
 .faqList details[open] summary svg { transform: rotate(180deg); }
 .faqList p { max-width: 64ch; margin: 0 0 22px; line-height: 1.75; color: var(--muted); }
 
-/*
- * Formulario de cotización (SalesContact, compartido con `/`): se viste de
- * oscuro desde aquí, anclado a #cotizar, sin tocar landing.module.css.
- */
-.contact :global(#cotizar) {
-  padding-block: clamp(56px, 6.6vw, 104px);
-  border-top: 1px solid var(--line);
-  background: var(--bg);
-  color: var(--text);
-}
-
-.contact :global(#cotizar) > div { max-width: calc(var(--max) + 2 * var(--gutter)); padding-inline: var(--gutter); }
-.contact :global(#cotizar) > div > div:first-child > p:first-child { color: var(--gold); font-size: 12px; letter-spacing: .2em; }
-
-.contact :global(#cotizar) h2 {
-  font-family: var(--display);
-  font-size: clamp(44px, 4.8vw, 84px);
-  font-weight: 400;
-  line-height: .9;
-  letter-spacing: .004em;
-  text-transform: uppercase;
-  color: var(--text);
-}
-
-.contact :global(#cotizar) h2 span { color: var(--gold); }
-.contact :global(#cotizar) > div > div:first-child > p:not(:first-child) { max-width: 44ch; font-size: 16px; line-height: 1.75; color: var(--muted); }
-.contact :global(#cotizar) > div > div:first-child li { font-size: 15px; color: var(--text); }
-.contact :global(#cotizar) > div > div:first-child li svg { color: var(--gold); }
-.contact :global(#cotizar) > div > div:first-child > a { min-height: 44px; font-size: 14px; color: var(--gold); }
-
-.contact :global(#cotizar) form,
-.contact :global(#cotizar) [role='status'] {
-  border: 1px solid var(--line-strong);
-  border-radius: 2px;
-  background: var(--bg-raise);
-  box-shadow: none;
-  color: var(--text);
-}
-
-.contact :global(#cotizar) form > div:first-child { border-bottom-color: var(--line); color: var(--faint); }
-.contact :global(#cotizar) legend,
-.contact :global(#cotizar) label > span { color: var(--faint); }
-.contact :global(#cotizar) legend > span,
-.contact :global(#cotizar) label strong { color: var(--text); }
-
-.contact :global(#cotizar) fieldset label > span {
-  border-color: var(--line-strong);
-  background: transparent;
-  color: var(--text);
-  font-size: 14px;
-}
-
-.contact :global(#cotizar) fieldset label > span svg { border-color: #8b877f; color: #6f6b64; }
-.contact :global(#cotizar) fieldset input:checked + span { border-color: var(--gold); background: rgb(219 192 118 / .12); }
-.contact :global(#cotizar) fieldset input:checked + span svg { border-color: var(--gold); background: var(--gold); color: var(--ink); }
-.contact :global(#cotizar) fieldset input:focus-visible + span { outline: 2px solid var(--gold); outline-offset: 3px; }
-
-.contact :global(#cotizar) input:not([type='checkbox']),
-.contact :global(#cotizar) select {
-  border-color: #8b877f;
-  border-radius: 2px;
-  background: var(--bg);
-  color: var(--text);
-  font-size: 15px;
-}
-
-.contact :global(#cotizar) input::placeholder { color: #9a958c; }
-.contact :global(#cotizar) button[type='submit'] { border-radius: 2px; background: var(--gold); color: var(--ink); font-weight: 600; }
-.contact :global(#cotizar) button[type='submit']:hover { background: #ead8a5; }
-.contact :global(#cotizar) form > p { color: var(--faint); }
-.contact :global(#cotizar) [role='alert'] { background: rgb(219 192 118 / .12); color: var(--text); }
-.contact :global(#cotizar) form a,
-.contact :global(#cotizar) [role='status'] button { color: var(--gold); }
-.contact :global(#cotizar) [role='status'] > svg { color: var(--gold); }
-.contact :global(#cotizar) [role='status'] p { color: var(--muted); }
-.contact :global(#cotizar) [role='status'] strong { color: var(--text); }
-
 /* ── Descargas: franja compacta ─────────────────────────────────────────── */
 .downloads {
   display: grid;
@@ -1016,7 +938,10 @@
 
 .closingTitle > span { display: block; }
 
-.backTop { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin-top: clamp(20px, 3vw, 36px); font-size: 14px; color: var(--muted); transition: color .2s; }
+.closingActions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px 28px; margin-top: clamp(24px, 3vw, 40px); }
+.closingCta { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 50px; max-width: 100%; padding: 12px 24px; border-radius: 2px; background: var(--gold); color: var(--ink); font-size: 15px; font-weight: 700; transition: background .2s; }
+.closingCta:hover { background: #ead8a5; }
+.backTop { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font-size: 14px; color: var(--muted); transition: color .2s; }
 .backTop:hover { color: var(--gold); }
 .footerGrid { display: grid; grid-template-columns: 1.6fr repeat(3, minmax(0, 1fr)); gap: 40px; }
 .footerBrand p { max-width: 36ch; margin: 18px 0 0; font-size: 14px; line-height: 1.7; color: var(--muted); }

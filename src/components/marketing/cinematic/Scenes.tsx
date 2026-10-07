@@ -87,7 +87,7 @@ export function PlansScene() {
               </div>
             )}
             <ul>{plan.includes.slice(0, PLAN_HIGHLIGHTS).map(item => <li key={item}><Check size={16} aria-hidden="true" />{item}</li>)}</ul>
-            <a className={s.planLink} href="#cotizar">Cotizar {plan.name.toLowerCase()} <ArrowUpRight size={16} aria-hidden="true" /></a>
+            <a className={s.planLink} href="#modulos">Cotizar {plan.name.toLowerCase()} <ArrowUpRight size={16} aria-hidden="true" /></a>
           </article>
         ))}
       </div>
@@ -97,13 +97,13 @@ export function PlansScene() {
 }
 
 /** Preguntas frecuentes: el mismo arreglo que publica el JSON-LD (FAQPage). */
-export function FaqScene() {
+export function FaqScene({ salesEmail }: { salesEmail: string }) {
   return (
     <section id="preguntas" className={`${s.section} ${s.faq}`} aria-labelledby="preguntas-title">
       <div className={s.faqHead}>
         <p className={s.kicker}>ANTES DE EMPEZAR</p>
         <h2 id="preguntas-title" className={`${s.heading} ${s.headingMid}`}><span className={s.display}>Las cosas claras.</span></h2>
-        <p className={s.body}>Lo que necesitas saber sobre Aether ERP. ¿Te queda otra duda? <a className={s.inlineLink} href="#cotizar">Pregúntanos directo.</a></p>
+        <p className={s.body}>Lo que necesitas saber sobre Aether ERP. ¿Te queda otra duda? <a className={s.inlineLink} href={`mailto:${salesEmail}`}>Pregúntanos directo.</a></p>
       </div>
       <div className={s.faqList}>
         {faqs.map(([question, answer]) => (
@@ -118,9 +118,8 @@ export function FaqScene() {
 }
 
 /**
- * Pie con el cierre de la página arriba: la frase final y la vuelta al
- * inicio. El llamado a cotizar ya está justo encima (#cotizar), así que el
- * cierre no lo repite.
+ * Pie con el cierre de la página arriba: la frase final, el llamado a armar
+ * la cotización en la vitrina (#modulos) y la vuelta al inicio.
  */
 export function Footer({ salesEmail, legalName, legalRut }: { salesEmail: string; legalName?: string; legalRut?: string }) {
   return (
@@ -131,7 +130,10 @@ export function Footer({ salesEmail, legalName, legalRut }: { salesEmail: string
           <span>Dale espacio para crecer.</span>{' '}
           <span className={s.gold}>Dale Aether.</span>
         </h2>
-        <a className={s.backTop} href="#contenido">Volver al inicio <ArrowUp size={16} aria-hidden="true" /></a>
+        <div className={s.closingActions}>
+          <a className={s.closingCta} href="#modulos">Arma tu cotización <ArrowUpRight size={17} aria-hidden="true" /></a>
+          <a className={s.backTop} href="#contenido">Volver al inicio <ArrowUp size={16} aria-hidden="true" /></a>
+        </div>
       </div>
       <div className={s.footerGrid}>
         <div className={s.footerBrand}>
@@ -155,7 +157,7 @@ export function Footer({ salesEmail, legalName, legalRut }: { salesEmail: string
         <nav className={s.footerCol} aria-label="Contacto">
           <h3>Contacto</h3>
           <ul>
-            <li><a href="#cotizar">Solicitar una demo</a></li>
+            <li><a href="#modulos">Cotizar módulos</a></li>
             <li><a href={`mailto:${salesEmail}`}>{salesEmail}</a></li>
             <li><Link href="/login">Ingresar al ERP</Link></li>
             <li><Link href="/empresas">Para empresas</Link></li>
