@@ -4,7 +4,7 @@ import { checkRateLimit, MODULE_QUOTE_RATE_LIMIT } from '@/lib/security/rate-lim
 import { captureException, captureMessage } from '@/lib/observability';
 import { sendEmail } from '@/lib/email/mailer';
 import { getSalesEmail } from '@/lib/marketing/sales-lead';
-import { buildModuleQuoteEmail, estimateModuleQuote, moduleQuoteSchema, MODULE_QUOTE_HONEYPOT_FIELD } from '@/lib/marketing/module-quote';
+import { buildModuleQuoteEmail, moduleQuoteSchema, MODULE_QUOTE_HONEYPOT_FIELD, selectedModules } from '@/lib/marketing/module-quote';
 
 /**
  * Cotización de módulos desde la vitrina de la landing (carrito). Público y
@@ -46,13 +46,13 @@ export async function POST(req: Request) {
     return jsonError(parsed.error.issues[0]?.message ?? 'Revisa los datos del formulario', 400);
   }
 
-  const estimate = estimateModuleQuote(parsed.data.moduleIds);
-  if (estimate.modules.length === 0) {
+  const modules = selectedModules(parsed.data.moduleIds);
+  if (modules.length === 0) {
     return jsonError('Elige al menos un módulo para cotizar', 400);
   }
 
   try {
-    const email = buildModuleQuoteEmail(parsed.data, estimate);
+    const email = buildModuleQuoteEmail(parsed.data, modules);
     const result = await sendEmail({ to: getSalesEmail(), replyTo: parsed.data.email, ...email });
     if (result.status === 'failed') {
       captureMessage('marketing:cotizacion-modulos:envio-fallido', 'error', { module: 'marketing', extra: { provider: result.provider } });
