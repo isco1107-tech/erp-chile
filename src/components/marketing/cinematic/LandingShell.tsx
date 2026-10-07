@@ -25,7 +25,6 @@ const starMap = [
   ['#tributacion', 'Tributación'],
   ['#planes', 'Planes'],
   ['#preguntas', 'Preguntas'],
-  ['#cotizar', 'Cotizar'],
 ] as const;
 
 /**
@@ -49,7 +48,6 @@ const menuNav = [
   ['#tributacion', 'Tributación chilena'],
   ['#planes', 'Planes'],
   ['#preguntas', 'Saber más'],
-  ['#cotizar', 'Cotización'],
   ['#descargas', 'Descargar'],
 ] as const;
 
@@ -214,7 +212,7 @@ export default function LandingShell({ className, children }: { className?: stri
               {primaryNav.map(([href, label]) => <a key={href} href={href}>{label}</a>)}
               <Link className={s.navCorporate} href="/empresas"><Building2 size={15} aria-hidden="true" />Para empresas</Link>
             </nav>
-            <a className={s.headerCta} href="#cotizar">Cotización <ArrowUpRight size={15} aria-hidden="true" /></a>
+            <a className={s.headerCta} href="#modulos">Cotizar <ArrowUpRight size={15} aria-hidden="true" /></a>
             <Link className={s.headerLogin} href="/login">Ingresar <ArrowUpRight size={15} aria-hidden="true" /></Link>
             <button
               ref={menuButton}

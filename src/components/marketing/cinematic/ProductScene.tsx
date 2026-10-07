@@ -95,7 +95,7 @@ export default function ProductScene() {
               <h3>{item.title}</h3>
               <p>{item.description}</p>
               <ul>{item.points.map(point => <li key={point}><CircleCheck size={16} aria-hidden="true" />{point}</li>)}</ul>
-              <a className={s.textLink} href="#cotizar">Quiero verlo para mi empresa <ArrowUpRight size={17} aria-hidden="true" /></a>
+              <a className={s.textLink} href="#modulos">Quiero verlo para mi empresa <ArrowUpRight size={17} aria-hidden="true" /></a>
             </div>
           ))}
         </div>

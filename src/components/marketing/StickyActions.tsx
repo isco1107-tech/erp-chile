@@ -52,7 +52,7 @@ export default function StickyActions() {
     <>
       <div className={s.stickyBar} ref={bar}>
         <Link href="/login">Ingresar</Link>
-        <a href="#cotizar">Solicitar demo <ArrowUpRight size={16} aria-hidden="true" /></a>
+        <a href="#modulos">Cotizar módulos <ArrowUpRight size={16} aria-hidden="true" /></a>
       </div>
       <button className={s.toTop} ref={top} type="button" aria-label="Volver al inicio de la página" onClick={() => window.scrollTo({ top: 0 })}>
         <ArrowUp size={18} aria-hidden="true" />
