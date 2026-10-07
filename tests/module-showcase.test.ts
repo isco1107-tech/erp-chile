@@ -1,11 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { MANUAL_SECTIONS } from '@/modules/manual/content';
-import { BASE_PLATFORM, PRICED_MODULES, PRICING_PLANS } from '@/lib/pricing/catalog';
+import { PRICED_MODULES } from '@/lib/pricing/catalog';
 import { QUOTABLE_MODULE_IDS, SHOWCASE_CATEGORIES, SHOWCASE_MODULES } from '@/lib/marketing/module-showcase';
 import { getShowcaseCards, getShowcaseDetail } from '@/lib/marketing/module-showcase-content';
-import { buildModuleQuoteEmail, estimateModuleQuote, moduleQuoteSchema, selectedModules } from '@/lib/marketing/module-quote';
-import { calculateIva } from '@/lib/chile/tax';
+import { buildModuleQuoteEmail, moduleQuoteSchema, selectedModules } from '@/lib/marketing/module-quote';
 
 /**
  * Vitrina de módulos de la landing (`/#modulos`, `/modulos/[slug]`) y la
@@ -68,7 +67,7 @@ describe('vitrina de módulos', () => {
   });
 });
 
-describe('cotización de módulos (correo a ventas)', () => {
+describe('cotización de módulos (correo a ventas, sin precios)', () => {
   const request = {
     name: 'Ana <b>Pérez</b>',
     email: 'Ana@Empresa.cl',
@@ -93,32 +92,25 @@ describe('cotización de módulos (correo a ventas)', () => {
     expect(selectedModules(['no-existe'])).toEqual([]);
   });
 
-  it('suma la plataforma base y los módulos, con IVA entero', () => {
-    const estimate = estimateModuleQuote(['pos', 'purchases']);
-    const net = BASE_PLATFORM.price + 9990 + 8990;
-    expect(estimate.net).toBe(net);
-    expect(estimate.iva).toBe(calculateIva(net));
-    expect(estimate.total).toBe(net + calculateIva(net));
-    // El plan Comercio trae POS + Compras y cuesta menos que sumarlos sueltos.
-    expect(estimate.suggestedPlan?.id).toBe('comercio');
-  });
-
-  it('solo sugiere un plan que incluya todo lo pedido y salga más barato', () => {
-    const estimate = estimateModuleQuote(['org-chart']);
-    expect(estimate.suggestedPlan).toBeNull();
-    const many = estimateModuleQuote(PRICED_MODULES.map((m) => m.id));
-    expect(many.suggestedPlan?.id).toBe(PRICING_PLANS.find((p) => p.id === 'total')?.id);
-  });
-
   it('el correo escapa lo que escribió la persona y lista los módulos', () => {
     const parsed = moduleQuoteSchema.parse(request);
-    const email = buildModuleQuoteEmail(parsed, estimateModuleQuote(parsed.moduleIds), new Date('2026-10-07T15:00:00Z'));
+    const email = buildModuleQuoteEmail(parsed, selectedModules(parsed.moduleIds), new Date('2026-10-07T15:00:00Z'));
     expect(email.subject).toBe('Cotización de módulos: Panadería & Cía (2)');
     expect(email.html).not.toContain('<b>Pérez</b>');
     expect(email.html).toContain('Ana &lt;b&gt;Pérez&lt;/b&gt;');
     expect(email.html).toContain('Panadería &amp; Cía');
-    expect(email.text).toContain('- Punto de Venta (POS)');
-    expect(email.text).toContain('- Tesorería y Cobranzas');
+    expect(email.text).toContain('- Punto de Venta (POS) (Núcleo comercial)');
+    expect(email.text).toContain('- Tesorería y Cobranzas (Finanzas)');
     expect(email.text).toContain('Teléfono: +56 9 1234 5678');
+  });
+
+  it('el correo a ventas no lleva precios ni montos', () => {
+    const parsed = moduleQuoteSchema.parse({ ...request, moduleIds: PRICED_MODULES.map((m) => m.id) });
+    const email = buildModuleQuoteEmail(parsed, selectedModules(parsed.moduleIds));
+    for (const body of [email.subject, email.text, email.html]) {
+      expect(body).not.toMatch(/\$\s?\d/);
+      expect(body).not.toMatch(/IVA|Neto|Total mensual/);
+      for (const m of PRICED_MODULES) expect(body).not.toContain(String(m.price));
+    }
   });
 });
