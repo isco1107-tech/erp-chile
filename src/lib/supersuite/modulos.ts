@@ -80,6 +80,9 @@ const ENTIDAD_A_MODULO: Record<string, string> = {
   AcademyStudent: 'academia', AcademyGroup: 'academia', AcademyAttendance: 'academia', AcademyMonthlyPayment: 'academia', AcademyApplication: 'academia', AcademyEnrollmentLink: 'academia',
 };
 
+/** Módulo con que viaja lo que no es de un módulo de negocio (usuarios, roles, ajustes…): la Supersuite no lo cuenta como adopción. */
+export const MODULO_PLATAFORMA = 'plataforma';
+
 /** Entidades cuyo cambio modifica la ficha de la empresa en la Supersuite (nombre, plan, módulos, estado). */
 export const ENTIDADES_DE_EMPRESA = new Set(['Company', 'CompanyFeatures', 'CompanySettings']);
 

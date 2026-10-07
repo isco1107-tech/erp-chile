@@ -121,14 +121,19 @@ describe('sin configuración', () => {
 describe('con configuración', () => {
   const env = { SUPERSUITE_URL: 'https://ss.test', SUPERSUITE_KEY: 'ss_aether_x' };
 
-  it('una acción auditada se envía como evento de su módulo, con la API key', async () => {
+  it('toda acción auditada se envía: la de un módulo como su uso y el resto como plataforma, con la API key', async () => {
     const { s } = cargar(env);
-    s.registrarUsoSupersuite({ companyId: 'c1', entity: 'SalesDocument', action: 'ISSUE_DTE' });
+    s.registrarUsoSupersuite({ companyId: 'c1', entity: 'SalesDocument', action: 'ISSUE_DTE', userId: 'u7' });
     s.registrarUsoSupersuite({ companyId: 'c1', entity: 'User', action: 'CREATE' });
     await esperarEnvios();
-    const [envio] = cuerposEnviados();
-    expect(envio.url).toBe('https://ss.test/ingesta/eventos');
-    expect(envio.cuerpo).toEqual([expect.objectContaining({ clienteId: 'c1', modulo: 'ventas', accion: 'sales_document_issue_dte' })]);
+    const envios = cuerposEnviados().filter((e) => e.url === 'https://ss.test/ingesta/eventos');
+    const eventos = envios.flatMap((e) => e.cuerpo);
+    expect(eventos).toEqual([
+      expect.objectContaining({ clienteId: 'c1', modulo: 'ventas', accion: 'sales_document_issue_dte', usuarioId: 'u7', datos: { entidad: 'SalesDocument', operacion: 'ISSUE_DTE' } }),
+      expect.objectContaining({ clienteId: 'c1', modulo: 'plataforma', accion: 'user_create', datos: { entidad: 'User', operacion: 'CREATE' } }),
+    ]);
+    // Solo la entidad y la operación: nunca el registro ni quién (más allá del id opaco).
+    for (const evento of eventos) expect(Object.keys(evento.datos).sort()).toEqual(['entidad', 'operacion']);
     expect((fetchMock.mock.calls[0][1] as RequestInit).headers).toMatchObject({ 'X-Api-Key': 'ss_aether_x' });
   });
 
@@ -149,8 +154,10 @@ describe('con configuración', () => {
     });
     s.registrarUsoSupersuite({ companyId: 'c1', entity: 'CompanyFeatures', action: 'UPDATE' });
     await esperarEnvios();
-    const [envio] = cuerposEnviados();
-    expect(envio.url).toBe('https://ss.test/ingesta/clientes');
+    const envio = cuerposEnviados().find((e) => e.url === 'https://ss.test/ingesta/clientes')!;
+    expect(envio).toBeDefined();
+    // El cambio también queda en la actividad, como plataforma.
+    expect(cuerposEnviados().find((e) => e.url === 'https://ss.test/ingesta/eventos')?.cuerpo[0]).toMatchObject({ modulo: 'plataforma', accion: 'company_features_update' });
     expect(envio.cuerpo[0]).toMatchObject({ clienteId: 'c1', nombre: 'Ferretería Sur', ciudad: 'Temuco', plan: 'Profesional', activo: true, suspendida: true, modulos: ['pos', 'inventario'] });
     // Un plan anterior no tiene tarifa de lista: no se inventa una.
     expect(envio.cuerpo[0]).not.toHaveProperty('tarifaMensual');
@@ -166,7 +173,7 @@ describe('con configuración', () => {
     });
     s.registrarUsoSupersuite({ companyId: 'c1', entity: 'CompanyFeatures', action: 'UPDATE' });
     await esperarEnvios();
-    const [envio] = cuerposEnviados();
+    const envio = cuerposEnviados().find((e) => e.url === 'https://ss.test/ingesta/clientes')!;
     expect(envio.cuerpo[0]).toMatchObject({ plan: 'Comercio', tarifaMensual: 32990 + 17990 });
     expect(envio.cuerpo[0].metadata).toMatchObject({
       planVigente: true, tarifaIncluyeIva: false, modulosExtra: ['accounting'], usuariosAdicionales: 2, tarifaUsuariosAdicionales: 5980,

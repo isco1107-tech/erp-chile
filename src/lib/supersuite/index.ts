@@ -5,7 +5,7 @@ import { DteType, type AuditAction } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { captureException } from '@/lib/observability';
 import { crearSupersuite, type ClienteSupersuite } from './cliente';
-import { accionDeAuditoria, alertaDeFolios, alertaDeSolicitud, CLAVE_SOLICITUD_MODULOS, empresaActiva, ENTIDADES_DE_EMPRESA, fichaDeEmpresa, moduloDeEntidad } from './modulos';
+import { accionDeAuditoria, alertaDeFolios, alertaDeSolicitud, CLAVE_SOLICITUD_MODULOS, empresaActiva, ENTIDADES_DE_EMPRESA, fichaDeEmpresa, MODULO_PLATAFORMA, moduloDeEntidad } from './modulos';
 
 /**
  * Telemetría hacia la Supersuite (el centro de mando que monitorea a las empresas
@@ -50,18 +50,21 @@ function enviarAlFinal(m: ClienteSupersuite): void {
   }
 }
 
-/** Una acción auditada = un evento de uso del módulo al que pertenece. */
-export function registrarUsoSupersuite(input: { companyId: string; entity: string; action: AuditAction }): void {
+/**
+ * Toda acción auditada viaja a la Supersuite, que es el panel de mando de lo que
+ * pasa en Aether: lo de un módulo de negocio cuenta como uso de ese módulo, y lo
+ * demás (usuarios, roles, ajustes, automatizaciones…) va como `plataforma`, que
+ * la Supersuite muestra en Actividad sin contarlo como adopción. Viajan solo la
+ * entidad, la operación y el id opaco de quien la hizo: nunca el registro.
+ * Un cambio de la empresa (plan, módulos, estado) además reenvía su ficha.
+ */
+export function registrarUsoSupersuite(input: { companyId: string; entity: string; action: AuditAction; userId?: string }): void {
   try {
     const m = monitor();
     if (!m) return;
-    if (ENTIDADES_DE_EMPRESA.has(input.entity)) {
-      void sincronizarEmpresaSupersuite(input.companyId);
-      return;
-    }
-    const modulo = moduloDeEntidad(input.entity);
-    if (!modulo) return;
-    m.evento(input.companyId, modulo, accionDeAuditoria(input.entity, input.action));
+    if (ENTIDADES_DE_EMPRESA.has(input.entity)) void sincronizarEmpresaSupersuite(input.companyId);
+    const modulo = moduloDeEntidad(input.entity) ?? MODULO_PLATAFORMA;
+    m.evento(input.companyId, modulo, accionDeAuditoria(input.entity, input.action), { entidad: input.entity, operacion: input.action }, input.userId);
     enviarAlFinal(m);
   } catch (error) {
     captureException(error, { module: 'supersuite', companyId: input.companyId, extra: { entity: input.entity } });
