@@ -254,6 +254,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       note('Alumnas', 'Crea la ficha con sus datos, su apoderado si es menor y la autorización de imagen.'),
       note('Pasar lista', 'Elige el grupo y la fecha y marca presente, atrasada, ausente o justificada.'),
       note('Mensualidad', 'Marca cada mes como pagado; los meses sin pago aparecen en rojo.'),
+      note('Sitio web', 'Arma y publica la página pública de tu academia: portada, clases, fotos, historia y contacto.'),
     ],
   },
   tasks: {

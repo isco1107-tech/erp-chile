@@ -229,6 +229,20 @@ export const OPERACIONES_SECTIONS: ManualSection[] = [
         tip: 'El link solo funciona con el módulo Academia activo. Quien ya es alumna o ya tiene una inscripción pendiente no genera un duplicado.',
       },
       {
+        id: 'academia-sitio',
+        title: 'Publicar el sitio web de la academia',
+        steps: [
+          'Ve a la pestaña "Sitio web". La primera vez, escribe el nombre y la dirección del sitio (por ejemplo "academia-cr") y, si quieres partir con un borrador, haz clic en "Cargar textos de ejemplo". Luego haz clic en "Crear sitio".',
+          'En "Portada" haz clic en "Subir foto" para la imagen grande de arriba. Completa la frase de portada, la promoción vigente (opcional) y "Quiénes somos".',
+          'Agrega tus clases con "Agregar clase", los pasos de "Cómo funciona" con "Agregar paso", lo que recibe una alumna con "Agregar beneficio", y las preguntas con "Agregar pregunta". Con las flechas cambias el orden de cada lista.',
+          'En "Carrusel de fotos" haz clic en "Agregar fotos" (puedes elegir varias). Cuenta tu historia y, si quieres, agrega a la dirección de la academia con su foto y reseña.',
+          'En "Mensualidad y horarios" escribe la mensualidad si quieres publicarla (vacía = no se muestra) y decide si se muestran los grupos con su horario y cuántas alumnas tienes. Los grupos se leen en vivo de la pestaña Grupos.',
+          'En "Contacto" escribe el WhatsApp, el correo y uno o varios Instagram separados por coma.',
+          'Revisa "Qué le falta a tu sitio": los puntos marcados como obligatorios impiden publicar. Cuando esté listo, haz clic en "Publicar sitio". Con "Despublicar" el sitio deja de verse. Haz clic en la dirección que aparece arriba para verlo.',
+        ],
+        tip: 'El botón "Inscríbete" del sitio lleva al formulario de inscripción; al publicar se crea el link si aún no existía. El sitio nunca muestra alumnas, RUT, contactos ni pagos: solo lo que escribes aquí, los grupos con su horario y, si lo activas, el número de alumnas.',
+      },
+      {
         id: 'academia-fichas',
         title: 'Crear y consultar la ficha de una alumna',
         steps: [

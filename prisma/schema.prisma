@@ -168,6 +168,7 @@ model Company {
   academyAttendance         AcademyAttendance[]
   academyPayments           AcademyMonthlyPayment[]
   academyApplications       AcademyApplication[]
+  academySite               AcademySite?
   delegationRules           DelegationRule[]
   webSiteAssets             WebSiteAsset[]
   webSiteMessages           WebSiteMessage[]
@@ -5978,6 +5979,31 @@ model AcademyMonthlyPayment {
 
   @@unique([studentId, period])
   @@index([companyId, period])
+}
+
+/// Micrositio público de la academia (`/academia/[slug]`): uno por empresa. Los
+/// textos y listas (clases, pasos, historia, galería, preguntas) viven en
+/// `content`, validado con Zod al guardar y al leer; lo demás son columnas.
+/// El público solo ve el sitio publicado y nunca alumnas, RUT ni pagos.
+model AcademySite {
+  id              String    @id @default(cuid())
+  companyId       String    @unique
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  /// Único en toda la plataforma (la URL no lleva la empresa).
+  slug            String    @unique
+  name            String
+  isPublished     Boolean   @default(false)
+  publishedAt     DateTime?
+  heroImageUrl    String?
+  /// Solo dígitos, formato wa.me.
+  whatsapp        String?
+  contactEmail    String?
+  /// Una o varias cuentas separadas por coma, sin «@».
+  instagramHandle String?
+  address         String?
+  content         Json      @default("{}")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 }
 
 enum AcademyApplicationStatus {
