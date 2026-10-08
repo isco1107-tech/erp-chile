@@ -37,7 +37,7 @@ export default function Carousel({ label, children, className, itemClassName, co
 
   return (
     <div className={className}>
-      <div ref={track} role="region" aria-label={label} tabIndex={0} onScroll={update} className="ws-noscroll -mx-5 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth px-5 pb-2 @2xl:mx-0 @2xl:px-0">
+      <div ref={track} role="region" aria-label={label} tabIndex={0} onScroll={update} className="ws-noscroll -mx-5 flex snap-x snap-mandatory scroll-px-5 gap-4 overflow-x-auto scroll-smooth px-5 pb-2 @2xl:mx-0 @2xl:scroll-px-0 @2xl:px-0">
         {Children.map(children, (child) => (
           <div className={cx('min-w-0 shrink-0 snap-start', itemClassName)}>{child}</div>
         ))}

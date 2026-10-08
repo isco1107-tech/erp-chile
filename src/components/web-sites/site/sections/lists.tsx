@@ -478,15 +478,27 @@ export function PricingSection({ block, ctx, center }: SectionProps<'pricing'>) 
     );
   }
 
-  const grid = items.length === 1 ? 'mx-auto max-w-md' : items.length === 2 ? 'mx-auto max-w-3xl @2xl:grid-cols-2' : items.length === 3 ? 'mx-auto max-w-md @4xl:max-w-none @4xl:grid-cols-3' : '@2xl:grid-cols-2 @5xl:grid-cols-3';
+  // Cuatro planes van de a dos, o los cuatro en fila solo si la sección es ancha (80 rem): en tres columnas el cuarto quedaba solo, y en el ancho normal cuatro tarjetas no caben.
+  const roomy = block.style.width === 'wide' || (block.style.width === 'auto' && ctx.siteWidth === 'wide');
+  const four = roomy ? '@2xl:grid-cols-2 @6xl:grid-cols-4' : 'mx-auto max-w-4xl @2xl:grid-cols-2';
+  const grid = items.length === 1 ? 'mx-auto max-w-md' : items.length === 2 ? 'mx-auto max-w-3xl @2xl:grid-cols-2' : items.length === 3 ? 'mx-auto max-w-md @4xl:max-w-none @4xl:grid-cols-3' : items.length === 4 ? four : '@2xl:grid-cols-2 @5xl:grid-cols-3';
 
   if (block.variant === 'minimal') {
+    // Líneas verticales entre planes solo cuando van todos en una fila; en dos filas, separación normal.
+    const row =
+      items.length === 2
+        ? { ul: '@2xl:gap-x-0', li: '@2xl:px-8 @2xl:not-first:border-l @2xl:not-first:border-l-[color:var(--s-line)]' }
+        : items.length === 3
+          ? { ul: '@4xl:gap-x-0', li: '@4xl:px-8 @4xl:not-first:border-l @4xl:not-first:border-l-[color:var(--s-line)]' }
+          : items.length === 4 && roomy
+            ? { ul: 'gap-x-10 @6xl:gap-x-0', li: '@6xl:px-6 @6xl:not-first:border-l @6xl:not-first:border-l-[color:var(--s-line)]' }
+            : { ul: 'gap-x-10', li: '' };
     return (
       <div>
         {heading}
-        <ul className={cx('grid gap-y-10', grid, '@4xl:gap-x-0')}>
+        <ul className={cx('grid gap-y-10', grid, row.ul)}>
           {items.map((plan, index) => (
-            <li key={index} className={cx('relative flex flex-col border-t-2 px-1 pt-7 text-left @4xl:px-8', plan.highlighted ? 'border-[color:var(--s-mark)]' : 'border-[color:var(--s-line)]', '@4xl:not-first:border-l @4xl:not-first:border-l-[color:var(--s-line)]')}>
+            <li key={index} className={cx('relative flex flex-col border-t-2 px-1 pt-7 text-left', plan.highlighted ? 'border-[color:var(--s-mark)]' : 'border-[color:var(--s-line)]', row.li)}>
               {plan.highlighted && plan.badge && <span className="ws-eyebrow mb-3">{plan.badge}</span>}
               {plan.name && <h3 className="ws-h text-xl">{plan.name}</h3>}
               {plan.description && <p className="ws-muted mt-2 text-sm leading-relaxed">{plan.description}</p>}
@@ -631,15 +643,15 @@ type PriceItem = SectionProps<'pricelist'>['block']['categories'][number]['items
 function PriceRow({ item, center }: { item: PriceItem; center?: boolean }) {
   return (
     <>
-      {/* Si el nombre y el precio no caben juntos, el precio baja a la línea siguiente (con su guía de puntos) en vez de estrujar el nombre. */}
+      {/* Si el nombre y el precio no caben juntos, el precio baja a la línea siguiente con su guía de puntos, en vez de estrujar el nombre. */}
       <div className="flex flex-wrap items-baseline gap-x-3">
         <span className="max-w-full min-w-0 font-semibold break-words">{item.name}</span>
         {item.tag && <span className="ws-pill self-center">{item.tag}</span>}
         {item.price && (
-          <>
+          <span className="flex max-w-full min-w-0 flex-[1_1_auto] items-baseline gap-3">
             <span aria-hidden="true" className="min-w-4 flex-1 border-b-2 border-dotted border-[color:var(--s-line)]" />
-            <span className="max-w-full min-w-0 text-right font-semibold break-words tabular-nums">{item.price}</span>
-          </>
+            <span className="min-w-0 text-right font-semibold break-words tabular-nums">{item.price}</span>
+          </span>
         )}
       </div>
       {item.description && <p className={cx('ws-muted mt-1 text-sm leading-relaxed', center && 'text-center italic')}>{item.description}</p>}
@@ -684,18 +696,22 @@ export function PricelistSection({ block, ctx, center }: SectionProps<'pricelist
         <div>
           {heading}
           <div className={cx('grid gap-5 text-left', many ? '@3xl:grid-cols-2' : 'mx-auto max-w-2xl')}>
-            {categories.map((category, index) => (
-              <section key={index} className="ws-card p-6 @2xl:p-8">
-                {category.title && <h3 className="ws-h mb-5 text-xl [color:var(--s-mark)]">{category.title}</h3>}
-                <ul className="space-y-4">
-                  {category.items.map((item, i) => (
-                    <li key={i}>
-                      <PriceRow item={item} />
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ))}
+            {categories.map((category, index) => {
+              // Con un número impar de categorías, la última ocupa el ancho de las dos columnas (y reparte su lista en dos) en vez de quedar sola.
+              const spans = many && categories.length % 2 === 1 && index === categories.length - 1;
+              return (
+                <section key={index} className={cx('ws-card p-6 @2xl:p-8', spans && '@3xl:col-span-2')}>
+                  {category.title && <h3 className="ws-h mb-5 text-xl [color:var(--s-mark)]">{category.title}</h3>}
+                  <ul className={cx(spans ? 'gap-x-10 @3xl:columns-2 [&>li]:mb-4 [&>li]:break-inside-avoid' : 'space-y-4')}>
+                    {category.items.map((item, i) => (
+                      <li key={i}>
+                        <PriceRow item={item} />
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              );
+            })}
           </div>
           {note}
         </div>

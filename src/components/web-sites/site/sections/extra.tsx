@@ -464,7 +464,8 @@ export function PostsSection({ block, ctx, center }: SectionProps<'posts'>) {
                 {rest.slice(0, 5).map((item, index) => (
                   <li key={index}>
                     <PostLink ctx={ctx} item={item} className="ws-card flex items-start gap-4 p-4">
-                      {hasPhoto(ctx, item.imageUrl) && <Photo ctx={ctx} src={item.imageUrl} alt="" className="size-20 shrink-0 rounded-[var(--ws-radius)] object-cover" />}
+                      {/* En pantallas angostísimas la miniatura dejaría el título en una columna de pocas letras: se omite (la foto es decorativa). */}
+                      {hasPhoto(ctx, item.imageUrl) && <Photo ctx={ctx} src={item.imageUrl} alt="" className="hidden size-16 shrink-0 rounded-[var(--ws-radius)] object-cover @xs:block @sm:size-20" />}
                       <div className="min-w-0">
                         <PostMeta item={item} />
                         <h3 className="ws-h mt-2 text-lg leading-snug">{item.title}</h3>
