@@ -8,6 +8,9 @@ import { getAppUrl } from '@/lib/email/mailer';
 import { approveApplicationSchema, attendanceSchema, groupSchema, monthPaymentSchema, moveStudentSchema, periodSchema, studentSchema, isoDay } from '../schema';
 import * as service from '../services/academy.service';
 import * as enrollment from '../services/academy-enrollment.service';
+import * as siteService from '../services/academy-site.service';
+import { academySiteInputSchema } from '@/lib/academy/site';
+import type { AcademySiteEditorData } from '../services/academy-site.service';
 import type { ApplicationRow } from '../services/academy-enrollment.service';
 import type { AttendanceSheetRow, GroupRow, PaymentBoardRow, StudentDetail, StudentRow } from '../services/academy.service';
 
@@ -290,5 +293,50 @@ export async function rejectApplicationAction(id: string): Promise<ActionResult<
     return { success: true, data: null, message: 'Inscripción rechazada' };
   } catch (error) {
     return fail(error, companyId, { action: 'rejectApplication' });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Sitio web de la academia
+// ---------------------------------------------------------------------------
+
+export async function getAcademySiteAction(): Promise<ActionResult<AcademySiteEditorData>> {
+  try {
+    const session = await requireAuthWithPermission('academy:read');
+    return { success: true, data: await siteService.getAcademySiteForEditor(session.companyId) };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function saveAcademySiteAction(input: unknown): Promise<ActionResult<{ id: string }>> {
+  let companyId: string | undefined;
+  try {
+    const session = await requireAuthWithPermission('academy:manage');
+    companyId = session.companyId;
+    const parsed = academySiteInputSchema.safeParse(input);
+    if (!parsed.success) return { success: false, error: firstIssue(parsed.error.issues) };
+    const saved = await siteService.saveAcademySite(session.companyId, parsed.data);
+    await createAuditLog({ companyId: session.companyId, userId: session.id, userEmail: session.email, action: 'UPDATE', entity: 'AcademySite', entityId: saved.id, metadata: { slug: parsed.data.slug } });
+    revalidate();
+    revalidatePath(`/academia/${parsed.data.slug}`);
+    return { success: true, data: saved, message: 'Sitio guardado' };
+  } catch (error) {
+    return fail(error, companyId, { action: 'saveAcademySite' });
+  }
+}
+
+export async function setAcademySitePublishedAction(publish: boolean): Promise<ActionResult<null>> {
+  let companyId: string | undefined;
+  try {
+    const session = await requireAuthWithPermission('academy:manage');
+    companyId = session.companyId;
+    const { slug } = await siteService.setAcademySitePublished(session.companyId, publish === true);
+    await createAuditLog({ companyId: session.companyId, userId: session.id, userEmail: session.email, action: 'UPDATE', entity: 'AcademySite', entityId: slug, metadata: { isPublished: publish === true } });
+    revalidate();
+    revalidatePath(`/academia/${slug}`);
+    return { success: true, data: null, message: publish ? 'Sitio publicado' : 'Sitio despublicado' };
+  } catch (error) {
+    return fail(error, companyId, { action: 'setAcademySitePublished' });
   }
 }

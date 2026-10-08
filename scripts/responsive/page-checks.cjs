@@ -30,7 +30,7 @@ module.exports = function collectProblems(rootSelector) {
     seen.add(node);
     // Lo decorativo (aria-hidden) también se ve: solo se ignora lo oculto de verdad y la cinta que se desplaza a propósito.
     // `data-truncate` marca los recortes con puntos suspensivos que son diseño (el texto completo está en otro lado).
-    if (el.closest('[hidden], script, style, .pgs-sr, .pgs-ribbon, [data-truncate]')) continue;
+    if (el.closest('[hidden], script, style, .pgs-sr, .acs-sr, .pgs-ribbon, [data-truncate]')) continue;
     const cs = getComputedStyle(el);
     if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) === 0) continue;
 

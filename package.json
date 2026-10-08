@@ -16,6 +16,7 @@
     "postinstall": "prisma generate",
     "verify:landing": "node scripts/verify-landing.cjs",
     "verify:responsive": "node scripts/verify-responsive.mjs",
+    "verify:responsive:academy": "node scripts/verify-responsive-academy.mjs",
     "verify:perf": "node scripts/verify-responsive.mjs --perf --only=normal --device=desktop",
     "desktop:release": "node scripts/desktop-ci.cjs start",
     "desktop:status": "node scripts/desktop-ci.cjs status",

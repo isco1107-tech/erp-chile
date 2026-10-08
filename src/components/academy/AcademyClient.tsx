@@ -7,9 +7,10 @@ import AttendancePanel from './AttendancePanel';
 import PaymentsPanel from './PaymentsPanel';
 import GroupsPanel from './GroupsPanel';
 import ApplicationsPanel from './ApplicationsPanel';
+import SitePanel from './SitePanel';
 import { countPendingApplicationsAction } from '@/modules/academy/actions/academy.actions';
 
-type Tab = 'STUDENTS' | 'APPLICATIONS' | 'ATTENDANCE' | 'PAYMENTS' | 'GROUPS';
+type Tab = 'STUDENTS' | 'APPLICATIONS' | 'ATTENDANCE' | 'PAYMENTS' | 'GROUPS' | 'SITE';
 
 export default function AcademyClient({ canWrite, canManage }: { canWrite: boolean; canManage: boolean }) {
   const [tab, setTab] = useState<Tab>('STUDENTS');
@@ -31,6 +32,7 @@ export default function AcademyClient({ canWrite, canManage }: { canWrite: boole
     { value: 'ATTENDANCE', label: 'Pasar lista' },
     { value: 'PAYMENTS', label: 'Mensualidades' },
     { value: 'GROUPS', label: 'Grupos' },
+    { value: 'SITE', label: 'Sitio web' },
   ];
   return (
     <div className="space-y-6">
@@ -45,6 +47,7 @@ export default function AcademyClient({ canWrite, canManage }: { canWrite: boole
       {tab === 'APPLICATIONS' && <ApplicationsPanel canWrite={canWrite} canManage={canManage} onChanged={refresh} />}
       {tab === 'ATTENDANCE' && <AttendancePanel canWrite={canWrite} />}
       {tab === 'PAYMENTS' && <PaymentsPanel canWrite={canWrite} />}
+      {tab === 'SITE' && <SitePanel canManage={canManage} />}
       {tab === 'GROUPS' && <GroupsPanel canManage={canManage} canWrite={canWrite} />}
     </div>
   );

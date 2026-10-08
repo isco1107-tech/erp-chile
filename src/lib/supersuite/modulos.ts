@@ -77,7 +77,7 @@ const ENTIDAD_A_MODULO: Record<string, string> = {
   CustomerSurvey: 'fidelizacion', CustomerFollowUp: 'fidelizacion', CustomerCareSettings: 'fidelizacion',
   Procedure: 'calidad', QualityInspection: 'calidad', QualityTemplate: 'calidad', SupplierProfile: 'calidad',
   TeamTask: 'tareas', DelegationRule: 'tareas',
-  AcademyStudent: 'academia', AcademyGroup: 'academia', AcademyAttendance: 'academia', AcademyMonthlyPayment: 'academia', AcademyApplication: 'academia', AcademyEnrollmentLink: 'academia',
+  AcademyStudent: 'academia', AcademyGroup: 'academia', AcademyAttendance: 'academia', AcademyMonthlyPayment: 'academia', AcademyApplication: 'academia', AcademySite: 'academia', AcademyEnrollmentLink: 'academia',
 };
 
 /** Módulo con que viaja lo que no es de un módulo de negocio (usuarios, roles, ajustes…): la Supersuite no lo cuenta como adopción. */
