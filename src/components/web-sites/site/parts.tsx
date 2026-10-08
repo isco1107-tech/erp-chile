@@ -1,4 +1,5 @@
 import { Fragment, type ReactNode } from 'react';
+import { ImageIcon } from 'lucide-react';
 import { parseRichText, type RichInline } from '@/lib/web-sites/rich-text';
 import { safeImageSrc } from '@/lib/web-sites/urls';
 import { resolveIn, type RenderCtx } from './context';
@@ -16,6 +17,22 @@ export function Img({ src, alt, className, eager = false }: { src: string | null
   if (!safe) return null;
   // eslint-disable-next-line @next/next/no-img-element
   return <img src={safe} alt={alt} loading={eager ? 'eager' : 'lazy'} decoding="async" className={className} />;
+}
+
+/** ¿Hay foto para pintar? En las miniaturas de diseños, un marcador cuenta como foto. */
+export function hasPhoto(ctx: RenderCtx, src: string | null | undefined): boolean {
+  return Boolean(safeImageSrc(src)) || Boolean(ctx.placeholders);
+}
+
+/** Foto de una sección; en las miniaturas de diseños, sin foto se dibuja un marcador del mismo tamaño. */
+export function Photo({ ctx, src, alt, className, eager = false }: { ctx: RenderCtx; src: string | null | undefined; alt: string; className?: string; eager?: boolean }) {
+  if (safeImageSrc(src)) return <Img src={src} alt={alt} className={className} eager={eager} />;
+  if (!ctx.placeholders) return null;
+  return (
+    <span aria-hidden="true" className={cx('ws-ph', className)}>
+      <ImageIcon className="size-7" />
+    </span>
+  );
 }
 
 /** Estrellas de una calificación: ★ decorativas con una sola etiqueta para lectores de pantalla ("4 de 5"). */
@@ -86,7 +103,7 @@ export function RichText({ ctx, text, className }: { ctx: RenderCtx; text: strin
   const blocks = parseRichText(text);
   if (blocks.length === 0) return null;
   return (
-    <div className={cx('space-y-4 text-[1.0625rem] leading-relaxed', className)}>
+    <div className={cx('space-y-4 text-[1.0625rem] leading-relaxed break-words', className)}>
       {blocks.map((block, index) => {
         switch (block.kind) {
           case 'p':
@@ -146,9 +163,33 @@ export function SectionHeading({ ctx, blockId, center, eyebrow, title, intro, si
   return (
     <header className={cx('mb-10 max-w-2xl @2xl:mb-12', center && 'mx-auto text-center', className)}>
       {eyebrow && <p className="ws-eyebrow mb-3">{eyebrow}</p>}
-      {title && <Tag className={cx('ws-h', size === 'lg' ? 'text-4xl @2xl:text-5xl' : 'text-3xl @2xl:text-4xl')}>{title}</Tag>}
+      {title && (
+        <Fit>
+          <Tag className={cx('ws-h', size === 'lg' ? 'ws-t-lg' : 'ws-t-2')}>{title}</Tag>
+        </Fit>
+      )}
       {intro && <p className="ws-muted mt-4 text-lg leading-relaxed">{intro}</p>}
     </header>
+  );
+}
+
+/**
+ * Medida de los títulos grandes: el tamaño (`ws-t-*`, en `cqi`) se calcula con
+ * el ancho real de la columna donde está el título, no con el de la pantalla.
+ * Así una palabra larga ("Remodelaciones") cabe tanto en una portada a lo ancho
+ * como en la mitad de una portada dividida o en una tarjeta angosta.
+ */
+export function Fit({ children, className }: { children: ReactNode; className?: string }) {
+  return <div className={cx('ws-fit', className)}>{children}</div>;
+}
+
+/** Título de una sección sin el envoltorio (para diseños que lo ubican en otra parte). */
+export function HeadingTag({ ctx, blockId, className, children }: { ctx: RenderCtx; blockId: string; className?: string; children: ReactNode }) {
+  const Tag = ctx.h1BlockId === blockId ? 'h1' : 'h2';
+  return (
+    <Fit>
+      <Tag className={cx('ws-h', className)}>{children}</Tag>
+    </Fit>
   );
 }
 

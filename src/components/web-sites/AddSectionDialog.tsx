@@ -1,14 +1,20 @@
 'use client';
 
 import { useId, useMemo, useState } from 'react';
-import { Search, Sparkles } from 'lucide-react';
+import { ArrowLeft, Search, Sparkles } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { BLOCK_CATEGORIES, BLOCK_INFO, BLOCK_TYPES, type BlockType } from '@/lib/web-sites/blocks';
+import { sampleBlock } from '@/lib/web-sites/section-samples';
+import type { SiteDocument } from '@/lib/web-sites/site';
+import type { WebSiteTheme } from '@/lib/web-sites/theme';
+import { layoutsOf, totalLayouts } from '@/lib/web-sites/variants';
 import { cn } from '@/lib/utils';
 import { BlockSketch } from './block-sketches';
 import { BLOCK_ICONS } from './editor-shared';
+import { SectionThumbnail, ThumbnailStyles } from './SectionThumbnail';
 
 /** Palabras con las que la gente busca cada sección aunque no sea su nombre ("carta" → Lista de precios). */
 const ALIASES: Record<BlockType, string> = {
@@ -34,7 +40,17 @@ const ALIASES: Record<BlockType, string> = {
   map: 'mapa direccion ubicacion google como llegar',
   countdown: 'cuenta regresiva fecha evento oferta lanzamiento',
   contact: 'formulario correo whatsapp telefono escribenos',
-  divider: 'separador linea espacio puntos',
+  divider: 'separador linea espacio puntos ola zigzag adorno',
+  timeline: 'historia hitos trayectoria linea de tiempo cronologia años',
+  comparison: 'comparar tabla comparativa versus nosotros otros planes diferencias',
+  beforeafter: 'antes despues comparar fotos remodelacion resultado transformacion',
+  links: 'linktree link en bio enlaces instagram tiktok botones redes',
+  marquee: 'cinta marquesina frases texto en movimiento banner desfile',
+  tabs: 'pestañas pestanas categorias tabs contenido ordenado',
+  hours: 'horario atencion abierto cerrado dias horas',
+  areas: 'zonas cobertura comunas ciudades despacho reparto donde atendemos',
+  embed: 'incrustar spotify soundcloud calendly google forms calendario agenda reservas musica podcast formulario',
+  posts: 'novedades noticias blog articulos prensa anuncios',
 };
 
 const SUGGESTION_WHY: Partial<Record<BlockType, string>> = {
@@ -85,17 +101,22 @@ export function buildSuggestions(missing: SuggestedSection[], present: Set<Block
 interface AddSectionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onPick: (type: BlockType) => void;
+  /** Con `variant`, la sección llega con ese diseño y el contenido de muestra; sin él, vacía. */
+  onPick: (type: BlockType, variant?: string) => void;
   /** Dónde se va a insertar, en palabras ("al final de «Inicio»"). */
   whereLabel: string;
   /** La página ya tiene portada: no se ofrece otra. */
   heroBlocked: boolean;
   suggestions: SuggestedSection[];
+  /** Tema y sitio reales: las miniaturas de los diseños se ven como quedarán. */
+  theme: WebSiteTheme;
+  document: SiteDocument;
 }
 
 function SectionCard({ type, why, blockedText, onPick }: { type: BlockType; why?: string; blockedText?: string | null; onPick: (type: BlockType) => void }) {
   const info = BLOCK_INFO[type];
   const Icon = BLOCK_ICONS[info.icon];
+  const designs = layoutsOf(type).length;
   return (
     <li>
       <button
@@ -112,6 +133,7 @@ function SectionCard({ type, why, blockedText, onPick }: { type: BlockType; why?
           <span className="min-w-0">
             <span className="block text-sm font-medium">{info.label}</span>
             <span className="block text-xs text-muted-foreground">{blockedText ?? why ?? info.description}</span>
+            {designs > 1 && !blockedText ? <span className="mt-1 block text-xs font-medium text-accent-foreground">{designs} diseños</span> : null}
           </span>
         </span>
       </button>
@@ -120,10 +142,43 @@ function SectionCard({ type, why, blockedText, onPick }: { type: BlockType; why?
 }
 
 /** Diálogo “Agregar sección”: buscador, sugerencias y todas las secciones agrupadas con un dibujo de cada una. */
-export function AddSectionDialog({ open, onOpenChange, onPick, whereLabel, heroBlocked, suggestions }: AddSectionDialogProps) {
+/** Paso 2: los diseños de un tipo de sección, dibujados con contenido de muestra y los colores del sitio. */
+function DesignStep({ type, theme, document, onBack, onPick }: { type: BlockType; theme: WebSiteTheme; document: SiteDocument; onBack: () => void; onPick: (variant?: string) => void }) {
+  const previews = useMemo(() => layoutsOf(type).map((option) => ({ option, block: sampleBlock(type, option.value) })), [type]);
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Button type="button" variant="ghost" size="sm" onClick={onBack}>
+          <ArrowLeft aria-hidden="true" /> Otras secciones
+        </Button>
+        <Button type="button" variant="outline" size="sm" onClick={() => onPick()}>
+          Agregarla vacía
+        </Button>
+      </div>
+      <p className="text-sm text-muted-foreground">Toca un diseño para agregar «{BLOCK_INFO[type].label}» con textos de ejemplo que te dicen qué escribir. Puedes cambiar el diseño después sin perder lo que escribas.</p>
+      <ThumbnailStyles />
+      <ul aria-label={`Diseños de ${BLOCK_INFO[type].label}`} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {previews.map(({ option, block }) => (
+          <li key={option.value} className="relative flex h-full flex-col gap-2 rounded-lg border border-border bg-card p-2.5 transition-colors hover:border-ring hover:bg-muted has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/50">
+            {/* La miniatura tiene enlaces y botones (inertes) del sitio: el botón no la envuelve, la cubre con ::after. */}
+            <SectionThumbnail block={block} theme={theme} document={document} height={140} />
+            <button type="button" onClick={() => onPick(option.value)} className="text-left text-sm font-medium outline-none after:absolute after:inset-0 after:rounded-lg">
+              {option.label}
+            </button>
+            <span className="block text-xs text-muted-foreground">{option.description}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export function AddSectionDialog({ open, onOpenChange, onPick, whereLabel, heroBlocked, suggestions, theme, document }: AddSectionDialogProps) {
   const searchId = useId();
   const [query, setQuery] = useState('');
+  const [chosen, setChosen] = useState<BlockType | null>(null);
   const needle = normalize(query.trim());
+  const choose = (type: BlockType) => (layoutsOf(type).length > 1 ? setChosen(type) : onPick(type));
 
   const results = useMemo(() => {
     if (!needle) return null;
@@ -142,17 +197,32 @@ export function AddSectionDialog({ open, onOpenChange, onPick, whereLabel, heroB
       open={open}
       onOpenChange={(next) => {
         onOpenChange(next);
-        if (!next) setQuery('');
+        if (!next) {
+          setQuery('');
+          setChosen(null);
+        }
       }}
     >
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-w-5xl">
         <DialogHeader>
-          <DialogTitle>Agregar una sección</DialogTitle>
+          <DialogTitle>{chosen ? `Elige un diseño para «${BLOCK_INFO[chosen].label}»` : 'Agregar una sección'}</DialogTitle>
           <DialogDescription>
-            Elige lo que quieres sumar; se agregará {whereLabel}. Después puedes moverla con las flechas.
+            {chosen ? `Se agregará ${whereLabel}.` : `Elige lo que quieres sumar; se agregará ${whereLabel}. Hay ${BLOCK_TYPES.length} tipos de sección y ${totalLayouts()} diseños para elegir.`}
           </DialogDescription>
         </DialogHeader>
 
+        {chosen ? (
+          <DesignStep
+            type={chosen}
+            theme={theme}
+            document={document}
+            onBack={() => setChosen(null)}
+            onPick={(variant) => {
+              onPick(chosen, variant);
+              setChosen(null);
+            }}
+          />
+        ) : (
         <div className="space-y-5">
           <div className="space-y-1.5">
             <Label htmlFor={searchId}>Buscar una sección</Label>
@@ -174,7 +244,7 @@ export function AddSectionDialog({ open, onOpenChange, onPick, whereLabel, heroB
                 </p>
                 <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {results.map((type) => (
-                    <SectionCard key={type} type={type} blockedText={blockedFor(type)} onPick={onPick} />
+                    <SectionCard key={type} type={type} blockedText={blockedFor(type)} onPick={choose} />
                   ))}
                 </ul>
               </>
@@ -188,7 +258,7 @@ export function AddSectionDialog({ open, onOpenChange, onPick, whereLabel, heroB
                   </h3>
                   <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     {suggestions.map((entry) => (
-                      <SectionCard key={entry.type} type={entry.type} why={entry.why} blockedText={blockedFor(entry.type)} onPick={onPick} />
+                      <SectionCard key={entry.type} type={entry.type} why={entry.why} blockedText={blockedFor(entry.type)} onPick={choose} />
                     ))}
                   </ul>
                 </section>
@@ -203,7 +273,7 @@ export function AddSectionDialog({ open, onOpenChange, onPick, whereLabel, heroB
                     </h3>
                     <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                       {types.map((type) => (
-                        <SectionCard key={type} type={type} blockedText={blockedFor(type)} onPick={onPick} />
+                        <SectionCard key={type} type={type} blockedText={blockedFor(type)} onPick={choose} />
                       ))}
                     </ul>
                   </section>
@@ -212,6 +282,7 @@ export function AddSectionDialog({ open, onOpenChange, onPick, whereLabel, heroB
             </>
           )}
         </div>
+        )}
       </DialogContent>
     </Dialog>
   );

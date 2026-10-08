@@ -57,12 +57,15 @@ const HEADER_LAYOUT_LABELS: Record<(typeof HEADER_LAYOUTS)[number], { label: str
   classic: { label: 'Clásico', description: 'Logo a la izquierda y menú a la derecha.' },
   centered: { label: 'Centrado', description: 'Logo al centro y el menú debajo.' },
   minimal: { label: 'Mínimo', description: 'Solo el logo y un botón ☰ que abre el menú.' },
+  split: { label: 'Dividido', description: 'Menú a la izquierda, logo al centro y botón a la derecha.' },
 };
 
 const HEADER_STYLE_LABELS: Record<(typeof HEADER_STYLES)[number], { label: string; description: string }> = {
   light: { label: 'Claro', description: 'Del color del fondo de tu página.' },
   primary: { label: 'Color principal', description: 'Con el color de tu marca.' },
   transparent: { label: 'Transparente', description: 'Se ve sobre la portada.' },
+  dark: { label: 'Oscuro', description: 'Fondo oscuro y letras claras.' },
+  floating: { label: 'Flotante', description: 'Una barra redondeada que flota sobre la página.' },
 };
 
 const FOOTER_STYLE_LABELS: Record<FooterStyle, string> = { light: 'Claro', muted: 'Gris suave', dark: 'Oscuro', primary: 'Color principal' };
@@ -182,6 +185,8 @@ export function LayoutPanel({ doc, pageId, onDocumentChange, onFocusArea, onGoTo
   const footerLayoutOptions: ChoiceOption<FooterLayout>[] = [
     { value: 'simple', label: 'Simple', description: 'Una línea con tu leyenda y, si quieres, el menú y las redes.', preview: <FooterDrawing layout="simple" style={footer.style} /> },
     { value: 'columns', label: 'En columnas', description: 'Descripción, columnas de enlaces y redes.', preview: <FooterDrawing layout="columns" style={footer.style} /> },
+    { value: 'centered', label: 'Centrado', description: 'Logo, descripción, menú y redes, todo al centro.', preview: <FooterDrawing layout="centered" style={footer.style} /> },
+    { value: 'big', label: 'Nombre gigante', description: 'En columnas y con tu nombre enorme al final.', preview: <FooterDrawing layout="big" style={footer.style} /> },
   ];
   const footerStyleOptions: ChoiceOption<FooterStyle>[] = FOOTER_STYLES.map((value) => ({ value, label: FOOTER_STYLE_LABELS[value], preview: <FooterDrawing layout={footer.layout} style={value} /> }));
 
@@ -339,14 +344,14 @@ export function LayoutPanel({ doc, pageId, onDocumentChange, onFocusArea, onGoTo
       </Section>
 
       {/* ------------------------------------------------------------------ Pie */}
-      <Section title="Pie de página" icon={PanelBottom} open={open.has('footer')} onToggle={() => toggle('footer', 'bottom')} summary={footer.enabled ? `${footer.layout === 'simple' ? 'Simple' : 'En columnas'} · ${FOOTER_STYLE_LABELS[footer.style].toLowerCase()}` : 'Apagado'}>
+      <Section title="Pie de página" icon={PanelBottom} open={open.has('footer')} onToggle={() => toggle('footer', 'bottom')} summary={footer.enabled ? `${footerLayoutOptions.find((option) => option.value === footer.layout)?.label ?? 'Simple'} · ${FOOTER_STYLE_LABELS[footer.style].toLowerCase()}` : 'Apagado'}>
         <SwitchRow label="Mostrar el pie de página" description="La zona de abajo, con tus datos, enlaces y redes." checked={footer.enabled} disabled={disabled} onChange={(checked) => setFooter({ enabled: checked })} />
         {footer.enabled ? (
           <>
             <ChoiceGroup label="Diseño" columns={2} value={footer.layout} options={footerLayoutOptions} onChange={(value) => setFooter({ layout: value })} disabled={disabled} />
             <ChoiceGroup label="Estilo" columns={4} value={footer.style} options={footerStyleOptions} onChange={(value) => setFooter({ style: value })} disabled={disabled} />
 
-            {footer.layout === 'columns' ? (
+            {footer.layout !== 'simple' ? (
               <>
                 <TextField
                   label="Descripción breve"
@@ -356,11 +361,15 @@ export function LayoutPanel({ doc, pageId, onDocumentChange, onFocusArea, onGoTo
                   rows={3}
                   disabled={disabled}
                   placeholder="Ej.: Somos una pastelería familiar de Ñuñoa. Hacemos tortas y postres por encargo desde 2015."
-                  hint="Aparece en la primera columna: cuenta en dos frases quién eres."
+                  hint="Aparece junto a tu logo: cuenta en dos frases quién eres."
                   onChange={(value) => setFooter({ about: value })}
                 />
-                <Subtitle hint="Agrupa enlaces por tema, por ejemplo «Empresa» (Nosotros, Contacto) y «Ayuda» (Preguntas frecuentes).">Columnas de enlaces</Subtitle>
-                <FooterColumnsEditor doc={doc} pageId={pageId} columns={footer.columns} onChange={updateColumns} disabled={disabled} />
+                {footer.layout !== 'centered' ? (
+                  <>
+                    <Subtitle hint="Agrupa enlaces por tema, por ejemplo «Empresa» (Nosotros, Contacto) y «Ayuda» (Preguntas frecuentes).">Columnas de enlaces</Subtitle>
+                    <FooterColumnsEditor doc={doc} pageId={pageId} columns={footer.columns} onChange={updateColumns} disabled={disabled} />
+                  </>
+                ) : null}
               </>
             ) : null}
 

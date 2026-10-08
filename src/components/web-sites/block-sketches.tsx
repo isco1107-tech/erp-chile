@@ -338,6 +338,137 @@ const BLOCK_SKETCHES: Record<BlockType, () => ReactNode> = {
       </Col>
     </Frame>
   ),
+  timeline: () => (
+    <Frame>
+      <Col className="relative flex-1 justify-center gap-1.5 pl-3">
+        <span className="absolute top-0 bottom-0 left-1 block w-px bg-foreground/30" />
+        {[0, 1, 2].map((index) => (
+          <Row key={index} className="items-center gap-1.5">
+            <Dot className="-ml-[0.6rem] size-2" />
+            <Ln w="w-1/5" tone="strong" />
+            <Ln w="w-1/2" />
+          </Row>
+        ))}
+      </Col>
+    </Frame>
+  ),
+  comparison: () => (
+    <Frame>
+      <Col className="flex-1 justify-center gap-1">
+        {[0, 1, 2].map((index) => (
+          <Row key={index} className="items-center gap-1.5">
+            <Ln w="w-2/5" tone="mid" />
+            <span className="ml-auto block size-2 rounded-full bg-accent-foreground/70" />
+            <span className="block size-2 rounded-full border border-foreground/40" />
+          </Row>
+        ))}
+      </Col>
+    </Frame>
+  ),
+  beforeafter: () => (
+    <Frame>
+      <Row className="relative flex-1">
+        <Pic className="flex-1 rounded-r-none bg-foreground/15" />
+        <Pic className="flex-1 rounded-l-none bg-foreground/35" />
+        <span className="absolute top-0 bottom-0 left-1/2 block w-0.5 bg-background" />
+        <span className="absolute top-1/2 left-1/2 block size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-background ring-1 ring-foreground/40" />
+      </Row>
+    </Frame>
+  ),
+  links: () => (
+    <Frame>
+      <Col className="flex-1 items-center gap-1">
+        <Dot className="size-3" />
+        {[0, 1, 2].map((index) => (
+          <span key={index} className="block h-1.5 w-2/3 rounded-full bg-accent-foreground/60" />
+        ))}
+      </Col>
+    </Frame>
+  ),
+  marquee: () => (
+    <Frame className="p-0">
+      <Row className="flex-1 items-center gap-1.5 overflow-hidden bg-foreground/80 px-1">
+        {[0, 1, 2, 3].map((index) => (
+          <Row key={index} className="shrink-0 items-center gap-1.5">
+            <Ln w="w-6" tone="light" />
+            <span className="block size-1 rounded-full bg-background/70" />
+          </Row>
+        ))}
+      </Row>
+    </Frame>
+  ),
+  tabs: () => (
+    <Frame>
+      <Col className="flex-1 gap-1.5">
+        <Row className="gap-1 border-b border-foreground/20 pb-0.5">
+          <span className="block h-1.5 w-6 rounded-full bg-accent-foreground/70" />
+          <span className="block h-1.5 w-6 rounded-full bg-foreground/20" />
+          <span className="block h-1.5 w-6 rounded-full bg-foreground/20" />
+        </Row>
+        <Row className="flex-1 gap-1.5">
+          <Col className="flex-1 gap-1">
+            <Ln w="w-3/4" tone="strong" />
+            <Ln />
+            <Ln w="w-4/5" />
+          </Col>
+          <Pic className="w-1/3" />
+        </Row>
+      </Col>
+    </Frame>
+  ),
+  hours: () => (
+    <Frame>
+      <Col className="flex-1 justify-center gap-1">
+        <Row className="items-center gap-1">
+          <span className="block size-1.5 rounded-full bg-success" />
+          <Ln w="w-1/3" tone="mid" />
+        </Row>
+        {[0, 1, 2].map((index) => (
+          <Row key={index} className="justify-between">
+            <Ln w="w-1/4" tone="mid" />
+            <Ln w="w-1/3" />
+          </Row>
+        ))}
+      </Col>
+    </Frame>
+  ),
+  areas: () => (
+    <Frame>
+      <Row className="flex-1 flex-wrap content-center justify-center gap-1">
+        {[0, 1, 2, 3, 4, 5].map((index) => (
+          <span key={index} className="block h-2 w-7 rounded-full border border-foreground/30 bg-background" />
+        ))}
+      </Row>
+    </Frame>
+  ),
+  embed: () => (
+    <Frame>
+      <Col className="flex-1 rounded-[3px] border border-foreground/25 bg-background">
+        <Row className="gap-0.5 border-b border-foreground/15 p-0.5">
+          <span className="block size-1 rounded-full bg-foreground/30" />
+          <span className="block size-1 rounded-full bg-foreground/30" />
+          <span className="block size-1 rounded-full bg-foreground/30" />
+        </Row>
+        <Col className="flex-1 items-center justify-center gap-1">
+          <Ln w="w-1/2" tone="mid" />
+          <Btn />
+        </Col>
+      </Col>
+    </Frame>
+  ),
+  posts: () => (
+    <Frame>
+      <Row className="flex-1 gap-1">
+        {[0, 1, 2].map((index) => (
+          <Card key={index} className="flex-1 gap-0.5">
+            <Pic className="h-3 w-full" />
+            <Ln w="w-1/2" className="bg-accent-foreground/50" />
+            <Ln tone="mid" />
+          </Card>
+        ))}
+      </Row>
+    </Frame>
+  ),
 };
 
 /** Dibujo del tipo de sección. */
@@ -350,29 +481,12 @@ export function BlockSketch({ type }: { type: BlockType }) {
 // ---------------------------------------------------------------------------
 
 export type VariantSketchId =
-  | 'hero:center'
-  | 'hero:split'
-  | 'hero:full'
-  | 'hero:minimal'
-  | 'features:cards'
-  | 'features:icons'
-  | 'features:list'
   | 'cols:2'
   | 'cols:3'
   | 'cols:4'
-  | 'gallery:grid'
-  | 'gallery:masonry'
-  | 'gallery:carousel'
-  | 'testimonials:cards'
-  | 'testimonials:quotes'
-  | 'cta:card'
-  | 'cta:band'
   | 'image:normal'
   | 'image:wide'
   | 'image:full'
-  | 'divider:line'
-  | 'divider:dots'
-  | 'divider:space'
   | 'divider-size:sm'
   | 'divider-size:md'
   | 'divider-size:lg'
@@ -422,141 +536,9 @@ function MapBox({ height }: { height: string }) {
 }
 
 const VARIANT_SKETCHES: Record<VariantSketchId, () => ReactNode> = {
-  'hero:center': () => (
-    <Frame>
-      <Col className="flex-1 gap-1">
-        <Row className="justify-between px-0.5">
-          <Ln w="w-1/5" tone="mid" />
-          <Ln w="w-1/4" />
-        </Row>
-        <Col className="flex-1 items-center justify-center gap-1 rounded-[3px] bg-foreground/80">
-          <Ln w="w-2/3" tone="light" />
-          <Btn />
-        </Col>
-      </Col>
-    </Frame>
-  ),
-  'hero:split': () => (
-    <Frame>
-      <Row className="flex-1 gap-1.5">
-        <Col className="flex-1 justify-center gap-1">
-          <Ln w="w-4/5" tone="strong" />
-          <Ln w="w-full" />
-          <Btn />
-        </Col>
-        <Pic className="flex-1" />
-      </Row>
-    </Frame>
-  ),
-  'hero:full': () => (
-    <Frame className="p-0">
-      <Col className="flex-1 items-center justify-center gap-1 bg-gradient-to-br from-foreground/90 to-foreground/55">
-        <Ln w="w-1/2" tone="light" />
-        <Ln w="w-1/3" tone="light" className="opacity-60" />
-        <Btn />
-      </Col>
-    </Frame>
-  ),
-  'hero:minimal': () => (
-    <Frame>
-      <Col className="flex-1 justify-center gap-1">
-        <Ln w="w-1/5" className="bg-accent-foreground/60" />
-        <Ln w="w-4/5" tone="strong" className="h-[5px]" />
-        <Ln w="w-3/5" tone="strong" className="h-[5px]" />
-        <Ln w="w-2/3" />
-        <Btn />
-      </Col>
-    </Frame>
-  ),
-  'features:cards': () => BLOCK_SKETCHES.features(),
-  'features:icons': () => (
-    <Frame>
-      <Row className="flex-1 items-center gap-2">
-        {[0, 1, 2].map((index) => (
-          <Col key={index} className="flex-1 items-center gap-1">
-            <Dot className="size-3.5" />
-            <Ln w="w-3/4" tone="mid" />
-            <Ln />
-          </Col>
-        ))}
-      </Row>
-    </Frame>
-  ),
-  'features:list': () => (
-    <Frame>
-      <Col className="flex-1 justify-center gap-1.5">
-        {[0, 1, 2].map((index) => (
-          <Row key={index} className="items-center gap-1.5">
-            <Dot />
-            <Col className="flex-1 gap-0.5">
-              <Ln w="w-1/2" tone="mid" />
-              <Ln w="w-4/5" />
-            </Col>
-          </Row>
-        ))}
-      </Col>
-    </Frame>
-  ),
   'cols:2': () => <Columns count={2} />,
   'cols:3': () => <Columns count={3} />,
   'cols:4': () => <Columns count={4} />,
-  'gallery:grid': () => BLOCK_SKETCHES.gallery(),
-  'gallery:masonry': () => (
-    <Frame>
-      <Row className="flex-1 gap-1">
-        <Col className="flex-1 gap-1">
-          <Pic className="h-5" />
-          <Pic className="flex-1" />
-        </Col>
-        <Col className="flex-1 gap-1">
-          <Pic className="h-3" />
-          <Pic className="flex-1" />
-        </Col>
-        <Col className="flex-1 gap-1">
-          <Pic className="h-6" />
-          <Pic className="flex-1" />
-        </Col>
-      </Row>
-    </Frame>
-  ),
-  'gallery:carousel': () => (
-    <Frame>
-      <Col className="flex-1 gap-1">
-        <Row className="flex-1 items-center gap-1">
-          <span className="block size-2 shrink-0 rotate-45 border-b border-l border-foreground/40" />
-          <Pic className="h-full flex-1" />
-          <span className="block size-2 shrink-0 rotate-45 border-t border-r border-foreground/40" />
-        </Row>
-        <Row className="justify-center gap-1">
-          <span className="block size-1 rounded-full bg-foreground/60" />
-          <span className="block size-1 rounded-full bg-foreground/20" />
-          <span className="block size-1 rounded-full bg-foreground/20" />
-        </Row>
-      </Col>
-    </Frame>
-  ),
-  'testimonials:cards': () => BLOCK_SKETCHES.testimonials(),
-  'testimonials:quotes': () => BLOCK_SKETCHES.quote(),
-  'cta:card': () => (
-    <Frame>
-      <Col className="flex-1 items-center justify-center gap-1 rounded-md border border-border bg-accent">
-        <Ln w="w-1/2" tone="strong" />
-        <Ln w="w-1/3" tone="mid" />
-        <Btn />
-      </Col>
-    </Frame>
-  ),
-  'cta:band': () => (
-    <Frame className="p-0">
-      <Row className="flex-1 items-center justify-between gap-2 bg-foreground/80 px-2">
-        <Col className="w-1/2 gap-1">
-          <Ln tone="light" />
-          <Ln w="w-2/3" tone="light" className="opacity-60" />
-        </Col>
-        <Btn />
-      </Row>
-    </Frame>
-  ),
   'image:normal': () => (
     <Frame>
       <Col className="flex-1 items-center justify-center">
@@ -576,23 +558,6 @@ const VARIANT_SKETCHES: Record<VariantSketchId, () => ReactNode> = {
       <Pic className="h-full w-full flex-1 rounded-none" />
     </Frame>
   ),
-  'divider:line': () => (
-    <Frame>
-      <Col className="flex-1 justify-center">
-        <span className="block h-px w-full bg-foreground/40" />
-      </Col>
-    </Frame>
-  ),
-  'divider:dots': () => (
-    <Frame>
-      <Row className="flex-1 items-center justify-center gap-1.5">
-        {[0, 1, 2].map((index) => (
-          <span key={index} className="block size-1.5 rounded-full bg-foreground/45" />
-        ))}
-      </Row>
-    </Frame>
-  ),
-  'divider:space': () => <SpacedLines gap="gap-2" />,
   'divider-size:sm': () => <SpacedLines gap="gap-0.5" />,
   'divider-size:md': () => <SpacedLines gap="gap-1.5" />,
   'divider-size:lg': () => <SpacedLines gap="gap-3" />,

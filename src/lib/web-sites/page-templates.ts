@@ -1,3 +1,4 @@
+import { SAMPLE_WEEK } from './section-samples';
 import type { StarterDraft } from './templates-content';
 
 /**
@@ -102,6 +103,99 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
     blocks: [
       { type: 'hero', variant: 'minimal', eyebrow: 'Contacto', title: 'Hablemos', subtitle: 'Invita a escribir en una frase. Ej: Cuéntanos qué necesitas y te respondemos en menos de 24 horas.' },
       { type: 'contact', heading: 'Contacto', text: 'Déjanos tu mensaje o escríbenos directo por WhatsApp.', showForm: true },
+    ],
+  },
+  {
+    id: 'links',
+    label: 'Enlaces (link en bio)',
+    description: 'Tu foto y botones grandes a WhatsApp, catálogo y redes, para poner en Instagram o TikTok.',
+    title: 'Enlaces',
+    blocks: [
+      {
+        type: 'links',
+        title: 'Tu nombre o marca',
+        text: 'Una frase sobre lo que haces. Ej: Repostería artesanal a pedido en Valdivia.',
+        items: [
+          { label: 'Enlace 1', icon: 'phone' },
+          { label: 'Enlace 2', icon: 'shopping-bag' },
+          { label: 'Enlace 3', icon: 'calendar' },
+          { label: 'Enlace 4', icon: 'map-pin' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'visit',
+    label: 'Horario y ubicación',
+    description: 'Cuándo atiendes (con "Abierto ahora"), dónde estás y cómo llegar.',
+    title: 'Visítanos',
+    blocks: [
+      { type: 'hero', variant: 'minimal', eyebrow: 'Visítanos', title: 'Horario y ubicación', subtitle: 'Explica cómo llegar en una frase. Ej: A dos cuadras del metro, con estacionamiento para clientes.' },
+      { type: 'hours', variant: 'card', heading: 'Horario de atención', week: SAMPLE_WEEK, note: 'Cambia este horario por el tuyo y anota aquí los feriados o la atención con hora.' },
+      { type: 'map', variant: 'split', heading: 'Cómo llegar', text: 'Indica referencias para encontrarte: una esquina conocida, el color de la fachada o el local de al lado.', address: '' },
+    ],
+  },
+  {
+    id: 'history',
+    label: 'Nuestra historia',
+    description: 'Tu trayectoria hito por hito, con fotos y cifras.',
+    title: 'Historia',
+    blocks: [
+      { type: 'hero', variant: 'editorial', eyebrow: 'Nuestra historia', title: 'Cómo llegamos hasta aquí', subtitle: 'Resume tu historia en una frase. Ej: De un pequeño taller familiar a atender a más de mil clientes en la región.' },
+      {
+        type: 'timeline',
+        variant: 'alternating',
+        heading: 'Hitos',
+        items: [
+          { date: '2015', title: 'Nombre del hito', text: 'Cuenta en una o dos frases qué pasó en este momento y por qué fue importante.' },
+          { date: '2019', title: 'Nombre del hito', text: 'Cuenta en una o dos frases qué pasó en este momento y por qué fue importante.' },
+          { date: '2023', title: 'Nombre del hito', text: 'Cuenta en una o dos frases qué pasó en este momento y por qué fue importante.' },
+          { date: 'Hoy', title: 'Nombre del hito', text: 'Cuenta en una o dos frases qué pasó en este momento y por qué fue importante.' },
+        ],
+      },
+      { type: 'stats', variant: 'divided', heading: 'En números', items: [{ value: '+500', label: 'Escribe qué significa esta cifra' }, { value: '12', label: 'Escribe qué significa esta cifra' }, { value: '98 %', label: 'Escribe qué significa esta cifra' }] },
+    ],
+  },
+  {
+    id: 'news',
+    label: 'Novedades',
+    description: 'Noticias, lanzamientos y anuncios con foto y fecha.',
+    title: 'Novedades',
+    blocks: [
+      { type: 'hero', variant: 'minimal', eyebrow: 'Novedades', title: 'Lo último', subtitle: 'Explica qué publicas aquí. Ej: Lanzamientos, eventos y consejos para sacarle partido a nuestros productos.' },
+      {
+        type: 'posts',
+        variant: 'featured',
+        heading: 'Novedades',
+        items: [
+          { date: '12 de marzo de 2026', tag: 'Noticia', title: 'Título de la novedad', excerpt: 'Resume la novedad en dos líneas: qué pasó, cuándo y por qué le importa a tu cliente.' },
+          { date: '28 de febrero de 2026', tag: 'Consejos', title: 'Título de la novedad', excerpt: 'Resume la novedad en dos líneas: qué pasó, cuándo y por qué le importa a tu cliente.' },
+          { date: '3 de febrero de 2026', tag: 'Evento', title: 'Título de la novedad', excerpt: 'Resume la novedad en dos líneas: qué pasó, cuándo y por qué le importa a tu cliente.' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'compare',
+    label: 'Comparar',
+    description: 'Tabla comparativa de planes u opciones, con preguntas frecuentes.',
+    title: 'Comparar',
+    blocks: [
+      { type: 'hero', variant: 'minimal', eyebrow: 'Comparar', title: 'Encuentra la opción para ti', subtitle: 'Explica en una frase cómo elegir. Ej: Todas las opciones incluyen soporte por WhatsApp y garantía.' },
+      {
+        type: 'comparison',
+        variant: 'table',
+        heading: 'Compara y elige',
+        columns: [{ title: 'Básico' }, { title: 'Completo' }, { title: 'Premium' }],
+        rows: [
+          { label: 'Característica 1', values: ['Sí', 'Sí', 'Sí'] },
+          { label: 'Característica 2', values: ['No', 'Sí', 'Sí'] },
+          { label: 'Característica 3', values: ['No', 'No', 'Sí'] },
+          { label: 'Característica 4', values: ['48 horas', '24 horas', 'El mismo día'] },
+        ],
+        highlight: 1,
+      },
+      { type: 'faq', variant: 'columns', heading: 'Preguntas frecuentes', items: [{ question: '¿Puedo cambiarme?', answer: 'Explica si se puede cambiar de opción y cómo.' }, { question: '¿Cómo puedo pagar?', answer: 'Indica los medios de pago y si hay cuotas.' }] },
     ],
   },
 ];

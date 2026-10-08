@@ -1,12 +1,19 @@
 'use client';
 
 import { useId, useState, type CSSProperties, type ReactNode } from 'react';
-import { AlertTriangle, Ban, MoveUp, Sun, ZoomIn } from 'lucide-react';
+import { AlertTriangle, Ban, MoveRight, MoveUp, Sun, ZoomIn } from 'lucide-react';
 import {
   ANIMATION_INFO,
   ANIMATION_OPTIONS,
+  activeKit,
   BUTTON_STYLES,
   BUTTON_STYLE_INFO,
+  CARD_STYLES,
+  CARD_STYLE_INFO,
+  HEADING_WEIGHTS,
+  HEADING_WEIGHT_INFO,
+  kitTheme,
+  THEME_KITS,
   FONT_OPTIONS,
   FONT_PAIRINGS,
   FONT_STACKS,
@@ -21,10 +28,14 @@ import {
   WIDTH_OPTIONS,
   type SiteAnimation,
   type SiteButtonStyle,
+  type SiteCardStyle,
   type SiteFont,
+  type SiteHeadingWeight,
   type SiteHeadingFont,
   type SiteRadius,
   type SiteSpacing,
+  type SiteWidth,
+  type ThemeKit,
   type WebSiteTheme,
 } from '@/lib/web-sites/theme';
 import { Input } from '@/components/ui/input';
@@ -181,6 +192,9 @@ function ButtonSample({ variant, theme }: { variant: SiteButtonStyle; theme: Web
   };
   if (variant === 'outline') Object.assign(style, { border: `2px solid ${theme.accent}`, color: theme.accent, padding: '4px 12px' });
   else if (variant === 'gradient') Object.assign(style, { backgroundImage: `linear-gradient(135deg, ${theme.primary}, ${theme.accent})`, color: readableOn(theme.primary) });
+  else if (variant === 'soft') Object.assign(style, { backgroundColor: `${theme.accent}29`, color: theme.text });
+  else if (variant === 'brutal') Object.assign(style, { backgroundColor: theme.accent, color: readableOn(theme.accent), border: `2px solid ${theme.text}`, boxShadow: `3px 3px 0 ${theme.text}`, padding: '4px 12px' });
+  else if (variant === 'glow') Object.assign(style, { backgroundColor: theme.accent, color: readableOn(theme.accent), boxShadow: `0 4px 14px -2px ${theme.accent}` });
   else Object.assign(style, { backgroundColor: theme.accent, color: readableOn(theme.accent) });
   return <span style={style}>Cotizar</span>;
 }
@@ -190,7 +204,47 @@ const ANIMATION_ICONS: Record<SiteAnimation, ReactNode> = {
   fade: <Sun className="size-5" />,
   rise: <MoveUp className="size-5" />,
   zoom: <ZoomIn className="size-5" />,
+  slide: <MoveRight className="size-5" />,
 };
+
+/** Tarjeta en miniatura con el estilo elegido y los colores del sitio. */
+function CardSample({ variant, theme }: { variant: SiteCardStyle; theme: WebSiteTheme }) {
+  const radius = Math.min(RADIUS_VALUES[theme.radius].px, 12);
+  const style: CSSProperties = { borderRadius: radius, padding: 8, width: '70%', backgroundColor: `${theme.text}0a`, border: `1px solid ${theme.text}26` };
+  if (variant === 'shadow') Object.assign(style, { border: '1px solid transparent', boxShadow: '0 6px 16px -8px rgb(0 0 0 / .45)', backgroundColor: theme.background });
+  else if (variant === 'flat') Object.assign(style, { border: '1px solid transparent' });
+  else if (variant === 'brutal') Object.assign(style, { border: `2px solid ${theme.text}`, boxShadow: `3px 3px 0 ${theme.text}`, backgroundColor: theme.background });
+  else if (variant === 'glass') Object.assign(style, { backgroundColor: `${theme.text}12`, border: `1px solid ${theme.text}30` });
+  return (
+    <span className="block" style={style}>
+      <span className="block h-1.5 w-2/3 rounded-full" style={{ backgroundColor: theme.text }} />
+      <span className="mt-1 block h-1 w-full rounded-full opacity-40" style={{ backgroundColor: theme.text }} />
+    </span>
+  );
+}
+
+/** Página en miniatura con un estilo completo: sus colores, su letra y su botón. */
+function KitThumb({ kit }: { kit: ThemeKit }) {
+  const theme = { ...DEFAULT_KIT_BASE, ...kitTheme(kit) } as WebSiteTheme;
+  const title = theme.headingFont === 'same' ? theme.font : theme.headingFont;
+  return (
+    <span className="block overflow-hidden rounded-md border border-border" style={{ backgroundColor: theme.background, color: theme.text }}>
+      <span className="flex items-center justify-between px-2 py-1.5" style={{ backgroundColor: theme.primary }}>
+        <span className="block h-1 w-6 rounded-full" style={{ backgroundColor: readableOn(theme.primary) }} />
+        <span className="block h-1 w-8 rounded-full opacity-60" style={{ backgroundColor: readableOn(theme.primary) }} />
+      </span>
+      <span className="block space-y-1.5 px-2 py-2.5">
+        <span className="block truncate text-base leading-tight" style={{ ...fontFamily(title), fontWeight: HEADING_WEIGHT_INFO[theme.headingWeight].value, textTransform: theme.headingCase === 'uppercase' ? 'uppercase' : 'none' }}>
+          Tu negocio
+        </span>
+        <span className="block text-[11px] leading-snug opacity-75" style={fontFamily(theme.font)}>
+          Así se lee el texto.
+        </span>
+        <ButtonSample variant={theme.buttonStyle} theme={theme} />
+      </span>
+    </span>
+  );
+}
 
 const SPACING_GAP: Record<SiteSpacing, string> = { compact: 'gap-0.5', normal: 'gap-1.5', airy: 'gap-3' };
 
@@ -200,12 +254,15 @@ interface ThemePanelProps {
   disabled: boolean;
 }
 
-/** Apariencia del sitio: paletas, colores, tipografías, botones, bordes, espacio, ancho y animación (solo modo guiado). */
+const DEFAULT_KIT_BASE: Partial<WebSiteTheme> = { headingFont: 'same', headingCase: 'normal', headingWeight: 'bold', radius: 'soft' };
+
+/** Apariencia del sitio: estilos completos, paletas, colores, tipografías, botones, tarjetas, bordes, espacio, ancho y animación (solo modo guiado). */
 export function ThemePanel({ theme, onChange, disabled }: ThemePanelProps) {
   const problems = themeProblems(theme);
   const activePalette = THEME_PALETTES.find((palette) => (['primary', 'accent', 'background', 'text'] as const).every((key) => palette.colors[key].toLowerCase() === theme[key].toLowerCase()));
   const activePairing = FONT_PAIRINGS.find((pairing) => pairing.font === theme.font && pairing.headingFont === theme.headingFont);
   const headingFont = headingFontOf(theme);
+  const currentKit = activeKit(theme);
 
   const textFonts = FONT_OPTIONS.filter((font) => !FONT_STACKS[font].headingOnly || font === theme.font);
 
@@ -223,6 +280,20 @@ export function ThemePanel({ theme, onChange, disabled }: ThemePanelProps) {
           </ul>
         </div>
       ) : null}
+
+      <Section title="Estilos completos" description="Un clic cambia todo el diseño: colores, tipografías, botones, tarjetas, espacio y animación, pensados para combinar. Tus textos y fotos no cambian. Después puedes ajustar cada detalle abajo.">
+        <ChoiceGroup
+          label="Elige un estilo"
+          value={currentKit?.id ?? ''}
+          disabled={disabled}
+          onChange={(id) => {
+            const kit = THEME_KITS.find((item) => item.id === id);
+            if (kit) onChange(kitTheme(kit));
+          }}
+          options={THEME_KITS.map((kit) => ({ value: kit.id, label: kit.label, description: kit.description, preview: <KitThumb kit={kit} /> }))}
+          hint={currentKit ? undefined : 'Tu diseño es personalizado: ningún estilo completo coincide exactamente.'}
+        />
+      </Section>
 
       <Section title="Paletas listas" description="Un clic cambia los cuatro colores del sitio. Todas están probadas para que el texto se lea bien; después puedes ajustarlas.">
         <ChoiceGroup
@@ -366,7 +437,45 @@ export function ThemePanel({ theme, onChange, disabled }: ThemePanelProps) {
         />
       </Section>
 
+      <Section title="Tarjetas" description="Cómo se ven los recuadros de servicios, planes, testimonios y más.">
+        <ChoiceGroup<SiteCardStyle>
+          label="Estilo de las tarjetas"
+          value={theme.cardStyle}
+          disabled={disabled}
+          onChange={(cardStyle) => onChange({ cardStyle })}
+          options={CARD_STYLES.map((variant) => ({
+            value: variant,
+            label: CARD_STYLE_INFO[variant].label,
+            description: CARD_STYLE_INFO[variant].description,
+            preview: (
+              <Stage theme={theme}>
+                <CardSample variant={variant} theme={theme} />
+              </Stage>
+            ),
+          }))}
+        />
+      </Section>
+
       <Section title="Títulos y bordes">
+        <ChoiceGroup<SiteHeadingWeight>
+          label="Grosor de los títulos"
+          value={theme.headingWeight}
+          disabled={disabled}
+          columns={4}
+          onChange={(headingWeight) => onChange({ headingWeight })}
+          options={HEADING_WEIGHTS.map((weight) => ({
+            value: weight,
+            label: HEADING_WEIGHT_INFO[weight].label,
+            description: HEADING_WEIGHT_INFO[weight].description,
+            preview: (
+              <Stage theme={theme}>
+                <span className="text-lg leading-none" style={{ ...fontFamily(headingFont), fontWeight: HEADING_WEIGHT_INFO[weight].value }}>
+                  Título
+                </span>
+              </Stage>
+            ),
+          }))}
+        />
         <ChoiceGroup
           label="Títulos en mayúsculas"
           value={theme.headingCase}
@@ -408,7 +517,7 @@ export function ThemePanel({ theme, onChange, disabled }: ThemePanelProps) {
           options={RADIUS_OPTIONS.map((radius) => ({
             value: radius,
             label: RADIUS_VALUES[radius].label,
-            description: radius === 'none' ? 'Esquinas rectas; serio y moderno.' : radius === 'soft' ? 'Esquinas apenas redondeadas; lo más usado.' : 'Muy redondeadas; amable y juvenil.',
+            description: radius === 'none' ? 'Esquinas rectas; serio y moderno.' : radius === 'soft' ? 'Esquinas apenas redondeadas; lo más usado.' : radius === 'medium' ? 'Redondeo marcado; moderno y amable.' : 'Muy redondeadas; amable y juvenil.',
             preview: (
               <Stage theme={theme} className="gap-2">
                 <span className="block h-8 w-10 border-2" style={{ borderRadius: RADIUS_VALUES[radius].px, borderColor: theme.accent }} />
@@ -438,19 +547,18 @@ export function ThemePanel({ theme, onChange, disabled }: ThemePanelProps) {
             ),
           }))}
         />
-        <ChoiceGroup
+        <ChoiceGroup<SiteWidth>
           label="Ancho del contenido"
           value={theme.width}
           disabled={disabled}
-          columns={2}
           onChange={(width) => onChange({ width })}
           options={WIDTH_OPTIONS.map((width) => ({
             value: width,
-            label: width === 'normal' ? 'Centrado' : 'Ancho',
-            description: width === 'normal' ? 'Líneas más cortas: se lee más cómodo.' : 'Más espacio para fotos y tarjetas en pantallas grandes.',
+            label: width === 'narrow' ? 'Angosto' : width === 'normal' ? 'Centrado' : 'Ancho',
+            description: width === 'narrow' ? 'Como una revista: ideal para mucho texto.' : width === 'normal' ? 'Líneas más cortas: se lee más cómodo.' : 'Más espacio para fotos y tarjetas en pantallas grandes.',
             preview: (
               <Stage theme={theme}>
-                <span className={cn('block h-8 rounded-[3px] opacity-25', width === 'normal' ? 'w-2/3' : 'w-full')} style={{ backgroundColor: theme.text }} />
+                <span className={cn('block h-8 rounded-[3px] opacity-25', width === 'narrow' ? 'w-1/2' : width === 'normal' ? 'w-2/3' : 'w-full')} style={{ backgroundColor: theme.text }} />
               </Stage>
             ),
           }))}
@@ -462,7 +570,7 @@ export function ThemePanel({ theme, onChange, disabled }: ThemePanelProps) {
           label="Animación"
           value={theme.animation}
           disabled={disabled}
-          columns={4}
+          columns={3}
           onChange={(animation) => onChange({ animation })}
           options={ANIMATION_OPTIONS.map((animation) => ({
             value: animation,

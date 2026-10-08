@@ -48,12 +48,16 @@ export function toneVariables(theme: WebSiteTheme): Record<string, string> {
   };
 }
 
+/** Efecto de fondo sobre el color de la franja: degradado de marca (sobre el principal) o tinte suave (sobre el de la página). */
+export type SectionFx = 'gradient' | 'soft' | null;
+
 export interface SectionLook {
   tone: Tone;
   /** Foto de fondo (ya validada) o `null`. */
   image: string | null;
   /** Oscurecimiento de la foto, 0–90. */
   overlay: number;
+  fx: SectionFx;
 }
 
 /** Foto de fondo pedida en el estilo de la sección, si es válida. */
@@ -68,20 +72,24 @@ function styleImage(block: WebSiteBlock): string | null {
  */
 export function sectionLook(block: WebSiteBlock): SectionLook {
   const overlay = block.style.overlay;
-  const chosen: Tone = block.style.background === 'image' ? 'primary' : block.style.background;
+  const background = block.style.background;
+  const chosen: Tone = background === 'image' || background === 'gradient' ? 'primary' : background === 'soft' ? 'default' : background;
+  const fx: SectionFx = background === 'gradient' ? 'gradient' : background === 'soft' ? 'soft' : null;
   const photo = styleImage(block);
-  if (photo) return { tone: 'dark', image: photo, overlay };
+  if (photo) return { tone: 'dark', image: photo, overlay, fx: null };
 
   if (block.type === 'hero') {
-    if (block.variant === 'center' || block.variant === 'full') {
+    if (block.variant === 'center' || block.variant === 'full' || block.variant === 'card') {
       const heroPhoto = safeImageSrc(block.imageUrl);
-      if (heroPhoto) return { tone: 'dark', image: heroPhoto, overlay };
-      return { tone: chosen === 'default' ? 'primary' : chosen, image: null, overlay };
+      if (heroPhoto) return { tone: 'dark', image: heroPhoto, overlay, fx: null };
+      return { tone: chosen === 'default' && !fx ? 'primary' : chosen, image: null, overlay, fx };
     }
-    return { tone: chosen, image: null, overlay };
+    if (block.variant === 'gradient') return { tone: chosen === 'default' && !fx ? 'primary' : chosen, image: null, overlay, fx: fx ?? (chosen === 'default' ? 'gradient' : null) };
+    return { tone: chosen, image: null, overlay, fx };
   }
-  if (block.type === 'cta' && block.variant === 'band') return { tone: chosen === 'default' ? 'accent' : chosen, image: null, overlay };
-  return { tone: chosen, image: null, overlay };
+  if (block.type === 'cta' && block.variant === 'band') return { tone: chosen === 'default' && !fx ? 'accent' : chosen, image: null, overlay, fx };
+  if (block.type === 'marquee' && block.variant !== 'big') return { tone: chosen === 'default' && !fx ? 'primary' : chosen, image: null, overlay, fx };
+  return { tone: chosen, image: null, overlay, fx };
 }
 
 /** Tono del panel de un llamado a la acción en tarjeta: contrasta con la franja que lo rodea. */
@@ -102,6 +110,7 @@ export function spacingClass(block: WebSiteBlock): string {
     case 'auto':
       if (block.type === 'hero') return block.variant === 'minimal' ? 'ws-sp-md' : 'ws-sp-hero';
       if (block.type === 'divider') return 'ws-sp-none';
+      if (block.type === 'marquee') return block.variant === 'big' ? 'ws-sp-sm' : 'ws-sp-xs';
       return 'ws-sp-md';
   }
 }
@@ -113,33 +122,57 @@ export function resolveAlign(block: WebSiteBlock): Alignment {
   if (block.style.align !== 'auto') return block.style.align;
   switch (block.type) {
     case 'hero':
-      return block.variant === 'center' || block.variant === 'full' ? 'center' : 'left';
+      return block.variant === 'center' || block.variant === 'full' || block.variant === 'card' || block.variant === 'gradient' || block.variant === 'stacked' ? 'center' : 'left';
     case 'cta':
+      return block.variant === 'split' || block.variant === 'banner' ? 'left' : 'center';
+    case 'text':
+      return block.variant === 'lead' ? 'center' : 'left';
     case 'stats':
+      return block.variant === 'side' ? 'left' : 'center';
     case 'steps':
+      return 'center';
+    case 'quote':
+      return block.variant === 'bar' || block.variant === 'photo' ? 'left' : 'center';
+    case 'faq':
+      return 'left';
+    case 'links':
+    case 'marquee':
+    case 'comparison':
+    case 'beforeafter':
+    case 'tabs':
+    case 'hours':
+    case 'areas':
+      return 'center';
+    case 'timeline':
+      return block.variant === 'alternating' ? 'center' : 'left';
+    case 'embed':
+      return block.variant === 'split' ? 'left' : 'center';
+    case 'posts':
+      return 'left';
     case 'pricing':
     case 'logos':
     case 'countdown':
-    case 'quote':
-    case 'video':
     case 'divider':
-    case 'team':
       return 'center';
+    case 'team':
+      return block.variant === 'list' ? 'left' : 'center';
+    case 'video':
+      return block.variant === 'split' ? 'left' : 'center';
     case 'features':
       return block.variant === 'icons' ? 'center' : 'left';
     case 'gallery':
       return 'left';
-    case 'text':
     case 'split':
     case 'image':
     case 'testimonials':
-    case 'faq':
     case 'map':
-    case 'contact':
-    case 'pricelist':
     case 'catalog':
     case 'schedule':
       return 'left';
+    case 'pricelist':
+      return block.variant === 'menu' ? 'center' : 'left';
+    case 'contact':
+      return block.variant === 'centered' ? 'center' : 'left';
   }
 }
 
@@ -148,10 +181,12 @@ export function blockHeadingText(block: WebSiteBlock): string {
   switch (block.type) {
     case 'hero':
     case 'cta':
+    case 'links':
       return block.title.trim();
     case 'quote':
     case 'image':
     case 'divider':
+    case 'marquee':
       return '';
     default:
       return block.heading.trim();

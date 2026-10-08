@@ -291,7 +291,8 @@ export const GESTION_SECTIONS: ManualSection[] = [
         title: 'Armar el contenido y usar la lista "Qué le falta"',
         permission: 'websites:write',
         steps: [
-          'En la pestaña Contenido (modo Guiado) agrega secciones: Portada, Texto, Imagen, Galería, Servicios o beneficios, Llamado a la acción, Preguntas frecuentes, Testimonios, Contacto.',
+          'En la pestaña Contenido (modo Guiado) pulsa "Agregar sección": hay 33 tipos (Portada, Texto, Galería, Servicios o beneficios, Planes y precios, Catálogo, Testimonios, Preguntas frecuentes, Contacto, Línea de tiempo, Tabla comparativa, Antes y después, Enlaces (link en bio), Cinta de frases, Pestañas, Horario de atención, Zonas de cobertura, Incrustar, Novedades y más). Usa el buscador si no la encuentras.',
+          'Al elegir un tipo se abre "Elige un diseño para «…»": cada diseño se ve con tus colores. Tócalo para agregar la sección con textos de ejemplo que dicen qué escribir, o pulsa "Agregarla vacía".',
           'Sube, baja, oculta, duplica o elimina secciones con los controles de cada una, y reemplaza los textos de ejemplo por los tuyos.',
           'Abre "Qué le falta": resuelve los ítems obligatorios que bloquean la publicación (portada con título, forma de contacto, enlaces válidos, textos de ejemplo reemplazados) y revisa las recomendaciones.',
         ],
@@ -307,12 +308,33 @@ export const GESTION_SECTIONS: ManualSection[] = [
         ],
       },
       {
+        id: 'disenos-de-seccion',
+        title: 'Cambiar el diseño de una sección',
+        permission: 'websites:write',
+        steps: [
+          'En la pestaña Contenido abre una sección: arriba aparece "Diseño: …" con todos los diseños de ese tipo (en total hay más de 130), dibujados con tu propio contenido y tus colores.',
+          'Toca otro diseño para cambiarlo: tus textos y fotos se mantienen. Si el diseño necesita fotos, súbelas en los campos de la sección; "Qué le falta" te avisa cuando un diseño con fotos quedó sin ellas.',
+          'Más abajo, en "Fondo, borde y espacio", elige el fondo (igual que la página, suave, color principal, acento, oscuro, foto, degradado o tinte suave), la textura del fondo, la forma del borde de abajo (ola, curva, diagonal, zigzag…), el espacio, el ancho y la alineación.',
+        ],
+      },
+      {
         id: 'cambiar-colores-tipografia',
         title: 'Cambiar colores y tipografía',
         permission: 'websites:write',
         steps: [
-          'En la pestaña Diseño define color principal, acento, fondo y texto; el sistema avisa si el texto no se lee bien sobre el fondo.',
-          'Elige tipografía (Moderna, Clásica o Editorial), esquinas, barra superior y texto del pie.',
+          'En la pestaña Diseño, "Estilos completos" cambia todo de un clic (colores, tipografías, botones, tarjetas, espacio y animación) sin tocar tus textos ni fotos.',
+          'Después ajusta lo que quieras: "Paletas listas" o "Colores personalizados" (el sistema avisa si el texto no se lee bien sobre el fondo), "Combinaciones de tipografía" o "Tipografías por separado", "Estilo de los botones", "Tarjetas", "Títulos y bordes", "Espacio y ancho" y "Animación al bajar".',
+          'En la pestaña Encabezado y pie elige el diseño del encabezado (Clásico, Centrado, Mínimo o Dividido) y su estilo (Claro, Color principal, Transparente, Oscuro o Flotante), y el del pie (Simple, En columnas, Centrado o Nombre gigante).',
+        ],
+      },
+      {
+        id: 'secciones-especiales',
+        title: 'Horario, link en bio e incrustar servicios',
+        permission: 'websites:write',
+        steps: [
+          '"Horario de atención": marca cada día con su hora de apertura y cierre (o "Cerrado este día"); el sitio muestra "Abierto ahora" o "Cerrado" con la hora de Chile. "Copiar el lunes a martes–viernes" ahorra tiempo.',
+          '"Enlaces (link en bio)": tu foto, una frase y botones grandes. Ponlo en una página propia (plantilla de página "Enlaces") y pega esa dirección en tu Instagram o TikTok.',
+          '"Incrustar": pega el enlace para compartir de Spotify, SoundCloud, Calendly, Google Forms o Google Calendar; el campo te dice si lo reconoce. Lo que se agende o responda queda en tu cuenta de ese servicio.',
         ],
       },
       {

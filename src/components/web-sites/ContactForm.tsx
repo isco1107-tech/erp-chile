@@ -83,7 +83,7 @@ export default function ContactForm({ slug, preview }: { slug: string; preview: 
         <textarea id={`${uid}-message`} name="message" required minLength={5} maxLength={2000} rows={5} className={fieldClass} disabled={preview} />
       </div>
       {/* Señuelo anti-bots: invisible para personas, los bots suelen completarlo. */}
-      <div aria-hidden="true" className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
+      <div aria-hidden="true" data-trap="" className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
         <label>
           No completar
           <input type="text" name={WEB_SITE_HONEYPOT_FIELD} tabIndex={-1} autoComplete="off" />

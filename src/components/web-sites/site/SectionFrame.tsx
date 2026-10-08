@@ -1,8 +1,32 @@
 import type { ReactNode } from 'react';
-import { BLOCK_INFO, type WebSiteBlock } from '@/lib/web-sites/blocks';
+import { BLOCK_INFO, type SectionShape, type WebSiteBlock } from '@/lib/web-sites/blocks';
 import type { RenderCtx } from './context';
 import { cx, Img } from './parts';
-import { spacingClass, type Alignment, type SectionLook } from './tone';
+import { spacingClass, type Alignment, type SectionLook, type Tone } from './tone';
+
+/** Borde inferior con forma: el área rellena es la sección siguiente (viewBox 1200×120). */
+function shapePath(shape: Exclude<SectionShape, 'none'>): string {
+  switch (shape) {
+    case 'wave':
+      return 'M0,70 C200,130 400,10 600,60 C800,110 1000,20 1200,70 L1200,120 L0,120 Z';
+    case 'curve':
+      return 'M0,120 Q600,-20 1200,120 Z';
+    case 'slant':
+      return 'M0,120 L1200,0 L1200,120 Z';
+    case 'triangle':
+      return 'M0,120 L600,8 L1200,120 Z';
+    case 'steps':
+      return 'M0,120 L0,90 L300,90 L300,60 L600,60 L600,30 L900,30 L900,0 L1200,0 L1200,120 Z';
+    case 'zigzag': {
+      const points = ['M0,120 L0,80'];
+      for (let x = 0; x < 1200; x += 60) points.push(`L${x + 30},40 L${x + 60},80`);
+      points.push('L1200,120 Z');
+      return points.join(' ');
+    }
+  }
+}
+
+const WIDTH_CLASS = { auto: 'max-w-[var(--ws-max)]', narrow: 'max-w-3xl', wide: 'max-w-[80rem]' } as const;
 
 interface FrameProps {
   ctx: RenderCtx;
@@ -16,6 +40,8 @@ interface FrameProps {
   glow?: boolean;
   /** Va justo bajo un encabezado transparente: deja espacio para que no tape el contenido. */
   underHeader?: boolean;
+  /** Tono de lo que viene después (otra sección o el pie): pinta el borde con forma. */
+  nextTone?: Tone;
   /** Vista previa con edición por clic. */
   onSelect?: (blockId: string) => void;
   selected?: boolean;
@@ -29,14 +55,17 @@ interface FrameProps {
  * sección. Un clic en cualquier parte de la franja la selecciona; para el
  * teclado, la etiqueta es un botón real al que se llega con Tab.
  */
-export default function SectionFrame({ ctx, block, anchor, look, align, bleed = false, glow = false, underHeader = false, onSelect, selected = false, children }: FrameProps) {
+export default function SectionFrame({ ctx, block, anchor, look, align, bleed = false, glow = false, underHeader = false, nextTone, onSelect, selected = false, children }: FrameProps) {
   const label = BLOCK_INFO[block.type].label;
+  const { pattern, shape, width } = block.style;
+  const shaped = shape !== 'none' && nextTone !== undefined;
   return (
     <section
       id={`${ctx.idPrefix}${anchor}`}
       data-block-id={block.id}
       data-ws-type={block.type}
-      className={cx('ws-section ws-bg', `ws-tone-${look.tone}`, spacingClass(block), underHeader && 'ws-under-header', onSelect && 'group/sec isolate cursor-pointer')}
+      data-ws-variant={block.variant}
+      className={cx('ws-section ws-bg', `ws-tone-${look.tone}`, spacingClass(block), underHeader && 'ws-under-header', shaped && 'ws-has-shape', onSelect && 'group/sec isolate cursor-pointer')}
       onClick={onSelect ? () => onSelect(block.id) : undefined}
     >
       {look.image && (
@@ -45,10 +74,19 @@ export default function SectionFrame({ ctx, block, anchor, look, align, bleed = 
           <div aria-hidden="true" className="ws-scrim absolute inset-0" style={{ opacity: look.overlay / 100 }} />
         </>
       )}
-      {glow && !look.image && (
+      {look.fx && !look.image && <div aria-hidden="true" className={cx('ws-fx', look.fx === 'gradient' ? 'ws-fx-gradient' : 'ws-fx-soft')} />}
+      {glow && !look.image && !look.fx && (
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_50%_0%,color-mix(in_srgb,var(--ws-accent)_38%,transparent),transparent_70%)] opacity-70" />
       )}
-      <div className={cx('ws-reveal relative mx-auto w-full', bleed ? 'px-0' : 'max-w-[var(--ws-max)] px-5 @2xl:px-8', align === 'center' && 'text-center')}>{children}</div>
+      {pattern !== 'none' && !look.image && <div aria-hidden="true" className={cx('ws-pattern', `ws-pat-${pattern}`)} />}
+      <div className={cx('ws-reveal relative mx-auto w-full', bleed ? 'px-0' : cx(WIDTH_CLASS[width], 'px-5 @2xl:px-8'), align === 'center' && 'text-center')}>{children}</div>
+      {shaped && (
+        <div aria-hidden="true" className={cx('ws-shape', `ws-tone-${nextTone}`)}>
+          <svg viewBox="0 0 1200 120" preserveAspectRatio="none" focusable="false">
+            <path d={shapePath(shape)} />
+          </svg>
+        </div>
+      )}
       {onSelect && (
         <>
           <span

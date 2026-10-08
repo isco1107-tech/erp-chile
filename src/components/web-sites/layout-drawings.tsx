@@ -14,12 +14,22 @@ const bar = 'block rounded-full';
 
 /** Encabezado en miniatura: `layout` cambia la disposición y `style` el fondo. */
 export function HeaderDrawing({ layout, style = 'light' }: { layout: HeaderLayout; style?: HeaderStyle }) {
-  const onPrimary = style === 'primary';
+  const onPrimary = style === 'primary' || style === 'dark';
   const strong = onPrimary ? 'bg-primary-foreground' : 'bg-foreground/70';
   const soft = onPrimary ? 'bg-primary-foreground/50' : 'bg-foreground/25';
   return (
     <span className={cn('relative block h-14 w-full overflow-hidden rounded-md border border-border', style === 'transparent' ? 'bg-muted-foreground/30' : 'bg-muted')}>
-      <span className={cn('block px-2', style === 'light' && 'bg-card', style === 'primary' && 'bg-primary', style === 'transparent' && 'bg-transparent', layout === 'centered' ? 'py-1.5' : 'py-2')}>
+      <span
+        className={cn(
+          'block px-2',
+          style === 'light' && 'bg-card',
+          style === 'primary' && 'bg-primary',
+          style === 'dark' && 'bg-foreground',
+          style === 'transparent' && 'bg-transparent',
+          style === 'floating' && 'mx-1.5 mt-1.5 rounded-full border border-border bg-card shadow-sm',
+          layout === 'centered' ? 'py-1.5' : style === 'floating' ? 'py-1' : 'py-2'
+        )}
+      >
         {layout === 'classic' ? (
           <span className="flex items-center justify-between">
             <span className={cn(bar, 'h-2 w-5', strong)} />
@@ -38,6 +48,16 @@ export function HeaderDrawing({ layout, style = 'light' }: { layout: HeaderLayou
               <span className={cn(bar, 'h-1 w-3', soft)} />
               <span className={cn(bar, 'h-1 w-3', soft)} />
             </span>
+          </span>
+        ) : null}
+        {layout === 'split' ? (
+          <span className="grid grid-cols-3 items-center">
+            <span className="flex items-center gap-1">
+              <span className={cn(bar, 'h-1 w-2.5', soft)} />
+              <span className={cn(bar, 'h-1 w-2.5', soft)} />
+            </span>
+            <span className={cn(bar, 'h-2 w-5 justify-self-center', strong)} />
+            <span className={cn(bar, 'h-1.5 w-5 justify-self-end bg-accent-foreground/70')} />
           </span>
         ) : null}
         {layout === 'minimal' ? (
@@ -70,10 +90,20 @@ export function FooterDrawing({ layout, style = 'light' }: { layout: FooterLayou
         <span className={cn(bar, 'h-1.5 w-1/2 bg-foreground/15')} />
       </span>
       <span className={cn('block px-2 py-1.5', style === 'light' && 'bg-card', style === 'muted' && 'bg-secondary', style === 'dark' && 'bg-foreground', style === 'primary' && 'bg-primary')}>
-        {layout === 'simple' ? (
+        {layout === 'simple' || layout === 'centered' ? (
           <span className="flex flex-col items-center gap-1">
+            {layout === 'centered' ? <span className={cn('block size-2 rounded-full', strong)} /> : null}
             <span className={cn(bar, 'h-1 w-10', strong)} />
             <span className={cn(bar, 'h-1 w-6', soft)} />
+          </span>
+        ) : layout === 'big' ? (
+          <span className="block space-y-1">
+            <span className="grid grid-cols-3 gap-2">
+              {[0, 1, 2].map((column) => (
+                <span key={column} className={cn(bar, 'h-1 w-4/5', soft)} />
+              ))}
+            </span>
+            <span className={cn('block h-3 w-full rounded-[2px]', strong)} />
           </span>
         ) : (
           <span className="grid grid-cols-3 gap-2">

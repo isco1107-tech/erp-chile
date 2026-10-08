@@ -2,9 +2,11 @@ import type { WebSiteKind, WebSiteMode } from '@prisma/client';
 import { BLOCK_INFO, blockImageUrls, blockLinks, blockTexts, isBlockEmpty, type WebSiteBlock } from './blocks';
 import { htmlHints, MAX_HTML_BYTES, sanitizeHtml } from './html';
 import { chromeLinks, documentFromBlocks, homeOf, isValidSiteLink, publishedPages, type SiteDocument } from './site';
+import { isSampleWeek } from './section-samples';
 import { isSampleText, KIND_INFO } from './templates';
 import { parseTheme, themeProblems } from './theme';
-import { safeHref, videoEmbed, whatsappHref } from './urls';
+import { BLOCK_LAYOUTS } from './variants';
+import { embedFrom, safeHref, videoEmbed, whatsappHref } from './urls';
 
 /**
  * "Qué le falta a mi sitio": la lista de comprobación que ve quien arma un
@@ -120,6 +122,8 @@ export function evaluateReadiness(input: ReadinessInput): ReadinessReport {
   const missingMustHave = info.mustHave.filter((need) => need.type !== 'hero' && need.type !== 'contact' && !visible.some((block) => block.type === need.type));
   const imagesWithoutAlt = visible.reduce((count, block) => {
     if (block.type === 'image' || block.type === 'split') return count + (block.imageUrl && !block.alt.trim() ? 1 : 0);
+    if (block.type === 'hero') return count + block.images.filter((image) => image.url && !image.alt.trim()).length;
+    if (block.type === 'beforeafter') return count + block.items.filter((pair) => (pair.beforeUrl || pair.afterUrl) && !pair.alt.trim()).length;
     if (block.type === 'gallery') return count + block.images.filter((image) => image.url && !image.alt.trim()).length;
     if (block.type === 'logos') return count + block.items.filter((logoItem) => logoItem.imageUrl && !logoItem.alt.trim()).length;
     return count;
@@ -135,10 +139,19 @@ export function evaluateReadiness(input: ReadinessInput): ReadinessReport {
     const { block } = entry;
     if (block.type === 'video' && block.url.trim() && !videoEmbed(block.url)) return [`el video${block.heading ? ` «${block.heading}»` : ''}${where(entry)} no es un enlace de YouTube ni de Vimeo`];
     if (block.type === 'countdown' && block.target.trim() && Number.isNaN(Date.parse(block.target))) return [`la cuenta regresiva${where(entry)} no tiene una fecha válida`];
+    if (block.type === 'embed' && block.url.trim() && !embedFrom(block.url)) return [`«${block.heading || 'Incrustar'}»${where(entry)} no es un enlace de Spotify, SoundCloud, Calendly, Google Forms ni Google Calendar`];
+    if (block.type === 'beforeafter' && block.items.some((pair) => Boolean(pair.beforeUrl) !== Boolean(pair.afterUrl))) return [`«${block.heading || 'Antes y después'}»${where(entry)} tiene un par con una sola foto: sube las dos`];
+    if (block.type === 'hours' && isSampleWeek(block.week)) return [`el horario${where(entry)} sigue siendo el de ejemplo: confírmalo o cámbialo por el tuyo`];
     if (block.type === 'catalog' && !isBlockEmpty(block) && !whatsappHref(block.whatsapp || doc.whatsapp.number)) return [`el catálogo${block.heading ? ` «${block.heading}»` : ''}${where(entry)} necesita un número de WhatsApp (en la sección o en el botón flotante) para que funcione "Pedir por WhatsApp"`];
     return [];
   });
   const whatsappBroken = doc.whatsapp.enabled && !whatsappHref(doc.whatsapp.number);
+  // Diseños pensados para fotos que quedaron sin ninguna: se ven pobres (o vacíos) al publicar.
+  const photoLayouts = placed.flatMap((entry) => {
+    const option = BLOCK_LAYOUTS[entry.block.type].options.find((layout) => layout.value === entry.block.variant);
+    if (!option?.photos || isBlockEmpty(entry.block) || blockImageUrls(entry.block).length > 0) return [];
+    return [`«${BLOCK_INFO[entry.block.type].label}»${where(entry)} usa el diseño «${option.label}»`];
+  });
 
   return report([
     item('hero', 'Portada con título', Boolean(hero && hero.type === 'hero' && hero.title.trim()), true, 'La portada dice qué ofreces.', `Agrega una ${BLOCK_INFO.hero.label.toLowerCase()} visible en la página de inicio y ponle un título: es lo primero que se ve.`),
@@ -156,6 +169,7 @@ export function evaluateReadiness(input: ReadinessInput): ReadinessReport {
         ]
       : []),
     item('media', 'Videos, fechas y WhatsApp correctos', badMedia.length === 0 && !whatsappBroken, false, 'Todo en orden.', [...badMedia, ...(whatsappBroken ? ['el número del botón flotante de WhatsApp no es válido'] : [])].join('; ') + '.'),
+    item('layout-photos', 'Los diseños con fotos tienen fotos', photoLayouts.length === 0, false, 'Cada diseño tiene las fotos que necesita.', `${photoLayouts.join('; ')}, que luce con fotos: súbelas o elige otro diseño.`),
     item('images', 'Usas imágenes propias', imageCount > 0, false, 'El sitio tiene imágenes.', 'Sube al menos una foto propia; un sitio solo con texto se ve incompleto.'),
     item('alt', 'Las imágenes tienen descripción', imagesWithoutAlt === 0, false, 'Todas las imágenes están descritas.', `${imagesWithoutAlt} imagen(es) sin descripción. La leen los lectores de pantalla y ayuda a que te encuentren.`),
     item('theme', 'Colores legibles', themeIssues.length === 0, false, 'El texto se lee bien sobre el fondo.', themeIssues.join(' ')),
