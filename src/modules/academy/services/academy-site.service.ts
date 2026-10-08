@@ -101,7 +101,8 @@ export function imagesProblem(companyId: string, input: Pick<AcademySiteInput, '
   return null;
 }
 
-export async function saveAcademySite(companyId: string, input: AcademySiteInput): Promise<{ id: string }> {
+/** `previousSlug` permite revalidar también la dirección anterior si se cambió. */
+export async function saveAcademySite(companyId: string, input: AcademySiteInput): Promise<{ id: string; previousSlug: string | null }> {
   const problem = imagesProblem(companyId, input);
   if (problem) throw new AcademyError(problem);
   const data = {
@@ -114,8 +115,10 @@ export async function saveAcademySite(companyId: string, input: AcademySiteInput
     address: input.address,
     content: input.content,
   };
+  const previous = await prisma.academySite.findFirst({ where: { companyId }, select: { slug: true } });
   try {
-    return await prisma.academySite.upsert({ where: { companyId }, create: { companyId, ...data }, update: data, select: { id: true } });
+    const saved = await prisma.academySite.upsert({ where: { companyId }, create: { companyId, ...data }, update: data, select: { id: true } });
+    return { id: saved.id, previousSlug: previous?.slug ?? null };
   } catch (error) {
     if (constraintInvolves(error, 'slug')) throw new AcademyError('Esa dirección ya la usa otro sitio. Elige otra.');
     throw error;
@@ -123,7 +126,7 @@ export async function saveAcademySite(companyId: string, input: AcademySiteInput
 }
 
 /** Publicar exige lo imprescindible (la misma lista del editor, recalculada acá); despublicar siempre se puede. */
-export async function setAcademySitePublished(companyId: string, publish: boolean): Promise<{ slug: string }> {
+export async function setAcademySitePublished(companyId: string, publish: boolean): Promise<{ id: string; slug: string }> {
   const row = await prisma.academySite.findFirst({ where: { companyId } });
   if (!row) throw new AcademyError('Primero guarda el sitio');
   if (publish) {
@@ -144,7 +147,7 @@ export async function setAcademySitePublished(companyId: string, publish: boolea
     if (blockers.length > 0) throw new AcademyError(`No se puede publicar todavía. ${blockers.join('. ')}.`);
   }
   await prisma.academySite.updateMany({ where: { id: row.id, companyId }, data: { isPublished: publish, publishedAt: publish ? (row.publishedAt ?? new Date()) : row.publishedAt } });
-  return { slug: row.slug };
+  return { id: row.id, slug: row.slug };
 }
 
 // ---------------------------------------------------------------------------

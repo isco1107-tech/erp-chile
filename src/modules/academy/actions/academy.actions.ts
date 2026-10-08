@@ -320,7 +320,8 @@ export async function saveAcademySiteAction(input: unknown): Promise<ActionResul
     await createAuditLog({ companyId: session.companyId, userId: session.id, userEmail: session.email, action: 'UPDATE', entity: 'AcademySite', entityId: saved.id, metadata: { slug: parsed.data.slug } });
     revalidate();
     revalidatePath(`/academia/${parsed.data.slug}`);
-    return { success: true, data: saved, message: 'Sitio guardado' };
+    if (saved.previousSlug && saved.previousSlug !== parsed.data.slug) revalidatePath(`/academia/${saved.previousSlug}`);
+    return { success: true, data: { id: saved.id }, message: 'Sitio guardado' };
   } catch (error) {
     return fail(error, companyId, { action: 'saveAcademySite' });
   }
@@ -331,8 +332,8 @@ export async function setAcademySitePublishedAction(publish: boolean): Promise<A
   try {
     const session = await requireAuthWithPermission('academy:manage');
     companyId = session.companyId;
-    const { slug } = await siteService.setAcademySitePublished(session.companyId, publish === true);
-    await createAuditLog({ companyId: session.companyId, userId: session.id, userEmail: session.email, action: 'UPDATE', entity: 'AcademySite', entityId: slug, metadata: { isPublished: publish === true } });
+    const { id, slug } = await siteService.setAcademySitePublished(session.companyId, publish === true);
+    await createAuditLog({ companyId: session.companyId, userId: session.id, userEmail: session.email, action: 'UPDATE', entity: 'AcademySite', entityId: id, metadata: { slug, isPublished: publish === true } });
     revalidate();
     revalidatePath(`/academia/${slug}`);
     return { success: true, data: null, message: publish ? 'Sitio publicado' : 'Sitio despublicado' };
