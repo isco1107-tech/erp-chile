@@ -9,6 +9,9 @@ import { approveApplicationSchema, attendanceSchema, groupSchema, monthPaymentSc
 import * as service from '../services/academy.service';
 import * as enrollment from '../services/academy-enrollment.service';
 import * as siteService from '../services/academy-site.service';
+import * as domains from '../services/academy-domain.service';
+import type { DomainView } from '@/lib/hosting/domain-lifecycle';
+import { z } from 'zod';
 import { academySiteInputSchema } from '@/lib/academy/site';
 import type { AcademySiteEditorData } from '../services/academy-site.service';
 import type { ApplicationRow } from '../services/academy-enrollment.service';
@@ -339,5 +342,53 @@ export async function setAcademySitePublishedAction(publish: boolean): Promise<A
     return { success: true, data: null, message: publish ? 'Sitio publicado' : 'Sitio despublicado' };
   } catch (error) {
     return fail(error, companyId, { action: 'setAcademySitePublished' });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Dominio propio del sitio de la academia
+// ---------------------------------------------------------------------------
+
+const academyDomainSchema = z.object({ domain: z.string().trim().min(1, 'Escribe el dominio, por ejemplo miacademia.cl').max(253) });
+
+export async function getAcademyDomainAction(): Promise<ActionResult<DomainView>> {
+  let companyId: string | undefined;
+  try {
+    // Consultar el estado puede registrar el dominio en el servidor y marcarlo verificado: es de quien administra.
+    const session = await requireAuthWithPermission('academy:manage');
+    companyId = session.companyId;
+    return { success: true, data: await domains.refreshAcademyDomain(session.companyId) };
+  } catch (error) {
+    return fail(error, companyId, { action: 'getAcademyDomain' });
+  }
+}
+
+export async function setAcademyDomainAction(input: unknown): Promise<ActionResult<DomainView>> {
+  let companyId: string | undefined;
+  try {
+    const session = await requireAuthWithPermission('academy:manage');
+    companyId = session.companyId;
+    const parsed = academyDomainSchema.safeParse(input);
+    if (!parsed.success) return { success: false, error: firstIssue(parsed.error.issues) };
+    const view = await domains.setAcademyDomain(session.companyId, parsed.data.domain);
+    await createAuditLog({ companyId: session.companyId, userId: session.id, userEmail: session.email, action: 'UPDATE', entity: 'AcademySite', entityId: session.companyId, metadata: { customDomain: view.domain } });
+    revalidate();
+    return { success: true, data: view, message: 'Dominio guardado' };
+  } catch (error) {
+    return fail(error, companyId, { action: 'setAcademyDomain' });
+  }
+}
+
+export async function removeAcademyDomainAction(): Promise<ActionResult<DomainView>> {
+  let companyId: string | undefined;
+  try {
+    const session = await requireAuthWithPermission('academy:manage');
+    companyId = session.companyId;
+    const view = await domains.removeAcademyDomain(session.companyId);
+    await createAuditLog({ companyId: session.companyId, userId: session.id, userEmail: session.email, action: 'UPDATE', entity: 'AcademySite', entityId: session.companyId, metadata: { customDomain: null } });
+    revalidate();
+    return { success: true, data: view, message: 'Dominio quitado' };
+  } catch (error) {
+    return fail(error, companyId, { action: 'removeAcademyDomain' });
   }
 }

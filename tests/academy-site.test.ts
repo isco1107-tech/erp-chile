@@ -35,7 +35,7 @@ function ready(over: Partial<ReadinessInput> = {}): ReadinessInput {
     whatsapp: '56912345678',
     contactEmail: null,
     instagramHandle: null,
-    content: { ...emptyAcademyContent(), disciplines: [{ title: 'Pasarela', text: '' }] },
+    content: { ...emptyAcademyContent(), disciplines: [{ title: 'Pasarela', text: '', photoUrl: '' }] },
     hasEnrollmentLink: true,
     activeGroups: 1,
     ...over,
@@ -121,6 +121,29 @@ describe('fotos', () => {
     expect(imagesProblem('company-a', { heroImageUrl: null, content: content(`${BLOB}/pageant-covers/company-a/x.jpg`) })).not.toBeNull();
     expect(imagesProblem('company-a', { heroImageUrl: null, content: content('https://evil.example.com/academy-site/company-a/x.jpg') })).not.toBeNull();
     expect(imagesProblem('company-a', { heroImageUrl: 'http://169.254.169.254/latest', content: emptyAcademyContent() })).not.toBeNull();
+  });
+});
+
+describe('contenido nuevo: acento, logo, cifras, testimonios e hitos', () => {
+  it('un acento desconocido (dato viejo o manipulado) cae al dorado en vez de romper', () => {
+    expect(parseAcademyContent({ accent: 'neon' }).accent).toBe('gold');
+    expect(parseAcademyContent({ accent: 'rose' }).accent).toBe('rose');
+  });
+
+  it('las fotos del logo, de cada clase y de cada testimonio también deben ser de la empresa', () => {
+    const foreign = `${BLOB}/academy-site/company-b/x.jpg`;
+    const base = emptyAcademyContent();
+    expect(imagesProblem('company-a', { heroImageUrl: null, content: { ...base, logoUrl: foreign } })).not.toBeNull();
+    expect(imagesProblem('company-a', { heroImageUrl: null, content: { ...base, disciplines: [{ title: 'Pasarela', text: '', photoUrl: foreign }] } })).not.toBeNull();
+    expect(imagesProblem('company-a', { heroImageUrl: null, content: { ...base, testimonials: [{ name: 'Ana', role: '', text: 'Hola', photoUrl: foreign }] } })).not.toBeNull();
+    expect(imagesProblem('company-a', { heroImageUrl: null, content: { ...base, logoUrl: own('logo'), disciplines: [{ title: 'Pasarela', text: '', photoUrl: own('c1') }] } })).toBeNull();
+  });
+
+  it('respeta los topes de cifras, testimonios e hitos', () => {
+    const over = (key: 'highlights' | 'testimonials' | 'milestones', item: object, n: number) => academySiteInputSchema.safeParse({ name: 'Academia CR', slug: 'academia-cr', content: { [key]: Array.from({ length: n }, () => item) } }).success;
+    expect(over('highlights', { value: '8', label: 'clases' }, 5)).toBe(false);
+    expect(over('testimonials', { name: 'A', role: '', text: 'B', photoUrl: '' }, 9)).toBe(false);
+    expect(over('milestones', { year: '2020', text: 'x' }, 13)).toBe(false);
   });
 });
 
@@ -215,6 +238,25 @@ describe('lectura pública', () => {
     expect(await getPublicAcademySite('academia-cr')).toBeNull();
     expect(await getPublicAcademySite('../etc/passwd')).toBeNull();
     expect(await getPublicAcademySite('Academia CR')).toBeNull();
+  });
+
+  it('no publica testimonios, cifras ni hitos a medias, y el título de «Quiénes somos» tiene respaldo', async () => {
+    mockPrisma.academySite.findFirst.mockResolvedValue(
+      row({
+        content: {
+          ...emptyAcademyContent(),
+          highlights: [{ value: '+15', label: 'certámenes' }, { value: '', label: 'sin cifra' }],
+          testimonials: [{ name: 'Ana', role: '', text: 'Me encantó', photoUrl: '' }, { name: '', role: '', text: 'Sin nombre', photoUrl: '' }],
+          milestones: [{ year: '2018', text: 'Inicio' }, { year: '', text: 'Sin año' }],
+        },
+      })
+    );
+    const site = await getPublicAcademySite('academia-cr');
+    expect(site?.highlights).toEqual([{ value: '+15', label: 'certámenes' }]);
+    expect(site?.testimonials.map((t) => t.name)).toEqual(['Ana']);
+    expect(site?.testimonials[0]?.photoUrl).toBeNull();
+    expect(site?.milestones).toEqual([{ year: '2018', text: 'Inicio' }]);
+    expect(site?.aboutTitle).toBe('Conócenos');
   });
 
   it('omite secciones vacías: sin dirección no hay bloque de directora', async () => {

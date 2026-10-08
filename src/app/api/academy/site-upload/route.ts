@@ -8,7 +8,8 @@ import { readImageSize } from '@/lib/images/dimensions';
 import { academySiteImagePrefix } from '@/lib/academy/site';
 
 /**
- * Sube una foto del sitio web de la academia (portada, carrusel o directora).
+ * Sube una foto del sitio web de la academia (portada, carrusel, directora,
+ * clases, testimonios o logo).
  * Route Handler por el límite de 1 MB de las Server Actions. El tipo se valida
  * por los primeros bytes del archivo, no por lo que declara el navegador: la
  * imagen queda publicada en internet. Se guarda bajo `academy-site/{companyId}/`
@@ -22,6 +23,10 @@ const MIN_SIZE = {
   hero: { width: 1000, height: 520, label: 'La portada', hint: 'de al menos 1600 × 900 px' },
   gallery: { width: 600, height: 400, label: 'La foto', hint: 'de al menos 1200 × 800 px' },
   director: { width: 300, height: 300, label: 'La foto', hint: 'de al menos 600 × 600 px' },
+  /** Foto de una clase o de un testimonio: se muestra en una tarjeta. */
+  card: { width: 300, height: 300, label: 'La foto', hint: 'de al menos 600 × 600 px' },
+  /** Logo: puede ser chico y alargado (ideal PNG con fondo transparente). */
+  logo: { width: 64, height: 32, label: 'El logo', hint: 'de al menos 300 px de ancho' },
 } as const;
 
 type Purpose = keyof typeof MIN_SIZE;
@@ -31,7 +36,7 @@ export async function POST(req: Request) {
     const session = await requireAuthWithPermission('academy:manage');
     const form = await req.formData();
     const rawPurpose = String(form.get('purpose') ?? '');
-    const purpose: Purpose = rawPurpose === 'gallery' || rawPurpose === 'director' ? rawPurpose : 'hero';
+    const purpose: Purpose = (Object.keys(MIN_SIZE) as Purpose[]).includes(rawPurpose as Purpose) ? (rawPurpose as Purpose) : 'hero';
     const file = form.get('file');
 
     if (!(file instanceof File)) return NextResponse.json({ success: false, error: 'Adjunta una imagen' }, { status: 400 });

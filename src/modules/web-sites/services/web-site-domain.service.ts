@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { captureException } from '@/lib/observability';
 import { isUniqueConstraintError } from '@/lib/prisma-errors';
 import { customDomainProblem, isApexDomain, normalizeDomain } from '@/lib/hosting/custom-domain';
+import { domainTakenByOther } from '@/lib/hosting/domain-lifecycle';
 import { DEFAULT_APEX_IPV4, addProjectDomain, defaultDnsRecords, getDomainStatus, isVercelDomainsConfigured, removeProjectDomain, type DnsRecord } from '@/lib/hosting/vercel-domains';
 
 /**
@@ -48,12 +49,9 @@ async function dnsPointsToVercel(domain: string, apex: boolean): Promise<boolean
   }
 }
 
-async function domainTaken(domain: string, exceptSiteId: string): Promise<boolean> {
-  const [site, project] = await Promise.all([
-    prisma.webSite.findFirst({ where: { customDomain: domain, NOT: { id: exceptSiteId } }, select: { id: true } }),
-    prisma.project.findFirst({ where: { customDomain: domain }, select: { id: true } }),
-  ]);
-  return Boolean(site || project);
+/** Un dominio es de un solo destino: se comprueba contra todo tipo de sitio (`domain-lifecycle.ts`). */
+function domainTaken(domain: string, exceptSiteId: string): Promise<boolean> {
+  return domainTakenByOther(domain, { kind: 'webSite', id: exceptSiteId });
 }
 
 export async function refreshWebSiteDomain(companyId: string, siteId: string): Promise<WebSiteDomainView> {

@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { captureException } from '@/lib/observability';
 import { isUniqueConstraintError } from '@/lib/prisma-errors';
 import { customDomainProblem, isApexDomain, normalizeDomain } from '@/lib/hosting/custom-domain';
+import { DOMAIN_TAKEN_ERROR, domainTakenByOther } from '@/lib/hosting/domain-lifecycle';
 import {
   DEFAULT_APEX_IPV4,
   addProjectDomain,
@@ -143,11 +144,7 @@ export async function setCustomDomain(companyId: string, projectId: string, rawD
   if (problem) throw new CustomDomainError(problem);
 
   if (project.customDomain !== domain) {
-    const [taken, takenByWebSite] = await Promise.all([
-      prisma.project.findFirst({ where: { customDomain: domain, NOT: { id: projectId } }, select: { id: true } }),
-      prisma.webSite.findFirst({ where: { customDomain: domain }, select: { id: true } }),
-    ]);
-    if (taken || takenByWebSite) throw new CustomDomainError('Ese dominio ya lo usa otro certamen o sitio web de la plataforma');
+    if (await domainTakenByOther(domain, { kind: 'project', id: projectId })) throw new CustomDomainError(DOMAIN_TAKEN_ERROR);
     try {
       await prisma.project.updateMany({ where: { id: projectId, companyId }, data: { customDomain: domain, customDomainVerifiedAt: null } });
     } catch (error) {

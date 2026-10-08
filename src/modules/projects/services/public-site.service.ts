@@ -3,6 +3,7 @@ import 'server-only';
 
 import type { CandidateStatus, Prisma, SponsorshipTier } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { domainOwner } from '@/lib/hosting/domain-lifecycle';
 import { pageantContact } from '@/lib/events/pageant-contact';
 import { shortDate, type DirectorTitle } from '@/lib/events/pageant-site';
 import { decodeVoteToken } from '@/modules/public-voting/schema';
@@ -347,11 +348,7 @@ export async function getPageantSlugByDomain(domain: string, reachedViaDomain = 
  * devuelve datos del sitio.
  */
 export async function isRegisteredCustomDomain(domain: string): Promise<boolean> {
-  const [project, site] = await Promise.all([
-    prisma.project.findUnique({ where: { customDomain: domain }, select: { id: true } }),
-    prisma.webSite.findUnique({ where: { customDomain: domain }, select: { id: true } }),
-  ]);
-  return Boolean(project || site);
+  return (await domainOwner(domain)) !== null;
 }
 
 export async function resolveSponsorLeadTarget(
