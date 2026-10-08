@@ -1,12 +1,11 @@
 import 'server-only';
 
-import { resolve4, resolveCname } from 'node:dns/promises';
 import { prisma } from '@/lib/prisma';
 import { captureException } from '@/lib/observability';
 import { isUniqueConstraintError } from '@/lib/prisma-errors';
 import { customDomainProblem, isApexDomain, normalizeDomain } from '@/lib/hosting/custom-domain';
-import { claimDomain, domainOwner } from '@/lib/hosting/domain-lifecycle';
-import { DEFAULT_APEX_IPV4, addProjectDomain, defaultDnsRecords, getDomainStatus, isVercelDomainsConfigured, removeProjectDomain, type DnsRecord } from '@/lib/hosting/vercel-domains';
+import { checkDomainStatus, claimDomain, domainOwner } from '@/lib/hosting/domain-lifecycle';
+import { addProjectDomain, isVercelDomainsConfigured, removeProjectDomain, type DnsRecord } from '@/lib/hosting/vercel-domains';
 
 /**
  * Dominio propio de un sitio web. Mismo mecanismo que el de un certamen
@@ -27,12 +26,11 @@ export interface WebSiteDomainView {
   automatic: boolean;
   records: DnsRecord[];
   dnsOk: boolean;
+  /** El dominio ya muestra la plataforma (ver `domainServesPlatform`). */
+  serving: boolean;
   statusError: string | null;
 }
 
-function zoneOf(domain: string): string {
-  return domain.split('.').slice(-2).join('.');
-}
 
 async function findSite(companyId: string, siteId: string) {
   const site = await prisma.webSite.findFirst({ where: { id: siteId, companyId }, select: { id: true, customDomain: true, customDomainVerifiedAt: true } });
@@ -40,42 +38,21 @@ async function findSite(companyId: string, siteId: string) {
   return site;
 }
 
-async function dnsPointsToVercel(domain: string, apex: boolean): Promise<boolean> {
-  try {
-    if (apex) return (await resolve4(domain)).some((ip) => ip === DEFAULT_APEX_IPV4 || ip.startsWith('76.76.21.'));
-    return (await resolveCname(domain)).some((target) => target.replace(/\.$/, '').endsWith('vercel-dns.com'));
-  } catch {
-    return false;
-  }
-}
-
-
 export async function refreshWebSiteDomain(companyId: string, siteId: string): Promise<WebSiteDomainView> {
   const site = await findSite(companyId, siteId);
   const automatic = isVercelDomainsConfigured();
-  if (!site.customDomain) return { domain: null, verifiedAt: null, automatic, records: [], dnsOk: false, statusError: null };
+  if (!site.customDomain) return { domain: null, verifiedAt: null, automatic, records: [], dnsOk: false, serving: false, statusError: null };
 
   const domain = site.customDomain;
-  const apex = isApexDomain(domain);
-  const zone = zoneOf(domain);
   let records: DnsRecord[] = [];
   let ready = false;
   let dnsOk = false;
+  let serving = false;
   let statusError: string | null = null;
 
   try {
-    if (automatic) {
-      const main = await getDomainStatus(domain, zone, apex);
-      const www = apex ? await getDomainStatus(`www.${domain}`, zone, false).catch(() => null) : null;
-      if (!main.inProject) await addProjectDomain(domain);
-      records = [...main.records, ...(www?.records ?? [])];
-      dnsOk = main.dnsOk;
-      ready = main.inProject && main.verified && main.dnsOk;
-    } else {
-      dnsOk = await dnsPointsToVercel(domain, apex);
-      records = dnsOk ? [] : defaultDnsRecords(domain, zone, apex);
-      ready = dnsOk;
-    }
+    // Mecanismo común (`domain-lifecycle.ts`): verificado solo si el dominio YA muestra la plataforma.
+    ({ records, dnsOk, serving, ready } = await checkDomainStatus(domain));
   } catch (error) {
     captureException(error, { module: 'sitios-web', companyId, extra: { reason: 'web-site-domain-status', domain } });
     statusError = 'No pudimos consultar el estado del dominio en este momento. Intenta de nuevo en unos minutos.';
@@ -88,7 +65,7 @@ export async function refreshWebSiteDomain(companyId: string, siteId: string): P
       await prisma.webSite.updateMany({ where: { id: siteId, companyId }, data: { customDomainVerifiedAt: verifiedAt } });
     }
   }
-  return { domain, verifiedAt: verifiedAt?.toISOString() ?? null, automatic, records, dnsOk, statusError };
+  return { domain, verifiedAt: verifiedAt?.toISOString() ?? null, automatic, records, dnsOk, serving, statusError };
 }
 
 async function detach(companyId: string, domain: string): Promise<void> {

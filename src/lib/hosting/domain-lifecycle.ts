@@ -3,7 +3,10 @@ import 'server-only';
 import { resolve4, resolveCname } from 'node:dns/promises';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { captureMessage } from '@/lib/observability';
 import { isApexDomain } from '@/lib/hosting/custom-domain';
+import { assertResolvesToPublicAddress } from '@/lib/security/outbound-url';
+import { DOMAIN_PING_APP, DOMAIN_PING_PATH } from '@/lib/hosting/ping';
 import {
   DEFAULT_APEX_IPV4,
   addProjectDomain,
@@ -40,6 +43,12 @@ export interface DomainView {
   /** Registros DNS a crear en el proveedor del dominio (vacío si ya está todo). */
   records: DnsRecord[];
   dnsOk: boolean;
+  /**
+   * El dominio YA muestra la plataforma (se pidió `https://dominio/api/hosting/ping`
+   * y respondió nuestra app). Es la única prueba de que funciona: los DNS pueden
+   * apuntar bien y aun así Vercel no servirlo si el dominio no está agregado al proyecto.
+   */
+  serving: boolean;
   /** Mensaje si no se pudo consultar el estado (Vercel caído, token vencido…). */
   statusError: string | null;
 }
@@ -96,33 +105,95 @@ function zoneOf(domain: string): string {
   return domain.split('.').slice(-2).join('.');
 }
 
-/** Sin la API de Vercel: se revisa el DNS público directamente. */
+/**
+ * Sin la API de Vercel: ¿el DNS público apunta a Vercel? Vercel usa varias
+ * direcciones (76.76.21.x, y en proyectos nuevos 216.198.79.x / 64.29.17.x) y
+ * CNAME `cname.vercel-dns.com` o `xxxx.vercel-dns-0NN.com`. Es solo una pista
+ * para mostrar los registros: la prueba real es `domainServesPlatform`.
+ */
+const VERCEL_APEX_PREFIXES = ['76.76.21.', '216.198.79.', '64.29.17.'];
+export function isVercelAddress(ip: string): boolean {
+  return ip === DEFAULT_APEX_IPV4 || VERCEL_APEX_PREFIXES.some((prefix) => ip.startsWith(prefix));
+}
+export function isVercelCname(target: string): boolean {
+  return /(^|\.)vercel-dns(-\d+)?\.com$/.test(target.replace(/\.$/, '').toLowerCase());
+}
 async function dnsPointsToVercel(domain: string, apex: boolean): Promise<boolean> {
   try {
-    if (apex) return (await resolve4(domain)).some((ip) => ip === DEFAULT_APEX_IPV4 || ip.startsWith('76.76.21.'));
-    return (await resolveCname(domain)).some((target) => target.replace(/\.$/, '').endsWith('vercel-dns.com'));
+    if (apex) return (await resolve4(domain)).some(isVercelAddress);
+    return (await resolveCname(domain)).some(isVercelCname);
   } catch {
     return false;
   }
 }
 
-/** Estado del dominio. Lanza si el proveedor no respondió (quien llama conserva el último estado conocido). */
-export async function checkDomainStatus(domain: string): Promise<{ records: DnsRecord[]; dnsOk: boolean; ready: boolean }> {
+
+/**
+ * ¿El dominio ya muestra la plataforma? Pide `https://dominio/api/hosting/ping`
+ * y exige la respuesta de nuestra app. Así un dominio solo queda «verificado»
+ * cuando de verdad funciona (DNS + Vercel + certificado), nunca solo porque el
+ * DNS apunte bien. Nunca lanza. Defensa SSRF: el dominio ya pasó
+ * `customDomainProblem` (sin IP ni localhost), se exige que resuelva a una IP
+ * pública, solo https, y se sigue a lo más una redirección y solo entre el
+ * dominio y su `www.`.
+ */
+export async function domainServesPlatform(domain: string): Promise<boolean> {
+  const allowedHosts = new Set([domain, `www.${domain}`, domain.replace(/^www\./, '')]);
+  let url = new URL(`https://${domain}${DOMAIN_PING_PATH}`);
+  try {
+    for (let hop = 0; hop < 2; hop++) {
+      await assertResolvesToPublicAddress(url.hostname);
+      const response = await fetch(url, { redirect: 'manual', cache: 'no-store', headers: { accept: 'application/json' }, signal: AbortSignal.timeout(8000) });
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location');
+        if (!location) return false;
+        const next = new URL(location, url);
+        if (next.protocol !== 'https:' || !allowedHosts.has(next.hostname)) return false;
+        url = next;
+        continue;
+      }
+      if (!response.ok) return false;
+      const body = (await response.json().catch(() => null)) as { app?: unknown } | null;
+      return body?.app === DOMAIN_PING_APP;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+export interface DomainStatus {
+  records: DnsRecord[];
+  dnsOk: boolean;
+  serving: boolean;
+  /** Listo para publicarse ahí: el dominio ya muestra la plataforma (y, con la API, Vercel lo da por verificado). */
+  ready: boolean;
+}
+
+/** Estado del dominio. Lanza si la API de Vercel no respondió (quien llama conserva el último estado conocido). */
+export async function checkDomainStatus(domain: string): Promise<DomainStatus> {
   const apex = isApexDomain(domain);
   const zone = zoneOf(domain);
   if (isVercelDomainsConfigured()) {
     const main = await getDomainStatus(domain, zone, apex);
     const www = apex ? await getDomainStatus(`www.${domain}`, zone, false).catch(() => null) : null;
     if (!main.inProject) await addProjectDomain(domain);
-    return { records: [...main.records, ...(www?.records ?? [])], dnsOk: main.dnsOk, ready: main.inProject && main.verified && main.dnsOk };
+    const serving = await domainServesPlatform(domain);
+    return { records: [...main.records, ...(www?.records ?? [])], dnsOk: main.dnsOk || serving, serving, ready: serving && main.inProject && main.verified };
   }
-  const dnsOk = await dnsPointsToVercel(domain, apex);
-  return { records: dnsOk ? [] : defaultDnsRecords(domain, zone, apex), dnsOk, ready: dnsOk };
+  const [dnsHint, serving] = await Promise.all([dnsPointsToVercel(domain, apex), domainServesPlatform(domain)]);
+  const dnsOk = dnsHint || serving;
+  return { records: dnsOk ? [] : defaultDnsRecords(domain, zone, apex), dnsOk, serving, ready: serving };
 }
 
 /** Registra el dominio (y su `www.` si es raíz) en Vercel. Devuelve los errores en vez de lanzar. */
 export async function attachDomain(domain: string): Promise<unknown[]> {
-  if (!isVercelDomainsConfigured()) return [];
+  if (!isVercelDomainsConfigured()) {
+    // Sin VERCEL_API_TOKEN nadie agrega el dominio a Vercel y no mostrará el sitio: se deja constancia para el
+    // administrador de la plataforma (logs/Sentry), además del aviso en el panel de quien lo guardó.
+    captureMessage('Dominio propio guardado sin conexión automática con Vercel: hay que agregarlo a mano en el proyecto (o configurar VERCEL_API_TOKEN)', 'warn', { module: 'dominios', extra: { domain } });
+    return [];
+  }
   const jobs = [addProjectDomain(domain), ...(isApexDomain(domain) ? [addProjectDomain(`www.${domain}`, domain)] : [])];
   return (await Promise.allSettled(jobs)).filter((r): r is PromiseRejectedResult => r.status === 'rejected').map((r) => r.reason);
 }

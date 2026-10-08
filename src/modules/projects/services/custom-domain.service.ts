@@ -1,17 +1,12 @@
 import 'server-only';
 
-import { resolve4, resolveCname } from 'node:dns/promises';
-
 import { prisma } from '@/lib/prisma';
 import { captureException } from '@/lib/observability';
 import { isUniqueConstraintError } from '@/lib/prisma-errors';
 import { customDomainProblem, isApexDomain, normalizeDomain } from '@/lib/hosting/custom-domain';
-import { DOMAIN_TAKEN_ERROR, claimDomain, domainOwner } from '@/lib/hosting/domain-lifecycle';
+import { DOMAIN_TAKEN_ERROR, checkDomainStatus, claimDomain, domainOwner } from '@/lib/hosting/domain-lifecycle';
 import {
-  DEFAULT_APEX_IPV4,
   addProjectDomain,
-  defaultDnsRecords,
-  getDomainStatus,
   isVercelDomainsConfigured,
   removeProjectDomain,
   type DnsRecord,
@@ -42,15 +37,13 @@ export interface CustomDomainView {
   /** Registros DNS a crear en el proveedor del dominio (vacío si ya está todo). */
   records: DnsRecord[];
   dnsOk: boolean;
+  /** El dominio ya muestra la plataforma (ver `domainServesPlatform`). */
+  serving: boolean;
   turnstile: TurnstileHostnameState;
   /** Mensaje si no se pudo consultar el estado (Vercel caído, token vencido…). */
   statusError: string | null;
 }
 
-/** Dominio que el cliente compró: los dos últimos niveles ("temuco.cl" para "miss.temuco.cl"). */
-function zoneOf(domain: string): string {
-  return domain.split('.').slice(-2).join('.');
-}
 
 async function findProject(companyId: string, projectId: string) {
   const project = await prisma.project.findFirst({
@@ -61,50 +54,25 @@ async function findProject(companyId: string, projectId: string) {
   return project;
 }
 
-/** Sin la API de Vercel: se revisa el DNS público directamente. */
-async function dnsPointsToVercel(domain: string, apex: boolean): Promise<boolean> {
-  try {
-    if (apex) {
-      const ips = await resolve4(domain);
-      return ips.some((ip) => ip === DEFAULT_APEX_IPV4 || ip.startsWith('76.76.21.'));
-    }
-    const targets = await resolveCname(domain);
-    return targets.some((target) => target.replace(/\.$/, '').endsWith('vercel-dns.com'));
-  } catch {
-    return false;
-  }
-}
-
 /** Estado actual (consulta Vercel o el DNS) y actualiza `customDomainVerifiedAt`. */
 export async function refreshCustomDomain(companyId: string, projectId: string): Promise<CustomDomainView> {
   const project = await findProject(companyId, projectId);
   const automatic = isVercelDomainsConfigured();
   const turnstile = turnstileHostnameMode();
   if (!project.customDomain) {
-    return { domain: null, verifiedAt: null, automatic, records: [], dnsOk: false, turnstile, statusError: null };
+    return { domain: null, verifiedAt: null, automatic, records: [], dnsOk: false, serving: false, turnstile, statusError: null };
   }
 
   const domain = project.customDomain;
-  const apex = isApexDomain(domain);
-  const zone = zoneOf(domain);
   let records: DnsRecord[] = [];
   let ready = false;
   let dnsOk = false;
+  let serving = false;
   let statusError: string | null = null;
 
   try {
-    if (automatic) {
-      const main = await getDomainStatus(domain, zone, apex);
-      const www = apex ? await getDomainStatus(`www.${domain}`, zone, false).catch(() => null) : null;
-      if (!main.inProject) await addProjectDomain(domain);
-      records = [...main.records, ...(www?.records ?? [])];
-      dnsOk = main.dnsOk;
-      ready = main.inProject && main.verified && main.dnsOk;
-    } else {
-      dnsOk = await dnsPointsToVercel(domain, apex);
-      records = dnsOk ? [] : defaultDnsRecords(domain, zone, apex);
-      ready = dnsOk;
-    }
+    // Mecanismo común (`domain-lifecycle.ts`): verificado solo si el dominio YA muestra la plataforma.
+    ({ records, dnsOk, serving, ready } = await checkDomainStatus(domain));
   } catch (error) {
     captureException(error, { module: 'proyectos', companyId, extra: { reason: 'custom-domain-status', domain } });
     statusError = 'No pudimos consultar el estado del dominio en este momento. Intenta de nuevo en unos minutos.';
@@ -119,7 +87,7 @@ export async function refreshCustomDomain(companyId: string, projectId: string):
     }
   }
 
-  return { domain, verifiedAt: verifiedAt?.toISOString() ?? null, automatic, records, dnsOk, turnstile, statusError };
+  return { domain, verifiedAt: verifiedAt?.toISOString() ?? null, automatic, records, dnsOk, serving, turnstile, statusError };
 }
 
 async function detachFromProviders(companyId: string, domain: string): Promise<void> {
