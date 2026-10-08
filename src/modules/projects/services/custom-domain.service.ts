@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { captureException } from '@/lib/observability';
 import { isUniqueConstraintError } from '@/lib/prisma-errors';
 import { customDomainProblem, isApexDomain, normalizeDomain } from '@/lib/hosting/custom-domain';
+import { DOMAIN_TAKEN_ERROR, claimDomain, domainOwner } from '@/lib/hosting/domain-lifecycle';
 import {
   DEFAULT_APEX_IPV4,
   addProjectDomain,
@@ -122,6 +123,8 @@ export async function refreshCustomDomain(companyId: string, projectId: string):
 }
 
 async function detachFromProviders(companyId: string, domain: string): Promise<void> {
+  // Si otro sitio lo sigue usando (dato viejo, carrera), soltarlo dejaría caído ese sitio.
+  if ((await domainOwner(domain)) !== null) return;
   const jobs: Promise<void>[] = [removeTurnstileHostname(domain)];
   if (isVercelDomainsConfigured()) {
     jobs.push(removeProjectDomain(domain));
@@ -143,13 +146,12 @@ export async function setCustomDomain(companyId: string, projectId: string, rawD
   if (problem) throw new CustomDomainError(problem);
 
   if (project.customDomain !== domain) {
-    const [taken, takenByWebSite] = await Promise.all([
-      prisma.project.findFirst({ where: { customDomain: domain, NOT: { id: projectId } }, select: { id: true } }),
-      prisma.webSite.findFirst({ where: { customDomain: domain }, select: { id: true } }),
-    ]);
-    if (taken || takenByWebSite) throw new CustomDomainError('Ese dominio ya lo usa otro certamen o sitio web de la plataforma');
     try {
-      await prisma.project.updateMany({ where: { id: projectId, companyId }, data: { customDomain: domain, customDomainVerifiedAt: null } });
+      // Revisar que esté libre y guardarlo, sin carreras entre empresas (`claimDomain`).
+      const claimed = await claimDomain(domain, { kind: 'project', id: projectId }, (tx) =>
+        tx.project.updateMany({ where: { id: projectId, companyId }, data: { customDomain: domain, customDomainVerifiedAt: null } })
+      );
+      if (!claimed) throw new CustomDomainError(DOMAIN_TAKEN_ERROR);
     } catch (error) {
       if (isUniqueConstraintError(error)) throw new CustomDomainError('Ese dominio ya lo usa otro certamen de la plataforma');
       throw error;

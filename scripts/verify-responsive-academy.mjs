@@ -133,6 +133,18 @@ for (const name of fixtures) {
     await page.evaluate(() => document.querySelectorAll('[data-reveal]').forEach((el) => el.setAttribute('data-in', '')));
     await page.waitForTimeout(100);
     const problems = await page.evaluate(collectProblems, '.acs');
+    // La barra superior no puede encimar su menú con el botón ni con el nombre (pasó: «Contacto» quedó bajo «Inscríbete»).
+    const overlap = await page.evaluate(() => {
+      const nav = document.querySelector('.acs-nav');
+      const actions = document.querySelector('.acs-top-actions');
+      const brand = document.querySelector('.acs-brand');
+      if (!nav || getComputedStyle(nav).display === 'none') return null;
+      const n = nav.getBoundingClientRect();
+      if (actions && n.right > actions.getBoundingClientRect().left + 1) return 'el menú se encima con el botón de la derecha';
+      if (brand && n.left < brand.getBoundingClientRect().right - 1) return 'el menú se encima con el nombre';
+      return null;
+    });
+    if (overlap) problems.push({ kind: 'barra-encimada', detail: `Barra superior: ${overlap}` });
 
     // El carrusel tiene que avanzar de verdad al tocar la flecha «siguiente».
     const next = page.getByRole('button', { name: 'Foto siguiente' });

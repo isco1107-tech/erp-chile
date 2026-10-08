@@ -50,7 +50,7 @@ import { KIND_INFO, WEB_SITE_KINDS } from '@/lib/web-sites/templates';
 import { FONT_STACKS } from '@/lib/web-sites/theme';
 import { SITE_SLUG_MAX, siteSlugProblem, slugify } from '@/lib/web-sites/urls';
 import { cn } from '@/lib/utils';
-import { createWebSiteAction } from '@/modules/web-sites/actions/web-sites.actions';
+import { createWebSiteAction, setWebSiteDomainAction } from '@/modules/web-sites/actions/web-sites.actions';
 
 interface ContactOption {
   id: string;
@@ -174,6 +174,8 @@ export default function NewWebSiteWizard({ contacts = [], contactsTruncated = fa
   const [slugText, setSlugText] = useState('');
   const [slugTouched, setSlugTouched] = useState(false);
   const [contactId, setContactId] = useState('');
+  /** Dominio que el cliente ya compró (opcional): se conecta apenas se crea el sitio. */
+  const [domain, setDomain] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -201,6 +203,7 @@ export default function NewWebSiteWizard({ contacts = [], contactsTruncated = fa
   const nameId = `${uid}-name`;
   const slugId = `${uid}-slug`;
   const contactSelectId = `${uid}-contact`;
+  const domainId = `${uid}-domain`;
   const kindHelpId = `${uid}-kind-help`;
 
   const industry = findIndustry(industryId);
@@ -234,6 +237,12 @@ export default function NewWebSiteWizard({ contacts = [], contactsTruncated = fa
         return;
       }
       toast.success(result.message ?? 'Sitio creado');
+      if (domain.trim()) {
+        // El sitio ya existe: si el dominio no se pudo guardar (mal escrito, ya usado, sin permiso), se avisa y se agrega después en el editor.
+        const connected = await setWebSiteDomainAction(result.data.id, { domain }).catch(() => null);
+        if (connected?.success) toast.success('Dominio guardado: en el editor verás los registros DNS a crear');
+        else toast.error(`El sitio se creó, pero el dominio no: ${connected && !connected.success ? connected.error : 'revisa tu conexión'}. Agrégalo en el editor.`);
+      }
       router.push(`/dashboard/web-sites/${result.data.id}`);
     } catch {
       toast.error('No pudimos crear el sitio. Revisa tu conexión e intenta de nuevo.');
@@ -582,6 +591,24 @@ export default function NewWebSiteWizard({ contacts = [], contactsTruncated = fa
                   {slugError}
                 </p>
               )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor={domainId}>¿Ya tienes un dominio comprado? (opcional)</Label>
+              <Input
+                id={domainId}
+                value={domain}
+                maxLength={253}
+                autoComplete="off"
+                spellCheck={false}
+                inputMode="url"
+                placeholder="minegocio.cl"
+                aria-describedby={`${domainId}-hint`}
+                onChange={(e) => setDomain(e.target.value)}
+              />
+              <p id={`${domainId}-hint`} className="text-xs text-muted-foreground">
+                Escríbelo sin https:// y lo conectamos al crear el sitio; en el editor verás los registros DNS que debes crear en tu proveedor. Si aún no lo compras, déjalo vacío y agrégalo después.
+              </p>
             </div>
 
             {contacts.length > 0 && (

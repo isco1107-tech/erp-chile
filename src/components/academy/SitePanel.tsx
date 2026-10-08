@@ -11,6 +11,9 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { textareaClass } from '@/components/ui/field-classes';
 import { cn } from '@/lib/utils';
 import {
+  ACADEMY_ACCENTS,
+  ACADEMY_ACCENT_LABELS,
+  ACADEMY_ACCENT_SWATCH,
   ACADEMY_SITE_LIMITS,
   academySiteInputSchema,
   emptyAcademyContent,
@@ -20,7 +23,15 @@ import {
   type ReadinessItem,
 } from '@/lib/academy/site';
 import { formatWhatsappNumber } from '@/lib/events/pageant-contact';
-import { getAcademySiteAction, saveAcademySiteAction, setAcademySitePublishedAction } from '@/modules/academy/actions/academy.actions';
+import {
+  getAcademyDomainAction,
+  getAcademySiteAction,
+  removeAcademyDomainAction,
+  saveAcademySiteAction,
+  setAcademyDomainAction,
+  setAcademySitePublishedAction,
+} from '@/modules/academy/actions/academy.actions';
+import DomainPanel from '@/components/hosting/DomainPanel';
 import type { AcademySiteEditorData } from '@/modules/academy/services/academy-site.service';
 
 /**
@@ -40,8 +51,12 @@ interface Form {
   instagramHandle: string;
   address: string;
   monthlyFee: string;
+  /** Solo al crear el sitio: el dominio que la academia ya compró (opcional). */
+  domain: string;
   content: AcademySiteContent;
 }
+
+type UploadPurpose = 'hero' | 'gallery' | 'director' | 'card' | 'logo';
 
 function toForm(data: AcademySiteEditorData, fallbackName: string): Form {
   const site = data.site;
@@ -54,11 +69,12 @@ function toForm(data: AcademySiteEditorData, fallbackName: string): Form {
     instagramHandle: site?.instagramHandle ?? '',
     address: site?.address ?? '',
     monthlyFee: site?.content.monthlyFee != null ? String(site.content.monthlyFee) : '',
+    domain: '',
     content: site?.content ?? emptyAcademyContent(),
   };
 }
 
-async function uploadPhoto(file: File, purpose: 'hero' | 'gallery' | 'director'): Promise<string | null> {
+async function uploadPhoto(file: File, purpose: UploadPurpose): Promise<string | null> {
   const body = new FormData();
   body.append('purpose', purpose);
   body.append('file', file);
@@ -119,6 +135,50 @@ function RowControls({ index, count, onMove, onRemove, disabled }: { index: numb
       <Button type="button" variant="ghost" size="icon" aria-label="Quitar" disabled={disabled} onClick={onRemove}>
         <Trash2 aria-hidden="true" />
       </Button>
+    </div>
+  );
+}
+
+/** Botón «Foto» con su propio selector de archivo: para las filas de una lista (clases, testimonios) y el logo. */
+function PhotoButton({ purpose, label, url, disabled, onUploaded, onRemove }: { purpose: UploadPurpose; label: string; url: string; disabled: boolean; onUploaded: (url: string) => void; onRemove: () => void }) {
+  const ref = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="flex shrink-0 items-center gap-2">
+      {url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={url} alt="" className="size-10 rounded-md border object-cover" />
+      ) : null}
+      <input
+        ref={ref}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="sr-only"
+        aria-label={label}
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (!file) return;
+          setBusy(true);
+          try {
+            const uploaded = await uploadPhoto(file, purpose);
+            if (uploaded) {
+              onUploaded(uploaded);
+              toast.success('Foto cargada: guarda para publicarla');
+            }
+          } finally {
+            setBusy(false);
+          }
+        }}
+      />
+      <Button type="button" variant="outline" size="sm" disabled={disabled || busy} onClick={() => ref.current?.click()}>
+        <ImagePlus aria-hidden="true" /> {busy ? 'Subiendo…' : url ? 'Cambiar' : 'Foto'}
+      </Button>
+      {url && (
+        <Button type="button" variant="ghost" size="sm" disabled={disabled || busy} onClick={onRemove}>
+          Quitar
+        </Button>
+      )}
     </div>
   );
 }
@@ -185,6 +245,12 @@ export default function SitePanel({ canManage }: { canManage: boolean }) {
         return false;
       }
       toast.success(result.message ?? 'Sitio guardado');
+      // Al crear el sitio, si la academia ya tiene su dominio comprado, se conecta de una vez.
+      if (!data?.site && form?.domain.trim()) {
+        const domain = await setAcademyDomainAction({ domain: form.domain });
+        if (domain.success) toast.success('Dominio guardado: revisa abajo los registros DNS a crear');
+        else toast.error(`El sitio se creó, pero el dominio no: ${domain.error}`);
+      }
       await load();
       return true;
     } finally {
@@ -245,8 +311,8 @@ export default function SitePanel({ canManage }: { canManage: boolean }) {
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge tone={published ? 'success' : 'neutral'}>{published ? 'Publicado' : site ? 'Borrador' : 'Sin crear'}</StatusBadge>
             {site && (
-              <a href={publicPath} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-primary underline-offset-2 hover:underline">
-                {publicPath} <ExternalLink className="size-3.5" aria-hidden="true" />
+              <a href={site.liveDomain ? `https://${site.liveDomain}` : publicPath} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-primary underline-offset-2 hover:underline">
+                {site.liveDomain ?? publicPath} <ExternalLink className="size-3.5" aria-hidden="true" />
               </a>
             )}
           </div>
@@ -317,11 +383,38 @@ export default function SitePanel({ canManage }: { canManage: boolean }) {
             />
           </Field>
         </div>
+        {!site && (
+          <Field id="as-domain" label="Dominio propio (opcional)" hint="Si ya compraste un dominio para la academia (por ejemplo miacademia.cl), escríbelo y se conecta al crear el sitio. También puedes agregarlo después.">
+            <Input id="as-domain" value={form.domain} disabled={disabled} maxLength={253} placeholder="miacademia.cl" autoComplete="off" spellCheck={false} inputMode="url" onChange={(e) => set('domain', e.target.value)} />
+          </Field>
+        )}
+        <div className="space-y-1">
+          <p className="text-sm font-medium">Color de acento</p>
+          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Color de acento">
+            {ACADEMY_ACCENTS.map((accent) => (
+              <button
+                key={accent}
+                type="button"
+                role="radio"
+                aria-checked={form.content.accent === accent}
+                disabled={disabled}
+                onClick={() => setContent('accent', accent)}
+                className={cn('inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs', form.content.accent === accent ? 'border-primary ring-2 ring-primary/30' : 'border-border')}
+              >
+                <span className="size-3.5 rounded-full border border-border" style={{ background: ACADEMY_ACCENT_SWATCH[accent] }} aria-hidden="true" />
+                {ACADEMY_ACCENT_LABELS[accent]}
+              </button>
+            ))}
+          </div>
+        </div>
         <Field id="as-tagline" label="Frase de portada" hint="Una línea bajo el nombre.">
           <Input id="as-tagline" value={form.content.tagline} disabled={disabled} maxLength={160} onChange={(e) => setContent('tagline', e.target.value)} />
         </Field>
         <Field id="as-promo" label="Promoción vigente (opcional)" hint="Aparece destacada en la portada. Déjala vacía cuando termine.">
           <Input id="as-promo" value={form.content.promo} disabled={disabled} maxLength={300} onChange={(e) => setContent('promo', e.target.value)} />
+        </Field>
+        <Field id="as-about-title" label="Título de «Quiénes somos»" hint="Vacío = «Conócenos».">
+          <Input id="as-about-title" value={form.content.aboutTitle} disabled={disabled} maxLength={120} placeholder="Conócenos" onChange={(e) => setContent('aboutTitle', e.target.value)} />
         </Field>
         <Field id="as-intro" label="Quiénes somos" hint="Presentación de la academia.">
           <textarea id="as-intro" className={textareaClass} rows={4} maxLength={1200} value={form.content.intro} disabled={disabled} onChange={(e) => setContent('intro', e.target.value)} />
@@ -343,7 +436,28 @@ export default function SitePanel({ canManage }: { canManage: boolean }) {
         </div>
       </Section>
 
-      <Section title="Clases que ofrece" hint={`Hasta ${ACADEMY_SITE_LIMITS.disciplines}. Cada una se muestra como una tarjeta.`}>
+      <Section title="Logo (opcional)" hint="Se muestra en la barra superior y en el pie. Ideal PNG con fondo transparente, de al menos 300 px de ancho.">
+        <PhotoButton purpose="logo" label="Elegir logo" url={form.content.logoUrl} disabled={disabled} onUploaded={(url) => setContent('logoUrl', url)} onRemove={() => setContent('logoUrl', '')} />
+      </Section>
+
+      <Section title="Cifras destacadas" hint={`Aparecen al pie de la portada, por ejemplo «+15» · «certámenes». Solo cifras reales (hasta ${ACADEMY_SITE_LIMITS.highlights}). Si activas el número de alumnas, se agrega solo.`}>
+        <div className="space-y-2">
+          {form.content.highlights.map((item, i) => (
+            <div key={i} className="flex flex-wrap items-start gap-2 rounded-md border p-2">
+              <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-[8rem_1fr]">
+                <Input aria-label={`Cifra ${i + 1}`} placeholder="+15" value={item.value} disabled={disabled} maxLength={12} onChange={(e) => setContent('highlights', form.content.highlights.map((h, j) => (j === i ? { ...h, value: e.target.value } : h)))} />
+                <Input aria-label={`Texto de la cifra ${i + 1}`} placeholder="certámenes para participar" value={item.label} disabled={disabled} maxLength={40} onChange={(e) => setContent('highlights', form.content.highlights.map((h, j) => (j === i ? { ...h, label: e.target.value } : h)))} />
+              </div>
+              <RowControls index={i} count={form.content.highlights.length} disabled={disabled} onMove={(to) => setContent('highlights', move(form.content.highlights, i, to))} onRemove={() => setContent('highlights', form.content.highlights.filter((_, j) => j !== i))} />
+            </div>
+          ))}
+          <Button type="button" variant="outline" size="sm" disabled={disabled || form.content.highlights.length >= ACADEMY_SITE_LIMITS.highlights} onClick={() => setContent('highlights', [...form.content.highlights, { value: '', label: '' }])}>
+            <Plus aria-hidden="true" /> Agregar cifra
+          </Button>
+        </div>
+      </Section>
+
+      <Section title="Clases que ofrece" hint={`Hasta ${ACADEMY_SITE_LIMITS.disciplines}. Cada una se muestra como una tarjeta; con foto, la tarjeta lleva la imagen de fondo.`}>
         <div className="space-y-2">
           {form.content.disciplines.map((item, i) => (
             <div key={i} className="flex flex-wrap items-start gap-2 rounded-md border p-2">
@@ -351,10 +465,18 @@ export default function SitePanel({ canManage }: { canManage: boolean }) {
                 <Input aria-label={`Nombre de la clase ${i + 1}`} placeholder="Ej. Pasarela" value={item.title} disabled={disabled} maxLength={80} onChange={(e) => setContent('disciplines', form.content.disciplines.map((d, j) => (j === i ? { ...d, title: e.target.value } : d)))} />
                 <Input aria-label={`Descripción de la clase ${i + 1}`} placeholder="Descripción (opcional)" value={item.text} disabled={disabled} maxLength={300} onChange={(e) => setContent('disciplines', form.content.disciplines.map((d, j) => (j === i ? { ...d, text: e.target.value } : d)))} />
               </div>
+              <PhotoButton
+                purpose="card"
+                label={`Foto de la clase ${i + 1}`}
+                url={item.photoUrl}
+                disabled={disabled}
+                onUploaded={(url) => setForm((f) => (f ? { ...f, content: { ...f.content, disciplines: f.content.disciplines.map((d, j) => (j === i ? { ...d, photoUrl: url } : d)) } } : f))}
+                onRemove={() => setContent('disciplines', form.content.disciplines.map((d, j) => (j === i ? { ...d, photoUrl: '' } : d)))}
+              />
               <RowControls index={i} count={form.content.disciplines.length} disabled={disabled} onMove={(to) => setContent('disciplines', move(form.content.disciplines, i, to))} onRemove={() => setContent('disciplines', form.content.disciplines.filter((_, j) => j !== i))} />
             </div>
           ))}
-          <Button type="button" variant="outline" size="sm" disabled={disabled || form.content.disciplines.length >= ACADEMY_SITE_LIMITS.disciplines} onClick={() => setContent('disciplines', [...form.content.disciplines, { title: '', text: '' }])}>
+          <Button type="button" variant="outline" size="sm" disabled={disabled || form.content.disciplines.length >= ACADEMY_SITE_LIMITS.disciplines} onClick={() => setContent('disciplines', [...form.content.disciplines, { title: '', text: '', photoUrl: '' }])}>
             <Plus aria-hidden="true" /> Agregar clase
           </Button>
         </div>
@@ -433,8 +555,52 @@ export default function SitePanel({ canManage }: { canManage: boolean }) {
         </Button>
       </Section>
 
+      <Section title="Testimonios" hint={`Lo que dicen alumnas o apoderadas, con su autorización (hasta ${ACADEMY_SITE_LIMITS.testimonials}).`}>
+        <div className="space-y-2">
+          {form.content.testimonials.map((item, i) => (
+            <div key={i} className="flex flex-wrap items-start gap-2 rounded-md border p-2">
+              <div className="grid min-w-0 flex-1 gap-2">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Input aria-label={`Nombre del testimonio ${i + 1}`} placeholder="Nombre" value={item.name} disabled={disabled} maxLength={80} onChange={(e) => setContent('testimonials', form.content.testimonials.map((t, j) => (j === i ? { ...t, name: e.target.value } : t)))} />
+                  <Input aria-label={`Quién es (testimonio ${i + 1})`} placeholder="Alumna 2025, apoderada…" value={item.role} disabled={disabled} maxLength={80} onChange={(e) => setContent('testimonials', form.content.testimonials.map((t, j) => (j === i ? { ...t, role: e.target.value } : t)))} />
+                </div>
+                <textarea aria-label={`Texto del testimonio ${i + 1}`} className={textareaClass} rows={2} placeholder="Lo que cuenta" value={item.text} disabled={disabled} maxLength={500} onChange={(e) => setContent('testimonials', form.content.testimonials.map((t, j) => (j === i ? { ...t, text: e.target.value } : t)))} />
+              </div>
+              <PhotoButton
+                purpose="card"
+                label={`Foto del testimonio ${i + 1}`}
+                url={item.photoUrl}
+                disabled={disabled}
+                onUploaded={(url) => setForm((f) => (f ? { ...f, content: { ...f.content, testimonials: f.content.testimonials.map((t, j) => (j === i ? { ...t, photoUrl: url } : t)) } } : f))}
+                onRemove={() => setContent('testimonials', form.content.testimonials.map((t, j) => (j === i ? { ...t, photoUrl: '' } : t)))}
+              />
+              <RowControls index={i} count={form.content.testimonials.length} disabled={disabled} onMove={(to) => setContent('testimonials', move(form.content.testimonials, i, to))} onRemove={() => setContent('testimonials', form.content.testimonials.filter((_, j) => j !== i))} />
+            </div>
+          ))}
+          <Button type="button" variant="outline" size="sm" disabled={disabled || form.content.testimonials.length >= ACADEMY_SITE_LIMITS.testimonials} onClick={() => setContent('testimonials', [...form.content.testimonials, { name: '', role: '', text: '', photoUrl: '' }])}>
+            <Plus aria-hidden="true" /> Agregar testimonio
+          </Button>
+        </div>
+      </Section>
+
       <Section title="Nuestra historia">
         <textarea id="as-history" aria-label="Historia de la academia" className={textareaClass} rows={6} maxLength={4000} value={form.content.history} disabled={disabled} onChange={(e) => setContent('history', e.target.value)} />
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Hitos (opcional)</p>
+          <p className="text-xs text-muted-foreground">{`Se muestran como una línea de tiempo bajo la historia (hasta ${ACADEMY_SITE_LIMITS.milestones}).`}</p>
+          {form.content.milestones.map((item, i) => (
+            <div key={i} className="flex flex-wrap items-start gap-2 rounded-md border p-2">
+              <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-[7rem_1fr]">
+                <Input aria-label={`Año del hito ${i + 1}`} placeholder="2018" value={item.year} disabled={disabled} maxLength={12} onChange={(e) => setContent('milestones', form.content.milestones.map((m, j) => (j === i ? { ...m, year: e.target.value } : m)))} />
+                <Input aria-label={`Qué pasó (hito ${i + 1})`} placeholder="Primera generación de alumnas" value={item.text} disabled={disabled} maxLength={200} onChange={(e) => setContent('milestones', form.content.milestones.map((m, j) => (j === i ? { ...m, text: e.target.value } : m)))} />
+              </div>
+              <RowControls index={i} count={form.content.milestones.length} disabled={disabled} onMove={(to) => setContent('milestones', move(form.content.milestones, i, to))} onRemove={() => setContent('milestones', form.content.milestones.filter((_, j) => j !== i))} />
+            </div>
+          ))}
+          <Button type="button" variant="outline" size="sm" disabled={disabled || form.content.milestones.length >= ACADEMY_SITE_LIMITS.milestones} onClick={() => setContent('milestones', [...form.content.milestones, { year: '', text: '' }])}>
+            <Plus aria-hidden="true" /> Agregar hito
+          </Button>
+        </div>
       </Section>
 
       <Section title="Dirección de la academia (opcional)" hint="Aparece junto a la historia.">
@@ -500,6 +666,19 @@ export default function SitePanel({ canManage }: { canManage: boolean }) {
           </Field>
         </div>
       </Section>
+
+      {site && (
+        <DomainPanel
+          idPrefix="academy-site"
+          canPublish={canManage}
+          initialDomain={site.liveDomain}
+          platformUrl={typeof window === 'undefined' ? publicPath : `${window.location.origin}${publicPath}`}
+          example="miacademia.cl"
+          load={() => getAcademyDomainAction()}
+          save={(domain) => setAcademyDomainAction({ domain })}
+          remove={() => removeAcademyDomainAction()}
+        />
+      )}
 
       {canManage && (
         <div className="flex justify-end">

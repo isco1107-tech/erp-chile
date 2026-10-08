@@ -5,7 +5,7 @@ import type { PublicAcademySite } from '@/modules/academy/services/academy-site.
 /** Metadatos para buscadores y redes: solo hechos publicados en la página. */
 export function academySiteMetadata(site: PublicAcademySite): Metadata {
   const description = site.tagline.trim() || site.intro.trim().slice(0, 160) || `${site.name} — academia`;
-  const canonical = `/academia/${site.slug}`;
+  const canonical = site.customDomain ? `https://${site.customDomain}` : `/academia/${site.slug}`;
   const images = site.heroImageUrl ? [site.heroImageUrl] : undefined;
   return {
     title: { absolute: site.name },

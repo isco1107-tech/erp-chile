@@ -283,6 +283,7 @@ export const GESTION_SECTIONS: ManualSection[] = [
           'Paso 1: elige el tipo (Página de captación, Sitio de empresa, Portafolio, Catálogo, Evento, Profesional independiente o En blanco) y revisa las secciones esenciales que sugiere.',
           'Paso 2: elige "Guiado" (recomendado, por secciones con ejemplos) u "HTML propio" (tu HTML y CSS; sin JavaScript ni formularios).',
           'Paso 3: escribe el nombre, la dirección pública (/web/tu-direccion, se autogenera) y, si corresponde, asocia un cliente.',
+          'Si ya compraste el dominio, escríbelo en "¿Ya tienes un dominio comprado?" (ej. minegocio.cl): se conecta al crear el sitio y en Ajustes verás los registros DNS a crear. Si aún no lo compras, déjalo vacío.',
         ],
       },
       {
@@ -339,7 +340,7 @@ export const GESTION_SECTIONS: ManualSection[] = [
         steps: [
           'En Ajustes escribe tu dominio (ej. minegocio.cl).',
           'Crea en tu proveedor de DNS los registros que te muestra el sistema y pulsa "Revisar estado"; puede tardar hasta 24 horas.',
-          'Un dominio solo puede usarlo un sitio o certamen a la vez.',
+          'Un dominio solo puede usarlo un sitio, certamen o academia a la vez.',
         ],
       },
       {

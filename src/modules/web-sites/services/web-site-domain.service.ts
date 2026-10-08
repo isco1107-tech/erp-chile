@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { captureException } from '@/lib/observability';
 import { isUniqueConstraintError } from '@/lib/prisma-errors';
 import { customDomainProblem, isApexDomain, normalizeDomain } from '@/lib/hosting/custom-domain';
+import { claimDomain, domainOwner } from '@/lib/hosting/domain-lifecycle';
 import { DEFAULT_APEX_IPV4, addProjectDomain, defaultDnsRecords, getDomainStatus, isVercelDomainsConfigured, removeProjectDomain, type DnsRecord } from '@/lib/hosting/vercel-domains';
 
 /**
@@ -48,13 +49,6 @@ async function dnsPointsToVercel(domain: string, apex: boolean): Promise<boolean
   }
 }
 
-async function domainTaken(domain: string, exceptSiteId: string): Promise<boolean> {
-  const [site, project] = await Promise.all([
-    prisma.webSite.findFirst({ where: { customDomain: domain, NOT: { id: exceptSiteId } }, select: { id: true } }),
-    prisma.project.findFirst({ where: { customDomain: domain }, select: { id: true } }),
-  ]);
-  return Boolean(site || project);
-}
 
 export async function refreshWebSiteDomain(companyId: string, siteId: string): Promise<WebSiteDomainView> {
   const site = await findSite(companyId, siteId);
@@ -99,6 +93,8 @@ export async function refreshWebSiteDomain(companyId: string, siteId: string): P
 
 async function detach(companyId: string, domain: string): Promise<void> {
   if (!isVercelDomainsConfigured()) return;
+  // Si otro sitio lo sigue usando (dato viejo, carrera), soltarlo dejaría caído ese sitio.
+  if ((await domainOwner(domain)) !== null) return;
   const jobs = [removeProjectDomain(domain), ...(isApexDomain(domain) ? [removeProjectDomain(`www.${domain}`)] : [])];
   for (const result of await Promise.allSettled(jobs)) {
     if (result.status === 'rejected') captureException(result.reason, { module: 'sitios-web', companyId, extra: { reason: 'web-site-domain-detach', domain } });
@@ -112,9 +108,12 @@ export async function setWebSiteDomain(companyId: string, siteId: string, rawDom
   if (problem) throw new WebSiteDomainError(problem);
 
   if (site.customDomain !== domain) {
-    if (await domainTaken(domain, siteId)) throw new WebSiteDomainError('Ese dominio ya lo usa otro sitio o certamen de la plataforma');
     try {
-      await prisma.webSite.updateMany({ where: { id: siteId, companyId }, data: { customDomain: domain, customDomainVerifiedAt: null } });
+      // Un dominio es de un solo destino en toda la plataforma: revisar y guardar sin carreras (`claimDomain`).
+      const claimed = await claimDomain(domain, { kind: 'webSite', id: siteId }, (tx) =>
+        tx.webSite.updateMany({ where: { id: siteId, companyId }, data: { customDomain: domain, customDomainVerifiedAt: null } })
+      );
+      if (!claimed) throw new WebSiteDomainError('Ese dominio ya lo usa otro sitio o certamen de la plataforma');
     } catch (error) {
       if (isUniqueConstraintError(error)) throw new WebSiteDomainError('Ese dominio ya lo usa otro sitio o certamen de la plataforma');
       throw error;

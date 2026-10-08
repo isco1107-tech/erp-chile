@@ -20,7 +20,16 @@ export const ACADEMY_SITE_LIMITS = {
   benefits: 10,
   gallery: 12,
   faq: 10,
+  testimonials: 8,
+  milestones: 12,
+  highlights: 4,
 } as const;
+
+/** Colores de acento del sitio (lista cerrada; un valor desconocido cae al dorado). */
+export const ACADEMY_ACCENTS = ['gold', 'rose', 'violet', 'emerald', 'ruby'] as const;
+export type AcademyAccent = (typeof ACADEMY_ACCENTS)[number];
+export const ACADEMY_ACCENT_LABELS: Record<AcademyAccent, string> = { gold: 'Dorado', rose: 'Rosa', violet: 'Violeta', emerald: 'Esmeralda', ruby: 'Rubí' };
+export const ACADEMY_ACCENT_SWATCH: Record<AcademyAccent, string> = { gold: '#dbc076', rose: '#e8a4b4', violet: '#b9a3ec', emerald: '#8fcfae', ruby: '#d9667a' };
 
 /** Carpeta de las fotos del sitio en el almacenamiento; el servidor rechaza cualquier otra. */
 export function academySiteImagePrefix(companyId: string): string {
@@ -33,14 +42,16 @@ const imageUrl = z.string().trim().max(500).default('');
 export const academySiteContentSchema = z.object({
   /** Frase corta bajo el nombre, en la portada. */
   tagline: text(160),
+  /** Título de «Quiénes somos»; vacío = «Conócenos». */
+  aboutTitle: text(120),
   /** Texto de presentación («quiénes somos»). */
   intro: text(1200),
   /** Historia de la academia. */
   history: text(4000),
   /** «Cómo funciona»: pasos en orden. */
   steps: z.array(z.object({ title: text(80), text: text(400) })).max(ACADEMY_SITE_LIMITS.steps).default([]),
-  /** Clases o disciplinas que ofrece. */
-  disciplines: z.array(z.object({ title: text(80), text: text(300) })).max(ACADEMY_SITE_LIMITS.disciplines).default([]),
+  /** Clases o disciplinas que ofrece; con foto se muestran como tarjeta con imagen. */
+  disciplines: z.array(z.object({ title: text(80), text: text(300), photoUrl: imageUrl })).max(ACADEMY_SITE_LIMITS.disciplines).default([]),
   /** Lo que recibe una alumna (título, desfiles, spots…). */
   benefits: z.array(text(200)).max(ACADEMY_SITE_LIMITS.benefits).default([]),
   /** Mensualidad en CLP entero; vacío = no se publica el precio. */
@@ -59,6 +70,16 @@ export const academySiteContentSchema = z.object({
   showGroups: z.boolean().default(true),
   /** Mostrar «N alumnas» (cuenta real de alumnas activas). */
   showStudentCount: z.boolean().default(false),
+  /** Color de acento del sitio. */
+  accent: z.enum(ACADEMY_ACCENTS).default('gold').catch('gold'),
+  /** Logo (opcional) para la barra superior y el pie. */
+  logoUrl: imageUrl,
+  /** Cifras destacadas que escribe la academia («+15 · certámenes»). Nunca se inventan. */
+  highlights: z.array(z.object({ value: text(12), label: text(40) })).max(ACADEMY_SITE_LIMITS.highlights).default([]),
+  /** Testimonios de alumnas o apoderadas, escritos por la academia con su autorización. */
+  testimonials: z.array(z.object({ name: text(80), role: text(80), text: text(500), photoUrl: imageUrl })).max(ACADEMY_SITE_LIMITS.testimonials).default([]),
+  /** Hitos de la historia («2018 · Primera pasarela»). */
+  milestones: z.array(z.object({ year: text(12), text: text(200) })).max(ACADEMY_SITE_LIMITS.milestones).default([]),
 });
 export type AcademySiteContent = z.infer<typeof academySiteContentSchema>;
 
@@ -79,10 +100,17 @@ export function parseAcademyContent(raw: unknown): AcademySiteContent {
  */
 export function starterAcademyContent(): AcademySiteContent {
   return academySiteContentSchema.parse({
-    disciplines: ['Pasarela', 'Automaquillaje', 'Fotopose', 'Comunicación audiovisual', 'Locución y animación', 'Protocolo y etiqueta', 'Danza', 'Canto'].map((title) => ({ title, text: '' })),
+    disciplines: ['Pasarela', 'Automaquillaje', 'Fotopose', 'Comunicación audiovisual', 'Locución y animación', 'Protocolo y etiqueta', 'Danza', 'Canto'].map((title) => ({ title, text: '', photoUrl: '' })),
+    aboutTitle: 'Más que una academia, una familia',
+    highlights: [
+      { value: '8', label: 'disciplinas' },
+      { value: '+15', label: 'certámenes para participar' },
+      { value: '1 año', label: 'para tu título de modelo' },
+    ],
     benefits: [
       'Con un año académico, la alumna es licenciada con título de modelo profesional.',
       'Ser parte de la academia permite participar sin costo en desfiles y spots publicitarios.',
+      'Preparación para participar en los más de 15 certámenes de belleza que dirige nuestra directora, como Miss Universo Temuco.',
     ],
     monthlyFee: 45000,
     steps: [
@@ -122,7 +150,15 @@ export type AcademySiteInput = z.infer<typeof academySiteInputSchema>;
 
 /** Todas las URLs de fotos del contenido, en el orden en que aparecen. */
 export function academySiteImageUrls(site: { heroImageUrl: string | null; content: AcademySiteContent }): string[] {
-  return [site.heroImageUrl, ...site.content.gallery.map((g) => g.url), site.content.director.photoUrl].filter((url): url is string => Boolean(url));
+  const { content } = site;
+  return [
+    site.heroImageUrl,
+    content.logoUrl,
+    ...content.gallery.map((g) => g.url),
+    ...content.disciplines.map((d) => d.photoUrl),
+    ...content.testimonials.map((t) => t.photoUrl),
+    content.director.photoUrl,
+  ].filter((url): url is string => Boolean(url));
 }
 
 export interface ReadinessItem {
@@ -161,6 +197,7 @@ export function academySiteReadiness(site: ReadinessInput): ReadinessItem[] {
     { id: 'history', label: 'La historia de la academia', blocking: false, done: Boolean(content.history.trim()) },
     { id: 'steps', label: 'Cómo funciona (pasos)', blocking: false, done: content.steps.some((s) => s.title.trim()) },
     { id: 'gallery', label: 'Fotos para el carrusel', blocking: false, done: content.gallery.some((g) => g.url) },
+    { id: 'testimonials', label: 'Testimonios de alumnas o apoderadas', blocking: false, done: content.testimonials.some((t) => t.text.trim()) },
     { id: 'enrollment', label: 'Un link de inscripción (se crea solo al publicar)', blocking: false, done: site.hasEnrollmentLink },
     { id: 'groups', label: 'Grupos con horario en la academia (se muestran en el sitio)', blocking: false, done: !content.showGroups || site.activeGroups > 0 },
   ];

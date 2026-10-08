@@ -6001,6 +6001,10 @@ model AcademySite {
   /// Una o varias cuentas separadas por coma, sin «@».
   instagramHandle String?
   address         String?
+  /// Dominio propio (ej. academiacr.cl), único en toda la plataforma junto a
+  /// los de certámenes y sitios web (`src/lib/hosting/domain-lifecycle.ts`).
+  customDomain           String?   @unique
+  customDomainVerifiedAt DateTime?
   content         Json      @default("{}")
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt

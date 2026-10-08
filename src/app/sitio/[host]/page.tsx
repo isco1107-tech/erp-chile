@@ -7,6 +7,8 @@ import { domainFromHost, platformBaseUrl } from '@/lib/hosting/custom-domain';
 import { findPublicPage, WebSiteDocument, webSiteMetadata } from '@/components/web-sites/WebSiteDocument';
 import { getPageantSlugByDomain, getPublicPageantSite, isRegisteredCustomDomain } from '@/modules/projects/services/public-site.service';
 import { getPublicWebSiteByDomain } from '@/modules/web-sites/services/web-sites.service';
+import { AcademySiteDocument, academySiteMetadata } from '@/components/public/academy/AcademySiteDocument';
+import { getAcademySlugByDomain, getPublicAcademySite } from '@/modules/academy/services/academy-site.service';
 
 /**
  * Micrositio servido en la raíz de un dominio propio (ej.
@@ -26,7 +28,11 @@ const loadSite = cache(async (domain: string, requestDomain: string) => {
   // Un dominio es de un solo destino (certamen o sitio web): si no es de un
   // certamen, se busca entre los sitios web publicados.
   const web = await getPublicWebSiteByDomain(domain, requestDomain === domain);
-  return web ? { kind: 'web' as const, site: web } : null;
+  if (web) return { kind: 'web' as const, site: web };
+  // …y por último entre los sitios de academia.
+  const academySlug = await getAcademySlugByDomain(domain, requestDomain === domain);
+  const academy = academySlug ? await getPublicAcademySite(academySlug) : null;
+  return academy ? { kind: 'academy' as const, site: academy } : null;
 });
 
 async function resolveDomain(params: Promise<{ host: string }>): Promise<{ domain: string; requestDomain: string }> {
@@ -47,7 +53,9 @@ export async function generateMetadata({ params }: { params: Promise<{ host: str
   const { domain, requestDomain } = await resolveDomain(params);
   const found = await loadSite(domain, requestDomain);
   if (!found) return { robots: { index: false } };
-  return found.kind === 'pageant' ? pageantSiteMetadata(found.site) : webSiteMetadata(found.site, `https://${domain}`, findPublicPage(found.site));
+  if (found.kind === 'pageant') return pageantSiteMetadata(found.site);
+  if (found.kind === 'academy') return academySiteMetadata(found.site);
+  return webSiteMetadata(found.site, `https://${domain}`, findPublicPage(found.site));
 }
 
 export default async function CustomDomainSitePage({ params }: { params: Promise<{ host: string }> }) {
@@ -61,5 +69,7 @@ export default async function CustomDomainSitePage({ params }: { params: Promise
     redirect(platformBaseUrl());
   }
   if (requestDomain !== domain) redirect(`https://${domain}`);
-  return found.kind === 'pageant' ? <PageantSiteDocument site={found.site} /> : <WebSiteDocument site={found.site} basePath="" siteUrl={`https://${domain}`} />;
+  if (found.kind === 'pageant') return <PageantSiteDocument site={found.site} />;
+  if (found.kind === 'academy') return <AcademySiteDocument site={found.site} />;
+  return <WebSiteDocument site={found.site} basePath="" siteUrl={`https://${domain}`} />;
 }

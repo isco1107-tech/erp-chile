@@ -8,6 +8,7 @@ import {
   academySiteReadiness,
   parseAcademyContent,
   publishBlockers,
+  type AcademyAccent,
   type AcademySiteContent,
   type AcademySiteInput,
   type ReadinessItem,
@@ -36,6 +37,8 @@ export interface AcademySiteEditorView {
   /** Para el formulario: «@a, @b». */
   instagramHandle: string;
   address: string | null;
+  /** Dominio propio ya verificado: el sitio se ve ahí. */
+  liveDomain: string | null;
   content: AcademySiteContent;
 }
 
@@ -61,6 +64,8 @@ function toEditorView(row: {
   contactEmail: string | null;
   instagramHandle: string | null;
   address: string | null;
+  customDomain: string | null;
+  customDomainVerifiedAt: Date | null;
   content: unknown;
 }): AcademySiteEditorView {
   return {
@@ -74,6 +79,7 @@ function toEditorView(row: {
     contactEmail: row.contactEmail,
     instagramHandle: formatInstagramHandlesForForm(row.instagramHandle),
     address: row.address,
+    liveDomain: row.customDomainVerifiedAt ? row.customDomain : null,
     content: parseAcademyContent(row.content),
   };
 }
@@ -160,11 +166,18 @@ export interface PublicAcademySite {
   /** Razón social de la empresa, para el pie. */
   organizer: string;
   tagline: string;
+  aboutTitle: string;
   intro: string;
   history: string;
   heroImageUrl: string | null;
+  accent: AcademyAccent;
+  logoUrl: string | null;
+  /** Cifras que escribe la academia; vacío si no escribió ninguna. */
+  highlights: Array<{ value: string; label: string }>;
   steps: Array<{ title: string; text: string }>;
-  disciplines: Array<{ title: string; text: string }>;
+  disciplines: Array<{ title: string; text: string; photoUrl: string | null }>;
+  testimonials: Array<{ name: string; role: string; text: string; photoUrl: string | null }>;
+  milestones: Array<{ year: string; text: string }>;
   benefits: string[];
   monthlyFee: number | null;
   feeNote: string;
@@ -184,6 +197,8 @@ export interface PublicAcademySite {
   };
   /** Ruta del formulario de inscripción; `null` si la academia aún no generó su link. */
   enrollmentHref: string | null;
+  /** Dominio propio YA verificado (canónico del sitio); `null` si se ve solo en `/academia/{slug}`. */
+  customDomain: string | null;
 }
 
 /** El sitio se ve solo si está publicado, la empresa está operando y tiene el módulo; si no, es como si no existiera. */
@@ -201,6 +216,8 @@ export async function getPublicAcademySite(slug: string): Promise<PublicAcademyS
       instagramHandle: true,
       address: true,
       content: true,
+      customDomain: true,
+      customDomainVerifiedAt: true,
       company: { select: { businessName: true, status: true, features: { select: { hasAcademy: true } } } },
     },
   });
@@ -224,11 +241,17 @@ export async function getPublicAcademySite(slug: string): Promise<PublicAcademyS
     name: site.name,
     organizer: site.company.businessName,
     tagline: content.tagline,
+    aboutTitle: content.aboutTitle.trim() || 'Conócenos',
     intro: content.intro,
     history: content.history,
     heroImageUrl: site.heroImageUrl,
+    accent: content.accent,
+    logoUrl: content.logoUrl || null,
+    highlights: content.highlights.filter((h) => h.value.trim() && h.label.trim()),
     steps: content.steps.filter((s) => s.title.trim()),
-    disciplines: content.disciplines.filter((d) => d.title.trim()),
+    disciplines: content.disciplines.filter((d) => d.title.trim()).map((d) => ({ title: d.title, text: d.text, photoUrl: d.photoUrl || null })),
+    testimonials: content.testimonials.filter((t) => t.text.trim() && t.name.trim()).map((t) => ({ name: t.name, role: t.role, text: t.text, photoUrl: t.photoUrl || null })),
+    milestones: content.milestones.filter((m) => m.year.trim() && m.text.trim()),
     benefits: content.benefits.filter((b) => b.trim()),
     monthlyFee: content.monthlyFee,
     feeNote: content.feeNote,
@@ -245,5 +268,22 @@ export async function getPublicAcademySite(slug: string): Promise<PublicAcademyS
       address: site.address,
     },
     enrollmentHref: token ? `/academia/inscripcion/${token}` : null,
+    customDomain: site.customDomainVerifiedAt ? site.customDomain : null,
   };
+}
+
+/**
+ * Slug del sitio de academia publicado bajo un dominio propio (para `/sitio/[host]`).
+ * `reachedViaDomain`: la petición llegó por ese mismo host, prueba de que los
+ * DNS y el certificado ya funcionan; un dominio aún sin verificar se marca
+ * verificado en el acto. Sin esa prueba, solo responde por uno ya verificado.
+ */
+export async function getAcademySlugByDomain(domain: string, reachedViaDomain = false): Promise<string | null> {
+  const site = await prisma.academySite.findUnique({ where: { customDomain: domain }, select: { id: true, companyId: true, slug: true, customDomainVerifiedAt: true } });
+  if (!site) return null;
+  if (!site.customDomainVerifiedAt) {
+    if (!reachedViaDomain) return null;
+    await prisma.academySite.updateMany({ where: { id: site.id, companyId: site.companyId, customDomain: domain, customDomainVerifiedAt: null }, data: { customDomainVerifiedAt: new Date() } });
+  }
+  return site.slug;
 }

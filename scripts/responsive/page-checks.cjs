@@ -30,7 +30,7 @@ module.exports = function collectProblems(rootSelector) {
     seen.add(node);
     // Lo decorativo (aria-hidden) también se ve: solo se ignora lo oculto de verdad y la cinta que se desplaza a propósito.
     // `data-truncate` marca los recortes con puntos suspensivos que son diseño (el texto completo está en otro lado).
-    if (el.closest('[hidden], script, style, .pgs-sr, .acs-sr, .pgs-ribbon, [data-truncate]')) continue;
+    if (el.closest('[hidden], script, style, .pgs-sr, .acs-sr, .pgs-ribbon, .acs-ribbon, [data-truncate]')) continue;
     const cs = getComputedStyle(el);
     if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) === 0) continue;
 
@@ -114,14 +114,28 @@ module.exports = function collectProblems(rootSelector) {
         break;
       }
     }
-    const r = (scroller || img).getBoundingClientRect();
+    // Lo que un contenedor con overflow hidden/clip recorta no se ve (p. ej. el zoom lento de una portada):
+    // se mide la parte visible, recortada por esos contenedores.
+    const raw = (scroller || img).getBoundingClientRect();
+    let left = raw.left;
+    let right = raw.right;
+    // El propio contenedor raíz (overflow-x: clip) no cuenta: una imagen recortada por él SÍ se sale de la pantalla.
+    for (let p = (scroller || img).parentElement; p && p !== root; p = p.parentElement) {
+      const o = getComputedStyle(p).overflowX;
+      if (o === 'hidden' || o === 'clip') {
+        const pr = p.getBoundingClientRect();
+        left = Math.max(left, pr.left);
+        right = Math.min(right, pr.right);
+      }
+    }
+    const r = { width: Math.max(0, right - left), left, right };
     if (r.width > 0 && (r.left < -1 || r.right > vw + 1)) {
       problems.push({ kind: 'imagen-fuera-de-pantalla', detail: `${describe(scroller || img)} va de ${Math.round(r.left)} a ${Math.round(r.right)}px (pantalla ${vw}px)` });
     }
   }
 
   // Cinta que gira: un grupo tiene que cubrir la pantalla completa, o al desplazarse queda vacío a la derecha.
-  const ribbonGroup = root.querySelector('.pgs-ribbon-group');
+  const ribbonGroup = root.querySelector('.pgs-ribbon-group, .acs-ribbon-group');
   if (ribbonGroup && ribbonGroup.getBoundingClientRect().width < vw) {
     problems.push({ kind: 'cinta-corta', detail: `La cinta mide ${Math.round(ribbonGroup.getBoundingClientRect().width)}px y la pantalla ${vw}px: al girar quedaría vacía` });
   }

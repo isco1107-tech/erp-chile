@@ -116,6 +116,8 @@ export function domainFromHost(host: string | null): string {
 const CUSTOM_DOMAIN_PASSTHROUGH = [
   '/_next',
   '/certamen/',
+  // Formulario de inscripción de la academia: el botón «Inscríbete» de su sitio enlaza acá.
+  '/academia/inscripcion/',
   '/register',
   '/tickets',
   '/votar',
