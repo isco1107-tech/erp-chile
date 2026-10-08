@@ -18,7 +18,7 @@ const mockPrisma = {
   $queryRaw: jest.fn(),
 };
 jest.mock('@/lib/prisma', () => ({ prisma: mockPrisma }));
-jest.mock('@/lib/observability', () => ({ captureException: jest.fn() }));
+jest.mock('@/lib/observability', () => ({ captureException: jest.fn(), captureMessage: jest.fn() }));
 jest.mock('@/lib/hosting/vercel-domains', () => ({
   DEFAULT_APEX_IPV4: '76.76.21.21',
   isVercelDomainsConfigured: () => false,
@@ -27,16 +27,23 @@ jest.mock('@/lib/hosting/vercel-domains', () => ({
   getDomainStatus: jest.fn(),
   defaultDnsRecords: (domain: string) => [{ type: 'A', name: '@', value: '76.76.21.21', domain }],
 }));
+jest.mock('@/lib/security/outbound-url', () => ({ assertResolvesToPublicAddress: jest.fn().mockResolvedValue(undefined) }));
 jest.mock('node:dns/promises', () => ({ resolve4: jest.fn().mockRejectedValue(new Error('NXDOMAIN')), resolveCname: jest.fn().mockRejectedValue(new Error('NXDOMAIN')) }));
 
 import { customDomainRoute } from '@/lib/hosting/custom-domain';
+import { captureMessage } from '@/lib/observability';
 import { domainOwner, domainTakenByOther } from '@/lib/hosting/domain-lifecycle';
 import { removeAcademyDomain, setAcademyDomain } from '@/modules/academy/services/academy-domain.service';
 import { getAcademySlugByDomain, getPublicAcademySite } from '@/modules/academy/services/academy-site.service';
 import { emptyAcademyContent } from '@/lib/academy/site';
 
+const fetchMock = jest.fn();
+
 beforeEach(() => {
   jest.clearAllMocks();
+  // Sin red en los tests: el dominio todavía no muestra la plataforma.
+  fetchMock.mockReset().mockRejectedValue(new Error('getaddrinfo ENOTFOUND'));
+  global.fetch = fetchMock as unknown as typeof fetch;
   mockPrisma.$transaction.mockImplementation((fn: (tx: unknown) => unknown) => fn(mockPrisma));
   mockPrisma.project.findUnique.mockResolvedValue(null);
   mockPrisma.webSite.findUnique.mockResolvedValue(null);
@@ -87,7 +94,10 @@ describe('dominio de la academia (servicio)', () => {
     expect(mockPrisma.academySite.updateMany).toHaveBeenCalledWith({ where: { id: 's1', companyId: 'company-a' }, data: { customDomain: 'miacademia.cl', customDomainVerifiedAt: null } });
     expect(view.domain).toBe('miacademia.cl');
     expect(view.verifiedAt).toBeNull();
+    expect(view.serving).toBe(false);
     expect(view.records.length).toBeGreaterThan(0);
+    // Sin conexión automática con Vercel queda constancia para el administrador de la plataforma.
+    expect(captureMessage).toHaveBeenCalledWith(expect.stringContaining('sin conexión automática con Vercel'), 'warn', expect.objectContaining({ extra: { domain: 'miacademia.cl' } }));
   });
 
   it('revisa y guarda bajo un candado por dominio, en una sola transacción (sin carreras entre empresas)', async () => {

@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useConfirm } from '@/components/ui/confirm-provider';
 import type { DnsRecord } from '@/lib/hosting/vercel-domains';
+import { DomainSetupNotice } from './DomainSetupNotice';
 
 /**
  * Panel «Dominio propio», común a todo sitio público de la plataforma (sitios
@@ -23,6 +24,7 @@ export interface DomainPanelView {
   automatic: boolean;
   records: DnsRecord[];
   dnsOk: boolean;
+  serving: boolean;
   statusError: string | null;
 }
 
@@ -247,10 +249,12 @@ export default function DomainPanel({ idPrefix, canPublish, initialDomain, platf
             </div>
           ) : view ? (
             <div className="space-y-2">
-              <p className="text-sm">
-                Entra al panel donde compraste el dominio y crea {view.records.length === 1 ? 'este registro DNS' : 'estos registros DNS'}:
-              </p>
-              {view.records.length > 0 ? (
+              {view.records.length > 0 && (
+                <p className="text-sm">
+                  Entra al panel donde compraste el dominio y crea {view.records.length === 1 ? 'este registro DNS' : 'estos registros DNS'}:
+                </p>
+              )}
+              {view.records.length > 0 && (
                 <div className="overflow-x-auto rounded-md border border-border">
                   <table className="w-full text-left text-sm">
                     <caption className="sr-only">Registros DNS que debes crear para {domain}</caption>
@@ -276,17 +280,11 @@ export default function DomainPanel({ idPrefix, canPublish, initialDomain, platf
                     </tbody>
                   </table>
                 </div>
-              ) : (
-                <p className="text-xs text-muted-foreground">Los DNS ya apuntan bien; falta que el servidor confirme el dominio. Revisa el estado en unos minutos.</p>
               )}
               <p className="text-xs text-muted-foreground">
                 Si el panel no acepta &quot;@&quot;, deja el nombre vacío. Los cambios de DNS pueden tardar desde minutos hasta 24 horas; el sitio se conecta solo apenas el dominio responde.
               </p>
-              {!view.automatic && (
-                <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-                  El administrador de la plataforma también debe agregar {domain} en Vercel (Project → Settings → Domains), porque la conexión automática no está configurada.
-                </p>
-              )}
+              <DomainSetupNotice domain={domain} automatic={view.automatic} dnsOk={view.dnsOk} serving={view.serving} />
               <p className="text-xs text-muted-foreground">
                 Mientras tanto, tu sitio publicado se ve en <span className="font-mono break-all">{platformUrl}</span>.
               </p>

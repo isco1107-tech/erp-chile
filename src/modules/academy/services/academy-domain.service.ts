@@ -37,7 +37,7 @@ function report(companyId: string, reason: string, domain: string, errors: unkno
 export async function refreshAcademyDomain(companyId: string): Promise<DomainView> {
   const site = await findSite(companyId);
   const automatic = isDomainAutomatic();
-  if (!site.customDomain) return { domain: null, verifiedAt: null, automatic, records: [], dnsOk: false, statusError: null };
+  if (!site.customDomain) return { domain: null, verifiedAt: null, automatic, records: [], dnsOk: false, serving: false, statusError: null };
 
   const domain = site.customDomain;
   let status: Awaited<ReturnType<typeof checkDomainStatus>> | null = null;
@@ -61,6 +61,7 @@ export async function refreshAcademyDomain(companyId: string): Promise<DomainVie
     automatic,
     records: status?.records ?? [],
     dnsOk: status?.dnsOk ?? false,
+    serving: status?.serving ?? false,
     statusError: status ? null : DOMAIN_STATUS_ERROR,
   };
 }

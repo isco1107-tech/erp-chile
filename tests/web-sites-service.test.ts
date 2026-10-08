@@ -28,6 +28,8 @@ jest.mock('@/lib/hosting/vercel-domains', () => ({
   getDomainStatus: jest.fn(),
 }));
 jest.mock('node:dns/promises', () => ({ resolve4: jest.fn(), resolveCname: jest.fn() }));
+// La prueba real de un dominio pide https://dominio/api/hosting/ping: sin red en los tests, la IP se da por pública y `fetch` se simula.
+jest.mock('@/lib/security/outbound-url', () => ({ ...jest.requireActual('@/lib/security/outbound-url'), assertResolvesToPublicAddress: jest.fn().mockResolvedValue(undefined) }));
 jest.mock('jose', () => ({ jwtVerify: jest.fn(), SignJWT: jest.fn() }));
 jest.mock('@/lib/auth/audit', () => ({ createAuditLog: jest.fn() }));
 jest.mock('@/lib/storage/blob', () => ({ del: jest.fn() }));
@@ -1337,7 +1339,11 @@ describe('setWebSiteDomain: dominio propio', () => {
     jest.spyOn(prisma, '$queryRaw').mockResolvedValue([] as never);
   }
 
+  // Por defecto el dominio todavía no responde (no está servido por la plataforma).
+  const fetchMock = jest.fn();
   beforeEach(() => {
+    fetchMock.mockReset().mockRejectedValue(new Error('getaddrinfo ENOTFOUND'));
+    global.fetch = fetchMock as unknown as typeof fetch;
     jest.mocked(resolve4).mockRejectedValue(Object.assign(new Error('queryA ENOTFOUND'), { code: 'ENOTFOUND' }));
     jest.mocked(resolveCname).mockRejectedValue(Object.assign(new Error('queryCname ENODATA'), { code: 'ENODATA' }));
   });
@@ -1424,15 +1430,33 @@ describe('setWebSiteDomain: dominio propio', () => {
     await expect(setWebSiteDomain(COMPANY, SITE, 'minegocio.cl')).rejects.toThrow('Ese dominio ya lo usa otro sitio o certamen de la plataforma');
   });
 
-  it('cuando el DNS ya apunta a Vercel, marca el dominio verificado con updateMany acotado a la empresa', async () => {
-    const site = { ...OWN_SITE, customDomain: 'minegocio.cl' };
+  it('con el DNS bien pero sin que el dominio muestre la plataforma (falta agregarlo en Vercel), NO lo da por verificado', async () => {
+    // Era el error real: se verificaba solo por el DNS y el sitio redirigía a un dominio que Vercel no servía.
+    const site = { ...OWN_SITE, customDomain: 'minegocio.cl', customDomainVerifiedAt: null };
     stubSite(site);
     db.webSite.updateMany.mockResolvedValue({ count: 1 });
     jest.mocked(resolve4).mockResolvedValue(['76.76.21.21']);
+    fetchMock.mockResolvedValue(new Response('The deployment could not be found on Vercel.', { status: 404 }));
 
     const view = await refreshWebSiteDomain(COMPANY, SITE);
 
     expect(view.dnsOk).toBe(true);
+    expect(view.serving).toBe(false);
+    expect(view.verifiedAt).toBeNull();
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe('https://minegocio.cl/api/hosting/ping');
+  });
+
+  it('cuando el dominio ya muestra la plataforma, lo marca verificado con updateMany acotado a la empresa', async () => {
+    const site = { ...OWN_SITE, customDomain: 'minegocio.cl' };
+    stubSite(site);
+    db.webSite.updateMany.mockResolvedValue({ count: 1 });
+    jest.mocked(resolve4).mockResolvedValue(['76.76.21.21']);
+    fetchMock.mockResolvedValue(Response.json({ app: 'aether-erp' }));
+
+    const view = await refreshWebSiteDomain(COMPANY, SITE);
+
+    expect(view.dnsOk).toBe(true);
+    expect(view.serving).toBe(true);
     expect(view.verifiedAt).not.toBeNull();
     expect(view.records).toEqual([]);
     const { where, data } = argsOf(db.webSite.updateMany);
