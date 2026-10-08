@@ -103,7 +103,8 @@ const MODEL_METHODS = {
   webSiteAsset: ['findFirst', 'findMany', 'create', 'count', 'aggregate', 'updateMany', 'deleteMany'],
   webSiteMessage: ['findMany', 'create', 'count', 'updateMany', 'deleteMany', 'groupBy'],
   contact: ['findFirst'],
-  project: ['findFirst'],
+  project: ['findFirst', 'findUnique'],
+  academySite: ['findUnique'],
   company: ['findFirst'],
 } as const;
 
@@ -113,6 +114,7 @@ interface Db {
   webSiteMessage: Mocks;
   contact: Mocks;
   project: Mocks;
+  academySite: Mocks;
   company: Mocks;
 }
 
@@ -1325,11 +1327,14 @@ describe('setWebSiteDomain: dominio propio', () => {
 
   /** findFirst distingue la búsqueda del sitio propio de la de "dominio tomado". */
   function stubSite(site: typeof OWN_SITE | null, takenBy: { site?: boolean; project?: boolean } = {}) {
-    db.webSite.findFirst.mockImplementation(async ({ where }: { where: Row }) => {
-      if ('customDomain' in where) return takenBy.site ? { id: 'otro-sitio' } : null;
-      return site;
-    });
-    db.project.findFirst.mockImplementation(async () => (takenBy.project ? { id: 'certamen-1' } : null));
+    db.webSite.findFirst.mockImplementation(async () => site);
+    // Quién usa el dominio (registro común `domain-lifecycle.ts`): búsquedas por `customDomain` en cada tipo de sitio.
+    db.webSite.findUnique.mockImplementation(async () => (takenBy.site ? { id: 'otro-sitio' } : null));
+    db.project.findUnique.mockImplementation(async () => (takenBy.project ? { id: 'certamen-1' } : null));
+    db.academySite.findUnique.mockImplementation(async () => null);
+    // `claimDomain` revisa y guarda en una transacción con candado por dominio: se ejecuta sobre el mismo cliente simulado.
+    jest.spyOn(prisma, '$transaction').mockImplementation((async (fn: (tx: unknown) => unknown) => fn(prisma)) as never);
+    jest.spyOn(prisma, '$queryRaw').mockResolvedValue([] as never);
   }
 
   beforeEach(() => {
@@ -1357,7 +1362,7 @@ describe('setWebSiteDomain: dominio propio', () => {
     expect(error).toBeInstanceOf(WebSiteDomainError);
     expect((error as Error).message).toMatch(message);
     expect(db.webSite.updateMany).not.toHaveBeenCalled();
-    expect(db.project.findFirst).not.toHaveBeenCalled();
+    expect(db.project.findUnique).not.toHaveBeenCalled();
   });
 
   it('rechaza un dominio que ya usa OTRO sitio web de la plataforma', async () => {
@@ -1365,8 +1370,7 @@ describe('setWebSiteDomain: dominio propio', () => {
 
     await expect(setWebSiteDomain(COMPANY, SITE, 'minegocio.cl')).rejects.toThrow('Ese dominio ya lo usa otro sitio o certamen de la plataforma');
 
-    const lookup = db.webSite.findFirst.mock.calls.map(([args]) => (args as { where: Row }).where).find((where) => 'customDomain' in where)!;
-    expect(lookup).toEqual({ customDomain: 'minegocio.cl', NOT: { id: SITE } });
+    expect(argsOf(db.webSite.findUnique).where).toEqual({ customDomain: 'minegocio.cl' });
     expect(db.webSite.updateMany).not.toHaveBeenCalled();
   });
 
@@ -1375,7 +1379,7 @@ describe('setWebSiteDomain: dominio propio', () => {
 
     await expect(setWebSiteDomain(COMPANY, SITE, 'missuniversotemuco.cl')).rejects.toBeInstanceOf(WebSiteDomainError);
 
-    expect(argsOf(db.project.findFirst).where).toEqual({ customDomain: 'missuniversotemuco.cl' });
+    expect(argsOf(db.project.findUnique).where).toEqual({ customDomain: 'missuniversotemuco.cl' });
     expect(db.webSite.updateMany).not.toHaveBeenCalled();
   });
 
@@ -1410,7 +1414,7 @@ describe('setWebSiteDomain: dominio propio', () => {
     await setWebSiteDomain(COMPANY, SITE, 'MiNegocio.cl');
 
     expect(db.webSite.updateMany).not.toHaveBeenCalled();
-    expect(db.project.findFirst).not.toHaveBeenCalled();
+    expect(db.project.findUnique).not.toHaveBeenCalled();
   });
 
   it('traduce una colisión de unicidad en la base (carrera) al mismo mensaje de dominio tomado', async () => {

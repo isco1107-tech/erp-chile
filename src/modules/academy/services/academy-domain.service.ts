@@ -11,7 +11,7 @@ import {
   attachDomain,
   checkDomainStatus,
   detachDomain,
-  domainTakenByOther,
+  claimDomain,
   isDomainAutomatic,
   type DomainView,
 } from '@/lib/hosting/domain-lifecycle';
@@ -72,9 +72,11 @@ export async function setAcademyDomain(companyId: string, rawDomain: string): Pr
   if (problem) throw new AcademyError(problem);
 
   if (site.customDomain !== domain) {
-    if (await domainTakenByOther(domain, { kind: 'academySite', id: site.id })) throw new AcademyError(DOMAIN_TAKEN_ERROR);
     try {
-      await prisma.academySite.updateMany({ where: { id: site.id, companyId }, data: { customDomain: domain, customDomainVerifiedAt: null } });
+      const claimed = await claimDomain(domain, { kind: 'academySite', id: site.id }, (tx) =>
+        tx.academySite.updateMany({ where: { id: site.id, companyId }, data: { customDomain: domain, customDomainVerifiedAt: null } })
+      );
+      if (!claimed) throw new AcademyError(DOMAIN_TAKEN_ERROR);
     } catch (error) {
       if (isUniqueConstraintError(error)) throw new AcademyError(DOMAIN_TAKEN_ERROR);
       throw error;

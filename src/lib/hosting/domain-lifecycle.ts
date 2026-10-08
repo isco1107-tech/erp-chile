@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { resolve4, resolveCname } from 'node:dns/promises';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { isApexDomain } from '@/lib/hosting/custom-domain';
 import {
@@ -56,12 +57,14 @@ export async function domainOwner(domain: string): Promise<DomainOwnerKind | nul
   return null;
 }
 
+type Db = Pick<Prisma.TransactionClient, 'project' | 'webSite' | 'academySite'>;
+
 /** `true` si el dominio ya lo usa otro sitio distinto de `self` (de cualquier tipo). */
-export async function domainTakenByOther(domain: string, self: { kind: DomainOwnerKind; id: string }): Promise<boolean> {
+export async function domainTakenByOther(domain: string, self: { kind: DomainOwnerKind; id: string }, db: Db = prisma): Promise<boolean> {
   const [project, webSite, academySite] = await Promise.all([
-    prisma.project.findUnique({ where: { customDomain: domain }, select: { id: true } }),
-    prisma.webSite.findUnique({ where: { customDomain: domain }, select: { id: true } }),
-    prisma.academySite.findUnique({ where: { customDomain: domain }, select: { id: true } }),
+    db.project.findUnique({ where: { customDomain: domain }, select: { id: true } }),
+    db.webSite.findUnique({ where: { customDomain: domain }, select: { id: true } }),
+    db.academySite.findUnique({ where: { customDomain: domain }, select: { id: true } }),
   ]);
   const owners: Array<[DomainOwnerKind, { id: string } | null]> = [
     ['project', project],
@@ -69,6 +72,23 @@ export async function domainTakenByOther(domain: string, self: { kind: DomainOwn
     ['academySite', academySite],
   ];
   return owners.some(([kind, row]) => row !== null && !(kind === self.kind && row.id === self.id));
+}
+
+/**
+ * Toma un dominio para `self` sin carreras: revisar que esté libre y guardarlo
+ * van en una misma transacción, con un candado por dominio
+ * (`pg_advisory_xact_lock`). Así dos empresas que guardan el mismo dominio a
+ * la vez —aunque sea en tablas distintas (certamen, sitio web, academia), donde
+ * el `@unique` de cada tabla no alcanza— no pueden quedarse ambas con él.
+ * Devuelve `false` si otro sitio ya lo usa (y no escribe nada).
+ */
+export async function claimDomain(domain: string, self: { kind: DomainOwnerKind; id: string }, write: (tx: Prisma.TransactionClient) => Promise<unknown>): Promise<boolean> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${domain}))::text AS locked`;
+    if (await domainTakenByOther(domain, self, tx)) return false;
+    await write(tx);
+    return true;
+  });
 }
 
 /** Dominio que el cliente compró: los dos últimos niveles ("temuco.cl" para "miss.temuco.cl"). */
@@ -107,9 +127,15 @@ export async function attachDomain(domain: string): Promise<unknown[]> {
   return (await Promise.allSettled(jobs)).filter((r): r is PromiseRejectedResult => r.status === 'rejected').map((r) => r.reason);
 }
 
-/** Suelta el dominio en Vercel. Devuelve los errores en vez de lanzar. */
+/**
+ * Suelta el dominio en Vercel, SOLO si ningún sitio lo sigue usando: si otro
+ * sitio lo tiene (dato viejo, carrera), soltarlo dejaría caído ese sitio.
+ * Se llama después de borrar el dominio de la fila propia. Devuelve los
+ * errores en vez de lanzar.
+ */
 export async function detachDomain(domain: string): Promise<unknown[]> {
   if (!isVercelDomainsConfigured()) return [];
+  if ((await domainOwner(domain)) !== null) return [];
   const jobs = [removeProjectDomain(domain), ...(isApexDomain(domain) ? [removeProjectDomain(`www.${domain}`)] : [])];
   return (await Promise.allSettled(jobs)).filter((r): r is PromiseRejectedResult => r.status === 'rejected').map((r) => r.reason);
 }

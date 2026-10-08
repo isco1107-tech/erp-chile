@@ -13,6 +13,9 @@ const mockPrisma = {
   academyGroup: { findMany: jest.fn() },
   academyStudent: { count: jest.fn() },
   companySettings: { findUnique: jest.fn() },
+  // `claimDomain` revisa y guarda en una transacción con candado por dominio: se ejecuta sobre el mismo cliente simulado.
+  $transaction: jest.fn(),
+  $queryRaw: jest.fn(),
 };
 jest.mock('@/lib/prisma', () => ({ prisma: mockPrisma }));
 jest.mock('@/lib/observability', () => ({ captureException: jest.fn() }));
@@ -34,6 +37,7 @@ import { emptyAcademyContent } from '@/lib/academy/site';
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockPrisma.$transaction.mockImplementation((fn: (tx: unknown) => unknown) => fn(mockPrisma));
   mockPrisma.project.findUnique.mockResolvedValue(null);
   mockPrisma.webSite.findUnique.mockResolvedValue(null);
   mockPrisma.academySite.findUnique.mockResolvedValue(null);
@@ -84,6 +88,15 @@ describe('dominio de la academia (servicio)', () => {
     expect(view.domain).toBe('miacademia.cl');
     expect(view.verifiedAt).toBeNull();
     expect(view.records.length).toBeGreaterThan(0);
+  });
+
+  it('revisa y guarda bajo un candado por dominio, en una sola transacción (sin carreras entre empresas)', async () => {
+    mockPrisma.academySite.findFirst.mockResolvedValueOnce(site).mockResolvedValue({ ...site, customDomain: 'miacademia.cl' });
+    await setAcademyDomain('company-a', 'miacademia.cl');
+    expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+    const sql = (mockPrisma.$queryRaw.mock.calls[0]?.[0] as string[]).join('?');
+    expect(sql).toContain('pg_advisory_xact_lock');
+    expect(mockPrisma.$queryRaw.mock.calls[0]?.slice(1)).toEqual(['miacademia.cl']);
   });
 
   it('rechaza un dominio que ya usa otro sitio de la plataforma', async () => {
