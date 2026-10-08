@@ -1,9 +1,9 @@
 import type { WebSiteKind } from '@prisma/client';
 import { blockAnchors, blockSchema, newBlockId, type WebSiteBlock } from './blocks';
 import { INDUSTRY_TEMPLATES } from './industry-content';
-import { actionBarSchema, documentFromBlocks, footerSchema, headerSchema, newPageId, pageLink, pageSchema, whatsappButtonSchema, type HeaderLayout, type HeaderStyle, type SiteDocument, type SitePage } from './site';
+import { actionBarSchema, documentFromBlocks, footerSchema, headerSchema, newPageId, pageLink, pageSchema, whatsappButtonSchema, type FOOTER_LAYOUTS, type HeaderLayout, type HeaderStyle, type SiteDocument, type SitePage } from './site';
 import type { StarterDraft } from './templates-content';
-import { NEW_SITE_THEME, parseTheme, type SiteAnimation, type SiteButtonStyle, type SiteFont, type SiteHeadingFont, type SiteRadius, type SiteSpacing, type WebSiteTheme } from './theme';
+import { NEW_SITE_THEME, parseTheme, type SiteAnimation, type SiteButtonStyle, type SiteCardStyle, type SiteFont, type SiteHeadingFont, type SiteHeadingWeight, type SiteRadius, type SiteSpacing, type WebSiteTheme } from './theme';
 import { whatsappHref } from './urls';
 
 /**
@@ -65,6 +65,10 @@ export interface IndustryTemplate {
   radius?: SiteRadius;
   spacing?: SiteSpacing;
   animation?: SiteAnimation;
+  cardStyle?: SiteCardStyle;
+  headingWeight?: SiteHeadingWeight;
+  /** Diseño del pie (por omisión, en columnas). */
+  footerLayout?: (typeof FOOTER_LAYOUTS)[number];
   header: {
     layout?: HeaderLayout;
     style?: HeaderStyle;
@@ -194,7 +198,7 @@ export function industryDocument(industry: IndustryTemplate, ctx: IndustryContex
       ctaHref: primaryLink ?? '',
       announcement: { enabled: Boolean(industry.header.announcement), text: industry.header.announcement ?? '' },
     }),
-    footer: footerSchema.parse({ layout: 'columns', about: withName(industry.footerAbout, name) }),
+    footer: footerSchema.parse({ layout: industry.footerLayout ?? 'columns', about: withName(industry.footerAbout, name) }),
     whatsapp: whatsappButtonSchema.parse({ enabled: industry.whatsappButton && Boolean(whatsapp), number: whatsapp, message: industry.whatsappMessage }),
     actionBar: actionBarSchema.parse({ enabled: industry.actionBar && Boolean(phone), phone, address }),
   };
@@ -208,6 +212,8 @@ export function industryDocument(industry: IndustryTemplate, ctx: IndustryContex
     radius: industry.radius ?? NEW_SITE_THEME.radius,
     spacing: industry.spacing ?? NEW_SITE_THEME.spacing,
     animation: industry.animation ?? NEW_SITE_THEME.animation,
+    cardStyle: industry.cardStyle ?? NEW_SITE_THEME.cardStyle,
+    headingWeight: industry.headingWeight ?? NEW_SITE_THEME.headingWeight,
   });
   return { document, theme };
 }

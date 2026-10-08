@@ -9,10 +9,10 @@ import { buildNavItems } from './site/nav';
 import { cx } from './site/parts';
 import SectionFrame, { EmptyBlock } from './site/SectionFrame';
 import { renderSection } from './site/sections';
-import SiteFooter from './site/SiteFooter';
+import SiteFooter, { footerTone } from './site/SiteFooter';
 import SiteHeader, { Announcement } from './site/SiteHeader';
 import { SITE_CSS } from './site/site-css';
-import { blockHeadingText, resolveAlign, sectionLook, toneVariables } from './site/tone';
+import { blockHeadingText, resolveAlign, sectionLook, toneVariables, type Tone } from './site/tone';
 
 /**
  * Pinta un sitio armado en modo guiado: encabezado con menú, las secciones de
@@ -76,6 +76,7 @@ export default function SiteRenderer({ name, logoUrl, theme, document, blocks, p
     onNavigate,
     navigate: true,
     h1BlockId: shown.find((block) => blockHeadingText(block))?.id ?? null,
+    siteWidth: theme.width,
   };
   const bodyCtx: RenderCtx = selectable ? { ...ctx, navigate: false } : ctx;
 
@@ -87,9 +88,17 @@ export default function SiteRenderer({ name, logoUrl, theme, document, blocks, p
 
   const rootStyle = { ...themeVariables(theme), ...toneVariables(theme) } as CSSProperties;
   const mainId = `${ctx.idPrefix}main`;
+  const looks = shown.map((block) => sectionLook(block));
+  // Lo que viene después de cada sección (para pintar su borde con forma): la siguiente o el pie.
+  const afterLast: Tone = doc.footer.enabled ? footerTone(doc.footer.style) : 'default';
+  const nextTones: Tone[] = shown.map((_, index) => {
+    const next = looks[index + 1];
+    if (!next) return afterLast;
+    return next.image ? 'dark' : next.tone;
+  });
 
   return (
-    <div className={cx('ws-root', SITE_FONT_CLASSES)} style={rootStyle} data-ws-root="" data-btn={theme.buttonStyle} data-anim={preview ? 'none' : theme.animation}>
+    <div className={cx('ws-root', SITE_FONT_CLASSES)} style={rootStyle} data-ws-root="" data-btn={theme.buttonStyle} data-card={theme.cardStyle} data-anim={preview ? 'none' : theme.animation}>
       <style>{SITE_CSS}</style>
       <div className={cx('@container flex flex-col', !preview && 'min-h-dvh')}>
         {!preview && (
@@ -101,7 +110,7 @@ export default function SiteRenderer({ name, logoUrl, theme, document, blocks, p
         {doc.header.enabled && <SiteHeader ctx={ctx} name={name} logoUrl={logoUrl} items={items} overlayTone={overlayTone} />}
         <main id={mainId} tabIndex={-1} className="grow outline-none">
           {shown.map((block, index) => {
-            const look = sectionLook(block);
+            const look = looks[index]!;
             const empty = isBlockEmpty(block);
             return (
               <SectionFrame
@@ -112,8 +121,9 @@ export default function SiteRenderer({ name, logoUrl, theme, document, blocks, p
                 look={look}
                 align={resolveAlign(block)}
                 bleed={block.type === 'image' && block.size === 'full'}
-                glow={block.type === 'hero' && (block.variant === 'center' || block.variant === 'full')}
+                glow={block.type === 'hero' && (block.variant === 'center' || block.variant === 'full' || block.variant === 'card')}
                 underHeader={overlay && index === 0}
+                nextTone={nextTones[index]}
                 onSelect={selectable ? onSelectBlock : undefined}
                 selected={selectable && selectedBlockId === block.id}
               >

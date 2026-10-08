@@ -2,9 +2,10 @@ import type { WebSiteBlock } from '@/lib/web-sites/blocks';
 import type { RenderCtx } from '../context';
 import type { SectionLook } from '../tone';
 import { DividerSection, HeroSection, ImageSection, SplitSection, TextSection } from './basic';
-import { ContactSection, CountdownSection, CtaSection } from './action';
+import { ContactSection, CountdownSection, CtaSection, LinksSection } from './action';
+import { AreasSection, ComparisonSection, HoursSection, MarqueeSection, PostsSection, TabsSection, TimelineSection } from './extra';
 import { CatalogSection, FeaturesSection, PricelistSection, PricingSection, ScheduleSection, StatsSection, StepsSection, TeamSection } from './lists';
-import { GallerySection, MapSection, VideoSection } from './media';
+import { BeforeAfterSection, EmbedSection, GallerySection, MapSection, VideoSection } from './media';
 import { FaqSection, LogosSection, QuoteSection, TestimonialsSection } from './social';
 
 /** Contenido de una sección según su tipo. La franja (fondo, espaciado) la pone `SectionFrame`. */
@@ -56,5 +57,25 @@ export function renderSection(block: WebSiteBlock, ctx: RenderCtx, center: boole
       return <ContactSection block={block} ctx={ctx} center={center} />;
     case 'divider':
       return <DividerSection block={block} ctx={ctx} center={center} />;
+    case 'timeline':
+      return <TimelineSection block={block} ctx={ctx} center={center} />;
+    case 'comparison':
+      return <ComparisonSection block={block} ctx={ctx} center={center} />;
+    case 'beforeafter':
+      return <BeforeAfterSection block={block} ctx={ctx} center={center} />;
+    case 'links':
+      return <LinksSection block={block} ctx={ctx} center={center} />;
+    case 'marquee':
+      return <MarqueeSection block={block} ctx={ctx} center={center} />;
+    case 'tabs':
+      return <TabsSection block={block} ctx={ctx} center={center} />;
+    case 'hours':
+      return <HoursSection block={block} ctx={ctx} center={center} />;
+    case 'areas':
+      return <AreasSection block={block} ctx={ctx} center={center} />;
+    case 'embed':
+      return <EmbedSection block={block} ctx={ctx} center={center} />;
+    case 'posts':
+      return <PostsSection block={block} ctx={ctx} center={center} />;
   }
 }

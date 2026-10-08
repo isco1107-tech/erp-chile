@@ -25,6 +25,14 @@ export interface RenderCtx {
   navigate: boolean;
   /** Sección que lleva el `<h1>` de la página (la primera con título). */
   h1BlockId: string | null;
+  /**
+   * Miniaturas de "Elige un diseño": donde el diseño lleva foto y no hay, se
+   * dibuja un marcador para que se entienda el diseño. Nunca en el sitio
+   * publicado ni en la vista previa normal (lo que se ve es lo que se publica).
+   */
+  placeholders?: boolean;
+  /** Ancho del contenido del tema: el encabezado calcula con él si su menú cabe en una fila. */
+  siteWidth?: 'narrow' | 'normal' | 'wide';
 }
 
 export function resolveIn(ctx: RenderCtx, raw: string | null | undefined): ResolvedLink | null {

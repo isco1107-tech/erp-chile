@@ -1,7 +1,17 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import {
+  AppWindow,
   Award,
+  Clock4,
+  Link2,
+  MapPinned,
+  Megaphone,
+  Milestone,
+  Newspaper,
+  PanelsTopLeft,
+  SquareSplitHorizontal,
+  Table2,
   BadgeDollarSign,
   BarChart3,
   Columns2,
@@ -27,7 +37,10 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { BlockTypeInfo, WebSiteBlock } from '@/lib/web-sites/blocks';
+import { groupWeek } from '@/lib/web-sites/hours';
 import { richTextPlain } from '@/lib/web-sites/rich-text';
+import { embedFrom } from '@/lib/web-sites/urls';
+import { layoutLabel } from '@/lib/web-sites/variants';
 
 /**
  * Tipos, constantes y utilidades que comparten los paneles del editor de
@@ -59,6 +72,16 @@ export const BLOCK_ICONS: Record<BlockTypeInfo['icon'], LucideIcon> = {
   Timer,
   Mail,
   Minus,
+  Milestone,
+  Table2,
+  SquareSplitHorizontal,
+  Link2,
+  Megaphone,
+  PanelsTopLeft,
+  Clock4,
+  MapPinned,
+  AppWindow,
+  Newspaper,
 };
 
 export interface EditorAsset {
@@ -182,7 +205,27 @@ export function blockSummary(block: WebSiteBlock): string {
     case 'contact':
       return clip(block.heading || block.email || block.phone) || 'Sin datos todavía';
     case 'divider':
-      return block.variant === 'space' ? 'Espacio' : block.variant === 'dots' ? 'Puntos' : 'Línea';
+      return layoutLabel(block);
+    case 'timeline':
+      return [clip(block.heading, 40), count(block.items.length, 'hito', 'hitos')].filter(Boolean).join(' · ');
+    case 'comparison':
+      return [clip(block.heading, 40), count(block.rows.length, 'fila', 'filas')].filter(Boolean).join(' · ');
+    case 'beforeafter':
+      return [clip(block.heading, 40), count(block.items.filter((item) => item.beforeUrl && item.afterUrl).length, 'par de fotos', 'pares de fotos')].filter(Boolean).join(' · ');
+    case 'links':
+      return [clip(block.title, 40), count(block.items.filter((item) => item.label.trim()).length, 'enlace', 'enlaces')].filter(Boolean).join(' · ');
+    case 'marquee':
+      return clip(block.items.map((item) => item.text).filter(Boolean).join(' ✦ ')) || 'Sin frases todavía';
+    case 'tabs':
+      return [clip(block.heading, 40), count(block.items.length, 'pestaña', 'pestañas')].filter(Boolean).join(' · ');
+    case 'hours':
+      return clip(groupWeek(block.week).map((group) => `${group.short} ${group.hours}`).join(' · ')) || 'Sin horario todavía';
+    case 'areas':
+      return [clip(block.heading, 40), count(block.items.filter((item) => item.name.trim()).length, 'zona', 'zonas')].filter(Boolean).join(' · ');
+    case 'embed':
+      return [clip(block.heading, 40), embedFrom(block.url)?.label ?? (block.url ? 'Enlace no reconocido' : 'Sin enlace todavía')].filter(Boolean).join(' · ');
+    case 'posts':
+      return [clip(block.heading, 40), count(block.items.length, 'novedad', 'novedades')].filter(Boolean).join(' · ');
   }
 }
 

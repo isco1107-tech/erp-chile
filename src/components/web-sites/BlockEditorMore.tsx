@@ -224,6 +224,7 @@ export function QuoteFields({ block, disabled, onChange }: FieldsProps<BlockOf<'
         <TextField label="Quién lo dice (opcional)" value={block.author} onChange={(author) => set({ author })} max={80} disabled={disabled} placeholder="Ej.: Pedro Muñoz" />
         <TextField label="Cargo o descripción (opcional)" value={block.role} onChange={(role) => set({ role })} max={80} disabled={disabled} placeholder="Ej.: Chef y dueño" />
       </div>
+      {block.variant === 'photo' ? <ImagePicker label="Foto de quien lo dice" value={block.photoUrl} onChange={(photoUrl) => set({ photoUrl })} hint={`Cuadrada y con la cara centrada se ve mejor. ${PHOTO_TIP}`} /> : null}
     </div>
   );
 }
@@ -312,6 +313,7 @@ export function PricelistFields({ block, disabled, onChange }: FieldsProps<Block
                         <TextField label="Etiqueta (opcional)" value={item.tag} onChange={(tag) => update({ tag })} max={24} disabled={disabled} placeholder="Ej.: Nuevo" />
                       </div>
                       <TextField label="Detalle (opcional)" value={item.description} onChange={(description) => update({ description })} max={200} disabled={disabled} placeholder="Ej.: Incluye lavado y peinado." />
+                      {block.variant === 'photos' ? <ImagePicker label="Foto (opcional)" value={item.imageUrl} onChange={(imageUrl) => update({ imageUrl })} hint="Cuadrada y con el producto al centro." /> : null}
                     </div>
                   )}
                 />
@@ -337,7 +339,7 @@ export function CatalogFields({ block, disabled, onChange, document, pageId }: F
     <div className="space-y-4">
       <TextField label="Título de la sección" value={block.heading} onChange={(heading) => set({ heading })} max={120} disabled={disabled} placeholder="Ej.: Nuestros productos" hint="También aparece en el menú del sitio." />
       <TextField label="Introducción (opcional)" value={block.intro} onChange={(intro) => set({ intro })} max={300} disabled={disabled} multiline rows={2} placeholder="Ej.: Despachamos a todo Chile. Pregunta por stock." />
-      <ChoiceGroup label="Fichas por fila" value={block.columns} onChange={(columns) => set({ columns })} disabled={disabled} options={COLUMN_OPTIONS} hint="En el celular siempre se ven de a una o dos." />
+      {block.variant === 'grid' || block.variant === 'minimal' ? <ChoiceGroup label="Fichas por fila" value={block.columns} onChange={(columns) => set({ columns })} disabled={disabled} options={COLUMN_OPTIONS} hint="En el celular siempre se ven de a una o dos." /> : null}
 
       <fieldset className="space-y-3 rounded-lg border border-border bg-muted/30 p-3">
         <legend className="px-1 text-sm font-semibold">Botón “Pedir por WhatsApp”</legend>

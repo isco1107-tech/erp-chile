@@ -53,9 +53,9 @@ export const menuItemSchema = menuLinkSchema.extend({
 });
 export type MenuItem = z.infer<typeof menuItemSchema>;
 
-export const HEADER_LAYOUTS = ['classic', 'centered', 'minimal'] as const;
+export const HEADER_LAYOUTS = ['classic', 'centered', 'minimal', 'split'] as const;
 export type HeaderLayout = (typeof HEADER_LAYOUTS)[number];
-export const HEADER_STYLES = ['light', 'primary', 'transparent'] as const;
+export const HEADER_STYLES = ['light', 'primary', 'transparent', 'dark', 'floating'] as const;
 export type HeaderStyle = (typeof HEADER_STYLES)[number];
 export const ANNOUNCEMENT_STYLES = ['accent', 'primary', 'dark'] as const;
 
@@ -69,9 +69,9 @@ export const announcementSchema = z.object({
 
 export const headerSchema = z.object({
   enabled: z.boolean().default(true),
-  /** classic: logo a la izquierda y menú a la derecha · centered: logo al centro y menú debajo · minimal: logo y botón de menú. */
+  /** classic: logo a la izquierda y menú a la derecha · centered: logo al centro y menú debajo · minimal: logo y botón de menú · split: menú a la izquierda, logo al centro y botón a la derecha. */
   layout: choice(HEADER_LAYOUTS, 'classic'),
-  /** light: fondo de la página · primary: color principal · transparent: sobre la portada. */
+  /** light: fondo de la página · primary: color principal · transparent: sobre la portada · dark: oscuro · floating: barra flotante redondeada. */
   style: choice(HEADER_STYLES, 'light'),
   /** Queda fija arriba al bajar por la página. */
   sticky: z.boolean().default(true),
@@ -98,11 +98,11 @@ export const footerColumnSchema = z.object({
 });
 export type FooterColumn = z.infer<typeof footerColumnSchema>;
 
-export const FOOTER_LAYOUTS = ['simple', 'columns'] as const;
+export const FOOTER_LAYOUTS = ['simple', 'columns', 'centered', 'big'] as const;
 export const FOOTER_STYLES = ['light', 'muted', 'dark', 'primary'] as const;
 export const footerSchema = z.object({
   enabled: z.boolean().default(true),
-  /** simple: una línea centrada · columns: descripción, columnas de enlaces y redes. */
+  /** simple: una línea centrada · columns: descripción, columnas de enlaces y redes · centered: todo al centro · big: columnas y el nombre gigante al final. */
   layout: choice(FOOTER_LAYOUTS, 'simple'),
   style: choice(FOOTER_STYLES, 'light'),
   /** Descripción breve del negocio (primera columna). */

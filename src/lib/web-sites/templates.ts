@@ -2,6 +2,7 @@ import type { WebSiteKind } from '@prisma/client';
 import { blockSchema, blockTexts, newBlockId, type BlockType, type WebSiteBlock } from './blocks';
 import { industryDrafts } from './industries';
 import { PAGE_TEMPLATES } from './page-templates';
+import { SAMPLE_PLACEHOLDERS, SECTION_SAMPLES } from './section-samples';
 import { documentFromBlocks, newPageId, type SiteDocument } from './site';
 import { NEW_SITE_THEME } from './theme';
 import { STARTER_CONTENT, type StarterDraft, type StarterKind } from './templates-content';
@@ -115,7 +116,7 @@ let sampleTexts: Set<string> | null = null;
 function samples(): Set<string> {
   if (sampleTexts) return sampleTexts;
   const set = new Set<string>();
-  const drafts = [...Object.values(STARTER_CONTENT).flat(), ...PAGE_TEMPLATES.flatMap((template) => template.blocks), ...industryDrafts()];
+  const drafts = [...Object.values(STARTER_CONTENT).flat(), ...PAGE_TEMPLATES.flatMap((template) => template.blocks), ...industryDrafts(), ...Object.values(SECTION_SAMPLES)];
   drafts.forEach((draft) => {
     const block = blockSchema.parse({ ...draft, id: 'sample' });
     blockTexts(block).forEach((text) => set.add(text.trim()));
@@ -127,11 +128,15 @@ function samples(): Set<string> {
 /**
  * ¿Este texto es tal cual el de ejemplo de una plantilla? Sirve para avisar
  * "cambia el texto de ejemplo" antes de publicar. Los encabezados de sección
- * ("Contacto", "Servicios") son nombres, no ejemplos, y no cuentan.
+ * ("Contacto", "Servicios") son nombres, no ejemplos, y no cuentan; los textos
+ * cortos de muestra que nunca deben publicarse ("Nombre del servicio") se
+ * reconocen siempre (`SAMPLE_PLACEHOLDERS`).
  */
+const PLACEHOLDERS: ReadonlySet<string> = new Set(SAMPLE_PLACEHOLDERS);
+
 export function isSampleText(text: string): boolean {
   const value = text.trim();
-  return value.length > 24 && samples().has(value);
+  return (value.length > 24 && samples().has(value)) || PLACEHOLDERS.has(value);
 }
 
 /**

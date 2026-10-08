@@ -30,7 +30,7 @@ module.exports = function collectProblems(rootSelector) {
     seen.add(node);
     // Lo decorativo (aria-hidden) también se ve: solo se ignora lo oculto de verdad y la cinta que se desplaza a propósito.
     // `data-truncate` marca los recortes con puntos suspensivos que son diseño (el texto completo está en otro lado).
-    if (el.closest('[hidden], script, style, .pgs-sr, .acs-sr, .pgs-ribbon, .acs-ribbon, [data-truncate]')) continue;
+    if (el.closest('[hidden], script, style, .pgs-sr, .acs-sr, .pgs-ribbon, .acs-ribbon, .ws-marquee, .sr-only, [data-truncate], [data-trap]')) continue;
     const cs = getComputedStyle(el);
     if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) === 0) continue;
 
@@ -134,10 +134,12 @@ module.exports = function collectProblems(rootSelector) {
     }
   }
 
-  // Cinta que gira: un grupo tiene que cubrir la pantalla completa, o al desplazarse queda vacío a la derecha.
-  const ribbonGroup = root.querySelector('.pgs-ribbon-group, .acs-ribbon-group');
-  if (ribbonGroup && ribbonGroup.getBoundingClientRect().width < vw) {
-    problems.push({ kind: 'cinta-corta', detail: `La cinta mide ${Math.round(ribbonGroup.getBoundingClientRect().width)}px y la pantalla ${vw}px: al girar quedaría vacía` });
+  // Cinta que gira: cada grupo tiene que cubrir la pantalla completa, o al desplazarse queda vacío a la derecha.
+  for (const ribbonGroup of root.querySelectorAll('.pgs-ribbon-group, .acs-ribbon-group, .ws-marquee-group')) {
+    if (getComputedStyle(ribbonGroup).display === 'none') continue;
+    if (ribbonGroup.getBoundingClientRect().width < vw) {
+      problems.push({ kind: 'cinta-corta', detail: `La cinta mide ${Math.round(ribbonGroup.getBoundingClientRect().width)}px y la pantalla ${vw}px: al girar quedaría vacía` });
+    }
   }
 
   // Deduplica (mismo tipo y detalle).

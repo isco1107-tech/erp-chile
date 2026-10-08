@@ -5,6 +5,7 @@ import {
   featureItemSchema,
   galleryImageSchema,
   MAX_GALLERY_IMAGES,
+  MAX_HERO_IMAGES,
   MAX_LIST_ITEMS,
   testimonialItemSchema,
   type BlockOf,
@@ -27,6 +28,7 @@ import {
   TeamFields,
   VideoFields,
 } from './BlockEditorMore';
+import { AreasFields, BeforeAfterFields, ComparisonFields, EmbedFields, HoursFields, LinksFields, MarqueeFields, PostsFields, TabsFields, TimelineFields } from './BlockEditorExtra';
 import { ButtonFields, Notice, Optional, PHOTO_TIP, Tip, type FieldsProps } from './block-fields-shared';
 import { ChoiceGroup, SwitchRow, TextField } from './fields';
 import { IconPicker } from './IconPicker';
@@ -95,6 +97,26 @@ export function BlockFields({ block, disabled, onChange, document, pageId }: Blo
       return <ContactFields block={block} {...common} />;
     case 'divider':
       return <DividerFields block={block} {...common} />;
+    case 'timeline':
+      return <TimelineFields block={block} {...common} />;
+    case 'comparison':
+      return <ComparisonFields block={block} {...common} />;
+    case 'beforeafter':
+      return <BeforeAfterFields block={block} {...common} />;
+    case 'links':
+      return <LinksFields block={block} {...common} />;
+    case 'marquee':
+      return <MarqueeFields block={block} {...common} />;
+    case 'tabs':
+      return <TabsFields block={block} {...common} />;
+    case 'hours':
+      return <HoursFields block={block} {...common} />;
+    case 'areas':
+      return <AreasFields block={block} {...common} />;
+    case 'embed':
+      return <EmbedFields block={block} {...common} />;
+    case 'posts':
+      return <PostsFields block={block} {...common} />;
   }
 }
 
@@ -110,34 +132,46 @@ const COLUMN_OPTIONS = [
 
 function HeroFields({ block, disabled, onChange, document, pageId }: FieldsProps<BlockOf<'hero'>>) {
   const set = (patch: Partial<BlockOf<'hero'>>) => onChange({ ...block, ...patch });
-  const usesImage = block.variant !== 'minimal';
+  const usesImage = block.variant !== 'minimal' && block.variant !== 'gradient';
+  const sideImage = block.variant === 'split' || block.variant === 'split-left' || block.variant === 'collage' || block.variant === 'editorial' || block.variant === 'stacked';
   return (
     <div className="space-y-5">
-      <ChoiceGroup
-        label="Diseño de la portada"
-        value={block.variant}
-        onChange={(variant) => set({ variant })}
-        disabled={disabled}
-        columns={4}
-        hint="“Dividida” va muy bien para servicios y profesionales. “Pantalla completa”, con una foto propia bonita, funciona de maravilla en restaurantes, turismo y belleza."
-        options={[
-          { value: 'center', label: 'Centrada', description: 'Título al centro sobre color o foto.', preview: <VariantSketch id="hero:center" /> },
-          { value: 'split', label: 'Dividida', description: 'Texto a un lado y foto al otro.', preview: <VariantSketch id="hero:split" /> },
-          { value: 'full', label: 'Pantalla completa', description: 'Foto grande que ocupa todo.', preview: <VariantSketch id="hero:full" /> },
-          { value: 'minimal', label: 'Mínima', description: 'Solo texto, sin franja de color.', preview: <VariantSketch id="hero:minimal" /> },
-        ]}
-      />
       <TextField label="Texto pequeño sobre el título (opcional)" value={block.eyebrow} onChange={(eyebrow) => set({ eyebrow })} max={60} disabled={disabled} placeholder="Ej.: Desde 1998 en Concepción" />
       <TextField label="Título principal" value={block.title} onChange={(title) => set({ title })} max={120} disabled={disabled} placeholder="Ej.: Instalamos paneles solares en todo el Biobío" hint="Di en una frase qué haces y para quién." />
       <TextField label="Frase de apoyo" value={block.subtitle} onChange={(subtitle) => set({ subtitle })} max={300} disabled={disabled} multiline rows={2} placeholder="Ej.: Ahorra hasta un 70 % en tu cuenta de luz, con instalación y garantía incluidas." />
       {usesImage ? (
         <div className="space-y-2">
-          <ImagePicker label={block.variant === 'split' ? 'Foto al costado' : 'Foto de fondo'} value={block.imageUrl} onChange={(imageUrl) => set({ imageUrl })} hint={`Horizontal y luminosa se ve mejor. ${PHOTO_TIP}`} />
-          {!block.imageUrl && (block.variant === 'split' || block.variant === 'full') ? <Notice>Esta portada se ve mucho mejor con una foto. Sin ella queda vacía.</Notice> : null}
+          <ImagePicker label={sideImage ? 'Foto principal' : 'Foto de fondo'} value={block.imageUrl} onChange={(imageUrl) => set({ imageUrl })} hint={`Horizontal y luminosa se ve mejor. ${PHOTO_TIP}`} />
+          {!block.imageUrl && block.variant !== 'center' ? <Notice>Esta portada se ve mucho mejor con una foto. Sin ella queda vacía.</Notice> : null}
         </div>
       ) : (
-        <Tip>La portada mínima no lleva foto. Si quieres una imagen, elige otro diseño arriba.</Tip>
+        <Tip>Este diseño de portada no lleva foto. Si quieres una imagen, elige otro diseño arriba.</Tip>
       )}
+      {block.variant === 'collage' ? (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">
+            Fotos extra del collage ({block.images.length}/{MAX_HERO_IMAGES})
+          </p>
+          <Tip>El collage combina la foto principal con hasta tres más. Usa fotos con colores parecidos para que el conjunto se vea ordenado.</Tip>
+          <ListEditor
+            idPrefix={`${block.id}-collage`}
+            noun="foto"
+            items={block.images}
+            max={MAX_HERO_IMAGES}
+            disabled={disabled}
+            addLabel="Agregar foto al collage"
+            createItem={() => galleryImageSchema.parse({})}
+            onChange={(images) => set({ images })}
+            summary={(image) => image.alt}
+            renderItem={(image, update) => (
+              <>
+                <ImagePicker label="Foto" value={image.url} onChange={(url, asset) => update({ url, ...(asset && !image.alt.trim() ? { alt: asset.alt } : {}) })} />
+                <TextField label="Descripción de la foto" value={image.alt} onChange={(alt) => update({ alt })} max={160} disabled={disabled} placeholder="Ej.: Equipo trabajando en terreno" warning={image.url && !image.alt.trim() ? 'Falta la descripción de la foto.' : null} />
+              </>
+            )}
+          />
+        </div>
+      ) : null}
       <ButtonFields
         legend="Botón principal"
         label={block.ctaLabel}
@@ -258,18 +292,7 @@ function GalleryFields({ block, disabled, onChange }: FieldsProps<BlockOf<'galle
   return (
     <div className="space-y-4">
       <TextField label="Título de la sección" value={block.heading} onChange={(heading) => set({ heading })} max={120} disabled={disabled} placeholder="Ej.: Nuestros trabajos" hint="También aparece en el menú del sitio." />
-      <ChoiceGroup
-        label="Cómo se muestran las fotos"
-        value={block.variant}
-        onChange={(variant) => set({ variant })}
-        disabled={disabled}
-        options={[
-          { value: 'grid', label: 'Cuadrícula', description: 'Todas del mismo tamaño, ordenadas.', preview: <VariantSketch id="gallery:grid" /> },
-          { value: 'masonry', label: 'Mosaico', description: 'Alturas distintas; más informal.', preview: <VariantSketch id="gallery:masonry" /> },
-          { value: 'carousel', label: 'Carrusel', description: 'Se desliza de a una; ocupa poco.', preview: <VariantSketch id="gallery:carousel" /> },
-        ]}
-      />
-      {block.variant !== 'carousel' ? <ChoiceGroup label="Fotos por fila" value={block.columns} onChange={(columns) => set({ columns })} disabled={disabled} options={COLUMN_OPTIONS} hint="En el celular se ven de a una o dos, sin importar lo que elijas." /> : null}
+      {block.variant === 'grid' || block.variant === 'masonry' || block.variant === 'carousel' || block.variant === 'polaroid' ? <ChoiceGroup label="Fotos por fila" value={block.columns} onChange={(columns) => set({ columns })} disabled={disabled} options={COLUMN_OPTIONS} hint="En el celular se ven de a una o dos, sin importar lo que elijas." /> : null}
       <div className="space-y-2">
         <p className="text-sm font-medium">
           Fotos ({block.images.length}/{MAX_GALLERY_IMAGES})
@@ -309,18 +332,7 @@ function FeaturesFields({ block, disabled, onChange, document, pageId }: FieldsP
     <div className="space-y-4">
       <TextField label="Título de la sección" value={block.heading} onChange={(heading) => set({ heading })} max={120} disabled={disabled} placeholder="Ej.: Nuestros servicios" hint="También aparece en el menú del sitio." />
       <TextField label="Introducción (opcional)" value={block.intro} onChange={(intro) => set({ intro })} max={300} disabled={disabled} multiline rows={2} placeholder="Ej.: Todo lo que necesitas para tu hogar, en un solo lugar." />
-      <ChoiceGroup
-        label="Cómo se ven"
-        value={block.variant}
-        onChange={(variant) => set({ variant })}
-        disabled={disabled}
-        options={[
-          { value: 'cards', label: 'Tarjetas', description: 'Cada una en su cajita, con foto o ícono.', preview: <VariantSketch id="features:cards" /> },
-          { value: 'icons', label: 'Íconos', description: 'Ícono grande y texto, sin caja.', preview: <VariantSketch id="features:icons" /> },
-          { value: 'list', label: 'Lista', description: 'Una debajo de otra; ideal para textos largos.', preview: <VariantSketch id="features:list" /> },
-        ]}
-      />
-      {block.variant !== 'list' ? <ChoiceGroup label="Tarjetas por fila" value={block.columns} onChange={(columns) => set({ columns })} disabled={disabled} options={COLUMN_OPTIONS} hint="Tres a seis tarjetas en total es lo ideal." /> : null}
+      {block.variant === 'cards' || block.variant === 'icons' || block.variant === 'numbered' || block.variant === 'minimal' || block.variant === 'overlay' ? <ChoiceGroup label="Tarjetas por fila" value={block.columns} onChange={(columns) => set({ columns })} disabled={disabled} options={COLUMN_OPTIONS} hint="Tres a seis tarjetas en total es lo ideal." /> : null}
       <div className="space-y-2">
         <p className="text-sm font-medium">
           Tarjetas ({block.items.length}/{MAX_LIST_ITEMS})
@@ -356,23 +368,18 @@ function CtaFields({ block, disabled, onChange, document, pageId }: FieldsProps<
   const set = (patch: Partial<BlockOf<'cta'>>) => onChange({ ...block, ...patch });
   return (
     <div className="space-y-4">
-      <ChoiceGroup
-        label="Diseño"
-        value={block.variant}
-        onChange={(variant) => set({ variant })}
-        disabled={disabled}
-        columns={2}
-        options={[
-          { value: 'card', label: 'Tarjeta', description: 'Una caja destacada dentro de la página.', preview: <VariantSketch id="cta:card" /> },
-          { value: 'band', label: 'Franja', description: 'Una banda de borde a borde.', preview: <VariantSketch id="cta:band" /> },
-        ]}
-      />
       <TextField label="Mensaje principal" value={block.title} onChange={(title) => set({ title })} max={120} disabled={disabled} placeholder="Ej.: ¿Listo para renovar tu cocina?" />
       <TextField label="Texto de apoyo (opcional)" value={block.text} onChange={(text) => set({ text })} max={300} disabled={disabled} multiline rows={2} placeholder="Ej.: Cuéntanos tu proyecto y te respondemos en el día." />
       <ButtonFields legend="Botón principal" label={block.buttonLabel} href={block.buttonHref} onLabel={(buttonLabel) => set({ buttonLabel })} onHref={(buttonHref) => set({ buttonHref })} document={document} pageId={pageId} disabled={disabled} labelPlaceholder="Ej.: Escribir por WhatsApp" />
       <Optional title="Segundo botón (opcional)" filled={Boolean(block.secondaryLabel.trim() || block.secondaryHref.trim())}>
         <ButtonFields legend="Segundo botón" label={block.secondaryLabel} href={block.secondaryHref} onLabel={(secondaryLabel) => set({ secondaryLabel })} onHref={(secondaryHref) => set({ secondaryHref })} document={document} pageId={pageId} disabled={disabled} labelPlaceholder="Ej.: Ver precios" />
       </Optional>
+      {block.variant === 'split' ? (
+        <div className="space-y-2">
+          <ImagePicker label="Foto" value={block.imageUrl} onChange={(imageUrl) => set({ imageUrl })} hint={`Una foto que invite a dar el paso: tu local, tu equipo o el resultado de tu trabajo. ${PHOTO_TIP}`} />
+          {!block.imageUrl ? <Notice>El diseño “Con foto” necesita una foto; sin ella se ve como una tarjeta.</Notice> : null}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -381,6 +388,7 @@ function FaqFields({ block, disabled, onChange, document, pageId }: FieldsProps<
   return (
     <div className="space-y-4">
       <TextField label="Título de la sección" value={block.heading} onChange={(heading) => onChange({ ...block, heading })} max={120} disabled={disabled} placeholder="Ej.: Preguntas frecuentes" hint="También aparece en el menú del sitio." />
+      <TextField label="Introducción (opcional)" value={block.intro} onChange={(intro) => onChange({ ...block, intro })} max={300} disabled={disabled} multiline rows={2} placeholder="Ej.: Si no encuentras tu respuesta, escríbenos por WhatsApp." />
       <Tip>Anota lo que más te preguntan por WhatsApp: precios, plazos, formas de pago, cobertura. Cada respuesta en pocas líneas.</Tip>
       <div className="space-y-2">
         <p className="text-sm font-medium">
@@ -413,17 +421,6 @@ function TestimonialsFields({ block, disabled, onChange }: FieldsProps<BlockOf<'
   return (
     <div className="space-y-4">
       <TextField label="Título de la sección" value={block.heading} onChange={(heading) => set({ heading })} max={120} disabled={disabled} placeholder="Ej.: Lo que dicen nuestros clientes" hint="También aparece en el menú del sitio." />
-      <ChoiceGroup
-        label="Cómo se ven"
-        value={block.variant}
-        onChange={(variant) => set({ variant })}
-        disabled={disabled}
-        columns={2}
-        options={[
-          { value: 'cards', label: 'Tarjetas', description: 'Varias opiniones lado a lado.', preview: <VariantSketch id="testimonials:cards" /> },
-          { value: 'quotes', label: 'Citas', description: 'Una opinión grande a la vez.', preview: <VariantSketch id="testimonials:quotes" /> },
-        ]}
-      />
       <Tip>Con nombre y, si puedes, cargo o empresa. Pide autorización antes de publicar la opinión de alguien.</Tip>
       <div className="space-y-2">
         <p className="text-sm font-medium">
@@ -505,17 +502,6 @@ function DividerFields({ block, disabled, onChange }: FieldsProps<BlockOf<'divid
   const set = (patch: Partial<BlockOf<'divider'>>) => onChange({ ...block, ...patch });
   return (
     <div className="space-y-4">
-      <ChoiceGroup
-        label="Tipo de separador"
-        value={block.variant}
-        onChange={(variant) => set({ variant })}
-        disabled={disabled}
-        options={[
-          { value: 'line', label: 'Línea', description: 'Una raya fina.', preview: <VariantSketch id="divider:line" /> },
-          { value: 'dots', label: 'Puntos', description: 'Tres puntos, más suave.', preview: <VariantSketch id="divider:dots" /> },
-          { value: 'space', label: 'Espacio', description: 'Solo aire, sin dibujo.', preview: <VariantSketch id="divider:space" /> },
-        ]}
-      />
       <ChoiceGroup
         label="Tamaño"
         value={block.size}

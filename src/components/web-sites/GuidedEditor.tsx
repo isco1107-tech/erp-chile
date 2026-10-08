@@ -10,11 +10,13 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { BLOCK_INFO, cloneBlock, createBlock, MAX_BLOCKS, type BlockStyle, type BlockType, type WebSiteBlock } from '@/lib/web-sites/blocks';
 import { allBlocks, blockCount, findPage, homeOf, MAX_TOTAL_BLOCKS, setPageBlocks, type SiteDocument } from '@/lib/web-sites/site';
-import type { WebSiteTheme } from '@/lib/web-sites/theme';
+import { DEFAULT_THEME, type WebSiteTheme } from '@/lib/web-sites/theme';
+import { sampleBlock } from '@/lib/web-sites/section-samples';
 import { KIND_INFO } from '@/lib/web-sites/templates';
 import { cn } from '@/lib/utils';
 import { AddSectionDialog, buildSuggestions } from './AddSectionDialog';
 import { BlockFields } from './BlockEditor';
+import { LayoutPicker } from './LayoutPicker';
 import { BLOCK_ICONS, blockSummary } from './editor-shared';
 import { MoveSectionDialog, type PageOption } from './MoveSectionDialog';
 import { SectionMenu } from './SectionMenu';
@@ -30,8 +32,8 @@ interface GuidedEditorProps {
   openId: string | null;
   onOpenChange: (id: string | null) => void;
   readOnly: boolean;
-  /** Opcional: con los colores del sitio, las muestras de fondo de cada sección se ven como quedarán. */
-  theme?: Pick<WebSiteTheme, 'primary' | 'accent' | 'background' | 'text'>;
+  /** Opcional: con el tema del sitio, las muestras de fondo y las miniaturas de diseños se ven como quedarán. */
+  theme?: WebSiteTheme;
 }
 
 type Transfer = { mode: 'move' | 'copy'; blockId: string };
@@ -104,7 +106,7 @@ export function GuidedEditor({ kind, document, pageId, onDocumentChange, openId,
   );
 
   const addBlock = useCallback(
-    (type: BlockType, position?: number) => {
+    (type: BlockType, position?: number, variant?: string) => {
       if (limitMessage) {
         toast.error(limitMessage);
         return;
@@ -113,7 +115,8 @@ export function GuidedEditor({ kind, document, pageId, onDocumentChange, openId,
         toast.error('Esta página ya tiene una portada. Solo puede haber una por página.');
         return;
       }
-      const block = createBlock(type);
+      // Desde la biblioteca de diseños llega con el contenido de muestra (se ve el diseño al tiro); desde la guía, vacía.
+      const block = variant !== undefined ? sampleBlock(type, variant) : createBlock(type);
       revealRequest.current = block.id;
       onDocumentChange((previous) => {
         if (blockCount(previous) >= MAX_TOTAL_BLOCKS) return previous;
@@ -332,7 +335,16 @@ export function GuidedEditor({ kind, document, pageId, onDocumentChange, openId,
         </>
       )}
 
-      <AddSectionDialog open={addAt !== null} onOpenChange={(next) => (next ? undefined : setAddAt(null))} onPick={(type) => addBlock(type, addAt ?? undefined)} whereLabel={whereLabel} heroBlocked={hasHero} suggestions={suggestions} />
+      <AddSectionDialog
+        open={addAt !== null}
+        onOpenChange={(next) => (next ? undefined : setAddAt(null))}
+        onPick={(type, variant) => addBlock(type, addAt ?? undefined, variant)}
+        whereLabel={whereLabel}
+        heroBlocked={hasHero}
+        suggestions={suggestions}
+        theme={theme ?? DEFAULT_THEME}
+        document={document}
+      />
       <MoveSectionDialog
         open={transfer !== null}
         mode={transfer?.mode ?? 'move'}
@@ -439,7 +451,7 @@ interface SectionCardProps {
   /** Solo la tarjeta abierta recibe el sitio (las demás no se vuelven a pintar en cada tecla). */
   document: SiteDocument | null;
   pageId: string;
-  theme?: Pick<WebSiteTheme, 'primary' | 'accent' | 'background' | 'text'>;
+  theme?: WebSiteTheme;
   onToggleOpen: (id: string) => void;
   onMove: (id: string, dir: -1 | 1) => void;
   onToggleHidden: (id: string) => void;
@@ -512,6 +524,7 @@ const SectionCard = memo(function SectionCard({ block, index, total, open, readO
                 {info.help}
               </span>
             </p>
+            <LayoutPicker block={block} theme={theme ?? DEFAULT_THEME} document={document} disabled={readOnly} onChange={(next) => onChange(block.id, next)} />
             <BlockFields block={block} disabled={readOnly} document={document} pageId={pageId} onChange={(next) => onChange(block.id, next)} />
             <SectionStyleFields
               style={block.style}

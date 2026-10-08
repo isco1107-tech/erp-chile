@@ -212,3 +212,130 @@ export function siteSlugProblem(slug: string): string | null {
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) return 'Usa solo letras minúsculas, números y guiones';
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// Incrustar servicios (sección "Incrustar")
+// ---------------------------------------------------------------------------
+
+export type EmbedProvider = 'spotify' | 'soundcloud' | 'calendly' | 'google-forms' | 'google-calendar';
+
+export interface EmbedInfo {
+  provider: EmbedProvider;
+  /** Nombre del servicio para el usuario. */
+  label: string;
+  /** Dirección del iframe, armada por nosotros a partir de los datos extraídos (nunca la URL tal cual). */
+  src: string;
+  /** Dirección para abrir el contenido en el servicio. */
+  openUrl: string;
+  sandbox: string;
+  allow?: string;
+  /** Alto natural del reproductor en px (Spotify y SoundCloud); `null` = el que elija el usuario. */
+  fixedHeight: number | null;
+}
+
+/** Orígenes que un sitio puede incrustar con esta sección (deben estar en `frame-src` de next.config.js). */
+export const EMBED_ORIGINS = ['https://open.spotify.com', 'https://w.soundcloud.com', 'https://calendly.com', 'https://docs.google.com', 'https://calendar.google.com'] as const;
+
+export const EMBED_PROVIDER_LABELS: Record<EmbedProvider, string> = {
+  spotify: 'Spotify',
+  soundcloud: 'SoundCloud',
+  calendly: 'Calendly',
+  'google-forms': 'Google Forms',
+  'google-calendar': 'Google Calendar',
+};
+
+const SLUG_PART = /^[A-Za-z0-9_-]{1,80}$/;
+const SPOTIFY_TYPES = new Set(['track', 'album', 'playlist', 'artist', 'episode', 'show']);
+const CALENDAR_ID_RE = /^[A-Za-z0-9._%+-]{1,120}@(?:group\.calendar\.google\.com|gmail\.com|[A-Za-z0-9.-]+\.[a-z]{2,})$/i;
+
+function parseUrl(value: string): URL | null {
+  try {
+    return new URL(/^https?:\/\//i.test(value) ? value : `https://${value}`);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Enlace de un servicio permitido → datos del iframe. Igual que `videoEmbed`:
+ * solo esos servicios, y la dirección del iframe se arma con las piezas
+ * extraídas (ids, usuario), así que no se puede incrustar una página cualquiera.
+ * Un ID de Google Calendar (correo del calendario) también sirve.
+ */
+export function embedFrom(raw: string | null | undefined): EmbedInfo | null {
+  const value = (raw ?? '').trim();
+  if (!value || value.length > 500) return null;
+  if (CALENDAR_ID_RE.test(value) && !value.includes('/')) {
+    const src = `https://calendar.google.com/calendar/embed?src=${encodeURIComponent(value)}&ctz=America%2FSantiago`;
+    return { provider: 'google-calendar', label: EMBED_PROVIDER_LABELS['google-calendar'], src, openUrl: src, sandbox: 'allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox', fixedHeight: null };
+  }
+  const url = parseUrl(value);
+  if (!url) return null;
+  const host = url.hostname.toLowerCase().replace(/^(www\.|m\.)/, '');
+  const parts = url.pathname.split('/').filter(Boolean);
+
+  if (host === 'open.spotify.com') {
+    const rest = parts[0]?.startsWith('intl-') ? parts.slice(1) : parts;
+    const [kind, id] = rest[0] === 'embed' ? rest.slice(1) : rest;
+    if (!kind || !id || !SPOTIFY_TYPES.has(kind) || !/^[A-Za-z0-9]{22}$/.test(id)) return null;
+    return {
+      provider: 'spotify',
+      label: EMBED_PROVIDER_LABELS.spotify,
+      src: `https://open.spotify.com/embed/${kind}/${id}`,
+      openUrl: `https://open.spotify.com/${kind}/${id}`,
+      sandbox: 'allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-presentation',
+      allow: 'autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture',
+      fixedHeight: kind === 'track' || kind === 'episode' ? 152 : 352,
+    };
+  }
+
+  if (host === 'soundcloud.com') {
+    if (parts.length < 2 || parts.length > 4 || !parts.every((part) => SLUG_PART.test(part))) return null;
+    const track = `https://soundcloud.com/${parts.join('/')}`;
+    return {
+      provider: 'soundcloud',
+      label: EMBED_PROVIDER_LABELS.soundcloud,
+      src: `https://w.soundcloud.com/player/?url=${encodeURIComponent(track)}&visual=false&show_comments=false`,
+      openUrl: track,
+      sandbox: 'allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox',
+      allow: 'autoplay',
+      fixedHeight: parts.includes('sets') ? 400 : 166,
+    };
+  }
+
+  if (host === 'calendly.com') {
+    if (parts.length < 1 || parts.length > 2 || !parts.every((part) => SLUG_PART.test(part))) return null;
+    const path = parts.join('/');
+    return {
+      provider: 'calendly',
+      label: EMBED_PROVIDER_LABELS.calendly,
+      src: `https://calendly.com/${path}?embed_type=Inline&hide_gdpr_banner=1`,
+      openUrl: `https://calendly.com/${path}`,
+      sandbox: 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox',
+      fixedHeight: null,
+    };
+  }
+
+  if (host === 'docs.google.com' && parts[0] === 'forms' && parts[1] === 'd') {
+    const published = parts[2] === 'e';
+    const id = published ? parts[3] : parts[2];
+    if (!id || !/^[A-Za-z0-9_-]{20,120}$/.test(id)) return null;
+    const base = `https://docs.google.com/forms/d/${published ? 'e/' : ''}${id}/viewform`;
+    return {
+      provider: 'google-forms',
+      label: EMBED_PROVIDER_LABELS['google-forms'],
+      src: `${base}?embedded=true`,
+      openUrl: base,
+      sandbox: 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox',
+      fixedHeight: null,
+    };
+  }
+
+  if (host === 'calendar.google.com' && parts[0] === 'calendar') {
+    const id = url.searchParams.get('src') ?? '';
+    if (!CALENDAR_ID_RE.test(id)) return null;
+    const src = `https://calendar.google.com/calendar/embed?src=${encodeURIComponent(id)}&ctz=America%2FSantiago`;
+    return { provider: 'google-calendar', label: EMBED_PROVIDER_LABELS['google-calendar'], src, openUrl: src, sandbox: 'allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox', fixedHeight: null };
+  }
+  return null;
+}
