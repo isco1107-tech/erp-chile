@@ -14,7 +14,7 @@ export function posterSite(overrides: Partial<PublicPageantSite> = {}): PublicPa
     coverImageUrl: 'https://x.public.blob.vercel-storage.com/pageant-covers/co1/portada.jpg',
     faviconUrl: null,
     accent: 'gold',
-    instagramHandle: 'misssur',
+    instagramHandles: ['misssur'],
     contactEmail: 'hola@misssur.cl',
     whatsapp: { href: 'https://wa.me/56911112222', label: '+56 9 1111 2222' },
     candidates: [

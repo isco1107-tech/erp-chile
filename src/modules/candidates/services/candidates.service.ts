@@ -1,4 +1,4 @@
-import { formatWhatsappNumber, pageantContact, type PageantContact } from '@/lib/events/pageant-contact';
+import { formatInstagramHandlesForForm, formatWhatsappNumber, pageantContact, type PageantContact } from '@/lib/events/pageant-contact';
 import crypto from 'crypto';
 import { applicationPhotoPrefix, checkRegistrationRequirements, requirementsFromProject, type RegistrationRequirements } from '@/lib/events/registration-requirements';
 import { blobPathnameStartsWith } from '@/lib/security/blob-url';
@@ -730,7 +730,7 @@ export async function getRegistrationSettings(companyId: string, projectId: stri
     classesNote: registrationClassesNote,
     contactEmail: publicContactEmail,
     contactWhatsapp: publicWhatsapp ? formatWhatsappNumber(publicWhatsapp) : null,
-    instagramHandle: instagramHandle ? `@${instagramHandle.replace(/^@/, '')}` : null,
+    instagramHandle: instagramHandle ? formatInstagramHandlesForForm(instagramHandle) || null : null,
     applicationsReceived,
   };
 }

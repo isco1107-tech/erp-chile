@@ -109,7 +109,7 @@ export default function CandidateRegistrationClient({ token }: { token: string }
 
   const privacyHref = `${CONFIG.privacidadUrl}?certamen=${encodeURIComponent(token)}`;
   const contact = project.contact;
-  const hasContact = Boolean(contact.email || contact.whatsapp || contact.instagram);
+  const hasContact = Boolean(contact.email || contact.whatsapp || contact.instagrams.length > 0);
   const title = splitPageantTitle(project.projectName);
   const shortName = [title.lead, title.main].filter(Boolean).join(' ');
   // --pgs-lead-fit: "MISS UNIVERSO" crece hasta llenar el ancho sin desbordar en teléfonos.
@@ -325,15 +325,15 @@ export default function CandidateRegistrationClient({ token }: { token: string }
 
       {/* ── Pie ────────────────────────────────────────────────────────── */}
       <footer className="pgs-footer">
-        {contact.instagram && (
-          <a className="pgs-follow" href={contact.instagram.href} target="_blank" rel="noopener noreferrer">
+        {contact.instagrams.map((ig) => (
+          <a key={ig.handle} className="pgs-follow" href={ig.href} target="_blank" rel="noopener noreferrer">
             <span className="pgs-follow-label">
               <Instagram className="pgs-inline-icon" />
               Síguenos en Instagram
             </span>
-            <span className="pgs-follow-handle">@{contact.instagram.handle}</span>
+            <span className="pgs-follow-handle">@{ig.handle}</span>
           </a>
-        )}
+        ))}
         <div className="pgs-wrap pgs-footer-grid">
           <div className="pgs-footer-brand">
             <Crown className="pgs-brand-mark" />
@@ -406,11 +406,11 @@ function ContactLinks({ contact }: { contact: RegistrationProjectInfo['contact']
           <Mail className="pgs-inline-icon" /> {contact.email}
         </a>
       )}
-      {contact.instagram && (
-        <a href={contact.instagram.href} target="_blank" rel="noreferrer">
-          <Instagram className="pgs-inline-icon" /> @{contact.instagram.handle}
+      {contact.instagrams.map((ig) => (
+        <a key={ig.handle} href={ig.href} target="_blank" rel="noreferrer">
+          <Instagram className="pgs-inline-icon" /> @{ig.handle}
         </a>
-      )}
+      ))}
     </span>
   );
 }

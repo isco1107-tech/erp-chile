@@ -48,7 +48,8 @@ export interface PublicPageantSite {
   /** Logo de la pestaña del navegador (favicon); `null` = el de la plataforma. */
   faviconUrl: string | null;
   accent: PublicAccentKey;
-  instagramHandle: string | null;
+  /** Cuentas de Instagram del certamen, sin «@» (vacío = ninguna). */
+  instagramHandles: string[];
   contactEmail: string | null;
   whatsapp: { href: string; label: string } | null;
   candidates: PublicPageantCandidate[];
@@ -242,7 +243,7 @@ async function assemblePageantSite(project: ProjectWithCompany, slug: string): P
     coverImageUrl: project.coverImageUrl,
     faviconUrl: project.faviconUrl,
     accent: isAccent(project.publicAccent) ? project.publicAccent : 'gold',
-    instagramHandle: contact.instagram?.handle ?? null,
+    instagramHandles: contact.instagrams.map((i) => i.handle),
     contactEmail: contact.email,
     whatsapp: contact.whatsapp,
     candidates: candidates.map((c) => ({

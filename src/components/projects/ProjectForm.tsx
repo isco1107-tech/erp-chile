@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { CurrencyInput } from '@/components/ui/CurrencyInput';
 import { PROJECT_STATUSES, PROJECT_STATUS_LABELS, projectCreateSchema, projectUpdateSchema } from '@/modules/projects/schema';
 import { createProjectAction, updateProjectAction } from '@/modules/projects/actions/projects.actions';
-import { formatWhatsappNumber } from '@/lib/events/pageant-contact';
+import { formatInstagramHandlesForForm, formatWhatsappNumber } from '@/lib/events/pageant-contact';
 import RegistrationRequirementsFields from './RegistrationRequirementsFields';
 
 function toDateInputValue(date: Date | string | null | undefined): string {
@@ -48,7 +48,7 @@ export default function ProjectForm({ editingProject }: ProjectFormProps) {
     venueName: editingProject?.venueName ?? '',
     venueAddress: editingProject?.venueAddress ?? '',
     publicWhatsapp: editingProject?.publicWhatsapp ? formatWhatsappNumber(editingProject.publicWhatsapp) : '',
-    instagramHandle: editingProject?.instagramHandle ? `@${editingProject.instagramHandle.replace(/^@/, '')}` : '',
+    instagramHandle: formatInstagramHandlesForForm(editingProject?.instagramHandle),
     minCandidateAge: editingProject?.minCandidateAge ?? 18,
     requireChileanNationality: editingProject?.requireChileanNationality ?? false,
     requireCandidateInstagram: editingProject?.requireCandidateInstagram ?? true,
@@ -229,11 +229,11 @@ export default function ProjectForm({ editingProject }: ProjectFormProps) {
         </div>
 
         <div className="sm:col-span-2">
-          <Label htmlFor="instagramHandle">Instagram del certamen</Label>
+          <Label htmlFor="instagramHandle">Instagram del certamen (uno o varios)</Label>
           <Input
             id="instagramHandle"
             autoComplete="off"
-            placeholder="@tucertamen"
+            placeholder="@tucertamen, @otracuenta"
             value={form.instagramHandle}
             onChange={(e) => update('instagramHandle', e.target.value)}
             aria-invalid={!!errors.instagramHandle}
@@ -241,7 +241,7 @@ export default function ProjectForm({ editingProject }: ProjectFormProps) {
           {errors.instagramHandle ? (
             <p className="mt-1 text-sm text-destructive">{errors.instagramHandle}</p>
           ) : (
-            <p className="mt-1 text-xs text-muted-foreground">Se muestra en el sitio y en la inscripción para que las postulantes te sigan.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Separa varias cuentas con coma (hasta 5). Se muestran en el sitio y en la inscripción para que las postulantes te sigan.</p>
           )}
         </div>
 
