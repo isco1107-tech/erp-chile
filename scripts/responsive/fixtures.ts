@@ -42,7 +42,7 @@ export function baseSite(overrides: Partial<PublicPageantSite> = {}): PublicPage
     coverImageUrl: null,
     faviconUrl: null,
     accent: 'gold',
-    instagramHandle: 'missuniversotemuco',
+    instagramHandles: ['missuniversotemuco', 'miss.universo.araucania'],
     contactEmail: 'contacto@missuniversotemuco.cl',
     whatsapp: { href: 'https://wa.me/56912345678', label: '+56 9 1234 5678' },
     candidates: candidates(['Camila Rojas', 'Valentina Soto', 'Antonia Fuentes', 'Josefa Araya', 'Isidora Pérez', 'Emilia Contreras'], ['Temuco', 'Pucón', 'Villarrica']),
@@ -98,7 +98,7 @@ export const FIXTURES: Record<string, PublicPageantSite> = {
     venueName: 'Centro de Eventos y Convenciones Internacional Gran Hotel Pucón',
     venueAddress: 'Avenida Libertador Bernardo O’Higgins 12345, Oficina 678, Pucón, Región de La Araucanía',
     contactEmail: 'contacto.institucional.certamen.internacional@corporacionculturalmunicipal.example.cl',
-    instagramHandle: 'certamen_internacional_reina_solidaridad_turismo_sudamerica',
+    instagramHandles: ['certamen_internacional_reina_solidaridad_turismo_sudamerica', 'otra_cuenta_oficial'],
     candidates: candidates(
       ['María de los Ángeles Fernández-Villanueva de la Barra', 'Constanza Alejandra Valenzuela Rodríguez', 'Su', 'Ana', 'Florencia Belén Hernández Castillo-Larraín'],
       ['Región Metropolitana de Santiago y alrededores', null, 'Pucón']
@@ -138,7 +138,7 @@ export const FIXTURES: Record<string, PublicPageantSite> = {
     venueAddress: null,
     contactEmail: null,
     whatsapp: null,
-    instagramHandle: null,
+    instagramHandles: [],
     candidates: [],
     sponsorsByTier: [],
     packages: [],

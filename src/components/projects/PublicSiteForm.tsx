@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { textareaClass } from '@/components/ui/field-classes';
-import { formatWhatsappNumber } from '@/lib/events/pageant-contact';
+import { formatInstagramHandlesForForm, formatWhatsappNumber } from '@/lib/events/pageant-contact';
 import { slugify } from '@/lib/events/public-slug';
 import { DIRECTOR_TITLES, directorCopy, type DirectorTitle } from '@/lib/events/pageant-site';
 import { checkPublicSlugAction, updatePublicSiteAction } from '@/modules/projects/actions/projects.actions';
@@ -37,7 +37,7 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
     publicDescription: project.publicDescription ?? '',
     coverImageUrl: project.coverImageUrl ?? '',
     publicAccent: ((PUBLIC_ACCENTS as readonly string[]).includes(project.publicAccent) ? project.publicAccent : 'gold') as PublicAccentKey,
-    instagramHandle: project.instagramHandle ? `@${project.instagramHandle.replace(/^@/, '')}` : '',
+    instagramHandle: formatInstagramHandlesForForm(project.instagramHandle),
     publicContactEmail: project.publicContactEmail ?? '',
     publicWhatsapp: project.publicWhatsapp ? formatWhatsappNumber(project.publicWhatsapp) : '',
     showCandidatesPublic: project.showCandidatesPublic,
@@ -273,8 +273,8 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div>
-              <Label htmlFor="site-ig">Instagram del certamen</Label>
-              <Input id="site-ig" value={values.instagramHandle} onChange={(e) => set('instagramHandle', e.target.value)} placeholder="@misschileoficial" disabled={!canWrite} />
+              <Label htmlFor="site-ig">Instagram del certamen (uno o varios)</Label>
+              <Input id="site-ig" value={values.instagramHandle} onChange={(e) => set('instagramHandle', e.target.value)} placeholder="@misschileoficial, @otracuenta" disabled={!canWrite} />
             </div>
             <div>
               <Label htmlFor="site-wsp">WhatsApp del certamen</Label>

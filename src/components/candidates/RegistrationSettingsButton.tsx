@@ -188,11 +188,11 @@ export default function RegistrationSettingsButton({ projectId }: { projectId: s
                   />
                 </div>
                 <div>
-                  <Label htmlFor="reg-instagram">Instagram</Label>
+                  <Label htmlFor="reg-instagram">Instagram (uno o varios)</Label>
                   <Input
                     id="reg-instagram"
                     autoComplete="off"
-                    placeholder="@tucertamen"
+                    placeholder="@tucertamen, @otracuenta"
                     value={settings.instagramHandle ?? ''}
                     onChange={(e) => setSettings({ ...settings, instagramHandle: e.target.value })}
                   />

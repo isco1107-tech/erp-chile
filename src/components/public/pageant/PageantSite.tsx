@@ -409,11 +409,11 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
                 {site.whatsapp.label}
               </a>
             )}
-            {site.instagramHandle && (
-              <a href={`https://instagram.com/${site.instagramHandle}`} target="_blank" rel="noopener noreferrer">
-                <Instagram className="pgs-inline-icon" />@{site.instagramHandle}
+            {site.instagramHandles.map((handle) => (
+              <a key={handle} href={`https://instagram.com/${handle}`} target="_blank" rel="noopener noreferrer">
+                <Instagram className="pgs-inline-icon" />@{handle}
               </a>
-            )}
+            ))}
             {site.contactEmail && (
               <a href={`mailto:${site.contactEmail}`}>
                 <Mail className="pgs-inline-icon" />
@@ -1255,15 +1255,15 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
 
       {/* ── Pie ────────────────────────────────────────────────────────── */}
       <footer className="pgs-footer">
-        {site.instagramHandle && (
-          <a className="pgs-follow" href={`https://instagram.com/${site.instagramHandle}`} target="_blank" rel="noopener noreferrer" data-reveal>
+        {site.instagramHandles.map((handle) => (
+          <a key={handle} className="pgs-follow" href={`https://instagram.com/${handle}`} target="_blank" rel="noopener noreferrer" data-reveal>
             <span className="pgs-follow-label">
               <Instagram className="pgs-inline-icon" />
               Síguenos en Instagram
             </span>
-            <span className="pgs-follow-handle">@{site.instagramHandle}</span>
+            <span className="pgs-follow-handle">@{handle}</span>
           </a>
-        )}
+        ))}
         <div className="pgs-wrap pgs-footer-grid">
           <div className="pgs-footer-brand">
             <Crown className="pgs-brand-mark" />
@@ -1294,11 +1294,11 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
                 {site.contactEmail}
               </a>
             )}
-            {site.instagramHandle && (
-              <a href={`https://instagram.com/${site.instagramHandle}`} target="_blank" rel="noopener noreferrer">
-                <Instagram className="pgs-inline-icon" />@{site.instagramHandle}
+            {site.instagramHandles.map((handle) => (
+              <a key={handle} href={`https://instagram.com/${handle}`} target="_blank" rel="noopener noreferrer">
+                <Instagram className="pgs-inline-icon" />@{handle}
               </a>
-            )}
+            ))}
             {site.registration && <a href={site.registration.href}>Postula al certamen</a>}
           </div>
         </div>

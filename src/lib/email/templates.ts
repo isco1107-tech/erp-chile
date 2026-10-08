@@ -236,7 +236,7 @@ export interface CandidateApplicationConfirmationEmailInput {
   companyName: string;
   folio: string;
   /** Contacto del certamen (el que configuró la organización), si tiene. */
-  contact?: { email: string | null; whatsapp: { href: string; label: string } | null; instagram: { href: string; handle: string } | null };
+  contact?: { email: string | null; whatsapp: { href: string; label: string } | null; instagrams: Array<{ href: string; handle: string }> };
 }
 
 /**
@@ -253,7 +253,7 @@ export function buildCandidateApplicationConfirmationEmail(input: CandidateAppli
   const contactLines = [
     input.contact?.email ? { label: 'Correo', text: input.contact.email, href: `mailto:${input.contact.email}` } : null,
     input.contact?.whatsapp ? { label: 'WhatsApp', text: input.contact.whatsapp.label, href: input.contact.whatsapp.href } : null,
-    input.contact?.instagram ? { label: 'Instagram', text: `@${input.contact.instagram.handle}`, href: input.contact.instagram.href } : null,
+    ...(input.contact?.instagrams ?? []).map((ig) => ({ label: 'Instagram', text: `@${ig.handle}`, href: ig.href })),
   ].filter((line): line is { label: string; text: string; href: string } => line !== null);
   const contactHtml = contactLines.length
     ? `

@@ -177,7 +177,7 @@ describe('buildPosterContent: nunca inventa', () => {
 
   it('contacto: Instagram y WhatsApp; el correo solo si no hay ninguno de los dos', () => {
     expect(buildPosterContent(posterSite(), options('gala'))!.contact).toEqual(['@misssur', '+56 9 1111 2222']);
-    expect(buildPosterContent(posterSite({ instagramHandle: null, whatsapp: null }), options('gala'))!.contact).toEqual(['hola@misssur.cl']);
+    expect(buildPosterContent(posterSite({ instagramHandles: [], whatsapp: null }), options('gala'))!.contact).toEqual(['hola@misssur.cl']);
   });
 });
 

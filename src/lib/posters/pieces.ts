@@ -190,7 +190,7 @@ function displayUrl(url: string): string {
 
 function contactLine(site: PublicPageantSite): string[] {
   const items: string[] = [];
-  if (site.instagramHandle) items.push(`@${site.instagramHandle}`);
+  for (const handle of site.instagramHandles) items.push(`@${handle}`);
   if (site.whatsapp) items.push(site.whatsapp.label);
   if (items.length === 0 && site.contactEmail) items.push(site.contactEmail);
   return items;

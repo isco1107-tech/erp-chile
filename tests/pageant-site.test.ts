@@ -189,12 +189,20 @@ describe('Contacto propio de cada certamen', () => {
   });
 
   it('solo expone los canales configurados', () => {
-    expect(pageantContact({ publicContactEmail: null, publicWhatsapp: null, instagramHandle: null })).toEqual({ email: null, whatsapp: null, instagram: null });
+    expect(pageantContact({ publicContactEmail: null, publicWhatsapp: null, instagramHandle: null })).toEqual({ email: null, whatsapp: null, instagram: null, instagrams: [] });
     expect(pageantContact({ publicContactEmail: 'hola@mut.cl', publicWhatsapp: '56987654321', instagramHandle: '@mut' })).toEqual({
       email: 'hola@mut.cl',
       whatsapp: { href: 'https://wa.me/56987654321', label: '+56 9 8765 4321' },
       instagram: { href: 'https://instagram.com/mut', handle: 'mut' },
+      instagrams: [{ href: 'https://instagram.com/mut', handle: 'mut' }],
     });
+  });
+
+  it('admite varias cuentas de Instagram, sin repetir, hasta el tope', () => {
+    expect(pageantContact({ publicContactEmail: null, publicWhatsapp: null, instagramHandle: 'mut,mut.sur' }).instagrams.map((i) => i.handle)).toEqual(['mut', 'mut.sur']);
+    expect(instagramHandleField.parse('@mut, https://instagram.com/mut.sur/ MUT')).toBe('mut,mut.sur');
+    expect(instagramHandleField.safeParse('mut, no valido!').success).toBe(false);
+    expect(instagramHandleField.safeParse('a,b,c,d,e,f').success).toBe(false);
   });
 
   it('valida los campos del formulario: vacío es null, inválido explica el formato', () => {
@@ -202,12 +210,12 @@ describe('Contacto propio de cada certamen', () => {
     expect(schema.parse({ email: '', whatsapp: '', instagram: '' })).toEqual({ email: null, whatsapp: null, instagram: null });
     expect(schema.parse({})).toEqual({ email: null, whatsapp: null, instagram: null });
     expect(schema.parse({ email: ' Hola@MUT.cl ', whatsapp: '+56 9 1234 5678', instagram: '@mut' })).toEqual({ email: 'hola@mut.cl', whatsapp: '56912345678', instagram: 'mut' });
-    const bad = schema.safeParse({ email: 'no-es-correo', whatsapp: '12', instagram: 'a b' });
+    const bad = schema.safeParse({ email: 'no-es-correo', whatsapp: '12', instagram: 'a!b' });
     expect(bad.success).toBe(false);
     expect(bad.error?.issues.map((i) => i.message)).toEqual([
       'El correo de contacto no es válido',
       'El WhatsApp no es un número válido (ej. +56 9 1234 5678)',
-      'El Instagram no es un usuario válido (ej. @missuniversotemuco)',
+      'Instagram no válido: a!b (ej. @missuniversotemuco; separa varios con coma)',
     ]);
   });
 });
