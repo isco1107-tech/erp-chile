@@ -52,6 +52,14 @@ export const SAMPLE_PLACEHOLDERS = [
   'Comuna o empresa',
   'Categoría',
   'Otra categoría',
+  'Servicio 1',
+  'Servicio 2',
+  'Opción 1',
+  'Opción 2',
+  'Cargo 1',
+  'Cargo 2',
+  'Grupo 1',
+  'Grupo 2',
 ] as const;
 
 const CARD_TEXT = 'Explica en una o dos frases qué gana tu cliente con esto, sin tecnicismos.';
@@ -250,6 +258,20 @@ export const SECTION_SAMPLES: Record<BlockType, StarterDraft> = {
     note: 'Aclara si el despacho o la visita tiene costo en alguna zona.',
   },
   embed: { type: 'embed', heading: 'Agenda tu hora', text: 'Pega el enlace de Calendly, Google Forms, Google Calendar, Spotify o SoundCloud y explica aquí qué hacer.' },
+  form: {
+    type: 'form',
+    heading: 'Pide tu cotización',
+    intro: 'Explica en una frase qué pasa después de enviar: cuándo respondes y por dónde.',
+    purpose: 'quote',
+    highlights: ['Escribe aquí una ventaja de contactarte', 'Por ejemplo: respondemos el mismo día hábil'],
+    fields: [
+      { id: 'nombre', kind: 'text', label: 'Nombre', required: true, role: 'name' },
+      { id: 'correo', kind: 'email', label: 'Correo', required: true, role: 'email' },
+      { id: 'telefono', kind: 'phone', label: 'Teléfono', role: 'phone' },
+      { id: 'servicio', kind: 'select', label: '¿Qué necesitas?', required: true, role: 'group', options: ['Servicio 1', 'Servicio 2'] },
+      { id: 'detalle', kind: 'longtext', label: 'Cuéntanos más', role: 'message' },
+    ],
+  },
   posts: {
     type: 'posts',
     heading: 'Novedades',

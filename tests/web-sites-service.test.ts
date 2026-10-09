@@ -67,6 +67,7 @@ import { siteSlugProblem } from '@/lib/web-sites/urls';
 import * as actions from '@/modules/web-sites/actions/web-sites.actions';
 import { WebSiteDomainError, setWebSiteDomain, refreshWebSiteDomain } from '@/modules/web-sites/services/web-site-domain.service';
 import * as service from '@/modules/web-sites/services/web-sites.service';
+import { setMessageArchived } from '@/modules/web-sites/services/web-site-forms.service';
 import {
   MAX_ASSETS_PER_SITE,
   MAX_COMPANY_ASSET_BYTES,
@@ -82,7 +83,6 @@ import {
   getPublicWebSite,
   getPublicWebSiteByDomain,
   getWebSite,
-  listWebSiteMessages,
   listWebSites,
   publishWebSite,
   saveWebSiteContent,
@@ -1073,8 +1073,8 @@ function installTenantDb() {
       { id: 'asset-b', companyId: 'B', siteId: 'site-b', url: 'https://blob.test/b.png', alt: null, site: emptySite },
     ],
     webSiteMessage: [
-      { id: 'msg-a', companyId: 'A', siteId: 'site-a', readAt: null },
-      { id: 'msg-b', companyId: 'B', siteId: 'site-b', readAt: null },
+      { id: 'msg-a', companyId: 'A', siteId: 'site-a', readAt: null, archivedAt: null },
+      { id: 'msg-b', companyId: 'B', siteId: 'site-b', readAt: null, archivedAt: null },
     ],
     contact: [
       { id: 'contact-a', companyId: 'A' },
@@ -1215,8 +1215,16 @@ describe('aislamiento multi-tenant: la sesión de A nunca toca registros de B', 
     expectAllScoped(fake.calls, 'A');
   });
 
-  it('listWebSiteMessages: pasar el siteId de B no devuelve sus mensajes', async () => {
-    await expect(listWebSiteMessages('A', 'site-b')).resolves.toEqual([]);
+  it('setMessageArchived: no archiva un mensaje de B', async () => {
+    await expect(setMessageArchived('A', 'msg-b', true)).rejects.toThrow('Mensaje no encontrado');
+    expect(fake.byId('webSiteMessage', 'msg-b')?.archivedAt).toBeNull();
+    expectAllScoped(fake.calls, 'A');
+
+    fake.calls.length = 0;
+    await setMessageArchived('A', 'msg-a', true);
+    expect(fake.byId('webSiteMessage', 'msg-a')?.archivedAt).toBeInstanceOf(Date);
+    // Archivar también lo saca de los "sin leer".
+    expect(fake.byId('webSiteMessage', 'msg-a')?.readAt).toBeInstanceOf(Date);
     expectAllScoped(fake.calls, 'A');
   });
 
@@ -1477,7 +1485,7 @@ describe('acciones de Sitios web: RBAC por rol', () => {
   const table: Array<[string, () => Promise<{ success: boolean; error?: string }>, Permission]> = [
     ['listWebSitesAction', () => actions.listWebSitesAction(), READ],
     ['getWebSiteAction', () => actions.getWebSiteAction('s'), READ],
-    ['listWebSiteMessagesAction', () => actions.listWebSiteMessagesAction('s'), READ],
+    ['listFormMessagesAction', () => actions.listFormMessagesAction({ siteId: 's' }), READ],
         ['createWebSiteAction', () => actions.createWebSiteAction({}), WRITE],
     ['saveWebSiteContentAction', () => actions.saveWebSiteContentAction('s', {}), WRITE],
     ['updateWebSiteSettingsAction', () => actions.updateWebSiteSettingsAction('s', {}), WRITE],
@@ -1487,6 +1495,10 @@ describe('acciones de Sitios web: RBAC por rol', () => {
     ['deleteWebSiteAssetAction', () => actions.deleteWebSiteAssetAction('a'), WRITE],
     ['setWebSiteMessageReadAction', () => actions.setWebSiteMessageReadAction('m', true), WRITE],
     ['deleteWebSiteMessageAction', () => actions.deleteWebSiteMessageAction('m'), WRITE],
+    ['setWebSiteMessageArchivedAction', () => actions.setWebSiteMessageArchivedAction('m', true), WRITE],
+    ['markWebSiteMessagesReadAction', () => actions.markWebSiteMessagesReadAction({}), WRITE],
+    ['routeWebSiteMessageAction', () => actions.routeWebSiteMessageAction('m', 'crm'), WRITE],
+    ['listAcademyGroupNamesAction', () => actions.listAcademyGroupNamesAction(), WRITE],
     ['publishWebSiteAction', () => actions.publishWebSiteAction('s'), PUBLISH],
     ['unpublishWebSiteAction', () => actions.unpublishWebSiteAction('s'), PUBLISH],
     ['archiveWebSiteAction', () => actions.archiveWebSiteAction('s', true), PUBLISH],

@@ -1,7 +1,8 @@
 import { ArrowUpRight, Clock, Mail, MapPin, MessageCircle, Phone } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { CONTACT_FORM_FIELDS, PURPOSE_DEFAULTS, publicFormFields } from '@/lib/web-sites/forms';
 import { whatsappHref } from '@/lib/web-sites/urls';
-import ContactForm from '../../ContactForm';
+import SiteForm from '../../SiteForm';
 import { resolveIn, type RenderCtx } from '../context';
 import Countdown from '../Countdown';
 import { SiteIconView } from '../icons';
@@ -173,11 +174,22 @@ function ContactRow({ info, large }: { info: ContactInfo; large?: boolean }) {
   );
 }
 
-function FormCard({ ctx, flat }: { ctx: RenderCtx; flat?: boolean }) {
+const CONTACT_PUBLIC_FIELDS = publicFormFields(CONTACT_FORM_FIELDS);
+
+function FormCard({ ctx, blockId, flat }: { ctx: RenderCtx; blockId: string; flat?: boolean }) {
   return (
-    <div className={cx('ws-tone-default ws-bg text-left', flat ? 'border-t border-[color:var(--ws-border)] pt-8' : 'rounded-[calc(var(--ws-radius)*1.4)] border border-[color:var(--ws-border)] p-6 shadow-xl @2xl:p-8')}>
+    <div className={cx('ws-tone-default ws-bg min-w-0 text-left', flat ? 'border-t border-[color:var(--ws-border)] pt-8' : 'rounded-[calc(var(--ws-radius)*1.4)] border border-[color:var(--ws-border)] p-6 shadow-xl @2xl:p-8')}>
       <h3 className="ws-h mb-5 text-xl">Envíanos un mensaje</h3>
-      <ContactForm slug={ctx.slug} preview={ctx.preview} />
+      <SiteForm
+        slug={ctx.slug}
+        preview={ctx.preview}
+        formId={blockId}
+        fields={CONTACT_PUBLIC_FIELDS}
+        submitLabel={PURPOSE_DEFAULTS.contact.submitLabel}
+        successTitle={PURPOSE_DEFAULTS.contact.successTitle}
+        successText="Te responderemos lo antes posible al correo que dejaste."
+        consentCheckbox={false}
+      />
     </div>
   );
 }
@@ -217,7 +229,7 @@ export function ContactSection({ block, ctx, center }: SectionProps<'contact'>) 
           )}
           {block.showForm && (
             <div className="mx-auto max-w-xl">
-              <FormCard ctx={ctx} />
+              <FormCard ctx={ctx} blockId={block.id} />
             </div>
           )}
           {map}
@@ -241,7 +253,7 @@ export function ContactSection({ block, ctx, center }: SectionProps<'contact'>) 
           {waButton(cx(info.length > 0 && 'mt-8'))}
           {(block.showForm || showMap) && (
             <div className={cx('mt-12 grid gap-10', block.showForm && showMap && '@3xl:grid-cols-2')}>
-              {block.showForm && <FormCard ctx={ctx} />}
+              {block.showForm && <FormCard ctx={ctx} blockId={block.id} />}
               {showMap && (
                 <div className="text-left">
                   <MapView ctx={ctx} address={block.address} height="md" />
@@ -266,7 +278,7 @@ export function ContactSection({ block, ctx, center }: SectionProps<'contact'>) 
               )}
               {waButton(cx(info.length > 0 && 'mt-10'))}
             </div>
-            {block.showForm && <FormCard ctx={ctx} flat />}
+            {block.showForm && <FormCard ctx={ctx} blockId={block.id} flat />}
           </div>
           {map}
         </div>
@@ -288,7 +300,7 @@ export function ContactSection({ block, ctx, center }: SectionProps<'contact'>) 
                 {waButton(cx(info.length > 0 && 'mt-8'))}
               </div>
             )}
-            {block.showForm && <FormCard ctx={ctx} />}
+            {block.showForm && <FormCard ctx={ctx} blockId={block.id} />}
           </div>
           {map}
         </div>

@@ -38,9 +38,9 @@ describe('registro de diseños', () => {
     }
   });
 
-  it('ofrece muchos diseños: más de 130 en 33 tipos de sección', () => {
-    expect(BLOCK_TYPES).toHaveLength(33);
-    expect(totalLayouts()).toBeGreaterThanOrEqual(130);
+  it('ofrece muchos diseños: más de 135 en 34 tipos de sección', () => {
+    expect(BLOCK_TYPES).toHaveLength(34);
+    expect(totalLayouts()).toBeGreaterThanOrEqual(135);
   });
 
   it('el diseño de fábrica es el primero y un sitio antiguo sin `variant` se ve igual que antes', () => {
@@ -417,7 +417,7 @@ describe('rubros y plantillas de página', () => {
   });
 
   it('las plantillas de página nuevas se pintan', () => {
-    for (const id of ['links', 'visit', 'history', 'news', 'compare']) {
+    for (const id of ['links', 'visit', 'history', 'news', 'compare', 'quote', 'enrollment', 'booking']) {
       const template = PAGE_TEMPLATES.find((entry) => entry.id === id);
       expect(template).toBeDefined();
       const blocks = template!.blocks.map((draft) => blockSchema.parse({ ...draft, id: `${id}-${draft.type}` }));

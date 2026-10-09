@@ -59,9 +59,10 @@ export function CreativeStudio({ target, resourceId, name, value, disabled, imag
       <SiteDesignAssistant disabled={disabled} context={target === 'academy' ? { target: 'academy-studio', current: { blocks: design.blocks, theme: design.theme } } : { target: 'event-studio', resourceId, current: { blocks: design.blocks, theme: design.theme } }} onApply={(proposal) => { if ('blocks' in proposal.design) change({ ...design, ...proposal.design, enabled: true }); }} />
       <EditorAssetsContext.Provider value={{ siteId: resourceId, assets, readOnly: disabled, addAsset: (asset) => setUploaded((previous) => [...previous, asset]), uploadAsset }}>
         <GuidedEditor kind="BLANK" document={doc} pageId={page.id} onDocumentChange={(updater) => {
-          const next = homeOf(updater(doc)).blocks.map((block) => block.type === 'contact' ? { ...block, showForm: false } : block);
+          // El micrositio tiene su propio formulario: aquí no hay formularios a medida ni el de contacto.
+          const next = homeOf(updater(doc)).blocks.filter((block) => block.type !== 'form').map((block) => block.type === 'contact' ? { ...block, showForm: false } : block);
           change({ ...design, blocks: next });
-        }} openId={openId} onOpenChange={setOpenId} readOnly={disabled} theme={design.theme} />
+        }} openId={openId} onOpenChange={setOpenId} readOnly={disabled} theme={design.theme} unavailableTypes={{ form: 'Este micrositio usa su propio formulario de inscripción: los formularios a medida son de los sitios web.' }} />
       </EditorAssetsContext.Provider>
       <details><summary className="cursor-pointer text-sm font-semibold">Colores, tipografía y animación</summary><div className="mt-3"><ThemePanel theme={design.theme} disabled={disabled} onChange={(patch) => change({ ...design, theme: { ...design.theme, ...patch } })} /></div></details>
       <div className="flex gap-2">{(['desktop', 'tablet', 'mobile'] as const).map((d) => <Button key={d} type="button" size="xs" variant={device === d ? 'default' : 'outline'} onClick={() => setDevice(d)}>{d === 'desktop' ? 'Escritorio' : d === 'tablet' ? 'Tablet' : 'Móvil'}</Button>)}</div>

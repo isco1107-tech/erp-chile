@@ -2,12 +2,13 @@ import { notFound, redirect } from 'next/navigation';
 import WebSiteEditor from '@/components/web-sites/WebSiteEditor';
 import { can, getAuthContext } from '@/lib/auth/guards';
 import { prisma } from '@/lib/prisma';
+import { destinationAccess, routeTargetsFor } from '@/lib/web-sites/forms';
 import { getWebSite } from '@/modules/web-sites/services/web-sites.service';
 
 export const metadata = { title: 'Editar sitio web' };
 
-export default async function WebSiteEditorPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string | string[] }> }) {
-  const [{ id }, { tab }] = await Promise.all([params, searchParams]);
+export default async function WebSiteEditorPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string | string[]; form?: string | string[] }> }) {
+  const [{ id }, { tab, form }] = await Promise.all([params, searchParams]);
   const context = await getAuthContext();
   // El servicio se llama directo (sin la acción): el permiso se exige acá.
   if (!can(context, 'websites:read')) redirect('/dashboard');
@@ -31,7 +32,11 @@ export default async function WebSiteEditorPage({ params, searchParams }: { para
       contacts={contacts ? contacts.map((contact) => ({ id: contact.id, label: `${contact.nombreFantasia || contact.razonSocial} · ${contact.rut}` })) : null}
       canWrite={can(context, 'websites:write')}
       canPublish={can(context, 'websites:publish')}
+      formAccess={destinationAccess(context.features, context.permissions)}
+      canReadAcademy={can(context, 'academy:read')}
+      routeTargets={routeTargetsFor(context.features, context.permissions)}
       initialTab={typeof tab === 'string' ? tab : undefined}
+      initialFormId={typeof form === 'string' ? form.slice(0, 40) : null}
     />
   );
 }

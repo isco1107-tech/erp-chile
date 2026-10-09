@@ -40,7 +40,8 @@ const FLOW_DETAIL: Record<PublicNoticeFlow, string> = {
     'Usamos tus datos para identificar las cuotas a pagar, procesar el pago por transferencia a través de Khipu y enviarte el comprobante. No guardamos claves ni credenciales de tu banco: el pago se hace en el sitio de Khipu.',
   auspicio:
     'Usamos los datos de la persona de contacto de la marca para gestionar el contrato de auspicio, sus entregables y sus pagos.',
-  sitio: 'Usamos tus datos solo para responder la consulta que enviaste desde este sitio web. No te inscribimos en listas de correo sin tu autorización.',
+  sitio:
+    'Usamos tus datos solo para responder la consulta o solicitud que enviaste desde este sitio web (contacto, cotización, inscripción o reserva) y para gestionarla en el área que corresponda: ventas, inscripciones o el equipo que te atiende. No te inscribimos en listas de correo sin tu autorización.',
   academia:
     'Usamos los datos de la alumna y, si es menor de edad, de su apoderado, para revisar la inscripción, contactarte, asignar un grupo y llevar la asistencia y las mensualidades. La autorización del uso de imagen es opcional y puedes retirarla cuando quieras.',
   encuesta:

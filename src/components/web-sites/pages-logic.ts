@@ -1,4 +1,5 @@
 import { blockLinks, type WebSiteBlock } from '@/lib/web-sites/blocks';
+import { DESTINATION_INFO, type FormDestination } from '@/lib/web-sites/forms';
 import type { PageTemplate } from '@/lib/web-sites/page-templates';
 import { addPage, MAX_PAGES, pageAnchors, pageBlockAnchors, pageLink, parsePageLink, publishedPages, setPageBlocks, type SiteDocument, type SitePage } from '@/lib/web-sites/site';
 import { templateBlocks } from '@/lib/web-sites/templates';
@@ -90,10 +91,24 @@ export interface AddedPage {
 }
 
 /** Página nueva desde una plantilla (o en blanco), con los botones ya enlazados a la sección de contacto. */
-export function addPageFromTemplate(doc: SiteDocument, template: PageTemplate, title: string): AddedPage | null {
+/**
+ * Un formulario de plantilla cuyo destino no está en el plan de la empresa
+ * (p. ej. «Cotizar» va al CRM) parte en la bandeja del sitio; si su destino
+ * forzaba la casilla de privacidad, la casilla se conserva.
+ */
+export function adaptFormDestinations(blocks: WebSiteBlock[], isEnabled: (destination: FormDestination) => boolean): WebSiteBlock[] {
+  return blocks.map((block) => {
+    if ((block.type !== 'form' && block.type !== 'contact') || isEnabled(block.destination)) return block;
+    if (block.type === 'form') return { ...block, destination: 'inbox', consent: DESTINATION_INFO[block.destination].forcesConsent ? 'checkbox' : block.consent };
+    return { ...block, destination: 'inbox' };
+  });
+}
+
+export function addPageFromTemplate(doc: SiteDocument, template: PageTemplate, title: string, options: { isDestinationEnabled?: (destination: FormDestination) => boolean } = {}): AddedPage | null {
   if (doc.pages.length >= MAX_PAGES) return null;
   const name = title.trim() || template.title;
-  const added = addPage(doc, { title: name, blocks: templateBlocks(template.blocks) });
+  const blocks = templateBlocks(template.blocks);
+  const added = addPage(doc, { title: name, blocks: options.isDestinationEnabled ? adaptFormDestinations(blocks, options.isDestinationEnabled) : blocks });
   // El destino se busca con la página ya agregada: si la plantilla trae su propio contacto (la de "Contacto"), sirve.
   const target = defaultButtonTarget(added.doc);
   const filled = fillEmptyButtons(added.page.blocks, target);

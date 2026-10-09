@@ -5,6 +5,7 @@ import { DividerSection, HeroSection, ImageSection, SplitSection, TextSection } 
 import { ContactSection, CountdownSection, CtaSection, LinksSection } from './action';
 import { AreasSection, ComparisonSection, HoursSection, MarqueeSection, PostsSection, TabsSection, TimelineSection } from './extra';
 import { CatalogSection, FeaturesSection, PricelistSection, PricingSection, ScheduleSection, StatsSection, StepsSection, TeamSection } from './lists';
+import { FormSection } from './form';
 import { BeforeAfterSection, EmbedSection, GallerySection, MapSection, VideoSection } from './media';
 import { FaqSection, LogosSection, QuoteSection, TestimonialsSection } from './social';
 
@@ -77,5 +78,7 @@ export function renderSection(block: WebSiteBlock, ctx: RenderCtx, center: boole
       return <EmbedSection block={block} ctx={ctx} center={center} />;
     case 'posts':
       return <PostsSection block={block} ctx={ctx} center={center} />;
+    case 'form':
+      return <FormSection block={block} ctx={ctx} center={center} />;
   }
 }

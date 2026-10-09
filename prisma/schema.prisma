@@ -5486,22 +5486,48 @@ model WebSiteAsset {
   @@index([companyId, siteId])
 }
 
-/// Mensaje enviado desde el formulario de contacto de un sitio publicado.
+/// Envío de un formulario de un sitio publicado (sección «Formulario» o el del
+/// bloque «Contacto»). Es la copia fiel de lo que escribió la persona; si el
+/// formulario tributa a otra parte del ERP (CRM, academia, tareas), además se
+/// crea ese registro y acá queda el enlace (`routedKind` + `routedId`).
 model WebSiteMessage {
-  id        String    @id @default(cuid())
-  companyId String
-  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  siteId    String
-  site      WebSite   @relation(fields: [siteId], references: [id], onDelete: Cascade)
-  name      String
-  email     String
-  phone     String?
-  message   String
-  readAt    DateTime?
-  createdAt DateTime  @default(now())
+  id          String    @id @default(cuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  siteId      String
+  site        WebSite   @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  name        String
+  /// `null` si el formulario no pedía correo (se responde por teléfono).
+  email       String?
+  phone       String?
+  /// Mensaje libre, o el resumen de las respuestas si el formulario no tenía uno.
+  message     String
+  /// Id del bloque del formulario. `null` = mensaje anterior a los formularios a medida.
+  formId      String?
+  /// Nombre del formulario al momento del envío (el título de la sección).
+  formTitle   String?
+  /// Propósito (`FORM_PURPOSES` de src/lib/web-sites/forms.ts): contacto, cotización, inscripción…
+  purpose     String?
+  /// Destino configurado al enviarse (`FORM_DESTINATIONS`): inbox, crm, academy o tasks.
+  destination String?
+  /// Etiqueta interna para ordenar la bandeja.
+  tag         String?
+  /// Todas las respuestas: `[{ id, label, kind, role, value }]`.
+  answers     Json?
+  /// Dónde quedó registrado en el ERP (`crm`, `academy`, `tasks`) y el id del registro.
+  routedKind  String?
+  routedId    String?
+  routedAt    DateTime?
+  /// Por qué no llegó a su destino (módulo no contratado, dato que el destino rechazó…).
+  routeNote   String?
+  /// Archivado: sale de la bandeja sin borrarse.
+  archivedAt  DateTime?
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
 
   @@index([companyId, siteId, createdAt])
   @@index([companyId, readAt])
+  @@index([companyId, createdAt])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

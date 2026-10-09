@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import {
   AppWindow,
   Award,
+  ClipboardList,
   Clock4,
   Link2,
   MapPinned,
@@ -37,6 +38,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { BlockTypeInfo, WebSiteBlock } from '@/lib/web-sites/blocks';
+import { DESTINATION_INFO, PURPOSE_LABELS } from '@/lib/web-sites/forms';
 import { groupWeek } from '@/lib/web-sites/hours';
 import { richTextPlain } from '@/lib/web-sites/rich-text';
 import { embedFrom } from '@/lib/web-sites/urls';
@@ -82,6 +84,7 @@ export const BLOCK_ICONS: Record<BlockTypeInfo['icon'], LucideIcon> = {
   MapPinned,
   AppWindow,
   Newspaper,
+  ClipboardList,
 };
 
 export interface EditorAsset {
@@ -120,7 +123,7 @@ export function settingsEqual(a: SettingsDraft, b: SettingsDraft): boolean {
   );
 }
 
-export const EDITOR_TABS = ['content', 'pages', 'layout', 'design', 'images', 'settings', 'readiness', 'messages'] as const;
+export const EDITOR_TABS = ['content', 'pages', 'layout', 'design', 'images', 'settings', 'forms', 'readiness', 'messages'] as const;
 export type EditorTab = (typeof EDITOR_TABS)[number];
 
 export function isEditorTab(value: string | undefined | null): value is EditorTab {
@@ -227,6 +230,8 @@ export function blockSummary(block: WebSiteBlock): string {
       return [clip(block.heading, 40), embedFrom(block.url)?.label ?? (block.url ? 'Enlace no reconocido' : 'Sin enlace todavía')].filter(Boolean).join(' · ');
     case 'posts':
       return [clip(block.heading, 40), count(block.items.length, 'novedad', 'novedades')].filter(Boolean).join(' · ');
+    case 'form':
+      return [clip(block.heading, 40) || PURPOSE_LABELS[block.purpose], count(block.fields.length, 'pregunta', 'preguntas'), `→ ${DESTINATION_INFO[block.destination].area}`].filter(Boolean).join(' · ');
   }
 }
 

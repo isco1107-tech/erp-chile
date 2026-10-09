@@ -37,6 +37,8 @@ interface GuidedEditorProps {
   readOnly: boolean;
   /** Opcional: con el tema del sitio, las muestras de fondo y las miniaturas de diseños se ven como quedarán. */
   theme?: WebSiteTheme;
+  /** Tipos de sección que este editor no ofrece, con la razón. */
+  unavailableTypes?: Partial<Record<BlockType, string>>;
 }
 
 type Transfer = { mode: 'move' | 'copy'; blockId: string };
@@ -58,7 +60,7 @@ function samePages(a: PageOption[], b: PageOption[]): boolean {
   });
 }
 
-export function GuidedEditor({ kind, document, pageId, onDocumentChange, openId, onOpenChange, readOnly, theme }: GuidedEditorProps) {
+export function GuidedEditor({ kind, document, pageId, onDocumentChange, openId, onOpenChange, readOnly, theme, unavailableTypes }: GuidedEditorProps) {
   const confirm = useConfirm();
   const page = findPage(document, pageId) ?? homeOf(document);
   const currentPageId = page.id;
@@ -349,6 +351,7 @@ export function GuidedEditor({ kind, document, pageId, onDocumentChange, openId,
         suggestions={suggestions}
         theme={theme ?? DEFAULT_THEME}
         document={document}
+        unavailable={unavailableTypes}
       />
       <MoveSectionDialog
         open={transfer !== null}

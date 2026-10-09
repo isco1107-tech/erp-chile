@@ -1,8 +1,11 @@
 import type { WebSiteKind, WebSiteMode } from '@prisma/client';
+import type { FeatureKey } from '@/lib/auth/modules';
 import { BLOCK_INFO, blockImageUrls, blockLinks, blockTexts, isBlockEmpty, type WebSiteBlock } from './blocks';
 import { htmlHints, MAX_HTML_BYTES, sanitizeHtml } from './html';
 import { chromeLinks, documentFromBlocks, homeOf, isValidSiteLink, publishedPages, type SiteDocument } from './site';
+import { formProblems } from './forms';
 import { isSampleWeek } from './section-samples';
+import { blockForm } from './site-forms';
 import { isSampleText, KIND_INFO } from './templates';
 import { parseTheme, themeProblems } from './theme';
 import { BLOCK_LAYOUTS } from './variants';
@@ -48,6 +51,8 @@ export interface ReadinessInput {
   /** Atajo: sitio de una sola página con estas secciones (formato antiguo, pruebas). */
   blocks?: WebSiteBlock[];
   html?: string | null;
+  /** Módulos contratados: un formulario cuyo destino no está en el plan se avisa. Sin esto no se revisa. */
+  features?: Partial<Record<FeatureKey, boolean>>;
 }
 
 function report(items: ReadinessItem[]): ReadinessReport {
@@ -83,7 +88,20 @@ function linkProblems(doc: SiteDocument, placed: PlacedBlock[]): string[] {
 
 function hasContactWay(doc: SiteDocument, placed: PlacedBlock[]): boolean {
   if (doc.whatsapp.enabled && whatsappHref(doc.whatsapp.number)) return true;
-  return placed.some(({ block }) => block.type === 'contact' && Boolean(block.showForm || block.email.trim() || block.phone.trim() || whatsappHref(block.whatsapp) || block.address.trim()));
+  return placed.some(({ block }) => block.type === 'form' || (block.type === 'contact' && Boolean(block.showForm || block.email.trim() || block.phone.trim() || whatsappHref(block.whatsapp) || block.address.trim())));
+}
+
+/** Problemas de los formularios visibles: los que impiden publicar y los avisos (módulo no contratado). */
+function formIssues(placed: PlacedBlock[], features?: Partial<Record<FeatureKey, boolean>>): { blocking: string[]; warnings: string[] } {
+  const blocking: string[] = [];
+  const warnings: string[] = [];
+  for (const entry of placed) {
+    const form = blockForm(entry.block);
+    if (!form) continue;
+    const name = `el formulario «${form.title}»${where(entry)}`;
+    for (const problem of formProblems(form, features)) (problem.blocking ? blocking : warnings).push(`${name} ${problem.message}`);
+  }
+  return { blocking, warnings };
 }
 
 export function evaluateReadiness(input: ReadinessInput): ReadinessReport {
@@ -147,6 +165,8 @@ export function evaluateReadiness(input: ReadinessInput): ReadinessReport {
     return [];
   });
   const whatsappBroken = doc.whatsapp.enabled && !whatsappHref(doc.whatsapp.number);
+  const forms = formIssues(placed, input.features);
+  const hasForms = placed.some((entry) => blockForm(entry.block) !== null);
   // Diseños pensados para fotos que quedaron sin ninguna: se ven pobres (o vacíos) al publicar.
   const photoLayouts = placed.flatMap((entry) => {
     const option = BLOCK_LAYOUTS[entry.block.type].options.find((layout) => layout.value === entry.block.variant);
@@ -157,6 +177,12 @@ export function evaluateReadiness(input: ReadinessInput): ReadinessReport {
   return report([
     item('hero', 'Portada con título', Boolean(hero && hero.type === 'hero' && hero.title.trim()), true, 'La portada dice qué ofreces.', `Agrega una ${BLOCK_INFO.hero.label.toLowerCase()} visible en la página de inicio y ponle un título: es lo primero que se ve.`),
     item('contact', 'Una forma de contacto', hasContactWay(doc, placed), true, 'Tus clientes pueden escribirte.', 'Agrega una sección de Contacto con correo, teléfono, WhatsApp o el formulario activado, o activa el botón flotante de WhatsApp.'),
+    ...(hasForms
+      ? [
+          item('forms', 'Los formularios están completos', forms.blocking.length === 0, true, 'Cada formulario pide lo que necesita su destino.', `Revisa ${forms.blocking.join('; ')}.`),
+          ...(forms.warnings.length > 0 ? [item('forms-destination', 'Destino de los formularios', false, false, 'Listo.', `${forms.warnings.join('; ')}.`)] : []),
+        ]
+      : []),
     item('links', 'Los enlaces funcionan', links.length === 0, true, 'Todos los botones, menús y correos son válidos.', `Revisa ${links.join('; ')}. Elige una página del sitio o usa https://…, un correo o un teléfono.`),
     ...info.mustHave
       .filter((need) => need.type !== 'hero' && need.type !== 'contact')

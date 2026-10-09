@@ -30,6 +30,7 @@ import {
 } from './BlockEditorMore';
 import { AreasFields, BeforeAfterFields, ComparisonFields, EmbedFields, HoursFields, LinksFields, MarqueeFields, PostsFields, TabsFields, TimelineFields } from './BlockEditorExtra';
 import { ButtonFields, Notice, Optional, PHOTO_TIP, Tip, type FieldsProps } from './block-fields-shared';
+import { ContactFormDestination, FormFields } from './FormBlockFields';
 import { ChoiceGroup, SwitchRow, TextField } from './fields';
 import { IconPicker } from './IconPicker';
 import { ImagePicker } from './ImagePicker';
@@ -117,6 +118,8 @@ export function BlockFields({ block, disabled, onChange, document, pageId }: Blo
       return <EmbedFields block={block} {...common} />;
     case 'posts':
       return <PostsFields block={block} {...common} />;
+    case 'form':
+      return <FormFields block={block} {...common} />;
   }
 }
 
@@ -457,7 +460,7 @@ function TestimonialsFields({ block, disabled, onChange }: FieldsProps<BlockOf<'
 // Contacto y separador
 // ---------------------------------------------------------------------------
 
-function ContactFields({ block, disabled, onChange }: FieldsProps<BlockOf<'contact'>>) {
+function ContactFields({ block, disabled, onChange, document, pageId }: FieldsProps<BlockOf<'contact'>>) {
   const set = (patch: Partial<BlockOf<'contact'>>) => onChange({ ...block, ...patch });
   const hasWay = Boolean(block.email.trim() || block.phone.trim() || block.whatsapp.trim() || block.showForm);
   return (
@@ -494,6 +497,7 @@ function ContactFields({ block, disabled, onChange }: FieldsProps<BlockOf<'conta
       <SwitchRow label="Mostrar mapa con la dirección" description={block.address.trim() ? 'Se muestra un mapa de Google con la dirección que escribiste.' : 'Escribe una dirección arriba para que el mapa funcione.'} checked={block.showMap} onChange={(showMap) => set({ showMap })} disabled={disabled} />
       {block.showMap && !block.address.trim() ? <Notice>Activaste el mapa, pero falta la dirección.</Notice> : null}
       <SwitchRow label="Mostrar formulario de mensajes" description="Lo que escriban las visitas llega a la pestaña Mensajes de este sitio y te avisamos en el panel." checked={block.showForm} onChange={(showForm) => set({ showForm })} disabled={disabled} />
+      <ContactFormDestination block={block} disabled={disabled} onChange={onChange} document={document} pageId={pageId} />
     </div>
   );
 }

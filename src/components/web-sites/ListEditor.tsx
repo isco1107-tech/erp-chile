@@ -42,6 +42,8 @@ export interface ListEditorProps<T extends object> {
   duplicateLabel?: string;
   /** Mensaje cuando la lista está vacía. */
   emptyText?: string;
+  /** Copia de un ítem al duplicarlo (por omisión, una copia exacta); sirve para darle un id nuevo. */
+  cloneItem?: (item: T) => T;
 }
 
 /**
@@ -62,6 +64,7 @@ export function ListEditor<T extends object>({
   variant = 'cards',
   duplicateLabel,
   emptyText,
+  cloneItem,
 }: ListEditorProps<T>) {
   const confirm = useConfirm();
   const bodyPrefix = useId();
@@ -111,7 +114,7 @@ export function ListEditor<T extends object>({
     if (!source || items.length >= max) return;
     const nextItems = [...items];
     const nextKeys = [...currentKeys];
-    nextItems.splice(index + 1, 0, structuredClone(source));
+    nextItems.splice(index + 1, 0, cloneItem ? cloneItem(source) : structuredClone(source));
     nextKeys.splice(index + 1, 0, nextKey());
     commit(nextItems, nextKeys);
   }

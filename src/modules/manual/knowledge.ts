@@ -76,7 +76,7 @@ export const SCREEN_PURPOSES: Record<string, string> = {
   quality: 'Procedimientos con acuse de lectura, inspecciones de calidad por plantilla y ficha de productores.',
   academy: 'Calendario de clases de la academia (mes o semana con horas, clases repetidas cada semana), lista de asistencia por clase, material de estudio que se envía por correo a las alumnas y sus apoderados, ficha de cada alumna y control de la mensualidad pagada. Recibe inscripciones por un link público que el equipo aprueba, y publica un sitio web propio de la academia (pestaña Sitio web).',
   tasks: 'Tareas del equipo con responsable y repetición, y reglas de delegación de decisiones.',
-  'web-sites': 'Crear y publicar sitios web (guiado o HTML propio), dominio propio y mensajes del formulario de contacto.',
+  'web-sites': 'Crear y publicar sitios web (guiado o HTML propio), dominio propio, formularios (contacto, cotización, inscripción, reserva) que tributan al CRM, la academia o las tareas, y la bandeja de lo que llega.',
   'treasury-cxc': 'Cuentas por cobrar: qué te deben los clientes, lo vencido, registrar cobros y enviar recordatorios.',
   'treasury-cxp': 'Cuentas por pagar: qué le debes a tus proveedores, lo que vence pronto y registrar pagos.',
   'treasury-cashflow': 'Ingresos y egresos reales del período por medio de pago, exportables a CSV.',

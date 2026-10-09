@@ -9,12 +9,14 @@ import { blobPathnameStartsWith, isAllowedBlobUrl } from '@/lib/security/blob-ur
 import { blockImageUrls, type WebSiteBlock } from '@/lib/web-sites/blocks';
 import { MAX_HTML_BYTES, sanitizeHtml } from '@/lib/web-sites/html';
 import { evaluateReadiness, type ReadinessReport } from '@/lib/web-sites/readiness';
-import { allBlocks, documentFromBlocks, homeOf, normalizeSiteDocument, parseSiteDocument, publishedPages, type SiteDocument } from '@/lib/web-sites/site';
+import { siteForms } from '@/lib/web-sites/site-forms';
+import type { CompanyFeatureFlags } from '@/lib/auth/modules';
+import { allBlocks, documentFromBlocks, homeOf, normalizeSiteDocument, parseSiteDocument, type SiteDocument } from '@/lib/web-sites/site';
 import { findIndustry, industryDocument } from '@/lib/web-sites/industries';
 import { starterDocument, starterHtml } from '@/lib/web-sites/templates';
 import { NEW_SITE_THEME, parseTheme, type WebSiteTheme } from '@/lib/web-sites/theme';
 import { slugify } from '@/lib/web-sites/urls';
-import type { CreateWebSiteInput, PublicWebSiteMessageInput, SaveWebSiteContentInput, WebSiteSettingsInput } from '../schema';
+import type { CreateWebSiteInput, SaveWebSiteContentInput, WebSiteSettingsInput } from '../schema';
 
 /**
  * Servicio de sitios web. Todo filtra por `companyId` (multi-tenant): las
@@ -93,16 +95,6 @@ export interface WebSiteDetail {
   unreadMessages: number;
   /** ISO de `contentUpdatedAt`: versión del contenido, para detectar ediciones simultáneas. */
   version: string;
-  createdAt: Date;
-}
-
-export interface WebSiteMessageRow {
-  id: string;
-  name: string;
-  email: string;
-  phone: string | null;
-  message: string;
-  readAt: Date | null;
   createdAt: Date;
 }
 
@@ -193,7 +185,7 @@ export async function listWebSites(companyId: string, filter: { status?: WebSite
         contact: { select: { razonSocial: true, nombreFantasia: true } },
       },
     }),
-    prisma.webSiteMessage.groupBy({ by: ['siteId'], where: { companyId, readAt: null }, _count: { _all: true } }),
+    prisma.webSiteMessage.groupBy({ by: ['siteId'], where: { companyId, readAt: null, archivedAt: null }, _count: { _all: true } }),
     prisma.webSite.groupBy({ by: ['status'], where: { companyId }, _count: { _all: true } }),
   ]);
   const unreadBySite = new Map(unread.map((row) => [row.siteId, row._count._all]));
@@ -229,7 +221,7 @@ export async function getWebSite(companyId: string, id: string): Promise<WebSite
     },
   });
   if (!site) return null;
-  const unreadMessages = await prisma.webSiteMessage.count({ where: { companyId, siteId: id, readAt: null } });
+  const unreadMessages = await prisma.webSiteMessage.count({ where: { companyId, siteId: id, readAt: null, archivedAt: null } });
   return {
     id: site.id,
     name: site.name,
@@ -263,8 +255,8 @@ export async function getWebSite(companyId: string, id: string): Promise<WebSite
 }
 
 /** Evaluación en el servidor (la misma que ve el editor), para no confiar en el navegador. */
-export function readinessOf(site: Pick<WebSiteDetail, 'kind' | 'mode' | 'seoTitle' | 'seoDescription' | 'logoUrl' | 'theme' | 'document' | 'html'>): ReadinessReport {
-  return evaluateReadiness({ kind: site.kind, mode: site.mode, seoTitle: site.seoTitle, seoDescription: site.seoDescription, logoUrl: site.logoUrl, theme: site.theme, document: site.document, html: site.html });
+export function readinessOf(site: Pick<WebSiteDetail, 'kind' | 'mode' | 'seoTitle' | 'seoDescription' | 'logoUrl' | 'theme' | 'document' | 'html'>, features?: Partial<CompanyFeatureFlags>): ReadinessReport {
+  return evaluateReadiness({ kind: site.kind, mode: site.mode, seoTitle: site.seoTitle, seoDescription: site.seoDescription, logoUrl: site.logoUrl, theme: site.theme, document: site.document, html: site.html, features });
 }
 
 // ---------------------------------------------------------------------------
@@ -390,11 +382,11 @@ export async function updateWebSiteSettings(companyId: string, id: string, input
  * Publica una copia del borrador. Exige pasar la lista "qué falta" (los ítems
  * obligatorios): la revisa el servidor, no el navegador.
  */
-export async function publishWebSite(companyId: string, id: string): Promise<{ publishedAt: Date; report: ReadinessReport }> {
+export async function publishWebSite(companyId: string, id: string, features?: Partial<CompanyFeatureFlags>): Promise<{ publishedAt: Date; report: ReadinessReport }> {
   const site = await getWebSite(companyId, id);
   if (!site) throw new WebSiteError('Sitio no encontrado');
   if (site.status === 'ARCHIVED') throw new WebSiteError('El sitio está archivado. Restáuralo antes de publicarlo.');
-  const report = readinessOf(site);
+  const report = readinessOf(site, features);
   if (!report.canPublish) {
     const pending = report.items.filter((item) => item.required && !item.ok).map((item) => item.label);
     throw new WebSiteError(`Aún no se puede publicar. Falta: ${pending.join(', ')}.`);
@@ -521,17 +513,8 @@ export async function unusedAssetUrls(companyId: string, urls: string[]): Promis
 }
 
 // ---------------------------------------------------------------------------
-// Mensajes del formulario de contacto
+// Mensajes de los formularios (la bandeja completa vive en `web-site-forms.service.ts`)
 // ---------------------------------------------------------------------------
-
-export async function listWebSiteMessages(companyId: string, siteId: string): Promise<WebSiteMessageRow[]> {
-  return prisma.webSiteMessage.findMany({
-    where: { companyId, siteId },
-    orderBy: { createdAt: 'desc' },
-    take: 200,
-    select: { id: true, name: true, email: true, phone: true, message: true, readAt: true, createdAt: true },
-  });
-}
 
 export async function setMessageRead(companyId: string, messageId: string, read: boolean): Promise<void> {
   const result = await prisma.webSiteMessage.updateMany({ where: { id: messageId, companyId }, data: { readAt: read ? new Date() : null } });
@@ -565,7 +548,7 @@ export interface PublicWebSite {
   /** Secciones de la página de inicio (atajo). */
   blocks: WebSiteBlock[];
   html: string;
-  /** El sitio publicado tiene un formulario de contacto activo. */
+  /** El sitio publicado tiene al menos un formulario visible (contacto o sección «Formulario»). */
   acceptsMessages: boolean;
   customDomain: string | null;
   customDomainVerified: boolean;
@@ -601,7 +584,7 @@ function toPublic(site: PublicRow | null): PublicWebSite | null {
     document,
     blocks: homeOf(document).blocks,
     html: site.publishedHtml ?? '',
-    acceptsMessages: publishedPages(document).some((page) => page.blocks.some((block) => block.type === 'contact' && !block.hidden && block.showForm)),
+    acceptsMessages: siteForms(document).some((form) => !form.hidden),
     customDomain: site.customDomain,
     customDomainVerified: Boolean(site.customDomainVerifiedAt),
     publishedAt: site.publishedAt,
@@ -628,21 +611,13 @@ export async function getPublicWebSiteByDomain(domain: string, reachedViaDomain 
   return toPublic(row);
 }
 
-export async function createPublicMessage(site: Pick<PublicWebSite, 'id' | 'companyId'>, input: PublicWebSiteMessageInput): Promise<{ id: string }> {
-  const message = await prisma.webSiteMessage.create({
-    data: { companyId: site.companyId, siteId: site.id, name: input.name, email: input.email, phone: input.phone || null, message: input.message },
-    select: { id: true },
-  });
-  return message;
-}
-
 /** Mensajes recibidos por un sitio en los últimos `minutes` (tope contra spam que sobrevive a cada instancia serverless). */
 export async function countRecentMessages(companyId: string, siteId: string, minutes: number): Promise<number> {
   return prisma.webSiteMessage.count({ where: { companyId, siteId, createdAt: { gte: new Date(Date.now() - minutes * 60_000) } } });
 }
 
 export async function countUnreadMessages(companyId: string): Promise<number> {
-  return prisma.webSiteMessage.count({ where: { companyId, readAt: null } });
+  return prisma.webSiteMessage.count({ where: { companyId, readAt: null, archivedAt: null } });
 }
 
 // ---------------------------------------------------------------------------

@@ -13,6 +13,7 @@
  * sección, estilos completos y sitios por rubro) en 13 pantallas, y falla si
  * algo desborda, se corta, parte una palabra o queda invisible. Además prueba
  * lo interactivo: pestañas, flechas del carrusel, comparador antes/después,
+ * el formulario por pasos (no avanza sin lo obligatorio; completo, avanza),
  * preguntas y el menú del celular. Las fotos se sirven desde `https://img.test`
  * (imágenes generadas) y los iframes externos se responden vacíos: no usa red
  * de la app ni base de datos. Capturas y `report.html` quedan en
@@ -292,6 +293,34 @@ for (const name of fixtures) {
       await page.keyboard.press('ArrowRight');
       const value = await range.inputValue();
       if (value === '50') problems.push({ kind: 'comparador-quieto', detail: 'El comparador antes/después no responde al teclado' });
+    }
+
+    // Formulario por pasos: sin las respuestas obligatorias no avanza; completas, pasa al paso 2 sin desbordar.
+    const stepped = page.locator('form:has(.ws-progress)').first();
+    if (await stepped.count()) {
+      await stepped.scrollIntoViewIfNeeded();
+      const label = () => stepped.locator('[aria-live="polite"]').first().innerText().catch(() => '');
+      await stepped.getByRole('button', { name: 'Siguiente' }).click();
+      await page.waitForTimeout(50);
+      if (!/^Paso 1 /i.test(await label())) problems.push({ kind: 'formulario-pasos', detail: 'El formulario por pasos avanzó sin las respuestas obligatorias' });
+      const step = stepped.locator('div.grid:not([hidden])').first();
+      for (const input of await step.locator('input[required]:not([type=radio]):not([type=checkbox]), select[required], textarea[required]').all()) {
+        const type = await input.getAttribute('type');
+        const tag = await input.evaluate((el) => el.tagName);
+        if (tag === 'SELECT') await input.selectOption({ index: 1 });
+        else if (type === 'date') await input.fill('1995-05-04');
+        else if (type === 'email') await input.fill('ana@correo.cl');
+        else if (type === 'tel') await input.fill('+56 9 1234 5678');
+        else if ((await input.getAttribute('placeholder')) === '12.345.678-5') await input.fill('12.345.678-5');
+        else await input.fill('Ana Pérez');
+      }
+      for (const box of await step.locator('input[type=checkbox][required]').all()) await box.check();
+      for (const radio of await step.locator('input[type=radio][required]').all()) await radio.check().catch(() => undefined);
+      await stepped.getByRole('button', { name: 'Siguiente' }).click();
+      await page.waitForTimeout(100);
+      if (!/^Paso 2 /i.test(await label())) problems.push({ kind: 'formulario-pasos', detail: `El formulario por pasos no avanzó con las respuestas completas (${await label()})` });
+      const after = await page.evaluate(collectProblems, '.ws-root');
+      for (const p of after) if (!problems.some((q) => q.detail === p.detail)) problems.push({ ...p, detail: `(en el paso 2 del formulario) ${p.detail}` });
     }
 
     // Preguntas: abrir una no puede desbordar.

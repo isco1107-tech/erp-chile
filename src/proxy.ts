@@ -128,6 +128,12 @@ function routeCustomDomain(req: NextRequest, host: string): NextResponse {
     url.pathname = `/sitio/${encodeURIComponent(domainFromHost(host))}/${route.slug}`;
     return NextResponse.rewrite(url);
   }
+  if (route.kind === 'seo') {
+    // `robots.txt` y `sitemap.xml` del sitio de ese dominio (no los de la plataforma).
+    const url = req.nextUrl.clone();
+    url.pathname = `/sitio/${encodeURIComponent(domainFromHost(host))}/${route.file}`;
+    return NextResponse.rewrite(url);
+  }
   return NextResponse.redirect(`${platformBaseUrl()}${pathname}${search}`);
 }
 

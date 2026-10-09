@@ -104,6 +104,28 @@ function stress(type: BlockType, variant: string, index: number): WebSiteBlock {
         return { heading: 'Agenda tu hora', text: `${LONG_TEXT.slice(0, 160)} ${EMAIL}`, url: 'https://calendly.com/mi-negocio-con-nombre-largo/evaluacion-inicial', height: 'md', caption: URL };
       case 'posts':
         return { heading: 'Novedades', items: [1, 2, 3, 4].map((n) => ({ imageUrl: n % 2 ? IMG.wide : '', date: '12 de septiembre de 2026', tag: n === 1 ? 'Noticia' : 'Consejos prácticos', title: n === 1 ? `${HUGE_WORD} y un título de novedad muy largo` : `Novedad número ${n} con un título largo`, excerpt: LONG_TEXT.slice(0, 160), href: URL })) };
+      case 'form':
+        return {
+          heading: `Inscripción ${HUGE_WORD} para la temporada en Temuco/Longuimay`,
+          intro: LONG_TEXT.slice(0, 180),
+          purpose: 'enrollment',
+          destination: index % 2 ? 'academy' : 'crm',
+          consent: 'checkbox',
+          highlights: ['Respuesta en menos de 24 horas hábiles', HUGE_WORD, `Escríbenos también a ${EMAIL}`],
+          imageUrl: IMG.tall,
+          fields: [
+            { id: 'nombre', kind: 'text', label: `Nombre completo de la persona que se inscribe ${HUGE_WORD}`, required: true, role: 'name' },
+            { id: 'rut', kind: 'rut', label: 'RUT', required: true, role: 'rut' },
+            { id: 'nacimiento', kind: 'date', label: 'Fecha de nacimiento', required: true, role: 'birthDate' },
+            { id: 'correo', kind: 'email', label: 'Correo electrónico de contacto', required: true, role: 'email', help: EMAIL },
+            { id: 'telefono', kind: 'phone', label: 'Teléfono', required: true, role: 'phone' },
+            { id: 'grupo', kind: 'select', label: 'Grupo que te interesa', role: 'group', options: ['Aún no lo sé', `Grupo ${HUGE_WORD}`, 'Martes y jueves de 18:30 a 20:00 en la sede de Temuco/Longuimay'] },
+            { id: 'horario', kind: 'choice', label: '¿Qué horario prefieres?', options: ['Mañana', 'Tarde', `Vespertino ${HUGE_WORD}`, 'Fines de semana'] },
+            { id: 'monto', kind: 'number', label: 'Presupuesto aproximado (pesos)', role: 'amount' },
+            { id: 'foto', kind: 'checkbox', label: `Autorizo el uso de mi imagen en fotos y videos de la academia ${HUGE_WORD}`, role: 'photoConsent' },
+            { id: 'comentarios', kind: 'longtext', label: 'Algo que debamos saber (salud, alergias, horarios)', role: 'message', help: URL },
+          ],
+        };
     }
   })();
   return blockSchema.parse({ ...raw, id, type, variant });
@@ -116,7 +138,7 @@ const GROUPS: Record<string, BlockType[]> = {
   confianza: ['testimonials', 'quote', 'logos', 'team', 'timeline', 'comparison', 'beforeafter'],
   venta: ['pricing', 'pricelist', 'catalog', 'cta', 'countdown', 'posts'],
   medios: ['gallery', 'image', 'video', 'map', 'embed'],
-  contacto: ['contact', 'hours', 'areas', 'faq', 'tabs', 'links', 'marquee', 'schedule', 'divider'],
+  contacto: ['contact', 'form', 'hours', 'areas', 'faq', 'tabs', 'links', 'marquee', 'schedule', 'divider'],
 };
 
 const covered = new Set(Object.values(GROUPS).flat());

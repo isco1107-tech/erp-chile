@@ -271,7 +271,8 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       header('Tu sitio sin código', 'Guiado por secciones con ejemplos, o con tu propio HTML.'),
       note('Nuevo sitio', 'Tres pasos: tipo de sitio, cómo armarlo y nombre. Te lo entregamos armado para ajustar.'),
       note('Qué le falta', 'Antes de publicar, la lista "Qué le falta" te dice lo obligatorio y lo recomendado.'),
-      note('Publica y recibe mensajes', 'Publica en una dirección de la plataforma o en tu dominio; los mensajes del formulario llegan a la pestaña Mensajes.'),
+      note('Formularios con destino', 'Contacto, cotización, inscripción o reserva: en cada formulario eliges a qué parte del ERP tributa (bandeja, CRM, academia o tareas) y ves dónde quedan los datos.'),
+      note('Publica y organiza lo que llega', 'Publica en una dirección de la plataforma o en tu dominio; los envíos llegan a Mensajes y a la Bandeja de formularios, con filtros y descarga en Excel.'),
     ],
   },
   treasury: {
