@@ -25,6 +25,7 @@ const MIN_SIZE = {
   cover: { width: 1000, height: 520, label: 'La portada', hint: 'de al menos 1600 × 900 px' },
   winner: { width: 600, height: 750, label: 'La foto', hint: 'vertical de al menos 800 × 1067 px' },
   director: null,
+  studio: null,
   favicon: { width: 64, height: 64, label: 'El logo', hint: 'cuadrado, de al menos 64 × 64 px (ideal 512 × 512)' },
   // Afiches: la foto principal llena buena parte del afiche; un logo puede ser chico y alargado.
   'poster-photo': { width: 600, height: 600, label: 'La foto', hint: 'de al menos 1080 × 1080 px' },
@@ -75,7 +76,9 @@ export async function POST(req: Request) {
     }
 
     const pathname =
-      purpose === 'poster-photo' || purpose === 'poster-logo'
+      purpose === 'studio'
+        ? `pageant-site/${session.companyId}/${projectId}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${SNIFFED_IMAGE_EXTENSION[sniffed]}`
+        : purpose === 'poster-photo' || purpose === 'poster-logo'
         ? `pageant-posters/${session.companyId}/${projectId}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${SNIFFED_IMAGE_EXTENSION[sniffed]}`
         : purpose === 'favicon'
         ? `pageant-favicons/${session.companyId}/${projectId}-${Date.now()}.${SNIFFED_IMAGE_EXTENSION[sniffed]}`

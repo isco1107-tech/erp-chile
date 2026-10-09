@@ -20,6 +20,7 @@ import type { WebSiteDetail } from '@/modules/web-sites/services/web-sites.servi
 import { AddPageDialog } from './AddPageDialog';
 import { AssetLibrary } from './AssetLibrary';
 import { EditorTabs, tabId, tabPanelId, type EditorTabDef } from './EditorTabs';
+import { SiteDesignAssistant } from './SiteDesignAssistant';
 import { GuidedEditor } from './GuidedEditor';
 import { HtmlEditor } from './HtmlEditor';
 import { LayoutPanel } from './LayoutPanel';
@@ -756,6 +757,15 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, in
                   <>
                     {!readOnly ? <StartGuide onGoToTab={setTab} /> : null}
                     <PageSwitcher doc={document} pageId={pageId} onSelect={selectPage} onAddPage={() => setAddPageOpen(true)} onManagePages={() => setTab('pages')} readOnly={readOnly} />
+                    <SiteDesignAssistant disabled={readOnly || busy !== null} context={{ target: 'web', resourceId: site.id, pageId, current: { blocks: currentPage.blocks, theme } }} onApply={(proposal) => {
+                      if (proposal.target !== 'web') return;
+                      const previous = contentRef.current;
+                      const nextDocument = { ...previous.document, pages: previous.document.pages.map((p) => p.id === pageId ? { ...p, blocks: proposal.design.blocks } : p) };
+                      const checked = siteDocumentSchema.safeParse(nextDocument);
+                      if (!checked.success) { toast.error(checked.error.issues[0]?.message ?? 'La propuesta supera los límites del sitio'); return; }
+                      commit({ document: checked.data, theme: proposal.design.theme }, 'document');
+                      toast.success('Propuesta aplicada: puedes deshacerla con el historial');
+                    }} />
                     <GuidedEditor kind={site.kind} document={document} pageId={pageId} onDocumentChange={updateDocument} openId={openId} onOpenChange={changeOpenSection} readOnly={readOnly} theme={theme} />
                     <AddPageDialog open={addPageOpen} onOpenChange={setAddPageOpen} document={document} onDocumentChange={updateDocument} onAdded={selectPage} />
                   </>

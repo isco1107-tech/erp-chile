@@ -1,5 +1,8 @@
 'use client';
 
+import { canvasSchema } from '@/lib/web-sites/canvas';
+import { CanvasEditor } from './CanvasEditor';
+
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, Check, ChevronDown, Circle, Eye, EyeOff, Lightbulb, Plus } from 'lucide-react';
 import type { WebSiteKind } from '@prisma/client';
@@ -106,7 +109,7 @@ export function GuidedEditor({ kind, document, pageId, onDocumentChange, openId,
   );
 
   const addBlock = useCallback(
-    (type: BlockType, position?: number, variant?: string) => {
+    (type: BlockType, position?: number, variant?: string, canvas = false) => {
       if (limitMessage) {
         toast.error(limitMessage);
         return;
@@ -117,6 +120,7 @@ export function GuidedEditor({ kind, document, pageId, onDocumentChange, openId,
       }
       // Desde la biblioteca de diseños llega con el contenido de muestra (se ve el diseño al tiro); desde la guía, vacía.
       const block = variant !== undefined ? sampleBlock(type, variant) : createBlock(type);
+      if (canvas) block.style.canvas = canvasSchema.parse({ enabled: true, replaceContent: true });
       revealRequest.current = block.id;
       onDocumentChange((previous) => {
         if (blockCount(previous) >= MAX_TOTAL_BLOCKS) return previous;
@@ -281,9 +285,10 @@ export function GuidedEditor({ kind, document, pageId, onDocumentChange, openId,
             {total} de {MAX_TOTAL_BLOCKS} en todo el sitio
           </p>
         </div>
+        <div className="flex flex-wrap gap-2"><Button type="button" size="sm" variant="outline" disabled={readOnly || Boolean(limitMessage)} onClick={() => addBlock('text', undefined, undefined, true)}>Crear lienzo libre</Button>
         <Button type="button" size="sm" disabled={readOnly || Boolean(limitMessage)} onClick={() => openAddDialog(blocks.length)}>
           <Plus aria-hidden="true" /> Agregar sección
-        </Button>
+        </Button></div>
       </div>
       {limitMessage ? (
         <p role="status" className="rounded-lg bg-warning-soft px-3 py-2 text-xs text-warning">
@@ -463,7 +468,7 @@ interface SectionCardProps {
 }
 
 const SectionCard = memo(function SectionCard({ block, index, total, open, readOnly, canGrow, hasOtherPages, document, pageId, theme, onToggleOpen, onMove, onToggleHidden, onDuplicate, onRemove, onChange, onTransfer, onInsert }: SectionCardProps) {
-  const info = BLOCK_INFO[block.type];
+  const info = block.style.canvas?.enabled && block.style.canvas.replaceContent ? { ...BLOCK_INFO[block.type], label: 'Lienzo libre' } : BLOCK_INFO[block.type];
   const Icon = BLOCK_ICONS[info.icon];
   const name = `${info.label} (sección ${index + 1})`;
   const bodyId = `sec-${block.id}-body`;
@@ -524,8 +529,10 @@ const SectionCard = memo(function SectionCard({ block, index, total, open, readO
                 {info.help}
               </span>
             </p>
-            <LayoutPicker block={block} theme={theme ?? DEFAULT_THEME} document={document} disabled={readOnly} onChange={(next) => onChange(block.id, next)} />
+            {!(block.style.canvas?.enabled && block.style.canvas.replaceContent) && <><LayoutPicker block={block} theme={theme ?? DEFAULT_THEME} document={document} disabled={readOnly} onChange={(next) => onChange(block.id, next)} />
             <BlockFields block={block} disabled={readOnly} document={document} pageId={pageId} onChange={(next) => onChange(block.id, next)} />
+            </>}
+            <CanvasEditor background={theme?.background} value={block.style.canvas} disabled={readOnly} document={document} pageId={pageId} onChange={(canvas) => onChange(block.id, { ...block, style: { ...block.style, canvas } })} />
             <SectionStyleFields
               style={block.style}
               type={block.type}

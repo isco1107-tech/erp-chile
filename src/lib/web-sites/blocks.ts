@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { canvasSchema } from './canvas';
 import { SITE_ICONS } from './icons';
 import { richTextLinks } from './rich-text';
 import { slugify } from './urls';
@@ -103,6 +104,7 @@ export const SECTION_WIDTHS = ['auto', 'narrow', 'wide'] as const;
 export type SectionWidth = (typeof SECTION_WIDTHS)[number];
 
 export const blockStyleSchema = z.object({
+  canvas: canvasSchema.optional(),
   /** Fondo de la franja: el de la página, uno suave, los colores del tema, oscuro o una foto. */
   background: choice(SECTION_BACKGROUNDS, 'default'),
   /** Foto de fondo (solo con `background: 'image'`); se oscurece con `overlay` para que el texto se lea. */
@@ -1176,12 +1178,14 @@ export function blockTexts(block: WebSiteBlock): string[] {
     else if (value && typeof value === 'object') Object.entries(value).forEach(([k, v]) => visit(v, k));
   };
   visit(block);
+  if (block.style.canvas?.enabled) for (const element of block.style.canvas.elements) if (!element.hidden) { if (element.text) out.push(element.text); if (element.alt) out.push(element.alt); }
   return out;
 }
 
 /** Todas las URLs de imagen que usa un bloque (incluida la foto de fondo de la sección). */
 export function blockImageUrls(block: WebSiteBlock): string[] {
   const urls: string[] = [];
+  if (block.style.canvas) urls.push(...block.style.canvas.elements.filter((el) => el.kind === 'image').map((el) => el.imageUrl));
   if (block.style.background === 'image' || block.style.backgroundImage) urls.push(block.style.backgroundImage);
   switch (block.type) {
     case 'hero':
@@ -1248,6 +1252,9 @@ export function blockLinks(block: WebSiteBlock): BlockLink[] {
   const rich = (value: string, where: string) => {
     for (const href of richTextLinks(value)) out.push({ label: `un enlace dentro de ${where}`, href, text: null });
   };
+  if (block.style.canvas?.enabled) {
+    for (const el of block.style.canvas.elements.filter((el) => !el.hidden)) button(el.text || el.alt, el.href, `el elemento «${el.name}»`);
+  }
   switch (block.type) {
     case 'hero':
       button(block.ctaLabel, block.ctaHref, 'el botón de la portada');
@@ -1308,6 +1315,12 @@ export function blockLinks(block: WebSiteBlock): BlockLink[] {
 
 /** ¿La sección no tiene nada que mostrar? (Se omite al publicar y la lista "qué falta" lo avisa.) */
 export function isBlockEmpty(block: WebSiteBlock): boolean {
+  const canvas = block.style.canvas;
+  if (canvas?.enabled) {
+    const hasContent = canvas.elements.some((el) => !el.hidden && (el.kind === 'shape' || (el.kind === 'image' ? Boolean(el.imageUrl) : Boolean(el.text.trim()))));
+    if (canvas.replaceContent) return !hasContent;
+    if (hasContent) return false;
+  }
   switch (block.type) {
     case 'hero':
       return !block.title.trim() && !block.subtitle.trim();

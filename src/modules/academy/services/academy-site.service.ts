@@ -161,6 +161,7 @@ export async function setAcademySitePublished(companyId: string, publish: boolea
 // ---------------------------------------------------------------------------
 
 export interface PublicAcademySite {
+  creative?: import('@/lib/web-sites/creative').CreativeSite;
   slug: string;
   name: string;
   /** Razón social de la empresa, para el pie. */
@@ -240,6 +241,7 @@ export async function getPublicAcademySite(slug: string): Promise<PublicAcademyS
     slug: site.slug,
     name: site.name,
     organizer: site.company.businessName,
+    creative: content.creative,
     tagline: content.tagline,
     aboutTitle: content.aboutTitle.trim() || 'Conócenos',
     intro: content.intro,

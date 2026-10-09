@@ -443,7 +443,7 @@ export function themeVariables(theme: WebSiteTheme): Record<string, string> {
     '--ws-section-y-lg': `${spacing.yLarge}px`,
     '--ws-max': theme.width === 'wide' ? '80rem' : theme.width === 'narrow' ? '56rem' : '64rem',
     '--ws-heading-weight': String(HEADING_WEIGHT_INFO[theme.headingWeight].value),
-    '--ws-fit': String(headingFitFactor(headingFont, theme.headingCase === 'uppercase')),
+    '--ws-fit': String(headingFitFactor(headingFont, theme.headingCase === 'uppercase', theme.headingWeight)),
   };
 }
 
@@ -469,8 +469,9 @@ const WIDE_FONTS: Partial<Record<SiteFont, number>> = {
   cormorant: 1.08,
 };
 
-export function headingFitFactor(font: SiteFont, uppercase: boolean): number {
-  const base = WIDE_FONTS[font] ?? 1;
+export function headingFitFactor(font: SiteFont, uppercase: boolean, weight: WebSiteTheme['headingWeight'] = 'bold'): number {
+  // Syne ensancha sus glifos al llegar al extremo negro de su eje de peso.
+  const base = font === 'syne' && weight === 'black' ? 0.64 : WIDE_FONTS[font] ?? 1;
   // Bebas, Anton y Oswald ya son mayúsculas o casi: no se castigan dos veces.
   const caps = uppercase && base <= 1 ? 0.86 : 1;
   return Math.round(base * caps * 100) / 100;

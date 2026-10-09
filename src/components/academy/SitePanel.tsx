@@ -31,6 +31,10 @@ import {
   setAcademyDomainAction,
   setAcademySitePublishedAction,
 } from '@/modules/academy/actions/academy.actions';
+import { CreativeStudio } from '@/components/web-sites/CreativeStudio';
+import { academySiteImageUrls } from '@/lib/academy/site';
+import { SiteDesignAssistant } from '@/components/web-sites/SiteDesignAssistant';
+import { academyDesignSchema } from '@/lib/web-sites/ai-designer';
 import DomainPanel from '@/components/hosting/DomainPanel';
 import type { AcademySiteEditorData } from '@/modules/academy/services/academy-site.service';
 
@@ -305,6 +309,8 @@ export default function SitePanel({ canManage }: { canManage: boolean }) {
 
   return (
     <div className="space-y-4">
+      <CreativeStudio target="academy" resourceId={site?.id ?? 'academy'} name={form.name} value={form.content.creative} disabled={disabled} images={academySiteImageUrls({ heroImageUrl: form.heroImageUrl, content: form.content })} onChange={(creative) => setContent('creative', creative)} />
+      <SiteDesignAssistant disabled={disabled} context={{ target: 'academy', current: academyDesignSchema.parse(form.content) }} onApply={(proposal) => { if (proposal.target === 'academy') { setForm((previous) => previous ? { ...previous, content: { ...previous.content, ...proposal.design } } : previous); toast.success('Propuesta aplicada al editor: revisa y guarda los cambios'); } }} />
       {/* Estado y acciones */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4">
         <div className="min-w-0 space-y-1">

@@ -140,7 +140,8 @@ function reportNvidiaFallback(error: unknown, target: NvidiaTarget, call: 'text'
 export async function generateAgentText(
   systemPrompt: string,
   userPrompt: string,
-  tier: AgentModelTier = 'standard'
+  tier: AgentModelTier = 'standard',
+  options?: { geminiModel?: string }
 ): Promise<string> {
   const nvidia = resolveNvidiaTarget(tier);
   if (nvidia && !isNvidiaModelRetired(nvidia.model)) {
@@ -152,7 +153,7 @@ export async function generateAgentText(
   }
 
   const text = await callWithRetry({
-    model: resolveAgentModel(tier),
+    model: options?.geminiModel ?? resolveAgentModel(tier),
     contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
     config: { systemInstruction: systemPrompt },
   });

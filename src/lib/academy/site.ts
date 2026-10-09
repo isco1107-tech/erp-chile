@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { creativeSiteSchema } from '@/lib/web-sites/creative';
+import { blockImageUrls } from '@/lib/web-sites/blocks';
 import { contactEmailField, contactWhatsappField, instagramHandleField } from '@/lib/events/pageant-contact';
 import { publicSlugProblem, slugify } from '@/lib/events/public-slug';
 
@@ -40,6 +42,7 @@ const text = (max: number) => z.string().trim().max(max).default('');
 const imageUrl = z.string().trim().max(500).default('');
 
 export const academySiteContentSchema = z.object({
+  creative: creativeSiteSchema.optional(),
   /** Frase corta bajo el nombre, en la portada. */
   tagline: text(160),
   /** Título de «Quiénes somos»; vacío = «Conócenos». */
@@ -154,6 +157,7 @@ export function academySiteImageUrls(site: { heroImageUrl: string | null; conten
   return [
     site.heroImageUrl,
     content.logoUrl,
+    ...(content.creative?.blocks.flatMap(blockImageUrls) ?? []),
     ...content.gallery.map((g) => g.url),
     ...content.disciplines.map((d) => d.photoUrl),
     ...content.testimonials.map((t) => t.photoUrl),

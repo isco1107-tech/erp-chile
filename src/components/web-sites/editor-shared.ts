@@ -154,6 +154,7 @@ export async function copyText(text: string, okMessage = 'Dirección copiada'): 
 
 /** Resumen de una línea del contenido de una sección (para la tarjeta plegada). */
 export function blockSummary(block: WebSiteBlock): string {
+  if (block.style.canvas?.enabled && block.style.canvas.replaceContent) return `Composición libre · ${block.style.canvas.elements.length} capas`;
   const clip = (value: string, max = 70): string => {
     const text = value.trim().replace(/\s+/g, ' ');
     return text.length > max ? `${text.slice(0, max - 1)}…` : text;
@@ -298,6 +299,7 @@ export interface EditorAssetsContextValue {
   assets: EditorAsset[];
   readOnly: boolean;
   addAsset: (asset: EditorAsset) => void;
+  uploadAsset?: (file: File, alt?: string) => Promise<UploadOutcome>;
 }
 
 export const EditorAssetsContext = createContext<EditorAssetsContextValue | null>(null);
