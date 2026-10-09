@@ -19,7 +19,6 @@ import { NAV_ICONS } from './SidebarNav';
 export interface CommandMenuProps {
   permissions: Permission[];
   features: CompanyFeatureFlags;
-  isSuperAdmin: boolean;
   /** Ítems que la empresa apagó: tampoco deben aparecer en la paleta. */
   disabledNavItems?: readonly string[];
 }
@@ -112,7 +111,7 @@ function matches(entry: StaticEntry, normalizedQuery: string): boolean {
 const MAX_LIVE_RESULTS = 5;
 const OPTION_ID_PREFIX = 'command-option-';
 
-export default function CommandMenu({ permissions, features, isSuperAdmin, disabledNavItems }: CommandMenuProps) {
+export default function CommandMenu({ permissions, features, disabledNavItems }: CommandMenuProps) {
   const router = useRouter();
 
   const [open, setOpen] = React.useState(false);
@@ -129,7 +128,7 @@ export default function CommandMenu({ permissions, features, isSuperAdmin, disab
   // Mismo registro que la barra lateral: todo módulo visible allá se encuentra acá.
   const visibleModules = React.useMemo<StaticEntry[]>(
     () =>
-      buildWorkspaceNav({ permissions, features, isSuperAdmin, disabledNavItems }).flatMap((group) =>
+      buildWorkspaceNav({ permissions, features, disabledNavItems }).flatMap((group) =>
         group.links.map((link) => ({
           id: `nav-${link.href}`,
           label: link.label,
@@ -139,7 +138,7 @@ export default function CommandMenu({ permissions, features, isSuperAdmin, disab
           keywords: link.keywords,
         }))
       ),
-    [permissions, features, isSuperAdmin, disabledNavItems]
+    [permissions, features, disabledNavItems]
   );
   const visibleActions = React.useMemo(
     () =>

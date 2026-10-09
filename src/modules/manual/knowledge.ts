@@ -122,7 +122,6 @@ export const SCREEN_PURPOSES: Record<string, string> = {
   'org-chart': 'Organigrama: cargos del equipo y quién reporta a quién.',
   manual: 'El manual de usuario de los módulos de tu empresa, con buscador, capturas y descarga en Word.',
   settings: 'Punto de entrada a empresa, folios, equipo, roles, módulos del menú, importación, automatizaciones y auditoría.',
-  platform: 'Panel de administración de la plataforma (solo superadministradores).',
 };
 
 /**
@@ -161,7 +160,7 @@ function isAvailable(item: Gated, features: CompanyFeatureFlags, permissions: re
 
 /** Pantallas que este usuario en particular puede abrir de verdad: su menú lateral más las subpantallas a las que tiene acceso. */
 export function getVisibleNavigation(features: CompanyFeatureFlags, permissions: readonly Permission[]): NavigationEntry[] {
-  const fromMenu = buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin: false }).flatMap((group) =>
+  const fromMenu = buildAvailableWorkspaceNav({ permissions, features }).flatMap((group) =>
     group.links.map((link) => ({
       label: link.label,
       route: link.href,

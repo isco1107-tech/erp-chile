@@ -52,12 +52,12 @@ function allFeatures(value: boolean): CompanyFeatureFlags {
 }
 
 function navIds(features: CompanyFeatureFlags): Set<string> {
-  const groups = buildAvailableWorkspaceNav({ permissions: ALL_PERMISSIONS, features, isSuperAdmin: false });
+  const groups = buildAvailableWorkspaceNav({ permissions: ALL_PERMISSIONS, features });
   return new Set(groups.flatMap((group) => group.links.map((link) => link.id)));
 }
 
 export function buildModuleCatalog(): CatalogArea[] {
-  const full = buildAvailableWorkspaceNav({ permissions: ALL_PERMISSIONS, features: allFeatures(true), isSuperAdmin: false });
+  const full = buildAvailableWorkspaceNav({ permissions: ALL_PERMISSIONS, features: allFeatures(true) });
   const groupOf = new Map<string, string>();
   const labelOf = new Map<string, string>();
   const hrefOf = new Map<string, string>();

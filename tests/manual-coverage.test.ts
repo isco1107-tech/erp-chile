@@ -17,7 +17,7 @@ import { getModuleKeyForPath, tutorialRoutes } from '@/components/tutorial/tutor
  */
 
 const ALL_FEATURES = Object.fromEntries(MODULE_KEYS.map((key) => [key, true])) as CompanyFeatureFlags;
-const MENU_LINKS = buildAvailableWorkspaceNav({ permissions: ALL_PERMISSIONS, features: ALL_FEATURES, isSuperAdmin: false }).flatMap((group) => group.links);
+const MENU_LINKS = buildAvailableWorkspaceNav({ permissions: ALL_PERMISSIONS, features: ALL_FEATURES }).flatMap((group) => group.links);
 
 describe('Cada pantalla del menú tiene ayuda', () => {
   it.each(MENU_LINKS.map((link) => [link.id, link.href] as const))('%s tiene "para qué sirve" en el mapa del asistente', (id) => {

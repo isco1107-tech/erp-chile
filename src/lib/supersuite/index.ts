@@ -145,7 +145,7 @@ export function latidoCajaSupersuite(companyId: string, caja: { id: string; name
  * Un usuario de la empresa está conectado (lo llama el latido del panel, ~60 s).
  * La Supersuite cuenta como activo a quien tuvo señal en los últimos 5 minutos.
  * Sale solo el id del usuario (opaco): nunca correo ni nombre. Al personal de
- * Aether (superadmin) no se le cuenta como usuario de la empresa.
+ * Aether (cuentas heredadas de plataforma) ya no se le distingue: cuenta como cualquier usuario.
  */
 export function presenciaSupersuite(companyId: string, userId: string): void {
   try {
@@ -180,7 +180,7 @@ export function solicitudModulosSupersuite(
   }
 }
 
-/** El superadmin ya cambió el plan o los módulos de la empresa: la solicitud abierta queda atendida. */
+/** La Supersuite ya cambió el plan o los módulos de la empresa: la solicitud abierta queda atendida. */
 export function solicitudModulosAtendidaSupersuite(companyId: string): void {
   try {
     const m = monitor();

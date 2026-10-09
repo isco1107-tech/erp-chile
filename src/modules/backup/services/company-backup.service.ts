@@ -46,7 +46,7 @@ const EXCLUDED_MODELS = new Set([
   // consumido — el token en sí ya expiró o fue usado), pero se excluye el
   // modelo entero igual, mismo criterio que `ProcessedWebhookEvent`.
   'AgentActionConfirmation',
-  // Auditoría del panel de plataforma: es del operador del SaaS, no del tenant.
+  // Auditoría de plataforma: es de quien opera el SaaS, no del tenant.
   'PlatformAuditLog',
   // Contiene `encryptedXml`: el CAF cifrado, con la llave privada RSA que
   // timbra los DTE de la empresa. El nombre del campo no matchea

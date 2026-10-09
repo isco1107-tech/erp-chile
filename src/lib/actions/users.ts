@@ -425,7 +425,7 @@ export async function acceptInvitationAction(token: string, input: unknown): Pro
     // sin este chequeo, alguien con un enlace de invitación filtrado podía
     // crear su cuenta y entrar desde cualquier IP, saltándose por completo
     // la restricción que la empresa configuró.
-    const ipError = await checkIpAllowlist(user.companyId, user.isSuperAdmin, clientIp);
+    const ipError = await checkIpAllowlist(user.companyId, clientIp);
     if (ipError) return { success: false, error: ipError };
 
     const company = user.companyId ? await prisma.company.findUnique({ where: { id: user.companyId } }) : null;

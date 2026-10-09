@@ -57,11 +57,11 @@ async function canViewDeletedMessages(userId: string): Promise<boolean> {
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, email: true, name: true, isSuperAdmin: true },
+    select: { id: true, email: true, name: true },
   });
   if (!user) return false;
 
-  return user.id === 'isco1107' || (user.isSuperAdmin && user.id === 'isco1107');
+  return user.id === 'isco1107';
 }
 
 async function computeUnreadCounts(

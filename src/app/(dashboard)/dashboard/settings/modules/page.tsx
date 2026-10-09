@@ -32,7 +32,6 @@ export default async function WorkspaceModulesPage() {
   const groups = buildAvailableWorkspaceNav({
     permissions: ALL_PERMISSIONS,
     features: context.features,
-    isSuperAdmin: false,
   });
   const disabled = await getDisabledNavItems(context.companyId);
   const uncontracted = MODULES.filter((mod) => !context.features[mod.key] && mod.routes.length > 0).map((mod) => ({

@@ -17,7 +17,6 @@ describe('Mensajería — acceso del superadmin a mensajes eliminados', () => {
       id: 'isco1107',
       email: 'isco1107@erp.test',
       name: 'isco1107',
-      isSuperAdmin: false,
     } as never);
     jest.spyOn(prisma.message, 'findMany').mockResolvedValue([
       {
@@ -45,7 +44,6 @@ describe('Mensajería — acceso del superadmin a mensajes eliminados', () => {
       id: 'isco1107',
       email: 'isco1107@erp.test',
       name: 'isco1107',
-      isSuperAdmin: false,
     } as never);
     jest.spyOn(prisma.messageAttachment, 'findFirst').mockResolvedValue({
       id: 'att_1',

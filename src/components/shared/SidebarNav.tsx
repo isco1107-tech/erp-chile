@@ -102,7 +102,6 @@ export const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   cashflow: Landmark,
   reports: FileSpreadsheet,
   settings: Settings,
-  platform: ShieldCheck,
   agents: Bot,
   projects: CalendarRange,
   calendar: Calendar,
