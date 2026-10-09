@@ -34,6 +34,8 @@ import { blockHeadingText, resolveAlign, sectionLook, toneVariables, type Tone }
 
 export interface SiteRendererProps {
   name: string;
+  /** Secciones integradas en academia o certamen, sin otro encabezado, pie ni main. */
+  embedded?: boolean;
   logoUrl: string | null;
   theme: WebSiteTheme;
   /** Sitio completo. */
@@ -54,9 +56,10 @@ export interface SiteRendererProps {
   selectedBlockId?: string | null;
 }
 
-export default function SiteRenderer({ name, logoUrl, theme, document, blocks, pageId, slug, mode, basePath, onNavigate, onSelectBlock, selectedBlockId }: SiteRendererProps) {
+export default function SiteRenderer({ embedded = false, name, logoUrl, theme, document, blocks, pageId, slug, mode, basePath, onNavigate, onSelectBlock, selectedBlockId }: SiteRendererProps) {
   const preview = mode === 'preview';
-  const doc = document ?? documentFromBlocks(blocks ?? [], theme);
+  const source = document ?? documentFromBlocks(blocks ?? [], theme);
+  const doc = embedded ? { ...source, header: { ...source.header, enabled: false }, footer: { ...source.footer, enabled: false } } : source;
   const requested = pageId ? (preview ? findPage(doc, pageId) : publishedPages(doc).find((entry) => entry.id === pageId)) : null;
   const page = requested ?? homeOf(doc);
   const selectable = preview && Boolean(onSelectBlock);
@@ -75,7 +78,7 @@ export default function SiteRenderer({ name, logoUrl, theme, document, blocks, p
     idPrefix: preview ? 'wsp-' : '',
     onNavigate,
     navigate: true,
-    h1BlockId: shown.find((block) => blockHeadingText(block))?.id ?? null,
+    h1BlockId: embedded ? null : shown.find((block) => blockHeadingText(block))?.id ?? null,
     siteWidth: theme.width,
   };
   const bodyCtx: RenderCtx = selectable ? { ...ctx, navigate: false } : ctx;
@@ -87,7 +90,8 @@ export default function SiteRenderer({ name, logoUrl, theme, document, blocks, p
   const items = doc.header.enabled || doc.footer.enabled ? buildNavItems(ctx, renderedAnchors) : [];
 
   const rootStyle = { ...themeVariables(theme), ...toneVariables(theme) } as CSSProperties;
-  const mainId = `${ctx.idPrefix}main`;
+  const mainId = `${ctx.idPrefix}${embedded ? "creative-main" : "main"}`;
+  const MainTag = embedded ? "div" : "main";
   const looks = shown.map((block) => sectionLook(block));
   // Lo que viene después de cada sección (para pintar su borde con forma): la siguiente o el pie.
   const afterLast: Tone = doc.footer.enabled ? footerTone(doc.footer.style) : 'default';
@@ -100,15 +104,15 @@ export default function SiteRenderer({ name, logoUrl, theme, document, blocks, p
   return (
     <div className={cx('ws-root', SITE_FONT_CLASSES)} style={rootStyle} data-ws-root="" data-btn={theme.buttonStyle} data-card={theme.cardStyle} data-anim={preview ? 'none' : theme.animation}>
       <style>{SITE_CSS}</style>
-      <div className={cx('@container flex flex-col', !preview && 'min-h-dvh')}>
-        {!preview && (
+      <div className={cx('@container flex flex-col', !preview && !embedded && 'min-h-dvh')}>
+        {!preview && !embedded && (
           <a href={`#${mainId}`} className="ws-skip">
             Saltar al contenido
           </a>
         )}
         {doc.header.enabled && <Announcement ctx={ctx} />}
         {doc.header.enabled && <SiteHeader ctx={ctx} name={name} logoUrl={logoUrl} items={items} overlayTone={overlayTone} />}
-        <main id={mainId} tabIndex={-1} className="grow outline-none">
+        <MainTag id={mainId} tabIndex={-1} className="grow outline-none">
           {shown.map((block, index) => {
             const look = looks[index]!;
             const empty = isBlockEmpty(block);
@@ -131,10 +135,10 @@ export default function SiteRenderer({ name, logoUrl, theme, document, blocks, p
               </SectionFrame>
             );
           })}
-        </main>
+        </MainTag>
         <SiteFooter ctx={ctx} name={name} logoUrl={logoUrl} items={items} />
-        <MobileActionBar ctx={ctx} />
-        <WhatsappFloat ctx={ctx} />
+        {!embedded && <MobileActionBar ctx={ctx} />}
+        {!embedded && <WhatsappFloat ctx={ctx} />}
       </div>
     </div>
   );

@@ -417,7 +417,7 @@ function PlanPrice({ plan, className, inline = false }: { plan: Plan; className?
   if (!plan.price) return null;
   const price = (
     <p className={cx('flex flex-wrap items-baseline gap-x-1.5', inline && className)}>
-      <span className={cx('ws-h', inline ? 'min-w-0 text-[1.75rem] leading-none break-words @2xl:text-3xl' : 'ws-t-price')}>{plan.price}</span>
+      <span className={cx('ws-h', inline ? 'ws-t-price-inline min-w-0 leading-none break-words' : 'ws-t-price')}>{plan.price}</span>
       {plan.period && <span className="ws-muted text-sm">{plan.period}</span>}
     </p>
   );

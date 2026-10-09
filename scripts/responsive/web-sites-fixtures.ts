@@ -4,6 +4,7 @@ import { SAMPLE_WEEK } from '@/lib/web-sites/section-samples';
 import { documentFromBlocks, type SiteDocument } from '@/lib/web-sites/site';
 import { kitTheme, parseTheme, THEME_KITS, type WebSiteTheme } from '@/lib/web-sites/theme';
 import { layoutsOf } from '@/lib/web-sites/variants';
+import { CREATIVE_FIXTURE } from './creative-fixture';
 
 /**
  * Casos incómodos para `npm run verify:responsive:web-sites`: CADA diseño de
@@ -156,6 +157,7 @@ function groupDocument(types: BlockType[]): SiteDocument {
 const base = parseTheme({ animation: 'none', font: 'inter' });
 
 export const WEB_SITE_FIXTURES: Record<string, WebSiteFixture> = {
+  lienzo: { name: 'Estudio visual', theme: CREATIVE_FIXTURE.theme, document: documentFromBlocks(CREATIVE_FIXTURE.blocks) },
   ...Object.fromEntries(Object.entries(GROUPS).map(([name, types]) => [name, { name: `Sitio de pruebas ${HUGE_WORD}`, theme: base, document: groupDocument(types) }])),
   // Estilos completos con letras anchas y extremos: lo que más cuesta acomodar.
   ...Object.fromEntries(

@@ -137,7 +137,8 @@ module.exports = function collectProblems(rootSelector) {
   // Cinta que gira: cada grupo tiene que cubrir la pantalla completa, o al desplazarse queda vacío a la derecha.
   for (const ribbonGroup of root.querySelectorAll('.pgs-ribbon-group, .acs-ribbon-group, .ws-marquee-group')) {
     if (getComputedStyle(ribbonGroup).display === 'none') continue;
-    if (ribbonGroup.getBoundingClientRect().width < vw) {
+    // getBoundingClientRect conserva fracciones: 2559.999px cubre una pantalla de 2560px.
+    if (ribbonGroup.getBoundingClientRect().width < vw - 0.5) {
       problems.push({ kind: 'cinta-corta', detail: `La cinta mide ${Math.round(ribbonGroup.getBoundingClientRect().width)}px y la pantalla ${vw}px: al girar quedaría vacía` });
     }
   }

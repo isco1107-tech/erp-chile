@@ -1,10 +1,10 @@
 'use client';
 
-import { useId, useState, type DragEvent } from 'react';
+import { useContext, useId, useState, type DragEvent } from 'react';
 import { Loader2, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TextField } from './fields';
-import { ACCEPTED_IMAGE_ACCEPT, formatBytes, MAX_UPLOAD_BYTES, uploadWebSiteImage, type EditorAsset } from './editor-shared';
+import { EditorAssetsContext, ACCEPTED_IMAGE_ACCEPT, formatBytes, MAX_UPLOAD_BYTES, uploadWebSiteImage, type EditorAsset } from './editor-shared';
 
 interface ImageUploaderProps {
   siteId: string;
@@ -22,6 +22,7 @@ interface ImageUploaderProps {
 /** Zona de arrastrar-soltar y botón de archivos. Sube de a una, con progreso simple. */
 export function ImageUploader({ siteId, disabled, multiple = true, askAlt = false, onUploaded, onFinished }: ImageUploaderProps) {
   const inputId = useId();
+  const assetContext = useContext(EditorAssetsContext);
   const [dragging, setDragging] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
@@ -44,7 +45,7 @@ export function ImageUploader({ siteId, disabled, multiple = true, askAlt = fals
     const uploaded: EditorAsset[] = [];
     setProgress({ done: 0, total: valid.length });
     for (const [index, file] of valid.entries()) {
-      const outcome = await uploadWebSiteImage(siteId, file, askAlt ? alt : undefined);
+      const outcome = await (assetContext?.uploadAsset ? assetContext.uploadAsset(file, askAlt ? alt : undefined) : uploadWebSiteImage(siteId, file, askAlt ? alt : undefined));
       if (outcome.ok) {
         uploaded.push(outcome.asset);
         onUploaded(outcome.asset);

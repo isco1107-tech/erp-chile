@@ -2048,6 +2048,8 @@ model Project {
   customDomainVerifiedAt  DateTime?
   publicTagline           String?
   publicDescription       String?
+  /// Secciones y lienzos adicionales del sitio, con el mismo motor de los sitios generales.
+  publicSiteDesign        Json?
   coverImageUrl           String?
   /// Logo que se ve en la pestaña del navegador (favicon) del micrositio. `null` = el de la plataforma.
   faviconUrl              String?

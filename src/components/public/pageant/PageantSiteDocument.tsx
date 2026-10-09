@@ -1,3 +1,4 @@
+import { CreativeSiteSections } from '@/components/web-sites/CreativeSiteSections';
 import type { Metadata } from 'next';
 import { PageantSite } from '@/components/public/pageant/PageantSite';
 import { formatCurrency } from '@/lib/chile/tax';
@@ -66,7 +67,9 @@ export function PageantSiteDocument({ site }: { site: PublicPageantSite }) {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }}
         />
       )}
+      {site.creative?.placement === 'before' && <CreativeSiteSections design={site.creative} name={site.name} slug={site.slug} basePath={site.customDomain ? '' : `/certamen/${site.slug}`} />}
       <PageantSite site={site} view={view} />
+      {site.creative?.placement !== 'before' && <CreativeSiteSections design={site.creative} name={site.name} slug={site.slug} basePath={site.customDomain ? '' : `/certamen/${site.slug}`} />}
     </>
   );
 }

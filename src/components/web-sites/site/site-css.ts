@@ -57,6 +57,8 @@ export const SITE_CSS = `
 .ws-t-2{font-size:clamp(1.3rem,calc(8.5cqi * var(--ws-fit,1)),2.5rem)}
 .ws-t-quote{font-size:clamp(1.25rem,calc(7cqi * var(--ws-fit,1)),2.9rem);line-height:1.2}
 .ws-t-price{font-size:clamp(1.25rem,calc(16cqi * var(--ws-fit,1)),3rem);line-height:1.05}
+.ws-t-price-inline{font-size:calc(1.75rem * min(1,var(--ws-fit,1)))}
+@container (min-width:672px){.ws-t-price-inline{font-size:calc(1.875rem * min(1,var(--ws-fit,1)))}}
 .ws-t-stat{font-size:clamp(1.25rem,calc(19cqi * var(--ws-fit,1)),3.9rem);line-height:1}
 .ws-eyebrow{font-size:.78rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--s-mark)}
 .ws-muted{color:var(--s-muted)}
@@ -175,4 +177,21 @@ export const SITE_CSS = `
 .ws-btn,.ws-card,.ws-logo,.ws-wa,.ws-navlink,.ws-tab,.ws-cbtn{transition:none}
 .ws-btn:hover,.ws-card-hover:hover,.ws-wa:hover{transform:none}
 }
+
+.ws-canvas{position:relative;container-type:inline-size;height:var(--canvas-height);isolation:isolate}
+.ws-canvas-element{position:absolute;left:var(--desktop-x);top:var(--desktop-y);width:var(--desktop-width);height:var(--desktop-height);font-size:clamp(10px,var(--canvas-font),160px);line-height:1.2;overflow:hidden}
+.ws-canvas-motion,.ws-canvas-link{display:flex;align-items:center;width:100%;height:100%;border-radius:inherit}
+.ws-canvas-link:focus-visible{outline:3px solid currentColor;outline-offset:-3px}
+@container (max-width:900px){.ws-canvas-element{left:var(--tablet-x);top:var(--tablet-y);width:var(--tablet-width);height:var(--tablet-height);font-size:clamp(10px,var(--tablet-font),160px)}}
+@container (max-width:600px){.ws-canvas{height:var(--canvas-mobile-height)}.ws-canvas-element{left:var(--mobile-x);top:var(--mobile-y);width:var(--mobile-width);height:var(--mobile-height);font-size:clamp(10px,var(--mobile-font),160px)}.ws-canvas-element[data-mobile-hidden]{display:none}}
+@keyframes ws-canvas-float{0%,100%{translate:0 0}50%{translate:0 -10px}}
+@media (prefers-reduced-motion:no-preference){
+.ws-canvas-motion[data-motion=fade]{animation:ws-fade var(--canvas-duration) ease var(--canvas-delay) both}
+.ws-canvas-motion[data-motion=rise]{animation:ws-rise var(--canvas-duration) ease var(--canvas-delay) both}
+.ws-canvas-motion[data-motion=zoom]{animation:ws-zoom var(--canvas-duration) ease var(--canvas-delay) both}
+.ws-canvas-motion[data-motion=float]{animation:ws-canvas-float var(--canvas-duration) ease-in-out var(--canvas-delay) infinite}
+.ws-canvas-element:hover .ws-canvas-motion[data-motion=float]{animation-play-state:paused}
+}
+@media (prefers-reduced-motion:no-preference){@supports(animation-timeline:view()){.ws-canvas-motion[data-motion=fade],.ws-canvas-motion[data-motion=rise],.ws-canvas-motion[data-motion=zoom]{animation-timeline:view();animation-range:entry 0% entry 70%;animation-delay:0s}}}
+@media print{.ws-canvas-motion{animation:none!important}}
 `;

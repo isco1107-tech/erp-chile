@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { CreativeSiteSections } from '@/components/web-sites/CreativeSiteSections';
 import { AcademySite } from './AcademySite';
 import type { PublicAcademySite } from '@/modules/academy/services/academy-site.service';
 
@@ -39,7 +40,9 @@ export function AcademySiteDocument({ site }: { site: PublicAcademySite }) {
         // JSON.stringify no escapa "<": se neutraliza para que un texto de la academia no pueda cerrar el <script>.
         dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd(site)).replace(/</g, '\\u003c') }}
       />
+      {site.creative?.placement === 'before' && <CreativeSiteSections design={site.creative} name={site.name} slug={site.slug} basePath={site.customDomain ? '' : `/academia/${site.slug}`} />}
       <AcademySite site={site} />
+      {site.creative?.placement !== 'before' && <CreativeSiteSections design={site.creative} name={site.name} slug={site.slug} basePath={site.customDomain ? '' : `/academia/${site.slug}`} />}
     </>
   );
 }

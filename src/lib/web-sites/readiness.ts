@@ -121,6 +121,7 @@ export function evaluateReadiness(input: ReadinessInput): ReadinessReport {
 
   const missingMustHave = info.mustHave.filter((need) => need.type !== 'hero' && need.type !== 'contact' && !visible.some((block) => block.type === need.type));
   const imagesWithoutAlt = visible.reduce((count, block) => {
+    if (block.style.canvas?.enabled) count += block.style.canvas.elements.filter((el) => !el.hidden && el.kind === 'image' && el.imageUrl && !el.alt.trim()).length;
     if (block.type === 'image' || block.type === 'split') return count + (block.imageUrl && !block.alt.trim() ? 1 : 0);
     if (block.type === 'hero') return count + block.images.filter((image) => image.url && !image.alt.trim()).length;
     if (block.type === 'beforeafter') return count + block.items.filter((pair) => (pair.beforeUrl || pair.afterUrl) && !pair.alt.trim()).length;

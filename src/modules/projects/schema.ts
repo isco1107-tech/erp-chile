@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { creativeSiteSchema } from '@/lib/web-sites/creative';
 import { contactEmailField, contactWhatsappField, instagramHandleField } from '@/lib/events/pageant-contact';
 import type { ProjectStatus } from '@prisma/client';
 import { publicSlugProblem } from '@/lib/events/public-slug';
@@ -86,6 +87,7 @@ export const projectPublicSiteSchema = z
       .optional()
       .transform((value) => (value ? value : null)),
     publicSiteEnabled: z.boolean(),
+    publicSiteDesign: creativeSiteSchema.optional(),
     publicTagline: optionalText(160),
     publicDescription: optionalText(4000),
     coverImageUrl: z
