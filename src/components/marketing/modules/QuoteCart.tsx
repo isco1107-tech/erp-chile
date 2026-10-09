@@ -148,7 +148,7 @@ export default function QuoteCart({ modules, salesEmail }: { modules: QuotableMo
                   </label>
                 </div>
                 {/* Campo trampa anti-bots: fuera de pantalla y fuera del orden de tabulación. */}
-                <div aria-hidden="true" className={s.honeypot}><label>Sitio web<input tabIndex={-1} autoComplete="off" name={HONEYPOT_FIELD} value={honeypot} onChange={(event) => setHoneypot(event.target.value)} /></label></div>
+                <div aria-hidden="true" data-trap className={s.honeypot}><label>Sitio web<input tabIndex={-1} autoComplete="off" name={HONEYPOT_FIELD} value={honeypot} onChange={(event) => setHoneypot(event.target.value)} /></label></div>
                 <button type="submit" className={`${s.primary} ${s.submit}`} disabled={status.kind === 'sending' || count === 0}>
                   {status.kind === 'sending' ? 'Enviando…' : `Pedir cotización${count > 0 ? ` (${count})` : ''}`} <Send size={16} aria-hidden="true" />
                 </button>

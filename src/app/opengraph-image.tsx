@@ -7,7 +7,7 @@ import { join } from 'node:path';
  * logo (1280×698, fondo blanco): WhatsApp/LinkedIn lo recortaban y no decía
  * qué es Aether. Esta repite el titular y la identidad del landing.
  */
-export const alt = 'Aether ERP: ERP chileno para cualquier negocio, con cumplimiento SII y producción de certámenes';
+export const alt = 'Aether ERP: toda tu operación, una nueva perspectiva. Gestión, academias, eventos y sitios web con IA.';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -30,7 +30,6 @@ export default async function OpengraphImage() {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={iconSrc} width={46} height={54} alt="" />
           <div style={{ display: 'flex', alignItems: 'baseline', fontSize: 44, fontWeight: 600 }}>
             Aether
@@ -38,14 +37,13 @@ export default async function OpengraphImage() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', fontSize: 78, fontWeight: 600, lineHeight: 1.05, letterSpacing: -2 }}>
-          <span>Tu negocio,</span>
-          <span>conectado.</span>
-          <span style={{ color: '#dbc076' }}>Al día con el SII.</span>
+        <div style={{ display: 'flex', flexDirection: 'column', fontSize: 70, fontWeight: 600, lineHeight: 1.12, letterSpacing: -2 }}>
+          <span>Toda tu operación.</span>
+          <span style={{ color: '#e4cb8e' }}>Una nueva perspectiva.</span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 24, color: '#b7bbc3' }}>
-          <span>Ventas · Inventario PMP · Finanzas · SII · Certámenes</span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 21, color: '#b7bbc3' }}>
+          <span>Gestión · Academias · Eventos · Web con IA</span>
           <span style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#dbc076' }}>Hecho para Chile</span>
         </div>
       </div>

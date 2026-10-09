@@ -50,6 +50,8 @@ export default function StructuredData({ base, salesEmail }: { base: string; sal
           'Punto de venta',
           'Producción de certámenes y eventos: proyectos, auspicios, ticketing y votación',
           'Multiempresa con roles y permisos a medida',
+          'Academias: calendario de clases, asistencia, mensualidades e inscripciones',
+          'Creador visual de sitios web con asistencia de IA y vista previa',
         ],
       },
       {

@@ -99,7 +99,7 @@ export default function SalesContact({
               <label htmlFor="quote-phone" className={s.quoteWide}><span>&nbsp;<strong>Teléfono</strong> (opcional)</span><input id="quote-phone" name="phone" type="tel" autoComplete="tel" maxLength={30} placeholder="+56 9 1234 5678" value={phone} onChange={event => setPhone(event.target.value)} /></label>
             </div>
             {/* Campo trampa anti-bots: fuera de pantalla y fuera del orden de tabulación. */}
-            <div aria-hidden="true" className={s.honeypot}><label>Sitio web<input tabIndex={-1} autoComplete="off" name={SALES_LEAD_HONEYPOT_FIELD} value={honeypot} onChange={event => setHoneypot(event.target.value)} /></label></div>
+            <div aria-hidden="true" data-trap className={s.honeypot}><label>Sitio web<input tabIndex={-1} autoComplete="off" name={SALES_LEAD_HONEYPOT_FIELD} value={honeypot} onChange={event => setHoneypot(event.target.value)} /></label></div>
             <button className={s.quoteSubmit} type="submit" disabled={status.kind === 'sending'}>{status.kind === 'sending' ? 'Enviando…' : 'Solicitar demo y cotización'} <Send size={17} aria-hidden="true" /></button>
             <p className={s.quoteNote}>Usamos tus datos solo para responder esta solicitud. Sin compromiso de compra.</p>
             {status.kind === 'error' && <p className={s.quoteStatus} role="alert">{status.message} Puedes <a href={mailtoHref}>escribirnos por correo</a> con tu solicitud ya redactada.</p>}
