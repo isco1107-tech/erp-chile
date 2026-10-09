@@ -4,7 +4,7 @@ import { GoogleGenAI, type Content, type FunctionDeclaration, type Part } from '
 
 import { captureException, captureMessage } from '@/lib/observability';
 
-import { resolveAgentModel, resolveNvidiaTarget, type AgentModelTier, type NvidiaTarget } from './model-tiers';
+import { resolveAgentModel, resolveExtraLlmTarget, resolveNvidiaTarget, type AgentModelTier, type NvidiaTarget } from './model-tiers';
 import { generateNvidiaText, generateNvidiaWithTools, isNvidiaModelRetired, markIfModelRetired } from './nvidia-agent';
 
 /**
@@ -107,6 +107,7 @@ interface GenerateContentRequest {
   contents: Array<{ role: string; parts: Array<{ text: string }> }>;
   config: {
     systemInstruction: string;
+    maxOutputTokens?: number;
     responseMimeType?: string;
     responseJsonSchema?: Record<string, unknown>;
   };
@@ -141,21 +142,32 @@ export async function generateAgentText(
   systemPrompt: string,
   userPrompt: string,
   tier: AgentModelTier = 'standard',
-  options?: { geminiModel?: string }
+  options?: { geminiModel?: string; maxOutputTokens?: number; json?: boolean; extraProvider?: boolean }
 ): Promise<string> {
-  const nvidia = resolveNvidiaTarget(tier);
-  if (nvidia && !isNvidiaModelRetired(nvidia.model)) {
+  // Proveedores gratuitos primero (NVIDIA, luego el adicional que configure el
+  // administrador): Gemini queda de respaldo y solo gasta su cuota si ambos fallan.
+  const targets = [resolveNvidiaTarget(tier), options?.extraProvider ? resolveExtraLlmTarget() : null];
+  for (const target of targets) {
+    if (!target || isNvidiaModelRetired(target.model)) continue;
     try {
-      return await generateNvidiaText(nvidia, systemPrompt, userPrompt);
+      return await generateNvidiaText(
+        options?.maxOutputTokens ? { ...target, maxTokens: options.maxOutputTokens } : target,
+        systemPrompt,
+        userPrompt
+      );
     } catch (error) {
-      reportNvidiaFallback(error, nvidia, 'text');
+      reportNvidiaFallback(error, target, 'text');
     }
   }
 
   const text = await callWithRetry({
     model: options?.geminiModel ?? resolveAgentModel(tier),
     contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-    config: { systemInstruction: systemPrompt },
+    config: {
+      systemInstruction: systemPrompt,
+      ...(options?.json ? { responseMimeType: 'application/json' } : {}),
+      ...(options?.maxOutputTokens ? { maxOutputTokens: options.maxOutputTokens } : {}),
+    },
   });
   if (!text) throw new Error('El modelo no devolvió una respuesta');
   return text.trim();

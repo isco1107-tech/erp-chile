@@ -20,11 +20,14 @@ const webSite = jest.mocked(getWebSite);
 const project = jest.mocked(getProject);
 const limiter = jest.mocked(checkRateLimit);
 const current = { blocks: [], theme: DEFAULT_THEME };
-const web = { target: 'web', resourceId: 'site-1', pageId: 'home', instruction: 'Mejora el sitio en móvil', current };
+let runs = 0;
+// Instrucción distinta por prueba: las respuestas válidas se recuerdan por petición y no deben filtrarse entre pruebas.
+let web = { target: 'web', resourceId: 'site-1', pageId: 'home', instruction: 'Mejora el sitio en móvil', current };
 const env = { gemini: process.env.GEMINI_API_KEY, nvidia: process.env.NVIDIA_API_KEY };
 
 beforeEach(() => {
   jest.resetAllMocks();
+  web = { ...web, instruction: `Mejora el sitio en móvil ${++runs}` };
   auth.mockResolvedValue({ companyId: 'tenant-1', id: 'user-1' } as Awaited<ReturnType<typeof requireAuthWithPermission>>);
   limiter.mockReturnValue({ allowed: true, remaining: 4, retryAfterMs: null, limit: 5 });
   webSite.mockResolvedValue({ name: 'Sitio propio', document: { pages: [] }, assets: [] } as unknown as NonNullable<Awaited<ReturnType<typeof getWebSite>>>);
@@ -79,8 +82,21 @@ it('limita solicitudes por empresa antes de usar la cuota compartida', async () 
 });
 it('informa que no hay claves sin exponer valores del entorno', async () => {
   delete process.env.GEMINI_API_KEY;
-  expect(await proposeSiteDesignAction(web)).toEqual({ success: false, error: 'El asistente necesita GEMINI_API_KEY o NVIDIA_API_KEY configurada en el servidor.' });
+  expect(await proposeSiteDesignAction(web)).toEqual({ success: false, error: 'El asistente necesita GEMINI_API_KEY, NVIDIA_API_KEY o EXTRA_LLM_API_KEY configurada en el servidor.' });
   expect(generator).not.toHaveBeenCalled();
+});
+it('explica la cuota agotada sin exponer el detalle del proveedor', async () => {
+  generator.mockRejectedValue(Object.assign(new Error('quota exceeded for key sk-secret'), { status: 429 }));
+  const result = await proposeSiteDesignAction(web);
+  expect(result.success).toBe(false);
+  expect(JSON.stringify(result)).toContain('cuota gratuita');
+  expect(JSON.stringify(result)).not.toContain('sk-secret');
+});
+it('no vuelve a gastar cuota al repetir exactamente la misma petición', async () => {
+  const repeated = { ...web, instruction: 'Mejora el sitio, versión repetida' };
+  expect((await proposeSiteDesignAction(repeated)).success).toBe(true);
+  expect((await proposeSiteDesignAction(repeated)).success).toBe(true);
+  expect(generator).toHaveBeenCalledTimes(1);
 });
 it('rechaza una respuesta de un objetivo distinto', async () => {
   generator.mockResolvedValue('{}');
