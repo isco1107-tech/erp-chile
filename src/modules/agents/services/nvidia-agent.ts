@@ -91,7 +91,7 @@ async function chatCompletion(target: NvidiaTarget, request: ChatRequest, signal
     messages: request.messages,
     ...(request.tools && request.tools.length > 0 ? { tools: request.tools, tool_choice: 'auto' } : {}),
     temperature: 0.3,
-    max_tokens: 4096,
+    max_tokens: target.maxTokens ?? 4096,
     stream: false,
   });
 
@@ -99,7 +99,7 @@ async function chatCompletion(target: NvidiaTarget, request: ChatRequest, signal
   for (;;) {
     await throttle();
     try {
-      const response = await fetch(NVIDIA_CHAT_URL, {
+      const response = await fetch(target.url ?? NVIDIA_CHAT_URL, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${target.apiKey}`,

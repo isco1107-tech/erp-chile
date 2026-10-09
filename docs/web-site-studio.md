@@ -40,6 +40,10 @@ Se reutilizan las variables existentes de Vercel:
 
 - `NVIDIA_API_KEY` y `NVIDIA_MODEL_REASONING`: NVIDIA cuando está configurado,
   con respaldo en Gemini ante errores, modelos retirados o cuota agotada.
+- `EXTRA_LLM_API_KEY`, `EXTRA_LLM_BASE_URL` y `EXTRA_LLM_MODEL`: segundo
+  proveedor gratuito compatible con OpenAI, opcional. Orden de intentos:
+  NVIDIA → este → Gemini, así Gemini gasta cuota solo si los otros fallan.
+  Una misma petición repetida en 10 minutos reutiliza la respuesta ya validada.
 - `GEMINI_API_KEY`: Gemini como proveedor o respaldo.
 - `GEMINI_MODEL_WEB_DESIGNER`: modelo Gemini específico del diseñador,
   opcional. Sin él se usa `GEMINI_MODEL_LITE` o el modelo predeterminado del
