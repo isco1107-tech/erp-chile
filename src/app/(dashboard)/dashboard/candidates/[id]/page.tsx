@@ -23,6 +23,7 @@ import ContractSignatureSection from '@/components/candidates/ContractSignatureS
 import StatusChangeSection from '@/components/candidates/StatusChangeSection';
 import HistorySection from '@/components/candidates/HistorySection';
 import PhotosSection from '@/components/candidates/PhotosSection';
+import PhotoViewer from '@/components/candidates/PhotoViewer';
 import { PROMISSORY_NOTE_STATUS_LABELS, PAYMENT_STATUS_LABELS } from '@/modules/promissory-notes/schema';
 import { PAYMENT_STATUS_LABELS as INSTALLMENT_PAYMENT_STATUS_LABELS } from '@/modules/payment-plans/schema';
 import { formatCurrency } from '@/lib/chile/tax';
@@ -138,8 +139,10 @@ export default async function CandidateDetailPage({ params }: { params: Promise<
       <div className="flex flex-col items-center gap-5 rounded-xl border border-border bg-card p-8 text-center shadow-card sm:flex-row sm:text-left">
         <div className="flex size-28 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border bg-muted/40">
           {candidate.photoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={candidate.photoUrl} alt={candidate.fullName} className="size-full object-cover" />
+            <PhotoViewer src={candidate.photoUrl} alt={candidate.fullName} className="block size-full cursor-zoom-in outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={candidate.photoUrl} alt="" className="size-full object-cover" />
+            </PhotoViewer>
           ) : (
             <span className="text-2xl font-bold text-muted-foreground">{initials(candidate.fullName)}</span>
           )}
