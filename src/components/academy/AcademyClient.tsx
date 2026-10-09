@@ -14,8 +14,8 @@ import { countPendingApplicationsAction } from '@/modules/academy/actions/academ
 
 type Tab = 'CALENDAR' | 'STUDENTS' | 'APPLICATIONS' | 'ATTENDANCE' | 'MATERIAL' | 'PAYMENTS' | 'GROUPS' | 'SITE';
 
-export default function AcademyClient({ canWrite, canManage }: { canWrite: boolean; canManage: boolean }) {
-  const [tab, setTab] = useState<Tab>('CALENDAR');
+export default function AcademyClient({ canWrite, canManage, initialTab = 'CALENDAR' }: { canWrite: boolean; canManage: boolean; initialTab?: Tab }) {
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [pending, setPending] = useState(0);
   const [version, setVersion] = useState(0);
   const refresh = useCallback(() => setVersion((v) => v + 1), []);

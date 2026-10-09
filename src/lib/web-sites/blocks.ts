@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { canvasSchema } from './canvas';
+import { FORM_CONSENTS, FORM_DEAL_TYPES, FORM_DESTINATIONS, FORM_PURPOSES, contactPresetFields, formFieldsSchema, normalizeTag } from './forms';
 import { SITE_ICONS } from './icons';
 import { richTextLinks } from './rich-text';
 import { slugify } from './urls';
@@ -53,6 +54,7 @@ export const BLOCK_TYPES = [
   'areas',
   'embed',
   'posts',
+  'form',
 ] as const;
 export type BlockType = (typeof BLOCK_TYPES)[number];
 
@@ -80,6 +82,7 @@ export const MAX_POSTS = 12;
 
 const text = (max: number) => z.string().trim().max(max).default('');
 const link = z.string().trim().max(500).default('');
+const inboxTag = () => z.string().max(60).default('').catch('').transform(normalizeTag);
 /** Elección de una lista cerrada; un valor desconocido cae al de fábrica. */
 const choice = <const T extends readonly [string, ...string[]]>(values: T, fallback: T[number]) => z.enum(values).default(fallback).catch(fallback);
 
@@ -437,6 +440,12 @@ export const contactBlockSchema = z.object({
   showForm: z.boolean().default(true),
   /** Mapa de Google con la dirección. */
   showMap: z.boolean().default(false),
+  /** Además de la bandeja, a qué parte del ERP va cada mensaje (ver `forms.ts`). */
+  destination: choice(FORM_DESTINATIONS, 'inbox'),
+  /** Solo con destino CRM: tipo de negocio de la oportunidad. */
+  dealType: choice(FORM_DEAL_TYPES, 'OTHER'),
+  /** Etiqueta interna para ordenar la bandeja (y etiqueta de la oportunidad en el CRM). */
+  inboxTag: inboxTag(),
   variant: choice(CONTACT_VARIANTS, 'split'),
 });
 
@@ -626,6 +635,40 @@ export const postsBlockSchema = z.object({
   variant: choice(POSTS_VARIANTS, 'grid'),
 });
 
+
+export const FORM_VARIANTS = ['card', 'split', 'minimal', 'photo', 'steps'] as const;
+export const MAX_FORM_HIGHLIGHTS = 6;
+/**
+ * Formulario a medida: contacto, cotización, inscripción, reserva… Las
+ * preguntas, su rol en el ERP y el destino de cada envío se definen en
+ * `forms.ts`; el servidor valida cada envío contra la versión PUBLICADA.
+ */
+export const formBlockSchema = z.object({
+  ...base,
+  type: z.literal('form'),
+  heading: text(120),
+  intro: text(400),
+  /** Para qué es (ordena la bandeja): contacto, cotización, inscripción… */
+  purpose: choice(FORM_PURPOSES, 'contact'),
+  fields: formFieldsSchema,
+  /** Texto del botón; vacío = el del propósito. */
+  submitLabel: text(40),
+  /** Mensaje al enviar; vacíos = los del propósito. */
+  successTitle: text(120),
+  successText: text(300),
+  /** Categoría del ERP a la que tributa cada envío (además de la bandeja del sitio). */
+  destination: choice(FORM_DESTINATIONS, 'inbox'),
+  dealType: choice(FORM_DEAL_TYPES, 'OTHER'),
+  inboxTag: inboxTag(),
+  /** `notice` = aviso con enlace; `checkbox` = casilla obligatoria de aceptación. */
+  consent: choice(FORM_CONSENTS, 'notice'),
+  /** Frases cortas que acompañan al formulario ("Respondemos en 24 horas"). */
+  highlights: z.array(text(120)).max(MAX_FORM_HIGHLIGHTS).default([]),
+  /** Foto del diseño «Con foto». */
+  imageUrl: link,
+  variant: choice(FORM_VARIANTS, 'card'),
+});
+
 export const blockSchema = z.discriminatedUnion('type', [
   heroBlockSchema,
   textBlockSchema,
@@ -660,6 +703,7 @@ export const blockSchema = z.discriminatedUnion('type', [
   areasBlockSchema,
   embedBlockSchema,
   postsBlockSchema,
+  formBlockSchema,
 ]);
 
 export const blocksSchema = z
@@ -752,7 +796,8 @@ export interface BlockTypeInfo {
     | 'Clock4'
     | 'MapPinned'
     | 'AppWindow'
-    | 'Newspaper';
+    | 'Newspaper'
+    | 'ClipboardList';
 }
 
 export const BLOCK_INFO: Record<BlockType, BlockTypeInfo> = {
@@ -987,6 +1032,13 @@ export const BLOCK_INFO: Record<BlockType, BlockTypeInfo> = {
     category: 'content',
     icon: 'Newspaper',
   },
+  form: {
+    label: 'Formulario',
+    description: 'Contacto, cotización, inscripción, reserva o lo que necesites, con destino en el ERP.',
+    help: 'Elige una plantilla (cotización, inscripción, reserva…) y ajusta las preguntas. En «Destino en el ERP» decides dónde quedan los datos: solo en la bandeja del sitio, como oportunidad en el CRM, como inscripción de la academia o como tarea del equipo. Pide solo lo necesario: cada pregunta de más hace que menos gente termine.',
+    category: 'action',
+    icon: 'ClipboardList',
+  },
 };
 
 /** Bloque nuevo, vacío pero con la estructura lista (filas de ejemplo en las listas). */
@@ -1059,6 +1111,8 @@ export function createBlock(type: BlockType): WebSiteBlock {
       return embedBlockSchema.parse({ id, type });
     case 'posts':
       return postsBlockSchema.parse({ id, type, items: [{}, {}, {}] });
+    case 'form':
+      return formBlockSchema.parse({ id, type, fields: contactPresetFields() });
   }
 }
 
@@ -1100,6 +1154,7 @@ export function blockNavLabel(block: WebSiteBlock): string {
     case 'areas':
     case 'embed':
     case 'posts':
+    case 'form':
       return block.heading;
     case 'hero':
     case 'image':
@@ -1165,6 +1220,11 @@ const NON_TEXT_KEYS = new Set([
   'week',
   'showStatus',
   'showSocial',
+  'purpose',
+  'destination',
+  'dealType',
+  'consent',
+  'inboxTag',
 ]);
 
 /** Todos los textos editables de un bloque (para buscar ejemplos sin cambiar). */
@@ -1177,7 +1237,9 @@ export function blockTexts(block: WebSiteBlock): string[] {
     } else if (Array.isArray(value)) value.forEach((v) => visit(v));
     else if (value && typeof value === 'object') Object.entries(value).forEach(([k, v]) => visit(v, k));
   };
-  visit(block);
+  // De un formulario cuentan sus títulos y las opciones de cada pregunta ("Servicio 1"
+  // es de ejemplo); las preguntas mismas ("Nombre", "Correo") son publicables tal cual.
+  visit(block.type === 'form' ? { ...block, fields: block.fields.map((field) => ({ options: field.options })) } : block);
   if (block.style.canvas?.enabled) for (const element of block.style.canvas.elements) if (!element.hidden) { if (element.text) out.push(element.text); if (element.alt) out.push(element.alt); }
   return out;
 }
@@ -1199,6 +1261,9 @@ export function blockImageUrls(block: WebSiteBlock): string[] {
       break;
     case 'quote':
       urls.push(block.photoUrl);
+      break;
+    case 'form':
+      urls.push(block.imageUrl);
       break;
     case 'pricelist':
       urls.push(...block.categories.flatMap((category) => category.items.map((item) => item.imageUrl)));
@@ -1388,6 +1453,8 @@ export function isBlockEmpty(block: WebSiteBlock): boolean {
       return !block.url.trim();
     case 'posts':
       return block.items.every((item) => !item.title.trim());
+    case 'form':
+      return block.fields.length === 0;
   }
 }
 

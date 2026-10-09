@@ -28,7 +28,7 @@ import { blockHeadingText, resolveAlign, sectionLook, toneVariables, type Tone }
  * Es responsivo por el ANCHO DEL CONTENEDOR (container queries), no por el de
  * la ventana: la vista "celular" del editor se ve como un celular real. El
  * componente raíz no usa hooks (sirve desde un Server Component); las piezas
- * interactivas (`Countdown`, `MobileMenu`, `ContactForm`) son componentes de
+ * interactivas (`Countdown`, `MobileMenu`, `SiteForm`) son componentes de
  * cliente aparte.
  */
 

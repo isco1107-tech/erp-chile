@@ -11,6 +11,7 @@ import {
   EMBED_VARIANTS,
   FAQ_VARIANTS,
   FEATURE_VARIANTS,
+  FORM_VARIANTS,
   GALLERY_VARIANTS,
   HERO_VARIANTS,
   HOURS_VARIANTS,
@@ -368,6 +369,16 @@ export const BLOCK_LAYOUTS: LayoutRegistry = {
       { value: 'featured', label: 'Destacada', description: 'La primera grande y las demás al lado.' },
     ],
   },
+  form: {
+    hint: '“Al costado” convence más: explica qué pasa después de enviar. “Por pasos” ordena los formularios largos (inscripciones) en partes cortas.',
+    options: [
+      { value: 'card', label: 'Tarjeta', description: 'El formulario en una tarjeta al centro.' },
+      { value: 'split', label: 'Al costado', description: 'Título y frases a favor a un lado, formulario al otro.' },
+      { value: 'minimal', label: 'Mínimo', description: 'Sin recuadro, directo sobre el fondo.' },
+      { value: 'photo', label: 'Con foto', description: 'Una foto grande junto al formulario.', photos: true },
+      { value: 'steps', label: 'Por pasos', description: 'Las preguntas en pasos cortos, con barra de avance.' },
+    ],
+  },
 };
 
 /** Los valores de cada lista cerrada (para comprobar que el registro está completo). */
@@ -405,6 +416,7 @@ export const VARIANT_VALUES: { [T in BlockType]: readonly VariantOf<T>[] } = {
   areas: AREAS_VARIANTS,
   embed: EMBED_VARIANTS,
   posts: POSTS_VARIANTS,
+  form: FORM_VARIANTS,
 };
 
 /** Diseños de un tipo de sección. */

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { blocksSchema } from '@/lib/web-sites/blocks';
+import { FORM_DESTINATIONS, FORM_PURPOSES } from '@/lib/web-sites/forms';
 import { siteDocumentSchema } from '@/lib/web-sites/site';
 import { MAX_HTML_BYTES } from '@/lib/web-sites/html';
 import { WEB_SITE_KINDS } from '@/lib/web-sites/templates';
@@ -84,3 +85,35 @@ export const publicWebSiteMessageSchema = z.object({
 });
 
 export type PublicWebSiteMessageInput = z.infer<typeof publicWebSiteMessageSchema>;
+
+/**
+ * Envío de un formulario del sitio publicado. Las respuestas llegan como
+ * `{ idDePregunta: valor }` y se validan contra la definición PUBLICADA del
+ * formulario (`validateFormAnswers`); acá solo se acota la forma del cuerpo.
+ */
+export const publicFormSubmissionSchema = z.object({
+  formId: z.string().trim().min(1).max(40).nullable().optional(),
+  answers: z.record(z.string().max(24), z.union([z.string().max(4000), z.boolean(), z.number()])).refine((value) => Object.keys(value).length <= 40, 'Demasiadas respuestas'),
+  acceptPrivacy: z.boolean().optional(),
+});
+
+export type PublicFormSubmissionInput = z.infer<typeof publicFormSubmissionSchema>;
+
+export const MESSAGE_STATUS_FILTERS = ['inbox', 'unread', 'archived', 'all'] as const;
+
+/** Filtro de la bandeja de formularios (de un sitio o de toda la empresa). */
+export const messageFilterSchema = z.object({
+  siteId: z.string().trim().max(40).nullable().optional(),
+  /** Id del bloque del formulario; `legacy` = mensajes anteriores a los formularios a medida. */
+  formId: z.string().trim().max(40).nullable().optional(),
+  purpose: z.enum(FORM_PURPOSES).nullable().optional(),
+  destination: z.enum(FORM_DESTINATIONS).nullable().optional(),
+  tag: z.string().trim().max(30).nullable().optional(),
+  status: z.enum(MESSAGE_STATUS_FILTERS).default('inbox'),
+  q: z.string().trim().max(100).nullable().optional(),
+});
+
+export type MessageFilterInput = z.infer<typeof messageFilterSchema>;
+
+/** Destino al que se envía a mano un mensaje de la bandeja. */
+export const routeDestinationSchema = z.enum(['crm', 'academy', 'tasks']);

@@ -32,8 +32,9 @@ export default function CanvasScene({ canvas, ctx }: { canvas: SiteCanvas; ctx: 
         style['--canvas-delay'] = `${element.delay}ms`;
         const content = <CanvasContent element={element} />;
         const link = element.kind === 'shape' ? null : resolveIn(ctx, element.href);
+        // `data-kind`: un texto nunca se recorta si mide un poco más que su caja (en celular pasaba); botones e imágenes sí, por sus esquinas.
         return (
-          <div key={element.id} className="ws-canvas-element" data-mobile-hidden={element.mobileHidden || undefined} style={style}>
+          <div key={element.id} className="ws-canvas-element" data-kind={element.kind} data-mobile-hidden={element.mobileHidden || undefined} style={style}>
             <div className="ws-canvas-motion" data-motion={ctx.preview ? 'none' : element.motion}>
               {link ? <SiteLink ctx={ctx} link={link} className="ws-canvas-link">{content}</SiteLink> : content}
             </div>

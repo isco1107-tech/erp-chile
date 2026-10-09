@@ -1,7 +1,7 @@
 'use client';
 
-import { useId, useRef, useState, type FormEvent } from 'react';
-import { BadgeDollarSign, BriefcaseBusiness, CircleHelp, FilePlus, Heart, Images, Mail, Users, type LucideIcon } from 'lucide-react';
+import { useContext, useId, useRef, useState, type FormEvent } from 'react';
+import { BadgeDollarSign, BriefcaseBusiness, CalendarCheck, CircleHelp, ClipboardList, FilePlus, Heart, Images, Mail, Receipt, Users, type LucideIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -9,6 +9,7 @@ import { PAGE_TEMPLATES, type PageTemplate } from '@/lib/web-sites/page-template
 import { MAX_PAGES, type SiteDocument } from '@/lib/web-sites/site';
 import { cn } from '@/lib/utils';
 import { TextField } from './fields';
+import { FormDestinationsContext } from './FormBlockFields';
 import { addPageFromTemplate, type AddedPage } from './pages-logic';
 
 const TEMPLATE_ICONS: Record<string, LucideIcon> = {
@@ -20,6 +21,9 @@ const TEMPLATE_ICONS: Record<string, LucideIcon> = {
   team: Users,
   faq: CircleHelp,
   contact: Mail,
+  quote: Receipt,
+  enrollment: ClipboardList,
+  booking: CalendarCheck,
 };
 
 interface AddPageDialogProps {
@@ -33,6 +37,7 @@ interface AddPageDialogProps {
 
 function AddPageForm({ document, onDocumentChange, onAdded, onClose }: Omit<AddPageDialogProps, 'open' | 'onOpenChange'> & { onClose: () => void }) {
   const nameId = useId();
+  const { access } = useContext(FormDestinationsContext);
   const [templateId, setTemplateId] = useState<string>(PAGE_TEMPLATES[0]?.id ?? 'blank');
   const [name, setName] = useState(PAGE_TEMPLATES[0]?.title ?? 'Página nueva');
   const nameTouched = useRef(false);
@@ -56,7 +61,7 @@ function AddPageForm({ document, onDocumentChange, onAdded, onClose }: Omit<AddP
     // El editor aplica el cambio de inmediato sobre lo último que hay: aquí solo se recoge lo que salió.
     const out: { added: AddedPage | null } = { added: null };
     onDocumentChange((previous) => {
-      const added = addPageFromTemplate(previous, template, title);
+      const added = addPageFromTemplate(previous, template, title, { isDestinationEnabled: (destination) => access[destination].enabled });
       if (!added) return previous;
       out.added = added;
       return added.doc;

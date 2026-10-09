@@ -128,8 +128,10 @@ const CUSTOM_DOMAIN_PASSTHROUGH = [
   '/icon.png',
   '/favicon.ico',
   '/branding',
-  '/robots.txt',
 ];
+
+/** Metadatos de rastreo que cada dominio propio sirve con los datos de SU sitio (no los de la plataforma). */
+const CUSTOM_DOMAIN_SEO_FILES = ['/robots.txt', '/sitemap.xml'] as const;
 
 export type CustomDomainRoute =
   /** Raíz del dominio: se reescribe al micrositio del certamen. */
@@ -142,6 +144,8 @@ export type CustomDomainRoute =
    * página existe (si no, va a la plataforma con la misma ruta).
    */
   | { kind: 'page'; slug: string }
+  /** `robots.txt` o `sitemap.xml`: se reescribe a `/sitio/<dominio>/<archivo>`, del sitio de ese dominio. */
+  | { kind: 'seo'; file: 'robots.txt' | 'sitemap.xml' }
   /** Cualquier otra (panel, login…): va a la plataforma, nunca bajo el dominio del certamen. */
   | { kind: 'platform' };
 
@@ -155,6 +159,8 @@ const WEB_SITE_RAW_RE = /^\/web\/[a-z0-9-]{3,50}\/raw\/?$/;
 
 export function customDomainRoute(pathname: string): CustomDomainRoute {
   if (pathname === '/' || pathname === '') return { kind: 'site' };
+  const seo = CUSTOM_DOMAIN_SEO_FILES.find((file) => pathname === file);
+  if (seo) return { kind: 'seo', file: seo === '/robots.txt' ? 'robots.txt' : 'sitemap.xml' };
   if (WEB_SITE_RAW_RE.test(pathname)) return { kind: 'pass' };
   if (CUSTOM_DOMAIN_PASSTHROUGH.some((prefix) => pathname === prefix || pathname.startsWith(prefix.endsWith('/') ? prefix : `${prefix}/`))) {
     return { kind: 'pass' };

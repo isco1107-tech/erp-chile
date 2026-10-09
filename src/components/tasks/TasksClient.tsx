@@ -11,8 +11,8 @@ import DelegationPanel from './DelegationPanel';
 
 type Tab = 'MINE' | 'ALL' | 'DONE' | 'DELEGATION';
 
-export default function TasksClient({ canManage }: { canManage: boolean }) {
-  const [tab, setTab] = useState<Tab>('MINE');
+export default function TasksClient({ canManage, initialTab = 'MINE' }: { canManage: boolean; initialTab?: Tab }) {
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [overview, setOverview] = useState<TasksOverview | null>(null);
   const [version, setVersion] = useState(0);
   const refresh = useCallback(() => setVersion((v) => v + 1), []);

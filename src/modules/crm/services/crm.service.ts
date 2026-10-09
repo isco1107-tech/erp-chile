@@ -884,3 +884,89 @@ export async function createInboundSponsorLead(
 
   return { opportunityId: opportunity.id, title: opportunity.title, deduplicated: false };
 }
+
+/** Origen que usan las oportunidades que llegan desde un formulario de un sitio web. */
+export const WEB_SITE_LEAD_SOURCE = 'Sitio web';
+
+export interface InboundWebLeadInput {
+  /** Nombre del sitio y del formulario, para la nota y el título. */
+  siteName: string;
+  formTitle: string;
+  /** "Cotización", "Inscripción"… */
+  purposeLabel: string;
+  dealType: DealTypeKey;
+  /** Etiqueta del formulario (además de «Web»). */
+  tag: string;
+  name: string;
+  organization: string | null;
+  email: string | null;
+  phone: string | null;
+  /** Presupuesto que escribió la persona (CLP entero), si el formulario lo pedía. */
+  amount: number;
+  /** "Pregunta: respuesta", una por línea. */
+  summary: string;
+}
+
+/**
+ * Prospecto desde un formulario de un sitio web: persona de contacto del CRM,
+ * oportunidad en «Prospecto» y un recordatorio para responder mañana, todo en
+ * una transacción. Si la misma persona (correo o teléfono) escribió desde un
+ * sitio en las últimas 24 horas, se suma una nota a esa oportunidad en vez de
+ * abrir otra. La empresa la resuelve el llamador desde el sitio publicado,
+ * nunca desde el formulario.
+ */
+export async function createInboundWebLead(companyId: string, input: InboundWebLeadInput): Promise<InboundLeadResult> {
+  const email = input.email?.toLowerCase() || null;
+  const note = [`Recibido desde el formulario «${input.formTitle}» del sitio «${input.siteName}».`, input.summary].filter(Boolean).join('\n').slice(0, 4000);
+  const identity = [email ? { prospectEmail: email } : null, input.phone ? { prospectPhone: input.phone } : null].filter((value): value is { prospectEmail: string } | { prospectPhone: string } => value !== null);
+
+  if (identity.length > 0) {
+    const recent = await prisma.opportunity.findFirst({
+      where: { companyId, source: WEB_SITE_LEAD_SOURCE, createdAt: { gte: new Date(Date.now() - DAY_MS) }, OR: identity },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, title: true },
+    });
+    if (recent) {
+      await prisma.crmActivity.create({ data: { companyId, opportunityId: recent.id, type: 'NOTE', summary: note.slice(0, 1000), completedAt: new Date() } });
+      return { opportunityId: recent.id, title: recent.title, deduplicated: true };
+    }
+  }
+
+  const who = input.organization || input.name;
+  const title = `${input.purposeLabel}: ${who}`.slice(0, 160);
+  const tags = normalizeTags(['Web', ...(input.tag ? [input.tag] : [])]);
+  const opportunity = await prisma.$transaction(async (tx) => {
+    const person = await tx.crmPerson.create({
+      data: { companyId, fullName: input.name.slice(0, 120), organizationName: input.organization?.slice(0, 160) ?? null, email, phone: input.phone, tags },
+    });
+    const created = await tx.opportunity.create({
+      data: {
+        companyId,
+        title,
+        prospectName: who.slice(0, 160),
+        prospectEmail: email,
+        prospectPhone: input.phone,
+        amount: Math.max(0, Math.min(Math.round(input.amount), 2_000_000_000)),
+        probability: STAGE_DEFAULT_PROBABILITY.LEAD,
+        stage: 'LEAD',
+        source: WEB_SITE_LEAD_SOURCE,
+        notes: note,
+        dealType: input.dealType,
+        priority: 'MEDIUM',
+        tags,
+        personId: person.id,
+      },
+    });
+    await tx.crmActivity.create({
+      data: {
+        companyId,
+        opportunityId: created.id,
+        type: email ? 'EMAIL' : 'CALL',
+        summary: `Responder a ${input.name} (${input.formTitle})`.slice(0, 1000),
+        dueAt: startOfTomorrowSantiago(),
+      },
+    });
+    return created;
+  });
+  return { opportunityId: opportunity.id, title: opportunity.title, deduplicated: false };
+}

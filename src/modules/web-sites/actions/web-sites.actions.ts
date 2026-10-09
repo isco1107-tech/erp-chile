@@ -7,19 +7,24 @@ import { createAuditLog } from '@/lib/auth/audit';
 import { captureException } from '@/lib/observability';
 import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import { del } from '@/lib/storage/blob';
+import { DESTINATION_INFO, type FormDestination } from '@/lib/web-sites/forms';
 import type { ReadinessReport } from '@/lib/web-sites/readiness';
-import { catalogProductsQuerySchema, createWebSiteSchema, saveWebSiteContentSchema, webSiteAssetAltSchema, webSiteDomainSchema, webSiteSettingsSchema } from '../schema';
+import { siteForms } from '@/lib/web-sites/site-forms';
+import { prisma } from '@/lib/prisma';
+import { catalogProductsQuerySchema, createWebSiteSchema, messageFilterSchema, routeDestinationSchema, saveWebSiteContentSchema, webSiteAssetAltSchema, webSiteDomainSchema, webSiteSettingsSchema } from '../schema';
 import * as service from '../services/web-sites.service';
 import * as domains from '../services/web-site-domain.service';
-import type { WebSiteDetail, WebSiteMessageRow, WebSiteRow } from '../services/web-sites.service';
+import * as forms from '../services/web-site-forms.service';
+import type { WebSiteDetail, WebSiteRow } from '../services/web-sites.service';
 import type { WebSiteDomainView } from '../services/web-site-domain.service';
+import type { FormMessagesPage } from '../services/web-site-forms.service';
 
 export type ActionResult<T> = { success: true; data: T; message?: string } | { success: false; error: string };
 
 function fail(error: unknown, companyId?: string, extra?: Record<string, unknown>): { success: false; error: string } {
   const authMessage = authErrorMessage(error);
   if (authMessage) return { success: false, error: authMessage };
-  if (error instanceof service.WebSiteError || error instanceof domains.WebSiteDomainError) return { success: false, error: error.message };
+  if (error instanceof service.WebSiteError || error instanceof domains.WebSiteDomainError || error instanceof forms.FormRoutingError) return { success: false, error: error.message };
   captureException(error, { module: 'sitios-web', companyId, extra });
   return { success: false, error: toFriendlyErrorMessage(error) };
 }
@@ -122,7 +127,18 @@ export async function publishWebSiteAction(id: string): Promise<ActionResult<{ p
     const session = await requireAuthWithPermission('websites:publish');
     companyId = session.companyId;
     const site = await service.getWebSite(session.companyId, id);
-    const published = await service.publishWebSite(session.companyId, id);
+    // Un formulario que crea registros en otro módulo (CRM, academia, tareas) lo publica
+    // quien puede crearlos ahí: publicar no puede ser un atajo para saltarse esos permisos.
+    if (site?.mode === 'GUIDED') {
+      for (const form of siteForms(site.document).filter((entry) => !entry.hidden)) {
+        const info = DESTINATION_INFO[form.destination];
+        if (!info.feature || !session.features[info.feature] || !info.publishPermission) continue;
+        if (!can(session, info.publishPermission)) {
+          return { success: false, error: `El formulario «${form.title}» envía sus datos a «${info.label}» y tu usuario no puede crear registros ahí. Cambia su destino o pídele a alguien con ese permiso que publique.` };
+        }
+      }
+    }
+    const published = await service.publishWebSite(session.companyId, id, session.features);
     await createAuditLog({ companyId: session.companyId, userId: session.id, userEmail: session.email, action: 'UPDATE', entity: 'WebSite', entityId: id, metadata: { event: 'publish', score: published.report.score } });
     if (site) revalidatePublic(site.slug);
     revalidateSite(id);
@@ -240,12 +256,82 @@ export async function deleteWebSiteAssetAction(assetId: string): Promise<ActionR
   }
 }
 
-export async function listWebSiteMessagesAction(siteId: string): Promise<ActionResult<WebSiteMessageRow[]>> {
+/** Bandeja de formularios: de un sitio (`siteId`) o de toda la empresa, con filtros. */
+export async function listFormMessagesAction(filter: unknown): Promise<ActionResult<FormMessagesPage>> {
+  let companyId: string | undefined;
   try {
     const session = await requireAuthWithPermission('websites:read');
-    return { success: true, data: await service.listWebSiteMessages(session.companyId, siteId) };
+    companyId = session.companyId;
+    const parsed = messageFilterSchema.safeParse(filter ?? {});
+    if (!parsed.success) return { success: false, error: 'Filtro inválido' };
+    return { success: true, data: await forms.listFormMessages(session.companyId, parsed.data) };
+  } catch (error) {
+    return fail(error, companyId, { action: 'listFormMessages' });
+  }
+}
+
+export async function setWebSiteMessageArchivedAction(messageId: string, archived: boolean): Promise<ActionResult<null>> {
+  try {
+    const session = await requireAuthWithPermission('websites:write');
+    await forms.setMessageArchived(session.companyId, messageId, archived);
+    revalidatePath('/dashboard/web-sites');
+    return { success: true, data: null };
   } catch (error) {
     return fail(error);
+  }
+}
+
+export async function markWebSiteMessagesReadAction(filter: unknown): Promise<ActionResult<{ count: number }>> {
+  try {
+    const session = await requireAuthWithPermission('websites:write');
+    const parsed = messageFilterSchema.safeParse(filter ?? {});
+    if (!parsed.success) return { success: false, error: 'Filtro inválido' };
+    const count = await forms.markAllRead(session.companyId, parsed.data);
+    revalidatePath('/dashboard/web-sites');
+    return { success: true, data: { count }, message: count === 1 ? '1 mensaje marcado como leído' : `${count} mensajes marcados como leídos` };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+/**
+ * Lleva un mensaje de la bandeja al CRM, la academia o las tareas. Exige
+ * editar sitios Y poder crear registros en el destino.
+ */
+export async function routeWebSiteMessageAction(messageId: string, destination: string): Promise<ActionResult<{ kind: FormDestination; id: string | null; href: string | null; note: string | null }>> {
+  let companyId: string | undefined;
+  try {
+    const session = await requireAuthWithPermission('websites:write');
+    companyId = session.companyId;
+    const target = routeDestinationSchema.safeParse(destination);
+    if (!target.success) return { success: false, error: 'Destino inválido' };
+    const info = DESTINATION_INFO[target.data];
+    if (info.feature && !session.features[info.feature]) return { success: false, error: `Tu plan no incluye el módulo de ${info.area}.` };
+    if (info.routePermission && !can(session, info.routePermission)) return { success: false, error: `No tienes permiso para crear registros en «${info.label}».` };
+    const routed = await forms.routeExistingMessage({ companyId: session.companyId, userId: session.id, features: session.features }, messageId, target.data);
+    await createAuditLog({ companyId: session.companyId, userId: session.id, userEmail: session.email, action: 'UPDATE', entity: 'WebSiteMessage', entityId: messageId, metadata: { event: 'route', destination: target.data, recordId: routed.id } });
+    revalidatePath('/dashboard/web-sites');
+    return { success: true, data: { kind: routed.kind, id: routed.id, href: routed.href, note: routed.note }, message: routed.note ?? `Listo: quedó en ${info.where}.` };
+  } catch (error) {
+    return fail(error, companyId, { action: 'routeWebSiteMessage', messageId, destination });
+  }
+}
+
+/**
+ * Nombres de los grupos activos de la academia, para cargarlos como opciones
+ * de la pregunta «Grupo que te interesa» (la inscripción llega con el grupo
+ * elegido). Exige editar sitios y ver la academia.
+ */
+export async function listAcademyGroupNamesAction(): Promise<ActionResult<string[]>> {
+  let companyId: string | undefined;
+  try {
+    const session = await requireAuthWithPermission('websites:write');
+    companyId = session.companyId;
+    if (!can(session, 'academy:read')) return { success: false, error: 'No tienes permiso para ver los grupos de la academia.' };
+    const groups = await prisma.academyGroup.findMany({ where: { companyId: session.companyId, isActive: true }, orderBy: { name: 'asc' }, select: { name: true }, take: 12 });
+    return { success: true, data: groups.map((group) => group.name) };
+  } catch (error) {
+    return fail(error, companyId, { action: 'listAcademyGroupNames' });
   }
 }
 

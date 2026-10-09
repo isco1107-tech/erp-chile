@@ -153,6 +153,25 @@ export const SITE_CSS = `
 .ws-btn-alt{background-color:transparent;color:var(--s-fg);border-color:color-mix(in srgb,var(--s-fg) 35%,transparent)}
 .ws-btn-alt:hover{background-color:color-mix(in srgb,var(--s-fg) 10%,transparent);transform:translateY(-1px)}
 
+.ws-field{display:block;width:100%;min-width:0;padding:.72rem .9rem;font:inherit;font-size:1rem;line-height:1.4;color:var(--s-fg);background-color:color-mix(in srgb,var(--s-fg) 4%,var(--s-bg));border:1px solid color-mix(in srgb,var(--s-fg) 26%,transparent);border-radius:var(--ws-radius);transition:border-color .15s ease,box-shadow .15s ease}
+.ws-field::placeholder{color:color-mix(in srgb,var(--s-fg) 42%,transparent)}
+.ws-field:focus{outline:none;border-color:var(--s-mark);box-shadow:0 0 0 3px color-mix(in srgb,var(--s-mark) 30%,transparent)}
+.ws-field:disabled{opacity:.75;cursor:not-allowed}
+.ws-field[aria-invalid=true]{border-color:color-mix(in srgb,#dc2626 75%,var(--s-fg));box-shadow:0 0 0 3px color-mix(in srgb,#dc2626 20%,transparent)}
+.ws-field[type=date]{min-height:2.95rem}
+textarea.ws-field{resize:vertical;min-height:7rem}
+.ws-field-select{appearance:none;-webkit-appearance:none;padding-right:2.5rem;background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);background-position:calc(100% - 19px) 52%,calc(100% - 14px) 52%;background-size:5px 5px;background-repeat:no-repeat}
+.ws-field-select option{color:#111;background-color:#fff}
+.ws-root input[type=checkbox],.ws-root input[type=radio]{accent-color:var(--s-mark)}
+.ws-choice{display:inline-flex;align-items:center;gap:.55rem;max-width:100%;padding:.6rem .95rem;font-size:.95rem;border:1px solid color-mix(in srgb,var(--s-fg) 24%,transparent);border-radius:var(--ws-button-radius);cursor:pointer;transition:border-color .15s ease,background-color .15s ease}
+.ws-choice:hover{border-color:color-mix(in srgb,var(--s-mark) 60%,transparent)}
+.ws-choice:has(input:checked){border-color:var(--s-mark);background-color:color-mix(in srgb,var(--s-mark) 14%,transparent);font-weight:600}
+.ws-choice:has(input:focus-visible){outline:2px solid var(--s-mark);outline-offset:2px}
+.ws-error{font-size:.875rem;font-weight:600;color:color-mix(in srgb,#dc2626 72%,var(--s-fg))}
+.ws-form-done{display:flex;align-items:flex-start;gap:1rem;padding:1.25rem;border:1px solid var(--s-mark);border-radius:var(--ws-radius);background-color:color-mix(in srgb,var(--s-mark) 8%,transparent)}
+.ws-progress{height:6px;border-radius:999px;overflow:hidden;background-color:color-mix(in srgb,var(--s-fg) 12%,transparent)}
+.ws-progress-bar{height:100%;background-color:var(--s-mark);transform-origin:left center;transition:transform .3s ease}
+
 .ws-navlink{display:inline-flex;align-items:center;gap:.25rem;padding:.5rem .75rem;font-size:.92rem;font-weight:500;line-height:1.3;color:var(--s-fg);border-radius:min(var(--ws-radius),.75rem);transition:background-color .15s ease}
 .ws-navlink:hover{background-color:color-mix(in srgb,var(--s-fg) 10%,transparent)}
 .ws-navlink[aria-current=page]{font-weight:700;box-shadow:inset 0 -2px 0 var(--s-mark)}
@@ -174,12 +193,13 @@ export const SITE_CSS = `
 }
 }
 @media (prefers-reduced-motion:reduce){
-.ws-btn,.ws-card,.ws-logo,.ws-wa,.ws-navlink,.ws-tab,.ws-cbtn{transition:none}
+.ws-btn,.ws-card,.ws-logo,.ws-wa,.ws-navlink,.ws-tab,.ws-cbtn,.ws-field,.ws-choice,.ws-progress-bar{transition:none}
 .ws-btn:hover,.ws-card-hover:hover,.ws-wa:hover{transform:none}
 }
 
 .ws-canvas{position:relative;container-type:inline-size;height:var(--canvas-height);isolation:isolate}
 .ws-canvas-element{position:absolute;left:var(--desktop-x);top:var(--desktop-y);width:var(--desktop-width);height:var(--desktop-height);font-size:clamp(10px,var(--canvas-font),160px);line-height:1.2;overflow:hidden}
+.ws-canvas-element[data-kind=text]{overflow:visible}
 .ws-canvas-motion,.ws-canvas-link{display:flex;align-items:center;width:100%;height:100%;border-radius:inherit}
 .ws-canvas-link:focus-visible{outline:3px solid currentColor;outline-offset:-3px}
 @container (max-width:900px){.ws-canvas-element{left:var(--tablet-x);top:var(--tablet-y);width:var(--tablet-width);height:var(--tablet-height);font-size:clamp(10px,var(--tablet-font),160px)}}

@@ -4,8 +4,8 @@ import { can, getAuthContext } from '@/lib/auth/guards';
 
 export const metadata = { title: 'Tareas y delegación' };
 
-export default async function TasksPage() {
-  const context = await getAuthContext();
+export default async function TasksPage({ searchParams }: { searchParams: Promise<{ vista?: string | string[] }> }) {
+  const [context, { vista }] = await Promise.all([getAuthContext(), searchParams]);
   return (
     <div className="space-y-6">
       <PageHeader
@@ -13,7 +13,8 @@ export default async function TasksPage() {
         title="Tareas y delegación"
         description="Quién hace qué y para cuándo, con rutinas que se repiten solas, y las decisiones que cada persona puede tomar sin consultar al dueño."
       />
-      <TasksClient canManage={can(context, 'tasks:manage')} />
+      {/* `?vista=equipo`: las tareas que crea un formulario de un sitio web llegan sin responsable. */}
+      <TasksClient canManage={can(context, 'tasks:manage')} initialTab={vista === 'equipo' ? 'ALL' : 'MINE'} />
     </div>
   );
 }

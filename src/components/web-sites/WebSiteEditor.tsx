@@ -8,7 +8,9 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { useConfirm } from '@/components/ui/confirm-provider';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { blockImageUrls } from '@/lib/web-sites/blocks';
+import { blockImageUrls, MAX_BLOCKS } from '@/lib/web-sites/blocks';
+import { DESTINATION_INFO, type FormDestination, type FormDestinationAccess } from '@/lib/web-sites/forms';
+import { sampleBlock } from '@/lib/web-sites/section-samples';
 import { htmlHints, sanitizeHtml, wrapHtmlDocument } from '@/lib/web-sites/html';
 import { evaluateReadiness, type ReadinessReport } from '@/lib/web-sites/readiness';
 import { allBlocks, findPage, homeOf, normalizeSiteDocument, pageBlockAnchors, siteDocumentSchema, type SiteDocument } from '@/lib/web-sites/site';
@@ -20,6 +22,8 @@ import type { WebSiteDetail } from '@/modules/web-sites/services/web-sites.servi
 import { AddPageDialog } from './AddPageDialog';
 import { AssetLibrary } from './AssetLibrary';
 import { EditorTabs, tabId, tabPanelId, type EditorTabDef } from './EditorTabs';
+import { FormFieldsProvider } from './FormBlockFields';
+import { SiteFormsPanel } from './SiteFormsPanel';
 import { SiteDesignAssistant } from './SiteDesignAssistant';
 import { GuidedEditor } from './GuidedEditor';
 import { HtmlEditor } from './HtmlEditor';
@@ -43,8 +47,16 @@ interface WebSiteEditorProps {
   contacts: { id: string; label: string }[] | null;
   canWrite: boolean;
   canPublish: boolean;
+  /** Destinos de formularios: módulo contratado y permiso para publicarlos. */
+  formAccess: FormDestinationAccess;
+  /** Puede cargar los grupos de la academia como opciones de una pregunta. */
+  canReadAcademy: boolean;
+  /** Destinos a los que este usuario puede enviar a mano un mensaje de la bandeja. */
+  routeTargets: Array<Exclude<FormDestination, 'inbox'>>;
   /** Pestaña con la que se abre (`?tab=messages`). */
   initialTab?: string;
+  /** Formulario con el que se abre filtrada la bandeja (`?tab=messages&form=…`). */
+  initialFormId?: string | null;
 }
 
 /** Mensaje del servidor cuando `expectedUpdatedAt` ya no coincide (otra persona guardó). */
@@ -120,7 +132,7 @@ function isTextEntry(target: EventTarget | null): boolean {
 
 const NETWORK_ERROR = 'No se pudo completar la acción. Revisa tu conexión e inténtalo de nuevo.';
 
-export default function WebSiteEditor({ site, contacts, canWrite, canPublish, initialTab }: WebSiteEditorProps) {
+export default function WebSiteEditor({ site, contacts, canWrite, canPublish, formAccess, canReadAcademy, routeTargets, initialTab, initialFormId = null }: WebSiteEditorProps) {
   const confirm = useConfirm();
   const isGuided = site.mode === 'GUIDED';
 
@@ -145,6 +157,9 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, in
   const [scrollRequest, setScrollRequest] = useState<PreviewScrollRequest | null>(null);
   const [addPageOpen, setAddPageOpen] = useState(false);
   const [unread, setUnread] = useState(site.unreadMessages);
+  const [messagesFormId, setMessagesFormId] = useState<string | null>(initialFormId);
+  // Módulos contratados según los destinos de formularios: la lista "qué falta" avisa si un destino no está en el plan.
+  const formFeatures = useMemo(() => Object.fromEntries((['crm', 'academy', 'tasks'] as const).map((key) => [DESTINATION_INFO[key].feature ?? key, formAccess[key].enabled])), [formAccess]);
   const [publishOpen, setPublishOpen] = useState(false);
   const [publishReport, setPublishReport] = useState<ReadinessReport | null>(null);
   const [historyFlags, setHistoryFlags] = useState({ undo: false, redo: false });
@@ -187,7 +202,7 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, in
   }, [pageId]);
 
   // "Páginas" y "Encabezado y pie" solo existen en el modo guiado.
-  const activeTab: EditorTab = !isGuided && (tab === 'pages' || tab === 'layout') ? 'content' : tab;
+  const activeTab: EditorTab = !isGuided && (tab === 'pages' || tab === 'layout' || tab === 'forms') ? 'content' : tab;
 
   // -------------------------------------------------------------------------
   // Edición con historial
@@ -360,6 +375,33 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, in
 
   const focusArea = useCallback((area: 'top' | 'bottom') => requestScroll({ target: area }), [requestScroll]);
 
+  // «Formularios»: saltar a editar uno, ver sus envíos o agregar uno nuevo al final de la página actual.
+  const editForm = useCallback(
+    (targetPageId: string, blockId: string) => {
+      if (targetPageId !== pageIdRef.current) setCurrentPageId(targetPageId);
+      setTab('content');
+      setOpenId(blockId);
+      setRevealId(blockId);
+      requestScroll({ pageId: targetPageId, target: 'block', blockId, anchor: null });
+    },
+    [requestScroll]
+  );
+
+  const seeFormMessages = useCallback((blockId: string) => {
+    setMessagesFormId(blockId);
+    setTab('messages');
+  }, []);
+
+  const addForm = useCallback(() => {
+    const page = findPage(contentRef.current.document, pageIdRef.current);
+    if (!page) return;
+    if (page.blocks.length >= MAX_BLOCKS) return void toast.error(`La página «${page.title}» ya tiene ${MAX_BLOCKS} secciones: agrega el formulario en otra página.`);
+    const block = sampleBlock('form');
+    updateDocument((previous) => ({ ...previous, pages: previous.pages.map((item) => (item.id === page.id ? { ...item, blocks: [...item.blocks, block] } : item)) }));
+    editForm(page.id, block.id);
+    toast.success('Formulario agregado al final de la página: elige una plantilla y su destino en el ERP.');
+  }, [editForm, updateDocument]);
+
   // En una ventana angosta la vista previa arranca como celular.
   useEffect(() => {
     if (window.matchMedia('(max-width: 1023px)').matches) setDevice('mobile');
@@ -376,8 +418,8 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, in
   const debounced = useDebouncedValue(live, 150);
 
   const report = useMemo(
-    () => evaluateReadiness({ kind: site.kind, mode: site.mode, seoTitle: debounced.seoTitle, seoDescription: debounced.seoDescription, logoUrl: debounced.logoUrl, theme: debounced.theme, document: debounced.document, html: debounced.html }),
-    [debounced, site.kind, site.mode]
+    () => evaluateReadiness({ kind: site.kind, mode: site.mode, seoTitle: debounced.seoTitle, seoDescription: debounced.seoDescription, logoUrl: debounced.logoUrl, theme: debounced.theme, document: debounced.document, html: debounced.html, features: formFeatures }),
+    [debounced, site.kind, site.mode, formFeatures]
   );
   const sanitized = useMemo(() => (isGuided ? null : sanitizeHtml(debounced.html)), [isGuided, debounced.html]);
   const hints = useMemo(() => (isGuided ? [] : htmlHints(debounced.html)), [isGuided, debounced.html]);
@@ -548,7 +590,7 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, in
   // -------------------------------------------------------------------------
 
   function openPublish() {
-    setPublishReport(evaluateReadiness({ kind: site.kind, mode: site.mode, seoTitle: settings.seoTitle, seoDescription: settings.seoDescription, logoUrl: settings.logoUrl, theme, document, html }));
+    setPublishReport(evaluateReadiness({ kind: site.kind, mode: site.mode, seoTitle: settings.seoTitle, seoDescription: settings.seoDescription, logoUrl: settings.logoUrl, theme, document, html, features: formFeatures }));
     setPublishOpen(true);
   }
 
@@ -625,6 +667,7 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, in
     { id: 'design', label: 'Diseño' },
     { id: 'images', label: 'Imágenes' },
     { id: 'settings', label: 'Ajustes' },
+    ...(isGuided ? ([{ id: 'forms', label: 'Formularios' }] satisfies EditorTabDef[]) : []),
     { id: 'readiness', label: 'Qué le falta', badge: report.blockers > 0 ? { text: String(report.blockers), tone: 'danger', description: ` (${report.blockers} pendiente${report.blockers === 1 ? '' : 's'} obligatorio${report.blockers === 1 ? '' : 's'})` } : null },
     { id: 'messages', label: 'Mensajes', badge: unread > 0 ? { text: String(unread), tone: 'info', description: ` (${unread} sin leer)` } : null },
   ];
@@ -666,212 +709,220 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, in
 
   return (
     <EditorAssetsContext.Provider value={assetsContext}>
-      <div className="space-y-6">
-        <Link href="/dashboard/web-sites" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="size-4" aria-hidden="true" /> Sitios web
-        </Link>
+      <FormFieldsProvider access={formAccess} canReadAcademy={canReadAcademy}>
+        <div className="space-y-6">
+          <Link href="/dashboard/web-sites" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="size-4" aria-hidden="true" /> Sitios web
+          </Link>
 
-        <PageHeader
-          eyebrow={`Sitios web · ${KIND_INFO[site.kind].label} · ${isGuided ? 'Modo guiado' : 'HTML propio'}`}
-          title={savedSettings.name}
-          description={
-            <span className="flex flex-wrap items-center gap-2">
-              <StatusBadge tone={status === 'PUBLISHED' ? 'success' : 'neutral'}>{status === 'PUBLISHED' ? 'Publicado' : status === 'ARCHIVED' ? 'Archivado' : 'Borrador'}</StatusBadge>
-              {status === 'PUBLISHED' && (pendingChanges || contentDirty) ? <StatusBadge tone="warning">Cambios sin publicar</StatusBadge> : null}
-              {status === 'PUBLISHED' && publishedAt ? <span>Publicado el {formatMoment(publishedAt)}</span> : null}
-            </span>
-          }
-          actions={
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <span aria-live="polite" title={saveNote?.title} className={`flex items-center gap-1.5 text-xs font-medium ${saveNote?.tone === 'warning' ? 'text-warning' : saveNote?.tone === 'danger' ? 'text-danger' : 'text-muted-foreground'}`}>
-                {saveNote ? (
-                  <>
-                    {saveNote.spinner ? <Loader2 className="size-3 animate-spin" aria-hidden="true" /> : <span className={`size-1.5 rounded-full ${saveNote.tone === 'warning' ? 'bg-warning' : saveNote.tone === 'danger' ? 'bg-danger' : 'bg-success'}`} aria-hidden="true" />}
-                    {saveNote.text}
-                  </>
+          <PageHeader
+            eyebrow={`Sitios web · ${KIND_INFO[site.kind].label} · ${isGuided ? 'Modo guiado' : 'HTML propio'}`}
+            title={savedSettings.name}
+            description={
+              <span className="flex flex-wrap items-center gap-2">
+                <StatusBadge tone={status === 'PUBLISHED' ? 'success' : 'neutral'}>{status === 'PUBLISHED' ? 'Publicado' : status === 'ARCHIVED' ? 'Archivado' : 'Borrador'}</StatusBadge>
+                {status === 'PUBLISHED' && (pendingChanges || contentDirty) ? <StatusBadge tone="warning">Cambios sin publicar</StatusBadge> : null}
+                {status === 'PUBLISHED' && publishedAt ? <span>Publicado el {formatMoment(publishedAt)}</span> : null}
+              </span>
+            }
+            actions={
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <span aria-live="polite" title={saveNote?.title} className={`flex items-center gap-1.5 text-xs font-medium ${saveNote?.tone === 'warning' ? 'text-warning' : saveNote?.tone === 'danger' ? 'text-danger' : 'text-muted-foreground'}`}>
+                  {saveNote ? (
+                    <>
+                      {saveNote.spinner ? <Loader2 className="size-3 animate-spin" aria-hidden="true" /> : <span className={`size-1.5 rounded-full ${saveNote.tone === 'warning' ? 'bg-warning' : saveNote.tone === 'danger' ? 'bg-danger' : 'bg-success'}`} aria-hidden="true" />}
+                      {saveNote.text}
+                    </>
+                  ) : null}
+                </span>
+                {isGuided && canSaveDraft ? (
+                  <div role="group" aria-label="Deshacer y rehacer" className="flex items-center gap-0.5">
+                    <Button type="button" variant="ghost" size="icon" disabled={!historyFlags.undo} title="Deshacer (Ctrl+Z)" aria-label="Deshacer" onClick={undo}>
+                      <Undo2 aria-hidden="true" />
+                    </Button>
+                    <Button type="button" variant="ghost" size="icon" disabled={!historyFlags.redo} title="Rehacer (Ctrl+Shift+Z)" aria-label="Rehacer" onClick={redo}>
+                      <Redo2 aria-hidden="true" />
+                    </Button>
+                  </div>
                 ) : null}
-              </span>
-              {isGuided && canSaveDraft ? (
-                <div role="group" aria-label="Deshacer y rehacer" className="flex items-center gap-0.5">
-                  <Button type="button" variant="ghost" size="icon" disabled={!historyFlags.undo} title="Deshacer (Ctrl+Z)" aria-label="Deshacer" onClick={undo}>
-                    <Undo2 aria-hidden="true" />
+                {canSaveDraft ? (
+                  <Button type="button" variant="outline" disabled={!anyDirty || busy !== null || conflict} title="Guardar ahora (Ctrl+S)" onClick={() => void saveAll('manual')}>
+                    {busy === 'saving' ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Save aria-hidden="true" />} Guardar borrador
                   </Button>
-                  <Button type="button" variant="ghost" size="icon" disabled={!historyFlags.redo} title="Rehacer (Ctrl+Shift+Z)" aria-label="Rehacer" onClick={redo}>
-                    <Redo2 aria-hidden="true" />
+                ) : null}
+                {status === 'PUBLISHED' ? (
+                  <a href={publicUrl} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: 'outline' })}>
+                    <ExternalLink aria-hidden="true" /> Ver sitio<span className="sr-only"> (se abre en otra pestaña)</span>
+                  </a>
+                ) : null}
+                {canPublish && status === 'PUBLISHED' ? (
+                  <Button type="button" variant="ghost" disabled={busy !== null} onClick={() => void unpublish()}>
+                    {busy === 'unpublishing' ? <Loader2 className="animate-spin" aria-hidden="true" /> : null} Despublicar
                   </Button>
-                </div>
-              ) : null}
-              {canSaveDraft ? (
-                <Button type="button" variant="outline" disabled={!anyDirty || busy !== null || conflict} title="Guardar ahora (Ctrl+S)" onClick={() => void saveAll('manual')}>
-                  {busy === 'saving' ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Save aria-hidden="true" />} Guardar borrador
-                </Button>
-              ) : null}
-              {status === 'PUBLISHED' ? (
-                <a href={publicUrl} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: 'outline' })}>
-                  <ExternalLink aria-hidden="true" /> Ver sitio<span className="sr-only"> (se abre en otra pestaña)</span>
-                </a>
-              ) : null}
-              {canPublish && status === 'PUBLISHED' ? (
-                <Button type="button" variant="ghost" disabled={busy !== null} onClick={() => void unpublish()}>
-                  {busy === 'unpublishing' ? <Loader2 className="animate-spin" aria-hidden="true" /> : null} Despublicar
-                </Button>
-              ) : null}
-              {canPublish && !archived ? (
-                <Button type="button" disabled={busy !== null || conflict || nothingToPublish} title={nothingToPublish ? 'No hay cambios por publicar' : undefined} onClick={openPublish}>
-                  <Globe aria-hidden="true" /> {status === 'PUBLISHED' ? 'Publicar cambios' : 'Publicar'}
-                </Button>
-              ) : null}
-            </div>
-          }
-        />
+                ) : null}
+                {canPublish && !archived ? (
+                  <Button type="button" disabled={busy !== null || conflict || nothingToPublish} title={nothingToPublish ? 'No hay cambios por publicar' : undefined} onClick={openPublish}>
+                    <Globe aria-hidden="true" /> {status === 'PUBLISHED' ? 'Publicar cambios' : 'Publicar'}
+                  </Button>
+                ) : null}
+              </div>
+            }
+          />
 
-        {conflict ? (
-          <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-danger-soft px-4 py-3 text-sm text-danger">
-            <p className="flex min-w-0 items-start gap-2">
-              <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-              <span>
-                <span className="font-semibold">Otra persona guardó cambios en este sitio mientras lo editabas.</span> Para no pisar su trabajo no se guardó lo tuyo. Recarga para ver la última versión
-                {anyDirty ? ' (lo que escribiste desde tu último guardado se perderá; cópialo antes si lo necesitas)' : ''}.
-              </span>
+          {conflict ? (
+            <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-danger-soft px-4 py-3 text-sm text-danger">
+              <p className="flex min-w-0 items-start gap-2">
+                <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                <span>
+                  <span className="font-semibold">Otra persona guardó cambios en este sitio mientras lo editabas.</span> Para no pisar su trabajo no se guardó lo tuyo. Recarga para ver la última versión
+                  {anyDirty ? ' (lo que escribiste desde tu último guardado se perderá; cópialo antes si lo necesitas)' : ''}.
+                </span>
+              </p>
+              <Button type="button" variant="outline" onClick={() => void reload()}>
+                <RefreshCw aria-hidden="true" /> Recargar
+              </Button>
+            </div>
+          ) : null}
+
+          {readOnly ? (
+            <p role="status" className="flex items-start gap-2 rounded-lg bg-muted px-4 py-3 text-sm text-muted-foreground">
+              <Lock className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              {archived ? 'Este sitio está archivado: solo puedes mirarlo. Restáuralo desde la lista de sitios para poder editarlo.' : 'Tienes permiso para ver este sitio, pero no para editarlo. Pídele a un administrador el permiso de edición de sitios web.'}
             </p>
-            <Button type="button" variant="outline" onClick={() => void reload()}>
-              <RefreshCw aria-hidden="true" /> Recargar
-            </Button>
-          </div>
-        ) : null}
-
-        {readOnly ? (
-          <p role="status" className="flex items-start gap-2 rounded-lg bg-muted px-4 py-3 text-sm text-muted-foreground">
-            <Lock className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-            {archived ? 'Este sitio está archivado: solo puedes mirarlo. Restáuralo desde la lista de sitios para poder editarlo.' : 'Tienes permiso para ver este sitio, pero no para editarlo. Pídele a un administrador el permiso de edición de sitios web.'}
-          </p>
-        ) : null}
-
-        <EditorTabs tabs={tabs} active={activeTab} onChange={setTab} idPrefix={idPrefix} />
-
-        <div role="tabpanel" id={tabPanelId(idPrefix)} aria-labelledby={tabId(idPrefix, activeTab)} tabIndex={0} className="outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
-          {activeTab === 'content' ? (
-            <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
-              <div className="min-w-0 space-y-4">
-                {isGuided ? (
-                  <>
-                    {!readOnly ? <StartGuide onGoToTab={setTab} /> : null}
-                    <PageSwitcher doc={document} pageId={pageId} onSelect={selectPage} onAddPage={() => setAddPageOpen(true)} onManagePages={() => setTab('pages')} readOnly={readOnly} />
-                    <SiteDesignAssistant disabled={readOnly || busy !== null} context={{ target: 'web', resourceId: site.id, pageId, current: { blocks: currentPage.blocks, theme } }} onApply={(proposal) => {
-                      if (proposal.target !== 'web') return;
-                      const previous = contentRef.current;
-                      const nextDocument = { ...previous.document, pages: previous.document.pages.map((p) => p.id === pageId ? { ...p, blocks: proposal.design.blocks } : p) };
-                      const checked = siteDocumentSchema.safeParse(nextDocument);
-                      if (!checked.success) { toast.error(checked.error.issues[0]?.message ?? 'La propuesta supera los límites del sitio'); return; }
-                      commit({ document: checked.data, theme: proposal.design.theme }, 'document');
-                      toast.success('Propuesta aplicada: puedes deshacerla con el historial');
-                    }} />
-                    <GuidedEditor kind={site.kind} document={document} pageId={pageId} onDocumentChange={updateDocument} openId={openId} onOpenChange={changeOpenSection} readOnly={readOnly} theme={theme} />
-                    <AddPageDialog open={addPageOpen} onOpenChange={setAddPageOpen} document={document} onDocumentChange={updateDocument} onAdded={selectPage} />
-                  </>
-                ) : (
-                  <HtmlEditor html={html} onChange={updateHtml} siteName={settings.name || site.name} removed={sanitized?.removed ?? []} hints={hints} readOnly={readOnly} />
-                )}
-              </div>
-              {preview}
-            </div>
           ) : null}
 
-          {activeTab === 'pages' && isGuided ? (
-            <PagesPanel
-              doc={document}
-              addressBase={addressBase}
-              published={status === 'PUBLISHED'}
-              siteName={settings.name || site.name}
-              currentPageId={pageId}
-              onDocumentChange={updateDocument}
-              onSelectPage={selectPage}
-              onEditPage={editPage}
-              readOnly={readOnly}
-            />
-          ) : null}
+          <EditorTabs tabs={tabs} active={activeTab} onChange={setTab} idPrefix={idPrefix} />
 
-          {activeTab === 'layout' && isGuided ? (
-            <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
-              <div className="min-w-0">
-                <LayoutPanel doc={document} pageId={pageId} onDocumentChange={updateDocument} onFocusArea={focusArea} onGoToTab={setTab} disabled={readOnly} />
-              </div>
-              {preview}
-            </div>
-          ) : null}
-
-          {activeTab === 'design' ? (
-            isGuided ? (
+          <div role="tabpanel" id={tabPanelId(idPrefix)} aria-labelledby={tabId(idPrefix, activeTab)} tabIndex={0} className="outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+            {activeTab === 'content' ? (
               <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
-                <div className="min-w-0">
-                  <ThemePanel theme={theme} onChange={updateTheme} disabled={readOnly} />
+                <div className="min-w-0 space-y-4">
+                  {isGuided ? (
+                    <>
+                      {!readOnly ? <StartGuide onGoToTab={setTab} /> : null}
+                      <PageSwitcher doc={document} pageId={pageId} onSelect={selectPage} onAddPage={() => setAddPageOpen(true)} onManagePages={() => setTab('pages')} readOnly={readOnly} />
+                      <SiteDesignAssistant disabled={readOnly || busy !== null} context={{ target: 'web', resourceId: site.id, pageId, current: { blocks: currentPage.blocks, theme } }} onApply={(proposal) => {
+                        if (proposal.target !== 'web') return;
+                        const previous = contentRef.current;
+                        const nextDocument = { ...previous.document, pages: previous.document.pages.map((p) => p.id === pageId ? { ...p, blocks: proposal.design.blocks } : p) };
+                        const checked = siteDocumentSchema.safeParse(nextDocument);
+                        if (!checked.success) { toast.error(checked.error.issues[0]?.message ?? 'La propuesta supera los límites del sitio'); return; }
+                        commit({ document: checked.data, theme: proposal.design.theme }, 'document');
+                        toast.success('Propuesta aplicada: puedes deshacerla con el historial');
+                      }} />
+                      <GuidedEditor kind={site.kind} document={document} pageId={pageId} onDocumentChange={updateDocument} openId={openId} onOpenChange={changeOpenSection} readOnly={readOnly} theme={theme} />
+                      <AddPageDialog open={addPageOpen} onOpenChange={setAddPageOpen} document={document} onDocumentChange={updateDocument} onAdded={selectPage} />
+                    </>
+                  ) : (
+                    <HtmlEditor html={html} onChange={updateHtml} siteName={settings.name || site.name} removed={sanitized?.removed ?? []} hints={hints} readOnly={readOnly} />
+                  )}
                 </div>
                 {preview}
               </div>
-            ) : (
-              <div className="max-w-2xl space-y-3 rounded-lg border border-border bg-card p-5 shadow-card">
-                <h2 className="text-sm font-semibold">El estilo va dentro de tu HTML</h2>
-                <p className="text-sm text-muted-foreground">En el modo HTML propio los colores, la tipografía y los espacios los defines tú con CSS, dentro de una etiqueta {'<style>'} en tu HTML. Esta pestaña solo aplica a los sitios armados por secciones.</p>
-                <Button type="button" variant="outline" onClick={() => setTab('content')}>
-                  Ir al contenido
-                </Button>
-              </div>
-            )
-          ) : null}
+            ) : null}
 
-          {activeTab === 'images' ? (
-            <AssetLibrary
-              isUsed={isUsed}
-              onAltSaved={(assetId, alt) => setAssets((previous) => previous.map((asset) => (asset.id === assetId ? { ...asset, alt } : asset)))}
-              onDeleted={(assetId) => setAssets((previous) => previous.filter((asset) => asset.id !== assetId))}
+            {activeTab === 'pages' && isGuided ? (
+              <PagesPanel
+                doc={document}
+                addressBase={addressBase}
+                published={status === 'PUBLISHED'}
+                siteName={settings.name || site.name}
+                currentPageId={pageId}
+                onDocumentChange={updateDocument}
+                onSelectPage={selectPage}
+                onEditPage={editPage}
+                readOnly={readOnly}
+              />
+            ) : null}
+
+            {activeTab === 'layout' && isGuided ? (
+              <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+                <div className="min-w-0">
+                  <LayoutPanel doc={document} pageId={pageId} onDocumentChange={updateDocument} onFocusArea={focusArea} onGoToTab={setTab} disabled={readOnly} />
+                </div>
+                {preview}
+              </div>
+            ) : null}
+
+            {activeTab === 'design' ? (
+              isGuided ? (
+                <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+                  <div className="min-w-0">
+                    <ThemePanel theme={theme} onChange={updateTheme} disabled={readOnly} />
+                  </div>
+                  {preview}
+                </div>
+              ) : (
+                <div className="max-w-2xl space-y-3 rounded-lg border border-border bg-card p-5 shadow-card">
+                  <h2 className="text-sm font-semibold">El estilo va dentro de tu HTML</h2>
+                  <p className="text-sm text-muted-foreground">En el modo HTML propio los colores, la tipografía y los espacios los defines tú con CSS, dentro de una etiqueta {'<style>'} en tu HTML. Esta pestaña solo aplica a los sitios armados por secciones.</p>
+                  <Button type="button" variant="outline" onClick={() => setTab('content')}>
+                    Ir al contenido
+                  </Button>
+                </div>
+              )
+            ) : null}
+
+            {activeTab === 'images' ? (
+              <AssetLibrary
+                isUsed={isUsed}
+                onAltSaved={(assetId, alt) => setAssets((previous) => previous.map((asset) => (asset.id === assetId ? { ...asset, alt } : asset)))}
+                onDeleted={(assetId) => setAssets((previous) => previous.filter((asset) => asset.id !== assetId))}
+              />
+            ) : null}
+
+            {activeTab === 'settings' ? (
+              <div className="max-w-3xl space-y-6">
+                <SettingsPanel
+                  settings={settings}
+                  onChange={updateSettings}
+                  disabled={readOnly}
+                  savedSlug={savedSettings.slug}
+                  isPublished={status === 'PUBLISHED'}
+                  publicBase={publicBase}
+                  contacts={contacts}
+                  contactName={site.contactName}
+                  companyLogoUrl={site.companyLogoUrl}
+                  saving={busy === 'settings'}
+                  dirty={settingsDirty}
+                  onSave={() => void saveSettingsOnly()}
+                />
+                <WebSiteDomainPanel siteId={site.id} canPublish={canPublish && !archived} initialDomain={site.customDomain} platformUrl={platformUrl} />
+              </div>
+            ) : null}
+
+            {activeTab === 'readiness' ? (
+              <div className="max-w-3xl">
+                <ReadinessPanel report={report} mode={site.mode} onGo={setTab} />
+              </div>
+            ) : null}
+
+            {activeTab === 'forms' && isGuided ? (
+              <div className="max-w-4xl">
+                <SiteFormsPanel document={document} access={formAccess} readOnly={readOnly} onEdit={editForm} onSeeMessages={seeFormMessages} onAdd={addForm} />
+              </div>
+            ) : null}
+
+            {activeTab === 'messages' ? <WebSiteMessagesPanel key={messagesFormId ?? 'all'} siteId={site.id} canWrite={canWrite} routeTargets={routeTargets} initialFormId={messagesFormId} onUnreadChange={setUnread} /> : null}
+          </div>
+
+          {publishReport ? (
+            <PublishDialog
+              open={publishOpen}
+              onOpenChange={setPublishOpen}
+              report={publishReport}
+              republish={status === 'PUBLISHED'}
+              unsavedNote={anyDirty}
+              publishing={busy === 'publishing'}
+              onConfirm={() => void confirmPublish()}
+              onSeeReadiness={() => {
+                setPublishOpen(false);
+                setTab('readiness');
+              }}
             />
           ) : null}
-
-          {activeTab === 'settings' ? (
-            <div className="max-w-3xl space-y-6">
-              <SettingsPanel
-                settings={settings}
-                onChange={updateSettings}
-                disabled={readOnly}
-                savedSlug={savedSettings.slug}
-                isPublished={status === 'PUBLISHED'}
-                publicBase={publicBase}
-                contacts={contacts}
-                contactName={site.contactName}
-                companyLogoUrl={site.companyLogoUrl}
-                saving={busy === 'settings'}
-                dirty={settingsDirty}
-                onSave={() => void saveSettingsOnly()}
-              />
-              <WebSiteDomainPanel siteId={site.id} canPublish={canPublish && !archived} initialDomain={site.customDomain} platformUrl={platformUrl} />
-            </div>
-          ) : null}
-
-          {activeTab === 'readiness' ? (
-            <div className="max-w-3xl">
-              <ReadinessPanel report={report} mode={site.mode} onGo={setTab} />
-            </div>
-          ) : null}
-
-          {activeTab === 'messages' ? <WebSiteMessagesPanel siteId={site.id} canWrite={canWrite} onUnreadChange={setUnread} /> : null}
         </div>
-
-        {publishReport ? (
-          <PublishDialog
-            open={publishOpen}
-            onOpenChange={setPublishOpen}
-            report={publishReport}
-            republish={status === 'PUBLISHED'}
-            unsavedNote={anyDirty}
-            publishing={busy === 'publishing'}
-            onConfirm={() => void confirmPublish()}
-            onSeeReadiness={() => {
-              setPublishOpen(false);
-              setTab('readiness');
-            }}
-          />
-        ) : null}
-      </div>
+      </FormFieldsProvider>
     </EditorAssetsContext.Provider>
   );
 }

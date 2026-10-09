@@ -173,6 +173,8 @@ export function resolveAlign(block: WebSiteBlock): Alignment {
       return block.variant === 'menu' ? 'center' : 'left';
     case 'contact':
       return block.variant === 'centered' ? 'center' : 'left';
+    case 'form':
+      return block.variant === 'card' || block.variant === 'steps' ? 'center' : 'left';
   }
 }
 

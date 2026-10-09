@@ -469,6 +469,22 @@ const BLOCK_SKETCHES: Record<BlockType, () => ReactNode> = {
       </Row>
     </Frame>
   ),
+  form: () => (
+    <Frame>
+      <Col className="flex-1 items-center justify-center">
+        <Card className="w-3/5 gap-1">
+          <Ln w="w-1/2" tone="strong" />
+          <span className="block h-1.5 rounded-[2px] border border-border" />
+          <Row className="gap-1">
+            <span className="block h-1.5 flex-1 rounded-[2px] border border-border" />
+            <span className="block h-1.5 flex-1 rounded-[2px] border border-border" />
+          </Row>
+          <span className="block h-1.5 rounded-[2px] border border-border" />
+          <Btn className="mt-0.5" />
+        </Card>
+      </Col>
+    </Frame>
+  ),
 };
 
 /** Dibujo del tipo de sección. */

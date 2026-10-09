@@ -12,6 +12,7 @@ export const creativeSiteSchema = z.object({
   if (new TextEncoder().encode(JSON.stringify(value)).byteLength > 600 * 1024) ctx.addIssue({ code: 'custom', message: 'El diseño es demasiado grande. Reduce las secciones o el contenido de los lienzos.' });
   value.blocks.forEach((block, i) => {
     if (block.type === 'contact' && block.showForm) ctx.addIssue({ code: 'custom', path: ['blocks', i, 'showForm'], message: 'Usa el formulario nativo del sitio; esta sección de contacto solo muestra enlaces.' });
+    if (block.type === 'form') ctx.addIssue({ code: 'custom', path: ['blocks', i, 'type'], message: 'Usa el formulario nativo del sitio: los formularios a medida son de los sitios web.' });
   });
 });
 export type CreativeSite = z.infer<typeof creativeSiteSchema>;

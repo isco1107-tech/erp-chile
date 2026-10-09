@@ -123,6 +123,11 @@ export function SettingsPanel({ settings, onChange, disabled, savedSlug, isPubli
           onChange={(indexable) => onChange({ indexable })}
           disabled={disabled}
         />
+        {isPublished && settings.indexable && savedSlug ? (
+          <p className="text-xs text-muted-foreground">
+            Mapa del sitio para Google Search Console: <span className="font-mono break-all text-foreground">{publicBase}{savedSlug}/sitemap.xml</span>. Con dominio propio, usa <span className="font-mono">tu-dominio/sitemap.xml</span>. Lista todas las páginas publicadas y se actualiza solo al publicar.
+          </p>
+        ) : null}
       </section>
 
       <section aria-label="Imágenes de marca" className="space-y-5 rounded-lg border border-border bg-card p-4 shadow-card">

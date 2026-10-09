@@ -270,7 +270,7 @@ export const GESTION_SECTIONS: ManualSection[] = [
     chapter: 'Sitios web',
     title: 'Sitios web',
     summary:
-      'Arma el sitio de tu empresa sin escribir código (o pega tu propio HTML), publícalo en una dirección de la plataforma o en tu dominio, y recibe los mensajes de su formulario de contacto. También sirve como servicio de diseño web para tus clientes.',
+      'Arma el sitio de tu empresa sin escribir código (o pega tu propio HTML), publícalo en una dirección de la plataforma o en tu dominio, y recibe lo que envían sus formularios (contacto, cotización, inscripción, reserva…), cada uno con el área del ERP a la que tributa: CRM, academia o tareas del equipo. También sirve como servicio de diseño web para tus clientes.',
     route: '/dashboard/web-sites',
     topics: [
       {
@@ -291,7 +291,7 @@ export const GESTION_SECTIONS: ManualSection[] = [
         title: 'Armar el contenido y usar la lista "Qué le falta"',
         permission: 'websites:write',
         steps: [
-          'En la pestaña Contenido (modo Guiado) pulsa "Agregar sección": hay 33 tipos (Portada, Texto, Galería, Servicios o beneficios, Planes y precios, Catálogo, Testimonios, Preguntas frecuentes, Contacto, Línea de tiempo, Tabla comparativa, Antes y después, Enlaces (link en bio), Cinta de frases, Pestañas, Horario de atención, Zonas de cobertura, Incrustar, Novedades y más). Usa el buscador si no la encuentras.',
+          'En la pestaña Contenido (modo Guiado) pulsa "Agregar sección": hay 34 tipos (Portada, Texto, Galería, Servicios o beneficios, Planes y precios, Catálogo, Testimonios, Preguntas frecuentes, Contacto, Formulario, Línea de tiempo, Tabla comparativa, Antes y después, Enlaces (link en bio), Cinta de frases, Pestañas, Horario de atención, Zonas de cobertura, Incrustar, Novedades y más). Usa el buscador si no la encuentras.',
           'Al elegir un tipo se abre "Elige un diseño para «…»": cada diseño se ve con tus colores. Tócalo para agregar la sección con textos de ejemplo que dicen qué escribir, o pulsa "Agregarla vacía".',
           'Sube, baja, oculta, duplica o elimina secciones con los controles de cada una, y reemplaza los textos de ejemplo por los tuyos.',
           'Abre "Qué le falta": resuelve los ítems obligatorios que bloquean la publicación (portada con título, forma de contacto, enlaces válidos, textos de ejemplo reemplazados) y revisa las recomendaciones.',
@@ -348,11 +348,27 @@ export const GESTION_SECTIONS: ManualSection[] = [
         ],
       },
       {
-        id: 'recibir-mensajes-formulario',
-        title: 'Recibir mensajes del formulario',
+        id: 'formularios-destino-erp',
+        title: 'Formularios: inscripción, cotización, reserva y a qué parte del ERP tributan',
+        permission: 'websites:write',
         steps: [
-          'Los mensajes del formulario de contacto llegan a la pestaña "Mensajes" del sitio, con aviso en la campanita.',
-          'Márcalos como leídos o elimínalos. Para recibirlos también por correo, crea una automatización con el disparador "Mensaje desde un sitio web".',
+          'Agrega la sección "Formulario" (o la pestaña "Formularios" → "Agregar formulario", que la suma al final de la página actual). También hay plantillas de página listas: "Cotizar", "Inscripción" y "Reservas".',
+          'En "Empezar desde una plantilla" elige Contacto, Cotización, Inscripción a curso o evento, Inscripción a la academia, Reserva o agenda, Postulación, Suscripción a novedades o Sugerencias y reclamos: trae las preguntas y el destino listos.',
+          'Ajusta las preguntas con "Agregar pregunta": tipo de respuesta (texto, correo, teléfono, RUT, fecha, número, lista, opciones o casilla), si es "Obligatoria" y "Se guarda en el ERP como" (nombre, RUT, fecha de nacimiento, presupuesto…). El RUT se valida con su dígito verificador.',
+          'En "¿A qué parte del ERP tributa cada envío?" elige el destino: "Solo la bandeja del sitio", "CRM: oportunidad nueva" (etapa Prospecto, con recordatorio para responder mañana), "Academia: inscripción por revisar" o "Tareas: pendiente para el equipo". El recuadro "Dónde quedan los datos" muestra la ruta exacta y qué le falta al formulario para ese destino.',
+          'Con destino Academia, en la pregunta del grupo pulsa "Cargar los grupos de la academia" para que la inscripción llegue con el grupo elegido. La academia exige nombre, RUT, fecha de nacimiento y teléfono, y la casilla del aviso de privacidad.',
+          'Opcional: una "Etiqueta para ordenar" (ej. Inscripciones 2027), el "Tipo de negocio en el CRM", el "Texto del botón", el "Mensaje al enviar" y "Frases a favor" que acompañan al formulario. El diseño "Por pasos" divide los formularios largos en pasos cortos.',
+          'La pestaña "Formularios" lista todos los formularios del sitio con su página, el área a la que tributan y dónde quedan sus datos; desde ahí puedes "Editar" o "Ver envíos". Publica quien puede crear registros en el destino (por ejemplo, un formulario que va al CRM lo publica alguien con permiso en el CRM).',
+        ],
+      },
+      {
+        id: 'recibir-mensajes-formulario',
+        title: 'Recibir y organizar lo que llega de los formularios',
+        steps: [
+          'Cada envío llega a la pestaña "Mensajes" del sitio y a "Bandeja de formularios" en la lista de Sitios web (la de toda la empresa), con aviso en la campanita.',
+          'Filtra por estado ("Por atender", "Sin leer", "Archivados", "Todos"), por formulario, propósito, destino o etiqueta, o busca por nombre, correo o teléfono. Cada envío muestra todas sus respuestas y dónde quedó en el ERP, con el enlace "Abrir en …".',
+          'Usa "Marcar como leído", "Archivar" (sale de los pendientes sin borrarse) o "Eliminar". Si un mensaje quedó solo en la bandeja, "Enviar a CRM", "Enviar a Academia" o "Enviar a Equipo" lo registra ahí sin duplicarlo.',
+          'Pulsa "Excel" para descargar lo filtrado, con una columna por pregunta. Para recibir los envíos también por correo, crea una automatización con el disparador "Mensaje o formulario desde un sitio web" (puedes filtrarla por formulario o propósito).',
         ],
       },
       {
@@ -363,6 +379,7 @@ export const GESTION_SECTIONS: ManualSection[] = [
           'En Ajustes escribe tu dominio (ej. minegocio.cl).',
           'Crea en tu proveedor de DNS los registros que te muestra el sistema y pulsa "Revisar estado"; puede tardar hasta 24 horas.',
           'Un dominio solo puede usarlo un sitio, certamen o academia a la vez.',
+          'Para Google, da de alta el mapa del sitio (tu-dominio/sitemap.xml, o la dirección que muestra Ajustes en "Buscadores"): lista todas las páginas publicadas y se actualiza solo al publicar.',
         ],
       },
       {

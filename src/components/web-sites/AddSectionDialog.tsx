@@ -51,6 +51,7 @@ const ALIASES: Record<BlockType, string> = {
   areas: 'zonas cobertura comunas ciudades despacho reparto donde atendemos',
   embed: 'incrustar spotify soundcloud calendly google forms calendario agenda reservas musica podcast formulario',
   posts: 'novedades noticias blog articulos prensa anuncios',
+  form: 'formulario inscripcion cotizacion reserva agenda postulacion encuesta suscripcion reclamos sugerencias crm academia tareas preguntas',
 };
 
 const SUGGESTION_WHY: Partial<Record<BlockType, string>> = {
@@ -111,6 +112,8 @@ interface AddSectionDialogProps {
   /** Tema y sitio reales: las miniaturas de los diseños se ven como quedarán. */
   theme: WebSiteTheme;
   document: SiteDocument;
+  /** Tipos que este editor no ofrece, con la razón (p. ej. el formulario a medida en el estudio de la academia). */
+  unavailable?: Partial<Record<BlockType, string>>;
 }
 
 function SectionCard({ type, why, blockedText, onPick }: { type: BlockType; why?: string; blockedText?: string | null; onPick: (type: BlockType) => void }) {
@@ -173,7 +176,7 @@ function DesignStep({ type, theme, document, onBack, onPick }: { type: BlockType
   );
 }
 
-export function AddSectionDialog({ open, onOpenChange, onPick, whereLabel, heroBlocked, suggestions, theme, document }: AddSectionDialogProps) {
+export function AddSectionDialog({ open, onOpenChange, onPick, whereLabel, heroBlocked, suggestions, theme, document, unavailable }: AddSectionDialogProps) {
   const searchId = useId();
   const [query, setQuery] = useState('');
   const [chosen, setChosen] = useState<BlockType | null>(null);
@@ -190,7 +193,7 @@ export function AddSectionDialog({ open, onOpenChange, onPick, whereLabel, heroB
     });
   }, [needle]);
 
-  const blockedFor = (type: BlockType) => (type === 'hero' && heroBlocked ? 'Esta página ya tiene una portada; solo puede haber una.' : null);
+  const blockedFor = (type: BlockType) => (type === 'hero' && heroBlocked ? 'Esta página ya tiene una portada; solo puede haber una.' : (unavailable?.[type] ?? null));
 
   return (
     <Dialog
