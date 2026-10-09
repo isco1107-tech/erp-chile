@@ -17,9 +17,10 @@ export const VENTAS_SECTIONS: ManualSection[] = [
         title: 'Abrir la caja al empezar el turno',
         steps: [
           'Entra a Punto de Venta (grupo Principal del menú). Si no tienes un turno abierto verás la pantalla "Abrir caja".',
-          'Elige la caja. Si es la primera vez, créala con "Crear caja" indicando su nombre (ej. "Caja 1 Mesón") y la bodega desde la que descuenta stock.',
-          'Escribe el monto inicial en efectivo (el fondo de cambio con el que partes) y confirma.',
+          'Elige la caja. Si aún no hay ninguna, un Administrador verá "Crea la primera caja": ponle un nombre (ej. "Caja 1 Mesón"), elige la bodega desde la que descuenta stock y presiona "Crear caja". Si no eres Administrador, la pantalla te pide que le avises a uno: no podrás abrir turno hasta que exista una caja.',
+          'Escribe el monto inicial en efectivo (el fondo de cambio con el que partes) y presiona "Abrir caja y comenzar a vender".',
         ],
+        tip: 'Si la pestaña "Vender" avisa que no hay productos o que ninguno tiene stock en la bodega de la caja, sigue el enlace del aviso: crea los productos en el Catálogo o ingresa stock desde Inventario con "Ajuste de Stock / Entrada Directa". Si el aviso dice "Se emitirá con numeración interna, sin validez ante el SII", las boletas no llevan folio autorizado: carga un CAF en Configuración → Folios del SII.',
       },
       {
         id: 'vender-pos',
@@ -84,6 +85,7 @@ export const VENTAS_SECTIONS: ManualSection[] = [
           'Busca el cliente por RUT o razón social. Si no existe, créalo ahí mismo con el botón de cliente rápido, sin salir del formulario.',
           'Agrega productos escaneando el código o buscando por SKU o nombre. Para un servicio sin ficha usa "+ Agregar línea libre". Puedes aplicar un % de descuento por línea.',
           'Elige la forma de pago (Efectivo, Transferencia, Tarjeta de Débito o Crédito, o Crédito 30 días).',
+          'Si sobre el formulario aparece "Se emitirá con numeración interna, sin validez ante el SII", tu empresa no tiene folios autorizados para ese tipo de documento: el documento sale igual, pero sin validez tributaria. Carga un CAF en Configuración → Folios del SII para emitir con folio válido.',
           'Revisa el resumen (neto, exento, IVA 19% y total) y presiona "Emitir Documento". Si aún no está listo, usa "Guardar Borrador".',
         ],
         tip: 'El IVA y la exención salen de la ficha de cada producto, no del formulario: si un producto debería ser exento, corrígelo en el Catálogo.',
@@ -93,7 +95,11 @@ export const VENTAS_SECTIONS: ManualSection[] = [
         title: 'Borradores: guardar ahora, emitir después',
         steps: [
           'Un borrador no tiene folio, no descuenta stock y no cuenta para el F29.',
-          'Ábrelo desde el listado ("Ver / Imprimir"), complétalo y emítelo cuando corresponda.',
+          'En el listado, el borrador tiene el botón "Editar y emitir" (también está en su detalle, al abrirlo con "Ver / Imprimir"): abre el formulario con el cliente, la bodega, las líneas y las notas ya cargados.',
+          'Corrige lo que haga falta y presiona "Emitir Documento": se crea el documento con su folio, se descuenta el stock y el borrador original se reemplaza. Con "Guardar Borrador" lo dejas guardado de nuevo, sin folio.',
+          '"Duplicar" copia cualquier documento como un borrador nuevo; el aviso que aparece trae el botón "Abrir borrador".',
+          'Para descartar un borrador usa "Eliminar borrador" (en el listado o en su detalle). Solo los borradores se pueden eliminar: un documento emitido se anula, no se elimina.',
+          'Editar, emitir o eliminar un borrador requiere el permiso para crear ventas y cotizaciones (por defecto Dueño, Administrador y Vendedor).',
           'Antes de cerrar el mes revisa que no queden borradores que en realidad debían emitirse.',
         ],
       },
@@ -105,7 +111,7 @@ export const VENTAS_SECTIONS: ManualSection[] = [
           'En "Nueva Venta" elige el tipo "Cotización". No usa folio del SII ni mueve stock.',
           'Imprímela o descárgala desde "Ver / Imprimir" para enviársela al cliente. La pestaña "Cotizaciones" del listado las reúne.',
           'Cuando el cliente acepta, abre la cotización y usa "Convertir en nota de venta": el pedido queda con las mismas líneas y desde ahí emites la factura o boleta.',
-          'Si prefieres facturar directo, usa "Duplicar" en el listado y cambia el tipo de documento del borrador que se crea.',
+          'Si prefieres facturar directo, usa "Duplicar" en el listado, abre el borrador con "Abrir borrador" y en "Editar y emitir" cambia el tipo de documento antes de emitirlo.',
         ],
       },
       {

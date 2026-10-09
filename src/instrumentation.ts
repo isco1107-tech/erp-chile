@@ -12,6 +12,15 @@
  */
 import type { Instrumentation } from 'next';
 
+/**
+ * Arranque del servidor: deja los mensajes de validación de Zod en español
+ * para toda Server Action y Route Handler (ver `src/lib/zod-setup.ts`; el
+ * idioma vive en `globalThis`, así que vale para todas las copias de Zod).
+ */
+export async function register() {
+  await import('@/lib/zod-setup');
+}
+
 export const onRequestError: Instrumentation.onRequestError = async (err, request, context) => {
   // Import dinámico: `instrumentation.ts` se carga también en el runtime Edge,
   // donde el módulo de observabilidad no debe evaluarse en el arranque.

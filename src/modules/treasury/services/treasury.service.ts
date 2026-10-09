@@ -277,6 +277,8 @@ export interface CxCSummary {
   overdueAmount: number;
   collectedThisMonth: number;
   topDebtors: DebtorRow[];
+  /** Documentos con saldo pendiente: la tabla muestra a lo más 200 y avisa si hay más. */
+  openCount: number;
 }
 
 export async function getCxCSummary(companyId: string): Promise<CxCSummary> {
@@ -297,7 +299,7 @@ export async function getCxCSummary(companyId: string): Promise<CxCSummary> {
   };
 
   const [totalAgg, overdueAgg, collected, debtorGroups] = await Promise.all([
-    prisma.salesDocument.aggregate({ where: pendingWhere, _sum: { totalAmount: true, paidAmount: true } }),
+    prisma.salesDocument.aggregate({ where: pendingWhere, _sum: { totalAmount: true, paidAmount: true }, _count: true }),
     prisma.salesDocument.aggregate({
       where: { ...pendingWhere, dueDate: { lt: now } },
       _sum: { totalAmount: true, paidAmount: true },
@@ -339,6 +341,7 @@ export async function getCxCSummary(companyId: string): Promise<CxCSummary> {
     overdueAmount,
     collectedThisMonth: collected._sum.amount ?? 0,
     topDebtors,
+    openCount: totalAgg._count,
   };
 }
 
@@ -346,6 +349,8 @@ export interface CxPSummary {
   totalPayable: number;
   dueThisWeekCount: number;
   dueThisWeekAmount: number;
+  /** Documentos con saldo pendiente: la tabla muestra a lo más 200 y avisa si hay más. */
+  openCount: number;
 }
 
 export async function getCxPSummary(companyId: string): Promise<CxPSummary> {
@@ -354,7 +359,7 @@ export async function getCxPSummary(companyId: string): Promise<CxPSummary> {
   const pendingWhere: Prisma.PurchaseDocumentWhereInput = { companyId, status: 'ISSUED', paymentStatus: { not: 'PAID' } };
 
   const [totalAgg, dueThisWeekAgg] = await Promise.all([
-    prisma.purchaseDocument.aggregate({ where: pendingWhere, _sum: { totalAmount: true, paidAmount: true } }),
+    prisma.purchaseDocument.aggregate({ where: pendingWhere, _sum: { totalAmount: true, paidAmount: true }, _count: true }),
     prisma.purchaseDocument.aggregate({
       where: { ...pendingWhere, dueDate: { gte: now, lte: weekEnd } },
       _sum: { totalAmount: true, paidAmount: true },
@@ -366,6 +371,7 @@ export async function getCxPSummary(companyId: string): Promise<CxPSummary> {
     totalPayable: (totalAgg._sum.totalAmount ?? 0) - (totalAgg._sum.paidAmount ?? 0),
     dueThisWeekCount: dueThisWeekAgg._count,
     dueThisWeekAmount: (dueThisWeekAgg._sum.totalAmount ?? 0) - (dueThisWeekAgg._sum.paidAmount ?? 0),
+    openCount: totalAgg._count,
   };
 }
 

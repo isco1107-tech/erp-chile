@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import type { Prisma, SalesDocument, SalesDocumentItem } from '@prisma/client';
-import { applyStockOut, type TxClient } from '@/modules/inventory/services/stock.service';
+import { applyStockOut, lockProductRows, type TxClient } from '@/modules/inventory/services/stock.service';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { constraintInvolves } from '@/lib/prisma-errors';
 import { postSalesDocumentIssued } from '@/modules/accounting/posting-rules/sales-posting';
@@ -133,9 +133,13 @@ export async function createPosSale(
 
     // Los precios los pone el servidor desde el catálogo. Aceptar el precio del
     // cliente permitiría vender a $1 desde la consola del navegador.
+    // Una sola consulta para todo el carrito (antes, una por línea).
+    const catalog = new Map(
+      (await tx.product.findMany({ where: { companyId, id: { in: [...new Set(input.items.map((item) => item.productId))] } } })).map((product) => [product.id, product])
+    );
     const lines = [];
     for (const item of input.items) {
-      const product = await tx.product.findFirst({ where: { id: item.productId, companyId } });
+      const product = catalog.get(item.productId);
       if (!product) throw new Error('Producto no encontrado en el catálogo');
       lines.push({
         productId: product.id,
@@ -169,10 +173,6 @@ export async function createPosSale(
     // tipo de documento por el camino del CAF, quedaban dos contadores de
     // folio independientes para BOLETA_39, con riesgo real de duplicados ante
     // el SII.
-    const folioAssignment = await assignSalesFolio(tx, companyId, 'BOLETA_39');
-    const folio = folioAssignment.folio;
-    const reference = `POS ${DTE_TYPE_LABELS.BOLETA_39} Folio #${folio}`;
-
     // El costo que se persiste en la línea se toma del movimiento de Kardex, no
     // de la lectura previa del catálogo: `applyStockOut` lee el PMP con lock de
     // fila, así que es el único valor garantizado como vigente. Copiar el de la
@@ -180,6 +180,11 @@ export async function createPosSale(
     // una compra confirmaba entre ambas lecturas.
     const costByProduct = new Map<string, number>();
     const costedItemsForAccounting: { unitCostPMP: number; quantity: number }[] = [];
+    const movementIds: string[] = [];
+    // Todos los productos del carrito juntos y en orden de id: tomados línea
+    // por línea, dos cajas con [A, B] y [B, A] (o una caja y una factura de
+    // Ventas) se bloqueaban en círculo. Ver `lockProductRows`.
+    await lockProductRows(tx, companyId, computedItems.filter((item) => item.isTrackable).map((item) => item.productId));
     for (const item of computedItems) {
       if (!item.isTrackable) continue;
       const movement = await applyStockOut(tx, companyId, {
@@ -187,10 +192,22 @@ export async function createPosSale(
         warehouseId,
         type: 'SALE_OUT',
         quantity: item.quantity,
-        reference,
+        reference: `POS ${DTE_TYPE_LABELS.BOLETA_39} Folio #-`,
       });
+      movementIds.push(movement.id);
       costByProduct.set(item.productId, movement.unitCost);
       costedItemsForAccounting.push({ unitCostPMP: movement.unitCost, quantity: item.quantity });
+    }
+
+    // El folio se toma DESPUÉS del Kardex, lo más cerca posible del `create`:
+    // su fila queda bloqueada hasta el commit y serializa todas las boletas de
+    // la empresa (todas las cajas). Mismo orden que `createSalesDocument`
+    // (productos → folio), así ninguna ruta se cruza con otra.
+    const folioAssignment = await assignSalesFolio(tx, companyId, 'BOLETA_39');
+    const folio = folioAssignment.folio;
+    const reference = `POS ${DTE_TYPE_LABELS.BOLETA_39} Folio #${folio}`;
+    if (movementIds.length > 0) {
+      await tx.inventoryMovement.updateMany({ where: { companyId, id: { in: movementIds } }, data: { reference } });
     }
 
     // Timbrado electrónico — mismo bloque que `sales.service.ts`. Solo ocurre

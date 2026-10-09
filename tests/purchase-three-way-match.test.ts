@@ -15,6 +15,7 @@ import { prisma } from '@/lib/prisma';
  */
 
 jest.mock('@/modules/inventory/services/stock.service', () => ({
+  lockProductRows: jest.fn().mockResolvedValue(undefined),
   applyStockIn: jest.fn(),
   applyStockOut: jest.fn(),
 }));

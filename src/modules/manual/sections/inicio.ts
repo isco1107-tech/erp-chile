@@ -20,11 +20,25 @@ export const INICIO_SECTIONS: ManualSection[] = [
         title: 'Cómo moverme por el panel',
         steps: [
           'El menú de la izquierda agrupa los módulos que tu empresa tiene contratados (Ventas, Compras, Finanzas, etc.). Si no ves un módulo, no está en tu plan o tu rol no lo usa.',
-          'Inicio (ícono de casa) es el resumen del negocio: ventas, compras, IVA, stock crítico y accesos rápidos a lo más usado.',
+          'Inicio (ícono de casa) es el resumen del negocio: lo que falta para dejar la empresa lista (Primeros pasos), ventas, compras, IVA, stock crítico y accesos rápidos a lo más usado.',
           'En la barra superior están el buscador, el botón "Cómo usar", el Asistente, las campanitas de mensajes y notificaciones, y tu perfil.',
           'En el celular el menú se abre con el ícono de tres líneas arriba a la izquierda.',
           'Abajo a la izquierda del menú aparece tu nombre y tu rol; desde ahí entras a tu perfil o cierras sesión.',
         ],
+      },
+      {
+        id: 'primeros-pasos-checklist',
+        title: 'Dejar tu empresa lista con la tarjeta "Primeros pasos"',
+        route: '/dashboard',
+        steps: [
+          'Entra a Inicio. Mientras falte algo por configurar, arriba aparece la tarjeta "Primeros pasos · X de Y" con una barra de avance.',
+          'Cada fila es un paso real de tu empresa (datos de la empresa, folios del SII, productos, stock inicial, clientes, caja, cuenta bancaria, equipo…). Solo salen los de los módulos que contrataste y que tu rol puede abrir.',
+          'Un check verde significa que el sistema ya encontró ese dato cargado. Los pendientes explican para qué sirve cada paso, y el marcado como "Siguiente paso" es el recomendado.',
+          'Presiona "Hacerlo ahora" (siguiente paso) o "Ir" (los demás) para abrir la pantalla exacta donde se resuelve.',
+          'Si te estorba, usa la X de la esquina de la tarjeta ("Ocultar primeros pasos"): queda una barra pequeña con el botón "Mostrar primeros pasos" para volver a verla. Se recuerda por empresa en este navegador.',
+          'Al completar el 100% la tarjeta desaparece sola.',
+        ],
+        tip: 'La primera vez que entra el Dueño de una empresa nueva también se abre un asistente de bienvenida con los primeros pasos. Para volver a verlo: Configuración → "Ver guía de configuración".',
       },
       {
         id: 'buscador-global',

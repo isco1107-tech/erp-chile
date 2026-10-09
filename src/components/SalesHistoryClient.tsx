@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import type { DteType } from '@prisma/client';
 import { toast } from 'sonner';
 import { ArrowDown, ArrowUp } from 'lucide-react';
@@ -11,6 +12,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Pagination } from '@/components/ui/pagination';
 import {
   cancelSalesDocumentAction,
+  deleteSalesDraftAction,
   duplicateSalesDocumentAction,
   listSalesDocumentsAction,
 } from '@/modules/sales/actions/sales.actions';
@@ -47,6 +49,7 @@ const DEFAULT_PAGE_SIZE = 25;
 
 export default function SalesHistoryClient() {
   const confirm = useConfirm();
+  const router = useRouter();
   const [rows, setRows] = useState<SalesRow[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -124,7 +127,27 @@ export default function SalesHistoryClient() {
       toast.error(result.error);
       return;
     }
-    toast.success(result.message ?? 'Documento duplicado');
+    // El borrador nuevo queda en el historial; el aviso lo abre directo para editarlo y emitirlo.
+    const draftId = result.data.id;
+    toast.success(result.message ?? 'Documento duplicado', {
+      action: { label: 'Abrir borrador', onClick: () => router.push(`/dashboard/sales/${draftId}`) },
+    });
+    load();
+  }
+
+  async function handleDeleteDraft(id: string) {
+    const ok = await confirm({
+      title: '¿Eliminar este borrador?',
+      description: 'Se descarta por completo. No tiene folio ni movió stock, así que no queda nada que revertir.',
+      confirmLabel: 'Eliminar borrador',
+    });
+    if (!ok) return;
+    const result = await deleteSalesDraftAction(id);
+    if (!result.success) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success(result.message ?? 'Borrador eliminado');
     load();
   }
 
@@ -230,7 +253,15 @@ export default function SalesHistoryClient() {
                       <Link href={`/dashboard/sales/${doc.id}`} className={buttonVariants({ variant: 'outline', size: 'sm' })}>
                         Ver / Imprimir
                       </Link>
+                      {doc.status === 'DRAFT' && (
+                        <Link href={`/dashboard/sales/new?draft=${doc.id}`} className={buttonVariants({ size: 'sm' })}>
+                          Editar y emitir
+                        </Link>
+                      )}
                       <Button type="button" size="sm" variant="outline" onClick={() => handleDuplicate(doc.id)}>Duplicar</Button>
+                      {doc.status === 'DRAFT' && (
+                        <Button type="button" size="sm" variant="destructive" onClick={() => handleDeleteDraft(doc.id)}>Eliminar borrador</Button>
+                      )}
                       {doc.status === 'ISSUED' && (
                         isSubmittedToSii(doc) ? (
                           <Button

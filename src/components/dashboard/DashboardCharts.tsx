@@ -10,9 +10,12 @@
  * las queries a Prisma y le pasa el resultado a este componente.
  */
 
+import type { ReactNode } from 'react';
+import Link from 'next/link';
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { ChartCard, ChartLegendItem, ChartTooltip } from '@/components/ui/ChartCard';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { buttonVariants } from '@/components/ui/button';
 
 function formatCompactClp(value: number): string {
   return new Intl.NumberFormat('es-CL', { notation: 'compact', maximumFractionDigits: 1 }).format(value);
@@ -50,9 +53,25 @@ interface DashboardChartsProps {
   monthlyBuckets: MonthlyBucket[];
   mixData: MixDatum[];
   currentMonthDocCount: number;
+  /** Quien mira puede emitir ventas: si es así, el aviso de "sin ventas" ofrece el enlace para la primera. */
+  canIssueSale?: boolean;
 }
 
-export function DashboardCharts({ monthlyBuckets, mixData, currentMonthDocCount }: DashboardChartsProps) {
+/** Enlace para la primera venta, solo si esa persona puede emitirla. */
+function firstSaleAction(canIssueSale: boolean): ReactNode {
+  if (!canIssueSale) return undefined;
+  return (
+    <Link href="/dashboard/sales/new" className={buttonVariants({ size: 'sm' })}>
+      Emitir mi primera venta
+    </Link>
+  );
+}
+
+export function DashboardCharts({ monthlyBuckets, mixData, currentMonthDocCount, canIssueSale = false }: DashboardChartsProps) {
+  // Sin una sola venta en la ventana de 12 meses un gráfico de barras en cero
+  // no informa nada: se explica cuándo se va a llenar en vez de mostrar ejes vacíos.
+  const hasAnySales = monthlyBuckets.some((bucket) => bucket.netSales !== 0 || bucket.costOfSales !== 0);
+
   return (
     <section className="grid grid-cols-12 gap-5">
       <div className="col-span-12 lg:col-span-8">
@@ -61,12 +80,22 @@ export function DashboardCharts({ monthlyBuckets, mixData, currentMonthDocCount 
           subtitle="Últimos 12 meses"
           height={280}
           legend={
-            <>
-              <ChartLegendItem color="var(--primary)" label="Ventas netas" />
-              <ChartLegendItem color="#E4E7EC" label="Costo PMP" />
-            </>
+            hasAnySales ? (
+              <>
+                <ChartLegendItem color="var(--primary)" label="Ventas netas" />
+                <ChartLegendItem color="#E4E7EC" label="Costo PMP" />
+              </>
+            ) : undefined
           }
         >
+          {!hasAnySales ? (
+            <EmptyState
+              title="Aparecerá cuando emitas tu primera venta"
+              description="Aquí verás mes a mes cuánto vendes y cuánto te cuesta lo vendido."
+              action={firstSaleAction(canIssueSale)}
+              className="h-full py-4"
+            />
+          ) : (
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={monthlyBuckets} barGap={4}>
               <CartesianGrid vertical={false} stroke="#EAECF0" strokeDasharray="4 4" />
@@ -83,6 +112,7 @@ export function DashboardCharts({ monthlyBuckets, mixData, currentMonthDocCount 
               <Bar dataKey="costOfSales" name="Costo PMP" fill="#E4E7EC" radius={[6, 6, 0, 0]} maxBarSize={24} />
             </BarChart>
           </ResponsiveContainer>
+          )}
         </ChartCard>
       </div>
 
@@ -106,7 +136,12 @@ export function DashboardCharts({ monthlyBuckets, mixData, currentMonthDocCount 
               </div>
             </div>
           ) : (
-            <EmptyState title="Sin documentos este mes" className="h-full" />
+            <EmptyState
+              title={hasAnySales ? 'Sin documentos este mes' : 'Aparecerá cuando emitas tu primera venta'}
+              description={hasAnySales ? undefined : 'Verás cuántas facturas, boletas y notas emites cada mes.'}
+              action={hasAnySales ? undefined : firstSaleAction(canIssueSale)}
+              className="h-full py-4"
+            />
           )}
         </ChartCard>
         {mixData.length > 0 && (

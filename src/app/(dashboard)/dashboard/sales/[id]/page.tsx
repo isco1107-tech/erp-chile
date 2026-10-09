@@ -4,6 +4,8 @@ import { ArrowLeft, ClipboardList, FileCheck2 } from 'lucide-react';
 import { getSalesDocumentAction } from '@/modules/sales/actions/sales.actions';
 import { isBoleta, isDte } from '@/lib/chile/dte/codes';
 import PrintButton from '@/components/PrintButton';
+import DraftActions from '@/components/sales/DraftActions';
+import { can, getAuthContext } from '@/lib/auth/guards';
 import SalesDocumentPaper from '@/components/sales/SalesDocumentPaper';
 import { buttonVariants } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -25,7 +27,7 @@ export default async function SalesDocumentDetailPage({
   searchParams: Promise<{ cedible?: string }>;
 }) {
   const [{ id }, { cedible }] = await Promise.all([params, searchParams]);
-  const result = await getSalesDocumentAction(id);
+  const [result, context] = await Promise.all([getSalesDocumentAction(id), getAuthContext()]);
   if (!result.success) notFound();
 
   const doc = result.data;
@@ -69,9 +71,10 @@ export default async function SalesDocumentDetailPage({
       </div>
 
       {doc.status === 'DRAFT' && (
-        <p className="mx-auto max-w-[210mm] rounded-lg border border-warning/30 bg-warning-soft px-4 py-3 text-sm font-medium text-warning print:hidden">
-          Borrador: no es un documento tributario válido hasta que se emita.
-        </p>
+        <div className="mx-auto flex max-w-[210mm] flex-col gap-3 rounded-lg border border-warning/30 bg-warning-soft px-4 py-3 print:hidden">
+          <p className="text-sm font-medium text-warning">Borrador: no es un documento tributario válido hasta que se emita.</p>
+          <DraftActions draftId={doc.id} canWrite={can(context, 'sales:write')} />
+        </div>
       )}
       {doc.status === 'CANCELLED' && (
         <p className="mx-auto max-w-[210mm] rounded-lg border border-danger/30 bg-danger-soft px-4 py-3 text-sm font-medium text-danger print:hidden">

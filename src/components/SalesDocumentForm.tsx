@@ -9,11 +9,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import ContactForm from './ContactForm';
-import { listContactsAction } from '@/modules/contacts/actions/contacts.actions';
+import { getContactAction, listContactsAction } from '@/modules/contacts/actions/contacts.actions';
 import { listWarehousesAction } from '@/modules/inventory/actions/inventory.actions';
 import { findProductByCodeAction, listProductsAction } from '@/modules/inventory/actions/products.actions';
 import type { ProductWithStock } from '@/modules/inventory/services/products.service';
-import { createSalesDocumentAction, getContactCreditStatusAction, type ContactCreditStatus } from '@/modules/sales/actions/sales.actions';
+import {
+  createSalesDocumentAction,
+  deleteSalesDraftAction,
+  getContactCreditStatusAction,
+  type ContactCreditStatus,
+} from '@/modules/sales/actions/sales.actions';
+import type { SalesDraftPrefill } from '@/modules/sales/services/sales.service';
+import FolioNotice from '@/components/sales/FolioNotice';
 import { computeDocument, exceedsCreditLimit } from '@/modules/sales/calc';
 import {
   DTE_TYPES,
@@ -66,7 +73,29 @@ function orderQuantityFor(line: OrderDocumentPrefill['lines'][number], dteType: 
   return dteType === 'GUIA_DESPACHO_52' ? line.remainingToDispatch : line.remainingToInvoice;
 }
 
-export default function SalesDocumentForm({ orderId, initialType }: { orderId?: string; initialType?: (typeof DTE_TYPES)[number] } = {}) {
+/** Qué numeración llevará cada tipo de documento (viene del servidor, con la empresa ya resuelta). */
+export interface SalesFolioStatus {
+  hasDteBilling: boolean;
+  canManageFolios: boolean;
+  /** Tipos de DTE con folios autorizados disponibles. */
+  typesWithFolios: string[];
+}
+
+interface SalesDocumentFormProps {
+  orderId?: string;
+  initialType?: (typeof DTE_TYPES)[number];
+  /** Borrador que se edita: al emitir (o guardar de nuevo) el borrador original se descarta. */
+  initialDraft?: SalesDraftPrefill;
+  /** Cliente con el que abre la venta (p. ej. "Venderle" tras crear un contacto). */
+  initialContactId?: string;
+  folioStatus?: SalesFolioStatus;
+}
+
+function isPaymentMethod(value: string): value is (typeof PAYMENT_METHODS)[number] {
+  return (PAYMENT_METHODS as readonly string[]).includes(value);
+}
+
+export default function SalesDocumentForm({ orderId, initialType, initialDraft, initialContactId, folioStatus }: SalesDocumentFormProps = {}) {
   const confirm = useConfirm();
   const router = useRouter();
   const idempotency = useRef(createIdempotencyTracker());
@@ -75,15 +104,29 @@ export default function SalesDocumentForm({ orderId, initialType }: { orderId?: 
   const [products, setProducts] = useState<ProductWithStock[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
 
-  const [dteType, setDteType] = useState<(typeof DTE_TYPES)[number]>('BOLETA_39');
+  const [dteType, setDteType] = useState<(typeof DTE_TYPES)[number]>(initialDraft?.dteType ?? 'BOLETA_39');
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
-  const [warehouseId, setWarehouseId] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<(typeof PAYMENT_METHODS)[number]>('EFECTIVO');
-  const [dueDate, setDueDate] = useState('');
-  const [referenceFolio, setReferenceFolio] = useState('');
-  const [referenceType, setReferenceType] = useState('');
-  const [notes, setNotes] = useState('');
-  const [items, setItems] = useState<LineItemDraft[]>([]);
+  const [warehouseId, setWarehouseId] = useState(initialDraft?.warehouseId ?? '');
+  const [paymentMethod, setPaymentMethod] = useState<(typeof PAYMENT_METHODS)[number]>(
+    initialDraft && isPaymentMethod(initialDraft.paymentMethod) ? initialDraft.paymentMethod : 'EFECTIVO'
+  );
+  const [dueDate, setDueDate] = useState(initialDraft?.dueDate ?? '');
+  const [referenceFolio, setReferenceFolio] = useState(initialDraft?.referenceFolio ? String(initialDraft.referenceFolio) : '');
+  const [referenceType, setReferenceType] = useState<string>(initialDraft?.referenceType ?? '');
+  const [notes, setNotes] = useState(initialDraft?.notes ?? '');
+  const [items, setItems] = useState<LineItemDraft[]>(() =>
+    (initialDraft?.items ?? []).map((line) => ({
+      key: newKey(),
+      productId: line.productId ?? undefined,
+      sku: line.sku ?? undefined,
+      description: line.description,
+      quantity: String(line.quantity),
+      unitPrice: String(line.unitPrice),
+      isExempt: line.isExempt,
+      discountPercent: String(line.discountPercent),
+      salesOrderItemId: line.salesOrderItemId ?? undefined,
+    }))
+  );
 
   const [contactQuery, setContactQuery] = useState('');
   const [showQuickContact, setShowQuickContact] = useState(false);
@@ -93,7 +136,9 @@ export default function SalesDocumentForm({ orderId, initialType }: { orderId?: 
   const [orderPrefill, setOrderPrefill] = useState<OrderDocumentPrefill | null>(null);
   const [pricing, setPricing] = useState<ContactPricing | null>(null);
   const [sellers, setSellers] = useState<{ id: string; name: string }[]>([]);
-  const [sellerId, setSellerId] = useState('self');
+  const [sellerId, setSellerId] = useState(initialDraft?.sellerId ?? 'self');
+  // El borrador fija el cliente una sola vez: si la persona pulsa "Cambiar", no se vuelve a imponer.
+  const draftContactApplied = useRef(false);
 
   useEffect(() => {
     listSellersAction().then((r) => { if (r.success) setSellers(r.data); });
@@ -103,7 +148,8 @@ export default function SalesDocumentForm({ orderId, initialType }: { orderId?: 
       if (r.success) {
         setWarehouses(r.data);
         const defaultWarehouse = r.data.find((w) => w.isDefault) ?? r.data[0];
-        if (defaultWarehouse) setWarehouseId(defaultWarehouse.id);
+        // Un borrador (o una nota de venta) ya trae su bodega: no se pisa con la predeterminada.
+        if (defaultWarehouse) setWarehouseId((current) => current || defaultWarehouse.id);
       }
     });
   }, []);
@@ -150,6 +196,30 @@ export default function SalesDocumentForm({ orderId, initialType }: { orderId?: 
     const contact = contacts.find((c) => c.id === orderPrefill.contactId);
     if (contact) setSelectedContact(contact);
   }, [orderPrefill, contacts, selectedContact]);
+
+  // El cliente del borrador se selecciona cuando llega la lista de contactos.
+  useEffect(() => {
+    if (!initialDraft || draftContactApplied.current) return;
+    const contact = contacts.find((c) => c.id === initialDraft.contactId);
+    if (contact) {
+      draftContactApplied.current = true;
+      setSelectedContact(contact);
+    }
+  }, [initialDraft, contacts]);
+
+  // Venta abierta desde "Venderle" (tras crear un contacto): el cliente llega
+  // por id y se busca aparte, porque puede no estar en la primera página de
+  // la lista. Una nota de venta o un borrador mandan sobre este parámetro.
+  useEffect(() => {
+    if (!initialContactId || orderId || initialDraft) return;
+    let cancelled = false;
+    getContactAction(initialContactId).then((result) => {
+      if (!cancelled && result.success) setSelectedContact((current) => current ?? result.data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [initialContactId, orderId, initialDraft]);
 
   // Lista de precios del cliente: propone el precio de cada producto nuevo.
   useEffect(() => {
@@ -317,7 +387,7 @@ export default function SalesDocumentForm({ orderId, initialType }: { orderId?: 
       referenceFolio: referenceFolio ? Number(referenceFolio) : undefined,
       referenceType: referenceType ? (referenceType as (typeof DTE_TYPES)[number]) : undefined,
       notes: notes || undefined,
-      salesOrderId: orderPrefill?.orderId,
+      salesOrderId: orderPrefill?.orderId ?? initialDraft?.salesOrderId ?? undefined,
       sellerId: sellerId !== 'self' ? sellerId : undefined,
       items: items.map((i) => ({
         salesOrderItemId: i.salesOrderItemId,
@@ -359,6 +429,14 @@ export default function SalesDocumentForm({ orderId, initialType }: { orderId?: 
       }
       idempotency.current.reset();
       toast.success(result.message ?? 'Documento guardado');
+      // Editar un borrador crea el documento nuevo por el camino normal y
+      // recién después descarta el borrador original, para no dejar dos copias.
+      if (initialDraft) {
+        const discarded = await deleteSalesDraftAction(initialDraft.id);
+        if (!discarded.success) {
+          toast.warning(`El documento se guardó, pero el borrador original sigue en el historial: elimínalo desde ahí. ${discarded.error}`);
+        }
+      }
       router.push(`/dashboard/sales/${result.data.id}`);
     } catch {
       toast.error('No se pudo contactar al servidor. Tus datos siguen aquí: vuelve a intentarlo y el documento no se duplicará.');
@@ -379,6 +457,26 @@ export default function SalesDocumentForm({ orderId, initialType }: { orderId?: 
             Ver nota
           </Link>
         </div>
+      )}
+      {initialDraft && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-info/25 bg-info-soft px-4 py-3 text-sm">
+          <span>
+            Editando un <span className="font-semibold">borrador</span> guardado el{' '}
+            {new Date(initialDraft.createdAt).toLocaleDateString('es-CL')}. Revísalo y pulsa «Emitir Documento»: el borrador se reemplaza por el
+            documento emitido. Mientras sea borrador no tiene folio ni mueve stock.
+          </span>
+          <Link href={`/dashboard/sales/${initialDraft.id}`} className="text-xs font-medium underline underline-offset-2">
+            Volver al borrador
+          </Link>
+        </div>
+      )}
+      {folioStatus && (
+        <FolioNotice
+          dteType={dteType}
+          hasDteBilling={folioStatus.hasDteBilling}
+          hasFolios={folioStatus.typesWithFolios.includes(dteType)}
+          canManageFolios={folioStatus.canManageFolios}
+        />
       )}
       <div className="grid grid-cols-1 gap-4 rounded-xl border border-border p-4 sm:grid-cols-2 lg:grid-cols-3">
         <div>

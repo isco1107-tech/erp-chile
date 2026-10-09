@@ -220,7 +220,16 @@ export function FixedAssetsClient({ canWrite, canPostEntries }: { canWrite: bool
 
       {rows.length === 0 ? (
         <div className="rounded-lg border border-border bg-card shadow-card">
-          <EmptyState title="Sin activos registrados" description="Registra computadores, vehículos, maquinaria o muebles para controlar su depreciación y valor libro." />
+          <EmptyState
+            title={data.assets.length === 0 ? 'Sin activos registrados' : 'Sin resultados'}
+            description={
+              data.assets.length === 0
+                ? 'Registra computadores, vehículos, maquinaria o muebles con su valor y vida útil: el sistema calcula su depreciación y valor libro mes a mes.'
+                : 'Prueba con otro código, nombre o ubicación.'
+            }
+            actionLabel={data.assets.length === 0 && canWrite ? 'Registrar activo' : undefined}
+            onAction={data.assets.length === 0 && canWrite ? () => setForm({ ...EMPTY }) : undefined}
+          />
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border bg-card shadow-card">

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Button } from '@/components/ui/button';
@@ -141,7 +142,17 @@ export default function CashFlowClient() {
         <CardContent>
           {loading && <p className="p-4 text-center text-sm text-muted-foreground">Cargando...</p>}
           {!loading && (!result || result.series.length === 0) && (
-            <p className="p-4 text-center text-sm text-muted-foreground">Sin movimientos en el período seleccionado</p>
+            <p className="p-4 text-center text-sm text-muted-foreground">
+              Sin movimientos en el período seleccionado. Este flujo muestra los cobros y pagos ya registrados: registra cobros en{' '}
+              <Link href="/dashboard/treasury/cxc" className="text-primary underline-offset-2 hover:underline">
+                Cuentas por Cobrar
+              </Link>{' '}
+              y pagos en{' '}
+              <Link href="/dashboard/treasury/cxp" className="text-primary underline-offset-2 hover:underline">
+                Cuentas por Pagar
+              </Link>
+              , o prueba con otro período.
+            </p>
           )}
           {!loading && result && result.series.length > 0 && (
             <div className="h-80 w-full">

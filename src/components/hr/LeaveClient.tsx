@@ -1,9 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { Check, Plus, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/input';
@@ -131,7 +132,35 @@ export function LeaveClient({ canWrite, canApprove }: { canWrite: boolean; canAp
 
         {requests.length === 0 ? (
           <div className="rounded-lg border border-border bg-card shadow-card">
-            <EmptyState title={filter === 'PENDING' ? 'Nada por aprobar' : 'Sin solicitudes'} description="Las solicitudes de vacaciones y permisos aparecerán aquí con su estado." />
+            {data.employees.length === 0 ? (
+              <EmptyState
+                title="Primero crea a tus trabajadores"
+                description="Las vacaciones y permisos se piden a nombre de un trabajador. Crea su ficha y vuelve aquí para registrar la primera solicitud."
+                action={
+                  <Link href="/dashboard/hr" className={buttonVariants({ size: 'sm' })}>
+                    Ir a Trabajadores
+                  </Link>
+                }
+              />
+            ) : (
+              <EmptyState
+                title={filter === 'PENDING' ? 'Nada por aprobar' : 'Sin solicitudes'}
+                description={
+                  filter === 'PENDING'
+                    ? 'No hay solicitudes esperando revisión. En «Todas» ves el historial completo.'
+                    : 'Las solicitudes de vacaciones y permisos aparecerán aquí con su estado.'
+                }
+                actionLabel={canWrite ? 'Nueva solicitud' : undefined}
+                onAction={
+                  canWrite
+                    ? () => {
+                        setForm({ employeeId: data.employees[0]?.id ?? '', type: 'VACATION', startDate: '', endDate: '', businessDays: '', reason: '' });
+                        setOpen(true);
+                      }
+                    : undefined
+                }
+              />
+            )}
           </div>
         ) : (
           <ul className="space-y-2">
@@ -182,7 +211,13 @@ export function LeaveClient({ canWrite, canApprove }: { canWrite: boolean; canAp
         <h2 className="text-base font-semibold text-foreground">Saldo de vacaciones</h2>
         <p className="mt-0.5 text-xs text-muted-foreground">Días hábiles devengados menos los aprobados. No incluye feriado progresivo.</p>
         <ul className="mt-3 divide-y divide-border">
-          {data.balances.length === 0 && <li className="py-3 text-sm text-muted-foreground">Sin trabajadores activos.</li>}
+          {data.balances.length === 0 && <li className="py-3 text-sm text-muted-foreground">
+              Sin trabajadores activos.{' '}
+              <Link href="/dashboard/hr" className="text-primary underline-offset-2 hover:underline">
+                Crea sus fichas
+              </Link>{' '}
+              para ver su saldo.
+            </li>}
           {data.balances.map((balance) => (
             <li key={balance.employeeId} className="flex items-center justify-between gap-3 py-2">
               <div className="min-w-0">

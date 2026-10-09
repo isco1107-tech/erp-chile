@@ -1,16 +1,19 @@
 import CxCClient from '@/components/treasury/CxCClient';
 import { InfoTooltip } from '@/components/ui/InfoTooltip';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { TAX_GLOSSARY } from '@/lib/chile/glossary';
+import { SCREEN_PURPOSES } from '@/modules/manual/knowledge';
 
 export const metadata = { title: 'Cuentas por Cobrar' };
 
 export default function CxCPage() {
   return (
-    <div>
-      <h1 className="mb-4 flex items-center gap-2 text-2xl font-bold" data-tutorial="module-header">
-        Cuentas por Cobrar
-        <InfoTooltip text={TAX_GLOSSARY.cxc} />
-      </h1>
+    <div className="space-y-4">
+      <PageHeader
+        title="Cuentas por Cobrar"
+        titleAddon={<InfoTooltip text={TAX_GLOSSARY.cxc} />}
+        description={SCREEN_PURPOSES['treasury-cxc']}
+      />
       <CxCClient />
     </div>
   );

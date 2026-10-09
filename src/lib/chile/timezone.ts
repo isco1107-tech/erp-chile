@@ -16,24 +16,32 @@
  */
 
 /** Año, mes (1-12) y día calendario en Santiago para un instante dado. */
+// Formateadores creados UNA vez: construir un `Intl.DateTimeFormat` cuesta
+// mucho más que usarlo, y estas funciones se llaman una vez por documento en
+// el Inicio, los reportes y la Radiografía. Creándolo en cada llamada, la
+// Radiografía de una empresa con 150.000 ventas gastaba ~12 s solo en esto
+// (auditoría de estrés 2026-10-05).
+// 'en-CA' formatea como YYYY-MM-DD, cómodo de parsear sin ambigüedad de orden.
+const SANTIAGO_DATE_FORMAT = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/Santiago',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+const SANTIAGO_OFFSET_FORMAT = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/Santiago',
+  timeZoneName: 'shortOffset',
+});
+
 export function santiagoDateParts(date: Date): { year: number; month: number; day: number } {
-  // 'en-CA' formatea como YYYY-MM-DD, cómodo de parsear sin ambigüedad de orden.
-  const formatted = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Santiago',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(date);
+  const formatted = SANTIAGO_DATE_FORMAT.format(date);
   const [year, month, day] = formatted.split('-').map(Number) as [number, number, number];
   return { year, month, day };
 }
 
 /** Offset horario vigente de Santiago respecto a UTC, en horas (ej. -3). */
 function santiagoOffsetHours(approx: Date): number {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Santiago',
-    timeZoneName: 'shortOffset',
-  }).formatToParts(approx);
+  const parts = SANTIAGO_OFFSET_FORMAT.formatToParts(approx);
   const raw = parts.find((p) => p.type === 'timeZoneName')?.value ?? 'GMT-3';
   const match = /GMT([+-]\d+)/.exec(raw);
   return match ? Number(match[1]) : -3;

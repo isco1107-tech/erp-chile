@@ -2,10 +2,13 @@
 
 import { useEffect, useState, type FormEvent } from 'react';
 import type { Category } from '@prisma/client';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { FieldHint, FieldLabel } from '@/components/ui/FieldLabel';
+import { InfoTooltip } from '@/components/ui/InfoTooltip';
 import { CurrencyInput } from '@/components/ui/CurrencyInput';
 import { calculateGrossPrice, formatCurrency } from '@/lib/chile/tax';
 import { UNITS, productCreateSchema, productUpdateSchema } from '@/modules/inventory/schema';
@@ -51,6 +54,7 @@ export default function ProductForm({
   onCancelEdit,
   onCategoryCreated,
 }: ProductFormProps) {
+  const router = useRouter();
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -168,7 +172,20 @@ export default function ProductForm({
         return;
       }
 
-      toast.success(result.message ?? 'Producto guardado');
+      const message = result.message ?? 'Producto guardado';
+      // Un producto nuevo con control de stock parte en 0: el siguiente paso
+      // natural (y el que más se olvida) es cargarle el stock inicial.
+      if (!editingProduct && result.data.isTrackable) {
+        toast.success(message, {
+          description: 'Aún no tiene stock. Cárgalo para poder venderlo.',
+          action: {
+            label: 'Cargar stock inicial',
+            onClick: () => router.push(`/dashboard/inventory?openStockForm=1&productId=${encodeURIComponent(result.data.id)}`),
+          },
+        });
+      } else {
+        toast.success(message);
+      }
       setForm(EMPTY_FORM);
       onSaved();
     } finally {
@@ -180,7 +197,7 @@ export default function ProductForm({
     <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border border-border p-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <Label htmlFor="sku">SKU</Label>
+          <FieldLabel htmlFor="sku" term="sku">SKU (código interno)</FieldLabel>
           <Input id="sku" value={form.sku} onChange={(e) => update('sku', e.target.value)} aria-invalid={!!errors.sku} />
           {errors.sku && <p className="mt-1 text-sm text-destructive">{errors.sku}</p>}
         </div>
@@ -255,7 +272,7 @@ export default function ProductForm({
         </div>
 
         <div>
-          <Label htmlFor="netPrice">Precio Neto</Label>
+          <FieldLabel htmlFor="netPrice" term="neto">Precio neto (sin IVA)</FieldLabel>
           <CurrencyInput
             id="netPrice"
             value={Number(form.netPrice) || 0}
@@ -273,7 +290,7 @@ export default function ProductForm({
         </div>
 
         <div>
-          <Label htmlFor="minStock">Stock mínimo</Label>
+          <FieldLabel htmlFor="minStock" term="stockMinimo">Stock mínimo</FieldLabel>
           <Input
             id="minStock"
             type="number"
@@ -284,28 +301,35 @@ export default function ProductForm({
             aria-invalid={!!errors.minStock}
           />
           {errors.minStock && <p className="mt-1 text-sm text-destructive">{errors.minStock}</p>}
+          <FieldHint>Con 0 no se avisa nunca.</FieldHint>
         </div>
 
         <div className="flex items-end">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={form.isTrackable}
-              onChange={(e) => update('isTrackable', e.target.checked)}
-            />
-            Producto trackeable (gestiona stock)
-          </label>
+          <div className="flex items-center gap-1.5">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={form.isTrackable}
+                onChange={(e) => update('isTrackable', e.target.checked)}
+              />
+              Controla stock (producto inventariable)
+            </label>
+            <InfoTooltip term="productoInventariable" />
+          </div>
         </div>
 
         <div className="flex items-end">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={form.isExempt}
-              onChange={(e) => update('isExempt', e.target.checked)}
-            />
-            Exento de IVA
-          </label>
+          <div className="flex items-center gap-1.5">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={form.isExempt}
+                onChange={(e) => update('isExempt', e.target.checked)}
+              />
+              Exento de IVA
+            </label>
+            <InfoTooltip term="exento" />
+          </div>
         </div>
 
         {form.isTrackable && (

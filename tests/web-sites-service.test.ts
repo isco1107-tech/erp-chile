@@ -1632,7 +1632,7 @@ describe('acciones de Sitios web: RBAC por rol', () => {
     jest.mocked(requireAuthWithPermission).mockRejectedValue(new ModuleNotEnabledError('hasWebSites'));
     await expect(actions.publishWebSiteAction('s')).resolves.toEqual({
       success: false,
-      error: 'Módulo no incluido en tu plan actual. Contacta al administrador para habilitarlo',
+      error: 'Módulo no incluido en tu plan actual («Sitios Web»). Pídele al dueño de la cuenta que lo solicite en Configuración → Planes y Módulos',
     });
   });
 });

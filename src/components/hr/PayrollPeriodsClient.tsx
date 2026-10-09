@@ -5,12 +5,12 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { CalendarPlus } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { formatCurrency } from '@/lib/chile/tax';
-import { createPayrollPeriodAction, getPayrollPeriodsAction } from '@/modules/hr/actions/hr.actions';
+import { createPayrollPeriodAction, getEmployeesAction, getPayrollPeriodsAction } from '@/modules/hr/actions/hr.actions';
 import { periodLabel } from '@/modules/hr/schema';
 import type { PeriodSummary } from '@/modules/hr/services/payroll.service';
 import { PeriodParamsForm, type PeriodParamsValues } from './PeriodParamsForm';
@@ -23,6 +23,8 @@ export function PayrollPeriodsClient({ canWrite }: { canWrite: boolean }) {
   const [dialogKey, setDialogKey] = useState(0);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Trabajadores activos (null = no se pudo saber): sin ellos no hay nada que liquidar.
+  const [activeEmployees, setActiveEmployees] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     const result = await getPayrollPeriodsAction();
@@ -31,6 +33,8 @@ export function PayrollPeriodsClient({ canWrite }: { canWrite: boolean }) {
       return;
     }
     setPeriods(result.data.periods);
+    const employeesResult = await getEmployeesAction();
+    setActiveEmployees(employeesResult.success ? employeesResult.data.summary.activeCount : null);
     // Mes sugerido: el siguiente al último período, o el mes actual.
     const last = result.data.periods[0];
     const now = new Date();
@@ -53,6 +57,13 @@ export function PayrollPeriodsClient({ canWrite }: { canWrite: boolean }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  function openDialog() {
+    if (!initial) return;
+    setValues(initial);
+    setDialogKey((k) => k + 1);
+    setOpen(true);
+  }
 
   async function handleCreate() {
     if (!values) return;
@@ -79,11 +90,7 @@ export function PayrollPeriodsClient({ canWrite }: { canWrite: boolean }) {
         <div className="flex justify-end">
           <Button
             type="button"
-            onClick={() => {
-              setValues(initial);
-              setDialogKey((k) => k + 1);
-              setOpen(true);
-            }}
+            onClick={openDialog}
             data-tutorial="module-primary-action"
           >
             <CalendarPlus aria-hidden="true" />
@@ -94,7 +101,24 @@ export function PayrollPeriodsClient({ canWrite }: { canWrite: boolean }) {
 
       {periods.length === 0 ? (
         <div className="rounded-lg border border-border bg-card shadow-card">
-          <EmptyState title="Aún no hay períodos de remuneraciones" description="Abre el primer mes, confirma la UF y la UTM y calcula las liquidaciones de tu equipo." />
+          {activeEmployees === 0 ? (
+            <EmptyState
+              title="Primero crea a tus trabajadores"
+              description="Las liquidaciones se calculan a partir de la ficha de cada trabajador. Crea al menos una y vuelve aquí para abrir el primer mes."
+              action={
+                <Link href="/dashboard/hr" className={buttonVariants({ size: 'sm' })}>
+                  Ir a Trabajadores
+                </Link>
+              }
+            />
+          ) : (
+            <EmptyState
+              title="Aún no hay períodos de remuneraciones"
+              description="Abre el primer mes, confirma la UF y la UTM contra Previred y calcula las liquidaciones de tu equipo."
+              actionLabel={canWrite && initial ? 'Abrir período' : undefined}
+              onAction={canWrite && initial ? openDialog : undefined}
+            />
+          )}
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border bg-card shadow-card">

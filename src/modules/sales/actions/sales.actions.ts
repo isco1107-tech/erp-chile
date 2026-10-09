@@ -1,10 +1,12 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
 import { Prisma, type DocumentStatus, type DteType } from '@prisma/client';
 import { requireAuthWithPermission, authErrorMessage, can } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
+import { captureException } from '@/lib/observability';
 import { salesDocumentCreateSchema } from '../schema';
 import * as salesService from '../services/sales.service';
 import type {
@@ -174,5 +176,41 @@ export async function duplicateSalesDocumentAction(id: string): Promise<ActionRe
     return { success: true, data, message: 'Documento duplicado como borrador' };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+/**
+ * Elimina un borrador de venta (el "Eliminar borrador" del detalle y el
+ * descarte automático al emitirlo desde el formulario). Mismo permiso que crear
+ * ventas; el servicio rechaza todo lo que no sea borrador.
+ */
+export async function deleteSalesDraftAction(id: unknown): Promise<ActionResult<null>> {
+  let companyId: string | undefined;
+  try {
+    const session = await requireAuthWithPermission('sales:write');
+    companyId = session.companyId;
+    // Los argumentos de una Server Action llegan del navegador sin tipo: un
+    // objeto en vez de un id (p. ej. `{ in: [...] }`) borraría varios
+    // borradores con un solo registro de auditoría.
+    const parsedId = z.string().min(1).max(64).safeParse(id);
+    if (!parsedId.success) return { success: false, error: 'Falta indicar el borrador' };
+    const deleted = await salesService.deleteSalesDraft(session.companyId, parsedId.data);
+    await createAuditLog({
+      companyId: session.companyId,
+      userId: session.id,
+      userEmail: session.email,
+      action: 'DELETE',
+      entity: 'SalesDocument',
+      entityId: deleted.id,
+      metadata: { dteType: deleted.dteType, totalAmount: deleted.totalAmount, status: 'DRAFT' },
+    });
+    revalidatePath('/dashboard/sales');
+    return { success: true, data: null, message: 'Borrador eliminado' };
+  } catch (error) {
+    const authMessage = authErrorMessage(error);
+    if (authMessage) return { success: false, error: authMessage };
+    if (error instanceof salesService.SalesDraftError) return { success: false, error: error.message };
+    captureException(error, { module: 'ventas', companyId, extra: { reason: 'deleteSalesDraft' } });
+    return { success: false, error: 'No se pudo eliminar el borrador. Vuelve a intentarlo' };
   }
 }

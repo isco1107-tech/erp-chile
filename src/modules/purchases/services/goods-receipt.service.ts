@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import type { Contact, GoodsReceipt, GoodsReceiptItem, PurchaseOrder, Warehouse } from '@prisma/client';
-import { applyStockIn, applyStockOut } from '@/modules/inventory/services/stock.service';
+import { applyStockIn, applyStockOut, lockProductRows } from '@/modules/inventory/services/stock.service';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import type { GoodsReceiptCreateInput } from '../schema';
@@ -97,6 +97,9 @@ export async function createGoodsReceipt(
     // factura que llegue después y referencie esta OC ya no lo hará de nuevo.
     // Se recorre lo ingresado (no `receipt.items`, cuyo orden no está
     // garantizado) para que cada línea lleve su propio lote y vencimiento.
+    // Todos los productos juntos y en orden de id antes del primer movimiento
+    // (evita deadlocks; ver `lockProductRows`).
+    await lockProductRows(tx, companyId, input.items.map((line) => itemsById.get(line.orderItemId)?.productId));
     for (const line of input.items) {
       const orderItem = itemsById.get(line.orderItemId)!;
       if (!orderItem.productId) continue;
@@ -167,6 +170,7 @@ export async function cancelGoodsReceipt(companyId: string, id: string): Promise
       throw new Error('No se puede anular: uno o más productos de esta recepción ya fueron facturados');
     }
 
+    await lockProductRows(tx, companyId, receipt.items.map((line) => line.productId));
     for (const line of receipt.items) {
       if (line.productId) {
         const product = await tx.product.findFirst({ where: { id: line.productId, companyId } });

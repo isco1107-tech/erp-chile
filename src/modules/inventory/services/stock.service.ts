@@ -69,7 +69,49 @@ async function getCompanyStockTotal(tx: TxClient, companyId: string, productId: 
  * quedan consistentes.
  */
 async function lockProductRow(tx: TxClient, companyId: string, productId: string): Promise<void> {
+  const locked = lockedProductsByTx.get(tx);
+  if (locked?.has(productId)) return;
   await tx.$queryRaw`SELECT id FROM "Product" WHERE id = ${productId} AND "companyId" = ${companyId} FOR UPDATE`;
+  rememberLocked(tx, [productId]);
+}
+
+/**
+ * Productos ya bloqueados en cada transacción (la clave es el cliente `tx`,
+ * que es el mismo objeto durante todo el callback de `$transaction`). Un lock
+ * de fila dura hasta el fin de la transacción, así que repetir el `FOR UPDATE`
+ * no aporta nada y cuesta un viaje a la base por línea —con la base en otra
+ * región, ~11 ms cada uno, todos mientras se retienen los locks—.
+ */
+const lockedProductsByTx = new WeakMap<TxClient, Set<string>>();
+
+function rememberLocked(tx: TxClient, productIds: string[]): void {
+  const locked = lockedProductsByTx.get(tx) ?? new Set<string>();
+  for (const id of productIds) locked.add(id);
+  lockedProductsByTx.set(tx, locked);
+}
+
+/**
+ * Bloquea de una vez TODOS los productos que va a mover la transacción, en
+ * orden de id. Debe llamarse antes del primer movimiento de un documento con
+ * varias líneas.
+ *
+ * Sin esto cada línea tomaba su lock en el orden en que venía en el documento:
+ * una compra [A, B] y otra [B, A] confirmando a la vez se bloqueaban
+ * mutuamente y Postgres abortaba una con "deadlock detected" (la prueba de
+ * estrés `scripts/stress/concurrency.ts`, escenario `purchase-lock-order`, lo
+ * reproducía en 196 de 200 compras; lo mismo pasaba entre una factura y una
+ * boleta, que no comparten correlativo de folio). Con un orden global único
+ * —el mismo `ORDER BY id` que ya usaba la toma de inventario— dos
+ * transacciones solo pueden esperar una a la otra, nunca en círculo.
+ */
+export async function lockProductRows(tx: TxClient, companyId: string, productIds: Iterable<string | null | undefined>): Promise<void> {
+  const alreadyLocked = lockedProductsByTx.get(tx);
+  const ids = [...new Set([...productIds].filter((id): id is string => Boolean(id) && !alreadyLocked?.has(id as string)))].sort();
+  if (ids.length === 0) return;
+  const locked = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM "Product" WHERE "companyId" = ${companyId} AND id = ANY(${ids}) ORDER BY id FOR UPDATE`;
+  // Solo cuenta como bloqueado lo que la base devolvió (un id ajeno o
+  // inexistente no se marca).
+  rememberLocked(tx, Array.isArray(locked) ? locked.map((row) => row.id) : []);
 }
 
 export async function applyStockIn(tx: TxClient, companyId: string, params: StockInParams): Promise<InventoryMovement> {
@@ -338,24 +380,45 @@ export interface StockByWarehouseRow {
   valued: number;
 }
 
+/** Máximo de filas por página del listado de stock. */
+export const STOCK_LIST_MAX_PAGE_SIZE = 200;
+
+export interface StockByWarehousePage {
+  rows: StockByWarehouseRow[];
+  total: number;
+}
+
+/**
+ * Stock por producto y bodega, paginado. Antes devolvía TODAS las filas: con
+ * 20.000 productos la pantalla de Inventario dibujaba 20.450 filas (123.000
+ * nodos, 6 s y la pestaña al borde de colgarse — auditoría de estrés
+ * 2026-10-05). Ahora va por páginas, como Productos y Contactos.
+ */
 export async function listStockByWarehouse(
   companyId: string,
-  options?: { query?: string; warehouseId?: string }
-): Promise<StockByWarehouseRow[]> {
+  options?: { query?: string; warehouseId?: string; page?: number; pageSize?: number }
+): Promise<StockByWarehousePage> {
   const where: Prisma.StockWhereInput = { companyId };
   if (options?.warehouseId) where.warehouseId = options.warehouseId;
   const trimmed = options?.query?.trim();
   if (trimmed) {
     where.product = { OR: [{ sku: { contains: trimmed, mode: 'insensitive' } }, { name: { contains: trimmed, mode: 'insensitive' } }] };
   }
+  const pageSize = Math.min(Math.max(1, Math.floor(options?.pageSize ?? 50)), STOCK_LIST_MAX_PAGE_SIZE);
+  const page = Math.max(1, Math.floor(options?.page ?? 1));
 
-  const rows = await prisma.stock.findMany({
-    where,
-    include: { product: true, warehouse: true },
-    orderBy: [{ product: { name: 'asc' } }, { warehouse: { name: 'asc' } }],
-  });
+  const [rows, total] = await Promise.all([
+    prisma.stock.findMany({
+      where,
+      include: { product: true, warehouse: true },
+      orderBy: [{ product: { name: 'asc' } }, { warehouse: { name: 'asc' } }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.stock.count({ where }),
+  ]);
 
-  return rows.map((row) => ({
+  return { total, rows: rows.map((row) => ({
     productId: row.productId,
     productName: row.product.name,
     productSku: row.product.sku,
@@ -364,5 +427,5 @@ export async function listStockByWarehouse(
     quantity: row.quantity,
     pmp: row.product.costPricePMP,
     valued: Math.round(row.quantity * row.product.costPricePMP),
-  }));
+  })) };
 }

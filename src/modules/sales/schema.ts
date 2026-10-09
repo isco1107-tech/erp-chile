@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MAX_DOCUMENT_LINES, MAX_DOCUMENT_LINES_MESSAGE } from '@/lib/document-limits';
 
 export const DTE_TYPES = [
   'COTIZACION',
@@ -84,7 +85,11 @@ export const salesDocumentCreateSchema = z.object({
   salesOrderId: z.string().optional(),
   /** Vendedor al que se atribuye la venta; por defecto, quien la emite. */
   sellerId: z.string().optional(),
-  items: z.array(salesDocumentItemSchema).min(1, 'Agregue al menos un ítem'),
+  // Tope de líneas: un documento procesa sus líneas con el folio y los
+  // productos bloqueados; miles de líneas dejaban esos locks tomados hasta
+  // vencer la transacción y frenaban a toda la empresa (auditoría de estrés
+  // 2026-10-05).
+  items: z.array(salesDocumentItemSchema).min(1, 'Agregue al menos un ítem').max(MAX_DOCUMENT_LINES, MAX_DOCUMENT_LINES_MESSAGE),
 }).superRefine((value, ctx) => {
   if ((value.dteType === 'NOTA_CREDITO_61' || value.dteType === 'NOTA_DEBITO_56') && (!value.referenceFolio || !value.referenceType)) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['referenceFolio'], message: 'Las notas de crédito y débito requieren referencia al DTE original' });
@@ -108,7 +113,7 @@ export const salesOrderCreateSchema = z.object({
   sellerId: z.string().optional(),
   /** Cotización de origen, si la nota nace de una. */
   quoteId: z.string().optional(),
-  items: z.array(salesOrderItemSchema).min(1, 'Agregue al menos un ítem'),
+  items: z.array(salesOrderItemSchema).min(1, 'Agregue al menos un ítem').max(MAX_DOCUMENT_LINES, MAX_DOCUMENT_LINES_MESSAGE),
 });
 
 export type SalesOrderCreateInput = z.infer<typeof salesOrderCreateSchema>;

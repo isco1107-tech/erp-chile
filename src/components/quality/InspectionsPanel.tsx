@@ -182,7 +182,16 @@ export default function InspectionsPanel({ canWrite }: { canWrite: boolean }) {
         {loading ? (
           <p className="p-4 text-sm text-muted-foreground">Cargando…</p>
         ) : rows.length === 0 ? (
-          <EmptyState title="Sin inspecciones" description="Cada lote que revises queda registrado aquí, con quién lo entregó y qué se hizo si no aprobó." />
+          <EmptyState
+            title="Sin inspecciones"
+            description={
+              templates.length === 0
+                ? 'Cada lote que revises queda registrado aquí. Para empezar necesitas una plantilla: créala en la pestaña Plantillas o carga el paquete inicial en Procedimientos.'
+                : 'Cada lote que revises queda registrado aquí, con quién lo entregó y qué se hizo si no aprobó.'
+            }
+            actionLabel={canWrite && !open && templates.length > 0 ? 'Nueva inspección' : undefined}
+            onAction={canWrite && !open && templates.length > 0 ? () => setOpen(true) : undefined}
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">

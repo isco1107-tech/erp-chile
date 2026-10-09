@@ -177,7 +177,7 @@ export async function listVoteOrders(companyId: string, filters: VoteOrderListFi
  * Al pasar a `PAID` por primera vez dispara el correo de confirmación al
  * comprador — mismo criterio que `confirmTicketPayment`: fuera de la
  * transacción (un fallo de SMTP no debe revertir el pago ya confirmado) y
- * solo si `wasAlreadyPaid` es falso (para no reenviarlo si alguien vuelve a
+ * solo si esta llamada es la que la pasó a pagada (para no reenviarlo si alguien vuelve a
  * guardar el mismo monto).
  */
 export async function confirmVotePayment(companyId: string, id: string, data: ConfirmVotePaymentInput): Promise<VoteOrder> {
@@ -193,13 +193,26 @@ export async function confirmVotePayment(companyId: string, id: string, data: Co
   else if (data.paidAmount >= order.totalAmount) paymentStatus = 'PAID';
   else paymentStatus = 'PARTIAL';
 
-  const wasAlreadyPaid = order.paymentStatus === 'PAID';
-
-  await prisma.voteOrder.updateMany({ where: { id, companyId }, data: { paidAmount: data.paidAmount, paymentStatus } });
+  // Quién notifica lo decide la base, no una lectura previa: el UPDATE
+  // condicionado a "todavía no estaba pagada" solo lo gana UNA confirmación.
+  // Leyendo antes `paymentStatus`, dos confirmaciones simultáneas (doble clic,
+  // dos personas) veían ambas "no pagada" y el comprador recibía el correo
+  // dos veces (auditoría de estrés 2026-10-05).
+  let becamePaid = false;
+  if (paymentStatus === 'PAID') {
+    const transitioned = await prisma.voteOrder.updateMany({
+      where: { id, companyId, paymentStatus: { not: 'PAID' } },
+      data: { paidAmount: data.paidAmount, paymentStatus },
+    });
+    becamePaid = transitioned.count === 1;
+  }
+  if (!becamePaid) {
+    await prisma.voteOrder.updateMany({ where: { id, companyId }, data: { paidAmount: data.paidAmount, paymentStatus } });
+  }
   const updated = await prisma.voteOrder.findFirst({ where: { id, companyId } });
   if (!updated) throw new Error('Orden de votos no encontrada');
 
-  if (paymentStatus === 'PAID' && !wasAlreadyPaid) {
+  if (becamePaid) {
     const company = await prisma.company.findUnique({ where: { id: companyId }, select: { businessName: true } });
     void sendEmail({
       to: order.buyerEmail,

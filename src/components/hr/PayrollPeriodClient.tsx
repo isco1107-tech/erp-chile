@@ -250,7 +250,12 @@ export function PayrollPeriodClient({ periodId, canWrite, canClose }: { periodId
             </Button>
           </header>
           {rows.length === 0 ? (
-            <p className="px-4 py-8 text-center text-sm text-muted-foreground">No hay trabajadores vigentes en este mes. Crea sus fichas en Trabajadores.</p>
+            <div className="px-4 py-8 text-center">
+              <p className="text-sm text-muted-foreground">No hay trabajadores vigentes en este mes. Las liquidaciones se calculan desde la ficha de cada trabajador.</p>
+              <Link href="/dashboard/hr" className={cn(buttonVariants({ size: 'sm' }), 'mt-3')}>
+                Crear fichas en Trabajadores
+              </Link>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

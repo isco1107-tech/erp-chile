@@ -7,6 +7,8 @@ import RouteProgressBar from '@/components/shared/RouteProgressBar';
 import AetherBadge from '@/components/shared/AetherBadge';
 import PrivateAnalytics from '@/components/shared/PrivateAnalytics';
 import { appHosts } from '@/lib/hosting/custom-domain';
+import ZodLocale from '@/components/shared/ZodLocale';
+import '@/lib/zod-setup';
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
@@ -23,6 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="es" className={cn("font-sans", geist.variable)}>
       <body>
+        <ZodLocale />
         <RouteProgressBar />
         {children}
         <Toaster position="top-right" />

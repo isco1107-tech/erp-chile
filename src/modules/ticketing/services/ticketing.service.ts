@@ -304,13 +304,26 @@ export async function confirmTicketPayment(companyId: string, id: string, data: 
   else if (data.paidAmount >= sale.totalAmount) paymentStatus = 'PAID';
   else paymentStatus = 'PARTIAL';
 
-  const wasAlreadyPaid = sale.paymentStatus === 'PAID';
-
-  await prisma.ticketSale.updateMany({ where: { id, companyId }, data: { paidAmount: data.paidAmount, paymentStatus } });
+  // Quién notifica lo decide la base, no una lectura previa: el UPDATE
+  // condicionado a "todavía no estaba pagada" solo lo gana UNA confirmación.
+  // Leyendo antes `paymentStatus`, dos confirmaciones simultáneas (doble clic,
+  // dos personas) veían ambas "no pagada" y el comprador recibía el correo
+  // dos veces (auditoría de estrés 2026-10-05).
+  let becamePaid = false;
+  if (paymentStatus === 'PAID') {
+    const transitioned = await prisma.ticketSale.updateMany({
+      where: { id, companyId, paymentStatus: { not: 'PAID' } },
+      data: { paidAmount: data.paidAmount, paymentStatus },
+    });
+    becamePaid = transitioned.count === 1;
+  }
+  if (!becamePaid) {
+    await prisma.ticketSale.updateMany({ where: { id, companyId }, data: { paidAmount: data.paidAmount, paymentStatus } });
+  }
   const updated = await prisma.ticketSale.findFirst({ where: { id, companyId } });
   if (!updated) throw new Error('Orden de compra no encontrada');
 
-  if (paymentStatus === 'PAID' && !wasAlreadyPaid) {
+  if (becamePaid) {
     const company = await prisma.company.findUnique({ where: { id: companyId }, select: { businessName: true } });
     void sendEmail({
       to: sale.buyerEmail,

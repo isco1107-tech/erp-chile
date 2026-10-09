@@ -164,7 +164,22 @@ export default function ProceduresPanel({ canManage }: { canManage: boolean }) {
       {loading ? (
         <p className="text-sm text-muted-foreground">Cargando…</p>
       ) : rows.length === 0 ? (
-        <EmptyState title="Aún no hay procedimientos" description={canManage ? 'Parte con el paquete inicial (recepción de fruta, elaboración, higiene, despacho, reclamos, cierre semanal e inducción) y ajústalo a tu forma de trabajar.' : 'Cuando el administrador publique procedimientos, los verás aquí.'} />
+        <EmptyState
+          title="Aún no hay procedimientos"
+          description={canManage ? 'Parte con el paquete inicial (recepción de fruta, elaboración, higiene, despacho, reclamos, cierre semanal e inducción) y ajústalo a tu forma de trabajar, o escribe el primero desde cero.' : 'Cuando el administrador publique procedimientos, los verás aquí.'}
+          action={
+            canManage ? (
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <Button size="sm" disabled={busy === 'starter'} onClick={() => run('starter', installStarterPackAction)}>
+                  <Sparkles aria-hidden="true" /> Cargar paquete inicial
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => { setReader(null); setEditing({ id: null, title: '', category: 'OPERACION', summary: '', content: '', reviewEveryDays: '' }); }}>
+                  <Plus aria-hidden="true" /> Nuevo procedimiento
+                </Button>
+              </div>
+            ) : undefined
+          }
+        />
       ) : (
         PROCEDURE_CATEGORIES.map((category) => {
           const list = rows.filter((r) => r.category === category);

@@ -9,7 +9,7 @@ import type {
   PurchaseDocumentItem,
 } from '@prisma/client';
 import { computeDocument } from '@/modules/sales/calc';
-import { applyStockIn, applyStockOut, type TxClient } from '@/modules/inventory/services/stock.service';
+import { applyStockIn, applyStockOut, lockProductRows, type TxClient } from '@/modules/inventory/services/stock.service';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import {
   postPurchaseCreditNoteIssued,
@@ -239,6 +239,10 @@ export async function createPurchaseDocument(
     // duplicaría el stock y el PMP.
     if (finalStatus === 'ISSUED' && direction !== 'NONE' && !purchaseOrder) {
       const warehouseId = receptionWarehouseId;
+      // Todos los productos juntos y en orden de id antes del primer movimiento
+      // (evita deadlocks entre documentos con las mismas líneas en otro orden;
+      // ver `lockProductRows`).
+      await lockProductRows(tx, companyId, computedItems.map((item) => item.productId));
       for (const item of computedItems) {
         if (!item.productId) continue;
         if (!warehouseId) throw new Error('Seleccione una bodega de recepción para las líneas con producto');
@@ -583,6 +587,11 @@ export async function enrichPurchaseDocumentWithItems(
     // mueve stock, ese asiento quedó mal clasificado — se reversa y se postea
     // de nuevo con el detalle correcto, en vez de dejar ambos asientos
     // sumando la deuda con el proveedor dos veces.
+    // Productos ANTES del reverso: el reverso crea un asiento y toma el
+    // correlativo contable, y todas las demás rutas toman productos → asiento.
+    // En el orden inverso, agregar detalle a una compra mientras se vende el
+    // mismo producto podía terminar en deadlock (ver `lockProductRows`).
+    if (direction === 'IN') await lockProductRows(tx, companyId, computedItems.map((item) => item.productId));
     await reversePurchaseDocumentPosting(tx, companyId, doc.id, 'Detalle de productos agregado: re-posteo con costeo correcto');
 
     if (direction === 'IN') {
@@ -813,6 +822,10 @@ export async function issuePurchaseDocument(companyId: string, id: string): Prom
     }
 
     if (direction !== 'NONE') {
+      // Todos los productos juntos y en orden de id antes del primer movimiento
+      // (evita deadlocks entre documentos con las mismas líneas en otro orden;
+      // ver `lockProductRows`).
+      await lockProductRows(tx, companyId, doc.items.map((item) => item.productId));
       for (const item of doc.items) {
         if (!item.productId) continue;
         if (!item.warehouseId) throw new Error(`Falta la bodega de recepción para "${item.description}"`);
@@ -951,6 +964,10 @@ export async function approvePurchaseDocument(
     // quedan pendientes de aprobación (ver createPurchaseDocument) — así que
     // acá solo hace falta manejar 'IN' (recepción) y 'NONE' (sin efecto).
     if (direction === 'IN') {
+      // Todos los productos juntos y en orden de id antes del primer movimiento
+      // (evita deadlocks entre documentos con las mismas líneas en otro orden;
+      // ver `lockProductRows`).
+      await lockProductRows(tx, companyId, doc.items.map((item) => item.productId));
       for (const item of doc.items) {
         if (!item.productId) continue;
         if (!item.warehouseId) throw new Error(`Falta la bodega de recepción para "${item.description}"`);

@@ -131,7 +131,12 @@ export default function TemplatesPanel({ canManage }: { canManage: boolean }) {
         {loading ? (
           <p className="p-4 text-sm text-muted-foreground">Cargando…</p>
         ) : rows.length === 0 ? (
-          <EmptyState title="Aún no hay plantillas" description="Crea una, o carga el paquete inicial desde la pestaña Procedimientos." />
+          <EmptyState
+            title="Aún no hay plantillas"
+            description={canManage ? 'Una plantilla define qué se mide en cada inspección. Crea la primera, o carga el paquete inicial desde la pestaña Procedimientos.' : 'Cuando el administrador cree plantillas de inspección, las verás aquí.'}
+            actionLabel={canManage && !draft ? 'Nueva plantilla' : undefined}
+            onAction={canManage && !draft ? () => setDraft({ id: null, name: '', kind: 'FINISHED', isActive: true, parameters: [emptyParam()] }) : undefined}
+          />
         ) : (
           <ul className="divide-y divide-border">
             {rows.map((t) => (

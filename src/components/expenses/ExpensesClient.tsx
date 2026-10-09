@@ -191,7 +191,20 @@ export function ExpensesClient() {
 
       {reports.length === 0 ? (
         <div className="rounded-lg border border-border bg-card shadow-card">
-          <EmptyState title="No hay rendiciones aquí" description={tab === 'mine' ? 'Crea una rendición, agrega tus boletas y envíala a aprobación.' : 'Nada pendiente en esta bandeja.'} icon={<ReceiptText className="size-10 text-muted-foreground/40" strokeWidth={1.5} />} />
+          <EmptyState
+            title="No hay rendiciones aquí"
+            description={tab === 'mine' ? 'Una rendición agrupa tus boletas y gastos para que te los reembolsen. Crea una, agrega cada gasto y envíala a aprobación.' : 'Nada pendiente en esta bandeja. Cuando alguien envíe una rendición a aprobación, aparecerá aquí.'}
+            icon={<ReceiptText className="size-10 text-muted-foreground/40" strokeWidth={1.5} />}
+            actionLabel={tab === 'mine' ? 'Nueva rendición' : undefined}
+            onAction={
+              tab === 'mine'
+                ? () => {
+                    setNewReport({ title: '', projectId: '' });
+                    setCreateOpen(true);
+                  }
+                : undefined
+            }
+          />
         </div>
       ) : (
         <ul className="space-y-2">
@@ -305,7 +318,7 @@ export function ExpensesClient() {
                     {detail.items.length === 0 && (
                       <tr>
                         <td colSpan={5} className="px-3 py-6 text-center text-sm text-muted-foreground">
-                          Sin gastos todavía.
+                          Sin gastos todavía.{editable ? ' Agrégalos con el formulario «Agregar gasto» de abajo.' : ''}
                         </td>
                       </tr>
                     )}

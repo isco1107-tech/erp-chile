@@ -34,6 +34,8 @@ export interface DataTableProps<T> {
   loading?: boolean;
   emptyTitle?: string;
   emptyDescription?: string;
+  /** Siguiente paso cuando la tabla está vacía (botón o enlace para crear el primer registro). */
+  emptyAction?: React.ReactNode;
   /** Slots de la barra superior: buscador, chips de filtro, botón exportar. */
   searchSlot?: React.ReactNode;
   filterSlot?: React.ReactNode;
@@ -59,6 +61,7 @@ export function DataTable<T>({
   loading,
   emptyTitle = 'Sin resultados',
   emptyDescription,
+  emptyAction,
   searchSlot,
   filterSlot,
   exportSlot,
@@ -135,7 +138,7 @@ export function DataTable<T>({
         </table>
 
         {!loading && data.length === 0 && (
-          <EmptyState title={emptyTitle} description={emptyDescription} />
+          <EmptyState title={emptyTitle} description={emptyDescription} action={emptyAction} />
         )}
       </div>
 

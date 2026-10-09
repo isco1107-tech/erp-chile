@@ -58,7 +58,11 @@ export default function PurchaseOrderDetailClient({
   }
 
   async function handleCancel() {
-    if (!await confirm('¿Anular esta orden de compra?')) return;
+    if (!await confirm({
+      title: '¿Anular esta orden de compra?',
+      description: 'La orden queda anulada y no se puede reabrir; si aún quieres comprar, tendrás que crear una nueva. Solo es posible mientras no se haya recibido mercadería contra ella. No mueve stock ni contabilidad.',
+      confirmLabel: 'Anular',
+    })) return;
     setBusy(true);
     try {
       const result = await cancelPurchaseOrderAction(order.id);

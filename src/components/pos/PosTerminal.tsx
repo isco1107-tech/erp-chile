@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Delete, Printer, ScanBarcode, Trash2 } from 'lucide-react';
@@ -9,7 +10,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import PosTicket, { type TicketData } from './PosTicket';
-import { createPosSaleAction, listPosProductsAction } from '@/modules/pos/actions/pos.actions';
+import {
+  createPosSaleAction,
+  getPosFolioStatusAction,
+  listPosProductsAction,
+  type PosFolioStatus,
+} from '@/modules/pos/actions/pos.actions';
+import FolioNotice from '@/components/sales/FolioNotice';
 import type { PosProduct } from '@/modules/pos/services/pos.service';
 import {
   POS_PAYMENT_METHODS,
@@ -60,6 +67,7 @@ export default function PosTerminal(props: Props) {
   const [customerRut, setCustomerRut] = useState('');
   const [saving, setSaving] = useState(false);
   const [ticket, setTicket] = useState<TicketData | null>(null);
+  const [folioStatus, setFolioStatus] = useState<PosFolioStatus | null>(null);
 
   const searchRef = useRef<HTMLInputElement>(null);
   // Una clave por venta: un reintento de la MISMA venta (respuesta perdida,
@@ -87,6 +95,13 @@ export default function PosTerminal(props: Props) {
     });
   }, [props.warehouseId, focusSearch]);
 
+  // Qué numeración llevará la boleta: se avisa antes de cobrar, no después.
+  useEffect(() => {
+    getPosFolioStatusAction().then((result) => {
+      if (result.success) setFolioStatus(result.data);
+    });
+  }, []);
+
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [];
@@ -108,6 +123,9 @@ export default function PosTerminal(props: Props) {
     [cart]
   );
 
+  // Catálogo vacío, o con todo en cero en la bodega de esta caja: se explica el porqué en vez de dejar un buscador que nunca encuentra nada.
+  const catalogEmpty = !loadingProducts && products.length === 0;
+  const allOutOfStock = !loadingProducts && products.length > 0 && products.every((p) => p.isTrackable && p.stock <= 0);
   const total = computed.totals.totalAmount;
   const received = Number(cashReceived) || 0;
   const change = received - total;
@@ -295,6 +313,36 @@ export default function PosTerminal(props: Props) {
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
       <div className="space-y-3">
+        {folioStatus && (
+          <FolioNotice
+            dteType="BOLETA_39"
+            hasDteBilling={folioStatus.hasDteBilling}
+            hasFolios={folioStatus.hasFolios}
+            canManageFolios={folioStatus.canManageFolios}
+          />
+        )}
+        {catalogEmpty && (
+          <div role="note" className="rounded-lg border border-warning/30 bg-warning-soft px-3 py-2 text-sm text-warning">
+            <p className="font-medium">No hay productos para vender.</p>
+            <p className="mt-0.5 text-xs">
+              Esta caja vende solo productos activos del catálogo. Crea tus productos en{' '}
+              <Link href="/dashboard/products" className="font-semibold underline underline-offset-2">Catálogo de Productos</Link>
+              {' '}y vuelve a abrir esta pantalla.
+            </p>
+          </div>
+        )}
+        {allOutOfStock && (
+          <div role="note" className="rounded-lg border border-warning/30 bg-warning-soft px-3 py-2 text-sm text-warning">
+            <p className="font-medium">Ningún producto tiene stock en {props.warehouseName}.</p>
+            <p className="mt-0.5 text-xs">
+              Esta caja descuenta stock de esa bodega, y, salvo que tu empresa permita stock negativo, el sistema rechaza ventas sobre el stock disponible. Registra una entrada en{' '}
+              <Link href="/dashboard/inventory?openStockForm=1" className="font-semibold underline underline-offset-2">
+                Inventario → «Ajuste de Stock / Entrada Directa»
+              </Link>
+              .
+            </p>
+          </div>
+        )}
         <div className="rounded-2xl border border-border bg-card shadow-card p-4">
           <Label htmlFor="pos-search" className="mb-2 flex items-center gap-2">
             <ScanBarcode className="size-4 text-muted-foreground" aria-hidden="true" /> Escanear o buscar producto
@@ -314,6 +362,12 @@ export default function PosTerminal(props: Props) {
           <p id="pos-search-hint" className="mt-2 text-xs text-muted-foreground">
             {loadingProducts ? 'Cargando catálogo…' : 'El lector de código de barras agrega el producto al instante.'}
           </p>
+          {matches.length > 0 && matches.some((p) => p.isTrackable && p.stock <= 0) && (
+            <p className="mt-2 text-xs text-destructive">
+              Los productos con «Stock 0» no tienen existencias en {props.warehouseName}: la venta puede ser rechazada hasta que ingreses stock en{' '}
+              <Link href="/dashboard/inventory?openStockForm=1" className="font-medium underline underline-offset-2">Inventario</Link>.
+            </p>
+          )}
           {matches.length > 0 && (
             <ul className="mt-2 divide-y divide-border rounded-lg border border-border">
               {matches.map((product) => (

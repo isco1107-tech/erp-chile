@@ -7,6 +7,7 @@ import { CurrencyInput } from '@/components/ui/CurrencyInput';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { FieldLabel } from '@/components/ui/FieldLabel';
 import { RutInput } from '@/components/ui/RutInput';
 import { nativeSelectClass, textareaClass } from '@/components/ui/field-classes';
 import { AFP_INSTITUTIONS, AFP_LABELS, type AfpInstitutionKey } from '@/lib/chile/payroll';
@@ -117,7 +118,7 @@ export function EmployeeFormDialog({ open, onOpenChange, initial, onSaved }: { o
           <Section title="Datos personales">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div>
-                <Label htmlFor="emp-rut">RUT</Label>
+                <FieldLabel htmlFor="emp-rut" term="rut">RUT</FieldLabel>
                 <RutInput id="emp-rut" value={values.rut} onChange={(rut) => set('rut', rut)} />
               </div>
               <div className="sm:col-span-2">
@@ -181,11 +182,11 @@ export function EmployeeFormDialog({ open, onOpenChange, initial, onSaved }: { o
           <Section title="Remuneración mensual">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <Label htmlFor="emp-salary">Sueldo base</Label>
+                <FieldLabel htmlFor="emp-salary" term="sueldoImponible" hint="El sueldo base es imponible.">Sueldo base (imponible)</FieldLabel>
                 <CurrencyInput id="emp-salary" value={values.baseSalary} onChange={(v) => set('baseSalary', v)} />
               </div>
               <div>
-                <Label htmlFor="emp-grat">Gratificación</Label>
+                <FieldLabel htmlFor="emp-grat" term="gratificacion">Gratificación</FieldLabel>
                 <select id="emp-grat" className={nativeSelectClass} value={values.gratificationMode} onChange={(e) => set('gratificationMode', e.target.value as EmployeeFormValues['gratificationMode'])}>
                   {GRATIFICATION_MODES.map((mode) => (
                     <option key={mode} value={mode}>
@@ -195,11 +196,11 @@ export function EmployeeFormDialog({ open, onOpenChange, initial, onSaved }: { o
                 </select>
               </div>
               <div>
-                <Label htmlFor="emp-meal">Colación (no imponible)</Label>
+                <FieldLabel htmlFor="emp-meal" term="colacionMovilizacion">Colación (no imponible)</FieldLabel>
                 <CurrencyInput id="emp-meal" value={values.mealAllowance} onChange={(v) => set('mealAllowance', v)} />
               </div>
               <div>
-                <Label htmlFor="emp-transport">Movilización (no imponible)</Label>
+                <FieldLabel htmlFor="emp-transport" term="colacionMovilizacion">Movilización (no imponible)</FieldLabel>
                 <CurrencyInput id="emp-transport" value={values.transportAllowance} onChange={(v) => set('transportAllowance', v)} />
               </div>
             </div>
@@ -208,7 +209,7 @@ export function EmployeeFormDialog({ open, onOpenChange, initial, onSaved }: { o
           <Section title="Previsión y salud">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
               <div>
-                <Label htmlFor="emp-afp">AFP</Label>
+                <FieldLabel htmlFor="emp-afp" term="afp">AFP (pensión)</FieldLabel>
                 <select id="emp-afp" className={nativeSelectClass} value={values.afp} onChange={(e) => set('afp', e.target.value as AfpInstitutionKey)}>
                   {AFP_INSTITUTIONS.map((afp) => (
                     <option key={afp} value={afp}>
@@ -218,7 +219,7 @@ export function EmployeeFormDialog({ open, onOpenChange, initial, onSaved }: { o
                 </select>
               </div>
               <div>
-                <Label htmlFor="emp-health">Salud</Label>
+                <FieldLabel htmlFor="emp-health" term="fonasa">Salud (Fonasa o isapre)</FieldLabel>
                 <select id="emp-health" className={nativeSelectClass} value={values.healthInsurance} onChange={(e) => set('healthInsurance', e.target.value as EmployeeFormValues['healthInsurance'])}>
                   <option value="FONASA">Fonasa</option>
                   <option value="ISAPRE">Isapre</option>
@@ -227,11 +228,11 @@ export function EmployeeFormDialog({ open, onOpenChange, initial, onSaved }: { o
               {values.healthInsurance === 'ISAPRE' && (
                 <>
                   <div>
-                    <Label htmlFor="emp-isapre">Isapre</Label>
+                    <FieldLabel htmlFor="emp-isapre" term="isapre">Isapre</FieldLabel>
                     <Input id="emp-isapre" value={values.isapreName} onChange={(e) => set('isapreName', e.target.value)} placeholder="Nombre" />
                   </div>
                   <div>
-                    <Label htmlFor="emp-plan">Plan (UF)</Label>
+                    <FieldLabel htmlFor="emp-plan" term="ufUtm" hint="El plan de la isapre se pacta en UF: ingresa el valor que dice el contrato de salud del trabajador.">Plan de salud (UF)</FieldLabel>
                     <Input id="emp-plan" inputMode="decimal" value={values.isaprePlanUf} onChange={(e) => set('isaprePlanUf', e.target.value)} placeholder="Ej.: 3,25" />
                   </div>
                 </>

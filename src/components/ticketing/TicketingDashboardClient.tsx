@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { QrCode, Plus, Trash2, Ticket, TicketCheck, Wallet, ScanLine } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CurrencyInput } from '@/components/ui/CurrencyInput';
@@ -213,7 +215,19 @@ export default function TicketingDashboardClient({ canWrite }: { canWrite: boole
         {canWrite && projectId && <TicketingLinkButton projectId={projectId} />}
       </div>
 
-      {!projectId && <p className="text-sm text-muted-foreground">No hay proyectos/certámenes creados todavía.</p>}
+      {!projectId && (
+        <Card>
+          <EmptyState
+            title="Primero crea un certamen"
+            description="Para vender entradas necesitas un certamen o evento: las entradas se configuran dentro de cada uno. Crea el primero y vuelve aquí."
+            action={
+              <Link href="/dashboard/projects/new" className={buttonVariants({ size: 'sm' })}>
+                Crear certamen
+              </Link>
+            }
+          />
+        </Card>
+      )}
 
       {projectId && (
         <>
@@ -227,7 +241,14 @@ export default function TicketingDashboardClient({ canWrite }: { canWrite: boole
           <Card>
             <CardHeader><CardTitle>Tipos de entrada</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-              {ticketTypes.length === 0 && <p className="text-sm text-muted-foreground">Todavía no hay tipos de entrada para este proyecto.</p>}
+              {ticketTypes.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Todavía no hay tipos de entrada para este proyecto.
+                  {canWrite
+                    ? ' Agrega el primero con el formulario de abajo (nombre, precio y cupo opcional); luego copia el link de venta y compártelo.'
+                    : ' Quien administra las entradas debe crear el primero.'}
+                </p>
+              )}
               {ticketTypes.map((tt) => {
                 const row = summary.find((s) => s.ticketTypeId === tt.id);
                 return (
@@ -302,7 +323,11 @@ export default function TicketingDashboardClient({ canWrite }: { canWrite: boole
             getRowId={(s) => s.id}
             loading={loading}
             emptyTitle="Sin ventas todavía"
-            emptyDescription="Comparte el link público de venta para recibir compras."
+            emptyDescription={
+              ticketTypes.length === 0
+                ? 'Primero crea un tipo de entrada arriba; luego comparte el link público de venta para recibir compras.'
+                : 'Comparte el link público de venta («Copiar link de venta») para recibir compras.'
+            }
           />
         </>
       )}

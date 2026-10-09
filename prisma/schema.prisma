@@ -866,6 +866,7 @@ model Contact {
 
   @@unique([companyId, rutClean])
   @@index([companyId, razonSocial])
+  @@index([companyId, createdAt])
 }
 
 enum MovementType {
@@ -983,6 +984,7 @@ model Stock {
 
   @@unique([companyId, productId, warehouseId])
   @@index([companyId, productId])
+  @@index([productId])
 }
 
 model InventoryMovement {
@@ -1009,6 +1011,7 @@ model InventoryMovement {
   createdAt      DateTime     @default(now())
 
   @@index([companyId, productId, createdAt])
+  @@index([companyId, createdAt])
 }
 
 enum DteType {
@@ -1150,6 +1153,9 @@ model SalesDocument {
   @@index([companyId, contactId, status, paymentStatus])
   @@index([companyId, salesOrderId])
   @@index([companyId, sellerId, issueDate])
+  /// Listados (orden por creación) y reportes/F29/tablero (rango de emisión).
+  @@index([companyId, createdAt])
+  @@index([companyId, issueDate])
 }
 
 model SalesDocumentItem {
@@ -1175,6 +1181,10 @@ model SalesDocumentItem {
   salesOrderItem   SalesOrderItem? @relation(fields: [salesOrderItemId], references: [id], onDelete: SetNull)
 
   @@index([companyId, documentId])
+  /// Prisma carga `include: { items }` con `WHERE "documentId" IN (…)` sin
+  /// `companyId`: sin este índice cada detalle de venta recorría la tabla entera.
+  @@index([documentId])
+  @@index([productId])
 }
 
 model PurchaseDocument {
@@ -1259,6 +1269,8 @@ model PurchaseDocument {
   @@index([companyId, purchaseOrderId])
   @@index([companyId, matchStatus])
   @@index([companyId, projectId])
+  @@index([companyId, createdAt])
+  @@index([companyId, issueDate])
 }
 
 enum PurchaseApprovalStatus {
@@ -1420,6 +1432,7 @@ model PurchaseDocumentItem {
 
   @@index([companyId, documentId])
   @@index([companyId, productId])
+  @@index([documentId])
 }
 
 model Payment {
@@ -1503,6 +1516,8 @@ model Payment {
   @@index([companyId, sponsorshipContractId])
   // Lo crea la migración 20260927040316; declararlo evita que un diff lo borre.
   @@index([feeDocumentId])
+  @@index([salesDocumentId])
+  @@index([purchaseDocumentId])
 }
 
 /// Caja física del local. Se ata a una bodega porque toda venta del POS
@@ -1871,6 +1886,7 @@ model JournalLine {
   @@index([companyId, customerId])
   @@index([companyId, supplierId])
   @@index([companyId, costCenterId])
+  @@index([entryId])
 }
 
 /// Unidad de negocio para abrir el estado de resultados. No mueve dinero por
@@ -3237,6 +3253,7 @@ model TicketSale {
   @@index([companyId, projectId])
   @@index([companyId, paymentStatus])
   @@index([companyId, ticketTypeId])
+  @@index([ticketTypeId])
 }
 
 /// Orden de votos pagados por una candidata, creada desde `/votar/[token]`

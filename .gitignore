@@ -41,3 +41,6 @@ graphify-out/
 *.log
 /images*.jpg
 /Factura-*.webp
+
+# Informes de las pruebas de estrés (scripts/stress/)
+.stress-out/

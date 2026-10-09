@@ -26,10 +26,11 @@ import { ConfirmProvider } from '@/components/ui/confirm-provider';
 import OnboardingWizard from '@/components/onboarding/OnboardingWizard';
 import PresenceHeartbeat from '@/components/shared/PresenceHeartbeat';
 import ManualAssistantWidget from '@/components/shared/ManualAssistantWidget';
-import ModuleTutorial from '@/components/tutorial/ModuleTutorial';
+import TourAfterOnboarding from '@/components/onboarding/TourAfterOnboarding';
 import HowToUseButton from '@/components/tutorial/HowToUseButton';
 import { getOnboardingStatus } from '@/lib/services/onboarding.service';
 import { getVisibleManualSections } from '@/modules/manual/content';
+import { SCREEN_PURPOSES } from '@/modules/manual/knowledge';
 import { toManualHints } from '@/modules/manual/hints';
 import { prisma } from '@/lib/prisma';
 
@@ -82,6 +83,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
   });
   const groups = applyDisabledNavItems(availableGroups, disabledNavItems);
   const visibleIds = new Set(groups.flatMap((group) => group.links.map((link) => link.id)));
+  // "Para qué sirve" de cada pantalla visible (tooltip del menú y subtítulo de ⌘K).
+  // Solo viajan las frases de los ítems que el usuario ve, no todo el diccionario.
+  const screenPurposes: Record<string, string> = {};
+  for (const id of visibleIds) {
+    const purpose = SCREEN_PURPOSES[id];
+    if (purpose) screenPurposes[id] = purpose;
+  }
   const gateSections: GateSection[] = availableGroups.flatMap((group) =>
     group.links.map((link) => ({ id: link.id, href: link.href, label: link.label, exact: link.exact, disabled: !visibleIds.has(link.id) }))
   );
@@ -190,7 +198,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
               </div>
 
               <div className="flex min-h-0 flex-1 flex-col px-2">
-                <SidebarNav groups={groups} />
+                <SidebarNav groups={groups} purposes={screenPurposes} />
               </div>
 
               <div className="flex shrink-0 items-center gap-2.5 border-t border-white/[0.06] px-4 py-3">
@@ -217,6 +225,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
                 features={features}
                 isSuperAdmin={context.isSuperAdmin}
                 disabledNavItems={disabledNavItems}
+                purposes={screenPurposes}
               />
               <div className="flex-1" />
               <HowToUseButton />
@@ -247,13 +256,21 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <OnboardingWizard
             companyId={context.companyId}
             hasPos={features.hasPos}
+            hasInventory={features.hasInventory}
+            hasMultipleWarehouses={features.hasMultipleWarehouses}
             defaultWarehouseId={defaultWarehouseId}
             autoOpen={onboardingEligible}
           />
         )}
         <PresenceHeartbeat />
         <ManualAssistantWidget userId={context.id} manualHints={manualHints} />
-        <ModuleTutorial userId={context.id} manualHints={manualHints} />
+        {/* El recorrido espera a que el asistente de bienvenida se cierre: abiertos a la vez se tapaban. */}
+        <TourAfterOnboarding
+          userId={context.id}
+          manualHints={manualHints}
+          companyId={context.companyId}
+          wizardMayAutoOpen={context.role === 'OWNER' && onboardingEligible}
+        />
       </ConfirmProvider>
     </div>
   );

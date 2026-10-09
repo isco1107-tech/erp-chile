@@ -80,6 +80,7 @@ Este archivo contiene las reglas arquitectónicas, estándares de seguridad y l�
   - **Excepción deliberada a "CLP en enteros":** el PMP se redondea a 2 decimales, no a entero — es un costo unitario intermedio, y redondear a entero en cada compra sucesiva arrastraría error de redondeo. Los montos finales (totales de documento, pagos) sí son siempre enteros.
   - Salidas y ventas descuentan inventario al PMP vigente en el momento de la salida (leído dentro de la misma transacción, nunca recalculado después) dentro de transacciones atómicas `prisma.$transaction`.
   - Venta con stock insuficiente: bloqueada por defecto; permitida solo si `CompanySettings.allowNegativeStock` está activo para esa empresa.
+  - **Orden de los locks:** toda ruta que mueva stock de un documento con varias líneas llama `lockProductRows(tx, companyId, ids)` ANTES del primer `applyStockIn/Out` (bloquea todos los productos juntos, ordenados por id). Orden global: productos → folio (`assignSalesFolio`, que va lo más cerca posible del `create`) → correlativo contable. Tomar los locks línea por línea producía deadlocks (196 de 200 compras simultáneas en la prueba de estrés). Verificar con `scripts/stress/concurrency.ts` (solo base local; ver `docs/auditoria-estres-ux-2026-10-05.md`).
 
 ---
 

@@ -14,7 +14,17 @@ interface ModuleGateProps {
   children: React.ReactNode;
 }
 
-function LockedView({ title, message, hint }: { title: string; message: string; hint: string }) {
+function LockedView({
+  title,
+  message,
+  hint,
+  action,
+}: {
+  title: string;
+  message: string;
+  hint: string;
+  action?: { href: string; label: string };
+}) {
   return (
     <div className="mx-auto flex max-w-lg flex-col items-center gap-3 rounded-xl border border-border bg-muted/30 p-8 text-center">
       <div className="rounded-full bg-muted p-3">
@@ -23,9 +33,16 @@ function LockedView({ title, message, hint }: { title: string; message: string; 
       <h1 className="text-xl font-bold">{title}</h1>
       <p className="text-sm text-muted-foreground">{message}</p>
       <p className="text-xs text-muted-foreground">{hint}</p>
-      <Link href="/dashboard" className={buttonVariants({ variant: 'outline' })}>
-        Volver al Dashboard
-      </Link>
+      <div className="flex flex-wrap justify-center gap-2">
+        {action && (
+          <Link href={action.href} className={buttonVariants()}>
+            {action.label}
+          </Link>
+        )}
+        <Link href="/dashboard" className={buttonVariants({ variant: 'outline' })}>
+          Volver al Dashboard
+        </Link>
+      </div>
     </div>
   );
 }
@@ -42,11 +59,17 @@ export default async function ModuleGate({ moduleKey, permission, children }: Mo
     const mod = getModule(moduleKey);
 
     if (!context.features[moduleKey]) {
+      const canRequest = can(context, 'settings:company');
       return (
         <LockedView
           title="Módulo no incluido en tu plan actual"
-          message={`${mod.label} no está habilitado para ${context.companyName}. Contacta al administrador para habilitarlo.`}
-          hint={`Plan actual: ${context.planName}`}
+          message={`${mod.label} no está habilitado para ${context.companyName}.`}
+          hint={
+            canRequest
+              ? `Plan actual: ${context.planName}. Puedes pedir el módulo desde Planes y Módulos.`
+              : `Plan actual: ${context.planName}. Pídele al dueño de la cuenta que lo solicite.`
+          }
+          action={canRequest ? { href: '/dashboard/settings/plans', label: 'Ver planes y pedir el módulo' } : undefined}
         />
       );
     }
@@ -56,7 +79,7 @@ export default async function ModuleGate({ moduleKey, permission, children }: Mo
         <LockedView
           title="No tienes acceso a esta sección"
           message={`Tu rol no incluye el permiso necesario para ${mod.label.toLowerCase()}.`}
-          hint="Pide a un Administrador de tu empresa que ajuste tu rol."
+          hint="Pídele al dueño de la cuenta que ajuste tu rol (Configuración → Equipo & Colaboradores)."
         />
       );
     }

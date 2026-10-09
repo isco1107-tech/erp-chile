@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import type { DteType, SalesDocument, SalesDocumentItem } from '@prisma/client';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
-import { applyStockOut } from '@/modules/inventory/services/stock.service';
+import { applyStockOut, lockProductRows } from '@/modules/inventory/services/stock.service';
 import { computeDocument } from '../calc';
 import { DTE_TYPE_LABELS, STOCK_AFFECTING_DTE_TYPES } from '../schema';
 
@@ -244,6 +244,7 @@ export async function importHistoricalSalesDocument(
     // Las líneas sin `productId` (sin coincidencia confirmada) se saltan: son
     // detalle informativo, igual que la línea sintética de siempre.
     if (hasRealItems && STOCK_AFFECTING_DTE_TYPES.includes(input.dteType)) {
+      await lockProductRows(tx, companyId, computedItems.map((item) => item.productId));
       for (const item of computedItems) {
         if (!item.productId) continue;
         const product = await tx.product.findFirst({ where: { id: item.productId, companyId } });

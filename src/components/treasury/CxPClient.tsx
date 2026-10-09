@@ -85,19 +85,25 @@ export default function CxPClient() {
 
       <AgingSummary title="Antigüedad de la deuda con proveedores" items={agingItems} />
 
+      {!loading && !failed && summary && summary.openCount > rows.length && (
+        <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+          Se muestran los {rows.length} documentos más antiguos de {summary.openCount.toLocaleString('es-CL')} pendientes (los totales de arriba sí incluyen todos). Para ver un documento en particular, búscalo en <Link href="/dashboard/purchases" className="font-medium underline underline-offset-2">Compras</Link>.
+        </p>
+      )}
+
       <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-card">
         <table className="w-full min-w-[1000px] text-sm">
           <thead className="border-b border-border bg-muted/50 text-left text-xs text-muted-foreground">
             <tr>
-              <th className="px-4 py-2.5 font-medium">Documento</th>
-              <th className="px-4 py-2.5 font-medium">Proveedor</th>
-              <th className="px-4 py-2.5 font-medium">Emisión</th>
-              <th className="px-4 py-2.5 font-medium">Vencimiento</th>
-              <th className="px-4 py-2.5 text-right font-medium">Total</th>
-              <th className="px-4 py-2.5 text-right font-medium">Pagado</th>
-              <th className="px-4 py-2.5 text-right font-medium">Saldo</th>
-              <th className="px-4 py-2.5 font-medium">Estado</th>
-              <th className="px-4 py-2.5 font-medium">
+              <th className="px-3 py-2.5 font-medium">Documento</th>
+              <th className="px-3 py-2.5 font-medium">Proveedor</th>
+              <th className="px-3 py-2.5 font-medium">Emisión</th>
+              <th className="px-3 py-2.5 font-medium">Vencimiento</th>
+              <th className="px-3 py-2.5 text-right font-medium">Total</th>
+              <th className="px-3 py-2.5 text-right font-medium">Pagado</th>
+              <th className="px-3 py-2.5 text-right font-medium">Saldo</th>
+              <th className="px-3 py-2.5 font-medium">Estado</th>
+              <th className="px-3 py-2.5 font-medium">
                 <span className="sr-only">Acciones</span>
               </th>
             </tr>
@@ -140,28 +146,28 @@ export default function CxPClient() {
                 const late = daysOverdue(doc.dueDate);
                 return (
                   <tr key={doc.id} className="border-b border-border/60 last:border-0 hover:bg-muted/30">
-                    <td className="px-4 py-2.5">
+                    <td className="px-3 py-2.5">
                       <Link href={`/dashboard/purchases/${doc.id}`} className="font-medium hover:underline">
                         N° {doc.folio}
                       </Link>
                       <div className="text-xs text-muted-foreground">{PURCHASE_DOCUMENT_TYPE_LABELS[doc.documentType]}</div>
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-3 py-2.5">
                       <div className="max-w-[16rem] truncate">{doc.contact.razonSocial}</div>
                       <div className="text-xs text-muted-foreground">{doc.contact.rut}</div>
                     </td>
-                    <td className="px-4 py-2.5 text-muted-foreground">{dateFormat.format(new Date(doc.issueDate))}</td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-3 py-2.5 text-muted-foreground">{dateFormat.format(new Date(doc.issueDate))}</td>
+                    <td className="px-3 py-2.5">
                       {doc.dueDate ? dateFormat.format(new Date(doc.dueDate)) : '—'}
                       {state === 'OVERDUE' && late > 0 && <div className="text-xs font-medium text-danger">{late} días de atraso</div>}
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">{formatCurrency(doc.totalAmount)}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">{formatCurrency(doc.paidAmount)}</td>
-                    <td className="px-4 py-2.5 text-right font-semibold tabular-nums">{formatCurrency(doc.totalAmount - doc.paidAmount)}</td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-3 py-2.5 text-right tabular-nums">{formatCurrency(doc.totalAmount)}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">{formatCurrency(doc.paidAmount)}</td>
+                    <td className="px-3 py-2.5 text-right font-semibold tabular-nums">{formatCurrency(doc.totalAmount - doc.paidAmount)}</td>
+                    <td className="px-3 py-2.5">
                       <StatusBadge tone={ROW_STATE[state].tone}>{ROW_STATE[state].label}</StatusBadge>
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-3 py-2.5">
                       <div className="flex justify-end">
                         <RegisterPaymentDialog
                           kind="purchase"

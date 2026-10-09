@@ -7,10 +7,14 @@ import {
   requireAuthWithPermission,
 } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
-import { buildReportDataset } from '@/modules/reports/services/dataset.service';
+import { REPORT_MAX_ROWS, buildReportDataset, countReportRows } from '@/modules/reports/services/dataset.service';
 import { buildWorkbook } from '@/modules/reports/services/workbook.service';
 import { captureException } from '@/lib/observability';
 import { startOfMonthSantiago } from '@/lib/chile/timezone';
+
+// Un rango grande arma un libro pesado: margen para generarlo antes de que la
+// plataforma corte la función (el tope de filas de abajo lo mantiene acotado).
+export const maxDuration = 60;
 
 const rangeSchema = z.object({
   from: z.coerce.date(),
@@ -51,6 +55,17 @@ export async function GET(req: Request) {
     }
     // Incluye el día completo del extremo superior.
     range.to = new Date(range.to.getFullYear(), range.to.getMonth(), range.to.getDate(), 23, 59, 59, 999);
+
+    const rows = await countReportRows(session.companyId, range);
+    if (rows > REPORT_MAX_ROWS) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `El período elegido tiene ${rows.toLocaleString('es-CL')} movimientos y el máximo por archivo es ${REPORT_MAX_ROWS.toLocaleString('es-CL')}. Elige un rango más corto (por ejemplo, un mes o un trimestre) y descarga un archivo por cada uno.`,
+        },
+        { status: 413 }
+      );
+    }
 
     const dataset = await buildReportDataset(session.companyId, range);
     const buffer = await buildWorkbook(dataset);

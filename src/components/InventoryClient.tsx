@@ -1,12 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { InventoryMovement, Warehouse } from '@prisma/client';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/input';
+import { Pagination } from '@/components/ui/pagination';
 import StockMovementForm from './StockMovementForm';
 import {
   createWarehouseAction,
@@ -32,9 +34,14 @@ const MOVEMENT_LABELS: Record<InventoryMovement['type'], string> = {
 export default function InventoryClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [stockProductId, setStockProductId] = useState<string | undefined>(undefined);
 
   const [rows, setRows] = useState<StockByWarehouseRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSizeState] = useState(50);
   const [products, setProducts] = useState<ProductWithStock[]>([]);
+  const [productsLoaded, setProductsLoaded] = useState(false);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
@@ -49,9 +56,11 @@ export default function InventoryClient() {
 
   async function loadStock(q?: string, wId?: string) {
     setLoading(true);
-    const result = await listStockByWarehouseAction(q, wId || undefined);
-    if (result.success) setRows(result.data);
-    else toast.error(result.error);
+    const result = await listStockByWarehouseAction(q, wId || undefined, page, pageSize);
+    if (result.success) {
+      setRows(result.data.rows);
+      setTotal(result.data.total);
+    } else toast.error(result.error);
     setLoading(false);
   }
 
@@ -62,7 +71,10 @@ export default function InventoryClient() {
 
   async function loadProducts() {
     const result = await listProductsAction();
-    if (result.success) setProducts(result.data);
+    if (result.success) {
+      setProducts(result.data);
+      setProductsLoaded(true);
+    }
   }
 
   useEffect(() => {
@@ -74,6 +86,9 @@ export default function InventoryClient() {
   // formulario de movimiento directamente.
   useEffect(() => {
     if (searchParams.get('openStockForm')) {
+      // "Cargar stock inicial" tras crear un producto llega con su id: el
+      // formulario abre con ese producto ya elegido.
+      setStockProductId(searchParams.get('productId') ?? undefined);
       setShowMovementForm(true);
       router.replace('/dashboard/inventory');
     }
@@ -84,10 +99,21 @@ export default function InventoryClient() {
     const timer = setTimeout(() => loadStock(query || undefined, warehouseId), 300);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, warehouseId, page, pageSize]);
+
+  // Un filtro nuevo vuelve a la primera página.
+  useEffect(() => {
+    setPage(1);
   }, [query, warehouseId]);
+
+  function setPageSize(size: number) {
+    setPageSizeState(size);
+    setPage(1);
+  }
 
   async function handleMovementSaved() {
     setShowMovementForm(false);
+    setStockProductId(undefined);
     await Promise.all([loadStock(query || undefined, warehouseId), loadProducts()]);
     if (selectedProduct) handleSelectProduct(selectedProduct.id, selectedProduct.label);
   }
@@ -108,6 +134,9 @@ export default function InventoryClient() {
       setCreatingWarehouse(false);
     }
   }
+
+  // Sin ningún producto en el catálogo no hay nada que contar: el paso previo es crearlos.
+  const noProducts = productsLoaded && products.length === 0;
 
   async function handleSelectProduct(productId: string, label: string) {
     setSelectedProduct({ id: productId, label });
@@ -168,10 +197,15 @@ export default function InventoryClient() {
 
       {showMovementForm && (
         <StockMovementForm
+          key={stockProductId ?? 'nuevo'}
+          defaultProductId={stockProductId}
           products={products}
           warehouses={warehouses}
           onSaved={handleMovementSaved}
-          onCancel={() => setShowMovementForm(false)}
+          onCancel={() => {
+            setShowMovementForm(false);
+            setStockProductId(undefined);
+          }}
         />
       )}
 
@@ -199,18 +233,32 @@ export default function InventoryClient() {
               <tr>
                 <td colSpan={5}>
                   <EmptyState
-                    title={query || warehouseId ? 'Sin existencias para tu búsqueda' : 'Todavía no hay existencias registradas'}
+                    title={
+                      query || warehouseId
+                        ? 'Sin existencias para tu búsqueda'
+                        : noProducts
+                          ? 'Primero crea tus productos'
+                          : 'Todavía no hay existencias registradas'
+                    }
                     description={
                       query || warehouseId
                         ? 'Prueba con otro SKU, nombre o bodega.'
-                        : 'Registra una entrada de stock o una compra para ver existencias aquí.'
+                        : noProducts
+                          ? 'El inventario muestra cuánto tienes de cada producto del catálogo. Crea el primero y luego registra su entrada de stock o una compra.'
+                          : 'Registra una entrada de stock o una compra para ver existencias aquí.'
                     }
                     action={
-                      !query && !warehouseId && (
-                        <Button type="button" size="sm" onClick={() => setShowMovementForm(true)}>
-                          Ajuste de Stock / Entrada Directa
-                        </Button>
-                      )
+                      !query && !warehouseId ? (
+                        noProducts ? (
+                          <Link href="/dashboard/products?new=1" className={buttonVariants({ size: 'sm' })}>
+                            Crea tu primer producto
+                          </Link>
+                        ) : (
+                          <Button type="button" size="sm" onClick={() => setShowMovementForm(true)}>
+                            Ajuste de Stock / Entrada Directa
+                          </Button>
+                        )
+                      ) : undefined
                     }
                   />
                 </td>
@@ -232,6 +280,16 @@ export default function InventoryClient() {
           </tbody>
         </table>
       </div>
+      {total > 0 && (
+        <Pagination
+          page={page}
+          pageCount={Math.max(1, Math.ceil(total / pageSize))}
+          pageSize={pageSize}
+          totalItems={total}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+        />
+      )}
 
       {selectedProduct && (
         <div className="rounded-lg border border-border bg-card p-5 shadow-card">
@@ -266,7 +324,12 @@ export default function InventoryClient() {
                     <td colSpan={7}>
                       <EmptyState
                         title="Sin movimientos registrados"
-                        description="Este producto todavía no tiene entradas ni salidas de kardex."
+                        description="Este producto todavía no tiene entradas ni salidas de kardex. El primer movimiento nace al registrar una entrada de stock, una compra o una venta."
+                        actionLabel="Registrar entrada"
+                        onAction={() => {
+                          setShowMovementForm(true);
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
                       />
                     </td>
                   </tr>
