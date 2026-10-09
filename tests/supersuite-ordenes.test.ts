@@ -126,7 +126,7 @@ describe('webhook de órdenes', () => {
 
   it('activar un módulo usa el servicio de la plataforma y queda en la bitácora', async () => {
     const r = await enviar('modulo.activar', { modulo: 'pos' });
-    expect(r).toEqual({ status: 200, cuerpo: { ok: true, mensaje: 'Módulo activado en Aether' } });
+    expect(r).toMatchObject({ status: 200, cuerpo: { ok: true, mensaje: 'Activado en Aether: pos' } });
     const [companyId, input] = (updateTenantPlan as jest.Mock).mock.calls[0];
     expect(companyId).toBe('c1');
     expect(input).toMatchObject({ planName: 'Base', maxUsers: 2, maxWarehouses: 1 });
@@ -134,6 +134,57 @@ describe('webhook de órdenes', () => {
     expect(createAuditLog).toHaveBeenCalledWith(expect.objectContaining({ companyId: 'c1', userEmail: 'supersuite', entity: 'CompanyFeatures' }));
     // Si la empresa había pedido módulos o un plan, la solicitud abierta queda atendida.
     expect(solicitudModulosAtendidaSupersuite).toHaveBeenCalledWith('c1');
+  });
+
+  it('activa varios módulos en una sola escritura y avisa la tarifa mensual resultante', async () => {
+    const r = await enviar('modulo.activar', { modulos: ['pos', 'sitios_web', 'multibodega', 'pos'] });
+    expect(r.cuerpo).toMatchObject({ ok: true, mensaje: 'Activado en Aether: pos, sitios_web, multibodega' });
+    expect(updateTenantPlan).toHaveBeenCalledTimes(1);
+    const [, input] = updateTenantPlan.mock.calls[0];
+    expect(input.features).toMatchObject({ hasPos: true, hasWebSites: true, hasMultipleWarehouses: true });
+    const datos = (r.cuerpo as unknown as { datos: { cambiados: string[]; tarifaMensual: number } }).datos;
+    expect(datos.cambiados).toEqual(['pos', 'sitios_web', 'multibodega']);
+    expect(datos.tarifaMensual).toBeGreaterThan(0);
+  });
+
+  it('los módulos que no tenían nombre en la Supersuite ahora se piden por nombre', async () => {
+    for (const nombre of ['reportes', 'multibodega', 'agentes', 'organigrama', 'produccion_en_vivo', 'multiempresa', 'inteligencia', 'sitios_web']) {
+      updateTenantPlan.mockClear();
+      expect((await enviar('modulo.activar', { modulo: nombre })).cuerpo.ok).toBe(true);
+      expect(updateTenantPlan).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('un nombre inexistente en una lista no deja la orden a medias', async () => {
+    const r = await enviar('modulo.activar', { modulos: ['pos', 'teletransporte', 'otro'] });
+    expect(r.cuerpo).toMatchObject({ ok: false, mensaje: expect.stringContaining('"teletransporte", "otro"') });
+    expect(r.cuerpo.mensaje).toContain('modulos.listar');
+    expect(updateTenantPlan).not.toHaveBeenCalled();
+  });
+
+  it('lo que viene con la plataforma base no se apaga por orden', async () => {
+    findUnique.mockResolvedValue(empresa({ features: { ...DEFAULT_FEATURES, hasInventory: true, hasPos: true } }));
+    const r = await enviar('modulo.desactivar', { modulos: ['pos', 'inventario'] });
+    expect(r.cuerpo).toMatchObject({ ok: false, mensaje: expect.stringContaining('plataforma base') });
+    expect(updateTenantPlan).not.toHaveBeenCalled();
+    expect((await enviar('modulo.desactivar', { modulo: 'pos' })).cuerpo.ok).toBe(true);
+    expect(updateTenantPlan.mock.calls[0][1].features).toMatchObject({ hasPos: false, hasInventory: true });
+  });
+
+  it('modulos.listar entrega el catálogo; con empresa, su estado y si va en su plan', async () => {
+    const general = (await enviar('modulos.listar', {}, null)).cuerpo as unknown as { ok: boolean; datos: { modulos: { id: string; estado?: string }[]; planes: { nombre: string }[] } };
+    expect(general.ok).toBe(true);
+    expect(general.datos.modulos.map((m) => m.id)).toEqual(expect.arrayContaining(['pos', 'web-sites', 'ventas', 'academia']));
+    expect(general.datos.modulos.every((m) => m.estado === undefined)).toBe(true);
+    expect(general.datos.planes.map((p) => p.nombre)).toEqual(expect.arrayContaining(['Base', 'Comercio', 'Total']));
+
+    findUnique.mockResolvedValue(empresa({ planName: 'Comercio', features: { ...DEFAULT_FEATURES, hasPos: true, hasPurchases: false, hasWebSites: true } }));
+    const deEmpresa = (await enviar('modulos.listar')).cuerpo as unknown as { datos: { modulos: { id: string; estado: string; incluidoEnPlan: boolean }[] } };
+    const porId = Object.fromEntries(deEmpresa.datos.modulos.map((m) => [m.id, m]));
+    expect(porId.pos).toMatchObject({ estado: 'activo', incluidoEnPlan: true });
+    expect(porId.purchases).toMatchObject({ estado: 'apagado', incluidoEnPlan: true });
+    expect(porId['web-sites']).toMatchObject({ estado: 'activo', incluidoEnPlan: false });
+    expect(updateTenantPlan).not.toHaveBeenCalled();
   });
 
   it('activar algo que ya está activo no reescribe nada (idempotente)', async () => {

@@ -11,7 +11,7 @@ import { PLAN_NAMES, PLAN_PRESETS } from '@/lib/pricing/presets';
 import { companyCreateSchema, companyPlanUpdateSchema } from '@/modules/platform/schema';
 import * as platformService from '@/modules/platform/services/platform.service';
 import type { ManejadorOrdenes, OrdenRecibida } from './cliente';
-import { cuentaConPlan, flagsDeModulo, planDeAether } from './modulos';
+import { catalogoDeModulos, catalogoDePlanes, cuentaConPlan, fichaComercial, flagsDeLaBase, flagsDeModulo, planDeAether } from './modulos';
 import { sincronizarEmpresaSupersuite, solicitudModulosAtendidaSupersuite } from './index';
 
 /**
@@ -75,16 +75,43 @@ async function guardarCuenta(
   revalidar();
 }
 
-async function cambiarModulo(orden: OrdenRecibida, encender: boolean) {
-  const modulo = String(orden.datos.modulo ?? '');
-  const flags = flagsDeModulo(modulo);
-  if (!flags.length) throw new Error(`Aether no tiene un módulo "${modulo}"`);
+/** Nombres de módulo de la orden: `modulo` (uno) o `modulos` (varios), sin repetir. */
+function modulosPedidos(orden: OrdenRecibida): string[] {
+  const lista = Array.isArray(orden.datos.modulos) ? orden.datos.modulos : [orden.datos.modulo];
+  return [...new Set(lista.map((m) => String(m ?? '').trim()).filter(Boolean))];
+}
+
+/**
+ * Enciende o apaga uno o varios módulos en una sola escritura. Se valida todo antes
+ * de tocar nada (un nombre inexistente o un módulo de la base no deja la orden a
+ * medias) y el resultado dice qué cambió y cuánto queda la tarifa mensual de lista.
+ */
+async function cambiarModulos(orden: OrdenRecibida, encender: boolean) {
+  const pedidos = modulosPedidos(orden);
+  if (!pedidos.length) throw new Error('La orden no indica qué módulo cambiar');
+  const grupos = pedidos.map((nombre) => ({ nombre, flags: flagsDeModulo(nombre) }));
+  const desconocidos = grupos.filter((g) => !g.flags.length).map((g) => g.nombre);
+  if (desconocidos.length) throw new Error(`Aether no tiene ${desconocidos.length === 1 ? 'un módulo' : 'los módulos'} ${desconocidos.map((n) => `"${n}"`).join(', ')} (la lista completa la entrega la orden modulos.listar)`);
+  if (!encender) {
+    const deLaBase = grupos.filter((g) => flagsDeLaBase(g.flags).length);
+    if (deLaBase.length) throw new Error(`${deLaBase.map((g) => `"${g.nombre}"`).join(', ')} ${deLaBase.length === 1 ? 'es parte' : 'son parte'} de la plataforma base: no se desactiva`);
+  }
+
   const empresa = await empresaDe(orden);
   const features = toFeatureFlags(empresa.features);
-  if (flags.every((flag) => features[flag] === encender)) return { mensaje: encender ? 'Ya estaba activo' : 'Ya estaba apagado' };
-  for (const flag of flags) features[flag] = encender;
+  const porCambiar = grupos.filter((g) => g.flags.some((flag) => features[flag] !== encender));
+  if (!porCambiar.length) return { mensaje: encender ? 'Ya estaba activo' : 'Ya estaba apagado' };
+  for (const g of porCambiar) for (const flag of g.flags) features[flag] = encender;
   await guardarCuenta(empresa, orden, { features });
-  return { mensaje: encender ? 'Módulo activado en Aether' : 'Módulo desactivado en Aether' };
+
+  const tarifaMensual = fichaComercial({ planName: empresa.planName, features, maxUsers: empresa.maxUsers, maxWarehouses: empresa.maxWarehouses }).tarifaMensual;
+  const nombres = porCambiar.map((g) => g.nombre).join(', ');
+  const ya = grupos.length - porCambiar.length;
+  return {
+    mensaje: `${encender ? 'Activado' : 'Desactivado'} en Aether: ${nombres}${ya ? ` (${ya} ya ${ya === 1 ? 'estaba' : 'estaban'} así)` : ''}`,
+    // `undefined` = plan anterior o a medida: no hay lista que aplicar y no se inventa una tarifa.
+    datos: { cambiados: porCambiar.map((g) => g.nombre), ...(tarifaMensual !== undefined ? { tarifaMensual } : {}) },
+  };
 }
 
 async function cambiarEstado(orden: OrdenRecibida, status: 'ACTIVE' | 'SUSPENDED') {
@@ -190,8 +217,18 @@ async function crearEmpresa(orden: OrdenRecibida) {
 export const manejadoresOrdenes: ManejadorOrdenes = {
   'empresa.crear': crearEmpresa,
 
-  'modulo.activar': (orden) => cambiarModulo(orden, true),
-  'modulo.desactivar': (orden) => cambiarModulo(orden, false),
+  'modulo.activar': (orden) => cambiarModulos(orden, true),
+  'modulo.desactivar': (orden) => cambiarModulos(orden, false),
+
+  // Lo que se puede encender o apagar, con precio de lista; con empresa, además su estado y si va incluido en su plan.
+  'modulos.listar': async (orden) => {
+    const empresa = orden.clienteId ? await empresaDe(orden) : null;
+    const modulos = catalogoDeModulos(empresa ? { planName: empresa.planName, features: toFeatureFlags(empresa.features) } : undefined);
+    return {
+      mensaje: `${modulos.length} módulos${empresa ? ` · plan ${empresa.planName}` : ''}`,
+      datos: { modulos, planes: catalogoDePlanes(), ...(empresa ? { plan: empresa.planName } : {}) },
+    };
+  },
 
   'plan.cambiar': async (orden) => {
     const pedido = String(orden.datos.plan ?? '');
