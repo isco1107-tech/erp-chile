@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { validateRut } from '@/lib/chile/rut';
 import { ATTENDANCE_STATUSES, dayToDate, isMonthKey } from '@/lib/academy/billing';
 import { ADULT_AGE, MAX_AGE, MIN_AGE, ageOn } from '@/lib/academy/enrollment';
+import { MAX_RANGE_DAYS, daysBetween, isIsoDay, isTime, isValidTimeRange } from '@/lib/academy/calendar';
+import { safeMaterialLink } from '@/lib/academy/materials';
 
 /** Máximo de una columna `Int` de Postgres (int4). */
 const MAX_INT4 = 2_147_483_647;
@@ -114,5 +116,98 @@ export const approveApplicationSchema = z.object({
   groupId: z.string().min(1).nullable().optional(),
   startMonth: periodSchema,
 });
+
+// ── Calendario de clases ─────────────────────────────────────────────────────
+
+const calendarDay = isoDay.refine(isIsoDay, 'Fecha inválida');
+const timeSchema = z.string().refine(isTime, 'Hora inválida: usa el formato 10:00');
+
+/** Tramo de días que se pide al calendario (la grilla de un mes o una semana). */
+export const calendarRangeSchema = z
+  .object({ from: calendarDay, to: calendarDay })
+  .refine((r) => r.to >= r.from && daysBetween(r.from, r.to) <= MAX_RANGE_DAYS, 'Rango de fechas inválido');
+
+const sessionFields = {
+  startTime: timeSchema,
+  endTime: timeSchema,
+  title: optionalText(120),
+  location: optionalText(120),
+  notes: optionalText(500),
+};
+
+function checkTimes(value: { startTime: string; endTime: string }, ctx: z.RefinementCtx): void {
+  if (isTime(value.startTime) && isTime(value.endTime) && !isValidTimeRange(value.startTime, value.endTime)) {
+    ctx.addIssue({ code: 'custom', path: ['endTime'], message: 'La clase debe terminar después de la hora de inicio' });
+  }
+}
+
+/** Programar una clase; con `repeat`, una por semana (y por día elegido) desde la fecha indicada. */
+export const sessionSchema = z
+  .object({
+    groupId: z.string().min(1, 'Elige un grupo'),
+    date: calendarDay,
+    ...sessionFields,
+    repeat: z
+      .object({
+        weeks: z.number().int().min(1, 'Indica cuántas semanas').max(52, 'Máximo 52 semanas'),
+        weekdays: z.array(z.number().int().min(0).max(6)).max(7),
+      })
+      .nullable()
+      .optional(),
+  })
+  .superRefine(checkTimes);
+export type SessionInput = z.infer<typeof sessionSchema>;
+
+export const SESSION_SCOPES = ['ONE', 'FOLLOWING'] as const;
+export const sessionScopeSchema = z.enum(SESSION_SCOPES).default('ONE');
+export type SessionScope = (typeof SESSION_SCOPES)[number];
+
+/**
+ * Editar una clase. El grupo no se cambia (la lista ya pasada es de ese grupo).
+ * Con `scope: 'FOLLOWING'` la hora y el lugar también se aplican a las clases
+ * siguientes de la misma serie; el día y el tema son siempre de esta clase.
+ */
+export const sessionUpdateSchema = z
+  .object({
+    date: calendarDay,
+    ...sessionFields,
+    scope: sessionScopeSchema,
+  })
+  .superRefine(checkTimes);
+export type SessionUpdateInput = z.infer<typeof sessionUpdateSchema>;
+
+// ── Material de estudio ──────────────────────────────────────────────────────
+
+const materialTarget = {
+  groupId: z.string().min(1, 'Elige un grupo'),
+  /** Clase a la que pertenece (opcional). */
+  sessionId: z.string().min(1).nullable().optional(),
+  description: optionalText(500),
+};
+
+/** Datos que acompañan al archivo en la subida (el archivo va aparte). */
+export const materialUploadMetaSchema = z.object({
+  ...materialTarget,
+  title: optionalText(120),
+  /** Enviarlo por correo apenas se suba. */
+  send: z.boolean().default(false),
+});
+export type MaterialUploadMeta = z.infer<typeof materialUploadMetaSchema>;
+
+export const materialLinkSchema = z.object({
+  ...materialTarget,
+  title: z.string().trim().min(2, 'Escribe un título para el material').max(120),
+  url: z
+    .string()
+    .trim()
+    .min(1, 'Pega el enlace')
+    .transform((value, ctx) => {
+      const safe = safeMaterialLink(value);
+      if (!safe) ctx.addIssue({ code: 'custom', message: 'El enlace debe empezar con https:// y ser una página web' });
+      return safe ?? value;
+    }),
+  send: z.boolean().default(false),
+});
+export type MaterialLinkInput = z.infer<typeof materialLinkSchema>;
 
 export { periodSchema, isoDay };

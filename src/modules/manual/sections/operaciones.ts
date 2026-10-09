@@ -201,11 +201,25 @@ export const OPERACIONES_SECTIONS: ManualSection[] = [
     chapter: 'Operaciones',
     title: 'Academia',
     summary:
-      'Para una academia de modelaje o similar: la ficha de cada alumna, la lista de asistencia por clase y el control de qué mensualidades están pagadas.',
+      'Para una academia de modelaje o similar: un calendario de clases con sus horas, la lista de asistencia de cada clase, el material de estudio que llega al correo de las alumnas, la ficha de cada alumna y el control de qué mensualidades están pagadas.',
     route: '/dashboard/academy',
     // Sin captura todavía: se genera con scripts/capture-manual-screenshots.ts contra una base local.
     screenshot: null,
     topics: [
+      {
+        id: 'academia-calendario',
+        title: 'Ver y programar las clases en el calendario',
+        steps: [
+          'Al entrar a Academia se abre la pestaña Calendario. Arriba ves cuántas clases hay hoy, a cuántas les falta pasar lista, cuántas hay en el mes y cuántas alumnas activas tienes.',
+          'Con las flechas cambias de mes (o de semana) y con "Hoy" vuelves al día de hoy. El botón "Mes" muestra el mes completo y "Semana" muestra cada día con sus horas.',
+          'Cada grupo tiene su color. Haz clic en el nombre de un grupo para ver solo sus clases, y en "Todos los grupos" para volver a verlas todas.',
+          'Haz clic en un día para ver sus clases a la derecha. Para crear una, haz clic en "Programar clase" (o en "Programar clase este día", o en el signo + de la casilla del día). En la vista Semana también sirve hacer clic en un espacio vacío: la clase parte a esa hora.',
+          'Elige el grupo, el día y la hora ("Desde" y "Hasta"; los botones de duración completan la hora de término). Si quieres, escribe el tema, el lugar y notas, y haz clic en "Programar clase".',
+          'Para una clase que se repite, marca "Repetir cada semana", escribe "Durante cuántas semanas" y elige "Los días". Verás cuántas clases se crearán; el botón dice, por ejemplo, "Programar 8 clases". Si un día ya tenía clase de ese grupo, se deja como estaba.',
+          'Haz clic en una clase del calendario para abrirla. En "Detalles" puedes "Editar clase" (en una serie, también la hora y el lugar de las siguientes), "Cancelar clase" (queda tachada y se puede reactivar con "Reactivar clase") o "Eliminar".',
+        ],
+        tip: 'Un grupo tiene una clase por día: la lista de asistencia es por día. Si cambias de día una clase a la que ya le pasaste lista, el sistema te lo impide: cancélala y programa otra.',
+      },
       {
         id: 'academia-grupos',
         title: 'Crear los grupos de clases',
@@ -270,11 +284,26 @@ export const OPERACIONES_SECTIONS: ManualSection[] = [
         id: 'academia-asistencia',
         title: 'Pasar lista',
         steps: [
-          'Ve a la pestaña Pasar lista, elige el grupo y la fecha de la clase.',
-          'Marca a cada alumna como Presente, Atrasada, Ausente o Justificada. "Todas presentes" marca a todas de una vez, y vuelves a tocar un botón para quitarlo.',
-          'Haz clic en "Guardar lista". Si vuelves a abrir la misma fecha, la lista está como la dejaste.',
+          'En el Calendario haz clic en la clase y elige la pestaña "Pasar lista" (también aparece como el botón "Pasar lista" en el detalle del día y en el aviso "Falta pasar lista").',
+          'Marca a cada alumna como Presente, Atrasada, Ausente o Justificada. "Todas presentes" marca a todas de una vez, "Limpiar" quita todas las marcas, y vuelves a tocar un botón para quitar la marca de una alumna.',
+          'Haz clic en "Guardar lista". Si vuelves a abrir la clase, la lista está como la dejaste. En el calendario, la clase muestra una señal verde cuando la lista está completa y una naranja cuando falta.',
           'Una ausencia justificada no baja el porcentaje de asistencia de la alumna.',
+          'Para pasar lista de un día sin clase programada, usa la pestaña "Pasar lista": elige el grupo y la fecha.',
         ],
+        tip: 'Solo se pasa lista desde el día de la clase en adelante, y una clase cancelada no lleva lista.',
+      },
+      {
+        id: 'academia-material',
+        title: 'Subir material y enviarlo al correo de las alumnas',
+        steps: [
+          'Para el material de una clase, ábrela en el Calendario y elige la pestaña "Material". Para el material general de un grupo, usa la pestaña "Material" de Academia.',
+          'Haz clic en "Agregar material" y arrastra el archivo o haz clic en "Elegir archivo". Se aceptan PDF, Word, PowerPoint, Excel, OpenDocument e imágenes (JPG, PNG, WEBP) de hasta 4 MB. Si pesa más, usa "Pegar enlace" con un enlace de Drive, OneDrive o YouTube.',
+          'Escribe el título (si lo dejas vacío usa el nombre del archivo) y, si quieres, un mensaje para las alumnas. En la pestaña de material general, elige también el grupo.',
+          'Deja marcado "Enviar por correo a las alumnas del grupo" para que les llegue apenas se suba. Debajo ves a cuántos correos llegará (el de cada alumna activa y el de su apoderado, sin repetir) y quiénes no tienen correo, para que lo agregues en su ficha.',
+          'Haz clic en "Subir y enviar a N correos". Con la casilla desmarcada el botón dice "Subir sin enviar" y se guarda sin enviar.',
+          'En la lista de material, "Abrir" muestra el archivo, "Enviar por correo" (o "Reenviar") lo manda al grupo y el ícono de papelera lo elimina; un archivo eliminado deja de abrirse con los enlaces que ya se enviaron.',
+        ],
+        tip: 'El correo lleva un botón para descargar el archivo, no el archivo adjunto: así funciona igual con presentaciones pesadas y desde el celular. Quien reciba el enlace puede abrirlo; no lo subas si no quieres que se comparta.',
       },
       {
         id: 'academia-mensualidades',

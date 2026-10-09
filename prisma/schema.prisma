@@ -168,6 +168,8 @@ model Company {
   academyAttendance         AcademyAttendance[]
   academyPayments           AcademyMonthlyPayment[]
   academyApplications       AcademyApplication[]
+  academySessions           AcademySession[]
+  academyMaterials          AcademyMaterial[]
   academySite               AcademySite?
   delegationRules           DelegationRule[]
   webSiteAssets             WebSiteAsset[]
@@ -5900,6 +5902,8 @@ model AcademyGroup {
   monthlyFee  Int?
   isActive    Boolean          @default(true)
   students    AcademyStudent[]
+  sessions    AcademySession[]
+  materials   AcademyMaterial[]
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
@@ -6010,6 +6014,71 @@ model AcademySite {
   content         Json      @default("{}")
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+}
+
+/// Clase programada en el calendario de la academia. Una por grupo y día: la
+/// asistencia (`AcademyAttendance`) también es por alumna y día, así que "pasar
+/// lista" de una clase es la lista de ese grupo en esa fecha.
+model AcademySession {
+  id          String            @id @default(cuid())
+  companyId   String
+  company     Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  groupId     String
+  group       AcademyGroup      @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  /// Día de la clase (12:00 UTC), igual que `AcademyAttendance.date`.
+  date        DateTime
+  /// Hora de Chile, "HH:MM" (24 h).
+  startTime   String
+  endTime     String
+  /// Tema de la clase (opcional).
+  title       String?
+  location    String?
+  notes       String?
+  /// Cancelada: se queda en el calendario tachada, no se pasa lista.
+  isCancelled Boolean           @default(false)
+  /// Clases creadas juntas con "repetir cada semana".
+  seriesId    String?
+  materials   AcademyMaterial[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@unique([groupId, date])
+  @@index([companyId, date])
+  @@index([seriesId])
+}
+
+enum AcademyMaterialKind {
+  FILE
+  LINK
+}
+
+/// Material de estudio de un grupo (documento, presentación, planilla, imagen) o
+/// un enlace (Drive, YouTube…), opcionalmente atado a una clase. Se puede
+/// enviar por correo a las alumnas del grupo (y a sus apoderados).
+model AcademyMaterial {
+  id            String              @id @default(cuid())
+  companyId     String
+  company       Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  groupId       String
+  group         AcademyGroup        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  sessionId     String?
+  session       AcademySession?     @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  kind          AcademyMaterialKind
+  title         String
+  description   String?
+  /// Archivo en nuestro almacenamiento o enlace externo (https).
+  url           String
+  fileName      String?
+  contentType   String?
+  sizeBytes     Int?
+  uploadedById  String?
+  /// Último envío por correo (y a cuántas direcciones), para no reenviar sin querer.
+  lastSentAt    DateTime?
+  lastSentCount Int                 @default(0)
+  createdAt     DateTime            @default(now())
+
+  @@index([companyId, groupId, createdAt])
+  @@index([sessionId])
 }
 
 enum AcademyApplicationStatus {

@@ -1951,3 +1951,65 @@ export function buildDataSubjectRequestAckEmail(input: DataSubjectRequestAckEmai
   return { subject, html, text };
 }
 
+export interface AcademyMaterialEmailInput {
+  /** Nombre con que la academia se presenta (el de su sitio o, si no tiene, la razón social). */
+  academyName: string;
+  groupName: string;
+  title: string;
+  description: string | null;
+  kind: 'FILE' | 'LINK';
+  /** Archivo en nuestro almacenamiento o enlace externo ya validado (https). */
+  url: string;
+  fileName: string | null;
+  /** "PDF", "PowerPoint", "Enlace"… */
+  typeLabel: string;
+  /** "2,4 MB"; `null` en un enlace. */
+  sizeLabel: string | null;
+  /** "sábado 11 de octubre · 10:00 – 12:00" cuando el material es de una clase. */
+  classLabel: string | null;
+}
+
+/**
+ * Material de clases enviado a las alumnas de un grupo (y a sus apoderados).
+ * Lleva un botón de descarga y no el archivo adjunto: un PowerPoint pesa más de
+ * lo que aceptan los proveedores de correo, y así el enlace funciona igual desde
+ * el celular.
+ */
+export function buildAcademyMaterialEmail(input: AcademyMaterialEmailInput): { subject: string; html: string; text: string } {
+  const subject = `${input.academyName} · Material: ${input.title}`;
+  const isFile = input.kind === 'FILE';
+  const detail = [input.typeLabel, input.sizeLabel].filter(Boolean).join(' · ');
+
+  const html = layout({
+    title: input.academyName,
+    body: `
+      <p style="margin:0 0 12px;">Hola, compartimos nuevo material del grupo <strong>${escapeHtml(input.groupName)}</strong>.</p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 4px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
+        <tr>
+          <td style="padding:14px 16px;">
+            <p style="margin:0;font-size:16px;font-weight:700;">${escapeHtml(input.title)}</p>
+            ${input.classLabel ? `<p style="margin:4px 0 0;color:#64748b;font-size:13px;">Clase: ${escapeHtml(input.classLabel)}</p>` : ''}
+            ${input.description ? `<p style="margin:8px 0 0;font-size:14px;white-space:pre-line;">${escapeHtml(input.description)}</p>` : ''}
+            <p style="margin:8px 0 0;color:#64748b;font-size:13px;">${escapeHtml(isFile && input.fileName ? `${input.fileName} · ${detail}` : detail)}</p>
+          </td>
+        </tr>
+      </table>
+    `,
+    ctaLabel: isFile ? 'Descargar archivo' : 'Abrir enlace',
+    ctaUrl: escapeHtml(input.url),
+    footer: `${escapeHtml(input.academyName)}. Recibes este correo porque estás inscrita en el grupo ${escapeHtml(input.groupName)} o eres apoderado de una alumna. Si no corresponde, avisa a la academia.`,
+  });
+
+  const text = [
+    `${input.academyName} — material del grupo ${input.groupName}`,
+    '',
+    input.title,
+    ...(input.classLabel ? [`Clase: ${input.classLabel}`] : []),
+    ...(input.description ? ['', input.description] : []),
+    '',
+    isFile && input.fileName ? `${input.fileName} (${detail})` : detail,
+    `${isFile ? 'Descargar' : 'Abrir'}: ${input.url}`,
+  ].join('\n');
+
+  return { subject, html, text };
+}

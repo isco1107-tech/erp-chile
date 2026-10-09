@@ -280,10 +280,13 @@ export async function getAttendanceSheet(companyId: string, groupId: string, dat
 /** Guarda la lista del día. `status: null` borra la marca de esa alumna. */
 export async function saveAttendance(companyId: string, data: AttendanceInput): Promise<{ saved: number }> {
   await assertGroup(companyId, data.groupId);
+  const date = dayToDate(data.date);
+  // Una clase cancelada del calendario no lleva lista (la pantalla ya lo avisa; esto lo exige el servidor).
+  const cancelled = await prisma.academySession.findFirst({ where: { companyId, groupId: data.groupId, date, isCancelled: true }, select: { id: true } });
+  if (cancelled) throw new AcademyError('Esa clase está cancelada, así que no se pasa lista. Reactívala en el calendario si se hizo');
   const ids = [...new Set(data.entries.map((e) => e.studentId))];
   const valid = await prisma.academyStudent.findMany({ where: { companyId, groupId: data.groupId, id: { in: ids } }, select: { id: true } });
   if (valid.length !== ids.length) throw new AcademyError('Hay alumnas que no pertenecen a este grupo. Recarga la lista');
-  const date = dayToDate(data.date);
   await prisma.$transaction([
     ...data.entries.map((entry) =>
       entry.status
