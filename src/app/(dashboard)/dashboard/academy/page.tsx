@@ -11,7 +11,7 @@ export default async function AcademyPage() {
       <PageHeader
         eyebrow="Operaciones"
         title="Academia"
-        description="La ficha de cada alumna, la lista de asistencia por clase y qué mensualidades están pagadas."
+        description="El calendario de clases, la lista de asistencia por día, el material que llega al correo de las alumnas y qué mensualidades están pagadas."
       />
       <AcademyClient canWrite={can(context, 'academy:write')} canManage={can(context, 'academy:manage')} />
     </div>

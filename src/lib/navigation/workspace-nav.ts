@@ -258,7 +258,7 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
     operaciones.push({ id: 'tasks', href: '/dashboard/tasks', label: 'Tareas y delegación', icon: 'tasks', keywords: ['tarea', 'pendientes', 'rutina', 'recordatorio', 'responsable', 'delegar', 'delegacion', 'decisiones', 'checklist', 'semanal'] });
   }
   if (features.hasAcademy && allow('academy:read')) {
-    operaciones.push({ id: 'academy', href: '/dashboard/academy', label: 'Academia', icon: 'academy', keywords: ['alumnas', 'alumnos', 'modelaje', 'asistencia', 'pasar lista', 'mensualidad', 'ficha', 'curso', 'clases'] });
+    operaciones.push({ id: 'academy', href: '/dashboard/academy', label: 'Academia', icon: 'academy', keywords: ['alumnas', 'alumnos', 'modelaje', 'asistencia', 'pasar lista', 'mensualidad', 'ficha', 'curso', 'clases', 'calendario', 'horario', 'programar clase', 'material', 'presentación'] });
   }
   push('Operaciones', operaciones);
 

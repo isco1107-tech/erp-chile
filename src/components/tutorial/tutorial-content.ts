@@ -249,12 +249,12 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
   academy: {
     title: 'Academia',
     steps: [
-      header('Tu academia en un lugar', 'Ficha de cada alumna, lista de asistencia y mensualidades pagadas.'),
-      note('Inscripciones', 'Comparte el link de inscripción y aprueba o rechaza lo que llega.'),
-      note('Alumnas', 'Crea la ficha con sus datos, su apoderado si es menor y la autorización de imagen.'),
-      note('Pasar lista', 'Elige el grupo y la fecha y marca presente, atrasada, ausente o justificada.'),
-      note('Mensualidad', 'Marca cada mes como pagado; los meses sin pago aparecen en rojo.'),
-      note('Sitio web', 'Arma y publica la página pública de tu academia: portada, clases, fotos, historia y contacto.'),
+      header('Tu academia en un lugar', 'Calendario de clases, lista de asistencia, material para las alumnas y mensualidades.'),
+      note('Calendario', 'Mira el mes o la semana con sus horas y programa clases (también repetidas cada semana) con "Programar clase".'),
+      note('Pasar lista', 'Abre una clase del calendario y marca presente, atrasada, ausente o justificada. Las clases sin lista aparecen avisadas.'),
+      note('Material', 'Sube documentos o presentaciones a una clase o a un grupo y envíalos al correo de las alumnas y sus apoderados.'),
+      note('Alumnas e inscripciones', 'Crea la ficha de cada alumna y aprueba lo que llega por el link de inscripción.'),
+      note('Mensualidad y sitio web', 'Marca cada mes como pagado y arma la página pública de tu academia.'),
     ],
   },
   tasks: {
