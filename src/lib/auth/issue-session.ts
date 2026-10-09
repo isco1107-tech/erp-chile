@@ -14,7 +14,6 @@ export interface IssuableUser {
   role: string;
   email: string;
   companyId?: string;
-  isSuperAdmin: boolean;
   sessionVersion: number;
 }
 
@@ -42,7 +41,6 @@ export async function issueSession(user: IssuableUser, req: Request): Promise<Ne
     email: user.email,
     companyId: user.companyId,
     companyName,
-    isSuperAdmin: user.isSuperAdmin,
     sessionVersion: user.sessionVersion,
   });
 

@@ -32,7 +32,6 @@ export type NavIconKey =
   | 'cashflow'
   | 'reports'
   | 'settings'
-  | 'platform'
   | 'agents'
   | 'projects'
   | 'calendar'
@@ -120,7 +119,6 @@ export interface NavGroup {
 export interface NavAccess {
   permissions: readonly Permission[];
   features: CompanyFeatureFlags;
-  isSuperAdmin: boolean;
   /** Ítems que la empresa apagó en Configuración → Módulos y menú. */
   disabledNavItems?: readonly string[];
 }
@@ -147,7 +145,7 @@ const SETTINGS_PERMISSIONS: Permission[] = [
  * apagó. Lo usan la pantalla de configuración del menú (para listar también
  * lo apagado) y el guard de rutas (para saber a qué ítem pertenece una URL).
  */
-export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin }: Omit<NavAccess, 'disabledNavItems'>): NavGroup[] {
+export function buildAvailableWorkspaceNav({ permissions, features }: Omit<NavAccess, 'disabledNavItems'>): NavGroup[] {
   const allow = (permission: Permission) => permissions.includes(permission);
   const groups: NavGroup[] = [];
   const push = (label: string, links: NavLink[], collapsedByDefault?: boolean) => {
@@ -411,10 +409,6 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
     push('Configuración', [{ id: 'settings', href: '/dashboard/settings', label: 'Configuración', icon: 'settings', keywords: ['empresa', 'usuarios', 'folios', 'caf', 'roles', 'modulos', 'menu', 'planes', 'precios', 'contratar'] }]);
   }
 
-  if (isSuperAdmin) {
-    push('Plataforma', [{ id: 'platform', href: '/superadmin', label: 'Panel SaaS', icon: 'platform' }]);
-  }
-
   return groups;
 }
 
@@ -454,6 +448,6 @@ export function sanitizeDisabledNavItems(input: readonly string[], knownIds: Rea
 /** Todos los ids que existen en el registro (plan completo, todos los permisos). */
 export function allKnownNavItemIds(): Set<string> {
   const features = Object.fromEntries(MODULE_KEYS.map((key) => [key, true])) as CompanyFeatureFlags;
-  const groups = buildAvailableWorkspaceNav({ permissions: ALL_PERMISSIONS, features, isSuperAdmin: false });
+  const groups = buildAvailableWorkspaceNav({ permissions: ALL_PERMISSIONS, features });
   return new Set(groups.flatMap((group) => group.links.map((link) => link.id)));
 }

@@ -18,7 +18,7 @@ import {
  * `Base` es la plataforma sola (inventario y costeo PMP, 2 usuarios); los demás
  * agregan los módulos del plan. Los planes anteriores (Starter, Profesional,
  * Enterprise) ya no se ofrecen; una empresa que los tiene conserva su nombre,
- * sus módulos y sus límites hasta que el superadmin la cambie de plan.
+ * sus módulos y sus límites hasta que la Supersuite la cambie de plan.
  */
 
 export const BASE_PLAN_NAME = 'Base';

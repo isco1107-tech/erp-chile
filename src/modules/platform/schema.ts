@@ -6,27 +6,6 @@ import { MAX_WAREHOUSES, PLAN_NAMES } from '@/lib/pricing/presets';
 
 export const TENANT_STATUSES = ['ACTIVE', 'TRIAL', 'SUSPENDED', 'CANCELLED'] as const;
 
-export const TENANT_STATUS_LABELS: Record<(typeof TENANT_STATUSES)[number], string> = {
-  ACTIVE: 'Activa',
-  TRIAL: 'Prueba',
-  SUSPENDED: 'Suspendida',
-  CANCELLED: 'Cancelada',
-};
-
-export const TENANT_STATUS_BADGE_CLASS: Record<(typeof TENANT_STATUSES)[number], string> = {
-  ACTIVE: 'bg-green-600/10 text-green-600',
-  TRIAL: 'bg-blue-600/10 text-blue-600',
-  SUSPENDED: 'bg-amber-600/10 text-amber-600',
-  CANCELLED: 'bg-destructive/10 text-destructive',
-};
-
-/**
- * Planes que se ofrecen al crear una empresa o cambiarla de plan. Se derivan del
- * tarifario (`src/lib/pricing/`), la misma fuente que ve el cliente en
- * Configuración → Planes y módulos: Base, Comercio, Gestión, Eventos y Total.
- */
-export { MAX_WAREHOUSES, PLAN_NAMES, PLAN_PRESETS } from '@/lib/pricing/presets';
-
 const featureShape = MODULE_KEYS.reduce<Record<string, z.ZodBoolean>>((shape, key) => {
   shape[key] = z.boolean();
   return shape;
@@ -65,10 +44,6 @@ export const companyPlanUpdateSchema = z.object({
 });
 
 export type CompanyPlanUpdateInput = z.infer<typeof companyPlanUpdateSchema>;
-
-export const companyStatusSchema = z.object({
-  status: z.enum(TENANT_STATUSES, 'Selecciona un estado de cuenta'),
-});
 
 /** Confirmación del borrado permanente de un tenant: solo el código TOTP de 6 dígitos del propio superadmin. */
 export const deleteTenantSchema = z.object({

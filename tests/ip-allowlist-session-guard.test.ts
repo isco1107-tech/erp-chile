@@ -19,7 +19,6 @@ const baseUser = {
   email: 'user@empresa.cl',
   name: 'Usuario Uno',
   companyId: 'company-1',
-  isSuperAdmin: false,
   isActive: true,
   mustChangePassword: false,
   sessionVersion: 1,

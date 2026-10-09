@@ -18,12 +18,6 @@ export interface SessionPayload extends JWTPayload {
    * tenga acceso a esta empresa antes de usarla.
    */
   activeCompanyId?: string;
-  /**
-   * Solo para enrutado barato en el proxy (edge, sin acceso a Prisma). La
-   * autorización real del portal la hace `requireSuperAdmin()` contra la base
-   * de datos: un token viejo no debe poder conservar el privilegio.
-   */
-  isSuperAdmin?: boolean;
   sessionVersion?: number;
   purpose?: 'session';
 }
@@ -40,7 +34,6 @@ export async function createSessionToken(user: {
   companyId?: string;
   companyName?: string;
   activeCompanyId?: string;
-  isSuperAdmin?: boolean;
   sessionVersion?: number;
 }) {
   const key = getKey();

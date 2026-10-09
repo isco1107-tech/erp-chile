@@ -131,7 +131,7 @@ export const PRICING_PLANS: readonly PricingPlan[] = [
  * entran en ningún plan por ahora:
  * - `hasDteBilling` (Facturación Electrónica): se retira de la oferta mientras
  *   no exista la integración con el SII. Sigue siendo el flag que habilita
- *   Ventas y Folios, así que el superadmin puede encenderlo a mano.
+ *   Ventas y Folios, así que la Supersuite puede encenderlo a mano.
  * - `hasFeeDocuments` (Boletas de Honorarios): fuera de la oferta comercial.
  */
 export const UNPRICED_FEATURES: readonly FeatureKey[] = ['hasDteBilling', 'hasFeeDocuments', 'hasAcademy'];

@@ -13,7 +13,7 @@ Cada empresa cliente es la **responsable** de sus datos y define cuánto tiempo 
 | Datos de trabajadores y remuneraciones | El plazo legal laboral y previsional; el cliente lo confirma con su asesor | Ídem. |
 | Sesiones | 8 horas | Expiración de la cookie. |
 | Auditoría | Mientras exista la cuenta del cliente | Necesaria para seguridad y para acreditar el cumplimiento. |
-| Datos de un cliente que termina el servicio | 30 días para exportar y luego eliminación dentro de 90 días | Términos de servicio, sección 10. Se hace desde el panel de superadmin. |
+| Datos de un cliente que termina el servicio | 30 días para exportar y luego eliminación dentro de 90 días | Términos de servicio, sección 10. El borrado definitivo de una empresa ya no existe en Aether (se quitó con el panel de superadmin): queda pendiente definir cómo se pide desde la Supersuite. |
 | Ramas de Neon de prueba | Se borran al terminar la prueba | **Hoy existen copias de producción con datos reales en ramas `preview/*`: borrarlas.** |
 
 Los plazos sugeridos del registro de actividades (`src/lib/privacy/processing-activities.ts`) son un punto de partida. Cada cliente debe ajustarlos.
@@ -32,4 +32,4 @@ Los plazos sugeridos del registro de actividades (`src/lib/privacy/processing-ac
 
 - Se elimina con las funciones de la plataforma (`platform-delete.service.ts`, purgas) que respetan el filtro por empresa.
 - Los respaldos de Neon expiran solos al pasar su ventana; no se conservan copias manuales de la base de producción en computadores personales.
-- **Pendiente:** al eliminar una empresa desde el superadmin se borran sus datos de la base, pero **no** sus archivos (fotos, contratos, certificados) en R2 o Vercel Blob. Hasta automatizarlo, borrarlos a mano en el panel de R2 buscando las carpetas que contienen el id de la empresa (por ejemplo `candidates/<companyId>/`), para cumplir el plazo de 90 días de los términos.
+- **Pendiente:** al eliminar una empresa (`platform-delete.service.ts`) se borran sus datos de la base, pero **no** sus archivos (fotos, contratos, certificados) en R2 o Vercel Blob. Hasta automatizarlo, borrarlos a mano en el panel de R2 buscando las carpetas que contienen el id de la empresa (por ejemplo `candidates/<companyId>/`), para cumplir el plazo de 90 días de los términos.

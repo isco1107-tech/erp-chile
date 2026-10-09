@@ -1,154 +1,11 @@
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
-import type { Company, CompanyFeatures, Role, TenantStatus } from '@prisma/client';
+import type { Company, Role, TenantStatus } from '@prisma/client';
 import { cleanRut, formatRut } from '@/lib/chile/rut';
-import { DEFAULT_FEATURES, MODULES, toFeatureFlags, type CompanyFeatureFlags, type FeatureKey } from '@/lib/auth/modules';
+import { DEFAULT_FEATURES } from '@/lib/auth/modules';
 import { ensureChartOfAccounts } from '@/modules/accounting/services/chart-setup.service';
 import { setDisabledNavItems } from '@/modules/workspace/services/workspace.service';
 import type { CompanyCreateInput, CompanyPlanUpdateInput } from '../schema';
-
-export interface PlatformMetrics {
-  totalCompanies: number;
-  activeCompanies: number;
-  suspendedCompanies: number;
-  trialCompanies: number;
-  cancelledCompanies: number;
-  totalUsers: number;
-  activeUsers: number;
-  superAdmins: number;
-  /** Adopción por módulo, ordenada de mayor a menor. */
-  moduleUsage: Array<{ key: FeatureKey; label: string; enabled: number; share: number }>;
-  companiesByPlan: Array<{ planName: string; count: number }>;
-}
-
-export async function getPlatformMetrics(): Promise<PlatformMetrics> {
-  const [statusGroups, planGroups, totalUsers, activeUsers, superAdmins, features] = await Promise.all([
-    prisma.company.groupBy({ by: ['status'], _count: { _all: true } }),
-    prisma.company.groupBy({ by: ['planName'], _count: { _all: true } }),
-    prisma.user.count(),
-    prisma.user.count({ where: { isActive: true } }),
-    prisma.user.count({ where: { isSuperAdmin: true } }),
-    prisma.companyFeatures.findMany(),
-  ]);
-
-  const countFor = (status: TenantStatus) =>
-    statusGroups.find((group) => group.status === status)?._count._all ?? 0;
-
-  const totalCompanies = statusGroups.reduce((sum, group) => sum + group._count._all, 0);
-
-  const moduleUsage = MODULES.map((mod) => {
-    const enabled = features.filter((row) => row[mod.key]).length;
-    return {
-      key: mod.key,
-      label: mod.label,
-      enabled,
-      share: totalCompanies > 0 ? enabled / totalCompanies : 0,
-    };
-  }).sort((a, b) => b.enabled - a.enabled);
-
-  return {
-    totalCompanies,
-    activeCompanies: countFor('ACTIVE'),
-    suspendedCompanies: countFor('SUSPENDED'),
-    trialCompanies: countFor('TRIAL'),
-    cancelledCompanies: countFor('CANCELLED'),
-    totalUsers,
-    activeUsers,
-    superAdmins,
-    moduleUsage,
-    companiesByPlan: planGroups
-      .map((group) => ({ planName: group.planName, count: group._count._all }))
-      .sort((a, b) => b.count - a.count),
-  };
-}
-
-export interface TenantListItem {
-  id: string;
-  rut: string;
-  businessName: string;
-  status: TenantStatus;
-  planName: string;
-  maxUsers: number;
-  maxWarehouses: number;
-  userCount: number;
-  enabledModules: number;
-  createdAt: Date;
-}
-
-export async function listTenants(query?: string): Promise<TenantListItem[]> {
-  const trimmed = query?.trim();
-  const companies = await prisma.company.findMany({
-    where: trimmed
-      ? {
-          OR: [
-            { businessName: { contains: trimmed, mode: 'insensitive' } },
-            { rut: { contains: trimmed, mode: 'insensitive' } },
-          ],
-        }
-      : undefined,
-    include: { features: true, _count: { select: { users: true } } },
-    orderBy: { createdAt: 'desc' },
-    take: 300,
-  });
-
-  return companies.map((company) => {
-    const flags = toFeatureFlags(company.features);
-    return {
-      id: company.id,
-      rut: company.rut,
-      businessName: company.businessName,
-      status: company.status,
-      planName: company.planName,
-      maxUsers: company.maxUsers,
-      maxWarehouses: company.maxWarehouses,
-      userCount: company._count.users,
-      enabledModules: MODULES.filter((mod) => flags[mod.key]).length,
-      createdAt: company.createdAt,
-    };
-  });
-}
-
-export interface TenantDetail {
-  company: Company;
-  features: CompanyFeatureFlags;
-  userCount: number;
-  warehouseCount: number;
-  customRoleCount: number;
-  admins: Array<{ id: string; name: string; email: string; role: string; isActive: boolean }>;
-  ipAllowlistEnabled: boolean;
-  /** Pantallas del menú que la empresa tiene apagadas. */
-  disabledNavItems: string[];
-}
-
-export async function getTenant(companyId: string): Promise<TenantDetail | null> {
-  const company = await prisma.company.findUnique({
-    where: { id: companyId },
-    include: {
-      features: true,
-      settings: { select: { ipAllowlistEnabled: true, disabledNavItems: true } },
-      _count: { select: { users: true, warehouses: true, customRoles: true } },
-    },
-  });
-  if (!company) return null;
-
-  const admins = await prisma.user.findMany({
-    where: { companyId, role: { in: ['OWNER', 'ADMIN'] } },
-    select: { id: true, name: true, email: true, role: true, isActive: true },
-    orderBy: { createdAt: 'asc' },
-  });
-
-  const { features, settings, _count, ...rest } = company;
-  return {
-    company: rest,
-    features: toFeatureFlags(features),
-    userCount: _count.users,
-    warehouseCount: _count.warehouses,
-    customRoleCount: _count.customRoles,
-    admins,
-    ipAllowlistEnabled: settings?.ipAllowlistEnabled ?? false,
-    disabledNavItems: settings?.disabledNavItems ?? [],
-  };
-}
 
 /**
  * Crea el tenant, sus feature flags, su bodega principal y su primer usuario
@@ -159,8 +16,14 @@ export async function getTenant(companyId: string): Promise<TenantDetail | null>
  * se crea un usuario nuevo —el correo es único—: se lo vincula como Dueño vía
  * `CompanyMembership` y se activa `hasMultiCompany`, así entra con su misma
  * contraseña y al iniciar sesión elige en qué empresa trabajar.
+ *
+ * `mustChangePassword` obliga al administrador nuevo a elegir su propia clave en
+ * el primer ingreso (la inicial la puso otra persona, no él).
  */
-export async function createTenant(input: CompanyCreateInput): Promise<{ company: Company; linkedExistingUser: boolean }> {
+export async function createTenant(
+  input: CompanyCreateInput,
+  options: { mustChangePassword?: boolean } = {}
+): Promise<{ company: Company; linkedExistingUser: boolean }> {
   const rutClean = cleanRut(input.rut);
   const rut = formatRut(rutClean);
 
@@ -216,6 +79,7 @@ export async function createTenant(input: CompanyCreateInput): Promise<{ company
           name: input.adminName,
           role: 'OWNER',
           companyId: company.id,
+          mustChangePassword: options.mustChangePassword ?? false,
         },
       });
     }
@@ -269,7 +133,7 @@ export async function setTenantStatus(companyId: string, status: TenantStatus): 
 /**
  * Válvula de emergencia: si una empresa activa la lista de IPs sin agregar
  * la propia y queda bloqueada, nadie de adentro puede volver a entrar para
- * arreglarlo — solo superadmin puede. Apaga la restricción sin borrar las
+ * arreglarlo — solo la Supersuite (orden `seguridad.ip.liberar`) puede. Apaga la restricción sin borrar las
  * entradas ya configuradas, para que el cliente las revise y las corrija
  * antes de reactivarla.
  */
@@ -287,21 +151,12 @@ export interface TenantMembership {
   createdAt: Date;
 }
 
-export async function listTenantMemberships(companyId: string): Promise<TenantMembership[]> {
-  const memberships = await prisma.companyMembership.findMany({
-    where: { companyId },
-    include: { user: { select: { email: true, name: true } } },
-    orderBy: { createdAt: 'asc' },
-  });
-  return memberships.map((m) => ({ id: m.id, userEmail: m.user.email, userName: m.user.name, role: m.role, createdAt: m.createdAt }));
-}
-
 /**
  * Vincula (módulo `hasMultiCompany`) a un usuario YA EXISTENTE de OTRA
  * empresa como miembro adicional de esta — no crea cuenta ni la mueve de su
  * empresa hogar (`User.companyId`), solo le da una identidad secundaria acá
- * (ver `CompanyMembership`, `switch-company.actions.ts`). Solo superadmin
- * puede hacerlo: es la única forma de que un login administre 2+ empresas,
+ * (ver `CompanyMembership`, `switch-company.actions.ts`). Solo la Supersuite
+ * (orden `acceso.otorgar`) puede hacerlo: es la única forma de que un login administre 2+ empresas,
  * no hay autoservicio para evitar que un OWNER se auto-invite a otra
  * empresa del SaaS.
  *

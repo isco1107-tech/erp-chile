@@ -124,7 +124,7 @@ const normalizar = (texto: string) => texto.normalize('NFD').replace(/[\u0300-\u
  * Flags que enciende o apaga la orden de un módulo. Acepta el nombre de módulo
  * de la Supersuite (`pos`, `rrhh`…) o el id del tarifario de Aether
  * (`purchases`, `payroll`…). Lo que se vende como un solo ítem (Entradas y
- * votación del público) va junto, igual que en el formulario del superadmin.
+ * votación del público) va junto, igual que en el tarifario que ve el cliente.
  */
 export function flagsDeModulo(modulo: string): FeatureKey[] {
   const clave = normalizar(modulo);
@@ -224,7 +224,7 @@ export function alertaDeSolicitud(solicitud: {
   total: number;
 }): { severidad: 'media'; mensaje: string; clave: string } {
   const partes = [...(solicitud.planLabel ? [`plan ${solicitud.planLabel}`] : []), ...solicitud.modulos];
-  const mensaje = `Solicita contratar ${partes.join(' + ')}: ${formatCurrency(solicitud.net)} + IVA al mes (${formatCurrency(solicitud.total)} con IVA). Se activa desde el panel de plataforma de Aether.`;
+  const mensaje = `Solicita contratar ${partes.join(' + ')}: ${formatCurrency(solicitud.net)} + IVA al mes (${formatCurrency(solicitud.total)} con IVA). Se activa desde esta consola.`;
   return { severidad: 'media', mensaje: mensaje.length > 500 ? `${mensaje.slice(0, 497)}...` : mensaje, clave: CLAVE_SOLICITUD_MODULOS };
 }
 

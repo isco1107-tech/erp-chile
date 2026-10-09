@@ -7,8 +7,8 @@ import { CORE_PERMISSION_GROUP, PERMISSION_LABELS, type Permission } from './per
  * Es la fuente única que conecta las tres capas del feature gating:
  * el flag contratado en `CompanyFeatures`, los permisos que el módulo habilita
  * y las rutas que deben bloquearse si el plan no lo incluye. Agregar un módulo
- * nuevo significa agregar una entrada aquí; el sidebar, los guards y el panel
- * de superadmin se derivan de este objeto y no necesitan tocarse.
+ * nuevo significa agregar una entrada aquí; el sidebar, los guards y la
+ * Supersuite se derivan de este objeto y no necesitan tocarse.
  */
 
 /** Claves booleanas de `CompanyFeatures`, sin los campos de metadatos. */

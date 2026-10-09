@@ -15,7 +15,7 @@
 | Sistema | Regla |
 |---|---|
 | Vercel, Neon, Cloudflare, GitHub, proveedor de correo | Verificación en dos pasos obligatoria. Al menos **dos** personas de confianza con acceso de administrador, para no depender de una sola. |
-| Superadmin de la plataforma | Solo el equipo de Aether. Cada acción queda en la auditoría. |
+| Administración de la plataforma | Solo el equipo de Aether, desde la Supersuite (Aether no tiene superusuarios ni consola propia). Cada orden queda en la bitácora de la empresa y en la de la Supersuite. |
 | Secretos (variables de entorno) | Solo en Vercel, marcados como *sensitive*. Nunca en el repositorio, en chats ni en correos. Se rotan si una persona con acceso deja el equipo o ante sospecha de filtración. |
 | Base de datos de producción | No se usa desde computadores personales para desarrollo. Desarrollo y pruebas usan una rama de Neon separada. |
 

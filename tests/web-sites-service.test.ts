@@ -1845,7 +1845,7 @@ describe('permisos de Sitios web con la matriz real', () => {
 
   it('el menú lateral muestra "Sitios web" solo con módulo contratado Y permiso de lectura', () => {
     const links = (role: Role, features: CompanyFeatureFlags) =>
-      buildAvailableWorkspaceNav({ permissions: resolvePermissions({ role, customRolePermissions: null, features }), features, isSuperAdmin: false })
+      buildAvailableWorkspaceNav({ permissions: resolvePermissions({ role, customRolePermissions: null, features }), features })
         .flatMap((group) => group.links)
         .map((link) => link.id);
 

@@ -16,7 +16,7 @@
  */
 
 /** Rutas propias de Aether que se miden (prefijo exacto o subruta). */
-const TRACKED_PREFIXES = ['/dashboard', '/aether', '/superadmin'] as const;
+const TRACKED_PREFIXES = ['/dashboard', '/aether'] as const;
 const TRACKED_EXACT = new Set(['/', '/empresas', '/conoce-aether', '/landing-v2', '/login', '/seleccionar-empresa']);
 
 /** Segmento que parece un identificador: cuid, uuid, número o o token largo con dígitos. */

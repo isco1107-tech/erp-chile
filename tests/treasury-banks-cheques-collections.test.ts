@@ -249,7 +249,7 @@ describe('cheques, cuentas y datos bancarios', () => {
 
   it('las pantallas de tesorería resaltan su propio ítem del menú', () => {
     const allFeatures = Object.fromEntries(MODULE_KEYS.map((key) => [key, true])) as CompanyFeatureFlags;
-    const links = buildAvailableWorkspaceNav({ permissions: ALL_PERMISSIONS, features: allFeatures, isSuperAdmin: false }).flatMap((group) => group.links);
+    const links = buildAvailableWorkspaceNav({ permissions: ALL_PERMISSIONS, features: allFeatures }).flatMap((group) => group.links);
     expect(findNavLinkForPath(links, '/dashboard/treasury/banks/abc')?.href).toBe('/dashboard/treasury/banks');
     expect(findNavLinkForPath(links, '/dashboard/treasury/payment-batches/new')?.href).toBe('/dashboard/treasury/payment-batches');
     expect(findNavLinkForPath(links, '/dashboard/treasury/collections')?.href).toBe('/dashboard/treasury/collections');

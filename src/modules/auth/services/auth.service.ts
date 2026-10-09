@@ -99,9 +99,9 @@ export async function verifyCredentials(email: string, password: string) {
 
     // Suspender una empresa debe cortar el acceso desde el propio login, no solo
     // en el layout: antes se emitía una cookie de sesión perfectamente válida y
-    // el corte ocurría recién al renderizar /dashboard. El superadmin es la
-    // excepción deliberada — es quien tiene que poder entrar a reactivarla.
-    if (!user.isSuperAdmin && user.company && !OPERATIONAL_STATUSES.includes(user.company.status)) {
+    // el corte ocurría recién al renderizar /dashboard. Nadie es excepción:
+    // reactivar una empresa se hace desde la Supersuite, no entrando a ella.
+    if (user.company && !OPERATIONAL_STATUSES.includes(user.company.status)) {
       throw new SuspendedCompanyError();
     }
 
@@ -124,7 +124,7 @@ export async function verifyCredentials(email: string, password: string) {
  * Avisa a Dueños/Administradores de la empresa que una cuenta se bloqueó por
  * 5 intentos fallidos seguidos — antes esto quedaba solo en `User.loginLockedUntil`,
  * sin que nadie se enterara salvo que entrara a revisar la base a mano. Un
- * usuario con `companyId: null` (ej. superadmin) no tiene a quién avisar —
+ * usuario con `companyId: null` (cuenta heredada de plataforma) no tiene a quién avisar —
  * se omite en silencio, no es un error.
  */
 async function notifyAccountLocked(userId: string, companyId: string | null): Promise<void> {

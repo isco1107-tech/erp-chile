@@ -11,7 +11,7 @@ export async function POST() {
   if (!supersuiteHabilitada()) return new NextResponse(null, { status: 204 });
   try {
     const context = await getAuthContext();
-    if (!context.isSuperAdmin && !context.mustChangePassword) presenciaSupersuite(context.companyId, context.id);
+    if (!context.mustChangePassword) presenciaSupersuite(context.companyId, context.id);
     return new NextResponse(null, { status: 204 });
   } catch {
     return new NextResponse(null, { status: 401 });

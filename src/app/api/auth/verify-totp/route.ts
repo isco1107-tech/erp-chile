@@ -35,7 +35,7 @@ type VerifyOutcome =
   | { kind: 'suspended' }
   | {
       kind: 'valid';
-      user: { id: string; role: string; email: string; companyId: string | null; isSuperAdmin: boolean; sessionVersion: number };
+      user: { id: string; role: string; email: string; companyId: string | null; sessionVersion: number };
     };
 
 /** Intenta el código contra los códigos de respaldo sin usar; consume el primero que calce, de forma atómica. */
@@ -106,7 +106,7 @@ export async function POST(req: Request) {
     }
     // Mismo corte que verifyCredentials: una empresa suspendida entre el
     // primer y el segundo paso del login no debe terminar de dejar pasar a nadie.
-    if (!user.isSuperAdmin && user.company && !OPERATIONAL_STATUSES.includes(user.company.status)) {
+    if (user.company && !OPERATIONAL_STATUSES.includes(user.company.status)) {
       return { kind: 'suspended' };
     }
 
@@ -140,7 +140,6 @@ export async function POST(req: Request) {
         role: user.role,
         email: user.email,
         companyId: user.companyId,
-        isSuperAdmin: user.isSuperAdmin,
         sessionVersion: user.sessionVersion,
       },
     };
@@ -164,7 +163,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, error: 'Código incorrecto' }, { status: 401 });
   }
 
-  const ipError = await checkIpAllowlist(outcome.user.companyId, outcome.user.isSuperAdmin, extractClientIp(req));
+  const ipError = await checkIpAllowlist(outcome.user.companyId, extractClientIp(req));
   if (ipError) return NextResponse.json({ success: false, error: ipError }, { status: 403 });
 
   logSecurityEvent({ type: 'LOGIN_SUCCESS', email: outcome.user.email, ip, userAgent, metadata: { via: '2fa' } });

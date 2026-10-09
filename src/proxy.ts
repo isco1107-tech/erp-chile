@@ -213,13 +213,6 @@ export async function proxy(req: NextRequest) {
     // claves se mantenga para siempre.
     if (payload.purpose !== 'session') throw new Error('Token de sesión inválido');
 
-    // Descarte temprano del portal de plataforma. Es solo una primera barrera:
-    // el token podría ser anterior a una revocación, así que `requireSuperAdmin()`
-    // vuelve a comprobar la bandera contra la base de datos en cada página.
-    if (pathname.startsWith('/superadmin') && payload.isSuperAdmin !== true) {
-      return NextResponse.redirect(new URL('/dashboard', req.url));
-    }
-
     return NextResponse.next();
   } catch {
     const loginUrl = new URL('/login', req.url);
@@ -233,9 +226,9 @@ export async function proxy(req: NextRequest) {
 export const config = {
   // `/api` queda fuera a propósito: un 307 hacia el HTML de /login es una
   // respuesta inútil para un cliente que espera JSON. Cada route handler bajo
-  // src/app/api/** DEBE llamar `requireAuthWithPermission()` (o `requireSuperAdmin()`)
-  // por su cuenta y devolver 401/403 con cuerpo JSON. Si agregas una ruta API
-  // nueva, ese guard no es opcional.
+  // src/app/api/** DEBE llamar `requireAuthWithPermission()` por su cuenta y
+  // devolver 401/403 con cuerpo JSON. Si agregas una ruta API nueva, ese guard
+  // no es opcional.
   // `_vercel` (Web Analytics y Speed Insights) queda fuera: sin sesión, el proxy
   // lo mandaba a /login y en un dominio propio lo reescribía al micrositio.
   matcher: ['/((?!api|_next/static|_next/image|_vercel|favicon.ico).*)'],

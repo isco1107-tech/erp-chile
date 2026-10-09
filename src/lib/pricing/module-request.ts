@@ -8,7 +8,7 @@ import { buildQuote, type Quote } from './quote';
 /**
  * Solicitud de contratación de módulos o de cambio de plan, enviada por una
  * empresa que ya es cliente. Aether no activa nada solo: la solicitud llega al
- * correo de ventas y un ejecutivo (o el superadmin) enciende los módulos. Por
+ * correo de ventas y un ejecutivo los enciende desde la Supersuite. Por
  * eso el servidor vuelve a cotizar: el cliente manda ids, nunca montos.
  */
 
@@ -56,7 +56,7 @@ export function buildModuleRequestEmail(
     '',
     `Mensaje: ${note}`,
     '',
-    'Responde a este correo para coordinar. Los módulos se activan desde el panel de superadmin.',
+    'Responde a este correo para coordinar. Los módulos se activan desde la consola de Aether.',
   ].join('\n');
 
   const rows = lines

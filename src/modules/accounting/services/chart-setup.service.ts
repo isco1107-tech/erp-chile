@@ -7,7 +7,7 @@ import { seedChartOfAccounts } from '../chart-of-accounts';
 /**
  * Puesta en marcha del plan de cuentas de una empresa.
  *
- * Contabilidad es un módulo activable: al encenderlo (superadmin, o el botón
+ * Contabilidad es un módulo activable: al encenderlo (la Supersuite, o el botón
  * de la pantalla contable) se siembra el plan de cuentas base con sus mapeos,
  * y desde ese momento el motor de asientos (`posting-rules/`) empieza a
  * contabilizar ventas, compras, pagos y ajustes. Sin plan de cuentas, el motor

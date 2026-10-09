@@ -31,7 +31,6 @@ export const SAFE_USER_SELECT = {
   photoUrl: true,
   jobPositionId: true,
   managerId: true,
-  isSuperAdmin: true,
   isActive: true,
   mustChangePassword: true,
   totpEnabled: true,
@@ -125,7 +124,6 @@ interface AcceptInvitationResult {
   role: Role;
   email: string;
   sessionVersion: number;
-  isSuperAdmin: boolean;
 }
 
 export async function acceptInvitation(
@@ -182,7 +180,7 @@ export async function acceptInvitation(
         termsAcceptedAt: new Date(),
         termsVersion: TERMS_VERSION,
       },
-      select: { id: true, companyId: true, role: true, email: true, sessionVersion: true, isSuperAdmin: true },
+      select: { id: true, companyId: true, role: true, email: true, sessionVersion: true },
     });
     await tx.invitation.update({ where: { id: invitation.id }, data: { acceptedAt: new Date() } });
     return user;
@@ -250,17 +248,13 @@ export async function createUserDirect(
  * Jerarquía actor→objetivo para gestionar una cuenta (cambiar rol, resetear
  * contraseña, suspender, eliminar): sin esto, el permiso `settings:users`
  * alcanzaba para actuar sobre cualquier cuenta de la empresa, incluido un
- * OWNER o una cuenta de plataforma (`isSuperAdmin`) que compartiera esa
- * empresa como hogar. Usa el rol BASE real del actor (`actorRole`, el enum
+ * OWNER. Usa el rol BASE real del actor (`actorRole`, el enum
  * `Role` de la sesión), no su conjunto de permisos efectivo — así un
  * `CustomRole` al que se le haya otorgado `settings:users` no elude la regla,
  * igual criterio que ya usa `inviteUserAction`/`createUserDirectAction` para
  * bloquear la asignación del rol OWNER.
  */
-export function assertCanManageTarget(actorRole: Role, target: { role: Role; isSuperAdmin: boolean }): void {
-  if (target.isSuperAdmin) {
-    throw new Error('No se puede administrar una cuenta de plataforma desde la empresa');
-  }
+export function assertCanManageTarget(actorRole: Role, target: { role: Role }): void {
   if (target.role === 'OWNER' && actorRole !== 'OWNER') {
     throw new Error('Solo un Dueño (OWNER) puede administrar a otro Dueño');
   }
@@ -445,7 +439,7 @@ export async function resetUserTemporaryPassword(
   });
   if (!target) throw new Error('Usuario no encontrado');
   // El auto-reseteo (actingUserId === targetUserId) es el único caso legítimo
-  // en que un OWNER/superadmin es su propio objetivo — no pasa por la
+  // en que un OWNER es su propio objetivo — no pasa por la
   // jerarquía porque no hay elevación de privilegio posible sobre uno mismo.
   if (actingUserId !== targetUserId) {
     assertCanManageTarget(actorRole, target);

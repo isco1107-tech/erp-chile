@@ -25,7 +25,6 @@ export interface AuthSession {
   email: string;
   name: string;
   companyId: string;
-  isSuperAdmin: boolean;
 }
 
 /** Sesión más el estado vivo del tenant: plan contratado y permisos efectivos. */
@@ -123,7 +122,7 @@ async function readSessionPayload(): Promise<SessionPayload> {
  * (`user.companyId`) — pero SIEMPRE revalidado acá, nunca confiando en el rol
  * que venga en el JWT. Si la membresía no existe, o la empresa destino no
  * tiene `hasMultiCompany` activo, cae de vuelta a la empresa hogar en
- * silencio en vez de romper la sesión completa (un flag que un superadmin
+ * silencio en vez de romper la sesión completa (un flag que la Supersuite
  * apaga después no debe dejar al usuario sin poder ni siquiera entrar).
  *
  * `clientIp` (SEG-07): la política de IP se revalida contra la empresa
@@ -176,7 +175,7 @@ const loadContext = cache(async (userId: string, activeCompanyId: string | undef
     throw new TenantInactiveError(effectiveCompany.status);
   }
 
-  const ipError = await checkIpAllowlist(effectiveCompanyId, user.isSuperAdmin, clientIp, effectiveCompany.settings);
+  const ipError = await checkIpAllowlist(effectiveCompanyId, clientIp, effectiveCompany.settings);
   if (ipError) throw new IpNotAllowedError(ipError);
 
   const features = toFeatureFlags(effectiveCompany.features);
@@ -187,7 +186,6 @@ const loadContext = cache(async (userId: string, activeCompanyId: string | undef
     email: user.email,
     name: user.name,
     companyId: effectiveCompanyId,
-    isSuperAdmin: user.isSuperAdmin,
     companyName: effectiveCompany.businessName,
     companyLogoUrl: effectiveCompany.logoUrl,
     companyBackgroundUrl: effectiveCompany.backgroundUrl,
@@ -299,32 +297,6 @@ export async function checkPageAccess(
   }
 }
 
-/** Portal de plataforma. Es una bandera global, independiente de la empresa. */
-export async function requireSuperAdmin(): Promise<AuthSession> {
-  const payload = await readSessionPayload();
-  const userId = payload.userId ?? payload.id;
-  if (!userId) throw new AuthError('Sesión inválida o expirada', 401);
-
-  // No pasa por `loadContext`: el dueño del SaaS debe poder entrar aunque la
-  // empresa a la que pertenece esté suspendida.
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { id: true, role: true, email: true, name: true, companyId: true, isSuperAdmin: true, isActive: true, sessionVersion: true },
-  });
-
-  if (!user || !user.isActive || (payload.sessionVersion ?? 0) !== user.sessionVersion) throw new AuthError('Sesión inválida o expirada', 401);
-  if (!user.isSuperAdmin) throw new AuthError('No autorizado para esta acción', 403);
-
-  return {
-    id: user.id,
-    role: user.role,
-    email: user.email,
-    name: user.name,
-    companyId: user.companyId ?? '',
-    isSuperAdmin: true,
-  };
-}
-
 /**
  * Comprueba que la empresa esté operativa y tenga el módulo contratado.
  * Devuelve sus flags para no obligar al llamador a consultarlos de nuevo.
@@ -377,7 +349,7 @@ export function authErrorMessage(error: unknown): string | null {
   return null;
 }
 
-/** Flags de una empresa sin exigir que esté operativa (uso: panel superadmin). */
+/** Flags de una empresa sin exigir que esté operativa. */
 export async function getCompanyFeatures(companyId: string): Promise<CompanyFeatureFlags> {
   const features = await prisma.companyFeatures.findUnique({ where: { companyId } });
   return features ? toFeatureFlags(features) : { ...DEFAULT_FEATURES };

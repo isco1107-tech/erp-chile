@@ -298,8 +298,10 @@ model User {
   managerId                        String?
   manager                          User?                     @relation("OrgChartHierarchy", fields: [managerId], references: [id], onDelete: Restrict)
   reports                          User[]                    @relation("OrgChartHierarchy")
-  /// Bandera global de plataforma: acceso al portal /superadmin. No pertenece a
-  /// ninguna empresa y no se puede otorgar desde el panel del cliente.
+  /// HEREDADA, sin efecto: Aether ya no tiene superusuarios ni portal /superadmin
+  /// (la administración de la plataforma vive en la Supersuite). Ningún código la
+  /// lee ni la concede. Se conserva solo porque quitar la columna es una migración
+  /// destructiva contra la base compartida con producción (CLAUDE.md §5).
   isSuperAdmin                     Boolean                   @default(false)
   isActive                         Boolean                   @default(true)
   sessionVersion                   Int                       @default(0)

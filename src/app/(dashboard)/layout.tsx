@@ -45,7 +45,7 @@ function initials(name: string): string {
 
 /**
  * El sidebar se arma desde el contexto vivo del tenant, no desde el JWT: los
- * módulos que el superadmin habilita o revoca deben reflejarse en el siguiente
+ * módulos que la Supersuite habilita o revoca deben reflejarse en el siguiente
  * request, sin esperar a que la sesión de 8 horas expire.
  */
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -78,7 +78,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const availableGroups = buildAvailableWorkspaceNav({
     permissions: context.permissions,
     features,
-    isSuperAdmin: context.isSuperAdmin,
   });
   const groups = applyDisabledNavItems(availableGroups, disabledNavItems);
   const visibleIds = new Set(groups.flatMap((group) => group.links.map((link) => link.id)));
@@ -215,7 +214,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
               <CommandMenu
                 permissions={context.permissions}
                 features={features}
-                isSuperAdmin={context.isSuperAdmin}
                 disabledNavItems={disabledNavItems}
               />
               <div className="flex-1" />

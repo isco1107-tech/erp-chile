@@ -82,7 +82,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const ipError = await checkIpAllowlist(result.data.companyId, result.data.isSuperAdmin, extractClientIp(req));
+  const ipError = await checkIpAllowlist(result.data.companyId, extractClientIp(req));
   if (ipError) return NextResponse.json({ success: false, error: ipError }, { status: 403 });
 
   // Credenciales correctas pero 2FA activo: todavía no se emite sesión real.
