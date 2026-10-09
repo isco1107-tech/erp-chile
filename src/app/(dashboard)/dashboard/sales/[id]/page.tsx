@@ -8,6 +8,8 @@ import SalesDocumentPaper from '@/components/sales/SalesDocumentPaper';
 import { buttonVariants } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import DocumentPaymentsPanel from '@/components/treasury/DocumentPaymentsPanel';
+import SiiSubmissionPanel from '@/components/sales/SiiSubmissionPanel';
+import { getSiiMode } from '@/modules/dte/services/sii-submission.service';
 
 export const metadata = { title: 'Documento de Venta' };
 
@@ -80,6 +82,18 @@ export default async function SalesDocumentDetailPage({
       )}
 
       <SalesDocumentPaper doc={doc} esCedible={esCedible} />
+
+      {doc.status === 'ISSUED' && tributario && doc.siiStatus && (
+        <div className="mx-auto max-w-[210mm] print:hidden">
+          <SiiSubmissionPanel
+            documentId={doc.id}
+            status={doc.siiStatus}
+            trackId={doc.siiTrackId}
+            detail={doc.siiStatusDetail}
+            simulation={getSiiMode() === 'simulation'}
+          />
+        </div>
+      )}
 
       {doc.status === 'ISSUED' && (
         <div className="mx-auto max-w-[210mm] print:hidden">
