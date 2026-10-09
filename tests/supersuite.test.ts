@@ -8,7 +8,7 @@ jest.mock('next/server', () => ({ after: jest.fn((tarea: () => unknown) => { voi
 jest.mock('@/lib/observability', () => ({ captureException: jest.fn() }));
 jest.mock('@/lib/prisma', () => ({ prisma: { company: { findFirst: jest.fn() } } }));
 
-import { accionDeAuditoria, alertaDeFolios, alertaDeSolicitud, empresaActiva, fichaComercial, moduloDeEntidad, modulosContratados } from '@/lib/supersuite/modulos';
+import { accionDeAuditoria, alertaDeFolios, alertaDeSolicitud, catalogoDeModulos, empresaActiva, fichaComercial, flagsDeModulo, moduloDeEntidad, modulosContratados } from '@/lib/supersuite/modulos';
 import { PLAN_PRESETS } from '@/lib/pricing/presets';
 
 const fetchMock = jest.fn();
@@ -223,5 +223,32 @@ describe('con configuración', () => {
     await expect(s.avisarFoliosSupersuite('c1', [])).resolves.toBeUndefined();
     await esperarEnvios();
     expect(captureException).toHaveBeenCalled();
+  });
+});
+
+describe('catálogo de módulos que la Supersuite puede habilitar', () => {
+  it('cada módulo vendible o fuera de oferta se enciende por su id y por todos sus nombres', () => {
+    const catalogo = catalogoDeModulos();
+    for (const item of catalogo.filter((m) => m.desactivable)) {
+      const porId = flagsDeModulo(item.id);
+      expect(porId.length).toBeGreaterThan(0);
+      for (const alias of item.alias) expect(flagsDeModulo(alias)).toEqual(expect.arrayContaining(porId.slice(0, 1)));
+    }
+  });
+
+  it('no repite ids y solo la plataforma base queda sin poder apagarse', () => {
+    const catalogo = catalogoDeModulos();
+    expect(new Set(catalogo.map((m) => m.id)).size).toBe(catalogo.length);
+    expect(catalogo.filter((m) => !m.desactivable).map((m) => m.nombre)).toEqual(['Inventario y Catálogo', 'Costeo PMP']);
+  });
+
+  it('todo módulo de CompanyFeatures está en el catálogo (un módulo nuevo no puede quedar fuera de la Supersuite)', async () => {
+    const { MODULES } = await import('@/lib/auth/modules');
+    const cubiertos = new Set(catalogoDeModulos().flatMap((m) => flagsDeModulo(m.id)));
+    for (const flag of MODULES.map((m) => m.key)) {
+      // Costeo PMP es de la base y no tiene orden propia.
+      if (flag === 'hasPmpCosting') continue;
+      expect(cubiertos.has(flag)).toBe(true);
+    }
   });
 });

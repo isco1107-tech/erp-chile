@@ -1,10 +1,10 @@
 import type { AuditAction, CompanyFeatures } from '@prisma/client';
-import { toFeatureFlags, type CompanyFeatureFlags, type FeatureKey } from '@/lib/auth/modules';
+import { getModule, toFeatureFlags, type CompanyFeatureFlags, type FeatureKey } from '@/lib/auth/modules';
 import type { DatosCliente } from './cliente';
 import { formatCurrency } from '@/lib/chile/tax';
-import { EXTRA_USER_PRICE, PRICED_MODULES } from '@/lib/pricing/catalog';
+import { BASE_PLATFORM, EXTRA_USER_PRICE, INCLUDED_IN_BASE, PRICED_MODULES, PRICING_PLANS, UNPRICED_FEATURES } from '@/lib/pricing/catalog';
 import { isModuleContracted } from '@/lib/pricing/quote';
-import { MAX_WAREHOUSES, PLAN_NAMES, PLAN_PRESETS, tenantListPrice } from '@/lib/pricing/presets';
+import { MAX_WAREHOUSES, PLAN_NAMES, PLAN_PRESETS, planListPrice, tenantListPrice } from '@/lib/pricing/presets';
 import { DTE_TYPE_LABELS } from '@/modules/sales/schema';
 
 /**
@@ -43,6 +43,15 @@ export const FLAG_A_MODULO: Partial<Record<FeatureKey, string>> = {
   hasQuality: 'calidad',
   hasTeamTasks: 'tareas',
   hasAcademy: 'academia',
+  // Módulos vendibles que la Supersuite no podía nombrar: solo se encendían por su id del tarifario.
+  hasAdvancedReports: 'reportes',
+  hasMultipleWarehouses: 'multibodega',
+  hasCrm: 'agentes',
+  hasOrgChart: 'organigrama',
+  hasLiveProduction: 'produccion_en_vivo',
+  hasMultiCompany: 'multiempresa',
+  hasIntelligence: 'inteligencia',
+  hasWebSites: 'sitios_web',
 };
 
 /**
@@ -133,6 +142,83 @@ export function flagsDeModulo(modulo: string): FeatureKey[] {
   const flag = (Object.entries(FLAG_A_MODULO) as [FeatureKey, string][]).find(([, m]) => m === clave)?.[0];
   if (!flag) return [];
   return [...(PRICED_MODULES.find((m) => m.grants.includes(flag))?.grants ?? [flag])];
+}
+
+/** Flags de la plataforma base (Inventario, Costeo PMP): vienen con toda cuenta y no se apagan por orden. */
+const FLAGS_DE_LA_BASE: ReadonlySet<FeatureKey> = new Set(INCLUDED_IN_BASE.flatMap((item) => item.grants));
+
+/** De los flags que pide apagar una orden, los que son parte de la plataforma base (y por eso no se apagan). */
+export function flagsDeLaBase(flags: readonly FeatureKey[]): FeatureKey[] {
+  return flags.filter((flag) => FLAGS_DE_LA_BASE.has(flag));
+}
+
+export type EstadoModulo = 'activo' | 'parcial' | 'apagado';
+
+export interface ModuloCatalogo {
+  /** Id para las órdenes `modulo.activar|desactivar`. */
+  id: string;
+  nombre: string;
+  resumen: string;
+  categoria: string;
+  /** CLP/mes sin IVA a precio de lista; `null` = no se vende (se enciende a mano). */
+  precioMensual: number | null;
+  /** Otros nombres con los que Aether acepta la orden (`pos`, `rrhh`…). */
+  alias: string[];
+  /** Falso en lo que viene con la plataforma base. */
+  desactivable: boolean;
+  /** Solo si se consultó una empresa: `parcial` = tiene algunos de los módulos que el ítem activa. */
+  estado?: EstadoModulo;
+  /** Solo si se consultó una empresa: está dentro del precio de su plan (si no, se cobra como extra). */
+  incluidoEnPlan?: boolean;
+}
+
+const estadoDe = (grants: readonly FeatureKey[], features: CompanyFeatureFlags): EstadoModulo => {
+  const encendidos = grants.filter((flag) => features[flag]).length;
+  return encendidos === 0 ? 'apagado' : encendidos === grants.length ? 'activo' : 'parcial';
+};
+
+/**
+ * Todo lo que la Supersuite puede encender o apagar, con su id, precio de lista y,
+ * si se indica la empresa, en qué estado está y si va incluido en su plan. Sale del
+ * tarifario y del registro de módulos, así que un módulo nuevo aparece solo.
+ */
+export function catalogoDeModulos(empresa?: { planName: string; features: CompanyFeatureFlags }): ModuloCatalogo[] {
+  const delPlan = new Set(PRICING_PLANS.find((p) => p.label === empresa?.planName)?.moduleIds ?? []);
+  const aliasDe = (grants: readonly FeatureKey[]) => [...new Set(grants.map((flag) => FLAG_A_MODULO[flag]).filter((nombre): nombre is string => Boolean(nombre)))];
+  const conEstado = (item: ModuloCatalogo, grants: readonly FeatureKey[], enPlan: boolean): ModuloCatalogo =>
+    empresa ? { ...item, estado: estadoDe(grants, empresa.features), incluidoEnPlan: enPlan } : item;
+
+  const vendibles = PRICED_MODULES.map((m) =>
+    conEstado({ id: m.id, nombre: m.label, resumen: m.summary, categoria: m.category, precioMensual: m.price, alias: aliasDe(m.grants), desactivable: true }, m.grants, delPlan.has(m.id))
+  );
+  const sinPrecio = UNPRICED_FEATURES.map((flag) => {
+    const modulo = getModule(flag);
+    return conEstado(
+      { id: FLAG_A_MODULO[flag] ?? flag, nombre: modulo.label, resumen: modulo.description, categoria: 'Fuera de la oferta', precioMensual: null, alias: [], desactivable: true },
+      [flag],
+      false
+    );
+  });
+  const deLaBase = INCLUDED_IN_BASE.map((item) => {
+    const alias = aliasDe(item.grants);
+    return conEstado({ id: alias[0] ?? item.grants[0], nombre: item.label, resumen: 'Viene con la plataforma base.', categoria: 'Plataforma base', precioMensual: 0, alias, desactivable: false }, item.grants, true);
+  });
+  return [...vendibles, ...sinPrecio, ...deLaBase];
+}
+
+/** Planes que se ofrecen, con lo que traen, para que la Supersuite pueda ofrecer el cambio de plan. */
+export function catalogoDePlanes(): { nombre: string; precioMensual: number | null; usuariosIncluidos: number; bodegas: number; modulos: string[] }[] {
+  return PLAN_NAMES.map((nombre) => {
+    const preset = PLAN_PRESETS[nombre];
+    const plan = PRICING_PLANS.find((p) => p.label === nombre);
+    return {
+      nombre,
+      precioMensual: planListPrice(nombre),
+      usuariosIncluidos: preset?.maxUsers ?? BASE_PLATFORM.includedUsers,
+      bodegas: preset?.maxWarehouses ?? 1,
+      modulos: plan?.moduleIds ?? [],
+    };
+  });
 }
 
 /** Nombre del plan de Aether que corresponde (sin importar tildes ni mayúsculas), o null si no existe. */
