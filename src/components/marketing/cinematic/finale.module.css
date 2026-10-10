@@ -1,0 +1,206 @@
+/*
+ * Cierre de la landing (CinematicFinale): el único video de la página. Una
+ * pista larga con un escenario fijo; el video no se reproduce solo: player.ts
+ * dibuja en el canvas el fotograma que corresponde al scroll, y la galaxia se
+ * arma en el logo. «Dale espacio para crecer.» está desde el comienzo;
+ * «Dale Aether.» y el botón llegan con el logo (CinematicFinale escribe su
+ * opacidad en línea).
+ *
+ * El escenario mide 100lvh para que el video siempre cubra la pantalla aunque
+ * la barra del navegador móvil se esconda; los textos miden 100svh para no
+ * quedar nunca debajo de esa barra.
+ */
+.finale {
+  position: relative;
+  height: 230vh;
+  background: var(--bg);
+}
+
+.stage {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100lvh;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.media {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: var(--bg);
+}
+
+.poster { object-fit: cover; object-position: 50% 50%; }
+
+.canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+}
+
+.finale[data-painted] .canvas { opacity: 1; }
+
+/* Velo fijo: oscurece arriba (bajo la cabecera) y funde abajo con el pie, que va a continuación. */
+.shade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, var(--bg) 0%, rgb(11 14 20 / .55) 14%, rgb(11 14 20 / 0) 32%),
+    linear-gradient(0deg, #080a0f 0%, rgb(8 10 15 / .7) 16%, rgb(8 10 15 / 0) 36%);
+}
+
+.copy {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  height: 100vh;
+  height: 100svh;
+  padding: calc(var(--header-h) + clamp(8px, 3svh, 36px)) var(--gutter) clamp(14px, 2.6svh, 36px);
+  text-align: center;
+  pointer-events: none;
+}
+
+.lead,
+.close {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 100%;
+  pointer-events: auto;
+}
+
+.close {
+  gap: clamp(10px, 1.6svh, 20px);
+  will-change: opacity, transform;
+}
+
+.close[data-hidden] { visibility: hidden; }
+
+.eyebrow {
+  margin: 0 0 clamp(10px, 1.8svh, 18px);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .22em;
+  color: var(--gold);
+}
+
+.title {
+  margin: 0;
+  max-width: 100%;
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: min(clamp(40px, 6vw, 96px), 10svh);
+  line-height: .9;
+  text-transform: uppercase;
+  text-wrap: balance;
+  text-shadow: 0 2px 28px rgb(11 14 20 / .8);
+}
+
+.gold { color: var(--gold); }
+
+/* En vertical, «Dale Aether.» va bajo el logo: más chico para caber en la franja de abajo. */
+.close .title { font-size: min(clamp(30px, 7vw, 52px), 5.2svh); }
+
+/* El mismo botón principal de la portada. */
+.primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 0 24px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #ead8a5, var(--gold));
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+  box-shadow: 0 10px 30px -10px rgb(219 192 118 / .55), inset 0 1px 0 rgb(255 255 255 / .45);
+  transition: transform .2s var(--ease), box-shadow .2s;
+}
+
+.primary:hover { transform: translateY(-1px); box-shadow: 0 14px 36px -10px rgb(219 192 118 / .7), inset 0 1px 0 rgb(255 255 255 / .45); }
+
+/*
+ * En pantallas apaisadas todo el cierre va en una columna a la izquierda del
+ * logo, al medio del alto. El cuadro cubre la ventana (su ancho es
+ * max(100vw, 16/9 del alto)) y lo primero del logo, la luna, cae al ~30 % de
+ * ese ancho: a la izquierda quedan libres 50vw − max(20vw, 35.6vh). Si eso no
+ * alcanza para la columna (32vw más el margen), el video se corre a la
+ * derecha lo que falta y el velo funde el borde que queda a la izquierda.
+ * Así el texto nunca queda encima del logo.
+ */
+@media (min-aspect-ratio: 4/3) and (min-width: 1000px) {
+  .finale {
+    --finale-free: calc(50vw - max(20vw, 35.6vh));
+    --finale-shift: max(0px, calc(32vw + var(--gutter) - var(--finale-free)));
+  }
+
+  .finale .poster,
+  .finale .canvas { transform: translate3d(var(--finale-shift), 0, 0); }
+
+  .copy {
+    justify-content: center;
+    align-items: flex-start;
+    gap: clamp(18px, 3svh, 32px);
+    padding: var(--header-h) 0 0 var(--gutter);
+    text-align: left;
+  }
+
+  .lead,
+  .close {
+    align-items: flex-start;
+    width: calc(32vw - 24px);
+  }
+
+  .title,
+  .close .title { font-size: min(clamp(36px, 4.4vw, 76px), 9svh); }
+
+  .shade {
+    background:
+      linear-gradient(180deg, var(--bg) 0%, rgb(11 14 20 / .55) 14%, rgb(11 14 20 / 0) 32%),
+      linear-gradient(0deg, #080a0f 0%, rgb(8 10 15 / .7) 16%, rgb(8 10 15 / 0) 36%),
+      linear-gradient(90deg, var(--bg) 0, var(--bg) var(--finale-shift), rgb(11 14 20 / .6) calc(var(--finale-shift) + 6vw), rgb(11 14 20 / 0) calc(var(--finale-shift) + 30vw));
+  }
+}
+
+@media (max-width: 760px) {
+  .finale { height: 190vh; }
+  .eyebrow { font-size: 11px; letter-spacing: .18em; }
+}
+
+/*
+ * Sin JavaScript o con muy poco alto: sin pista larga. El primer fotograma de
+ * fondo, el titular arriba y el botón abajo. Con movimiento reducido la pista
+ * se mantiene (el video solo avanza con el scroll de la persona).
+ */
+@media (scripting: none), (max-height: 560px) {
+  .finale { height: auto; }
+
+  .stage {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+    min-height: max(100svh, 560px);
+    overflow: visible;
+  }
+
+  .canvas { display: none; }
+  .copy { position: relative; flex: 1; height: auto; }
+
+  .close {
+    opacity: 1 !important;
+    transform: none !important;
+    visibility: visible !important;
+  }
+}

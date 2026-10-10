@@ -1,19 +1,14 @@
 import manifest from '../../../../public/marketing/cinematic/seq/manifest.json';
 
 /**
- * Coreografía de las dos escenas con video de la landing (`/`), como
- * funciones puras.
+ * Coreografía del cierre de la landing (`/`), el único video de la página,
+ * como funciones puras.
  *
- * Cada escena es una pista larga con un escenario fijo y su propio video:
- * el hero recorre v1 (cielo de Atacama → Vía Láctea → galaxia) y el cierre
- * recorre v2 (la galaxia se arma en el logo). P es el progreso de la pista
- * (0 a 1); el fotograma y los textos se derivan de ese único número, así que
- * se puede probar sin DOM.
- *
- * Antes los dos videos iban seguidos en el hero: la página partía con todo el
- * movimiento, terminaba en un logo sobre fondo blanco y caía de golpe a
- * secciones oscuras y quietas. Repartidos, el video abre y cierra la página,
- * y ambos tramos terminan oscuros, como el resto.
+ * El cierre es una pista larga con un escenario fijo: recorre v2 (una
+ * galaxia que se arma en el logo) y se corta antes de su final claro. P es
+ * el progreso de la pista (0 a 1); el fotograma y los textos se derivan de
+ * ese único número, así que se puede probar sin DOM. Los fotogramas de v1
+ * los usa el video del login (LoginVideo).
  */
 
 /**
@@ -32,11 +27,6 @@ export const IDLE_AHEAD = 18;
 /** Ritmo de un video dentro de su pista: pares [P, tiempo del video], ambos de 0 a 1. */
 export type Timing = readonly (readonly [number, number])[];
 
-/**
- * Hero: v1 de punta a punta. El último fotograma (la galaxia) llega al 90 %
- * de la pista y se sostiene, así que «Ahora, estás dentro.» se lee quieto.
- */
-export const HERO_TIMING: Timing = [[0, 0], [0.9, 1], [1, 1]];
 /**
  * Cierre: v2 hasta el logo sobre el cielo oscuro. El logo queda armado al
  * 78 % y se sostiene mientras aparece «Dale Aether.».
@@ -144,36 +134,6 @@ export function usesFrame(index: number, last: number, stride: number): boolean 
   return stride <= 1 || index === last || index % stride === 0;
 }
 
-export interface Choreography {
-  /** Opacidad del titular, párrafo, botones y cifras. */
-  intro: number;
-  /** Desplazamiento vertical del mismo bloque, en px (sube al irse). */
-  introShift: number;
-  /** Opacidad de «Ahora, estás dentro.» */
-  inside: number;
-  insideShift: number;
-  /** Largo de la línea dorada de progreso (escala 0 a 1). */
-  line: number;
-  /** La línea se apaga al final para no marcar la unión con la sección siguiente. */
-  lineOpacity: number;
-}
-
-export function choreography(progress: number): Choreography {
-  const p = clamp01(progress);
-  const leaving = smoothstep(0, 0.22, p);
-  // Llega cuando la galaxia ya ocupa el cuadro (v1 ≈ 62 % a 75 %) y se queda:
-  // el hero termina con esa frase sobre el último fotograma, sin nada claro detrás.
-  const arriving = smoothstep(0.56, 0.68, p);
-  return {
-    intro: 1 - leaving,
-    introShift: -40 * leaving,
-    inside: arriving,
-    insideShift: 28 * (1 - arriving),
-    line: p,
-    lineOpacity: 1 - smoothstep(0.96, 1, p),
-  };
-}
-
 /** Coreografía del cierre: el titular de arriba está desde el comienzo; «Dale Aether.» y el botón llegan con el logo. */
 export interface FinaleChoreography {
   /** Opacidad de «Dale Aether.» y del botón. */
@@ -185,33 +145,6 @@ export interface FinaleChoreography {
 export function finaleChoreography(progress: number): FinaleChoreography {
   const arriving = smoothstep(0.68, 0.82, clamp01(progress));
   return { close: arriving, closeShift: 24 * (1 - arriving) };
-}
-
-/** Estado de un capítulo de la guía del hero para un progreso: cuánto se llenó y si está encendido. */
-export function chapterState(progress: number, from: number, to: number): { fill: number; on: number } {
-  const p = clamp01(progress);
-  return {
-    fill: clamp01((p - from) / (to - from)),
-    // Se enciende al entrar a su tramo y se apaga al salir, con un borde corto (1/80 de P).
-    on: clamp01((p - from) * 80 + 1) * clamp01((to - p) * 80),
-  };
-}
-
-/** La guía se apaga al final, sobre la galaxia; «Desliza para entrar» apenas empieza el scroll. */
-export function hudOpacity(progress: number): { guide: number; cue: number } {
-  const p = clamp01(progress);
-  return { guide: 1 - clamp01((p - 0.93) * 20), cue: 1 - clamp01(p * 18) };
-}
-
-/**
- * Salida del hero: cuánto sube el degradado a #0b0e14 desde el borde inferior
- * del escenario, según cuánto se alejó ya el escenario (`exit`, 0 a 1 de su
- * alto). Es 0 mientras la pista está fija, así que el último fotograma se ve
- * limpio, y cubre todo cuando el escenario subió la mitad: la unión con la
- * sección siguiente nunca es un corte.
- */
-export function exitShade(exit: number): number {
-  return smoothstep(0, 0.5, exit);
 }
 
 /**

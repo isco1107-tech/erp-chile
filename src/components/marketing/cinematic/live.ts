@@ -1,9 +1,9 @@
 /**
- * Movimiento de /landing-v2 fuera del hero, como funciones puras.
+ * Movimiento de la landing fuera de la portada, como funciones puras.
  *
  * Todo se deriva de la posición del elemento en la ventana, no del tiempo:
  * lo mueve el scroll de la persona. Por eso sigue activo con movimiento
- * reducido (igual que el video del hero), mientras que lo que se anima solo
+ * reducido (igual que el video del cierre), mientras que lo que se anima solo
  * (el titilar de las estrellas) respeta esa preferencia en CSS.
  */
 import { clamp01, smoothstep } from './sequence';

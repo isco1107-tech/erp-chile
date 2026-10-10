@@ -7,9 +7,9 @@ import manifest from '../../../../public/marketing/cinematic/seq/manifest.json';
 import { isLightweightDevice } from './device';
 import { startPlayer } from './player';
 import { FINALE_TIMING, finaleChoreography, finaleLastFrame, frameUrl } from './sequence';
-import s from './sequence.module.css';
+import s from './finale.module.css';
 
-/** Mismos cortes que el hero (CinematicSequence) y que el CSS. */
+/** Mismos cortes que el CSS: el set móvil es un recorte vertical del cuadro. */
 const MOBILE_QUERY = '(max-width: 760px)';
 const STATIC_QUERY = '(max-height: 560px)';
 
@@ -20,8 +20,8 @@ const lastFrame = {
 } as const;
 
 /**
- * Primer fotograma de v2 (la galaxia con la que terminó el hero). Se carga
- * diferido: está al final de la página. Sin JavaScript es lo que se ve.
+ * Primer fotograma de v2 (la galaxia). Se carga diferido: está al final de
+ * la página. Sin JavaScript es lo que se ve.
  */
 function Poster() {
   const common = { alt: '', fill: true, sizes: '100vw', unoptimized: true } as const;
@@ -42,13 +42,13 @@ function clearClose(node: HTMLElement) {
 }
 
 /**
- * Cierre de la landing: v2 avanza con el scroll y la galaxia en que terminó
- * el hero se arma en el logo de Aether; con el logo llegan «Dale Aether.» y
- * el botón de cotizar. Así el video abre y cierra la página en vez de
- * gastarse entero arriba, y el recorrido termina oscuro, como el pie.
+ * Cierre de la landing, con el único video de la página: v2 avanza con el
+ * scroll y una galaxia se arma en el logo de Aether; con el logo llegan
+ * «Dale Aether.» y el botón de cotizar. Se corta antes del final claro de
+ * v2, así que termina oscuro, como el pie.
  *
- * Usa el mismo motor que el hero (player.ts). Empieza a descargar sus
- * fotogramas cuando está a una pantalla y media de aparecer.
+ * El motor es player.ts. Empieza a descargar sus fotogramas cuando está a
+ * una pantalla y media de aparecer.
  */
 export default function CinematicFinale() {
   const track = useRef<HTMLElement>(null);
@@ -96,21 +96,21 @@ export default function CinematicFinale() {
   }, []);
 
   return (
-    <section id="cierre" ref={track} className={`${s.track} ${s.finale}`} aria-labelledby="cierre-title" data-pinned-scene data-finale-track>
+    <section id="cierre" ref={track} className={s.finale} aria-labelledby="cierre-title" data-pinned-scene data-finale-track>
       <div ref={stage} className={s.stage}>
         <div className={s.media} aria-hidden="true">
           <Poster />
           <canvas ref={canvas} className={s.canvas} />
-          <div className={s.finaleShade} />
+          <div className={s.shade} />
         </div>
 
-        <div className={s.finaleCopy}>
-          <div className={s.finaleLead}>
+        <div className={s.copy}>
+          <div className={s.lead}>
             <p className={s.eyebrow}>TU EMPRESA YA TIENE EL POTENCIAL</p>
-            <h2 id="cierre-title" className={s.finaleTitle}>Dale espacio para crecer.</h2>
+            <h2 id="cierre-title" className={s.title}>Dale espacio para crecer.</h2>
           </div>
-          <div ref={close} className={s.finaleClose}>
-            <p className={`${s.finaleTitle} ${s.gold}`}>Dale Aether.</p>
+          <div ref={close} className={s.close}>
+            <p className={`${s.title} ${s.gold}`}>Dale Aether.</p>
             <a className={s.primary} href="#modulos" data-magnetic>Arma tu cotización <ArrowUpRight size={18} aria-hidden="true" /></a>
           </div>
         </div>

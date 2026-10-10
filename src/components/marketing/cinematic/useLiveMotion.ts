@@ -2,7 +2,7 @@ import { useEffect, type RefObject } from 'react';
 import { enterProgress, viewProgress } from './live';
 
 /**
- * Motor de movimiento de /landing-v2 fuera del hero. Escribe en cada elemento
+ * Motor de movimiento de la landing fuera de la portada. Escribe en cada elemento
  * dos variables CSS y el CSS decide qué hacer con ellas:
  *   --in    entrada, de 0 (aún bajo la ventana) a 1 (ya entró)
  *   --view  paso por la ventana, de 0 (asoma abajo) a 1 (sale arriba)

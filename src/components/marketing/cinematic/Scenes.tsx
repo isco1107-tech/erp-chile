@@ -1,10 +1,9 @@
-import Image, { getImageProps } from 'next/image';
+import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowUpRight, Check, ChevronDown } from 'lucide-react';
 import { points } from '../ChileSection';
 import { faqs, plans } from '../content';
 import { formatCurrency } from '@/lib/chile/tax';
-import { frameUrl } from './sequence';
 import s from './v2.module.css';
 
 /*
@@ -19,29 +18,9 @@ import s from './v2.module.css';
  */
 const chilePoints = points.filter(point => ['IVA que siempre cuadra', 'Folios autorizados', 'F29 del período'].includes(point.title));
 
-/**
- * Fondo de «Hecho para Chile.»: el primer fotograma de v1 (cielo y horizonte
- * de Atacama), el mismo archivo que el póster del hero, así que no se
- * descarga dos veces. Decorativo y diferido.
- */
-function AtacamaSky() {
-  const common = { alt: '', fill: true, sizes: '100vw', unoptimized: true } as const;
-  const { props: desktop } = getImageProps({ ...common, src: frameUrl(0, 'd', 0) });
-  const { props: { src: mobileSrc } } = getImageProps({ ...common, src: frameUrl(0, 'm', 0) });
-  return (
-    <div className={s.chileSky} aria-hidden="true" data-live>
-      <picture>
-        <source media="(max-width: 760px)" srcSet={mobileSrc} />
-        <img {...desktop} alt="" />
-      </picture>
-    </div>
-  );
-}
-
 export function ChileScene() {
   return (
     <section id="tributacion" className={`${s.section} ${s.chile}`} aria-labelledby="tributacion-title">
-      <AtacamaSky />
       <div className={s.chileIntro}>
         <p className={s.kicker}>TRIBUTACIÓN CHILENA</p>
         <h2 id="tributacion-title" className={`${s.heading} ${s.headingMid}`}>

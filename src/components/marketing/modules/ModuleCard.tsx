@@ -21,7 +21,9 @@ export default function ModuleCard({ card, headingLevel = 3 }: { card: ShowcaseC
     <article className={s.card} data-selected={selected || undefined}>
       <div className={s.cardMedia}>
         {card.cover ? (
-          <Image src={card.cover} alt="" fill sizes="(max-width: 560px) 104px, (max-width: 1100px) 45vw, 340px" />
+          <div className={s.cardShot}>
+            <Image src={card.cover} alt="" fill sizes="(max-width: 560px) 104px, (max-width: 1100px) 45vw, 340px" />
+          </div>
         ) : (
           <span className={s.cardPlaceholder}><LayoutGrid size={30} strokeWidth={1.4} aria-hidden="true" /></span>
         )}

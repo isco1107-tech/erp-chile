@@ -1,112 +1,57 @@
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import {
-  FINALE_TIMING, HERO_TIMING, SMOOTH_TIME, chapterState, choreography, decodeWindow, exitShade, finaleChoreography, finaleLastFrame, frameAt, frameBlend,
-  framePoint, frameUrl, hudOpacity, loadOrder, smoothDamp, smoothstep, snapIndex, usesFrame, videoTime,
+  FINALE_TIMING, SMOOTH_TIME, decodeWindow, finaleChoreography, finaleLastFrame, frameAt, frameBlend, framePoint, frameUrl, loadOrder,
+  smoothDamp, smoothstep, snapIndex, usesFrame, videoTime,
 } from '../src/components/marketing/cinematic/sequence';
 import { ENTER_FROM, ENTER_SPAN, MAX_STAGGER, enterProgress, viewProgress } from '../src/components/marketing/cinematic/live';
-import { linkStrength, makeStars, streakLength, traceAmounts, wrap } from '../src/components/marketing/cinematic/constellation';
-import { CONSTELLATIONS, centerFocus, constellationY, projectStars, starRadius } from '../src/components/marketing/cinematic/constellations';
+import { linkStrength, makeStars, streakLength, wrap } from '../src/components/marketing/cinematic/constellation';
 import manifest from '../public/marketing/cinematic/seq/manifest.json';
 import { approach, isWheelNotch, wheelPixels } from '../src/components/marketing/cinematic/smoothWheel';
 
 const publicDir = path.join(__dirname, '..', 'public');
-const heroLast = manifest.clips.v1.desktop.count - 1;
 const finaleLast = (set: 'desktop' | 'mobile') => finaleLastFrame(manifest.clips.v2[set].count, manifest.clips.v2[set].fps, manifest.clips.v2[set].light);
 
-describe('landing · el video abre y cierra la página', () => {
-  it('el hero recorre solo v1 y llega a su último fotograma al 90 % de la pista', () => {
-    expect(frameAt(0, HERO_TIMING, heroLast)).toBe(0);
-    expect(frameAt(0.45, HERO_TIMING, heroLast)).toBe(Math.round(0.5 * heroLast));
-    expect(frameAt(0.85, HERO_TIMING, heroLast)).toBeLessThan(heroLast);
-    expect(frameAt(0.9, HERO_TIMING, heroLast)).toBe(heroLast);
-    expect(frameAt(1, HERO_TIMING, heroLast)).toBe(heroLast);
-  });
-
-  it('avanza y retrocede con el mismo P: es una función del scroll, no del tiempo', () => {
-    const forward = [0.1, 0.3, 0.5, 0.7, 0.9].map(p => frameAt(p, HERO_TIMING, heroLast));
-    expect([...forward].sort((a, b) => a - b)).toEqual(forward);
-    expect(frameAt(0.3, HERO_TIMING, heroLast)).toBe(frameAt(0.3, HERO_TIMING, heroLast));
-  });
-
-  it('acota P fuera de rango', () => {
-    expect(frameAt(-2, HERO_TIMING, heroLast)).toBe(0);
-    expect(frameAt(3, HERO_TIMING, heroLast)).toBe(heroLast);
-    expect(videoTime(-1, FINALE_TIMING)).toBe(0);
-    expect(videoTime(2, FINALE_TIMING)).toBe(1);
-  });
+describe('landing · el único video es el del cierre', () => {
+  const last = () => finaleLast('desktop');
 
   it('el cierre termina antes de que v2 se aclare: nunca muestra el logo sobre fondo blanco', () => {
     for (const set of ['desktop', 'mobile'] as const) {
-      const last = finaleLast(set);
+      const end = finaleLast(set);
       const { light, fps, count } = manifest.clips.v2[set];
       expect(light.length).toBeGreaterThan(0);
-      for (const [first] of light) expect(last).toBeLessThan(first - fps * 0.5);
+      for (const [first] of light) expect(end).toBeLessThan(first - fps * 0.5);
       // Pero llega al logo armado: más de la mitad del video.
-      expect(last).toBeGreaterThan(count / 2);
+      expect(end).toBeGreaterThan(count / 2);
     }
     expect(finaleLastFrame(100, 10, [])).toBe(99);
   });
 
-  it('el cierre arma el logo al 78 % de su pista y lo sostiene', () => {
-    const last = finaleLast('desktop');
-    expect(frameAt(0, FINALE_TIMING, last)).toBe(0);
-    expect(frameAt(0.7, FINALE_TIMING, last)).toBeLessThan(last);
-    expect(frameAt(0.78, FINALE_TIMING, last)).toBe(last);
-    expect(frameAt(1, FINALE_TIMING, last)).toBe(last);
-  });
-});
-
-describe('landing v2 · coreografía', () => {
-  it('parte con el titular a la vista y todo lo demás apagado', () => {
-    expect(choreography(0)).toEqual({ intro: 1, introShift: -0, inside: 0, insideShift: 28, line: 0, lineOpacity: 1 });
+  it('arma el logo al 78 % de su pista y lo sostiene', () => {
+    expect(frameAt(0, FINALE_TIMING, last())).toBe(0);
+    expect(frameAt(0.7, FINALE_TIMING, last())).toBeLessThan(last());
+    expect(frameAt(0.78, FINALE_TIMING, last())).toBe(last());
+    expect(frameAt(1, FINALE_TIMING, last())).toBe(last());
   });
 
-  it('el titular sube 40 px y se desvanece entre P 0 y .22', () => {
-    const gone = choreography(0.22);
-    expect(gone.intro).toBe(0);
-    expect(gone.introShift).toBe(-40);
-    expect(choreography(0.11).intro).toBeGreaterThan(0);
+  it('avanza y retrocede con el mismo P: es una función del scroll, no del tiempo', () => {
+    const forward = [0.1, 0.3, 0.5, 0.7, 0.9].map(p => frameAt(p, FINALE_TIMING, last()));
+    expect([...forward].sort((a, b) => a - b)).toEqual(forward);
+    expect(frameAt(0.3, FINALE_TIMING, last())).toBe(frameAt(0.3, FINALE_TIMING, last()));
   });
 
-  it('«Ahora, estás dentro.» llega con la galaxia y se queda hasta el final del hero', () => {
-    expect(choreography(0.56).inside).toBe(0);
-    expect(choreography(0.68).inside).toBe(1);
-    expect(choreography(0.9).inside).toBe(1);
-    expect(choreography(1).inside).toBe(1);
-    // Para entonces el video ya pasó del 60 %: la galaxia ocupa el cuadro.
-    expect(frameAt(0.56, HERO_TIMING, heroLast)).toBeGreaterThan(0.6 * heroLast);
+  it('acota P fuera de rango', () => {
+    expect(frameAt(-2, FINALE_TIMING, last())).toBe(0);
+    expect(frameAt(3, FINALE_TIMING, last())).toBe(last());
+    expect(videoTime(-1, FINALE_TIMING)).toBe(0);
+    expect(videoTime(2, FINALE_TIMING)).toBe(1);
   });
 
-  it('en el cierre «Dale Aether.» y el botón llegan con el logo', () => {
+  it('«Dale Aether.» y el botón llegan con el logo', () => {
     expect(finaleChoreography(0)).toEqual({ close: 0, closeShift: 24 });
     expect(finaleChoreography(0.68).close).toBe(0);
     expect(finaleChoreography(0.82)).toEqual({ close: 1, closeShift: 0 });
     expect(finaleChoreography(1).close).toBe(1);
-  });
-
-  it('termina con el último fotograma a la vista: sin capa oscura mientras la pista está fija', () => {
-    expect(choreography(1).line).toBe(1);
-    expect(choreography(0.96).lineOpacity).toBe(1);
-    expect(choreography(1).lineOpacity).toBe(0);
-    expect(exitShade(0)).toBe(0);
-  });
-
-  it('al salir, el degradado sube desde abajo y a media salida cubre la unión', () => {
-    expect(exitShade(0.1)).toBeGreaterThan(0);
-    expect(exitShade(0.25)).toBeLessThan(1);
-    expect(exitShade(0.5)).toBe(1);
-    expect(exitShade(1)).toBe(1);
-  });
-
-  it('la guía de capítulos enciende solo el tramo actual y llena su barra', () => {
-    expect(chapterState(0.1, 0, 0.2)).toEqual({ fill: 0.5, on: 1 });
-    expect(chapterState(0.1, 0.2, 0.7).on).toBe(0);
-    expect(chapterState(0.85, 0.7, 1.02).on).toBe(1);
-    expect(chapterState(0.85, 0, 0.2)).toEqual({ fill: 1, on: 0 });
-    expect(hudOpacity(0)).toEqual({ guide: 1, cue: 1 });
-    expect(hudOpacity(1).guide).toBe(0);
-    expect(hudOpacity(0.1).cue).toBe(0);
   });
 
   it('suaviza en los bordes', () => {
@@ -180,7 +125,7 @@ describe('landing v2 · fotogramas generados', () => {
     expect(manifest.clips.v2.usedSeconds).toBe(manifest.clips.v2.sourceSeconds);
   });
 
-  it('marca como claro el final de v2 (el cierre se corta antes) y nada de v1, que va entero en el hero', () => {
+  it('marca como claro el final de v2 (el cierre se corta antes) y nada de v1 (lo usa entero el login)', () => {
     for (const set of ['desktop', 'mobile'] as const) {
       expect(manifest.clips.v1[set].light).toEqual([]);
       const last = manifest.clips.v2[set].count - 1;
@@ -188,7 +133,7 @@ describe('landing v2 · fotogramas generados', () => {
     }
   });
 
-  it('tiene el primer fotograma de cada video para los pósteres (hero, cierre y fondo de Chile) en ambos sets', () => {
+  it('tiene el primer fotograma de cada video para los pósteres (cierre y login) en ambos sets', () => {
     const file = (url: string) => path.join(publicDir, url.split('?')[0]);
     for (const clip of [0, 1] as const) {
       expect(existsSync(file(frameUrl(clip, 'd', 0)))).toBe(true);
@@ -197,7 +142,7 @@ describe('landing v2 · fotogramas generados', () => {
   });
 });
 
-describe('landing v2 · movimiento con el scroll fuera del hero', () => {
+describe('landing v2 · movimiento con el scroll', () => {
   const viewport = 900;
 
   it('un bloque bajo la ventana no ha entrado y uno que ya subió está completo', () => {
@@ -254,8 +199,9 @@ describe('landing v2 · cielo interactivo', () => {
 
 describe('landing v2 · fluidez del video con la rueda', () => {
   it('la posición continua redondeada coincide con frameAt', () => {
+    const last = finaleLast('desktop');
     for (const p of [0, 0.013, 0.2, 0.549, 0.55, 0.7, 0.93, 1]) {
-      expect(Math.min(heroLast, Math.round(framePoint(p, HERO_TIMING, heroLast)))).toBe(frameAt(p, HERO_TIMING, heroLast));
+      expect(Math.min(last, Math.round(framePoint(p, FINALE_TIMING, last)))).toBe(frameAt(p, FINALE_TIMING, last));
     }
   });
 
@@ -314,69 +260,5 @@ describe('landing v2 · rueda del mouse suave', () => {
     for (let i = 0; i < 24; i += 1) at120 = approach(at120, 100, 1 / 120, 0.11);
     expect(at60).toBeCloseTo(at120, 6);
     expect(approach(40, 100, 0, 0.11)).toBe(40);
-  });
-});
-
-describe('landing v2 · constelaciones reales', () => {
-  it('cada línea une dos estrellas que existen', () => {
-    for (const item of CONSTELLATIONS) {
-      for (const [a, b] of item.lines) {
-        expect(item.stars[a]).toBeDefined();
-        expect(item.stars[b]).toBeDefined();
-        expect(a).not.toBe(b);
-      }
-    }
-  });
-
-  it('se reparten a lo largo de toda la página, alternando de lado', () => {
-    const ats = CONSTELLATIONS.map(item => item.at);
-    expect(ats).toEqual([...ats].sort((a, b) => a - b));
-    expect(ats[0]).toBeLessThan(0.1);
-    expect(ats[ats.length - 1]).toBeGreaterThan(0.9);
-    CONSTELLATIONS.forEach((item, index) => {
-      if (index > 0) expect(item.side).not.toBe(CONSTELLATIONS[index - 1].side);
-    });
-    expect(new Set(CONSTELLATIONS.map(item => item.name)).size).toBe(CONSTELLATIONS.length);
-  });
-
-  it('proyecta con el este a la izquierda y el norte arriba, en un cuadro de lado 1', () => {
-    const cross = CONSTELLATIONS.find(item => item.name === 'Cruz del Sur');
-    if (!cross) throw new Error('falta la Cruz del Sur');
-    const [acrux, mimosa, gacrux] = projectStars(cross.stars);
-    // Gacrux (más al norte) queda arriba de Acrux; Mimosa (mayor ascensión recta, al este) a la izquierda.
-    expect(gacrux.y).toBeLessThan(acrux.y);
-    expect(mimosa.x).toBeLessThan(acrux.x);
-    for (const item of CONSTELLATIONS) {
-      const points = projectStars(item.stars);
-      const spanX = Math.max(...points.map(p => p.x)) - Math.min(...points.map(p => p.x));
-      const spanY = Math.max(...points.map(p => p.y)) - Math.min(...points.map(p => p.y));
-      expect(Math.max(spanX, spanY)).toBeCloseTo(1, 6);
-      for (const point of points) {
-        expect(Math.abs(point.x)).toBeLessThanOrEqual(0.5 + 1e-9);
-        expect(Math.abs(point.y)).toBeLessThanOrEqual(0.5 + 1e-9);
-      }
-    }
-  });
-
-  it('las estrellas más brillantes se dibujan más grandes', () => {
-    expect(starRadius(-1.46)).toBeGreaterThan(starRadius(1));
-    expect(starRadius(1)).toBeGreaterThan(starRadius(3.5));
-    expect(starRadius(9)).toBe(0.7);
-  });
-
-  it('cada una pasa por el centro de la pantalla en su punto de la página', () => {
-    expect(constellationY(0.5, 5000, 1000, 9000, 800, 0.45)).toBe(400);
-    expect(constellationY(0.5, 4000, 1000, 9000, 800, 0.45)).toBeGreaterThan(400);
-    expect(centerFocus(400, 800)).toBe(1);
-    expect(centerFocus(20, 800)).toBe(0);
-    expect(centerFocus(200, 800)).toBeGreaterThan(0);
-    expect(centerFocus(200, 800)).toBeLessThan(1);
-  });
-
-  it('el trazo dibuja las líneas una tras otra', () => {
-    expect(traceAmounts(4, 0)).toEqual([0, 0, 0, 0]);
-    expect(traceAmounts(4, 0.5)).toEqual([1, 1, 0, 0]);
-    expect(traceAmounts(4, 0.625)).toEqual([1, 1, 0.5, 0]);
-    expect(traceAmounts(4, 1)).toEqual([1, 1, 1, 1]);
   });
 });

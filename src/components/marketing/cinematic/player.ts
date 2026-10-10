@@ -1,13 +1,13 @@
 import manifest from '../../../../public/marketing/cinematic/seq/manifest.json';
 import {
-  IDLE_AHEAD, SMOOTH_TIME, chapterState, choreography, clamp01, decodeWindow, exitShade, frameBlend, framePoint, frameUrl,
-  hudOpacity, loadOrder, smoothDamp, snapIndex, usesFrame, type Choreography, type Clip, type Timing,
+  IDLE_AHEAD, SMOOTH_TIME, clamp01, decodeWindow, frameBlend, framePoint, frameUrl, loadOrder, smoothDamp, snapIndex, usesFrame,
+  type Clip, type Timing,
 } from './sequence';
 
 /**
- * Motor de las escenas con video de la landing (el hero y el cierre): dibuja
- * en un canvas el fotograma que toca según el scroll y avisa el progreso para
- * que cada escena escriba sus textos directo al DOM. Nada de esto pasa por el
+ * Motor de la escena con video de la landing (el cierre): dibuja en un
+ * canvas el fotograma que toca según el scroll y avisa el progreso para que
+ * la escena escriba sus textos directo al DOM. Nada de esto pasa por el
  * estado de React: todo vive en variables del cierre y se escribe dentro de
  * requestAnimationFrame.
  *
@@ -22,16 +22,6 @@ export interface SceneElements {
   /** El escenario fijo dentro de la pista. */
   stage: HTMLElement;
   canvas: HTMLCanvasElement;
-  /** Degradado de salida (opcional): sube desde abajo cuando el escenario ya se va. */
-  fade?: HTMLElement | null;
-}
-
-export interface HeroElements {
-  intro: HTMLElement;
-  inside: HTMLElement;
-  line: HTMLElement;
-  /** Guía de capítulos (sus `li` llevan data-from y data-to) y «Desliza para entrar». */
-  hud: HTMLElement;
 }
 
 export type FrameSetName = 'desktop' | 'mobile';
@@ -68,57 +58,8 @@ async function decodeBlob(blob: Blob): Promise<Drawable> {
   }
 }
 
-/**
- * Guía de capítulos: los valores se calculan aquí y se escriben ya resueltos.
- * Encadenar variables CSS heredadas hacía que Chrome los recalculara tarde.
- */
-function writeGuide(hud: HTMLElement, progress: number) {
-  const { guide, cue } = hudOpacity(progress);
-  hud.style.opacity = guide.toFixed(3);
-  const hint = hud.lastElementChild as HTMLElement | null;
-  if (hint) hint.style.opacity = cue.toFixed(3);
-  for (const item of hud.querySelectorAll<HTMLElement>('li[data-from]')) {
-    const { fill, on } = chapterState(progress, Number(item.dataset.from), Number(item.dataset.to));
-    item.style.opacity = (0.34 + 0.66 * on).toFixed(3);
-    item.style.transform = `translate3d(${((1 - on) * 8).toFixed(1)}px, 0, 0)`;
-    const bar = item.lastElementChild?.firstElementChild as HTMLElement | null | undefined;
-    if (bar) bar.style.transform = `scaleX(${fill.toFixed(4)})`;
-  }
-}
-
-/** Escribe la coreografía del hero en el DOM. Se usa también para dejar el estado inicial. */
-export function writeChoreography(elements: HeroElements, state: Choreography) {
-  const { intro, inside, line } = elements;
-  intro.style.opacity = state.intro.toFixed(3);
-  intro.style.transform = `translate3d(0, ${state.introShift.toFixed(1)}px, 0)`;
-  inside.style.opacity = state.inside.toFixed(3);
-  inside.style.transform = `translate3d(0, ${state.insideShift.toFixed(1)}px, 0)`;
-  line.style.transform = `scaleX(${state.line.toFixed(4)})`;
-  writeGuide(elements.hud, state.line);
-  line.parentElement?.style.setProperty('opacity', state.lineOpacity.toFixed(3));
-  // Lo que no se ve tampoco se enfoca ni se lee: `visibility: hidden` en CSS.
-  intro.toggleAttribute('data-hidden', state.intro < 0.02);
-  inside.toggleAttribute('data-hidden', state.inside < 0.02);
-}
-
-/** Coreografía del hero para un progreso. */
-export function writeHero(elements: HeroElements, progress: number) {
-  writeChoreography(elements, choreography(progress));
-}
-
-export function clearChoreography(elements: HeroElements) {
-  elements.line.parentElement?.style.removeProperty('opacity');
-  for (const node of elements.hud.querySelectorAll<HTMLElement>('*')) node.removeAttribute('style');
-  elements.hud.removeAttribute('style');
-  for (const node of [elements.intro, elements.inside, elements.line]) {
-    node.style.removeProperty('opacity');
-    node.style.removeProperty('transform');
-    node.removeAttribute('data-hidden');
-  }
-}
-
 export interface PlayerOptions {
-  /** Qué video: 0 es v1 (hero), 1 es v2 (cierre). */
+  /** Qué video: 0 es v1, 1 es v2 (el del cierre). */
   clip: Clip;
   set: FrameSetName;
   /** Ritmo del video en la pista (ver sequence.ts). */
@@ -131,8 +72,8 @@ export interface PlayerOptions {
   onProgress: (progress: number) => void;
   /**
    * Cuánto antes de asomar la escena empieza a descargar (margen del
-   * IntersectionObserver). El hero está arriba; el cierre se prepara antes
-   * de llegar para que la persona no lo vea vacío.
+   * IntersectionObserver): el cierre se prepara antes de llegar para que la
+   * persona no lo vea vacío.
    */
   lookahead?: string;
 }
@@ -146,7 +87,7 @@ export interface PlayerOptions {
  * sin los saltos de cada clic de la rueda.
  */
 export function startPlayer(elements: SceneElements, options: PlayerOptions): () => void {
-  const { track, stage, canvas, fade } = elements;
+  const { track, stage, canvas } = elements;
   const { clip, set, timing, stride, onProgress } = options;
   const context = canvas.getContext('2d', { alpha: false });
   if (!context) return () => {};
@@ -171,8 +112,6 @@ export function startPlayer(elements: SceneElements, options: PlayerOptions): ()
   let repaint = false;
   let loaderDirty = true;
   let target = 0;
-  let exit = 0;
-  let shade = Number.NaN;
   let progress = Number.NaN;
   let velocity = 0;
   let lastTime = 0;
@@ -185,9 +124,9 @@ export function startPlayer(elements: SceneElements, options: PlayerOptions): ()
   let blend: { image: Drawable; mix: number } | null = null;
   let width = 0;
   let height = 0;
-  // Hasta el evento load solo se pide el fotograma actual (el póster ya está
-  // en caché): nada compite con la primera pantalla. Después, hasta que la
-  // persona hace scroll, solo un tramo corto por delante (IDLE_AHEAD).
+  // Hasta el evento load solo se pide el fotograma actual: nada compite con
+  // la primera pantalla. Después, hasta que la persona hace scroll, solo un
+  // tramo corto por delante (IDLE_AHEAD).
   let warm = document.readyState === 'complete';
   let engaged = false;
 
@@ -195,21 +134,11 @@ export function startPlayer(elements: SceneElements, options: PlayerOptions): ()
     if (!raf && !disposed && visible && !document.hidden) raf = requestAnimationFrame(tick);
   }
 
-  /** Progreso de la pista y, pasado su final, cuánto subió ya el escenario (0 a 1 de su alto). */
-  function readScroll(): { target: number; exit: number } {
+  /** Progreso de la pista (0 a 1). */
+  function readScroll(): number {
     const travel = track.offsetHeight - stage.offsetHeight;
-    if (travel <= 0) return { target: 0, exit: 0 };
-    const scrolled = -track.getBoundingClientRect().top;
-    return { target: clamp01(scrolled / travel), exit: clamp01((scrolled - travel) / stage.offsetHeight) };
-  }
-
-  /** La salida sigue al scroll sin inercia: el escenario ya se está moviendo con la página. */
-  function writeExit() {
-    if (!fade) return;
-    const next = exitShade(exit);
-    if (next === shade) return;
-    shade = next;
-    fade.style.transform = `scaleY(${shade.toFixed(4)})`;
+    if (travel <= 0) return 0;
+    return clamp01(-track.getBoundingClientRect().top / travel);
   }
 
   function sizeCanvas() {
@@ -328,10 +257,9 @@ export function startPlayer(elements: SceneElements, options: PlayerOptions): ()
       repaint = true;
     }
     if (measure) {
-      ({ target, exit } = readScroll());
+      target = readScroll();
       measure = false;
     }
-    writeExit();
 
     const previous = progress;
     // Segundos desde el cuadro anterior (acotado: una pestaña que vuelve no da un salto).
@@ -402,7 +330,7 @@ export function startPlayer(elements: SceneElements, options: PlayerOptions): ()
       loaderDirty = true;
     }
     if (visible) {
-      ({ target, exit } = readScroll());
+      target = readScroll();
       measure = false;
     } else {
       measure = true;
@@ -449,11 +377,10 @@ export function startPlayer(elements: SceneElements, options: PlayerOptions): ()
   window.addEventListener('resize', onResize, { passive: true });
   document.addEventListener('visibilitychange', onVisibility);
   track.setAttribute('data-player', set);
-  ({ target, exit } = readScroll());
+  target = readScroll();
   // Si la página abre a mitad de la pista (recarga, ancla), la persona ya está recorriéndola.
   engaged = target > 0;
   onProgress(target);
-  writeExit();
 
   return () => {
     disposed = true;
@@ -470,9 +397,6 @@ export function startPlayer(elements: SceneElements, options: PlayerOptions): ()
     blobs.fill(undefined);
     drawn = null;
     blend = null;
-    if (fade) {
-      fade.style.removeProperty('transform');
-    }
     track.removeAttribute('data-painted');
     track.removeAttribute('data-player');
     track.removeAttribute('data-progress');

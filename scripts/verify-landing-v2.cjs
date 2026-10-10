@@ -3,10 +3,11 @@
  *
  * Uso: node scripts/verify-landing-v2.cjs [origen] [ruta]   (por defecto http://localhost:3000 y /)
  *
- * Revisa los cinco criterios de éxito del hero, las anclas, las pestañas, el
- * diálogo de ampliar, el desborde horizontal, el movimiento reducido (el
- * scroll sigue mandando, con la misma inercia) y la versión apilada (sin JavaScript o
- * con ventana baja), y deja capturas en .vercel/landing-v2-check/.
+ * Revisa la portada (sin video), el cierre (el único video de la página), las
+ * anclas, las pestañas, el diálogo de ampliar, el desborde horizontal, el
+ * movimiento reducido (el scroll sigue mandando, con la misma inercia) y la
+ * versión apilada (sin JavaScript o con ventana baja), y deja capturas en
+ * .vercel/landing-v2-check/.
  * No envía el formulario ni escribe en ninguna base de datos.
  */
 const { chromium } = require('playwright');
@@ -17,8 +18,7 @@ const origin = process.argv[2] || 'http://localhost:3000';
 const url = `${origin}${process.argv[3] || '/'}`;
 const out = path.resolve('.vercel/landing-v2-check');
 const manifest = JSON.parse(fs.readFileSync(path.resolve('public/marketing/cinematic/seq/manifest.json'), 'utf8'));
-/** Mismos ritmos que sequence.ts: el hero recorre v1 y el cierre v2 hasta antes de su final claro. */
-const HERO_TIMING = [[0, 0], [0.9, 1], [1, 1]];
+/** Mismo ritmo que sequence.ts: el cierre recorre v2 hasta antes de su final claro. */
 const FINALE_TIMING = [[0, 0], [0.78, 1], [1, 1]];
 const FINALE_MARGIN_SECONDS = 0.6;
 const results = [];
@@ -50,182 +50,61 @@ function finaleLast(set) {
   return Math.max(0, Math.min(count - 1, first - 1 - Math.round(FINALE_MARGIN_SECONDS * fps)));
 }
 
-function expectedFrame(p, set) {
-  const last = manifest.clips.v1[set].count - 1;
-  return `v1:${Math.min(last, Math.round(videoTime(p, HERO_TIMING) * last)) + 1}`;
-}
-
 function expectedFinaleFrame(p, set) {
   const last = finaleLast(set);
   return `v2:${Math.min(last, Math.round(videoTime(p, FINALE_TIMING) * last)) + 1}`;
 }
 
-async function goToProgress(page, p) {
-  await page.evaluate(target => {
-    const track = document.querySelector('[data-cinematic-track]');
-    const stage = track.firstElementChild;
-    const top = track.getBoundingClientRect().top + window.scrollY;
-    document.documentElement.style.scrollBehavior = 'auto';
-    window.scrollTo(0, top + target * (track.offsetHeight - stage.offsetHeight));
-  }, p);
-  await page.waitForFunction(target => {
-    const value = Number(document.querySelector('[data-cinematic-track]').dataset.progress);
-    return Math.abs(value - target) <= 0.0005;
-  }, p, { timeout: 20000 });
-}
-
-/** Firma del canvas: color medio de una grilla de 8×6 celdas. */
-async function canvasSignature(page) {
-  return page.evaluate(() => {
-    const canvas = document.querySelector('[data-cinematic-track] canvas');
-    const context = canvas.getContext('2d');
-    const { width, height } = canvas;
-    const cells = [];
-    for (let row = 0; row < 6; row += 1) {
-      for (let column = 0; column < 8; column += 1) {
-        const x = Math.floor(((column + 0.5) / 8) * width);
-        const y = Math.floor(((row + 0.5) / 6) * height);
-        const [r, g, b] = context.getImageData(x, y, 1, 1).data;
-        cells.push(r, g, b);
-      }
-    }
-    return cells;
-  });
-}
-
-function distance(a, b) {
-  return a.reduce((sum, value, index) => sum + Math.abs(value - b[index]), 0) / a.length;
-}
-
-async function hero(browser, label, viewport, set) {
-  console.log(`\n── Hero ${label} (${viewport.width}×${viewport.height}, set ${set})`);
-  const context = await browser.newContext({ viewport, deviceScaleFactor: 1, isMobile: set === 'mobile', hasTouch: set === 'mobile' });
+/**
+ * Portada sin video: titular a la izquierda, el panel del ERP a la derecha y
+ * nada del video se descarga mientras la persona está arriba.
+ */
+async function hero(browser, label, viewport) {
+  console.log(`\n── Portada ${label} (${viewport.width}×${viewport.height})`);
+  const mobile = viewport.width < 700;
+  const context = await browser.newContext({ viewport, deviceScaleFactor: 1, isMobile: mobile, hasTouch: mobile });
   const page = await context.newPage();
   const errors = [];
   let frameBytes = 0;
   page.on('pageerror', error => errors.push(error.message));
-  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   page.on('response', async response => {
     if (!response.url().includes('/marketing/cinematic/seq/')) return;
     const length = Number(response.headers()['content-length'] ?? 0);
     frameBytes += length || (await response.body().catch(() => Buffer.alloc(0))).length;
   });
-
   await page.goto(url, { waitUntil: 'load' });
-  await page.waitForSelector('[data-cinematic-track][data-painted]', { timeout: 30000 });
   await page.waitForFunction(() => document.fonts.status === 'loaded');
-
-  // Criterio 1: titular gigante a la izquierda sobre el primer fotograma, a pantalla completa.
-  await goToProgress(page, 0);
-  await page.waitForFunction(() => document.querySelector('[data-cinematic-track]').dataset.frame === 'v1:1');
-  const h1 = await page.$eval('h1', node => {
-    // Extensión real del texto: el h1 es un bloque del ancho del contenedor.
-    const rects = [...node.children].map(span => {
+  await page.waitForTimeout(1600); // la entrada de la portada dura ~1.4 s
+  const state = await page.evaluate(() => {
+    const section = document.getElementById('contenido');
+    const h1 = section.querySelector('h1');
+    const rects = [...h1.children].map(span => {
       const range = document.createRange();
       range.selectNodeContents(span);
       return range.getBoundingClientRect();
     });
-    const left = Math.min(...rects.map(rect => rect.left));
+    const figure = section.querySelector('figure');
     return {
-      text: node.innerText.replace(/\s+/g, ' ').trim(),
-      box: { left, width: Math.max(...rects.map(rect => rect.right)) - left },
-      size: parseFloat(getComputedStyle(node).fontSize),
+      text: h1.innerText.replace(/\s+/g, ' ').trim(),
+      left: Math.min(...rects.map(rect => rect.left)),
+      right: Math.max(...rects.map(rect => rect.right)),
+      opacity: Number(getComputedStyle(h1).opacity),
+      mock: figure?.querySelector('svg[role="img"]')?.getAttribute('aria-label') ?? '',
+      figure: figure ? figure.getBoundingClientRect().toJSON() : null,
+      media: section.querySelectorAll('video, canvas').length,
+      ctas: [...section.querySelectorAll('a')].map(link => link.getAttribute('href')),
     };
   });
-  const canvasBox = await page.$eval('[data-cinematic-track] canvas', node => node.getBoundingClientRect().toJSON());
-  check('1. H1 «OPERA. CONTROLA. DECIDE.»', h1.text === 'OPERA. CONTROLA. DECIDE.', h1.text);
-  check('1. H1 a la izquierda', h1.box.left < viewport.width * 0.12 && h1.box.left + h1.box.width < viewport.width * 0.72, `x=${Math.round(h1.box.left)} ancho=${Math.round(h1.box.width)} fuente=${h1.size}px`);
-  check('1. Video a pantalla completa', canvasBox.width >= viewport.width && canvasBox.height >= viewport.height, `${Math.round(canvasBox.width)}×${Math.round(canvasBox.height)}`);
-  check('1. Primer fotograma de v1 dibujado', await page.$eval('[data-cinematic-track]', node => node.dataset.frame) === 'v1:1');
-  await page.screenshot({ path: path.join(out, `${label}-p000.png`) });
-  const start = await canvasSignature(page);
-
-  // Criterio 2: el scroll avanza y retrocede el video; sin autoplay, sin <video>.
-  check('2. Sin elemento <video>', await page.$$eval('video', nodes => nodes.length) === 0);
-  check('2. El canvas no tiene animación CSS', await page.$eval('[data-cinematic-track] canvas', node => getComputedStyle(node).animationName) === 'none');
-  await goToProgress(page, 0.3);
-  const at30 = expectedFrame(0.3, set);
-  await page.waitForFunction(frame => document.querySelector('[data-cinematic-track]').dataset.frame === frame, at30, { timeout: 20000 });
-  const middle = await canvasSignature(page);
-  check('2. Avanza con el scroll', distance(start, middle) > 6, `P .3 → ${at30}, diferencia ${distance(start, middle).toFixed(1)}`);
-  await page.waitForTimeout(2000);
-  check('2. No se reproduce solo (2 s quieto)', await page.$eval('[data-cinematic-track]', node => node.dataset.frame) === at30);
-  await page.screenshot({ path: path.join(out, `${label}-p030.png`) });
-  await goToProgress(page, 0);
-  await page.waitForFunction(() => document.querySelector('[data-cinematic-track]').dataset.frame === 'v1:1', null, { timeout: 20000 });
-  check('2. Retrocede al subir', distance(start, await canvasSignature(page)) < 2);
-
-  // Criterio 3: titular y cifras suben ~40 px y se desvanecen.
-  await goToProgress(page, 0.11);
-  const introMid = await page.$eval('[data-cinematic-track] h1', node => {
-    const intro = node.parentElement.parentElement;
-    return { opacity: Number(intro.style.opacity), transform: intro.style.transform, facts: intro.contains(document.querySelector('[data-cinematic-track] ul')) };
-  });
-  await goToProgress(page, 0.22);
-  const introHidden = await page.$eval('[data-cinematic-track] h1', node => {
-    const intro = node.parentElement.parentElement;
-    return { hidden: intro.hasAttribute('data-hidden'), transform: intro.style.transform, opacity: intro.style.opacity };
-  });
-  check('3. A medio camino sube y se desvanece (con las cifras)', introMid.opacity > 0.05 && introMid.opacity < 0.95 && /-[1-9]/.test(introMid.transform) && introMid.facts, `P .11: opacidad ${introMid.opacity}, ${introMid.transform}`);
-  check('3. En P .22 subió 40 px y desapareció', introHidden.hidden && introHidden.transform.includes('-40') && Number(introHidden.opacity) === 0, `${introHidden.transform}, opacidad ${introHidden.opacity}`);
-
-  // Criterio 4: «Ahora, estás dentro.» llega con la galaxia, al final de v1, y se queda.
-  await goToProgress(page, 0.5);
-  await page.screenshot({ path: path.join(out, `${label}-p050.png`) });
-  const insideAt50 = await page.$eval('[data-cinematic-track] h2', node => Number(node.parentElement.style.opacity));
-  await goToProgress(page, 0.7);
-  const inside = await page.$eval('[data-cinematic-track] h2', node => ({ text: node.innerText.replace(/\s+/g, ' ').trim(), box: node.getBoundingClientRect().toJSON(), opacity: Number(node.parentElement.style.opacity) }));
-  const center = inside.box.left + inside.box.width / 2;
-  check('4. Aparece «AHORA, ESTÁS DENTRO.»', inside.text === 'AHORA, ESTÁS DENTRO.' && inside.opacity === 1 && insideAt50 === 0, `${inside.text} (P .5 opacidad ${insideAt50.toFixed(2)}, P .7 opacidad ${inside.opacity})`);
-  check('4. Centrado', Math.abs(center - viewport.width / 2) < viewport.width * 0.02, `centro ${Math.round(center)} de ${viewport.width}`);
-  await page.screenshot({ path: path.join(out, `${label}-p070.png`) });
-  await goToProgress(page, 1);
-  const lastFrame = `v1:${manifest.clips.v1[set].count}`;
-  await page.waitForFunction(frame => document.querySelector('[data-cinematic-track]').dataset.frame === frame, lastFrame, { timeout: 20000 }).catch(() => {});
-  const ending = await page.$eval('[data-cinematic-track]', node => ({
-    frame: node.dataset.frame,
-    shade: node.querySelector('canvas').nextElementSibling.style.transform,
-    inside: !node.querySelector('h2').parentElement.hasAttribute('data-hidden'),
-  }));
-  check('4. Termina en el último fotograma de v1 (la galaxia), con «Ahora, estás dentro.»', ending.frame === lastFrame && ending.shade === 'scaleY(0)' && ending.inside, `${ending.frame}, degradado ${ending.shade}`);
-  await page.screenshot({ path: path.join(out, `${label}-p100.png`) });
-  // Antes del final ya está el último fotograma: el scroll termina quieto en él.
-  await goToProgress(page, 0.95);
-  check('4. El último fotograma se sostiene antes del final', await page.$eval('[data-cinematic-track]', node => node.dataset.frame) === lastFrame);
-
-  // Criterio 5: sin corte visible hacia la sección siguiente.
-  const seam = await page.evaluate(() => {
-    const track = document.querySelector('[data-cinematic-track]');
-    const top = track.getBoundingClientRect().top + window.scrollY;
-    window.scrollTo(0, top + track.offsetHeight - window.innerHeight / 2);
-    return { next: getComputedStyle(track.nextElementSibling).backgroundColor, root: getComputedStyle(track.closest('main')).backgroundColor };
-  });
-  await page.waitForTimeout(400);
-  const boundary = await page.screenshot({ path: path.join(out, `${label}-union.png`) });
-  const seamPixels = await page.evaluate(async png => {
-    const image = new Image();
-    image.src = `data:image/png;base64,${png}`;
-    await image.decode();
-    const canvas = document.createElement('canvas');
-    canvas.width = image.width;
-    canvas.height = image.height;
-    const context = canvas.getContext('2d');
-    context.drawImage(image, 0, 0);
-    const line = Math.floor(image.height / 2);
-    const sample = y => [...context.getImageData(Math.floor(image.width * 0.2), y, 1, 1).data.slice(0, 3)];
-    return { above: sample(line - 6), below: sample(line + 6) };
-  }, boundary.toString('base64'));
-  const near = rgb => rgb.every((value, index) => Math.abs(value - [11, 14, 20][index]) <= 6);
-  check('5. Fondo de la página #0b0e14', seam.root === 'rgb(11, 14, 20)', seam.root);
-  check('5. Sin corte visible en la unión', near(seamPixels.above) && near(seamPixels.below), `arriba ${seamPixels.above} · abajo ${seamPixels.below}`);
-
-  // La secuencia completa, para medir el peso real de fotogramas descargados.
-  for (let p = 0; p <= 1.0001; p += 0.05) await goToProgress(page, Math.min(1, p));
-  await page.waitForLoadState('networkidle').catch(() => {});
-  console.log(`  fotogramas descargados: ${(frameBytes / 1e6).toFixed(2)} MB`);
-  check(`Sin errores de consola (${label})`, errors.length === 0, errors.slice(0, 3).join(' | '));
+  check('Portada: H1 «OPERA. CONTROLA. DECIDE.»', state.text === 'OPERA. CONTROLA. DECIDE.' && state.opacity === 1, state.text);
+  check('Portada: sin video ni canvas', state.media === 0);
+  check('Portada: el panel del ERP, marcado como datos de ejemplo', state.mock.includes('datos de ejemplo'), state.mock);
+  if (mobile) check('Portada: el panel va bajo el titular', state.figure && state.figure.top > 0, `y ${Math.round(state.figure?.top ?? 0)}`);
+  else check('Portada: titular a la izquierda y panel a la derecha', state.left < viewport.width * 0.12 && state.figure && state.figure.left > state.right - 40, `titular ${Math.round(state.left)}–${Math.round(state.right)}, panel desde ${Math.round(state.figure?.left ?? 0)}`);
+  check('Portada: lleva a la vitrina, a cómo funciona y a la versión corporativa', ['#modulos', '#como-funciona', '/empresas'].every(href => state.ctas.includes(href)));
+  check('Portada: no descarga fotogramas del video', frameBytes === 0, `${(frameBytes / 1e6).toFixed(2)} MB`);
+  await page.screenshot({ path: path.join(out, `${label}-portada.png`) });
+  check(`Sin errores de página en la portada (${label})`, errors.length === 0, errors.slice(0, 3).join(' | '));
   await context.close();
-  return frameBytes;
 }
 
 /**
@@ -400,21 +279,16 @@ async function overflow(browser) {
   }
 }
 
-/** Estado del hero y de la escena de pasos, para los modos estático y reducido. */
+/** Estado del cierre y de la escena de pasos, para los modos estático y reducido. */
 async function sceneState(page) {
   return page.evaluate(() => {
-    const track = document.querySelector('[data-cinematic-track]');
-    const inside = track.querySelector('h2');
+    const track = document.querySelector('[data-finale-track]');
+    const close = track.querySelector('a').parentElement;
     return {
       trackHeight: track.offsetHeight,
       stagePosition: getComputedStyle(track.firstElementChild).position,
-      insideVisible: getComputedStyle(inside.parentElement).opacity === '1' && getComputedStyle(inside.parentElement).visibility === 'visible',
+      finaleClose: getComputedStyle(close).opacity === '1' && getComputedStyle(close).visibility === 'visible',
       painted: track.hasAttribute('data-painted'),
-      finaleClose: (() => {
-        const close = document.querySelector('[data-finale-track] a').parentElement;
-        return getComputedStyle(close).opacity === '1' && getComputedStyle(close).visibility === 'visible';
-      })(),
-      finaleHeight: document.querySelector('[data-finale-track]').offsetHeight,
       steps: document.querySelectorAll('#como-funciona ol > li').length,
       stepsVisible: [...document.querySelectorAll('#como-funciona ol > li')].filter(step => getComputedStyle(step).visibility === 'visible').length,
       moduleCards: [...document.querySelectorAll('#modulos-grilla > li')].filter(card => getComputedStyle(card).display !== 'none').length,
@@ -436,9 +310,8 @@ async function staticModes(browser) {
     await page.goto(url, { waitUntil: 'load' });
     await page.waitForTimeout(600);
     const state = await sceneState(page);
-    check(`${tag}: sin pista larga`, state.trackHeight < Math.max(viewport.height, 560) * 2.2 && state.stagePosition !== 'sticky', `alto ${state.trackHeight}px, escenario ${state.stagePosition}`);
-    check(`${tag}: «Ahora, estás dentro.» visible y sin canvas`, state.insideVisible && !state.painted);
-    check(`${tag}: el cierre apilado, con «Dale Aether.» y el botón a la vista`, state.finaleClose && state.finaleHeight < Math.max(viewport.height, 560) * 1.5, `alto ${state.finaleHeight}px`);
+    check(`${tag}: el cierre apilado, sin pista larga ni canvas`, state.trackHeight < Math.max(viewport.height, 560) * 1.5 && state.stagePosition !== 'sticky' && !state.painted, `alto ${state.trackHeight}px, escenario ${state.stagePosition}`);
+    check(`${tag}: «Dale Aether.» y el botón a la vista`, state.finaleClose);
     check(`${tag}: los 5 pasos a la vista`, state.steps === 5 && state.stepsVisible === 5);
     if (options.javaScriptEnabled === false) check(`${tag}: todos los módulos a la vista`, state.moduleCards >= 28, `${state.moduleCards} recuadros`);
     check(`${tag}: las 5 vistas en el HTML`, state.copies.length === 5, state.copies.join(' / '));
@@ -457,13 +330,22 @@ async function reducedMotion(browser) {
     const context = await browser.newContext({ viewport, reducedMotion: 'reduce', isMobile: set === 'mobile', hasTouch: set === 'mobile' });
     const page = await context.newPage();
     await page.goto(url, { waitUntil: 'load' });
-    await page.waitForSelector('[data-cinematic-track][data-painted]', { timeout: 30000 });
+    await page.waitForSelector('main[data-in-track]');
     const state = await sceneState(page);
-    check(`${tag}: pista del video activa`, state.trackHeight > viewport.height * 1.8 && state.stagePosition === 'sticky', `alto ${state.trackHeight}px`);
-    const elapsed = await page.evaluate(() => new Promise(resolve => {
-      const track = document.querySelector('[data-cinematic-track]');
-      const stage = track.firstElementChild;
+    check(`${tag}: pista del cierre activa`, state.trackHeight > viewport.height * 1.6 && state.stagePosition === 'sticky', `alto ${state.trackHeight}px`);
+    // Se acerca al cierre (dos pasadas: las secciones toman su alto real) y luego mide la inercia.
+    await page.evaluate(async () => {
       document.documentElement.style.scrollBehavior = 'auto';
+      for (let pass = 0; pass < 2; pass += 1) {
+        const track = document.querySelector('[data-finale-track]');
+        window.scrollTo(0, track.getBoundingClientRect().top + window.scrollY);
+        await new Promise(resolve => setTimeout(resolve, 400));
+      }
+    });
+    await page.waitForSelector('[data-finale-track][data-painted]', { timeout: 30000 });
+    const elapsed = await page.evaluate(() => new Promise(resolve => {
+      const track = document.querySelector('[data-finale-track]');
+      const stage = track.firstElementChild;
       const target = 0.3;
       const started = performance.now();
       window.scrollTo(0, track.getBoundingClientRect().top + window.scrollY + target * (track.offsetHeight - stage.offsetHeight));
@@ -475,9 +357,9 @@ async function reducedMotion(browser) {
       requestAnimationFrame(poll);
     }));
     check(`${tag}: el video alcanza al scroll y se detiene en él`, elapsed >= 0 && elapsed < 1600, `alcanzó P .3 en ${elapsed} ms`);
-    const frame = expectedFrame(0.3, set);
-    await page.waitForFunction(expected => document.querySelector('[data-cinematic-track]').dataset.frame === expected, frame, { timeout: 20000 }).catch(() => {});
-    check(`${tag}: el video avanza con el scroll`, await page.$eval('[data-cinematic-track]', node => node.dataset.frame) === frame, `P .3 → ${frame}`);
+    const frame = expectedFinaleFrame(0.3, set);
+    await page.waitForFunction(expected => document.querySelector('[data-finale-track]').dataset.frame === expected, frame, { timeout: 20000 }).catch(() => {});
+    check(`${tag}: el video avanza con el scroll`, await page.$eval('[data-finale-track]', node => node.dataset.frame) === frame, `P .3 → ${frame}`);
     await page.screenshot({ path: path.join(out, `${tag}-p030.png`) });
     const steps = await page.$$eval('#como-funciona ol > li', nodes => nodes.length);
     check(`${tag}: los 5 pasos a la vista`, steps === 5, `${steps} pasos`);
@@ -485,10 +367,6 @@ async function reducedMotion(browser) {
   }
 }
 
-/**
- * El resto de la página también se mueve con el scroll, incluso con movimiento
- * reducido (así lo ve quien tiene apagados los efectos de animación del sistema).
- */
 async function liveMotion(browser) {
   console.log('\n── Página viva (movimiento reducido: todo lo mueve el scroll)');
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
@@ -508,13 +386,6 @@ async function liveMotion(browser) {
       }, [selector, fraction]);
       await page.waitForTimeout(250);
     }
-  };
-  // Espera (con tope) a que la guía muestre el capítulo esperado: el reproductor
-  // la escribe en el cuadro siguiente al que actualiza el progreso.
-  const chapterOpacity = async (p, expected) => {
-    await goToProgress(page, p);
-    await page.waitForFunction(index => Number(getComputedStyle(document.querySelectorAll('[data-cinematic-track] ol li')[index]).opacity) > 0.95, expected, { timeout: 3000 }).catch(() => {});
-    return page.$$eval('[data-cinematic-track] ol li', nodes => nodes.map(node => Number(getComputedStyle(node).opacity)));
   };
   const enter = selector => page.$eval(selector, node => Number(node.style.getPropertyValue('--in') || 'NaN'));
 
@@ -547,15 +418,11 @@ async function liveMotion(browser) {
   const skyB = await skyPixels();
   check('El cielo de fondo se desplaza con el scroll', skyA.lit > 20 && skyB.lit > 20 && skyA.signature !== skyB.signature, `${skyA.lit} y ${skyB.lit} puntos encendidos`);
 
-  const early = await chapterOpacity(0.1, 0);
-  const late = await chapterOpacity(0.85, 2);
-  check('La guía de capítulos del hero sigue al video', early[0] > 0.95 && early[2] < 0.5 && late[2] > 0.95 && late[0] < 0.5, `P .1: ${early.map(value => value.toFixed(2)).join(' / ')} · P .85: ${late.map(value => value.toFixed(2)).join(' / ')}`);
-
   await scrollTo('#planes', 0.1);
   const current = await page.$eval('nav[aria-label="Mapa de la página"]', node => node.querySelector('a[aria-current]')?.textContent);
   check('El mapa de estrellas marca la sección actual', current === 'Planes', current);
 
-  // Cielo y cursor: con el mouse encima aparecen el cursor propio y la constelación.
+  // Cielo y cursor: con el mouse encima aparece el cursor propio.
   await page.mouse.move(1200, 500);
   await page.mouse.move(1230, 520);
   await page.waitForTimeout(300);
@@ -565,25 +432,6 @@ async function liveMotion(browser) {
     return { canvas: Boolean(canvas && canvas.width > 0), cursor: cursor ? getComputedStyle(cursor).display : 'none' };
   });
   check('Cielo interactivo y cursor propio', sky.canvas && sky.cursor === 'block', `canvas ${sky.canvas}, cursor ${sky.cursor}`);
-
-  // Constelaciones reales: el Escorpión pasa por el centro al 28 % de la página
-  // (a la derecha) y se enciende con su nombre cuando el puntero se le acerca.
-  for (let pass = 0; pass < 2; pass += 1) {
-    await page.evaluate(() => {
-      const hero = document.querySelector('[data-cinematic-track]');
-      const start = hero.offsetTop + hero.offsetHeight;
-      const end = document.documentElement.scrollHeight - window.innerHeight;
-      window.scrollTo(0, start + 0.28 * (end - start));
-    });
-    await page.waitForTimeout(700);
-  }
-  for (let step = 0; step < 10; step += 1) {
-    await page.mouse.move(1100 + step * 10, 400 + step * 5);
-    await page.waitForTimeout(40);
-  }
-  await page.waitForTimeout(900);
-  const lit = await page.$eval('main > div[aria-hidden] canvas', node => node.dataset.lit ?? '');
-  check('Constelación real que se enciende con el puntero', lit === 'Escorpión', lit || 'ninguna');
 
   check('Sin errores (página viva)', errors.length === 0, errors.slice(0, 2).join(' | '));
   await context.close();
@@ -609,8 +457,8 @@ async function liveMotion(browser) {
 async function main() {
   const browser = await chromium.launch({ headless: true });
   try {
-    const desktopBytes = await hero(browser, 'escritorio', { width: 1440, height: 900 }, 'desktop');
-    const mobileBytes = await hero(browser, 'movil', { width: 390, height: 844 }, 'mobile');
+    await hero(browser, 'escritorio', { width: 1440, height: 900 });
+    await hero(browser, 'movil', { width: 390, height: 844 });
     await finale(browser, 'escritorio', { width: 1440, height: 900 }, 'desktop');
     await finale(browser, 'escritorio-ancho', { width: 1920, height: 900 }, 'desktop');
     await finale(browser, 'tableta', { width: 768, height: 1024 }, 'desktop');
@@ -620,7 +468,6 @@ async function main() {
     await reducedMotion(browser);
     await liveMotion(browser);
     await staticModes(browser);
-    console.log(`\nFotogramas: escritorio ${(desktopBytes / 1e6).toFixed(2)} MB · móvil ${(mobileBytes / 1e6).toFixed(2)} MB`);
   } finally {
     await browser.close();
   }

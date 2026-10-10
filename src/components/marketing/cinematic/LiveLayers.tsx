@@ -28,34 +28,25 @@ export function Sky() {
     // En modo liviano (device.ts) queda solo el fondo estático del cielo.
     if (!canvas || isLightweightDevice()) return;
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const hero = document.querySelector<HTMLElement>('[data-cinematic-track]');
     const finale = document.querySelector<HTMLElement>('[data-finale-track]');
-    // Mientras una escena con video cubre la pantalla (el hero arriba, el
-    // cierre abajo), su video manda y el cielo no se dibuja. Sus bordes se
-    // miden al cambiar de tamaño, no en cada cuadro.
-    let heroBottom = 0;
+    // Mientras el cierre con video cubre la pantalla, su video manda y el
+    // cielo no se dibuja. Sus bordes se miden al cambiar de tamaño, no en cada cuadro.
     let finaleTop = Number.POSITIVE_INFINITY;
     let finaleBottom = Number.NEGATIVE_INFINITY;
     const measure = () => {
-      heroBottom = hero ? hero.offsetTop + hero.offsetHeight : 0;
-      if (finale) {
-        finaleTop = finale.offsetTop;
-        finaleBottom = finale.offsetTop + finale.offsetHeight;
-      }
+      if (!finale) return;
+      finaleTop = finale.offsetTop;
+      finaleBottom = finale.offsetTop + finale.offsetHeight;
     };
     measure();
-    const observer = new ResizeObserver(measure);
-    if (hero) observer.observe(hero);
     // El cierre está al final: su posición cambia con el alto de todo lo de arriba.
+    const observer = new ResizeObserver(measure);
     observer.observe(document.body);
-    const covered = (scroll: number) => {
-      const bottom = scroll + window.innerHeight;
-      return bottom <= heroBottom || (scroll >= finaleTop && bottom <= finaleBottom);
-    };
+    const covered = (scroll: number) => scroll >= finaleTop && scroll + window.innerHeight <= finaleBottom;
     // Arranca cuando el navegador queda libre: no compite con la hidratación
-    // ni con la primera pintura (el cielo empieza oculto bajo el hero).
+    // ni con la primera pintura.
     let stop: (() => void) | null = null;
-    const cancel = whenIdle(() => { stop = startConstellation(canvas, reduced, covered, () => heroBottom); });
+    const cancel = whenIdle(() => { stop = startConstellation(canvas, reduced, covered); });
     return () => {
       cancel();
       stop?.();

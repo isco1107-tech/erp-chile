@@ -2,7 +2,7 @@
  * Rueda del mouse con deslizamiento suave en la landing. Cada clic de la rueda
  * salta ~100 px de golpe (y más aún con las animaciones de Windows apagadas,
  * que también apagan el desplazamiento suave de Chrome): aquí el salto se
- * reparte en unos cuadros, así el video del hero y las entradas de cada
+ * reparte en unos cuadros, así el video del cierre y las entradas de cada
  * sección avanzan continuos en vez de a tirones.
  *
  * Solo toma la rueda de un mouse. El trackpad y el táctil ya traen su propia

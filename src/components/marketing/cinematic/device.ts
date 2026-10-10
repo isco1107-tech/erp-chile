@@ -1,7 +1,7 @@
 /**
- * Modo liviano de /landing-v2: se activa cuando la persona pidió ahorrar datos,
+ * Modo liviano de la landing: se activa cuando la persona pidió ahorrar datos,
  * la conexión es lenta o el equipo tiene muy poca memoria o núcleos. En ese
- * modo el hero baja uno de cada tres fotogramas y el cielo interactivo no se
+ * modo el cierre baja uno de cada tres fotogramas y el cielo interactivo no se
  * dibuja (queda el fondo estático): la página se ve igual, con menos trabajo.
  */
 

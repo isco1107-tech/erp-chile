@@ -92,7 +92,7 @@ export default function LandingShell({ className, children }: { className?: stri
   // directo al DOM: el scroll nunca vuelve a renderizar React.
   useEffect(() => {
     let frame = 0;
-    let shown = { inTrack: false, pinned: false, current: -2, ratio: '' };
+    let shown = { inTrack: false, solid: false, pinned: false, current: -2, ratio: '' };
     let measured: typeof shown | null = null;
     const track = document.querySelector<HTMLElement>('[data-cinematic-track]');
     const scenes = [...document.querySelectorAll<HTMLElement>('[data-pinned-scene]')];
@@ -104,6 +104,9 @@ export default function LandingShell({ className, children }: { className?: stri
       const headerHeight = header.current?.offsetHeight ?? 0;
       const viewport = window.innerHeight;
       const inTrack = track ? track.getBoundingClientRect().bottom > headerHeight : false;
+      // La cabecera es transparente solo arriba del todo, sobre la portada:
+      // apenas la página se mueve, el contenido pasaría por debajo del menú.
+      const solid = !inTrack || window.scrollY > 8;
       const pinned = inTrack || scenes.some(scene => {
         const rect = scene.getBoundingClientRect();
         return rect.top <= 1 && rect.bottom >= viewport;
@@ -115,7 +118,7 @@ export default function LandingShell({ className, children }: { className?: stri
       sections.forEach((section, index) => {
         if (section && section.getBoundingClientRect().top <= viewport * 0.45) current = index;
       });
-      measured = { inTrack, pinned, current, ratio };
+      measured = { inTrack, solid, pinned, current, ratio };
     };
     const update = () => {
       frame = 0;
@@ -123,13 +126,13 @@ export default function LandingShell({ className, children }: { className?: stri
       if (!node) return;
       if (!measured) read();
       if (!measured) return;
-      const { inTrack, pinned, current, ratio } = measured;
+      const { inTrack, solid, pinned, current, ratio } = measured;
       measured = null;
       if (inTrack !== shown.inTrack || pinned !== shown.pinned) {
         node.toggleAttribute('data-in-track', inTrack);
         node.toggleAttribute('data-pinned', pinned);
-        header.current?.toggleAttribute('data-solid', !inTrack);
       }
+      if (solid !== shown.solid) header.current?.toggleAttribute('data-solid', solid);
       if (ratio !== shown.ratio && progress.current) progress.current.style.transform = `scaleX(${ratio})`;
       if (current !== shown.current) {
         marks.forEach((mark, index) => {
@@ -139,7 +142,7 @@ export default function LandingShell({ className, children }: { className?: stri
         });
         if (mapFill.current) mapFill.current.style.transform = `scaleY(${marks.length > 1 ? Math.max(0, current) / (marks.length - 1) : 0})`;
       }
-      shown = { inTrack, pinned, current, ratio };
+      shown = { inTrack, solid, pinned, current, ratio };
     };
     const onScroll = () => {
       read();
@@ -195,7 +198,7 @@ export default function LandingShell({ className, children }: { className?: stri
   return (
     <ProductViewContext.Provider value={productView}>
       <main ref={root} className={`${s.root} ${className ?? ''}`}>
-        {/* El mismo cielo del hero sigue detrás de toda la página. */}
+        {/* Un solo cielo de estrellas detrás de toda la página. */}
         <div ref={cosmos} className={s.cosmos} aria-hidden="true">
           <Sky />
         </div>
