@@ -29,14 +29,29 @@ export function Sky() {
     if (!canvas || isLightweightDevice()) return;
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
     const hero = document.querySelector<HTMLElement>('[data-cinematic-track]');
-    // Mientras el hero cubre la pantalla, su video manda y el cielo no se dibuja.
-    // Su borde inferior se mide al cambiar de tamaño, no en cada cuadro.
+    const finale = document.querySelector<HTMLElement>('[data-finale-track]');
+    // Mientras una escena con video cubre la pantalla (el hero arriba, el
+    // cierre abajo), su video manda y el cielo no se dibuja. Sus bordes se
+    // miden al cambiar de tamaño, no en cada cuadro.
     let heroBottom = 0;
-    const measure = () => { heroBottom = hero ? hero.offsetTop + hero.offsetHeight : 0; };
+    let finaleTop = Number.POSITIVE_INFINITY;
+    let finaleBottom = Number.NEGATIVE_INFINITY;
+    const measure = () => {
+      heroBottom = hero ? hero.offsetTop + hero.offsetHeight : 0;
+      if (finale) {
+        finaleTop = finale.offsetTop;
+        finaleBottom = finale.offsetTop + finale.offsetHeight;
+      }
+    };
     measure();
     const observer = new ResizeObserver(measure);
     if (hero) observer.observe(hero);
-    const covered = (scroll: number) => scroll + window.innerHeight <= heroBottom;
+    // El cierre está al final: su posición cambia con el alto de todo lo de arriba.
+    observer.observe(document.body);
+    const covered = (scroll: number) => {
+      const bottom = scroll + window.innerHeight;
+      return bottom <= heroBottom || (scroll >= finaleTop && bottom <= finaleBottom);
+    };
     // Arranca cuando el navegador queda libre: no compite con la hidratación
     // ni con la primera pintura (el cielo empieza oculto bajo el hero).
     let stop: (() => void) | null = null;

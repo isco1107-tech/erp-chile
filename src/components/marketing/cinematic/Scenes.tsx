@@ -1,9 +1,10 @@
-import Image from 'next/image';
+import Image, { getImageProps } from 'next/image';
 import Link from 'next/link';
-import { ArrowUp, ArrowUpRight, Check, ChevronDown } from 'lucide-react';
+import { ArrowUpRight, Check, ChevronDown } from 'lucide-react';
 import { points } from '../ChileSection';
 import { faqs, plans } from '../content';
 import { formatCurrency } from '@/lib/chile/tax';
+import { frameUrl } from './sequence';
 import s from './v2.module.css';
 
 /*
@@ -18,9 +19,29 @@ import s from './v2.module.css';
  */
 const chilePoints = points.filter(point => ['IVA que siempre cuadra', 'Folios autorizados', 'F29 del período'].includes(point.title));
 
+/**
+ * Fondo de «Hecho para Chile.»: el primer fotograma de v1 (cielo y horizonte
+ * de Atacama), el mismo archivo que el póster del hero, así que no se
+ * descarga dos veces. Decorativo y diferido.
+ */
+function AtacamaSky() {
+  const common = { alt: '', fill: true, sizes: '100vw', unoptimized: true } as const;
+  const { props: desktop } = getImageProps({ ...common, src: frameUrl(0, 'd', 0) });
+  const { props: { src: mobileSrc } } = getImageProps({ ...common, src: frameUrl(0, 'm', 0) });
+  return (
+    <div className={s.chileSky} aria-hidden="true" data-live>
+      <picture>
+        <source media="(max-width: 760px)" srcSet={mobileSrc} />
+        <img {...desktop} alt="" />
+      </picture>
+    </div>
+  );
+}
+
 export function ChileScene() {
   return (
     <section id="tributacion" className={`${s.section} ${s.chile}`} aria-labelledby="tributacion-title">
+      <AtacamaSky />
       <div className={s.chileIntro}>
         <p className={s.kicker}>TRIBUTACIÓN CHILENA</p>
         <h2 id="tributacion-title" className={`${s.heading} ${s.headingMid}`}>
@@ -118,23 +139,13 @@ export function FaqScene({ salesEmail }: { salesEmail: string }) {
 }
 
 /**
- * Pie con el cierre de la página arriba: la frase final, el llamado a armar
- * la cotización en la vitrina (#modulos) y la vuelta al inicio.
+ * Pie. El cierre (la frase final y el llamado a cotizar) va justo antes,
+ * sobre el video del logo (CinematicFinale); el velo de esa escena funde con
+ * este fondo, así que no lleva borde arriba.
  */
 export function Footer({ salesEmail, legalName, legalRut }: { salesEmail: string; legalName?: string; legalRut?: string }) {
   return (
     <footer className={s.footer}>
-      <div className={s.closing}>
-        <p className={s.kicker}>TU EMPRESA YA TIENE EL POTENCIAL</p>
-        <h2 id="cierre-title" className={s.closingTitle} data-live>
-          <span>Dale espacio para crecer.</span>{' '}
-          <span className={s.gold}>Dale Aether.</span>
-        </h2>
-        <div className={s.closingActions}>
-          <a className={s.closingCta} href="#modulos">Arma tu cotización <ArrowUpRight size={17} aria-hidden="true" /></a>
-          <a className={s.backTop} href="#contenido">Volver al inicio <ArrowUp size={16} aria-hidden="true" /></a>
-        </div>
-      </div>
       <div className={s.footerGrid}>
         <div className={s.footerBrand}>
           <Link href="/" className={s.brand} aria-label="Aether ERP, inicio">

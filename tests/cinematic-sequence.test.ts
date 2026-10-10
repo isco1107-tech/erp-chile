@@ -1,7 +1,8 @@
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import {
-  SMOOTH_TIME, V1_END, chapterState, choreography, decodeWindow, exitShade, frameAt, frameBlend, framePoint, frameUrl, fromGlobal, globalIndex, hudOpacity, loadOrder, smoothDamp, smoothstep, snapIndex, usesFrame, v2Time,
+  FINALE_TIMING, HERO_TIMING, SMOOTH_TIME, chapterState, choreography, decodeWindow, exitShade, finaleChoreography, finaleLastFrame, frameAt, frameBlend,
+  framePoint, frameUrl, hudOpacity, loadOrder, smoothDamp, smoothstep, snapIndex, usesFrame, videoTime,
 } from '../src/components/marketing/cinematic/sequence';
 import { ENTER_FROM, ENTER_SPAN, MAX_STAGGER, enterProgress, viewProgress } from '../src/components/marketing/cinematic/live';
 import { linkStrength, makeStars, streakLength, traceAmounts, wrap } from '../src/components/marketing/cinematic/constellation';
@@ -10,50 +11,49 @@ import manifest from '../public/marketing/cinematic/seq/manifest.json';
 import { approach, isWheelNotch, wheelPixels } from '../src/components/marketing/cinematic/smoothWheel';
 
 const publicDir = path.join(__dirname, '..', 'public');
-const counts: [number, number] = [manifest.clips.v1.desktop.count, manifest.clips.v2.desktop.count];
+const heroLast = manifest.clips.v1.desktop.count - 1;
+const finaleLast = (set: 'desktop' | 'mobile') => finaleLastFrame(manifest.clips.v2[set].count, manifest.clips.v2[set].fps, manifest.clips.v2[set].light);
 
-describe('landing v2 · mapeo del progreso a los videos', () => {
-  it('recorre v1 entre P 0 y .55 y v2 hasta el final', () => {
-    expect(frameAt(0, counts)).toEqual({ clip: 0, index: 0 });
-    expect(frameAt(V1_END - 0.0001, counts)).toEqual({ clip: 0, index: counts[0] - 1 });
-    expect(frameAt(V1_END, counts)).toEqual({ clip: 1, index: 0 });
-    expect(frameAt(1, counts)).toEqual({ clip: 1, index: counts[1] - 1 });
+describe('landing · el video abre y cierra la página', () => {
+  it('el hero recorre solo v1 y llega a su último fotograma al 90 % de la pista', () => {
+    expect(frameAt(0, HERO_TIMING, heroLast)).toBe(0);
+    expect(frameAt(0.45, HERO_TIMING, heroLast)).toBe(Math.round(0.5 * heroLast));
+    expect(frameAt(0.85, HERO_TIMING, heroLast)).toBeLessThan(heroLast);
+    expect(frameAt(0.9, HERO_TIMING, heroLast)).toBe(heroLast);
+    expect(frameAt(1, HERO_TIMING, heroLast)).toBe(heroLast);
   });
 
   it('avanza y retrocede con el mismo P: es una función del scroll, no del tiempo', () => {
-    const forward = [0.1, 0.3, 0.5, 0.7, 0.9].map(p => globalIndex(frameAt(p, counts), counts));
+    const forward = [0.1, 0.3, 0.5, 0.7, 0.9].map(p => frameAt(p, HERO_TIMING, heroLast));
     expect([...forward].sort((a, b) => a - b)).toEqual(forward);
-    expect(frameAt(0.3, counts)).toEqual(frameAt(0.3, counts));
+    expect(frameAt(0.3, HERO_TIMING, heroLast)).toBe(frameAt(0.3, HERO_TIMING, heroLast));
   });
 
   it('acota P fuera de rango', () => {
-    expect(frameAt(-2, counts)).toEqual(frameAt(0, counts));
-    expect(frameAt(3, counts)).toEqual(frameAt(1, counts));
+    expect(frameAt(-2, HERO_TIMING, heroLast)).toBe(0);
+    expect(frameAt(3, HERO_TIMING, heroLast)).toBe(heroLast);
+    expect(videoTime(-1, FINALE_TIMING)).toBe(0);
+    expect(videoTime(2, FINALE_TIMING)).toBe(1);
   });
 
-  const inV2 = (stretch: number) => V1_END + stretch * (1 - V1_END);
-
-  it('v2 pasa más lento por la galaxia: su primer 25 % ocupa el 35 % del tramo', () => {
-    expect(v2Time(0)).toBe(0);
-    expect(v2Time(0.35)).toBeCloseTo(0.25, 10);
-    expect(frameAt(inV2(0.35), counts)).toEqual({ clip: 1, index: Math.round(0.25 * (counts[1] - 1)) });
-    const times = [0, 0.1, 0.35, 0.5, 0.7, 0.9, 1].map(v2Time);
-    expect([...times].sort((a, b) => a - b)).toEqual(times);
-  });
-
-  it('llega al último fotograma de v2 antes del final de la pista y se queda ahí', () => {
-    const last = { clip: 1, index: counts[1] - 1 };
-    expect(v2Time(0.9)).toBe(1);
-    expect(frameAt(inV2(0.9), counts)).toEqual(last);
-    expect(frameAt(0.97, counts)).toEqual(last);
-    expect(frameAt(1, counts)).toEqual(last);
-    expect(frameAt(inV2(0.85), counts).index).toBeLessThan(counts[1] - 1);
-  });
-
-  it('convierte entre numeración continua y (video, fotograma)', () => {
-    for (const global of [0, counts[0] - 1, counts[0], counts[0] + counts[1] - 1]) {
-      expect(globalIndex(fromGlobal(global, counts), counts)).toBe(global);
+  it('el cierre termina antes de que v2 se aclare: nunca muestra el logo sobre fondo blanco', () => {
+    for (const set of ['desktop', 'mobile'] as const) {
+      const last = finaleLast(set);
+      const { light, fps, count } = manifest.clips.v2[set];
+      expect(light.length).toBeGreaterThan(0);
+      for (const [first] of light) expect(last).toBeLessThan(first - fps * 0.5);
+      // Pero llega al logo armado: más de la mitad del video.
+      expect(last).toBeGreaterThan(count / 2);
     }
+    expect(finaleLastFrame(100, 10, [])).toBe(99);
+  });
+
+  it('el cierre arma el logo al 78 % de su pista y lo sostiene', () => {
+    const last = finaleLast('desktop');
+    expect(frameAt(0, FINALE_TIMING, last)).toBe(0);
+    expect(frameAt(0.7, FINALE_TIMING, last)).toBeLessThan(last);
+    expect(frameAt(0.78, FINALE_TIMING, last)).toBe(last);
+    expect(frameAt(1, FINALE_TIMING, last)).toBe(last);
   });
 });
 
@@ -69,19 +69,20 @@ describe('landing v2 · coreografía', () => {
     expect(choreography(0.11).intro).toBeGreaterThan(0);
   });
 
-  it('«Ahora, estás dentro.» aparece entre .45 y .56, se sostiene y se va entre .64 y .7', () => {
-    expect(choreography(0.45).inside).toBe(0);
-    expect(choreography(0.56).inside).toBe(1);
-    expect(choreography(0.62).inside).toBe(1);
-    expect(choreography(0.64).inside).toBe(1);
-    expect(choreography(0.7).inside).toBe(0);
-    expect(choreography(0.9).inside).toBe(0);
+  it('«Ahora, estás dentro.» llega con la galaxia y se queda hasta el final del hero', () => {
+    expect(choreography(0.56).inside).toBe(0);
+    expect(choreography(0.68).inside).toBe(1);
+    expect(choreography(0.9).inside).toBe(1);
+    expect(choreography(1).inside).toBe(1);
+    // Para entonces el video ya pasó del 60 %: la galaxia ocupa el cuadro.
+    expect(frameAt(0.56, HERO_TIMING, heroLast)).toBeGreaterThan(0.6 * heroLast);
   });
 
-  it('el titular se va sobre la galaxia, antes de que se arme el logo', () => {
-    const galaxyEnd = Math.round(0.25 * (counts[1] - 1));
-    expect(frameAt(0.7, counts)).toMatchObject({ clip: 1 });
-    expect(frameAt(0.7, counts).index).toBeLessThanOrEqual(galaxyEnd);
+  it('en el cierre «Dale Aether.» y el botón llegan con el logo', () => {
+    expect(finaleChoreography(0)).toEqual({ close: 0, closeShift: 24 });
+    expect(finaleChoreography(0.68).close).toBe(0);
+    expect(finaleChoreography(0.82)).toEqual({ close: 1, closeShift: 0 });
+    expect(finaleChoreography(1).close).toBe(1);
   });
 
   it('termina con el último fotograma a la vista: sin capa oscura mientras la pista está fija', () => {
@@ -179,7 +180,7 @@ describe('landing v2 · fotogramas generados', () => {
     expect(manifest.clips.v2.usedSeconds).toBe(manifest.clips.v2.sourceSeconds);
   });
 
-  it('marca como claro el final de v2 (la cabecera toma fondo) y nada de v1', () => {
+  it('marca como claro el final de v2 (el cierre se corta antes) y nada de v1, que va entero en el hero', () => {
     for (const set of ['desktop', 'mobile'] as const) {
       expect(manifest.clips.v1[set].light).toEqual([]);
       const last = manifest.clips.v2[set].count - 1;
@@ -187,15 +188,12 @@ describe('landing v2 · fotogramas generados', () => {
     }
   });
 
-  it('tiene el primer fotograma de v1 para el póster (LCP) en ambos sets', () => {
+  it('tiene el primer fotograma de cada video para los pósteres (hero, cierre y fondo de Chile) en ambos sets', () => {
     const file = (url: string) => path.join(publicDir, url.split('?')[0]);
-    expect(existsSync(file(frameUrl(0, 'd', 0)))).toBe(true);
-    expect(existsSync(file(frameUrl(0, 'm', 0)))).toBe(true);
-  });
-
-  it('funde la unión v1→v2 cuando los cuadros no calzan', () => {
-    const { ssim, crossfadeMs } = manifest.boundary;
-    expect(crossfadeMs).toBe(ssim !== null && ssim >= 0.9 ? 0 : 300);
+    for (const clip of [0, 1] as const) {
+      expect(existsSync(file(frameUrl(clip, 'd', 0)))).toBe(true);
+      expect(existsSync(file(frameUrl(clip, 'm', 0)))).toBe(true);
+    }
   });
 });
 
@@ -257,17 +255,16 @@ describe('landing v2 · cielo interactivo', () => {
 describe('landing v2 · fluidez del video con la rueda', () => {
   it('la posición continua redondeada coincide con frameAt', () => {
     for (const p of [0, 0.013, 0.2, 0.549, 0.55, 0.7, 0.93, 1]) {
-      const point = framePoint(p, counts);
-      expect({ clip: point.clip, index: Math.min(counts[point.clip] - 1, Math.round(point.index)) }).toEqual(frameAt(p, counts));
+      expect(Math.min(heroLast, Math.round(framePoint(p, HERO_TIMING, heroLast)))).toBe(frameAt(p, HERO_TIMING, heroLast));
     }
   });
 
   it('entre dos fotogramas mezcla el siguiente en la proporción que toca', () => {
-    expect(frameBlend({ clip: 0, index: 12.25 }, 143)).toEqual({ lower: 12, upper: 13, mix: 0.25 });
-    expect(frameBlend({ clip: 0, index: 12 }, 143)).toEqual({ lower: 12, upper: 13, mix: 0 });
+    expect(frameBlend(12.25, 143)).toEqual({ lower: 12, upper: 13, mix: 0.25 });
+    expect(frameBlend(12, 143)).toEqual({ lower: 12, upper: 13, mix: 0 });
     // En el último fotograma no hay siguiente: se sostiene limpio.
-    expect(frameBlend({ clip: 1, index: 143 }, 143)).toEqual({ lower: 143, upper: 143, mix: 0 });
-    expect(frameBlend({ clip: 1, index: 150 }, 143).mix).toBe(0);
+    expect(frameBlend(143, 143)).toEqual({ lower: 143, upper: 143, mix: 0 });
+    expect(frameBlend(150, 143).mix).toBe(0);
   });
 
   it('el resorte llega al objetivo sin pasarse y sin depender de los cuadros por segundo', () => {

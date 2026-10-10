@@ -1,27 +1,34 @@
 import manifest from '../../../../public/marketing/cinematic/seq/manifest.json';
 import {
-  IDLE_AHEAD, SMOOTH_TIME, V2_PRELOAD_FROM, chapterState, snapIndex, usesFrame, choreography, clamp01, decodeWindow, exitShade, frameBlend, framePoint,
-  frameUrl, hudOpacity, fromGlobal, globalIndex, loadOrder, smoothDamp, type Choreography, type Clip, type FramePosition,
+  IDLE_AHEAD, SMOOTH_TIME, chapterState, choreography, clamp01, decodeWindow, exitShade, frameBlend, framePoint, frameUrl,
+  hudOpacity, loadOrder, smoothDamp, snapIndex, usesFrame, type Choreography, type Clip, type Timing,
 } from './sequence';
 
 /**
- * Motor del hero de /landing-v2: dibuja en un canvas el fotograma que toca
- * según el scroll y escribe la coreografía directo al DOM. Nada de esto pasa
- * por el estado de React: todo vive en variables del cierre y se escribe
- * dentro de requestAnimationFrame.
+ * Motor de las escenas con video de la landing (el hero y el cierre): dibuja
+ * en un canvas el fotograma que toca según el scroll y avisa el progreso para
+ * que cada escena escriba sus textos directo al DOM. Nada de esto pasa por el
+ * estado de React: todo vive en variables del cierre y se escribe dentro de
+ * requestAnimationFrame.
  *
- * Memoria: los fotogramas se guardan comprimidos (~23 MB en escritorio) y solo
- * se decodifican los de una ventana alrededor del actual. Decodificar la
- * secuencia completa a 1920×1080 costaría más de 2 GB.
+ * Memoria: los fotogramas se guardan comprimidos y solo se decodifican los de
+ * una ventana alrededor del actual. Decodificar el video completo a 1920×1080
+ * costaría más de 1 GB.
  */
 
-export interface PlayerElements {
+export interface SceneElements {
+  /** La pista larga (su alto es el recorrido del scroll). */
   track: HTMLElement;
+  /** El escenario fijo dentro de la pista. */
   stage: HTMLElement;
   canvas: HTMLCanvasElement;
+  /** Degradado de salida (opcional): sube desde abajo cuando el escenario ya se va. */
+  fade?: HTMLElement | null;
+}
+
+export interface HeroElements {
   intro: HTMLElement;
   inside: HTMLElement;
-  fade: HTMLElement;
   line: HTMLElement;
   /** Guía de capítulos (sus `li` llevan data-from y data-to) y «Desliza para entrar». */
   hud: HTMLElement;
@@ -31,21 +38,8 @@ export type FrameSetName = 'desktop' | 'mobile';
 
 type Drawable = ImageBitmap | HTMLImageElement;
 
-interface ClipFrames {
-  count: number;
-  blobs: (Blob | undefined)[];
-  /** 0 sin pedir, 1 descargando, 2 descargado, 3 falló. */
-  status: Uint8Array;
-  images: Map<number, Drawable>;
-  decoding: Set<number>;
-}
-
 const MAX_FETCHES = 6;
 const MAX_DECODES = 3;
-
-function makeClip(count: number): ClipFrames {
-  return { count, blobs: new Array<Blob | undefined>(count), status: new Uint8Array(count), images: new Map(), decoding: new Set() };
-}
 
 function release(image: Drawable) {
   if ('close' in image) image.close();
@@ -92,8 +86,8 @@ function writeGuide(hud: HTMLElement, progress: number) {
   }
 }
 
-/** Escribe la coreografía en el DOM. Se usa también para dejar el estado inicial. */
-export function writeChoreography(elements: PlayerElements, state: Choreography) {
+/** Escribe la coreografía del hero en el DOM. Se usa también para dejar el estado inicial. */
+export function writeChoreography(elements: HeroElements, state: Choreography) {
   const { intro, inside, line } = elements;
   intro.style.opacity = state.intro.toFixed(3);
   intro.style.transform = `translate3d(0, ${state.introShift.toFixed(1)}px, 0)`;
@@ -107,39 +101,66 @@ export function writeChoreography(elements: PlayerElements, state: Choreography)
   inside.toggleAttribute('data-hidden', state.inside < 0.02);
 }
 
-function clearChoreography(elements: PlayerElements) {
+/** Coreografía del hero para un progreso. */
+export function writeHero(elements: HeroElements, progress: number) {
+  writeChoreography(elements, choreography(progress));
+}
+
+export function clearChoreography(elements: HeroElements) {
   elements.line.parentElement?.style.removeProperty('opacity');
   for (const node of elements.hud.querySelectorAll<HTMLElement>('*')) node.removeAttribute('style');
   elements.hud.removeAttribute('style');
-  for (const node of [elements.intro, elements.inside, elements.fade, elements.line]) {
+  for (const node of [elements.intro, elements.inside, elements.line]) {
     node.style.removeProperty('opacity');
     node.style.removeProperty('transform');
     node.removeAttribute('data-hidden');
   }
 }
 
+export interface PlayerOptions {
+  /** Qué video: 0 es v1 (hero), 1 es v2 (cierre). */
+  clip: Clip;
+  set: FrameSetName;
+  /** Ritmo del video en la pista (ver sequence.ts). */
+  timing: Timing;
+  /** Último fotograma que usa la escena (el cierre no llega al final claro de v2). */
+  last: number;
+  /** `stride` > 1 es el modo liviano (ver device.ts): uno de cada `stride` fotogramas. */
+  stride: number;
+  /** Se llama con el progreso (0 a 1) cada vez que cambia, y una vez al empezar. */
+  onProgress: (progress: number) => void;
+  /**
+   * Cuánto antes de asomar la escena empieza a descargar (margen del
+   * IntersectionObserver). El hero está arriba; el cierre se prepara antes
+   * de llegar para que la persona no lo vea vacío.
+   */
+  lookahead?: string;
+}
+
 /**
- * `stride` > 1 es el modo liviano (ver device.ts): uno de cada `stride`
- * fotogramas, así que se descarga y decodifica esa fracción del video (y no
+ * Con `stride` > 1 solo se descarga y decodifica esa fracción del video (y no
  * se funden fotogramas vecinos, que cuesta un segundo dibujo por cuadro).
  *
  * El avance sigue al scroll con inercia también con movimiento reducido: no
  * es una animación que corra sola, es el mismo recorrido que hace la persona,
  * sin los saltos de cada clic de la rueda.
  */
-export function startPlayer(elements: PlayerElements, setName: FrameSetName, crossfadeMs: number, stride = 1): () => void {
-  const { track, stage, canvas } = elements;
+export function startPlayer(elements: SceneElements, options: PlayerOptions): () => void {
+  const { track, stage, canvas, fade } = elements;
+  const { clip, set, timing, stride, onProgress } = options;
   const context = canvas.getContext('2d', { alpha: false });
   if (!context) return () => {};
   const ctx: CanvasRenderingContext2D = context;
 
-  const prefix = setName === 'desktop' ? 'd' : 'm';
-  const source = manifest.clips.v1[setName];
-  const counts: [number, number] = [manifest.clips.v1[setName].count, manifest.clips.v2[setName].count];
-  // Tramos [primero, último] de fotogramas claros (los mide el generador).
-  const light: [readonly (readonly number[])[], readonly (readonly number[])[]] = [manifest.clips.v1[setName].light, manifest.clips.v2[setName].light];
-  const total = counts[0] + counts[1];
-  const clips: [ClipFrames, ClipFrames] = [makeClip(counts[0]), makeClip(counts[1])];
+  const prefix = set === 'desktop' ? 'd' : 'm';
+  const source = (clip === 0 ? manifest.clips.v1 : manifest.clips.v2)[set];
+  const last = Math.max(0, Math.min(source.count - 1, options.last));
+  const total = last + 1;
+  const blobs = new Array<Blob | undefined>(total);
+  /** 0 sin pedir, 1 descargando, 2 descargado, 3 falló. */
+  const status = new Uint8Array(total);
+  const images = new Map<number, Drawable>();
+  const decoding = new Set<number>();
   const abort = new AbortController();
 
   let disposed = false;
@@ -157,13 +178,11 @@ export function startPlayer(elements: PlayerElements, setName: FrameSetName, cro
   let lastTime = 0;
   let fetches = 0;
   let decodes = 0;
-  let v2Allowed = false;
   let direction: 1 | -1 = 1;
   let current = 0;
-  let drawn: { position: FramePosition; image: Drawable } | null = null;
+  let drawn: { index: number; image: Drawable } | null = null;
   /** Fotograma siguiente al dibujado, fundido encima en la proporción `mix`. */
   let blend: { image: Drawable; mix: number } | null = null;
-  let outgoing: { image: Drawable; started: number } | null = null;
   let width = 0;
   let height = 0;
   // Hasta el evento load solo se pide el fotograma actual (el póster ya está
@@ -186,10 +205,11 @@ export function startPlayer(elements: PlayerElements, setName: FrameSetName, cro
 
   /** La salida sigue al scroll sin inercia: el escenario ya se está moviendo con la página. */
   function writeExit() {
+    if (!fade) return;
     const next = exitShade(exit);
     if (next === shade) return;
     shade = next;
-    elements.fade.style.transform = `scaleY(${shade.toFixed(4)})`;
+    fade.style.transform = `scaleY(${shade.toFixed(4)})`;
   }
 
   function sizeCanvas() {
@@ -216,32 +236,17 @@ export function startPlayer(elements: PlayerElements, setName: FrameSetName, cro
     ctx.globalAlpha = 1;
   }
 
-  function paint(now: number) {
+  function paint() {
     if (!drawn || width === 0 || height === 0) return;
-    let alpha = 1;
-    if (outgoing) {
-      const t = (now - outgoing.started) / crossfadeMs;
-      if (t >= 1) {
-        outgoing = null;
-      } else {
-        draw(outgoing.image, 1);
-        alpha = Math.max(0, t);
-      }
-    }
-    draw(drawn.image, alpha);
-    if (blend) draw(blend.image, alpha * blend.mix);
+    draw(drawn.image, 1);
+    if (blend) draw(blend.image, blend.mix);
     if (!track.hasAttribute('data-painted')) track.setAttribute('data-painted', '');
     // Fotograma que más se ve (p. ej. «v1:1»): lo leen las pruebas de la landing.
-    const clip = drawn.position.clip;
-    const index = drawn.position.index + (blend && blend.mix >= 0.5 ? 1 : 0);
-    track.dataset.frame = `v${clip + 1}:${index + 1}`;
-    // Sobre un cuadro claro la cabecera y la línea de progreso cambian de fondo (CSS).
-    track.toggleAttribute('data-light', light[clip].some(([first, last]) => index >= first && index <= last));
+    track.dataset.frame = `v${clip + 1}:${drawn.index + (blend && blend.mix >= 0.5 ? 1 : 0) + 1}`;
   }
 
-  function fetchFrame(clip: Clip, index: number) {
-    const frames = clips[clip];
-    frames.status[index] = 1;
+  function fetchFrame(index: number) {
+    status[index] = 1;
     fetches += 1;
     fetch(frameUrl(clip, prefix, index), { signal: abort.signal })
       .then(response => {
@@ -250,12 +255,12 @@ export function startPlayer(elements: PlayerElements, setName: FrameSetName, cro
       })
       .then(blob => {
         if (disposed) return;
-        frames.blobs[index] = blob;
-        frames.status[index] = 2;
+        blobs[index] = blob;
+        status[index] = 2;
       })
       .catch(() => {
         // Un fotograma que no llega no apaga el canvas: sigue el último dibujado.
-        if (!disposed) frames.status[index] = 3;
+        if (!disposed) status[index] = 3;
       })
       .finally(() => {
         fetches -= 1;
@@ -265,22 +270,21 @@ export function startPlayer(elements: PlayerElements, setName: FrameSetName, cro
       });
   }
 
-  function decodeFrame(clip: Clip, index: number, blob: Blob) {
-    const frames = clips[clip];
-    frames.decoding.add(index);
+  function decodeFrame(index: number, blob: Blob) {
+    decoding.add(index);
     decodes += 1;
     decodeBlob(blob)
       .then(image => {
         if (disposed) release(image);
-        else frames.images.set(index, image);
+        else images.set(index, image);
       })
       .catch(() => {
         if (disposed) return;
-        frames.blobs[index] = undefined;
-        frames.status[index] = 3;
+        blobs[index] = undefined;
+        status[index] = 3;
       })
       .finally(() => {
-        frames.decoding.delete(index);
+        decoding.delete(index);
         decodes -= 1;
         if (disposed) return;
         loaderDirty = true;
@@ -291,34 +295,27 @@ export function startPlayer(elements: PlayerElements, setName: FrameSetName, cro
   /** Descarga por cercanía al fotograma actual y decodifica solo la ventana. */
   function pump() {
     loaderDirty = false;
-    const [first, last] = decodeWindow(current, total, direction);
-    for (const clip of [0, 1] as const) {
-      for (const [index, image] of clips[clip].images) {
-        const global = globalIndex({ clip, index }, counts);
-        const pinned = drawn?.image === image || outgoing?.image === image || blend?.image === image;
-        if (!pinned && (global < first - 2 || global > last + 2)) {
-          release(image);
-          clips[clip].images.delete(index);
-        }
+    const [first, end] = decodeWindow(current, total, direction);
+    for (const [index, image] of images) {
+      const pinned = drawn?.image === image || blend?.image === image;
+      if (!pinned && (index < first - 2 || index > end + 2)) {
+        release(image);
+        images.delete(index);
       }
     }
     const order = loadOrder(current, total, direction);
-    for (const global of order) {
+    for (const index of order) {
       if (decodes >= MAX_DECODES) break;
-      if (global < first || global > last) continue;
-      const { clip, index } = fromGlobal(global, counts);
-      const frames = clips[clip];
-      const blob = frames.blobs[index];
-      if (blob && !frames.images.has(index) && !frames.decoding.has(index)) decodeFrame(clip, index, blob);
+      if (index < first || index > end) continue;
+      const blob = blobs[index];
+      if (blob && !images.has(index) && !decoding.has(index)) decodeFrame(index, blob);
     }
-    for (const global of order) {
+    for (const index of order) {
       if (fetches >= MAX_FETCHES) break;
-      if (!warm && global !== current) continue;
-      if (!engaged && (global < current || global > current + IDLE_AHEAD)) continue;
-      const { clip, index } = fromGlobal(global, counts);
-      if (!usesFrame(index, counts[clip] - 1, stride)) continue;
-      if (clip === 1 && !v2Allowed) continue;
-      if (clips[clip].status[index] === 0) fetchFrame(clip, index);
+      if (!warm && index !== current) continue;
+      if (!engaged && (index < current || index > current + IDLE_AHEAD)) continue;
+      if (!usesFrame(index, last, stride)) continue;
+      if (status[index] === 0) fetchFrame(index);
     }
   }
 
@@ -352,44 +349,34 @@ export function startPlayer(elements: PlayerElements, setName: FrameSetName, cro
       }
     }
     if (progress !== previous) {
-      writeChoreography(elements, choreography(progress));
+      onProgress(progress);
       track.dataset.progress = progress.toFixed(3);
     }
-    if (!v2Allowed && progress > V2_PRELOAD_FROM) {
-      v2Allowed = true;
-      loaderDirty = true;
-    }
 
-    const point = framePoint(progress, counts);
-    const lastIndex = counts[point.clip] - 1;
-    const position = { clip: point.clip, index: snapIndex(Math.min(lastIndex, Math.round(point.index)), lastIndex, stride) };
-    const global = globalIndex(position, counts);
-    if (global !== current) {
-      direction = global > current ? 1 : -1;
-      current = global;
+    const point = framePoint(progress, timing, last);
+    const index = snapIndex(Math.min(last, Math.round(point)), last, stride);
+    if (index !== current) {
+      direction = index > current ? 1 : -1;
+      current = index;
       loaderDirty = true;
     }
 
     // Entre dos fotogramas se dibuja el de abajo y encima el siguiente, en la
     // proporción que toca. Si el de abajo aún no está decodificado, el más cercano solo.
-    const frames = clips[point.clip];
-    let base = position;
+    let base = index;
     let over: { image: Drawable; mix: number } | null = null;
     if (stride === 1) {
-      const { lower, upper, mix } = frameBlend(point, lastIndex);
-      if (frames.images.has(lower)) {
-        base = { clip: point.clip, index: lower };
-        const upperImage = mix > 0.015 ? frames.images.get(upper) : undefined;
+      const { lower, upper, mix } = frameBlend(point, last);
+      if (images.has(lower)) {
+        base = lower;
+        const upperImage = mix > 0.015 ? images.get(upper) : undefined;
         // En 64 pasos: por debajo de eso el cambio no se ve y no vale un dibujo.
         if (upperImage) over = { image: upperImage, mix: Math.round(mix * 64) / 64 };
       }
     }
-    const image = frames.images.get(base.index);
+    const image = images.get(base);
     if (image && image !== drawn?.image) {
-      // Cambio de video (v1 ↔ v2): el último cuadro del anterior se funde
-      // durante `crossfadeMs`, porque los videos no calzan cuadro a cuadro.
-      if (drawn && drawn.position.clip !== base.clip && crossfadeMs > 0) outgoing = { image: drawn.image, started: now };
-      drawn = { position: base, image };
+      drawn = { index: base, image };
       repaint = true;
     }
     if (!image) over = null;
@@ -397,13 +384,12 @@ export function startPlayer(elements: PlayerElements, setName: FrameSetName, cro
       blend = over;
       repaint = true;
     }
-    if (outgoing) repaint = true;
     if (repaint) {
-      paint(now);
+      paint();
       repaint = false;
     }
     if (loaderDirty) pump();
-    if (progress !== target || outgoing) schedule();
+    if (progress !== target) schedule();
     else lastTime = 0;
   }
 
@@ -443,7 +429,7 @@ export function startPlayer(elements: PlayerElements, setName: FrameSetName, cro
     }
   };
 
-  // Fuera de pantalla no se dibuja ni se descarga nada.
+  // Lejos de la pantalla no se dibuja ni se descarga nada.
   const observer = new IntersectionObserver(([entry]) => {
     visible = entry.isIntersecting;
     if (visible) {
@@ -455,18 +441,18 @@ export function startPlayer(elements: PlayerElements, setName: FrameSetName, cro
       cancelAnimationFrame(raf);
       raf = 0;
     }
-  }, { rootMargin: '200px 0px' });
+  }, { rootMargin: options.lookahead ?? '200px 0px' });
   observer.observe(track);
   const resizeObserver = new ResizeObserver(onResize);
   resizeObserver.observe(stage);
   window.addEventListener('scroll', onScroll, { passive: true });
   window.addEventListener('resize', onResize, { passive: true });
   document.addEventListener('visibilitychange', onVisibility);
-  track.setAttribute('data-player', setName);
+  track.setAttribute('data-player', set);
   ({ target, exit } = readScroll());
   // Si la página abre a mitad de la pista (recarga, ancla), la persona ya está recorriéndola.
   engaged = target > 0;
-  writeChoreography(elements, choreography(target));
+  onProgress(target);
   writeExit();
 
   return () => {
@@ -479,19 +465,17 @@ export function startPlayer(elements: PlayerElements, setName: FrameSetName, cro
     window.removeEventListener('resize', onResize);
     window.removeEventListener('load', onLoad);
     document.removeEventListener('visibilitychange', onVisibility);
-    for (const frames of clips) {
-      for (const image of frames.images.values()) release(image);
-      frames.images.clear();
-      frames.blobs.fill(undefined);
-    }
+    for (const image of images.values()) release(image);
+    images.clear();
+    blobs.fill(undefined);
     drawn = null;
     blend = null;
-    outgoing = null;
+    if (fade) {
+      fade.style.removeProperty('transform');
+    }
     track.removeAttribute('data-painted');
     track.removeAttribute('data-player');
     track.removeAttribute('data-progress');
     track.removeAttribute('data-frame');
-    track.removeAttribute('data-light');
-    clearChoreography(elements);
   };
 }

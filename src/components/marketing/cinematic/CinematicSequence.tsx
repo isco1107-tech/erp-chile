@@ -6,8 +6,8 @@ import { ArrowDown, ArrowUpRight, Building2 } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import manifest from '../../../../public/marketing/cinematic/seq/manifest.json';
 import { isLightweightDevice } from './device';
-import { startPlayer, type PlayerElements } from './player';
-import { frameUrl } from './sequence';
+import { clearChoreography, startPlayer, writeHero, type HeroElements } from './player';
+import { HERO_TIMING, frameUrl } from './sequence';
 import s from './sequence.module.css';
 
 const facts = [
@@ -17,13 +17,14 @@ const facts = [
 ] as const;
 
 /**
- * Capítulos del recorrido, con el tramo de P que ocupa cada uno. La guía es
- * decorativa (aria-hidden): acompaña los tramos en que solo corre el video.
+ * Capítulos del recorrido de v1, con el tramo de P que ocupa cada uno. La guía
+ * es decorativa (aria-hidden): acompaña los tramos en que solo corre el video.
+ * v2 (la galaxia que se arma en el logo) ya no va aquí: cierra la página (CinematicFinale).
  */
 const chapters = [
-  ['01', 'Cielo de Atacama', 0, 0.2],
-  ['02', 'Vía Láctea', 0.2, 0.7],
-  ['03', 'Aether', 0.7, 1.02],
+  ['01', 'Cielo de Atacama', 0, 0.28],
+  ['02', 'Vía Láctea', 0.28, 0.6],
+  ['03', 'Estás dentro', 0.6, 1.02],
 ] as const;
 
 /** Mismos cortes que el CSS: el set móvil es un recorte vertical del cuadro. */
@@ -59,25 +60,33 @@ export default function CinematicSequence() {
   useEffect(() => {
     const trackNode = track.current;
     if (!trackNode || !stage.current || !canvas.current || !intro.current || !inside.current || !fade.current || !line.current || !hud.current) return;
-    const elements: PlayerElements = {
-      track: trackNode, stage: stage.current, canvas: canvas.current,
-      intro: intro.current, inside: inside.current, fade: fade.current, line: line.current, hud: hud.current,
-    };
+    const scene = { track: trackNode, stage: stage.current, canvas: canvas.current, fade: fade.current };
+    const hero: HeroElements = { intro: intro.current, inside: inside.current, line: line.current, hud: hud.current };
     if (typeof IntersectionObserver === 'undefined' || typeof ResizeObserver === 'undefined') return;
     const still = window.matchMedia(STATIC_QUERY);
     const mobile = window.matchMedia(MOBILE_QUERY);
     // Modo liviano (ahorro de datos, conexión lenta, poca memoria): uno de cada tres fotogramas.
     const stride = isLightweightDevice() ? 3 : 1;
     let stop: (() => void) | null = null;
-    const restart = () => {
+    const halt = () => {
       stop?.();
-      stop = still.matches ? null : startPlayer(elements, mobile.matches ? 'mobile' : 'desktop', manifest.boundary.crossfadeMs, stride);
+      stop = null;
+      clearChoreography(hero);
+    };
+    const restart = () => {
+      halt();
+      if (still.matches) return;
+      const set = mobile.matches ? 'mobile' : 'desktop';
+      stop = startPlayer(scene, {
+        clip: 0, set, timing: HERO_TIMING, last: manifest.clips.v1[set].count - 1, stride,
+        onProgress: progress => writeHero(hero, progress),
+      });
     };
     restart();
     const queries = [still, mobile];
     for (const query of queries) query.addEventListener('change', restart);
     return () => {
-      stop?.();
+      halt();
       for (const query of queries) query.removeEventListener('change', restart);
     };
   }, []);

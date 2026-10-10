@@ -17,8 +17,10 @@ const origin = process.argv[2] || 'http://localhost:3000';
 const url = `${origin}${process.argv[3] || '/'}`;
 const out = path.resolve('.vercel/landing-v2-check');
 const manifest = JSON.parse(fs.readFileSync(path.resolve('public/marketing/cinematic/seq/manifest.json'), 'utf8'));
-const V1_END = 0.55;
-const V2_TIMING = [[0, 0], [0.35, 0.25], [0.9, 1], [1, 1]];
+/** Mismos ritmos que sequence.ts: el hero recorre v1 y el cierre v2 hasta antes de su final claro. */
+const HERO_TIMING = [[0, 0], [0.9, 1], [1, 1]];
+const FINALE_TIMING = [[0, 0], [0.78, 1], [1, 1]];
+const FINALE_MARGIN_SECONDS = 0.6;
 const results = [];
 
 fs.mkdirSync(out, { recursive: true });
@@ -28,23 +30,34 @@ function check(name, ok, detail = '') {
   console.log(`${ok ? '  ok ' : 'FALLA'}  ${name}${detail ? ` — ${detail}` : ''}`);
 }
 
-/** Mismo mapeo que src/components/marketing/cinematic/sequence.ts (v2Time y frameAt). */
-function v2Time(stretch) {
-  const x = Math.min(1, Math.max(0, stretch));
-  for (let index = 1; index < V2_TIMING.length; index += 1) {
-    const [x1, y1] = V2_TIMING[index];
+/** Mismo mapeo que src/components/marketing/cinematic/sequence.ts (videoTime y frameAt). */
+function videoTime(progress, timing) {
+  const x = Math.min(1, Math.max(0, progress));
+  for (let index = 1; index < timing.length; index += 1) {
+    const [x1, y1] = timing[index];
     if (x <= x1) {
-      const [x0, y0] = V2_TIMING[index - 1];
+      const [x0, y0] = timing[index - 1];
       return x1 === x0 ? y1 : y0 + ((x - x0) / (x1 - x0)) * (y1 - y0);
     }
   }
   return 1;
 }
 
+function finaleLast(set) {
+  const { count, fps, light } = manifest.clips.v2[set];
+  if (light.length === 0) return count - 1;
+  const first = Math.min(...light.map(([start]) => start));
+  return Math.max(0, Math.min(count - 1, first - 1 - Math.round(FINALE_MARGIN_SECONDS * fps)));
+}
+
 function expectedFrame(p, set) {
-  const counts = [manifest.clips.v1[set].count, manifest.clips.v2[set].count];
-  if (p < V1_END) return `v1:${Math.min(counts[0] - 1, Math.round((p / V1_END) * (counts[0] - 1))) + 1}`;
-  return `v2:${Math.min(counts[1] - 1, Math.round(v2Time((p - V1_END) / (1 - V1_END)) * (counts[1] - 1))) + 1}`;
+  const last = manifest.clips.v1[set].count - 1;
+  return `v1:${Math.min(last, Math.round(videoTime(p, HERO_TIMING) * last)) + 1}`;
+}
+
+function expectedFinaleFrame(p, set) {
+  const last = finaleLast(set);
+  return `v2:${Math.min(last, Math.round(videoTime(p, FINALE_TIMING) * last)) + 1}`;
 }
 
 async function goToProgress(page, p) {
@@ -156,37 +169,28 @@ async function hero(browser, label, viewport, set) {
   check('3. A medio camino sube y se desvanece (con las cifras)', introMid.opacity > 0.05 && introMid.opacity < 0.95 && /-[1-9]/.test(introMid.transform) && introMid.facts, `P .11: opacidad ${introMid.opacity}, ${introMid.transform}`);
   check('3. En P .22 subió 40 px y desapareció', introHidden.hidden && introHidden.transform.includes('-40') && Number(introHidden.opacity) === 0, `${introHidden.transform}, opacidad ${introHidden.opacity}`);
 
-  // Criterio 4: «Ahora, estás dentro.» sobre el final de v1 y v2 sigue.
+  // Criterio 4: «Ahora, estás dentro.» llega con la galaxia, al final de v1, y se queda.
   await goToProgress(page, 0.5);
   await page.screenshot({ path: path.join(out, `${label}-p050.png`) });
   const insideAt50 = await page.$eval('[data-cinematic-track] h2', node => Number(node.parentElement.style.opacity));
-  await goToProgress(page, 0.62);
+  await goToProgress(page, 0.7);
   const inside = await page.$eval('[data-cinematic-track] h2', node => ({ text: node.innerText.replace(/\s+/g, ' ').trim(), box: node.getBoundingClientRect().toJSON(), opacity: Number(node.parentElement.style.opacity) }));
   const center = inside.box.left + inside.box.width / 2;
-  check('4. Aparece «AHORA, ESTÁS DENTRO.»', inside.text === 'AHORA, ESTÁS DENTRO.' && inside.opacity === 1, `${inside.text} (P .5 opacidad ${insideAt50.toFixed(2)}, P .62 opacidad ${inside.opacity})`);
+  check('4. Aparece «AHORA, ESTÁS DENTRO.»', inside.text === 'AHORA, ESTÁS DENTRO.' && inside.opacity === 1 && insideAt50 === 0, `${inside.text} (P .5 opacidad ${insideAt50.toFixed(2)}, P .7 opacidad ${inside.opacity})`);
   check('4. Centrado', Math.abs(center - viewport.width / 2) < viewport.width * 0.02, `centro ${Math.round(center)} de ${viewport.width}`);
-  await goToProgress(page, 0.75);
-  const at75 = expectedFrame(0.75, set);
-  await page.waitForFunction(frame => document.querySelector('[data-cinematic-track]').dataset.frame === frame, at75, { timeout: 20000 });
-  check('4. v2 continúa el movimiento', at75.startsWith('v2:'), `P .75 → ${at75}`);
-  await page.screenshot({ path: path.join(out, `${label}-p075.png`) });
+  await page.screenshot({ path: path.join(out, `${label}-p070.png`) });
   await goToProgress(page, 1);
-  const lastFrame = `v2:${manifest.clips.v2[set].count}`;
+  const lastFrame = `v1:${manifest.clips.v1[set].count}`;
   await page.waitForFunction(frame => document.querySelector('[data-cinematic-track]').dataset.frame === frame, lastFrame, { timeout: 20000 }).catch(() => {});
-  await page.waitForTimeout(600); // la cabecera cambia de fondo con una transición de .45 s
   const ending = await page.$eval('[data-cinematic-track]', node => ({
     frame: node.dataset.frame,
     shade: node.querySelector('canvas').nextElementSibling.style.transform,
-    hidden: node.querySelector('h2').parentElement.hasAttribute('data-hidden'),
-    light: node.hasAttribute('data-light'),
-    header: getComputedStyle(document.querySelector('header')).backgroundColor,
+    inside: !node.querySelector('h2').parentElement.hasAttribute('data-hidden'),
   }));
-  const headerAlpha = Number(/rgba\(11, 14, 20, ([0-9.]+)\)/.exec(ending.header)?.[1] ?? 0);
-  check('4. Termina en el último fotograma de v2, a la vista', ending.frame === lastFrame && ending.shade === 'scaleY(0)' && ending.hidden, `${ending.frame}, degradado ${ending.shade}`);
-  check('4. Sobre el final claro la cabecera tiene fondo', ending.light && headerAlpha >= 0.8, ending.header);
+  check('4. Termina en el último fotograma de v1 (la galaxia), con «Ahora, estás dentro.»', ending.frame === lastFrame && ending.shade === 'scaleY(0)' && ending.inside, `${ending.frame}, degradado ${ending.shade}`);
   await page.screenshot({ path: path.join(out, `${label}-p100.png`) });
   // Antes del final ya está el último fotograma: el scroll termina quieto en él.
-  await goToProgress(page, 0.97);
+  await goToProgress(page, 0.95);
   check('4. El último fotograma se sostiene antes del final', await page.$eval('[data-cinematic-track]', node => node.dataset.frame) === lastFrame);
 
   // Criterio 5: sin corte visible hacia la sección siguiente.
@@ -224,6 +228,62 @@ async function hero(browser, label, viewport, set) {
   return frameBytes;
 }
 
+/**
+ * Cierre: v2 avanza con el scroll hasta el logo y se detiene antes de su
+ * final claro; «Dale Aether.» y el botón llegan con el logo, a un lado o
+ * debajo, nunca encima del logo; y se funde con el pie sin corte.
+ */
+async function finale(browser, label, viewport, set) {
+  console.log(`\n── Cierre ${label} (${viewport.width}×${viewport.height}, set ${set})`);
+  const context = await browser.newContext({ viewport, deviceScaleFactor: 1, isMobile: set === 'mobile', hasTouch: set === 'mobile' });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto(url, { waitUntil: 'load' });
+  await page.waitForSelector('main[data-in-track]');
+  const goTo = async p => {
+    await page.evaluate(target => {
+      document.documentElement.style.scrollBehavior = 'auto';
+      const track = document.querySelector('[data-finale-track]');
+      // Dos pasadas: al acercarse, las secciones con content-visibility toman su alto real.
+      for (let pass = 0; pass < 2; pass += 1) {
+        const top = track.getBoundingClientRect().top + window.scrollY;
+        window.scrollTo(0, top + target * (track.offsetHeight - track.firstElementChild.offsetHeight));
+      }
+    }, p);
+    await page.waitForFunction(target => Math.abs(Number(document.querySelector('[data-finale-track]').dataset.progress) - target) <= 0.002, p, { timeout: 20000 });
+  };
+  const frame = () => page.$eval('[data-finale-track]', node => node.dataset.frame);
+  const closeState = () => page.$eval('[data-finale-track] p:not([class*="eyebrow"])', node => {
+    const block = node.parentElement;
+    return { opacity: Number(block.style.opacity), hidden: block.hasAttribute('data-hidden'), box: block.getBoundingClientRect().toJSON() };
+  });
+
+  await goTo(0);
+  await page.waitForSelector('[data-finale-track][data-painted]', { timeout: 30000 });
+  check('Cierre: titular «Dale espacio para crecer.» a la vista', await page.$eval('#cierre-title', node => node.innerText.replace(/\s+/g, ' ').trim() === 'DALE ESPACIO PARA CRECER.' && getComputedStyle(node).visibility === 'visible'));
+  const start = await closeState();
+  check('Cierre: «Dale Aether.» aún oculto al entrar', start.hidden && start.opacity === 0);
+  await goTo(0.5);
+  const half = expectedFinaleFrame(0.5, set);
+  await page.waitForFunction(expected => document.querySelector('[data-finale-track]').dataset.frame === expected, half, { timeout: 20000 }).catch(() => {});
+  check('Cierre: v2 avanza con el scroll', await frame() === half, `P .5 → ${await frame()} (esperado ${half})`);
+  await goTo(1);
+  const last = `v2:${finaleLast(set) + 1}`;
+  await page.waitForFunction(expected => document.querySelector('[data-finale-track]').dataset.frame === expected, last, { timeout: 20000 }).catch(() => {});
+  const lightFrom = Math.min(...manifest.clips.v2[set].light.map(([first]) => first)) + 1;
+  check('Cierre: termina en el logo, antes del tramo claro de v2', await frame() === last && finaleLast(set) + 1 < lightFrom, `${await frame()} (claro desde v2:${lightFrom})`);
+  const end = await closeState();
+  check('Cierre: «Dale Aether.» y el botón a la vista con el logo', !end.hidden && end.opacity === 1);
+  // El logo ocupa el centro del cuadro: el bloque va a su izquierda (apaisado) o bajo él (vertical).
+  const clear = end.box.right < viewport.width * 0.42 || end.box.top > viewport.height * 0.7;
+  check('Cierre: el texto no queda encima del logo', clear, `caja x ${Math.round(end.box.left)}–${Math.round(end.box.right)}, y ${Math.round(end.box.top)}–${Math.round(end.box.bottom)}`);
+  check('Cierre: botón «Arma tu cotización» lleva a la vitrina', await page.$eval('[data-finale-track] a', node => node.getAttribute('href')) === '#modulos');
+  await page.screenshot({ path: path.join(out, `${label}-cierre.png`) });
+  check(`Sin errores de página en el cierre (${label})`, errors.length === 0, errors.slice(0, 3).join(' | '));
+  await context.close();
+}
+
 async function page2(browser) {
   console.log('\n── Resto de la página (1440×900)');
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
@@ -236,7 +296,7 @@ async function page2(browser) {
   await page.waitForSelector('#plataforma[data-tabs-ready]');
   await page.waitForSelector('main[data-in-track]');
 
-  const anchors = ['contenido', 'modulos', 'como-funciona', 'plataforma', 'tributacion', 'planes', 'preguntas', 'descargas'];
+  const anchors = ['contenido', 'modulos', 'como-funciona', 'plataforma', 'tributacion', 'planes', 'preguntas', 'descargas', 'cierre'];
   const missing = await page.evaluate(ids => ids.filter(id => !document.getElementById(id)), anchors);
   check('Anclas presentes', missing.length === 0, missing.join(', '));
   check('Enlace «Ir al contenido»', await page.getByRole('link', { name: 'Ir al contenido' }).count() === 1);
@@ -350,6 +410,11 @@ async function sceneState(page) {
       stagePosition: getComputedStyle(track.firstElementChild).position,
       insideVisible: getComputedStyle(inside.parentElement).opacity === '1' && getComputedStyle(inside.parentElement).visibility === 'visible',
       painted: track.hasAttribute('data-painted'),
+      finaleClose: (() => {
+        const close = document.querySelector('[data-finale-track] a').parentElement;
+        return getComputedStyle(close).opacity === '1' && getComputedStyle(close).visibility === 'visible';
+      })(),
+      finaleHeight: document.querySelector('[data-finale-track]').offsetHeight,
       steps: document.querySelectorAll('#como-funciona ol > li').length,
       stepsVisible: [...document.querySelectorAll('#como-funciona ol > li')].filter(step => getComputedStyle(step).visibility === 'visible').length,
       moduleCards: [...document.querySelectorAll('#modulos-grilla > li')].filter(card => getComputedStyle(card).display !== 'none').length,
@@ -373,6 +438,7 @@ async function staticModes(browser) {
     const state = await sceneState(page);
     check(`${tag}: sin pista larga`, state.trackHeight < Math.max(viewport.height, 560) * 2.2 && state.stagePosition !== 'sticky', `alto ${state.trackHeight}px, escenario ${state.stagePosition}`);
     check(`${tag}: «Ahora, estás dentro.» visible y sin canvas`, state.insideVisible && !state.painted);
+    check(`${tag}: el cierre apilado, con «Dale Aether.» y el botón a la vista`, state.finaleClose && state.finaleHeight < Math.max(viewport.height, 560) * 1.5, `alto ${state.finaleHeight}px`);
     check(`${tag}: los 5 pasos a la vista`, state.steps === 5 && state.stepsVisible === 5);
     if (options.javaScriptEnabled === false) check(`${tag}: todos los módulos a la vista`, state.moduleCards >= 28, `${state.moduleCards} recuadros`);
     check(`${tag}: las 5 vistas en el HTML`, state.copies.length === 5, state.copies.join(' / '));
@@ -393,7 +459,7 @@ async function reducedMotion(browser) {
     await page.goto(url, { waitUntil: 'load' });
     await page.waitForSelector('[data-cinematic-track][data-painted]', { timeout: 30000 });
     const state = await sceneState(page);
-    check(`${tag}: pista del video activa`, state.trackHeight > viewport.height * 2.5 && state.stagePosition === 'sticky', `alto ${state.trackHeight}px`);
+    check(`${tag}: pista del video activa`, state.trackHeight > viewport.height * 1.8 && state.stagePosition === 'sticky', `alto ${state.trackHeight}px`);
     const elapsed = await page.evaluate(() => new Promise(resolve => {
       const track = document.querySelector('[data-cinematic-track]');
       const stage = track.firstElementChild;
@@ -545,6 +611,10 @@ async function main() {
   try {
     const desktopBytes = await hero(browser, 'escritorio', { width: 1440, height: 900 }, 'desktop');
     const mobileBytes = await hero(browser, 'movil', { width: 390, height: 844 }, 'mobile');
+    await finale(browser, 'escritorio', { width: 1440, height: 900 }, 'desktop');
+    await finale(browser, 'escritorio-ancho', { width: 1920, height: 900 }, 'desktop');
+    await finale(browser, 'tableta', { width: 768, height: 1024 }, 'desktop');
+    await finale(browser, 'movil', { width: 390, height: 844 }, 'mobile');
     await page2(browser);
     await overflow(browser);
     await reducedMotion(browser);

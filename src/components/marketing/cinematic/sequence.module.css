@@ -1,7 +1,8 @@
 /*
- * Hero de /landing-v2: una pista larga con un escenario fijo. El video no se
- * reproduce solo: player.ts dibuja en el canvas el fotograma que corresponde
- * al scroll y escribe opacidad y posición de los textos en línea.
+ * Escenas con video de la landing (el hero y el cierre): una pista larga con
+ * un escenario fijo. El video no se reproduce solo: player.ts dibuja en el
+ * canvas el fotograma que corresponde al scroll y la escena escribe opacidad
+ * y posición de sus textos en línea.
  *
  * El escenario mide 100lvh para que el video siempre cubra la pantalla aunque
  * la barra del navegador móvil se esconda; los textos miden 100svh para no
@@ -9,12 +10,13 @@
  */
 
 /*
- * La pista mide lo justo para que el video se lea sin apuro: con 520vh el
- * recorrido se sentía interminable antes de llegar al contenido.
+ * La pista mide lo justo para que el video se lea sin apuro. Con los dos
+ * videos seguidos medía 340vh y la página se sentía toda arriba; ahora el
+ * hero lleva solo v1 y v2 cierra la página (.finale).
  */
 .track {
   position: relative;
-  height: 340vh;
+  height: 240vh;
   background: var(--bg);
 }
 
@@ -272,8 +274,6 @@
   transform-origin: 0 50%;
 }
 
-.track[data-light] .line { background: rgb(11 14 20 / .16); }
-
 /*
  * Guía de capítulos a la derecha: cada uno se enciende y llena su barra en
  * su tramo de P (player.ts escribe opacidad y llenado ya calculados).
@@ -291,10 +291,7 @@
   text-shadow: 0 1px 12px rgb(11 14 20 / .85);
   pointer-events: none;
   transform: translateY(-50%);
-  transition: color .4s var(--ease);
 }
-
-.track[data-light] .hud { color: rgb(18 22 31 / .82); }
 
 .chapters {
   display: grid;
@@ -385,8 +382,119 @@
   100% { transform: scaleY(0); transform-origin: 50% 100%; }
 }
 
+/*
+ * ── Cierre: v2, la galaxia que se arma en el logo ──────────────────────────
+ * Titular arriba desde el comienzo; «Dale Aether.» y el botón llegan abajo
+ * con el logo (CinematicFinale escribe su opacidad). El logo queda al
+ * centro del cuadro, así que los textos nunca lo tapan.
+ */
+.track.finale { height: 230vh; }
+
+/* Velo fijo: oscurece arriba (bajo la cabecera) y funde abajo con el pie, que va a continuación. */
+.finaleShade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, var(--bg) 0%, rgb(11 14 20 / .55) 14%, rgb(11 14 20 / 0) 32%),
+    linear-gradient(0deg, #080a0f 0%, rgb(8 10 15 / .7) 16%, rgb(8 10 15 / 0) 36%);
+}
+
+.finaleCopy {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  height: 100vh;
+  height: 100svh;
+  padding: calc(var(--header-h) + clamp(8px, 3svh, 36px)) var(--gutter) clamp(14px, 2.6svh, 36px);
+  text-align: center;
+  pointer-events: none;
+}
+
+.finaleLead,
+.finaleClose {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 100%;
+  pointer-events: auto;
+}
+
+.finaleClose {
+  gap: clamp(10px, 1.6svh, 20px);
+  will-change: opacity, transform;
+}
+
+.finaleClose[data-hidden] { visibility: hidden; }
+
+.finaleTitle {
+  margin: 0;
+  max-width: 100%;
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: min(clamp(40px, 6vw, 96px), 10svh);
+  line-height: .9;
+  text-transform: uppercase;
+  text-wrap: balance;
+  text-shadow: 0 2px 28px rgb(11 14 20 / .8);
+}
+
+.finaleLead .eyebrow { margin-bottom: clamp(10px, 1.8svh, 18px); }
+
+/* En vertical, «Dale Aether.» va bajo el logo: más chico para caber en la franja de abajo. */
+.finaleClose .finaleTitle { font-size: min(clamp(30px, 7vw, 52px), 5.2svh); }
+
+/*
+ * En pantallas apaisadas todo el cierre va en una columna a la izquierda del
+ * logo, al medio del alto (como el titular del hero). El cuadro cubre la
+ * ventana (su ancho es max(100vw, 16/9 del alto)) y lo primero del logo, la
+ * luna, cae al ~30 % de ese ancho: a la izquierda quedan libres
+ * 50vw − max(20vw, 35.6vh). Si eso no alcanza para la columna (32vw más el
+ * margen), el video se corre a la derecha lo que falta y el velo funde el
+ * borde que queda a la izquierda. Así el texto nunca queda encima del logo.
+ */
+@media (min-aspect-ratio: 4/3) and (min-width: 1000px) {
+  .finale {
+    --finale-free: calc(50vw - max(20vw, 35.6vh));
+    --finale-shift: max(0px, calc(32vw + var(--gutter) - var(--finale-free)));
+  }
+
+  .finale .poster,
+  .finale .canvas { transform: translate3d(var(--finale-shift), 0, 0); }
+
+  .finaleCopy {
+    justify-content: center;
+    align-items: flex-start;
+    gap: clamp(18px, 3svh, 32px);
+    padding: var(--header-h) 0 0 var(--gutter);
+    text-align: left;
+  }
+
+  .finaleLead,
+  .finaleClose {
+    align-items: flex-start;
+    width: calc(32vw - 24px);
+  }
+
+  .finaleTitle,
+  .finaleClose .finaleTitle { font-size: min(clamp(36px, 4.4vw, 76px), 9svh); }
+
+  .finaleShade {
+    background:
+      linear-gradient(180deg, var(--bg) 0%, rgb(11 14 20 / .55) 14%, rgb(11 14 20 / 0) 32%),
+      linear-gradient(0deg, #080a0f 0%, rgb(8 10 15 / .7) 16%, rgb(8 10 15 / 0) 36%),
+      linear-gradient(90deg, var(--bg) 0, var(--bg) var(--finale-shift), rgb(11 14 20 / .6) calc(var(--finale-shift) + 6vw), rgb(11 14 20 / 0) calc(var(--finale-shift) + 30vw));
+  }
+}
+
 @media (max-width: 760px) {
-  .track { height: 290vh; }
+  .track { height: 200vh; }
+  .track.finale { height: 190vh; }
+  .finaleClose .primary { flex: 0 1 auto; }
 
   .intro {
     justify-content: flex-end;
@@ -422,7 +530,8 @@
  * mantiene (el video solo avanza con el scroll de la persona, sin inercia).
  */
 @media (scripting: none), (max-height: 560px) {
-  .track { height: auto; }
+  .track,
+  .track.finale { height: auto; }
   .stage { position: relative; height: auto; overflow: visible; }
   .media { bottom: auto; height: 100vh; height: 100svh; min-height: 560px; }
   .canvas, .fade, .line, .hud { display: none; }
@@ -439,4 +548,19 @@
   .intro { min-height: 100vh; min-height: max(100svh, 560px); }
   .inside { padding: clamp(96px, 14vw, 170px) var(--gutter); background: var(--bg); pointer-events: auto; }
   .inside::before { display: none; }
+
+  /* El cierre apilado: el primer fotograma de fondo, el titular arriba y el botón abajo. */
+  .finale .stage {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    min-height: max(100svh, 560px);
+  }
+  .finale .media { inset: 0; height: auto; min-height: 0; }
+  .finaleCopy { position: relative; flex: 1; height: auto; }
+  .finaleClose {
+    opacity: 1 !important;
+    transform: none !important;
+    visibility: visible !important;
+  }
 }

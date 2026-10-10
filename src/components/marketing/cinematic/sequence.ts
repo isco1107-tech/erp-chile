@@ -1,43 +1,54 @@
 import manifest from '../../../../public/marketing/cinematic/seq/manifest.json';
 
 /**
- * Coreografía de la secuencia del hero de /landing-v2, como funciones puras.
+ * Coreografía de las dos escenas con video de la landing (`/`), como
+ * funciones puras.
  *
- * P es el progreso global de la pista (0 a 1). v1 ocupa P 0 a V1_END y v2
- * el resto; los textos se derivan del mismo P, así que todo lo que se ve
- * depende de un solo número (y se puede probar sin DOM).
+ * Cada escena es una pista larga con un escenario fijo y su propio video:
+ * el hero recorre v1 (cielo de Atacama → Vía Láctea → galaxia) y el cierre
+ * recorre v2 (la galaxia se arma en el logo). P es el progreso de la pista
+ * (0 a 1); el fotograma y los textos se derivan de ese único número, así que
+ * se puede probar sin DOM.
+ *
+ * Antes los dos videos iban seguidos en el hero: la página partía con todo el
+ * movimiento, terminaba en un logo sobre fondo blanco y caía de golpe a
+ * secciones oscuras y quietas. Repartidos, el video abre y cierra la página,
+ * y ambos tramos terminan oscuros, como el resto.
  */
 
-export const V1_END = 0.55;
 /**
  * Inercia del avance del video, en segundos: cuánto tarda en alcanzar al
  * scroll. Es un resorte con amortiguación crítica (ver smoothDamp), así que
  * no depende de los cuadros por segundo de la pantalla y nunca se pasa.
  */
 export const SMOOTH_TIME = 0.24;
-/** A partir de este P empiezan a descargarse los fotogramas de v2. */
-export const V2_PRELOAD_FROM = 0.3;
 /**
  * Mientras la persona no hace scroll solo se piden los fotogramas hasta este
  * tanto más allá del actual: quien lee el titular y se va no descarga el
- * video entero (en escritorio eran ~14 MB en 12 s).
+ * video entero.
  */
 export const IDLE_AHEAD = 18;
+
+/** Ritmo de un video dentro de su pista: pares [P, tiempo del video], ambos de 0 a 1. */
+export type Timing = readonly (readonly [number, number])[];
+
 /**
- * Ritmo de v2 dentro de su tramo: pares [avance del tramo, tiempo del video],
- * ambos de 0 a 1. Los primeros 2 s (la galaxia, 25 % del video) ocupan el
- * 35 % del tramo para que «Ahora, estás dentro.» se alcance a leer. El último
- * fotograma (el logo sobre fondo claro) llega al 90 % y se sostiene hasta el
- * final de la pista, así que el scroll siempre termina en él.
+ * Hero: v1 de punta a punta. El último fotograma (la galaxia) llega al 90 %
+ * de la pista y se sostiene, así que «Ahora, estás dentro.» se lee quieto.
  */
-export const V2_TIMING: readonly (readonly [number, number])[] = [[0, 0], [0.35, 0.25], [0.9, 1], [1, 1]];
+export const HERO_TIMING: Timing = [[0, 0], [0.9, 1], [1, 1]];
+/**
+ * Cierre: v2 hasta el logo sobre el cielo oscuro. El logo queda armado al
+ * 78 % y se sostiene mientras aparece «Dale Aether.».
+ */
+export const FINALE_TIMING: Timing = [[0, 0], [0.78, 1], [1, 1]];
+/**
+ * El cierre se corta este tanto antes de que v2 empiece a aclararse (su final
+ * es el logo sobre fondo blanco): el último cuadro que se ve es oscuro.
+ */
+export const FINALE_MARGIN_SECONDS = 0.6;
 
 export type Clip = 0 | 1;
-
-export interface FramePosition {
-  clip: Clip;
-  index: number;
-}
 
 export function clamp01(value: number): number {
   return value <= 0 ? 0 : value >= 1 ? 1 : value;
@@ -49,13 +60,13 @@ export function smoothstep(edge0: number, edge1: number, value: number): number 
   return t * t * (3 - 2 * t);
 }
 
-/** Tiempo de v2 (0 a 1) para un avance de su tramo (0 a 1), según V2_TIMING. */
-export function v2Time(stretch: number): number {
-  const x = clamp01(stretch);
-  for (let index = 1; index < V2_TIMING.length; index += 1) {
-    const [x1, y1] = V2_TIMING[index];
+/** Tiempo del video (0 a 1) para un progreso de la pista, según su ritmo (tramos lineales). */
+export function videoTime(progress: number, timing: Timing): number {
+  const x = clamp01(progress);
+  for (let index = 1; index < timing.length; index += 1) {
+    const [x1, y1] = timing[index];
     if (x <= x1) {
-      const [x0, y0] = V2_TIMING[index - 1];
+      const [x0, y0] = timing[index - 1];
       return x1 === x0 ? y1 : y0 + ((x - x0) / (x1 - x0)) * (y1 - y0);
     }
   }
@@ -63,19 +74,27 @@ export function v2Time(stretch: number): number {
 }
 
 /**
- * Posición continua dentro de un video: `index` tiene decimales (12.4 es
- * el fotograma 12 con 40 % del 13 encima). Permite mezclar fotogramas vecinos.
+ * Posición continua en el video: tiene decimales (12.4 es el fotograma 12
+ * con 40 % del 13 encima). Permite mezclar fotogramas vecinos. `last` es el
+ * último fotograma que usa la escena.
  */
-export function framePoint(progress: number, counts: readonly [number, number]): FramePosition {
-  const p = clamp01(progress);
-  if (p < V1_END) return { clip: 0, index: (p / V1_END) * (counts[0] - 1) };
-  return { clip: 1, index: v2Time((p - V1_END) / (1 - V1_END)) * (counts[1] - 1) };
+export function framePoint(progress: number, timing: Timing, last: number): number {
+  return videoTime(progress, timing) * Math.max(0, last);
 }
 
-/** Qué video y qué fotograma corresponden a un progreso. */
-export function frameAt(progress: number, counts: readonly [number, number]): FramePosition {
-  const { clip, index } = framePoint(progress, counts);
-  return { clip, index: Math.min(counts[clip] - 1, Math.round(index)) };
+/** Fotograma que corresponde a un progreso. */
+export function frameAt(progress: number, timing: Timing, last: number): number {
+  return Math.min(Math.max(0, last), Math.round(framePoint(progress, timing, last)));
+}
+
+/**
+ * Último fotograma del cierre: el anterior al primer tramo claro de v2 (lo
+ * mide el generador), con FINALE_MARGIN_SECONDS de margen. Sin tramo claro, el video entero.
+ */
+export function finaleLastFrame(count: number, fps: number, light: readonly (readonly number[])[]): number {
+  if (light.length === 0) return Math.max(0, count - 1);
+  const firstLight = light.reduce((first, [start]) => Math.min(first, start), count);
+  return Math.max(0, Math.min(count - 1, firstLight - 1 - Math.round(FINALE_MARGIN_SECONDS * fps)));
 }
 
 /**
@@ -83,8 +102,8 @@ export function frameAt(progress: number, counts: readonly [number, number]): Fr
  * dos fotogramas del video el canvas funde ambos: con la rueda del mouse el
  * cuadro avanza de a poco en vez de saltar de uno en uno.
  */
-export function frameBlend(point: FramePosition, last: number): { lower: number; upper: number; mix: number } {
-  const index = Math.max(0, Math.min(last, point.index));
+export function frameBlend(point: number, last: number): { lower: number; upper: number; mix: number } {
+  const index = Math.max(0, Math.min(last, point));
   const lower = Math.floor(index);
   const upper = Math.min(last, lower + 1);
   return { lower, upper, mix: upper === lower ? 0 : index - lower };
@@ -125,15 +144,6 @@ export function usesFrame(index: number, last: number, stride: number): boolean 
   return stride <= 1 || index === last || index % stride === 0;
 }
 
-/** Posición en una numeración continua v1 → v2, útil para medir distancias. */
-export function globalIndex(position: FramePosition, counts: readonly [number, number]): number {
-  return position.clip === 0 ? position.index : counts[0] + position.index;
-}
-
-export function fromGlobal(global: number, counts: readonly [number, number]): FramePosition {
-  return global < counts[0] ? { clip: 0, index: global } : { clip: 1, index: global - counts[0] };
-}
-
 export interface Choreography {
   /** Opacidad del titular, párrafo, botones y cifras. */
   intro: number;
@@ -151,18 +161,30 @@ export interface Choreography {
 export function choreography(progress: number): Choreography {
   const p = clamp01(progress);
   const leaving = smoothstep(0, 0.22, p);
-  const arriving = smoothstep(0.45, 0.56, p);
-  // Se va sobre la galaxia, antes de que se arme el logo (v2 la deja en P ≈ .71):
-  // el titular y el logo, ambos al centro, nunca quedan uno encima del otro.
-  const departing = smoothstep(0.64, 0.7, p);
+  // Llega cuando la galaxia ya ocupa el cuadro (v1 ≈ 62 % a 75 %) y se queda:
+  // el hero termina con esa frase sobre el último fotograma, sin nada claro detrás.
+  const arriving = smoothstep(0.56, 0.68, p);
   return {
     intro: 1 - leaving,
     introShift: -40 * leaving,
-    inside: arriving * (1 - departing),
-    insideShift: 28 * (1 - arriving) - 28 * departing,
+    inside: arriving,
+    insideShift: 28 * (1 - arriving),
     line: p,
     lineOpacity: 1 - smoothstep(0.96, 1, p),
   };
+}
+
+/** Coreografía del cierre: el titular de arriba está desde el comienzo; «Dale Aether.» y el botón llegan con el logo. */
+export interface FinaleChoreography {
+  /** Opacidad de «Dale Aether.» y del botón. */
+  close: number;
+  /** Desplazamiento vertical del mismo bloque, en px (sube al llegar). */
+  closeShift: number;
+}
+
+export function finaleChoreography(progress: number): FinaleChoreography {
+  const arriving = smoothstep(0.68, 0.82, clamp01(progress));
+  return { close: arriving, closeShift: 24 * (1 - arriving) };
 }
 
 /** Estado de un capítulo de la guía del hero para un progreso: cuánto se llenó y si está encendido. */
@@ -175,7 +197,7 @@ export function chapterState(progress: number, from: number, to: number): { fill
   };
 }
 
-/** La guía se apaga al final, sobre el logo; «Desliza para entrar» apenas empieza el scroll. */
+/** La guía se apaga al final, sobre la galaxia; «Desliza para entrar» apenas empieza el scroll. */
 export function hudOpacity(progress: number): { guide: number; cue: number } {
   const p = clamp01(progress);
   return { guide: 1 - clamp01((p - 0.93) * 20), cue: 1 - clamp01(p * 18) };
@@ -186,7 +208,7 @@ export function hudOpacity(progress: number): { guide: number; cue: number } {
  * del escenario, según cuánto se alejó ya el escenario (`exit`, 0 a 1 de su
  * alto). Es 0 mientras la pista está fija, así que el último fotograma se ve
  * limpio, y cubre todo cuando el escenario subió la mitad: la unión con la
- * sección siguiente nunca es un corte de claro a oscuro.
+ * sección siguiente nunca es un corte.
  */
 export function exitShade(exit: number): number {
   return smoothstep(0, 0.5, exit);

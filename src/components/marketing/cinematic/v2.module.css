@@ -220,8 +220,7 @@
 /* Sobre un fotograma claro del hero (el final de v2) el texto claro necesita fondo. */
 /* Fondo casi opaco en vez de desenfoque: backdrop-filter sobre contenido en movimiento cuesta cuadros. */
 .header[data-solid],
-.header[data-open],
-.root:has([data-cinematic-track][data-light]) .header {
+.header[data-open] {
   background: rgb(11 14 20 / .95);
   border-bottom-color: var(--line);
 }
@@ -346,13 +345,12 @@
  * data-full-render para que el salto calcule con los altos reales.
  */
 .section,
-.closing,
 .footer {
   content-visibility: auto;
   contain-intrinsic-size: auto 900px;
 }
 .footer { contain-intrinsic-size: auto 760px; }
-.root[data-full-render] :is(.section, .closing, .footer) { content-visibility: visible; }
+.root[data-full-render] :is(.section, .footer) { content-visibility: visible; }
 
 .sectionHead {
   display: grid;
@@ -725,10 +723,43 @@
 
 /* ── Tributación: titular a la izquierda, tres puntos a la derecha ──────── */
 .chile {
+  position: relative;
+  isolation: isolate;
   display: grid;
   grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
   align-items: start;
   gap: clamp(32px, 6vw, 112px);
+}
+
+/*
+ * El horizonte de Atacama del primer cuadro del hero (ya está en caché: es su
+ * póster) asoma detrás de «Hecho para Chile.»: une el medio de la página con
+ * los videos que la abren y la cierran. Sube un poco más lento que la página
+ * (--view de useLiveMotion); solo se mueve con transform.
+ */
+.chileSky {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* next/image (fill) la deja en posición absoluta al 100 %; la escala da el margen para el desplazamiento. */
+.chileSky img {
+  object-fit: cover;
+  object-position: 50% 100%;
+  opacity: .5;
+  transform: translate3d(0, calc((.5 - var(--view, .5)) * 8%), 0) scale(1.12);
+}
+
+.chileSky::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, var(--bg) 0%, rgb(11 14 20 / .78) 26%, rgb(11 14 20 / .5) 62%, rgb(11 14 20 / .2) 88%, rgb(11 14 20 / .55) 100%),
+    linear-gradient(90deg, rgb(11 14 20 / .55) 0%, rgb(11 14 20 / 0) 55%);
 }
 
 .chileIntro .body { margin-top: 24px; }
@@ -908,41 +939,12 @@
 .fineprint { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 16px 0 0; font-size: 13px; color: var(--faint); }
 .fineprint a { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; color: var(--gold); }
 
-/* ── Pie, con el cierre de la página arriba ─────────────────────────────── */
+/* ── Pie (el cierre con video va justo antes: CinematicFinale) ──────────── */
 .footer {
-  padding: 0 var(--inline) 32px;
-  border-top: 1px solid var(--line);
-  background:
-    radial-gradient(ellipse 60% 42% at 50% 0%, rgb(219 192 118 / .12), rgb(219 192 118 / 0) 70%),
-    #080a0f;
+  padding: clamp(40px, 5vw, 72px) var(--inline) 32px;
+  background: #080a0f;
 }
 
-.closing {
-  padding: clamp(56px, 6.6vw, 104px) 0 clamp(40px, 5vw, 72px);
-  margin-bottom: clamp(32px, 4vw, 56px);
-  border-bottom: 1px solid var(--line);
-  text-align: center;
-}
-
-.closing .kicker { margin-bottom: 22px; }
-
-.closingTitle {
-  margin: 0;
-  font-family: var(--display);
-  font-size: clamp(44px, 6.4vw, 104px);
-  font-weight: 400;
-  line-height: .9;
-  text-transform: uppercase;
-  text-wrap: balance;
-}
-
-.closingTitle > span { display: block; }
-
-.closingActions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px 28px; margin-top: clamp(24px, 3vw, 40px); }
-.closingCta { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 50px; max-width: 100%; padding: 12px 24px; border-radius: 2px; background: var(--gold); color: var(--ink); font-size: 15px; font-weight: 700; transition: background .2s; }
-.closingCta:hover { background: #ead8a5; }
-.backTop { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font-size: 14px; color: var(--muted); transition: color .2s; }
-.backTop:hover { color: var(--gold); }
 .footerGrid { display: grid; grid-template-columns: 1.6fr repeat(3, minmax(0, 1fr)); gap: 40px; }
 .footerBrand p { max-width: 36ch; margin: 18px 0 0; font-size: 14px; line-height: 1.7; color: var(--muted); }
 .footerCol h3 { margin: 0 0 16px; font-size: 12px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: var(--faint); }
@@ -1058,25 +1060,6 @@
 }
 
 .productFigure[data-live]:hover::before { opacity: 1; }
-
-/* Cierre: las dos frases llegan desde lados opuestos y se juntan al centro. */
-.closingTitle[data-live] > span:first-child { transform: translate3d(calc((1 - var(--in, 1)) * -14vw), 0, 0); }
-.closingTitle[data-live] > span:last-child { transform: translate3d(calc((1 - var(--in, 1)) * 14vw), 0, 0); }
-
-@media (hover: hover) and (pointer: fine) {
-  .closingTitle[data-live] > .gold {
-    background: linear-gradient(100deg, var(--gold) 0 36%, #fff2c8 47%, #f3dc9c 53%, var(--gold) 64% 100%);
-    background-size: 320% 100%;
-    background-position: calc(110% - var(--view, .5) * 120%) 0;
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
-}
-
-@media (forced-colors: active) {
-  .closingTitle[data-live] > .gold { background: none; color: CanvasText; }
-}
 
 /* ── Capas interactivas (LiveLayers y el mapa de estrellas) ───────────── */
 
