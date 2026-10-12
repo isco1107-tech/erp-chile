@@ -231,5 +231,7 @@ export const config = {
   // no es opcional.
   // `_vercel` (Web Analytics y Speed Insights) queda fuera: sin sesión, el proxy
   // lo mandaba a /login y en un dominio propio lo reescribía al micrositio.
-  matcher: ['/((?!api|_next/static|_next/image|_vercel|favicon.ico).*)'],
+  // `epione` y `hermes` son otras apps del ecosistema que next.config.js
+  // reenvía a su despliegue: tienen su propio acceso, el del ERP no aplica.
+  matcher: ['/((?!api|epione|hermes|_next/static|_next/image|_vercel|favicon.ico).*)'],
 };

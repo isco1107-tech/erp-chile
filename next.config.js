@@ -19,6 +19,21 @@ const WEB_SITE_SANDBOX_CSP = [
   "frame-ancestors 'self'",
 ].join('; ');
 
+/**
+ * Productos del ecosistema servidos bajo el dominio de Aether
+ * (aetherp.online/epione y aetherp.online/hermes). Cada uno es su propio
+ * despliegue de Agenda Salud con basePath = el prefijo (VITE_BASE_PATH), así
+ * que el rewrite conserva la ruta completa. Hermes solo se enruta si existe su
+ * despliegue (HERMES_ORIGIN). Esas rutas traen sus propias cabeceras de
+ * seguridad: la CSP global del ERP NO se les aplica (ver headers()).
+ */
+const ECOSYSTEM_ZONES = [
+  { prefix: '/epione', origin: process.env.EPIONE_ORIGIN ?? 'https://agendasalud-plataforma-web-patient.vercel.app' },
+  { prefix: '/hermes', origin: process.env.HERMES_ORIGIN ?? '' },
+]
+  .map((zone) => ({ ...zone, origin: zone.origin.replace(/\/+$/, '') }))
+  .filter((zone) => /^https?:\/\//.test(zone.origin));
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -29,6 +44,14 @@ const nextConfig = {
   // en Vercel `public/` se sirve desde el CDN y no entra sola a la función.
   outputFileTracingIncludes: {
     '/api/manual/docx': ['./public/manual/screenshots/**/*'],
+  },
+  async rewrites() {
+    return {
+      beforeFiles: ECOSYSTEM_ZONES.flatMap(({ prefix, origin }) => [
+        { source: prefix, destination: `${origin}${prefix}` },
+        { source: `${prefix}/:path*`, destination: `${origin}${prefix}/:path*` },
+      ]),
+    };
   },
   async headers() {
     return [
@@ -49,7 +72,9 @@ const nextConfig = {
         // No incluye /api/agents/run (SSE) a propósito: una CSP restrictiva no
         // le afecta, pero mantenerla explícita en todas las rutas simplifica
         // el razonamiento — es la misma política en toda la app.
-        source: '/:path*',
+        // Excluye /epione y /hermes: son otras apps (ver ECOSYSTEM_ZONES) con
+        // su propia CSP; sumarles esta bloquearía su API y su autenticación.
+        source: '/((?!epione(?:/|$)|hermes(?:/|$)).*)',
         headers: [
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           // ── CSP ──────────────────────────────────────────────────────────

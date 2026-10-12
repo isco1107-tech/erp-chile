@@ -304,7 +304,7 @@ describe('incrustar servicios', () => {
   it('la política de seguridad permite incrustar exactamente esos servicios', async () => {
     const nextConfig = require('../next.config.js') as { headers: () => Promise<{ source: string; headers: { key: string; value: string }[] }[]> };
     const entries = await nextConfig.headers();
-    const csp = entries.find((entry) => entry.source === '/:path*')?.headers.find((header) => header.key === 'Content-Security-Policy')?.value ?? '';
+    const csp = entries.find((entry) => entry.source === '/((?!epione(?:/|$)|hermes(?:/|$)).*)')?.headers.find((header) => header.key === 'Content-Security-Policy')?.value ?? '';
     const frameSrc = csp.split(';').find((part) => part.trim().startsWith('frame-src')) ?? '';
     for (const origin of EMBED_ORIGINS) expect(frameSrc).toContain(origin);
   });
