@@ -6,9 +6,11 @@
 
 ## Cómo abrirlos
 
+**Todo en un solo archivo, para Bizagi:** [`bizagi/modelo-procesos-aether.xpdl`](bizagi/modelo-procesos-aether.xpdl) trae los procesos en un mismo diagrama, de P00 a P41, uno debajo del otro con su título, con los colores y el formato que usa Bizagi al exportar XPDL. En Bizagi Modeler se abre con la opción de importar XPDL. El mismo diagrama en BPMN 2.0 está en [`bizagi/modelo-procesos-aether.bpmn`](bizagi/modelo-procesos-aether.bpmn), por si prefieres importar BPMN o abrirlo en otra herramienta.
+
 | Herramienta | Cómo |
 |---|---|
-| **Bizagi Modeler** | Importa cada archivo de [`bpmn/`](bpmn/) con la opción de importar BPMN 2.0 (Importar/Exportar). Cada archivo es un diagrama con sus piscinas, carriles y la documentación de cada actividad; impórtalos en el mismo modelo para tenerlos juntos. |
+| **Bizagi Modeler** | El archivo `.xpdl` de [`bizagi/`](bizagi/) (todo junto) o, para un diagrama por proceso, cada archivo de [`bpmn/`](bpmn/) con la opción de importar BPMN 2.0. Cada actividad lleva su descripción con la referencia al código. |
 | **Camunda Modeler, bpmn.io, Signavio, Visual Paradigm** | Abren los `.bpmn` directamente. |
 | **Navegador** | Abre [`visor.html`](visor.html): mapa, diagramas navegables, fichas y brechas (necesita internet para cargar bpmn-js). |
 

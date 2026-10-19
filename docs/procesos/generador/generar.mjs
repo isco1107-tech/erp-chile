@@ -3,6 +3,7 @@
 //   docs/procesos/bpmn/*.bpmn   BPMN 2.0 con diagrama (Bizagi, Camunda, bpmn.io…)
 //   docs/procesos/README.md     mapa, catálogo, fichas, puesta en marcha y brechas
 //   docs/procesos/visor.html    visor interactivo (bpmn-js desde unpkg)
+//   docs/procesos/bizagi/       todos los procesos en un solo diagrama: .xpdl y .bpmn para importar en Bizagi
 //
 // Uso:  node docs/procesos/generador/generar.mjs [--fragmento <ruta.html>] [--supersuite <repo-supersuite>]
 //   --fragmento escribe además el visor sin <html>/<head>/<body> (para publicarlo como Artifact).
@@ -11,7 +12,8 @@
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { aXml, TIPOS } from './bpmn.mjs';
+import { aXml, aXmlCompleto, TIPOS } from './bpmn.mjs';
+import { xpdlCompleto } from './xpdl.mjs';
 import plataforma from './procesos/plataforma.mjs';
 import erp from './procesos/erp.mjs';
 import eventos from './procesos/eventos.mjs';
@@ -20,6 +22,9 @@ import transversales from './procesos/transversales.mjs';
 import { paginaVisor } from './visor.mjs';
 
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..');
+// Fecha del modelo que llevan los archivos para Bizagi. Súbela al cambiar procesos (fija, para no ensuciar los diff).
+const FECHA_MODELO = '2026-10-19T00:00:00-03:00';
+const NOMBRE_MODELO = 'Modelo de procesos Aether';
 const PROCESOS = [...plataforma, ...erp, ...eventos, ...digitales, ...transversales];
 
 export const AREAS = [
@@ -152,8 +157,9 @@ function readme(fichas) {
   L.push(`${fichas.length} diagramas BPMN 2.0 sacados del código de \`erp-chile\` y \`supersuite\`: cómo llega una empresa, cómo se da de alta y se pone en marcha, cómo opera cada mes y cómo la monitorea, la cobra y la administra la Supersuite.`, '');
   L.push('> Generado con `node docs/procesos/generador/generar.mjs`. No edites los `.bpmn`, este README ni `visor.html` a mano: cambia la definición en `generador/procesos/` y vuelve a generar.', '');
   L.push('## Cómo abrirlos', '');
+  L.push('**Todo en un solo archivo, para Bizagi:** [`bizagi/modelo-procesos-aether.xpdl`](bizagi/modelo-procesos-aether.xpdl) trae los procesos en un mismo diagrama, de P00 a P41, uno debajo del otro con su título, con los colores y el formato que usa Bizagi al exportar XPDL. En Bizagi Modeler se abre con la opción de importar XPDL. El mismo diagrama en BPMN 2.0 está en [`bizagi/modelo-procesos-aether.bpmn`](bizagi/modelo-procesos-aether.bpmn), por si prefieres importar BPMN o abrirlo en otra herramienta.', '');
   L.push('| Herramienta | Cómo |', '|---|---|');
-  L.push('| **Bizagi Modeler** | Importa cada archivo de [`bpmn/`](bpmn/) con la opción de importar BPMN 2.0 (Importar/Exportar). Cada archivo es un diagrama con sus piscinas, carriles y la documentación de cada actividad; impórtalos en el mismo modelo para tenerlos juntos. |');
+  L.push('| **Bizagi Modeler** | El archivo `.xpdl` de [`bizagi/`](bizagi/) (todo junto) o, para un diagrama por proceso, cada archivo de [`bpmn/`](bpmn/) con la opción de importar BPMN 2.0. Cada actividad lleva su descripción con la referencia al código. |');
   L.push('| **Camunda Modeler, bpmn.io, Signavio, Visual Paradigm** | Abren los `.bpmn` directamente. |');
   L.push('| **Navegador** | Abre [`visor.html`](visor.html): mapa, diagramas navegables, fichas y brechas (necesita internet para cargar bpmn-js). |');
   L.push('');
@@ -252,7 +258,18 @@ for (const viejo of readdirSync(dirBpmn)) if (viejo.endsWith('.bpmn')) rmSync(jo
 for (const f of fichas) writeFileSync(join(RAIZ, f.archivo), f.xml);
 writeFileSync(join(RAIZ, 'README.md'), readme(fichas));
 
-const datos = { areas: AREAS, niveles: NIVELES, brechas: BRECHAS, puesta: PUESTA_EN_MARCHA, procesos: fichas };
+// Todo en un archivo: los procesos apilados en un solo diagrama, en los dos formatos que importa Bizagi.
+const dirBizagi = join(RAIZ, 'bizagi');
+mkdirSync(dirBizagi, { recursive: true });
+const descripcionModelo = `${PROCESOS.length} procesos de Aether ERP y la Supersuite, de P00 a P41, uno debajo del otro con su título.`;
+const bizagi = {
+  xpdl: xpdlCompleto(PROCESOS, { nombre: NOMBRE_MODELO, descripcion: descripcionModelo, fecha: FECHA_MODELO }),
+  bpmn: aXmlCompleto(PROCESOS, { nombre: NOMBRE_MODELO, descripcion: descripcionModelo }),
+};
+writeFileSync(join(dirBizagi, 'modelo-procesos-aether.xpdl'), bizagi.xpdl);
+writeFileSync(join(dirBizagi, 'modelo-procesos-aether.bpmn'), bizagi.bpmn);
+
+const datos = { areas: AREAS, niveles: NIVELES, brechas: BRECHAS, puesta: PUESTA_EN_MARCHA, procesos: fichas, bizagi };
 writeFileSync(join(RAIZ, 'visor.html'), paginaVisor(datos, { documento: true }));
 const argumento = (nombre) => {
   const i = process.argv.indexOf(nombre);

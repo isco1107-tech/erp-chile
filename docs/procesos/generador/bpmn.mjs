@@ -318,88 +318,149 @@ function definicionEvento(n) {
   return `<bpmn:${d}EventDefinition />`;
 }
 
-/** BPMN 2.0 XML completo (colaboración + procesos + diagrama). */
-export function aXml(proc) {
-  const m = maquetar(proc);
+/** Copia de una maqueta corrida dy hacia abajo (para poner varios procesos en un mismo lienzo). */
+export function desplazar(m, dy) {
+  const c = structuredClone(m);
+  const mover = (pts) => pts.forEach((p) => { p[1] += dy; });
+  for (const p of c.pools) p.y += dy;
+  for (const l of c.carriles) l.y += dy;
+  for (const n of c.nodos) { n.y += dy; n.cy += dy; n.filaY0 += dy; n.filaY1 += dy; }
+  for (const f of c.flujos) mover(f.puntos);
+  for (const msg of c.mensajes) mover(msg.puntos);
+  for (const nota of c.notas) { nota.y += dy; if (nota.asoc) mover(nota.asoc.puntos); }
+  return c;
+}
+
+/** Procesos uno debajo del otro, cada uno con su título encima: lo que muestran los archivos "todo en uno". */
+export function apilar(procesos) {
+  const ALTO_TITULO = 64;
+  const SEPARACION = 110;
+  let cursor = 20;
+  return procesos.map((proc) => {
+    const base = maquetar(proc);
+    const titulo = { x: 20, y: cursor, w: Math.min(1400, Math.max(700, base.ancho - 40)), h: 48 };
+    const m = desplazar(base, cursor + ALTO_TITULO - 20);
+    cursor += ALTO_TITULO + base.alto - 20 + SEPARACION;
+    return { proc, m, titulo, alto: cursor };
+  });
+}
+
+const CABECERA = '<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bioc="http://bpmn.io/schema/bpmn/biocolor/1.0" xmlns:color="http://www.omg.org/spec/BPMN/non-normative/color/1.0"';
+
+/** Las piezas XML de un proceso ya maquetado: participantes, mensajes, procesos y diagrama. */
+function piezas(proc, m, { prefijoNombre = '' } = {}) {
   const { P } = m;
   const idPool = (p) => `${P}_pool_${p.id}`;
   const idProc = (p) => `${P}_proc_${p.id}`;
   const idNodo = (n) => `${P}_${n.id}`;
-  const out = [];
-  out.push('<?xml version="1.0" encoding="UTF-8"?>');
-  out.push(`<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bioc="http://bpmn.io/schema/bpmn/biocolor/1.0" xmlns:color="http://www.omg.org/spec/BPMN/non-normative/color/1.0" id="${P}_definiciones" targetNamespace="https://aetherp.online/procesos" exporter="Aether · generador de procesos" exporterVersion="1.0">`);
-  out.push(`  <bpmn:collaboration id="${P}_colaboracion">`);
-  out.push(doc(`${proc.id} ${proc.nombre}. ${proc.resumen}`, '    ').trimEnd());
+  const colab = [];
+  const procesos = [];
+  const formas = [];
+  const aristas = [];
   for (const p of m.pools) {
-    out.push(`    <bpmn:participant id="${idPool(p)}" name="${esc(p.nombre)}"${p.externo ? '' : ` processRef="${idProc(p)}"`}>${p.doc ? `\n${doc(p.doc, '      ')}    ` : ''}</bpmn:participant>`);
+    colab.push(`    <bpmn:participant id="${idPool(p)}" name="${esc(prefijoNombre + p.nombre)}"${p.externo ? '' : ` processRef="${idProc(p)}"`}>${p.doc ? `\n${doc(p.doc, '      ')}    ` : ''}</bpmn:participant>`);
   }
   for (const msg of m.mensajes) {
     const ref = (x, n) => (n ? idNodo(n) : `${P}_pool_${x}`);
-    out.push(`    <bpmn:messageFlow id="${msg.id}"${msg.etiqueta ? ` name="${esc(msg.etiqueta)}"` : ''} sourceRef="${ref(msg.desde, msg.s)}" targetRef="${ref(msg.hasta, msg.t)}" />`);
+    colab.push(`    <bpmn:messageFlow id="${msg.id}"${msg.etiqueta ? ` name="${esc(msg.etiqueta)}"` : ''} sourceRef="${ref(msg.desde, msg.s)}" targetRef="${ref(msg.hasta, msg.t)}" />`);
   }
-  out.push('  </bpmn:collaboration>');
 
   for (const p of m.pools.filter((x) => !x.externo)) {
-    const propios = m.nodos.filter((n) => n.pool === p);
-    out.push(`  <bpmn:process id="${idProc(p)}" name="${esc(p.nombre)}" isExecutable="false">`);
-    out.push(`    <bpmn:laneSet id="${P}_carriles_${p.id}">`);
+    const propios = m.nodos.filter((n) => n.pool.id === p.id);
+    procesos.push(`  <bpmn:process id="${idProc(p)}" name="${esc(prefijoNombre + p.nombre)}" isExecutable="false">`);
+    procesos.push(`    <bpmn:laneSet id="${P}_carriles_${p.id}">`);
     for (const c of p.carriles) {
-      out.push(`      <bpmn:lane id="${P}_carril_${c.id}" name="${esc(c.nombre)}">`);
-      for (const n of propios.filter((x) => x.carril === c)) out.push(`        <bpmn:flowNodeRef>${idNodo(n)}</bpmn:flowNodeRef>`);
-      out.push('      </bpmn:lane>');
+      procesos.push(`      <bpmn:lane id="${P}_carril_${c.id}" name="${esc(c.nombre)}">`);
+      for (const n of propios.filter((x) => x.carril.id === c.id)) procesos.push(`        <bpmn:flowNodeRef>${idNodo(n)}</bpmn:flowNodeRef>`);
+      procesos.push('      </bpmn:lane>');
     }
-    out.push('    </bpmn:laneSet>');
+    procesos.push('    </bpmn:laneSet>');
     for (const n of propios) {
       const attrs = n.def.el === 'subProcess' ? ' triggeredByEvent="false"' : '';
-      out.push(`    <bpmn:${n.def.el} id="${idNodo(n)}" name="${esc(n.nombre)}"${attrs}>`);
-      out.push(doc(n.op.doc, '      ').trimEnd());
-      for (const f of n.entra) out.push(`      <bpmn:incoming>${f.id}</bpmn:incoming>`);
-      for (const f of n.sale) out.push(`      <bpmn:outgoing>${f.id}</bpmn:outgoing>`);
+      procesos.push(`    <bpmn:${n.def.el} id="${idNodo(n)}" name="${esc(n.nombre)}"${attrs}>`);
+      procesos.push(doc(n.op.doc, '      ').trimEnd());
+      for (const f of n.entra) procesos.push(`      <bpmn:incoming>${f.id}</bpmn:incoming>`);
+      for (const f of n.sale) procesos.push(`      <bpmn:outgoing>${f.id}</bpmn:outgoing>`);
       const def = definicionEvento(n);
-      if (def) out.push(`      ${def}`);
-      out.push(`    </bpmn:${n.def.el}>`);
+      if (def) procesos.push(`      ${def}`);
+      procesos.push(`    </bpmn:${n.def.el}>`);
     }
-    for (const f of m.flujos.filter((x) => x.s.pool === p)) {
-      out.push(`    <bpmn:sequenceFlow id="${f.id}"${f.etiqueta ? ` name="${esc(f.etiqueta)}"` : ''} sourceRef="${idNodo(f.s)}" targetRef="${idNodo(f.t)}" />`);
+    for (const f of m.flujos.filter((x) => x.s.pool.id === p.id)) {
+      procesos.push(`    <bpmn:sequenceFlow id="${f.id}"${f.etiqueta ? ` name="${esc(f.etiqueta)}"` : ''} sourceRef="${idNodo(f.s)}" targetRef="${idNodo(f.t)}" />`);
     }
-    for (const nota of m.notas.filter((x) => x.carril.pool === p)) {
-      out.push(`    <bpmn:textAnnotation id="${nota.id}"><bpmn:text>${esc(nota.texto)}</bpmn:text></bpmn:textAnnotation>`);
-      if (nota.asoc) out.push(`    <bpmn:association id="${nota.asoc.id}" associationDirection="None" sourceRef="${nota.id}" targetRef="${idNodo(nota.asoc.n)}" />`);
+    for (const nota of m.notas.filter((x) => x.carril.pool.id === p.id)) {
+      procesos.push(`    <bpmn:textAnnotation id="${nota.id}"><bpmn:text>${esc(nota.texto)}</bpmn:text></bpmn:textAnnotation>`);
+      if (nota.asoc) procesos.push(`    <bpmn:association id="${nota.asoc.id}" associationDirection="None" sourceRef="${nota.id}" targetRef="${idNodo(nota.asoc.n)}" />`);
     }
-    out.push('  </bpmn:process>');
+    procesos.push('  </bpmn:process>');
   }
 
-  out.push(`  <bpmndi:BPMNDiagram id="${P}_diagrama" name="${esc(`${proc.id} ${proc.nombre}`)}">`);
-  out.push(`    <bpmndi:BPMNPlane id="${P}_plano" bpmnElement="${P}_colaboracion">`);
   for (const p of m.pools) {
-    out.push(`      <bpmndi:BPMNShape id="${idPool(p)}_di" bpmnElement="${idPool(p)}" isHorizontal="true"${color(TONOS[p.tono ?? (p.externo ? 'externo' : 'aether')])}>${bounds(p)}</bpmndi:BPMNShape>`);
+    formas.push(`      <bpmndi:BPMNShape id="${idPool(p)}_di" bpmnElement="${idPool(p)}" isHorizontal="true"${color(TONOS[p.tono ?? (p.externo ? 'externo' : 'aether')])}>${bounds(p)}</bpmndi:BPMNShape>`);
     for (const c of p.carriles) {
-      out.push(`      <bpmndi:BPMNShape id="${P}_carril_${c.id}_di" bpmnElement="${P}_carril_${c.id}" isHorizontal="true"${color(TONOS[p.tono ?? 'aether'])}>${bounds(c)}</bpmndi:BPMNShape>`);
+      formas.push(`      <bpmndi:BPMNShape id="${P}_carril_${c.id}_di" bpmnElement="${P}_carril_${c.id}" isHorizontal="true"${color(TONOS[p.tono ?? 'aether'])}>${bounds(c)}</bpmndi:BPMNShape>`);
     }
   }
   for (const n of m.nodos) {
     const extra = n.def.el === 'exclusiveGateway' ? ' isMarkerVisible="true"' : n.def.el === 'subProcess' ? ' isExpanded="false"' : '';
     const etiqueta = n.def.forma === 'evento' ? etiquetaEvento(n, m) : n.def.forma === 'compuerta' && n.nombre ? etiquetaCompuerta(n, m.flujos) : null;
-    out.push(`      <bpmndi:BPMNShape id="${idNodo(n)}_di" bpmnElement="${idNodo(n)}"${extra}${color(COLORES[n.def.grupo])}>${bounds(n)}${etiqueta ? `<bpmndi:BPMNLabel>${bounds(etiqueta)}</bpmndi:BPMNLabel>` : ''}</bpmndi:BPMNShape>`);
+    formas.push(`      <bpmndi:BPMNShape id="${idNodo(n)}_di" bpmnElement="${idNodo(n)}"${extra}${color(COLORES[n.def.grupo])}>${bounds(n)}${etiqueta ? `<bpmndi:BPMNLabel>${bounds(etiqueta)}</bpmndi:BPMNLabel>` : ''}</bpmndi:BPMNShape>`);
   }
-  for (const nota of m.notas) out.push(`      <bpmndi:BPMNShape id="${nota.id}_di" bpmnElement="${nota.id}">${bounds(nota)}</bpmndi:BPMNShape>`);
+  for (const nota of m.notas) formas.push(`      <bpmndi:BPMNShape id="${nota.id}_di" bpmnElement="${nota.id}">${bounds(nota)}</bpmndi:BPMNShape>`);
   const wps = (pts) => pts.map(([x, y]) => `<di:waypoint x="${r(x)}" y="${r(y)}" />`).join('');
   for (const f of m.flujos) {
-    out.push(`      <bpmndi:BPMNEdge id="${f.id}_di" bpmnElement="${f.id}">${wps(f.puntos)}${f.etiqueta ? `<bpmndi:BPMNLabel>${bounds(etiquetaFlujo(f))}</bpmndi:BPMNLabel>` : ''}</bpmndi:BPMNEdge>`);
+    aristas.push(`      <bpmndi:BPMNEdge id="${f.id}_di" bpmnElement="${f.id}">${wps(f.puntos)}${f.etiqueta ? `<bpmndi:BPMNLabel>${bounds(etiquetaFlujo(f))}</bpmndi:BPMNLabel>` : ''}</bpmndi:BPMNEdge>`);
   }
   for (const msg of m.mensajes) {
-    // La etiqueta va en el espacio entre las dos piscinas, donde no hay tareas.
-    const [arriba, abajo] = msg.ps.y < msg.pt.y ? [msg.ps, msg.pt] : [msg.pt, msg.ps];
-    const yHueco = (arriba.y + arriba.h + abajo.y) / 2;
-    const x = Math.min(...msg.puntos.map(([px]) => px));
-    const lb = msg.etiqueta ? { x: x + 6, y: yHueco - (msg.puntos.length > 2 ? 20 : 8), w: Math.max(40, msg.etiqueta.length * 6.2), h: 16 } : null;
-    out.push(`      <bpmndi:BPMNEdge id="${msg.id}_di" bpmnElement="${msg.id}">${wps(msg.puntos)}${lb ? `<bpmndi:BPMNLabel>${bounds(lb)}</bpmndi:BPMNLabel>` : ''}</bpmndi:BPMNEdge>`);
+    const lb = msg.etiqueta ? etiquetaMensaje(msg) : null;
+    aristas.push(`      <bpmndi:BPMNEdge id="${msg.id}_di" bpmnElement="${msg.id}">${wps(msg.puntos)}${lb ? `<bpmndi:BPMNLabel>${bounds(lb)}</bpmndi:BPMNLabel>` : ''}</bpmndi:BPMNEdge>`);
   }
   for (const nota of m.notas.filter((x) => x.asoc)) {
-    out.push(`      <bpmndi:BPMNEdge id="${nota.asoc.id}_di" bpmnElement="${nota.asoc.id}">${wps(nota.asoc.puntos)}</bpmndi:BPMNEdge>`);
+    aristas.push(`      <bpmndi:BPMNEdge id="${nota.asoc.id}_di" bpmnElement="${nota.asoc.id}">${wps(nota.asoc.puntos)}</bpmndi:BPMNEdge>`);
   }
+  return { colab, procesos, formas, aristas };
+}
+
+/** La etiqueta de un mensaje va en el espacio entre las dos piscinas, donde no hay tareas. */
+export function etiquetaMensaje(msg) {
+  const [arriba, abajo] = msg.ps.y < msg.pt.y ? [msg.ps, msg.pt] : [msg.pt, msg.ps];
+  const yHueco = (arriba.y + arriba.h + abajo.y) / 2;
+  const x = Math.min(...msg.puntos.map(([px]) => px));
+  return { x: x + 6, y: yHueco - (msg.puntos.length > 2 ? 20 : 8), w: Math.max(40, msg.etiqueta.length * 6.2), h: 16 };
+}
+
+function documento(id, nombre, docColab, partes, extraColab = [], extraFormas = []) {
+  const out = ['<?xml version="1.0" encoding="UTF-8"?>'];
+  out.push(`${CABECERA} id="${id}_definiciones" targetNamespace="https://aetherp.online/procesos" exporter="Aether · generador de procesos" exporterVersion="1.0">`);
+  out.push(`  <bpmn:collaboration id="${id}_colaboracion">`);
+  out.push(doc(docColab, '    ').trimEnd());
+  for (const p of partes) out.push(...p.colab);
+  out.push(...extraColab);
+  out.push('  </bpmn:collaboration>');
+  for (const p of partes) out.push(...p.procesos);
+  out.push(`  <bpmndi:BPMNDiagram id="${id}_diagrama" name="${esc(nombre)}">`);
+  out.push(`    <bpmndi:BPMNPlane id="${id}_plano" bpmnElement="${id}_colaboracion">`);
+  for (const p of partes) out.push(...p.formas);
+  out.push(...extraFormas);
+  for (const p of partes) out.push(...p.aristas);
   out.push('    </bpmndi:BPMNPlane>');
   out.push('  </bpmndi:BPMNDiagram>');
   out.push('</bpmn:definitions>');
-  return { xml: `${out.filter((l) => l !== '').join('\n')}\n`, maqueta: m };
+  return `${out.filter((l) => l !== '').join('\n')}\n`;
+}
+
+/** BPMN 2.0 de un proceso (colaboración + procesos + diagrama). */
+export function aXml(proc) {
+  const m = maquetar(proc);
+  const xml = documento(m.P, `${proc.id} ${proc.nombre}`, `${proc.id} ${proc.nombre}. ${proc.resumen}`, [piezas(proc, m)]);
+  return { xml, maqueta: m };
+}
+
+/** Un solo BPMN con todos los procesos en un mismo diagrama, apilados y con su título. */
+export function aXmlCompleto(procesos, { nombre, descripcion }) {
+  const bloques = apilar(procesos);
+  const partes = bloques.map((b) => piezas(b.proc, b.m, { prefijoNombre: `${b.proc.id} · ` }));
+  const titulos = bloques.map((b) => `    <bpmn:textAnnotation id="${b.proc.id}_titulo"><bpmn:text>${esc(`${b.proc.id} · ${b.proc.nombre}. ${b.proc.resumen}`)}</bpmn:text></bpmn:textAnnotation>`);
+  const formas = bloques.map((b) => `      <bpmndi:BPMNShape id="${b.proc.id}_titulo_di" bpmnElement="${b.proc.id}_titulo">${bounds(b.titulo)}</bpmndi:BPMNShape>`);
+  return documento('Aether', nombre, descripcion, partes, titulos, formas);
 }

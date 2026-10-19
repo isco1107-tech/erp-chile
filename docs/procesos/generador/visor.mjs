@@ -416,7 +416,7 @@ function cliente() {
   let descargas = null;
   const LEEME = 'Modelo de procesos de Aether y la Supersuite (BPMN 2.0).\r\n\r\nBizagi Modeler: importa cada archivo .bpmn con la opción de importar BPMN 2.0.\r\nCamunda Modeler y bpmn.io los abren directamente.\r\nFuente: docs/procesos/ del repositorio erp-chile.\r\n';
   function mostrarDescargas() {
-    for (const id of ['descargar', 'descargar-todo']) document.getElementById(id).hidden = false;
+    for (const id of ['descargar', 'descargar-todo', 'descargar-bizagi']) document.getElementById(id).hidden = false;
   }
   async function guardar(nombre, blob) {
     if (descargas) {
@@ -440,6 +440,17 @@ function cliente() {
     if (!actual) return;
     const nombre = actual.archivo.replace('bpmn/', '');
     guardar(nombre.replace(/\.bpmn$/, '.zip'), crearZip([{ nombre, texto: actual.xml }, { nombre: 'LEEME.txt', texto: LEEME }]));
+  });
+  document.getElementById('descargar-bizagi').addEventListener('click', () => {
+    const leeme = 'Modelo de procesos de Aether y la Supersuite: todos los procesos en un solo diagrama.\r\n\r\n' +
+      'modelo-procesos-aether.xpdl: en Bizagi Modeler, usa la opción de importar XPDL. Trae los colores y el formato de Bizagi.\r\n' +
+      'modelo-procesos-aether.bpmn: el mismo diagrama en BPMN 2.0, para importar como BPMN o abrir en Camunda Modeler o bpmn.io.\r\n' +
+      'Para un diagrama por proceso, usa el botón «Descargar los BPMN» del visor.\r\n';
+    guardar('procesos-aether-bizagi.zip', crearZip([
+      { nombre: 'modelo-procesos-aether.xpdl', texto: datos.bizagi.xpdl },
+      { nombre: 'modelo-procesos-aether.bpmn', texto: datos.bizagi.bpmn },
+      { nombre: 'LEEME.txt', texto: leeme },
+    ]));
   });
   document.getElementById('descargar-todo').addEventListener('click', () => {
     const archivos = procesos.map((p) => ({ nombre: p.archivo.replace('bpmn/', ''), texto: p.xml }));
@@ -499,6 +510,7 @@ export function paginaVisor(datos, { documento }) {
   <div><p class="eyebrow">Aether ERP · Supersuite</p><h1>Modelo de procesos</h1>
   <p class="sub">Diagramas BPMN 2.0 sacados del código: cómo llega, se da de alta, se pone en marcha y opera una empresa en Aether, y cómo la monitorea, la cobra y la administra la Supersuite.</p></div>
   <div class="cifras"><span><b>${total}</b>procesos</span><span><b>${elementos}</b>elementos</span><span><b>${datos.brechas.length}</b>brechas</span>
+    <button id="descargar-bizagi" class="boton-banda" type="button" hidden>Todo en un archivo para Bizagi (.zip)</button>
     <button id="descargar-todo" class="boton-banda" type="button" hidden>Descargar los ${total} BPMN (.zip)</button></div>
 </div></header>
 <div class="marco">
