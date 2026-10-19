@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bioc="http://bpmn.io/schema/bpmn/biocolor/1.0" xmlns:color="http://www.omg.org/spec/BPMN/non-normative/color/1.0" id="P25_definiciones" targetNamespace="https://aetherp.online/procesos" exporter="Aether · generador de procesos" exporterVersion="1.0">
+  <bpmn:collaboration id="P25_colaboracion">
+    <bpmn:documentation>P25 Evaluación del jurado y escrutinio. Rondas con criterios ponderados, votación del jurado por enlace, resultado recalculado, cortes y acta de escrutinio.</bpmn:documentation>
+    <bpmn:participant id="P25_pool_ae" name="Aether ERP" processRef="P25_proc_ae"></bpmn:participant>
+  </bpmn:collaboration>
+  <bpmn:process id="P25_proc_ae" name="Aether ERP" isExecutable="false">
+    <bpmn:laneSet id="P25_carriles_ae">
+      <bpmn:lane id="P25_carril_dir" name="Director del certamen">
+        <bpmn:flowNodeRef>P25_i</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P25_ron</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P25_asig</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P25_abr</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P25_cer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P25_gc</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P25_reo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P25_gcor</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P25_gsig</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P25_win</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P25_pubr</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P25_fin</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="P25_carril_jur" name="Jurado (acceso por enlace)">
+        <bpmn:flowNodeRef>P25_pun</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P25_env</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="P25_carril_sis" name="Sistema Aether">
+        <bpmn:flowNodeRef>P25_bal</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P25_res</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P25_cut</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P25_acta</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="P25_i" name="Hay candidatas oficiales">
+      <bpmn:outgoing>P25_flujo_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="P25_ron" name="Crear la ronda y sus criterios">
+      <bpmn:incoming>P25_flujo_1</bpmn:incoming>
+      <bpmn:incoming>P25_flujo_16</bpmn:incoming>
+      <bpmn:outgoing>P25_flujo_2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="P25_asig" name="Asignar jurados (enlace propio)">
+      <bpmn:incoming>P25_flujo_2</bpmn:incoming>
+      <bpmn:outgoing>P25_flujo_3</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="P25_abr" name="Votar ahora: abrir la ronda">
+      <bpmn:incoming>P25_flujo_3</bpmn:incoming>
+      <bpmn:outgoing>P25_flujo_4</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="P25_bal" name="Equilibrar a 100 % y dejar la ronda en VOTING">
+      <bpmn:incoming>P25_flujo_4</bpmn:incoming>
+      <bpmn:outgoing>P25_flujo_5</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="P25_pun" name="Puntuar a cada candidata">
+      <bpmn:incoming>P25_flujo_5</bpmn:incoming>
+      <bpmn:incoming>P25_flujo_11</bpmn:incoming>
+      <bpmn:outgoing>P25_flujo_6</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="P25_env" name="Enviar la planilla (SUBMITTED)">
+      <bpmn:incoming>P25_flujo_6</bpmn:incoming>
+      <bpmn:outgoing>P25_flujo_7</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="P25_cer" name="Cerrar la votación">
+      <bpmn:incoming>P25_flujo_7</bpmn:incoming>
+      <bpmn:outgoing>P25_flujo_8</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="P25_res" name="Calcular el resultado ponderado">
+      <bpmn:incoming>P25_flujo_8</bpmn:incoming>
+      <bpmn:outgoing>P25_flujo_9</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="P25_gc" name="¿Hay que corregir?">
+      <bpmn:incoming>P25_flujo_9</bpmn:incoming>
+      <bpmn:outgoing>P25_flujo_10</bpmn:outgoing>
+      <bpmn:outgoing>P25_flujo_12</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="P25_reo" name="Reabrir la ronda">
+      <bpmn:incoming>P25_flujo_10</bpmn:incoming>
+      <bpmn:outgoing>P25_flujo_11</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="P25_gcor" name="¿Corte a N clasificadas?">
+      <bpmn:incoming>P25_flujo_12</bpmn:incoming>
+      <bpmn:outgoing>P25_flujo_13</bpmn:outgoing>
+      <bpmn:outgoing>P25_flujo_14</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="P25_cut" name="Avanzan las N mejores (FINALIST)">
+      <bpmn:incoming>P25_flujo_13</bpmn:incoming>
+      <bpmn:outgoing>P25_flujo_15</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="P25_gsig" name="¿Otra ronda?">
+      <bpmn:incoming>P25_flujo_14</bpmn:incoming>
+      <bpmn:incoming>P25_flujo_15</bpmn:incoming>
+      <bpmn:outgoing>P25_flujo_16</bpmn:outgoing>
+      <bpmn:outgoing>P25_flujo_17</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="P25_win" name="Proclamar a la ganadora (WINNER)">
+      <bpmn:incoming>P25_flujo_17</bpmn:incoming>
+      <bpmn:outgoing>P25_flujo_18</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="P25_acta" name="Acta de escrutinio en PDF">
+      <bpmn:incoming>P25_flujo_18</bpmn:incoming>
+      <bpmn:outgoing>P25_flujo_19</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="P25_pubr" name="Publicar resultados: micrositio, afiche y salón de la fama">
+      <bpmn:incoming>P25_flujo_19</bpmn:incoming>
+      <bpmn:outgoing>P25_flujo_20</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="P25_fin" name="Certamen con ganadora">
+      <bpmn:incoming>P25_flujo_20</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="P25_flujo_1" sourceRef="P25_i" targetRef="P25_ron" />
+    <bpmn:sequenceFlow id="P25_flujo_2" sourceRef="P25_ron" targetRef="P25_asig" />
+    <bpmn:sequenceFlow id="P25_flujo_3" sourceRef="P25_asig" targetRef="P25_abr" />
+    <bpmn:sequenceFlow id="P25_flujo_4" sourceRef="P25_abr" targetRef="P25_bal" />
+    <bpmn:sequenceFlow id="P25_flujo_5" sourceRef="P25_bal" targetRef="P25_pun" />
+    <bpmn:sequenceFlow id="P25_flujo_6" sourceRef="P25_pun" targetRef="P25_env" />
+    <bpmn:sequenceFlow id="P25_flujo_7" sourceRef="P25_env" targetRef="P25_cer" />
+    <bpmn:sequenceFlow id="P25_flujo_8" sourceRef="P25_cer" targetRef="P25_res" />
+    <bpmn:sequenceFlow id="P25_flujo_9" sourceRef="P25_res" targetRef="P25_gc" />
+    <bpmn:sequenceFlow id="P25_flujo_10" name="Sí" sourceRef="P25_gc" targetRef="P25_reo" />
+    <bpmn:sequenceFlow id="P25_flujo_11" sourceRef="P25_reo" targetRef="P25_pun" />
+    <bpmn:sequenceFlow id="P25_flujo_12" name="No" sourceRef="P25_gc" targetRef="P25_gcor" />
+    <bpmn:sequenceFlow id="P25_flujo_13" name="Sí" sourceRef="P25_gcor" targetRef="P25_cut" />
+    <bpmn:sequenceFlow id="P25_flujo_14" name="No" sourceRef="P25_gcor" targetRef="P25_gsig" />
+    <bpmn:sequenceFlow id="P25_flujo_15" sourceRef="P25_cut" targetRef="P25_gsig" />
+    <bpmn:sequenceFlow id="P25_flujo_16" name="Sí" sourceRef="P25_gsig" targetRef="P25_ron" />
+    <bpmn:sequenceFlow id="P25_flujo_17" name="No" sourceRef="P25_gsig" targetRef="P25_win" />
+    <bpmn:sequenceFlow id="P25_flujo_18" sourceRef="P25_win" targetRef="P25_acta" />
+    <bpmn:sequenceFlow id="P25_flujo_19" sourceRef="P25_acta" targetRef="P25_pubr" />
+    <bpmn:sequenceFlow id="P25_flujo_20" sourceRef="P25_pubr" targetRef="P25_fin" />
+    <bpmn:textAnnotation id="P25_nota_n1"><bpmn:text>El resultado se recalcula en cada consulta; nunca se guarda.</bpmn:text></bpmn:textAnnotation>
+    <bpmn:association id="P25_asoc_n1" associationDirection="None" sourceRef="P25_nota_n1" targetRef="P25_res" />
+    <bpmn:textAnnotation id="P25_nota_n2"><bpmn:text>Una ronda que ya entró en votación no se borra: se reabre para corregir.</bpmn:text></bpmn:textAnnotation>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="P25_diagrama" name="P25 Evaluación del jurado y escrutinio">
+    <bpmndi:BPMNPlane id="P25_plano" bpmnElement="P25_colaboracion">
+      <bpmndi:BPMNShape id="P25_pool_ae_di" bpmnElement="P25_pool_ae" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="20" y="20" width="3134" height="924" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P25_carril_dir_di" bpmnElement="P25_carril_dir" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="20" width="3104" height="396" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P25_carril_jur_di" bpmnElement="P25_carril_jur" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="416" width="3104" height="264" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P25_carril_sis_di" bpmnElement="P25_carril_sis" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="680" width="3104" height="264" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P25_i_di" bpmnElement="P25_i" bioc:stroke="#2e7d32" bioc:fill="#e3f3e5" color:border-color="#2e7d32" color:background-color="#e3f3e5"><dc:Bounds x="175" y="200" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="133" y="242" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P25_ron_di" bpmnElement="P25_ron" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="305" y="176" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P25_asig_di" bpmnElement="P25_asig" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="483" y="176" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P25_abr_di" bpmnElement="P25_abr" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="661" y="176" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P25_bal_di" bpmnElement="P25_bal" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="839" y="704" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P25_pun_di" bpmnElement="P25_pun" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1017" y="440" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P25_env_di" bpmnElement="P25_env" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1195" y="440" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P25_cer_di" bpmnElement="P25_cer" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1373" y="176" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P25_res_di" bpmnElement="P25_res" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="1551" y="704" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P25_gc_di" bpmnElement="P25_gc" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="1770" y="193" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="1731" y="173" width="128" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P25_reo_di" bpmnElement="P25_reo" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1729" y="308" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P25_gcor_di" bpmnElement="P25_gcor" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="1948" y="193" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="1909" y="159" width="128" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P25_cut_di" bpmnElement="P25_cut" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="2085" y="704" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P25_gsig_di" bpmnElement="P25_gsig" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="2304" y="193" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="2337" y="173" width="128" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P25_win_di" bpmnElement="P25_win" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="2441" y="176" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P25_acta_di" bpmnElement="P25_acta" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="2619" y="704" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P25_pubr_di" bpmnElement="P25_pubr" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="2797" y="176" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P25_fin_di" bpmnElement="P25_fin" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="3023" y="200" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2981" y="242" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P25_nota_n1_di" bpmnElement="P25_nota_n1"><dc:Bounds x="1533" y="851" width="168" height="55" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P25_nota_n2_di" bpmnElement="P25_nota_n2"><dc:Bounds x="643" y="851" width="168" height="55" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="P25_flujo_1_di" bpmnElement="P25_flujo_1"><di:waypoint x="211" y="218" /><di:waypoint x="305" y="218" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P25_flujo_2_di" bpmnElement="P25_flujo_2"><di:waypoint x="437" y="218" /><di:waypoint x="483" y="218" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P25_flujo_3_di" bpmnElement="P25_flujo_3"><di:waypoint x="615" y="218" /><di:waypoint x="661" y="218" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P25_flujo_4_di" bpmnElement="P25_flujo_4"><di:waypoint x="793" y="218" /><di:waypoint x="816" y="218" /><di:waypoint x="816" y="746" /><di:waypoint x="839" y="746" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P25_flujo_5_di" bpmnElement="P25_flujo_5"><di:waypoint x="971" y="746" /><di:waypoint x="994" y="746" /><di:waypoint x="994" y="482" /><di:waypoint x="1017" y="482" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P25_flujo_6_di" bpmnElement="P25_flujo_6"><di:waypoint x="1149" y="482" /><di:waypoint x="1195" y="482" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P25_flujo_7_di" bpmnElement="P25_flujo_7"><di:waypoint x="1327" y="482" /><di:waypoint x="1350" y="482" /><di:waypoint x="1350" y="218" /><di:waypoint x="1373" y="218" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P25_flujo_8_di" bpmnElement="P25_flujo_8"><di:waypoint x="1505" y="218" /><di:waypoint x="1528" y="218" /><di:waypoint x="1528" y="746" /><di:waypoint x="1551" y="746" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P25_flujo_9_di" bpmnElement="P25_flujo_9"><di:waypoint x="1617" y="704" /><di:waypoint x="1617" y="218" /><di:waypoint x="1770" y="218" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P25_flujo_10_di" bpmnElement="P25_flujo_10"><di:waypoint x="1795" y="243" /><di:waypoint x="1795" y="308" /><bpmndi:BPMNLabel><dc:Bounds x="1801" y="251" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P25_flujo_11_di" bpmnElement="P25_flujo_11"><di:waypoint x="1795" y="392" /><di:waypoint x="1795" y="614" /><di:waypoint x="1083" y="614" /><di:waypoint x="1083" y="524" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P25_flujo_12_di" bpmnElement="P25_flujo_12"><di:waypoint x="1820" y="218" /><di:waypoint x="1948" y="218" /><bpmndi:BPMNLabel><dc:Bounds x="1826" y="198" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P25_flujo_13_di" bpmnElement="P25_flujo_13"><di:waypoint x="1973" y="243" /><di:waypoint x="1973" y="746" /><di:waypoint x="2085" y="746" /><bpmndi:BPMNLabel><dc:Bounds x="1979" y="251" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P25_flujo_14_di" bpmnElement="P25_flujo_14"><di:waypoint x="1998" y="218" /><di:waypoint x="2304" y="218" /><bpmndi:BPMNLabel><dc:Bounds x="2004" y="198" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P25_flujo_15_di" bpmnElement="P25_flujo_15"><di:waypoint x="2217" y="746" /><di:waypoint x="2329" y="746" /><di:waypoint x="2329" y="243" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P25_flujo_16_di" bpmnElement="P25_flujo_16"><di:waypoint x="2329" y="193" /><di:waypoint x="2329" y="86" /><di:waypoint x="371" y="86" /><di:waypoint x="371" y="176" /><bpmndi:BPMNLabel><dc:Bounds x="2335" y="92" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P25_flujo_17_di" bpmnElement="P25_flujo_17"><di:waypoint x="2354" y="218" /><di:waypoint x="2441" y="218" /><bpmndi:BPMNLabel><dc:Bounds x="2360" y="198" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P25_flujo_18_di" bpmnElement="P25_flujo_18"><di:waypoint x="2573" y="218" /><di:waypoint x="2596" y="218" /><di:waypoint x="2596" y="746" /><di:waypoint x="2619" y="746" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P25_flujo_19_di" bpmnElement="P25_flujo_19"><di:waypoint x="2751" y="746" /><di:waypoint x="2774" y="746" /><di:waypoint x="2774" y="218" /><di:waypoint x="2797" y="218" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P25_flujo_20_di" bpmnElement="P25_flujo_20"><di:waypoint x="2929" y="218" /><di:waypoint x="3023" y="218" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P25_asoc_n1_di" bpmnElement="P25_asoc_n1"><di:waypoint x="1617" y="851" /><di:waypoint x="1617" y="788" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -1,0 +1,276 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bioc="http://bpmn.io/schema/bpmn/biocolor/1.0" xmlns:color="http://www.omg.org/spec/BPMN/non-normative/color/1.0" id="P07_definiciones" targetNamespace="https://aetherp.online/procesos" exporter="Aether · generador de procesos" exporterVersion="1.0">
+  <bpmn:collaboration id="P07_colaboracion">
+    <bpmn:documentation>P07 Cobro de la suscripción y morosidad. Pagos por Flow, Khipu o a mano; alertas de morosidad y suspensión o reactivación de la cuenta por orden.</bpmn:documentation>
+    <bpmn:participant id="P07_pool_emp" name="Empresa cliente"></bpmn:participant>
+    <bpmn:participant id="P07_pool_pas" name="Flow / Khipu"></bpmn:participant>
+    <bpmn:participant id="P07_pool_ss" name="Supersuite" processRef="P07_proc_ss"></bpmn:participant>
+    <bpmn:participant id="P07_pool_ae" name="Aether ERP" processRef="P07_proc_ae"></bpmn:participant>
+    <bpmn:messageFlow id="P07_mensaje_1" name="Paga la suscripción" sourceRef="P07_pool_emp" targetRef="P07_pool_pas" />
+    <bpmn:messageFlow id="P07_mensaje_2" name="payment_id o token" sourceRef="P07_pool_pas" targetRef="P07_i" />
+    <bpmn:messageFlow id="P07_mensaje_3" name="Consulta del cobro" sourceRef="P07_cons" targetRef="P07_pool_pas" />
+    <bpmn:messageFlow id="P07_mensaje_4" name="Orden firmada" sourceRef="P07_sus" targetRef="P07_os" />
+    <bpmn:messageFlow id="P07_mensaje_5" name="Orden firmada" sourceRef="P07_rea" targetRef="P07_or" />
+  </bpmn:collaboration>
+  <bpmn:process id="P07_proc_ss" name="Supersuite" isExecutable="false">
+    <bpmn:laneSet id="P07_carriles_ss">
+      <bpmn:lane id="P07_carril_api" name="API de la Supersuite">
+        <bpmn:flowNodeRef>P07_i</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P07_cons</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P07_gp</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P07_ign</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P07_reg</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P07_mrr</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P07_fp</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="P07_carril_wk" name="Worker (reglas)">
+        <bpmn:flowNodeRef>P07_wi</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P07_mor</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P07_gm</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P07_wf</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P07_al</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="P07_carril_opr" name="Operador o admin">
+        <bpmn:flowNodeRef>P07_pm</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P07_rpm</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P07_rv</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P07_gd</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P07_cob</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P07_fc</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P07_sus</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P07_fsu</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P07_pi</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P07_rea</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P07_fre</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="P07_i" name="Notificación de pago">
+      <bpmn:outgoing>P07_flujo_1</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="P07_cons" name="Consultar el pago a la API del proveedor">
+      <bpmn:incoming>P07_flujo_1</bpmn:incoming>
+      <bpmn:outgoing>P07_flujo_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="P07_gp" name="¿Pagado y con orden válida?">
+      <bpmn:incoming>P07_flujo_2</bpmn:incoming>
+      <bpmn:outgoing>P07_flujo_3</bpmn:outgoing>
+      <bpmn:outgoing>P07_flujo_4</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="P07_ign" name="Se ignora">
+      <bpmn:incoming>P07_flujo_4</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="P07_reg" name="Registrar el pago sin duplicar">
+      <bpmn:incoming>P07_flujo_3</bpmn:incoming>
+      <bpmn:outgoing>P07_flujo_5</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="P07_mrr" name="Actualizar MRR y cerrar la alerta de morosidad">
+      <bpmn:incoming>P07_flujo_5</bpmn:incoming>
+      <bpmn:incoming>P07_flujo_8</bpmn:incoming>
+      <bpmn:outgoing>P07_flujo_6</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="P07_fp" name="Pago al día">
+      <bpmn:incoming>P07_flujo_6</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:startEvent id="P07_pm" name="Pago por transferencia o efectivo">
+      <bpmn:outgoing>P07_flujo_7</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="P07_rpm" name="Registrar el pago en la ficha">
+      <bpmn:incoming>P07_flujo_7</bpmn:incoming>
+      <bpmn:outgoing>P07_flujo_8</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:startEvent id="P07_wi" name="Cada 5 minutos">
+      <bpmn:outgoing>P07_flujo_9</bpmn:outgoing>
+      <bpmn:timerEventDefinition><bpmn:timeCycle xsi:type="bpmn:tFormalExpression">*/5 * * * *</bpmn:timeCycle></bpmn:timerEventDefinition>
+    </bpmn:startEvent>
+    <bpmn:businessRuleTask id="P07_mor" name="Revisar días sin pagar">
+      <bpmn:incoming>P07_flujo_9</bpmn:incoming>
+      <bpmn:outgoing>P07_flujo_10</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:exclusiveGateway id="P07_gm" name="¿Más de 35 días?">
+      <bpmn:incoming>P07_flujo_10</bpmn:incoming>
+      <bpmn:outgoing>P07_flujo_11</bpmn:outgoing>
+      <bpmn:outgoing>P07_flujo_12</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="P07_wf" name="Sin acción">
+      <bpmn:incoming>P07_flujo_12</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="P07_al" name="Abrir alerta: alta &gt; 35 días, crítica &gt; 60">
+      <bpmn:incoming>P07_flujo_11</bpmn:incoming>
+      <bpmn:outgoing>P07_flujo_13</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="P07_rv" name="Revisar la empresa morosa">
+      <bpmn:incoming>P07_flujo_13</bpmn:incoming>
+      <bpmn:outgoing>P07_flujo_14</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="P07_gd" name="¿Qué decide?">
+      <bpmn:incoming>P07_flujo_14</bpmn:incoming>
+      <bpmn:outgoing>P07_flujo_15</bpmn:outgoing>
+      <bpmn:outgoing>P07_flujo_17</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:manualTask id="P07_cob" name="Contactar y cobrar">
+      <bpmn:incoming>P07_flujo_15</bpmn:incoming>
+      <bpmn:outgoing>P07_flujo_16</bpmn:outgoing>
+    </bpmn:manualTask>
+    <bpmn:endEvent id="P07_fc" name="En gestión de cobro">
+      <bpmn:incoming>P07_flujo_16</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="P07_sus" name="Transmitir cuenta.suspender">
+      <bpmn:incoming>P07_flujo_17</bpmn:incoming>
+      <bpmn:outgoing>P07_flujo_18</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="P07_fsu" name="Suspendida hasta que pague">
+      <bpmn:incoming>P07_flujo_18</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:startEvent id="P07_pi" name="Paga una empresa suspendida">
+      <bpmn:outgoing>P07_flujo_19</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="P07_rea" name="Transmitir cuenta.reactivar">
+      <bpmn:incoming>P07_flujo_19</bpmn:incoming>
+      <bpmn:outgoing>P07_flujo_20</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="P07_fre" name="Reactivación pedida">
+      <bpmn:incoming>P07_flujo_20</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="P07_flujo_1" sourceRef="P07_i" targetRef="P07_cons" />
+    <bpmn:sequenceFlow id="P07_flujo_2" sourceRef="P07_cons" targetRef="P07_gp" />
+    <bpmn:sequenceFlow id="P07_flujo_3" name="Sí" sourceRef="P07_gp" targetRef="P07_reg" />
+    <bpmn:sequenceFlow id="P07_flujo_4" name="No" sourceRef="P07_gp" targetRef="P07_ign" />
+    <bpmn:sequenceFlow id="P07_flujo_5" sourceRef="P07_reg" targetRef="P07_mrr" />
+    <bpmn:sequenceFlow id="P07_flujo_6" sourceRef="P07_mrr" targetRef="P07_fp" />
+    <bpmn:sequenceFlow id="P07_flujo_7" sourceRef="P07_pm" targetRef="P07_rpm" />
+    <bpmn:sequenceFlow id="P07_flujo_8" sourceRef="P07_rpm" targetRef="P07_mrr" />
+    <bpmn:sequenceFlow id="P07_flujo_9" sourceRef="P07_wi" targetRef="P07_mor" />
+    <bpmn:sequenceFlow id="P07_flujo_10" sourceRef="P07_mor" targetRef="P07_gm" />
+    <bpmn:sequenceFlow id="P07_flujo_11" name="Sí" sourceRef="P07_gm" targetRef="P07_al" />
+    <bpmn:sequenceFlow id="P07_flujo_12" name="No" sourceRef="P07_gm" targetRef="P07_wf" />
+    <bpmn:sequenceFlow id="P07_flujo_13" sourceRef="P07_al" targetRef="P07_rv" />
+    <bpmn:sequenceFlow id="P07_flujo_14" sourceRef="P07_rv" targetRef="P07_gd" />
+    <bpmn:sequenceFlow id="P07_flujo_15" name="Cobrar" sourceRef="P07_gd" targetRef="P07_cob" />
+    <bpmn:sequenceFlow id="P07_flujo_16" sourceRef="P07_cob" targetRef="P07_fc" />
+    <bpmn:sequenceFlow id="P07_flujo_17" name="Suspender" sourceRef="P07_gd" targetRef="P07_sus" />
+    <bpmn:sequenceFlow id="P07_flujo_18" sourceRef="P07_sus" targetRef="P07_fsu" />
+    <bpmn:sequenceFlow id="P07_flujo_19" sourceRef="P07_pi" targetRef="P07_rea" />
+    <bpmn:sequenceFlow id="P07_flujo_20" sourceRef="P07_rea" targetRef="P07_fre" />
+    <bpmn:textAnnotation id="P07_nota_n1"><bpmn:text>Es la misma regla que usa Aether con Khipu en sus cuotas: el estado siempre se pide al proveedor.</bpmn:text></bpmn:textAnnotation>
+  </bpmn:process>
+  <bpmn:process id="P07_proc_ae" name="Aether ERP" isExecutable="false">
+    <bpmn:laneSet id="P07_carriles_ae">
+      <bpmn:lane id="P07_carril_sis" name="Sistema Aether">
+        <bpmn:flowNodeRef>P07_os</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P07_st</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P07_cut</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P07_fs</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P07_or</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P07_ac</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P07_fr</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="P07_os" name="Llega cuenta.suspender">
+      <bpmn:outgoing>P07_flujo_21</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="P07_st" name="Estado SUSPENDED">
+      <bpmn:documentation>setTenantStatus. Una CANCELLED no se toca.</bpmn:documentation>
+      <bpmn:incoming>P07_flujo_21</bpmn:incoming>
+      <bpmn:outgoing>P07_flujo_22</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="P07_cut" name="Login y cada request rechazan a sus usuarios">
+      <bpmn:documentation>getAuthContext relee la base en cada request: el corte es inmediato.</bpmn:documentation>
+      <bpmn:incoming>P07_flujo_22</bpmn:incoming>
+      <bpmn:outgoing>P07_flujo_23</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="P07_fs" name="Sin acceso">
+      <bpmn:incoming>P07_flujo_23</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:startEvent id="P07_or" name="Llega cuenta.reactivar">
+      <bpmn:outgoing>P07_flujo_24</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="P07_ac" name="Estado ACTIVE">
+      <bpmn:incoming>P07_flujo_24</bpmn:incoming>
+      <bpmn:outgoing>P07_flujo_25</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="P07_fr" name="Acceso restablecido">
+      <bpmn:incoming>P07_flujo_25</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="P07_flujo_21" sourceRef="P07_os" targetRef="P07_st" />
+    <bpmn:sequenceFlow id="P07_flujo_22" sourceRef="P07_st" targetRef="P07_cut" />
+    <bpmn:sequenceFlow id="P07_flujo_23" sourceRef="P07_cut" targetRef="P07_fs" />
+    <bpmn:sequenceFlow id="P07_flujo_24" sourceRef="P07_or" targetRef="P07_ac" />
+    <bpmn:sequenceFlow id="P07_flujo_25" sourceRef="P07_ac" targetRef="P07_fr" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="P07_diagrama" name="P07 Cobro de la suscripción y morosidad">
+    <bpmndi:BPMNPlane id="P07_plano" bpmnElement="P07_colaboracion">
+      <bpmndi:BPMNShape id="P07_pool_emp_di" bpmnElement="P07_pool_emp" isHorizontal="true" bioc:stroke="#5f6368" bioc:fill="#f6f6f6" color:border-color="#5f6368" color:background-color="#f6f6f6"><dc:Bounds x="20" y="20" width="2956" height="72" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_pool_pas_di" bpmnElement="P07_pool_pas" isHorizontal="true" bioc:stroke="#5f6368" bioc:fill="#f6f6f6" color:border-color="#5f6368" color:background-color="#f6f6f6"><dc:Bounds x="20" y="148" width="2956" height="72" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_pool_ss_di" bpmnElement="P07_pool_ss" isHorizontal="true" bioc:stroke="#284a7e" bioc:fill="#f5f8fd" color:border-color="#284a7e" color:background-color="#f5f8fd"><dc:Bounds x="20" y="276" width="2956" height="1056" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_carril_api_di" bpmnElement="P07_carril_api" isHorizontal="true" bioc:stroke="#284a7e" bioc:fill="#f5f8fd" color:border-color="#284a7e" color:background-color="#f5f8fd"><dc:Bounds x="50" y="276" width="2926" height="396" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_carril_wk_di" bpmnElement="P07_carril_wk" isHorizontal="true" bioc:stroke="#284a7e" bioc:fill="#f5f8fd" color:border-color="#284a7e" color:background-color="#f5f8fd"><dc:Bounds x="50" y="672" width="2926" height="264" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_carril_opr_di" bpmnElement="P07_carril_opr" isHorizontal="true" bioc:stroke="#284a7e" bioc:fill="#f5f8fd" color:border-color="#284a7e" color:background-color="#f5f8fd"><dc:Bounds x="50" y="936" width="2926" height="396" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_pool_ae_di" bpmnElement="P07_pool_ae" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="20" y="1388" width="2956" height="264" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_carril_sis_di" bpmnElement="P07_carril_sis" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="1388" width="2926" height="264" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_i_di" bpmnElement="P07_i" bioc:stroke="#2e7d32" bioc:fill="#e3f3e5" color:border-color="#2e7d32" color:background-color="#e3f3e5"><dc:Bounds x="175" y="324" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="133" y="366" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_cons_di" bpmnElement="P07_cons" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="305" y="300" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_gp_di" bpmnElement="P07_gp" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="524" y="317" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="485" y="283" width="128" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_ign_di" bpmnElement="P07_ign" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="709" y="456" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="667" y="498" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_reg_di" bpmnElement="P07_reg" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="661" y="300" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_mrr_di" bpmnElement="P07_mrr" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="839" y="300" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_fp_di" bpmnElement="P07_fp" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="1065" y="324" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1023" y="366" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_pm_di" bpmnElement="P07_pm" bioc:stroke="#2e7d32" bioc:fill="#e3f3e5" color:border-color="#2e7d32" color:background-color="#e3f3e5"><dc:Bounds x="175" y="984" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="133" y="1026" width="120" height="42" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_rpm_di" bpmnElement="P07_rpm" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="305" y="960" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_wi_di" bpmnElement="P07_wi" bioc:stroke="#2e7d32" bioc:fill="#e3f3e5" color:border-color="#2e7d32" color:background-color="#e3f3e5"><dc:Bounds x="887" y="720" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="845" y="762" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_mor_di" bpmnElement="P07_mor" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="1017" y="696" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_gm_di" bpmnElement="P07_gm" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="1236" y="713" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="1197" y="693" width="128" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_wf_di" bpmnElement="P07_wf" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="1421" y="852" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1379" y="894" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_al_di" bpmnElement="P07_al" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="1373" y="696" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_rv_di" bpmnElement="P07_rv" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1551" y="960" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_gd_di" bpmnElement="P07_gd" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="1770" y="977" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="1731" y="957" width="128" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_cob_di" bpmnElement="P07_cob" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1907" y="960" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_fc_di" bpmnElement="P07_fc" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="2133" y="984" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2091" y="1026" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_sus_di" bpmnElement="P07_sus" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1907" y="1092" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_fsu_di" bpmnElement="P07_fsu" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="2133" y="1116" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2091" y="1158" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_pi_di" bpmnElement="P07_pi" bioc:stroke="#2e7d32" bioc:fill="#e3f3e5" color:border-color="#2e7d32" color:background-color="#e3f3e5"><dc:Bounds x="2133" y="1248" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2091" y="1290" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_rea_di" bpmnElement="P07_rea" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="2263" y="1224" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_fre_di" bpmnElement="P07_fre" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="2489" y="1248" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2447" y="1290" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_os_di" bpmnElement="P07_os" bioc:stroke="#2e7d32" bioc:fill="#e3f3e5" color:border-color="#2e7d32" color:background-color="#e3f3e5"><dc:Bounds x="2133" y="1568" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2091" y="1610" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_st_di" bpmnElement="P07_st" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="2263" y="1544" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_cut_di" bpmnElement="P07_cut" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="2441" y="1544" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_fs_di" bpmnElement="P07_fs" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="2667" y="1568" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2625" y="1610" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_or_di" bpmnElement="P07_or" bioc:stroke="#2e7d32" bioc:fill="#e3f3e5" color:border-color="#2e7d32" color:background-color="#e3f3e5"><dc:Bounds x="2489" y="1436" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2447" y="1478" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_ac_di" bpmnElement="P07_ac" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="2619" y="1412" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_fr_di" bpmnElement="P07_fr" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="2845" y="1436" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2803" y="1478" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P07_nota_n1_di" bpmnElement="P07_nota_n1"><dc:Bounds x="1177" y="439" width="168" height="70" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="P07_flujo_1_di" bpmnElement="P07_flujo_1"><di:waypoint x="211" y="342" /><di:waypoint x="305" y="342" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P07_flujo_2_di" bpmnElement="P07_flujo_2"><di:waypoint x="437" y="342" /><di:waypoint x="524" y="342" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P07_flujo_3_di" bpmnElement="P07_flujo_3"><di:waypoint x="574" y="342" /><di:waypoint x="661" y="342" /><bpmndi:BPMNLabel><dc:Bounds x="580" y="322" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P07_flujo_4_di" bpmnElement="P07_flujo_4"><di:waypoint x="549" y="367" /><di:waypoint x="549" y="474" /><di:waypoint x="709" y="474" /><bpmndi:BPMNLabel><dc:Bounds x="555" y="375" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P07_flujo_5_di" bpmnElement="P07_flujo_5"><di:waypoint x="793" y="342" /><di:waypoint x="839" y="342" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P07_flujo_6_di" bpmnElement="P07_flujo_6"><di:waypoint x="971" y="342" /><di:waypoint x="1065" y="342" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P07_flujo_7_di" bpmnElement="P07_flujo_7"><di:waypoint x="211" y="1002" /><di:waypoint x="305" y="1002" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P07_flujo_8_di" bpmnElement="P07_flujo_8"><di:waypoint x="371" y="960" /><di:waypoint x="371" y="606" /><di:waypoint x="905" y="606" /><di:waypoint x="905" y="384" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P07_flujo_9_di" bpmnElement="P07_flujo_9"><di:waypoint x="923" y="738" /><di:waypoint x="1017" y="738" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P07_flujo_10_di" bpmnElement="P07_flujo_10"><di:waypoint x="1149" y="738" /><di:waypoint x="1236" y="738" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P07_flujo_11_di" bpmnElement="P07_flujo_11"><di:waypoint x="1286" y="738" /><di:waypoint x="1373" y="738" /><bpmndi:BPMNLabel><dc:Bounds x="1292" y="718" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P07_flujo_12_di" bpmnElement="P07_flujo_12"><di:waypoint x="1261" y="763" /><di:waypoint x="1261" y="870" /><di:waypoint x="1421" y="870" /><bpmndi:BPMNLabel><dc:Bounds x="1267" y="771" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P07_flujo_13_di" bpmnElement="P07_flujo_13"><di:waypoint x="1505" y="738" /><di:waypoint x="1528" y="738" /><di:waypoint x="1528" y="1002" /><di:waypoint x="1551" y="1002" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P07_flujo_14_di" bpmnElement="P07_flujo_14"><di:waypoint x="1683" y="1002" /><di:waypoint x="1770" y="1002" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P07_flujo_15_di" bpmnElement="P07_flujo_15"><di:waypoint x="1820" y="1002" /><di:waypoint x="1907" y="1002" /><bpmndi:BPMNLabel><dc:Bounds x="1826" y="982" width="38" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P07_flujo_16_di" bpmnElement="P07_flujo_16"><di:waypoint x="2039" y="1002" /><di:waypoint x="2133" y="1002" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P07_flujo_17_di" bpmnElement="P07_flujo_17"><di:waypoint x="1795" y="1027" /><di:waypoint x="1795" y="1134" /><di:waypoint x="1907" y="1134" /><bpmndi:BPMNLabel><dc:Bounds x="1801" y="1035" width="58" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P07_flujo_18_di" bpmnElement="P07_flujo_18"><di:waypoint x="2039" y="1134" /><di:waypoint x="2133" y="1134" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P07_flujo_19_di" bpmnElement="P07_flujo_19"><di:waypoint x="2169" y="1266" /><di:waypoint x="2263" y="1266" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P07_flujo_20_di" bpmnElement="P07_flujo_20"><di:waypoint x="2395" y="1266" /><di:waypoint x="2489" y="1266" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P07_flujo_21_di" bpmnElement="P07_flujo_21"><di:waypoint x="2169" y="1586" /><di:waypoint x="2263" y="1586" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P07_flujo_22_di" bpmnElement="P07_flujo_22"><di:waypoint x="2395" y="1586" /><di:waypoint x="2441" y="1586" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P07_flujo_23_di" bpmnElement="P07_flujo_23"><di:waypoint x="2573" y="1586" /><di:waypoint x="2667" y="1586" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P07_flujo_24_di" bpmnElement="P07_flujo_24"><di:waypoint x="2525" y="1454" /><di:waypoint x="2619" y="1454" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P07_flujo_25_di" bpmnElement="P07_flujo_25"><di:waypoint x="2751" y="1454" /><di:waypoint x="2845" y="1454" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P07_mensaje_1_di" bpmnElement="P07_mensaje_1"><di:waypoint x="1498" y="92" /><di:waypoint x="1498" y="148" /><bpmndi:BPMNLabel><dc:Bounds x="1504" y="112" width="118" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P07_mensaje_2_di" bpmnElement="P07_mensaje_2"><di:waypoint x="193" y="220" /><di:waypoint x="193" y="324" /><bpmndi:BPMNLabel><dc:Bounds x="199" y="240" width="112" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P07_mensaje_3_di" bpmnElement="P07_mensaje_3"><di:waypoint x="371" y="300" /><di:waypoint x="371" y="220" /><bpmndi:BPMNLabel><dc:Bounds x="377" y="240" width="112" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P07_mensaje_4_di" bpmnElement="P07_mensaje_4"><di:waypoint x="1973" y="1176" /><di:waypoint x="1973" y="1360" /><di:waypoint x="2151" y="1360" /><di:waypoint x="2151" y="1568" /><bpmndi:BPMNLabel><dc:Bounds x="1979" y="1340" width="81" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P07_mensaje_5_di" bpmnElement="P07_mensaje_5"><di:waypoint x="2329" y="1308" /><di:waypoint x="2329" y="1360" /><di:waypoint x="2507" y="1360" /><di:waypoint x="2507" y="1436" /><bpmndi:BPMNLabel><dc:Bounds x="2335" y="1340" width="81" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

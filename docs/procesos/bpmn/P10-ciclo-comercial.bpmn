@@ -1,0 +1,308 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bioc="http://bpmn.io/schema/bpmn/biocolor/1.0" xmlns:color="http://www.omg.org/spec/BPMN/non-normative/color/1.0" id="P10_definiciones" targetNamespace="https://aetherp.online/procesos" exporter="Aether · generador de procesos" exporterVersion="1.0">
+  <bpmn:collaboration id="P10_colaboracion">
+    <bpmn:documentation>P10 Ciclo comercial: de la cotización al cobro. Cotización, emisión del documento (folio, timbre, kardex, asiento y cobro en una transacción) y cobranza hasta el pago.</bpmn:documentation>
+    <bpmn:participant id="P10_pool_cli" name="Cliente"></bpmn:participant>
+    <bpmn:participant id="P10_pool_ae" name="Aether ERP" processRef="P10_proc_ae"></bpmn:participant>
+    <bpmn:messageFlow id="P10_mensaje_1" name="Pide precio o compra" sourceRef="P10_pool_cli" targetRef="P10_i" />
+    <bpmn:messageFlow id="P10_mensaje_2" name="Cotización" sourceRef="P10_cot" targetRef="P10_pool_cli" />
+    <bpmn:messageFlow id="P10_mensaje_3" name="Aceptación" sourceRef="P10_pool_cli" targetRef="P10_acep" />
+    <bpmn:messageFlow id="P10_mensaje_4" name="Documento y PDF" sourceRef="P10_env" targetRef="P10_pool_cli" />
+    <bpmn:messageFlow id="P10_mensaje_5" name="Transferencia, cheque o efectivo" sourceRef="P10_pool_cli" targetRef="P10_pago" />
+  </bpmn:collaboration>
+  <bpmn:process id="P10_proc_ae" name="Aether ERP" isExecutable="false">
+    <bpmn:laneSet id="P10_carriles_ae">
+      <bpmn:lane id="P10_carril_ven" name="Vendedor">
+        <bpmn:flowNodeRef>P10_i</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P10_cot</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P10_ge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P10_acep</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P10_vence</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P10_fv</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P10_emi</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="P10_carril_sis" name="Sistema Aether">
+        <bpmn:flowNodeRef>P10_val</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P10_gcr</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P10_rech</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P10_fol</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P10_gcaf</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P10_ted</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P10_gm</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P10_stk</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P10_gpg</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P10_cob</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P10_gm2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P10_wf</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P10_env</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P10_gs</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P10_fv2</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="P10_carril_tes" name="Tesorería y cobranza">
+        <bpmn:flowNodeRef>P10_gmc</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P10_gev</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P10_pago</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P10_venc</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P10_rem</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P10_regp</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P10_gpar</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P10_fpag</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="P10_i" name="Cliente pide precio o compra">
+      <bpmn:outgoing>P10_flujo_1</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:userTask id="P10_cot" name="Preparar cotización (sin folio ni timbre)">
+      <bpmn:documentation>Una cotización no es DTE (isDte).</bpmn:documentation>
+      <bpmn:incoming>P10_flujo_1</bpmn:incoming>
+      <bpmn:outgoing>P10_flujo_2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:eventBasedGateway id="P10_ge" name="">
+      <bpmn:incoming>P10_flujo_2</bpmn:incoming>
+      <bpmn:outgoing>P10_flujo_3</bpmn:outgoing>
+      <bpmn:outgoing>P10_flujo_4</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+    <bpmn:intermediateCatchEvent id="P10_acep" name="Cliente acepta">
+      <bpmn:incoming>P10_flujo_3</bpmn:incoming>
+      <bpmn:outgoing>P10_flujo_6</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="P10_vence" name="Vence la cotización">
+      <bpmn:incoming>P10_flujo_4</bpmn:incoming>
+      <bpmn:outgoing>P10_flujo_5</bpmn:outgoing>
+      <bpmn:timerEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:endEvent id="P10_fv" name="Cotización perdida">
+      <bpmn:incoming>P10_flujo_5</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="P10_emi" name="Emitir factura, boleta o guía">
+      <bpmn:documentation>Puede venir de una nota de venta, que avanza lo facturado en la misma transacción. Manda idempotencyKey.</bpmn:documentation>
+      <bpmn:incoming>P10_flujo_6</bpmn:incoming>
+      <bpmn:outgoing>P10_flujo_7</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="P10_val" name="Validar cliente, bodega y líneas; exento desde el catálogo">
+      <bpmn:incoming>P10_flujo_7</bpmn:incoming>
+      <bpmn:outgoing>P10_flujo_8</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="P10_gcr" name="¿A crédito y sobre el límite?">
+      <bpmn:incoming>P10_flujo_8</bpmn:incoming>
+      <bpmn:outgoing>P10_flujo_9</bpmn:outgoing>
+      <bpmn:outgoing>P10_flujo_10</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="P10_rech" name="Rechazada por límite de crédito">
+      <bpmn:incoming>P10_flujo_10</bpmn:incoming>
+      <bpmn:errorEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="P10_fol" name="Asignar folio: CAF con FOR UPDATE o contador interno">
+      <bpmn:documentation>assignSalesFolio.</bpmn:documentation>
+      <bpmn:incoming>P10_flujo_9</bpmn:incoming>
+      <bpmn:outgoing>P10_flujo_11</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="P10_gcaf" name="¿Folio de un CAF?">
+      <bpmn:incoming>P10_flujo_11</bpmn:incoming>
+      <bpmn:outgoing>P10_flujo_12</bpmn:outgoing>
+      <bpmn:outgoing>P10_flujo_13</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="P10_ted" name="Timbrar (TED con la llave del CAF) y armar el XML">
+      <bpmn:documentation>RSA-SHA1. El bloque DA del CAF viaja byte a byte: nunca se reserializa.</bpmn:documentation>
+      <bpmn:incoming>P10_flujo_12</bpmn:incoming>
+      <bpmn:outgoing>P10_flujo_14</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="P10_gm" name="">
+      <bpmn:incoming>P10_flujo_13</bpmn:incoming>
+      <bpmn:incoming>P10_flujo_14</bpmn:incoming>
+      <bpmn:outgoing>P10_flujo_15</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="P10_stk" name="Kardex al PMP vigente y asiento contable">
+      <bpmn:documentation>applyStockOut lee el PMP bajo bloqueo; el asiento nace en la misma transacción.</bpmn:documentation>
+      <bpmn:incoming>P10_flujo_15</bpmn:incoming>
+      <bpmn:outgoing>P10_flujo_16</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="P10_gpg" name="¿Forma de pago?">
+      <bpmn:incoming>P10_flujo_16</bpmn:incoming>
+      <bpmn:outgoing>P10_flujo_17</bpmn:outgoing>
+      <bpmn:outgoing>P10_flujo_18</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="P10_cob" name="Registrar el cobro (Payment)">
+      <bpmn:incoming>P10_flujo_18</bpmn:incoming>
+      <bpmn:outgoing>P10_flujo_19</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="P10_gm2" name="">
+      <bpmn:incoming>P10_flujo_17</bpmn:incoming>
+      <bpmn:incoming>P10_flujo_19</bpmn:incoming>
+      <bpmn:outgoing>P10_flujo_20</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="P10_wf" name="Confirmar y disparar automatizaciones">
+      <bpmn:incoming>P10_flujo_20</bpmn:incoming>
+      <bpmn:outgoing>P10_flujo_21</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sendTask id="P10_env" name="Enviar documento y PDF al cliente">
+      <bpmn:incoming>P10_flujo_21</bpmn:incoming>
+      <bpmn:outgoing>P10_flujo_22</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:exclusiveGateway id="P10_gs" name="¿Queda saldo por cobrar?">
+      <bpmn:incoming>P10_flujo_22</bpmn:incoming>
+      <bpmn:outgoing>P10_flujo_23</bpmn:outgoing>
+      <bpmn:outgoing>P10_flujo_24</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="P10_fv2" name="Venta cerrada">
+      <bpmn:incoming>P10_flujo_23</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:exclusiveGateway id="P10_gmc" name="">
+      <bpmn:incoming>P10_flujo_24</bpmn:incoming>
+      <bpmn:incoming>P10_flujo_29</bpmn:incoming>
+      <bpmn:incoming>P10_flujo_33</bpmn:incoming>
+      <bpmn:outgoing>P10_flujo_25</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:eventBasedGateway id="P10_gev" name="">
+      <bpmn:incoming>P10_flujo_25</bpmn:incoming>
+      <bpmn:outgoing>P10_flujo_26</bpmn:outgoing>
+      <bpmn:outgoing>P10_flujo_27</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+    <bpmn:intermediateCatchEvent id="P10_pago" name="Llega el pago">
+      <bpmn:incoming>P10_flujo_26</bpmn:incoming>
+      <bpmn:outgoing>P10_flujo_30</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="P10_venc" name="Cron diario de cobranza">
+      <bpmn:incoming>P10_flujo_27</bpmn:incoming>
+      <bpmn:outgoing>P10_flujo_28</bpmn:outgoing>
+      <bpmn:timerEventDefinition><bpmn:timeCycle xsi:type="bpmn:tFormalExpression">30 13 * * *</bpmn:timeCycle></bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+    <bpmn:sendTask id="P10_rem" name="Enviar recordatorio de cobranza">
+      <bpmn:incoming>P10_flujo_28</bpmn:incoming>
+      <bpmn:outgoing>P10_flujo_29</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:userTask id="P10_regp" name="Registrar el pago o conciliar la cartola">
+      <bpmn:incoming>P10_flujo_30</bpmn:incoming>
+      <bpmn:outgoing>P10_flujo_31</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="P10_gpar" name="¿Saldo cubierto?">
+      <bpmn:incoming>P10_flujo_31</bpmn:incoming>
+      <bpmn:outgoing>P10_flujo_32</bpmn:outgoing>
+      <bpmn:outgoing>P10_flujo_33</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="P10_fpag" name="Documento pagado">
+      <bpmn:incoming>P10_flujo_32</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="P10_flujo_1" sourceRef="P10_i" targetRef="P10_cot" />
+    <bpmn:sequenceFlow id="P10_flujo_2" sourceRef="P10_cot" targetRef="P10_ge" />
+    <bpmn:sequenceFlow id="P10_flujo_3" sourceRef="P10_ge" targetRef="P10_acep" />
+    <bpmn:sequenceFlow id="P10_flujo_4" sourceRef="P10_ge" targetRef="P10_vence" />
+    <bpmn:sequenceFlow id="P10_flujo_5" sourceRef="P10_vence" targetRef="P10_fv" />
+    <bpmn:sequenceFlow id="P10_flujo_6" sourceRef="P10_acep" targetRef="P10_emi" />
+    <bpmn:sequenceFlow id="P10_flujo_7" sourceRef="P10_emi" targetRef="P10_val" />
+    <bpmn:sequenceFlow id="P10_flujo_8" sourceRef="P10_val" targetRef="P10_gcr" />
+    <bpmn:sequenceFlow id="P10_flujo_9" name="No" sourceRef="P10_gcr" targetRef="P10_fol" />
+    <bpmn:sequenceFlow id="P10_flujo_10" name="Sí" sourceRef="P10_gcr" targetRef="P10_rech" />
+    <bpmn:sequenceFlow id="P10_flujo_11" sourceRef="P10_fol" targetRef="P10_gcaf" />
+    <bpmn:sequenceFlow id="P10_flujo_12" name="Sí" sourceRef="P10_gcaf" targetRef="P10_ted" />
+    <bpmn:sequenceFlow id="P10_flujo_13" name="No" sourceRef="P10_gcaf" targetRef="P10_gm" />
+    <bpmn:sequenceFlow id="P10_flujo_14" sourceRef="P10_ted" targetRef="P10_gm" />
+    <bpmn:sequenceFlow id="P10_flujo_15" sourceRef="P10_gm" targetRef="P10_stk" />
+    <bpmn:sequenceFlow id="P10_flujo_16" sourceRef="P10_stk" targetRef="P10_gpg" />
+    <bpmn:sequenceFlow id="P10_flujo_17" name="Crédito" sourceRef="P10_gpg" targetRef="P10_gm2" />
+    <bpmn:sequenceFlow id="P10_flujo_18" name="Contado" sourceRef="P10_gpg" targetRef="P10_cob" />
+    <bpmn:sequenceFlow id="P10_flujo_19" sourceRef="P10_cob" targetRef="P10_gm2" />
+    <bpmn:sequenceFlow id="P10_flujo_20" sourceRef="P10_gm2" targetRef="P10_wf" />
+    <bpmn:sequenceFlow id="P10_flujo_21" sourceRef="P10_wf" targetRef="P10_env" />
+    <bpmn:sequenceFlow id="P10_flujo_22" sourceRef="P10_env" targetRef="P10_gs" />
+    <bpmn:sequenceFlow id="P10_flujo_23" name="No" sourceRef="P10_gs" targetRef="P10_fv2" />
+    <bpmn:sequenceFlow id="P10_flujo_24" name="Sí" sourceRef="P10_gs" targetRef="P10_gmc" />
+    <bpmn:sequenceFlow id="P10_flujo_25" sourceRef="P10_gmc" targetRef="P10_gev" />
+    <bpmn:sequenceFlow id="P10_flujo_26" sourceRef="P10_gev" targetRef="P10_pago" />
+    <bpmn:sequenceFlow id="P10_flujo_27" sourceRef="P10_gev" targetRef="P10_venc" />
+    <bpmn:sequenceFlow id="P10_flujo_28" sourceRef="P10_venc" targetRef="P10_rem" />
+    <bpmn:sequenceFlow id="P10_flujo_29" sourceRef="P10_rem" targetRef="P10_gmc" />
+    <bpmn:sequenceFlow id="P10_flujo_30" sourceRef="P10_pago" targetRef="P10_regp" />
+    <bpmn:sequenceFlow id="P10_flujo_31" sourceRef="P10_regp" targetRef="P10_gpar" />
+    <bpmn:sequenceFlow id="P10_flujo_32" name="Sí" sourceRef="P10_gpar" targetRef="P10_fpag" />
+    <bpmn:sequenceFlow id="P10_flujo_33" name="Parcial" sourceRef="P10_gpar" targetRef="P10_gmc" />
+    <bpmn:textAnnotation id="P10_nota_n1"><bpmn:text>Un DTE emitido se corrige con nota de crédito (61), nunca anulándolo.</bpmn:text></bpmn:textAnnotation>
+    <bpmn:textAnnotation id="P10_nota_n2"><bpmn:text>Brecha: falta firmar con certificado y enviar al SII. PENDING = timbrado, sin despachar.</bpmn:text></bpmn:textAnnotation>
+    <bpmn:association id="P10_asoc_n2" associationDirection="None" sourceRef="P10_nota_n2" targetRef="P10_ted" />
+    <bpmn:textAnnotation id="P10_nota_n3"><bpmn:text>Folio, kardex, asiento y cobro van en una sola transacción: si algo falla, nada queda a medias.</bpmn:text></bpmn:textAnnotation>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="P10_diagrama" name="P10 Ciclo comercial: de la cotización al cobro">
+    <bpmndi:BPMNPlane id="P10_plano" bpmnElement="P10_colaboracion">
+      <bpmndi:BPMNShape id="P10_pool_cli_di" bpmnElement="P10_pool_cli" isHorizontal="true" bioc:stroke="#5f6368" bioc:fill="#f6f6f6" color:border-color="#5f6368" color:background-color="#f6f6f6"><dc:Bounds x="20" y="20" width="4380" height="72" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_pool_ae_di" bpmnElement="P10_pool_ae" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="20" y="148" width="4380" height="1056" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_carril_ven_di" bpmnElement="P10_carril_ven" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="148" width="4350" height="264" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_carril_sis_di" bpmnElement="P10_carril_sis" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="412" width="4350" height="396" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_carril_tes_di" bpmnElement="P10_carril_tes" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="808" width="4350" height="396" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_i_di" bpmnElement="P10_i" bioc:stroke="#2e7d32" bioc:fill="#e3f3e5" color:border-color="#2e7d32" color:background-color="#e3f3e5"><dc:Bounds x="175" y="196" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="133" y="238" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_cot_di" bpmnElement="P10_cot" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="305" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_ge_di" bpmnElement="P10_ge" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="524" y="189" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_acep_di" bpmnElement="P10_acep" bioc:stroke="#9a5b00" bioc:fill="#fff4dc" color:border-color="#9a5b00" color:background-color="#fff4dc"><dc:Bounds x="709" y="196" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="667" y="238" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_vence_di" bpmnElement="P10_vence" bioc:stroke="#9a5b00" bioc:fill="#fff4dc" color:border-color="#9a5b00" color:background-color="#fff4dc"><dc:Bounds x="709" y="328" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="667" y="370" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_fv_di" bpmnElement="P10_fv" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="887" y="328" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="845" y="370" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_emi_di" bpmnElement="P10_emi" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="839" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_val_di" bpmnElement="P10_val" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="1017" y="436" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_gcr_di" bpmnElement="P10_gcr" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="1236" y="453" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="1197" y="419" width="128" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_rech_di" bpmnElement="P10_rech" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="1421" y="592" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1379" y="634" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_fol_di" bpmnElement="P10_fol" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="1373" y="436" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_gcaf_di" bpmnElement="P10_gcaf" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="1592" y="453" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="1553" y="433" width="128" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_ted_di" bpmnElement="P10_ted" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="1729" y="568" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_gm_di" bpmnElement="P10_gm" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="1948" y="453" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_stk_di" bpmnElement="P10_stk" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="2085" y="436" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_gpg_di" bpmnElement="P10_gpg" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="2304" y="453" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="2265" y="433" width="128" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_cob_di" bpmnElement="P10_cob" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="2441" y="568" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_gm2_di" bpmnElement="P10_gm2" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="2660" y="453" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_wf_di" bpmnElement="P10_wf" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="2797" y="436" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_env_di" bpmnElement="P10_env" bioc:stroke="#5b3a9e" bioc:fill="#efe9fa" color:border-color="#5b3a9e" color:background-color="#efe9fa"><dc:Bounds x="2975" y="436" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_gs_di" bpmnElement="P10_gs" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="3194" y="453" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="3155" y="419" width="128" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_fv2_di" bpmnElement="P10_fv2" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="3379" y="460" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="3337" y="502" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_gmc_di" bpmnElement="P10_gmc" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="3372" y="849" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_gev_di" bpmnElement="P10_gev" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="3550" y="849" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_pago_di" bpmnElement="P10_pago" bioc:stroke="#9a5b00" bioc:fill="#fff4dc" color:border-color="#9a5b00" color:background-color="#fff4dc"><dc:Bounds x="3735" y="856" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="3693" y="898" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_venc_di" bpmnElement="P10_venc" bioc:stroke="#9a5b00" bioc:fill="#fff4dc" color:border-color="#9a5b00" color:background-color="#fff4dc"><dc:Bounds x="3735" y="988" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="3693" y="1030" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_rem_di" bpmnElement="P10_rem" bioc:stroke="#5b3a9e" bioc:fill="#efe9fa" color:border-color="#5b3a9e" color:background-color="#efe9fa"><dc:Bounds x="3865" y="964" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_regp_di" bpmnElement="P10_regp" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="3865" y="832" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_gpar_di" bpmnElement="P10_gpar" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="4084" y="849" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="4117" y="829" width="128" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_fpag_di" bpmnElement="P10_fpag" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="4269" y="856" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="4227" y="898" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_nota_n1_di" bpmnElement="P10_nota_n1"><dc:Bounds x="1177" y="319" width="168" height="55" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_nota_n2_di" bpmnElement="P10_nota_n2"><dc:Bounds x="1711" y="707" width="168" height="70" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P10_nota_n3_di" bpmnElement="P10_nota_n3"><dc:Bounds x="465" y="568" width="168" height="85" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="P10_flujo_1_di" bpmnElement="P10_flujo_1"><di:waypoint x="211" y="214" /><di:waypoint x="305" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_flujo_2_di" bpmnElement="P10_flujo_2"><di:waypoint x="437" y="214" /><di:waypoint x="524" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_flujo_3_di" bpmnElement="P10_flujo_3"><di:waypoint x="574" y="214" /><di:waypoint x="709" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_flujo_4_di" bpmnElement="P10_flujo_4"><di:waypoint x="549" y="239" /><di:waypoint x="549" y="346" /><di:waypoint x="709" y="346" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_flujo_5_di" bpmnElement="P10_flujo_5"><di:waypoint x="745" y="346" /><di:waypoint x="887" y="346" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_flujo_6_di" bpmnElement="P10_flujo_6"><di:waypoint x="745" y="214" /><di:waypoint x="839" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_flujo_7_di" bpmnElement="P10_flujo_7"><di:waypoint x="971" y="214" /><di:waypoint x="994" y="214" /><di:waypoint x="994" y="478" /><di:waypoint x="1017" y="478" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_flujo_8_di" bpmnElement="P10_flujo_8"><di:waypoint x="1149" y="478" /><di:waypoint x="1236" y="478" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_flujo_9_di" bpmnElement="P10_flujo_9"><di:waypoint x="1286" y="478" /><di:waypoint x="1373" y="478" /><bpmndi:BPMNLabel><dc:Bounds x="1292" y="458" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_flujo_10_di" bpmnElement="P10_flujo_10"><di:waypoint x="1261" y="503" /><di:waypoint x="1261" y="610" /><di:waypoint x="1421" y="610" /><bpmndi:BPMNLabel><dc:Bounds x="1267" y="511" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_flujo_11_di" bpmnElement="P10_flujo_11"><di:waypoint x="1505" y="478" /><di:waypoint x="1592" y="478" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_flujo_12_di" bpmnElement="P10_flujo_12"><di:waypoint x="1617" y="503" /><di:waypoint x="1617" y="610" /><di:waypoint x="1729" y="610" /><bpmndi:BPMNLabel><dc:Bounds x="1623" y="511" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_flujo_13_di" bpmnElement="P10_flujo_13"><di:waypoint x="1642" y="478" /><di:waypoint x="1948" y="478" /><bpmndi:BPMNLabel><dc:Bounds x="1648" y="458" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_flujo_14_di" bpmnElement="P10_flujo_14"><di:waypoint x="1861" y="610" /><di:waypoint x="1973" y="610" /><di:waypoint x="1973" y="503" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_flujo_15_di" bpmnElement="P10_flujo_15"><di:waypoint x="1998" y="478" /><di:waypoint x="2085" y="478" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_flujo_16_di" bpmnElement="P10_flujo_16"><di:waypoint x="2217" y="478" /><di:waypoint x="2304" y="478" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_flujo_17_di" bpmnElement="P10_flujo_17"><di:waypoint x="2354" y="478" /><di:waypoint x="2660" y="478" /><bpmndi:BPMNLabel><dc:Bounds x="2360" y="458" width="45" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_flujo_18_di" bpmnElement="P10_flujo_18"><di:waypoint x="2329" y="503" /><di:waypoint x="2329" y="610" /><di:waypoint x="2441" y="610" /><bpmndi:BPMNLabel><dc:Bounds x="2335" y="511" width="45" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_flujo_19_di" bpmnElement="P10_flujo_19"><di:waypoint x="2573" y="610" /><di:waypoint x="2685" y="610" /><di:waypoint x="2685" y="503" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_flujo_20_di" bpmnElement="P10_flujo_20"><di:waypoint x="2710" y="478" /><di:waypoint x="2797" y="478" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_flujo_21_di" bpmnElement="P10_flujo_21"><di:waypoint x="2929" y="478" /><di:waypoint x="2975" y="478" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_flujo_22_di" bpmnElement="P10_flujo_22"><di:waypoint x="3107" y="478" /><di:waypoint x="3194" y="478" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_flujo_23_di" bpmnElement="P10_flujo_23"><di:waypoint x="3244" y="478" /><di:waypoint x="3379" y="478" /><bpmndi:BPMNLabel><dc:Bounds x="3250" y="458" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_flujo_24_di" bpmnElement="P10_flujo_24"><di:waypoint x="3219" y="503" /><di:waypoint x="3219" y="874" /><di:waypoint x="3372" y="874" /><bpmndi:BPMNLabel><dc:Bounds x="3225" y="511" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_flujo_25_di" bpmnElement="P10_flujo_25"><di:waypoint x="3422" y="874" /><di:waypoint x="3550" y="874" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_flujo_26_di" bpmnElement="P10_flujo_26"><di:waypoint x="3600" y="874" /><di:waypoint x="3735" y="874" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_flujo_27_di" bpmnElement="P10_flujo_27"><di:waypoint x="3575" y="899" /><di:waypoint x="3575" y="1006" /><di:waypoint x="3735" y="1006" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_flujo_28_di" bpmnElement="P10_flujo_28"><di:waypoint x="3771" y="1006" /><di:waypoint x="3865" y="1006" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_flujo_29_di" bpmnElement="P10_flujo_29"><di:waypoint x="3931" y="1048" /><di:waypoint x="3931" y="1138" /><di:waypoint x="3397" y="1138" /><di:waypoint x="3397" y="899" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_flujo_30_di" bpmnElement="P10_flujo_30"><di:waypoint x="3771" y="874" /><di:waypoint x="3865" y="874" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_flujo_31_di" bpmnElement="P10_flujo_31"><di:waypoint x="3997" y="874" /><di:waypoint x="4084" y="874" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_flujo_32_di" bpmnElement="P10_flujo_32"><di:waypoint x="4134" y="874" /><di:waypoint x="4269" y="874" /><bpmndi:BPMNLabel><dc:Bounds x="4140" y="854" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_flujo_33_di" bpmnElement="P10_flujo_33"><di:waypoint x="4109" y="849" /><di:waypoint x="4109" y="818" /><di:waypoint x="3397" y="818" /><di:waypoint x="3397" y="849" /><bpmndi:BPMNLabel><dc:Bounds x="4115" y="824" width="45" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_mensaje_1_di" bpmnElement="P10_mensaje_1"><di:waypoint x="193" y="92" /><di:waypoint x="193" y="196" /><bpmndi:BPMNLabel><dc:Bounds x="199" y="112" width="124" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_mensaje_2_di" bpmnElement="P10_mensaje_2"><di:waypoint x="371" y="172" /><di:waypoint x="371" y="92" /><bpmndi:BPMNLabel><dc:Bounds x="377" y="112" width="62" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_mensaje_3_di" bpmnElement="P10_mensaje_3"><di:waypoint x="727" y="92" /><di:waypoint x="727" y="196" /><bpmndi:BPMNLabel><dc:Bounds x="733" y="112" width="62" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_mensaje_4_di" bpmnElement="P10_mensaje_4"><di:waypoint x="3041" y="436" /><di:waypoint x="3041" y="92" /><bpmndi:BPMNLabel><dc:Bounds x="3047" y="112" width="93" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_mensaje_5_di" bpmnElement="P10_mensaje_5"><di:waypoint x="3753" y="92" /><di:waypoint x="3753" y="856" /><bpmndi:BPMNLabel><dc:Bounds x="3759" y="112" width="198" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P10_asoc_n2_di" bpmnElement="P10_asoc_n2"><di:waypoint x="1795" y="707" /><di:waypoint x="1795" y="652" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

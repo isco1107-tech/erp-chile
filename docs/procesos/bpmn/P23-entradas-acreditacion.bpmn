@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bioc="http://bpmn.io/schema/bpmn/biocolor/1.0" xmlns:color="http://www.omg.org/spec/BPMN/non-normative/color/1.0" id="P23_definiciones" targetNamespace="https://aetherp.online/procesos" exporter="Aether · generador de procesos" exporterVersion="1.0">
+  <bpmn:collaboration id="P23_colaboracion">
+    <bpmn:documentation>P23 Venta de entradas y control de acceso. Orden pública que reserva cupo, pago por transferencia confirmado por el staff, entrada con QR y lectura en la puerta.</bpmn:documentation>
+    <bpmn:participant id="P23_pool_comp" name="Comprador"></bpmn:participant>
+    <bpmn:participant id="P23_pool_ae" name="Aether ERP" processRef="P23_proc_ae"></bpmn:participant>
+    <bpmn:messageFlow id="P23_mensaje_1" name="Pedido" sourceRef="P23_pool_comp" targetRef="P23_i" />
+    <bpmn:messageFlow id="P23_mensaje_2" name="Instrucciones de pago" sourceRef="P23_ins" targetRef="P23_pool_comp" />
+    <bpmn:messageFlow id="P23_mensaje_3" name="Transferencia" sourceRef="P23_pool_comp" targetRef="P23_pago" />
+    <bpmn:messageFlow id="P23_mensaje_4" name="Entrada con QR" sourceRef="P23_qr" targetRef="P23_pool_comp" />
+  </bpmn:collaboration>
+  <bpmn:process id="P23_proc_ae" name="Aether ERP" isExecutable="false">
+    <bpmn:laneSet id="P23_carriles_ae">
+      <bpmn:lane id="P23_carril_pub" name="Portal público de entradas">
+        <bpmn:flowNodeRef>P23_i</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="P23_carril_sis" name="Sistema Aether">
+        <bpmn:flowNodeRef>P23_lock</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P23_gc</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P23_agot</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P23_ins</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P23_st</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P23_qr</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P23_wf</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P23_gin</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P23_ya</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P23_ok</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P23_fin</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="P23_carril_staff" name="Staff del certamen">
+        <bpmn:flowNodeRef>P23_ge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P23_pago</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P23_nop</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P23_lib</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P23_flib</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P23_conf</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P23_dia</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P23_chk</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="P23_i" name="Elige tipo y cantidad">
+      <bpmn:outgoing>P23_flujo_1</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="P23_lock" name="Bloquear el cupo y crear la orden UNPAID">
+      <bpmn:incoming>P23_flujo_1</bpmn:incoming>
+      <bpmn:outgoing>P23_flujo_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="P23_gc" name="¿Queda cupo?">
+      <bpmn:incoming>P23_flujo_2</bpmn:incoming>
+      <bpmn:outgoing>P23_flujo_3</bpmn:outgoing>
+      <bpmn:outgoing>P23_flujo_4</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="P23_agot" name="Cupo agotado">
+      <bpmn:incoming>P23_flujo_4</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sendTask id="P23_ins" name="Mostrar datos para transferir">
+      <bpmn:incoming>P23_flujo_3</bpmn:incoming>
+      <bpmn:outgoing>P23_flujo_5</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:eventBasedGateway id="P23_ge" name="">
+      <bpmn:incoming>P23_flujo_5</bpmn:incoming>
+      <bpmn:outgoing>P23_flujo_6</bpmn:outgoing>
+      <bpmn:outgoing>P23_flujo_7</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+    <bpmn:intermediateCatchEvent id="P23_pago" name="Llega la transferencia">
+      <bpmn:incoming>P23_flujo_6</bpmn:incoming>
+      <bpmn:outgoing>P23_flujo_10</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="P23_nop" name="No paga">
+      <bpmn:incoming>P23_flujo_7</bpmn:incoming>
+      <bpmn:outgoing>P23_flujo_8</bpmn:outgoing>
+      <bpmn:timerEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:userTask id="P23_lib" name="Cancelar la orden y liberar el cupo">
+      <bpmn:incoming>P23_flujo_8</bpmn:incoming>
+      <bpmn:outgoing>P23_flujo_9</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="P23_flib" name="Cupo liberado">
+      <bpmn:incoming>P23_flujo_9</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="P23_conf" name="Confirmar el pago en el panel">
+      <bpmn:incoming>P23_flujo_10</bpmn:incoming>
+      <bpmn:outgoing>P23_flujo_11</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="P23_st" name="Estado PAID, recalculado en el servidor">
+      <bpmn:incoming>P23_flujo_11</bpmn:incoming>
+      <bpmn:outgoing>P23_flujo_12</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sendTask id="P23_qr" name="Enviar la entrada con QR">
+      <bpmn:incoming>P23_flujo_12</bpmn:incoming>
+      <bpmn:outgoing>P23_flujo_13</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="P23_wf" name="Disparar la automatización de entrada pagada">
+      <bpmn:incoming>P23_flujo_13</bpmn:incoming>
+      <bpmn:outgoing>P23_flujo_14</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateCatchEvent id="P23_dia" name="Día del evento">
+      <bpmn:incoming>P23_flujo_14</bpmn:incoming>
+      <bpmn:outgoing>P23_flujo_15</bpmn:outgoing>
+      <bpmn:timerEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:userTask id="P23_chk" name="Escanear el QR en la puerta">
+      <bpmn:incoming>P23_flujo_15</bpmn:incoming>
+      <bpmn:outgoing>P23_flujo_16</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="P23_gin" name="¿Ya había ingresado?">
+      <bpmn:incoming>P23_flujo_16</bpmn:incoming>
+      <bpmn:outgoing>P23_flujo_17</bpmn:outgoing>
+      <bpmn:outgoing>P23_flujo_18</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="P23_ya" name="Avisar: QR ya usado">
+      <bpmn:incoming>P23_flujo_18</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="P23_ok" name="Registrar el ingreso">
+      <bpmn:incoming>P23_flujo_17</bpmn:incoming>
+      <bpmn:outgoing>P23_flujo_19</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="P23_fin" name="Asistente adentro">
+      <bpmn:incoming>P23_flujo_19</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="P23_flujo_1" sourceRef="P23_i" targetRef="P23_lock" />
+    <bpmn:sequenceFlow id="P23_flujo_2" sourceRef="P23_lock" targetRef="P23_gc" />
+    <bpmn:sequenceFlow id="P23_flujo_3" name="Sí" sourceRef="P23_gc" targetRef="P23_ins" />
+    <bpmn:sequenceFlow id="P23_flujo_4" name="No" sourceRef="P23_gc" targetRef="P23_agot" />
+    <bpmn:sequenceFlow id="P23_flujo_5" sourceRef="P23_ins" targetRef="P23_ge" />
+    <bpmn:sequenceFlow id="P23_flujo_6" sourceRef="P23_ge" targetRef="P23_pago" />
+    <bpmn:sequenceFlow id="P23_flujo_7" sourceRef="P23_ge" targetRef="P23_nop" />
+    <bpmn:sequenceFlow id="P23_flujo_8" sourceRef="P23_nop" targetRef="P23_lib" />
+    <bpmn:sequenceFlow id="P23_flujo_9" sourceRef="P23_lib" targetRef="P23_flib" />
+    <bpmn:sequenceFlow id="P23_flujo_10" sourceRef="P23_pago" targetRef="P23_conf" />
+    <bpmn:sequenceFlow id="P23_flujo_11" sourceRef="P23_conf" targetRef="P23_st" />
+    <bpmn:sequenceFlow id="P23_flujo_12" sourceRef="P23_st" targetRef="P23_qr" />
+    <bpmn:sequenceFlow id="P23_flujo_13" sourceRef="P23_qr" targetRef="P23_wf" />
+    <bpmn:sequenceFlow id="P23_flujo_14" sourceRef="P23_wf" targetRef="P23_dia" />
+    <bpmn:sequenceFlow id="P23_flujo_15" sourceRef="P23_dia" targetRef="P23_chk" />
+    <bpmn:sequenceFlow id="P23_flujo_16" sourceRef="P23_chk" targetRef="P23_gin" />
+    <bpmn:sequenceFlow id="P23_flujo_17" name="No" sourceRef="P23_gin" targetRef="P23_ok" />
+    <bpmn:sequenceFlow id="P23_flujo_18" name="Sí" sourceRef="P23_gin" targetRef="P23_ya" />
+    <bpmn:sequenceFlow id="P23_flujo_19" sourceRef="P23_ok" targetRef="P23_fin" />
+    <bpmn:textAnnotation id="P23_nota_n1"><bpmn:text>Sin pasarela de pago: el staff confirma a mano. Una orden sin pagar reserva el cupo hasta cancelarla.</bpmn:text></bpmn:textAnnotation>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="P23_diagrama" name="P23 Venta de entradas y control de acceso">
+    <bpmndi:BPMNPlane id="P23_plano" bpmnElement="P23_colaboracion">
+      <bpmndi:BPMNShape id="P23_pool_comp_di" bpmnElement="P23_pool_comp" isHorizontal="true" bioc:stroke="#5f6368" bioc:fill="#f6f6f6" color:border-color="#5f6368" color:background-color="#f6f6f6"><dc:Bounds x="20" y="20" width="2778" height="72" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P23_pool_ae_di" bpmnElement="P23_pool_ae" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="20" y="148" width="2778" height="792" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P23_carril_pub_di" bpmnElement="P23_carril_pub" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="148" width="2748" height="132" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P23_carril_sis_di" bpmnElement="P23_carril_sis" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="280" width="2748" height="264" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P23_carril_staff_di" bpmnElement="P23_carril_staff" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="544" width="2748" height="396" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P23_i_di" bpmnElement="P23_i" bioc:stroke="#2e7d32" bioc:fill="#e3f3e5" color:border-color="#2e7d32" color:background-color="#e3f3e5"><dc:Bounds x="175" y="196" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="133" y="238" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P23_lock_di" bpmnElement="P23_lock" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="305" y="304" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P23_gc_di" bpmnElement="P23_gc" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="524" y="321" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="485" y="301" width="128" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P23_agot_di" bpmnElement="P23_agot" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="709" y="460" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="667" y="502" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P23_ins_di" bpmnElement="P23_ins" bioc:stroke="#5b3a9e" bioc:fill="#efe9fa" color:border-color="#5b3a9e" color:background-color="#efe9fa"><dc:Bounds x="661" y="304" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P23_ge_di" bpmnElement="P23_ge" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="880" y="585" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P23_pago_di" bpmnElement="P23_pago" bioc:stroke="#9a5b00" bioc:fill="#fff4dc" color:border-color="#9a5b00" color:background-color="#fff4dc"><dc:Bounds x="1065" y="592" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1023" y="634" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P23_nop_di" bpmnElement="P23_nop" bioc:stroke="#9a5b00" bioc:fill="#fff4dc" color:border-color="#9a5b00" color:background-color="#fff4dc"><dc:Bounds x="1065" y="724" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1023" y="766" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P23_lib_di" bpmnElement="P23_lib" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1195" y="700" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P23_flib_di" bpmnElement="P23_flib" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="1421" y="724" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1379" y="766" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P23_conf_di" bpmnElement="P23_conf" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1195" y="568" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P23_st_di" bpmnElement="P23_st" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="1373" y="304" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P23_qr_di" bpmnElement="P23_qr" bioc:stroke="#5b3a9e" bioc:fill="#efe9fa" color:border-color="#5b3a9e" color:background-color="#efe9fa"><dc:Bounds x="1551" y="304" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P23_wf_di" bpmnElement="P23_wf" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="1729" y="304" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P23_dia_di" bpmnElement="P23_dia" bioc:stroke="#9a5b00" bioc:fill="#fff4dc" color:border-color="#9a5b00" color:background-color="#fff4dc"><dc:Bounds x="1955" y="592" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1913" y="634" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P23_chk_di" bpmnElement="P23_chk" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="2085" y="568" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P23_gin_di" bpmnElement="P23_gin" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="2304" y="321" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="2265" y="301" width="128" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P23_ya_di" bpmnElement="P23_ya" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="2489" y="460" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2447" y="502" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P23_ok_di" bpmnElement="P23_ok" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="2441" y="304" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P23_fin_di" bpmnElement="P23_fin" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="2667" y="328" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2625" y="370" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P23_nota_n1_di" bpmnElement="P23_nota_n1"><dc:Bounds x="821" y="839" width="168" height="70" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="P23_flujo_1_di" bpmnElement="P23_flujo_1"><di:waypoint x="211" y="214" /><di:waypoint x="277" y="214" /><di:waypoint x="277" y="346" /><di:waypoint x="305" y="346" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P23_flujo_2_di" bpmnElement="P23_flujo_2"><di:waypoint x="437" y="346" /><di:waypoint x="524" y="346" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P23_flujo_3_di" bpmnElement="P23_flujo_3"><di:waypoint x="574" y="346" /><di:waypoint x="661" y="346" /><bpmndi:BPMNLabel><dc:Bounds x="580" y="326" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P23_flujo_4_di" bpmnElement="P23_flujo_4"><di:waypoint x="549" y="371" /><di:waypoint x="549" y="478" /><di:waypoint x="709" y="478" /><bpmndi:BPMNLabel><dc:Bounds x="555" y="379" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P23_flujo_5_di" bpmnElement="P23_flujo_5"><di:waypoint x="793" y="346" /><di:waypoint x="905" y="346" /><di:waypoint x="905" y="585" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P23_flujo_6_di" bpmnElement="P23_flujo_6"><di:waypoint x="930" y="610" /><di:waypoint x="1065" y="610" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P23_flujo_7_di" bpmnElement="P23_flujo_7"><di:waypoint x="905" y="635" /><di:waypoint x="905" y="742" /><di:waypoint x="1065" y="742" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P23_flujo_8_di" bpmnElement="P23_flujo_8"><di:waypoint x="1101" y="742" /><di:waypoint x="1195" y="742" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P23_flujo_9_di" bpmnElement="P23_flujo_9"><di:waypoint x="1327" y="742" /><di:waypoint x="1421" y="742" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P23_flujo_10_di" bpmnElement="P23_flujo_10"><di:waypoint x="1101" y="610" /><di:waypoint x="1195" y="610" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P23_flujo_11_di" bpmnElement="P23_flujo_11"><di:waypoint x="1327" y="610" /><di:waypoint x="1350" y="610" /><di:waypoint x="1350" y="346" /><di:waypoint x="1373" y="346" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P23_flujo_12_di" bpmnElement="P23_flujo_12"><di:waypoint x="1505" y="346" /><di:waypoint x="1551" y="346" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P23_flujo_13_di" bpmnElement="P23_flujo_13"><di:waypoint x="1683" y="346" /><di:waypoint x="1729" y="346" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P23_flujo_14_di" bpmnElement="P23_flujo_14"><di:waypoint x="1861" y="346" /><di:waypoint x="1889" y="346" /><di:waypoint x="1889" y="610" /><di:waypoint x="1955" y="610" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P23_flujo_15_di" bpmnElement="P23_flujo_15"><di:waypoint x="1991" y="610" /><di:waypoint x="2085" y="610" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P23_flujo_16_di" bpmnElement="P23_flujo_16"><di:waypoint x="2151" y="568" /><di:waypoint x="2151" y="346" /><di:waypoint x="2304" y="346" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P23_flujo_17_di" bpmnElement="P23_flujo_17"><di:waypoint x="2354" y="346" /><di:waypoint x="2441" y="346" /><bpmndi:BPMNLabel><dc:Bounds x="2360" y="326" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P23_flujo_18_di" bpmnElement="P23_flujo_18"><di:waypoint x="2329" y="371" /><di:waypoint x="2329" y="478" /><di:waypoint x="2489" y="478" /><bpmndi:BPMNLabel><dc:Bounds x="2335" y="379" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P23_flujo_19_di" bpmnElement="P23_flujo_19"><di:waypoint x="2573" y="346" /><di:waypoint x="2667" y="346" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P23_mensaje_1_di" bpmnElement="P23_mensaje_1"><di:waypoint x="193" y="92" /><di:waypoint x="193" y="196" /><bpmndi:BPMNLabel><dc:Bounds x="199" y="112" width="40" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P23_mensaje_2_di" bpmnElement="P23_mensaje_2"><di:waypoint x="727" y="304" /><di:waypoint x="727" y="92" /><bpmndi:BPMNLabel><dc:Bounds x="733" y="112" width="130" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P23_mensaje_3_di" bpmnElement="P23_mensaje_3"><di:waypoint x="1083" y="92" /><di:waypoint x="1083" y="592" /><bpmndi:BPMNLabel><dc:Bounds x="1089" y="112" width="81" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P23_mensaje_4_di" bpmnElement="P23_mensaje_4"><di:waypoint x="1617" y="304" /><di:waypoint x="1617" y="92" /><bpmndi:BPMNLabel><dc:Bounds x="1623" y="112" width="87" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bioc="http://bpmn.io/schema/bpmn/biocolor/1.0" xmlns:color="http://www.omg.org/spec/BPMN/non-normative/color/1.0" id="P16_definiciones" targetNamespace="https://aetherp.online/procesos" exporter="Aether · generador de procesos" exporterVersion="1.0">
+  <bpmn:collaboration id="P16_colaboracion">
+    <bpmn:documentation>P16 Servicio técnico. Recepción del equipo, diagnóstico, presupuesto aprobado por el cliente en su enlace, reparación y entrega facturada.</bpmn:documentation>
+    <bpmn:participant id="P16_pool_cli" name="Cliente"></bpmn:participant>
+    <bpmn:participant id="P16_pool_ae" name="Aether ERP" processRef="P16_proc_ae"></bpmn:participant>
+    <bpmn:messageFlow id="P16_mensaje_1" name="Equipo" sourceRef="P16_pool_cli" targetRef="P16_i" />
+    <bpmn:messageFlow id="P16_mensaje_2" name="Comprobante con enlace" sourceRef="P16_ord" targetRef="P16_pool_cli" />
+    <bpmn:messageFlow id="P16_mensaje_3" name="Aprueba o rechaza" sourceRef="P16_pool_cli" targetRef="P16_resp" />
+    <bpmn:messageFlow id="P16_mensaje_4" name="Equipo reparado" sourceRef="P16_ent" targetRef="P16_pool_cli" />
+  </bpmn:collaboration>
+  <bpmn:process id="P16_proc_ae" name="Aether ERP" isExecutable="false">
+    <bpmn:laneSet id="P16_carriles_ae">
+      <bpmn:lane id="P16_carril_rec" name="Recepción">
+        <bpmn:flowNodeRef>P16_i</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P16_ord</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P16_emi</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P16_ent</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P16_fin</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="P16_carril_tec" name="Técnico">
+        <bpmn:flowNodeRef>P16_diag</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P16_pres</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P16_rep</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P16_lis</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="P16_carril_sis" name="Sistema Aether">
+        <bpmn:flowNodeRef>P16_esp</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P16_resp</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P16_gap</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P16_can</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P16_fc</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P16_nv</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="P16_i" name="Cliente deja un equipo">
+      <bpmn:outgoing>P16_flujo_1</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:userTask id="P16_ord" name="Crear la orden y entregar el comprobante">
+      <bpmn:incoming>P16_flujo_1</bpmn:incoming>
+      <bpmn:outgoing>P16_flujo_2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="P16_diag" name="Diagnosticar">
+      <bpmn:incoming>P16_flujo_2</bpmn:incoming>
+      <bpmn:outgoing>P16_flujo_3</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="P16_pres" name="Cargar presupuesto: repuestos y mano de obra">
+      <bpmn:incoming>P16_flujo_3</bpmn:incoming>
+      <bpmn:outgoing>P16_flujo_4</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="P16_esp" name="Presupuesto visible en el enlace (WAITING_APPROVAL)">
+      <bpmn:incoming>P16_flujo_4</bpmn:incoming>
+      <bpmn:outgoing>P16_flujo_5</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateCatchEvent id="P16_resp" name="Cliente responde en su enlace">
+      <bpmn:incoming>P16_flujo_5</bpmn:incoming>
+      <bpmn:outgoing>P16_flujo_6</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:exclusiveGateway id="P16_gap" name="¿Aprueba?">
+      <bpmn:incoming>P16_flujo_6</bpmn:incoming>
+      <bpmn:outgoing>P16_flujo_7</bpmn:outgoing>
+      <bpmn:outgoing>P16_flujo_8</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="P16_can" name="Orden cancelada; retira su equipo">
+      <bpmn:incoming>P16_flujo_8</bpmn:incoming>
+      <bpmn:outgoing>P16_flujo_9</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="P16_fc" name="Orden cancelada">
+      <bpmn:incoming>P16_flujo_9</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="P16_rep" name="Reparar (IN_REPAIR)">
+      <bpmn:incoming>P16_flujo_7</bpmn:incoming>
+      <bpmn:outgoing>P16_flujo_10</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="P16_lis" name="Marcar lista (READY)">
+      <bpmn:incoming>P16_flujo_10</bpmn:incoming>
+      <bpmn:outgoing>P16_flujo_11</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="P16_nv" name="Generar nota de venta y reservar repuestos">
+      <bpmn:incoming>P16_flujo_11</bpmn:incoming>
+      <bpmn:outgoing>P16_flujo_12</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="P16_emi" name="Emitir boleta o factura (P10)">
+      <bpmn:incoming>P16_flujo_12</bpmn:incoming>
+      <bpmn:outgoing>P16_flujo_13</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="P16_ent" name="Entregar el equipo (DELIVERED)">
+      <bpmn:incoming>P16_flujo_13</bpmn:incoming>
+      <bpmn:outgoing>P16_flujo_14</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="P16_fin" name="Equipo entregado">
+      <bpmn:incoming>P16_flujo_14</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="P16_flujo_1" sourceRef="P16_i" targetRef="P16_ord" />
+    <bpmn:sequenceFlow id="P16_flujo_2" sourceRef="P16_ord" targetRef="P16_diag" />
+    <bpmn:sequenceFlow id="P16_flujo_3" sourceRef="P16_diag" targetRef="P16_pres" />
+    <bpmn:sequenceFlow id="P16_flujo_4" sourceRef="P16_pres" targetRef="P16_esp" />
+    <bpmn:sequenceFlow id="P16_flujo_5" sourceRef="P16_esp" targetRef="P16_resp" />
+    <bpmn:sequenceFlow id="P16_flujo_6" sourceRef="P16_resp" targetRef="P16_gap" />
+    <bpmn:sequenceFlow id="P16_flujo_7" name="Sí" sourceRef="P16_gap" targetRef="P16_rep" />
+    <bpmn:sequenceFlow id="P16_flujo_8" name="No" sourceRef="P16_gap" targetRef="P16_can" />
+    <bpmn:sequenceFlow id="P16_flujo_9" sourceRef="P16_can" targetRef="P16_fc" />
+    <bpmn:sequenceFlow id="P16_flujo_10" sourceRef="P16_rep" targetRef="P16_lis" />
+    <bpmn:sequenceFlow id="P16_flujo_11" sourceRef="P16_lis" targetRef="P16_nv" />
+    <bpmn:sequenceFlow id="P16_flujo_12" sourceRef="P16_nv" targetRef="P16_emi" />
+    <bpmn:sequenceFlow id="P16_flujo_13" sourceRef="P16_emi" targetRef="P16_ent" />
+    <bpmn:sequenceFlow id="P16_flujo_14" sourceRef="P16_ent" targetRef="P16_fin" />
+    <bpmn:textAnnotation id="P16_nota_n1"><bpmn:text>El enlace no muestra RUT, notas internas ni el técnico.</bpmn:text></bpmn:textAnnotation>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="P16_diagrama" name="P16 Servicio técnico">
+    <bpmndi:BPMNPlane id="P16_plano" bpmnElement="P16_colaboracion">
+      <bpmndi:BPMNShape id="P16_pool_cli_di" bpmnElement="P16_pool_cli" isHorizontal="true" bioc:stroke="#5f6368" bioc:fill="#f6f6f6" color:border-color="#5f6368" color:background-color="#f6f6f6"><dc:Bounds x="20" y="20" width="2422" height="72" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P16_pool_ae_di" bpmnElement="P16_pool_ae" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="20" y="148" width="2422" height="528" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P16_carril_rec_di" bpmnElement="P16_carril_rec" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="148" width="2392" height="132" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P16_carril_tec_di" bpmnElement="P16_carril_tec" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="280" width="2392" height="132" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P16_carril_sis_di" bpmnElement="P16_carril_sis" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="412" width="2392" height="264" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P16_i_di" bpmnElement="P16_i" bioc:stroke="#2e7d32" bioc:fill="#e3f3e5" color:border-color="#2e7d32" color:background-color="#e3f3e5"><dc:Bounds x="175" y="196" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="133" y="238" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P16_ord_di" bpmnElement="P16_ord" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="305" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P16_diag_di" bpmnElement="P16_diag" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="483" y="304" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P16_pres_di" bpmnElement="P16_pres" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="661" y="304" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P16_esp_di" bpmnElement="P16_esp" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="839" y="436" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P16_resp_di" bpmnElement="P16_resp" bioc:stroke="#9a5b00" bioc:fill="#fff4dc" color:border-color="#9a5b00" color:background-color="#fff4dc"><dc:Bounds x="1065" y="460" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1023" y="502" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P16_gap_di" bpmnElement="P16_gap" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="1236" y="453" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="1269" y="433" width="128" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P16_can_di" bpmnElement="P16_can" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="1373" y="568" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P16_fc_di" bpmnElement="P16_fc" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="1599" y="592" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1557" y="634" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P16_rep_di" bpmnElement="P16_rep" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1373" y="304" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P16_lis_di" bpmnElement="P16_lis" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1551" y="304" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P16_nv_di" bpmnElement="P16_nv" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="1729" y="436" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P16_emi_di" bpmnElement="P16_emi" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1907" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P16_ent_di" bpmnElement="P16_ent" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="2085" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P16_fin_di" bpmnElement="P16_fin" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="2311" y="196" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2269" y="238" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P16_nota_n1_di" bpmnElement="P16_nota_n1"><dc:Bounds x="465" y="583" width="168" height="55" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="P16_flujo_1_di" bpmnElement="P16_flujo_1"><di:waypoint x="211" y="214" /><di:waypoint x="305" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P16_flujo_2_di" bpmnElement="P16_flujo_2"><di:waypoint x="437" y="214" /><di:waypoint x="460" y="214" /><di:waypoint x="460" y="346" /><di:waypoint x="483" y="346" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P16_flujo_3_di" bpmnElement="P16_flujo_3"><di:waypoint x="615" y="346" /><di:waypoint x="661" y="346" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P16_flujo_4_di" bpmnElement="P16_flujo_4"><di:waypoint x="793" y="346" /><di:waypoint x="816" y="346" /><di:waypoint x="816" y="478" /><di:waypoint x="839" y="478" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P16_flujo_5_di" bpmnElement="P16_flujo_5"><di:waypoint x="971" y="478" /><di:waypoint x="1065" y="478" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P16_flujo_6_di" bpmnElement="P16_flujo_6"><di:waypoint x="1101" y="478" /><di:waypoint x="1236" y="478" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P16_flujo_7_di" bpmnElement="P16_flujo_7"><di:waypoint x="1261" y="453" /><di:waypoint x="1261" y="346" /><di:waypoint x="1373" y="346" /><bpmndi:BPMNLabel><dc:Bounds x="1267" y="352" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P16_flujo_8_di" bpmnElement="P16_flujo_8"><di:waypoint x="1261" y="503" /><di:waypoint x="1261" y="610" /><di:waypoint x="1373" y="610" /><bpmndi:BPMNLabel><dc:Bounds x="1267" y="511" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P16_flujo_9_di" bpmnElement="P16_flujo_9"><di:waypoint x="1505" y="610" /><di:waypoint x="1599" y="610" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P16_flujo_10_di" bpmnElement="P16_flujo_10"><di:waypoint x="1505" y="346" /><di:waypoint x="1551" y="346" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P16_flujo_11_di" bpmnElement="P16_flujo_11"><di:waypoint x="1683" y="346" /><di:waypoint x="1706" y="346" /><di:waypoint x="1706" y="478" /><di:waypoint x="1729" y="478" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P16_flujo_12_di" bpmnElement="P16_flujo_12"><di:waypoint x="1861" y="478" /><di:waypoint x="1884" y="478" /><di:waypoint x="1884" y="214" /><di:waypoint x="1907" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P16_flujo_13_di" bpmnElement="P16_flujo_13"><di:waypoint x="2039" y="214" /><di:waypoint x="2085" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P16_flujo_14_di" bpmnElement="P16_flujo_14"><di:waypoint x="2217" y="214" /><di:waypoint x="2311" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P16_mensaje_1_di" bpmnElement="P16_mensaje_1"><di:waypoint x="193" y="92" /><di:waypoint x="193" y="196" /><bpmndi:BPMNLabel><dc:Bounds x="199" y="112" width="40" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P16_mensaje_2_di" bpmnElement="P16_mensaje_2"><di:waypoint x="371" y="172" /><di:waypoint x="371" y="92" /><bpmndi:BPMNLabel><dc:Bounds x="377" y="112" width="136" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P16_mensaje_3_di" bpmnElement="P16_mensaje_3"><di:waypoint x="1083" y="92" /><di:waypoint x="1083" y="460" /><bpmndi:BPMNLabel><dc:Bounds x="1089" y="112" width="105" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P16_mensaje_4_di" bpmnElement="P16_mensaje_4"><di:waypoint x="2151" y="172" /><di:waypoint x="2151" y="92" /><bpmndi:BPMNLabel><dc:Bounds x="2157" y="112" width="93" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bioc="http://bpmn.io/schema/bpmn/biocolor/1.0" xmlns:color="http://www.omg.org/spec/BPMN/non-normative/color/1.0" id="P27_definiciones" targetNamespace="https://aetherp.online/procesos" exporter="Aether · generador de procesos" exporterVersion="1.0">
+  <bpmn:collaboration id="P27_colaboracion">
+    <bpmn:documentation>P27 Pago en línea de cuotas (Khipu). Portal público por RUT de la beneficiaria, cobro en Khipu, confirmación solo consultando a Khipu, comprobante numerado y correo.</bpmn:documentation>
+    <bpmn:participant id="P27_pool_pag" name="Pagador (candidata, apoderado u otro)"></bpmn:participant>
+    <bpmn:participant id="P27_pool_ae" name="Aether ERP" processRef="P27_proc_ae"></bpmn:participant>
+    <bpmn:participant id="P27_pool_kh" name="Khipu"></bpmn:participant>
+    <bpmn:messageFlow id="P27_mensaje_1" name="RUT" sourceRef="P27_pool_pag" targetRef="P27_i" />
+    <bpmn:messageFlow id="P27_mensaje_2" name="Cuotas pendientes" sourceRef="P27_look" targetRef="P27_pool_pag" />
+    <bpmn:messageFlow id="P27_mensaje_3" name="Cuotas elegidas" sourceRef="P27_pool_pag" targetRef="P27_sel" />
+    <bpmn:messageFlow id="P27_mensaje_4" name="Vuelve del banco" sourceRef="P27_pool_pag" targetRef="P27_ret" />
+    <bpmn:messageFlow id="P27_mensaje_5" name="Crear cobro" sourceRef="P27_khc" targetRef="P27_pool_kh" />
+    <bpmn:messageFlow id="P27_mensaje_6" name="Notificación" sourceRef="P27_pool_kh" targetRef="P27_not" />
+    <bpmn:messageFlow id="P27_mensaje_7" name="Consulta del cobro" sourceRef="P27_syn" targetRef="P27_pool_kh" />
+    <bpmn:messageFlow id="P27_mensaje_8" name="Comprobante" sourceRef="P27_mail" targetRef="P27_pool_pag" />
+  </bpmn:collaboration>
+  <bpmn:process id="P27_proc_ae" name="Aether ERP" isExecutable="false">
+    <bpmn:laneSet id="P27_carriles_ae">
+      <bpmn:lane id="P27_carril_por" name="Portal público /pagar">
+        <bpmn:flowNodeRef>P27_i</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P27_sel</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="P27_carril_sis" name="Sistema Aether">
+        <bpmn:flowNodeRef>P27_look</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P27_crt</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P27_khc</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P27_ge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P27_not</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P27_ret</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P27_exp</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P27_fexp</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P27_ffe</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P27_gm</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P27_syn</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P27_gx</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P27_pend</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P27_paid</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P27_num</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P27_mail</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P27_fin</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="P27_carril_cob" name="Cobranza automática">
+        <bpmn:flowNodeRef>P27_cr</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P27_rec</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P27_fcr</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="P27_i" name="Ingresa el RUT de la beneficiaria">
+      <bpmn:outgoing>P27_flujo_1</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="P27_look" name="Buscar cuotas pendientes (empresa desde el token)">
+      <bpmn:incoming>P27_flujo_1</bpmn:incoming>
+      <bpmn:outgoing>P27_flujo_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:receiveTask id="P27_sel" name="Recibe las cuotas elegidas">
+      <bpmn:incoming>P27_flujo_2</bpmn:incoming>
+      <bpmn:outgoing>P27_flujo_3</bpmn:outgoing>
+    </bpmn:receiveTask>
+    <bpmn:serviceTask id="P27_crt" name="Crear orden PENDING por el monto exacto">
+      <bpmn:incoming>P27_flujo_3</bpmn:incoming>
+      <bpmn:outgoing>P27_flujo_4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sendTask id="P27_khc" name="Crear el cobro en Khipu">
+      <bpmn:incoming>P27_flujo_4</bpmn:incoming>
+      <bpmn:outgoing>P27_flujo_5</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:eventBasedGateway id="P27_ge" name="">
+      <bpmn:incoming>P27_flujo_5</bpmn:incoming>
+      <bpmn:outgoing>P27_flujo_6</bpmn:outgoing>
+      <bpmn:outgoing>P27_flujo_7</bpmn:outgoing>
+      <bpmn:outgoing>P27_flujo_8</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+    <bpmn:intermediateCatchEvent id="P27_not" name="Notificación de Khipu (solo el id)">
+      <bpmn:incoming>P27_flujo_6</bpmn:incoming>
+      <bpmn:outgoing>P27_flujo_9</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="P27_ret" name="El navegador vuelve al portal">
+      <bpmn:incoming>P27_flujo_7</bpmn:incoming>
+      <bpmn:outgoing>P27_flujo_10</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="P27_exp" name="Vence sin pago">
+      <bpmn:incoming>P27_flujo_8</bpmn:incoming>
+      <bpmn:outgoing>P27_flujo_18</bpmn:outgoing>
+      <bpmn:timerEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:serviceTask id="P27_fexp" name="Orden EXPIRED">
+      <bpmn:incoming>P27_flujo_18</bpmn:incoming>
+      <bpmn:outgoing>P27_flujo_19</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="P27_ffe" name="Orden vencida">
+      <bpmn:incoming>P27_flujo_19</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:exclusiveGateway id="P27_gm" name="">
+      <bpmn:incoming>P27_flujo_9</bpmn:incoming>
+      <bpmn:incoming>P27_flujo_10</bpmn:incoming>
+      <bpmn:outgoing>P27_flujo_11</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="P27_syn" name="Consultar el cobro a Khipu">
+      <bpmn:incoming>P27_flujo_11</bpmn:incoming>
+      <bpmn:outgoing>P27_flujo_12</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="P27_gx" name="¿Pagado, con monto y transaction_id exactos?">
+      <bpmn:incoming>P27_flujo_12</bpmn:incoming>
+      <bpmn:outgoing>P27_flujo_13</bpmn:outgoing>
+      <bpmn:outgoing>P27_flujo_14</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="P27_pend" name="Sigue pendiente o FAILED">
+      <bpmn:incoming>P27_flujo_14</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="P27_paid" name="PAID: aplicar a las cuotas">
+      <bpmn:incoming>P27_flujo_13</bpmn:incoming>
+      <bpmn:outgoing>P27_flujo_15</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="P27_num" name="Numerar el comprobante y generar el PDF">
+      <bpmn:incoming>P27_flujo_15</bpmn:incoming>
+      <bpmn:outgoing>P27_flujo_16</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sendTask id="P27_mail" name="Enviar el comprobante por correo">
+      <bpmn:incoming>P27_flujo_16</bpmn:incoming>
+      <bpmn:outgoing>P27_flujo_17</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:endEvent id="P27_fin" name="Cuotas pagadas">
+      <bpmn:incoming>P27_flujo_17</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:startEvent id="P27_cr" name="Cron diario 10:00">
+      <bpmn:outgoing>P27_flujo_20</bpmn:outgoing>
+      <bpmn:timerEventDefinition><bpmn:timeCycle xsi:type="bpmn:tFormalExpression">0 10 * * *</bpmn:timeCycle></bpmn:timerEventDefinition>
+    </bpmn:startEvent>
+    <bpmn:sendTask id="P27_rec" name="Avisar cuotas vencidas">
+      <bpmn:incoming>P27_flujo_20</bpmn:incoming>
+      <bpmn:outgoing>P27_flujo_21</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:endEvent id="P27_fcr" name="Recordatorios enviados">
+      <bpmn:incoming>P27_flujo_21</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="P27_flujo_1" sourceRef="P27_i" targetRef="P27_look" />
+    <bpmn:sequenceFlow id="P27_flujo_2" sourceRef="P27_look" targetRef="P27_sel" />
+    <bpmn:sequenceFlow id="P27_flujo_3" sourceRef="P27_sel" targetRef="P27_crt" />
+    <bpmn:sequenceFlow id="P27_flujo_4" sourceRef="P27_crt" targetRef="P27_khc" />
+    <bpmn:sequenceFlow id="P27_flujo_5" sourceRef="P27_khc" targetRef="P27_ge" />
+    <bpmn:sequenceFlow id="P27_flujo_6" sourceRef="P27_ge" targetRef="P27_not" />
+    <bpmn:sequenceFlow id="P27_flujo_7" sourceRef="P27_ge" targetRef="P27_ret" />
+    <bpmn:sequenceFlow id="P27_flujo_8" sourceRef="P27_ge" targetRef="P27_exp" />
+    <bpmn:sequenceFlow id="P27_flujo_9" sourceRef="P27_not" targetRef="P27_gm" />
+    <bpmn:sequenceFlow id="P27_flujo_10" sourceRef="P27_ret" targetRef="P27_gm" />
+    <bpmn:sequenceFlow id="P27_flujo_11" sourceRef="P27_gm" targetRef="P27_syn" />
+    <bpmn:sequenceFlow id="P27_flujo_12" sourceRef="P27_syn" targetRef="P27_gx" />
+    <bpmn:sequenceFlow id="P27_flujo_13" name="Sí" sourceRef="P27_gx" targetRef="P27_paid" />
+    <bpmn:sequenceFlow id="P27_flujo_14" name="No" sourceRef="P27_gx" targetRef="P27_pend" />
+    <bpmn:sequenceFlow id="P27_flujo_15" sourceRef="P27_paid" targetRef="P27_num" />
+    <bpmn:sequenceFlow id="P27_flujo_16" sourceRef="P27_num" targetRef="P27_mail" />
+    <bpmn:sequenceFlow id="P27_flujo_17" sourceRef="P27_mail" targetRef="P27_fin" />
+    <bpmn:sequenceFlow id="P27_flujo_18" sourceRef="P27_exp" targetRef="P27_fexp" />
+    <bpmn:sequenceFlow id="P27_flujo_19" sourceRef="P27_fexp" targetRef="P27_ffe" />
+    <bpmn:sequenceFlow id="P27_flujo_20" sourceRef="P27_cr" targetRef="P27_rec" />
+    <bpmn:sequenceFlow id="P27_flujo_21" sourceRef="P27_rec" targetRef="P27_fcr" />
+    <bpmn:textAnnotation id="P27_nota_n1"><bpmn:text>Ni la notificación ni el retorno del navegador marcan algo como pagado: solo la consulta a Khipu.</bpmn:text></bpmn:textAnnotation>
+    <bpmn:association id="P27_asoc_n1" associationDirection="None" sourceRef="P27_nota_n1" targetRef="P27_paid" />
+    <bpmn:textAnnotation id="P27_nota_n2"><bpmn:text>La API key de Khipu es por empresa, cifrada; solo la edita settings:company.</bpmn:text></bpmn:textAnnotation>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="P27_diagrama" name="P27 Pago en línea de cuotas (Khipu)">
+    <bpmndi:BPMNPlane id="P27_plano" bpmnElement="P27_colaboracion">
+      <bpmndi:BPMNShape id="P27_pool_pag_di" bpmnElement="P27_pool_pag" isHorizontal="true" bioc:stroke="#5f6368" bioc:fill="#f6f6f6" color:border-color="#5f6368" color:background-color="#f6f6f6"><dc:Bounds x="20" y="20" width="2778" height="72" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P27_pool_ae_di" bpmnElement="P27_pool_ae" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="20" y="148" width="2778" height="660" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P27_carril_por_di" bpmnElement="P27_carril_por" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="148" width="2748" height="132" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P27_carril_sis_di" bpmnElement="P27_carril_sis" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="280" width="2748" height="396" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P27_carril_cob_di" bpmnElement="P27_carril_cob" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="676" width="2748" height="132" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P27_pool_kh_di" bpmnElement="P27_pool_kh" isHorizontal="true" bioc:stroke="#5f6368" bioc:fill="#f6f6f6" color:border-color="#5f6368" color:background-color="#f6f6f6"><dc:Bounds x="20" y="864" width="2778" height="72" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P27_i_di" bpmnElement="P27_i" bioc:stroke="#2e7d32" bioc:fill="#e3f3e5" color:border-color="#2e7d32" color:background-color="#e3f3e5"><dc:Bounds x="175" y="196" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="133" y="238" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P27_look_di" bpmnElement="P27_look" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="305" y="304" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P27_sel_di" bpmnElement="P27_sel" bioc:stroke="#5b3a9e" bioc:fill="#efe9fa" color:border-color="#5b3a9e" color:background-color="#efe9fa"><dc:Bounds x="483" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P27_crt_di" bpmnElement="P27_crt" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="661" y="304" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P27_khc_di" bpmnElement="P27_khc" bioc:stroke="#5b3a9e" bioc:fill="#efe9fa" color:border-color="#5b3a9e" color:background-color="#efe9fa"><dc:Bounds x="839" y="304" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P27_ge_di" bpmnElement="P27_ge" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="1058" y="321" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P27_not_di" bpmnElement="P27_not" bioc:stroke="#9a5b00" bioc:fill="#fff4dc" color:border-color="#9a5b00" color:background-color="#fff4dc"><dc:Bounds x="1243" y="328" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1201" y="294" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P27_ret_di" bpmnElement="P27_ret" bioc:stroke="#9a5b00" bioc:fill="#fff4dc" color:border-color="#9a5b00" color:background-color="#fff4dc"><dc:Bounds x="1421" y="460" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1379" y="502" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P27_exp_di" bpmnElement="P27_exp" bioc:stroke="#9a5b00" bioc:fill="#fff4dc" color:border-color="#9a5b00" color:background-color="#fff4dc"><dc:Bounds x="1599" y="592" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1557" y="634" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P27_fexp_di" bpmnElement="P27_fexp" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="1907" y="568" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P27_ffe_di" bpmnElement="P27_ffe" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="2133" y="592" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2091" y="634" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P27_gm_di" bpmnElement="P27_gm" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="1592" y="321" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P27_syn_di" bpmnElement="P27_syn" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="1729" y="304" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P27_gx_di" bpmnElement="P27_gx" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="1948" y="321" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="1909" y="273" width="128" height="42" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P27_pend_di" bpmnElement="P27_pend" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="2133" y="460" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2091" y="502" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P27_paid_di" bpmnElement="P27_paid" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="2085" y="304" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P27_num_di" bpmnElement="P27_num" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="2263" y="304" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P27_mail_di" bpmnElement="P27_mail" bioc:stroke="#5b3a9e" bioc:fill="#efe9fa" color:border-color="#5b3a9e" color:background-color="#efe9fa"><dc:Bounds x="2441" y="304" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P27_fin_di" bpmnElement="P27_fin" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="2667" y="328" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2625" y="370" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P27_cr_di" bpmnElement="P27_cr" bioc:stroke="#2e7d32" bioc:fill="#e3f3e5" color:border-color="#2e7d32" color:background-color="#e3f3e5"><dc:Bounds x="175" y="724" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="133" y="766" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P27_rec_di" bpmnElement="P27_rec" bioc:stroke="#5b3a9e" bioc:fill="#efe9fa" color:border-color="#5b3a9e" color:background-color="#efe9fa"><dc:Bounds x="305" y="700" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P27_fcr_di" bpmnElement="P27_fcr" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="531" y="724" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="489" y="766" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P27_nota_n1_di" bpmnElement="P27_nota_n1"><dc:Bounds x="2245" y="575" width="168" height="70" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P27_nota_n2_di" bpmnElement="P27_nota_n2"><dc:Bounds x="1444" y="715" width="168" height="55" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="P27_flujo_1_di" bpmnElement="P27_flujo_1"><di:waypoint x="211" y="214" /><di:waypoint x="277" y="214" /><di:waypoint x="277" y="346" /><di:waypoint x="305" y="346" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P27_flujo_2_di" bpmnElement="P27_flujo_2"><di:waypoint x="437" y="346" /><di:waypoint x="460" y="346" /><di:waypoint x="460" y="214" /><di:waypoint x="483" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P27_flujo_3_di" bpmnElement="P27_flujo_3"><di:waypoint x="615" y="214" /><di:waypoint x="638" y="214" /><di:waypoint x="638" y="346" /><di:waypoint x="661" y="346" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P27_flujo_4_di" bpmnElement="P27_flujo_4"><di:waypoint x="793" y="346" /><di:waypoint x="839" y="346" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P27_flujo_5_di" bpmnElement="P27_flujo_5"><di:waypoint x="971" y="346" /><di:waypoint x="1058" y="346" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P27_flujo_6_di" bpmnElement="P27_flujo_6"><di:waypoint x="1108" y="346" /><di:waypoint x="1243" y="346" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P27_flujo_7_di" bpmnElement="P27_flujo_7"><di:waypoint x="1083" y="371" /><di:waypoint x="1083" y="478" /><di:waypoint x="1421" y="478" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P27_flujo_8_di" bpmnElement="P27_flujo_8"><di:waypoint x="1083" y="371" /><di:waypoint x="1083" y="610" /><di:waypoint x="1599" y="610" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P27_flujo_9_di" bpmnElement="P27_flujo_9"><di:waypoint x="1279" y="346" /><di:waypoint x="1592" y="346" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P27_flujo_10_di" bpmnElement="P27_flujo_10"><di:waypoint x="1457" y="478" /><di:waypoint x="1617" y="478" /><di:waypoint x="1617" y="371" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P27_flujo_11_di" bpmnElement="P27_flujo_11"><di:waypoint x="1642" y="346" /><di:waypoint x="1729" y="346" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P27_flujo_12_di" bpmnElement="P27_flujo_12"><di:waypoint x="1861" y="346" /><di:waypoint x="1948" y="346" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P27_flujo_13_di" bpmnElement="P27_flujo_13"><di:waypoint x="1998" y="346" /><di:waypoint x="2085" y="346" /><bpmndi:BPMNLabel><dc:Bounds x="2004" y="326" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P27_flujo_14_di" bpmnElement="P27_flujo_14"><di:waypoint x="1973" y="371" /><di:waypoint x="1973" y="478" /><di:waypoint x="2133" y="478" /><bpmndi:BPMNLabel><dc:Bounds x="1979" y="379" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P27_flujo_15_di" bpmnElement="P27_flujo_15"><di:waypoint x="2217" y="346" /><di:waypoint x="2263" y="346" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P27_flujo_16_di" bpmnElement="P27_flujo_16"><di:waypoint x="2395" y="346" /><di:waypoint x="2441" y="346" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P27_flujo_17_di" bpmnElement="P27_flujo_17"><di:waypoint x="2573" y="346" /><di:waypoint x="2667" y="346" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P27_flujo_18_di" bpmnElement="P27_flujo_18"><di:waypoint x="1635" y="610" /><di:waypoint x="1907" y="610" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P27_flujo_19_di" bpmnElement="P27_flujo_19"><di:waypoint x="2039" y="610" /><di:waypoint x="2133" y="610" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P27_flujo_20_di" bpmnElement="P27_flujo_20"><di:waypoint x="211" y="742" /><di:waypoint x="305" y="742" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P27_flujo_21_di" bpmnElement="P27_flujo_21"><di:waypoint x="437" y="742" /><di:waypoint x="531" y="742" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P27_mensaje_1_di" bpmnElement="P27_mensaje_1"><di:waypoint x="193" y="92" /><di:waypoint x="193" y="196" /><bpmndi:BPMNLabel><dc:Bounds x="199" y="112" width="40" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P27_mensaje_2_di" bpmnElement="P27_mensaje_2"><di:waypoint x="371" y="304" /><di:waypoint x="371" y="92" /><bpmndi:BPMNLabel><dc:Bounds x="377" y="112" width="105" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P27_mensaje_3_di" bpmnElement="P27_mensaje_3"><di:waypoint x="549" y="92" /><di:waypoint x="549" y="172" /><bpmndi:BPMNLabel><dc:Bounds x="555" y="112" width="93" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P27_mensaje_4_di" bpmnElement="P27_mensaje_4"><di:waypoint x="1439" y="92" /><di:waypoint x="1439" y="460" /><bpmndi:BPMNLabel><dc:Bounds x="1445" y="112" width="99" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P27_mensaje_5_di" bpmnElement="P27_mensaje_5"><di:waypoint x="905" y="388" /><di:waypoint x="905" y="864" /><bpmndi:BPMNLabel><dc:Bounds x="911" y="828" width="68" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P27_mensaje_6_di" bpmnElement="P27_mensaje_6"><di:waypoint x="1261" y="864" /><di:waypoint x="1261" y="364" /><bpmndi:BPMNLabel><dc:Bounds x="1267" y="828" width="74" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P27_mensaje_7_di" bpmnElement="P27_mensaje_7"><di:waypoint x="1795" y="388" /><di:waypoint x="1795" y="864" /><bpmndi:BPMNLabel><dc:Bounds x="1801" y="828" width="112" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P27_mensaje_8_di" bpmnElement="P27_mensaje_8"><di:waypoint x="2507" y="304" /><di:waypoint x="2507" y="92" /><bpmndi:BPMNLabel><dc:Bounds x="2513" y="112" width="68" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P27_asoc_n1_di" bpmnElement="P27_asoc_n1"><di:waypoint x="2329" y="575" /><di:waypoint x="2151" y="388" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

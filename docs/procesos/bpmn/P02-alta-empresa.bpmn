@@ -1,0 +1,306 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bioc="http://bpmn.io/schema/bpmn/biocolor/1.0" xmlns:color="http://www.omg.org/spec/BPMN/non-normative/color/1.0" id="P02_definiciones" targetNamespace="https://aetherp.online/procesos" exporter="Aether · generador de procesos" exporterVersion="1.0">
+  <bpmn:collaboration id="P02_colaboracion">
+    <bpmn:documentation>P02 Alta de una empresa por orden firmada. La Supersuite transmite empresa.crear; Aether valida, crea la empresa con su Dueño en una transacción y confirma.</bpmn:documentation>
+    <bpmn:participant id="P02_pool_own" name="Dueño de la empresa nueva"></bpmn:participant>
+    <bpmn:participant id="P02_pool_op" name="Supersuite" processRef="P02_proc_op"></bpmn:participant>
+    <bpmn:participant id="P02_pool_ae" name="Aether ERP" processRef="P02_proc_ae"></bpmn:participant>
+    <bpmn:messageFlow id="P02_mensaje_1" name="Orden firmada" sourceRef="P02_firm" targetRef="P02_rec" />
+    <bpmn:messageFlow id="P02_mensaje_2" name="401: se reintenta" sourceRef="P02_r401" targetRef="P02_pool_op" />
+    <bpmn:messageFlow id="P02_mensaje_3" name="Resultado" sourceRef="P02_resp" targetRef="P02_okr" />
+    <bpmn:messageFlow id="P02_mensaje_4" name="Ficha por /ingesta/clientes" sourceRef="P02_aud" targetRef="P02_fic" />
+    <bpmn:messageFlow id="P02_mensaje_5" name="Correo y clave inicial" sourceRef="P02_ent" targetRef="P02_pool_own" />
+  </bpmn:collaboration>
+  <bpmn:process id="P02_proc_op" name="Supersuite" isExecutable="false">
+    <bpmn:laneSet id="P02_carriles_op">
+      <bpmn:lane id="P02_carril_opr" name="Operador de la consola">
+        <bpmn:flowNodeRef>P02_i</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P02_cargar</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P02_trans</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P02_ent</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P02_fin</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="P02_carril_api" name="API de la Supersuite">
+        <bpmn:flowNodeRef>P02_enc</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P02_firm</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P02_okr</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P02_gok</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P02_apl</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P02_fal</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P02_ffal</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P02_fic</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="P02_i" name="Contrato aceptado">
+      <bpmn:outgoing>P02_flujo_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="P02_cargar" name="Cargar empresa.crear con los datos de alta">
+      <bpmn:incoming>P02_flujo_1</bpmn:incoming>
+      <bpmn:outgoing>P02_flujo_2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="P02_trans" name="Revisar y transmitir">
+      <bpmn:incoming>P02_flujo_2</bpmn:incoming>
+      <bpmn:outgoing>P02_flujo_3</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="P02_enc" name="Guardar la orden en cola (pendiente)">
+      <bpmn:incoming>P02_flujo_3</bpmn:incoming>
+      <bpmn:outgoing>P02_flujo_4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sendTask id="P02_firm" name="Firmar y entregar por webhook">
+      <bpmn:documentation>X-Supersuite-Firma: t=&lt;unix&gt;,v1=&lt;hmac&gt;. Ver P05 para reintentos.</bpmn:documentation>
+      <bpmn:incoming>P02_flujo_4</bpmn:incoming>
+      <bpmn:outgoing>P02_flujo_5</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:intermediateCatchEvent id="P02_okr" name="Recibe el resultado">
+      <bpmn:incoming>P02_flujo_5</bpmn:incoming>
+      <bpmn:outgoing>P02_flujo_25</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:exclusiveGateway id="P02_gok" name="¿ok?">
+      <bpmn:incoming>P02_flujo_25</bpmn:incoming>
+      <bpmn:outgoing>P02_flujo_26</bpmn:outgoing>
+      <bpmn:outgoing>P02_flujo_27</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="P02_apl" name="Marcar aplicada y avisar en vivo">
+      <bpmn:incoming>P02_flujo_26</bpmn:incoming>
+      <bpmn:outgoing>P02_flujo_29</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="P02_fal" name="Marcar fallida con el mensaje de Aether">
+      <bpmn:incoming>P02_flujo_27</bpmn:incoming>
+      <bpmn:outgoing>P02_flujo_28</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="P02_ffal" name="Se corrige y reintenta desde la bitácora">
+      <bpmn:incoming>P02_flujo_28</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:receiveTask id="P02_fic" name="Recibir la ficha: plan, módulos y tarifa">
+      <bpmn:incoming>P02_flujo_29</bpmn:incoming>
+      <bpmn:outgoing>P02_flujo_30</bpmn:outgoing>
+    </bpmn:receiveTask>
+    <bpmn:manualTask id="P02_ent" name="Entregar el acceso al Dueño">
+      <bpmn:incoming>P02_flujo_30</bpmn:incoming>
+      <bpmn:outgoing>P02_flujo_31</bpmn:outgoing>
+    </bpmn:manualTask>
+    <bpmn:endEvent id="P02_fin" name="Empresa creada">
+      <bpmn:incoming>P02_flujo_31</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="P02_flujo_1" sourceRef="P02_i" targetRef="P02_cargar" />
+    <bpmn:sequenceFlow id="P02_flujo_2" sourceRef="P02_cargar" targetRef="P02_trans" />
+    <bpmn:sequenceFlow id="P02_flujo_3" sourceRef="P02_trans" targetRef="P02_enc" />
+    <bpmn:sequenceFlow id="P02_flujo_4" sourceRef="P02_enc" targetRef="P02_firm" />
+    <bpmn:sequenceFlow id="P02_flujo_5" sourceRef="P02_firm" targetRef="P02_okr" />
+    <bpmn:sequenceFlow id="P02_flujo_25" sourceRef="P02_okr" targetRef="P02_gok" />
+    <bpmn:sequenceFlow id="P02_flujo_26" name="Sí" sourceRef="P02_gok" targetRef="P02_apl" />
+    <bpmn:sequenceFlow id="P02_flujo_27" name="No" sourceRef="P02_gok" targetRef="P02_fal" />
+    <bpmn:sequenceFlow id="P02_flujo_28" sourceRef="P02_fal" targetRef="P02_ffal" />
+    <bpmn:sequenceFlow id="P02_flujo_29" sourceRef="P02_apl" targetRef="P02_fic" />
+    <bpmn:sequenceFlow id="P02_flujo_30" sourceRef="P02_fic" targetRef="P02_ent" />
+    <bpmn:sequenceFlow id="P02_flujo_31" sourceRef="P02_ent" targetRef="P02_fin" />
+    <bpmn:textAnnotation id="P02_nota_nb"><bpmn:text>Brecha: la consola todavía no ofrece empresa.crear (TIPOS_ORDEN). Aether ya la acepta.</bpmn:text></bpmn:textAnnotation>
+    <bpmn:association id="P02_asoc_nb" associationDirection="None" sourceRef="P02_nota_nb" targetRef="P02_cargar" />
+  </bpmn:process>
+  <bpmn:process id="P02_proc_ae" name="Aether ERP" isExecutable="false">
+    <bpmn:laneSet id="P02_carriles_ae">
+      <bpmn:lane id="P02_carril_wh" name="Webhook /api/supersuite/ordenes">
+        <bpmn:flowNodeRef>P02_rec</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P02_chk</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P02_gf</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P02_r401</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P02_gres</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P02_resp</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P02_fwh</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="P02_carril_plat" name="Servicio de plataforma">
+        <bpmn:flowNodeRef>P02_valp</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P02_gv</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P02_gr</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P02_crear</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P02_gu</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P02_usr</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P02_vinc</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P02_gmu</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P02_plan</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P02_aud</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="P02_rec" name="Llega la orden">
+      <bpmn:outgoing>P02_flujo_6</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="P02_chk" name="Verificar firma y antigüedad">
+      <bpmn:incoming>P02_flujo_6</bpmn:incoming>
+      <bpmn:outgoing>P02_flujo_7</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="P02_gf" name="¿Firma válida?">
+      <bpmn:incoming>P02_flujo_7</bpmn:incoming>
+      <bpmn:outgoing>P02_flujo_8</bpmn:outgoing>
+      <bpmn:outgoing>P02_flujo_9</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="P02_r401" name="Responder 401">
+      <bpmn:incoming>P02_flujo_9</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="P02_valp" name="Validar plan, módulos y datos">
+      <bpmn:documentation>planDeAether, flagsDeModulo y companyCreateSchema.</bpmn:documentation>
+      <bpmn:incoming>P02_flujo_8</bpmn:incoming>
+      <bpmn:outgoing>P02_flujo_10</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="P02_gv" name="¿Datos válidos?">
+      <bpmn:incoming>P02_flujo_10</bpmn:incoming>
+      <bpmn:outgoing>P02_flujo_11</bpmn:outgoing>
+      <bpmn:outgoing>P02_flujo_12</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:exclusiveGateway id="P02_gr" name="¿RUT ya creado por esta vía?">
+      <bpmn:incoming>P02_flujo_11</bpmn:incoming>
+      <bpmn:outgoing>P02_flujo_13</bpmn:outgoing>
+      <bpmn:outgoing>P02_flujo_14</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="P02_crear" name="Crear empresa, módulos, ajustes y bodega principal">
+      <bpmn:documentation>createTenant, dentro de prisma.$transaction.</bpmn:documentation>
+      <bpmn:incoming>P02_flujo_13</bpmn:incoming>
+      <bpmn:outgoing>P02_flujo_15</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="P02_gu" name="¿El Dueño ya tiene cuenta?">
+      <bpmn:incoming>P02_flujo_15</bpmn:incoming>
+      <bpmn:outgoing>P02_flujo_16</bpmn:outgoing>
+      <bpmn:outgoing>P02_flujo_17</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="P02_usr" name="Crear Dueño con clave inicial (debe cambiarla)">
+      <bpmn:incoming>P02_flujo_16</bpmn:incoming>
+      <bpmn:outgoing>P02_flujo_18</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="P02_vinc" name="Vincular como Dueño y activar Multiempresa">
+      <bpmn:incoming>P02_flujo_17</bpmn:incoming>
+      <bpmn:outgoing>P02_flujo_19</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="P02_gmu" name="">
+      <bpmn:incoming>P02_flujo_18</bpmn:incoming>
+      <bpmn:incoming>P02_flujo_19</bpmn:incoming>
+      <bpmn:outgoing>P02_flujo_20</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="P02_plan" name="Sembrar plan de cuentas si contrató Contabilidad">
+      <bpmn:documentation>ensureChartOfAccounts.</bpmn:documentation>
+      <bpmn:incoming>P02_flujo_20</bpmn:incoming>
+      <bpmn:outgoing>P02_flujo_21</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="P02_aud" name="Registrar en bitácora como &quot;supersuite&quot;">
+      <bpmn:documentation>createAuditLog: dispara el envío de la ficha a la Supersuite.</bpmn:documentation>
+      <bpmn:incoming>P02_flujo_21</bpmn:incoming>
+      <bpmn:outgoing>P02_flujo_22</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="P02_gres" name="">
+      <bpmn:incoming>P02_flujo_12</bpmn:incoming>
+      <bpmn:incoming>P02_flujo_14</bpmn:incoming>
+      <bpmn:incoming>P02_flujo_22</bpmn:incoming>
+      <bpmn:outgoing>P02_flujo_23</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sendTask id="P02_resp" name="Responder 200 { ok, mensaje, empresaId }">
+      <bpmn:incoming>P02_flujo_23</bpmn:incoming>
+      <bpmn:outgoing>P02_flujo_24</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:endEvent id="P02_fwh" name="Orden atendida">
+      <bpmn:incoming>P02_flujo_24</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="P02_flujo_6" sourceRef="P02_rec" targetRef="P02_chk" />
+    <bpmn:sequenceFlow id="P02_flujo_7" sourceRef="P02_chk" targetRef="P02_gf" />
+    <bpmn:sequenceFlow id="P02_flujo_8" name="Sí" sourceRef="P02_gf" targetRef="P02_valp" />
+    <bpmn:sequenceFlow id="P02_flujo_9" name="No" sourceRef="P02_gf" targetRef="P02_r401" />
+    <bpmn:sequenceFlow id="P02_flujo_10" sourceRef="P02_valp" targetRef="P02_gv" />
+    <bpmn:sequenceFlow id="P02_flujo_11" name="Sí" sourceRef="P02_gv" targetRef="P02_gr" />
+    <bpmn:sequenceFlow id="P02_flujo_12" name="No" sourceRef="P02_gv" targetRef="P02_gres" />
+    <bpmn:sequenceFlow id="P02_flujo_13" name="No" sourceRef="P02_gr" targetRef="P02_crear" />
+    <bpmn:sequenceFlow id="P02_flujo_14" name="Sí, reentrega" sourceRef="P02_gr" targetRef="P02_gres" />
+    <bpmn:sequenceFlow id="P02_flujo_15" sourceRef="P02_crear" targetRef="P02_gu" />
+    <bpmn:sequenceFlow id="P02_flujo_16" name="No" sourceRef="P02_gu" targetRef="P02_usr" />
+    <bpmn:sequenceFlow id="P02_flujo_17" name="Sí" sourceRef="P02_gu" targetRef="P02_vinc" />
+    <bpmn:sequenceFlow id="P02_flujo_18" sourceRef="P02_usr" targetRef="P02_gmu" />
+    <bpmn:sequenceFlow id="P02_flujo_19" sourceRef="P02_vinc" targetRef="P02_gmu" />
+    <bpmn:sequenceFlow id="P02_flujo_20" sourceRef="P02_gmu" targetRef="P02_plan" />
+    <bpmn:sequenceFlow id="P02_flujo_21" sourceRef="P02_plan" targetRef="P02_aud" />
+    <bpmn:sequenceFlow id="P02_flujo_22" sourceRef="P02_aud" targetRef="P02_gres" />
+    <bpmn:sequenceFlow id="P02_flujo_23" sourceRef="P02_gres" targetRef="P02_resp" />
+    <bpmn:sequenceFlow id="P02_flujo_24" sourceRef="P02_resp" targetRef="P02_fwh" />
+    <bpmn:textAnnotation id="P02_nota_nt"><bpmn:text>Todo en una transacción: si algo falla no queda una empresa a medias.</bpmn:text></bpmn:textAnnotation>
+    <bpmn:association id="P02_asoc_nt" associationDirection="None" sourceRef="P02_nota_nt" targetRef="P02_crear" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="P02_diagrama" name="P02 Alta de una empresa por orden firmada">
+    <bpmndi:BPMNPlane id="P02_plano" bpmnElement="P02_colaboracion">
+      <bpmndi:BPMNShape id="P02_pool_own_di" bpmnElement="P02_pool_own" isHorizontal="true" bioc:stroke="#5f6368" bioc:fill="#f6f6f6" color:border-color="#5f6368" color:background-color="#f6f6f6"><dc:Bounds x="20" y="20" width="4558" height="72" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_pool_op_di" bpmnElement="P02_pool_op" isHorizontal="true" bioc:stroke="#284a7e" bioc:fill="#f5f8fd" color:border-color="#284a7e" color:background-color="#f5f8fd"><dc:Bounds x="20" y="148" width="4558" height="528" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_carril_opr_di" bpmnElement="P02_carril_opr" isHorizontal="true" bioc:stroke="#284a7e" bioc:fill="#f5f8fd" color:border-color="#284a7e" color:background-color="#f5f8fd"><dc:Bounds x="50" y="148" width="4528" height="264" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_carril_api_di" bpmnElement="P02_carril_api" isHorizontal="true" bioc:stroke="#284a7e" bioc:fill="#f5f8fd" color:border-color="#284a7e" color:background-color="#f5f8fd"><dc:Bounds x="50" y="412" width="4528" height="264" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_pool_ae_di" bpmnElement="P02_pool_ae" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="20" y="732" width="4558" height="528" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_carril_wh_di" bpmnElement="P02_carril_wh" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="732" width="4528" height="264" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_carril_plat_di" bpmnElement="P02_carril_plat" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="996" width="4528" height="264" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_i_di" bpmnElement="P02_i" bioc:stroke="#2e7d32" bioc:fill="#e3f3e5" color:border-color="#2e7d32" color:background-color="#e3f3e5"><dc:Bounds x="175" y="196" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="133" y="238" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_cargar_di" bpmnElement="P02_cargar" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="305" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_trans_di" bpmnElement="P02_trans" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="483" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_enc_di" bpmnElement="P02_enc" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="661" y="436" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_firm_di" bpmnElement="P02_firm" bioc:stroke="#5b3a9e" bioc:fill="#efe9fa" color:border-color="#5b3a9e" color:background-color="#efe9fa"><dc:Bounds x="839" y="436" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_rec_di" bpmnElement="P02_rec" bioc:stroke="#2e7d32" bioc:fill="#e3f3e5" color:border-color="#2e7d32" color:background-color="#e3f3e5"><dc:Bounds x="1065" y="780" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1023" y="822" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_chk_di" bpmnElement="P02_chk" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="1195" y="756" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_gf_di" bpmnElement="P02_gf" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="1414" y="773" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="1375" y="753" width="128" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_r401_di" bpmnElement="P02_r401" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="1599" y="912" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1557" y="954" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_valp_di" bpmnElement="P02_valp" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="1551" y="1020" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_gv_di" bpmnElement="P02_gv" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="1770" y="1037" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="1803" y="1017" width="128" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_gr_di" bpmnElement="P02_gr" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="1948" y="1037" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="1981" y="1003" width="128" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_crear_di" bpmnElement="P02_crear" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="2085" y="1020" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_gu_di" bpmnElement="P02_gu" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="2304" y="1037" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="2265" y="1003" width="128" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_usr_di" bpmnElement="P02_usr" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="2441" y="1020" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_vinc_di" bpmnElement="P02_vinc" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="2441" y="1152" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_gmu_di" bpmnElement="P02_gmu" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="2660" y="1037" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_plan_di" bpmnElement="P02_plan" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="2797" y="1020" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_aud_di" bpmnElement="P02_aud" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="2975" y="1020" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_gres_di" bpmnElement="P02_gres" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="3016" y="773" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_resp_di" bpmnElement="P02_resp" bioc:stroke="#5b3a9e" bioc:fill="#efe9fa" color:border-color="#5b3a9e" color:background-color="#efe9fa"><dc:Bounds x="3153" y="756" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_fwh_di" bpmnElement="P02_fwh" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="3379" y="780" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="3337" y="822" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_okr_di" bpmnElement="P02_okr" bioc:stroke="#9a5b00" bioc:fill="#fff4dc" color:border-color="#9a5b00" color:background-color="#fff4dc"><dc:Bounds x="3379" y="460" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="3337" y="426" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_gok_di" bpmnElement="P02_gok" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="3550" y="453" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="3511" y="433" width="128" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_apl_di" bpmnElement="P02_apl" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="3687" y="436" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_fal_di" bpmnElement="P02_fal" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="3687" y="568" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_ffal_di" bpmnElement="P02_ffal" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="3913" y="592" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="3871" y="634" width="120" height="42" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_fic_di" bpmnElement="P02_fic" bioc:stroke="#5b3a9e" bioc:fill="#efe9fa" color:border-color="#5b3a9e" color:background-color="#efe9fa"><dc:Bounds x="4043" y="436" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_ent_di" bpmnElement="P02_ent" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="4221" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_fin_di" bpmnElement="P02_fin" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="4447" y="196" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="4405" y="238" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_nota_nb_di" bpmnElement="P02_nota_nb"><dc:Bounds x="287" y="311" width="168" height="70" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P02_nota_nt_di" bpmnElement="P02_nota_nt"><dc:Bounds x="2067" y="1167" width="168" height="55" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="P02_flujo_1_di" bpmnElement="P02_flujo_1"><di:waypoint x="211" y="214" /><di:waypoint x="305" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_flujo_2_di" bpmnElement="P02_flujo_2"><di:waypoint x="437" y="214" /><di:waypoint x="483" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_flujo_3_di" bpmnElement="P02_flujo_3"><di:waypoint x="615" y="214" /><di:waypoint x="638" y="214" /><di:waypoint x="638" y="478" /><di:waypoint x="661" y="478" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_flujo_4_di" bpmnElement="P02_flujo_4"><di:waypoint x="793" y="478" /><di:waypoint x="839" y="478" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_flujo_5_di" bpmnElement="P02_flujo_5"><di:waypoint x="971" y="478" /><di:waypoint x="3379" y="478" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_flujo_6_di" bpmnElement="P02_flujo_6"><di:waypoint x="1101" y="798" /><di:waypoint x="1195" y="798" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_flujo_7_di" bpmnElement="P02_flujo_7"><di:waypoint x="1327" y="798" /><di:waypoint x="1414" y="798" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_flujo_8_di" bpmnElement="P02_flujo_8"><di:waypoint x="1439" y="823" /><di:waypoint x="1439" y="1062" /><di:waypoint x="1551" y="1062" /><bpmndi:BPMNLabel><dc:Bounds x="1445" y="831" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_flujo_9_di" bpmnElement="P02_flujo_9"><di:waypoint x="1464" y="798" /><di:waypoint x="1617" y="798" /><di:waypoint x="1617" y="912" /><bpmndi:BPMNLabel><dc:Bounds x="1470" y="778" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_flujo_10_di" bpmnElement="P02_flujo_10"><di:waypoint x="1683" y="1062" /><di:waypoint x="1770" y="1062" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_flujo_11_di" bpmnElement="P02_flujo_11"><di:waypoint x="1820" y="1062" /><di:waypoint x="1948" y="1062" /><bpmndi:BPMNLabel><dc:Bounds x="1826" y="1042" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_flujo_12_di" bpmnElement="P02_flujo_12"><di:waypoint x="1795" y="1037" /><di:waypoint x="1795" y="798" /><di:waypoint x="3016" y="798" /><bpmndi:BPMNLabel><dc:Bounds x="1801" y="804" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_flujo_13_di" bpmnElement="P02_flujo_13"><di:waypoint x="1998" y="1062" /><di:waypoint x="2085" y="1062" /><bpmndi:BPMNLabel><dc:Bounds x="2004" y="1042" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_flujo_14_di" bpmnElement="P02_flujo_14"><di:waypoint x="1973" y="1037" /><di:waypoint x="1973" y="930" /><di:waypoint x="3041" y="930" /><di:waypoint x="3041" y="823" /><bpmndi:BPMNLabel><dc:Bounds x="1979" y="936" width="83" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_flujo_15_di" bpmnElement="P02_flujo_15"><di:waypoint x="2217" y="1062" /><di:waypoint x="2304" y="1062" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_flujo_16_di" bpmnElement="P02_flujo_16"><di:waypoint x="2354" y="1062" /><di:waypoint x="2441" y="1062" /><bpmndi:BPMNLabel><dc:Bounds x="2360" y="1042" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_flujo_17_di" bpmnElement="P02_flujo_17"><di:waypoint x="2329" y="1087" /><di:waypoint x="2329" y="1194" /><di:waypoint x="2441" y="1194" /><bpmndi:BPMNLabel><dc:Bounds x="2335" y="1095" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_flujo_18_di" bpmnElement="P02_flujo_18"><di:waypoint x="2573" y="1062" /><di:waypoint x="2660" y="1062" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_flujo_19_di" bpmnElement="P02_flujo_19"><di:waypoint x="2573" y="1194" /><di:waypoint x="2685" y="1194" /><di:waypoint x="2685" y="1087" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_flujo_20_di" bpmnElement="P02_flujo_20"><di:waypoint x="2710" y="1062" /><di:waypoint x="2797" y="1062" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_flujo_21_di" bpmnElement="P02_flujo_21"><di:waypoint x="2929" y="1062" /><di:waypoint x="2975" y="1062" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_flujo_22_di" bpmnElement="P02_flujo_22"><di:waypoint x="3041" y="1020" /><di:waypoint x="3041" y="823" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_flujo_23_di" bpmnElement="P02_flujo_23"><di:waypoint x="3066" y="798" /><di:waypoint x="3153" y="798" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_flujo_24_di" bpmnElement="P02_flujo_24"><di:waypoint x="3285" y="798" /><di:waypoint x="3379" y="798" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_flujo_25_di" bpmnElement="P02_flujo_25"><di:waypoint x="3415" y="478" /><di:waypoint x="3550" y="478" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_flujo_26_di" bpmnElement="P02_flujo_26"><di:waypoint x="3600" y="478" /><di:waypoint x="3687" y="478" /><bpmndi:BPMNLabel><dc:Bounds x="3606" y="458" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_flujo_27_di" bpmnElement="P02_flujo_27"><di:waypoint x="3575" y="503" /><di:waypoint x="3575" y="610" /><di:waypoint x="3687" y="610" /><bpmndi:BPMNLabel><dc:Bounds x="3581" y="511" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_flujo_28_di" bpmnElement="P02_flujo_28"><di:waypoint x="3819" y="610" /><di:waypoint x="3913" y="610" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_flujo_29_di" bpmnElement="P02_flujo_29"><di:waypoint x="3819" y="478" /><di:waypoint x="4043" y="478" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_flujo_30_di" bpmnElement="P02_flujo_30"><di:waypoint x="4175" y="478" /><di:waypoint x="4198" y="478" /><di:waypoint x="4198" y="214" /><di:waypoint x="4221" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_flujo_31_di" bpmnElement="P02_flujo_31"><di:waypoint x="4353" y="214" /><di:waypoint x="4447" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_mensaje_1_di" bpmnElement="P02_mensaje_1"><di:waypoint x="905" y="520" /><di:waypoint x="905" y="704" /><di:waypoint x="1083" y="704" /><di:waypoint x="1083" y="780" /><bpmndi:BPMNLabel><dc:Bounds x="911" y="684" width="81" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_mensaje_2_di" bpmnElement="P02_mensaje_2"><di:waypoint x="1617" y="912" /><di:waypoint x="1617" y="676" /><bpmndi:BPMNLabel><dc:Bounds x="1623" y="696" width="105" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_mensaje_3_di" bpmnElement="P02_mensaje_3"><di:waypoint x="3219" y="756" /><di:waypoint x="3219" y="704" /><di:waypoint x="3397" y="704" /><di:waypoint x="3397" y="496" /><bpmndi:BPMNLabel><dc:Bounds x="3225" y="684" width="56" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_mensaje_4_di" bpmnElement="P02_mensaje_4"><di:waypoint x="3041" y="1020" /><di:waypoint x="3041" y="704" /><di:waypoint x="4109" y="704" /><di:waypoint x="4109" y="520" /><bpmndi:BPMNLabel><dc:Bounds x="3047" y="684" width="167" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_mensaje_5_di" bpmnElement="P02_mensaje_5"><di:waypoint x="4287" y="172" /><di:waypoint x="4287" y="92" /><bpmndi:BPMNLabel><dc:Bounds x="4293" y="112" width="136" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_asoc_nb_di" bpmnElement="P02_asoc_nb"><di:waypoint x="371" y="311" /><di:waypoint x="371" y="256" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P02_asoc_nt_di" bpmnElement="P02_asoc_nt"><di:waypoint x="2151" y="1167" /><di:waypoint x="2151" y="1104" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

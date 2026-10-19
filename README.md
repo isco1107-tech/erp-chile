@@ -157,6 +157,12 @@ El webhook saliente pasa por un guardia SSRF (`src/lib/security/outbound-url.ts`
 
 ---
 
+## Modelo de procesos
+
+`docs/procesos/` modela en BPMN 2.0 cómo una empresa llega, se da de alta (orden de la Supersuite), se pone en marcha y opera: ventas, compras, POS, cierre y F29, remuneraciones, certámenes, sitios web, academia, acceso y automatizaciones. Los `.bpmn` se importan en Bizagi Modeler; `visor.html` los muestra con sus fichas, la puesta en marcha de punta a punta y las brechas encontradas. Se regeneran con `node docs/procesos/generador/generar.mjs`.
+
+---
+
 ## Tareas programadas
 
 Definidas en `vercel.json`, todas autenticadas con `CRON_SECRET`:

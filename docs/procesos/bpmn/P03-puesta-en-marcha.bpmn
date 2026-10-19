@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bioc="http://bpmn.io/schema/bpmn/biocolor/1.0" xmlns:color="http://www.omg.org/spec/BPMN/non-normative/color/1.0" id="P03_definiciones" targetNamespace="https://aetherp.online/procesos" exporter="Aether · generador de procesos" exporterVersion="1.0">
+  <bpmn:collaboration id="P03_colaboracion">
+    <bpmn:documentation>P03 Puesta en marcha de la empresa. Primer ingreso del Dueño, asistente de inicio en cuatro pasos y la carga en paralelo de folios, datos, accesos y contabilidad.</bpmn:documentation>
+    <bpmn:participant id="P03_pool_sii" name="SII"></bpmn:participant>
+    <bpmn:participant id="P03_pool_emp" name="Puesta en marcha en Aether" processRef="P03_proc_emp"></bpmn:participant>
+    <bpmn:messageFlow id="P03_mensaje_1" name="Archivo CAF (folios autorizados)" sourceRef="P03_pool_sii" targetRef="P03_cafd" />
+  </bpmn:collaboration>
+  <bpmn:process id="P03_proc_emp" name="Puesta en marcha en Aether" isExecutable="false">
+    <bpmn:laneSet id="P03_carriles_emp">
+      <bpmn:lane id="P03_carril_due" name="Dueño o Administrador">
+        <bpmn:flowNodeRef>P03_i</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P03_log</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P03_cc</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P03_w1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P03_w2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P03_w3</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P03_w4</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P03_gp</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P03_cafd</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P03_cafs</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P03_imp</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P03_conf</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P03_rol</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P03_pc</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P03_gj</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P03_prueba</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P03_fin</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="P03_carril_sis" name="Sistema Aether">
+        <bpmn:flowNodeRef>P03_forz</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P03_wiz</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P03_vcaf</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P03_inv</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="P03_carril_col" name="Colaborador invitado">
+        <bpmn:flowNodeRef>P03_ace</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="P03_i" name="Recibe correo y clave inicial">
+      <bpmn:outgoing>P03_flujo_1</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:userTask id="P03_log" name="Iniciar sesión">
+      <bpmn:documentation>Detalle del ingreso en P40.</bpmn:documentation>
+      <bpmn:incoming>P03_flujo_1</bpmn:incoming>
+      <bpmn:outgoing>P03_flujo_2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="P03_forz" name="Exigir cambio de la clave inicial">
+      <bpmn:incoming>P03_flujo_2</bpmn:incoming>
+      <bpmn:outgoing>P03_flujo_3</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="P03_cc" name="Elegir su propia clave">
+      <bpmn:incoming>P03_flujo_3</bpmn:incoming>
+      <bpmn:outgoing>P03_flujo_4</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="P03_wiz" name="Abrir el asistente de inicio">
+      <bpmn:incoming>P03_flujo_4</bpmn:incoming>
+      <bpmn:outgoing>P03_flujo_5</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="P03_w1" name="Datos tributarios y tipo de industria">
+      <bpmn:incoming>P03_flujo_5</bpmn:incoming>
+      <bpmn:outgoing>P03_flujo_6</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="P03_w2" name="Bodega principal y caja POS">
+      <bpmn:incoming>P03_flujo_6</bpmn:incoming>
+      <bpmn:outgoing>P03_flujo_7</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="P03_w3" name="Primeros productos del catálogo">
+      <bpmn:incoming>P03_flujo_7</bpmn:incoming>
+      <bpmn:outgoing>P03_flujo_8</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="P03_w4" name="Invitar al equipo con su rol">
+      <bpmn:incoming>P03_flujo_8</bpmn:incoming>
+      <bpmn:outgoing>P03_flujo_9</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="P03_gp" name="">
+      <bpmn:incoming>P03_flujo_9</bpmn:incoming>
+      <bpmn:outgoing>P03_flujo_10</bpmn:outgoing>
+      <bpmn:outgoing>P03_flujo_14</bpmn:outgoing>
+      <bpmn:outgoing>P03_flujo_17</bpmn:outgoing>
+      <bpmn:outgoing>P03_flujo_19</bpmn:outgoing>
+      <bpmn:outgoing>P03_flujo_21</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:manualTask id="P03_cafd" name="Pedir y descargar el CAF en el SII">
+      <bpmn:incoming>P03_flujo_10</bpmn:incoming>
+      <bpmn:outgoing>P03_flujo_11</bpmn:outgoing>
+    </bpmn:manualTask>
+    <bpmn:userTask id="P03_cafs" name="Subir el CAF en Folios">
+      <bpmn:incoming>P03_flujo_11</bpmn:incoming>
+      <bpmn:outgoing>P03_flujo_12</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="P03_vcaf" name="Validar firma del SII y guardar cifrado">
+      <bpmn:incoming>P03_flujo_12</bpmn:incoming>
+      <bpmn:outgoing>P03_flujo_13</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="P03_imp" name="Importar contactos, stock e historial">
+      <bpmn:documentation>Excel o CSV (exceljs + papaparse).</bpmn:documentation>
+      <bpmn:incoming>P03_flujo_14</bpmn:incoming>
+      <bpmn:outgoing>P03_flujo_15</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="P03_conf" name="Revisar la vista previa y confirmar">
+      <bpmn:incoming>P03_flujo_15</bpmn:incoming>
+      <bpmn:outgoing>P03_flujo_16</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="P03_rol" name="Ajustar roles, permisos y menú">
+      <bpmn:documentation>Roles personalizados por empresa y Configuración → Módulos y menú.</bpmn:documentation>
+      <bpmn:incoming>P03_flujo_17</bpmn:incoming>
+      <bpmn:outgoing>P03_flujo_18</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="P03_pc" name="Revisar plan de cuentas y asientos automáticos">
+      <bpmn:documentation>Solo con Contabilidad.</bpmn:documentation>
+      <bpmn:incoming>P03_flujo_19</bpmn:incoming>
+      <bpmn:outgoing>P03_flujo_20</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sendTask id="P03_inv" name="Enviar invitaciones por correo">
+      <bpmn:incoming>P03_flujo_21</bpmn:incoming>
+      <bpmn:outgoing>P03_flujo_22</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:userTask id="P03_ace" name="Aceptar invitación y crear su clave">
+      <bpmn:incoming>P03_flujo_22</bpmn:incoming>
+      <bpmn:outgoing>P03_flujo_23</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="P03_gj" name="">
+      <bpmn:incoming>P03_flujo_13</bpmn:incoming>
+      <bpmn:incoming>P03_flujo_16</bpmn:incoming>
+      <bpmn:incoming>P03_flujo_18</bpmn:incoming>
+      <bpmn:incoming>P03_flujo_20</bpmn:incoming>
+      <bpmn:incoming>P03_flujo_23</bpmn:incoming>
+      <bpmn:outgoing>P03_flujo_24</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="P03_prueba" name="Emitir un primer documento de prueba">
+      <bpmn:incoming>P03_flujo_24</bpmn:incoming>
+      <bpmn:outgoing>P03_flujo_25</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="P03_fin" name="Empresa operando">
+      <bpmn:incoming>P03_flujo_25</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="P03_flujo_1" sourceRef="P03_i" targetRef="P03_log" />
+    <bpmn:sequenceFlow id="P03_flujo_2" sourceRef="P03_log" targetRef="P03_forz" />
+    <bpmn:sequenceFlow id="P03_flujo_3" sourceRef="P03_forz" targetRef="P03_cc" />
+    <bpmn:sequenceFlow id="P03_flujo_4" sourceRef="P03_cc" targetRef="P03_wiz" />
+    <bpmn:sequenceFlow id="P03_flujo_5" sourceRef="P03_wiz" targetRef="P03_w1" />
+    <bpmn:sequenceFlow id="P03_flujo_6" sourceRef="P03_w1" targetRef="P03_w2" />
+    <bpmn:sequenceFlow id="P03_flujo_7" sourceRef="P03_w2" targetRef="P03_w3" />
+    <bpmn:sequenceFlow id="P03_flujo_8" sourceRef="P03_w3" targetRef="P03_w4" />
+    <bpmn:sequenceFlow id="P03_flujo_9" sourceRef="P03_w4" targetRef="P03_gp" />
+    <bpmn:sequenceFlow id="P03_flujo_10" sourceRef="P03_gp" targetRef="P03_cafd" />
+    <bpmn:sequenceFlow id="P03_flujo_11" sourceRef="P03_cafd" targetRef="P03_cafs" />
+    <bpmn:sequenceFlow id="P03_flujo_12" sourceRef="P03_cafs" targetRef="P03_vcaf" />
+    <bpmn:sequenceFlow id="P03_flujo_13" sourceRef="P03_vcaf" targetRef="P03_gj" />
+    <bpmn:sequenceFlow id="P03_flujo_14" sourceRef="P03_gp" targetRef="P03_imp" />
+    <bpmn:sequenceFlow id="P03_flujo_15" sourceRef="P03_imp" targetRef="P03_conf" />
+    <bpmn:sequenceFlow id="P03_flujo_16" sourceRef="P03_conf" targetRef="P03_gj" />
+    <bpmn:sequenceFlow id="P03_flujo_17" sourceRef="P03_gp" targetRef="P03_rol" />
+    <bpmn:sequenceFlow id="P03_flujo_18" sourceRef="P03_rol" targetRef="P03_gj" />
+    <bpmn:sequenceFlow id="P03_flujo_19" sourceRef="P03_gp" targetRef="P03_pc" />
+    <bpmn:sequenceFlow id="P03_flujo_20" sourceRef="P03_pc" targetRef="P03_gj" />
+    <bpmn:sequenceFlow id="P03_flujo_21" sourceRef="P03_gp" targetRef="P03_inv" />
+    <bpmn:sequenceFlow id="P03_flujo_22" sourceRef="P03_inv" targetRef="P03_ace" />
+    <bpmn:sequenceFlow id="P03_flujo_23" sourceRef="P03_ace" targetRef="P03_gj" />
+    <bpmn:sequenceFlow id="P03_flujo_24" sourceRef="P03_gj" targetRef="P03_prueba" />
+    <bpmn:sequenceFlow id="P03_flujo_25" sourceRef="P03_prueba" targetRef="P03_fin" />
+    <bpmn:textAnnotation id="P03_nota_n1"><bpmn:text>Aparece con ≤ 1 bodega, 0 productos y 0 invitaciones. Cada paso se puede omitir.</bpmn:text></bpmn:textAnnotation>
+    <bpmn:association id="P03_asoc_n1" associationDirection="None" sourceRef="P03_nota_n1" targetRef="P03_wiz" />
+    <bpmn:textAnnotation id="P03_nota_n2"><bpmn:text>Sin CAF se emite con numeración interna: sin timbre ni validez tributaria.</bpmn:text></bpmn:textAnnotation>
+    <bpmn:association id="P03_asoc_n2" associationDirection="None" sourceRef="P03_nota_n2" targetRef="P03_vcaf" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="P03_diagrama" name="P03 Puesta en marcha de la empresa">
+    <bpmndi:BPMNPlane id="P03_plano" bpmnElement="P03_colaboracion">
+      <bpmndi:BPMNShape id="P03_pool_sii_di" bpmnElement="P03_pool_sii" isHorizontal="true" bioc:stroke="#5f6368" bioc:fill="#f6f6f6" color:border-color="#5f6368" color:background-color="#f6f6f6"><dc:Bounds x="20" y="20" width="2956" height="72" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P03_pool_emp_di" bpmnElement="P03_pool_emp" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="20" y="148" width="2956" height="924" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P03_carril_due_di" bpmnElement="P03_carril_due" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="148" width="2926" height="528" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P03_carril_sis_di" bpmnElement="P03_carril_sis" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="676" width="2926" height="264" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P03_carril_col_di" bpmnElement="P03_carril_col" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="940" width="2926" height="132" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P03_i_di" bpmnElement="P03_i" bioc:stroke="#2e7d32" bioc:fill="#e3f3e5" color:border-color="#2e7d32" color:background-color="#e3f3e5"><dc:Bounds x="175" y="196" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="133" y="238" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P03_log_di" bpmnElement="P03_log" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="305" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P03_forz_di" bpmnElement="P03_forz" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="483" y="700" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P03_cc_di" bpmnElement="P03_cc" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="661" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P03_wiz_di" bpmnElement="P03_wiz" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="839" y="700" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P03_w1_di" bpmnElement="P03_w1" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1017" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P03_w2_di" bpmnElement="P03_w2" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1195" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P03_w3_di" bpmnElement="P03_w3" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1373" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P03_w4_di" bpmnElement="P03_w4" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1551" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P03_gp_di" bpmnElement="P03_gp" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="1770" y="189" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P03_cafd_di" bpmnElement="P03_cafd" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1907" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P03_cafs_di" bpmnElement="P03_cafs" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="2085" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P03_vcaf_di" bpmnElement="P03_vcaf" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="2263" y="700" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P03_imp_di" bpmnElement="P03_imp" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1907" y="304" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P03_conf_di" bpmnElement="P03_conf" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="2085" y="304" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P03_rol_di" bpmnElement="P03_rol" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1907" y="436" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P03_pc_di" bpmnElement="P03_pc" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1907" y="568" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P03_inv_di" bpmnElement="P03_inv" bioc:stroke="#5b3a9e" bioc:fill="#efe9fa" color:border-color="#5b3a9e" color:background-color="#efe9fa"><dc:Bounds x="1907" y="832" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P03_ace_di" bpmnElement="P03_ace" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="2085" y="964" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P03_gj_di" bpmnElement="P03_gj" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="2482" y="189" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P03_prueba_di" bpmnElement="P03_prueba" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="2619" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P03_fin_di" bpmnElement="P03_fin" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="2845" y="196" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2803" y="238" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P03_nota_n1_di" bpmnElement="P03_nota_n1"><dc:Bounds x="999" y="839" width="168" height="70" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P03_nota_n2_di" bpmnElement="P03_nota_n2"><dc:Bounds x="2245" y="575" width="168" height="70" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="P03_flujo_1_di" bpmnElement="P03_flujo_1"><di:waypoint x="211" y="214" /><di:waypoint x="305" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P03_flujo_2_di" bpmnElement="P03_flujo_2"><di:waypoint x="437" y="214" /><di:waypoint x="460" y="214" /><di:waypoint x="460" y="742" /><di:waypoint x="483" y="742" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P03_flujo_3_di" bpmnElement="P03_flujo_3"><di:waypoint x="615" y="742" /><di:waypoint x="638" y="742" /><di:waypoint x="638" y="214" /><di:waypoint x="661" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P03_flujo_4_di" bpmnElement="P03_flujo_4"><di:waypoint x="793" y="214" /><di:waypoint x="816" y="214" /><di:waypoint x="816" y="742" /><di:waypoint x="839" y="742" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P03_flujo_5_di" bpmnElement="P03_flujo_5"><di:waypoint x="971" y="742" /><di:waypoint x="994" y="742" /><di:waypoint x="994" y="214" /><di:waypoint x="1017" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P03_flujo_6_di" bpmnElement="P03_flujo_6"><di:waypoint x="1149" y="214" /><di:waypoint x="1195" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P03_flujo_7_di" bpmnElement="P03_flujo_7"><di:waypoint x="1327" y="214" /><di:waypoint x="1373" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P03_flujo_8_di" bpmnElement="P03_flujo_8"><di:waypoint x="1505" y="214" /><di:waypoint x="1551" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P03_flujo_9_di" bpmnElement="P03_flujo_9"><di:waypoint x="1683" y="214" /><di:waypoint x="1770" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P03_flujo_10_di" bpmnElement="P03_flujo_10"><di:waypoint x="1820" y="214" /><di:waypoint x="1907" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P03_flujo_11_di" bpmnElement="P03_flujo_11"><di:waypoint x="2039" y="214" /><di:waypoint x="2085" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P03_flujo_12_di" bpmnElement="P03_flujo_12"><di:waypoint x="2217" y="214" /><di:waypoint x="2240" y="214" /><di:waypoint x="2240" y="742" /><di:waypoint x="2263" y="742" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P03_flujo_13_di" bpmnElement="P03_flujo_13"><di:waypoint x="2395" y="742" /><di:waypoint x="2507" y="742" /><di:waypoint x="2507" y="239" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P03_flujo_14_di" bpmnElement="P03_flujo_14"><di:waypoint x="1795" y="239" /><di:waypoint x="1795" y="346" /><di:waypoint x="1907" y="346" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P03_flujo_15_di" bpmnElement="P03_flujo_15"><di:waypoint x="2039" y="346" /><di:waypoint x="2085" y="346" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P03_flujo_16_di" bpmnElement="P03_flujo_16"><di:waypoint x="2217" y="346" /><di:waypoint x="2507" y="346" /><di:waypoint x="2507" y="239" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P03_flujo_17_di" bpmnElement="P03_flujo_17"><di:waypoint x="1795" y="239" /><di:waypoint x="1795" y="478" /><di:waypoint x="1907" y="478" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P03_flujo_18_di" bpmnElement="P03_flujo_18"><di:waypoint x="2039" y="478" /><di:waypoint x="2507" y="478" /><di:waypoint x="2507" y="239" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P03_flujo_19_di" bpmnElement="P03_flujo_19"><di:waypoint x="1795" y="239" /><di:waypoint x="1795" y="610" /><di:waypoint x="1907" y="610" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P03_flujo_20_di" bpmnElement="P03_flujo_20"><di:waypoint x="2039" y="610" /><di:waypoint x="2507" y="610" /><di:waypoint x="2507" y="239" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P03_flujo_21_di" bpmnElement="P03_flujo_21"><di:waypoint x="1795" y="239" /><di:waypoint x="1795" y="874" /><di:waypoint x="1907" y="874" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P03_flujo_22_di" bpmnElement="P03_flujo_22"><di:waypoint x="2039" y="874" /><di:waypoint x="2062" y="874" /><di:waypoint x="2062" y="1006" /><di:waypoint x="2085" y="1006" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P03_flujo_23_di" bpmnElement="P03_flujo_23"><di:waypoint x="2217" y="1006" /><di:waypoint x="2507" y="1006" /><di:waypoint x="2507" y="239" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P03_flujo_24_di" bpmnElement="P03_flujo_24"><di:waypoint x="2532" y="214" /><di:waypoint x="2619" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P03_flujo_25_di" bpmnElement="P03_flujo_25"><di:waypoint x="2751" y="214" /><di:waypoint x="2845" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P03_mensaje_1_di" bpmnElement="P03_mensaje_1"><di:waypoint x="1973" y="92" /><di:waypoint x="1973" y="172" /><bpmndi:BPMNLabel><dc:Bounds x="1979" y="112" width="198" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P03_asoc_n1_di" bpmnElement="P03_asoc_n1"><di:waypoint x="1083" y="839" /><di:waypoint x="905" y="784" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P03_asoc_n2_di" bpmnElement="P03_asoc_n2"><di:waypoint x="2329" y="645" /><di:waypoint x="2329" y="700" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

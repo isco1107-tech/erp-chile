@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bioc="http://bpmn.io/schema/bpmn/biocolor/1.0" xmlns:color="http://www.omg.org/spec/BPMN/non-normative/color/1.0" id="P22_definiciones" targetNamespace="https://aetherp.online/procesos" exporter="Aether · generador de procesos" exporterVersion="1.0">
+  <bpmn:collaboration id="P22_colaboracion">
+    <bpmn:documentation>P22 Auspicios. De la propuesta con un paquete del tarifario al convenio firmado, los pagos y el cumplimiento de contraprestaciones.</bpmn:documentation>
+    <bpmn:participant id="P22_pool_spo" name="Auspiciador"></bpmn:participant>
+    <bpmn:participant id="P22_pool_ae" name="Aether ERP" processRef="P22_proc_ae"></bpmn:participant>
+    <bpmn:messageFlow id="P22_mensaje_1" name="Interés" sourceRef="P22_pool_spo" targetRef="P22_i" />
+    <bpmn:messageFlow id="P22_mensaje_2" name="Propuesta" sourceRef="P22_ofr" targetRef="P22_pool_spo" />
+    <bpmn:messageFlow id="P22_mensaje_3" name="Convenio para firmar" sourceRef="P22_fir" targetRef="P22_pool_spo" />
+    <bpmn:messageFlow id="P22_mensaje_4" name="Pago" sourceRef="P22_pool_spo" targetRef="P22_cob" />
+  </bpmn:collaboration>
+  <bpmn:process id="P22_proc_ae" name="Aether ERP" isExecutable="false">
+    <bpmn:laneSet id="P22_carriles_ae">
+      <bpmn:lane id="P22_carril_com" name="Comercial del certamen">
+        <bpmn:flowNodeRef>P22_i</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P22_ofr</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P22_neg</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P22_gd</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P22_can</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P22_fcan</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P22_conf</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P22_fir</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P22_cob</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P22_cer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P22_fin</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="P22_carril_sis" name="Sistema Aether">
+        <bpmn:flowNodeRef>P22_prop</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P22_pdf</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P22_est</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P22_gp</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="P22_carril_prod" name="Producción">
+        <bpmn:flowNodeRef>P22_cump</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="P22_i" name="Interés de una marca">
+      <bpmn:outgoing>P22_flujo_1</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:userTask id="P22_ofr" name="Ofrecer un paquete del tarifario del certamen">
+      <bpmn:incoming>P22_flujo_1</bpmn:incoming>
+      <bpmn:outgoing>P22_flujo_2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="P22_prop" name="Registrar el contrato en PROPOSAL">
+      <bpmn:incoming>P22_flujo_2</bpmn:incoming>
+      <bpmn:outgoing>P22_flujo_3</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="P22_neg" name="Negociar monto y contraprestaciones">
+      <bpmn:incoming>P22_flujo_3</bpmn:incoming>
+      <bpmn:outgoing>P22_flujo_4</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="P22_gd" name="¿Acepta?">
+      <bpmn:incoming>P22_flujo_4</bpmn:incoming>
+      <bpmn:outgoing>P22_flujo_5</bpmn:outgoing>
+      <bpmn:outgoing>P22_flujo_6</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="P22_can" name="Cancelar la propuesta">
+      <bpmn:incoming>P22_flujo_6</bpmn:incoming>
+      <bpmn:outgoing>P22_flujo_7</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="P22_fcan" name="Sin acuerdo">
+      <bpmn:incoming>P22_flujo_7</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="P22_conf" name="Confirmar el auspicio (CONFIRMED)">
+      <bpmn:incoming>P22_flujo_5</bpmn:incoming>
+      <bpmn:outgoing>P22_flujo_8</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="P22_pdf" name="Generar el convenio en PDF">
+      <bpmn:incoming>P22_flujo_8</bpmn:incoming>
+      <bpmn:outgoing>P22_flujo_9</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="P22_fir" name="Enviar el convenio y registrar la firma">
+      <bpmn:incoming>P22_flujo_9</bpmn:incoming>
+      <bpmn:outgoing>P22_flujo_10</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="P22_cob" name="Registrar un pago del auspicio">
+      <bpmn:incoming>P22_flujo_10</bpmn:incoming>
+      <bpmn:incoming>P22_flujo_13</bpmn:incoming>
+      <bpmn:outgoing>P22_flujo_11</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="P22_est" name="Recalcular el estado de pago">
+      <bpmn:incoming>P22_flujo_11</bpmn:incoming>
+      <bpmn:outgoing>P22_flujo_12</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="P22_gp" name="¿Pagado completo?">
+      <bpmn:incoming>P22_flujo_12</bpmn:incoming>
+      <bpmn:outgoing>P22_flujo_13</bpmn:outgoing>
+      <bpmn:outgoing>P22_flujo_14</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="P22_cump" name="Cumplir contraprestaciones: logos, menciones y presencia">
+      <bpmn:incoming>P22_flujo_14</bpmn:incoming>
+      <bpmn:outgoing>P22_flujo_15</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="P22_cer" name="Cerrar el auspicio (COMPLETED)">
+      <bpmn:incoming>P22_flujo_15</bpmn:incoming>
+      <bpmn:outgoing>P22_flujo_16</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="P22_fin" name="Auspicio cumplido">
+      <bpmn:incoming>P22_flujo_16</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="P22_flujo_1" sourceRef="P22_i" targetRef="P22_ofr" />
+    <bpmn:sequenceFlow id="P22_flujo_2" sourceRef="P22_ofr" targetRef="P22_prop" />
+    <bpmn:sequenceFlow id="P22_flujo_3" sourceRef="P22_prop" targetRef="P22_neg" />
+    <bpmn:sequenceFlow id="P22_flujo_4" sourceRef="P22_neg" targetRef="P22_gd" />
+    <bpmn:sequenceFlow id="P22_flujo_5" name="Sí" sourceRef="P22_gd" targetRef="P22_conf" />
+    <bpmn:sequenceFlow id="P22_flujo_6" name="No" sourceRef="P22_gd" targetRef="P22_can" />
+    <bpmn:sequenceFlow id="P22_flujo_7" sourceRef="P22_can" targetRef="P22_fcan" />
+    <bpmn:sequenceFlow id="P22_flujo_8" sourceRef="P22_conf" targetRef="P22_pdf" />
+    <bpmn:sequenceFlow id="P22_flujo_9" sourceRef="P22_pdf" targetRef="P22_fir" />
+    <bpmn:sequenceFlow id="P22_flujo_10" sourceRef="P22_fir" targetRef="P22_cob" />
+    <bpmn:sequenceFlow id="P22_flujo_11" sourceRef="P22_cob" targetRef="P22_est" />
+    <bpmn:sequenceFlow id="P22_flujo_12" sourceRef="P22_est" targetRef="P22_gp" />
+    <bpmn:sequenceFlow id="P22_flujo_13" name="No: esperar el siguiente pago" sourceRef="P22_gp" targetRef="P22_cob" />
+    <bpmn:sequenceFlow id="P22_flujo_14" name="Sí" sourceRef="P22_gp" targetRef="P22_cump" />
+    <bpmn:sequenceFlow id="P22_flujo_15" sourceRef="P22_cump" targetRef="P22_cer" />
+    <bpmn:sequenceFlow id="P22_flujo_16" sourceRef="P22_cer" targetRef="P22_fin" />
+    <bpmn:textAnnotation id="P22_nota_n1"><bpmn:text>Un plan sin certamen es plantilla: no se publica ni se ofrece hasta copiarlo a un certamen.</bpmn:text></bpmn:textAnnotation>
+    <bpmn:association id="P22_asoc_n1" associationDirection="None" sourceRef="P22_nota_n1" targetRef="P22_ofr" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="P22_diagrama" name="P22 Auspicios">
+    <bpmndi:BPMNPlane id="P22_plano" bpmnElement="P22_colaboracion">
+      <bpmndi:BPMNShape id="P22_pool_spo_di" bpmnElement="P22_pool_spo" isHorizontal="true" bioc:stroke="#5f6368" bioc:fill="#f6f6f6" color:border-color="#5f6368" color:background-color="#f6f6f6"><dc:Bounds x="20" y="20" width="2600" height="72" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P22_pool_ae_di" bpmnElement="P22_pool_ae" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="20" y="148" width="2600" height="660" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P22_carril_com_di" bpmnElement="P22_carril_com" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="148" width="2570" height="264" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P22_carril_sis_di" bpmnElement="P22_carril_sis" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="412" width="2570" height="264" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P22_carril_prod_di" bpmnElement="P22_carril_prod" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="676" width="2570" height="132" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P22_i_di" bpmnElement="P22_i" bioc:stroke="#2e7d32" bioc:fill="#e3f3e5" color:border-color="#2e7d32" color:background-color="#e3f3e5"><dc:Bounds x="175" y="196" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="133" y="238" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P22_ofr_di" bpmnElement="P22_ofr" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="305" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P22_prop_di" bpmnElement="P22_prop" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="483" y="436" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P22_neg_di" bpmnElement="P22_neg" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="661" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P22_gd_di" bpmnElement="P22_gd" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="880" y="189" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="841" y="169" width="128" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P22_can_di" bpmnElement="P22_can" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1017" y="304" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P22_fcan_di" bpmnElement="P22_fcan" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="1243" y="328" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1201" y="370" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P22_conf_di" bpmnElement="P22_conf" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1017" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P22_pdf_di" bpmnElement="P22_pdf" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="1195" y="436" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P22_fir_di" bpmnElement="P22_fir" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1373" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P22_cob_di" bpmnElement="P22_cob" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1551" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P22_est_di" bpmnElement="P22_est" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="1729" y="436" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P22_gp_di" bpmnElement="P22_gp" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="1948" y="453" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="1981" y="433" width="128" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P22_cump_di" bpmnElement="P22_cump" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="2085" y="700" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P22_cer_di" bpmnElement="P22_cer" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="2263" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P22_fin_di" bpmnElement="P22_fin" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="2489" y="196" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2447" y="238" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P22_nota_n1_di" bpmnElement="P22_nota_n1"><dc:Bounds x="287" y="575" width="168" height="70" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="P22_flujo_1_di" bpmnElement="P22_flujo_1"><di:waypoint x="211" y="214" /><di:waypoint x="305" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P22_flujo_2_di" bpmnElement="P22_flujo_2"><di:waypoint x="437" y="214" /><di:waypoint x="460" y="214" /><di:waypoint x="460" y="478" /><di:waypoint x="483" y="478" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P22_flujo_3_di" bpmnElement="P22_flujo_3"><di:waypoint x="615" y="478" /><di:waypoint x="638" y="478" /><di:waypoint x="638" y="214" /><di:waypoint x="661" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P22_flujo_4_di" bpmnElement="P22_flujo_4"><di:waypoint x="793" y="214" /><di:waypoint x="880" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P22_flujo_5_di" bpmnElement="P22_flujo_5"><di:waypoint x="930" y="214" /><di:waypoint x="1017" y="214" /><bpmndi:BPMNLabel><dc:Bounds x="936" y="194" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P22_flujo_6_di" bpmnElement="P22_flujo_6"><di:waypoint x="905" y="239" /><di:waypoint x="905" y="346" /><di:waypoint x="1017" y="346" /><bpmndi:BPMNLabel><dc:Bounds x="911" y="247" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P22_flujo_7_di" bpmnElement="P22_flujo_7"><di:waypoint x="1149" y="346" /><di:waypoint x="1243" y="346" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P22_flujo_8_di" bpmnElement="P22_flujo_8"><di:waypoint x="1149" y="214" /><di:waypoint x="1172" y="214" /><di:waypoint x="1172" y="478" /><di:waypoint x="1195" y="478" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P22_flujo_9_di" bpmnElement="P22_flujo_9"><di:waypoint x="1327" y="478" /><di:waypoint x="1350" y="478" /><di:waypoint x="1350" y="214" /><di:waypoint x="1373" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P22_flujo_10_di" bpmnElement="P22_flujo_10"><di:waypoint x="1505" y="214" /><di:waypoint x="1551" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P22_flujo_11_di" bpmnElement="P22_flujo_11"><di:waypoint x="1683" y="214" /><di:waypoint x="1706" y="214" /><di:waypoint x="1706" y="478" /><di:waypoint x="1729" y="478" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P22_flujo_12_di" bpmnElement="P22_flujo_12"><di:waypoint x="1861" y="478" /><di:waypoint x="1948" y="478" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P22_flujo_13_di" bpmnElement="P22_flujo_13"><di:waypoint x="1973" y="453" /><di:waypoint x="1973" y="214" /><di:waypoint x="1683" y="214" /><bpmndi:BPMNLabel><dc:Bounds x="1979" y="220" width="186" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P22_flujo_14_di" bpmnElement="P22_flujo_14"><di:waypoint x="1973" y="503" /><di:waypoint x="1973" y="742" /><di:waypoint x="2085" y="742" /><bpmndi:BPMNLabel><dc:Bounds x="1979" y="511" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P22_flujo_15_di" bpmnElement="P22_flujo_15"><di:waypoint x="2217" y="742" /><di:waypoint x="2240" y="742" /><di:waypoint x="2240" y="214" /><di:waypoint x="2263" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P22_flujo_16_di" bpmnElement="P22_flujo_16"><di:waypoint x="2395" y="214" /><di:waypoint x="2489" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P22_mensaje_1_di" bpmnElement="P22_mensaje_1"><di:waypoint x="193" y="92" /><di:waypoint x="193" y="196" /><bpmndi:BPMNLabel><dc:Bounds x="199" y="112" width="43" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P22_mensaje_2_di" bpmnElement="P22_mensaje_2"><di:waypoint x="371" y="172" /><di:waypoint x="371" y="92" /><bpmndi:BPMNLabel><dc:Bounds x="377" y="112" width="56" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P22_mensaje_3_di" bpmnElement="P22_mensaje_3"><di:waypoint x="1439" y="172" /><di:waypoint x="1439" y="92" /><bpmndi:BPMNLabel><dc:Bounds x="1445" y="112" width="124" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P22_mensaje_4_di" bpmnElement="P22_mensaje_4"><di:waypoint x="1617" y="92" /><di:waypoint x="1617" y="172" /><bpmndi:BPMNLabel><dc:Bounds x="1623" y="112" width="40" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P22_asoc_n1_di" bpmnElement="P22_asoc_n1"><di:waypoint x="371" y="575" /><di:waypoint x="371" y="256" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

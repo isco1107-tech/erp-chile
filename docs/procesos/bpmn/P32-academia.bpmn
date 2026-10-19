@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bioc="http://bpmn.io/schema/bpmn/biocolor/1.0" xmlns:color="http://www.omg.org/spec/BPMN/non-normative/color/1.0" id="P32_definiciones" targetNamespace="https://aetherp.online/procesos" exporter="Aether · generador de procesos" exporterVersion="1.0">
+  <bpmn:collaboration id="P32_colaboracion">
+    <bpmn:documentation>P32 Academia: inscripción, clases y material. Inscripción por link público, aprobación, grupo, calendario semanal, lista de asistencia, material por correo y mensualidades.</bpmn:documentation>
+    <bpmn:participant id="P32_pool_apod" name="Apoderada o alumna"></bpmn:participant>
+    <bpmn:participant id="P32_pool_ae" name="Aether ERP" processRef="P32_proc_ae"></bpmn:participant>
+    <bpmn:messageFlow id="P32_mensaje_1" name="Formulario de inscripción" sourceRef="P32_pool_apod" targetRef="P32_i" />
+    <bpmn:messageFlow id="P32_mensaje_2" name="Correo con botón de descarga" sourceRef="P32_res" targetRef="P32_pool_apod" />
+  </bpmn:collaboration>
+  <bpmn:process id="P32_proc_ae" name="Aether ERP" isExecutable="false">
+    <bpmn:laneSet id="P32_carriles_ae">
+      <bpmn:lane id="P32_carril_dir" name="Dirección de la academia">
+        <bpmn:flowNodeRef>P32_rev</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P32_gd</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P32_rj</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P32_alu</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P32_cal</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P32_mens</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P32_fin</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="P32_carril_sis" name="Sistema Aether">
+        <bpmn:flowNodeRef>P32_i</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P32_val</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P32_ses</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P32_res</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="P32_carril_prof" name="Profesora">
+        <bpmn:flowNodeRef>P32_tc</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P32_lis</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P32_mat</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P32_env</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="P32_i" name="Inscripción por el link público">
+      <bpmn:outgoing>P32_flujo_1</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="P32_val" name="Validar y crear la solicitud PENDING">
+      <bpmn:incoming>P32_flujo_1</bpmn:incoming>
+      <bpmn:outgoing>P32_flujo_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="P32_rev" name="Revisar la solicitud">
+      <bpmn:incoming>P32_flujo_2</bpmn:incoming>
+      <bpmn:outgoing>P32_flujo_3</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="P32_gd" name="¿Aprueba?">
+      <bpmn:incoming>P32_flujo_3</bpmn:incoming>
+      <bpmn:outgoing>P32_flujo_4</bpmn:outgoing>
+      <bpmn:outgoing>P32_flujo_5</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="P32_rj" name="Solicitud rechazada">
+      <bpmn:incoming>P32_flujo_5</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="P32_alu" name="Crear la ficha de la alumna y asignarle un grupo">
+      <bpmn:incoming>P32_flujo_4</bpmn:incoming>
+      <bpmn:outgoing>P32_flujo_6</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="P32_cal" name="Programar clases: serie semanal (hasta 60)">
+      <bpmn:incoming>P32_flujo_6</bpmn:incoming>
+      <bpmn:outgoing>P32_flujo_7</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="P32_ses" name="Crear las clases: una por grupo y día">
+      <bpmn:incoming>P32_flujo_7</bpmn:incoming>
+      <bpmn:outgoing>P32_flujo_8</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateCatchEvent id="P32_tc" name="Día de la clase">
+      <bpmn:incoming>P32_flujo_8</bpmn:incoming>
+      <bpmn:outgoing>P32_flujo_9</bpmn:outgoing>
+      <bpmn:timerEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:userTask id="P32_lis" name="Pasar lista">
+      <bpmn:incoming>P32_flujo_9</bpmn:incoming>
+      <bpmn:outgoing>P32_flujo_10</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="P32_mat" name="Subir material: archivo de hasta 4 MB o enlace">
+      <bpmn:incoming>P32_flujo_10</bpmn:incoming>
+      <bpmn:outgoing>P32_flujo_11</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="P32_env" name="Enviar el material al grupo">
+      <bpmn:incoming>P32_flujo_11</bpmn:incoming>
+      <bpmn:outgoing>P32_flujo_12</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="P32_res" name="Reservar el envío y mandarlo sin repetir direcciones">
+      <bpmn:incoming>P32_flujo_12</bpmn:incoming>
+      <bpmn:outgoing>P32_flujo_13</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="P32_mens" name="Registrar las mensualidades pagadas">
+      <bpmn:incoming>P32_flujo_13</bpmn:incoming>
+      <bpmn:outgoing>P32_flujo_14</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="P32_fin" name="Mes de clases al día">
+      <bpmn:incoming>P32_flujo_14</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="P32_flujo_1" sourceRef="P32_i" targetRef="P32_val" />
+    <bpmn:sequenceFlow id="P32_flujo_2" sourceRef="P32_val" targetRef="P32_rev" />
+    <bpmn:sequenceFlow id="P32_flujo_3" sourceRef="P32_rev" targetRef="P32_gd" />
+    <bpmn:sequenceFlow id="P32_flujo_4" name="Sí" sourceRef="P32_gd" targetRef="P32_alu" />
+    <bpmn:sequenceFlow id="P32_flujo_5" name="No" sourceRef="P32_gd" targetRef="P32_rj" />
+    <bpmn:sequenceFlow id="P32_flujo_6" sourceRef="P32_alu" targetRef="P32_cal" />
+    <bpmn:sequenceFlow id="P32_flujo_7" sourceRef="P32_cal" targetRef="P32_ses" />
+    <bpmn:sequenceFlow id="P32_flujo_8" sourceRef="P32_ses" targetRef="P32_tc" />
+    <bpmn:sequenceFlow id="P32_flujo_9" sourceRef="P32_tc" targetRef="P32_lis" />
+    <bpmn:sequenceFlow id="P32_flujo_10" sourceRef="P32_lis" targetRef="P32_mat" />
+    <bpmn:sequenceFlow id="P32_flujo_11" sourceRef="P32_mat" targetRef="P32_env" />
+    <bpmn:sequenceFlow id="P32_flujo_12" sourceRef="P32_env" targetRef="P32_res" />
+    <bpmn:sequenceFlow id="P32_flujo_13" sourceRef="P32_res" targetRef="P32_mens" />
+    <bpmn:sequenceFlow id="P32_flujo_14" sourceRef="P32_mens" targetRef="P32_fin" />
+    <bpmn:textAnnotation id="P32_nota_n1"><bpmn:text>Los días se guardan como YYYY-MM-DD a las 12:00 UTC; &quot;hoy&quot; lo manda el navegador.</bpmn:text></bpmn:textAnnotation>
+    <bpmn:association id="P32_asoc_n1" associationDirection="None" sourceRef="P32_nota_n1" targetRef="P32_lis" />
+    <bpmn:textAnnotation id="P32_nota_n2"><bpmn:text>El sitio público de la academia nunca muestra RUT, contactos, asistencia ni pagos.</bpmn:text></bpmn:textAnnotation>
+    <bpmn:textAnnotation id="P32_nota_n3"><bpmn:text>Una clase cancelada no admite lista; borrar una clase no borra la asistencia.</bpmn:text></bpmn:textAnnotation>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="P32_diagrama" name="P32 Academia: inscripción, clases y material">
+    <bpmndi:BPMNPlane id="P32_plano" bpmnElement="P32_colaboracion">
+      <bpmndi:BPMNShape id="P32_pool_apod_di" bpmnElement="P32_pool_apod" isHorizontal="true" bioc:stroke="#5f6368" bioc:fill="#f6f6f6" color:border-color="#5f6368" color:background-color="#f6f6f6"><dc:Bounds x="20" y="20" width="2600" height="72" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P32_pool_ae_di" bpmnElement="P32_pool_ae" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="20" y="148" width="2600" height="792" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P32_carril_dir_di" bpmnElement="P32_carril_dir" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="148" width="2570" height="264" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P32_carril_sis_di" bpmnElement="P32_carril_sis" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="412" width="2570" height="264" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P32_carril_prof_di" bpmnElement="P32_carril_prof" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="676" width="2570" height="264" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P32_i_di" bpmnElement="P32_i" bioc:stroke="#2e7d32" bioc:fill="#e3f3e5" color:border-color="#2e7d32" color:background-color="#e3f3e5"><dc:Bounds x="175" y="460" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="133" y="502" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P32_val_di" bpmnElement="P32_val" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="305" y="436" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P32_rev_di" bpmnElement="P32_rev" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="483" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P32_gd_di" bpmnElement="P32_gd" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="702" y="189" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="663" y="169" width="128" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P32_rj_di" bpmnElement="P32_rj" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="887" y="328" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="845" y="370" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P32_alu_di" bpmnElement="P32_alu" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="839" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P32_cal_di" bpmnElement="P32_cal" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1017" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P32_ses_di" bpmnElement="P32_ses" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="1195" y="436" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P32_tc_di" bpmnElement="P32_tc" bioc:stroke="#9a5b00" bioc:fill="#fff4dc" color:border-color="#9a5b00" color:background-color="#fff4dc"><dc:Bounds x="1421" y="724" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1379" y="766" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P32_lis_di" bpmnElement="P32_lis" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1551" y="700" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P32_mat_di" bpmnElement="P32_mat" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1729" y="700" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P32_env_di" bpmnElement="P32_env" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1907" y="700" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P32_res_di" bpmnElement="P32_res" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="2085" y="436" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P32_mens_di" bpmnElement="P32_mens" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="2263" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P32_fin_di" bpmnElement="P32_fin" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="2489" y="196" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2447" y="238" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P32_nota_n1_di" bpmnElement="P32_nota_n1"><dc:Bounds x="1533" y="839" width="168" height="70" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P32_nota_n2_di" bpmnElement="P32_nota_n2"><dc:Bounds x="465" y="575" width="168" height="70" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P32_nota_n3_di" bpmnElement="P32_nota_n3"><dc:Bounds x="1622" y="575" width="168" height="70" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="P32_flujo_1_di" bpmnElement="P32_flujo_1"><di:waypoint x="211" y="478" /><di:waypoint x="305" y="478" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P32_flujo_2_di" bpmnElement="P32_flujo_2"><di:waypoint x="437" y="478" /><di:waypoint x="460" y="478" /><di:waypoint x="460" y="214" /><di:waypoint x="483" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P32_flujo_3_di" bpmnElement="P32_flujo_3"><di:waypoint x="615" y="214" /><di:waypoint x="702" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P32_flujo_4_di" bpmnElement="P32_flujo_4"><di:waypoint x="752" y="214" /><di:waypoint x="839" y="214" /><bpmndi:BPMNLabel><dc:Bounds x="758" y="194" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P32_flujo_5_di" bpmnElement="P32_flujo_5"><di:waypoint x="727" y="239" /><di:waypoint x="727" y="346" /><di:waypoint x="887" y="346" /><bpmndi:BPMNLabel><dc:Bounds x="733" y="247" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P32_flujo_6_di" bpmnElement="P32_flujo_6"><di:waypoint x="971" y="214" /><di:waypoint x="1017" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P32_flujo_7_di" bpmnElement="P32_flujo_7"><di:waypoint x="1149" y="214" /><di:waypoint x="1172" y="214" /><di:waypoint x="1172" y="478" /><di:waypoint x="1195" y="478" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P32_flujo_8_di" bpmnElement="P32_flujo_8"><di:waypoint x="1327" y="478" /><di:waypoint x="1355" y="478" /><di:waypoint x="1355" y="742" /><di:waypoint x="1421" y="742" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P32_flujo_9_di" bpmnElement="P32_flujo_9"><di:waypoint x="1457" y="742" /><di:waypoint x="1551" y="742" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P32_flujo_10_di" bpmnElement="P32_flujo_10"><di:waypoint x="1683" y="742" /><di:waypoint x="1729" y="742" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P32_flujo_11_di" bpmnElement="P32_flujo_11"><di:waypoint x="1861" y="742" /><di:waypoint x="1907" y="742" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P32_flujo_12_di" bpmnElement="P32_flujo_12"><di:waypoint x="2039" y="742" /><di:waypoint x="2062" y="742" /><di:waypoint x="2062" y="478" /><di:waypoint x="2085" y="478" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P32_flujo_13_di" bpmnElement="P32_flujo_13"><di:waypoint x="2217" y="478" /><di:waypoint x="2240" y="478" /><di:waypoint x="2240" y="214" /><di:waypoint x="2263" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P32_flujo_14_di" bpmnElement="P32_flujo_14"><di:waypoint x="2395" y="214" /><di:waypoint x="2489" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P32_mensaje_1_di" bpmnElement="P32_mensaje_1"><di:waypoint x="193" y="92" /><di:waypoint x="193" y="460" /><bpmndi:BPMNLabel><dc:Bounds x="199" y="112" width="155" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P32_mensaje_2_di" bpmnElement="P32_mensaje_2"><di:waypoint x="2151" y="436" /><di:waypoint x="2151" y="92" /><bpmndi:BPMNLabel><dc:Bounds x="2157" y="112" width="174" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P32_asoc_n1_di" bpmnElement="P32_asoc_n1"><di:waypoint x="1617" y="839" /><di:waypoint x="1617" y="784" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

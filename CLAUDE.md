@@ -100,6 +100,7 @@ Este archivo contiene las reglas arquitectónicas, estándares de seguridad y l�
   return { success: false, error: 'No se pudo emitir el documento' };
   ```
 - **Verificación antes de dar algo por terminado:** `npm run ci` corre `prisma validate` + `typecheck` + `lint` + `test`. Los cuatro deben pasar.
+- **Modelo de procesos (BPMN):** `docs/procesos/` tiene los procesos de Aether y la Supersuite en BPMN 2.0 (importables en Bizagi), su visor (`visor.html`), las fichas y las brechas encontradas, todo generado desde `docs/procesos/generador/procesos/*.mjs`. Si cambias un flujo modelado (alta por orden, emisión, compras, cierre, cuotas, sitios…), actualiza su definición y regenera con `node docs/procesos/generador/generar.mjs --supersuite ../supersuite`; nunca edites los `.bpmn` a mano.
 
 ### Interfaz del panel (convenciones)
 

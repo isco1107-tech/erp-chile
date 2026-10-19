@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bioc="http://bpmn.io/schema/bpmn/biocolor/1.0" xmlns:color="http://www.omg.org/spec/BPMN/non-normative/color/1.0" id="P26_definiciones" targetNamespace="https://aetherp.online/procesos" exporter="Aether · generador de procesos" exporterVersion="1.0">
+  <bpmn:collaboration id="P26_colaboracion">
+    <bpmn:documentation>P26 Gala final en vivo (escaleta). Escaleta, vestuario, acreditación y ensayo en paralelo; luego el modo show recorre los segmentos e intercala las rondas del jurado.</bpmn:documentation>
+    <bpmn:participant id="P26_pool_ae" name="Aether ERP" processRef="P26_proc_ae"></bpmn:participant>
+  </bpmn:collaboration>
+  <bpmn:process id="P26_proc_ae" name="Aether ERP" isExecutable="false">
+    <bpmn:laneSet id="P26_carriles_ae">
+      <bpmn:lane id="P26_carril_dir" name="Director de show">
+        <bpmn:flowNodeRef>P26_i</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P26_esc</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P26_gp</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P26_ens</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P26_gj</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P26_show</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P26_gt</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P26_dn</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P26_sk</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P26_gm</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P26_gr</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P26_gm2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P26_gq</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P26_cor</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P26_fin</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="P26_carril_back" name="Backstage: vestuario y acreditación">
+        <bpmn:flowNodeRef>P26_ves</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P26_acr</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="P26_carril_sis" name="Sistema Aether (modo show)">
+        <bpmn:flowNodeRef>P26_seg</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="P26_carril_jur" name="Jurado">
+        <bpmn:flowNodeRef>P26_pun</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="P26_i" name="Se acerca la gala">
+      <bpmn:outgoing>P26_flujo_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="P26_esc" name="Armar la escaleta: segmentos, tiempos y responsables">
+      <bpmn:incoming>P26_flujo_1</bpmn:incoming>
+      <bpmn:outgoing>P26_flujo_2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="P26_gp" name="">
+      <bpmn:incoming>P26_flujo_2</bpmn:incoming>
+      <bpmn:outgoing>P26_flujo_3</bpmn:outgoing>
+      <bpmn:outgoing>P26_flujo_4</bpmn:outgoing>
+      <bpmn:outgoing>P26_flujo_5</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="P26_ves" name="Asignar vestuario por segmento">
+      <bpmn:incoming>P26_flujo_3</bpmn:incoming>
+      <bpmn:outgoing>P26_flujo_6</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="P26_acr" name="Acreditar staff, prensa e invitados">
+      <bpmn:incoming>P26_flujo_4</bpmn:incoming>
+      <bpmn:outgoing>P26_flujo_7</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="P26_ens" name="Ensayo general">
+      <bpmn:incoming>P26_flujo_5</bpmn:incoming>
+      <bpmn:outgoing>P26_flujo_8</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="P26_gj" name="">
+      <bpmn:incoming>P26_flujo_6</bpmn:incoming>
+      <bpmn:incoming>P26_flujo_7</bpmn:incoming>
+      <bpmn:incoming>P26_flujo_8</bpmn:incoming>
+      <bpmn:outgoing>P26_flujo_9</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="P26_show" name="Activar el modo show">
+      <bpmn:incoming>P26_flujo_9</bpmn:incoming>
+      <bpmn:outgoing>P26_flujo_10</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="P26_seg" name="Mostrar el segmento actual y el siguiente">
+      <bpmn:incoming>P26_flujo_10</bpmn:incoming>
+      <bpmn:incoming>P26_flujo_21</bpmn:incoming>
+      <bpmn:outgoing>P26_flujo_11</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="P26_gt" name="¿Cómo termina?">
+      <bpmn:incoming>P26_flujo_11</bpmn:incoming>
+      <bpmn:outgoing>P26_flujo_12</bpmn:outgoing>
+      <bpmn:outgoing>P26_flujo_13</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="P26_dn" name="Marcar DONE">
+      <bpmn:incoming>P26_flujo_12</bpmn:incoming>
+      <bpmn:outgoing>P26_flujo_14</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="P26_sk" name="Marcar SKIPPED">
+      <bpmn:incoming>P26_flujo_13</bpmn:incoming>
+      <bpmn:outgoing>P26_flujo_15</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="P26_gm" name="">
+      <bpmn:incoming>P26_flujo_14</bpmn:incoming>
+      <bpmn:incoming>P26_flujo_15</bpmn:incoming>
+      <bpmn:outgoing>P26_flujo_16</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:exclusiveGateway id="P26_gr" name="¿Segmento de jurado?">
+      <bpmn:incoming>P26_flujo_16</bpmn:incoming>
+      <bpmn:outgoing>P26_flujo_17</bpmn:outgoing>
+      <bpmn:outgoing>P26_flujo_18</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:subProcess id="P26_pun" name="P25 Ronda de jurado" triggeredByEvent="false">
+      <bpmn:incoming>P26_flujo_17</bpmn:incoming>
+      <bpmn:outgoing>P26_flujo_19</bpmn:outgoing>
+    </bpmn:subProcess>
+    <bpmn:exclusiveGateway id="P26_gm2" name="">
+      <bpmn:incoming>P26_flujo_18</bpmn:incoming>
+      <bpmn:incoming>P26_flujo_19</bpmn:incoming>
+      <bpmn:outgoing>P26_flujo_20</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:exclusiveGateway id="P26_gq" name="¿Quedan segmentos?">
+      <bpmn:incoming>P26_flujo_20</bpmn:incoming>
+      <bpmn:outgoing>P26_flujo_21</bpmn:outgoing>
+      <bpmn:outgoing>P26_flujo_22</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="P26_cor" name="Coronación y cierre">
+      <bpmn:incoming>P26_flujo_22</bpmn:incoming>
+      <bpmn:outgoing>P26_flujo_23</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="P26_fin" name="Gala terminada">
+      <bpmn:incoming>P26_flujo_23</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="P26_flujo_1" sourceRef="P26_i" targetRef="P26_esc" />
+    <bpmn:sequenceFlow id="P26_flujo_2" sourceRef="P26_esc" targetRef="P26_gp" />
+    <bpmn:sequenceFlow id="P26_flujo_3" sourceRef="P26_gp" targetRef="P26_ves" />
+    <bpmn:sequenceFlow id="P26_flujo_4" sourceRef="P26_gp" targetRef="P26_acr" />
+    <bpmn:sequenceFlow id="P26_flujo_5" sourceRef="P26_gp" targetRef="P26_ens" />
+    <bpmn:sequenceFlow id="P26_flujo_6" sourceRef="P26_ves" targetRef="P26_gj" />
+    <bpmn:sequenceFlow id="P26_flujo_7" sourceRef="P26_acr" targetRef="P26_gj" />
+    <bpmn:sequenceFlow id="P26_flujo_8" sourceRef="P26_ens" targetRef="P26_gj" />
+    <bpmn:sequenceFlow id="P26_flujo_9" sourceRef="P26_gj" targetRef="P26_show" />
+    <bpmn:sequenceFlow id="P26_flujo_10" sourceRef="P26_show" targetRef="P26_seg" />
+    <bpmn:sequenceFlow id="P26_flujo_11" sourceRef="P26_seg" targetRef="P26_gt" />
+    <bpmn:sequenceFlow id="P26_flujo_12" name="Se hizo" sourceRef="P26_gt" targetRef="P26_dn" />
+    <bpmn:sequenceFlow id="P26_flujo_13" name="Se salta" sourceRef="P26_gt" targetRef="P26_sk" />
+    <bpmn:sequenceFlow id="P26_flujo_14" sourceRef="P26_dn" targetRef="P26_gm" />
+    <bpmn:sequenceFlow id="P26_flujo_15" sourceRef="P26_sk" targetRef="P26_gm" />
+    <bpmn:sequenceFlow id="P26_flujo_16" sourceRef="P26_gm" targetRef="P26_gr" />
+    <bpmn:sequenceFlow id="P26_flujo_17" name="Sí" sourceRef="P26_gr" targetRef="P26_pun" />
+    <bpmn:sequenceFlow id="P26_flujo_18" name="No" sourceRef="P26_gr" targetRef="P26_gm2" />
+    <bpmn:sequenceFlow id="P26_flujo_19" sourceRef="P26_pun" targetRef="P26_gm2" />
+    <bpmn:sequenceFlow id="P26_flujo_20" sourceRef="P26_gm2" targetRef="P26_gq" />
+    <bpmn:sequenceFlow id="P26_flujo_21" name="Sí" sourceRef="P26_gq" targetRef="P26_seg" />
+    <bpmn:sequenceFlow id="P26_flujo_22" name="No" sourceRef="P26_gq" targetRef="P26_cor" />
+    <bpmn:sequenceFlow id="P26_flujo_23" sourceRef="P26_cor" targetRef="P26_fin" />
+    <bpmn:textAnnotation id="P26_nota_n1"><bpmn:text>Cada segmento: PENDING → IN_PROGRESS → DONE o SKIPPED.</bpmn:text></bpmn:textAnnotation>
+    <bpmn:textAnnotation id="P26_nota_n2"><bpmn:text>En la puerta, el público entra con el QR de su entrada (P23).</bpmn:text></bpmn:textAnnotation>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="P26_diagrama" name="P26 Gala final en vivo (escaleta)">
+    <bpmndi:BPMNPlane id="P26_plano" bpmnElement="P26_colaboracion">
+      <bpmndi:BPMNShape id="P26_pool_ae_di" bpmnElement="P26_pool_ae" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="20" y="20" width="2956" height="924" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P26_carril_dir_di" bpmnElement="P26_carril_dir" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="20" width="2926" height="264" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P26_carril_back_di" bpmnElement="P26_carril_back" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="284" width="2926" height="264" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P26_carril_sis_di" bpmnElement="P26_carril_sis" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="548" width="2926" height="264" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P26_carril_jur_di" bpmnElement="P26_carril_jur" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="812" width="2926" height="132" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P26_i_di" bpmnElement="P26_i" bioc:stroke="#2e7d32" bioc:fill="#e3f3e5" color:border-color="#2e7d32" color:background-color="#e3f3e5"><dc:Bounds x="175" y="68" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="133" y="110" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P26_esc_di" bpmnElement="P26_esc" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="305" y="44" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P26_gp_di" bpmnElement="P26_gp" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="524" y="61" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P26_ves_di" bpmnElement="P26_ves" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="661" y="308" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P26_acr_di" bpmnElement="P26_acr" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="661" y="440" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P26_ens_di" bpmnElement="P26_ens" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="661" y="176" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P26_gj_di" bpmnElement="P26_gj" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="880" y="61" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P26_show_di" bpmnElement="P26_show" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1017" y="44" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P26_seg_di" bpmnElement="P26_seg" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="1195" y="572" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P26_gt_di" bpmnElement="P26_gt" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="1414" y="61" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="1375" y="41" width="128" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P26_dn_di" bpmnElement="P26_dn" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1551" y="44" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P26_sk_di" bpmnElement="P26_sk" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1551" y="176" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P26_gm_di" bpmnElement="P26_gm" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="1770" y="61" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P26_gr_di" bpmnElement="P26_gr" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="1948" y="61" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="1909" y="41" width="128" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P26_pun_di" bpmnElement="P26_pun" isExpanded="false" bioc:stroke="#7a5c12" bioc:fill="#faf1d9" color:border-color="#7a5c12" color:background-color="#faf1d9"><dc:Bounds x="2085" y="836" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P26_gm2_di" bpmnElement="P26_gm2" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="2304" y="61" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P26_gq_di" bpmnElement="P26_gq" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="2482" y="61" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="2443" y="41" width="128" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P26_cor_di" bpmnElement="P26_cor" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="2619" y="44" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P26_fin_di" bpmnElement="P26_fin" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="2845" y="68" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2803" y="110" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P26_nota_n1_di" bpmnElement="P26_nota_n1"><dc:Bounds x="643" y="587" width="168" height="55" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P26_nota_n2_di" bpmnElement="P26_nota_n2"><dc:Bounds x="1711" y="455" width="168" height="55" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="P26_flujo_1_di" bpmnElement="P26_flujo_1"><di:waypoint x="211" y="86" /><di:waypoint x="305" y="86" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P26_flujo_2_di" bpmnElement="P26_flujo_2"><di:waypoint x="437" y="86" /><di:waypoint x="524" y="86" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P26_flujo_3_di" bpmnElement="P26_flujo_3"><di:waypoint x="549" y="111" /><di:waypoint x="549" y="350" /><di:waypoint x="661" y="350" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P26_flujo_4_di" bpmnElement="P26_flujo_4"><di:waypoint x="549" y="111" /><di:waypoint x="549" y="482" /><di:waypoint x="661" y="482" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P26_flujo_5_di" bpmnElement="P26_flujo_5"><di:waypoint x="549" y="111" /><di:waypoint x="549" y="218" /><di:waypoint x="661" y="218" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P26_flujo_6_di" bpmnElement="P26_flujo_6"><di:waypoint x="793" y="350" /><di:waypoint x="905" y="350" /><di:waypoint x="905" y="111" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P26_flujo_7_di" bpmnElement="P26_flujo_7"><di:waypoint x="793" y="482" /><di:waypoint x="905" y="482" /><di:waypoint x="905" y="111" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P26_flujo_8_di" bpmnElement="P26_flujo_8"><di:waypoint x="793" y="218" /><di:waypoint x="905" y="218" /><di:waypoint x="905" y="111" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P26_flujo_9_di" bpmnElement="P26_flujo_9"><di:waypoint x="930" y="86" /><di:waypoint x="1017" y="86" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P26_flujo_10_di" bpmnElement="P26_flujo_10"><di:waypoint x="1149" y="86" /><di:waypoint x="1172" y="86" /><di:waypoint x="1172" y="614" /><di:waypoint x="1195" y="614" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P26_flujo_11_di" bpmnElement="P26_flujo_11"><di:waypoint x="1261" y="572" /><di:waypoint x="1261" y="86" /><di:waypoint x="1414" y="86" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P26_flujo_12_di" bpmnElement="P26_flujo_12"><di:waypoint x="1464" y="86" /><di:waypoint x="1551" y="86" /><bpmndi:BPMNLabel><dc:Bounds x="1470" y="66" width="45" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P26_flujo_13_di" bpmnElement="P26_flujo_13"><di:waypoint x="1439" y="111" /><di:waypoint x="1439" y="218" /><di:waypoint x="1551" y="218" /><bpmndi:BPMNLabel><dc:Bounds x="1445" y="119" width="51" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P26_flujo_14_di" bpmnElement="P26_flujo_14"><di:waypoint x="1683" y="86" /><di:waypoint x="1770" y="86" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P26_flujo_15_di" bpmnElement="P26_flujo_15"><di:waypoint x="1683" y="218" /><di:waypoint x="1795" y="218" /><di:waypoint x="1795" y="111" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P26_flujo_16_di" bpmnElement="P26_flujo_16"><di:waypoint x="1820" y="86" /><di:waypoint x="1948" y="86" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P26_flujo_17_di" bpmnElement="P26_flujo_17"><di:waypoint x="1973" y="111" /><di:waypoint x="1973" y="878" /><di:waypoint x="2085" y="878" /><bpmndi:BPMNLabel><dc:Bounds x="1979" y="119" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P26_flujo_18_di" bpmnElement="P26_flujo_18"><di:waypoint x="1998" y="86" /><di:waypoint x="2304" y="86" /><bpmndi:BPMNLabel><dc:Bounds x="2004" y="66" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P26_flujo_19_di" bpmnElement="P26_flujo_19"><di:waypoint x="2217" y="878" /><di:waypoint x="2329" y="878" /><di:waypoint x="2329" y="111" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P26_flujo_20_di" bpmnElement="P26_flujo_20"><di:waypoint x="2354" y="86" /><di:waypoint x="2482" y="86" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P26_flujo_21_di" bpmnElement="P26_flujo_21"><di:waypoint x="2507" y="111" /><di:waypoint x="2507" y="746" /><di:waypoint x="1261" y="746" /><di:waypoint x="1261" y="656" /><bpmndi:BPMNLabel><dc:Bounds x="2513" y="119" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P26_flujo_22_di" bpmnElement="P26_flujo_22"><di:waypoint x="2532" y="86" /><di:waypoint x="2619" y="86" /><bpmndi:BPMNLabel><dc:Bounds x="2538" y="66" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P26_flujo_23_di" bpmnElement="P26_flujo_23"><di:waypoint x="2751" y="86" /><di:waypoint x="2845" y="86" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

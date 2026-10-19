@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bioc="http://bpmn.io/schema/bpmn/biocolor/1.0" xmlns:color="http://www.omg.org/spec/BPMN/non-normative/color/1.0" id="P21_definiciones" targetNamespace="https://aetherp.online/procesos" exporter="Aether · generador de procesos" exporterVersion="1.0">
+  <bpmn:collaboration id="P21_colaboracion">
+    <bpmn:documentation>P21 Postulación y casting de candidatas. Formulario público con controles antibots, ficha con número de postulación, revisión, casting y nombramiento como candidata oficial.</bpmn:documentation>
+    <bpmn:participant id="P21_pool_post" name="Postulante"></bpmn:participant>
+    <bpmn:participant id="P21_pool_ae" name="Aether ERP" processRef="P21_proc_ae"></bpmn:participant>
+    <bpmn:messageFlow id="P21_mensaje_1" name="Formulario y foto" sourceRef="P21_pool_post" targetRef="P21_i" />
+    <bpmn:messageFlow id="P21_mensaje_2" name="Confirmación con número" sourceRef="P21_mail" targetRef="P21_pool_post" />
+    <bpmn:messageFlow id="P21_mensaje_3" name="Citación al casting" sourceRef="P21_cit" targetRef="P21_pool_post" />
+  </bpmn:collaboration>
+  <bpmn:process id="P21_proc_ae" name="Aether ERP" isExecutable="false">
+    <bpmn:laneSet id="P21_carriles_ae">
+      <bpmn:lane id="P21_carril_sis" name="Sistema Aether">
+        <bpmn:flowNodeRef>P21_i</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P21_val</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P21_gv</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P21_desc</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P21_reg</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P21_mail</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P21_ntf</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P21_ret</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P21_del</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P21_fd</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="P21_carril_cast" name="Equipo de casting">
+        <bpmn:flowNodeRef>P21_rev</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P21_g1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P21_cit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P21_cas</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P21_g2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P21_of</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P21_gmr</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P21_rj</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="P21_carril_prod" name="Producción">
+        <bpmn:flowNodeRef>P21_con</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P21_pres</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P21_fin</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="P21_i" name="Llega la postulación por el link">
+      <bpmn:outgoing>P21_flujo_1</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="P21_val" name="Límites por IP, señuelo, Turnstile y datos">
+      <bpmn:incoming>P21_flujo_1</bpmn:incoming>
+      <bpmn:outgoing>P21_flujo_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="P21_gv" name="¿Pasa los controles?">
+      <bpmn:incoming>P21_flujo_2</bpmn:incoming>
+      <bpmn:outgoing>P21_flujo_3</bpmn:outgoing>
+      <bpmn:outgoing>P21_flujo_4</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="P21_desc" name="Descartada">
+      <bpmn:incoming>P21_flujo_4</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="P21_reg" name="Crear la ficha con número de postulación">
+      <bpmn:incoming>P21_flujo_3</bpmn:incoming>
+      <bpmn:outgoing>P21_flujo_5</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sendTask id="P21_mail" name="Correo de confirmación y aviso a los Dueños">
+      <bpmn:incoming>P21_flujo_5</bpmn:incoming>
+      <bpmn:outgoing>P21_flujo_6</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="P21_ntf" name="Campanita y disparador CANDIDATE_REGISTERED">
+      <bpmn:incoming>P21_flujo_6</bpmn:incoming>
+      <bpmn:outgoing>P21_flujo_7</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="P21_rev" name="Revisar ficha y fotos (UNDER_REVIEW)">
+      <bpmn:incoming>P21_flujo_7</bpmn:incoming>
+      <bpmn:outgoing>P21_flujo_8</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="P21_g1" name="¿Avanza?">
+      <bpmn:incoming>P21_flujo_8</bpmn:incoming>
+      <bpmn:outgoing>P21_flujo_9</bpmn:outgoing>
+      <bpmn:outgoing>P21_flujo_10</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="P21_cit" name="Convocar a casting">
+      <bpmn:incoming>P21_flujo_9</bpmn:incoming>
+      <bpmn:outgoing>P21_flujo_11</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:manualTask id="P21_cas" name="Hacer el casting presencial">
+      <bpmn:incoming>P21_flujo_11</bpmn:incoming>
+      <bpmn:outgoing>P21_flujo_12</bpmn:outgoing>
+    </bpmn:manualTask>
+    <bpmn:exclusiveGateway id="P21_g2" name="¿Seleccionada?">
+      <bpmn:incoming>P21_flujo_12</bpmn:incoming>
+      <bpmn:outgoing>P21_flujo_13</bpmn:outgoing>
+      <bpmn:outgoing>P21_flujo_14</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="P21_of" name="Nombrarla candidata oficial">
+      <bpmn:incoming>P21_flujo_13</bpmn:incoming>
+      <bpmn:outgoing>P21_flujo_19</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="P21_gmr" name="">
+      <bpmn:incoming>P21_flujo_10</bpmn:incoming>
+      <bpmn:incoming>P21_flujo_14</bpmn:incoming>
+      <bpmn:outgoing>P21_flujo_15</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="P21_rj" name="Marcar como no seleccionada">
+      <bpmn:incoming>P21_flujo_15</bpmn:incoming>
+      <bpmn:outgoing>P21_flujo_16</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:intermediateCatchEvent id="P21_ret" name="Vence la retención (cron mensual)">
+      <bpmn:incoming>P21_flujo_16</bpmn:incoming>
+      <bpmn:outgoing>P21_flujo_17</bpmn:outgoing>
+      <bpmn:timerEventDefinition><bpmn:timeCycle xsi:type="bpmn:tFormalExpression">0 4 1 * *</bpmn:timeCycle></bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+    <bpmn:serviceTask id="P21_del" name="Purgar los datos personales">
+      <bpmn:incoming>P21_flujo_17</bpmn:incoming>
+      <bpmn:outgoing>P21_flujo_18</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="P21_fd" name="Datos purgados">
+      <bpmn:incoming>P21_flujo_18</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="P21_con" name="Contrato, documentos y plan de cuotas">
+      <bpmn:incoming>P21_flujo_19</bpmn:incoming>
+      <bpmn:outgoing>P21_flujo_20</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="P21_pres" name="Cargar la presentación pública: foto y bio">
+      <bpmn:incoming>P21_flujo_20</bpmn:incoming>
+      <bpmn:outgoing>P21_flujo_21</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="P21_fin" name="Candidata en el micrositio">
+      <bpmn:incoming>P21_flujo_21</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="P21_flujo_1" sourceRef="P21_i" targetRef="P21_val" />
+    <bpmn:sequenceFlow id="P21_flujo_2" sourceRef="P21_val" targetRef="P21_gv" />
+    <bpmn:sequenceFlow id="P21_flujo_3" name="Sí" sourceRef="P21_gv" targetRef="P21_reg" />
+    <bpmn:sequenceFlow id="P21_flujo_4" name="No" sourceRef="P21_gv" targetRef="P21_desc" />
+    <bpmn:sequenceFlow id="P21_flujo_5" sourceRef="P21_reg" targetRef="P21_mail" />
+    <bpmn:sequenceFlow id="P21_flujo_6" sourceRef="P21_mail" targetRef="P21_ntf" />
+    <bpmn:sequenceFlow id="P21_flujo_7" sourceRef="P21_ntf" targetRef="P21_rev" />
+    <bpmn:sequenceFlow id="P21_flujo_8" sourceRef="P21_rev" targetRef="P21_g1" />
+    <bpmn:sequenceFlow id="P21_flujo_9" name="Sí" sourceRef="P21_g1" targetRef="P21_cit" />
+    <bpmn:sequenceFlow id="P21_flujo_10" name="No" sourceRef="P21_g1" targetRef="P21_gmr" />
+    <bpmn:sequenceFlow id="P21_flujo_11" sourceRef="P21_cit" targetRef="P21_cas" />
+    <bpmn:sequenceFlow id="P21_flujo_12" sourceRef="P21_cas" targetRef="P21_g2" />
+    <bpmn:sequenceFlow id="P21_flujo_13" name="Sí" sourceRef="P21_g2" targetRef="P21_of" />
+    <bpmn:sequenceFlow id="P21_flujo_14" name="No" sourceRef="P21_g2" targetRef="P21_gmr" />
+    <bpmn:sequenceFlow id="P21_flujo_15" sourceRef="P21_gmr" targetRef="P21_rj" />
+    <bpmn:sequenceFlow id="P21_flujo_16" sourceRef="P21_rj" targetRef="P21_ret" />
+    <bpmn:sequenceFlow id="P21_flujo_17" sourceRef="P21_ret" targetRef="P21_del" />
+    <bpmn:sequenceFlow id="P21_flujo_18" sourceRef="P21_del" targetRef="P21_fd" />
+    <bpmn:sequenceFlow id="P21_flujo_19" sourceRef="P21_of" targetRef="P21_con" />
+    <bpmn:sequenceFlow id="P21_flujo_20" sourceRef="P21_con" targetRef="P21_pres" />
+    <bpmn:sequenceFlow id="P21_flujo_21" sourceRef="P21_pres" targetRef="P21_fin" />
+    <bpmn:textAnnotation id="P21_nota_n1"><bpmn:text>La empresa y el certamen salen del token del link, nunca del cuerpo.</bpmn:text></bpmn:textAnnotation>
+    <bpmn:association id="P21_asoc_n1" associationDirection="None" sourceRef="P21_nota_n1" targetRef="P21_val" />
+    <bpmn:textAnnotation id="P21_nota_n2"><bpmn:text>El formulario de postulación nunca puede escribir los campos públicos de la candidata.</bpmn:text></bpmn:textAnnotation>
+    <bpmn:textAnnotation id="P21_nota_n3"><bpmn:text>La postulante puede retirarse (WITHDRAWN) en cualquier etapa.</bpmn:text></bpmn:textAnnotation>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="P21_diagrama" name="P21 Postulación y casting de candidatas">
+    <bpmndi:BPMNPlane id="P21_plano" bpmnElement="P21_colaboracion">
+      <bpmndi:BPMNShape id="P21_pool_post_di" bpmnElement="P21_pool_post" isHorizontal="true" bioc:stroke="#5f6368" bioc:fill="#f6f6f6" color:border-color="#5f6368" color:background-color="#f6f6f6"><dc:Bounds x="20" y="20" width="2778" height="72" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P21_pool_ae_di" bpmnElement="P21_pool_ae" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="20" y="148" width="2778" height="792" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P21_carril_sis_di" bpmnElement="P21_carril_sis" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="148" width="2748" height="264" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P21_carril_cast_di" bpmnElement="P21_carril_cast" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="412" width="2748" height="396" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P21_carril_prod_di" bpmnElement="P21_carril_prod" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="808" width="2748" height="132" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P21_i_di" bpmnElement="P21_i" bioc:stroke="#2e7d32" bioc:fill="#e3f3e5" color:border-color="#2e7d32" color:background-color="#e3f3e5"><dc:Bounds x="175" y="196" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="133" y="238" width="120" height="42" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P21_val_di" bpmnElement="P21_val" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="305" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P21_gv_di" bpmnElement="P21_gv" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="524" y="189" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="485" y="169" width="128" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P21_desc_di" bpmnElement="P21_desc" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="709" y="328" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="667" y="370" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P21_reg_di" bpmnElement="P21_reg" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="661" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P21_mail_di" bpmnElement="P21_mail" bioc:stroke="#5b3a9e" bioc:fill="#efe9fa" color:border-color="#5b3a9e" color:background-color="#efe9fa"><dc:Bounds x="839" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P21_ntf_di" bpmnElement="P21_ntf" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="1017" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P21_rev_di" bpmnElement="P21_rev" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1195" y="436" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P21_g1_di" bpmnElement="P21_g1" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="1414" y="453" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="1375" y="433" width="128" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P21_cit_di" bpmnElement="P21_cit" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1551" y="436" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P21_cas_di" bpmnElement="P21_cas" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1729" y="436" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P21_g2_di" bpmnElement="P21_g2" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="1948" y="453" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="1909" y="433" width="128" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P21_of_di" bpmnElement="P21_of" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="2085" y="436" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P21_gmr_di" bpmnElement="P21_gmr" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="1948" y="717" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P21_rj_di" bpmnElement="P21_rj" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="2085" y="700" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P21_ret_di" bpmnElement="P21_ret" bioc:stroke="#9a5b00" bioc:fill="#fff4dc" color:border-color="#9a5b00" color:background-color="#fff4dc"><dc:Bounds x="2311" y="328" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2269" y="294" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P21_del_di" bpmnElement="P21_del" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="2441" y="304" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P21_fd_di" bpmnElement="P21_fd" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="2667" y="328" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2625" y="370" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P21_con_di" bpmnElement="P21_con" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="2263" y="832" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P21_pres_di" bpmnElement="P21_pres" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="2441" y="832" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P21_fin_di" bpmnElement="P21_fin" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="2667" y="856" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2625" y="898" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P21_nota_n1_di" bpmnElement="P21_nota_n1"><dc:Bounds x="287" y="319" width="168" height="55" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P21_nota_n2_di" bpmnElement="P21_nota_n2"><dc:Bounds x="1889" y="839" width="168" height="70" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P21_nota_n3_di" bpmnElement="P21_nota_n3"><dc:Bounds x="821" y="715" width="168" height="55" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="P21_flujo_1_di" bpmnElement="P21_flujo_1"><di:waypoint x="211" y="214" /><di:waypoint x="305" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P21_flujo_2_di" bpmnElement="P21_flujo_2"><di:waypoint x="437" y="214" /><di:waypoint x="524" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P21_flujo_3_di" bpmnElement="P21_flujo_3"><di:waypoint x="574" y="214" /><di:waypoint x="661" y="214" /><bpmndi:BPMNLabel><dc:Bounds x="580" y="194" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P21_flujo_4_di" bpmnElement="P21_flujo_4"><di:waypoint x="549" y="239" /><di:waypoint x="549" y="346" /><di:waypoint x="709" y="346" /><bpmndi:BPMNLabel><dc:Bounds x="555" y="247" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P21_flujo_5_di" bpmnElement="P21_flujo_5"><di:waypoint x="793" y="214" /><di:waypoint x="839" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P21_flujo_6_di" bpmnElement="P21_flujo_6"><di:waypoint x="971" y="214" /><di:waypoint x="1017" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P21_flujo_7_di" bpmnElement="P21_flujo_7"><di:waypoint x="1149" y="214" /><di:waypoint x="1172" y="214" /><di:waypoint x="1172" y="478" /><di:waypoint x="1195" y="478" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P21_flujo_8_di" bpmnElement="P21_flujo_8"><di:waypoint x="1327" y="478" /><di:waypoint x="1414" y="478" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P21_flujo_9_di" bpmnElement="P21_flujo_9"><di:waypoint x="1464" y="478" /><di:waypoint x="1551" y="478" /><bpmndi:BPMNLabel><dc:Bounds x="1470" y="458" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P21_flujo_10_di" bpmnElement="P21_flujo_10"><di:waypoint x="1439" y="503" /><di:waypoint x="1439" y="742" /><di:waypoint x="1948" y="742" /><bpmndi:BPMNLabel><dc:Bounds x="1445" y="511" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P21_flujo_11_di" bpmnElement="P21_flujo_11"><di:waypoint x="1683" y="478" /><di:waypoint x="1729" y="478" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P21_flujo_12_di" bpmnElement="P21_flujo_12"><di:waypoint x="1861" y="478" /><di:waypoint x="1948" y="478" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P21_flujo_13_di" bpmnElement="P21_flujo_13"><di:waypoint x="1998" y="478" /><di:waypoint x="2085" y="478" /><bpmndi:BPMNLabel><dc:Bounds x="2004" y="458" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P21_flujo_14_di" bpmnElement="P21_flujo_14"><di:waypoint x="1973" y="503" /><di:waypoint x="1973" y="717" /><bpmndi:BPMNLabel><dc:Bounds x="1979" y="511" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P21_flujo_15_di" bpmnElement="P21_flujo_15"><di:waypoint x="1998" y="742" /><di:waypoint x="2085" y="742" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P21_flujo_16_di" bpmnElement="P21_flujo_16"><di:waypoint x="2217" y="742" /><di:waypoint x="2329" y="742" /><di:waypoint x="2329" y="364" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P21_flujo_17_di" bpmnElement="P21_flujo_17"><di:waypoint x="2347" y="346" /><di:waypoint x="2441" y="346" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P21_flujo_18_di" bpmnElement="P21_flujo_18"><di:waypoint x="2573" y="346" /><di:waypoint x="2667" y="346" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P21_flujo_19_di" bpmnElement="P21_flujo_19"><di:waypoint x="2217" y="478" /><di:waypoint x="2240" y="478" /><di:waypoint x="2240" y="874" /><di:waypoint x="2263" y="874" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P21_flujo_20_di" bpmnElement="P21_flujo_20"><di:waypoint x="2395" y="874" /><di:waypoint x="2441" y="874" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P21_flujo_21_di" bpmnElement="P21_flujo_21"><di:waypoint x="2573" y="874" /><di:waypoint x="2667" y="874" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P21_mensaje_1_di" bpmnElement="P21_mensaje_1"><di:waypoint x="193" y="92" /><di:waypoint x="193" y="196" /><bpmndi:BPMNLabel><dc:Bounds x="199" y="112" width="105" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P21_mensaje_2_di" bpmnElement="P21_mensaje_2"><di:waypoint x="905" y="172" /><di:waypoint x="905" y="92" /><bpmndi:BPMNLabel><dc:Bounds x="911" y="112" width="143" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P21_mensaje_3_di" bpmnElement="P21_mensaje_3"><di:waypoint x="1617" y="436" /><di:waypoint x="1617" y="92" /><bpmndi:BPMNLabel><dc:Bounds x="1623" y="112" width="118" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P21_asoc_n1_di" bpmnElement="P21_asoc_n1"><di:waypoint x="371" y="319" /><di:waypoint x="371" y="256" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

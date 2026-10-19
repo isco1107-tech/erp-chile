@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bioc="http://bpmn.io/schema/bpmn/biocolor/1.0" xmlns:color="http://www.omg.org/spec/BPMN/non-normative/color/1.0" id="P14_definiciones" targetNamespace="https://aetherp.online/procesos" exporter="Aether · generador de procesos" exporterVersion="1.0">
+  <bpmn:collaboration id="P14_colaboracion">
+    <bpmn:documentation>P14 Remuneraciones. Período del mes con parámetros confirmados contra Previred, cálculo de liquidaciones, cierre con asiento y portal del trabajador.</bpmn:documentation>
+    <bpmn:participant id="P14_pool_trab" name="Trabajadores"></bpmn:participant>
+    <bpmn:participant id="P14_pool_ae" name="Aether ERP" processRef="P14_proc_ae"></bpmn:participant>
+    <bpmn:participant id="P14_pool_prv" name="Previred"></bpmn:participant>
+    <bpmn:messageFlow id="P14_mensaje_1" name="Liquidación de sueldo" sourceRef="P14_pub" targetRef="P14_pool_trab" />
+    <bpmn:messageFlow id="P14_mensaje_2" name="Planilla de cotizaciones" sourceRef="P14_decl" targetRef="P14_pool_prv" />
+  </bpmn:collaboration>
+  <bpmn:process id="P14_proc_ae" name="Aether ERP" isExecutable="false">
+    <bpmn:laneSet id="P14_carriles_ae">
+      <bpmn:lane id="P14_carril_rrhh" name="Encargado de remuneraciones">
+        <bpmn:flowNodeRef>P14_i</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P14_per</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P14_par</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P14_nov</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P14_rev</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P14_gok</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P14_decl</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P14_pago</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P14_fin</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="P14_carril_sis" name="Sistema Aether">
+        <bpmn:flowNodeRef>P14_calc</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P14_gch</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P14_cl</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P14_pub</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="P14_carril_due" name="Dueño o Contador (payroll:close)">
+        <bpmn:flowNodeRef>P14_cie</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="P14_i" name="Cierre de mes">
+      <bpmn:outgoing>P14_flujo_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="P14_per" name="Crear el período del mes">
+      <bpmn:incoming>P14_flujo_1</bpmn:incoming>
+      <bpmn:outgoing>P14_flujo_2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="P14_par" name="Confirmar UF, UTM, topes y tasas">
+      <bpmn:incoming>P14_flujo_2</bpmn:incoming>
+      <bpmn:outgoing>P14_flujo_3</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="P14_nov" name="Registrar ausencias, anticipos y préstamos">
+      <bpmn:incoming>P14_flujo_3</bpmn:incoming>
+      <bpmn:incoming>P14_flujo_7</bpmn:incoming>
+      <bpmn:outgoing>P14_flujo_4</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="P14_calc" name="Calcular las liquidaciones">
+      <bpmn:incoming>P14_flujo_4</bpmn:incoming>
+      <bpmn:incoming>P14_flujo_10</bpmn:incoming>
+      <bpmn:outgoing>P14_flujo_5</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="P14_rev" name="Revisar liquidaciones y planilla Excel">
+      <bpmn:incoming>P14_flujo_5</bpmn:incoming>
+      <bpmn:outgoing>P14_flujo_6</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="P14_gok" name="¿Correctas?">
+      <bpmn:incoming>P14_flujo_6</bpmn:incoming>
+      <bpmn:outgoing>P14_flujo_7</bpmn:outgoing>
+      <bpmn:outgoing>P14_flujo_8</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="P14_cie" name="Cerrar el período">
+      <bpmn:incoming>P14_flujo_8</bpmn:incoming>
+      <bpmn:outgoing>P14_flujo_9</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="P14_gch" name="¿Cambiaron anticipos o préstamos?">
+      <bpmn:incoming>P14_flujo_9</bpmn:incoming>
+      <bpmn:outgoing>P14_flujo_10</bpmn:outgoing>
+      <bpmn:outgoing>P14_flujo_11</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="P14_cl" name="CLOSED, cuotas de préstamos y asiento contable">
+      <bpmn:incoming>P14_flujo_11</bpmn:incoming>
+      <bpmn:outgoing>P14_flujo_12</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="P14_pub" name="Liquidaciones en el portal del trabajador">
+      <bpmn:incoming>P14_flujo_12</bpmn:incoming>
+      <bpmn:outgoing>P14_flujo_13</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:manualTask id="P14_decl" name="Declarar y pagar cotizaciones">
+      <bpmn:incoming>P14_flujo_13</bpmn:incoming>
+      <bpmn:outgoing>P14_flujo_14</bpmn:outgoing>
+    </bpmn:manualTask>
+    <bpmn:manualTask id="P14_pago" name="Pagar sueldos">
+      <bpmn:incoming>P14_flujo_14</bpmn:incoming>
+      <bpmn:outgoing>P14_flujo_15</bpmn:outgoing>
+    </bpmn:manualTask>
+    <bpmn:endEvent id="P14_fin" name="Mes de remuneraciones cerrado">
+      <bpmn:incoming>P14_flujo_15</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="P14_flujo_1" sourceRef="P14_i" targetRef="P14_per" />
+    <bpmn:sequenceFlow id="P14_flujo_2" sourceRef="P14_per" targetRef="P14_par" />
+    <bpmn:sequenceFlow id="P14_flujo_3" sourceRef="P14_par" targetRef="P14_nov" />
+    <bpmn:sequenceFlow id="P14_flujo_4" sourceRef="P14_nov" targetRef="P14_calc" />
+    <bpmn:sequenceFlow id="P14_flujo_5" sourceRef="P14_calc" targetRef="P14_rev" />
+    <bpmn:sequenceFlow id="P14_flujo_6" sourceRef="P14_rev" targetRef="P14_gok" />
+    <bpmn:sequenceFlow id="P14_flujo_7" name="No" sourceRef="P14_gok" targetRef="P14_nov" />
+    <bpmn:sequenceFlow id="P14_flujo_8" name="Sí" sourceRef="P14_gok" targetRef="P14_cie" />
+    <bpmn:sequenceFlow id="P14_flujo_9" sourceRef="P14_cie" targetRef="P14_gch" />
+    <bpmn:sequenceFlow id="P14_flujo_10" name="Sí: recalcular" sourceRef="P14_gch" targetRef="P14_calc" />
+    <bpmn:sequenceFlow id="P14_flujo_11" name="No" sourceRef="P14_gch" targetRef="P14_cl" />
+    <bpmn:sequenceFlow id="P14_flujo_12" sourceRef="P14_cl" targetRef="P14_pub" />
+    <bpmn:sequenceFlow id="P14_flujo_13" sourceRef="P14_pub" targetRef="P14_decl" />
+    <bpmn:sequenceFlow id="P14_flujo_14" sourceRef="P14_decl" targetRef="P14_pago" />
+    <bpmn:sequenceFlow id="P14_flujo_15" sourceRef="P14_pago" targetRef="P14_fin" />
+    <bpmn:textAnnotation id="P14_nota_n1"><bpmn:text>Los parámetros legales entran por pantalla cada mes: nunca están en el código.</bpmn:text></bpmn:textAnnotation>
+    <bpmn:association id="P14_asoc_n1" associationDirection="None" sourceRef="P14_nota_n1" targetRef="P14_par" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="P14_diagrama" name="P14 Remuneraciones">
+    <bpmndi:BPMNPlane id="P14_plano" bpmnElement="P14_colaboracion">
+      <bpmndi:BPMNShape id="P14_pool_trab_di" bpmnElement="P14_pool_trab" isHorizontal="true" bioc:stroke="#5f6368" bioc:fill="#f6f6f6" color:border-color="#5f6368" color:background-color="#f6f6f6"><dc:Bounds x="20" y="20" width="2600" height="72" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P14_pool_ae_di" bpmnElement="P14_pool_ae" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="20" y="148" width="2600" height="528" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P14_carril_rrhh_di" bpmnElement="P14_carril_rrhh" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="148" width="2570" height="264" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P14_carril_sis_di" bpmnElement="P14_carril_sis" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="412" width="2570" height="132" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P14_carril_due_di" bpmnElement="P14_carril_due" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="544" width="2570" height="132" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P14_pool_prv_di" bpmnElement="P14_pool_prv" isHorizontal="true" bioc:stroke="#5f6368" bioc:fill="#f6f6f6" color:border-color="#5f6368" color:background-color="#f6f6f6"><dc:Bounds x="20" y="732" width="2600" height="72" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P14_i_di" bpmnElement="P14_i" bioc:stroke="#2e7d32" bioc:fill="#e3f3e5" color:border-color="#2e7d32" color:background-color="#e3f3e5"><dc:Bounds x="175" y="196" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="133" y="238" width="120" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P14_per_di" bpmnElement="P14_per" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="305" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P14_par_di" bpmnElement="P14_par" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="483" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P14_nov_di" bpmnElement="P14_nov" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="661" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P14_calc_di" bpmnElement="P14_calc" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="839" y="436" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P14_rev_di" bpmnElement="P14_rev" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1017" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P14_gok_di" bpmnElement="P14_gok" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="1236" y="189" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="1197" y="169" width="128" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P14_cie_di" bpmnElement="P14_cie" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1373" y="568" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P14_gch_di" bpmnElement="P14_gch" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="1592" y="453" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="1625" y="419" width="128" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P14_cl_di" bpmnElement="P14_cl" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="1729" y="436" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P14_pub_di" bpmnElement="P14_pub" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="1907" y="436" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P14_decl_di" bpmnElement="P14_decl" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="2085" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P14_pago_di" bpmnElement="P14_pago" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="2263" y="172" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P14_fin_di" bpmnElement="P14_fin" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="2489" y="196" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2447" y="238" width="120" height="42" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P14_nota_n1_di" bpmnElement="P14_nota_n1"><dc:Bounds x="287" y="311" width="168" height="70" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="P14_flujo_1_di" bpmnElement="P14_flujo_1"><di:waypoint x="211" y="214" /><di:waypoint x="305" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P14_flujo_2_di" bpmnElement="P14_flujo_2"><di:waypoint x="437" y="214" /><di:waypoint x="483" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P14_flujo_3_di" bpmnElement="P14_flujo_3"><di:waypoint x="615" y="214" /><di:waypoint x="661" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P14_flujo_4_di" bpmnElement="P14_flujo_4"><di:waypoint x="793" y="214" /><di:waypoint x="816" y="214" /><di:waypoint x="816" y="478" /><di:waypoint x="839" y="478" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P14_flujo_5_di" bpmnElement="P14_flujo_5"><di:waypoint x="971" y="478" /><di:waypoint x="994" y="478" /><di:waypoint x="994" y="214" /><di:waypoint x="1017" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P14_flujo_6_di" bpmnElement="P14_flujo_6"><di:waypoint x="1149" y="214" /><di:waypoint x="1236" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P14_flujo_7_di" bpmnElement="P14_flujo_7"><di:waypoint x="1261" y="239" /><di:waypoint x="1261" y="346" /><di:waypoint x="727" y="346" /><di:waypoint x="727" y="256" /><bpmndi:BPMNLabel><dc:Bounds x="1267" y="247" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P14_flujo_8_di" bpmnElement="P14_flujo_8"><di:waypoint x="1261" y="239" /><di:waypoint x="1261" y="610" /><di:waypoint x="1373" y="610" /><bpmndi:BPMNLabel><dc:Bounds x="1267" y="247" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P14_flujo_9_di" bpmnElement="P14_flujo_9"><di:waypoint x="1505" y="610" /><di:waypoint x="1617" y="610" /><di:waypoint x="1617" y="503" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P14_flujo_10_di" bpmnElement="P14_flujo_10"><di:waypoint x="1617" y="453" /><di:waypoint x="1617" y="422" /><di:waypoint x="905" y="422" /><di:waypoint x="905" y="436" /><bpmndi:BPMNLabel><dc:Bounds x="1623" y="428" width="90" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P14_flujo_11_di" bpmnElement="P14_flujo_11"><di:waypoint x="1642" y="478" /><di:waypoint x="1729" y="478" /><bpmndi:BPMNLabel><dc:Bounds x="1648" y="458" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P14_flujo_12_di" bpmnElement="P14_flujo_12"><di:waypoint x="1861" y="478" /><di:waypoint x="1907" y="478" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P14_flujo_13_di" bpmnElement="P14_flujo_13"><di:waypoint x="2039" y="478" /><di:waypoint x="2062" y="478" /><di:waypoint x="2062" y="214" /><di:waypoint x="2085" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P14_flujo_14_di" bpmnElement="P14_flujo_14"><di:waypoint x="2217" y="214" /><di:waypoint x="2263" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P14_flujo_15_di" bpmnElement="P14_flujo_15"><di:waypoint x="2395" y="214" /><di:waypoint x="2489" y="214" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P14_mensaje_1_di" bpmnElement="P14_mensaje_1"><di:waypoint x="1973" y="436" /><di:waypoint x="1973" y="92" /><bpmndi:BPMNLabel><dc:Bounds x="1979" y="112" width="130" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P14_mensaje_2_di" bpmnElement="P14_mensaje_2"><di:waypoint x="2151" y="256" /><di:waypoint x="2151" y="732" /><bpmndi:BPMNLabel><dc:Bounds x="2157" y="696" width="149" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P14_asoc_n1_di" bpmnElement="P14_asoc_n1"><di:waypoint x="371" y="311" /><di:waypoint x="549" y="256" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

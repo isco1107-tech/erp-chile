@@ -1,0 +1,247 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bioc="http://bpmn.io/schema/bpmn/biocolor/1.0" xmlns:color="http://www.omg.org/spec/BPMN/non-normative/color/1.0" id="P08_definiciones" targetNamespace="https://aetherp.online/procesos" exporter="Aether · generador de procesos" exporterVersion="1.0">
+  <bpmn:collaboration id="P08_colaboracion">
+    <bpmn:documentation>P08 Despliegue y migraciones. De la rama al aire: CI, revisión, migraciones aplicadas en el build de Vercel y la Supersuite en Render.</bpmn:documentation>
+    <bpmn:participant id="P08_pool_ent" name="Entrega de Aether a producción" processRef="P08_proc_ent"></bpmn:participant>
+    <bpmn:participant id="P08_pool_neon" name="Neon PostgreSQL (misma base que producción)"></bpmn:participant>
+    <bpmn:participant id="P08_pool_rs" name="Supersuite en Render" processRef="P08_proc_rs"></bpmn:participant>
+    <bpmn:messageFlow id="P08_mensaje_1" name="Leer esquema (sin aplicar)" sourceRef="P08_diff" targetRef="P08_pool_neon" />
+    <bpmn:messageFlow id="P08_mensaje_2" name="SQL idempotente" sourceRef="P08_mg" targetRef="P08_pool_neon" />
+  </bpmn:collaboration>
+  <bpmn:process id="P08_proc_ent" name="Entrega de Aether a producción" isExecutable="false">
+    <bpmn:laneSet id="P08_carriles_ent">
+      <bpmn:lane id="P08_carril_dv" name="Desarrollador">
+        <bpmn:flowNodeRef>P08_i</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P08_loc</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P08_gmig</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P08_diff</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P08_gm</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P08_pr</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P08_fix</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P08_rev</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="P08_carril_ci" name="GitHub Actions (CI)">
+        <bpmn:flowNodeRef>P08_ci1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P08_ci2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P08_gci</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="P08_carril_vc" name="Vercel: build de producción">
+        <bpmn:flowNodeRef>P08_vb</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P08_mg</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P08_gmo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P08_falla</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P08_ff</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P08_cmp</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P08_pub</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P08_fok</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="P08_i" name="Cambio listo en una rama">
+      <bpmn:outgoing>P08_flujo_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="P08_loc" name="Correr npm run ci">
+      <bpmn:incoming>P08_flujo_1</bpmn:incoming>
+      <bpmn:outgoing>P08_flujo_2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="P08_gmig" name="¿Cambia el esquema?">
+      <bpmn:incoming>P08_flujo_2</bpmn:incoming>
+      <bpmn:outgoing>P08_flujo_3</bpmn:outgoing>
+      <bpmn:outgoing>P08_flujo_4</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="P08_diff" name="Revisar el SQL con migrate diff (aditivo, idempotente)">
+      <bpmn:incoming>P08_flujo_3</bpmn:incoming>
+      <bpmn:outgoing>P08_flujo_5</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="P08_gm" name="">
+      <bpmn:incoming>P08_flujo_4</bpmn:incoming>
+      <bpmn:incoming>P08_flujo_5</bpmn:incoming>
+      <bpmn:outgoing>P08_flujo_6</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="P08_pr" name="Abrir PR">
+      <bpmn:incoming>P08_flujo_6</bpmn:incoming>
+      <bpmn:incoming>P08_flujo_11</bpmn:incoming>
+      <bpmn:outgoing>P08_flujo_7</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="P08_ci1" name="Validar Prisma, tipos, lint y pruebas">
+      <bpmn:incoming>P08_flujo_7</bpmn:incoming>
+      <bpmn:outgoing>P08_flujo_8</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="P08_ci2" name="Migrar desde cero, sin drift, semilla, build y E2E">
+      <bpmn:incoming>P08_flujo_8</bpmn:incoming>
+      <bpmn:outgoing>P08_flujo_9</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="P08_gci" name="¿Todo verde?">
+      <bpmn:incoming>P08_flujo_9</bpmn:incoming>
+      <bpmn:outgoing>P08_flujo_10</bpmn:outgoing>
+      <bpmn:outgoing>P08_flujo_12</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="P08_fix" name="Corregir y subir">
+      <bpmn:incoming>P08_flujo_10</bpmn:incoming>
+      <bpmn:outgoing>P08_flujo_11</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="P08_rev" name="Revisar y fusionar a main">
+      <bpmn:incoming>P08_flujo_12</bpmn:incoming>
+      <bpmn:outgoing>P08_flujo_13</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="P08_vb" name="Build: prisma generate">
+      <bpmn:incoming>P08_flujo_13</bpmn:incoming>
+      <bpmn:outgoing>P08_flujo_14</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="P08_mg" name="Aplicar migraciones pendientes">
+      <bpmn:documentation>scripts/migrate-deploy.mjs. Una marcada como fallida (P3009) se marca revertida y se reintenta.</bpmn:documentation>
+      <bpmn:incoming>P08_flujo_14</bpmn:incoming>
+      <bpmn:outgoing>P08_flujo_15</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="P08_gmo" name="¿Migraciones aplicadas?">
+      <bpmn:incoming>P08_flujo_15</bpmn:incoming>
+      <bpmn:outgoing>P08_flujo_16</bpmn:outgoing>
+      <bpmn:outgoing>P08_flujo_17</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="P08_falla" name="El build falla: sigue la versión anterior">
+      <bpmn:incoming>P08_flujo_17</bpmn:incoming>
+      <bpmn:outgoing>P08_flujo_18</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="P08_ff" name="Despliegue rechazado">
+      <bpmn:incoming>P08_flujo_18</bpmn:incoming>
+      <bpmn:errorEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="P08_cmp" name="Compilar Next.js">
+      <bpmn:incoming>P08_flujo_16</bpmn:incoming>
+      <bpmn:outgoing>P08_flujo_19</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="P08_pub" name="Publicar en aetherp.online y activar crons">
+      <bpmn:incoming>P08_flujo_19</bpmn:incoming>
+      <bpmn:outgoing>P08_flujo_20</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="P08_fok" name="Producción actualizada">
+      <bpmn:incoming>P08_flujo_20</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="P08_flujo_1" sourceRef="P08_i" targetRef="P08_loc" />
+    <bpmn:sequenceFlow id="P08_flujo_2" sourceRef="P08_loc" targetRef="P08_gmig" />
+    <bpmn:sequenceFlow id="P08_flujo_3" name="Sí" sourceRef="P08_gmig" targetRef="P08_diff" />
+    <bpmn:sequenceFlow id="P08_flujo_4" name="No" sourceRef="P08_gmig" targetRef="P08_gm" />
+    <bpmn:sequenceFlow id="P08_flujo_5" sourceRef="P08_diff" targetRef="P08_gm" />
+    <bpmn:sequenceFlow id="P08_flujo_6" sourceRef="P08_gm" targetRef="P08_pr" />
+    <bpmn:sequenceFlow id="P08_flujo_7" sourceRef="P08_pr" targetRef="P08_ci1" />
+    <bpmn:sequenceFlow id="P08_flujo_8" sourceRef="P08_ci1" targetRef="P08_ci2" />
+    <bpmn:sequenceFlow id="P08_flujo_9" sourceRef="P08_ci2" targetRef="P08_gci" />
+    <bpmn:sequenceFlow id="P08_flujo_10" name="No" sourceRef="P08_gci" targetRef="P08_fix" />
+    <bpmn:sequenceFlow id="P08_flujo_11" sourceRef="P08_fix" targetRef="P08_pr" />
+    <bpmn:sequenceFlow id="P08_flujo_12" name="Sí" sourceRef="P08_gci" targetRef="P08_rev" />
+    <bpmn:sequenceFlow id="P08_flujo_13" sourceRef="P08_rev" targetRef="P08_vb" />
+    <bpmn:sequenceFlow id="P08_flujo_14" sourceRef="P08_vb" targetRef="P08_mg" />
+    <bpmn:sequenceFlow id="P08_flujo_15" sourceRef="P08_mg" targetRef="P08_gmo" />
+    <bpmn:sequenceFlow id="P08_flujo_16" name="Sí" sourceRef="P08_gmo" targetRef="P08_cmp" />
+    <bpmn:sequenceFlow id="P08_flujo_17" name="No" sourceRef="P08_gmo" targetRef="P08_falla" />
+    <bpmn:sequenceFlow id="P08_flujo_18" sourceRef="P08_falla" targetRef="P08_ff" />
+    <bpmn:sequenceFlow id="P08_flujo_19" sourceRef="P08_cmp" targetRef="P08_pub" />
+    <bpmn:sequenceFlow id="P08_flujo_20" sourceRef="P08_pub" targetRef="P08_fok" />
+    <bpmn:textAnnotation id="P08_nota_n1"><bpmn:text>La base local es la de producción: aplicar una migración obliga a desplegar enseguida.</bpmn:text></bpmn:textAnnotation>
+    <bpmn:association id="P08_asoc_n1" associationDirection="None" sourceRef="P08_nota_n1" targetRef="P08_diff" />
+  </bpmn:process>
+  <bpmn:process id="P08_proc_rs" name="Supersuite en Render" isExecutable="false">
+    <bpmn:laneSet id="P08_carriles_rs">
+      <bpmn:lane id="P08_carril_rd" name="Blueprint render.yaml">
+        <bpmn:flowNodeRef>P08_ri</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P08_rpre</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P08_rgm</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P08_rf</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P08_rup</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>P08_rfin</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="P08_ri" name="Push a main de la Supersuite">
+      <bpmn:outgoing>P08_flujo_21</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="P08_rpre" name="preDeploy: npm run db:migrar">
+      <bpmn:incoming>P08_flujo_21</bpmn:incoming>
+      <bpmn:outgoing>P08_flujo_22</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="P08_rgm" name="¿Migró?">
+      <bpmn:incoming>P08_flujo_22</bpmn:incoming>
+      <bpmn:outgoing>P08_flujo_23</bpmn:outgoing>
+      <bpmn:outgoing>P08_flujo_24</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="P08_rf" name="Despliegue detenido">
+      <bpmn:incoming>P08_flujo_24</bpmn:incoming>
+      <bpmn:errorEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="P08_rup" name="Levantar API, worker y panel">
+      <bpmn:incoming>P08_flujo_23</bpmn:incoming>
+      <bpmn:outgoing>P08_flujo_25</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="P08_rfin" name="Supersuite actualizada">
+      <bpmn:incoming>P08_flujo_25</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="P08_flujo_21" sourceRef="P08_ri" targetRef="P08_rpre" />
+    <bpmn:sequenceFlow id="P08_flujo_22" sourceRef="P08_rpre" targetRef="P08_rgm" />
+    <bpmn:sequenceFlow id="P08_flujo_23" name="Sí" sourceRef="P08_rgm" targetRef="P08_rup" />
+    <bpmn:sequenceFlow id="P08_flujo_24" name="No" sourceRef="P08_rgm" targetRef="P08_rf" />
+    <bpmn:sequenceFlow id="P08_flujo_25" sourceRef="P08_rup" targetRef="P08_rfin" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="P08_diagrama" name="P08 Despliegue y migraciones">
+    <bpmndi:BPMNPlane id="P08_plano" bpmnElement="P08_colaboracion">
+      <bpmndi:BPMNShape id="P08_pool_ent_di" bpmnElement="P08_pool_ent" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="20" y="20" width="2956" height="792" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P08_carril_dv_di" bpmnElement="P08_carril_dv" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="20" width="2926" height="264" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P08_carril_ci_di" bpmnElement="P08_carril_ci" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="284" width="2926" height="264" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P08_carril_vc_di" bpmnElement="P08_carril_vc" isHorizontal="true" bioc:stroke="#6b5a24" bioc:fill="#fdfbf4" color:border-color="#6b5a24" color:background-color="#fdfbf4"><dc:Bounds x="50" y="548" width="2926" height="264" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P08_pool_neon_di" bpmnElement="P08_pool_neon" isHorizontal="true" bioc:stroke="#5f6368" bioc:fill="#f6f6f6" color:border-color="#5f6368" color:background-color="#f6f6f6"><dc:Bounds x="20" y="868" width="2956" height="72" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P08_pool_rs_di" bpmnElement="P08_pool_rs" isHorizontal="true" bioc:stroke="#284a7e" bioc:fill="#f5f8fd" color:border-color="#284a7e" color:background-color="#f5f8fd"><dc:Bounds x="20" y="996" width="2956" height="264" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P08_carril_rd_di" bpmnElement="P08_carril_rd" isHorizontal="true" bioc:stroke="#284a7e" bioc:fill="#f5f8fd" color:border-color="#284a7e" color:background-color="#f5f8fd"><dc:Bounds x="50" y="996" width="2926" height="264" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P08_i_di" bpmnElement="P08_i" bioc:stroke="#2e7d32" bioc:fill="#e3f3e5" color:border-color="#2e7d32" color:background-color="#e3f3e5"><dc:Bounds x="175" y="68" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="133" y="110" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P08_loc_di" bpmnElement="P08_loc" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="305" y="44" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P08_gmig_di" bpmnElement="P08_gmig" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="524" y="61" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="485" y="41" width="128" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P08_diff_di" bpmnElement="P08_diff" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="661" y="176" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P08_gm_di" bpmnElement="P08_gm" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="880" y="61" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P08_pr_di" bpmnElement="P08_pr" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1017" y="44" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P08_ci1_di" bpmnElement="P08_ci1" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="1195" y="308" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P08_ci2_di" bpmnElement="P08_ci2" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="1373" y="308" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P08_gci_di" bpmnElement="P08_gci" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="1592" y="325" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="1625" y="305" width="128" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P08_fix_di" bpmnElement="P08_fix" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1551" y="176" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P08_rev_di" bpmnElement="P08_rev" bioc:stroke="#1d4f91" bioc:fill="#e6eefb" color:border-color="#1d4f91" color:background-color="#e6eefb"><dc:Bounds x="1729" y="44" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P08_vb_di" bpmnElement="P08_vb" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="1907" y="572" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P08_mg_di" bpmnElement="P08_mg" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="2085" y="572" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P08_gmo_di" bpmnElement="P08_gmo" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="2304" y="589" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="2265" y="555" width="128" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P08_falla_di" bpmnElement="P08_falla" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="2441" y="704" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P08_ff_di" bpmnElement="P08_ff" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="2667" y="728" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2625" y="770" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P08_cmp_di" bpmnElement="P08_cmp" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="2441" y="572" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P08_pub_di" bpmnElement="P08_pub" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="2619" y="572" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P08_fok_di" bpmnElement="P08_fok" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="2845" y="596" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2803" y="638" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P08_ri_di" bpmnElement="P08_ri" bioc:stroke="#2e7d32" bioc:fill="#e3f3e5" color:border-color="#2e7d32" color:background-color="#e3f3e5"><dc:Bounds x="175" y="1044" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="133" y="1086" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P08_rpre_di" bpmnElement="P08_rpre" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="305" y="1020" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P08_rgm_di" bpmnElement="P08_rgm" isMarkerVisible="true" bioc:stroke="#8a6a00" bioc:fill="#fff1bf" color:border-color="#8a6a00" color:background-color="#fff1bf"><dc:Bounds x="524" y="1037" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="485" y="1017" width="128" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P08_rf_di" bpmnElement="P08_rf" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="709" y="1176" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="667" y="1218" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P08_rup_di" bpmnElement="P08_rup" bioc:stroke="#3d4f5c" bioc:fill="#edf1f4" color:border-color="#3d4f5c" color:background-color="#edf1f4"><dc:Bounds x="661" y="1020" width="132" height="84" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P08_rfin_di" bpmnElement="P08_rfin" bioc:stroke="#b3261e" bioc:fill="#fbe7e5" color:border-color="#b3261e" color:background-color="#fbe7e5"><dc:Bounds x="887" y="1044" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="845" y="1086" width="120" height="28" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P08_nota_n1_di" bpmnElement="P08_nota_n1"><dc:Bounds x="999" y="183" width="168" height="70" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="P08_flujo_1_di" bpmnElement="P08_flujo_1"><di:waypoint x="211" y="86" /><di:waypoint x="305" y="86" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P08_flujo_2_di" bpmnElement="P08_flujo_2"><di:waypoint x="437" y="86" /><di:waypoint x="524" y="86" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P08_flujo_3_di" bpmnElement="P08_flujo_3"><di:waypoint x="549" y="111" /><di:waypoint x="549" y="218" /><di:waypoint x="661" y="218" /><bpmndi:BPMNLabel><dc:Bounds x="555" y="119" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P08_flujo_4_di" bpmnElement="P08_flujo_4"><di:waypoint x="574" y="86" /><di:waypoint x="880" y="86" /><bpmndi:BPMNLabel><dc:Bounds x="580" y="66" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P08_flujo_5_di" bpmnElement="P08_flujo_5"><di:waypoint x="793" y="218" /><di:waypoint x="905" y="218" /><di:waypoint x="905" y="111" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P08_flujo_6_di" bpmnElement="P08_flujo_6"><di:waypoint x="930" y="86" /><di:waypoint x="1017" y="86" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P08_flujo_7_di" bpmnElement="P08_flujo_7"><di:waypoint x="1149" y="86" /><di:waypoint x="1172" y="86" /><di:waypoint x="1172" y="350" /><di:waypoint x="1195" y="350" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P08_flujo_8_di" bpmnElement="P08_flujo_8"><di:waypoint x="1327" y="350" /><di:waypoint x="1373" y="350" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P08_flujo_9_di" bpmnElement="P08_flujo_9"><di:waypoint x="1505" y="350" /><di:waypoint x="1592" y="350" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P08_flujo_10_di" bpmnElement="P08_flujo_10"><di:waypoint x="1617" y="325" /><di:waypoint x="1617" y="260" /><bpmndi:BPMNLabel><dc:Bounds x="1623" y="266" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P08_flujo_11_di" bpmnElement="P08_flujo_11"><di:waypoint x="1617" y="176" /><di:waypoint x="1617" y="86" /><di:waypoint x="1149" y="86" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P08_flujo_12_di" bpmnElement="P08_flujo_12"><di:waypoint x="1642" y="350" /><di:waypoint x="1795" y="350" /><di:waypoint x="1795" y="128" /><bpmndi:BPMNLabel><dc:Bounds x="1648" y="330" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P08_flujo_13_di" bpmnElement="P08_flujo_13"><di:waypoint x="1861" y="86" /><di:waypoint x="1884" y="86" /><di:waypoint x="1884" y="614" /><di:waypoint x="1907" y="614" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P08_flujo_14_di" bpmnElement="P08_flujo_14"><di:waypoint x="2039" y="614" /><di:waypoint x="2085" y="614" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P08_flujo_15_di" bpmnElement="P08_flujo_15"><di:waypoint x="2217" y="614" /><di:waypoint x="2304" y="614" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P08_flujo_16_di" bpmnElement="P08_flujo_16"><di:waypoint x="2354" y="614" /><di:waypoint x="2441" y="614" /><bpmndi:BPMNLabel><dc:Bounds x="2360" y="594" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P08_flujo_17_di" bpmnElement="P08_flujo_17"><di:waypoint x="2329" y="639" /><di:waypoint x="2329" y="746" /><di:waypoint x="2441" y="746" /><bpmndi:BPMNLabel><dc:Bounds x="2335" y="647" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P08_flujo_18_di" bpmnElement="P08_flujo_18"><di:waypoint x="2573" y="746" /><di:waypoint x="2667" y="746" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P08_flujo_19_di" bpmnElement="P08_flujo_19"><di:waypoint x="2573" y="614" /><di:waypoint x="2619" y="614" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P08_flujo_20_di" bpmnElement="P08_flujo_20"><di:waypoint x="2751" y="614" /><di:waypoint x="2845" y="614" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P08_flujo_21_di" bpmnElement="P08_flujo_21"><di:waypoint x="211" y="1062" /><di:waypoint x="305" y="1062" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P08_flujo_22_di" bpmnElement="P08_flujo_22"><di:waypoint x="437" y="1062" /><di:waypoint x="524" y="1062" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P08_flujo_23_di" bpmnElement="P08_flujo_23"><di:waypoint x="574" y="1062" /><di:waypoint x="661" y="1062" /><bpmndi:BPMNLabel><dc:Bounds x="580" y="1042" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P08_flujo_24_di" bpmnElement="P08_flujo_24"><di:waypoint x="549" y="1087" /><di:waypoint x="549" y="1194" /><di:waypoint x="709" y="1194" /><bpmndi:BPMNLabel><dc:Bounds x="555" y="1095" width="30" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P08_flujo_25_di" bpmnElement="P08_flujo_25"><di:waypoint x="793" y="1062" /><di:waypoint x="887" y="1062" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P08_mensaje_1_di" bpmnElement="P08_mensaje_1"><di:waypoint x="727" y="260" /><di:waypoint x="727" y="868" /><bpmndi:BPMNLabel><dc:Bounds x="733" y="832" width="161" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P08_mensaje_2_di" bpmnElement="P08_mensaje_2"><di:waypoint x="2151" y="656" /><di:waypoint x="2151" y="868" /><bpmndi:BPMNLabel><dc:Bounds x="2157" y="832" width="93" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="P08_asoc_n1_di" bpmnElement="P08_asoc_n1"><di:waypoint x="999" y="218" /><di:waypoint x="793" y="218" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
