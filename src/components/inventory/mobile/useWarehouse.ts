@@ -22,12 +22,13 @@ export function useWarehouse() {
     setBusy(true);
     try {
       const next = await client.current.synchronize(fullRefresh);
-      setState(next); setLocked(false); setError('');
+      setState(next); setOnline(true); setLocked(false); setError('');
       const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('aether-warehouse') : null;
       channel?.postMessage('changed'); channel?.close();
     } catch (problem) {
       if (problem instanceof WarehouseConnectionError && [401, 403].includes(problem.status)) { setLocked(true); setState(null); }
       if (problem instanceof WarehouseConnectionError && problem.status === 0) {
+        setOnline(false);
         try { const local = await client.current.current(); if (local) setState(local); }
         catch (localError) { setLocked(true); setState(null); setError(localError instanceof Error ? localError.message : 'Vuelve a iniciar sesión'); return; }
       }
@@ -47,7 +48,7 @@ export function useWarehouse() {
       if (!disposed) { setLocked(problem instanceof WarehouseConnectionError && problem.status === 401); setError(problem instanceof Error ? problem.message : 'No se pudieron leer los registros locales'); }
     }).finally(() => { if (!disposed) setLoading(false); });
     setOnline(navigator.onLine);
-    const connected = () => { setOnline(true); void sync(true, false); };
+    const connected = () => { void sync(true, false); };
     const disconnected = () => setOnline(false);
     const visible = () => {
       if (document.visibilityState !== 'visible') return;

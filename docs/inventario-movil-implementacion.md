@@ -87,4 +87,10 @@ La migración `20261021130000_warehouse_mobile` agrega solamente `WarehouseOpera
 
 No aplicar migraciones a la conexión local habitual para probar: apunta a producción. La activación requiere revisar el conjunto del despliegue, aplicar la migración aditiva y desplegar el código inmediatamente, según AGENTS.md. El espacio de trabajo contiene también cambios de otros módulos; deben conservarse y coordinarse antes de publicar una versión conjunta.
 
-Neon rechazó crear una rama de pruebas por su límite de ramas. No se eliminó ninguna rama ni se cambió producción; por ese motivo la comprobación de migración se realiza con PostgreSQL aislado local.
+Neon rechazó crear una rama de pruebas por su límite de ramas. No se eliminó ninguna rama; las comprobaciones de migración se hicieron con PostgreSQL aislado local.
+
+Las migraciones de consignación y bodega móvil quedaron registradas en producción el 21 de octubre de 2026. Al integrar la rama con la versión vigente de Aether se añadieron las guardas de reintento que exige el proyecto (`IF NOT EXISTS` y `duplicate_object`), manteniendo el mismo esquema y sin editar el historial de producción. El laboratorio ejecuta cada SQL dos veces y verifica después las once comprobaciones de inventario.
+
+La prueba de navegador confirmó recarga sin conexión, lectura OCR local de una etiqueta PNG, persistencia de la cola tras otra recarga, sincronización al reconectar e idempotencia en el endpoint real. También verificó aislamiento de origen, acceso sin sesión y ausencia de desbordamiento horizontal a 390 píxeles. El indicador de conexión responde al resultado de la sincronización: tener Wi-Fi no garantiza acceso a Aether. La comprobación inicial de identidad tiene un límite de ocho segundos para volver a la copia local si la red deja de responder.
+
+Para reproducir la verificación con un build selectivo, `warehouse-production-lab.mjs` sirve temporalmente los bytes originales del icono que Next omite en ese modo. Los elimina al cerrar el laboratorio si el archivo conserva esos mismos bytes. No sustituye la base de datos ni las API: las operaciones se verifican contra PostgreSQL efímero y los Route Handlers reales.

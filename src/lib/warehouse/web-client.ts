@@ -3,7 +3,7 @@ import { browserWarehouseStore } from './browser-store';
 
 export async function warehouseFetch(path: string, body?: unknown): Promise<unknown> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 90_000);
+  const timeout = setTimeout(() => controller.abort(), path.includes('identityOnly=1') ? 8_000 : 90_000);
   try {
     const response = await fetch(path, { method: body === undefined ? 'GET' : 'POST', credentials: 'same-origin', cache: 'no-store', redirect: 'error', headers: body === undefined ? {} : { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body), signal: controller.signal });
     const json: unknown = await response.json();

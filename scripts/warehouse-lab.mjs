@@ -21,7 +21,11 @@ const diff = spawnSync(process.execPath, [path.join(root, 'node_modules/prisma/b
 if (diff.status !== 0) throw new Error(diff.stderr || 'No se pudo preparar el esquema aislado');
 const db = await PGlite.create();
 await db.exec(await read(path.join(output, 'baseline.sql'), 'utf8'));
-await db.exec(await read(path.join(root, 'prisma/migrations/20261021130000_warehouse_mobile/migration.sql'), 'utf8'));
+for (const name of ['20261021120000_consignment', '20261021130000_warehouse_mobile']) {
+  const migration = await read(path.join(root, 'prisma/migrations', name, 'migration.sql'), 'utf8');
+  await db.exec(migration);
+  await db.exec(migration);
+}
 const server = new PGLiteSocketServer({ db, host: '127.0.0.1', port: 0, maxConnections: 5 });
 await server.start();
 const connectionString = `postgresql://postgres@${server.getServerConn()}/postgres`;
@@ -34,7 +38,7 @@ process.env.SENTRY_DSN = '';
 process.env.APP_URL = 'http://localhost:3101';
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString, max: 1 }), log: [] });
 globalThis.prisma = prisma;
-const company = await prisma.company.create({ data: { rut: '76.000.000-0', businessName: 'Laboratorio de Bodega', status: 'ACTIVE', features: { create: { hasInventory: true, hasPurchases: true, hasMultipleWarehouses: true, hasAccounting: false } }, settings: { create: { allowNegativeStock: false } } } });
+const company = await prisma.company.create({ data: { rut: '76.000.000-0', businessName: 'Laboratorio de Bodega', status: 'ACTIVE', features: { create: { hasConsignment: true, hasInventory: true, hasPurchases: true, hasMultipleWarehouses: true, hasAccounting: false } }, settings: { create: { allowNegativeStock: false } } } });
 const user = await prisma.user.create({ data: { companyId: company.id, name: 'Supervisión Prueba', email: 'warehouse-lab@example.invalid', passwordHash: 'not-a-password', role: 'OWNER' } });
 const a = await prisma.warehouse.create({ data: { companyId: company.id, name: 'Principal', code: 'P', isDefault: true } });
 const b = await prisma.warehouse.create({ data: { companyId: company.id, name: 'Destino', code: 'D' } });
@@ -83,10 +87,16 @@ await cancelGoodsReceipt(company.id, savedReceipt.id);
 assert.equal((await prisma.inventoryLot.findFirst({ where: { companyId: company.id, productId: product.id, warehouseId: a.id, lotNumber: 'D' } })).quantity, 0);
 assert.equal((await prisma.inventoryLot.findFirst({ where: { companyId: company.id, productId: product.id, warehouseId: a.id, lotNumber: 'A' } })).quantity, beforeCancel.quantity); checked++;
 console.log(JSON.stringify({ integration: 'passed', scenarios: checked, migration: 'applied to isolated PostgreSQL only' }));
-if (!process.argv.includes('--serve')) { await prisma.$disconnect(); await server.stop(); await db.close(); process.exit(0); }
+if (!process.argv.includes('--serve') && !process.argv.includes('--database-only')) { await prisma.$disconnect(); await server.stop(); await db.close(); process.exit(0); }
 const { createSessionToken } = await import('../src/lib/auth/session.ts');
 const token = await createSessionToken({ id: user.id, role: user.role, email: user.email, companyId: company.id, isSuperAdmin: false, sessionVersion: user.sessionVersion });
 await write(path.join(output, 'browser-session.json'), JSON.stringify({ token, userId: user.id, companyId: company.id, productId: product.id, warehouseId: a.id, targetWarehouseId: b.id }));
+if (process.argv.includes('--database-only')) {
+  console.log(JSON.stringify({ databaseOnly: true, address: server.getServerConn() }));
+  const close = async () => { await prisma.$disconnect(); await server.stop(); await db.close(); process.exit(0); };
+  process.on('SIGINT', close); process.on('SIGTERM', close);
+  await new Promise(() => {});
+}
 const log = createWriteStream(path.join(output, 'next.log'));
 const next = spawn(process.execPath, [path.join(root, 'node_modules/next/dist/bin/next'), 'dev', '--port', '3101'], { cwd: root, env: { ...process.env, DATABASE_URL: connectionString }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
 next.stdout.pipe(log); next.stderr.pipe(log);

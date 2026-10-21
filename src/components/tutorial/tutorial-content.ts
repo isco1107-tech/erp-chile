@@ -37,6 +37,22 @@ const search = (title: string, description: string): TutorialStep => ({ title, d
 const note = (title: string, description: string): TutorialStep => ({ title, description });
 
 export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
+  'inventory-mobile': {
+    title: 'Bodega móvil',
+    steps: [
+      header('Una tarea por vez', 'Elige Entrar, Sacar, Contar o Consultar y selecciona la bodega física.'),
+      note('Cámara o búsqueda', 'Escanea el código o fotografía la etiqueta. Confirma producto, lote, vencimiento y cantidad.'),
+      note('Prepara el trabajo sin señal', 'Con conexión, actualiza el catálogo y pulsa Preparar lectura sin señal. Los pendientes se conservan en el teléfono y se sincronizan al reconectar.'),
+    ],
+  },
+  consignment: {
+    title: 'Productores y consignación',
+    steps: [
+      header('Configura al productor', 'Vincula su contacto y acuerda la comisión antes de asignar los productos.'),
+      note('Ventas y comisión', 'Cada venta conserva la comisión vigente en ese momento. Las anulaciones y notas de crédito generan su reverso.'),
+      note('Liquida el período', 'Revisa el borrador, confirma la cuenta por pagar y registra el pago desde Tesorería.'),
+    ],
+  },
   dashboard: {
     title: 'Bienvenida',
     steps: [

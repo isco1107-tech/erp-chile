@@ -133,7 +133,7 @@ const nextConfig = {
           { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
         ],
       },
-      ...['/bodega/:path*', '/dashboard/pos/:path*'].map((source) => ({
+      ...['/bodega/:path*', '/pos/:path*', '/dashboard/pos/:path*'].map((source) => ({
         source,
         headers: [{ key: 'Permissions-Policy', value: 'camera=(self), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()' }],
       })),

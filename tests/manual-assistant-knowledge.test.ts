@@ -33,9 +33,9 @@ const ALL_FEATURES = features(FEATURE_KEYS);
 const ALL_PERMISSIONS = Object.keys(PERMISSIONS) as Permission[];
 
 describe('Mapa de pantallas del asistente', () => {
-  it('todas las rutas del mapa son rutas del dashboard o del panel de plataforma', () => {
+  it('todas las rutas del mapa pertenecen al panel o a la bodega privada', () => {
     for (const entry of NAVIGATION_MAP) {
-      expect(entry.route.startsWith('/dashboard')).toBe(true);
+      expect(entry.route.startsWith('/dashboard') || entry.route === '/bodega').toBe(true);
     }
   });
 

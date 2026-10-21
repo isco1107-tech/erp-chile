@@ -1,32 +1,45 @@
 -- Productores y consignación (aditivo). Generado con prisma migrate diff y filtrado:
--- solo lo de este feature; el resto del diff (drift de la BD compartida) se omitió. NO aplicado.
+-- solo lo de este feature; el resto del diff (drift de la BD compartida) se omitió.
+-- Guardas de reintento alineadas con las migraciones de producción existentes.
 
 -- CreateEnum
-CREATE TYPE "SupplyMode" AS ENUM ('OWN', 'CONSIGNMENT');
+DO $$ BEGIN
+  CREATE TYPE "SupplyMode" AS ENUM ('OWN', 'CONSIGNMENT');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- CreateEnum
-CREATE TYPE "ConsignmentLineKind" AS ENUM ('SALE', 'REVERSAL');
+DO $$ BEGIN
+  CREATE TYPE "ConsignmentLineKind" AS ENUM ('SALE', 'REVERSAL');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- CreateEnum
-CREATE TYPE "ConsignmentCommissionBase" AS ENUM ('NET', 'GROSS');
+DO $$ BEGIN
+  CREATE TYPE "ConsignmentCommissionBase" AS ENUM ('NET', 'GROSS');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- CreateEnum
-CREATE TYPE "ConsignmentSettlementStatus" AS ENUM ('DRAFT', 'CONFIRMED', 'PAID');
+DO $$ BEGIN
+  CREATE TYPE "ConsignmentSettlementStatus" AS ENUM ('DRAFT', 'CONFIRMED', 'PAID');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AlterEnum
 -- Nuevo origen de asiento contable (devengo al productor). Aditivo.
-ALTER TYPE "JournalSourceType" ADD VALUE 'CONSIGNMENT';
+ALTER TYPE "JournalSourceType" ADD VALUE IF NOT EXISTS 'CONSIGNMENT';
 
 -- AlterTable
-ALTER TABLE "CompanyFeatures" ADD COLUMN     "hasConsignment" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "CompanyFeatures" ADD COLUMN IF NOT EXISTS "hasConsignment" BOOLEAN NOT NULL DEFAULT false;
 
 -- AlterTable
-ALTER TABLE "Product" ADD COLUMN     "commissionBpsOverride" INTEGER,
-ADD COLUMN     "producerId" TEXT,
-ADD COLUMN     "supplyMode" "SupplyMode" NOT NULL DEFAULT 'OWN';
+ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "commissionBpsOverride" INTEGER,
+ADD COLUMN IF NOT EXISTS "producerId" TEXT,
+ADD COLUMN IF NOT EXISTS "supplyMode" "SupplyMode" NOT NULL DEFAULT 'OWN';
 
 -- CreateTable
-CREATE TABLE "Producer" (
+CREATE TABLE IF NOT EXISTS "Producer" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "contactId" TEXT NOT NULL,
@@ -42,7 +55,7 @@ CREATE TABLE "Producer" (
 );
 
 -- CreateTable
-CREATE TABLE "ConsignmentSettlement" (
+CREATE TABLE IF NOT EXISTS "ConsignmentSettlement" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "producerId" TEXT NOT NULL,
@@ -65,7 +78,7 @@ CREATE TABLE "ConsignmentSettlement" (
 );
 
 -- CreateTable
-CREATE TABLE "ConsignmentSettlementLine" (
+CREATE TABLE IF NOT EXISTS "ConsignmentSettlementLine" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "producerId" TEXT NOT NULL,
@@ -87,67 +100,103 @@ CREATE TABLE "ConsignmentSettlementLine" (
 );
 
 -- CreateIndex
-CREATE INDEX "Product_companyId_producerId_idx" ON "Product"("companyId", "producerId");
+CREATE INDEX IF NOT EXISTS "Product_companyId_producerId_idx" ON "Product"("companyId", "producerId");
 
 -- CreateIndex
-CREATE INDEX "Producer_companyId_isActive_idx" ON "Producer"("companyId", "isActive");
+CREATE INDEX IF NOT EXISTS "Producer_companyId_isActive_idx" ON "Producer"("companyId", "isActive");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Producer_companyId_contactId_key" ON "Producer"("companyId", "contactId");
+CREATE UNIQUE INDEX IF NOT EXISTS "Producer_companyId_contactId_key" ON "Producer"("companyId", "contactId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "ConsignmentSettlement_payableDocumentId_key" ON "ConsignmentSettlement"("payableDocumentId");
+CREATE UNIQUE INDEX IF NOT EXISTS "ConsignmentSettlement_payableDocumentId_key" ON "ConsignmentSettlement"("payableDocumentId");
 
 -- CreateIndex
-CREATE INDEX "ConsignmentSettlement_companyId_producerId_status_idx" ON "ConsignmentSettlement"("companyId", "producerId", "status");
+CREATE INDEX IF NOT EXISTS "ConsignmentSettlement_companyId_producerId_status_idx" ON "ConsignmentSettlement"("companyId", "producerId", "status");
 
 -- CreateIndex
-CREATE INDEX "ConsignmentSettlement_companyId_periodStart_idx" ON "ConsignmentSettlement"("companyId", "periodStart");
+CREATE INDEX IF NOT EXISTS "ConsignmentSettlement_companyId_periodStart_idx" ON "ConsignmentSettlement"("companyId", "periodStart");
 
 -- CreateIndex
-CREATE INDEX "ConsignmentSettlementLine_companyId_producerId_settlementId_idx" ON "ConsignmentSettlementLine"("companyId", "producerId", "settlementId");
+CREATE INDEX IF NOT EXISTS "ConsignmentSettlementLine_companyId_producerId_settlementId_idx" ON "ConsignmentSettlementLine"("companyId", "producerId", "settlementId");
 
 -- CreateIndex
-CREATE INDEX "ConsignmentSettlementLine_companyId_documentDate_idx" ON "ConsignmentSettlementLine"("companyId", "documentDate");
+CREATE INDEX IF NOT EXISTS "ConsignmentSettlementLine_companyId_documentDate_idx" ON "ConsignmentSettlementLine"("companyId", "documentDate");
 
 -- CreateIndex
-CREATE INDEX "ConsignmentSettlementLine_companyId_reversesLineId_idx" ON "ConsignmentSettlementLine"("companyId", "reversesLineId");
+CREATE INDEX IF NOT EXISTS "ConsignmentSettlementLine_companyId_reversesLineId_idx" ON "ConsignmentSettlementLine"("companyId", "reversesLineId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "ConsignmentSettlementLine_salesDocumentItemId_kind_key" ON "ConsignmentSettlementLine"("salesDocumentItemId", "kind");
+CREATE UNIQUE INDEX IF NOT EXISTS "ConsignmentSettlementLine_salesDocumentItemId_kind_key" ON "ConsignmentSettlementLine"("salesDocumentItemId", "kind");
 
 -- AddForeignKey
-ALTER TABLE "Product" ADD CONSTRAINT "Product_producerId_fkey" FOREIGN KEY ("producerId") REFERENCES "Producer"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "Product" ADD CONSTRAINT "Product_producerId_fkey" FOREIGN KEY ("producerId") REFERENCES "Producer"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "Producer" ADD CONSTRAINT "Producer_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "Producer" ADD CONSTRAINT "Producer_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "Producer" ADD CONSTRAINT "Producer_contactId_fkey" FOREIGN KEY ("contactId") REFERENCES "Contact"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "Producer" ADD CONSTRAINT "Producer_contactId_fkey" FOREIGN KEY ("contactId") REFERENCES "Contact"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ConsignmentSettlement" ADD CONSTRAINT "ConsignmentSettlement_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ConsignmentSettlement" ADD CONSTRAINT "ConsignmentSettlement_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ConsignmentSettlement" ADD CONSTRAINT "ConsignmentSettlement_producerId_fkey" FOREIGN KEY ("producerId") REFERENCES "Producer"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ConsignmentSettlement" ADD CONSTRAINT "ConsignmentSettlement_producerId_fkey" FOREIGN KEY ("producerId") REFERENCES "Producer"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ConsignmentSettlement" ADD CONSTRAINT "ConsignmentSettlement_payableDocumentId_fkey" FOREIGN KEY ("payableDocumentId") REFERENCES "PurchaseDocument"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ConsignmentSettlement" ADD CONSTRAINT "ConsignmentSettlement_payableDocumentId_fkey" FOREIGN KEY ("payableDocumentId") REFERENCES "PurchaseDocument"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ConsignmentSettlementLine" ADD CONSTRAINT "ConsignmentSettlementLine_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ConsignmentSettlementLine" ADD CONSTRAINT "ConsignmentSettlementLine_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ConsignmentSettlementLine" ADD CONSTRAINT "ConsignmentSettlementLine_producerId_fkey" FOREIGN KEY ("producerId") REFERENCES "Producer"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ConsignmentSettlementLine" ADD CONSTRAINT "ConsignmentSettlementLine_producerId_fkey" FOREIGN KEY ("producerId") REFERENCES "Producer"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ConsignmentSettlementLine" ADD CONSTRAINT "ConsignmentSettlementLine_salesDocumentItemId_fkey" FOREIGN KEY ("salesDocumentItemId") REFERENCES "SalesDocumentItem"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ConsignmentSettlementLine" ADD CONSTRAINT "ConsignmentSettlementLine_salesDocumentItemId_fkey" FOREIGN KEY ("salesDocumentItemId") REFERENCES "SalesDocumentItem"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ConsignmentSettlementLine" ADD CONSTRAINT "ConsignmentSettlementLine_reversesLineId_fkey" FOREIGN KEY ("reversesLineId") REFERENCES "ConsignmentSettlementLine"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ConsignmentSettlementLine" ADD CONSTRAINT "ConsignmentSettlementLine_reversesLineId_fkey" FOREIGN KEY ("reversesLineId") REFERENCES "ConsignmentSettlementLine"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ConsignmentSettlementLine" ADD CONSTRAINT "ConsignmentSettlementLine_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ConsignmentSettlementLine" ADD CONSTRAINT "ConsignmentSettlementLine_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ConsignmentSettlementLine" ADD CONSTRAINT "ConsignmentSettlementLine_settlementId_fkey" FOREIGN KEY ("settlementId") REFERENCES "ConsignmentSettlement"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ConsignmentSettlementLine" ADD CONSTRAINT "ConsignmentSettlementLine_settlementId_fkey" FOREIGN KEY ("settlementId") REFERENCES "ConsignmentSettlement"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;

@@ -35,6 +35,7 @@ export const MANUAL_SECTIONS: ManualSection[] = ([
     summary: 'Controlar productos de terceros, comisiones y liquidaciones al productor.',
     key: 'hasConsignment',
     title: 'Productores y consignación',
+    screenshot: '/manual/screenshots/consignment.png',
     route: '/dashboard/consignment',
     topics: [
       {
@@ -81,7 +82,7 @@ export const MANUAL_SECTIONS: ManualSection[] = ([
   ...VENTAS_SECTIONS,
   ...COMPRAS_SECTIONS,
   ...INVENTARIO_SECTIONS,
-  { id: 'inventory-mobile', chapter: 'Inventario', key: 'hasInventory', permission: 'products:read', title: 'Bodega móvil', summary: 'Registrar inventario con el teléfono y sincronizar los pendientes al recuperar conexión.', route: '/bodega', topics: [
+  { id: 'inventory-mobile', chapter: 'Inventario', key: 'hasInventory', permission: 'products:read', title: 'Bodega móvil', summary: 'Registrar inventario con el teléfono y sincronizar los pendientes al recuperar conexión.', screenshot: '/manual/screenshots/inventory-mobile.png', route: '/bodega', topics: [
     { id: 'preparar', title: 'Preparar el teléfono antes de entrar a bodega', steps: ['Abre Bodega móvil con conexión e inicia sesión en tu empresa.', 'Pulsa Actualizar para descargar productos, bodegas y existencias.', 'Pulsa Preparar lectura sin señal para guardar la lectura local de etiquetas y la pantalla en este teléfono.'] },
     { id: 'capturar', title: 'Registrar con cámara o búsqueda', steps: ['Elige Entrar, Sacar, Contar o Consultar.', 'Busca el producto o escanea su código. La foto de etiqueta se procesa en el teléfono; confirma lote, vencimiento y cantidad.', 'Confirma para guardar el registro localmente y continuar con el siguiente producto. Sin señal queda pendiente; al volver la conexión se sincroniza con Aether.'] },
     { id: 'revisar', title: 'Revisar ajustes, conteos y mermas', permission: 'inventory:approve', route: '/dashboard/inventory/mobile', steps: ['Abre la revisión de bodega móvil.', 'Verifica los datos y escribe el motivo antes de aprobar o rechazar. Un conflicto de stock requiere una captura nueva.'] },

@@ -39,6 +39,7 @@ const assert = require('node:assert/strict');
     await context.setOffline(true);
     await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
     await page.getByRole('heading', { name: '¿Qué vas a hacer?' }).waitFor({ timeout: 30000 });
+    await page.getByText('Sin señal', { exact: true }).waitFor();
     await page.getByRole('button', { name: /Sacar Registrar/ }).click();
     await page.getByRole('button', { name: /Producto de prueba/ }).click();
     const label = await page.evaluate(() => {
