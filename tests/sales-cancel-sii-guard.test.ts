@@ -9,6 +9,11 @@ import { prisma } from '@/lib/prisma';
  * stock, pagos y asientos mientras el SII lo mantiene. Se corrige con NC.
  */
 
+// Consignación tiene su propio enganche y sus pruebas (consignment-hook.test.ts).
+jest.mock('@/modules/consignment/services/consignment-hook.service', () => ({
+  applyConsignmentToIssuedDocument: jest.fn(),
+  reverseConsignmentForCancelledDocument: jest.fn(),
+}));
 jest.mock('@/lib/workflows/engine', () => ({ emitWorkflowEvent: jest.fn() }));
 jest.mock('@/modules/accounting/posting-rules/sales-posting', () => ({
   postCreditNoteIssued: jest.fn(),

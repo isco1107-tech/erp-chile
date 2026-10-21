@@ -1,10 +1,11 @@
 import { prisma } from '@/lib/prisma';
-import type { Contact, GoodsReceipt, GoodsReceiptItem, PurchaseOrder, Warehouse } from '@prisma/client';
+import type { Contact, GoodsReceipt, GoodsReceiptItem, PurchaseOrder, Warehouse, Prisma } from '@prisma/client';
 import { applyStockIn, applyStockOut } from '@/modules/inventory/services/stock.service';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import type { GoodsReceiptCreateInput } from '../schema';
 import { normalizeLotNumber, parseExpiryDate } from '@/lib/inventory/lots';
+import { warehouseOperationSchema } from '@/lib/warehouse/contracts';
 
 export type GoodsReceiptWithItems = GoodsReceipt & { items: GoodsReceiptItem[] };
 export type GoodsReceiptWithRelations = GoodsReceiptWithItems & {
@@ -15,12 +16,11 @@ export type GoodsReceiptWithRelations = GoodsReceiptWithItems & {
 /** Tolerancia para comparar cantidades `Float` acumuladas por sucesivas recepciones/facturas parciales — nunca igualdad estricta. */
 export const QUANTITY_EPSILON = 0.0001;
 
-export async function createGoodsReceipt(
+export async function applyGoodsReceipt(
+  tx: Prisma.TransactionClient,
   companyId: string,
   input: GoodsReceiptCreateInput
-): Promise<GoodsReceiptWithItems> {
-  let fullyReceived = false;
-  const receipt = await prisma.$transaction(async (tx) => {
+): Promise<{ receipt: GoodsReceiptWithItems; fullyReceived: boolean }> {
     // Lock sobre la OC: sin esto, dos recepciones concurrentes contra la
     // misma orden podrían ambas leer el mismo `receivedQuantity` "antes" y
     // sobre-recibir más de lo pactado.
@@ -125,15 +125,18 @@ export async function createGoodsReceipt(
       });
     }
 
-    const updatedItems = await tx.purchaseOrderItem.findMany({ where: { orderId: input.orderId } });
-    fullyReceived = updatedItems.every((item) => item.receivedQuantity >= item.quantity - QUANTITY_EPSILON);
+    const updatedItems = await tx.purchaseOrderItem.findMany({ where: { companyId, orderId: input.orderId } });
+    const fullyReceived = updatedItems.every((item) => item.receivedQuantity >= item.quantity - QUANTITY_EPSILON);
     await tx.purchaseOrder.updateMany({
       where: { id: input.orderId, companyId },
       data: { status: fullyReceived ? 'RECEIVED' : 'PARTIALLY_RECEIVED' },
     });
 
-    return receipt;
-  }, LOCKING_TX_OPTIONS);
+    return { receipt, fullyReceived };
+}
+
+export async function createGoodsReceipt(companyId: string, input: GoodsReceiptCreateInput): Promise<GoodsReceiptWithItems> {
+  const { receipt, fullyReceived } = await prisma.$transaction((tx) => applyGoodsReceipt(tx, companyId, input), LOCKING_TX_OPTIONS);
 
   // Después de confirmar la recepción: avisar nunca puede deshacer el ingreso a bodega.
   void emitWorkflowEvent(companyId, 'GOODS_RECEIPT_CREATED', {
@@ -171,6 +174,16 @@ export async function cancelGoodsReceipt(companyId: string, id: string): Promise
       if (line.productId) {
         const product = await tx.product.findFirst({ where: { id: line.productId, companyId } });
         if (product?.isTrackable) {
+          // Una recepción móvil conserva el lote físico en su intención durable.
+          // Al anularla no se puede descontar otro lote por FEFO.
+          const mobile = product.tracksLots ? await tx.warehouseOperation.findFirst({ where: { companyId, receiptId: receipt.id, status: 'APPLIED' }, select: { payload: true } }) : null;
+          let lots: { lotNumber: string; quantity: number }[] | undefined;
+          if (mobile) {
+            const parsed = warehouseOperationSchema.safeParse(mobile.payload);
+            if (!parsed.success || parsed.data.kind !== 'RECEIPT' || parsed.data.productId !== line.productId || parsed.data.warehouseId !== receipt.warehouseId || Math.abs(parsed.data.quantity - line.quantity) > QUANTITY_EPSILON || !parsed.data.lotNumber) throw new Error('No se pudo identificar el lote de la recepción. Contacta a supervisión antes de anularla');
+            lots = [{ lotNumber: parsed.data.lotNumber, quantity: line.quantity }];
+            await tx.warehouseOperation.updateMany({ where: { companyId, receiptId: receipt.id, status: 'APPLIED' }, data: { message: 'La recepción fue anulada desde Aether y sus existencias se revirtieron' } });
+          }
           await applyStockOut(tx, companyId, {
             productId: line.productId,
             warehouseId: receipt.warehouseId,
@@ -178,6 +191,7 @@ export async function cancelGoodsReceipt(companyId: string, id: string): Promise
             quantity: line.quantity,
             reference: `Anulación Recepción #${receipt.folio}`,
             notes: 'Recepción de mercadería anulada',
+            lots,
           });
         }
       }
@@ -191,7 +205,7 @@ export async function cancelGoodsReceipt(companyId: string, id: string): Promise
 
     // El estado de la OC puede haber bajado de RECEIVED a PARTIALLY_RECEIVED
     // (o a SENT si quedó en cero recibido) tras revertir.
-    const updatedItems = await tx.purchaseOrderItem.findMany({ where: { orderId: receipt.orderId } });
+    const updatedItems = await tx.purchaseOrderItem.findMany({ where: { companyId, orderId: receipt.orderId } });
     const anyReceived = updatedItems.some((item) => item.receivedQuantity > QUANTITY_EPSILON);
     const fullyReceived = updatedItems.every((item) => item.receivedQuantity >= item.quantity - QUANTITY_EPSILON);
     await tx.purchaseOrder.updateMany({

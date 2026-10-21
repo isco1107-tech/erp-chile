@@ -45,6 +45,7 @@ export type FeatureKey = keyof Pick<
   | 'hasProduction'
   | 'hasServiceDesk'
   | 'hasWebSites'
+  | 'hasConsignment'
 >;
 
 export type CompanyFeatureFlags = Record<FeatureKey, boolean>;
@@ -64,7 +65,7 @@ export const MODULES: ModuleDefinition[] = [
     key: 'hasInventory',
     label: 'Inventario y Catálogo',
     description: 'Productos, bodegas, stock y movimientos de Kardex.',
-    permissions: ['products:read', 'products:write', 'inventory:write'],
+    permissions: ['products:read', 'products:write', 'inventory:write', 'inventory:operate', 'inventory:approve'],
     routes: ['/dashboard/products', '/dashboard/inventory'],
   },
   {
@@ -306,6 +307,13 @@ export const MODULES: ModuleDefinition[] = [
     permissions: ['websites:read', 'websites:write', 'websites:publish'],
     routes: ['/dashboard/web-sites'],
   },
+  {
+    key: 'hasConsignment',
+    label: 'Productores y consignación',
+    description: 'Productores que dejan sus productos en consignación: la empresa retiene una comisión por cada venta y liquida al productor el resto.',
+    permissions: ['consignment:read', 'consignment:write'],
+    routes: ['/dashboard/consignment'],
+  },
 ];
 
 export const MODULE_KEYS: FeatureKey[] = MODULES.map((m) => m.key);
@@ -347,6 +355,7 @@ export const DEFAULT_FEATURES: CompanyFeatureFlags = {
   hasProduction: false,
   hasServiceDesk: false,
   hasWebSites: false,
+  hasConsignment: false,
 };
 
 /** Índice inverso permiso → módulo, construido una vez al cargar el módulo. */
@@ -401,6 +410,7 @@ export function toFeatureFlags(features: CompanyFeatures | null): CompanyFeature
     hasProduction: features.hasProduction,
     hasServiceDesk: features.hasServiceDesk,
     hasWebSites: features.hasWebSites,
+    hasConsignment: features.hasConsignment,
   };
 }
 

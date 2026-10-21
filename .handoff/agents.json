@@ -1,0 +1,29 @@
+{
+  "agents": {
+    "claude": { "branch": "agent/claude", "runner": "claude" },
+    "codex": { "branch": "agent/codex", "runner": "codex" },
+    "antigravity": { "branch": "agent/antigravity", "runner": "antigravity" }
+  },
+  "priors": {
+    "architecture": "claude",
+    "schema": "claude",
+    "tax": "claude",
+    "auth": "claude",
+    "backend": "claude",
+    "audit": "codex",
+    "tests": "codex",
+    "refactor": "codex",
+    "ui": "antigravity",
+    "landing": "antigravity",
+    "docs": "antigravity"
+  },
+  "minSamples": 3,
+  "sensitivePaths": [
+    "src/lib/chile/",
+    "src/modules/dte/",
+    "src/lib/auth/",
+    "src/modules/auth/",
+    "src/proxy.ts",
+    "src/modules/accounting/"
+  ]
+}

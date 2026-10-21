@@ -11,6 +11,7 @@ export const SOURCE_LABELS: Record<JournalSourceType, string> = {
   CLOSING: 'Cierre',
   PAYROLL_PERIOD: 'Remuneraciones',
   EXPENSE_REPORT: 'Rendición de gastos',
+  CONSIGNMENT: 'Consignación',
 };
 
 /** Enlace al documento que originó el asiento, cuando existe una pantalla para verlo. */

@@ -6,6 +6,11 @@ import { prisma } from '@/lib/prisma';
  * según el tipo de DTE en vez de según si el documento realmente lo movió.
  */
 
+// Consignación tiene su propio enganche y sus pruebas (consignment-hook.test.ts).
+jest.mock('@/modules/consignment/services/consignment-hook.service', () => ({
+  applyConsignmentToIssuedDocument: jest.fn(),
+  reverseConsignmentForCancelledDocument: jest.fn(),
+}));
 jest.mock('@/modules/inventory/services/stock.service', () => ({
   applyStockIn: jest.fn(),
   applyStockOut: jest.fn(),

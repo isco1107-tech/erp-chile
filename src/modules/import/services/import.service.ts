@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { cleanRut, formatRut, validateRut } from '@/lib/chile/rut';
 import { calculateGrossPrice, calculateNeto } from '@/lib/chile/tax';
@@ -7,11 +8,22 @@ import { registerStockIn } from '@/modules/inventory/services/stock.service';
 import { createPurchaseDocument, enrichPurchaseDocumentWithItems } from '@/modules/purchases/services/purchases.service';
 import { importHistoricalSalesDocument } from '@/modules/sales/services/historical-import.service';
 import { type HeaderMapping, mapHeaders, normalizeHeader, type RawSheet, readSpreadsheet } from './parse.service';
+import {
+  barcodeError,
+  generateProductSku,
+  loadProducerLookup,
+  normalizeUnit,
+  PRODUCT_UNITS,
+  type ProducerLookup,
+  resolveProducer,
+} from './product-import';
 import { suggestProductMatch, type ScanProduct } from './product-match.service';
 import {
   type AiScanItemLine,
   DTE_TYPE_TEXT_MAP,
   IMPORT_COLUMNS,
+  IMPORT_INSERT_BATCH_SIZE,
+  maxImportRows,
   PURCHASE_DOC_TYPE_TEXT_MAP,
   type CommitRowError,
   type ImportEntity,
@@ -27,8 +39,6 @@ import {
  * confirmar (`commitHistoricalRows`), en vez de quedar como línea informativa.
  */
 const NEW_PRODUCT_PLACEHOLDER_PREFIX = 'new:';
-
-const UNITS = ['UN', 'KG', 'MT', 'LTS', 'CJA', 'PAR'];
 
 /**
  * Convierte un texto de planilla a número, aceptando formatos chilenos e ingleses.
@@ -68,13 +78,18 @@ export function parseChileanDecimal(raw: string): number | null {
   return parseChileanNumber(raw);
 }
 
-interface ValidationContext {
+export interface ValidationContext {
   companyId: string;
   existingKeys: Set<string>;
   seenKeys: Map<string, number>;
+  /** Solo productos: códigos de barras ya usados en el catálogo y vistos en el archivo. */
+  existingBarcodes?: Set<string>;
+  seenBarcodes?: Map<string, number>;
+  /** Solo productos: productores de la empresa (null = módulo no disponible en esta base). */
+  producers?: ProducerLookup | null;
 }
 
-function validateProductRow(values: Record<string, string>, rowNumber: number, ctx: ValidationContext): RowError[] {
+export function validateProductRow(values: Record<string, string>, rowNumber: number, ctx: ValidationContext): RowError[] {
   const errors: RowError[] = [];
 
   const sku = values.sku?.trim() ?? '';
@@ -104,9 +119,8 @@ function validateProductRow(values: Record<string, string>, rowNumber: number, c
     else if (price < 0) errors.push({ column: 'Precio Neto', message: 'El precio no puede ser negativo' });
   }
 
-  const unit = values.unit?.trim().toUpperCase();
-  if (unit && !UNITS.includes(unit)) {
-    errors.push({ column: 'Unidad', message: `Unidad "${unit}" no reconocida. Use: ${UNITS.join(', ')}` });
+  if (normalizeUnit(values.unit) === null) {
+    errors.push({ column: 'Unidad', message: `Unidad "${values.unit?.trim()}" no reconocida. Use: ${PRODUCT_UNITS.join(', ')}` });
   }
 
   const rawMinStock = values.minStock?.trim();
@@ -120,6 +134,50 @@ function validateProductRow(values: Record<string, string>, rowNumber: number, c
   const rawExempt = values.isExempt?.trim();
   if (rawExempt && parseBoolean(rawExempt) === null) {
     errors.push({ column: 'Exento IVA', message: `"${rawExempt}" no se entiende. Use sí/no, 1/0 o true/false` });
+  }
+
+  const barcode = values.barcode?.trim() ?? '';
+  if (barcode) {
+    const problem = barcodeError(barcode);
+    if (problem) {
+      errors.push({ column: 'Código de Barras', message: problem });
+    } else {
+      const seenAt = ctx.seenBarcodes?.get(barcode);
+      if (seenAt !== undefined) {
+        errors.push({ column: 'Código de Barras', message: `Código de barras duplicado dentro del archivo (ya aparece en la fila ${seenAt})` });
+      } else {
+        ctx.seenBarcodes?.set(barcode, rowNumber);
+      }
+      if (ctx.existingBarcodes?.has(barcode)) {
+        errors.push({ column: 'Código de Barras', message: 'Ya existe un producto con este código de barras en tu catálogo' });
+      }
+    }
+  }
+
+  if ((values.brand?.trim().length ?? 0) > 100) {
+    errors.push({ column: 'Marca', message: 'La marca no puede superar los 100 caracteres' });
+  }
+
+  const rawCost = values.cost?.trim() ?? '';
+  let cost: number | null = null;
+  if (rawCost) {
+    cost = parseChileanInteger(rawCost);
+    if (cost === null || cost < 0) {
+      errors.push({ column: 'Costo', message: `"${rawCost}" no es un costo válido` });
+      cost = null;
+    }
+  }
+
+  const rawProducer = values.producer?.trim() ?? '';
+  if (rawProducer) {
+    const resolution = resolveProducer(rawProducer, ctx.producers ?? null);
+    if (!resolution.ok) {
+      errors.push({ column: 'Productor', message: resolution.message });
+    } else if (cost !== null && cost > 0) {
+      // Mismo criterio que la asignación manual de consignación: la mercadería
+      // de un productor es de un tercero y entra a costo 0.
+      errors.push({ column: 'Costo', message: 'Un producto de un productor (consignación) no lleva costo: déjalo vacío o en 0' });
+    }
   }
 
   return errors;
@@ -211,6 +269,12 @@ async function loadExistingKeys(companyId: string, entity: 'products' | 'contact
   }
   const contacts = await prisma.contact.findMany({ where: { companyId }, select: { rutClean: true } });
   return new Set(contacts.map((c) => c.rutClean));
+}
+
+/** Códigos de barras ya usados en el catálogo de la empresa (único por `companyId` + `barcode`). */
+async function loadExistingBarcodes(companyId: string): Promise<Set<string>> {
+  const products = await prisma.product.findMany({ where: { companyId, barcode: { not: null } }, select: { barcode: true } });
+  return new Set(products.flatMap((p) => (p.barcode ? [p.barcode] : [])));
 }
 
 // ---------------------------------------------------------------------------
@@ -414,31 +478,6 @@ export function validateHistoricalPurchasesRow(
   }
 
   return errors;
-}
-
-const COMBINING_DIACRITICS = new RegExp('[' + String.fromCharCode(0x0300) + '-' + String.fromCharCode(0x036f) + ']', 'g');
-
-/**
- * Genera un SKU único legible basado en el nombre.
- */
-function generateProductSku(name: string, taken: Set<string>): string {
-  const base =
-    name
-      .normalize('NFD')
-      .replace(COMBINING_DIACRITICS, '')
-      .toUpperCase()
-      .replace(/[^A-Z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 40) || 'PRODUCTO';
-
-  let sku = base;
-  let suffix = 1;
-  while (taken.has(sku.toLowerCase())) {
-    suffix++;
-    sku = `${base}-${suffix}`;
-  }
-  taken.add(sku.toLowerCase());
-  return sku;
 }
 
 /**
@@ -692,7 +731,7 @@ export async function buildPreview(
   entity: ImportEntity,
   file: { name: string; buffer: Buffer }
 ): Promise<ImportPreview> {
-  const sheet = await readSpreadsheet(file);
+  const sheet = await readSpreadsheet(file, maxImportRows(entity));
   const mapping = mapHeaders(entity, sheet.headers);
 
   if (entity === 'historicalSales' || entity === 'historicalPurchases') {
@@ -743,6 +782,12 @@ async function validateRows(
       existingKeys: await loadExistingKeys(companyId, entity),
       seenKeys: new Map(),
     };
+    if (entity === 'products') {
+      ctx.existingBarcodes = await loadExistingBarcodes(companyId);
+      ctx.seenBarcodes = new Map();
+      // Los productores se consultan solo si alguna fila usa la columna.
+      ctx.producers = rawRows.some((row) => row.values.producer?.trim()) ? await loadProducerLookup(companyId) : null;
+    }
     const validator = entity === 'products' ? validateProductRow : validateContactRow;
     return rawRows.map((row) => ({ ...row, errors: validator(row.values, row.rowNumber, ctx) }));
   }
@@ -1040,71 +1085,119 @@ export async function commitImport(
     );
   }
 
+  // Sin esta guarda, un archivo más largo que el tope importaba en silencio solo
+  // sus primeras filas y el resto se perdía sin aviso.
+  if (preview.truncated) {
+    throw new Error(`El archivo supera las ${maxImportRows(entity).toLocaleString('es-CL')} filas. Divídelo en partes y vuelve a subirlo`);
+  }
+
   const validRows = preview.rows;
+  const producers =
+    entity === 'products' && validRows.some((row) => row.values.producer?.trim()) ? await loadProducerLookup(companyId) : null;
 
-  return prisma.$transaction(async (tx) => {
-    if (entity === 'products') {
-      const categoryNames = Array.from(
-        new Set(validRows.map((row) => row.values.categoryName?.trim()).filter((name): name is string => !!name))
-      );
-      const categoryIds = new Map<string, string>();
-      for (const name of categoryNames) {
-        const category = await tx.category.upsert({
-          where: { companyId_name: { companyId, name } },
-          update: {},
-          create: { companyId, name },
-        });
-        categoryIds.set(name, category.id);
+  try {
+    return await prisma.$transaction(async (tx) => {
+      if (entity === 'products') {
+        const categoryNames = Array.from(
+          new Set(validRows.map((row) => row.values.categoryName?.trim()).filter((name): name is string => !!name))
+        );
+        const categoryIds = new Map<string, string>();
+        for (const name of categoryNames) {
+          const category = await tx.category.upsert({
+            where: { companyId_name: { companyId, name } },
+            update: {},
+            create: { companyId, name },
+          });
+          categoryIds.set(name, category.id);
+        }
+
+        const data = validRows.map((row) => buildProductCreateData(companyId, row.values, categoryIds, producers));
+        for (const batch of chunk(data, IMPORT_INSERT_BATCH_SIZE)) {
+          await tx.product.createMany({ data: batch });
+        }
+        return { entity, created: validRows.length, updated: 0, skipped: 0 };
       }
 
-      for (const row of validRows) {
-        const netPrice = parseChileanInteger(row.values.netPrice ?? '') ?? 0;
-        const minStock = parseChileanInteger(row.values.minStock ?? '') ?? 0;
-        const categoryName = row.values.categoryName?.trim();
-        const isExempt = parseBoolean(row.values.isExempt ?? '') ?? false;
-
-        await tx.product.create({
-          data: {
-            companyId,
-            sku: row.values.sku!.trim(),
-            name: row.values.name!.trim(),
-            description: row.values.description?.trim() || undefined,
-            categoryId: categoryName ? categoryIds.get(categoryName) : undefined,
-            unit: row.values.unit?.trim().toUpperCase() || 'UN',
-            isExempt,
-            netPrice,
-            grossPrice: calculateGrossPrice(netPrice, isExempt),
-            costPricePMP: netPrice,
-            minStock,
-          },
-        });
+      const data = validRows.map((row) => buildContactCreateData(companyId, row.values));
+      for (const batch of chunk(data, IMPORT_INSERT_BATCH_SIZE)) {
+        await tx.contact.createMany({ data: batch });
       }
-
       return { entity, created: validRows.length, updated: 0, skipped: 0 };
-    }
+    }, BATCH_TX_OPTIONS);
+  } catch (error) {
+    // Una carrera con otra importación o alta manual (SKU, código de barras o
+    // RUT tomados entre la vista previa y el commit) llega como error de
+    // constraint: se traduce en vez de mostrar el mensaje crudo de Prisma.
+    throw new Error(toFriendlyErrorMessage(error));
+  }
+}
 
-    for (const row of validRows) {
-      const rutClean = cleanRut(row.values.rut!);
-      const tipo = row.values.tipo?.trim().toLowerCase();
+function chunk<T>(items: readonly T[], size: number): T[][] {
+  const batches: T[][] = [];
+  for (let i = 0; i < items.length; i += size) batches.push(items.slice(i, i + size));
+  return batches;
+}
 
-      await tx.contact.create({
-        data: {
-          companyId,
-          rut: formatRut(rutClean),
-          rutClean,
-          razonSocial: row.values.razonSocial!.trim(),
-          giro: row.values.giro?.trim() || undefined,
-          email: row.values.email?.trim() || undefined,
-          phone: row.values.phone?.trim() || undefined,
-          address: row.values.address?.trim() || undefined,
-          comuna: row.values.comuna?.trim() || undefined,
-          isCustomer: tipo !== 'proveedor',
-          isSupplier: tipo === 'proveedor' || tipo === 'ambos',
-        },
-      });
-    }
+/**
+ * Datos de creación de un producto desde una fila ya validada.
+ *  - `isExempt` lo decide SOLO la columna del archivo (el usuario), por defecto afecto.
+ *  - Con productor, el producto queda en consignación y a costo 0, igual que la
+ *    asignación manual (`assignProductToProducer`): es mercadería de un tercero.
+ *  - Sin columna de costo se conserva el comportamiento histórico (PMP inicial = precio neto).
+ */
+export function buildProductCreateData(
+  companyId: string,
+  values: Record<string, string>,
+  categoryIds: ReadonlyMap<string, string>,
+  producers: ProducerLookup | null
+): Prisma.ProductCreateManyInput {
+  const netPrice = parseChileanInteger(values.netPrice ?? '') ?? 0;
+  const minStock = parseChileanInteger(values.minStock ?? '') ?? 0;
+  const categoryName = values.categoryName?.trim();
+  const isExempt = parseBoolean(values.isExempt ?? '') ?? false;
+  const cost = values.cost?.trim() ? parseChileanInteger(values.cost) : null;
 
-    return { entity, created: validRows.length, updated: 0, skipped: 0 };
-  }, BATCH_TX_OPTIONS);
+  const rawProducer = values.producer?.trim();
+  let producerId: string | undefined;
+  if (rawProducer) {
+    const resolution = resolveProducer(rawProducer, producers);
+    if (!resolution.ok) throw new Error(resolution.message);
+    producerId = resolution.producer.id;
+  }
+
+  return {
+    companyId,
+    sku: values.sku!.trim(),
+    name: values.name!.trim(),
+    description: values.description?.trim() || undefined,
+    categoryId: categoryName ? categoryIds.get(categoryName) : undefined,
+    unit: normalizeUnit(values.unit) ?? 'UN',
+    isExempt,
+    netPrice,
+    grossPrice: calculateGrossPrice(netPrice, isExempt),
+    costPricePMP: producerId ? 0 : (cost ?? netPrice),
+    minStock,
+    barcode: values.barcode?.trim() || undefined,
+    brand: values.brand?.trim() || undefined,
+    ...(producerId ? { producerId, supplyMode: 'CONSIGNMENT' as const } : {}),
+  };
+}
+
+function buildContactCreateData(companyId: string, values: Record<string, string>): Prisma.ContactCreateManyInput {
+  const rutClean = cleanRut(values.rut!);
+  const tipo = values.tipo?.trim().toLowerCase();
+  return {
+    companyId,
+    rut: formatRut(rutClean),
+    rutClean,
+    razonSocial: values.razonSocial!.trim(),
+    giro: values.giro?.trim() || undefined,
+    email: values.email?.trim() || undefined,
+    phone: values.phone?.trim() || undefined,
+    address: values.address?.trim() || undefined,
+    comuna: values.comuna?.trim() || undefined,
+    isCustomer: tipo !== 'proveedor',
+    isSupplier: tipo === 'proveedor' || tipo === 'ambos',
+  };
 }
 

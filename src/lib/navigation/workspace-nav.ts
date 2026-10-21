@@ -90,6 +90,7 @@ export type NavIconKey =
   | 'boms'
   | 'serviceDesk'
   | 'webSites'
+  | 'consignment'
   | 'invoiceArchive';
 
 export interface NavLink {
@@ -176,6 +177,7 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
     push('Inventario', [
       { id: 'products', href: '/dashboard/products', label: 'Catálogo de Productos', icon: 'products', keywords: ['productos', 'articulos', 'sku'] },
       { id: 'inventory', href: '/dashboard/inventory', label: 'Inventario', icon: 'inventory', keywords: ['stock', 'bodega', 'kardex', 'existencias'] },
+      { id: 'inventory-mobile', href: '/bodega', label: 'Bodega móvil', icon: 'inventory', keywords: ['telefono', 'movil', 'escanear', 'offline', 'lote', 'camara'] },
       { id: 'inventory-counts', href: '/dashboard/inventory/counts', label: 'Toma de inventario', icon: 'inventoryCount', keywords: ['conteo', 'inventario fisico', 'merma', 'ajuste', 'cuadratura'] },
       { id: 'inventory-lots', href: '/dashboard/inventory/lots', label: 'Lotes y vencimientos', icon: 'lots', keywords: ['lote', 'vencimiento', 'caducidad', 'fefo', 'expira'] },
       { id: 'inventory-labels', href: '/dashboard/inventory/labels', label: 'Etiquetas', icon: 'labels', keywords: ['codigo de barras', 'etiqueta', 'gondola', 'imprimir', 'ean'] },
@@ -241,6 +243,9 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
   }
   if (features.hasServiceDesk && allow('service:read')) {
     operaciones.push({ id: 'service-desk', href: '/dashboard/service', label: 'Servicio técnico', icon: 'serviceDesk', keywords: ['reparacion', 'taller', 'garantia', 'orden de servicio', 'presupuesto', 'soporte'] });
+  }
+  if (features.hasConsignment && allow('consignment:read')) {
+    operaciones.push({ id: 'consignment', href: '/dashboard/consignment', label: 'Consignación', icon: 'consignment', keywords: ['productor', 'productores', 'consignacion', 'comision', 'liquidacion', 'proveedor', 'terceros'] });
   }
   push('Operaciones', operaciones);
 

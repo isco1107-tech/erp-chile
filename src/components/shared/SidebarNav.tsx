@@ -150,6 +150,7 @@ export const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   boms: BookOpen,
   serviceDesk: Wrench,
   webSites: Globe,
+  consignment: Handshake,
   invoiceArchive: Archive,
   crmTasks: CalendarCheck,
   crmPeople: Contact,

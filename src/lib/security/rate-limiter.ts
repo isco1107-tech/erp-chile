@@ -353,3 +353,11 @@ export const WEB_SITE_CONTACT_SITE_RATE_LIMIT: RateLimitConfig = {
   limit: 60,
   windowMs: 60 * 60_000,
 };
+
+/** Página pública de impacto de la boleta (`/impacto/[token]`): lecturas por IP.
+ * El token está firmado, así que el límite apunta a frenar barridos. */
+export const IMPACT_PAGE_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'impact-page-ip',
+  limit: 60,
+  windowMs: 15 * 60_000,
+};

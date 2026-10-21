@@ -12,13 +12,20 @@ const config = [
   {
     ignores: [
       '.next/**',
+      '.codex-audit/**',
       'node_modules/**',
+      'mobile/**/node_modules/**',
+      'mobile/**/android/**',
+      'mobile/**/ios/**',
+      'mobile/**/.expo/**',
+      'mobile/**/dist/**',
       'coverage/**',
       'prisma/migrations/**',
       'components/**',
       'dashboard/**',
       'lib/**',
       'desktop-client/src-tauri/target/**',
+      'public/warehouse-ocr/**',
       // Copias de trabajo temporales de agentes de Claude Code.
       '.claude/worktrees/**',
     ],

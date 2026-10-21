@@ -34,6 +34,13 @@ const AUDIT_ENTITY_NAME: Record<ImportEntity, string> = {
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
+/**
+ * Productos y contactos admiten hasta `MAX_IMPORT_ROWS_BULK` filas (inserción
+ * por lotes en una transacción, con timeout de 60 s en `BATCH_TX_OPTIONS`):
+ * se pide a Vercel el mismo margen para que la función no muera antes que ella.
+ */
+export const maxDuration = 120;
+
 export async function POST(req: Request) {
   try {
     const session = await requireAuthWithPermission('import:data');

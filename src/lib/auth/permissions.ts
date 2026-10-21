@@ -54,6 +54,8 @@ export const PERMISSIONS = {
   'products:costs': ['OWNER', 'ADMIN', 'WAREHOUSE', 'ACCOUNTANT'],
 
   'inventory:write': ['OWNER', 'ADMIN', 'WAREHOUSE'],
+  'inventory:operate': ['OWNER', 'ADMIN', 'WAREHOUSE'],
+  'inventory:approve': ['OWNER', 'ADMIN'],
 
   'pos:operate': ['OWNER', 'ADMIN', 'SALES'],
   // Cerrar la caja es el control sobre el propio cajero: quien vende no debería
@@ -211,6 +213,12 @@ export const PERMISSIONS = {
   'websites:write': ['OWNER', 'ADMIN', 'SALES'],
   'websites:publish': ['OWNER', 'ADMIN'],
 
+  // Productores y consignación: ventas y bodega mantienen productores y
+  // productos; la liquidación (dinero que se le debe al productor) la ve y
+  // la mueve quien administra o lleva la contabilidad.
+  'consignment:read': ['OWNER', 'ADMIN', 'SALES', 'WAREHOUSE', 'ACCOUNTANT'],
+  'consignment:write': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
+
   // Mensajería interna: entorno de productividad transversal, no un módulo
   // vertical del negocio — todo el equipo puede usarla, mismo criterio que
   // contacts:read.
@@ -278,6 +286,8 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'products:write': 'Crear y editar productos',
   'products:costs': 'Ver costos de compra y PMP',
   'inventory:write': 'Ajustar stock en bodega',
+  'inventory:operate': 'Operar bodega móvil y registrar movimientos',
+  'inventory:approve': 'Aprobar ajustes y conteos de bodega móvil',
   'pos:operate': 'Vender en el Punto de Venta y abrir caja',
   'pos:close': 'Cerrar caja y hacer el arqueo',
   'treasury:read': 'Ver cuentas por cobrar y pagar',
@@ -343,6 +353,8 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'websites:read': 'Ver sitios web y sus mensajes',
   'websites:write': 'Crear y editar sitios web (borrador, imágenes y mensajes)',
   'websites:publish': 'Publicar sitios web y configurar su dominio propio',
+  'consignment:read': 'Ver productores, productos en consignación y liquidaciones',
+  'consignment:write': 'Crear productores, asignar productos y armar liquidaciones',
   'messaging:use': 'Usar la mensajería interna de la empresa',
 };
 

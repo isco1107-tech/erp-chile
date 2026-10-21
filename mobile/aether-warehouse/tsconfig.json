@@ -1,0 +1,6 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": { "strict": true, "noEmit": true, "types": ["react"], "ignoreDeprecations": "6.0" },
+  "include": ["**/*.ts", "**/*.tsx", "../../src/lib/warehouse/contracts.ts", "../../src/lib/warehouse/labels.ts", "../../src/lib/warehouse/local.ts"],
+  "exclude": ["node_modules", "android", "ios", "dist"]
+}

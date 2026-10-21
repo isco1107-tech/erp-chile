@@ -19,6 +19,32 @@ export const POS_PAYMENT_METHOD_LABELS: Record<PosPaymentMethod, string> = {
 /** Solo el efectivo entra físicamente al cajón y por tanto afecta el arqueo. */
 export const CASH_PAYMENT_METHODS: PosPaymentMethod[] = ['EFECTIVO'];
 
+/**
+ * Tipos de DTE emitibles directamente desde la caja del supermercado:
+ * - Boleta Electrónica Afecta (39) y Exenta (41)
+ * - Factura Electrónica Afecta (33) y Exenta (34) cuando un cliente con RUT
+ *   solicita factura en la caja.
+ */
+export const POS_DTE_TYPES = ['BOLETA_39', 'BOLETA_EXENTA_41', 'FACTURA_33', 'FACTURA_EXENTA_34'] as const;
+
+export type PosDteType = (typeof POS_DTE_TYPES)[number];
+
+export const POS_DTE_TYPE_LABELS: Record<PosDteType, string> = {
+  BOLETA_39: 'Boleta Electrónica (39)',
+  BOLETA_EXENTA_41: 'Boleta Exenta (41)',
+  FACTURA_33: 'Factura Electrónica (33)',
+  FACTURA_EXENTA_34: 'Factura Exenta (34)',
+};
+
+export const POS_DTE_SHORT_LABELS: Record<string, string> = {
+  BOLETA_39: 'Boleta 39',
+  BOLETA_EXENTA_41: 'Boleta Ex. 41',
+  FACTURA_33: 'Factura 33',
+  FACTURA_EXENTA_34: 'Factura Ex. 34',
+  NOTA_CREDITO_61: 'Nota Crédito 61',
+  NOTA_DEBITO_56: 'Nota Débito 56',
+};
+
 export const openShiftSchema = z.object({
   cashRegisterId: z.string().min(1, 'Seleccione una caja'),
   initialAmount: z
@@ -51,11 +77,11 @@ export const cashMovementSchema = z.object({
 export type CashMovementInput = z.infer<typeof cashMovementSchema>;
 
 // `unitPrice`/`discountPercent` quedan opcionales a propósito: el terminal
-// (`PosTerminal.tsx`) no los envía, y `pos.service.ts` los ignora siempre —
-// el precio y el descuento los pone el servidor desde el catálogo, nunca el
-// cliente (evitaría vender a $1 desde la consola del navegador). Exigirlos
-// aquí bloqueaba toda venta de mostrador con "Datos inválidos" antes de
-// llegar al servicio.
+// (`PosTerminal.tsx`) no los envía por defecto, y `pos.service.ts` ignora
+// `unitPrice` siempre — el precio lo pone el servidor desde el catálogo o la
+// lista de precios del cliente, nunca el cliente (evitaría vender a $1 desde
+// la consola del navegador). Exigirlos aquí bloqueaba toda venta de mostrador
+// con "Datos inválidos" antes de llegar al servicio.
 export const posSaleItemSchema = z.object({
   productId: z.string().min(1, 'Producto inválido'),
   quantity: z.number().positive('La cantidad debe ser mayor a cero'),
@@ -67,10 +93,18 @@ export const posSaleSchema = z
   .object({
     items: z.array(posSaleItemSchema).min(1, 'Agregue al menos un producto'),
     paymentMethod: z.enum(POS_PAYMENT_METHODS, 'Selecciona una forma de pago'),
+    /** Tipo de DTE a emitir en caja; por defecto `BOLETA_39`. */
+    dteType: z.enum(POS_DTE_TYPES).optional(),
     /** Efectivo entregado por el cliente; sirve para calcular el vuelto. */
     cashReceived: z.number().int().min(0).optional(),
-    /** RUT opcional del cliente. Sin él la boleta va al receptor genérico del SII. */
+    /** RUT opcional del cliente en boletas, obligatorio en facturas. */
     customerRut: z.string().optional().or(z.literal('')),
+    /** Datos opcionales del receptor (para crear/actualizar ficha al emitir Factura en caja). */
+    customerName: z.string().max(120).optional().or(z.literal('')),
+    customerGiro: z.string().max(120).optional().or(z.literal('')),
+    customerAddress: z.string().max(150).optional().or(z.literal('')),
+    customerComuna: z.string().max(60).optional().or(z.literal('')),
+    notes: z.string().max(300).optional().or(z.literal('')),
     idempotencyKey: z.string().optional(),
   })
   // Sin este refinamiento, omitir `cashReceived` saltaba por completo la
@@ -79,7 +113,18 @@ export const posSaleSchema = z
   .refine((data) => data.paymentMethod !== 'EFECTIVO' || data.cashReceived !== undefined, {
     message: 'Indique el efectivo recibido para una venta en efectivo',
     path: ['cashReceived'],
-  });
+  })
+  .refine(
+    (data) => {
+      if (data.dteType !== 'FACTURA_33' && data.dteType !== 'FACTURA_EXENTA_34') return true;
+      const rut = data.customerRut?.trim() ?? '';
+      return rut.length > 0 && rut.replace(/\D/g, '') !== '666666666';
+    },
+    {
+      message: 'Para emitir Factura en caja debe indicar el RUT del cliente receptor',
+      path: ['customerRut'],
+    }
+  );
 
 export type PosSaleInput = z.infer<typeof posSaleSchema>;
 
@@ -89,3 +134,21 @@ export const cashRegisterCreateSchema = z.object({
 });
 
 export type CashRegisterCreateInput = z.infer<typeof cashRegisterCreateSchema>;
+
+export const posCreditNoteSchema = z.object({
+  originalDocumentId: z.string().min(1, 'Seleccione el documento original'),
+  reason: z.string().min(3, 'Indique el motivo de la devolución').max(200),
+  /** Si es `true`, registra un retiro de efectivo en el turno actual por el monto devuelto. */
+  refundCashFromDrawer: z.boolean().optional(),
+  items: z
+    .array(
+      z.object({
+        productId: z.string().min(1, 'Producto inválido'),
+        quantity: z.number().positive('La cantidad a devolver debe ser mayor a cero'),
+      })
+    )
+    .min(1, 'Seleccione al menos un producto a devolver')
+    .optional(),
+});
+
+export type PosCreditNoteInput = z.infer<typeof posCreditNoteSchema>;

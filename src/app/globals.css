@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+/* La app nativa y el laboratorio no contienen estilos de la web. */
+@source not "../../mobile";
+@source not "../../.codex-audit";
 
 
 
@@ -528,3 +531,7 @@ html.pos-printing {
   size: 50mm 25mm;
   margin: 0;
 }
+
+/* La bodega y la app dedicada de caja POS dedican toda la pantalla al trabajo del operario. */
+body:has([data-warehouse-app]) .aether-platform-badge,
+body:has([data-pos-app]) .aether-platform-badge { display: none; }

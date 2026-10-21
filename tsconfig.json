@@ -41,6 +41,8 @@
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
+    ".codex-audit/**",
+    "mobile/**",
     "node_modules",
     "components",
     "lib",

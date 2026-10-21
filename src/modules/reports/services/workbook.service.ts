@@ -334,6 +334,30 @@ export async function buildWorkbook(data: ReportDataset): Promise<Buffer> {
   );
   addDataBar(wsPagos, 'F', data.pagos.length + 1, 'FFED7D31');
 
+  // Ventas por productor (consignación): solo si hay datos en el período.
+  const porProductor = data.ventasPorProductor ?? [];
+  if (porProductor.length > 0) {
+    const wsProductor = addSheet(
+      wb,
+      'Ventas por productor',
+      [
+        { header: 'Productor', key: 'productor', width: 32 },
+        { header: 'RUT', key: 'rutProductor', width: 14 },
+        { header: 'SKU', key: 'sku', width: 16 },
+        { header: 'Producto', key: 'producto', width: 36 },
+        { header: 'Unidades', key: 'unidades', width: 12, numFmt: QTY },
+        { header: 'Unidades estimadas', key: 'unidadesEstimadas', width: 12 },
+        { header: 'Neto vendido', key: 'netoVendido', width: 16, numFmt: CLP },
+        { header: 'Comisión', key: 'comision', width: 14, numFmt: CLP },
+        { header: 'Monto a liquidar', key: 'montoALiquidar', width: 17, numFmt: CLP },
+        { header: 'En liquidación', key: 'enLiquidacion', width: 16, numFmt: CLP },
+        { header: 'Sin liquidar', key: 'sinLiquidar', width: 16, numFmt: CLP },
+      ],
+      porProductor.map((row) => ({ ...row, unidadesEstimadas: row.unidadesEstimadas ? 'Sí' : '' }))
+    );
+    addDataBar(wsProductor, 'I', porProductor.length + 1, 'FF70AD47');
+  }
+
   // ---------- Panel ----------
   titleBlock(dash, data);
 

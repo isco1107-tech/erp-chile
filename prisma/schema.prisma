@@ -124,6 +124,7 @@ model Company {
   productPackagings         ProductPackaging[]
   inventoryLots             InventoryLot[]
   inventoryCounts           InventoryCount[]
+  warehouseOperations       WarehouseOperation[]
   inventoryCountLines       InventoryCountLine[]
   bankAccounts              BankAccount[]
   bankStatements            BankStatement[]
@@ -156,6 +157,9 @@ model Company {
   webSites                  WebSite[]
   webSiteAssets             WebSiteAsset[]
   webSiteMessages           WebSiteMessage[]
+  producers                 Producer[]
+  consignmentLines          ConsignmentSettlementLine[]
+  consignmentSettlements    ConsignmentSettlement[]
   salesDocumentItems        SalesDocumentItem[]
   purchaseDocuments         PurchaseDocument[]
   purchaseDocumentItems     PurchaseDocumentItem[]
@@ -546,6 +550,9 @@ model CompanyFeatures {
   /// Sitios web: constructor guiado (bloques) o HTML propio, publicados en
   /// `/web/[slug]` o en un dominio propio, con bandeja de mensajes.
   hasWebSites           Boolean  @default(false)
+  /// Productores y consignación: productos de terceros que la empresa vende
+  /// y por los que retiene una comisión; el resto se le debe al productor.
+  hasConsignment        Boolean  @default(false)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 }
@@ -791,6 +798,7 @@ model Contact {
   importShipments           ImportShipment[]
   serviceTickets            ServiceTicket[]
   webSites                  WebSite[]
+  producers                 Producer[]
   /// Portal del cliente (`/cliente/[token]`): se guarda solo el hash SHA-256
   /// del enlace; el enlace en claro se muestra una vez al generarlo.
   portalTokenHash           String?                 @unique
@@ -847,56 +855,65 @@ model Warehouse {
 }
 
 model Product {
-  id                   String                     @id @default(cuid())
-  companyId            String
-  company              Company                    @relation(fields: [companyId], references: [id])
-  categoryId           String?
-  category             Category?                  @relation(fields: [categoryId], references: [id])
-  sku                  String
-  name                 String
-  description          String?
-  unit                 String                     @default("UN")
-  isTrackable          Boolean                    @default(true)
+  id                    String                      @id @default(cuid())
+  companyId             String
+  company               Company                     @relation(fields: [companyId], references: [id])
+  categoryId            String?
+  category              Category?                   @relation(fields: [categoryId], references: [id])
+  sku                   String
+  name                  String
+  description           String?
+  unit                  String                      @default("UN")
+  isTrackable           Boolean                     @default(true)
   /// Producto exento de IVA. Sin este campo el POS no tenía forma de saberlo y
   /// cobraba 19% sobre todo, sobrecobrando al cliente y distorsionando el F29.
-  isExempt             Boolean                    @default(false)
-  costPricePMP         Float                      @default(0)
-  netPrice             Int                        @default(0)
-  grossPrice           Int                        @default(0)
-  minStock             Int                        @default(0)
+  isExempt              Boolean                     @default(false)
+  costPricePMP          Float                       @default(0)
+  netPrice              Int                         @default(0)
+  grossPrice            Int                         @default(0)
+  minStock              Int                         @default(0)
   /// Código de barras principal (EAN-13, UPC o interno). Único por empresa.
-  barcode              String?
-  brand                String?
+  barcode               String?
+  brand                 String?
   /// Foto del producto (Blob), para catálogo, POS y etiquetas.
-  imageUrl             String?
+  imageUrl              String?
   /// Maneja lotes con vencimiento: las entradas registran lote y las salidas
   /// consumen primero el que vence antes (FEFO). Ver `InventoryLot`.
-  tracksLots           Boolean                    @default(false)
-  packagings           ProductPackaging[]
-  lots                 InventoryLot[]
-  inventoryCountLines  InventoryCountLine[]
-  stocks               Stock[]
-  movements            InventoryMovement[]
-  salesDocumentItems   SalesDocumentItem[]
-  salesOrderItems      SalesOrderItem[]
-  priceListItems       PriceListItem[]
-  purchaseItems        PurchaseDocumentItem[]
-  purchaseOrderItems   PurchaseOrderItem[]
-  goodsReceiptItems    GoodsReceiptItem[]
-  journalLines         JournalLine[]
-  purchaseRequestItems PurchaseRequestItem[]
-  importShipmentItems  ImportShipmentItem[]
-  billsOfMaterials     BillOfMaterials[]          @relation("BomOutput")
-  bomComponents        BomComponent[]
-  productionOrders     ProductionOrder[]          @relation("ProductionOutput")
-  productionComponents ProductionOrderComponent[]
-  serviceTicketLines   ServiceTicketLine[]
-  createdAt            DateTime                   @default(now())
-  updatedAt            DateTime                   @updatedAt
+  tracksLots            Boolean                     @default(false)
+  packagings            ProductPackaging[]
+  lots                  InventoryLot[]
+  inventoryCountLines   InventoryCountLine[]
+  stocks                Stock[]
+  movements             InventoryMovement[]
+  salesDocumentItems    SalesDocumentItem[]
+  salesOrderItems       SalesOrderItem[]
+  priceListItems        PriceListItem[]
+  purchaseItems         PurchaseDocumentItem[]
+  purchaseOrderItems    PurchaseOrderItem[]
+  goodsReceiptItems     GoodsReceiptItem[]
+  journalLines          JournalLine[]
+  purchaseRequestItems  PurchaseRequestItem[]
+  importShipmentItems   ImportShipmentItem[]
+  billsOfMaterials      BillOfMaterials[]           @relation("BomOutput")
+  bomComponents         BomComponent[]
+  productionOrders      ProductionOrder[]           @relation("ProductionOutput")
+  productionComponents  ProductionOrderComponent[]
+  serviceTicketLines    ServiceTicketLine[]
+  /// Productor dueño de la mercadería cuando `supplyMode` es CONSIGNMENT.
+  producerId            String?
+  producer              Producer?                   @relation(fields: [producerId], references: [id], onDelete: SetNull)
+  supplyMode            SupplyMode                  @default(OWN)
+  /// Comisión propia del producto en puntos base (0-10000). Si existe, manda
+  /// sobre la comisión por defecto del productor.
+  commissionBpsOverride Int?
+  consignmentLines      ConsignmentSettlementLine[]
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
 
   @@unique([companyId, sku])
   @@unique([companyId, barcode])
   @@index([companyId, name])
+  @@index([companyId, producerId])
 }
 
 model Stock {
@@ -1082,26 +1099,27 @@ model SalesDocument {
 }
 
 model SalesDocumentItem {
-  id               String          @id @default(cuid())
+  id               String                     @id @default(cuid())
   companyId        String
-  company          Company         @relation(fields: [companyId], references: [id])
+  company          Company                    @relation(fields: [companyId], references: [id])
   documentId       String
-  document         SalesDocument   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  document         SalesDocument              @relation(fields: [documentId], references: [id], onDelete: Cascade)
   productId        String?
-  product          Product?        @relation(fields: [productId], references: [id])
+  product          Product?                   @relation(fields: [productId], references: [id])
   sku              String?
   description      String
   quantity         Float
   unitPrice        Int
-  isExempt         Boolean         @default(false)
-  discountPercent  Float           @default(0)
+  isExempt         Boolean                    @default(false)
+  discountPercent  Float                      @default(0)
   subtotal         Int
   iva              Int
   total            Int
-  unitCostPMP      Float           @default(0)
+  unitCostPMP      Float                      @default(0)
   /// Línea de la nota de venta que esta línea factura o despacha.
   salesOrderItemId String?
-  salesOrderItem   SalesOrderItem? @relation(fields: [salesOrderItemId], references: [id], onDelete: SetNull)
+  salesOrderItem   SalesOrderItem?            @relation(fields: [salesOrderItemId], references: [id], onDelete: SetNull)
+  consignmentLines ConsignmentSettlementLine[]
 
   @@index([companyId, documentId])
 }
@@ -1172,6 +1190,7 @@ model PurchaseDocument {
   paymentBatchItems       PaymentBatchItem[]
   receivedDtes            ReceivedDte[]
   importShipmentCosts     ImportShipmentCost[]
+  consignmentSettlement   ConsignmentSettlement?
   createdAt               DateTime               @default(now())
   updatedAt               DateTime               @updatedAt
 
@@ -1724,6 +1743,9 @@ enum JournalSourceType {
   /// generan un `Payment` real y usan `sourceType: PAYMENT`, igual que el
   /// resto de cobros/pagos de Tesorería — no necesitan una clave propia.
   EXPENSE_REPORT
+  /// Devengo al productor de una venta en consignación (D costo de ventas en
+  /// consignación / H consignantes por pagar) — ver `posting-rules/consignment-posting.ts`.
+  CONSIGNMENT
 }
 
 /// Cabecera del asiento contable. Nunca se edita ni se borra en estado
@@ -4388,6 +4410,32 @@ model InventoryCount {
   @@index([companyId, status])
 }
 
+model WarehouseOperation {
+  id             String   @id @default(cuid())
+  companyId      String
+  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  operationId    String
+  deviceId       String
+  createdById    String
+  payload        Json
+  payloadHash    String
+  status         String
+  message        String
+  capturedAt     DateTime
+  appliedAt      DateTime?
+  reviewedById   String?
+  reviewReason   String?
+  movementIds    String[] @default([])
+  receiptId      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([companyId, operationId])
+  @@index([companyId, receiptId])
+  @@index([companyId, status, createdAt])
+  @@index([companyId, createdById, createdAt])
+}
+
 model InventoryCountLine {
   id              String         @id @default(cuid())
   companyId       String
@@ -5343,4 +5391,133 @@ model WebSiteMessage {
 
   @@index([companyId, siteId, createdAt])
   @@index([companyId, readAt])
+}
+
+// ─── Productores y consignación ─────────────────────────────────────────────
+
+enum SupplyMode {
+  OWN
+  CONSIGNMENT
+}
+
+/// Venta (devengo al productor) o reversa (nota de crédito / anulación).
+enum ConsignmentLineKind {
+  SALE
+  REVERSAL
+}
+
+/// Sobre qué monto se aplica la comisión. Criterio a validar por contador.
+enum ConsignmentCommissionBase {
+  NET
+  GROSS
+}
+
+enum ConsignmentSettlementStatus {
+  DRAFT
+  CONFIRMED
+  PAID
+}
+
+/// Productor que deja mercadería en consignación. Se vincula a un contacto
+/// proveedor; la empresa retiene `defaultCommissionBps` de cada venta.
+model Producer {
+  id                   String                      @id @default(cuid())
+  companyId            String
+  company              Company                     @relation(fields: [companyId], references: [id])
+  contactId            String
+  contact              Contact                     @relation(fields: [contactId], references: [id])
+  /// Comisión por defecto en puntos base (0-10000; 2000 = 20%).
+  defaultCommissionBps Int                         @default(0)
+  /// NET (por defecto): la comisión se calcula sobre la venta neta. GROSS: sobre
+  /// la venta con IVA. Criterio a validar por contador.
+  commissionBase       ConsignmentCommissionBase   @default(NET)
+  isActive             Boolean                     @default(true)
+  notes                String?
+  /// Referencia NO sensible de pago (p. ej. "transferencia a la cuenta del contacto").
+  paymentNotes         String?
+  products             Product[]
+  lines                ConsignmentSettlementLine[]
+  settlements          ConsignmentSettlement[]
+  createdAt            DateTime                    @default(now())
+  updatedAt            DateTime                    @updatedAt
+
+  @@unique([companyId, contactId])
+  @@index([companyId, isActive])
+}
+
+/// Liquidación al productor por un período. Los totales salen de sus líneas.
+model ConsignmentSettlement {
+  id              String                      @id @default(cuid())
+  companyId       String
+  company         Company                     @relation(fields: [companyId], references: [id])
+  producerId      String
+  producer        Producer                    @relation(fields: [producerId], references: [id])
+  periodStart     DateTime
+  periodEnd       DateTime
+  totalSold       Int                         @default(0)
+  totalCommission Int                         @default(0)
+  totalDue        Int                         @default(0)
+  /// Lo que el productor debe facturar (modelo A1: la venta es de la empresa y
+  /// el productor le factura su parte). Neto afecto, exento y su IVA, este
+  /// último calculado UNA vez sobre el neto agregado. Criterio a validar por contador.
+  producerNetAffected Int                     @default(0)
+  producerExempt  Int                         @default(0)
+  producerIva     Int                         @default(0)
+  totalPayable    Int                         @default(0)
+  status          ConsignmentSettlementStatus @default(DRAFT)
+  paidAt          DateTime?
+  /// Cuenta por pagar al productor, creada al confirmar: un documento de compra
+  /// tipo OTRO con el desglose de lo que el productor factura (no entra al F29
+  /// ni al libro de compras). El pago se registra en Tesorería sobre ese documento.
+  payableDocumentId String?                   @unique
+  payableDocument   PurchaseDocument?         @relation(fields: [payableDocumentId], references: [id], onDelete: Restrict)
+  lines           ConsignmentSettlementLine[]
+  createdAt       DateTime                    @default(now())
+  updatedAt       DateTime                    @updatedAt
+
+  @@index([companyId, producerId, status])
+  @@index([companyId, periodStart])
+}
+
+/// Venta de un producto en consignación. Montos congelados al vender: cambiar
+/// después la comisión del producto no altera lo ya devengado.
+model ConsignmentSettlementLine {
+  id                  String                 @id @default(cuid())
+  companyId           String
+  company             Company                @relation(fields: [companyId], references: [id])
+  producerId          String
+  producer            Producer               @relation(fields: [producerId], references: [id])
+  /// Ítem de venta (o de nota de crédito) que originó la línea. Nulo en las
+  /// líneas de contrapartida creadas al anular un documento.
+  salesDocumentItemId String?
+  salesDocumentItem   SalesDocumentItem?     @relation(fields: [salesDocumentItemId], references: [id])
+  kind                ConsignmentLineKind    @default(SALE)
+  /// Reversas y contrapartidas apuntan a la línea de venta que corrigen: el
+  /// neto de una venta es ella más todas sus reversas (montos con signo).
+  reversesLineId      String?
+  reverses            ConsignmentSettlementLine?  @relation("ConsignmentLineReversals", fields: [reversesLineId], references: [id], onDelete: SetNull)
+  reversals           ConsignmentSettlementLine[] @relation("ConsignmentLineReversals")
+  productId           String
+  product             Product                @relation(fields: [productId], references: [id])
+  /// Venta neta de la línea (CLP, sin IVA).
+  soldNet             Int
+  commissionBps       Int
+  commissionAmount    Int
+  producerAmount      Int
+  /// Condición de exento del ítem (leída del documento, que la toma del catálogo).
+  isExempt            Boolean                @default(false)
+  /// IVA de la venta de la línea (informativo; con signo en las reversas).
+  saleIva             Int                    @default(0)
+  /// Fecha del documento (emisión) que originó la línea; en contrapartidas de
+  /// anulación, el momento de la anulación. El período de la liquidación se
+  /// filtra por esta fecha en calendario de Santiago.
+  documentDate        DateTime
+  settlementId        String?
+  settlement          ConsignmentSettlement? @relation(fields: [settlementId], references: [id], onDelete: SetNull)
+  createdAt           DateTime               @default(now())
+
+  @@unique([salesDocumentItemId, kind])
+  @@index([companyId, producerId, settlementId])
+  @@index([companyId, documentDate])
+  @@index([companyId, reversesLineId])
 }

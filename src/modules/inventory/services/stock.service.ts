@@ -36,6 +36,8 @@ export interface StockOutParams {
   quantity: number;
   reference?: string;
   notes?: string;
+  /** Lotes físicos elegidos. Omitir conserva FEFO para los flujos existentes. */
+  lots?: { lotNumber: string; quantity: number }[];
 }
 
 async function getCompanyStockTotal(tx: TxClient, companyId: string, productId: string): Promise<number> {
@@ -58,13 +60,18 @@ async function lockProductRow(tx: TxClient, companyId: string, productId: string
 
 export async function applyStockIn(tx: TxClient, companyId: string, params: StockInParams): Promise<InventoryMovement> {
   const { productId, warehouseId, type, quantity, unitCost, reference, notes } = params;
-  if (quantity <= 0) throw new Error('La cantidad debe ser mayor a cero');
-  if (unitCost < 0) throw new Error('El costo unitario no puede ser negativo');
+  if (!Number.isFinite(quantity) || quantity <= 0) throw new Error('La cantidad debe ser mayor a cero');
+  if (!Number.isFinite(unitCost) || unitCost < 0) throw new Error('El costo unitario no puede ser negativo');
 
   await lockProductRow(tx, companyId, productId);
   const product = await tx.product.findFirst({ where: { id: productId, companyId } });
   if (!product) throw new Error('Producto no encontrado');
   if (!product.isTrackable) throw new Error('Este producto no gestiona stock (no es trackeable)');
+  // Mercadería en consignación: es de un tercero, entra solo en cantidad (costo 0).
+  // Con costo > 0 el PMP y el inventario valorizado quedarían inflados.
+  if (product.supplyMode === 'CONSIGNMENT' && unitCost > 0) {
+    throw new Error('Un producto en consignación solo puede ingresar con costo 0: la mercadería es del productor');
+  }
 
   const warehouse = await tx.warehouse.findFirst({ where: { id: warehouseId, companyId } });
   if (!warehouse) throw new Error('Bodega no encontrada');
@@ -120,13 +127,17 @@ async function addToLots(tx: TxClient, companyId: string, productId: string, war
   if (Math.abs(total - quantity) > 1e-6) throw new Error('La suma de los lotes no coincide con la cantidad que entra');
   const allocations: LotAllocation[] = [];
   for (const entry of entries) {
-    if (entry.quantity <= 0) continue;
+    if (!Number.isFinite(entry.quantity) || entry.quantity <= 0) throw new Error('La cantidad de cada lote debe ser mayor a cero');
     const lotNumber = normalizeLotNumber(entry.lotNumber);
     const expiryDate = entry.expiryDate ?? null;
+    const existing = await tx.inventoryLot.findUnique({ where: { companyId_productId_warehouseId_lotNumber: { companyId, productId, warehouseId, lotNumber } }, select: { expiryDate: true } });
+    if (expiryDate && existing?.expiryDate && existing.expiryDate.toISOString().slice(0, 10) !== expiryDate.toISOString().slice(0, 10)) {
+      throw new Error(`El lote ${lotNumber} ya tiene otro vencimiento. Revisa la etiqueta antes de ingresar mercadería`);
+    }
     await tx.inventoryLot.upsert({
       where: { companyId_productId_warehouseId_lotNumber: { companyId, productId, warehouseId, lotNumber } },
       // El vencimiento de un lote existente solo se completa si no lo tenía.
-      update: { quantity: { increment: entry.quantity }, ...(expiryDate ? { expiryDate } : {}) },
+      update: { quantity: { increment: entry.quantity }, ...(expiryDate && !existing?.expiryDate ? { expiryDate } : {}) },
       create: { companyId, productId, warehouseId, lotNumber, expiryDate, quantity: entry.quantity },
     });
     allocations.push({ lotNumber, expiryDate: expiryDate?.toISOString() ?? null, quantity: entry.quantity });
@@ -135,23 +146,35 @@ async function addToLots(tx: TxClient, companyId: string, productId: string, war
 }
 
 /** Descuenta una salida de los lotes por FEFO (vence antes, sale antes). */
-async function takeFromLots(tx: TxClient, companyId: string, productId: string, warehouseId: string, quantity: number): Promise<LotAllocation[]> {
+async function takeFromLots(tx: TxClient, companyId: string, productId: string, warehouseId: string, quantity: number, selected?: StockOutParams['lots']): Promise<LotAllocation[]> {
   const lots = await tx.inventoryLot.findMany({
     where: { companyId, productId, warehouseId, quantity: { gt: 0 } },
     select: { id: true, lotNumber: true, expiryDate: true, quantity: true, createdAt: true },
   });
-  const { allocations } = allocateFefo(lots, quantity);
+  let allocations: LotAllocation[];
+  if (selected) {
+    const names = selected.map((entry) => normalizeLotNumber(entry.lotNumber));
+    if (selected.length === 0 || new Set(names).size !== names.length || selected.some((entry) => !Number.isFinite(entry.quantity) || entry.quantity <= 0) || Math.abs(selected.reduce((sum, entry) => sum + entry.quantity, 0) - quantity) > 1e-6) {
+      throw new Error('La selección de lotes debe coincidir exactamente con la cantidad de salida');
+    }
+    allocations = selected.map((entry, index) => {
+      const lot = lots.find((candidate) => candidate.lotNumber === names[index]);
+      if (!lot || lot.quantity + 1e-9 < entry.quantity) throw new Error(`Stock insuficiente en el lote ${names[index]}`);
+      return { lotNumber: lot.lotNumber, expiryDate: lot.expiryDate?.toISOString() ?? null, quantity: entry.quantity };
+    });
+  } else { allocations = allocateFefo(lots, quantity).allocations; }
   for (const allocation of allocations) {
     const lot = lots.find((candidate) => candidate.lotNumber === allocation.lotNumber);
     if (!lot) continue;
-    await tx.inventoryLot.updateMany({ where: { id: lot.id, companyId }, data: { quantity: { decrement: allocation.quantity } } });
+    const updated = await tx.inventoryLot.updateMany({ where: { id: lot.id, companyId, quantity: { gte: allocation.quantity } }, data: { quantity: { decrement: allocation.quantity } } });
+    if (updated.count !== 1) throw new Error(`Las existencias del lote ${lot.lotNumber} cambiaron. Vuelve a intentar`);
   }
   return allocations;
 }
 
 export async function applyStockOut(tx: TxClient, companyId: string, params: StockOutParams): Promise<InventoryMovement> {
   const { productId, warehouseId, type, quantity, reference, notes } = params;
-  if (quantity <= 0) throw new Error('La cantidad debe ser mayor a cero');
+  if (!Number.isFinite(quantity) || quantity <= 0) throw new Error('La cantidad debe ser mayor a cero');
 
   await lockProductRow(tx, companyId, productId);
   const product = await tx.product.findFirst({ where: { id: productId, companyId } });
@@ -170,6 +193,7 @@ export async function applyStockOut(tx: TxClient, companyId: string, params: Sto
     throw new Error(`Stock insuficiente en ${warehouse.name} (disponible: ${localPreviousStock})`);
   }
   const localNewStock = localPreviousStock - quantity;
+  if (params.lots && !product.tracksLots) throw new Error('Este producto no tiene seguimiento por lote');
 
   // Decremento atómico con guarda `gte`: aunque el lock de arriba ya serializa
   // por producto, esto hace que la invariante "el stock nunca queda negativo"
@@ -189,7 +213,7 @@ export async function applyStockOut(tx: TxClient, companyId: string, params: Sto
   }
 
   const unitCost = product.costPricePMP;
-  const lotAllocations = product.tracksLots ? await takeFromLots(tx, companyId, productId, warehouseId, quantity) : null;
+  const lotAllocations = product.tracksLots ? await takeFromLots(tx, companyId, productId, warehouseId, quantity, params.lots) : null;
 
   return tx.inventoryMovement.create({
     data: {

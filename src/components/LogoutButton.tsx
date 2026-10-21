@@ -18,6 +18,10 @@ export default function LogoutButton({ variant = 'text', className }: { variant?
   async function handleLogout() {
     setLoading(true);
     try {
+      try {
+        const { lockBrowserWarehouse } = await import('@/lib/warehouse/browser-store');
+        await lockBrowserWarehouse();
+      } catch (error) { captureException(error, { module: 'inventario', extra: { reason: 'offline-logout-lock' } }); }
       await fetch('/api/auth/signout', { method: 'POST' });
       router.push('/login');
     } catch (e) {

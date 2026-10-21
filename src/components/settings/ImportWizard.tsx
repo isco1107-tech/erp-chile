@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import {
   ENTITY_LABELS,
   IMPORT_COLUMNS,
-  MAX_IMPORT_ROWS,
+  maxImportRows,
   type AiScanItemLine,
   type ImportEntity,
   type ImportPreview,
@@ -200,7 +200,7 @@ export default function ImportWizard({ availableEntities }: Props) {
   }
 
   const EXAMPLES: Record<ImportEntity, string[]> = {
-    products: ['SKU-001;Producto de ejemplo;9990;UN;5;General;no;Descripción opcional'],
+    products: ['SKU-001;Producto de ejemplo;9990;UN;5;General;no;Descripción opcional;7801234567895;Marca ejemplo;6000;'],
     contacts: [
       '76.543.210-3;Comercial Ejemplo SpA;Venta al por menor;contacto@ejemplo.cl;+56912345678;Av. Siempre Viva 742;Santiago;cliente',
     ],
@@ -315,7 +315,7 @@ export default function ImportWizard({ availableEntities }: Props) {
             }}
           />
           <p className="mt-1 text-xs text-muted-foreground">
-            La primera fila debe tener los encabezados. Máximo {MAX_IMPORT_ROWS.toLocaleString('es-CL')} filas y 5 MB por archivo.
+            La primera fila debe tener los encabezados. Máximo {maxImportRows(entity).toLocaleString('es-CL')} filas y 5 MB por archivo.
           </p>
           <Button type="button" className="mt-2" disabled={busy || !file} onClick={() => send('preview')}>
             <Upload className="mr-2 size-4" /> {busy ? 'Analizando...' : 'Analizar archivo'}
@@ -427,7 +427,7 @@ export default function ImportWizard({ availableEntities }: Props) {
                 disabled={
                   busy ||
                   liveValidRows === 0 ||
-                  ((entity === 'products' || entity === 'contacts') && liveInvalidRows > 0)
+                  ((entity === 'products' || entity === 'contacts') && (liveInvalidRows > 0 || preview.truncated))
                 }
                 onClick={async () => {
                   const message =
@@ -456,8 +456,9 @@ export default function ImportWizard({ availableEntities }: Props) {
 
           {preview.truncated && (
             <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700">
-              El archivo supera las {MAX_IMPORT_ROWS.toLocaleString('es-CL')} filas. Solo se analizaron las primeras;
-              divide el archivo para importar el resto.
+              El archivo supera las {maxImportRows(entity).toLocaleString('es-CL')} filas. Solo se analizaron las primeras;
+              divide el archivo para importar el resto
+              {(entity === 'products' || entity === 'contacts') && ' (este tipo no se confirma con el archivo cortado)'}.
             </p>
           )}
 

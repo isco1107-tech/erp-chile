@@ -1,16 +1,20 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { Prisma, type CashMovement, type CashRegister, type CashShift } from '@prisma/client';
+import { Prisma, type CashMovement, type CashRegister, type CashShift, type SalesDocument } from '@prisma/client';
 import { requireAuthWithPermission, authErrorMessage, can } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 import { latidoCajaSupersuite, supersuiteHabilitada } from '@/lib/supersuite';
 import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
+import { getFolioAvailability, type FolioAvailability } from '@/modules/dte/services/caf.service';
+import { DTE_TYPE_LABELS } from '@/modules/sales/schema';
+import type { SalesDocumentWithItems } from '@/modules/sales/services/sales.service';
 import {
   cashMovementSchema,
   cashRegisterCreateSchema,
   closeShiftSchema,
   openShiftSchema,
+  posCreditNoteSchema,
   posSaleSchema,
 } from '../schema';
 import * as cashService from '../services/cash.service';
@@ -22,7 +26,13 @@ import type {
   ShiftHistoryItem,
   ShiftSummary,
 } from '../services/cash.service';
-import type { PosProduct, PosSaleListItem, PosSaleResult } from '../services/pos.service';
+import type {
+  PosCustomerLookupResult,
+  PosProduct,
+  PosSaleListItem,
+  PosSaleResult,
+  PosTicketData,
+} from '../services/pos.service';
 
 function redactPosCosts<T extends { items: Array<{ unitCostPMP: number }> }>(sale: T): T {
   return { ...sale, items: sale.items.map((item) => ({ ...item, unitCostPMP: 0 })) };
@@ -39,6 +49,11 @@ function toErrorMessage(error: unknown): string {
     return 'Ya existe un registro con ese identificador';
   }
   return toFriendlyErrorMessage(error);
+}
+
+function revalidatePosPaths() {
+  revalidatePath('/dashboard/pos');
+  revalidatePath('/pos');
 }
 
 export async function listCashRegistersAction(): Promise<ActionResult<CashRegisterWithWarehouse[]>> {
@@ -73,7 +88,7 @@ export async function createCashRegisterAction(input: unknown): Promise<ActionRe
       entityId: register.id,
       metadata: { name: register.name },
     });
-    revalidatePath('/dashboard/pos');
+    revalidatePosPaths();
     return { success: true, data: register, message: `Caja "${register.name}" creada` };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
@@ -122,7 +137,7 @@ export async function openShiftAction(input: unknown): Promise<ActionResult<Cash
       entityId: shift.id,
       metadata: { initialAmount: shift.initialAmount, cashRegisterId: shift.cashRegisterId },
     });
-    revalidatePath('/dashboard/pos');
+    revalidatePosPaths();
     return { success: true, data: shift, message: 'Caja abierta' };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
@@ -164,7 +179,7 @@ export async function closeShiftAction(shiftId: string, input: unknown): Promise
         descuadre: result.shift.difference,
       },
     });
-    revalidatePath('/dashboard/pos');
+    revalidatePosPaths();
     return {
       success: true,
       data: result,
@@ -194,7 +209,7 @@ export async function registerCashMovementAction(
       entityId: movement.id,
       metadata: { type: movement.type, amount: movement.amount, reason: movement.reason },
     });
-    revalidatePath('/dashboard/pos');
+    revalidatePosPaths();
     return { success: true, data: movement, message: 'Movimiento registrado' };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
@@ -226,6 +241,7 @@ export async function createPosSaleAction(shiftId: string, input: unknown): Prom
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
 
     const sale = await posService.createPosSale(session.companyId, session.id, shiftId, parsed.data);
+    const dteLabel = DTE_TYPE_LABELS[sale.dteType] ?? 'Boleta';
     await createAuditLog({
       companyId: session.companyId,
       userId: session.id,
@@ -233,11 +249,22 @@ export async function createPosSaleAction(shiftId: string, input: unknown): Prom
       action: 'ISSUE_DTE',
       entity: 'SalesDocument',
       entityId: sale.id,
-      metadata: { folio: sale.folio, total: sale.totalAmount, medioPago: sale.paymentMethod, origen: 'POS' },
+      metadata: {
+        dteType: sale.dteType,
+        folio: sale.folio,
+        total: sale.totalAmount,
+        medioPago: sale.paymentMethod,
+        origen: 'POS',
+      },
     });
-    revalidatePath('/dashboard/pos');
+    revalidatePosPaths();
     revalidatePath('/dashboard/inventory');
-    return { success: true, data: can(session, 'products:costs') ? sale : redactPosCosts(sale), message: `Boleta #${sale.folio} emitida` };
+    revalidatePath('/dashboard/sales');
+    return {
+      success: true,
+      data: can(session, 'products:costs') ? sale : redactPosCosts(sale),
+      message: `${dteLabel} #${sale.folio} emitida`,
+    };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
   }
@@ -256,6 +283,112 @@ export async function listShiftsAction(): Promise<ActionResult<ShiftHistoryItem[
   try {
     const session = await requireAuthWithPermission('pos:operate');
     return { success: true, data: await cashService.listShifts(session.companyId) };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+export async function lookupPosCustomerAction(rut: string): Promise<ActionResult<PosCustomerLookupResult | null>> {
+  try {
+    const session = await requireAuthWithPermission('pos:operate');
+    return { success: true, data: await posService.lookupPosCustomerByRut(session.companyId, rut) };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+export async function getPosTicketAction(documentId: string): Promise<ActionResult<PosTicketData | null>> {
+  try {
+    const session = await requireAuthWithPermission('pos:operate');
+    const ticket = await posService.getTicket(session.companyId, documentId);
+    if (!ticket) return { success: false, error: 'Comprobante no encontrado' };
+    return {
+      success: true,
+      data: can(session, 'products:costs') ? ticket : redactPosCosts(ticket),
+    };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+export async function cancelPosSaleAction(
+  shiftId: string,
+  documentId: string,
+  reason: string
+): Promise<ActionResult<SalesDocument>> {
+  try {
+    const session = await requireAuthWithPermission('pos:operate');
+    const trimmedReason = reason.trim();
+    if (trimmedReason.length < 3) {
+      return { success: false, error: 'Indica el motivo de la anulación (mínimo 3 caracteres)' };
+    }
+    const cancelled = await posService.cancelPosSale(session.companyId, shiftId, documentId, trimmedReason);
+    await createAuditLog({
+      companyId: session.companyId,
+      userId: session.id,
+      userEmail: session.email,
+      action: 'CANCEL_DTE',
+      entity: 'SalesDocument',
+      entityId: cancelled.id,
+      metadata: { folio: cancelled.folio, dteType: cancelled.dteType, motivo: trimmedReason, origen: 'POS' },
+    });
+    revalidatePosPaths();
+    revalidatePath('/dashboard/inventory');
+    revalidatePath('/dashboard/sales');
+    return { success: true, data: cancelled, message: `Documento #${cancelled.folio} anulado` };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+export async function createPosCreditNoteAction(
+  shiftId: string,
+  input: unknown
+): Promise<ActionResult<SalesDocumentWithItems & { timbrePdf417: string | null }>> {
+  try {
+    const session = await requireAuthWithPermission('pos:operate');
+    const parsed = posCreditNoteSchema.safeParse(input);
+    if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
+
+    const creditNote = await posService.createPosCreditNote(
+      session.companyId,
+      session.id,
+      shiftId,
+      parsed.data
+    );
+    await createAuditLog({
+      companyId: session.companyId,
+      userId: session.id,
+      userEmail: session.email,
+      action: 'ISSUE_DTE',
+      entity: 'SalesDocument',
+      entityId: creditNote.id,
+      metadata: {
+        dteType: creditNote.dteType,
+        folio: creditNote.folio,
+        total: creditNote.totalAmount,
+        referenceType: creditNote.referenceType,
+        referenceFolio: creditNote.referenceFolio,
+        origen: 'POS_DEVOLUCION',
+      },
+    });
+    revalidatePosPaths();
+    revalidatePath('/dashboard/inventory');
+    revalidatePath('/dashboard/sales');
+    return {
+      success: true,
+      data: can(session, 'products:costs') ? creditNote : redactPosCosts(creditNote),
+      message: `Nota de Crédito #${creditNote.folio} emitida`,
+    };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+export async function getPosFolioAvailabilityAction(): Promise<ActionResult<FolioAvailability[]>> {
+  try {
+    const session = await requireAuthWithPermission('pos:operate');
+    return { success: true, data: await getFolioAvailability(session.companyId) };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
   }

@@ -16,6 +16,7 @@ import {
 } from '@/modules/inventory/actions/products.actions';
 import type { ProductListItem } from '@/modules/inventory/services/products.service';
 import ProductPackagingsPanel from '@/components/inventory/ProductPackagingsPanel';
+import ProductConsignmentPanel from '@/components/inventory/ProductConsignmentPanel';
 import { ImagePlus, X } from 'lucide-react';
 
 const EMPTY_FORM = {
@@ -353,6 +354,7 @@ export default function ProductForm({
       </div>
 
       {editingProduct && <ProductPackagingsPanel productId={editingProduct.id} unit={form.unit} />}
+      {editingProduct && <ProductConsignmentPanel productId={editingProduct.id} />}
 
       {form.isExempt && (
         <p className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">

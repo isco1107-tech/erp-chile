@@ -7,6 +7,11 @@ import { prisma } from '@/lib/prisma';
  * dejando efectivo contable retenido sin dinero real.
  */
 
+// Consignación tiene su propio enganche y sus pruebas (consignment-hook.test.ts).
+jest.mock('@/modules/consignment/services/consignment-hook.service', () => ({
+  applyConsignmentToIssuedDocument: jest.fn(),
+  reverseConsignmentForCancelledDocument: jest.fn(),
+}));
 jest.mock('@/modules/inventory/services/stock.service', () => ({
   applyStockIn: jest.fn(),
   applyStockOut: jest.fn(),

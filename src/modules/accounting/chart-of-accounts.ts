@@ -58,6 +58,8 @@ export const CHART_OF_ACCOUNTS: ChartAccountSeed[] = [
   { code: '2107', name: 'Remuneraciones por pagar', parentCode: '21', type: 'LIABILITY', nature: 'CREDIT', isPostable: true, isCurrent: true, costBehavior: 'NONE', cashFlowCategory: 'OPERATING', mappingKey: 'OBLIGACIONES_POR_PAGAR_RRHH' },
   { code: '2108', name: 'Provisiones', parentCode: '21', type: 'LIABILITY', nature: 'CREDIT', isPostable: true, isCurrent: true, costBehavior: 'NONE', cashFlowCategory: 'OPERATING' },
   { code: '2109', name: 'Obligaciones financieras c/p', parentCode: '21', type: 'LIABILITY', nature: 'CREDIT', isPostable: true, isCurrent: true, costBehavior: 'NONE', cashFlowCategory: 'FINANCING' },
+  // Consignación (modelo A1): lo devengado a productores y aún no pagado. Empresas con plan previo la reciben sola vía `resolveOrCreateMappedAccount`.
+  { code: '2110', name: 'Consignantes por pagar', parentCode: '21', type: 'LIABILITY', nature: 'CREDIT', isPostable: true, isCurrent: true, costBehavior: 'NONE', cashFlowCategory: 'OPERATING', mappingKey: 'CONSIGNANTES_POR_PAGAR' },
   { code: '22', name: 'Pasivo No Corriente', parentCode: '2', type: 'LIABILITY', nature: 'CREDIT', isPostable: false, isCurrent: false, costBehavior: 'NONE', cashFlowCategory: 'NONE' },
   { code: '2201', name: 'Obligaciones financieras l/p', parentCode: '22', type: 'LIABILITY', nature: 'CREDIT', isPostable: true, isCurrent: false, costBehavior: 'NONE', cashFlowCategory: 'FINANCING' },
 
@@ -79,6 +81,7 @@ export const CHART_OF_ACCOUNTS: ChartAccountSeed[] = [
   { code: '5', name: 'Costos', parentCode: null, type: 'COST', nature: 'DEBIT', isPostable: false, isCurrent: null, costBehavior: 'NONE', cashFlowCategory: 'NONE' },
   { code: '5101', name: 'Costo de ventas', parentCode: '5', type: 'COST', nature: 'DEBIT', isPostable: true, isCurrent: null, costBehavior: 'VARIABLE', cashFlowCategory: 'NONE', mappingKey: 'COSTO_VENTAS' },
   { code: '5102', name: 'Diferencias de inventario', parentCode: '5', type: 'COST', nature: 'DEBIT', isPostable: true, isCurrent: null, costBehavior: 'NONE', cashFlowCategory: 'NONE', mappingKey: 'DIFERENCIA_INVENTARIO' },
+  { code: '5103', name: 'Costo de ventas en consignación', parentCode: '5', type: 'COST', nature: 'DEBIT', isPostable: true, isCurrent: null, costBehavior: 'VARIABLE', cashFlowCategory: 'NONE', mappingKey: 'COSTO_VENTAS_CONSIGNACION' },
 
   // GASTOS
   { code: '6', name: 'Gastos', parentCode: null, type: 'EXPENSE', nature: 'DEBIT', isPostable: false, isCurrent: null, costBehavior: 'NONE', cashFlowCategory: 'NONE' },

@@ -1280,6 +1280,49 @@ export const MANUAL_SECTIONS: ManualSection[] = [
       },
     ]
   },
+  {
+    key: 'hasConsignment',
+    title: 'Productores y consignación',
+    route: '/dashboard/consignment',
+    topics: [
+      {
+        id: 'registrar-productor',
+        title: 'Registrar un productor y su comisión',
+        steps: [
+          'Crea primero al productor como contacto (proveedor) en Contactos.',
+          'En Productores y consignación, haz clic en "Nuevo productor", elige el contacto y define la comisión por defecto (el porcentaje que retiene tu empresa de cada venta).',
+          'Elige si la comisión se calcula sobre el neto (lo habitual) o sobre el total con IVA; confírmalo con tu contador.',
+        ]
+      },
+      {
+        id: 'asignar-productos-consignacion',
+        title: 'Asignar productos en consignación',
+        steps: [
+          'Abre la ficha del productor y, en "Productos", asigna los productos que él deja en consignación; opcionalmente fija una comisión propia para un producto (manda sobre la del productor).',
+          'También puedes hacerlo desde la ficha del producto en Inventario, eligiendo el productor.',
+          'Solo se puede cambiar un producto entre "propio" y "consignación" cuando no tiene stock ni costo promedio. La mercadería en consignación entra a bodega solo en cantidad, con costo 0, y no se compra: la factura del productor no se registra con el producto enlazado.',
+        ]
+      },
+      {
+        id: 'ventas-devengan',
+        title: 'Cómo se devenga lo que se le debe al productor',
+        steps: [
+          'Cada vez que se emite una factura o boleta (en Ventas o en el POS) con productos en consignación, el sistema registra la venta del productor con la comisión vigente en ese momento: después, cambiar la comisión no altera lo ya vendido.',
+          'Una nota de crédito o la anulación del documento descuenta lo que se le debía al productor. Si esa venta ya estaba en una liquidación en borrador, se descuenta ahí; si ya estaba confirmada o pagada, queda como ajuste para la liquidación siguiente.',
+        ]
+      },
+      {
+        id: 'armar-liquidacion',
+        title: 'Armar, confirmar y pagar una liquidación',
+        steps: [
+          'En el listado de liquidaciones, pulsa "Armar liquidación", elige el productor y el período (desde/hasta, ambos días incluidos) y revisa el detalle por línea.',
+          'En borrador puedes descartarla: las ventas vuelven a quedar pendientes.',
+          'Al confirmarla se crea la cuenta por pagar al productor por el total que él debe facturarte (neto, exento e IVA). Regístrala y págala desde Tesorería, en Cuentas por pagar.',
+          'Cuando el pago esté registrado, vuelve a la liquidación y márcala como pagada.',
+        ]
+      },
+    ]
+  },
 ];
 
 /**

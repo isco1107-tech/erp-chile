@@ -36,7 +36,7 @@ export default async function PosPage() {
   // tenga cargado en memoria.
   const company = await prisma.company.findUnique({
     where: { id: context.companyId },
-    select: { businessName: true, rut: true, address: true, comuna: true },
+    select: { businessName: true, rut: true, giro: true, address: true, comuna: true },
   });
 
   const address = [company?.address, company?.comuna].filter(Boolean).join(', ') || null;
@@ -53,6 +53,7 @@ export default async function PosPage() {
       canClose={can(context, 'pos:close')}
       companyName={company?.businessName ?? 'Empresa'}
       companyRut={company?.rut ?? ''}
+      companyGiro={company?.giro ?? null}
       companyAddress={address}
       reportarLatidos={supersuiteHabilitada()}
     />

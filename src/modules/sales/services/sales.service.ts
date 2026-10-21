@@ -19,6 +19,7 @@ import type { WorkflowEventPayload } from '@/lib/workflows/types';
 import { postCreditNoteIssued, postSalesDocumentIssued, reverseSalesDocumentPosting } from '@/modules/accounting/posting-rules/sales-posting';
 import { reverseDocumentEntries } from '@/modules/accounting/posting-rules/shared';
 import { isExemptDocument, siiCode } from '@/lib/chile/dte/codes';
+import { applyConsignmentToIssuedDocument, reverseConsignmentForCancelledDocument } from '@/modules/consignment/services/consignment-hook.service';
 import { assignSalesFolio, stampDocument, type FolioAssignment } from '@/modules/dte/services/stamping.service';
 import { computeDocument, exceedsCreditLimit } from '../calc';
 import { applyOrderProgress, assertSellerInCompany } from './sales-orders.service';
@@ -517,6 +518,18 @@ export async function createSalesDocument(
       await postSalesDocumentIssued(tx, companyId, created, costedItemsForAccounting, { isImmediatePayment, affectsStock });
     }
 
+    // Productores en consignación: devenga la venta (o su reversa si es una
+    // Nota de Crédito) dentro de esta misma transacción. Sin el módulo activo
+    // es solo una lectura de la bandera; un fallo aquí revierte la venta.
+    if (isIssuing) {
+      await applyConsignmentToIssuedDocument(tx, companyId, {
+        id: created.id,
+        dteType: created.dteType,
+        referenceType: created.referenceType,
+        referenceFolio: created.referenceFolio,
+      });
+    }
+
     // Espejo de `pos.service.ts`: una venta al contado que nace pagada debe
     // dejar un `Payment` real, o Tesorería (flujo de caja, `getCashFlow`) no
     // ve nunca ese cobro — solo el POS creaba esta fila; esta ruta marcaba
@@ -774,6 +787,9 @@ export async function cancelSalesDocument(companyId: string, id: string, reason?
       data: { status: 'CANCELLED' },
     });
     if (updated.count !== 1) throw new Error('El documento ya no está emitido: puede que otra persona lo haya anulado recién');
+
+    // Consignación: contrapartida de lo devengado al productor por este documento.
+    await reverseConsignmentForCancelledDocument(tx, companyId, document.id);
 
     const result = await tx.salesDocument.findFirst({ where: { id: document.id, companyId } });
     if (!result) throw new Error('Documento no encontrado');

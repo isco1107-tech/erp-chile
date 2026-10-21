@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { loadProducerSales, type ProducerSalesRow } from './producer-sales.service';
 import { signForSalesDteType, signForPurchaseDocumentType, TAXABLE_SALES_DTE_TYPES, TAXABLE_PURCHASE_DOCUMENT_TYPES } from '@/lib/chile/document-sign';
 
 /**
@@ -165,6 +166,11 @@ export interface ReportDataset {
   comprasDetalle: PurchaseDetailRow[];
   pagos: PaymentRow[];
   resumenTributario: TaxSummary;
+  /**
+   * Ventas por productor (consignación). Ausente o vacío = la hoja no se genera:
+   * una empresa sin productos en consignación no recibe una hoja vacía.
+   */
+  ventasPorProductor?: ProducerSalesRow[];
 }
 
 const DTE_LABEL: Record<string, string> = {
@@ -195,7 +201,7 @@ const label = (map: Record<string, string>, key: string) => map[key] ?? key;
 export async function buildReportDataset(companyId: string, range: ReportRange): Promise<ReportDataset> {
   const period = { gte: range.from, lte: range.to };
 
-  const [company, products, stocks, movements, salesDocs, purchaseDocs, payments, settings] = await Promise.all([
+  const [company, products, stocks, movements, salesDocs, purchaseDocs, payments, settings, ventasPorProductor] = await Promise.all([
     prisma.company.findFirst({ where: { id: companyId }, select: { businessName: true, rut: true } }),
     prisma.product.findMany({
       where: { companyId },
@@ -228,6 +234,7 @@ export async function buildReportDataset(companyId: string, range: ReportRange):
       orderBy: { paymentDate: 'desc' },
     }),
     prisma.companySettings.findUnique({ where: { companyId } }),
+    loadProducerSales(companyId, range),
   ]);
 
   // Solo documentos emitidos Y de un tipo tributario real entran a la
@@ -406,5 +413,6 @@ export async function buildReportDataset(companyId: string, range: ReportRange):
     comprasDetalle,
     pagos,
     resumenTributario,
+    ventasPorProductor,
   };
 }

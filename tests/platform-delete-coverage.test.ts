@@ -40,6 +40,7 @@ function explicitlyDeletedModelNames(): Set<string> {
  * qué se rompe si algún día ese `Cascade` se saca del schema.
  */
 const CASCADES_TO_COMPANY = new Set([
+  'WarehouseOperation',
   // onDelete: Cascade directo hacia Company.
   'UserSession',
   'CompanyMembership',

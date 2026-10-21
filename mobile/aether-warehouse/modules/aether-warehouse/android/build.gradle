@@ -1,0 +1,7 @@
+apply plugin: 'com.android.library'
+apply plugin: 'expo-module-gradle-plugin'
+
+group = 'expo.modules.aetherwarehouse'
+version = '1.0.0'
+android { namespace 'expo.modules.aetherwarehouse' }
+dependencies { implementation 'com.google.mlkit:text-recognition:16.0.1' }

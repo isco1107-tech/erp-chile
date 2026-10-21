@@ -7,14 +7,29 @@ export type ImportEntity = (typeof IMPORT_ENTITIES)[number];
 export const importEntitySchema = z.enum(IMPORT_ENTITIES);
 
 /**
- * Tope de filas por importación.
- *
- * La inserción es una única transacción: sin un límite, un archivo de 50.000
- * filas mantiene una transacción abierta más allá del timeout de la función
- * serverless y termina en rollback después de varios minutos de espera. Es
- * preferible pedir el archivo por partes.
+ * Tope de filas por importación para las entidades que se procesan fila por
+ * fila (stock, ventas y compras históricas): cada fila ejecuta varias consultas
+ * (contacto, producto, documento, kardex), así que un archivo grande agota el
+ * tiempo de la función serverless. Es preferible pedir el archivo por partes.
  */
 export const MAX_IMPORT_ROWS = 2000;
+
+/**
+ * Tope para productos y contactos. Se pueden subir más porque la inserción se
+ * hace con `createMany` en lotes de `IMPORT_INSERT_BATCH_SIZE` dentro de UNA
+ * transacción (todo o nada): son ~filas/500 consultas, no una por fila. Con
+ * 5.000 filas son 10 inserciones; el techo de 5 MB por archivo y el
+ * `maxDuration` del Route Handler siguen acotando el peor caso.
+ */
+export const MAX_IMPORT_ROWS_BULK = 5000;
+
+/** Filas por `createMany`: bajo el límite de parámetros de PostgreSQL (65.535) incluso con ~20 columnas. */
+export const IMPORT_INSERT_BATCH_SIZE = 500;
+
+/** Tope de filas aceptado para cada entidad. */
+export function maxImportRows(entity: ImportEntity): number {
+  return entity === 'products' || entity === 'contacts' ? MAX_IMPORT_ROWS_BULK : MAX_IMPORT_ROWS;
+}
 
 /**
  * Máximo de imágenes por request de escaneo por IA (`/api/import/ai-scan`).
@@ -59,14 +74,19 @@ export interface ColumnSpec {
  */
 export const IMPORT_COLUMNS: Record<ImportEntity, ColumnSpec[]> = {
   products: [
-    { key: 'sku', label: 'SKU', required: true, aliases: ['sku', 'codigo', 'code', 'codigo producto'], hint: 'Único por empresa' },
-    { key: 'name', label: 'Nombre', required: true, aliases: ['nombre', 'name', 'producto', 'descripcion'] },
-    { key: 'netPrice', label: 'Precio Neto', required: true, aliases: ['precio neto', 'precio', 'netprice', 'valor', 'precio venta'], hint: 'CLP entero, sin IVA' },
-    { key: 'unit', label: 'Unidad', required: false, aliases: ['unidad', 'unit', 'um'], hint: 'UN, KG, MT... (por defecto UN)' },
-    { key: 'minStock', label: 'Stock Mínimo', required: false, aliases: ['stock minimo', 'minstock', 'minimo'] },
-    { key: 'categoryName', label: 'Categoría', required: false, aliases: ['categoria', 'category', 'familia'], hint: 'Se crea si no existe' },
+    { key: 'sku', label: 'SKU', required: true, aliases: ['sku', 'codigo', 'code', 'codigo producto', 'codigo interno', 'codigo de producto', 'codigo articulo', 'cod producto', 'cod. producto', 'cod articulo', 'cod. articulo'], hint: 'Único por empresa' },
+    { key: 'name', label: 'Nombre', required: true, aliases: ['nombre', 'name', 'producto', 'descripcion', 'nombre producto', 'nombre del producto', 'descripcion producto', 'articulo', 'glosa'] },
+    { key: 'netPrice', label: 'Precio Neto', required: true, aliases: ['precio neto', 'precio', 'netprice', 'valor', 'precio venta', 'precio venta neto', 'precio neto venta', 'valor neto', 'precio lista neto'], hint: 'CLP entero, SIN IVA (una columna con IVA incluido no se reconoce a propósito)' },
+    { key: 'unit', label: 'Unidad', required: false, aliases: ['unidad', 'unit', 'um', 'u m', 'unidad de medida', 'unidad medida', 'u medida', 'u. medida'], hint: 'UN, KG, MT, LTS, CJA, PAR (por defecto UN). También se entienden UNI, UNID, LT, MTS, CAJA, KILO' },
+    { key: 'minStock', label: 'Stock Mínimo', required: false, aliases: ['stock minimo', 'minstock', 'minimo', 'stock min', 'stock critico'] },
+    { key: 'categoryName', label: 'Categoría', required: false, aliases: ['categoria', 'category', 'familia', 'rubro', 'linea', 'grupo'], hint: 'Se crea si no existe' },
     { key: 'isExempt', label: 'Exento IVA', required: false, aliases: ['exento', 'exento iva', 'isexempt', 'sin iva'], hint: 'si / no (por defecto: afecto)' },
     { key: 'description', label: 'Descripción', required: false, aliases: ['descripcion larga', 'detalle', 'description'] },
+    // Las columnas nuevas van AL FINAL: la plantilla de ejemplo del asistente es posicional.
+    { key: 'barcode', label: 'Código de Barras', required: false, aliases: ['codigo de barras', 'codigo barras', 'codigo barra', 'cod barra', 'cod. barra', 'cod barras', 'cod. barras', 'barcode', 'ean', 'ean13', 'ean 13', 'gtin', 'upc'], hint: 'EAN/UPC o código interno. Único por empresa' },
+    { key: 'brand', label: 'Marca', required: false, aliases: ['marca', 'brand'] },
+    { key: 'cost', label: 'Costo', required: false, aliases: ['costo', 'costo neto', 'costo unitario', 'precio costo', 'precio de costo', 'costo promedio', 'pmp', 'cost'], hint: 'CLP entero, sin IVA. Vacío = se usa el precio neto. No aplica a productos de un productor' },
+    { key: 'producer', label: 'Productor', required: false, aliases: ['productor', 'rut productor', 'nombre productor', 'producer'], hint: 'RUT o razón social de un productor ya creado (consignación). El producto queda en consignación, sin costo' },
   ],
   contacts: [
     { key: 'rut', label: 'RUT', required: true, aliases: ['rut', 'r.u.t.', 'rut cliente', 'rut proveedor'], hint: 'Validado con Módulo 11' },

@@ -1,0 +1,5 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": { "modules": ["AetherWarehouseModule"] },
+  "android": { "modules": ["expo.modules.aetherwarehouse.AetherWarehouseModule"] }
+}

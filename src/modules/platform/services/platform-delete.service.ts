@@ -57,6 +57,11 @@ async function hardDeleteTenant(tx: Prisma.TransactionClient, companyId: string)
   await tx.invitation.deleteMany({ where: { companyId } });
   await tx.cashMovement.deleteMany({ where: { companyId } });
   await tx.accountMapping.deleteMany({ where: { companyId } });
+  // Consignación: las líneas apuntan a ítems de venta y productos (RESTRICT), y el
+  // productor a Contact; salen antes que ellos.
+  await tx.consignmentSettlementLine.deleteMany({ where: { companyId } });
+  await tx.consignmentSettlement.deleteMany({ where: { companyId } });
+  await tx.producer.deleteMany({ where: { companyId } });
   await tx.salesDocumentItem.deleteMany({ where: { companyId } });
   await tx.purchaseDocumentItem.deleteMany({ where: { companyId } });
   await tx.goodsReceiptItem.deleteMany({ where: { companyId } });

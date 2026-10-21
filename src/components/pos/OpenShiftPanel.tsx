@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Lock } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,7 +22,10 @@ const selectClass =
 interface Props {
   canManageRegisters: boolean;
   warehouses: Array<{ id: string; name: string }>;
+  standalone?: boolean;
 }
+
+const INITIAL_CASH_PRESETS = [0, 20000, 50000, 100000];
 
 /**
  * Puerta de entrada del POS: sin turno abierto no se puede vender.
@@ -30,7 +34,7 @@ interface Props {
  * cambio no queda registrado al abrir, al cerrar es imposible distinguir un
  * descuadre real de la plata con la que se partió.
  */
-export default function OpenShiftPanel({ canManageRegisters, warehouses }: Props) {
+export default function OpenShiftPanel({ canManageRegisters, warehouses, standalone }: Props) {
   const router = useRouter();
 
   const [registers, setRegisters] = useState<CashRegisterWithWarehouse[]>([]);
@@ -102,20 +106,39 @@ export default function OpenShiftPanel({ canManageRegisters, warehouses }: Props
   }
 
   return (
-    <div className="mx-auto max-w-lg space-y-4">
+    <div className="mx-auto max-w-lg space-y-4 py-4">
       <div className="flex flex-col items-center gap-2 text-center">
         <div className="flex size-14 items-center justify-center rounded-2xl border border-primary/10 bg-accent">
           <Lock className="size-6 text-accent-foreground" />
         </div>
-        <h1 className="text-2xl font-bold" data-tutorial="module-header">Abrir caja</h1>
+        <h1 className="text-2xl font-bold" data-tutorial="module-header">
+          Abrir turno de caja
+        </h1>
         <p className="text-sm text-muted-foreground">
-          No tienes un turno abierto. Declara el fondo de cambio con el que partes para poder vender.
+          Selecciona el terminal de caja y declara el fondo de sencillo con el que inicias el turno.
         </p>
+        <div className="pt-1">
+          {!standalone ? (
+            <Link
+              href="/pos"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground shadow-card transition-colors hover:bg-accent"
+            >
+              <ExternalLink className="size-3.5" /> Abrir en App Exclusiva de Caja (/pos)
+            </Link>
+          ) : (
+            <Link
+              href="/dashboard/pos"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ArrowLeft className="size-3.5" /> Volver al panel ERP
+            </Link>
+          )}
+        </div>
       </div>
 
-      <div className="border border-border bg-card shadow-card space-y-4 rounded-2xl p-5">
+      <div className="space-y-4 rounded-2xl border border-border bg-card p-5 shadow-card">
         <div>
-          <Label htmlFor="register">Caja</Label>
+          <Label htmlFor="register">Terminal / Caja</Label>
           <select
             id="register"
             className={selectClass}
@@ -126,17 +149,17 @@ export default function OpenShiftPanel({ canManageRegisters, warehouses }: Props
             {registers.length === 0 && <option value="">Sin cajas disponibles</option>}
             {registers.map((register) => (
               <option key={register.id} value={register.id}>
-                {register.name} — {register.warehouse.name}
+                {register.name} — Bodega: {register.warehouse.name}
               </option>
             ))}
           </select>
           <p className="mt-1 text-xs text-muted-foreground">
-            Las ventas descuentan stock desde la bodega asociada a la caja.
+            Cada venta descontará stock al PMP vigente (y lotes FEFO) desde la bodega asociada a esta caja.
           </p>
         </div>
 
         <div>
-          <Label htmlFor="initial">Monto inicial en caja</Label>
+          <Label htmlFor="initial">Fondo inicial de sencillo en gaveta</Label>
           <Input
             id="initial"
             type="number"
@@ -144,16 +167,34 @@ export default function OpenShiftPanel({ canManageRegisters, warehouses }: Props
             step={1}
             value={initialAmount}
             onChange={(e) => setInitialAmount(e.target.value)}
-            className="h-12 text-lg"
+            className="h-12 text-lg tabular-nums"
           />
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {INITIAL_CASH_PRESETS.map((preset) => (
+              <Button
+                key={preset}
+                type="button"
+                size="xs"
+                variant="outline"
+                onClick={() => setInitialAmount(String(preset))}
+              >
+                {formatCurrency(preset)}
+              </Button>
+            ))}
+          </div>
           <p className="mt-1 text-xs text-muted-foreground">
             {formatCurrency(Number(initialAmount) || 0)} en efectivo al iniciar el turno.
           </p>
         </div>
 
         <div>
-          <Label htmlFor="notes">Observaciones (opcional)</Label>
-          <Input id="notes" value={openingNotes} onChange={(e) => setOpeningNotes(e.target.value)} />
+          <Label htmlFor="notes">Observaciones de apertura (opcional)</Label>
+          <Input
+            id="notes"
+            placeholder="Ej: Turno mañana, Caja 1"
+            value={openingNotes}
+            onChange={(e) => setOpeningNotes(e.target.value)}
+          />
         </div>
 
         <Button
@@ -162,14 +203,14 @@ export default function OpenShiftPanel({ canManageRegisters, warehouses }: Props
           disabled={saving || loading || registers.length === 0}
           onClick={handleOpen}
         >
-          {saving ? 'Abriendo...' : 'Abrir caja y comenzar a vender'}
+          {saving ? 'Abriendo…' : 'Abrir caja y comenzar a vender'}
         </Button>
       </div>
 
       {canManageRegisters && (
-        <div className="border border-border bg-card shadow-card rounded-2xl p-4">
+        <div className="rounded-2xl border border-border bg-card p-4 shadow-card">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium">Cajas del local</p>
+            <p className="text-sm font-medium">Terminales de caja del supermercado / local</p>
             <Button type="button" size="xs" variant="outline" onClick={() => setShowCreate((s) => !s)}>
               {showCreate ? 'Cerrar' : '+ Nueva caja'}
             </Button>
@@ -177,16 +218,16 @@ export default function OpenShiftPanel({ canManageRegisters, warehouses }: Props
           {showCreate && (
             <div className="mt-3 space-y-2">
               <div>
-                <Label htmlFor="new-name">Nombre</Label>
+                <Label htmlFor="new-name">Nombre de la caja</Label>
                 <Input
                   id="new-name"
-                  placeholder="Ej: Caja 2 Mesón"
+                  placeholder="Ej: Caja 2 Rápida / Caja 3 Fiambrería"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                 />
               </div>
               <div>
-                <Label htmlFor="new-warehouse">Bodega</Label>
+                <Label htmlFor="new-warehouse">Bodega / Sala de ventas</Label>
                 <select
                   id="new-warehouse"
                   className={selectClass}

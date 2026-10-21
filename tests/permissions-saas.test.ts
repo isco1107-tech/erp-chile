@@ -53,6 +53,7 @@ const FULL: CompanyFeatureFlags = {
   hasProduction: true,
   hasServiceDesk: true,
   hasWebSites: true,
+  hasConsignment: true,
 };
 
 const STARTER: CompanyFeatureFlags = { ...DEFAULT_FEATURES };

@@ -45,7 +45,7 @@ export interface RawSheet {
   truncated: boolean;
 }
 
-async function readXlsx(buffer: Buffer): Promise<RawSheet> {
+async function readXlsx(buffer: Buffer, maxRows: number): Promise<RawSheet> {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer as unknown as ArrayBuffer);
   const sheet = workbook.worksheets[0];
@@ -61,7 +61,7 @@ async function readXlsx(buffer: Buffer): Promise<RawSheet> {
   const rows: string[][] = [];
   let truncated = false;
   for (let r = 2; r <= sheet.rowCount; r++) {
-    if (rows.length >= MAX_IMPORT_ROWS) {
+    if (rows.length >= maxRows) {
       truncated = true;
       break;
     }
@@ -78,7 +78,7 @@ async function readXlsx(buffer: Buffer): Promise<RawSheet> {
   return { headers, rows, truncated };
 }
 
-function readCsv(text: string): RawSheet {
+function readCsv(text: string, maxRows: number): RawSheet {
   const parsed = Papa.parse<string[]>(text, {
     skipEmptyLines: 'greedy',
     // Sin `header: true`: se necesita el orden original para poder reportar
@@ -89,18 +89,22 @@ function readCsv(text: string): RawSheet {
   if (!headerRow) throw new Error('El archivo está vacío');
 
   const headers = headerRow.map((h) => String(h ?? '').trim());
-  const truncated = dataRows.length > MAX_IMPORT_ROWS;
+  const truncated = dataRows.length > maxRows;
   const rows = dataRows
-    .slice(0, MAX_IMPORT_ROWS)
+    .slice(0, maxRows)
     .map((row) => headers.map((_, i) => String(row[i] ?? '').trim()));
 
   return { headers, rows, truncated };
 }
 
-export async function readSpreadsheet(file: { name: string; buffer: Buffer }): Promise<RawSheet> {
+export async function readSpreadsheet(
+  file: { name: string; buffer: Buffer },
+  /** Tope de filas de datos; ver `maxImportRows(entity)`. */
+  maxRows: number = MAX_IMPORT_ROWS
+): Promise<RawSheet> {
   const lower = file.name.toLowerCase();
-  if (lower.endsWith('.csv')) return readCsv(file.buffer.toString('utf8'));
-  if (lower.endsWith('.xlsx')) return readXlsx(file.buffer);
+  if (lower.endsWith('.csv')) return readCsv(file.buffer.toString('utf8'), maxRows);
+  if (lower.endsWith('.xlsx')) return readXlsx(file.buffer, maxRows);
   throw new Error('Formato no soportado. Suba un archivo .xlsx o .csv');
 }
 

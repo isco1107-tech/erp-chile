@@ -155,6 +155,13 @@ export async function createPurchaseDocument(
       if (!item.productId) continue;
       const product = await tx.product.findFirst({ where: { id: item.productId, companyId } });
       if (!product) throw new Error(`Producto no encontrado: ${item.description}`);
+      // Un producto en consignación es de un tercero: su stock entra a costo 0 y
+      // la factura del productor (su parte de la venta) no re-ingresa inventario.
+      if (product.supplyMode === 'CONSIGNMENT') {
+        throw new Error(
+          `"${item.description}" es un producto en consignación: no se compra. Registra la factura del productor sin enlazar el producto (se paga desde la liquidación)`
+        );
+      }
     }
 
     const isCreditNote = input.documentType === 'NOTA_CREDITO';
