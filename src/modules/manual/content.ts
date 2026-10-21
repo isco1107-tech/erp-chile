@@ -27,7 +27,7 @@ export { MANUAL_CHAPTERS } from './types';
  * `tests/manual-coverage.test.ts` exige que cada pantalla del menú esté
  * documentada, pero el texto de los pasos se revisa a mano.
  */
-export const MANUAL_SECTIONS: ManualSection[] = [
+export const MANUAL_SECTIONS: ManualSection[] = ([
   {
     id: 'consignment',
     chapter: 'Operaciones',
@@ -90,7 +90,7 @@ export const MANUAL_SECTIONS: ManualSection[] = [
   ...FINANZAS_SECTIONS,
   ...EVENTOS_SECTIONS,
   // Orden estable: dentro de un capítulo se respeta el orden de cada archivo.
-].sort((a, b) => MANUAL_CHAPTERS.indexOf(a.chapter) - MANUAL_CHAPTERS.indexOf(b.chapter));
+] satisfies ManualSection[]).sort((a, b) => MANUAL_CHAPTERS.indexOf(a.chapter) - MANUAL_CHAPTERS.indexOf(b.chapter));
 
 /**
  * `'role'`: lo que ESTE usuario puede abrir (módulo contratado + permiso) —
