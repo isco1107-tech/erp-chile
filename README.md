@@ -87,7 +87,6 @@ El `DATABASE_URL` del `.env` apunta a la **misma** instancia Neon que usa produc
 src/
 ├── app/
 │   ├── (dashboard)/       Panel privado (81+ pantallas)
-│   ├── (superadmin)/      Panel del operador del SaaS
 │   ├── api/               Route Handlers: subidas, webhooks, crons, respaldo
 │   └── …                  Rutas públicas: login, portales por token, votación
 ├── modules/               35 módulos por dominio (services + actions + schema)

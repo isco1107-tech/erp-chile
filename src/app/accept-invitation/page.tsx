@@ -52,6 +52,7 @@ function AcceptInvitationForm() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [acceptTerms, setAcceptTerms] = useState(false);
 
   useEffect(() => {
     if (!token) {
@@ -74,7 +75,7 @@ function AcceptInvitationForm() {
     }
     setSubmitting(true);
     try {
-      const result = await acceptInvitationAction(token, { name, password });
+      const result = await acceptInvitationAction(token, { name, password, acceptTerms });
       if (!result.success) {
         toast.error(result.error);
         return;
@@ -187,7 +188,29 @@ function AcceptInvitationForm() {
               />
             </PublicField>
 
-            <PublicButton type="submit" full disabled={submitting || mismatch}>
+            <label htmlFor="acceptTerms" className="flex items-start gap-2 text-sm leading-relaxed">
+              <input
+                id="acceptTerms"
+                type="checkbox"
+                className="mt-1"
+                checked={acceptTerms}
+                onChange={(e) => setAcceptTerms(e.target.checked)}
+                required
+              />
+              <span>
+                Acepto los{' '}
+                <a href="/aether/terminos" target="_blank" rel="noopener" className="underline underline-offset-2">
+                  Términos de servicio
+                </a>{' '}
+                y la{' '}
+                <a href="/aether/privacidad" target="_blank" rel="noopener" className="underline underline-offset-2">
+                  Política de privacidad
+                </a>{' '}
+                de la plataforma.
+              </span>
+            </label>
+
+            <PublicButton type="submit" full disabled={submitting || mismatch || !acceptTerms}>
               {submitting ? 'Creando cuenta…' : 'Crear cuenta y continuar'}
             </PublicButton>
           </form>

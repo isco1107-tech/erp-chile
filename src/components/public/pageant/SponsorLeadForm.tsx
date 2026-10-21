@@ -5,8 +5,8 @@ import { publicSponsorLeadSchema, SPONSOR_LEAD_HONEYPOT_FIELD } from '@/modules/
 import { Arrow, Check } from './icons';
 
 /**
- * Formulario de sponsor (nombre y apellido, teléfono, correo, empresa y a qué
- * se dedica): crea la oportunidad en el embudo comercial de la
+ * Formulario de sponsor (nombre y apellido, teléfono, correo, empresa, Instagram de la
+ * empresa y a qué se dedica): crea la oportunidad en el embudo comercial de la
  * organización (`/api/public/pageants/{slug}/sponsor-lead`). Misma
  * validación que el servidor (`publicSponsorLeadSchema`) y el mismo campo
  * trampa contra bots.
@@ -36,7 +36,7 @@ export function SponsorLeadForm({
   selectedPackage: { id: string; name: string } | null;
   onClearPackage: () => void;
 }) {
-  const [values, setValues] = useState({ contactName: '', phone: '', email: '', companyName: '', message: '' });
+  const [values, setValues] = useState({ contactName: '', phone: '', email: '', companyName: '', instagram: '', message: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
   const [serverError, setServerError] = useState('');
@@ -116,6 +116,9 @@ export function SponsorLeadForm({
       </div>
       <Field id="lead-companyName" label="Nombre de empresa" error={errors.companyName}>
         <input id="lead-companyName" value={values.companyName} onChange={(e) => set('companyName', e.target.value)} autoComplete="organization" {...described('companyName')} />
+      </Field>
+      <Field id="lead-instagram" label="Instagram de tu empresa" error={errors.instagram}>
+        <input id="lead-instagram" value={values.instagram} onChange={(e) => set('instagram', e.target.value)} placeholder="@tuempresa" autoCapitalize="none" {...described('instagram')} />
       </Field>
       <Field id="lead-message" label="¿A qué te dedicas?" error={errors.message}>
         <textarea id="lead-message" rows={3} value={values.message} onChange={(e) => set('message', e.target.value)} {...described('message')} />

@@ -24,7 +24,20 @@ export function escapeHtml(value: string): string {
     .replace(/"/g, '&quot;');
 }
 
-function layout(options: { title: string; body: string; ctaLabel: string; ctaUrl: string; footer: string }): string {
+/** `ctaLabel`/`ctaUrl` son opcionales: un acuse de recibo no necesita botón. */
+function layout(options: { title: string; body: string; ctaLabel?: string; ctaUrl?: string; footer: string }): string {
+  const cta =
+    options.ctaLabel && options.ctaUrl
+      ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0;">
+                <tr>
+                  <td style="background:${BRAND};border-radius:8px;">
+                    <a href="${options.ctaUrl}" style="display:inline-block;padding:12px 22px;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;">${escapeHtml(options.ctaLabel)}</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:0 0 6px;color:#64748b;font-size:13px;">Si el botón no funciona, copia y pega este enlace:</p>
+              <p style="margin:0;word-break:break-all;"><a href="${options.ctaUrl}" style="color:${BRAND};font-size:13px;">${options.ctaUrl}</a></p>`
+      : '';
   return `<!doctype html>
 <html lang="es">
 <body style="margin:0;padding:0;background:#f4f6f8;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
@@ -40,15 +53,7 @@ function layout(options: { title: string; body: string; ctaLabel: string; ctaUrl
           <tr>
             <td style="padding:24px;color:#1f2933;font-size:15px;line-height:1.6;">
               ${options.body}
-              <table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0;">
-                <tr>
-                  <td style="background:${BRAND};border-radius:8px;">
-                    <a href="${options.ctaUrl}" style="display:inline-block;padding:12px 22px;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;">${escapeHtml(options.ctaLabel)}</a>
-                  </td>
-                </tr>
-              </table>
-              <p style="margin:0 0 6px;color:#64748b;font-size:13px;">Si el botón no funciona, copia y pega este enlace:</p>
-              <p style="margin:0;word-break:break-all;"><a href="${options.ctaUrl}" style="color:${BRAND};font-size:13px;">${options.ctaUrl}</a></p>
+              ${cta}
             </td>
           </tr>
           <tr>
@@ -231,7 +236,7 @@ export interface CandidateApplicationConfirmationEmailInput {
   companyName: string;
   folio: string;
   /** Contacto del certamen (el que configuró la organización), si tiene. */
-  contact?: { email: string | null; whatsapp: { href: string; label: string } | null; instagram: { href: string; handle: string } | null };
+  contact?: { email: string | null; whatsapp: { href: string; label: string } | null; instagrams: Array<{ href: string; handle: string }> };
 }
 
 /**
@@ -248,7 +253,7 @@ export function buildCandidateApplicationConfirmationEmail(input: CandidateAppli
   const contactLines = [
     input.contact?.email ? { label: 'Correo', text: input.contact.email, href: `mailto:${input.contact.email}` } : null,
     input.contact?.whatsapp ? { label: 'WhatsApp', text: input.contact.whatsapp.label, href: input.contact.whatsapp.href } : null,
-    input.contact?.instagram ? { label: 'Instagram', text: `@${input.contact.instagram.handle}`, href: input.contact.instagram.href } : null,
+    ...(input.contact?.instagrams ?? []).map((ig) => ({ label: 'Instagram', text: `@${ig.handle}`, href: ig.href })),
   ].filter((line): line is { label: string; text: string; href: string } => line !== null);
   const contactHtml = contactLines.length
     ? `
@@ -352,6 +357,7 @@ export interface SponsorLeadNoticeEmailInput {
   companyName: string;
   email: string;
   phone: string;
+  instagram: string;
   activity: string;
   packageName: string | null;
   dashboardUrl: string;
@@ -365,6 +371,7 @@ export function buildSponsorLeadNoticeEmail(input: SponsorLeadNoticeEmailInput):
     ['Empresa', input.companyName],
     ['Correo', input.email],
     ['Teléfono', input.phone],
+    ['Instagram de la empresa', input.instagram],
     ['A qué se dedica', input.activity],
     ...(input.packageName ? ([['Paquete de interés', input.packageName]] as Array<[string, string]>) : []),
   ];
@@ -469,6 +476,70 @@ export function buildSponsorAcceptedEmail(input: SponsorAcceptedEmailInput): { s
     `Nivel de auspicio: ${input.tierLabel}${input.packageName ? ` · Plan: ${input.packageName}` : ''}.`,
     'En tu portal de sponsor puedes seguir los entregables acordados y el estado de tus pagos:',
     input.portalUrl,
+    input.contact.whatsapp ? `WhatsApp: ${input.contact.whatsapp.label}` : null,
+    input.contact.email ? `Correo: ${input.contact.email}` : null,
+  ]
+    .filter((line): line is string => line !== null)
+    .join('\n');
+  return { subject, html, text };
+}
+
+export interface SponsorTierChangedEmailInput {
+  contactName: string;
+  projectName: string;
+  companyName: string;
+  previousTierLabel: string;
+  tierLabel: string;
+  packageName: string | null;
+  /** Monto en efectivo vigente del contrato (CLP entero, neto), si hay. */
+  cashAmount: number;
+  isBarter: boolean;
+  barterValuation: number;
+  /** Entregables que hoy tiene el contrato (los acordados para su nueva categoría). */
+  deliverableTitles: string[];
+  portalUrl: string;
+  contact: { email: string | null; whatsapp: { href: string; label: string } | null };
+}
+
+/**
+ * Aviso a la marca de que la organización cambió su categoría de auspicio.
+ * Explica qué implica sin inventar condiciones: lo que cambia es el nivel; los
+ * montos y entregables que se muestran son los vigentes en el contrato, y el
+ * detalle completo vive en el portal.
+ */
+export function buildSponsorTierChangedEmail(input: SponsorTierChangedEmailInput): { subject: string; html: string; text: string } {
+  const subject = `Cambió tu categoría de auspicio en ${input.projectName}`;
+  const contactLines = [
+    input.contact.whatsapp ? `WhatsApp: <a href="${escapeHtml(input.contact.whatsapp.href)}" style="color:${BRAND};">${escapeHtml(input.contact.whatsapp.label)}</a>` : null,
+    input.contact.email ? `Correo: <a href="mailto:${escapeHtml(input.contact.email)}" style="color:${BRAND};">${escapeHtml(input.contact.email)}</a>` : null,
+  ].filter((line): line is string => line !== null);
+  const terms = [
+    input.cashAmount > 0 ? `Aporte en efectivo vigente: <strong>${escapeHtml(formatCurrency(input.cashAmount))}</strong> + IVA` : null,
+    input.isBarter && input.barterValuation > 0 ? `Canje valorizado en: <strong>${escapeHtml(formatCurrency(input.barterValuation))}</strong>` : null,
+  ].filter((line): line is string => line !== null);
+  const html = layout({
+    title: input.projectName,
+    body: `
+      <p style="margin:0 0 12px;">Hola <strong>${escapeHtml(input.contactName)}</strong>, te avisamos que la categoría de auspicio de tu marca en <strong>${escapeHtml(input.projectName)}</strong> fue modificada.</p>
+      <p style="margin:0 0 12px;">Antes: <strong>${escapeHtml(input.previousTierLabel)}</strong> → Ahora: <strong>${escapeHtml(input.tierLabel)}</strong>${input.packageName ? ` · Plan: <strong>${escapeHtml(input.packageName)}</strong>` : ''}.</p>
+      <p style="margin:0 0 12px;">¿Qué implica? Los beneficios, los entregables y las condiciones económicas de tu auspicio se rigen desde ahora por la nueva categoría.</p>
+      ${terms.length ? `<p style="margin:0 0 12px;">${terms.join('<br>')}</p>` : ''}
+      ${input.deliverableTitles.length ? `<p style="margin:0 0 6px;font-weight:600;">Entregables acordados hoy:</p><ul style="margin:0 0 12px;padding-left:20px;">${input.deliverableTitles.map((t) => `<li>${escapeHtml(t)}</li>`).join('')}</ul>` : ''}
+      <p style="margin:0 0 12px;">Revisa el detalle actualizado en tu portal. Si algo no coincide con lo conversado, respóndenos y lo vemos contigo.</p>
+      ${contactLines.length ? `<p style="margin:16px 0 6px;font-weight:600;">¿Dudas? Escríbenos:</p>${contactLines.map((line) => `<p style="margin:0 0 4px;">${line}</p>`).join('')}` : ''}
+    `,
+    ctaLabel: 'Ver mi portal de sponsor',
+    ctaUrl: input.portalUrl,
+    footer: `${escapeHtml(input.companyName)} · Si no reconoces este auspicio, responde este correo.`,
+  });
+  const text = [
+    `Hola ${input.contactName}, la categoría de auspicio de tu marca en ${input.projectName} fue modificada.`,
+    `Antes: ${input.previousTierLabel} → Ahora: ${input.tierLabel}${input.packageName ? ` · Plan: ${input.packageName}` : ''}.`,
+    'Qué implica: los beneficios, los entregables y las condiciones económicas de tu auspicio se rigen desde ahora por la nueva categoría.',
+    input.cashAmount > 0 ? `Aporte en efectivo vigente: ${formatCurrency(input.cashAmount)} + IVA` : null,
+    input.isBarter && input.barterValuation > 0 ? `Canje valorizado en: ${formatCurrency(input.barterValuation)}` : null,
+    input.deliverableTitles.length ? `Entregables acordados hoy:\n${input.deliverableTitles.map((t) => `- ${t}`).join('\n')}` : null,
+    `Detalle actualizado en tu portal: ${input.portalUrl}`,
     input.contact.whatsapp ? `WhatsApp: ${input.contact.whatsapp.label}` : null,
     input.contact.email ? `Correo: ${input.contact.email}` : null,
   ]
@@ -1837,6 +1908,107 @@ export function buildInstallmentPaymentReceiptEmail(input: InstallmentPaymentRec
     `Total pagado: ${formatCurrency(input.amount)}`,
     '',
     `Comprobante ${input.receiptLabel} (${input.paidAtLabel}): ${input.receiptUrl}`,
+  ].join('\n');
+
+  return { subject, html, text };
+}
+
+export interface DataSubjectRequestAckEmailInput {
+  companyName: string;
+  typeLabel: string;
+  dueDateLabel: string;
+  contactEmail: string | null;
+}
+
+/**
+ * Acuse de recibo al titular: confirma que la solicitud llegó y cuándo se responderá como máximo.
+ * Saluda sin nombre a propósito: el nombre lo escribe quien llena el formulario público, y un
+ * tercero podría usarlo para meter un mensaje en un correo con la marca de la empresa.
+ */
+export function buildDataSubjectRequestAckEmail(input: DataSubjectRequestAckEmailInput): { subject: string; html: string; text: string } {
+  const subject = `Recibimos tu solicitud de ${input.typeLabel.toLowerCase()} de datos personales`;
+  const contactHtml = input.contactEmail ? ` Si tienes dudas, escríbenos a <a href="mailto:${escapeHtml(input.contactEmail)}">${escapeHtml(input.contactEmail)}</a>.` : '';
+  const contactText = input.contactEmail ? ` Si tienes dudas, escríbenos a ${input.contactEmail}.` : '';
+
+  const html = layout({
+    title: 'Recibimos tu solicitud',
+    body: `<p style="margin:0 0 12px;">Hola,</p>
+    <p style="margin:0 0 12px;">${escapeHtml(input.companyName)} recibió tu solicitud de <strong>${escapeHtml(input.typeLabel.toLowerCase())}</strong> sobre tus datos personales.</p>
+    <p style="margin:0 0 12px;">Antes de responder vamos a verificar tu identidad, y te contestaremos a más tardar el <strong>${escapeHtml(input.dueDateLabel)}</strong>.${contactHtml}</p>
+    <p style="margin:0;color:#64748b;font-size:13px;">Si tú no hiciste esta solicitud, puedes ignorar este correo.</p>`,
+    footer: `Acuse de recibo automático de ${escapeHtml(input.companyName)}.`,
+  });
+
+  const text = [
+    'Hola,',
+    '',
+    `${input.companyName} recibió tu solicitud de ${input.typeLabel.toLowerCase()} sobre tus datos personales.`,
+    `Antes de responder vamos a verificar tu identidad, y te contestaremos a más tardar el ${input.dueDateLabel}.${contactText}`,
+    '',
+    'Si tú no hiciste esta solicitud, puedes ignorar este correo.',
+  ].join('\n');
+
+  return { subject, html, text };
+}
+
+export interface AcademyMaterialEmailInput {
+  /** Nombre con que la academia se presenta (el de su sitio o, si no tiene, la razón social). */
+  academyName: string;
+  groupName: string;
+  title: string;
+  description: string | null;
+  kind: 'FILE' | 'LINK';
+  /** Archivo en nuestro almacenamiento o enlace externo ya validado (https). */
+  url: string;
+  fileName: string | null;
+  /** "PDF", "PowerPoint", "Enlace"… */
+  typeLabel: string;
+  /** "2,4 MB"; `null` en un enlace. */
+  sizeLabel: string | null;
+  /** "sábado 11 de octubre · 10:00 – 12:00" cuando el material es de una clase. */
+  classLabel: string | null;
+}
+
+/**
+ * Material de clases enviado a las alumnas de un grupo (y a sus apoderados).
+ * Lleva un botón de descarga y no el archivo adjunto: un PowerPoint pesa más de
+ * lo que aceptan los proveedores de correo, y así el enlace funciona igual desde
+ * el celular.
+ */
+export function buildAcademyMaterialEmail(input: AcademyMaterialEmailInput): { subject: string; html: string; text: string } {
+  const subject = `${input.academyName} · Material: ${input.title}`;
+  const isFile = input.kind === 'FILE';
+  const detail = [input.typeLabel, input.sizeLabel].filter(Boolean).join(' · ');
+
+  const html = layout({
+    title: input.academyName,
+    body: `
+      <p style="margin:0 0 12px;">Hola, compartimos nuevo material del grupo <strong>${escapeHtml(input.groupName)}</strong>.</p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 4px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
+        <tr>
+          <td style="padding:14px 16px;">
+            <p style="margin:0;font-size:16px;font-weight:700;">${escapeHtml(input.title)}</p>
+            ${input.classLabel ? `<p style="margin:4px 0 0;color:#64748b;font-size:13px;">Clase: ${escapeHtml(input.classLabel)}</p>` : ''}
+            ${input.description ? `<p style="margin:8px 0 0;font-size:14px;white-space:pre-line;">${escapeHtml(input.description)}</p>` : ''}
+            <p style="margin:8px 0 0;color:#64748b;font-size:13px;">${escapeHtml(isFile && input.fileName ? `${input.fileName} · ${detail}` : detail)}</p>
+          </td>
+        </tr>
+      </table>
+    `,
+    ctaLabel: isFile ? 'Descargar archivo' : 'Abrir enlace',
+    ctaUrl: escapeHtml(input.url),
+    footer: `${escapeHtml(input.academyName)}. Recibes este correo porque estás inscrita en el grupo ${escapeHtml(input.groupName)} o eres apoderado de una alumna. Si no corresponde, avisa a la academia.`,
+  });
+
+  const text = [
+    `${input.academyName} — material del grupo ${input.groupName}`,
+    '',
+    input.title,
+    ...(input.classLabel ? [`Clase: ${input.classLabel}`] : []),
+    ...(input.description ? ['', input.description] : []),
+    '',
+    isFile && input.fileName ? `${input.fileName} (${detail})` : detail,
+    `${isFile ? 'Descargar' : 'Abrir'}: ${input.url}`,
   ].join('\n');
 
   return { subject, html, text };

@@ -44,7 +44,7 @@ export async function createPasswordResetToken(email: string): Promise<CreatedRe
   if (!user || !user.isActive) return null;
   // Un usuario de empresa suspendida no podría iniciar sesión igual; emitirle
   // un enlace solo lo llevaría a un callejón sin salida.
-  if (!user.isSuperAdmin && user.company && !OPERATIONAL_STATUSES.includes(user.company.status)) return null;
+  if (user.company && !OPERATIONAL_STATUSES.includes(user.company.status)) return null;
 
   const token = generateToken();
   const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MINUTES * 60 * 1000);

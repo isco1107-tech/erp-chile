@@ -37,8 +37,28 @@ describe('customDomainProblem', () => {
 
   it('nunca permite registrar el dominio de la plataforma ni uno de sus subdominios', () => {
     expect(customDomainProblem('erp.aether.cl', ENV)).toMatch(/plataforma/);
-    expect(customDomainProblem('aether.cl', ENV)).toMatch(/plataforma/);
     expect(customDomainProblem('sitio.erp.aether.cl', ENV)).toMatch(/plataforma/);
+  });
+
+  it('el mensaje dice con qué host de la plataforma choca', () => {
+    expect(customDomainProblem('erp.aether.cl', ENV)).toContain('erp.aether.cl');
+  });
+
+  it('el dominio "padre" de la plataforma sí se puede usar como sitio de una empresa', () => {
+    expect(customDomainProblem('aether.cl', ENV)).toBeNull();
+    expect(isPlatformHost('aether.cl', ENV)).toBe(false);
+  });
+
+  it('un dominio de cliente agregado al proyecto de Vercel no pasa a ser "la plataforma"', () => {
+    // Vercel puede fijar VERCEL_PROJECT_PRODUCTION_URL al dominio más corto del proyecto.
+    const env = { APP_URL: 'https://erp.aether.cl', VERCEL_PROJECT_PRODUCTION_URL: 'miempresa.cl' };
+    expect(customDomainProblem('miempresa.cl', env)).toBeNull();
+    expect(isPlatformHost('miempresa.cl', env)).toBe(false);
+    expect(isPlatformHost('erp.aether.cl', env)).toBe(true);
+  });
+
+  it('sin APP_URL, VERCEL_PROJECT_PRODUCTION_URL sigue identificando la plataforma', () => {
+    expect(isPlatformHost('erp.aether.cl', { VERCEL_PROJECT_PRODUCTION_URL: 'erp.aether.cl' })).toBe(true);
   });
 });
 
@@ -71,10 +91,40 @@ describe('customDomainRoute', () => {
     }
   });
 
+  it('robots.txt y sitemap.xml son los del sitio de ese dominio, no los de la plataforma', () => {
+    expect(customDomainRoute('/robots.txt')).toEqual({ kind: 'seo', file: 'robots.txt' });
+    expect(customDomainRoute('/sitemap.xml')).toEqual({ kind: 'seo', file: 'sitemap.xml' });
+    expect(customDomainRoute('/sitemap.xml/x')).toEqual({ kind: 'platform' });
+    expect(customDomainRoute('/robots.txt.bak')).toEqual({ kind: 'platform' });
+  });
+
   it('el panel, el login o rutas parecidas nunca se sirven bajo el dominio del certamen', () => {
     for (const path of ['/login', '/dashboard', '/dashboard/sales', '/superadmin', '/sitio/otro.cl', '/registerX', '/certamen']) {
       expect(customDomainRoute(path)).toEqual({ kind: 'platform' });
     }
+  });
+});
+
+describe('customDomainRoute: páginas internas de un sitio web', () => {
+  it('un solo segmento con forma de página se reescribe como página', () => {
+    expect(customDomainRoute('/servicios')).toEqual({ kind: 'page', slug: 'servicios' });
+    expect(customDomainRoute('/sobre-nosotros/')).toEqual({ kind: 'page', slug: 'sobre-nosotros' });
+    expect(customDomainRoute('/equipo-2')).toEqual({ kind: 'page', slug: 'equipo-2' });
+  });
+
+  it('las direcciones reservadas siguen yendo a la plataforma o se sirven como antes', () => {
+    for (const path of ['/login', '/dashboard', '/superadmin', '/api', '/web', '/raw', '/sitio', '/certamen', '/opengraph-image', '/manual']) {
+      expect(customDomainRoute(path)).toEqual({ kind: 'platform' });
+    }
+    expect(customDomainRoute('/register')).toEqual({ kind: 'pass' });
+    expect(customDomainRoute('/votar')).toEqual({ kind: 'pass' });
+  });
+
+  it('rutas con más de un segmento, mayúsculas, punto o caracteres raros no son páginas', () => {
+    for (const path of ['/servicios/extra', '/Servicios', '/servicios.html', '/a_b', '/-x', '/x-', '/a--b', '/sw.js', '/manifest.webmanifest', '/%2e%2e', '/a%2Fb']) {
+      expect(customDomainRoute(path)).toEqual({ kind: 'platform' });
+    }
+    expect(customDomainRoute('/' + 'a'.repeat(41))).toEqual({ kind: 'platform' });
   });
 });
 

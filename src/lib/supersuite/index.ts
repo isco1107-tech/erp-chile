@@ -5,7 +5,7 @@ import { DteType, type AuditAction } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { captureException } from '@/lib/observability';
 import { crearSupersuite, type ClienteSupersuite } from './cliente';
-import { accionDeAuditoria, alertaDeFolios, empresaActiva, ENTIDADES_DE_EMPRESA, moduloDeEntidad, modulosContratados } from './modulos';
+import { accionDeAuditoria, alertaDeFolios, alertaDeSolicitud, CLAVE_SOLICITUD_MODULOS, empresaActiva, ENTIDADES_DE_EMPRESA, fichaDeEmpresa, MODULO_PLATAFORMA, moduloDeEntidad } from './modulos';
 
 /**
  * Telemetría hacia la Supersuite (el centro de mando que monitorea a las empresas
@@ -50,18 +50,21 @@ function enviarAlFinal(m: ClienteSupersuite): void {
   }
 }
 
-/** Una acción auditada = un evento de uso del módulo al que pertenece. */
-export function registrarUsoSupersuite(input: { companyId: string; entity: string; action: AuditAction }): void {
+/**
+ * Toda acción auditada viaja a la Supersuite, que es el panel de mando de lo que
+ * pasa en Aether: lo de un módulo de negocio cuenta como uso de ese módulo, y lo
+ * demás (usuarios, roles, ajustes, automatizaciones…) va como `plataforma`, que
+ * la Supersuite muestra en Actividad sin contarlo como adopción. Viajan solo la
+ * entidad, la operación y el id opaco de quien la hizo: nunca el registro.
+ * Un cambio de la empresa (plan, módulos, estado) además reenvía su ficha.
+ */
+export function registrarUsoSupersuite(input: { companyId: string; entity: string; action: AuditAction; userId?: string }): void {
   try {
     const m = monitor();
     if (!m) return;
-    if (ENTIDADES_DE_EMPRESA.has(input.entity)) {
-      void sincronizarEmpresaSupersuite(input.companyId);
-      return;
-    }
-    const modulo = moduloDeEntidad(input.entity);
-    if (!modulo) return;
-    m.evento(input.companyId, modulo, accionDeAuditoria(input.entity, input.action));
+    if (ENTIDADES_DE_EMPRESA.has(input.entity)) void sincronizarEmpresaSupersuite(input.companyId);
+    const modulo = moduloDeEntidad(input.entity) ?? MODULO_PLATAFORMA;
+    m.evento(input.companyId, modulo, accionDeAuditoria(input.entity, input.action), { entidad: input.entity, operacion: input.action }, input.userId);
     enviarAlFinal(m);
   } catch (error) {
     captureException(error, { module: 'supersuite', companyId: input.companyId, extra: { entity: input.entity } });
@@ -75,18 +78,10 @@ export async function sincronizarEmpresaSupersuite(companyId: string): Promise<v
     if (!m) return;
     const empresa = await prisma.company.findFirst({
       where: { id: companyId },
-      select: { businessName: true, rut: true, ciudad: true, comuna: true, planName: true, status: true, createdAt: true, features: true },
+      select: { businessName: true, rut: true, ciudad: true, comuna: true, planName: true, status: true, createdAt: true, maxUsers: true, maxWarehouses: true, features: true },
     });
     if (!empresa) return;
-    m.cliente(companyId, {
-      nombre: empresa.businessName,
-      ciudad: empresa.comuna ?? empresa.ciudad ?? undefined,
-      plan: empresa.planName,
-      clienteDesde: empresa.createdAt,
-      activo: empresaActiva(empresa.status),
-      modulos: modulosContratados(empresa.features),
-      metadata: { rut: empresa.rut, estadoAether: empresa.status },
-    });
+    m.cliente(companyId, fichaDeEmpresa(empresa));
     enviarAlFinal(m);
   } catch (error) {
     captureException(error, { module: 'supersuite', companyId, extra: { step: 'sincronizarEmpresa' } });
@@ -143,5 +138,56 @@ export function latidoCajaSupersuite(companyId: string, caja: { id: string; name
     enviarAlFinal(m);
   } catch (error) {
     captureException(error, { module: 'supersuite', companyId, extra: { step: 'latidoCaja' } });
+  }
+}
+
+/**
+ * Un usuario de la empresa está conectado (lo llama el latido del panel, ~60 s).
+ * La Supersuite cuenta como activo a quien tuvo señal en los últimos 5 minutos.
+ * Sale solo el id del usuario (opaco): nunca correo ni nombre. Al personal de
+ * Aether (cuentas heredadas de plataforma) ya no se le distingue: cuenta como cualquier usuario.
+ */
+export function presenciaSupersuite(companyId: string, userId: string): void {
+  try {
+    const m = monitor();
+    if (!m) return;
+    m.presencia(companyId, userId);
+    enviarAlFinal(m);
+  } catch (error) {
+    captureException(error, { module: 'supersuite', companyId, extra: { step: 'presencia' } });
+  }
+}
+
+/**
+ * Una empresa pidió contratar módulos o cambiar de plan. Queda una sola solicitud
+ * abierta por empresa: la última reemplaza a la anterior (la Supersuite ignora una
+ * alerta nueva mientras haya otra abierta con la misma clave, así que primero se
+ * cierra la previa).
+ */
+export function solicitudModulosSupersuite(
+  companyId: string,
+  solicitud: { planLabel: string | null; modulos: string[]; net: number; total: number }
+): void {
+  try {
+    const m = monitor();
+    if (!m) return;
+    const a = alertaDeSolicitud(solicitud);
+    m.resolverAlerta(a.clave, companyId);
+    m.alerta(a.severidad, a.mensaje, companyId, a.clave);
+    enviarAlFinal(m);
+  } catch (error) {
+    captureException(error, { module: 'supersuite', companyId, extra: { step: 'solicitudModulos' } });
+  }
+}
+
+/** La Supersuite ya cambió el plan o los módulos de la empresa: la solicitud abierta queda atendida. */
+export function solicitudModulosAtendidaSupersuite(companyId: string): void {
+  try {
+    const m = monitor();
+    if (!m) return;
+    m.resolverAlerta(CLAVE_SOLICITUD_MODULOS, companyId);
+    enviarAlFinal(m);
+  } catch (error) {
+    captureException(error, { module: 'supersuite', companyId, extra: { step: 'solicitudAtendida' } });
   }
 }

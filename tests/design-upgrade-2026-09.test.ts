@@ -17,8 +17,8 @@ import { tedPdf417DataUri } from '@/lib/chile/dte/barcode';
 
 const ALL_FEATURES = Object.fromEntries(Object.keys(DEFAULT_FEATURES).map((key) => [key, true])) as CompanyFeatureFlags;
 
-function hrefs(permissions: Permission[], features: CompanyFeatureFlags = ALL_FEATURES, isSuperAdmin = false): string[] {
-  return buildWorkspaceNav({ permissions, features, isSuperAdmin }).flatMap((group) => group.links.map((link) => link.href));
+function hrefs(permissions: Permission[], features: CompanyFeatureFlags = ALL_FEATURES): string[] {
+  return buildWorkspaceNav({ permissions, features }).flatMap((group) => group.links.map((link) => link.href));
 }
 
 describe('buildWorkspaceNav', () => {
@@ -47,13 +47,12 @@ describe('buildWorkspaceNav', () => {
     expect(hrefs(['import:data'])).toContain('/dashboard/settings');
   });
 
-  it('el panel SaaS solo para superadmin', () => {
-    expect(hrefs([], ALL_FEATURES, false)).not.toContain('/superadmin');
-    expect(hrefs([], ALL_FEATURES, true)).toContain('/superadmin');
+  it('el menú no tiene consola de plataforma: la administración vive en la Supersuite', () => {
+    expect(hrefs(Object.keys(PERMISSIONS) as Permission[], ALL_FEATURES).some((href) => href.startsWith('/superadmin'))).toBe(false);
   });
 
   it('no repite rutas', () => {
-    const all = hrefs(Object.keys(PERMISSIONS) as Permission[], ALL_FEATURES, true);
+    const all = hrefs(Object.keys(PERMISSIONS) as Permission[], ALL_FEATURES);
     expect(new Set(all).size).toBe(all.length);
   });
 });

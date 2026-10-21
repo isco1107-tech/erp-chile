@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { creativeSiteSchema } from '@/lib/web-sites/creative';
 import { contactEmailField, contactWhatsappField, instagramHandleField } from '@/lib/events/pageant-contact';
 import type { ProjectStatus } from '@prisma/client';
 import { publicSlugProblem } from '@/lib/events/public-slug';
@@ -31,6 +32,13 @@ export const projectCreateSchema = z.object({
   venueAddress: z.string().trim().max(300).optional(),
   /** WhatsApp del certamen para responder dudas (botón flotante del sitio y de la postulación). */
   publicWhatsapp: contactWhatsappField,
+  /** Instagram del certamen (@usuario o enlace); vacío = sin dato. */
+  instagramHandle: instagramHandleField,
+  // Requisitos de inscripción (los marca la organización al crear el certamen).
+  minCandidateAge: z.number().int('La edad mínima debe ser un número entero').min(1, 'La edad mínima debe ser al menos 1').max(99, 'La edad mínima no puede superar 99').optional(),
+  requireChileanNationality: z.boolean().optional(),
+  requireCandidateInstagram: z.boolean().optional(),
+  requireCandidatePhoto: z.boolean().optional(),
 });
 
 export type ProjectCreateInput = z.infer<typeof projectCreateSchema>;
@@ -53,6 +61,15 @@ export const PUBLIC_ACCENT_LABELS: Record<PublicAccentKey, string> = {
   emerald: 'Esmeralda',
 };
 
+/** Muestras de color de los acentos del sistema público (los mismos de `PublicShell`). Compartido entre el formulario del sitio y el generador de afiches. */
+export const PUBLIC_ACCENT_SWATCH: Record<PublicAccentKey, string> = {
+  gold: 'linear-gradient(135deg, #e7cd97, #a8823f)',
+  violet: 'linear-gradient(135deg, #b39bff, #6d28d9)',
+  rose: 'linear-gradient(135deg, #fda4b4, #be123c)',
+  cyan: 'linear-gradient(135deg, #67e8f9, #0e7490)',
+  emerald: 'linear-gradient(135deg, #6ee7b7, #047857)',
+};
+
 const optionalText = (max: number) =>
   z
     .string()
@@ -70,6 +87,7 @@ export const projectPublicSiteSchema = z
       .optional()
       .transform((value) => (value ? value : null)),
     publicSiteEnabled: z.boolean(),
+    publicSiteDesign: creativeSiteSchema.optional(),
     publicTagline: optionalText(160),
     publicDescription: optionalText(4000),
     coverImageUrl: z
@@ -106,6 +124,15 @@ export const projectPublicSiteSchema = z
       .or(z.literal(''))
       .transform((value) => (value ? value : null)),
     // Un logro por ítem; se ignoran líneas vacías o repetidas antes de contar el máximo.
+    // Logo de la pestaña del navegador (favicon). Vacío = el de la plataforma.
+    faviconUrl: z
+      .string()
+      .trim()
+      .url('El logo de la pestaña no es una URL válida')
+      .max(1000)
+      .optional()
+      .or(z.literal(''))
+      .transform((value) => (value ? value : null)),
     directorHighlights: z.preprocess(
       (value) => (Array.isArray(value) ? [...new Set(value.map((item) => (typeof item === 'string' ? item.trim() : item)).filter((item) => item !== ''))] : value),
       z.array(z.string().max(200, 'Cada logro de la trayectoria tiene un máximo de 200 caracteres')).max(40, 'Máximo 40 logros en la trayectoria').default([])
@@ -123,3 +150,36 @@ export const projectPublicSiteSchema = z
   });
 
 export type ProjectPublicSiteInput = z.infer<typeof projectPublicSiteSchema>;
+
+// ---------------------------------------------------------------------------
+// Salón de la fama: ganadoras de ediciones anteriores (`PastWinner`)
+// ---------------------------------------------------------------------------
+
+/** Máximo de fotos por certamen: una galería más larga deja de ser un "salón de la fama" y pesa en el teléfono. */
+export const MAX_PAST_WINNERS = 24;
+
+/** Sugerencias para el título del pie de foto; el campo es libre (cada franquicia tiene sus propias coronas). */
+export const PAST_WINNER_TITLE_SUGGESTIONS = ['Ganadora', 'Virreina', 'Segunda virreina', 'Finalista', 'Reina de la Simpatía', 'Miss Fotogenia', 'Miss Elegancia'] as const;
+
+export const pastWinnerSchema = z.object({
+  name: z.string().trim().min(1, 'Escribe el nombre de la ganadora').max(120, 'El nombre admite hasta 120 caracteres'),
+  title: z
+    .string()
+    .trim()
+    .max(60, 'El título admite hasta 60 caracteres')
+    .optional()
+    .transform((value) => (value ? value : 'Ganadora')),
+  year: z
+    .number()
+    .int('El año debe ser un número entero')
+    .min(1950, 'El año debe ser 1950 o posterior')
+    .max(new Date().getFullYear() + 1, 'El año no puede ser futuro')
+    .nullish()
+    .transform((value) => value ?? null),
+  note: optionalText(160),
+  /** Reciente: foto completa. Todas las marcadas llevan el mismo formato; las demás van al carrusel de ediciones anteriores. */
+  featured: z.boolean().default(false),
+  photoUrl: z.string().trim().url('La foto no es una URL válida').max(1000),
+});
+
+export type PastWinnerInput = z.infer<typeof pastWinnerSchema>;

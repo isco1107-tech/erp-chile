@@ -75,7 +75,9 @@ describe('Acción: enviar correo', () => {
     const result = await runWorkflowAction({ type: 'SEND_EMAIL', to: 'ana@test.cl', subject: 'x', body: 'y' }, {}, CONTEXT);
 
     expect(result.success).toBe(false);
-    expect(result.detail).toContain('proveedor caído');
+    // El detalle crudo del proveedor (puede ser de la cuenta de la plataforma) no llega a la empresa.
+    expect(result.detail).not.toContain('proveedor caído');
+    expect(result.detail).toContain('ana@test.cl');
   });
 });
 

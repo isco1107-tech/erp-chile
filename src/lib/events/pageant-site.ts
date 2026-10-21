@@ -11,6 +11,8 @@
  * Cada cifra, etapa o pregunta sale de algo configurado en el proyecto.
  */
 
+import type { RegistrationRequirements } from '@/lib/events/registration-requirements';
+
 const TIME_ZONE = 'America/Santiago';
 
 export interface PageantTitle {
@@ -175,7 +177,7 @@ export function pageantHighlights(input: HighlightInput, now: Date): PageantHigh
 
 export interface FaqInput {
   name: string;
-  registration: { closesAt: string | null; minAge: number } | null;
+  registration: { closesAt: string | null; minAge: number; requirements?: RegistrationRequirements } | null;
   voting: { pricePerVote: number } | null;
   tickets: { fromPrice: number | null } | null;
   galaDate: string | null;
@@ -191,13 +193,24 @@ export interface PageantFaq {
   a: string;
 }
 
+/** Los requisitos de la convocatoria en una frase ("Debes tener al menos 18 años, ser chilena y subir una foto tuya."). */
+function requirementsSentence(registration: { minAge: number; requirements?: RegistrationRequirements }): string {
+  const requirements = registration.requirements;
+  if (!requirements) return `Debes tener al menos ${registration.minAge} años.`;
+  const parts = [`tener al menos ${requirements.minAge} años`];
+  if (requirements.chileanNationality) parts.push('ser chilena');
+  if (requirements.instagram) parts.push('tener Instagram');
+  if (requirements.photo) parts.push('subir una foto tuya');
+  return `Debes ${parts.length > 1 ? `${parts.slice(0, -1).join(', ')} y ${parts[parts.length - 1]}` : parts[0]}.`;
+}
+
 /** Preguntas frecuentes armadas solo con lo que el certamen tiene habilitado. */
 export function pageantFaq(input: FaqInput): PageantFaq[] {
   const faq: PageantFaq[] = [];
   if (input.registration) {
     faq.push({
       q: '¿Cómo postulo al certamen?',
-      a: `Completa el formulario de inscripción de este sitio con tus datos de contacto y cuéntanos por qué quieres participar. Debes tener al menos ${input.registration.minAge} años. Al enviarlo recibes tu folio al instante y la organización te avisa por llamado, correo o WhatsApp el resultado de tu preselección.${input.registration.closesAt ? ` Las postulaciones cierran el ${shortDate(input.registration.closesAt)}.` : ''}`,
+      a: `Completa el formulario de inscripción de este sitio con tus datos de contacto y cuéntanos por qué quieres participar. ${requirementsSentence(input.registration)} Al enviarlo recibes tu folio al instante y la organización te avisa por llamado, correo o WhatsApp el resultado de tu preselección.${input.registration.closesAt ? ` Las postulaciones cierran el ${shortDate(input.registration.closesAt)}.` : ''}`,
     });
   }
   if (input.voting) {
@@ -267,7 +280,7 @@ export interface PageantViewSource {
   sponsorsByTier: Array<{ names: string[] }>;
   tickets: { fromPrice: number | null } | null;
   voting: { pricePerVote: number } | null;
-  registration: { closesAt: string | null; minAge: number } | null;
+  registration: { closesAt: string | null; minAge: number; requirements?: RegistrationRequirements } | null;
   results: unknown[] | null;
   sponsorLeadForm: boolean;
   packages: unknown[];
@@ -431,7 +444,7 @@ export function audienceHero(
     const prices = input.packagePrices.filter((p): p is number => p != null);
     const pills = [
       input.packagePrices.length > 0 ? `${input.packagePrices.length} ${input.packagePrices.length === 1 ? 'categoría' : 'categorías'}` : null,
-      prices.length > 0 ? `Desde ${input.formatMoney(Math.min(...prices))} + IVA` : null,
+      prices.length > 0 ? `Desde ${input.formatMoney(Math.min(...prices))}` : null,
     ].filter((p): p is string => Boolean(p));
     return {
       kicker: `Patrocinios oficiales${edition}`,
@@ -456,3 +469,35 @@ export function audienceHero(
     pills,
   };
 }
+
+/**
+ * Clase de tamaño para un título de sección que lleva un texto del certamen
+ * (su nombre, la sede): el tamaño fijo de los títulos está pensado para
+ * nombres cortos, y uno de 80 letras o una palabra de 20 no cabe en una
+ * columna. Devuelve `''` si el tamaño normal alcanza.
+ */
+export function headingSize(text: string | null | undefined): '' | 'is-long' | 'is-xlong' {
+  const clean = (text ?? '').trim();
+  const longestWord = clean.split(/[\s/]+/).reduce((max, word) => Math.max(max, word.length), 0);
+  if (clean.length > 52 || longestWord > 18) return 'is-xlong';
+  if (clean.length > 28 || longestWord > 12) return 'is-long';
+  return '';
+}
+
+/** Textos por grupo de la cinta que gira: con 12 o más, un grupo mide más que el monitor más ancho (≈ 230 px por texto). */
+export const RIBBON_MIN_ITEMS = 12;
+/** Segundos que tarda un texto en cruzar (≈ 55 px/s): visible pero tranquilo, y el mismo ritmo sea cual sea el largo de la cinta. */
+export const RIBBON_SECONDS_PER_ITEM = 4;
+
+/**
+ * Cinta tipo carrusel ("Postulaciones abiertas ◆ Gala · 12 de diciembre ◆ …"): repite los textos hasta que UN grupo
+ * cubra cualquier pantalla (dos grupos idénticos hacen el ciclo sin cortes) y calcula la duración para que la velocidad
+ * no dependa de cuántos textos haya. Antes, con un solo texto la cinta medía menos que la pantalla y casi no se movía.
+ */
+export function ribbonLoop(items: string[]): { group: string[]; seconds: number } {
+  if (items.length === 0) return { group: [], seconds: 0 };
+  const reps = Math.ceil(RIBBON_MIN_ITEMS / items.length);
+  const group = Array.from({ length: reps }, () => items).flat();
+  return { group, seconds: group.length * RIBBON_SECONDS_PER_ITEM };
+}
+

@@ -4,9 +4,11 @@ import { redirect } from 'next/navigation';
 import { cache } from 'react';
 import { PageantSiteDocument, pageantSiteMetadata } from '@/components/public/pageant/PageantSiteDocument';
 import { domainFromHost, platformBaseUrl } from '@/lib/hosting/custom-domain';
-import { WebSiteDocument, webSiteMetadata } from '@/components/web-sites/WebSiteDocument';
-import { getPageantSlugByDomain, getPublicPageantSite } from '@/modules/projects/services/public-site.service';
+import { findPublicPage, WebSiteDocument, webSiteMetadata } from '@/components/web-sites/WebSiteDocument';
+import { getPageantSlugByDomain, getPublicPageantSite, isRegisteredCustomDomain } from '@/modules/projects/services/public-site.service';
 import { getPublicWebSiteByDomain } from '@/modules/web-sites/services/web-sites.service';
+import { AcademySiteDocument, academySiteMetadata } from '@/components/public/academy/AcademySiteDocument';
+import { getAcademySlugByDomain, getPublicAcademySite } from '@/modules/academy/services/academy-site.service';
 
 /**
  * Micrositio servido en la raíz de un dominio propio (ej.
@@ -26,7 +28,11 @@ const loadSite = cache(async (domain: string, requestDomain: string) => {
   // Un dominio es de un solo destino (certamen o sitio web): si no es de un
   // certamen, se busca entre los sitios web publicados.
   const web = await getPublicWebSiteByDomain(domain, requestDomain === domain);
-  return web ? { kind: 'web' as const, site: web } : null;
+  if (web) return { kind: 'web' as const, site: web };
+  // …y por último entre los sitios de academia.
+  const academySlug = await getAcademySlugByDomain(domain, requestDomain === domain);
+  const academy = academySlug ? await getPublicAcademySite(academySlug) : null;
+  return academy ? { kind: 'academy' as const, site: academy } : null;
 });
 
 async function resolveDomain(params: Promise<{ host: string }>): Promise<{ domain: string; requestDomain: string }> {
@@ -34,17 +40,36 @@ async function resolveDomain(params: Promise<{ host: string }>): Promise<{ domai
   return { domain: domainFromHost(decodeURIComponent(host)), requestDomain: domainFromHost((await headers()).get('host')) };
 }
 
+function SiteUnavailable({ domain }: { domain: string }) {
+  return (
+    <main className="flex min-h-screen flex-col items-center justify-center gap-2 bg-background px-6 text-center">
+      <h1 className="text-xl font-semibold text-foreground">Sitio no disponible</h1>
+      <p className="max-w-md text-sm text-muted-foreground">{domain} está configurado, pero su sitio aún no está publicado. Vuelve a intentarlo en unos minutos.</p>
+    </main>
+  );
+}
+
 export async function generateMetadata({ params }: { params: Promise<{ host: string }> }): Promise<Metadata> {
   const { domain, requestDomain } = await resolveDomain(params);
   const found = await loadSite(domain, requestDomain);
   if (!found) return { robots: { index: false } };
-  return found.kind === 'pageant' ? pageantSiteMetadata(found.site) : webSiteMetadata(found.site, `https://${domain}`);
+  if (found.kind === 'pageant') return pageantSiteMetadata(found.site);
+  if (found.kind === 'academy') return academySiteMetadata(found.site);
+  return webSiteMetadata(found.site, `https://${domain}`, findPublicPage(found.site));
 }
 
 export default async function CustomDomainSitePage({ params }: { params: Promise<{ host: string }> }) {
   const { domain, requestDomain } = await resolveDomain(params);
   const found = await loadSite(domain, requestDomain);
-  if (!found || found.site.customDomain !== domain) redirect(platformBaseUrl());
+  if (!found || found.site.customDomain !== domain) {
+    // Dominio de un cliente cuyo sitio aún no está publicado (o su empresa no tiene el
+    // módulo): se avisa en su propio dominio en vez de mandar a sus visitantes a la
+    // landing del ERP. Un dominio desconocido sigue yendo a la plataforma.
+    if (requestDomain === domain && (await isRegisteredCustomDomain(domain))) return <SiteUnavailable domain={domain} />;
+    redirect(platformBaseUrl());
+  }
   if (requestDomain !== domain) redirect(`https://${domain}`);
-  return found.kind === 'pageant' ? <PageantSiteDocument site={found.site} /> : <WebSiteDocument site={found.site} />;
+  if (found.kind === 'pageant') return <PageantSiteDocument site={found.site} />;
+  if (found.kind === 'academy') return <AcademySiteDocument site={found.site} />;
+  return <WebSiteDocument site={found.site} basePath="" siteUrl={`https://${domain}`} />;
 }

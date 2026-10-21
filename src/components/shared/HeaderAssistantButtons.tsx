@@ -1,7 +1,7 @@
 'use client';
 
 import { MessageCircleQuestion } from 'lucide-react';
-import { MANUAL_ASSISTANT_OPEN_EVENT } from './assistant-events';
+import { openAssistant } from './assistant-events';
 
 const buttonClass =
   'flex h-9 items-center gap-1.5 rounded-[10px] px-2.5 text-sm text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring';
@@ -17,8 +17,9 @@ export default function HeaderAssistantButtons() {
     <button
       type="button"
       className={buttonClass}
-      onClick={() => window.dispatchEvent(new Event(MANUAL_ASSISTANT_OPEN_EVENT))}
+      onClick={() => openAssistant()}
       aria-label="Abrir asistente"
+      data-tutorial="assistant-button"
     >
       <MessageCircleQuestion className="size-[18px]" strokeWidth={1.75} aria-hidden="true" />
       <span className="hidden xl:inline">Asistente</span>

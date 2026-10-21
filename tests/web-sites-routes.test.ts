@@ -318,15 +318,15 @@ describe('POST /api/public/web-sites/[slug]/contact', () => {
     expect(since).toBeLessThanOrEqual(Date.now() - 60 * 60_000);
   });
 
-  describe('tamaño del cuerpo (16 KB)', () => {
-    const LIMIT = 16 * 1024;
+  describe('tamaño del cuerpo (64 KB)', () => {
+    const LIMIT = 64 * 1024;
     /** Cuerpo JSON válido de exactamente `chars` caracteres (el relleno va en un campo que el esquema descarta). */
     const bodyOf = (chars: number) => {
       const base = JSON.stringify({ ...VALID, pad: '' });
       return JSON.stringify({ ...VALID, pad: 'x'.repeat(chars - base.length) });
     };
 
-    it('un cuerpo de más de 16 KB responde 413 sin consultar el sitio ni guardar (aunque sea JSON válido)', async () => {
+    it('un cuerpo de más de 64 KB responde 413 sin consultar el sitio ni guardar (aunque sea JSON válido)', async () => {
       siteWithForm();
       const raw = bodyOf(LIMIT + 1);
       expect(raw).toHaveLength(LIMIT + 1);
@@ -334,18 +334,18 @@ describe('POST /api/public/web-sites/[slug]/contact', () => {
       const res = await contactPOST(post(null, { raw }), ctx());
 
       expect(res.status).toBe(413);
-      expect(await res.json()).toEqual({ success: false, error: 'El mensaje es demasiado largo' });
+      expect(await res.json()).toEqual({ success: false, error: 'El formulario es demasiado largo' });
       expectNoDbAccess(db);
       expect(after).not.toHaveBeenCalled();
     });
 
-    it('un mensaje de texto enorme (20 000 caracteres) también es 413, no 400', async () => {
-      const res = await contactPOST(post({ ...VALID, message: 'x'.repeat(20_000) }), ctx());
+    it('un mensaje de texto enorme (70 000 caracteres) también es 413, no 400', async () => {
+      const res = await contactPOST(post({ ...VALID, message: 'x'.repeat(70_000) }), ctx());
       expect(res.status).toBe(413);
       expect(db.webSiteMessage.create).not.toHaveBeenCalled();
     });
 
-    it('un cuerpo de exactamente 16 KB todavía se procesa', async () => {
+    it('un cuerpo de exactamente 64 KB todavía se procesa', async () => {
       siteWithForm();
       const raw = bodyOf(LIMIT);
       expect(raw).toHaveLength(LIMIT);
@@ -356,7 +356,7 @@ describe('POST /api/public/web-sites/[slug]/contact', () => {
       expect(db.webSiteMessage.create).toHaveBeenCalledTimes(1);
     });
 
-    it('si Content-Length declara más de 16 KB responde 413 sin leer el cuerpo', async () => {
+    it('si Content-Length declara más de 64 KB responde 413 sin leer el cuerpo', async () => {
       siteWithForm();
       const req = new Request('https://app.test/api/public/web-sites/solar-sur/contact', {
         method: 'POST',
@@ -372,7 +372,7 @@ describe('POST /api/public/web-sites/[slug]/contact', () => {
       expectNoDbAccess(db);
     });
 
-    it('un Content-Length de exactamente 16 KB todavía se procesa (el tope es estricto)', async () => {
+    it('un Content-Length de exactamente 64 KB todavía se procesa (el tope es estricto)', async () => {
       siteWithForm();
       const raw = JSON.stringify(VALID);
       const req = new Request('https://app.test/api/public/web-sites/solar-sur/contact', {
@@ -396,32 +396,30 @@ describe('POST /api/public/web-sites/[slug]/contact', () => {
   });
 
   it('éxito: la empresa sale del SITIO, nunca del cuerpo (companyId y siteId del cuerpo se ignoran)', async () => {
-    siteWithForm();
-    const createPublicMessage = jest.spyOn(service, 'createPublicMessage');
+    siteWithForm({ publishedBlocks: [{ ...createBlock('hero'), title: 'Paneles solares' }, { ...createBlock('contact'), id: 'contacto-1', showForm: true }] });
 
     const res = await contactPOST(post({ ...VALID, companyId: 'otra', siteId: 'otro-sitio', id: 'inyectado', readAt: '2020-01-01' }), ctx());
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ success: true, data: null });
 
-    // createPublicMessage recibe el sitio resuelto por slug y los datos validados, sin campos ajenos.
-    expect(createPublicMessage).toHaveBeenCalledTimes(1);
-    const [siteArg, inputArg] = createPublicMessage.mock.calls[0]!;
-    expect(siteArg).toMatchObject({ id: SITE_ID, companyId: COMPANY });
-    expect(inputArg).toEqual({ name: 'Ana Pérez', email: 'ana@correo.cl', phone: '+56 9 1234 5678', message: VALID.message });
-    for (const forbidden of ['companyId', 'siteId', 'id', 'readAt']) expect(inputArg).not.toHaveProperty(forbidden);
-
-    // Y lo que llega a la base lleva la empresa y el sitio del sitio publicado.
+    // Lo que llega a la base lleva la empresa y el sitio del sitio publicado, y el formulario de contacto de ese sitio.
     expect(db.webSiteMessage.create).toHaveBeenCalledTimes(1);
-    expect(argsOf(db.webSiteMessage.create).data).toEqual({
+    const data = argsOf(db.webSiteMessage.create).data;
+    expect(data).toMatchObject({
       companyId: COMPANY,
       siteId: SITE_ID,
       name: 'Ana Pérez',
       email: 'ana@correo.cl',
       phone: '+56 9 1234 5678',
       message: VALID.message,
+      formId: 'contacto-1',
+      purpose: 'contact',
+      destination: 'inbox',
     });
-    expect(JSON.stringify(argsOf(db.webSiteMessage.create).data)).not.toMatch(/otra|otro-sitio|inyectado/);
+    expect(data.answers).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'message', value: VALID.message })]));
+    for (const forbidden of ['readAt', 'id', 'routedId']) expect(data).not.toHaveProperty(forbidden);
+    expect(JSON.stringify(data)).not.toMatch(/otra|otro-sitio|inyectado/);
   });
 
   it('éxito sin teléfono: se guarda phone=null', async () => {

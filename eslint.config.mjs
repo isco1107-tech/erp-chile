@@ -13,6 +13,8 @@ const config = [
     ignores: [
       '.next/**',
       '.codex-audit/**',
+      // Salidas generadas (capturas y paquetes de verify:landing y verify:responsive).
+      '.vercel/**',
       'node_modules/**',
       'mobile/**/node_modules/**',
       'mobile/**/android/**',

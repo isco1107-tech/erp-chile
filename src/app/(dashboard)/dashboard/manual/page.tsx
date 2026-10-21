@@ -1,27 +1,34 @@
 import { getAuthContext } from '@/lib/auth/guards';
-import { getVisibleManualSections } from '@/modules/manual/content';
+import { ROLE_LABELS } from '@/lib/auth/roles';
+import { getManualSections, sectionScreenshot, type ManualScope } from '@/modules/manual/content';
 import { getKnowledgeAsManualSections } from '@/modules/manual/knowledge';
-import ManualClient from '@/components/manual/ManualClient';
+import ManualClient, { type ManualClientSection } from '@/components/manual/ManualClient';
 
 export const metadata = { title: 'Manual de Usuario' };
 
-export default async function ManualPage() {
+/**
+ * Manual de usuario de ESTA empresa: nunca muestra módulos que no contrató.
+ * `?alcance=empresa` muestra todo lo contratado (para capacitar al equipo);
+ * por defecto, solo lo que el rol de la persona puede hacer. Al final van
+ * los flujos que cruzan módulos, los problemas frecuentes y el glosario —
+ * lo mismo que sabe el asistente.
+ */
+export default async function ManualPage({ searchParams }: { searchParams: Promise<{ alcance?: string }> }) {
   const context = await getAuthContext();
-  // Los módulos primero, y al final el conocimiento transversal (flujos que
-  // cruzan módulos, problemas frecuentes, glosario): es lo mismo que sabe el
-  // asistente, para que también se pueda leer, buscar e imprimir.
-  const sections = [
-    ...getVisibleManualSections(context.features, context.permissions),
-    ...getKnowledgeAsManualSections(context.features, context.permissions),
-  ];
+  const { alcance } = await searchParams;
+  const scope: ManualScope = alcance === 'empresa' ? 'company' : 'role';
+
+  const moduleSections = getManualSections(scope, context.features, context.permissions);
+  const reference = getKnowledgeAsManualSections(context.features, scope === 'role' ? context.permissions : undefined);
+  const sections: ManualClientSection[] = [...moduleSections, ...reference].map((section) => ({ ...section, screenshotUrl: sectionScreenshot(section) }));
 
   return (
-    <div>
-      <h1 className="mb-1 text-2xl font-bold print:hidden">Manual de Usuario</h1>
-      <p className="mb-4 text-sm text-muted-foreground print:hidden">
-        Solo se muestran los módulos incluidos en tu plan actual. ¿No encuentras lo que buscas? Usa el asistente flotante (abajo a la izquierda).
-      </p>
-      <ManualClient sections={sections} companyName={context.companyName} />
-    </div>
+    <ManualClient
+      sections={sections}
+      scope={scope}
+      companyName={context.companyName}
+      userName={context.name}
+      roleLabel={context.customRoleName ?? ROLE_LABELS[context.role]}
+    />
   );
 }

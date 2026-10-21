@@ -34,7 +34,7 @@ afterEach(() => {
 describe('switchActiveCompanyAction (SEG-05)', () => {
   it('registra la sesión nueva en la empresa destino y revoca la anterior', async () => {
     jest.spyOn(prisma.user, 'findUnique').mockResolvedValue({
-      id: 'u1', role: 'ADMIN', email: 'a@b.cl', companyId: 'home', isSuperAdmin: false, sessionVersion: 0,
+      id: 'u1', role: 'ADMIN', email: 'a@b.cl', companyId: 'home', sessionVersion: 0,
     } as never);
     jest.spyOn(prisma.companyMembership, 'findUnique').mockResolvedValue({
       company: { businessName: 'Filial', status: 'ACTIVE', features: { hasMultiCompany: true } },
@@ -50,7 +50,7 @@ describe('switchActiveCompanyAction (SEG-05)', () => {
 
   it('sin acceso a la empresa destino no emite ni revoca nada', async () => {
     jest.spyOn(prisma.user, 'findUnique').mockResolvedValue({
-      id: 'u1', role: 'ADMIN', email: 'a@b.cl', companyId: 'home', isSuperAdmin: false, sessionVersion: 0,
+      id: 'u1', role: 'ADMIN', email: 'a@b.cl', companyId: 'home', sessionVersion: 0,
     } as never);
     jest.spyOn(prisma.companyMembership, 'findUnique').mockResolvedValue(null);
 
@@ -63,7 +63,7 @@ describe('switchActiveCompanyAction (SEG-05)', () => {
 
   it('no activa una empresa suspendida', async () => {
     jest.spyOn(prisma.user, 'findUnique').mockResolvedValue({
-      id: 'u1', role: 'ADMIN', email: 'a@b.cl', companyId: 'home', isSuperAdmin: false, sessionVersion: 0,
+      id: 'u1', role: 'ADMIN', email: 'a@b.cl', companyId: 'home', sessionVersion: 0,
     } as never);
     jest.spyOn(prisma.companyMembership, 'findUnique').mockResolvedValue({
       company: { businessName: 'Filial', status: 'SUSPENDED', features: { hasMultiCompany: true } },

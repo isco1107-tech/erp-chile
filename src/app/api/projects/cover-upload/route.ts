@@ -4,6 +4,7 @@ import { AuthError, ModuleNotEnabledError, TenantInactiveError, requireAuthWithP
 import { createAuditLog } from '@/lib/auth/audit';
 import { captureException } from '@/lib/observability';
 import { sniffImageType, SNIFFED_IMAGE_EXTENSION } from '@/lib/security/file-signature';
+import { readImageSize } from '@/lib/images/dimensions';
 import { prisma } from '@/lib/prisma';
 
 /**
@@ -15,11 +16,35 @@ import { prisma } from '@/lib/prisma';
 
 const MAX_FILE_BYTES = 6 * 1024 * 1024;
 
+/**
+ * Tamaño mínimo por uso: la portada se estira a pantalla completa y la foto de una ganadora se
+ * muestra grande, así que una imagen chica se ve pixelada y borrosa (pasó con una portada de
+ * 150 × 150). Se rechaza al subir, con el motivo, en vez de publicarla mal.
+ */
+const MIN_SIZE = {
+  cover: { width: 1000, height: 520, label: 'La portada', hint: 'de al menos 1600 × 900 px' },
+  winner: { width: 600, height: 750, label: 'La foto', hint: 'vertical de al menos 800 × 1067 px' },
+  director: null,
+  studio: null,
+  favicon: { width: 64, height: 64, label: 'El logo', hint: 'cuadrado, de al menos 64 × 64 px (ideal 512 × 512)' },
+  // Afiches: la foto principal llena buena parte del afiche; un logo puede ser chico y alargado.
+  'poster-photo': { width: 600, height: 600, label: 'La foto', hint: 'de al menos 1080 × 1080 px' },
+  'poster-logo': { width: 80, height: 40, label: 'El logo', hint: 'de al menos 300 px de ancho, ideal PNG con fondo transparente' },
+} as const;
+
+type Purpose = keyof typeof MIN_SIZE;
+const PURPOSES = Object.keys(MIN_SIZE) as Purpose[];
+
 export async function POST(req: Request) {
   try {
     const session = await requireAuthWithPermission('projects:write');
     const form = await req.formData();
     const projectId = String(form.get('projectId') ?? '');
+    // `winner` = foto del salón de la fama (otra carpeta, para que una empresa solo pueda asociar fotos suyas);
+    // `director` = foto de la directora (sin tamaño mínimo); `poster-*` = imágenes del estudio de afiches;
+    // por defecto, la portada.
+    const rawPurpose = String(form.get('purpose') ?? '');
+    const purpose: Purpose = (PURPOSES as string[]).includes(rawPurpose) ? (rawPurpose as Purpose) : 'cover';
     const file = form.get('file');
 
     if (!projectId) return NextResponse.json({ success: false, error: 'Falta el certamen' }, { status: 400 });
@@ -32,9 +57,34 @@ export async function POST(req: Request) {
 
     const bytes = new Uint8Array(await file.arrayBuffer());
     const sniffed = sniffImageType(bytes);
-    if (!sniffed) return NextResponse.json({ success: false, error: 'La portada debe ser JPG o PNG' }, { status: 400 });
+    if (!sniffed) return NextResponse.json({ success: false, error: purpose === 'cover' ? 'La portada debe ser JPG o PNG' : 'La imagen debe ser JPG, PNG o WEBP' }, { status: 400 });
 
-    const pathname = `pageant-covers/${session.companyId}/${projectId}-${Date.now()}.${SNIFFED_IMAGE_EXTENSION[sniffed]}`;
+    const min = MIN_SIZE[purpose];
+    if (min) {
+      const size = readImageSize(bytes);
+      if (!size) return NextResponse.json({ success: false, error: 'No se pudo leer el tamaño de la imagen. Prueba con otro archivo JPG o PNG.' }, { status: 400 });
+      // El logo de la pestaña se recorta en un cuadrado: uno muy alargado quedaría deformado o ilegible.
+      if (purpose === 'favicon' && Math.max(size.width, size.height) / Math.min(size.width, size.height) > 1.25) {
+        return NextResponse.json({ success: false, error: `El logo mide ${size.width} × ${size.height} px y no es cuadrado: en la pestaña se vería deformado. Sube una imagen cuadrada (ideal 512 × 512 px).` }, { status: 400 });
+      }
+      if (size.width < min.width || size.height < min.height) {
+        return NextResponse.json(
+          { success: false, error: `${min.label} es muy chica (${size.width} × ${size.height} px) y se vería pixelada. Sube una imagen ${min.hint}.` },
+          { status: 400 }
+        );
+      }
+    }
+
+    const pathname =
+      purpose === 'studio'
+        ? `pageant-site/${session.companyId}/${projectId}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${SNIFFED_IMAGE_EXTENSION[sniffed]}`
+        : purpose === 'poster-photo' || purpose === 'poster-logo'
+        ? `pageant-posters/${session.companyId}/${projectId}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${SNIFFED_IMAGE_EXTENSION[sniffed]}`
+        : purpose === 'favicon'
+        ? `pageant-favicons/${session.companyId}/${projectId}-${Date.now()}.${SNIFFED_IMAGE_EXTENSION[sniffed]}`
+        : purpose === 'winner'
+        ? `pageant-winners/${session.companyId}/${projectId}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${SNIFFED_IMAGE_EXTENSION[sniffed]}`
+        : `pageant-covers/${session.companyId}/${projectId}-${Date.now()}.${SNIFFED_IMAGE_EXTENSION[sniffed]}`;
     const blob = await put(pathname, new Blob([bytes], { type: sniffed }), { access: 'public', contentType: sniffed, addRandomSuffix: false });
 
     await createAuditLog({
@@ -44,7 +94,7 @@ export async function POST(req: Request) {
       action: 'UPDATE',
       entity: 'Project',
       entityId: projectId,
-      metadata: { field: 'coverImageUrl', url: blob.url },
+      metadata: { field: purpose === 'winner' ? 'pastWinnerPhoto' : purpose === 'favicon' ? 'faviconUrl' : purpose.startsWith('poster') ? 'posterImage' : 'coverImageUrl', url: blob.url },
     });
 
     return NextResponse.json({ success: true, data: { url: blob.url } });

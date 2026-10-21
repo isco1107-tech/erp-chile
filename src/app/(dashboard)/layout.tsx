@@ -24,10 +24,13 @@ import { SidebarNav } from '@/components/shared/SidebarNav';
 import { CompanySwitcher } from '@/components/shared/CompanySwitcher';
 import { ConfirmProvider } from '@/components/ui/confirm-provider';
 import OnboardingWizard from '@/components/onboarding/OnboardingWizard';
+import PresenceHeartbeat from '@/components/shared/PresenceHeartbeat';
 import ManualAssistantWidget from '@/components/shared/ManualAssistantWidget';
 import ModuleTutorial from '@/components/tutorial/ModuleTutorial';
 import HowToUseButton from '@/components/tutorial/HowToUseButton';
 import { getOnboardingStatus } from '@/lib/services/onboarding.service';
+import { getVisibleManualSections } from '@/modules/manual/content';
+import { toManualHints } from '@/modules/manual/hints';
 import { prisma } from '@/lib/prisma';
 
 export const metadata = {
@@ -42,7 +45,7 @@ function initials(name: string): string {
 
 /**
  * El sidebar se arma desde el contexto vivo del tenant, no desde el JWT: los
- * módulos que el superadmin habilita o revoca deben reflejarse en el siguiente
+ * módulos que la Supersuite habilita o revoca deben reflejarse en el siguiente
  * request, sin esperar a que la sesión de 8 horas expire.
  */
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -75,7 +78,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const availableGroups = buildAvailableWorkspaceNav({
     permissions: context.permissions,
     features,
-    isSuperAdmin: context.isSuperAdmin,
   });
   const groups = applyDisabledNavItems(availableGroups, disabledNavItems);
   const visibleIds = new Set(groups.flatMap((group) => group.links.map((link) => link.id)));
@@ -96,6 +98,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
     onboardingEligible = status.eligible;
     defaultWarehouseId = defaultWarehouse?.id ?? null;
   }
+
+  // Índice liviano del manual de ESTE usuario (módulos + permisos) para que el
+  // tutorial y el asistente enlacen la sección del manual de cada pantalla.
+  const manualHints = toManualHints(getVisibleManualSections(features, context.permissions));
 
   const displayName = context.name;
   const roleLabel = context.customRoleName ?? ROLE_LABELS[context.role];
@@ -208,7 +214,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
               <CommandMenu
                 permissions={context.permissions}
                 features={features}
-                isSuperAdmin={context.isSuperAdmin}
                 disabledNavItems={disabledNavItems}
               />
               <div className="flex-1" />
@@ -244,8 +249,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
             autoOpen={onboardingEligible}
           />
         )}
-        <ManualAssistantWidget />
-        <ModuleTutorial userId={context.id} />
+        <PresenceHeartbeat />
+        <ManualAssistantWidget userId={context.id} manualHints={manualHints} />
+        <ModuleTutorial userId={context.id} manualHints={manualHints} />
       </ConfirmProvider>
     </div>
   );

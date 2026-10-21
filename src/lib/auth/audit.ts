@@ -80,7 +80,7 @@ interface CreatePlatformAuditLogInput {
 }
 
 /**
- * Bitácora de plataforma (superadmin), independiente del ciclo de vida de
+ * Bitácora de plataforma (la escribe la Supersuite al borrar una empresa), independiente del ciclo de vida de
  * cualquier tenant — a diferencia de `createAuditLog`, esto debe seguir
  * funcionando aun cuando la empresa referenciada ya no exista (caso de uso:
  * registrar que un tenant fue eliminado permanentemente). Mismo criterio que

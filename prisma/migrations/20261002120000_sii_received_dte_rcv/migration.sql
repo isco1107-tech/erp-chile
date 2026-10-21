@@ -1,11 +1,17 @@
 -- CreateEnum
-CREATE TYPE "ReceivedDteStatus" AS ENUM ('PENDING', 'ACCEPTED', 'CLAIMED', 'REGISTERED');
+DO $$ BEGIN
+  CREATE TYPE "ReceivedDteStatus" AS ENUM ('PENDING', 'ACCEPTED', 'CLAIMED', 'REGISTERED');
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- CreateEnum
-CREATE TYPE "RcvKind" AS ENUM ('PURCHASES', 'SALES');
+DO $$ BEGIN
+  CREATE TYPE "RcvKind" AS ENUM ('PURCHASES', 'SALES');
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- CreateTable
-CREATE TABLE "ReceivedDte" (
+CREATE TABLE IF NOT EXISTS "ReceivedDte" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "issuerRut" TEXT NOT NULL,
@@ -37,7 +43,7 @@ CREATE TABLE "ReceivedDte" (
 );
 
 -- CreateTable
-CREATE TABLE "RcvImport" (
+CREATE TABLE IF NOT EXISTS "RcvImport" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "kind" "RcvKind" NOT NULL,
@@ -54,20 +60,29 @@ CREATE TABLE "RcvImport" (
 );
 
 -- CreateIndex
-CREATE INDEX "ReceivedDte_companyId_status_receivedAt_idx" ON "ReceivedDte"("companyId", "status", "receivedAt");
+CREATE INDEX IF NOT EXISTS "ReceivedDte_companyId_status_receivedAt_idx" ON "ReceivedDte"("companyId", "status", "receivedAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "ReceivedDte_companyId_issuerRut_siiCode_folio_key" ON "ReceivedDte"("companyId", "issuerRut", "siiCode", "folio");
+CREATE UNIQUE INDEX IF NOT EXISTS "ReceivedDte_companyId_issuerRut_siiCode_folio_key" ON "ReceivedDte"("companyId", "issuerRut", "siiCode", "folio");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "RcvImport_companyId_kind_year_month_key" ON "RcvImport"("companyId", "kind", "year", "month");
+CREATE UNIQUE INDEX IF NOT EXISTS "RcvImport_companyId_kind_year_month_key" ON "RcvImport"("companyId", "kind", "year", "month");
 
 -- AddForeignKey
-ALTER TABLE "ReceivedDte" ADD CONSTRAINT "ReceivedDte_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ReceivedDte" ADD CONSTRAINT "ReceivedDte_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ReceivedDte" ADD CONSTRAINT "ReceivedDte_purchaseDocumentId_fkey" FOREIGN KEY ("purchaseDocumentId") REFERENCES "PurchaseDocument"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "ReceivedDte" ADD CONSTRAINT "ReceivedDte_purchaseDocumentId_fkey" FOREIGN KEY ("purchaseDocumentId") REFERENCES "PurchaseDocument"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "RcvImport" ADD CONSTRAINT "RcvImport_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "RcvImport" ADD CONSTRAINT "RcvImport_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 

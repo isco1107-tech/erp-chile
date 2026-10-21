@@ -69,6 +69,7 @@ const createUserDirectSchema = z.object({
 const acceptInvitationSchema = z.object({
   name: z.string().min(2, 'El nombre es obligatorio'),
   password: passwordPolicySchema,
+  acceptTerms: z.literal(true, { error: 'Debes aceptar los Términos de servicio y la Política de privacidad' }),
 });
 
 function toErrorMessage(error: unknown): string {
@@ -200,7 +201,7 @@ async function deliverInvitationEmail(
     acceptUrl,
     expiresInDays: INVITATION_TTL_DAYS,
   });
-  return sendEmail({ to: invitation.email, ...email });
+  return sendEmail({ to: invitation.email, companyId: invitation.companyId, ...email });
 }
 
 function invitationMessage(status: EmailResult['status'], email: string): string {
@@ -424,7 +425,7 @@ export async function acceptInvitationAction(token: string, input: unknown): Pro
     // sin este chequeo, alguien con un enlace de invitación filtrado podía
     // crear su cuenta y entrar desde cualquier IP, saltándose por completo
     // la restricción que la empresa configuró.
-    const ipError = await checkIpAllowlist(user.companyId, user.isSuperAdmin, clientIp);
+    const ipError = await checkIpAllowlist(user.companyId, clientIp);
     if (ipError) return { success: false, error: ipError };
 
     const company = user.companyId ? await prisma.company.findUnique({ where: { id: user.companyId } }) : null;

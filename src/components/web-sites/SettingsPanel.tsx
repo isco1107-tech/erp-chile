@@ -123,6 +123,11 @@ export function SettingsPanel({ settings, onChange, disabled, savedSlug, isPubli
           onChange={(indexable) => onChange({ indexable })}
           disabled={disabled}
         />
+        {isPublished && settings.indexable && savedSlug ? (
+          <p className="text-xs text-muted-foreground">
+            Mapa del sitio para Google Search Console: <span className="font-mono break-all text-foreground">{publicBase}{savedSlug}/sitemap.xml</span>. Con dominio propio, usa <span className="font-mono">tu-dominio/sitemap.xml</span>. Lista todas las páginas publicadas y se actualiza solo al publicar.
+          </p>
+        ) : null}
       </section>
 
       <section aria-label="Imágenes de marca" className="space-y-5 rounded-lg border border-border bg-card p-4 shadow-card">
@@ -135,6 +140,7 @@ export function SettingsPanel({ settings, onChange, disabled, savedSlug, isPubli
           suggestion={companyLogoUrl ? { url: companyLogoUrl, label: 'Usar el logo de la empresa' } : null}
         />
         <ImagePicker label="Imagen para redes" value={settings.ogImageUrl} onChange={(ogImageUrl) => onChange({ ogImageUrl })} hint="Se ve cuando compartes el enlace por WhatsApp, Facebook o LinkedIn. Ideal: horizontal, 1200 × 630 px." />
+        <ImagePicker label="Logo de la pestaña del navegador" value={settings.faviconUrl} onChange={(faviconUrl) => onChange({ faviconUrl })} hint="El ícono chico que se ve en la pestaña del navegador y en los favoritos. Ideal: cuadrado, de 512 × 512 px (mínimo 64 × 64). Sin logo, se ve el de Aether." />
       </section>
 
       <div className="flex flex-wrap items-center justify-end gap-3">

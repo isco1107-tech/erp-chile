@@ -155,6 +155,24 @@ model Company {
   fixedAssetMaintenances    FixedAssetMaintenance[]
   serviceTicketEvents       ServiceTicketEvent[]
   webSites                  WebSite[]
+  customerCareSettings      CustomerCareSettings?
+  customerSurveys           CustomerSurvey[]
+  customerFollowUps         CustomerFollowUp[]
+  supplierProfiles          SupplierProfile[]
+  procedures                Procedure[]
+  procedureAcks             ProcedureAck[]
+  qualityTemplates          QualityTemplate[]
+  qualityInspections        QualityInspection[]
+  teamTasks                 TeamTask[]
+  academyGroups             AcademyGroup[]
+  academyStudents           AcademyStudent[]
+  academyAttendance         AcademyAttendance[]
+  academyPayments           AcademyMonthlyPayment[]
+  academyApplications       AcademyApplication[]
+  academySessions           AcademySession[]
+  academyMaterials          AcademyMaterial[]
+  academySite               AcademySite?
+  delegationRules           DelegationRule[]
   webSiteAssets             WebSiteAsset[]
   webSiteMessages           WebSiteMessage[]
   producers                 Producer[]
@@ -221,11 +239,15 @@ model Company {
   workflowRules             WorkflowRule[]
   workflowExecutions        WorkflowExecution[]
   workflowNotifications     WorkflowNotification[]
+  dataSubjectRequests       DataSubjectRequest[]
+  privacyIncidents          PrivacyIncident[]
   pushSubscriptions         PushSubscription[]
   opportunities             Opportunity[]
   crmActivities             CrmActivity[]
   crmPeople                 CrmPerson[]
   sponsorshipPackages       SponsorshipPackage[]
+  pastWinners               PastWinner[]
+  posterDesigns             PosterDesign[]
   employees                 Employee[]
   payrollPeriods            PayrollPeriod[]
   payslips                  Payslip[]
@@ -280,8 +302,10 @@ model User {
   managerId                        String?
   manager                          User?                     @relation("OrgChartHierarchy", fields: [managerId], references: [id], onDelete: Restrict)
   reports                          User[]                    @relation("OrgChartHierarchy")
-  /// Bandera global de plataforma: acceso al portal /superadmin. No pertenece a
-  /// ninguna empresa y no se puede otorgar desde el panel del cliente.
+  /// HEREDADA, sin efecto: Aether ya no tiene superusuarios ni portal /superadmin
+  /// (la administración de la plataforma vive en la Supersuite). Ningún código la
+  /// lee ni la concede. Se conserva solo porque quitar la columna es una migración
+  /// destructiva contra la base compartida con producción (CLAUDE.md §5).
   isSuperAdmin                     Boolean                   @default(false)
   isActive                         Boolean                   @default(true)
   sessionVersion                   Int                       @default(0)
@@ -348,6 +372,12 @@ model User {
   /// y revoca los suyos, sin permiso especial más allá de que la empresa haya
   /// activado el conector.
   mcpPersonalTokens                McpPersonalToken[]
+
+  /// Aceptación de los Términos de servicio y la política de privacidad de la
+  /// plataforma al activar la cuenta (`TERMS_VERSION` en `src/lib/legal/constants.ts`).
+  /// `null` en cuentas creadas antes de 2026-10-03 o por el superadmin.
+  termsAcceptedAt DateTime?
+  termsVersion    String?
 
   @@index([companyId])
   @@index([customRoleId])
@@ -553,6 +583,17 @@ model CompanyFeatures {
   /// Productores y consignación: productos de terceros que la empresa vende
   /// y por los que retiene una comisión; el resto se le debe al productor.
   hasConsignment        Boolean  @default(false)
+  /// Fidelización y voz del cliente: canal de origen, encuesta de satisfacción
+  /// (CSAT/NPS) por enlace público y seguimiento de clientes inactivos.
+  hasCustomerCare       Boolean  @default(false)
+  /// Calidad y procedimientos: SOP con versión y acuse de lectura, inspecciones
+  /// por plantilla (materia prima, proceso, producto terminado) y ficha de
+  /// productores/proveedores.
+  hasQuality            Boolean  @default(false)
+  /// Tareas del equipo (con recurrencia) y reglas de delegación de decisiones.
+  hasTeamTasks          Boolean  @default(false)
+  /// Academia: ficha de alumnas, lista de asistencia y mensualidad pagada.
+  hasAcademy            Boolean  @default(false)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 }
@@ -619,11 +660,33 @@ model CompanySettings {
   /// visitante nunca manda un `companyId`. `null` hasta que alguien comparte
   /// el portal desde Cuotas & Mensualidades.
   installmentPortalToken     String?      @unique
+  /// Token del formulario público de solicitudes de derechos sobre datos
+  /// personales (`/derechos/[token]`). Mismo patrón que `installmentPortalToken`:
+  /// el token resuelve la empresa, el visitante nunca manda un `companyId`.
+  privacyPortalToken         String?      @unique
+  /// Token del formulario público de inscripción a la academia
+  /// (`/academia/inscripcion/[token]`). El token resuelve la empresa; el
+  /// visitante nunca manda un `companyId`.
+  academyEnrollmentToken     String?      @unique
   /// API key de la cuenta de cobro de Khipu de ESTA empresa, cifrada con
   /// AES-256-GCM (`src/lib/payments/crypto.ts`). Decide a qué cuenta llega el
   /// dinero, por eso solo se edita con `settings:company`. El nombre termina
   /// en "Credential" para que el respaldo lo excluya por patrón.
   khipuApiCredential         String?
+  /// API key de Brevo de ESTA empresa, cifrada con AES-256-GCM
+  /// (`src/lib/integrations/crypto.ts`). Con ella el correo de la empresa
+  /// (invitaciones, cobranza, comprobantes, automatizaciones) sale por su
+  /// propia cuenta y remitente. `null` = se usa la cuenta de la plataforma.
+  brevoApiCredential         String?
+  /// Remitente verificado en Brevo (nombre y dirección). Brevo solo envía
+  /// desde direcciones verificadas, así que se comprueba al guardar.
+  emailFromName              String?
+  emailFromAddress           String?
+  /// Token de la API de ZapSign de ESTA empresa (contratos de candidatas),
+  /// cifrado igual que la de Brevo. `null` = cuenta de la plataforma.
+  zapsignApiCredential       String?
+  /// `true` apunta al sandbox de ZapSign (no envía correos reales).
+  zapsignSandbox             Boolean      @default(false)
   /// Interruptor de la empresa (OWNER/ADMIN, `settings:company`) para el
   /// conector MCP — ver `McpPersonalToken`. `false` por defecto: nadie puede
   /// generarse un token personal hasta que la empresa lo habilite, porque
@@ -799,6 +862,13 @@ model Contact {
   serviceTickets            ServiceTicket[]
   webSites                  WebSite[]
   producers                 Producer[]
+  /// Canal por el que llegó el cliente ("¿Cómo nos encontraste?"): valor de
+  /// `ACQUISITION_CHANNELS` (src/lib/customer-care/channels.ts) o `null`.
+  acquisitionChannel        String?
+  acquisitionNote           String?
+  customerSurveys           CustomerSurvey[]
+  customerFollowUps         CustomerFollowUp[]
+  supplierProfile           SupplierProfile?
   /// Portal del cliente (`/cliente/[token]`): se guarda solo el hash SHA-256
   /// del enlace; el enlace en claro se muestra una vez al generarlo.
   portalTokenHash           String?                 @unique
@@ -880,6 +950,8 @@ model Product {
   /// Maneja lotes con vencimiento: las entradas registran lote y las salidas
   /// consumen primero el que vence antes (FEFO). Ver `InventoryLot`.
   tracksLots            Boolean                     @default(false)
+  /// Archivado: conserva el historial, se excluye de selectores operativos.
+  isActive Boolean @default(true)
   packagings            ProductPackaging[]
   lots                  InventoryLot[]
   inventoryCountLines   InventoryCountLine[]
@@ -1948,6 +2020,13 @@ model Project {
   registrationClosesAt       DateTime?
   /// Edad mínima exigida al momento del envío del formulario público.
   minCandidateAge            Int                         @default(18)
+  /// Requisitos de inscripción que la organización marca al crear el certamen.
+  /// La edad mínima es `minCandidateAge`. Ser chilena se declara con una casilla
+  /// (no se valida contra ningún registro); el Instagram y la foto de la
+  /// postulante se vuelven obligatorios en el formulario público.
+  requireChileanNationality  Boolean                     @default(false)
+  requireCandidateInstagram  Boolean                     @default(true)
+  requireCandidatePhoto      Boolean                     @default(false)
   /// Cupo máximo de postulaciones aceptadas; `null` = sin límite.
   maxCandidates              Int?
   /// Costo pagado a la franquicia matriz por candidata aceptada (CLP), y lo
@@ -1967,6 +2046,8 @@ model Project {
   expenseReports             ExpenseReport[]
   opportunities              Opportunity[]
   sponsorshipPackages        SponsorshipPackage[]
+  pastWinners                PastWinner[]
+  posterDesigns              PosterDesign[]
 
   // ── Gala y micrositio público del certamen ──────────────────────────────
   /// Fecha y hora de la gala final. Distinta de `startDate` (inicio del
@@ -1990,7 +2071,11 @@ model Project {
   customDomainVerifiedAt  DateTime?
   publicTagline           String?
   publicDescription       String?
+  /// Secciones y lienzos adicionales del sitio, con el mismo motor de los sitios generales.
+  publicSiteDesign        Json?
   coverImageUrl           String?
+  /// Logo que se ve en la pestaña del navegador (favicon) del micrositio. `null` = el de la plataforma.
+  faviconUrl              String?
   /// Acento visual del micrositio (`gold`, `violet`, `rose`, `cyan`,
   /// `emerald` — los de `PublicShell`). Texto y no enum para poder sumar
   /// acentos sin migración; Zod valida los permitidos.
@@ -2106,8 +2191,11 @@ model SponsorshipPackage {
   id              String                @id @default(cuid())
   companyId       String
   company         Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  projectId       String
-  project         Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// `null` = plantilla del tarifario general (sin certamen): sirve para
+  /// preparar planes antes de tener un certamen y se copia al crearlo. Nunca
+  /// se publica ni se usa en el CRM hasta copiarla a un certamen.
+  projectId       String?
+  project         Project?              @relation(fields: [projectId], references: [id], onDelete: Cascade)
   tier            SponsorshipTier
   name            String
   /// Valor neto de lista en CLP entero. El precio real negociado queda en el
@@ -2125,6 +2213,62 @@ model SponsorshipPackage {
   opportunities   Opportunity[]
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
+
+  @@index([companyId, projectId])
+}
+
+/// "Salón de la fama" del micrositio público: fotos de ganadoras de ediciones
+/// anteriores del certamen, con pie de foto (nombre + título: Ganadora,
+/// Virreina, Reina de la Simpatía…). Todo lo que hay acá se publica tal cual en
+/// `/certamen/[slug]`, así que no guarda nada que no deba ser público.
+model PastWinner {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  /// Lo que fue en esa edición ("Ganadora", "Virreina", "Reina de la Simpatía").
+  title     String   @default("Ganadora")
+  /// Año de la edición; ordena la galería (la más reciente va destacada).
+  year      Int?
+  /// Línea extra opcional del pie de foto (ej. "Representó a Temuco").
+  note      String?
+  photoUrl  String
+  /// Reciente: se muestra con foto completa en el salón de la fama. Todas las
+  /// marcadas comparten el mismo formato (varias ganadoras de la última edición);
+  /// las demás van en el carrusel de "Ediciones anteriores".
+  featured  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId, projectId])
+}
+
+/// Diseño de afiche guardado en el estudio (`/dashboard/projects/[id]/poster`):
+/// la pieza, el estilo, el formato y la personalización (textos propios, datos,
+/// imágenes subidas por la empresa). Los datos del certamen NO se copian: al
+/// abrirlo se vuelven a leer, así una fecha corregida aparece sola.
+model PosterDesign {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  piece       String
+  style       String
+  format      String
+  /// `null` = el acento del micrositio.
+  accent      String?
+  candidateId String?
+  /// `null` = según el formato.
+  qr          Boolean?
+  /// Validado con `posterOverridesSchema` al guardar y al leer.
+  overrides   Json
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([companyId, projectId])
 }
@@ -2474,98 +2618,106 @@ model FeeDocument {
 /// fecha de nacimiento, contacto de emergencia): RBAC restringido a
 /// OWNER/ADMIN (ver src/lib/auth/permissions.ts).
 model Candidate {
-  id                    String                @id @default(cuid())
-  companyId             String
-  company               Company               @relation(fields: [companyId], references: [id])
-  projectId             String
-  project               Project               @relation(fields: [projectId], references: [id])
-  rut                   String
-  rutClean              String
-  fullName              String
-  stageName             String?
-  email                 String?
-  phone                 String?
+  id                      String                @id @default(cuid())
+  companyId               String
+  company                 Company               @relation(fields: [companyId], references: [id])
+  projectId               String
+  project                 Project               @relation(fields: [projectId], references: [id])
+  rut                     String
+  rutClean                String
+  fullName                String
+  stageName               String?
+  email                   String?
+  phone                   String?
   /// Obligatoria en fichas creadas desde el panel; `null` en postulaciones del
   /// formulario público, que solo pide la edad (`declaredAge`).
-  birthDate             DateTime?
+  birthDate               DateTime?
   /// Edad declarada por la postulante en el formulario público, al momento de
   /// postular. Solo se usa cuando no hay `birthDate`.
-  declaredAge           Int?
-  dressSize             String?
-  shoeSize              String?
-  heightCm              Int?
-  emergencyContactName  String?
-  emergencyContactPhone String?
+  declaredAge             Int?
+  dressSize               String?
+  shoeSize                String?
+  heightCm                Int?
+  emergencyContactName    String?
+  emergencyContactPhone   String?
   /// Nombre/RUT del padre, madre o representante legal — solo se completa si
   /// la candidata es menor de edad. El contrato de imagen incluye un tercer
   /// bloque de firma para el tutor únicamente cuando `guardianName` está
   /// cargado (ver `contract-pdf.service.ts`); si es null, ese bloque se omite
   /// en vez de dejarse en blanco sin sentido.
-  guardianName          String?
-  guardianRut           String?
-  status                CandidateStatus       @default(APPLICANT)
-  photoUrl              String?
-  notes                 String?
+  guardianName            String?
+  guardianRut             String?
+  status                  CandidateStatus       @default(APPLICANT)
+  photoUrl                String?
+  notes                   String?
   /// Folio público entregado a la postulante al enviar el formulario
   /// (`{Project.code}-{año}-{correlativo}`, ver `InternalDocumentSequence`
   /// con `kind = CANDIDATE_APPLICATION`). `null` en fichas creadas a mano
   /// desde el panel interno, que no pasan por auto-inscripción.
-  folio                 String?
+  folio                   String?
   // ── Campos del formulario público de postulación (Sección 5 del módulo) ──
-  comuna                String?
-  direccion             String?
-  ocupacion             String?
-  instagram             String?
-  idiomas               String?
-  experiencia           String?
-  motivacion            String?
-  causaSocial           String?
+  comuna                  String?
+  direccion               String?
+  ocupacion               String?
+  instagram               String?
+  idiomas                 String?
+  experiencia             String?
+  motivacion              String?
+  causaSocial             String?
   /// Alergias o condiciones médicas relevantes declaradas por la propia
   /// candidata (ej. alergia a un maquillaje, condición que el equipo de
   /// producción deba conocer para ensayos/pasarela). Texto libre, no
   /// reemplaza un certificado médico real — para eso existe el documento
   /// `MEDICAL_CERTIFICATE` en `CandidateDocument`.
-  condicionesMedicas    String?
-  aceptaMarketing       Boolean               @default(false)
+  condicionesMedicas      String?
+  aceptaMarketing         Boolean               @default(false)
   /// Motivo obligatorio al pasar a `REJECTED` — no se usa para `WITHDRAWN`.
-  motivoDescarte        String?
+  motivoDescarte          String?
   /// Metadatos de origen del envío público, solo para envíos que llegaron por
   /// `submitCandidateRegistration` — nunca para fichas creadas a mano.
-  ipOrigen              String?
-  userAgent             String?
+  ipOrigen                String?
+  userAgent               String?
+  /// Constancia del consentimiento dado en el formulario público (Ley 21.719):
+  /// cuándo se aceptó y QUÉ versión de la política se mostró. `null` en fichas
+  /// creadas a mano o anteriores a este registro. `privacyGuardianProvided`
+  /// indica que la postulante es menor y el formulario exigió los datos de su
+  /// madre, padre o apoderado.
+  privacyConsentAt        DateTime?
+  privacyPolicyVersion    String?
+  privacyGuardianProvided Boolean               @default(false)
   /// Datos del empleador (texto libre, completado a mano o vía búsqueda web
   /// en `lookupCompaniesByName` — ver `src/modules/contacts/services/company-lookup.service.ts`).
   /// No hay relación estructurada con `Contact`: es solo un dato informativo
   /// de la ficha, no un cliente/proveedor de la empresa.
-  employerName          String?
-  employerRut           String?
-  employerAddress       String?
+  employerName            String?
+  employerRut             String?
+  employerAddress         String?
   // ── Presentación pública (micrositio, votación, escaleta) ───────────────
   /// Número oficial de candidata en el certamen ("Candidata N° 7"). Único
   /// por proyecto; `null` mientras no se numera (Postgres admite varios NULL
   /// bajo un índice único).
-  candidateNumber       Int?
+  candidateNumber         Int?
   /// Ciudad, región o país que representa ("Valparaíso", "Chile"): el
   /// "Miss ___" de la banda.
-  representing          String?
+  representing            String?
   /// Texto de presentación para el micrositio, escrito por el equipo — no se
   /// reutiliza nada del formulario privado de postulación sin que alguien lo
   /// decida y lo escriba acá.
-  publicBio             String?
+  publicBio               String?
   /// Permite ocultar a una candidata oficial del micrositio sin cambiar su
   /// estado en el certamen.
-  showOnPublicSite      Boolean               @default(true)
-  attendances           CandidateAttendance[]
-  documents             CandidateDocument[]
-  wardrobeItems         WardrobeItem[]
-  stageTimelineItems    StageTimelineItem[]
-  scoreSheets           ScoreSheet[]
-  roundEntries          RoundContestant[]
-  promissoryNotes       PromissoryNote[]
-  paymentPlans          PaymentPlan[]
-  voteOrders            VoteOrder[]
-  createdAt             DateTime              @default(now())
-  updatedAt             DateTime              @updatedAt
+  showOnPublicSite        Boolean               @default(true)
+  attendances             CandidateAttendance[]
+  documents               CandidateDocument[]
+  wardrobeItems           WardrobeItem[]
+  stageTimelineItems      StageTimelineItem[]
+  scoreSheets             ScoreSheet[]
+  roundEntries            RoundContestant[]
+  promissoryNotes         PromissoryNote[]
+  paymentPlans            PaymentPlan[]
+  voteOrders              VoteOrder[]
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
 
   @@unique([companyId, projectId, rutClean])
   // Folio único por empresa, no global: cada empresa tiene su propio
@@ -2660,33 +2812,39 @@ enum CandidateDocumentType {
 /// `services/documents.service.ts`, no se puede expresar como unique parcial
 /// en Prisma.
 model CandidateDocument {
-  id               String                  @id @default(cuid())
-  companyId        String
-  company          Company                 @relation(fields: [companyId], references: [id])
-  candidateId      String
-  candidate        Candidate               @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  title            String
-  documentType     CandidateDocumentType   @default(OTHER)
-  fileUrl          String
-  signedAt         DateTime?
-  expiresAt        DateTime?
-  status           CandidateDocumentStatus @default(PENDING)
+  id                  String                  @id @default(cuid())
+  companyId           String
+  company             Company                 @relation(fields: [companyId], references: [id])
+  candidateId         String
+  candidate           Candidate               @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  title               String
+  documentType        CandidateDocumentType   @default(OTHER)
+  fileUrl             String
+  signedAt            DateTime?
+  expiresAt           DateTime?
+  status              CandidateDocumentStatus @default(PENDING)
   /// Token del documento en ZapSign — correlaciona el webhook de firma con
   /// esta fila. `null` para documentos subidos a mano (sin firma electrónica).
-  zapsignDocToken  String?                 @unique
+  zapsignDocToken     String?                 @unique
+  /// El documento se envió a firmar al SANDBOX de ZapSign (cuenta de prueba).
+  /// Una firma de sandbox no tiene validez legal: nunca llena `signedAt` (que
+  /// es lo que cuentan el casting, el centro de mando y el contrato vigente),
+  /// solo `zapsignTestSignedAt`.
+  zapsignSandbox      Boolean                 @default(false)
+  zapsignTestSignedAt DateTime?
   /// Link de firma de ZapSign, guardado como respaldo por si el correo
   /// automático no llega — mismo criterio que `SponsorshipContract.portalToken`,
   /// salvo que este link lo emite y controla ZapSign, no nosotros.
-  zapsignSignUrl   String?
+  zapsignSignUrl      String?
   /// Metadatos capturados al recibir el archivo — solo poblados para
   /// `PHOTO_FACE`/`PHOTO_FULL_BODY` subidas por el formulario público
   /// (tipo MIME real leído de los primeros bytes, tamaño y hash SHA-256).
   /// `null` en documentos previos a este campo y en los subidos a mano.
-  mimeType         String?
-  fileSizeBytes    Int?
-  sha256Hash       String?
-  originalFileName String?
-  createdAt        DateTime                @default(now())
+  mimeType            String?
+  fileSizeBytes       Int?
+  sha256Hash          String?
+  originalFileName    String?
+  createdAt           DateTime                @default(now())
 
   @@index([companyId, candidateId])
 }
@@ -5309,29 +5467,31 @@ enum WebSiteStatus {
 }
 
 model WebSite {
-  id                     String        @id @default(cuid())
+  id                     String           @id @default(cuid())
   companyId              String
-  company                Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company                Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
   /// Nombre interno (el que ve el equipo en el panel).
   name                   String
   /// Dirección pública: `/web/[slug]`. Única en toda la plataforma.
-  slug                   String        @unique
-  kind                   WebSiteKind   @default(LANDING)
-  mode                   WebSiteMode   @default(GUIDED)
-  status                 WebSiteStatus @default(DRAFT)
+  slug                   String           @unique
+  kind                   WebSiteKind      @default(LANDING)
+  mode                   WebSiteMode      @default(GUIDED)
+  status                 WebSiteStatus    @default(DRAFT)
   /// Cliente para quien se arma el sitio (servicio de diseño web). Opcional.
   contactId              String?
-  contact                Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  contact                Contact?         @relation(fields: [contactId], references: [id], onDelete: SetNull)
   seoTitle               String?
   seoDescription         String?
   /// `false` agrega `noindex`: el sitio existe pero los buscadores no lo listan.
-  indexable              Boolean       @default(true)
+  indexable              Boolean          @default(true)
   logoUrl                String?
   ogImageUrl             String?
+  /// Logo que se ve en la pestaña del navegador (favicon). `null` = el de la plataforma.
+  faviconUrl             String?
   /// `WebSiteTheme` (ver src/lib/web-sites/theme.ts): colores, tipografía, redondeo.
-  theme                  Json          @default("{}")
+  theme                  Json             @default("{}")
   /// Borrador editable: `WebSiteBlock[]` (ver src/lib/web-sites/blocks.ts).
-  draftBlocks            Json          @default("[]")
+  draftBlocks            Json             @default("[]")
   /// Copia congelada al publicar: lo que ve el público no cambia hasta la
   /// próxima publicación, aunque el equipo siga editando el borrador.
   publishedBlocks        Json?
@@ -5340,17 +5500,17 @@ model WebSite {
   publishedHtml          String?
   publishedAt            DateTime?
   /// Dominio propio (ej. `minegocio.cl`). Mismo mecanismo que el de un certamen.
-  customDomain           String?       @unique
+  customDomain           String?          @unique
   customDomainVerifiedAt DateTime?
   createdByName          String?
   /// Versión del contenido (bloques, tema, HTML): solo cambia al guardar
   /// contenido, no al publicar ni al tocar ajustes o dominio. El editor la usa
   /// para detectar que otra persona guardó antes (edición simultánea).
-  contentUpdatedAt       DateTime      @default(now())
+  contentUpdatedAt       DateTime         @default(now())
   assets                 WebSiteAsset[]
   messages               WebSiteMessage[]
-  createdAt              DateTime      @default(now())
-  updatedAt              DateTime      @updatedAt
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
 
   @@index([companyId, status])
   @@index([companyId, contactId])
@@ -5375,22 +5535,669 @@ model WebSiteAsset {
   @@index([companyId, siteId])
 }
 
-/// Mensaje enviado desde el formulario de contacto de un sitio publicado.
+/// Envío de un formulario de un sitio publicado (sección «Formulario» o el del
+/// bloque «Contacto»). Es la copia fiel de lo que escribió la persona; si el
+/// formulario tributa a otra parte del ERP (CRM, academia, tareas), además se
+/// crea ese registro y acá queda el enlace (`routedKind` + `routedId`).
 model WebSiteMessage {
-  id        String    @id @default(cuid())
-  companyId String
-  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  siteId    String
-  site      WebSite   @relation(fields: [siteId], references: [id], onDelete: Cascade)
-  name      String
-  email     String
-  phone     String?
-  message   String
-  readAt    DateTime?
-  createdAt DateTime  @default(now())
+  id          String    @id @default(cuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  siteId      String
+  site        WebSite   @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  name        String
+  /// `null` si el formulario no pedía correo (se responde por teléfono).
+  email       String?
+  phone       String?
+  /// Mensaje libre, o el resumen de las respuestas si el formulario no tenía uno.
+  message     String
+  /// Id del bloque del formulario. `null` = mensaje anterior a los formularios a medida.
+  formId      String?
+  /// Nombre del formulario al momento del envío (el título de la sección).
+  formTitle   String?
+  /// Propósito (`FORM_PURPOSES` de src/lib/web-sites/forms.ts): contacto, cotización, inscripción…
+  purpose     String?
+  /// Destino configurado al enviarse (`FORM_DESTINATIONS`): inbox, crm, academy o tasks.
+  destination String?
+  /// Etiqueta interna para ordenar la bandeja.
+  tag         String?
+  /// Todas las respuestas: `[{ id, label, kind, role, value }]`.
+  answers     Json?
+  /// Dónde quedó registrado en el ERP (`crm`, `academy`, `tasks`) y el id del registro.
+  routedKind  String?
+  routedId    String?
+  routedAt    DateTime?
+  /// Por qué no llegó a su destino (módulo no contratado, dato que el destino rechazó…).
+  routeNote   String?
+  /// Archivado: sale de la bandeja sin borrarse.
+  archivedAt  DateTime?
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
 
   @@index([companyId, siteId, createdAt])
   @@index([companyId, readAt])
+  @@index([companyId, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fidelización y voz del cliente (`hasCustomerCare`)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum FollowUpReason {
+  INACTIVE
+  POST_SALE
+  DETRACTOR
+  MANUAL
+}
+
+enum FollowUpStatus {
+  OPEN
+  DONE
+  SKIPPED
+}
+
+/// Parámetros del módulo por empresa (1:1). Sin fila = valores por defecto.
+model CustomerCareSettings {
+  id                String   @id @default(cuid())
+  companyId         String   @unique
+  company           Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// Días sin comprar para que un cliente se considere inactivo.
+  inactiveAfterDays Int      @default(60)
+  /// Plazo estándar de entrega que se comunica al cliente (días hábiles).
+  deliveryLeadDays  Int?
+  /// Texto de invitación que acompaña al enlace de la encuesta.
+  surveyIntro       String?
+  /// Mensaje tipo de seguimiento a clientes inactivos.
+  followUpMessage   String?
+  updatedAt         DateTime @updatedAt
+}
+
+/// Encuesta breve de satisfacción. `token` es la llave del enlace público
+/// `/encuesta/[token]`: resuelve la empresa y el cliente, quien responde
+/// nunca manda un `companyId`. Se responde una sola vez.
+model CustomerSurvey {
+  id              String    @id @default(cuid())
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contactId       String
+  contact         Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  /// Venta que originó la encuesta (informativo; sin FK).
+  salesDocumentId String?
+  token           String    @unique
+  createdById     String?
+  sentAt          DateTime?
+  respondedAt     DateTime?
+  /// Satisfacción general 1-5.
+  csat            Int?
+  /// Probabilidad de recomendar 0-10.
+  nps             Int?
+  deliveryOnTime  Boolean?
+  comment         String?
+  createdAt       DateTime  @default(now())
+
+  @@index([companyId, respondedAt])
+  @@index([companyId, contactId])
+  @@index([contactId])
+}
+
+/// Tarea de seguimiento comercial sobre un cliente.
+model CustomerFollowUp {
+  id           String         @id @default(cuid())
+  companyId    String
+  company      Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contactId    String
+  contact      Contact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  reason       FollowUpReason @default(MANUAL)
+  status       FollowUpStatus @default(OPEN)
+  dueDate      DateTime
+  assignedToId String?
+  note         String?
+  outcome      String?
+  completedAt  DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([companyId, status, dueDate])
+  @@index([companyId, contactId])
+  @@index([contactId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Calidad y procedimientos (`hasQuality`)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum ProcedureCategory {
+  OPERACION
+  CALIDAD
+  HIGIENE
+  VENTAS
+  ADMINISTRACION
+  INDUCCION
+}
+
+enum ProcedureStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum InspectionKind {
+  INCOMING
+  IN_PROCESS
+  FINISHED
+}
+
+enum InspectionStatus {
+  PASSED
+  FAILED
+}
+
+/// Ficha del productor o proveedor clave (1:1 con el contacto proveedor).
+model SupplierProfile {
+  id               String   @id @default(cuid())
+  companyId        String
+  company          Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contactId        String   @unique
+  contact          Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  /// PRODUCTOR | PROVEEDOR_INSUMOS | ENVASES | TRANSPORTE | OTRO.
+  supplierType     String   @default("PRODUCTOR")
+  suppliedProducts String?
+  /// Certificaciones o resoluciones sanitarias vigentes (texto libre).
+  certifications   String?
+  isLocalProducer  Boolean  @default(true)
+  isActive         Boolean  @default(true)
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([companyId, isActive])
+}
+
+/// Procedimiento operativo estándar. Al publicar una nueva versión, los
+/// acuses de lectura de la anterior dejan de valer.
+model Procedure {
+  id              String            @id @default(cuid())
+  companyId       String
+  company         Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  title           String
+  category        ProcedureCategory @default(OPERACION)
+  summary         String?
+  content         String
+  version         Int               @default(1)
+  status          ProcedureStatus   @default(DRAFT)
+  ownerId         String?
+  reviewEveryDays Int?
+  lastReviewedAt  DateTime?
+  acks            ProcedureAck[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([companyId, status, category])
+}
+
+model ProcedureAck {
+  id             String    @id @default(cuid())
+  companyId      String
+  company        Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  procedureId    String
+  procedure      Procedure @relation(fields: [procedureId], references: [id], onDelete: Cascade)
+  userId         String
+  version        Int
+  acknowledgedAt DateTime  @default(now())
+
+  @@unique([procedureId, userId, version])
+  @@index([companyId, userId])
+}
+
+/// Plantilla de inspección: lista de parámetros medibles con su rango.
+/// `parameters`: arreglo validado por `qualityParameterSchema`.
+model QualityTemplate {
+  id         String         @id @default(cuid())
+  companyId  String
+  company    Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name       String
+  kind       InspectionKind @default(FINISHED)
+  parameters Json
+  isActive   Boolean        @default(true)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  @@index([companyId, isActive])
+}
+
+/// Inspección realizada. Guarda copia de la plantilla y de los resultados, de
+/// modo que cambiar la plantilla después no reescribe la historia.
+model QualityInspection {
+  id                String           @id @default(cuid())
+  companyId         String
+  company           Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  templateId        String?
+  templateName      String
+  kind              InspectionKind
+  /// Producto y productor/proveedor inspeccionados (sin FK; validados por empresa).
+  productId         String?
+  contactId         String?
+  lotNumber         String?
+  productionOrderId String?
+  parameters        Json
+  results           Json
+  status            InspectionStatus
+  failedParameters  String[]         @default([])
+  inspectorId       String?
+  notes             String?
+  correctiveAction  String?
+  inspectedAt       DateTime         @default(now())
+  createdAt         DateTime         @default(now())
+
+  @@index([companyId, inspectedAt])
+  @@index([companyId, contactId])
+  @@index([companyId, lotNumber])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tareas y delegación (`hasTeamTasks`)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum TeamTaskStatus {
+  TODO
+  DOING
+  DONE
+  CANCELLED
+}
+
+enum TeamTaskPriority {
+  LOW
+  NORMAL
+  HIGH
+}
+
+enum TeamTaskRecurrence {
+  NONE
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum DelegatedDecision {
+  PURCHASE_APPROVAL
+  EXPENSE_APPROVAL
+  DISCOUNT
+  PRICE_CHANGE
+  REFUND
+  STOCK_ADJUSTMENT
+  SUPPLIER_PAYMENT
+  OTHER
+}
+
+model TeamTask {
+  id          String             @id @default(cuid())
+  companyId   String
+  company     Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  status      TeamTaskStatus     @default(TODO)
+  priority    TeamTaskPriority   @default(NORMAL)
+  dueDate     DateTime?
+  assigneeId  String?
+  createdById String?
+  recurrence  TeamTaskRecurrence @default(NONE)
+  completedAt DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([companyId, status, dueDate])
+  @@index([companyId, assigneeId, status])
+}
+
+/// Regla escrita de delegación: quién puede decidir qué y hasta cuánto.
+/// Es un registro consultable por el equipo y por `evaluateDelegation`; no
+/// reemplaza a los permisos (RBAC), que siguen mandando.
+model DelegationRule {
+  id           String            @id @default(cuid())
+  companyId    String
+  company      Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  decision     DelegatedDecision
+  title        String
+  delegateeId  String?
+  delegateRole Role?
+  /// CLP entero. `null` = sin tope de monto.
+  maxAmount    Int?
+  /// Porcentaje (solo para descuentos). `null` = sin tope.
+  maxPercent   Int?
+  conditions   String?
+  isActive     Boolean           @default(true)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@index([companyId, isActive, decision])
+}
+
+/// Derechos del titular de datos personales (Ley 21.719): acceso, rectificación,
+/// supresión, oposición, portabilidad y bloqueo.
+enum DataSubjectRequestType {
+  ACCESS
+  RECTIFICATION
+  ERASURE
+  OPPOSITION
+  PORTABILITY
+  BLOCKING
+}
+
+enum DataSubjectRequestStatus {
+  RECEIVED
+  IN_PROGRESS
+  RESOLVED
+  REJECTED
+}
+
+/// Solicitud de un titular a la empresa (la responsable de sus datos). El plazo
+/// de respuesta corre desde `receivedAt`; `dueAt` lo calcula el servidor con
+/// `src/lib/privacy/deadlines.ts`, nunca el cliente.
+model DataSubjectRequest {
+  id                 String                   @id @default(cuid())
+  companyId          String
+  company            Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  type               DataSubjectRequestType
+  status             DataSubjectRequestStatus @default(RECEIVED)
+  requesterName      String
+  requesterEmail     String
+  /// RUT sin formato (solo dígitos y dígito verificador), opcional.
+  requesterRutClean  String?
+  details            String?
+  /// `PUBLIC_FORM` (portal público) o `MANUAL` (registrada por el equipo).
+  source             String
+  receivedAt         DateTime                 @default(now())
+  dueAt              DateTime
+  /// Si se prorrogó el plazo, hasta cuándo y por qué.
+  extendedUntil      DateTime?
+  extensionReason    String?
+  /// El equipo comprobó que quien pide es el titular (o su representante).
+  identityVerifiedAt DateTime?
+  resolvedAt         DateTime?
+  resolutionNote     String?
+  handledById        String?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  @@index([companyId, status, dueAt])
+  @@index([companyId, requesterEmail])
+}
+
+enum PrivacyIncidentStatus {
+  OPEN
+  CONTAINED
+  CLOSED
+}
+
+/// Registro de vulneraciones de seguridad de datos personales. Sirve para
+/// decidir y dejar constancia de a quién se avisó (Agencia y titulares) y cuándo.
+model PrivacyIncident {
+  id                   String                @id @default(cuid())
+  companyId            String
+  company              Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  title                String
+  description          String
+  detectedAt           DateTime
+  status               PrivacyIncidentStatus @default(OPEN)
+  affectsSensitiveData Boolean               @default(false)
+  affectsMinors        Boolean               @default(false)
+  affectsEconomicData  Boolean               @default(false)
+  recordsAffected      Int?
+  containmentActions   String?
+  agencyNotifiedAt     DateTime?
+  subjectsNotifiedAt   DateTime?
+  createdById          String?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+
+  @@index([companyId, status])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Academia de modelaje (`hasAcademy`): ficha de alumnas, lista de asistencia y
+// control de la mensualidad. Deliberadamente simple: no genera documentos
+// tributarios ni cuotas de tesorería.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum AcademyAttendanceStatus {
+  PRESENT
+  LATE
+  ABSENT
+  JUSTIFIED
+}
+
+/// Curso o grupo de clases ("Modelaje juvenil – sábados").
+model AcademyGroup {
+  id          String           @id @default(cuid())
+  companyId   String
+  company     Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  name        String
+  schedule    String?
+  /// Mensualidad sugerida (CLP entero); `null` = se indica al marcar el pago.
+  monthlyFee  Int?
+  isActive    Boolean          @default(true)
+  students    AcademyStudent[]
+  sessions    AcademySession[]
+  materials   AcademyMaterial[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([companyId, isActive])
+}
+
+model AcademyStudent {
+  id            String                  @id @default(cuid())
+  companyId     String
+  company       Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  groupId       String?
+  group         AcademyGroup?           @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  rut           String
+  rutClean      String
+  fullName      String
+  birthDate     DateTime?
+  email         String?
+  phone         String?
+  address       String?
+  /// Misma ficha que la de candidatas: contacto de emergencia y tallas.
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  pantsSize     String?
+  shirtSize     String?
+  shoeSize      String?
+  /// Solo si es menor de edad.
+  guardianName  String?
+  guardianPhone String?
+  guardianEmail String?
+  /// Autorización del uso de su imagen (fotos y videos de la academia).
+  photoConsent  Boolean                 @default(false)
+  /// Observación especial (alergias, salud, etc.).
+  notes         String?
+  /// Primer mes que se le cobra (día 1, 12:00 UTC). Antes de ese mes no debe nada.
+  startMonth    DateTime
+  isActive      Boolean                 @default(true)
+  attendance    AcademyAttendance[]
+  payments      AcademyMonthlyPayment[]
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+
+  @@unique([companyId, rutClean])
+  @@index([companyId, isActive])
+  @@index([companyId, groupId])
+}
+
+model AcademyAttendance {
+  id        String                  @id @default(cuid())
+  companyId String
+  company   Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  studentId String
+  student   AcademyStudent          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  /// Día de la clase (12:00 UTC).
+  date      DateTime
+  status    AcademyAttendanceStatus
+  createdAt DateTime                @default(now())
+
+  @@unique([studentId, date])
+  @@index([companyId, date])
+}
+
+/// Mensualidad pagada. Que exista la fila = pagada; desmarcar la borra.
+model AcademyMonthlyPayment {
+  id        String         @id @default(cuid())
+  companyId String
+  company   Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  /// `null` si la alumna fue eliminada: el pago se conserva con su nombre y RUT.
+  studentId String?
+  student   AcademyStudent? @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  /// Copia del nombre y RUT al momento del pago, para que el registro sobreviva a la ficha.
+  studentName String?
+  studentRut  String?
+  /// "YYYY-MM"
+  period    String
+  /// CLP entero.
+  amount    Int
+  paidAt    DateTime       @default(now())
+  note      String?
+
+  @@unique([studentId, period])
+  @@index([companyId, period])
+}
+
+/// Micrositio público de la academia (`/academia/[slug]`): uno por empresa. Los
+/// textos y listas (clases, pasos, historia, galería, preguntas) viven en
+/// `content`, validado con Zod al guardar y al leer; lo demás son columnas.
+/// El público solo ve el sitio publicado y nunca alumnas, RUT ni pagos.
+model AcademySite {
+  id              String    @id @default(cuid())
+  companyId       String    @unique
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  /// Único en toda la plataforma (la URL no lleva la empresa).
+  slug            String    @unique
+  name            String
+  isPublished     Boolean   @default(false)
+  publishedAt     DateTime?
+  heroImageUrl    String?
+  /// Solo dígitos, formato wa.me.
+  whatsapp        String?
+  contactEmail    String?
+  /// Una o varias cuentas separadas por coma, sin «@».
+  instagramHandle String?
+  address         String?
+  /// Dominio propio (ej. academiacr.cl), único en toda la plataforma junto a
+  /// los de certámenes y sitios web (`src/lib/hosting/domain-lifecycle.ts`).
+  customDomain           String?   @unique
+  customDomainVerifiedAt DateTime?
+  content         Json      @default("{}")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+/// Clase programada en el calendario de la academia. Una por grupo y día: la
+/// asistencia (`AcademyAttendance`) también es por alumna y día, así que "pasar
+/// lista" de una clase es la lista de ese grupo en esa fecha.
+model AcademySession {
+  id          String            @id @default(cuid())
+  companyId   String
+  company     Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  groupId     String
+  group       AcademyGroup      @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  /// Día de la clase (12:00 UTC), igual que `AcademyAttendance.date`.
+  date        DateTime
+  /// Hora de Chile, "HH:MM" (24 h).
+  startTime   String
+  endTime     String
+  /// Tema de la clase (opcional).
+  title       String?
+  location    String?
+  notes       String?
+  /// Cancelada: se queda en el calendario tachada, no se pasa lista.
+  isCancelled Boolean           @default(false)
+  /// Clases creadas juntas con "repetir cada semana".
+  seriesId    String?
+  materials   AcademyMaterial[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@unique([groupId, date])
+  @@index([companyId, date])
+  @@index([seriesId])
+}
+
+enum AcademyMaterialKind {
+  FILE
+  LINK
+}
+
+/// Material de estudio de un grupo (documento, presentación, planilla, imagen) o
+/// un enlace (Drive, YouTube…), opcionalmente atado a una clase. Se puede
+/// enviar por correo a las alumnas del grupo (y a sus apoderados).
+model AcademyMaterial {
+  id            String              @id @default(cuid())
+  companyId     String
+  company       Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  groupId       String
+  group         AcademyGroup        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  sessionId     String?
+  session       AcademySession?     @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  kind          AcademyMaterialKind
+  title         String
+  description   String?
+  /// Archivo en nuestro almacenamiento o enlace externo (https).
+  url           String
+  fileName      String?
+  contentType   String?
+  sizeBytes     Int?
+  uploadedById  String?
+  /// Último envío por correo (y a cuántas direcciones), para no reenviar sin querer.
+  lastSentAt    DateTime?
+  lastSentCount Int                 @default(0)
+  createdAt     DateTime            @default(now())
+
+  @@index([companyId, groupId, createdAt])
+  @@index([sessionId])
+}
+
+enum AcademyApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+/// Preinscripción enviada desde el formulario público de la academia. No es
+/// una alumna: el equipo la revisa y, al aprobarla, se crea la ficha
+/// (`studentId`). Mientras tanto no aparece en listas ni mensualidades.
+model AcademyApplication {
+  id               String                   @id @default(cuid())
+  companyId        String
+  company          Company                  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  status           AcademyApplicationStatus @default(PENDING)
+  fullName         String
+  rut              String
+  rutClean         String
+  birthDate        DateTime
+  email            String?
+  phone            String
+  address               String?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  pantsSize             String?
+  shirtSize             String?
+  shoeSize              String?
+  guardianName     String?
+  guardianPhone    String?
+  guardianEmail    String?
+  photoConsent     Boolean                  @default(false)
+  /// Cuándo aceptó el aviso de privacidad al enviar (constancia de consentimiento).
+  consentAt        DateTime
+  /// Grupo que eligió en el formulario (puede ser `null`: "aún no lo sé").
+  preferredGroupId String?
+  message          String?
+  /// Ficha creada al aprobar.
+  studentId        String?
+  reviewedAt       DateTime?
+  createdAt        DateTime                 @default(now())
+
+  @@index([companyId, status, createdAt])
+  @@index([companyId, rutClean])
 }
 
 // ─── Productores y consignación ─────────────────────────────────────────────

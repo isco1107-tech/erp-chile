@@ -61,7 +61,6 @@ export async function completeForcedPasswordChangeAction(input: unknown): Promis
       email: updated.email,
       companyId: updated.companyId ?? undefined,
       companyName: context.companyName,
-      isSuperAdmin: updated.isSuperAdmin,
       sessionVersion: updated.sessionVersion,
     });
     await setSessionCookieServer(token);

@@ -257,7 +257,7 @@ export async function runCollectionRemindersCron(now: Date = new Date()): Promis
           documents: entry.items.map((item) => ({ dteLabel: item.dteLabel, folio: item.folio, dueDate: item.dueDate, amount: item.amount })),
           totalDue: entry.items.reduce((sum, item) => sum + item.amount, 0),
         });
-        const delivery = await sendEmail({ to: entry.email, ...email });
+        const delivery = await sendEmail({ to: entry.email, companyId: company.id, ...email });
         if (delivery.status === 'failed') continue;
         emailsSent += 1;
         await prisma.collectionReminderLog.createMany({

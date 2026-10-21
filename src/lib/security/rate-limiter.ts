@@ -203,6 +203,13 @@ export const CANDIDATE_APPLICATION_ATTEMPT_RATE_LIMIT: RateLimitConfig = {
   windowMs: 60 * 60_000,
 };
 
+/** Foto que sube la postulante desde el formulario público: 15 por hora por IP (cubre reintentos y cambiar de foto). */
+export const CANDIDATE_PHOTO_UPLOAD_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'candidate-photo-ip',
+  limit: 15,
+  windowMs: 60 * 60_000,
+};
+
 /** Compra pública de entradas (`/api/public/tickets/[token]/purchase`): 5
  * órdenes por hora por IP — mismo criterio y misma cifra que la postulación
  * de candidatas, es el mismo tipo de endpoint público sin sesión. */
@@ -217,6 +224,16 @@ export const TICKET_PURCHASE_RATE_LIMIT: RateLimitConfig = {
  * por hora desde una misma conexión; más que eso es spam contra el CRM. */
 export const SPONSOR_LEAD_RATE_LIMIT: RateLimitConfig = {
   prefix: 'sponsor-lead-ip',
+  limit: 5,
+  windowMs: 60 * 60_000,
+};
+
+/** Solicitud de contratación de módulos desde el panel
+ * (`requestModulesAction`): clave por empresa, no por IP — ya hay sesión y
+ * varias personas de una misma empresa comparten salida a internet. Pocas
+ * solicitudes legítimas por hora; más es insistencia o un script. */
+export const MODULE_REQUEST_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'module-request-company',
   limit: 5,
   windowMs: 60 * 60_000,
 };
@@ -267,11 +284,29 @@ export const MANUAL_ASSISTANT_CONFIRM_RATE_LIMIT: RateLimitConfig = {
   windowMs: 60_000,
 };
 
+/** Descarga del manual en Word (`GET /api/manual/docx`): arma el archivo con
+ * todas las capturas en cada pedido, así que se limita por usuario para que un
+ * doble clic insistente o un script no lo genere decenas de veces seguidas. */
+export const MANUAL_DOCX_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'manual-docx-user',
+  limit: 6,
+  windowMs: 60_000,
+};
+
 /** Formulario comercial del landing (`POST /api/public/leads`): público y sin
  * sesión, mismo criterio que las postulaciones — 5 solicitudes por hora por IP
  * alcanzan para cualquier persona real y frenan el spam automatizado. */
 export const SALES_LEAD_RATE_LIMIT: RateLimitConfig = {
   prefix: 'sales-lead-ip',
+  limit: 5,
+  windowMs: 60 * 60_000,
+};
+
+/** Cotización de módulos desde la vitrina de la landing
+ * (`POST /api/public/module-quote`): mismo criterio que el formulario
+ * comercial, con su propio contador para que uno no agote al otro. */
+export const MODULE_QUOTE_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'module-quote-ip',
   limit: 5,
   windowMs: 60 * 60_000,
 };
@@ -284,6 +319,28 @@ export const INSTALLMENT_LOOKUP_RATE_LIMIT: RateLimitConfig = {
   prefix: 'installment-lookup-ip',
   limit: 30,
   windowMs: 15 * 60_000,
+};
+
+/** Formulario público de solicitudes de derechos sobre datos personales: pocas por IP, es un trámite, no una consulta. */
+export const PRIVACY_REQUEST_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'privacy-request-ip',
+  limit: 5,
+  windowMs: 60 * 60_000,
+};
+
+/**
+ * Mismo formulario, por enlace (empresa) y por correo del solicitante: el tope por IP no basta
+ * si alguien rota de dirección. Frenan el spam de solicitudes y de acuses a un tercero.
+ */
+export const PRIVACY_REQUEST_TOKEN_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'privacy-request-token',
+  limit: 30,
+  windowMs: 60 * 60_000,
+};
+export const PRIVACY_REQUEST_EMAIL_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'privacy-request-email',
+  limit: 3,
+  windowMs: 24 * 60 * 60_000,
 };
 
 /** Portal público de pago de cuotas, creación del cobro en la pasarela. */
@@ -360,4 +417,32 @@ export const IMPACT_PAGE_RATE_LIMIT: RateLimitConfig = {
   prefix: 'impact-page-ip',
   limit: 60,
   windowMs: 15 * 60_000,
+};
+/** Encuesta pública de satisfacción: vistas por IP. */
+export const SURVEY_VIEW_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'survey-view-ip',
+  limit: 60,
+  windowMs: 15 * 60_000,
+};
+
+/** Encuesta pública de satisfacción: envíos por IP y enlace. */
+export const SURVEY_SUBMIT_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'survey-submit',
+  limit: 5,
+  windowMs: 60 * 60_000,
+};
+
+/** Inscripción pública a la academia: envíos por IP. Una familia puede inscribir
+ * a unas pocas hermanas desde la misma conexión; más es spam. */
+export const ACADEMY_APPLICATION_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'academy-application-ip',
+  limit: 5,
+  windowMs: 60 * 60_000,
+};
+
+/** Mismo formulario, por empresa: tope global para que un ataque distribuido no llene la bandeja. */
+export const ACADEMY_APPLICATION_COMPANY_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'academy-application-company',
+  limit: 60,
+  windowMs: 60 * 60_000,
 };

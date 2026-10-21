@@ -7,8 +7,8 @@
 -- chart-of-accounts.ts.
 
 -- AlterEnum
-ALTER TYPE "JournalSourceType" ADD VALUE 'PAYROLL_PERIOD';
-ALTER TYPE "JournalSourceType" ADD VALUE 'EXPENSE_REPORT';
+ALTER TYPE "JournalSourceType" ADD VALUE IF NOT EXISTS 'PAYROLL_PERIOD';
+ALTER TYPE "JournalSourceType" ADD VALUE IF NOT EXISTS 'EXPENSE_REPORT';
 
 -- AlterTable
 ALTER TABLE "Payment" ADD COLUMN IF NOT EXISTS "feeDocumentId" TEXT;

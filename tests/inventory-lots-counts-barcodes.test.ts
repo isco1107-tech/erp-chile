@@ -140,7 +140,7 @@ describe('formularios de inventario', () => {
 
 describe('menú de inventario', () => {
   const allFeatures = Object.fromEntries(MODULE_KEYS.map((key) => [key, true])) as CompanyFeatureFlags;
-  const links = buildAvailableWorkspaceNav({ permissions: ALL_PERMISSIONS, features: allFeatures, isSuperAdmin: false }).flatMap((group) => group.links);
+  const links = buildAvailableWorkspaceNav({ permissions: ALL_PERMISSIONS, features: allFeatures }).flatMap((group) => group.links);
 
   it('las pantallas nuevas resaltan su propio ítem, no el de Inventario', () => {
     expect(findNavLinkForPath(links, '/dashboard/inventory/counts/abc')?.href).toBe('/dashboard/inventory/counts');

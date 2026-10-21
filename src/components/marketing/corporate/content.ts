@@ -12,15 +12,16 @@ export const navLinks: [href: string, label: string][] = [
   ['#modulos', 'Módulos'],
   ['#cumplimiento', 'Cumplimiento SII'],
   ['#seguridad', 'Seguridad'],
-  ['#certamenes', 'Certámenes y eventos'],
-  ['#preguntas', 'Preguntas frecuentes'],
+  ['#implementacion', 'Implementación'],
+  ['#preguntas', 'Preguntas'],
 ];
 
 export const hero = {
   kicker: 'ERP CHILENO PARA EMPRESAS',
-  title: 'El ERP que ordena tu empresa y cumple con el SII.',
+  /** El titular se arma con dos partes: la segunda va destacada. */
+  title: ['El ERP que ordena tu empresa y ', 'cumple con el SII.'] as const,
   lead: 'Ventas, inventario, compras, tesorería y contabilidad en un solo sistema, con documentos timbrados según la normativa chilena. Activa los módulos que tu empresa necesita hoy y suma el resto cuando estés listo.',
-  trustLine: 'Folios CAF y timbre electrónico · Multiempresa y roles a medida · Tus datos, exportables cuando quieras',
+  trustPoints: ['Folios CAF y timbre electrónico', 'Multiempresa y roles a medida', 'Tus datos, exportables cuando quieras'],
   mockCaption: 'Vista ilustrativa del panel · datos de ejemplo',
 };
 
@@ -81,6 +82,12 @@ export const modulesSection = {
   ],
 };
 
+export const trustBand = {
+  kicker: 'CUMPLIMIENTO Y SEGURIDAD',
+  title: 'Lo que un ERP chileno tiene que resolver bien.',
+  lead: 'La norma del SII en el núcleo del sistema y la información de cada empresa resguardada por diseño.',
+};
+
 export const compliance = {
   kicker: 'CUMPLIMIENTO SII',
   title: 'Tributación chilena, no un módulo adaptado.',
@@ -107,7 +114,7 @@ export const security = {
 };
 
 export const implementation = {
-  kicker: 'DE LA DECISIÓN AL PRIMER DOCUMENTO',
+  kicker: 'IMPLEMENTACIÓN',
   title: 'De la decisión al primer documento.',
   closing: 'El valor se cotiza según los módulos que activas, tu tamaño y el acompañamiento que necesites para partir. Sin lista de precios genérica ni cobro por lo que no usas.',
 };
@@ -127,6 +134,8 @@ export const eventsSection = {
 export const faqSection = {
   kicker: 'ANTES DE CONTRATAR',
   title: 'Preguntas frecuentes',
+  lead: 'Lo que suelen preguntar las gerencias, finanzas y TI antes de elegir un ERP.',
+  more: '¿Otra duda? Escríbenos',
   questions: [
     '¿Qué incluye Aether ERP?',
     '¿Está preparado para empresas chilenas?',
@@ -135,12 +144,6 @@ export const faqSection = {
     '¿Puedo llevarme mis datos si me voy?',
     '¿Cuánto cuesta y cómo lo contrato?',
   ],
-};
-
-export const ctaBand = {
-  title: 'Conversemos de tu empresa.',
-  lead: 'Una demo sobre tus propios procesos, no sobre un catálogo de funciones.',
-  action: 'Solicitar demo',
 };
 
 export const contactForm = {

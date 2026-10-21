@@ -15,7 +15,7 @@ import { issueSession } from '@/lib/auth/issue-session';
 
 /** Al iniciar sesión, quien trabaja en varias empresas pasa primero por el selector. */
 
-const user = { id: 'u1', role: 'OWNER', email: 'a@b.cl', companyId: 'home', isSuperAdmin: false, sessionVersion: 0 };
+const user = { id: 'u1', role: 'OWNER', email: 'a@b.cl', companyId: 'home', sessionVersion: 0 };
 const req = new Request('https://aetherp.online/api/auth/signin', { method: 'POST' });
 const company = (id: string, operational: boolean) => ({ id, name: id, isHome: id === 'home', status: operational ? 'ACTIVE' : 'SUSPENDED', operational });
 

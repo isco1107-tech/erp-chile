@@ -5,10 +5,7 @@ import {
 } from '../src/components/marketing/cinematic/sequence';
 import { ENTER_FROM, ENTER_SPAN, MAX_STAGGER, enterProgress, viewProgress } from '../src/components/marketing/cinematic/live';
 import { linkStrength, makeStars, streakLength, traceAmounts, wrap } from '../src/components/marketing/cinematic/constellation';
-import { weightedScore } from '../src/components/marketing/cinematic/EventMock';
 import { CONSTELLATIONS, centerFocus, constellationY, projectStars, starRadius } from '../src/components/marketing/cinematic/constellations';
-import { outcomes } from '../src/components/marketing/content';
-import { views } from '../src/components/marketing/catalog';
 import manifest from '../public/marketing/cinematic/seq/manifest.json';
 import { approach, isWheelNotch, wheelPixels } from '../src/components/marketing/cinematic/smoothWheel';
 
@@ -202,12 +199,6 @@ describe('landing v2 · fotogramas generados', () => {
   });
 });
 
-describe('landing v2 · contenido restaurado', () => {
-  it('cada tarjeta de resultados abre la vista que nombra', () => {
-    expect(outcomes.map(item => views[item.view]?.label)).toEqual(['Ventas', 'Inventario', 'Finanzas']);
-  });
-});
-
 describe('landing v2 · movimiento con el scroll fuera del hero', () => {
   const viewport = 900;
 
@@ -390,12 +381,5 @@ describe('landing v2 · constelaciones reales', () => {
     expect(traceAmounts(4, 0.5)).toEqual([1, 1, 0, 0]);
     expect(traceAmounts(4, 0.625)).toEqual([1, 1, 0.5, 0]);
     expect(traceAmounts(4, 1)).toEqual([1, 1, 1, 1]);
-  });
-});
-
-describe('landing v2 · pantallas de certámenes (datos de ejemplo)', () => {
-  it('el promedio ponderado usa ponderaciones que suman 100 %', () => {
-    expect(weightedScore([10, 10, 10])).toBeCloseTo(10, 10);
-    expect(weightedScore([9.4, 9.1, 9.6])).toBeCloseTo(9.37, 10);
   });
 });

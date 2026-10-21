@@ -111,3 +111,61 @@ export function SwitchRow({ label, description, checked, onChange, disabled }: {
     </div>
   );
 }
+
+export interface ChoiceOption<T extends string> {
+  value: T;
+  label: string;
+  description?: string;
+  /** Dibujo o ícono pequeño que muestra la opción (opcional). */
+  preview?: ReactNode;
+}
+
+/**
+ * Elección visual entre pocas opciones (variante, fondo, estilo…): tarjetas
+ * con dibujo, título y una línea de ayuda. Accesible como grupo de radios.
+ */
+export function ChoiceGroup<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+  disabled,
+  columns = 3,
+  hint,
+}: {
+  label: string;
+  value: T;
+  options: ChoiceOption<T>[];
+  onChange: (value: T) => void;
+  disabled?: boolean;
+  columns?: 2 | 3 | 4;
+  hint?: string;
+}) {
+  const name = useId();
+  return (
+    <fieldset className="space-y-2">
+      <legend className="text-sm font-medium text-foreground">{label}</legend>
+      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+      <div className={cn('grid gap-2', columns === 2 ? 'grid-cols-2' : columns === 4 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3')}>
+        {options.map((option) => {
+          const selected = option.value === value;
+          return (
+            <label
+              key={option.value}
+              className={cn(
+                'flex cursor-pointer flex-col gap-1.5 rounded-lg border p-2.5 text-left transition-colors has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/50',
+                selected ? 'border-ring bg-accent' : 'border-border hover:bg-muted',
+                disabled && 'cursor-not-allowed opacity-60'
+              )}
+            >
+              <input type="radio" className="sr-only" name={name} value={option.value} checked={selected} disabled={disabled} onChange={() => onChange(option.value)} />
+              {option.preview ? <span aria-hidden="true">{option.preview}</span> : null}
+              <span className="text-sm font-medium">{option.label}</span>
+              {option.description ? <span className="text-xs text-muted-foreground">{option.description}</span> : null}
+            </label>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
+}

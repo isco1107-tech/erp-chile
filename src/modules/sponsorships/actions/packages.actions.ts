@@ -91,8 +91,10 @@ export async function copyPackagesAction(fromProjectId: unknown, toProjectId: un
   try {
     const session = await requireAuthWithPermission('sponsorships:write');
     const ids = z.tuple([z.string().min(1), z.string().min(1)]).safeParse([fromProjectId, toProjectId]);
-    if (!ids.success) return { success: false, error: 'Elige el certamen de origen y el de destino' };
-    const copied = await packagesService.copyPackages(session.companyId, ids.data[0], ids.data[1]);
+    if (!ids.success) return { success: false, error: 'Elige el tarifario de origen y el de destino' };
+    const from = packagesService.projectIdOrNull(ids.data[0]);
+    const to = packagesService.projectIdOrNull(ids.data[1]);
+    const copied = await packagesService.copyPackages(session.companyId, from, to);
     await createAuditLog({
       companyId: session.companyId,
       userId: session.id,
@@ -103,7 +105,7 @@ export async function copyPackagesAction(fromProjectId: unknown, toProjectId: un
       metadata: { copiedFrom: ids.data[0], copied },
     });
     revalidatePackages();
-    return { success: true, data: { copied }, message: copied === 0 ? 'El certamen de origen no tiene planes' : `${copied} plan(es) copiado(s)` };
+    return { success: true, data: { copied }, message: copied === 0 ? 'El tarifario de origen no tiene planes' : `${copied} plan(es) copiado(s)` };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
   }

@@ -10,12 +10,12 @@ import { isIpAllowed } from './ip-allowlist';
  * `Request`) para poder llamarse tanto desde un Route Handler
  * (`extractClientIp(req)`) como desde una Server Action (`headers()` de
  * `next/headers`), que no tienen el mismo objeto de request disponible.
- * El superadmin de plataforma nunca queda bloqueado por la política de una
- * empresa cliente.
+ * Nadie queda exento: ni siquiera el personal de Aether entra por acá. Si una
+ * empresa se bloquea a sí misma, la Supersuite apaga la restricción con la
+ * orden `seguridad.ip.liberar`.
  */
 export async function checkIpAllowlist(
   companyId: string | null | undefined,
-  isSuperAdmin: boolean,
   ip: string | null,
   /**
    * Lista ya leída por el llamador (p.ej. `getAuthContext`, que ya trae la
@@ -25,7 +25,7 @@ export async function checkIpAllowlist(
    */
   preloadedSettings?: { ipAllowlistEnabled: boolean; ipAllowlist: string[] } | null
 ): Promise<string | null> {
-  if (!companyId || isSuperAdmin) return null;
+  if (!companyId) return null;
 
   const settings =
     preloadedSettings !== undefined

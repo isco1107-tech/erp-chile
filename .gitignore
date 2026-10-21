@@ -40,3 +40,10 @@ graphify-out/
 /mobile/aether-warehouse/ios/
 /mobile/aether-warehouse/.expo/
 /mobile/aether-warehouse/dist/
+
+# Archivos sueltos que no son código (hallazgo CF-06): exportaciones de
+# empresas, logs del servidor de desarrollo y capturas.
+/ERP_*.xlsx
+*.log
+/images*.jpg
+/Factura-*.webp

@@ -19,12 +19,40 @@ const WEB_SITE_SANDBOX_CSP = [
   "frame-ancestors 'self'",
 ].join('; ');
 
+/**
+ * Productos del ecosistema servidos bajo el dominio de Aether
+ * (aetherp.online/epione y aetherp.online/hermes). Cada uno es su propio
+ * despliegue de Agenda Salud con basePath = el prefijo (VITE_BASE_PATH), así
+ * que el rewrite conserva la ruta completa. Hermes solo se enruta si existe su
+ * despliegue (HERMES_ORIGIN). Esas rutas traen sus propias cabeceras de
+ * seguridad: la CSP global del ERP NO se les aplica (ver headers()).
+ */
+const ECOSYSTEM_ZONES = [
+  { prefix: '/epione', origin: process.env.EPIONE_ORIGIN ?? 'https://agendasalud-plataforma-web-patient.vercel.app' },
+  { prefix: '/hermes', origin: process.env.HERMES_ORIGIN ?? '' },
+]
+  .map((zone) => ({ ...zone, origin: zone.origin.replace(/\/+$/, '') }))
+  .filter((zone) => /^https?:\/\//.test(zone.origin));
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   // Dominio de la plataforma para los enlaces que se copian desde el panel
   // (ver src/lib/public-url.ts). Es una URL pública, no un secreto.
   env: { NEXT_PUBLIC_APP_URL: process.env.APP_URL ?? '' },
+  // La descarga del manual en Word lee las capturas desde `public/` con `fs`:
+  // en Vercel `public/` se sirve desde el CDN y no entra sola a la función.
+  outputFileTracingIncludes: {
+    '/api/manual/docx': ['./public/manual/screenshots/**/*'],
+  },
+  async rewrites() {
+    return {
+      beforeFiles: ECOSYSTEM_ZONES.flatMap(({ prefix, origin }) => [
+        { source: prefix, destination: `${origin}${prefix}` },
+        { source: `${prefix}/:path*`, destination: `${origin}${prefix}/:path*` },
+      ]),
+    };
+  },
   async headers() {
     return [
       {
@@ -44,7 +72,9 @@ const nextConfig = {
         // No incluye /api/agents/run (SSE) a propósito: una CSP restrictiva no
         // le afecta, pero mantenerla explícita en todas las rutas simplifica
         // el razonamiento — es la misma política en toda la app.
-        source: '/:path*',
+        // Excluye /epione y /hermes: son otras apps (ver ECOSYSTEM_ZONES) con
+        // su propia CSP; sumarles esta bloquearía su API y su autenticación.
+        source: '/((?!epione(?:/|$)|hermes(?:/|$)).*)',
         headers: [
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           // ── CSP ──────────────────────────────────────────────────────────
@@ -63,6 +93,14 @@ const nextConfig = {
           // postulación de candidatas, ver src/lib/security/turnstile.ts): su
           // script, su iframe y su verificación. Solo se usa si están las
           // llaves; permitirlo siempre no abre nada más.
+          // `frame-src` suma YouTube (sin cookies), Vimeo y Google Maps, y los
+          // servicios de la sección "Incrustar" (Spotify, SoundCloud, Calendly,
+          // Google Forms y Google Calendar): son los únicos orígenes que los
+          // sitios web de los clientes pueden incrustar (ver `videoEmbed`,
+          // `mapEmbedUrl` y `embedFrom`/`EMBED_ORIGINS` en
+          // src/lib/web-sites/urls.ts, que arman el iframe solo con esos hosts y
+          // con las piezas extraídas del enlace). El contenido del iframe corre
+          // en el origen de ellos, no en el nuestro, y el iframe va con `sandbox`.
           // `object-src 'none'` bloquea plugins (Flash/PDF embebido como
           // vector de XSS) y `upgrade-insecure-requests` sube a HTTPS cualquier
           // recurso http:// que se haya colado.
@@ -75,7 +113,7 @@ const nextConfig = {
               "img-src 'self' data: blob: https://*.public.blob.vercel-storage.com",
               "font-src 'self'",
               "connect-src 'self' https://generativelanguage.googleapis.com https://challenges.cloudflare.com",
-              "frame-src 'self' https://challenges.cloudflare.com",
+              "frame-src 'self' https://challenges.cloudflare.com https://www.youtube-nocookie.com https://player.vimeo.com https://www.google.com/maps https://open.spotify.com https://w.soundcloud.com https://calendly.com https://docs.google.com/forms/ https://calendar.google.com/calendar/",
               "object-src 'none'",
               "frame-ancestors 'self'",
               "base-uri 'self'",
@@ -95,6 +133,10 @@ const nextConfig = {
           { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
         ],
       },
+      ...['/bodega/:path*', '/dashboard/pos/:path*'].map((source) => ({
+        source,
+        headers: [{ key: 'Permissions-Policy', value: 'camera=(self), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()' }],
+      })),
       {
         // Va DESPUÉS de la global a propósito: con la misma clave repetida gana la última.
         source: '/web/:slug/raw',

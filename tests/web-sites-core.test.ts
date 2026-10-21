@@ -349,7 +349,7 @@ describe('cabeceras de seguridad del documento HTML propio', () => {
 
   it('next.config.js fija la misma CSP sandbox para /web/:slug/raw, después de la global', async () => {
     const entries = await nextConfig.headers();
-    const globalIndex = entries.findIndex((entry) => entry.source === '/:path*');
+    const globalIndex = entries.findIndex((entry) => entry.source === '/((?!epione(?:/|$)|hermes(?:/|$)).*)');
     const rawIndex = entries.findIndex((entry) => entry.source === '/web/:slug/raw');
     expect(globalIndex).toBeGreaterThanOrEqual(0);
     expect(rawIndex).toBeGreaterThan(globalIndex); // la última clave repetida gana

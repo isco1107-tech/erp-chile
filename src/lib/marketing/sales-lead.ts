@@ -12,6 +12,11 @@ import { SALES_LEAD_HONEYPOT_FIELD, SALES_LEAD_SOLUTIONS, SALES_LEAD_TEAM_SIZES 
 
 export { SALES_LEAD_SOLUTIONS, SALES_LEAD_TEAM_SIZES, SALES_LEAD_HONEYPOT_FIELD };
 
+/** Correo de ventas: destino de las solicitudes de demo y de contratación de módulos. */
+export function getSalesEmail(): string {
+  return process.env.AETHER_SALES_EMAIL ?? 'aethererp1@gmail.com';
+}
+
 export const salesLeadSchema = z.object({
   name: z.string().trim().min(2, 'Ingresa tu nombre').max(120),
   email: z.string().trim().toLowerCase().email('Ingresa un correo válido').max(160),

@@ -16,8 +16,10 @@ import { useConfirm } from '@/components/ui/confirm-provider';
 import type { Tone } from '@/components/ui/tone';
 import { KIND_INFO } from '@/lib/web-sites/templates';
 import { cn } from '@/lib/utils';
+import type { FormDestination } from '@/lib/web-sites/forms';
 import { archiveWebSiteAction, deleteWebSiteAction, duplicateWebSiteAction, listWebSitesAction, unpublishWebSiteAction } from '@/modules/web-sites/actions/web-sites.actions';
 import type { WebSiteRow } from '@/modules/web-sites/services/web-sites.service';
+import WebSiteMessagesPanel from './WebSiteMessagesPanel';
 
 type StatusFilter = 'ALL' | WebSiteStatus;
 
@@ -50,9 +52,20 @@ function liveHref(row: WebSiteRow): string {
   return row.customDomain && row.customDomainVerified ? `https://${row.customDomain}` : `/web/${row.slug}`;
 }
 
-export default function WebSitesClient({ canWrite, canPublish }: { canWrite: boolean; canPublish: boolean }) {
+export type WebSitesView = 'sites' | 'inbox';
+
+interface WebSitesClientProps {
+  canWrite: boolean;
+  canPublish: boolean;
+  /** Destinos a los que este usuario puede llevar a mano un mensaje de la bandeja. */
+  routeTargets?: Array<Exclude<FormDestination, 'inbox'>>;
+  initialView?: WebSitesView;
+}
+
+export default function WebSitesClient({ canWrite, canPublish, routeTargets = [], initialView = 'sites' }: WebSitesClientProps) {
   const router = useRouter();
   const confirm = useConfirm();
+  const [view, setView] = useState<WebSitesView>(initialView);
   const [filter, setFilter] = useState<StatusFilter>('ALL');
   const [query, setQuery] = useState('');
   const [rows, setRows] = useState<WebSiteRow[]>([]);
@@ -189,6 +202,11 @@ export default function WebSitesClient({ canWrite, canPublish }: { canWrite: boo
     </Link>
   ) : undefined;
 
+  const viewTabs: Array<{ value: WebSitesView; label: string }> = [
+    { value: 'sites', label: 'Sitios' },
+    { value: 'inbox', label: unreadTotal > 0 ? `Bandeja de formularios (${unreadTotal})` : 'Bandeja de formularios' },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -197,152 +215,171 @@ export default function WebSitesClient({ canWrite, canPublish }: { canWrite: boo
         <KpiCard label="Mensajes sin leer" value={kpi(unreadTotal)} icon={Mail} tone={unreadTotal > 0 ? 'warning' : 'neutral'} />
       </div>
 
-      <section className="rounded-lg border border-border bg-card shadow-card" aria-label="Lista de sitios">
-        <div className="flex flex-col gap-3 border-b border-border p-4 lg:flex-row lg:items-center lg:justify-between">
-          <div role="group" aria-label="Filtrar por estado" className="inline-flex flex-wrap rounded-md bg-muted p-0.5">
-            {FILTERS.map((item) => (
-              <button
-                key={item.value}
-                type="button"
-                aria-pressed={filter === item.value}
-                title={item.hint}
-                onClick={() => setFilter(item.value)}
-                className={cn(
-                  'rounded px-3 py-1 text-xs font-medium transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
-                  filter === item.value ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                {item.label}
-                {loaded && <span className="ml-1.5 tabular-nums text-muted-foreground">{countFor(item.value)}</span>}
-              </button>
-            ))}
-          </div>
-          <div className="relative">
-            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-            <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Nombre, dirección o cliente" aria-label="Buscar sitio" className="h-9 pl-8 sm:w-72" />
-          </div>
-        </div>
+      <div role="tablist" aria-label="Vista" className="inline-flex flex-wrap rounded-md bg-muted p-0.5">
+        {viewTabs.map((tab) => (
+          <button
+            key={tab.value}
+            type="button"
+            role="tab"
+            aria-selected={view === tab.value}
+            onClick={() => setView(tab.value)}
+            className={cn('rounded px-3 py-1.5 text-sm font-medium transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50', view === tab.value ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
-        {loading && rows.length === 0 && !loadError ? (
-          <ul className="divide-y divide-border" aria-busy="true" aria-label="Cargando sitios">
-            {Array.from({ length: 3 }).map((_, index) => (
-              <li key={index} className="space-y-2 p-4">
-                <Skeleton className="h-4 w-56" />
-                <Skeleton className="h-3 w-72 max-w-full" />
-                <Skeleton className="h-3 w-40" />
-              </li>
-            ))}
-          </ul>
-        ) : loadError && rows.length === 0 ? (
-          <EmptyState
-            title="No pudimos cargar tus sitios"
-            description={loadError}
-            actionLabel="Reintentar"
-            onAction={reload}
-            icon={<Globe className="size-10 text-muted-foreground/40" aria-hidden="true" />}
-          />
-        ) : rows.length === 0 ? (
-          loaded && totalSites === 0 ? (
+      {view === 'inbox' ? (
+        <WebSiteMessagesPanel canWrite={canWrite} routeTargets={routeTargets} onUnreadChange={setUnreadTotal} />
+      ) : (
+        <section className="rounded-lg border border-border bg-card shadow-card" aria-label="Lista de sitios">
+          <div className="flex flex-col gap-3 border-b border-border p-4 lg:flex-row lg:items-center lg:justify-between">
+            <div role="group" aria-label="Filtrar por estado" className="inline-flex flex-wrap rounded-md bg-muted p-0.5">
+              {FILTERS.map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  aria-pressed={filter === item.value}
+                  title={item.hint}
+                  onClick={() => setFilter(item.value)}
+                  className={cn(
+                    'rounded px-3 py-1 text-xs font-medium transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                    filter === item.value ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  {item.label}
+                  {loaded && <span className="ml-1.5 tabular-nums text-muted-foreground">{countFor(item.value)}</span>}
+                </button>
+              ))}
+            </div>
+            <div className="relative">
+              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Nombre, dirección o cliente" aria-label="Buscar sitio" className="h-9 pl-8 sm:w-72" />
+            </div>
+          </div>
+
+          {loading && rows.length === 0 && !loadError ? (
+            <ul className="divide-y divide-border" aria-busy="true" aria-label="Cargando sitios">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <li key={index} className="space-y-2 p-4">
+                  <Skeleton className="h-4 w-56" />
+                  <Skeleton className="h-3 w-72 max-w-full" />
+                  <Skeleton className="h-3 w-40" />
+                </li>
+              ))}
+            </ul>
+          ) : loadError && rows.length === 0 ? (
             <EmptyState
+              title="No pudimos cargar tus sitios"
+              description={loadError}
+              actionLabel="Reintentar"
+              onAction={reload}
               icon={<Globe className="size-10 text-muted-foreground/40" aria-hidden="true" />}
-              title="Todavía no tienes sitios"
-              description={
-                canWrite
-                  ? 'Crea el sitio de tu empresa o el de un cliente. Te guiamos paso a paso: eliges para qué es, lo armas por secciones y ves qué te falta antes de publicarlo.'
-                  : 'Cuando alguien de tu equipo cree un sitio, aparecerá aquí. Pide a un administrador que lo cree si lo necesitas.'
-              }
-              action={createCta}
             />
+          ) : rows.length === 0 ? (
+            loaded && totalSites === 0 ? (
+              <EmptyState
+                icon={<Globe className="size-10 text-muted-foreground/40" aria-hidden="true" />}
+                title="Todavía no tienes sitios"
+                description={
+                  canWrite
+                    ? 'Crea el sitio de tu empresa o el de un cliente. Te guiamos paso a paso: eliges para qué es, lo armas por secciones y ves qué te falta antes de publicarlo.'
+                    : 'Cuando alguien de tu equipo cree un sitio, aparecerá aquí. Pide a un administrador que lo cree si lo necesitas.'
+                }
+                action={createCta}
+              />
+            ) : (
+              <EmptyState
+                icon={<Search className="size-10 text-muted-foreground/40" aria-hidden="true" />}
+                title={query.trim() ? 'Sin resultados' : 'No hay sitios en esta vista'}
+                description={query.trim() ? 'Prueba con otro nombre, dirección o cliente.' : 'Cambia el filtro para ver los sitios en otro estado.'}
+              />
+            )
           ) : (
-            <EmptyState
-              icon={<Search className="size-10 text-muted-foreground/40" aria-hidden="true" />}
-              title={query.trim() ? 'Sin resultados' : 'No hay sitios en esta vista'}
-              description={query.trim() ? 'Prueba con otro nombre, dirección o cliente.' : 'Cambia el filtro para ver los sitios en otro estado.'}
-            />
-          )
-        ) : (
-          <ul className={cn('divide-y divide-border transition-opacity', loading && 'opacity-60')} aria-busy={loading}>
-            {rows.map((row) => {
-              const status = STATUS_BADGE[row.status];
-              const verifiedDomain = Boolean(row.customDomain && row.customDomainVerified);
-              const busy = busyId === row.id;
-              return (
-                <li key={row.id} className="flex flex-col gap-3 p-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="min-w-0 space-y-1.5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Link href={`/dashboard/web-sites/${row.id}`} className="truncate text-sm font-semibold hover:underline">
-                        {row.name}
+            <ul className={cn('divide-y divide-border transition-opacity', loading && 'opacity-60')} aria-busy={loading}>
+              {rows.map((row) => {
+                const status = STATUS_BADGE[row.status];
+                const verifiedDomain = Boolean(row.customDomain && row.customDomainVerified);
+                const busy = busyId === row.id;
+                return (
+                  <li key={row.id} className="flex flex-col gap-3 p-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0 space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Link href={`/dashboard/web-sites/${row.id}`} className="truncate text-sm font-semibold hover:underline">
+                          {row.name}
+                        </Link>
+                        <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+                        {row.pendingChanges && <StatusBadge tone="warning">Cambios sin publicar</StatusBadge>}
+                        {row.unreadMessages > 0 && (
+                          <StatusBadge tone="info">
+                            <Mail className="mr-1 size-3" aria-hidden="true" />
+                            {row.unreadMessages} {row.unreadMessages === 1 ? 'mensaje sin leer' : 'mensajes sin leer'}
+                          </StatusBadge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {KIND_INFO[row.kind].label} · {MODE_LABEL[row.mode]}
+                        {row.contactName ? ` · Cliente: ${row.contactName}` : ''}
+                      </p>
+                      <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                        <Globe className="size-3.5 shrink-0" aria-hidden="true" />
+                        <span className="sr-only">Dirección pública:</span>
+                        {verifiedDomain ? (
+                          <>
+                            <span className="font-medium text-foreground">{row.customDomain}</span>
+                            <span className="inline-flex items-center gap-1 text-success">
+                              <CircleCheck className="size-3.5" aria-hidden="true" /> Dominio verificado
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="font-mono text-foreground">/web/{row.slug}</span>
+                            {row.customDomain && (
+                              <span className="inline-flex items-center gap-1 text-warning">
+                                <Clock className="size-3.5" aria-hidden="true" /> {row.customDomain}: pendiente de DNS
+                              </span>
+                            )}
+                          </>
+                        )}
+                      </p>
+                      <p className="text-xs text-muted-foreground">Actualizado {formatDateTime(row.updatedAt)}</p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5 lg:max-w-md lg:justify-end">
+                      <Link href={`/dashboard/web-sites/${row.id}`} className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+                        <Pencil aria-hidden="true" /> Abrir editor
                       </Link>
-                      <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
-                      {row.pendingChanges && <StatusBadge tone="warning">Cambios sin publicar</StatusBadge>}
-                      {row.unreadMessages > 0 && (
-                        <StatusBadge tone="info">
-                          <Mail className="mr-1 size-3" aria-hidden="true" />
-                          {row.unreadMessages} {row.unreadMessages === 1 ? 'mensaje sin leer' : 'mensajes sin leer'}
-                        </StatusBadge>
+                      {row.status === 'PUBLISHED' && (
+                        <a href={liveHref(row)} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+                          <ExternalLink aria-hidden="true" /> Ver sitio
+                          <span className="sr-only"> (se abre en una pestaña nueva)</span>
+                        </a>
+                      )}
+                      {canWrite && (
+                        <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => duplicate(row)}>
+                          <Copy aria-hidden="true" /> Duplicar
+                        </Button>
+                      )}
+                      {canPublish && (
+                        <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => void toggleArchive(row)}>
+                          {row.status === 'ARCHIVED' ? <ArchiveRestore aria-hidden="true" /> : <Archive aria-hidden="true" />}
+                          {row.status === 'ARCHIVED' ? 'Restaurar' : 'Archivar'}
+                        </Button>
+                      )}
+                      {canPublish && (
+                        <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => void remove(row)} className="text-danger hover:bg-danger-soft hover:text-danger">
+                          <Trash2 aria-hidden="true" /> Eliminar
+                        </Button>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      {KIND_INFO[row.kind].label} · {MODE_LABEL[row.mode]}
-                      {row.contactName ? ` · Cliente: ${row.contactName}` : ''}
-                    </p>
-                    <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-                      <Globe className="size-3.5 shrink-0" aria-hidden="true" />
-                      <span className="sr-only">Dirección pública:</span>
-                      {verifiedDomain ? (
-                        <>
-                          <span className="font-medium text-foreground">{row.customDomain}</span>
-                          <span className="inline-flex items-center gap-1 text-success">
-                            <CircleCheck className="size-3.5" aria-hidden="true" /> Dominio verificado
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="font-mono text-foreground">/web/{row.slug}</span>
-                          {row.customDomain && (
-                            <span className="inline-flex items-center gap-1 text-warning">
-                              <Clock className="size-3.5" aria-hidden="true" /> {row.customDomain}: pendiente de DNS
-                            </span>
-                          )}
-                        </>
-                      )}
-                    </p>
-                    <p className="text-xs text-muted-foreground">Actualizado {formatDateTime(row.updatedAt)}</p>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-1.5 lg:max-w-md lg:justify-end">
-                    <Link href={`/dashboard/web-sites/${row.id}`} className={buttonVariants({ variant: 'outline', size: 'sm' })}>
-                      <Pencil aria-hidden="true" /> Abrir editor
-                    </Link>
-                    {row.status === 'PUBLISHED' && (
-                      <a href={liveHref(row)} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
-                        <ExternalLink aria-hidden="true" /> Ver sitio
-                        <span className="sr-only"> (se abre en una pestaña nueva)</span>
-                      </a>
-                    )}
-                    {canWrite && (
-                      <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => duplicate(row)}>
-                        <Copy aria-hidden="true" /> Duplicar
-                      </Button>
-                    )}
-                    {canPublish && (
-                      <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => void toggleArchive(row)}>
-                        {row.status === 'ARCHIVED' ? <ArchiveRestore aria-hidden="true" /> : <Archive aria-hidden="true" />}
-                        {row.status === 'ARCHIVED' ? 'Restaurar' : 'Archivar'}
-                      </Button>
-                    )}
-                    {canPublish && (
-                      <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => void remove(row)} className="text-danger hover:bg-danger-soft hover:text-danger">
-                        <Trash2 aria-hidden="true" /> Eliminar
-                      </Button>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      )}
     </div>
   );
 }

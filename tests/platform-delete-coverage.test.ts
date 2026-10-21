@@ -64,6 +64,10 @@ const CASCADES_TO_COMPANY = new Set([
   // desde Project, y sus hijos (contratos, oportunidades) apuntan con `SetNull`.
   'CrmPerson',
   'SponsorshipPackage',
+  // Salón de la fama del micrositio: `onDelete: Cascade` directo hacia Company y hacia Project.
+  'PastWinner',
+  // Diseños guardados del estudio de afiches: igual que PastWinner, cascada directa hacia Company y Project.
+  'PosterDesign',
   'Employee',
   'PayrollPeriod',
   'Payslip',
@@ -90,6 +94,22 @@ const CASCADES_TO_COMPANY = new Set([
   // Conector MCP: token personal para IA externa. `onDelete: Cascade`
   // directo hacia Company (y hacia User).
   'McpPersonalToken',
+  // Fidelización, calidad y tareas: todos con `onDelete: Cascade` directo hacia
+  // Company (y `CustomerSurvey`/`CustomerFollowUp`/`SupplierProfile` también
+  // hacia Contact, `ProcedureAck` hacia Procedure). Ninguno usa Restrict, así
+  // que no pueden bloquear `company.delete()`.
+  'CustomerCareSettings',
+  'CustomerSurvey',
+  'CustomerFollowUp',
+  'SupplierProfile',
+  'Procedure',
+  'ProcedureAck',
+  'QualityTemplate',
+  'QualityInspection',
+  'TeamTask',
+  'DelegationRule',
+  'DataSubjectRequest',
+  'PrivacyIncident',
 ]);
 
 /** Cascadean desde `Project`, que se borra explícito en `hardDeleteTenant`. */

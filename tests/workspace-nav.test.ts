@@ -17,7 +17,7 @@ import {
  */
 
 const ALL_FEATURES = Object.fromEntries(MODULE_KEYS.map((key) => [key, true])) as CompanyFeatureFlags;
-const FULL_ACCESS = { permissions: ALL_PERMISSIONS, features: ALL_FEATURES, isSuperAdmin: true };
+const FULL_ACCESS = { permissions: ALL_PERMISSIONS, features: ALL_FEATURES };
 const ids = (groups: ReturnType<typeof buildWorkspaceNav>) => groups.flatMap((g) => g.links.map((l) => l.id));
 
 describe('registro de navegación', () => {
@@ -37,14 +37,14 @@ describe('registro de navegación', () => {
   });
 
   it('no muestra módulos no contratados', () => {
-    const all = ids(buildAvailableWorkspaceNav({ permissions: ALL_PERMISSIONS, features: { ...DEFAULT_FEATURES }, isSuperAdmin: false }));
+    const all = ids(buildAvailableWorkspaceNav({ permissions: ALL_PERMISSIONS, features: { ...DEFAULT_FEATURES } }));
     expect(all).not.toContain('intelligence');
     expect(all).not.toContain('hr-payroll');
     expect(all).toContain('home');
   });
 
   it('un vendedor no ve remuneraciones aunque el plan las incluya', () => {
-    const all = ids(buildAvailableWorkspaceNav({ permissions: permissionsForRole('SALES'), features: ALL_FEATURES, isSuperAdmin: false }));
+    const all = ids(buildAvailableWorkspaceNav({ permissions: permissionsForRole('SALES'), features: ALL_FEATURES }));
     expect(all).not.toContain('hr-payroll');
     expect(all).toContain('crm');
     expect(all).toContain('expenses');
@@ -77,7 +77,7 @@ describe('saneamiento de la preferencia guardada', () => {
   });
 
   it('conoce todos los ids del plan completo', () => {
-    for (const id of ids(buildAvailableWorkspaceNav({ ...FULL_ACCESS, isSuperAdmin: false }))) expect(known.has(id)).toBe(true);
+    for (const id of ids(buildAvailableWorkspaceNav({ ...FULL_ACCESS }))) expect(known.has(id)).toBe(true);
   });
 });
 

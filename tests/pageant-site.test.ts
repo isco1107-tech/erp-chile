@@ -7,6 +7,10 @@ import {
   directorCopy,
   galaCalendarUrl,
   galaDateParts,
+  headingSize,
+  ribbonLoop,
+  RIBBON_MIN_ITEMS,
+  RIBBON_SECONDS_PER_ITEM,
   initials,
   pageantFaq,
   pageantHighlights,
@@ -185,12 +189,20 @@ describe('Contacto propio de cada certamen', () => {
   });
 
   it('solo expone los canales configurados', () => {
-    expect(pageantContact({ publicContactEmail: null, publicWhatsapp: null, instagramHandle: null })).toEqual({ email: null, whatsapp: null, instagram: null });
+    expect(pageantContact({ publicContactEmail: null, publicWhatsapp: null, instagramHandle: null })).toEqual({ email: null, whatsapp: null, instagram: null, instagrams: [] });
     expect(pageantContact({ publicContactEmail: 'hola@mut.cl', publicWhatsapp: '56987654321', instagramHandle: '@mut' })).toEqual({
       email: 'hola@mut.cl',
       whatsapp: { href: 'https://wa.me/56987654321', label: '+56 9 8765 4321' },
       instagram: { href: 'https://instagram.com/mut', handle: 'mut' },
+      instagrams: [{ href: 'https://instagram.com/mut', handle: 'mut' }],
     });
+  });
+
+  it('admite varias cuentas de Instagram, sin repetir, hasta el tope', () => {
+    expect(pageantContact({ publicContactEmail: null, publicWhatsapp: null, instagramHandle: 'mut,mut.sur' }).instagrams.map((i) => i.handle)).toEqual(['mut', 'mut.sur']);
+    expect(instagramHandleField.parse('@mut, https://instagram.com/mut.sur/ MUT')).toBe('mut,mut.sur');
+    expect(instagramHandleField.safeParse('mut, no valido!').success).toBe(false);
+    expect(instagramHandleField.safeParse('a,b,c,d,e,f').success).toBe(false);
   });
 
   it('valida los campos del formulario: vacío es null, inválido explica el formato', () => {
@@ -198,12 +210,12 @@ describe('Contacto propio de cada certamen', () => {
     expect(schema.parse({ email: '', whatsapp: '', instagram: '' })).toEqual({ email: null, whatsapp: null, instagram: null });
     expect(schema.parse({})).toEqual({ email: null, whatsapp: null, instagram: null });
     expect(schema.parse({ email: ' Hola@MUT.cl ', whatsapp: '+56 9 1234 5678', instagram: '@mut' })).toEqual({ email: 'hola@mut.cl', whatsapp: '56912345678', instagram: 'mut' });
-    const bad = schema.safeParse({ email: 'no-es-correo', whatsapp: '12', instagram: 'a b' });
+    const bad = schema.safeParse({ email: 'no-es-correo', whatsapp: '12', instagram: 'a!b' });
     expect(bad.success).toBe(false);
     expect(bad.error?.issues.map((i) => i.message)).toEqual([
       'El correo de contacto no es válido',
       'El WhatsApp no es un número válido (ej. +56 9 1234 5678)',
-      'El Instagram no es un usuario válido (ej. @missuniversotemuco)',
+      'Instagram no válido: a!b (ej. @missuniversotemuco; separa varios con coma)',
     ]);
   });
 });
@@ -303,7 +315,7 @@ describe('hero por vista (candidata / sponsor)', () => {
     const hero = audienceHero('sponsor', base);
     expect(hero.kicker).toBe('Patrocinios oficiales 2026');
     expect(hero.heading).toBe('Sé sponsor de la corona');
-    expect(hero.pills).toEqual(['3 categorías', 'Desde $500.000 + IVA']);
+    expect(hero.pills).toEqual(['3 categorías', 'Desde $500.000']);
     expect(audienceHero('sponsor', { ...base, packagePrices: [] }).pills).toEqual([]);
   });
 });
@@ -362,3 +374,54 @@ describe('correo de confirmación al sponsor', () => {
     expect(email.text).toContain('WhatsApp: +56 9 8990 1046');
   });
 });
+
+describe('headingSize', () => {
+  it('nombres normales conservan el tamaño de siempre', () => {
+    expect(headingSize('Miss Universo Temuco')).toBe('');
+    expect(headingSize(null)).toBe('');
+    expect(headingSize('')).toBe('');
+  });
+
+  it('achica los títulos según el largo total del texto', () => {
+    expect(headingSize('Concurso Nacional de Belleza y Elegancia')).toBe('is-long');
+    expect(headingSize('Reina Internacional de la Solidaridad y el Turismo Sustentable de Sudamérica')).toBe('is-xlong');
+  });
+
+  it('una sola palabra enorme también lo achica, aunque el texto sea corto', () => {
+    expect(headingSize('Panamericana')).toBe('');
+    expect(headingSize('Internacionalizada')).toBe('is-long');
+    expect(headingSize('Superextraordinariamente')).toBe('is-xlong');
+  });
+
+  it('una barra separa palabras (Temuco/Longuimay no cuenta como una de 16 letras)', () => {
+    expect(headingSize('Temuco/Longuimay')).toBe('');
+  });
+});
+
+describe('ribbonLoop (cinta que gira)', () => {
+  it('sin textos no hay cinta', () => {
+    expect(ribbonLoop([])).toEqual({ group: [], seconds: 0 });
+  });
+
+  it('con un solo texto lo repite hasta cubrir cualquier pantalla (antes medía menos que el monitor y casi no se movía)', () => {
+    const { group } = ribbonLoop(['Postulaciones abiertas']);
+    expect(group).toHaveLength(RIBBON_MIN_ITEMS);
+    expect(new Set(group)).toEqual(new Set(['Postulaciones abiertas']));
+  });
+
+  it('con varios textos conserva el orden y los repite completos', () => {
+    const items = ['Temporada 2026', 'Postulaciones abiertas', 'Gala · 12 de diciembre'];
+    const { group } = ribbonLoop(items);
+    expect(group.length).toBeGreaterThanOrEqual(RIBBON_MIN_ITEMS);
+    expect(group.length % items.length).toBe(0);
+    expect(group.slice(0, 3)).toEqual(items);
+  });
+
+  it('la velocidad no depende de cuántos textos haya: siempre los mismos segundos por texto', () => {
+    for (const n of [1, 2, 5, 7, 13]) {
+      const { group, seconds } = ribbonLoop(Array.from({ length: n }, (_, i) => `texto ${i}`));
+      expect(seconds).toBe(group.length * RIBBON_SECONDS_PER_ITEM);
+    }
+  });
+});
+

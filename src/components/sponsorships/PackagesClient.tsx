@@ -16,7 +16,7 @@ import { useConfirm } from '@/components/ui/confirm-provider';
 import { formatCurrency } from '@/lib/chile/tax';
 import { copyPackagesAction, createPackageAction, deletePackageAction, listPackagesAction, updatePackageAction } from '@/modules/sponsorships/actions/packages.actions';
 import type { SponsorshipPackageRow } from '@/modules/sponsorships/services/packages.service';
-import { SPONSORSHIP_TIER_LABELS, SPONSORSHIP_TIERS } from '@/modules/sponsorships/schema';
+import { GENERAL_TARIFF, SPONSORSHIP_TIER_LABELS, SPONSORSHIP_TIERS } from '@/modules/sponsorships/schema';
 import { cn } from '@/lib/utils';
 
 type TierKey = (typeof SPONSORSHIP_TIERS)[number];
@@ -60,7 +60,9 @@ const BENEFIT_SUGGESTIONS = [
 
 export function PackagesClient({ projects, canWrite }: { projects: Array<{ id: string; name: string; code: string }>; canWrite: boolean }) {
   const confirm = useConfirm();
-  const [projectId, setProjectId] = useState(projects[0]?.id ?? '');
+  // Sin certamen todavía se trabaja en el tarifario general; con uno, se parte por el primero.
+  const [projectId, setProjectId] = useState(projects[0]?.id ?? GENERAL_TARIFF);
+  const isGeneral = projectId === GENERAL_TARIFF;
   const [packages, setPackages] = useState<SponsorshipPackageRow[] | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState<PackageForm>(EMPTY_FORM);
@@ -125,7 +127,7 @@ export function PackagesClient({ projects, canWrite }: { projects: Array<{ id: s
         showPricePublic: form.showPricePublic,
         order: form.order,
       };
-      const result = form.id ? await updatePackageAction(form.id, payload) : await createPackageAction({ ...payload, projectId });
+      const result = form.id ? await updatePackageAction(form.id, payload) : await createPackageAction({ ...payload, projectId: isGeneral ? null : projectId });
       if (!result.success) {
         toast.error(result.error);
         return;
@@ -158,20 +160,13 @@ export function PackagesClient({ projects, canWrite }: { projects: Array<{ id: s
     await load();
   }
 
-  if (projects.length === 0) {
-    return (
-      <div className="rounded-lg border border-border bg-card">
-        <EmptyState title="Primero crea un certamen" description="El tarifario de auspicios pertenece a un certamen o evento." />
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-end gap-3">
         <div>
-          <Label htmlFor="pkg-project">Certamen</Label>
+          <Label htmlFor="pkg-project">Tarifario</Label>
           <select id="pkg-project" className={cn(nativeSelectClass, 'min-w-[16rem]')} value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+            <option value={GENERAL_TARIFF}>Tarifario general (sin certamen)</option>
             {projects.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name} ({p.code})
@@ -181,24 +176,21 @@ export function PackagesClient({ projects, canWrite }: { projects: Array<{ id: s
         </div>
         {canWrite && (
           <div className="ml-auto flex flex-wrap items-end gap-2">
-            {projects.length > 1 && (
-              <>
-                <select aria-label="Copiar planes desde" className={cn(nativeSelectClass, 'w-auto')} value={copyFrom} onChange={(e) => setCopyFrom(e.target.value)}>
-                  <option value="">Copiar planes desde…</option>
-                  {projects
-                    .filter((p) => p.id !== projectId)
-                    .map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                </select>
-                <Button type="button" variant="outline" disabled={!copyFrom} onClick={() => void copy()}>
-                  <Copy aria-hidden="true" />
-                  Copiar
-                </Button>
-              </>
-            )}
+            <select aria-label="Copiar planes desde" className={cn(nativeSelectClass, 'w-auto')} value={copyFrom} onChange={(e) => setCopyFrom(e.target.value)}>
+              <option value="">Copiar planes desde…</option>
+              {!isGeneral && <option value={GENERAL_TARIFF}>Tarifario general (sin certamen)</option>}
+              {projects
+                .filter((p) => p.id !== projectId)
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+            </select>
+            <Button type="button" variant="outline" disabled={!copyFrom} onClick={() => void copy()}>
+              <Copy aria-hidden="true" />
+              Copiar
+            </Button>
             <Button type="button" onClick={openNew}>
               <Plus aria-hidden="true" />
               Nuevo plan
@@ -219,8 +211,12 @@ export function PackagesClient({ projects, canWrite }: { projects: Array<{ id: s
       ) : packages.length === 0 ? (
         <div className="rounded-lg border border-border bg-card">
           <EmptyState
-            title="Este certamen todavía no tiene tarifario"
-            description="Define tus planes (Principal, Oro, Plata, Media Partner…) con precio, cupos y beneficios. Aparecen en el CRM al proponer un auspicio y en el sitio público del certamen."
+            title={isGeneral ? 'El tarifario general está vacío' : 'Este certamen todavía no tiene tarifario'}
+            description={
+              isGeneral
+                ? 'Prepara tus planes (Principal, Oro, Plata, Media Partner…) sin necesidad de un certamen. Son plantillas internas: cuando crees un certamen, cópialas a él y recién ahí aparecen en el CRM y en el sitio público.'
+                : 'Define tus planes (Principal, Oro, Plata, Media Partner…) con precio, cupos y beneficios. Aparecen en el CRM al proponer un auspicio y en el sitio público del certamen. Si ya tienes un tarifario general, cópialo desde arriba.'
+            }
             action={canWrite ? <Button onClick={openNew}>Crear el primer plan</Button> : undefined}
           />
         </div>
@@ -235,15 +231,22 @@ export function PackagesClient({ projects, canWrite }: { projects: Array<{ id: s
                     <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">{SPONSORSHIP_TIER_LABELS[pkg.tier]}</p>
                     <h2 className="text-lg font-semibold text-foreground">{pkg.name}</h2>
                   </div>
-                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" title={pkg.isPublic ? 'Visible en el sitio público' : 'Solo interno'}>
-                    {pkg.isPublic ? <Eye className="size-3.5" aria-hidden="true" /> : <EyeOff className="size-3.5" aria-hidden="true" />}
-                    {pkg.isPublic ? 'Público' : 'Interno'}
-                  </span>
+                  {isGeneral ? (
+                    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" title="Plantilla interna: cópiala a un certamen para usarla">
+                      <Layers className="size-3.5" aria-hidden="true" />
+                      Plantilla
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" title={pkg.isPublic ? 'Visible en el sitio público' : 'Solo interno'}>
+                      {pkg.isPublic ? <Eye className="size-3.5" aria-hidden="true" /> : <EyeOff className="size-3.5" aria-hidden="true" />}
+                      {pkg.isPublic ? 'Público' : 'Interno'}
+                    </span>
+                  )}
                 </div>
                 <p className="mt-2 text-2xl font-bold tabular-nums">{formatCurrency(pkg.price)}</p>
-                <p className="text-xs text-muted-foreground">neto, precio de lista{pkg.isPublic && !pkg.showPricePublic ? ' · no se publica' : ''}</p>
+                <p className="text-xs text-muted-foreground">neto, precio de lista{!isGeneral && pkg.isPublic && !pkg.showPricePublic ? ' · no se publica' : ''}</p>
                 <div className="mt-3">
-                  <div className="flex items-center justify-between text-xs">
+                  <div className={cn('items-center justify-between text-xs', isGeneral ? 'hidden' : 'flex')}>
                     <span className={cn(soldOut ? 'font-medium text-success' : 'text-muted-foreground')}>
                       {pkg.maxSlots !== null ? `${pkg.soldSlots}/${pkg.maxSlots} cupos vendidos` : `${pkg.soldSlots} vendidos · cupos ilimitados`}
                     </span>
@@ -337,11 +340,14 @@ export function PackagesClient({ projects, canWrite }: { projects: Array<{ id: s
               <Label htmlFor="pkg-desc">Descripción</Label>
               <textarea id="pkg-desc" className={textareaClass} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Para qué tipo de marca es este plan" />
             </div>
-            <div className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2">
-              <span className="text-sm">Mostrar en el sitio público del certamen</span>
-              <Switch checked={form.isPublic} onCheckedChange={(v) => setForm({ ...form, isPublic: v })} label="Mostrar en el sitio público" />
-            </div>
-            {form.isPublic && (
+            {isGeneral && <p className="rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground">Este plan queda en el tarifario general (sin certamen): es una plantilla interna. Al copiarlo a un certamen podrás decidir si se publica.</p>}
+            {!isGeneral && (
+              <div className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2">
+                <span className="text-sm">Mostrar en el sitio público del certamen</span>
+                <Switch checked={form.isPublic} onCheckedChange={(v) => setForm({ ...form, isPublic: v })} label="Mostrar en el sitio público" />
+              </div>
+            )}
+            {!isGeneral && form.isPublic && (
               <div className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2">
                 <span className="text-sm">Publicar el precio</span>
                 <Switch checked={form.showPricePublic} onCheckedChange={(v) => setForm({ ...form, showPricePublic: v })} label="Publicar el precio" />

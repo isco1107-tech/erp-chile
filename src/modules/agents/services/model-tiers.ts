@@ -44,6 +44,29 @@ export const DEFAULT_NVIDIA_REASONING_MODEL = 'deepseek-ai/deepseek-v4-pro';
 export interface NvidiaTarget {
   apiKey: string;
   model: string;
+  /** Endpoint `/chat/completions` de otro proveedor compatible con OpenAI; sin él, NVIDIA. */
+  url?: string;
+  /** Tope de salida; 4096 por defecto, insuficiente para devolver un sitio completo en JSON. */
+  maxTokens?: number;
+}
+
+/** Salida suficiente para el diseño completo de una página sin cortarse a mitad del JSON. */
+export const DESIGNER_MAX_OUTPUT_TOKENS = 16_000;
+
+/**
+ * Proveedor gratuito adicional, a elección del administrador, para repartir la
+ * cuota entre varios (Mistral, Groq, OpenRouter…: todos hablan el formato de
+ * OpenAI). Se configura con tres variables y no hay modelo por defecto a
+ * propósito: los catálogos gratuitos cambian y un ID viejo solo fallaría.
+ */
+export function resolveExtraLlmTarget(
+  env: Record<string, string | undefined> = process.env
+): NvidiaTarget | null {
+  const apiKey = env.EXTRA_LLM_API_KEY?.trim();
+  const baseUrl = env.EXTRA_LLM_BASE_URL?.trim().replace(/\/+$/, '');
+  const model = env.EXTRA_LLM_MODEL?.trim();
+  if (!apiKey || !baseUrl || !model || !baseUrl.startsWith('https://')) return null;
+  return { apiKey, model, url: `${baseUrl}/chat/completions`, maxTokens: DESIGNER_MAX_OUTPUT_TOKENS };
 }
 
 /**

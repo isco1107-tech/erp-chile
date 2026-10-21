@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Copy, ExternalLink, Globe, RefreshCw, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { DomainSetupNotice } from '@/components/hosting/DomainSetupNotice';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -129,10 +130,12 @@ export function CustomDomainSection({ projectId, canWrite, siteEnabled }: { proj
             </a>
           ) : (
             <div className="space-y-2">
-              <p className="text-sm">
-                Entra al panel donde compraste el dominio (NIC Chile, GoDaddy, Cloudflare…) y crea {view.records.length === 1 ? 'este registro DNS' : 'estos registros DNS'}:
-              </p>
-              {view.records.length > 0 ? (
+              {view.records.length > 0 && (
+                <p className="text-sm">
+                  Entra al panel donde compraste el dominio (NIC Chile, GoDaddy, Cloudflare…) y crea {view.records.length === 1 ? 'este registro DNS' : 'estos registros DNS'}:
+                </p>
+              )}
+              {view.records.length > 0 && (
                 <div className="overflow-x-auto rounded-md border border-border">
                   <table className="w-full text-left text-sm">
                     <thead className="bg-muted/50 text-xs text-muted-foreground">
@@ -158,17 +161,11 @@ export function CustomDomainSection({ projectId, canWrite, siteEnabled }: { proj
                     </tbody>
                   </table>
                 </div>
-              ) : (
-                <p className="text-xs text-muted-foreground">Los DNS ya apuntan bien; falta que el servidor confirme el dominio. Revisa el estado en unos minutos.</p>
               )}
               <p className="text-xs text-muted-foreground">
                 Si el panel no acepta &quot;@&quot;, deja el nombre vacío. Los cambios de DNS pueden tardar desde minutos hasta 24-48 horas; el sitio se conecta solo apenas el dominio responde.
               </p>
-              {!view.automatic && (
-                <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-                  El administrador de la plataforma también debe agregar {view.domain} en Vercel (Project → Settings → Domains), porque la conexión automática no está configurada.
-                </p>
-              )}
+              <DomainSetupNotice domain={view.domain} automatic={view.automatic} dnsOk={view.dnsOk} serving={view.serving} />
             </div>
           )}
 

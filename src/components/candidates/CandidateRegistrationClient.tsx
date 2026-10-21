@@ -9,6 +9,7 @@ import { PAGEANT_FONT_CLASSES } from '@/components/public/pageant/fonts';
 import { Arrow, Calendar, Check, Crown, Instagram, Mail, Tiara, Whatsapp } from '@/components/public/pageant/icons';
 import { HeroSky, pad } from '@/components/public/pageant/parts';
 import { PAGEANT_SITE_STYLES } from '@/components/public/pageant/styles';
+import { startReveal } from '@/components/public/pageant/reveal';
 import { CandidateApplicationForm } from '@/components/public/pageant/CandidateApplicationForm';
 import { WhatsappFloat } from '@/components/public/pageant/WhatsappFloat';
 import { REGISTRATION_STYLES } from './registration-styles';
@@ -43,30 +44,12 @@ function useCountdown(target: Date | null) {
   };
 }
 
-/** Revelado al hacer scroll; sin IntersectionObserver o con movimiento reducido, todo se ve de inmediato. */
+/** Revelado al hacer scroll (ver `reveal.ts`); sin IntersectionObserver o con movimiento reducido, todo se ve de inmediato. */
 function useScrollReveal(ready: boolean) {
   useEffect(() => {
     if (!ready) return;
     const root = document.querySelector<HTMLElement>('.pgs');
-    const nodes = Array.from(document.querySelectorAll<HTMLElement>('[data-reveal]:not(.is-in)'));
-    if (!root || nodes.length === 0) return;
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || typeof IntersectionObserver === 'undefined') {
-      for (const node of nodes) node.classList.add('is-in');
-      return;
-    }
-    root.dataset.motion = 'on';
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
-          entry.target.classList.add('is-in');
-          observer.unobserve(entry.target);
-        }
-      },
-      { rootMargin: '0px 0px -8% 0px', threshold: 0.08 }
-    );
-    for (const node of nodes) observer.observe(node);
-    return () => observer.disconnect();
+    return root ? startReveal(root) : undefined;
   }, [ready]);
 }
 
@@ -126,7 +109,7 @@ export default function CandidateRegistrationClient({ token }: { token: string }
 
   const privacyHref = `${CONFIG.privacidadUrl}?certamen=${encodeURIComponent(token)}`;
   const contact = project.contact;
-  const hasContact = Boolean(contact.email || contact.whatsapp || contact.instagram);
+  const hasContact = Boolean(contact.email || contact.whatsapp || contact.instagrams.length > 0);
   const title = splitPageantTitle(project.projectName);
   const shortName = [title.lead, title.main].filter(Boolean).join(' ');
   // --pgs-lead-fit: "MISS UNIVERSO" crece hasta llenar el ancho sin desbordar en teléfonos.
@@ -334,7 +317,7 @@ export default function CandidateRegistrationClient({ token }: { token: string }
                   {project.maxCandidates ? ` (solo ${project.maxCandidates} candidatas)` : ''}.
                 </p>
               </div>
-              <CandidateApplicationForm token={token} minAge={project.minCandidateAge} privacyHref={privacyHref} />
+              <CandidateApplicationForm token={token} requirements={project.requirements} privacyHref={privacyHref} />
             </div>
           </div>
         </section>
@@ -342,15 +325,15 @@ export default function CandidateRegistrationClient({ token }: { token: string }
 
       {/* ── Pie ────────────────────────────────────────────────────────── */}
       <footer className="pgs-footer">
-        {contact.instagram && (
-          <a className="pgs-follow" href={contact.instagram.href} target="_blank" rel="noopener noreferrer">
+        {contact.instagrams.map((ig) => (
+          <a key={ig.handle} className="pgs-follow" href={ig.href} target="_blank" rel="noopener noreferrer">
             <span className="pgs-follow-label">
               <Instagram className="pgs-inline-icon" />
               Síguenos en Instagram
             </span>
-            <span className="pgs-follow-handle">@{contact.instagram.handle}</span>
+            <span className="pgs-follow-handle">@{ig.handle}</span>
           </a>
-        )}
+        ))}
         <div className="pgs-wrap pgs-footer-grid">
           <div className="pgs-footer-brand">
             <Crown className="pgs-brand-mark" />
@@ -383,9 +366,6 @@ export default function CandidateRegistrationClient({ token }: { token: string }
             </a>
           </div>
         </div>
-        <p className="pgs-footer-word" aria-hidden="true">
-          {title.main}
-        </p>
         <div className="pgs-wrap pgs-footer-legal">
           <p>
             © {title.edition ?? ''} {shortName}
@@ -426,11 +406,11 @@ function ContactLinks({ contact }: { contact: RegistrationProjectInfo['contact']
           <Mail className="pgs-inline-icon" /> {contact.email}
         </a>
       )}
-      {contact.instagram && (
-        <a href={contact.instagram.href} target="_blank" rel="noreferrer">
-          <Instagram className="pgs-inline-icon" /> @{contact.instagram.handle}
+      {contact.instagrams.map((ig) => (
+        <a key={ig.handle} href={ig.href} target="_blank" rel="noreferrer">
+          <Instagram className="pgs-inline-icon" /> @{ig.handle}
         </a>
-      )}
+      ))}
     </span>
   );
 }

@@ -120,6 +120,15 @@ export function toFriendlyErrorMessage(error: unknown): string {
     if (error.code === 'P2003') return 'No se puede completar la acción: hay otros registros que dependen de este dato';
     if (error.code === 'P2025') return 'El registro no existe o ya fue eliminado';
     if (error.code === 'P2028') return 'La operación tardó demasiado. Intenta de nuevo';
+    // Valor fuera de rango de la columna (montos CLP en `Int`: tope $2.147.483.647).
+    // Es un dato mal digitado (ceros de más), no una falla del sistema.
+    if (error.code === 'P2020') {
+      return 'Un monto o cantidad es demasiado grande (máximo $2.147.483.647). Revisa las cifras ingresadas';
+    }
+    // RESTRICT de llave foránea (Postgres 23001): mismo caso que P2003.
+    if (/violates RESTRICT setting of foreign key/i.test(error.message)) {
+      return 'No se puede completar la acción: hay otros registros que dependen de este dato';
+    }
     captureException(error, { module: 'prisma', extra: { code: error.code, reason: 'untranslated-known-request-error' } });
     return 'Ocurrió un error al guardar los datos. Intenta de nuevo';
   }

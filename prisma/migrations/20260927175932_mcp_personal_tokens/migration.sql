@@ -8,7 +8,7 @@
 ALTER TABLE "CompanySettings" ADD COLUMN IF NOT EXISTS "mcpConnectorEnabled" BOOLEAN NOT NULL DEFAULT false;
 
 -- CreateTable
-CREATE TABLE "McpPersonalToken" (
+CREATE TABLE IF NOT EXISTS "McpPersonalToken" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,

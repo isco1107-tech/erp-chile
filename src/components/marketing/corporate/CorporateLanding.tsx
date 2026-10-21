@@ -8,15 +8,18 @@ import ComplianceSecurity from './ComplianceSecurity';
 import Implementation from './Implementation';
 import EventsSection from './EventsSection';
 import FaqSection from './FaqSection';
-import CtaBand from './CtaBand';
 import SalesContact from '../SalesContact';
 import CorporateFooter from './CorporateFooter';
 import { contactForm } from './content';
 
 /**
  * Landing corporativa `/empresas`: blanca, sobria, estática. Server Component
- * salvo `MobileMenu` (dentro de `CorporateHeader`) y `SalesContact`, que ya es
- * `'use client'`. Distinta de la cinematográfica de `/`, que no se toca.
+ * salvo `MobileMenu` (dentro de `CorporateHeader`), el explorador de módulos y
+ * `SalesContact`. Distinta de la cinematográfica de `/`.
+ *
+ * Recorrido compacto: hero · hechos verificables · razones · módulos (por
+ * pestañas) · cumplimiento y seguridad (una franja, dos columnas) ·
+ * implementación · certámenes · preguntas · cotización · pie.
  */
 export default function CorporateLanding({ salesEmail, salesWhatsapp, legalName, legalRut }: {
   salesEmail: string;
@@ -37,7 +40,6 @@ export default function CorporateLanding({ salesEmail, salesWhatsapp, legalName,
       <Implementation />
       <EventsSection />
       <FaqSection />
-      <CtaBand />
       <SalesContact
         email={salesEmail}
         whatsapp={salesWhatsapp}

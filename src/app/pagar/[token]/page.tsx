@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import InstallmentPortalClient from '@/components/payment-plans/InstallmentPortalClient';
 import { PublicStatus } from '@/components/public/PublicShell';
 import { getPublicInstallmentPortal } from '@/modules/payment-plans/services/online-payment.service';
+import PublicPrivacyFooter from '@/components/legal/PublicPrivacyFooter';
 
 export const metadata: Metadata = { title: 'Pago de cuotas', robots: { index: false, follow: false } };
 export const dynamic = 'force-dynamic';
@@ -21,5 +22,10 @@ export default async function InstallmentPortalPage({ params }: { params: Promis
     );
   }
 
-  return <InstallmentPortalClient token={token} portal={portal} />;
+  return (
+    <>
+      <InstallmentPortalClient token={token} portal={portal} />
+      <PublicPrivacyFooter flow="cuotas" token={token} />
+    </>
+  );
 }

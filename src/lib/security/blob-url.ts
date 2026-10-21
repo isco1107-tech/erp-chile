@@ -21,6 +21,28 @@ function r2PublicHost(): string | null {
   }
 }
 
+/**
+ * Referencia a un objeto del bucket PRIVADO de R2 (ver `putPrivate` en
+ * `storage/blob.ts`). No es una URL abrible: solo el servidor la resuelve.
+ */
+export const PRIVATE_REF_PREFIX = 'r2private:///';
+
+export function isPrivateRef(value: string): boolean {
+  return privateKeyFromRef(value) !== null;
+}
+
+/** Clave del objeto dentro del bucket privado, o `null` si no es una referencia privada válida. */
+export function privateKeyFromRef(value: string): string | null {
+  if (!value.startsWith(PRIVATE_REF_PREFIX)) return null;
+  const key = value.slice(PRIVATE_REF_PREFIX.length);
+  return key.length > 0 && !key.split('/').includes('..') ? key : null;
+}
+
+/** Valor aceptable como `fileUrl` guardado: URL de nuestro storage público o referencia privada. */
+export function isAllowedStoredFile(value: string): boolean {
+  return isPrivateRef(value) || isAllowedBlobUrl(value);
+}
+
 export function isAllowedBlobUrl(value: string): boolean {
   try {
     const url = new URL(value);
@@ -45,6 +67,8 @@ export function isAllowedBlobUrl(value: string): boolean {
  * ajeno.
  */
 export function blobPathnameStartsWith(value: string, prefix: string): boolean {
+  const privateKey = privateKeyFromRef(value);
+  if (privateKey) return privateKey.startsWith(prefix);
   try {
     const url = new URL(value);
     return url.pathname.replace(/^\/+/, '').startsWith(prefix);

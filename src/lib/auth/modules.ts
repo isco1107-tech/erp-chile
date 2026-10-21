@@ -7,8 +7,8 @@ import { CORE_PERMISSION_GROUP, PERMISSION_LABELS, type Permission } from './per
  * Es la fuente única que conecta las tres capas del feature gating:
  * el flag contratado en `CompanyFeatures`, los permisos que el módulo habilita
  * y las rutas que deben bloquearse si el plan no lo incluye. Agregar un módulo
- * nuevo significa agregar una entrada aquí; el sidebar, los guards y el panel
- * de superadmin se derivan de este objeto y no necesitan tocarse.
+ * nuevo significa agregar una entrada aquí; el sidebar, los guards y la
+ * Supersuite se derivan de este objeto y no necesitan tocarse.
  */
 
 /** Claves booleanas de `CompanyFeatures`, sin los campos de metadatos. */
@@ -46,6 +46,10 @@ export type FeatureKey = keyof Pick<
   | 'hasServiceDesk'
   | 'hasWebSites'
   | 'hasConsignment'
+  | 'hasCustomerCare'
+  | 'hasQuality'
+  | 'hasTeamTasks'
+  | 'hasAcademy'
 >;
 
 export type CompanyFeatureFlags = Record<FeatureKey, boolean>;
@@ -314,6 +318,38 @@ export const MODULES: ModuleDefinition[] = [
     permissions: ['consignment:read', 'consignment:write'],
     routes: ['/dashboard/consignment'],
   },
+  {
+    key: 'hasCustomerCare',
+    label: 'Fidelización y Clientes',
+    description:
+      'Canal de origen de cada cliente ("¿cómo nos encontraste?"), encuesta breve de satisfacción por enlace (CSAT y NPS), y seguimiento de clientes que dejaron de comprar.',
+    permissions: ['customercare:read', 'customercare:write'],
+    routes: ['/dashboard/customer-care'],
+  },
+  {
+    key: 'hasQuality',
+    label: 'Calidad y Procedimientos',
+    description:
+      'Procedimientos operativos con versión y acuse de lectura del equipo, inspecciones de calidad por plantilla (materia prima, proceso y producto terminado) y ficha de productores y proveedores clave.',
+    permissions: ['quality:read', 'quality:write', 'quality:manage'],
+    routes: ['/dashboard/quality'],
+  },
+  {
+    key: 'hasTeamTasks',
+    label: 'Tareas y Delegación',
+    description:
+      'Tareas del equipo con responsable, plazo y repetición semanal o mensual, y reglas escritas de qué decisiones puede tomar cada persona y hasta qué monto.',
+    permissions: ['tasks:read', 'tasks:write', 'tasks:manage'],
+    routes: ['/dashboard/tasks'],
+  },
+  {
+    key: 'hasAcademy',
+    label: 'Academia',
+    description:
+      'Ficha de cada alumna, lista de asistencia por clase y control de la mensualidad pagada, para academias de modelaje y similares.',
+    permissions: ['academy:read', 'academy:write', 'academy:manage'],
+    routes: ['/dashboard/academy'],
+  },
 ];
 
 export const MODULE_KEYS: FeatureKey[] = MODULES.map((m) => m.key);
@@ -356,6 +392,10 @@ export const DEFAULT_FEATURES: CompanyFeatureFlags = {
   hasServiceDesk: false,
   hasWebSites: false,
   hasConsignment: false,
+  hasCustomerCare: false,
+  hasQuality: false,
+  hasTeamTasks: false,
+  hasAcademy: false,
 };
 
 /** Índice inverso permiso → módulo, construido una vez al cargar el módulo. */
@@ -411,6 +451,10 @@ export function toFeatureFlags(features: CompanyFeatures | null): CompanyFeature
     hasServiceDesk: features.hasServiceDesk,
     hasWebSites: features.hasWebSites,
     hasConsignment: features.hasConsignment,
+    hasCustomerCare: features.hasCustomerCare,
+    hasQuality: features.hasQuality,
+    hasTeamTasks: features.hasTeamTasks,
+    hasAcademy: features.hasAcademy,
   };
 }
 

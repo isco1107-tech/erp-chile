@@ -126,9 +126,10 @@ export async function upsertGeneratedContract(companyId: string, candidateId: st
 export async function saveZapsignRequest(
   companyId: string,
   documentId: string,
-  data: { zapsignDocToken: string; zapsignSignUrl: string | null }
+  data: { zapsignDocToken: string; zapsignSignUrl: string | null; zapsignSandbox: boolean }
 ): Promise<CandidateDocument> {
-  const result = await prisma.candidateDocument.updateMany({ where: { id: documentId, companyId }, data });
+  // Un reenvío arranca de cero: la firma de prueba de un envío anterior no se arrastra.
+  const result = await prisma.candidateDocument.updateMany({ where: { id: documentId, companyId }, data: { ...data, zapsignTestSignedAt: null } });
   if (result.count === 0) throw new Error('Documento no encontrado');
   const updated = await prisma.candidateDocument.findFirst({ where: { id: documentId, companyId } });
   if (!updated) throw new Error('Documento no encontrado');
@@ -148,6 +149,20 @@ export async function findCandidateDocumentByZapsignToken(zapsignDocToken: strin
 }
 
 /**
+ * Registra una firma hecha en el SANDBOX de ZapSign. No llena `signedAt` ni
+ * cambia el archivo del contrato: sin validez legal, el contrato sigue
+ * pendiente para el casting, el centro de mando y el contrato vigente.
+ * Idempotente (`zapsignTestSignedAt: null` en el where).
+ */
+export async function markTestSignatureByZapsignToken(zapsignDocToken: string): Promise<boolean> {
+  const result = await prisma.candidateDocument.updateMany({
+    where: { zapsignDocToken, zapsignSandbox: true, signedAt: null, zapsignTestSignedAt: null },
+    data: { zapsignTestSignedAt: new Date() },
+  });
+  return result.count > 0;
+}
+
+/**
  * Registra la firma confirmada por ZapSign — llamada exclusivamente desde el
  * webhook, después de que este ya reconsultó el estado real contra la API de
  * ZapSign (nunca a partir del body del webhook sin verificar). Busca por
@@ -162,6 +177,9 @@ export async function markContractSignedByZapsignToken(
 ): Promise<{ document: CandidateDocument; justSigned: boolean } | null> {
   const existing = await prisma.candidateDocument.findUnique({ where: { zapsignDocToken } });
   if (!existing) return null;
+  // Defensa: un documento de sandbox jamás se marca como firmado de verdad,
+  // llegue por donde llegue la llamada (ver `markTestSignatureByZapsignToken`).
+  if (existing.zapsignSandbox) return { document: withComputedStatus(existing), justSigned: false };
   // `justSigned: false` acá: el webhook de ZapSign puede reintentar el mismo
   // evento, o dos entregas pueden llegar concurrentes — el caller (route.ts)
   // usa esta bandera para no reenviar el aviso de firma completada dos veces.

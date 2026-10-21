@@ -64,7 +64,7 @@ export async function runMonthlyClosingCron(): Promise<{ processedCompanies: num
       });
 
       for (const recipient of recipients) {
-        const delivery = await sendEmail({ to: recipient.email, subject: email.subject, html: email.html, text: email.text });
+        const delivery = await sendEmail({ to: recipient.email, subject: email.subject, html: email.html, text: email.text, companyId: company.id });
         if (delivery.status !== 'failed') emailsSent++;
       }
 

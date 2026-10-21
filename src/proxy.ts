@@ -62,6 +62,13 @@ const PUBLIC_ROUTES = [
   // tiene cuenta ERP; la ruta valida el token ella misma contra
   // `ServiceTicket.trackingToken`.
   '/servicio',
+  // Encuesta de satisfacción (`/encuesta/[token]`): el cliente no tiene cuenta
+  // ERP; la ruta valida el token contra `CustomerSurvey.token`.
+  '/encuesta',
+  // Inscripción pública a la academia (`/academia/inscripcion/[token]`): la
+  // interesada no tiene cuenta ERP; la ruta valida el token contra
+  // `CompanySettings.academyEnrollmentToken`. Con barra final a propósito.
+  '/academia/',
   // Portal de clientes (`/cliente/[token]`): el cliente no tiene cuenta ERP;
   // la ruta valida el token ella misma contra `Contact.portalTokenHash`.
   '/cliente',
@@ -71,10 +78,18 @@ const PUBLIC_ROUTES = [
   '/branding',
   // Políticas de privacidad públicas: la de la empresa cliente (enlazada
   // desde el formulario público de postulación, sin sesión ERP) y la de la
-  // propia plataforma Aether (enlazada desde `AetherBadge`, visible en toda
+  // propia plataforma Aether (enlazada desde el pie de la landing y el login; el `AetherBadge` ahora lleva a la landing, visible en toda
   // la app, login incluido).
   '/politica-privacidad',
+  // Aviso de privacidad de los demás formularios públicos (entradas, votos,
+  // cuotas, auspiciador, encuesta): la empresa sale del token del enlace.
+  '/aviso-privacidad',
   '/aether',
+  // Formulario público de derechos sobre datos personales (`/derechos/[token]`):
+  // el titular no tiene cuenta ERP; la ruta valida el token contra
+  // `CompanySettings.privacyPortalToken`.
+  // Con barra final a propósito (como `/web/`): `/derechos-x` no debe quedar público por accidente.
+  '/derechos/',
   // Metadatos de rastreo de la landing (`src/app/robots.ts` y
   // `src/app/sitemap.ts`): un buscador los pide sin cookies, así que si
   // cayeran en el redirect a /login la landing quedaría sin robots ni sitemap.
@@ -95,7 +110,8 @@ const PUBLIC_ROUTES = [
 /**
  * Petición que llegó por el dominio propio de un certamen (ej.
  * missuniversotemuco.cl): la raíz muestra su micrositio, los flujos públicos
- * que enlaza (postulación, entradas, votación, pagos) se sirven igual, y todo
+ * que enlaza (postulación, entradas, votación, pagos) se sirven igual, las
+ * páginas internas de un sitio web (`/servicios`) se reescriben a `/sitio/[host]/[page]`, y todo
  * lo demás (login, panel) se manda a la plataforma: el ERP nunca se sirve
  * bajo el dominio de un cliente. Sin base de datos: `/sitio/[host]` resuelve
  * qué certamen es.
@@ -109,6 +125,18 @@ function routeCustomDomain(req: NextRequest, host: string): NextResponse {
     return NextResponse.rewrite(url);
   }
   if (route.kind === 'pass') return NextResponse.next();
+  if (route.kind === 'page') {
+    // Página interna de un sitio web (`minegocio.cl/servicios`): `/sitio/[host]/[page]` decide si existe.
+    const url = req.nextUrl.clone();
+    url.pathname = `/sitio/${encodeURIComponent(domainFromHost(host))}/${route.slug}`;
+    return NextResponse.rewrite(url);
+  }
+  if (route.kind === 'seo') {
+    // `robots.txt` y `sitemap.xml` del sitio de ese dominio (no los de la plataforma).
+    const url = req.nextUrl.clone();
+    url.pathname = `/sitio/${encodeURIComponent(domainFromHost(host))}/${route.file}`;
+    return NextResponse.rewrite(url);
+  }
   return NextResponse.redirect(`${platformBaseUrl()}${pathname}${search}`);
 }
 
@@ -157,6 +185,9 @@ export async function proxy(req: NextRequest) {
     // Incluye `/empresas/opengraph-image`: las redes la piden sin sesión.
     pathname === '/empresas' ||
     pathname.startsWith('/empresas/') ||
+    // Vitrina de módulos: una página pública por módulo (`/modulos/[slug]`).
+    pathname === '/modulos' ||
+    pathname.startsWith('/modulos/') ||
     pathname.startsWith('/marketing/') ||
     pathname.startsWith('/downloads/') ||
     pathname.startsWith('/manual/screenshots/') ||
@@ -185,13 +216,6 @@ export async function proxy(req: NextRequest) {
     // claves se mantenga para siempre.
     if (payload.purpose !== 'session') throw new Error('Token de sesión inválido');
 
-    // Descarte temprano del portal de plataforma. Es solo una primera barrera:
-    // el token podría ser anterior a una revocación, así que `requireSuperAdmin()`
-    // vuelve a comprobar la bandera contra la base de datos en cada página.
-    if (pathname.startsWith('/superadmin') && payload.isSuperAdmin !== true) {
-      return NextResponse.redirect(new URL('/dashboard', req.url));
-    }
-
     return NextResponse.next();
   } catch {
     const loginUrl = new URL('/login', req.url);
@@ -205,8 +229,12 @@ export async function proxy(req: NextRequest) {
 export const config = {
   // `/api` queda fuera a propósito: un 307 hacia el HTML de /login es una
   // respuesta inútil para un cliente que espera JSON. Cada route handler bajo
-  // src/app/api/** DEBE llamar `requireAuthWithPermission()` (o `requireSuperAdmin()`)
-  // por su cuenta y devolver 401/403 con cuerpo JSON. Si agregas una ruta API
-  // nueva, ese guard no es opcional.
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+  // src/app/api/** DEBE llamar `requireAuthWithPermission()` por su cuenta y
+  // devolver 401/403 con cuerpo JSON. Si agregas una ruta API nueva, ese guard
+  // no es opcional.
+  // `_vercel` (Web Analytics y Speed Insights) queda fuera: sin sesión, el proxy
+  // lo mandaba a /login y en un dominio propio lo reescribía al micrositio.
+  // `epione` y `hermes` son otras apps del ecosistema que next.config.js
+  // reenvía a su despliegue: tienen su propio acceso, el del ERP no aplica.
+  matcher: ['/((?!api|epione|hermes|_next/static|_next/image|_vercel|favicon.ico).*)'],
 };

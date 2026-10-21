@@ -32,7 +32,6 @@ export type NavIconKey =
   | 'cashflow'
   | 'reports'
   | 'settings'
-  | 'platform'
   | 'agents'
   | 'projects'
   | 'calendar'
@@ -89,9 +88,15 @@ export type NavIconKey =
   | 'manufacturing'
   | 'boms'
   | 'serviceDesk'
+  | 'academy'
   | 'webSites'
   | 'consignment'
-  | 'invoiceArchive';
+  | 'invoiceArchive'
+  | 'customerCare'
+  | 'quality'
+  | 'procedures'
+  | 'tasks'
+  | 'delegation';
 
 export interface NavLink {
   /** Identificador estable (ver comentario del archivo). */
@@ -115,7 +120,6 @@ export interface NavGroup {
 export interface NavAccess {
   permissions: readonly Permission[];
   features: CompanyFeatureFlags;
-  isSuperAdmin: boolean;
   /** Ítems que la empresa apagó en Configuración → Módulos y menú. */
   disabledNavItems?: readonly string[];
 }
@@ -142,7 +146,7 @@ const SETTINGS_PERMISSIONS: Permission[] = [
  * apagó. Lo usan la pantalla de configuración del menú (para listar también
  * lo apagado) y el guard de rutas (para saber a qué ítem pertenece una URL).
  */
-export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin }: Omit<NavAccess, 'disabledNavItems'>): NavGroup[] {
+export function buildAvailableWorkspaceNav({ permissions, features }: Omit<NavAccess, 'disabledNavItems'>): NavGroup[] {
   const allow = (permission: Permission) => permissions.includes(permission);
   const groups: NavGroup[] = [];
   const push = (label: string, links: NavLink[], collapsedByDefault?: boolean) => {
@@ -209,6 +213,9 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
   if (allow('contacts:read')) {
     ventas.push({ id: 'contacts', href: '/dashboard/contacts', label: 'Clientes & Proveedores', icon: 'contacts', keywords: ['contactos', 'rut', 'clientes', 'proveedores'] });
   }
+  if (features.hasCustomerCare && allow('customercare:read')) {
+    ventas.push({ id: 'customer-care', href: '/dashboard/customer-care', label: 'Fidelización', icon: 'customerCare', keywords: ['encuesta', 'satisfaccion', 'nps', 'csat', 'recompra', 'clientes inactivos', 'seguimiento', 'canal de origen', 'como nos encontraste', 'postventa'] });
+  }
   push('Ventas', ventas);
 
   const compras: NavLink[] = [];
@@ -246,6 +253,15 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
   }
   if (features.hasConsignment && allow('consignment:read')) {
     operaciones.push({ id: 'consignment', href: '/dashboard/consignment', label: 'Consignación', icon: 'consignment', keywords: ['productor', 'productores', 'consignacion', 'comision', 'liquidacion', 'proveedor', 'terceros'] });
+  }
+  if (features.hasQuality && allow('quality:read')) {
+    operaciones.push({ id: 'quality', href: '/dashboard/quality', label: 'Calidad y procedimientos', icon: 'quality', keywords: ['sop', 'procedimiento', 'inspeccion', 'control de calidad', 'lote', 'productores', 'proveedores', 'higiene', 'induccion', 'trazabilidad', 'checklist'] });
+  }
+  if (features.hasTeamTasks && allow('tasks:read')) {
+    operaciones.push({ id: 'tasks', href: '/dashboard/tasks', label: 'Tareas y delegación', icon: 'tasks', keywords: ['tarea', 'pendientes', 'rutina', 'recordatorio', 'responsable', 'delegar', 'delegacion', 'decisiones', 'checklist', 'semanal'] });
+  }
+  if (features.hasAcademy && allow('academy:read')) {
+    operaciones.push({ id: 'academy', href: '/dashboard/academy', label: 'Academia', icon: 'academy', keywords: ['alumnas', 'alumnos', 'modelaje', 'asistencia', 'pasar lista', 'mensualidad', 'ficha', 'curso', 'clases', 'calendario', 'horario', 'programar clase', 'material', 'presentación'] });
   }
   push('Operaciones', operaciones);
 
@@ -395,11 +411,7 @@ export function buildAvailableWorkspaceNav({ permissions, features, isSuperAdmin
   push('Ayuda', [{ id: 'manual', href: '/dashboard/manual', label: 'Manual de Usuario', icon: 'help', keywords: ['ayuda', 'como usar', 'tutorial'] }]);
 
   if (SETTINGS_PERMISSIONS.some(allow)) {
-    push('Configuración', [{ id: 'settings', href: '/dashboard/settings', label: 'Configuración', icon: 'settings', keywords: ['empresa', 'usuarios', 'folios', 'caf', 'roles', 'modulos', 'menu'] }]);
-  }
-
-  if (isSuperAdmin) {
-    push('Plataforma', [{ id: 'platform', href: '/superadmin', label: 'Panel SaaS', icon: 'platform' }]);
+    push('Configuración', [{ id: 'settings', href: '/dashboard/settings', label: 'Configuración', icon: 'settings', keywords: ['empresa', 'usuarios', 'folios', 'caf', 'roles', 'modulos', 'menu', 'planes', 'precios', 'contratar'] }]);
   }
 
   return groups;
@@ -441,6 +453,6 @@ export function sanitizeDisabledNavItems(input: readonly string[], knownIds: Rea
 /** Todos los ids que existen en el registro (plan completo, todos los permisos). */
 export function allKnownNavItemIds(): Set<string> {
   const features = Object.fromEntries(MODULE_KEYS.map((key) => [key, true])) as CompanyFeatureFlags;
-  const groups = buildAvailableWorkspaceNav({ permissions: ALL_PERMISSIONS, features, isSuperAdmin: false });
+  const groups = buildAvailableWorkspaceNav({ permissions: ALL_PERMISSIONS, features });
   return new Set(groups.flatMap((group) => group.links.map((link) => link.id)));
 }

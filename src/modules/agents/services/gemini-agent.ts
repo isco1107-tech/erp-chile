@@ -2,10 +2,10 @@ import 'server-only';
 
 import { GoogleGenAI, type Content, type FunctionDeclaration, type Part } from '@google/genai';
 
-import { captureException } from '@/lib/observability';
+import { captureException, captureMessage } from '@/lib/observability';
 
-import { resolveAgentModel, resolveNvidiaTarget, type AgentModelTier, type NvidiaTarget } from './model-tiers';
-import { generateNvidiaText, generateNvidiaWithTools } from './nvidia-agent';
+import { resolveAgentModel, resolveExtraLlmTarget, resolveNvidiaTarget, type AgentModelTier, type NvidiaTarget } from './model-tiers';
+import { generateNvidiaText, generateNvidiaWithTools, isNvidiaModelRetired, markIfModelRetired } from './nvidia-agent';
 
 /**
  * Cliente Gemini compartido por todos los agentes automáticos.
@@ -107,6 +107,7 @@ interface GenerateContentRequest {
   contents: Array<{ role: string; parts: Array<{ text: string }> }>;
   config: {
     systemInstruction: string;
+    maxOutputTokens?: number;
     responseMimeType?: string;
     responseJsonSchema?: Record<string, unknown>;
   };
@@ -120,6 +121,16 @@ async function callWithRetry(request: GenerateContentRequest): Promise<string | 
 
 /** El usuario igual recibe respuesta (de Gemini); esto deja rastro de que NVIDIA falló y por qué. */
 function reportNvidiaFallback(error: unknown, target: NvidiaTarget, call: 'text' | 'tools'): void {
+  // Modelo dado de baja: es configuración, no un error por consulta. Un aviso
+  // (una vez por instancia) con lo que hay que hacer, y no se vuelve a intentar.
+  if (markIfModelRetired(error, target.model)) {
+    captureMessage(
+      `NVIDIA retiró el modelo ${target.model}: los agentes siguen con Gemini. Define NVIDIA_MODEL_REASONING con un modelo vigente del catálogo.`,
+      'warn',
+      { module: 'agents', extra: { provider: 'nvidia', model: target.model, call } }
+    );
+    return;
+  }
   captureException(error, { module: 'agents', extra: { provider: 'nvidia', model: target.model, call, fallback: 'gemini' } });
 }
 
@@ -130,21 +141,33 @@ function reportNvidiaFallback(error: unknown, target: NvidiaTarget, call: 'text'
 export async function generateAgentText(
   systemPrompt: string,
   userPrompt: string,
-  tier: AgentModelTier = 'standard'
+  tier: AgentModelTier = 'standard',
+  options?: { geminiModel?: string; maxOutputTokens?: number; json?: boolean; extraProvider?: boolean }
 ): Promise<string> {
-  const nvidia = resolveNvidiaTarget(tier);
-  if (nvidia) {
+  // Proveedores gratuitos primero (NVIDIA, luego el adicional que configure el
+  // administrador): Gemini queda de respaldo y solo gasta su cuota si ambos fallan.
+  const targets = [resolveNvidiaTarget(tier), options?.extraProvider ? resolveExtraLlmTarget() : null];
+  for (const target of targets) {
+    if (!target || isNvidiaModelRetired(target.model)) continue;
     try {
-      return await generateNvidiaText(nvidia, systemPrompt, userPrompt);
+      return await generateNvidiaText(
+        options?.maxOutputTokens ? { ...target, maxTokens: options.maxOutputTokens } : target,
+        systemPrompt,
+        userPrompt
+      );
     } catch (error) {
-      reportNvidiaFallback(error, nvidia, 'text');
+      reportNvidiaFallback(error, target, 'text');
     }
   }
 
   const text = await callWithRetry({
-    model: resolveAgentModel(tier),
+    model: options?.geminiModel ?? resolveAgentModel(tier),
     contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-    config: { systemInstruction: systemPrompt },
+    config: {
+      systemInstruction: systemPrompt,
+      ...(options?.json ? { responseMimeType: 'application/json' } : {}),
+      ...(options?.maxOutputTokens ? { maxOutputTokens: options.maxOutputTokens } : {}),
+    },
   });
   if (!text) throw new Error('El modelo no devolvió una respuesta');
   return text.trim();
@@ -231,7 +254,7 @@ export async function generateAgentWithTools(
   tier: AgentModelTier = 'standard'
 ): Promise<string> {
   const nvidia = resolveNvidiaTarget(tier);
-  if (nvidia) {
+  if (nvidia && !isNvidiaModelRetired(nvidia.model)) {
     try {
       return await generateNvidiaWithTools(nvidia, systemPrompt, initialContents, tools, executors, MAX_TOOL_ITERATIONS);
     } catch (error) {

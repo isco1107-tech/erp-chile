@@ -18,6 +18,11 @@ export async function createProject(companyId: string, data: ProjectCreateInput)
       venueName: data.venueName === undefined ? undefined : data.venueName || null,
       venueAddress: data.venueAddress === undefined ? undefined : data.venueAddress || null,
       publicWhatsapp: data.publicWhatsapp ?? null,
+      instagramHandle: data.instagramHandle ?? null,
+      minCandidateAge: data.minCandidateAge,
+      requireChileanNationality: data.requireChileanNationality,
+      requireCandidateInstagram: data.requireCandidateInstagram,
+      requireCandidatePhoto: data.requireCandidatePhoto,
     },
   });
 }
@@ -41,6 +46,11 @@ export async function updateProject(companyId: string, id: string, data: Project
       venueName: data.venueName === undefined ? undefined : data.venueName || null,
       venueAddress: data.venueAddress === undefined ? undefined : data.venueAddress || null,
       publicWhatsapp: data.publicWhatsapp,
+      instagramHandle: data.instagramHandle,
+      minCandidateAge: data.minCandidateAge,
+      requireChileanNationality: data.requireChileanNationality,
+      requireCandidateInstagram: data.requireCandidateInstagram,
+      requireCandidatePhoto: data.requireCandidatePhoto,
     },
   });
   if (result.count === 0) throw new Error('Proyecto no encontrado');

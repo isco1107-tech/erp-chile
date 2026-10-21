@@ -14,6 +14,7 @@ import {
   getProductAction,
   listCategoriesAction,
   listProductsPageAction,
+  setProductActiveAction,
 } from '@/modules/inventory/actions/products.actions';
 import type { ProductListItem } from '@/modules/inventory/services/products.service';
 import { formatCurrency } from '@/lib/chile/tax';
@@ -33,6 +34,7 @@ export default function ProductsClient() {
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [categoryId, setCategoryId] = useState('');
+  const [includeArchived, setIncludeArchived] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSizeState] = useState<number>(DEFAULT_PAGE_SIZE);
   const [showForm, setShowForm] = useState(false);
@@ -45,11 +47,11 @@ export default function ProductsClient() {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedQuery, categoryId]);
+  }, [debouncedQuery, categoryId, includeArchived]);
 
   async function loadProducts() {
     setLoading(true);
-    const result = await listProductsPageAction(debouncedQuery || undefined, categoryId || undefined, page, pageSize);
+    const result = await listProductsPageAction(debouncedQuery || undefined, categoryId || undefined, page, pageSize, includeArchived);
     if (result.success) {
       setProducts(result.data.items);
       setTotal(result.data.total);
@@ -62,7 +64,7 @@ export default function ProductsClient() {
   useEffect(() => {
     loadProducts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedQuery, categoryId, page, pageSize]);
+  }, [debouncedQuery, categoryId, page, pageSize, includeArchived]);
 
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
 
@@ -119,6 +121,18 @@ export default function ProductsClient() {
     loadProducts();
   }
 
+  async function handleToggleArchive(product: ProductListItem) {
+    const archiving = product.isActive;
+    if (archiving && !await confirm(`¿Archivar "${product.name}"? Dejará de aparecer en el POS y en los selectores, pero conserva su historial.`)) return;
+    const result = await setProductActiveAction(product.id, !archiving);
+    if (!result.success) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success(archiving ? 'Producto archivado' : 'Producto restaurado');
+    loadProducts();
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -140,6 +154,10 @@ export default function ProductsClient() {
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
+          <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <input type="checkbox" checked={includeArchived} onChange={(e) => setIncludeArchived(e.target.checked)} />
+            Mostrar archivados
+          </label>
         </div>
 
         <Button
@@ -209,7 +227,10 @@ export default function ProductsClient() {
               return (
                 <tr key={p.id} className="border-t border-border">
                   <td className="p-2 font-mono text-xs">{p.sku}</td>
-                  <td className="p-2">{p.name}</td>
+                  <td className="p-2">
+                    {p.name}
+                    {!p.isActive && <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">Archivado</span>}
+                  </td>
                   <td className="p-2">{p.category?.name ?? '—'}</td>
                   <td className="p-2">{p.unit}</td>
                   <td className="p-2">{formatCurrency(p.netPrice)}</td>
@@ -232,6 +253,9 @@ export default function ProductsClient() {
                   <td className="p-2">
                     <div className="flex gap-2">
                       <Button type="button" size="sm" variant="outline" onClick={() => handleEdit(p)}>Editar</Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => handleToggleArchive(p)}>
+                        {p.isActive ? 'Archivar' : 'Restaurar'}
+                      </Button>
                       <Button type="button" size="sm" variant="destructive" onClick={() => handleDelete(p)}>Eliminar</Button>
                     </div>
                   </td>

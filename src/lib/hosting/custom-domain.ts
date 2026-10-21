@@ -1,3 +1,5 @@
+import { isValidPageSlug } from '@/lib/web-sites/page-slugs';
+
 /**
  * Dominios propios de los micrositios de certámenes (ej. `missuniversotemuco.cl`).
  *
@@ -23,7 +25,15 @@ export function normalizeDomain(input: string): string {
   return value;
 }
 
-/** Hosts donde vive la propia plataforma: nunca pueden registrarse como dominio de un certamen. */
+/**
+ * Hosts donde vive la propia plataforma: nunca pueden registrarse como dominio de un certamen o sitio.
+ *
+ * `APP_URL` manda. `VERCEL_PROJECT_PRODUCTION_URL` solo sirve de respaldo sin `APP_URL`:
+ * Vercel lo fija al dominio de producción MÁS CORTO del proyecto, y cada dominio de
+ * cliente que se agrega al proyecto puede pasar a serlo. Si se leyera siempre, el
+ * dominio de una empresa terminaría contado como "de la plataforma": se le negaría a
+ * su dueña, o peor, el proxy serviría el ERP bajo el dominio del cliente.
+ */
 export function appHosts(env: Record<string, string | undefined> = process.env): string[] {
   const fromUrl = (raw: string | undefined): string | null => {
     if (!raw?.trim()) return null;
@@ -34,8 +44,7 @@ export function appHosts(env: Record<string, string | undefined> = process.env):
     }
   };
   const hosts = [
-    fromUrl(env.APP_URL),
-    fromUrl(env.VERCEL_PROJECT_PRODUCTION_URL),
+    fromUrl(env.APP_URL) ?? fromUrl(env.VERCEL_PROJECT_PRODUCTION_URL),
     fromUrl(env.VERCEL_URL),
     fromUrl(env.VERCEL_BRANCH_URL),
     ...(env.APP_HOSTS ?? '').split(',').map((host) => fromUrl(host)),
@@ -58,10 +67,11 @@ export function customDomainProblem(domain: string, env: Record<string, string |
   if (!/^[a-z]{2,63}$/.test(labels[labels.length - 1]!)) return 'La terminación del dominio no es válida';
   if (domain === 'localhost' || domain.endsWith('.localhost')) return 'Ese dominio no es público';
   if (domain.endsWith('.vercel.app') || domain.endsWith('.vercel.sh')) return 'Usa un dominio propio, no uno de vercel.app';
-  const platform = appHosts(env);
-  if (platform.some((host) => host === domain || domain.endsWith(`.${host}`) || host.endsWith(`.${domain}`))) {
-    return 'Ese dominio es el de la plataforma; usa uno propio del certamen';
-  }
+  // Solo choca el host exacto de la plataforma o un subdominio suyo. El "padre" sí se
+  // permite (plataforma en `app.miempresa.cl`, sitio de la empresa en `miempresa.cl`):
+  // el proxy decide por host exacto, así que no puede desviar la app.
+  const clash = appHosts(env).find((host) => host === domain || domain.endsWith(`.${host}`));
+  if (clash) return `Ese dominio (${clash}) es el de la plataforma; usa uno propio de la empresa`;
   return null;
 }
 
@@ -106,22 +116,36 @@ export function domainFromHost(host: string | null): string {
 const CUSTOM_DOMAIN_PASSTHROUGH = [
   '/_next',
   '/certamen/',
+  // Formulario de inscripción de la academia: el botón «Inscríbete» de su sitio enlaza acá.
+  '/academia/inscripcion/',
   '/register',
   '/tickets',
   '/votar',
   '/pagar',
   '/politica-privacidad',
+  '/aviso-privacidad',
+  '/derechos/',
   '/icon.png',
   '/favicon.ico',
   '/branding',
-  '/robots.txt',
 ];
+
+/** Metadatos de rastreo que cada dominio propio sirve con los datos de SU sitio (no los de la plataforma). */
+const CUSTOM_DOMAIN_SEO_FILES = ['/robots.txt', '/sitemap.xml'] as const;
 
 export type CustomDomainRoute =
   /** Raíz del dominio: se reescribe al micrositio del certamen. */
   | { kind: 'site' }
   /** Ruta pública que se sirve igual. */
   | { kind: 'pass' }
+  /**
+   * `/<slug>` de un solo segmento con forma de página de un sitio web (no
+   * reservado): se reescribe a `/sitio/<dominio>/<slug>`, que decide si esa
+   * página existe (si no, va a la plataforma con la misma ruta).
+   */
+  | { kind: 'page'; slug: string }
+  /** `robots.txt` o `sitemap.xml`: se reescribe a `/sitio/<dominio>/<archivo>`, del sitio de ese dominio. */
+  | { kind: 'seo'; file: 'robots.txt' | 'sitemap.xml' }
   /** Cualquier otra (panel, login…): va a la plataforma, nunca bajo el dominio del certamen. */
   | { kind: 'platform' };
 
@@ -135,10 +159,14 @@ const WEB_SITE_RAW_RE = /^\/web\/[a-z0-9-]{3,50}\/raw\/?$/;
 
 export function customDomainRoute(pathname: string): CustomDomainRoute {
   if (pathname === '/' || pathname === '') return { kind: 'site' };
+  const seo = CUSTOM_DOMAIN_SEO_FILES.find((file) => pathname === file);
+  if (seo) return { kind: 'seo', file: seo === '/robots.txt' ? 'robots.txt' : 'sitemap.xml' };
   if (WEB_SITE_RAW_RE.test(pathname)) return { kind: 'pass' };
   if (CUSTOM_DOMAIN_PASSTHROUGH.some((prefix) => pathname === prefix || pathname.startsWith(prefix.endsWith('/') ? prefix : `${prefix}/`))) {
     return { kind: 'pass' };
   }
+  const segment = pathname.replace(/^\/+/, '').replace(/\/$/, '');
+  if (segment && !segment.includes('/') && isValidPageSlug(segment)) return { kind: 'page', slug: segment };
   return { kind: 'platform' };
 }
 

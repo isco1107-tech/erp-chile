@@ -26,7 +26,7 @@ export default async function NewWebSitePage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Sitios web" title="Nuevo sitio" description="Tres pasos: para qué es, cómo lo quieres armar y cómo se va a llamar. Después lo editas con calma antes de publicarlo." />
+      <PageHeader eyebrow="Sitios web" title="Nuevo sitio" description="Tres pasos: tu rubro, cómo lo quieres armar y cómo se va a llamar. Te lo entregamos armado; después lo ajustas con calma antes de publicarlo." />
       <NewWebSiteWizard contacts={contacts} contactsTruncated={contactsTruncated} baseUrl={getAppUrl()} />
     </div>
   );

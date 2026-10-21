@@ -393,15 +393,19 @@ export const WORKFLOW_TRIGGER_DEFINITIONS: Record<WorkflowTriggerEvent, Workflow
   },
   WEB_SITE_MESSAGE_RECEIVED: {
     event: 'WEB_SITE_MESSAGE_RECEIVED',
-    label: 'Mensaje desde un sitio web',
-    description: 'Alguien escribió desde el formulario de contacto de un sitio web publicado. Útil para avisar al equipo o responder al instante.',
+    label: 'Mensaje o formulario desde un sitio web',
+    description: 'Alguien completó un formulario (contacto, cotización, inscripción, reserva…) de un sitio web publicado. Útil para avisar al equipo o responder al instante; filtra por formulario o propósito con las condiciones.',
     fields: [
       { field: 'siteId', label: 'ID del sitio', kind: 'string' },
       { field: 'siteName', label: 'Sitio', kind: 'string' },
+      { field: 'formTitle', label: 'Formulario', kind: 'string' },
+      { field: 'purpose', label: 'Propósito (Contacto, Cotización, Inscripción…)', kind: 'string' },
+      { field: 'destination', label: 'Dónde quedó en el ERP', kind: 'string' },
+      { field: 'tag', label: 'Etiqueta del formulario', kind: 'string' },
       { field: 'senderName', label: 'Nombre de quien escribe', kind: 'string' },
       { field: 'senderEmail', label: 'Correo de quien escribe', kind: 'string' },
       { field: 'senderPhone', label: 'Teléfono', kind: 'string' },
-      { field: 'message', label: 'Mensaje', kind: 'string' },
+      { field: 'message', label: 'Respuestas', kind: 'string' },
     ],
   },
 };

@@ -1,3 +1,4 @@
+import { CreativeSiteSections } from '@/components/web-sites/CreativeSiteSections';
 import type { Metadata } from 'next';
 import { PageantSite } from '@/components/public/pageant/PageantSite';
 import { formatCurrency } from '@/lib/chile/tax';
@@ -23,6 +24,8 @@ export function pageantSiteMetadata(site: PublicPageantSite): Metadata {
     title: { absolute: site.name },
     description,
     alternates: { canonical },
+    // Logo propio de la pestaña; sin él, el navegador usa el de la plataforma.
+    ...(site.faviconUrl ? { icons: { icon: site.faviconUrl, shortcut: site.faviconUrl, apple: site.faviconUrl } } : {}),
     openGraph: { title: site.name, description, type: 'website', locale: 'es_CL', siteName: site.name, url: canonical, images: [ogImage] },
     twitter: { card: 'summary_large_image', title: site.name, description, images: [ogImage] },
   };
@@ -64,7 +67,9 @@ export function PageantSiteDocument({ site }: { site: PublicPageantSite }) {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }}
         />
       )}
+      {site.creative?.placement === 'before' && <CreativeSiteSections design={site.creative} name={site.name} slug={site.slug} basePath={site.customDomain ? '' : `/certamen/${site.slug}`} />}
       <PageantSite site={site} view={view} />
+      {site.creative?.placement !== 'before' && <CreativeSiteSections design={site.creative} name={site.name} slug={site.slug} basePath={site.customDomain ? '' : `/certamen/${site.slug}`} />}
     </>
   );
 }

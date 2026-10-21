@@ -42,3 +42,15 @@ describe('resolveNvidiaTarget', () => {
     expect(resolveNvidiaTarget('reasoning', env)?.model).toBe('moonshotai/kimi-k2.6');
   });
 });
+
+describe('resolveExtraLlmTarget', () => {
+  const { resolveExtraLlmTarget } = jest.requireActual('@/modules/agents/services/model-tiers') as typeof import('@/modules/agents/services/model-tiers');
+  const base = { EXTRA_LLM_API_KEY: 'k', EXTRA_LLM_BASE_URL: 'https://api.example.com/v1/', EXTRA_LLM_MODEL: 'm' };
+  it('arma el endpoint de chat y un tope de salida suficiente para un sitio completo', () => {
+    expect(resolveExtraLlmTarget(base)).toEqual({ apiKey: 'k', model: 'm', url: 'https://api.example.com/v1/chat/completions', maxTokens: 16_000 });
+  });
+  it('queda inactivo si falta una variable o la URL no es https', () => {
+    expect(resolveExtraLlmTarget({ ...base, EXTRA_LLM_MODEL: '' })).toBeNull();
+    expect(resolveExtraLlmTarget({ ...base, EXTRA_LLM_BASE_URL: 'http://api.example.com/v1' })).toBeNull();
+  });
+});

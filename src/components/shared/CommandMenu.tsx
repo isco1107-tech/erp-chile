@@ -19,7 +19,6 @@ import { NAV_ICONS } from './SidebarNav';
 export interface CommandMenuProps {
   permissions: Permission[];
   features: CompanyFeatureFlags;
-  isSuperAdmin: boolean;
   /** Ítems que la empresa apagó: tampoco deben aparecer en la paleta. */
   disabledNavItems?: readonly string[];
 }
@@ -112,7 +111,7 @@ function matches(entry: StaticEntry, normalizedQuery: string): boolean {
 const MAX_LIVE_RESULTS = 5;
 const OPTION_ID_PREFIX = 'command-option-';
 
-export default function CommandMenu({ permissions, features, isSuperAdmin, disabledNavItems }: CommandMenuProps) {
+export default function CommandMenu({ permissions, features, disabledNavItems }: CommandMenuProps) {
   const router = useRouter();
 
   const [open, setOpen] = React.useState(false);
@@ -129,7 +128,7 @@ export default function CommandMenu({ permissions, features, isSuperAdmin, disab
   // Mismo registro que la barra lateral: todo módulo visible allá se encuentra acá.
   const visibleModules = React.useMemo<StaticEntry[]>(
     () =>
-      buildWorkspaceNav({ permissions, features, isSuperAdmin, disabledNavItems }).flatMap((group) =>
+      buildWorkspaceNav({ permissions, features, disabledNavItems }).flatMap((group) =>
         group.links.map((link) => ({
           id: `nav-${link.href}`,
           label: link.label,
@@ -139,7 +138,7 @@ export default function CommandMenu({ permissions, features, isSuperAdmin, disab
           keywords: link.keywords,
         }))
       ),
-    [permissions, features, isSuperAdmin, disabledNavItems]
+    [permissions, features, disabledNavItems]
   );
   const visibleActions = React.useMemo(
     () =>
@@ -299,6 +298,7 @@ export default function CommandMenu({ permissions, features, isSuperAdmin, disab
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Buscar clientes, productos o módulos (Ctrl+K)"
+        data-tutorial="command-search"
         className="flex h-10 w-full max-w-[360px] items-center gap-2 rounded-[10px] border border-transparent bg-muted px-3 text-sm text-muted-foreground transition-colors duration-150 hover:border-border hover:bg-muted/80 focus-visible:outline-2 focus-visible:outline-ring"
       >
         <Search className="size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />

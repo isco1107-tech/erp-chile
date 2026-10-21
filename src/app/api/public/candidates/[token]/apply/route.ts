@@ -7,6 +7,7 @@ import {
   RegistrationNotOpenError,
   RegistrationFullError,
   BelowMinimumAgeError,
+  RegistrationRequirementError,
   DuplicateApplicationError,
 } from '@/modules/candidates/services/candidates.service';
 import { extractClientIp } from '@/lib/auth/ip-allowlist';
@@ -21,7 +22,8 @@ import { TURNSTILE_FIELD, verifyTurnstile } from '@/lib/security/turnstile';
 /**
  * Endpoint público de postulación: sin autenticación, accesible desde
  * internet. Recibe los 8 datos de la inscripción en JSON (nombre, RUT, edad,
- * comuna, teléfono, correo, Instagram y motivación); sin archivos, así que
+ * comuna, teléfono, correo, Instagram y motivación); la foto, si el certamen la
+ * pide, se sube antes por `/photo` y aquí llega solo su URL, así que
  * el cuerpo es chico y se acota a `MAX_BODY_BYTES`. La empresa y el certamen
  * salen SIEMPRE del token del link, nunca del cuerpo.
  */
@@ -80,7 +82,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     comuna: body.comuna,
     phone: body.phone,
     email: body.email,
-    instagram: body.instagram,
+    instagram: typeof body.instagram === 'string' ? body.instagram : undefined,
+    photoUrl: typeof body.photoUrl === 'string' && body.photoUrl.trim() !== '' ? body.photoUrl : undefined,
+    declaraNacionalidadChilena: body.declaraNacionalidadChilena === true ? true : undefined,
     motivacion: body.motivacion,
     guardianName: typeof body.guardianName === 'string' && body.guardianName.trim() !== '' ? body.guardianName : undefined,
     guardianRut: typeof body.guardianRut === 'string' && body.guardianRut.trim() !== '' ? body.guardianRut : undefined,
@@ -132,6 +136,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     if (error instanceof RegistrationNotOpenError) return jsonError(error.message, 403);
     if (error instanceof RegistrationFullError) return jsonError(error.message, 403);
     if (error instanceof BelowMinimumAgeError) return jsonError(error.message, 403);
+    if (error instanceof RegistrationRequirementError) return jsonError(error.message, 400);
     if (error instanceof DuplicateApplicationError) return jsonError(error.message, 409);
     captureException(error, { module: 'candidates', companyId });
     return jsonError('No se pudo enviar la inscripción. Intenta de nuevo más tarde.', 500);
@@ -159,7 +164,7 @@ async function sendConfirmationEmails(
       contact,
     });
     // Si la postulante responde el correo, la respuesta llega al certamen, no a la plataforma.
-    await sendEmail({ to: candidate.email, ...confirmation, ...(contact.email ? { replyTo: contact.email } : {}) });
+    await sendEmail({ to: candidate.email, companyId, ...confirmation, ...(contact.email ? { replyTo: contact.email } : {}) });
   }
 
   const owners = await prisma.user.findMany({ where: { companyId, role: 'OWNER', isActive: true }, select: { email: true } });
@@ -170,7 +175,7 @@ async function sendConfirmationEmails(
     comuna: candidate.comuna ?? '—',
     dashboardUrl: `${getAppUrl()}/dashboard/candidates`,
   });
-  await Promise.all(owners.map((owner) => sendEmail({ to: owner.email, ...notice })));
+  await Promise.all(owners.map((owner) => sendEmail({ to: owner.email, companyId, ...notice })));
 }
 
 async function emitCandidateRegisteredEvent(candidate: { id: string; fullName: string; projectId: string }, companyId: string): Promise<void> {

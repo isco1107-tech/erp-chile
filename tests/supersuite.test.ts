@@ -8,7 +8,8 @@ jest.mock('next/server', () => ({ after: jest.fn((tarea: () => unknown) => { voi
 jest.mock('@/lib/observability', () => ({ captureException: jest.fn() }));
 jest.mock('@/lib/prisma', () => ({ prisma: { company: { findFirst: jest.fn() } } }));
 
-import { accionDeAuditoria, alertaDeFolios, empresaActiva, moduloDeEntidad, modulosContratados } from '@/lib/supersuite/modulos';
+import { accionDeAuditoria, alertaDeFolios, alertaDeSolicitud, catalogoDeModulos, empresaActiva, fichaComercial, flagsDeModulo, moduloDeEntidad, modulosContratados } from '@/lib/supersuite/modulos';
+import { PLAN_PRESETS } from '@/lib/pricing/presets';
 
 const fetchMock = jest.fn();
 global.fetch = fetchMock as unknown as typeof fetch;
@@ -62,10 +63,11 @@ describe('equivalencias con la Supersuite', () => {
     expect(modulosContratados(null)).toEqual([]);
   });
 
-  it('solo ACTIVE y TRIAL cuentan como empresa activa', () => {
+  it('solo CANCELLED es baja: una empresa suspendida sigue siendo cliente', () => {
     expect(empresaActiva('ACTIVE')).toBe(true);
     expect(empresaActiva('TRIAL')).toBe(true);
-    expect(empresaActiva('SUSPENDED')).toBe(false);
+    expect(empresaActiva('SUSPENDED')).toBe(true);
+    expect(empresaActiva('CANCELLED')).toBe(false);
   });
 
   it('sin folios la alerta es crítica; con pocos, alta; la clave es estable por tipo', () => {
@@ -75,11 +77,39 @@ describe('equivalencias con la Supersuite', () => {
   });
 });
 
+describe('lo que la empresa le paga a Aether', () => {
+  const sinExtras = (plan: string) => fichaComercial({ planName: plan, features: PLAN_PRESETS[plan]!.features, maxUsers: PLAN_PRESETS[plan]!.maxUsers, maxWarehouses: 1 });
+
+  it('un plan sin cambios cuesta exactamente su precio y no tiene extras ni usuarios adicionales', () => {
+    const ficha = sinExtras('Gestión');
+    expect(ficha.tarifaMensual).toBe(84990);
+    expect(ficha.metadata).toMatchObject({ planVigente: true, modulosExtra: [], usuariosAdicionales: 0 });
+  });
+
+  it('el tope de usuarios heredado no infla la tarifa: va aparte', () => {
+    const ficha = fichaComercial({ planName: 'Personalizado', features: PLAN_PRESETS.Base!.features, maxUsers: 50, maxWarehouses: 1 });
+    expect(ficha.tarifaMensual).toBe(14990);
+    expect(ficha.metadata).toMatchObject({ usuariosAdicionales: 48, tarifaUsuariosAdicionales: 48 * 2990 });
+  });
+
+  it('la ficha lista todo lo contratado según el tarifario, incluso lo que la Supersuite aún no mide', () => {
+    const ficha = fichaComercial({ planName: 'Personalizado', features: { ...PLAN_PRESETS.Base!.features, hasOrgChart: true }, maxUsers: 2, maxWarehouses: 1 });
+    expect(ficha.metadata.modulosAether).toEqual(['org-chart']);
+  });
+
+  it('la alerta de solicitud no se pasa de 500 caracteres ni lleva datos personales', () => {
+    const alerta = alertaDeSolicitud({ planLabel: null, modulos: Array.from({ length: 40 }, (_, i) => `Módulo número ${i}`), net: 1, total: 1 });
+    expect(alerta.mensaje.length).toBeLessThanOrEqual(500);
+    expect(alerta.severidad).toBe('media');
+  });
+});
+
 describe('sin configuración', () => {
   it('no envía nada ni consulta la base', async () => {
     const { s, findFirst } = cargar({});
     s.registrarUsoSupersuite({ companyId: 'c1', entity: 'SalesDocument', action: 'CREATE' });
     s.latidoCajaSupersuite('c1', { id: 'r1', name: 'Caja 1' });
+    s.presenciaSupersuite('c1', 'u1');
     await s.sincronizarEmpresaSupersuite('c1');
     await esperarEnvios();
     expect(s.supersuiteHabilitada()).toBe(false);
@@ -91,28 +121,82 @@ describe('sin configuración', () => {
 describe('con configuración', () => {
   const env = { SUPERSUITE_URL: 'https://ss.test', SUPERSUITE_KEY: 'ss_aether_x' };
 
-  it('una acción auditada se envía como evento de su módulo, con la API key', async () => {
+  it('toda acción auditada se envía: la de un módulo como su uso y el resto como plataforma, con la API key', async () => {
     const { s } = cargar(env);
-    s.registrarUsoSupersuite({ companyId: 'c1', entity: 'SalesDocument', action: 'ISSUE_DTE' });
+    s.registrarUsoSupersuite({ companyId: 'c1', entity: 'SalesDocument', action: 'ISSUE_DTE', userId: 'u7' });
     s.registrarUsoSupersuite({ companyId: 'c1', entity: 'User', action: 'CREATE' });
     await esperarEnvios();
-    const [envio] = cuerposEnviados();
-    expect(envio.url).toBe('https://ss.test/ingesta/eventos');
-    expect(envio.cuerpo).toEqual([expect.objectContaining({ clienteId: 'c1', modulo: 'ventas', accion: 'sales_document_issue_dte' })]);
+    const envios = cuerposEnviados().filter((e) => e.url === 'https://ss.test/ingesta/eventos');
+    const eventos = envios.flatMap((e) => e.cuerpo);
+    expect(eventos).toEqual([
+      expect.objectContaining({ clienteId: 'c1', modulo: 'ventas', accion: 'sales_document_issue_dte', usuarioId: 'u7', datos: { entidad: 'SalesDocument', operacion: 'ISSUE_DTE' } }),
+      expect.objectContaining({ clienteId: 'c1', modulo: 'plataforma', accion: 'user_create', datos: { entidad: 'User', operacion: 'CREATE' } }),
+    ]);
+    // Solo la entidad y la operación: nunca el registro ni quién (más allá del id opaco).
+    for (const evento of eventos) expect(Object.keys(evento.datos).sort()).toEqual(['entidad', 'operacion']);
     expect((fetchMock.mock.calls[0][1] as RequestInit).headers).toMatchObject({ 'X-Api-Key': 'ss_aether_x' });
+  });
+
+  it('la presencia sale solo con el id de empresa y el id opaco del usuario', async () => {
+    const { s } = cargar(env);
+    s.presenciaSupersuite('c1', 'u1');
+    await esperarEnvios();
+    const [envio] = cuerposEnviados();
+    expect(envio.url).toBe('https://ss.test/ingesta/presencia');
+    expect(envio.cuerpo).toEqual([{ clienteId: 'c1', usuarioId: 'u1', fecha: expect.any(String) }]);
   });
 
   it('un cambio de la empresa manda su ficha con los módulos contratados', async () => {
     const { s, findFirst } = cargar(env);
     findFirst.mockResolvedValue({
       businessName: 'Ferretería Sur', rut: '76.111.111-1', ciudad: 'Temuco', comuna: null, planName: 'Profesional',
-      status: 'SUSPENDED', createdAt: new Date('2025-01-10'), features: { hasPos: true, hasInventory: true },
+      status: 'SUSPENDED', createdAt: new Date('2025-01-10'), maxUsers: 10, maxWarehouses: 3, features: { hasPos: true, hasInventory: true },
     });
     s.registrarUsoSupersuite({ companyId: 'c1', entity: 'CompanyFeatures', action: 'UPDATE' });
     await esperarEnvios();
-    const [envio] = cuerposEnviados();
-    expect(envio.url).toBe('https://ss.test/ingesta/clientes');
-    expect(envio.cuerpo[0]).toMatchObject({ clienteId: 'c1', nombre: 'Ferretería Sur', ciudad: 'Temuco', plan: 'Profesional', activo: false, modulos: ['pos', 'inventario'] });
+    const envio = cuerposEnviados().find((e) => e.url === 'https://ss.test/ingesta/clientes')!;
+    expect(envio).toBeDefined();
+    // El cambio también queda en la actividad, como plataforma.
+    expect(cuerposEnviados().find((e) => e.url === 'https://ss.test/ingesta/eventos')?.cuerpo[0]).toMatchObject({ modulo: 'plataforma', accion: 'company_features_update' });
+    expect(envio.cuerpo[0]).toMatchObject({ clienteId: 'c1', nombre: 'Ferretería Sur', ciudad: 'Temuco', plan: 'Profesional', activo: true, suspendida: true, modulos: ['pos', 'inventario'] });
+    // Un plan anterior no tiene tarifa de lista: no se inventa una.
+    expect(envio.cuerpo[0]).not.toHaveProperty('tarifaMensual');
+    expect(envio.cuerpo[0].metadata).toMatchObject({ planVigente: false, usuariosMax: 10, bodegasMax: 3 });
+  });
+
+  it('la ficha lleva lo que la empresa le paga a Aether: tarifa, extras y usuarios adicionales', async () => {
+    const { s, findFirst } = cargar(env);
+    findFirst.mockResolvedValue({
+      businessName: 'Ferretería Sur', rut: '76.111.111-1', ciudad: null, comuna: null, planName: 'Comercio',
+      status: 'ACTIVE', createdAt: new Date('2025-01-10'), maxUsers: 5, maxWarehouses: 1,
+      features: { ...PLAN_PRESETS.Comercio!.features, hasAccounting: true },
+    });
+    s.registrarUsoSupersuite({ companyId: 'c1', entity: 'CompanyFeatures', action: 'UPDATE' });
+    await esperarEnvios();
+    const envio = cuerposEnviados().find((e) => e.url === 'https://ss.test/ingesta/clientes')!;
+    expect(envio.cuerpo[0]).toMatchObject({ plan: 'Comercio', tarifaMensual: 32990 + 17990 });
+    expect(envio.cuerpo[0].metadata).toMatchObject({
+      planVigente: true, tarifaIncluyeIva: false, modulosExtra: ['accounting'], usuariosAdicionales: 2, tarifaUsuariosAdicionales: 5980,
+    });
+  });
+
+  it('una solicitud de módulos llega como alerta, cerrando antes la anterior, sin datos de la persona', async () => {
+    const { s } = cargar(env);
+    s.solicitudModulosSupersuite('c1', { planLabel: 'Gestión', modulos: ['Remuneraciones'], net: 97980, total: 116596 });
+    await esperarEnvios();
+    const alertas = cuerposEnviados().find((e) => e.url.endsWith('/ingesta/alertas'))!.cuerpo as Record<string, unknown>[];
+    expect(alertas[0]).toMatchObject({ clave: 'solicitud-modulos', resuelta: true, clienteId: 'c1' });
+    expect(alertas[1]).toMatchObject({ severidad: 'media', clave: 'solicitud-modulos', clienteId: 'c1' });
+    expect(String(alertas[1]!.mensaje)).toContain('plan Gestión + Remuneraciones');
+    expect(String(alertas[1]!.mensaje)).toContain('$97.980 + IVA');
+  });
+
+  it('atender la solicitud (cambio de plan o módulos) cierra su alerta', async () => {
+    const { s } = cargar(env);
+    s.solicitudModulosAtendidaSupersuite('c1');
+    await esperarEnvios();
+    const alertas = cuerposEnviados().find((e) => e.url.endsWith('/ingesta/alertas'))!.cuerpo as Record<string, unknown>[];
+    expect(alertas).toEqual([{ clave: 'solicitud-modulos', resuelta: true, clienteId: 'c1' }]);
   });
 
   it('cerrar turno deja la caja apagada', async () => {
@@ -139,5 +223,32 @@ describe('con configuración', () => {
     await expect(s.avisarFoliosSupersuite('c1', [])).resolves.toBeUndefined();
     await esperarEnvios();
     expect(captureException).toHaveBeenCalled();
+  });
+});
+
+describe('catálogo de módulos que la Supersuite puede habilitar', () => {
+  it('cada módulo vendible o fuera de oferta se enciende por su id y por todos sus nombres', () => {
+    const catalogo = catalogoDeModulos();
+    for (const item of catalogo.filter((m) => m.desactivable)) {
+      const porId = flagsDeModulo(item.id);
+      expect(porId.length).toBeGreaterThan(0);
+      for (const alias of item.alias) expect(flagsDeModulo(alias)).toEqual(expect.arrayContaining(porId.slice(0, 1)));
+    }
+  });
+
+  it('no repite ids y solo la plataforma base queda sin poder apagarse', () => {
+    const catalogo = catalogoDeModulos();
+    expect(new Set(catalogo.map((m) => m.id)).size).toBe(catalogo.length);
+    expect(catalogo.filter((m) => !m.desactivable).map((m) => m.nombre)).toEqual(['Inventario y Catálogo', 'Costeo PMP']);
+  });
+
+  it('todo módulo de CompanyFeatures está en el catálogo (un módulo nuevo no puede quedar fuera de la Supersuite)', async () => {
+    const { MODULES } = await import('@/lib/auth/modules');
+    const cubiertos = new Set(catalogoDeModulos().flatMap((m) => flagsDeModulo(m.id)));
+    for (const flag of MODULES.map((m) => m.key)) {
+      // Costeo PMP es de la base y no tiene orden propia.
+      if (flag === 'hasPmpCosting') continue;
+      expect(cubiertos.has(flag)).toBe(true);
+    }
   });
 });

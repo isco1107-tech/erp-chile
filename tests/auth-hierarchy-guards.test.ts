@@ -51,35 +51,26 @@ describe('assertPasswordChangeNotPending (SEG-08)', () => {
 /**
  * SEG-03: sin esto, `settings:users` alcanzaba para que un ADMIN reseteara la
  * contraseña de un OWNER, o para que cualquier CustomRole con ese permiso
- * actuara sobre una cuenta de plataforma (`isSuperAdmin`) que compartiera esa
- * empresa como hogar. La matriz actor→objetivo se prueba acá de forma
+ * actuara sobre un OWNER. Aether ya no tiene cuentas de plataforma (el
+ * personal de Aether opera desde la Supersuite). La matriz actor→objetivo se prueba acá de forma
  * aislada — `resetUserTemporaryPassword`/`changeUserRole`/`toggleUserStatus`/
  * `deleteUser` solo le pasan el rol base real de la sesión y el target ya
  * leído de la base.
  */
 describe('assertCanManageTarget (SEG-03)', () => {
   it('bloquea a un ADMIN actuando sobre un OWNER', () => {
-    expect(() => assertCanManageTarget('ADMIN', { role: 'OWNER', isSuperAdmin: false })).toThrow(
+    expect(() => assertCanManageTarget('ADMIN', { role: 'OWNER' })).toThrow(
       'Solo un Dueño (OWNER) puede administrar a otro Dueño'
     );
   });
 
   it('permite a un OWNER actuando sobre otro OWNER', () => {
-    expect(() => assertCanManageTarget('OWNER', { role: 'OWNER', isSuperAdmin: false })).not.toThrow();
-  });
-
-  it('bloquea a cualquier actor (incluido OWNER) sobre una cuenta de plataforma', () => {
-    expect(() => assertCanManageTarget('OWNER', { role: 'ADMIN', isSuperAdmin: true })).toThrow(
-      'No se puede administrar una cuenta de plataforma desde la empresa'
-    );
-    expect(() => assertCanManageTarget('ADMIN', { role: 'ADMIN', isSuperAdmin: true })).toThrow(
-      'No se puede administrar una cuenta de plataforma desde la empresa'
-    );
+    expect(() => assertCanManageTarget('OWNER', { role: 'OWNER' })).not.toThrow();
   });
 
   it('permite a un ADMIN actuando sobre otro ADMIN/SALES/WAREHOUSE/ACCOUNTANT normales', () => {
     for (const role of ['ADMIN', 'SALES', 'WAREHOUSE', 'ACCOUNTANT'] as const) {
-      expect(() => assertCanManageTarget('ADMIN', { role, isSuperAdmin: false })).not.toThrow();
+      expect(() => assertCanManageTarget('ADMIN', { role })).not.toThrow();
     }
   });
 
@@ -88,7 +79,7 @@ describe('assertCanManageTarget (SEG-03)', () => {
     // (`session.role`), no un permiso — así que un CustomRole con
     // `settings:users` otorgado a un SALES sigue bloqueado igual que un
     // ADMIN sin CustomRole.
-    expect(() => assertCanManageTarget('SALES', { role: 'OWNER', isSuperAdmin: false })).toThrow(
+    expect(() => assertCanManageTarget('SALES', { role: 'OWNER' })).toThrow(
       'Solo un Dueño (OWNER) puede administrar a otro Dueño'
     );
   });

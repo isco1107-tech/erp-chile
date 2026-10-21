@@ -30,7 +30,7 @@ export function parseChatResponse(json: unknown): ChatResponse {
 
 /** Respuesta de `/api/ai/manual-assistant/confirm`. */
 export const confirmResponseSchema = z.union([
-  z.object({ success: z.literal(true), data: z.object({ message: z.string() }) }),
+  z.object({ success: z.literal(true), data: z.object({ message: z.string(), href: z.string().nullable().optional() }) }),
   z.object({ success: z.literal(false), error: z.string() }),
 ]);
 

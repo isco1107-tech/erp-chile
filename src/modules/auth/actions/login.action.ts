@@ -15,7 +15,6 @@ type LoginResult = ActionResult<{
   role: string;
   email: string;
   companyId?: string;
-  isSuperAdmin: boolean;
   sessionVersion: number;
   totpEnabled: boolean;
 }>;
@@ -48,7 +47,6 @@ export async function loginAction(input: unknown): Promise<LoginResult> {
       role: user.role,
       email: user.email,
       companyId: user.companyId ?? undefined,
-      isSuperAdmin: user.isSuperAdmin,
       sessionVersion: user.sessionVersion,
       totpEnabled: user.totpEnabled,
     },

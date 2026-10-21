@@ -82,7 +82,6 @@ export async function switchActiveCompanyAction(targetCompanyId: string): Promis
       role: true,
       email: true,
       companyId: true,
-      isSuperAdmin: true,
       sessionVersion: true,
       company: { select: { businessName: true, status: true } },
     },
@@ -115,7 +114,7 @@ export async function switchActiveCompanyAction(targetCompanyId: string): Promis
   // más estricta que la de la empresa hogar.
   const headerList = await headers();
   const clientIp = getClientIp(headerList);
-  const ipError = await checkIpAllowlist(targetCompanyId, user.isSuperAdmin, clientIp);
+  const ipError = await checkIpAllowlist(targetCompanyId, clientIp);
   if (ipError) return { success: false, error: ipError };
 
   const previousToken = (await cookies()).get('session')?.value;
@@ -125,7 +124,6 @@ export async function switchActiveCompanyAction(targetCompanyId: string): Promis
     email: user.email,
     companyId: user.companyId ?? undefined,
     activeCompanyId: targetCompanyId,
-    isSuperAdmin: user.isSuperAdmin,
     sessionVersion: user.sessionVersion,
   });
   await setSessionCookieServer(token);

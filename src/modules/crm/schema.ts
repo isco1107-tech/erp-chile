@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { normalizeInstagramHandle } from '@/lib/events/pageant-contact';
 import { SPONSORSHIP_TIERS } from '@/modules/sponsorships/schema';
 
 export const OPPORTUNITY_STAGES = ['LEAD', 'QUALIFIED', 'PROPOSAL', 'NEGOTIATION', 'WON', 'LOST'] as const;
@@ -274,6 +275,20 @@ export const publicSponsorLeadSchema = z.object({
   email: z.string().trim().email('Escribe un correo válido').max(160),
   // Teléfono y "¿a qué te dedicas?" son obligatorios en el formulario del micrositio.
   phone: z.string().trim().min(8, 'Escribe un teléfono de contacto').max(40),
+  // Instagram de la empresa (usuario, "@usuario" o link del perfil → "@usuario"): obligatorio.
+  instagram: z
+    .string()
+    .trim()
+    .min(1, 'Escribe el Instagram de tu empresa')
+    .max(120, 'Máximo 120 caracteres')
+    .transform((value, ctx) => {
+      const handle = normalizeInstagramHandle(value);
+      if (!handle) {
+        ctx.addIssue({ code: 'custom', message: 'Escribe solo el usuario de Instagram de tu empresa (ej. @tuempresa)' });
+        return z.NEVER;
+      }
+      return `@${handle}`;
+    }),
   packageId: optionalText(64),
   message: z.string().trim().min(3, 'Cuéntanos a qué te dedicas').max(2000),
   [SPONSOR_LEAD_HONEYPOT_FIELD]: z.string().max(0, 'Solicitud inválida').optional(),

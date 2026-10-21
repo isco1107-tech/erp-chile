@@ -236,15 +236,15 @@ async function page2(browser) {
   await page.waitForSelector('#plataforma[data-tabs-ready]');
   await page.waitForSelector('main[data-in-track]');
 
-  const anchors = ['contenido', 'como-funciona', 'plataforma', 'tributacion', 'para-quien', 'planes', 'preguntas', 'cotizar', 'descargas'];
+  const anchors = ['contenido', 'modulos', 'como-funciona', 'plataforma', 'tributacion', 'planes', 'preguntas', 'descargas'];
   const missing = await page.evaluate(ids => ids.filter(id => !document.getElementById(id)), anchors);
   check('Anclas presentes', missing.length === 0, missing.join(', '));
   check('Enlace «Ir al contenido»', await page.getByRole('link', { name: 'Ir al contenido' }).count() === 1);
-  check('Navegación: 6 enlaces (con «Saber más» y «Descargar») + «Cotización»', await page.locator('nav[aria-label="Navegación principal"] a').count() === 6 && await page.locator('header').getByRole('link', { name: /^Cotización/ }).count() === 1);
+  check('Navegación: 6 anclas (con «Módulos», «Saber más» y «Descargar») + «Para empresas» + «Cotizar»', await page.locator('nav[aria-label="Navegación principal"] a').count() === 7 && await page.locator('header').getByRole('link', { name: /^Cotizar/ }).count() === 1);
   check('JSON-LD presente', await page.locator('script[type="application/ld+json"]').count() === 1);
 
   // Las secciones lejanas usan content-visibility: el salto debe caer justo en la sección.
-  for (const [label, id] of [['Planes', 'planes'], ['Certámenes', 'para-quien']]) {
+  for (const [label, id] of [['Planes', 'planes'], ['Módulos', 'modulos']]) {
     await page.evaluate(() => { document.documentElement.style.scrollBehavior = 'auto'; window.scrollTo(0, 0); });
     await page.locator('nav[aria-label="Navegación principal"]').getByRole('link', { name: label, exact: true }).click();
     await page.waitForFunction(target => {
@@ -278,34 +278,39 @@ async function page2(browser) {
   await page.keyboard.press('Escape');
   check('Escape cierra el diálogo', !(await page.getByRole('dialog').isVisible()));
 
-  // Tarjeta de resultados que selecciona una vista.
-  await page.getByRole('link', { name: 'Explora el inventario' }).click();
-  await page.waitForTimeout(600);
-  check('«Explora el inventario» abre Inventario', await page.getByRole('tab', { name: 'Inventario', exact: true }).getAttribute('aria-selected') === 'true');
+  // Cómo funciona: los cinco pasos a la vista en una línea de tiempo (sin escena fija).
+  await page.locator('#como-funciona').scrollIntoViewIfNeeded();
+  const flow = await page.$$eval('#como-funciona ol > li h3', nodes => nodes.map(node => node.textContent));
+  check('Los 5 pasos en la línea de tiempo', new Set(flow).size === 5, flow.join(' → '));
+  check('Cómo funciona no queda fija', await page.$eval('#como-funciona', node => node.offsetHeight < window.innerHeight * 1.5));
 
-  // Pasos fijos: el panel cambia con el scroll.
-  const flow = await page.evaluate(async () => {
-    const section = document.getElementById('como-funciona');
-    const stage = section.firstElementChild;
-    const travel = section.offsetHeight - stage.offsetHeight;
-    document.documentElement.style.scrollBehavior = 'auto';
-    const seen = [];
-    for (const step of [0.1, 0.3, 0.5, 0.7, 0.9]) {
-      for (let pass = 0; pass < 2; pass += 1) {
-        window.scrollTo(0, section.getBoundingClientRect().top + window.scrollY + step * travel);
-        await new Promise(resolve => setTimeout(resolve, 150));
-      }
-      await new Promise(resolve => setTimeout(resolve, 150));
-      seen.push(document.querySelector('[data-step-panel][data-active] h3')?.textContent);
-    }
-    return seen;
-  });
-  check('Los 5 pasos aparecen uno a uno', new Set(flow).size === 5, flow.join(' → '));
+  // Módulos: dos filas plegadas, filtro por área, casilla de cotizar y su barra (sin enviar).
+  await page.locator('#modulos').scrollIntoViewIfNeeded();
+  const cards = () => page.$$eval('#modulos-grilla > li', nodes => nodes.filter(node => getComputedStyle(node).display !== 'none').length);
+  check('Módulos: «Todos» plegado en dos filas', await cards() === 8);
+  await page.getByRole('button', { name: /^Ver los \d+ módulos/ }).click();
+  const total = await cards();
+  check('Módulos: «Ver todos» despliega la vitrina', total >= 28, `${total} recuadros`);
+  await page.locator('#modulos').getByRole('button', { name: /^Finanzas/ }).click();
+  const finance = await page.$$eval('#modulos-grilla article p:first-child', nodes => [...new Set(nodes.map(node => node.textContent))]);
+  check('Módulos: el filtro deja solo su área', finance.length === 1 && finance[0] === 'Finanzas', finance.join(', '));
+  check('Módulos: sin precios en la vitrina', !(await page.locator('#modulos').innerText()).includes('$'));
+  await page.locator('#modulos-grilla input[type="checkbox"]').first().check();
+  await page.locator('#modulos-grilla input[type="checkbox"]').nth(1).check();
+  check('Módulos: la casilla abre la barra del carrito', await page.getByRole('region', { name: 'Tu cotización' }).getByText('2 módulos en tu cotización').isVisible());
+  await page.getByRole('region', { name: 'Tu cotización' }).getByRole('button', { name: /^Cotizar/ }).click();
+  const quote = page.getByRole('dialog', { name: 'Cotiza tus módulos' });
+  check('Módulos: «Cotizar» abre el formulario con lo elegido', await quote.isVisible() && await quote.locator('ul li').count() === 2);
+  check('Módulos: pide correo y teléfono', await quote.getByLabel('Correo').getAttribute('required') !== null && await quote.getByLabel('Teléfono o WhatsApp').getAttribute('required') !== null);
+  await page.screenshot({ path: path.join(out, 'cotizacion.png') });
+  await page.keyboard.press('Escape');
+  await page.getByRole('region', { name: 'Tu cotización' }).getByRole('button', { name: 'Vaciar' }).click();
+  check('Módulos: «Vaciar» quita la barra', await page.getByRole('region', { name: 'Tu cotización' }).count() === 0);
+  await page.locator('#modulos').getByRole('button', { name: /^Todos/ }).click();
 
-  // Formulario (sin enviar).
-  await page.locator('#cotizar').scrollIntoViewIfNeeded();
-  await page.getByLabel('Tu nombre', { exact: false }).fill('Prueba');
-  check('Formulario operativo', await page.locator('#cotizar form').count() === 1 && await page.getByRole('button', { name: /Solicitar demo y cotización/ }).isEnabled());
+  // Sin formulario de demo aparte: se cotiza desde la vitrina.
+  check('Sin formulario de demo en la landing', await page.locator('#cotizar').count() === 0 && await page.locator('a[href="#cotizar"]').count() === 0);
+  check('El cierre lleva a armar la cotización', await page.locator('footer a[href="#modulos"]').count() >= 1);
   check('Descargas', await page.locator('#descargas a[download], #descargas a[href="/login"]').count() >= 3);
 
   // Recorre toda la página para que aparezca lo que se revela al entrar y guarda la captura completa.
@@ -345,8 +350,9 @@ async function sceneState(page) {
       stagePosition: getComputedStyle(track.firstElementChild).position,
       insideVisible: getComputedStyle(inside.parentElement).opacity === '1' && getComputedStyle(inside.parentElement).visibility === 'visible',
       painted: track.hasAttribute('data-painted'),
-      steps: document.querySelectorAll('[data-step-panel]').length,
-      stepsVisible: [...document.querySelectorAll('[data-step-panel]')].filter(panel => getComputedStyle(panel).visibility === 'visible').length,
+      steps: document.querySelectorAll('#como-funciona ol > li').length,
+      stepsVisible: [...document.querySelectorAll('#como-funciona ol > li')].filter(step => getComputedStyle(step).visibility === 'visible').length,
+      moduleCards: [...document.querySelectorAll('#modulos-grilla > li')].filter(card => getComputedStyle(card).display !== 'none').length,
       copies: [...document.querySelectorAll('#product-panel h3')].map(node => node.textContent),
     };
   });
@@ -367,7 +373,8 @@ async function staticModes(browser) {
     const state = await sceneState(page);
     check(`${tag}: sin pista larga`, state.trackHeight < Math.max(viewport.height, 560) * 2.2 && state.stagePosition !== 'sticky', `alto ${state.trackHeight}px, escenario ${state.stagePosition}`);
     check(`${tag}: «Ahora, estás dentro.» visible y sin canvas`, state.insideVisible && !state.painted);
-    check(`${tag}: los 5 pasos apilados`, state.steps === 5 && state.stepsVisible === 5);
+    check(`${tag}: los 5 pasos a la vista`, state.steps === 5 && state.stepsVisible === 5);
+    if (options.javaScriptEnabled === false) check(`${tag}: todos los módulos a la vista`, state.moduleCards >= 28, `${state.moduleCards} recuadros`);
     check(`${tag}: las 5 vistas en el HTML`, state.copies.length === 5, state.copies.join(' / '));
     await page.screenshot({ path: path.join(out, `${tag}.png`), fullPage: tag === 'sin-js-390' });
     await context.close();
@@ -386,7 +393,7 @@ async function reducedMotion(browser) {
     await page.goto(url, { waitUntil: 'load' });
     await page.waitForSelector('[data-cinematic-track][data-painted]', { timeout: 30000 });
     const state = await sceneState(page);
-    check(`${tag}: pista del video activa`, state.trackHeight > viewport.height * 3 && state.stagePosition === 'sticky', `alto ${state.trackHeight}px`);
+    check(`${tag}: pista del video activa`, state.trackHeight > viewport.height * 2.5 && state.stagePosition === 'sticky', `alto ${state.trackHeight}px`);
     const elapsed = await page.evaluate(() => new Promise(resolve => {
       const track = document.querySelector('[data-cinematic-track]');
       const stage = track.firstElementChild;
@@ -406,22 +413,8 @@ async function reducedMotion(browser) {
     await page.waitForFunction(expected => document.querySelector('[data-cinematic-track]').dataset.frame === expected, frame, { timeout: 20000 }).catch(() => {});
     check(`${tag}: el video avanza con el scroll`, await page.$eval('[data-cinematic-track]', node => node.dataset.frame) === frame, `P .3 → ${frame}`);
     await page.screenshot({ path: path.join(out, `${tag}-p030.png`) });
-    const flow = await page.evaluate(async () => {
-      const section = document.getElementById('como-funciona');
-      const stageNode = section.firstElementChild;
-      const travel = section.offsetHeight - stageNode.offsetHeight;
-      const seen = [];
-      for (const step of [0.1, 0.3, 0.5, 0.7, 0.9]) {
-        for (let pass = 0; pass < 2; pass += 1) {
-          window.scrollTo(0, section.getBoundingClientRect().top + window.scrollY + step * travel);
-          await new Promise(resolve => setTimeout(resolve, 150));
-        }
-        await new Promise(resolve => setTimeout(resolve, 150));
-        seen.push(document.querySelector('[data-step-panel][data-active] h3')?.textContent);
-      }
-      return { seen, sticky: getComputedStyle(stageNode).position };
-    });
-    check(`${tag}: los 5 pasos cambian con el scroll`, flow.sticky === 'sticky' && new Set(flow.seen).size === 5, flow.seen.join(' → '));
+    const steps = await page.$$eval('#como-funciona ol > li', nodes => nodes.length);
+    check(`${tag}: los 5 pasos a la vista`, steps === 5, `${steps} pasos`);
     await context.close();
   }
 }
@@ -468,14 +461,6 @@ async function liveMotion(browser) {
   await scrollTo('#tributacion ul li', 0.9);
   const cascade = await page.$$eval('#tributacion ul li', nodes => nodes.slice(0, 3).map(node => Number(node.style.getPropertyValue('--in'))));
   check('Las tarjetas entran en cascada', cascade[0] > cascade[1] && cascade[1] >= cascade[2], cascade.map(value => value.toFixed(2)).join(' > '));
-
-  const marquee = async fraction => {
-    await scrollTo('[aria-labelledby="resultados-title"] + div', fraction);
-    return page.$eval('[aria-labelledby="resultados-title"] + div > div', node => new DOMMatrix(getComputedStyle(node).transform).m41);
-  };
-  const shiftA = await marquee(0.8);
-  const shiftB = await marquee(0.2);
-  check('La franja de módulos corre con el scroll', Math.abs(shiftA - shiftB) > 100, `${Math.round(shiftA)} → ${Math.round(shiftB)} px`);
 
   // El cielo es un solo canvas: lo que dibuja cambia con el scroll.
   const skyPixels = () => page.evaluate(() => {

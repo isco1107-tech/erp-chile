@@ -4,8 +4,16 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/server';
 import { resolveMcpSession, type McpSession } from './services/tokens.service';
 import { DATA_TOOLS, availableDataTools, canSeeMargins, type DataToolName } from '@/modules/agents/assistant-data-tools';
-import { getSalesMarginSummary, getOverdueBalances, getVatProjection, formatToolResultForPrompt } from '@/modules/agents/services/copilot-tools';
-import { getVisibleManualSections } from '@/modules/manual/content';
+import {
+  findProducts,
+  formatToolResultForPrompt,
+  getContactBalance,
+  getLowStockProducts,
+  getOverdueBalances,
+  getSalesMarginSummary,
+  getVatProjection,
+} from '@/modules/agents/services/copilot-tools';
+import { getVisibleManualSections, searchManual } from '@/modules/manual/content';
 
 /**
  * Tools que expone el servidor MCP (`/api/mcp`) a un Claude/ChatGPT PERSONAL
@@ -72,21 +80,8 @@ export function registerMcpTools(server: McpServer): void {
     async ({ query }, ctx) => {
       const session = await requireSession(ctx as ToolContext);
       const sections = getVisibleManualSections(session.features, session.permissions);
-      const needle = query?.toLowerCase().trim();
-
-      const matches = !needle
-        ? sections
-        : sections
-            .map((section) => ({
-              ...section,
-              topics: section.topics.filter(
-                (topic) =>
-                  topic.title.toLowerCase().includes(needle) ||
-                  section.title.toLowerCase().includes(needle) ||
-                  topic.steps.some((step) => step.toLowerCase().includes(needle))
-              ),
-            }))
-            .filter((section) => section.topics.length > 0 || section.title.toLowerCase().includes(needle));
+      // Sin tildes y por palabras: "anular boleta" encuentra "Anular una boleta hecha por error".
+      const matches = query?.trim() ? searchManual(sections, query) : sections;
 
       if (matches.length === 0) {
         return { content: [{ type: 'text' as const, text: `No encontré nada del manual para "${query}". Prueba con otras palabras o sin texto de búsqueda para ver el índice completo.` }] };
@@ -95,7 +90,7 @@ export function registerMcpTools(server: McpServer): void {
       const text = matches
         .map((section) => {
           const topicLines = section.topics.map((topic) => `  - ${topic.title}:\n    ${topic.steps.join('\n    ')}`).join('\n');
-          return `## ${section.title} (${section.route})\n${topicLines}`;
+          return `## ${section.title} (${section.route})\n${section.summary}\n${topicLines}`;
         })
         .join('\n\n');
       return { content: [{ type: 'text' as const, text }] };
@@ -133,7 +128,7 @@ export function registerMcpTools(server: McpServer): void {
 /**
  * `DATA_TOOLS` describe sus parámetros como JSON Schema (para Gemini); acá
  * hace falta el mismo contrato en Zod. Se define a mano en vez de convertir
- * el JSON Schema en runtime — son 3 tools, no vale la pena una dependencia
+ * el JSON Schema en runtime — son pocas tools, no vale la pena una dependencia
  * de conversión para esto.
  */
 function jsonSchemaToZodShape(name: DataToolName) {
@@ -152,6 +147,12 @@ function jsonSchemaToZodShape(name: DataToolName) {
         year: z.number().optional().describe('Año, ej. 2026'),
         month: z.number().optional().describe('Mes de 1 a 12'),
       });
+    case 'findProducts':
+      return z.object({ query: z.string().trim().min(1).max(120).describe('Nombre, SKU o código de barras') });
+    case 'getLowStockProducts':
+      return z.object({ limit: z.number().optional().describe('Máximo de productos a listar (por defecto 15)') });
+    case 'getContactBalance':
+      return z.object({ query: z.string().trim().min(1).max(120).describe('Razón social o RUT del contacto') });
   }
 }
 
@@ -163,5 +164,11 @@ async function callDataTool(name: DataToolName, companyId: string, args: Record<
       return getOverdueBalances(companyId, args as { minDaysOverdue?: number });
     case 'getVatProjection':
       return getVatProjection(companyId, args as { year?: number; month?: number });
+    case 'findProducts':
+      return findProducts(companyId, args as { query: string });
+    case 'getLowStockProducts':
+      return getLowStockProducts(companyId, args as { limit?: number });
+    case 'getContactBalance':
+      return getContactBalance(companyId, args as { query: string });
   }
 }

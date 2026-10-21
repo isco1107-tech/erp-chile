@@ -322,7 +322,7 @@ async function deliverAccreditationEmail(
     verifyUrl,
     accentColor: record.template?.accentColor,
   });
-  return sendEmail({ to: record.email!, ...email });
+  return sendEmail({ to: record.email!, companyId: record.companyId, ...email });
 }
 
 function accreditationEmailMessage(status: EmailResult['status'], email: string, context: 'created' | 'resent'): string {

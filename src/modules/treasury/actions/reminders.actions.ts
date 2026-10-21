@@ -66,7 +66,7 @@ export async function sendPaymentReminderAction(
       totalDue,
     });
 
-    const delivery = await sendEmail({ to: contact.email, ...email });
+    const delivery = await sendEmail({ to: contact.email, companyId: session.companyId, ...email });
     if (delivery.status === 'failed') {
       return { success: false, error: 'No se pudo enviar el correo. Intenta nuevamente más tarde' };
     }

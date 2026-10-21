@@ -19,13 +19,12 @@ const liveClasses = [s.display, s.kicker] as const;
  * línea que se llena con el scroll. La estrella de la sección actual brilla.
  */
 const starMap = [
+  ['#modulos', 'Módulos'],
   ['#plataforma', 'Plataforma'],
   ['#como-funciona', 'Cómo funciona'],
   ['#tributacion', 'Tributación'],
-  ['#para-quien', 'Certámenes'],
   ['#planes', 'Planes'],
   ['#preguntas', 'Preguntas'],
-  ['#cotizar', 'Cotizar'],
 ] as const;
 
 /**
@@ -33,9 +32,9 @@ const starMap = [
  * preguntas frecuentes), las descargas y el botón de cotización.
  */
 const primaryNav = [
+  ['#modulos', 'Módulos'],
   ['#plataforma', 'Plataforma'],
   ['#tributacion', 'Tributación'],
-  ['#para-quien', 'Certámenes'],
   ['#planes', 'Planes'],
   ['#preguntas', 'Saber más'],
   ['#descargas', 'Descargar'],
@@ -43,13 +42,12 @@ const primaryNav = [
 
 /** El menú móvil lleva todas las anclas, en el orden de la página. */
 const menuNav = [
-  ['#como-funciona', 'Cómo funciona'],
+  ['#modulos', 'Módulos'],
   ['#plataforma', 'La plataforma'],
+  ['#como-funciona', 'Cómo funciona'],
   ['#tributacion', 'Tributación chilena'],
-  ['#para-quien', 'Para quién'],
   ['#planes', 'Planes'],
   ['#preguntas', 'Saber más'],
-  ['#cotizar', 'Cotización'],
   ['#descargas', 'Descargar'],
 ] as const;
 
@@ -58,19 +56,13 @@ interface ProductView {
   setView: (index: number) => void;
 }
 
-/** La pestaña activa de «Todo cuadra» también se elige desde otras secciones. */
+/** La pestaña activa de «Todo cuadra» vive en la página para que cualquier sección pueda elegirla. */
 const ProductViewContext = createContext<ProductView | null>(null);
 
 export function useProductView(): ProductView {
   const value = useContext(ProductViewContext);
   if (!value) throw new Error('useProductView se usa dentro de LandingShell');
   return value;
-}
-
-/** Enlace a #plataforma que además deja seleccionada una vista del producto. */
-export function ViewLink({ view, className, children }: { view: number; className?: string; children: ReactNode }) {
-  const { setView } = useProductView();
-  return <a href="#plataforma" className={className} onClick={() => setView(view)}>{children}</a>;
 }
 
 export default function LandingShell({ className, children }: { className?: string; children: ReactNode }) {
@@ -220,7 +212,7 @@ export default function LandingShell({ className, children }: { className?: stri
               {primaryNav.map(([href, label]) => <a key={href} href={href}>{label}</a>)}
               <Link className={s.navCorporate} href="/empresas"><Building2 size={15} aria-hidden="true" />Para empresas</Link>
             </nav>
-            <a className={s.headerCta} href="#cotizar">Cotización <ArrowUpRight size={15} aria-hidden="true" /></a>
+            <a className={s.headerCta} href="#modulos">Cotizar <ArrowUpRight size={15} aria-hidden="true" /></a>
             <Link className={s.headerLogin} href="/login">Ingresar <ArrowUpRight size={15} aria-hidden="true" /></Link>
             <button
               ref={menuButton}

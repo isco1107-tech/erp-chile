@@ -3,13 +3,15 @@
 import { useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { formatRut } from '@/lib/chile/rut';
 import { CANDIDATE_HONEYPOT_FIELD, MINOR_AGE, candidateSelfRegistrationSchema } from '@/modules/candidates/schema';
+import { checkRegistrationRequirements, describeRequirements, type RegistrationRequirements } from '@/lib/events/registration-requirements';
 import TurnstileWidget, { isTurnstileConfigured } from '@/components/security/TurnstileWidget';
 import { Arrow, Check } from './icons';
 
 /**
  * Formulario de inscripción de candidatas: solo los 8 datos de la
  * convocatoria (nombre, RUT, edad, comuna, teléfono, correo, Instagram y por
- * qué quiere participar). Lo usan el micrositio del certamen y la página de
+ * qué quiere participar) más lo que el certamen exija (declarar ser chilena,
+ * Instagram, foto). Lo usan el micrositio del certamen y la página de
  * inscripción (`/register/candidate/[token]`). Valida con el mismo esquema
  * que el servidor (`candidateSelfRegistrationSchema`) y envía a
  * `/api/public/candidates/{token}/apply`.
@@ -34,18 +36,21 @@ function Field({ id, label, error, children }: { id: string; label: string; erro
 
 export function CandidateApplicationForm({
   token,
-  minAge,
+  requirements,
   privacyHref,
   onSubmitted,
 }: {
   token: string;
-  minAge: number;
+  requirements: RegistrationRequirements;
   privacyHref: string;
   /** Aviso al contenedor (p.ej. para mover el foco o cambiar la cabecera). */
   onSubmitted?: (folio: string) => void;
 }) {
   const [values, setValues] = useState<Values>(EMPTY);
   const [consent, setConsent] = useState(false);
+  const [chilean, setChilean] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<'idle' | 'sending'>('idle');
   const [folio, setFolio] = useState<string | null>(null);
@@ -65,7 +70,37 @@ export function CandidateApplicationForm({
   };
   const ageNumber = values.age.trim() === '' ? null : Number(values.age);
   const isMinor = ageNumber !== null && Number.isFinite(ageNumber) && ageNumber > 0 && ageNumber < MINOR_AGE;
-  const described = (key: keyof Values | 'aceptaTratamientoDatos') => (errors[key] ? { 'aria-invalid': true, 'aria-describedby': `insc-${key}-error` } : {});
+  const described = (key: keyof Values | 'aceptaTratamientoDatos' | 'declaraNacionalidadChilena' | 'photoUrl') => (errors[key] ? { 'aria-invalid': true, 'aria-describedby': `insc-${key}-error` } : {});
+
+  async function uploadPhoto(file: File | undefined) {
+    if (!file) return;
+    setServerError('');
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next.photoUrl;
+      return next;
+    });
+    if (file.size > 5 * 1024 * 1024) {
+      setErrors((prev) => ({ ...prev, photoUrl: 'La foto supera los 5 MB. Elige una más liviana.' }));
+      return;
+    }
+    setUploading(true);
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      const response = await fetch(`/api/public/candidates/${encodeURIComponent(token)}/photo`, { method: 'POST', body });
+      const json = (await response.json().catch(() => null)) as { success: boolean; data?: { url: string }; error?: string } | null;
+      if (!json?.success || !json.data) {
+        setErrors((prev) => ({ ...prev, photoUrl: json?.error ?? 'No pudimos subir la foto. Intenta de nuevo.' }));
+        return;
+      }
+      setPhotoUrl(json.data.url);
+    } catch {
+      setErrors((prev) => ({ ...prev, photoUrl: 'No pudimos subir la foto. Revisa tu conexión e intenta de nuevo.' }));
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -78,6 +113,8 @@ export function CandidateApplicationForm({
       // Los datos del apoderado solo viajan si declara ser menor de edad.
       guardianName: isMinor ? values.guardianName : undefined,
       guardianRut: isMinor ? values.guardianRut : undefined,
+      photoUrl: photoUrl ?? undefined,
+      declaraNacionalidadChilena: requirements.chileanNationality ? chilean : undefined,
       aceptaTratamientoDatos: consent,
     };
     const parsed = candidateSelfRegistrationSchema.safeParse(payload);
@@ -87,8 +124,13 @@ export function CandidateApplicationForm({
         const key = String(issue.path[0] ?? 'form');
         if (!next[key]) next[key] = issue.message;
       }
-    } else if (parsed.data.age < minAge) {
-      next.age = `Debes tener al menos ${minAge} años para postular.`;
+    } else {
+      Object.assign(next, checkRegistrationRequirements(requirements, parsed.data));
+    }
+    // Los requisitos del certamen se avisan junto a los demás errores, aunque otro campo falle.
+    if (!parsed.success) {
+      const unmet = checkRegistrationRequirements(requirements, { age: ageNumber, instagram: values.instagram, photoUrl, declaraNacionalidadChilena: chilean });
+      for (const [key, message] of Object.entries(unmet)) next[key] ??= message;
     }
     // La regla del apoderado vive en un `superRefine`, que Zod no corre mientras falten otros datos:
     // se adelanta acá para mostrar todos los errores de una vez.
@@ -150,6 +192,14 @@ export function CandidateApplicationForm({
 
   return (
     <form className="pgs-form" onSubmit={submit} noValidate>
+      <div className="pgs-reqs">
+        <strong>Requisitos para postular</strong>
+        <ul>
+          {describeRequirements(requirements).map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      </div>
       <Field id="insc-fullName" label="Nombre completo" error={errors.fullName}>
         <input id="insc-fullName" value={values.fullName} onChange={(e) => set('fullName', e.target.value)} autoComplete="name" required {...described('fullName')} />
       </Field>
@@ -180,9 +230,21 @@ export function CandidateApplicationForm({
           <input id="insc-email" type="email" value={values.email} onChange={(e) => set('email', e.target.value)} autoComplete="email" required {...described('email')} />
         </Field>
       </div>
-      <Field id="insc-instagram" label="Instagram" error={errors.instagram}>
-        <input id="insc-instagram" value={values.instagram} onChange={(e) => set('instagram', e.target.value)} placeholder="@usuario" autoCapitalize="none" required {...described('instagram')} />
+      <Field id="insc-instagram" label={requirements.instagram ? 'Instagram' : 'Instagram (opcional)'} error={errors.instagram}>
+        <input id="insc-instagram" value={values.instagram} onChange={(e) => set('instagram', e.target.value)} placeholder="@usuario" autoCapitalize="none" required={requirements.instagram} {...described('instagram')} />
       </Field>
+      {requirements.photo && (
+        <Field id="insc-photoUrl" label="Tu foto" error={errors.photoUrl}>
+          <div className="pgs-photo">
+            {photoUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={photoUrl} alt="Vista previa de tu foto" />
+            )}
+            <input id="insc-photoUrl" type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => void uploadPhoto(e.target.files?.[0])} disabled={uploading} {...described('photoUrl')} />
+          </div>
+          <p className="pgs-photo-hint">{uploading ? 'Subiendo foto…' : photoUrl ? 'Foto lista. Puedes elegir otra para cambiarla.' : 'Una foto tuya clara, de frente. JPG, PNG o WEBP, hasta 5 MB.'}</p>
+        </Field>
+      )}
       <Field id="insc-motivacion" label="¿Por qué quieres participar?" error={errors.motivacion}>
         <textarea id="insc-motivacion" rows={4} value={values.motivacion} onChange={(e) => set('motivacion', e.target.value)} required {...described('motivacion')} />
       </Field>
@@ -201,6 +263,32 @@ export function CandidateApplicationForm({
               {...described('guardianRut')}
             />
           </Field>
+        </div>
+      )}
+      {requirements.chileanNationality && (
+        <div className={`pgs-consent${errors.declaraNacionalidadChilena ? ' has-error' : ''}`}>
+          <label htmlFor="insc-declaraNacionalidadChilena">
+            <input
+              id="insc-declaraNacionalidadChilena"
+              type="checkbox"
+              checked={chilean}
+              onChange={(e) => {
+                setChilean(e.target.checked);
+                setErrors((prev) => {
+                  const next = { ...prev };
+                  delete next.declaraNacionalidadChilena;
+                  return next;
+                });
+              }}
+              {...described('declaraNacionalidadChilena')}
+            />
+            <span>Declaro ser chilena.</span>
+          </label>
+          {errors.declaraNacionalidadChilena && (
+            <p className="pgs-field-error" id="insc-declaraNacionalidadChilena-error">
+              {errors.declaraNacionalidadChilena}
+            </p>
+          )}
         </div>
       )}
       <div className={`pgs-consent${errors.aceptaTratamientoDatos ? ' has-error' : ''}`}>
@@ -240,7 +328,7 @@ export function CandidateApplicationForm({
           {serverError}
         </p>
       )}
-      <button type="submit" className="pgs-btn is-ink pgs-btn-block" disabled={status === 'sending' || (isTurnstileConfigured && !turnstileToken)}>
+      <button type="submit" className="pgs-btn is-ink pgs-btn-block" disabled={status === 'sending' || uploading || (isTurnstileConfigured && !turnstileToken)}>
         <span>{status === 'sending' ? 'Enviando…' : 'Enviar inscripción'}</span>
         <Arrow className="pgs-btn-icon" />
       </button>

@@ -5,6 +5,8 @@ import { formatCurrency } from '@/lib/chile/tax';
 import {
   audienceHero,
   directorCopy,
+  headingSize,
+  ribbonLoop,
   initials,
   registrationProcess,
   splitPackageBenefits,
@@ -18,6 +20,9 @@ import {
 import type { PublicPageantCandidate, PublicPageantSite } from '@/modules/projects/services/public-site.service';
 import { Arrow, Calendar, Check, Chevron, Close, Crown, Diamond, Instagram, Mail, Pin, Plus, Ticket, Tiara, Whatsapp } from './icons';
 import { PAGEANT_FONT_CLASSES } from './fonts';
+import { FitText } from './FitText';
+import { HallOfFame } from './HallOfFame';
+import { startReveal } from './reveal';
 import { HeroSky, Kicker, pad } from './parts';
 import { SponsorLeadForm } from './SponsorLeadForm';
 import { CandidateApplicationForm } from './CandidateApplicationForm';
@@ -51,30 +56,27 @@ function useCountdown(target: string | null) {
   return { days: Math.floor(total / 86400), hours: Math.floor((total % 86400) / 3600), minutes: Math.floor((total % 3600) / 60), seconds: total % 60 };
 }
 
-/** Animaciones de entrada al hacer scroll. Solo se activan con JS y sin "reducir movimiento": sin eso, todo se ve de inmediato. */
-function useReveal(rootRef: React.RefObject<HTMLDivElement | null>, key: string) {
+/** Animaciones de entrada al hacer scroll (ver `reveal.ts`): solo con JS y sin "reducir movimiento"; sin eso, todo se ve de inmediato. */
+function useReveal(rootRef: React.RefObject<HTMLDivElement | null>) {
   useEffect(() => {
     const root = rootRef.current;
-    if (!root || window.matchMedia('(prefers-reduced-motion: reduce)').matches || !('IntersectionObserver' in window)) return;
-    root.dataset.motion = 'on';
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('is-in');
-            observer.unobserve(entry.target);
-          }
-        }
-      },
-      { rootMargin: '0px 0px -8% 0px', threshold: 0.08 }
-    );
-    root.querySelectorAll('[data-reveal]:not(.is-in)').forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
-    // `key` cambia al pasar de la vista de candidatas a la de sponsors: las secciones nuevas también se revelan.
-  }, [rootRef, key]);
+    return root ? startReveal(root) : undefined;
+  }, [rootRef]);
 }
 
-/** Sección visible en pantalla, para marcar el enlace activo del menú. */
+/** Marca `.is-offscreen` en las zonas con animaciones continuas cuando salen de la pantalla: el CSS las pausa. */
+function useOffscreenPause(rootRef: React.RefObject<HTMLDivElement | null>) {
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || !('IntersectionObserver' in window)) return;
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) entry.target.classList.toggle('is-offscreen', !entry.isIntersecting);
+    });
+    root.querySelectorAll('.pgs-hero, .pgs-ribbon').forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [rootRef]);
+}
+
 function useScrollSpy(ids: string[]) {
   const [active, setActive] = useState<string | null>(null);
   const key = ids.join('|');
@@ -211,7 +213,8 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
 
   // Dos caras del sitio, como la convocatoria de referencia: "Quiero ser
   // candidata" y "Ser sponsor". El selector solo aparece si existen las dos.
-  const hasCandidateSide = Boolean(site.registration) || site.candidates.length > 0 || Boolean(site.voting) || Boolean(site.results);
+  // Con el módulo de candidatas contratado la cara "candidata" existe siempre (aunque la convocatoria no esté abierta).
+  const hasCandidateSide = site.candidateSide || Boolean(site.registration) || site.candidates.length > 0 || Boolean(site.voting) || Boolean(site.results);
   const hasSponsorSide = site.packages.length > 0 || site.sponsorLeadForm || site.sponsorsByTier.length > 0;
   const showAudienceSwitch = hasCandidateSide && hasSponsorSide;
   const [audience, setAudience] = useState<PageantAudience>(hasCandidateSide ? 'candidata' : 'sponsor');
@@ -230,7 +233,8 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
   const whatsappFloat = site.whatsapp
     ? { href: whatsappMessageUrl(site.whatsapp.href, whatsappGreeting(isSponsorView ? 'sponsor' : 'candidata', site.name)), label: isSponsorView ? 'Escríbenos por WhatsApp para ser sponsor' : 'Escríbenos por WhatsApp para ser candidata' }
     : null;
-  useReveal(rootRef, isSponsorView ? 'sponsor' : 'candidata');
+  useReveal(rootRef);
+  useOffscreenPause(rootRef);
   const [openPackages, setOpenPackages] = useState<Set<string>>(() => new Set());
   const togglePackage = (id: string) =>
     setOpenPackages((prev) => {
@@ -261,9 +265,11 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
     const list: Array<{ id: string; label: string; show: boolean }> = [
       { id: 'resultados', label: 'Resultados', show: candidateSide && Boolean(winner) },
       { id: 'certamen', label: 'El certamen', show: Boolean(site.description) || view.highlights.length > 0 },
+      // Salón de la fama: prueba de trayectoria para la candidata (a quién puede llegar a ser) y para la marca (dónde se asocia).
+      { id: 'ganadoras', label: 'Ganadoras', show: site.pastWinners.length > 0 },
       // Con la convocatoria abierta, "Así es el proceso" de la inscripción reemplaza al recorrido general.
-      { id: 'camino', label: 'El camino', show: candidateSide && !site.registration },
-      { id: 'postula', label: 'Inscripción', show: candidateSide && Boolean(site.registration) },
+      { id: 'camino', label: 'El camino', show: candidateSide && !site.registration && !site.registrationNotice },
+      { id: 'postula', label: 'Inscripción', show: candidateSide && (Boolean(site.registration) || Boolean(site.registrationNotice)) },
       { id: 'candidatas', label: 'Candidatas', show: site.candidates.length > 0 },
       { id: 'votacion', label: 'Votación', show: candidateSide && Boolean(site.voteRanking && site.voteRanking.length > 0) },
       { id: 'gala', label: 'La gala', show: hasGala },
@@ -272,7 +278,7 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
       { id: 'preguntas', label: 'Preguntas', show: candidateSide && view.faq.length > 0 },
     ];
     return list.filter((s) => s.show);
-  }, [winner, site.description, site.registration, site.candidates.length, site.voteRanking, hasGala, hasSponsorSection, view.highlights.length, view.faq.length, isSponsorView, showAudienceSwitch, site.director]);
+  }, [winner, site.description, site.registration, site.registrationNotice, site.pastWinners.length, site.candidates.length, site.voteRanking, hasGala, hasSponsorSection, view.highlights.length, view.faq.length, isSponsorView, showAudienceSwitch, site.director]);
   const shows = (id: string) => sections.some((s) => s.id === id);
   const numberOf = (id: string) => pad(sections.findIndex((s) => s.id === id) + 1);
   const navItems = sections.filter((s) => !['camino', 'preguntas'].includes(s.id)).slice(0, 6);
@@ -317,6 +323,8 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
     site.tickets ? 'Entradas a la venta' : null,
   ].filter((item): item is string => Boolean(item));
 
+  const ribbonMotion = ribbonLoop(ribbon);
+
   const hero = audienceHero(isSponsorView ? 'sponsor' : 'candidata', {
     name: site.name,
     edition: title.edition,
@@ -342,7 +350,7 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
       <header className={`pgs-top${scrolled || menuOpen ? ' is-solid' : ''}`}>
         <a className="pgs-brand" href="#inicio" aria-label={`${site.name}, inicio`}>
           <Crown className="pgs-brand-mark" />
-          <span className="pgs-brand-name">
+          <span className="pgs-brand-name" data-truncate>
             {title.lead && <span className="pgs-brand-lead">{title.lead} </span>}
             {title.main}
           </span>
@@ -401,11 +409,11 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
                 {site.whatsapp.label}
               </a>
             )}
-            {site.instagramHandle && (
-              <a href={`https://instagram.com/${site.instagramHandle}`} target="_blank" rel="noopener noreferrer">
-                <Instagram className="pgs-inline-icon" />@{site.instagramHandle}
+            {site.instagramHandles.map((handle) => (
+              <a key={handle} href={`https://instagram.com/${handle}`} target="_blank" rel="noopener noreferrer">
+                <Instagram className="pgs-inline-icon" />@{handle}
               </a>
-            )}
+            ))}
             {site.contactEmail && (
               <a href={`mailto:${site.contactEmail}`}>
                 <Mail className="pgs-inline-icon" />
@@ -439,9 +447,9 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
                 <span className="pgs-title-rule" aria-hidden="true" />
               </span>
             )}
-            <span className="pgs-title-main pgs-foil pgs-rise" style={{ animationDelay: '0.42s' }}>
+            <FitText className="pgs-title-main pgs-foil pgs-rise" style={{ animationDelay: '0.42s' }}>
               {title.main}
-            </span>
+            </FitText>
             {title.edition && (
               <span className="pgs-title-edition pgs-rise" style={{ animationDelay: '0.56s' }}>
                 {title.edition}
@@ -526,9 +534,9 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
                 )}
               </>
             ) : (
-              site.registration && (
-                <a className="pgs-btn is-gold" href="#postula">
-                  <span>Quiero inscribirme</span>
+              (site.registration || site.registrationNotice) && (
+                <a className={`pgs-btn ${site.registration ? 'is-gold' : 'is-ghost'}`} href="#postula">
+                  <span>{site.registration ? 'Quiero inscribirme' : site.registrationNotice?.state === 'closed' ? 'Postulaciones cerradas' : 'Postulaciones próximamente'}</span>
                   <Arrow className="pgs-btn-icon" />
                 </a>
               )
@@ -564,10 +572,10 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
       {/* ── Cinta ──────────────────────────────────────────────────────── */}
       {ribbon.length > 0 && (
         <div className="pgs-ribbon" aria-hidden="true">
-          <div className="pgs-ribbon-track">
+          <div className="pgs-ribbon-track" style={{ '--pgs-ribbon-time': `${ribbonMotion.seconds}s` } as CSSProperties}>
             {[0, 1].map((copy) => (
               <span key={copy} className="pgs-ribbon-group">
-                {[...ribbon, ...ribbon].map((item, i) => (
+                {ribbonMotion.group.map((item, i) => (
                   <span key={`${item}-${i}`} className="pgs-ribbon-item">
                     <Diamond className="pgs-ribbon-diamond" />
                     {item}
@@ -621,7 +629,7 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
                 <Kicker index={numberOf('certamen')} tone="paper">
                   El certamen
                 </Kicker>
-                <h2 id="pgs-about-title" className="pgs-h2 is-ink">
+                <h2 id="pgs-about-title" className={`pgs-h2 is-ink ${headingSize(shortName)}`.trim()}>
                   {title.lead ? (
                     <>
                       {title.lead} <em>{title.main}</em>
@@ -659,6 +667,9 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
             )}
           </section>
         )}
+
+        {/* ── Salón de la fama ─────────────────────────────────────────── */}
+        {shows('ganadoras') && <HallOfFame winners={site.pastWinners} index={numberOf('ganadoras')} />}
 
         {/* ── El camino a la corona ───────────────────────────────────── */}
         {shows('camino') && (
@@ -768,9 +779,51 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
                 </div>
                 <CandidateApplicationForm
                   token={site.registration.token}
-                  minAge={site.registration.minAge}
+                  requirements={site.registration.requirements}
                   privacyHref={`/politica-privacidad?certamen=${encodeURIComponent(site.registration.token)}`}
                 />
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ── Inscripción aún sin abrir (o ya cerrada) ─────────────────── */}
+        {shows('postula') && !site.registration && site.registrationNotice && (
+          <section id="postula" className="pgs-section is-night is-deep" aria-labelledby="pgs-apply-title">
+            <div className="pgs-wrap">
+              <div className="pgs-section-head is-center" data-reveal>
+                <Kicker index={numberOf('postula')}>Tu camino a la corona</Kicker>
+                <h2 id="pgs-apply-title" className="pgs-h2">
+                  {site.registrationNotice.state === 'closed' ? (
+                    <>
+                      Las postulaciones <em>ya cerraron</em>
+                    </>
+                  ) : (
+                    <>
+                      Las postulaciones <em>abrirán pronto</em>
+                    </>
+                  )}
+                </h2>
+                <p className="pgs-note">
+                  {site.registrationNotice.state === 'closed'
+                    ? `La convocatoria de ${site.name} ya no recibe postulaciones.`
+                    : site.registrationNotice.opensAtLabel
+                      ? `La convocatoria de ${site.name} abre el ${site.registrationNotice.opensAtLabel}.`
+                      : `Aún no está abierta la convocatoria de ${site.name}.`}{' '}
+                  {site.whatsapp || site.contactEmail ? 'Escríbenos y te avisamos cuando haya novedades.' : 'Vuelve pronto para postular.'}
+                </p>
+                <div className="pgs-hero-ctas">
+                  {site.whatsapp && (
+                    <a className="pgs-btn is-gold" href={whatsappMessageUrl(site.whatsapp.href, whatsappGreeting('candidata', site.name))} target="_blank" rel="noopener noreferrer">
+                      <span>Escríbenos por WhatsApp</span>
+                    </a>
+                  )}
+                  {site.contactEmail && (
+                    <a className="pgs-btn is-ghost" href={`mailto:${site.contactEmail}`}>
+                      <span>{site.contactEmail}</span>
+                    </a>
+                  )}
+                </div>
               </div>
             </div>
           </section>
@@ -808,7 +861,7 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
                           </span>
                         )}
                         <span className="pgs-card-caption">
-                          <span className="pgs-card-name">{c.name}</span>
+                          <span className="pgs-card-name" data-truncate>{c.name}</span>
                           {c.representing && <span className="pgs-card-rep">{c.representing}</span>}
                           <span className="pgs-card-more" aria-hidden="true">
                             Ver perfil <Arrow />
@@ -887,7 +940,7 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
                 )}
               </div>
               <div className="pgs-gala-info" data-reveal>
-                <h2 id="pgs-gala-title" className="pgs-h2 is-ink">
+                <h2 id="pgs-gala-title" className={`pgs-h2 is-ink ${headingSize(site.venueName)}`.trim()}>
                   {site.venueName ? site.venueName : <>Una noche <em>para recordar</em></>}
                 </h2>
                 {site.venueAddress && (
@@ -961,7 +1014,7 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
                   <ul className="pgs-packages">
                     {site.packages.map((p, i) => {
                       const exclusive = packageBenefits.exclusive[p.id] ?? [];
-                      const priceLabel = p.price != null ? `${formatCurrency(p.price)} + IVA` : null;
+                      const priceLabel = p.price != null ? formatCurrency(p.price) : null;
                       return (
                         <li key={p.id} className={`pgs-package${i === 0 ? ' is-featured' : ''}${p.slotsLeft === 0 ? ' is-soldout' : ''}${openPackages.has(p.id) ? ' is-open' : ''}`} data-reveal style={{ transitionDelay: `${i * 0.08}s` }}>
                           <button type="button" className="pgs-package-toggle" aria-expanded={openPackages.has(p.id)} aria-controls={`paquete-${p.id}`} onClick={() => togglePackage(p.id)}>
@@ -970,7 +1023,7 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
                               <span className="pgs-package-name">{p.name}</span>
                               {p.price != null && (
                                 <span className="pgs-package-price">
-                                  {formatCurrency(p.price)} <span>+ IVA</span>
+                                  {formatCurrency(p.price)}
                                 </span>
                               )}
                             </span>
@@ -1202,15 +1255,15 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
 
       {/* ── Pie ────────────────────────────────────────────────────────── */}
       <footer className="pgs-footer">
-        {site.instagramHandle && (
-          <a className="pgs-follow" href={`https://instagram.com/${site.instagramHandle}`} target="_blank" rel="noopener noreferrer" data-reveal>
+        {site.instagramHandles.map((handle) => (
+          <a key={handle} className="pgs-follow" href={`https://instagram.com/${handle}`} target="_blank" rel="noopener noreferrer" data-reveal>
             <span className="pgs-follow-label">
               <Instagram className="pgs-inline-icon" />
               Síguenos en Instagram
             </span>
-            <span className="pgs-follow-handle">@{site.instagramHandle}</span>
+            <span className="pgs-follow-handle">@{handle}</span>
           </a>
-        )}
+        ))}
         <div className="pgs-wrap pgs-footer-grid">
           <div className="pgs-footer-brand">
             <Crown className="pgs-brand-mark" />
@@ -1241,17 +1294,14 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
                 {site.contactEmail}
               </a>
             )}
-            {site.instagramHandle && (
-              <a href={`https://instagram.com/${site.instagramHandle}`} target="_blank" rel="noopener noreferrer">
-                <Instagram className="pgs-inline-icon" />@{site.instagramHandle}
+            {site.instagramHandles.map((handle) => (
+              <a key={handle} href={`https://instagram.com/${handle}`} target="_blank" rel="noopener noreferrer">
+                <Instagram className="pgs-inline-icon" />@{handle}
               </a>
-            )}
+            ))}
             {site.registration && <a href={site.registration.href}>Postula al certamen</a>}
           </div>
         </div>
-        <p className="pgs-footer-word" aria-hidden="true">
-          {title.main}
-        </p>
         <div className="pgs-wrap pgs-footer-legal">
           <p>
             © {title.edition ?? ''} {shortName}

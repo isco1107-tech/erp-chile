@@ -75,7 +75,6 @@ describe('completeForcedPasswordChangeAction (SEG-02)', () => {
       role: 'ADMIN',
       email: 'user@empresa.cl',
       companyId: 'company-1',
-      isSuperAdmin: false,
       sessionVersion: 1,
     });
 

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { put } from '@/lib/storage/blob';
+import { putPrivate } from '@/lib/storage/blob';
 import { AuthError, ModuleNotEnabledError, TenantInactiveError, requireAuthWithPermission } from '@/lib/auth/guards';
 import { prisma } from '@/lib/prisma';
 import { sniffCertificateType, SNIFFED_CERTIFICATE_EXTENSION } from '@/lib/security/file-signature';
@@ -59,11 +59,9 @@ export async function POST(req: Request) {
     // el bucket privado queda como decisión de producto pendiente.
     const pathname = `candidates/${session.companyId}/documents/${candidateId}-${Date.now()}-${crypto.randomUUID()}.${extension}`;
 
-    const blob = await put(pathname, bytes, {
-      access: 'public',
-      contentType: sniffed,
-      addRandomSuffix: false,
-    });
+    // Certificado médico y contratos: al bucket PRIVADO. Solo se leen por la
+    // ruta autenticada `/api/candidates/.../file` (que audita la descarga).
+    const blob = await putPrivate(pathname, bytes, { contentType: sniffed });
 
     return NextResponse.json({ success: true, data: { url: blob.url } });
   } catch (error) {

@@ -99,7 +99,7 @@ export default function CinematicSequence() {
             </h1>
             <p className={s.lead}>Ventas, inventario, finanzas, contabilidad y personas en un solo sistema de gestión. Hecho para empresas chilenas.</p>
             <div className={s.actions}>
-              <a className={s.primary} href="#cotizar" data-magnetic>Quiero conocer Aether <ArrowUpRight size={18} aria-hidden="true" /></a>
+              <a className={s.primary} href="#modulos" data-magnetic>Quiero conocer Aether <ArrowUpRight size={18} aria-hidden="true" /></a>
               <a className={s.secondary} href="#como-funciona">Ver cómo funciona <ArrowDown size={17} aria-hidden="true" /></a>
             </div>
             <Link className={s.corporate} href="/empresas">

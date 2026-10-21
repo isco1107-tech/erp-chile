@@ -13,6 +13,9 @@ type ContractDoc = {
   status: 'PENDING' | 'SIGNED' | 'EXPIRED';
   fileUrl: string;
   zapsignSignUrl: string | null;
+  /** Enviado al sandbox de ZapSign: firmar ahí no tiene validez legal. */
+  zapsignSandbox: boolean;
+  zapsignTestSignedAt: string | null;
 } | null;
 
 export default function ContractSignatureSection({ candidateId, candidateEmail, document }: { candidateId: string; candidateEmail: string | null; document: ContractDoc }) {
@@ -34,8 +37,8 @@ export default function ContractSignatureSection({ candidateId, candidateEmail, 
         toast.error(result.error);
         return;
       }
-      setLocal({ id: result.data.documentId, status: 'PENDING', fileUrl: local?.fileUrl ?? '', zapsignSignUrl: result.data.signUrl });
-      toast.success('Contrato enviado a firma por correo');
+      setLocal({ id: result.data.documentId, status: 'PENDING', fileUrl: local?.fileUrl ?? '', zapsignSignUrl: result.data.signUrl, zapsignSandbox: Boolean(result.data.sandbox), zapsignTestSignedAt: null });
+      toast.success(result.data.sandbox ? 'Contrato enviado en modo de prueba: la firma no tendrá validez legal' : 'Contrato enviado a firma por correo');
     } finally {
       setBusy(false);
     }
@@ -54,8 +57,18 @@ export default function ContractSignatureSection({ candidateId, candidateEmail, 
     <div className="rounded border border-border p-3">
       <div className="mb-2 flex items-center justify-between">
         <p className="text-xs font-semibold text-muted-foreground uppercase">Contrato de imagen</p>
-        {local && <StatusBadge tone={isSigned ? 'success' : 'warning'}>{isSigned ? 'Firmada' : 'Pendiente de firma'}</StatusBadge>}
+        {local && (
+          <StatusBadge tone={isSigned ? 'success' : 'warning'}>
+            {isSigned ? 'Firmada' : local.zapsignTestSignedAt ? 'Firma de prueba recibida' : 'Pendiente de firma'}
+          </StatusBadge>
+        )}
       </div>
+      {local?.zapsignSandbox && !isSigned && (
+        <p className="mb-2 rounded-lg border border-warning/30 bg-warning-soft p-2 text-xs text-warning">
+          Enviado en modo de prueba (sandbox de ZapSign). Aunque la candidata firme, el contrato sigue pendiente porque esa firma no tiene
+          validez legal. Para una firma real, apaga el modo de prueba en Configuración → Perfil de Empresa → Integraciones y reenvía el contrato.
+        </p>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         {!isSigned && (

@@ -5,6 +5,8 @@ import { cn } from "@/lib/utils";
 import { Toaster } from 'sonner';
 import RouteProgressBar from '@/components/shared/RouteProgressBar';
 import AetherBadge from '@/components/shared/AetherBadge';
+import PrivateAnalytics from '@/components/shared/PrivateAnalytics';
+import { appHosts } from '@/lib/hosting/custom-domain';
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
@@ -25,6 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {children}
         <Toaster position="top-right" />
         <AetherBadge />
+        <PrivateAnalytics platformHosts={appHosts()} />
       </body>
     </html>
   );

@@ -63,16 +63,24 @@ describe('Mapa de pantallas del asistente', () => {
   });
 
   /**
-   * El sidebar muestra Configuración con un OR de sus secciones. Si el mapa
-   * exigiera un permiso puntual, el asistente mandaría a Configuración a
-   * gente que no lo ve en su menú, o dejaría de mandar a quien sí lo ve.
+   * El mapa se deriva del menú lateral: Configuración aparece exactamente
+   * cuando el sidebar la muestra (con cualquiera de sus secciones), y la
+   * subpantalla solo con su propio permiso. Antes era una lista a mano que
+   * difería del menú (con solo importación, el menú mostraba Configuración y
+   * el asistente decía que no existía).
    */
-  it('Configuración aparece con cualquiera de los permisos de sus secciones', () => {
+  it('Configuración aparece con cualquiera de los permisos de sus secciones, igual que en el menú', () => {
     const soloAuditoria = getVisibleNavigation(ALL_FEATURES, ['audit:read']).map((entry) => entry.route);
     expect(soloAuditoria).toContain('/dashboard/settings');
+    expect(soloAuditoria).toContain('/dashboard/settings/audit');
+    expect(soloAuditoria).not.toContain('/dashboard/settings/import');
 
     const soloImportacion = getVisibleNavigation(ALL_FEATURES, ['import:data']).map((entry) => entry.route);
-    expect(soloImportacion).not.toContain('/dashboard/settings');
+    expect(soloImportacion).toContain('/dashboard/settings');
+    expect(soloImportacion).toContain('/dashboard/settings/import');
+
+    const sinConfiguracion = getVisibleNavigation(ALL_FEATURES, ['sales:read']).map((entry) => entry.route);
+    expect(sinConfiguracion).not.toContain('/dashboard/settings');
   });
 
   it('con todo contratado y todos los permisos se ve el mapa completo', () => {
@@ -126,16 +134,16 @@ describe('Flujos y problemas frecuentes', () => {
 describe('Secciones del manual con permiso', () => {
   it('una sección con permiso se oculta a quien no lo tiene', () => {
     const withoutImport = getVisibleManualSections(ALL_FEATURES, []).map((section) => section.title);
-    expect(withoutImport).not.toContain('Importación Masiva (Excel y fotos)');
+    expect(withoutImport).not.toContain('Importación masiva (Excel, texto y fotos)');
 
     const withImport = getVisibleManualSections(ALL_FEATURES, ['import:data']).map((section) => section.title);
-    expect(withImport).toContain('Importación Masiva (Excel y fotos)');
+    expect(withImport).toContain('Importación masiva (Excel, texto y fotos)');
   });
 
   /** Sin `permissions`, el filtro por permiso no aplica: sigue devolviendo todo lo contratado. */
   it('omitir los permisos devuelve todas las secciones contratadas', () => {
     const titles = getVisibleManualSections(ALL_FEATURES).map((section) => section.title);
-    expect(titles).toContain('Importación Masiva (Excel y fotos)');
+    expect(titles).toContain('Importación masiva (Excel, texto y fotos)');
   });
 });
 

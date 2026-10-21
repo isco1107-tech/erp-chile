@@ -14,6 +14,10 @@ export default defineConfig({
     // sesión persistente, y el pooler de Neon (PgBouncer modo transacción) no
     // la garantiza entre statements. La app en runtime usa DATABASE_URL
     // (pooled) vía src/lib/prisma.ts, no esta config.
-    url: process.env["DIRECT_DATABASE_URL"] ?? process.env["DATABASE_URL"],
+    // La integración Vercel–Neon expone la directa como DATABASE_URL_UNPOOLED.
+    url:
+      process.env["DIRECT_DATABASE_URL"] ??
+      process.env["DATABASE_URL_UNPOOLED"] ??
+      process.env["DATABASE_URL"],
   },
 });

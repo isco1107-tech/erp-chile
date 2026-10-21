@@ -10,22 +10,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { textareaClass } from '@/components/ui/field-classes';
-import { formatWhatsappNumber } from '@/lib/events/pageant-contact';
+import { formatInstagramHandlesForForm, formatWhatsappNumber } from '@/lib/events/pageant-contact';
 import { slugify } from '@/lib/events/public-slug';
 import { DIRECTOR_TITLES, directorCopy, type DirectorTitle } from '@/lib/events/pageant-site';
 import { checkPublicSlugAction, updatePublicSiteAction } from '@/modules/projects/actions/projects.actions';
-import { PUBLIC_ACCENT_LABELS, PUBLIC_ACCENTS, type PublicAccentKey } from '@/modules/projects/schema';
+import { PUBLIC_ACCENT_LABELS, PUBLIC_ACCENT_SWATCH, PUBLIC_ACCENTS, type PublicAccentKey } from '@/modules/projects/schema';
 import { cn } from '@/lib/utils';
+import { CreativeStudio } from '@/components/web-sites/CreativeStudio';
+import { parseCreativeSite } from '@/lib/web-sites/creative';
+import { SiteDesignAssistant } from '@/components/web-sites/SiteDesignAssistant';
 import { CustomDomainSection } from './CustomDomainSection';
-
-/** Muestras de color de los acentos del sistema público (los mismos de `PublicShell`). */
-const ACCENT_SWATCH: Record<PublicAccentKey, string> = {
-  gold: 'linear-gradient(135deg, #e7cd97, #a8823f)',
-  violet: 'linear-gradient(135deg, #b39bff, #6d28d9)',
-  rose: 'linear-gradient(135deg, #fda4b4, #be123c)',
-  cyan: 'linear-gradient(135deg, #67e8f9, #0e7490)',
-  emerald: 'linear-gradient(135deg, #6ee7b7, #047857)',
-};
 
 type Toggle = 'showCandidatesPublic' | 'showSponsorsPublic' | 'showVoteRankingPublic' | 'showResultsPublic' | 'sponsorLeadFormEnabled';
 
@@ -40,13 +34,14 @@ const TOGGLES: Array<{ key: Toggle; label: string; hint: string }> = [
 export function PublicSiteForm({ project, canWrite }: { project: Project; canWrite: boolean }) {
   const router = useRouter();
   const [values, setValues] = useState({
+    publicSiteDesign: parseCreativeSite(project.publicSiteDesign),
     publicSlug: project.publicSlug ?? '',
     publicSiteEnabled: project.publicSiteEnabled,
     publicTagline: project.publicTagline ?? '',
     publicDescription: project.publicDescription ?? '',
     coverImageUrl: project.coverImageUrl ?? '',
     publicAccent: ((PUBLIC_ACCENTS as readonly string[]).includes(project.publicAccent) ? project.publicAccent : 'gold') as PublicAccentKey,
-    instagramHandle: project.instagramHandle ? `@${project.instagramHandle.replace(/^@/, '')}` : '',
+    instagramHandle: formatInstagramHandlesForForm(project.instagramHandle),
     publicContactEmail: project.publicContactEmail ?? '',
     publicWhatsapp: project.publicWhatsapp ? formatWhatsappNumber(project.publicWhatsapp) : '',
     showCandidatesPublic: project.showCandidatesPublic,
@@ -59,11 +54,14 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
     directorRole: project.directorRole ?? '',
     directorBio: project.directorBio ?? '',
     directorPhotoUrl: project.directorPhotoUrl ?? '',
+    faviconUrl: project.faviconUrl ?? '',
     sponsorExclusivityNote: project.sponsorExclusivityNote ?? '',
   });
   // La trayectoria se edita como texto, un logro por línea.
   const [highlightsText, setHighlightsText] = useState(project.directorHighlights.join('\n'));
   const [uploadingDirector, setUploadingDirector] = useState(false);
+  const [uploadingFavicon, setUploadingFavicon] = useState(false);
+  const faviconFileRef = useRef<HTMLInputElement>(null);
   const directorFileRef = useRef<HTMLInputElement>(null);
   const [slugState, setSlugState] = useState<{ available: boolean; problem: string | null } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -85,9 +83,10 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
     return () => window.clearTimeout(timer);
   }, [values.publicSlug, project.id, project.publicSlug]);
 
-  async function uploadImage(file: File): Promise<string | null> {
+  async function uploadImage(file: File, purpose: 'cover' | 'director' | 'favicon' = 'cover'): Promise<string | null> {
     const form = new FormData();
     form.append('projectId', project.id);
+    form.append('purpose', purpose);
     form.append('file', file);
     const res = await fetch('/api/projects/cover-upload', { method: 'POST', body: form });
     const json = (await res.json()) as { success: boolean; data?: { url: string }; error?: string };
@@ -101,7 +100,7 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
   async function uploadDirectorPhoto(file: File) {
     setUploadingDirector(true);
     try {
-      const url = await uploadImage(file);
+      const url = await uploadImage(file, 'director');
       if (url) {
         set('directorPhotoUrl', url);
         toast.success('Foto cargada: guarda para publicarla');
@@ -109,6 +108,20 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
     } finally {
       setUploadingDirector(false);
       if (directorFileRef.current) directorFileRef.current.value = '';
+    }
+  }
+
+  async function uploadFavicon(file: File) {
+    setUploadingFavicon(true);
+    try {
+      const url = await uploadImage(file, 'favicon');
+      if (url) {
+        set('faviconUrl', url);
+        toast.success('Logo cargado: guarda para publicarlo');
+      }
+    } finally {
+      setUploadingFavicon(false);
+      if (faviconFileRef.current) faviconFileRef.current.value = '';
     }
   }
 
@@ -146,6 +159,8 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
   return (
     <div className="grid grid-cols-1 gap-5 xl:grid-cols-[2fr_1fr]">
       <div className="space-y-5">
+        <CreativeStudio target="event" resourceId={project.id} name={project.name} value={values.publicSiteDesign} disabled={!canWrite || saving} images={[values.coverImageUrl, values.directorPhotoUrl, values.faviconUrl].filter(Boolean)} onChange={(design) => set('publicSiteDesign', design)} />
+        <SiteDesignAssistant disabled={!canWrite || saving} context={{ target: 'event', resourceId: project.id, current: { publicTagline: values.publicTagline, publicDescription: values.publicDescription, publicAccent: values.publicAccent, sponsorExclusivityNote: values.sponsorExclusivityNote } }} onApply={(proposal) => { if (proposal.target === 'event') { setValues((previous) => ({ ...previous, ...proposal.design })); toast.success('Propuesta aplicada: revisa y guarda los cambios'); } }} />
         <section className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-card">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -200,7 +215,37 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
                       Quitar portada
                     </Button>
                   )}
-                  <p className="text-xs text-muted-foreground">JPG o PNG horizontal, hasta 6 MB.</p>
+                  <p className="text-xs text-muted-foreground">JPG o PNG horizontal de al menos 1600 × 900 px (mínimo 1000 × 520) y hasta 6 MB. Una imagen chica se ve pixelada a pantalla completa.</p>
+                </div>
+              )}
+            </div>
+          </div>
+          <div>
+            <Label>Logo de la pestaña del navegador</Label>
+            <div className="mt-1 flex flex-wrap items-center gap-3">
+              <div className="flex size-14 items-center justify-center overflow-hidden rounded-md border border-border bg-muted">
+                {values.faviconUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={values.faviconUrl} alt="Logo de la pestaña" className="size-full object-cover" />
+                ) : (
+                  <span className="px-1 text-center text-[10px] text-muted-foreground">Aether</span>
+                )}
+              </div>
+              {canWrite && (
+                <div className="flex flex-col gap-1.5">
+                  <input ref={faviconFileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => e.target.files?.[0] && void uploadFavicon(e.target.files[0])} />
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" size="sm" variant="outline" disabled={uploadingFavicon} onClick={() => faviconFileRef.current?.click()}>
+                      <ImagePlus aria-hidden="true" />
+                      {uploadingFavicon ? 'Subiendo…' : values.faviconUrl ? 'Cambiar logo' : 'Subir logo'}
+                    </Button>
+                    {values.faviconUrl && (
+                      <Button type="button" size="sm" variant="ghost" onClick={() => set('faviconUrl', '')}>
+                        Quitar logo
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">El ícono chico de la pestaña y los favoritos. Cuadrado, ideal 512 × 512 px (mínimo 64 × 64). Sin logo, se ve el de Aether.</p>
                 </div>
               )}
             </div>
@@ -226,7 +271,7 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
                   onClick={() => set('publicAccent', accent)}
                   className={cn('flex items-center gap-2 rounded-full border px-3 py-1 text-xs', values.publicAccent === accent ? 'border-foreground font-medium' : 'border-border text-muted-foreground')}
                 >
-                  <span className="size-3.5 rounded-full" style={{ background: ACCENT_SWATCH[accent] }} aria-hidden="true" />
+                  <span className="size-3.5 rounded-full" style={{ background: PUBLIC_ACCENT_SWATCH[accent] }} aria-hidden="true" />
                   {PUBLIC_ACCENT_LABELS[accent]}
                 </button>
               ))}
@@ -234,8 +279,8 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div>
-              <Label htmlFor="site-ig">Instagram del certamen</Label>
-              <Input id="site-ig" value={values.instagramHandle} onChange={(e) => set('instagramHandle', e.target.value)} placeholder="@misschileoficial" disabled={!canWrite} />
+              <Label htmlFor="site-ig">Instagram del certamen (uno o varios)</Label>
+              <Input id="site-ig" value={values.instagramHandle} onChange={(e) => set('instagramHandle', e.target.value)} placeholder="@misschileoficial, @otracuenta" disabled={!canWrite} />
             </div>
             <div>
               <Label htmlFor="site-wsp">WhatsApp del certamen</Label>
@@ -386,7 +431,7 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={values.coverImageUrl} alt="" className="absolute inset-0 size-full object-cover opacity-60" aria-hidden="true" />
               )}
-              <span className="absolute inset-x-0 bottom-0 h-1" style={{ background: ACCENT_SWATCH[values.publicAccent] }} aria-hidden="true" />
+              <span className="absolute inset-x-0 bottom-0 h-1" style={{ background: PUBLIC_ACCENT_SWATCH[values.publicAccent] }} aria-hidden="true" />
             </div>
             <div className="p-4">
               <p className="text-lg font-semibold">{project.name}</p>

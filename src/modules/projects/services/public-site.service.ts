@@ -1,9 +1,12 @@
+import { parseCreativeSite } from '@/lib/web-sites/creative';
+import { requirementsFromProject, type RegistrationRequirements } from '@/lib/events/registration-requirements';
 import 'server-only';
 
-import type { CandidateStatus, SponsorshipTier } from '@prisma/client';
+import type { CandidateStatus, Prisma, SponsorshipTier } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { domainOwner } from '@/lib/hosting/domain-lifecycle';
 import { pageantContact } from '@/lib/events/pageant-contact';
-import type { DirectorTitle } from '@/lib/events/pageant-site';
+import { shortDate, type DirectorTitle } from '@/lib/events/pageant-site';
 import { decodeVoteToken } from '@/modules/public-voting/schema';
 import { SPONSORSHIP_TIER_LABELS, SPONSORSHIP_TIERS } from '@/modules/sponsorships/schema';
 import type { PublicAccentKey } from '../schema';
@@ -35,6 +38,7 @@ export interface PublicPageantCandidate {
 }
 
 export interface PublicPageantSite {
+  creative?: import('@/lib/web-sites/creative').CreativeSite;
   slug: string;
   name: string;
   organizer: string;
@@ -44,8 +48,11 @@ export interface PublicPageantSite {
   venueName: string | null;
   venueAddress: string | null;
   coverImageUrl: string | null;
+  /** Logo de la pestaña del navegador (favicon); `null` = el de la plataforma. */
+  faviconUrl: string | null;
   accent: PublicAccentKey;
-  instagramHandle: string | null;
+  /** Cuentas de Instagram del certamen, sin «@» (vacío = ninguna). */
+  instagramHandles: string[];
   contactEmail: string | null;
   whatsapp: { href: string; label: string } | null;
   candidates: PublicPageantCandidate[];
@@ -59,14 +66,27 @@ export interface PublicPageantSite {
     token: string;
     closesAt: string | null;
     minAge: number;
+    /** Requisitos de inscripción que marcó la organización (edad, chilena, Instagram, foto). */
+    requirements: RegistrationRequirements;
     /** Cupo de preseleccionadas, si la convocatoria lo definió. */
     maxCandidates: number | null;
     benefits: string[];
     classesNote: string | null;
   } | null;
+  /**
+   * La cara "Ser candidata" del sitio existe siempre que la empresa tenga el módulo de
+   * candidatas, esté abierta la convocatoria o no: así el sitio ofrece SIEMPRE las dos
+   * opciones (candidata / sponsor). Con la convocatoria sin abrir, `registration` es
+   * `null` y `registrationNotice` explica el estado en vez de mostrar un formulario que
+   * el servidor rechazaría.
+   */
+  candidateSide: boolean;
+  registrationNotice: { state: 'soon' | 'closed'; opensAtLabel: string | null } | null;
   voteRanking: Array<{ name: string; number: number | null; votes: number }> | null;
   results: Array<{ rank: number; name: string; number: number | null; representing: string | null; photoUrl: string | null }> | null;
   sponsorLeadForm: boolean;
+  /** Salón de la fama: ganadoras de ediciones anteriores, la más reciente primero (esa va destacada). */
+  pastWinners: Array<{ id: string; name: string; title: string; year: number | null; note: string | null; photoUrl: string; featured: boolean }>;
   /** "Conoce al Director" (null si el certamen no cargó un nombre). */
   director: { name: string; title: DirectorTitle | null; role: string | null; bio: string | null; photoUrl: string | null; highlights: string[] } | null;
   /** Nota para sponsors bajo los paquetes (exclusividad por rubro, etc.). */
@@ -79,12 +99,27 @@ function isAccent(value: string): value is PublicAccentKey {
   return (PUBLIC_ACCENTS as readonly string[]).includes(value);
 }
 
+const WITH_COMPANY = { company: { select: { businessName: true, status: true, features: true } } } as const;
+type ProjectWithCompany = Prisma.ProjectGetPayload<{ include: typeof WITH_COMPANY }>;
+
 export async function getPublicPageantSite(slug: string): Promise<PublicPageantSite | null> {
-  const project = await prisma.project.findUnique({
-    where: { publicSlug: slug },
-    include: { company: { select: { businessName: true, status: true, features: true } } },
-  });
+  const project = await prisma.project.findUnique({ where: { publicSlug: slug }, include: WITH_COMPANY });
   if (!project || !project.publicSiteEnabled) return null;
+  return assemblePageantSite(project, slug);
+}
+
+/**
+ * El mismo sitio que verá el público, pero para el equipo del certamen y aunque aún
+ * no esté publicado: alimenta la vista previa por dispositivos del panel. Solo se
+ * llama con el `companyId` de la sesión; nunca desde una ruta pública.
+ */
+export async function getPageantSitePreview(companyId: string, projectId: string): Promise<PublicPageantSite | null> {
+  const project = await prisma.project.findFirst({ where: { id: projectId, companyId }, include: WITH_COMPANY });
+  if (!project) return null;
+  return assemblePageantSite(project, project.publicSlug ?? 'vista-previa');
+}
+
+async function assemblePageantSite(project: ProjectWithCompany, slug: string): Promise<PublicPageantSite | null> {
   const { company } = project;
   if (company.status === 'SUSPENDED' || company.status === 'CANCELLED') return null;
   const features = company.features;
@@ -94,7 +129,7 @@ export async function getPublicPageantSite(slug: string): Promise<PublicPageantS
   const where = { companyId, projectId: project.id };
   const now = new Date();
 
-  const [candidates, contracts, packages, ticketTypes, finalRound] = await Promise.all([
+  const [candidates, contracts, packages, ticketTypes, finalRound, pastWinners] = await Promise.all([
     features.hasCandidates && project.showCandidatesPublic
       ? prisma.candidate.findMany({
           where: { ...where, status: { in: PUBLIC_CANDIDATE_STATUSES }, showOnPublicSite: true },
@@ -141,6 +176,12 @@ export async function getPublicPageantSite(slug: string): Promise<PublicPageantS
           },
         })
       : Promise.resolve(null),
+    // Solo lo que se publica: nombre, título, año, nota, foto y si va con foto completa.
+    prisma.pastWinner.findMany({
+      where,
+      select: { id: true, name: true, title: true, year: true, note: true, photoUrl: true, featured: true },
+      orderBy: [{ year: { sort: 'desc', nulls: 'last' } }, { createdAt: 'asc' }],
+    }),
   ]);
 
   // Ranking de votos: solo órdenes pagadas, solo si producción decidió mostrarlo.
@@ -179,20 +220,34 @@ export async function getPublicPageantSite(slug: string): Promise<PublicPageantS
     (!project.registrationOpensAt || project.registrationOpensAt <= now) &&
     (!project.registrationClosesAt || project.registrationClosesAt > now);
 
+  const registrationEnded =
+    project.registrationStatus === 'CLOSED' ||
+    project.registrationStatus === 'ARCHIVED' ||
+    Boolean(project.registrationClosesAt && project.registrationClosesAt <= now);
+  const opensLater = Boolean(project.registrationOpensAt && project.registrationOpensAt > now);
+  const registrationNotice: PublicPageantSite['registrationNotice'] =
+    !features.hasCandidates || registrationOpen
+      ? null
+      : registrationEnded
+        ? { state: 'closed', opensAtLabel: null }
+        : { state: 'soon', opensAtLabel: opensLater && project.registrationOpensAt ? shortDate(project.registrationOpensAt.toISOString()) : null };
+
   const contact = pageantContact(project);
 
   return {
     slug,
     name: project.name,
     organizer: company.businessName,
+    creative: parseCreativeSite(project.publicSiteDesign),
     tagline: project.publicTagline,
     description: project.publicDescription,
     galaDate: project.galaDate?.toISOString() ?? null,
     venueName: project.venueName,
     venueAddress: project.venueAddress,
     coverImageUrl: project.coverImageUrl,
+    faviconUrl: project.faviconUrl,
     accent: isAccent(project.publicAccent) ? project.publicAccent : 'gold',
-    instagramHandle: contact.instagram?.handle ?? null,
+    instagramHandles: contact.instagrams.map((i) => i.handle),
     contactEmail: contact.email,
     whatsapp: contact.whatsapp,
     candidates: candidates.map((c) => ({
@@ -225,11 +280,14 @@ export async function getPublicPageantSite(slug: string): Promise<PublicPageantS
             token: project.candidateRegistrationToken,
             closesAt: project.registrationClosesAt?.toISOString() ?? null,
             minAge: project.minCandidateAge,
+            requirements: requirementsFromProject(project),
             maxCandidates: project.maxCandidates,
             benefits: project.registrationBenefits,
             classesNote: project.registrationClassesNote,
           }
         : null,
+    candidateSide: features.hasCandidates,
+    registrationNotice,
     voteRanking,
     results:
       finalRound && finalRound.contestants.length > 0
@@ -243,6 +301,7 @@ export async function getPublicPageantSite(slug: string): Promise<PublicPageantS
         : null,
     // Con CRM la solicitud entra como prospecto; sin CRM llega por correo a la organización.
     sponsorLeadForm: project.sponsorLeadFormEnabled,
+    pastWinners,
     director: project.directorName?.trim()
       ? {
           name: project.directorName.trim(),
@@ -283,6 +342,16 @@ export async function getPageantSlugByDomain(domain: string, reachedViaDomain = 
     });
   }
   return project.publicSlug;
+}
+
+/**
+ * `true` si el dominio está registrado en un certamen o en un sitio web, esté o no
+ * publicado. Solo sirve para decidir entre "sitio no disponible" (dominio de un cliente
+ * cuyo sitio aún no se publica) y mandar a la plataforma (dominio desconocido); nunca
+ * devuelve datos del sitio.
+ */
+export async function isRegisteredCustomDomain(domain: string): Promise<boolean> {
+  return (await domainOwner(domain)) !== null;
 }
 
 export async function resolveSponsorLeadTarget(
