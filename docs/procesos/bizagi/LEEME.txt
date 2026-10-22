@@ -1,0 +1,18 @@
+MODELO DE PROCESOS DE AETHER Y LA SUPERSUITE: CÓMO VERLO EN BIZAGI MODELER
+
+Bizagi no abre estos archivos con «Abrir» ni con doble clic: eso es solo para sus archivos .bpm.
+Se IMPORTAN:
+
+1. Abre Bizagi Modeler y crea un modelo nuevo (o abre el tuyo).
+2. Ve a la pestaña «Exportar/Importar» (en inglés: Export/Import).
+3. En el grupo «Importar», haz clic en «XPDL».
+4. Elige modelo-procesos-aether.xpdl y haz clic en «Abrir».
+   Verás los procesos en un mismo diagrama, una columna por área (plataforma, ERP, certámenes,
+   canales digitales y transversales), cada uno con su título. Usa el zoom para recorrerlo.
+5. Guárdalo con «Guardar como»: desde ahí Bizagi ya lo abre como .bpm, con doble clic.
+
+Un diagrama por proceso: repite los pasos 2 a 4 con cada archivo de la carpeta por-proceso.
+Si prefieres BPMN: en el mismo grupo «Importar», usa «BPMN» con modelo-procesos-aether.bpmn.
+
+Los archivos cumplen los esquemas oficiales (XPDL 2.2 de la WfMC y BPMN 2.0 de la OMG).
+Si Bizagi muestra un mensaje de error al importar, copia el texto exacto: dice qué ajustar.

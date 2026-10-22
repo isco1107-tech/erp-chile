@@ -1,0 +1,588 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" Id="98b3a729-98fe-599e-868e-4698416650ed" Name="P33 Dominio propio" xmlns="http://www.wfmc.org/2009/XPDL2.2">
+  <PackageHeader>
+    <XPDLVersion>2.2</XPDLVersion>
+    <Vendor>Aether · generador de procesos</Vendor>
+    <Created>2026-10-19T00:00:00-03:00</Created>
+    <ModificationDate>2026-10-19T00:00:00-03:00</ModificationDate>
+    <Description>Conectar un dominio ya comprado a un certamen, sitio web o academia, y darlo por verificado solo cuando de verdad muestra la plataforma.</Description>
+  </PackageHeader>
+  <RedefinableHeader>
+    <Author>Aether</Author>
+    <Version>1.0</Version>
+    <Countrykey>CL</Countrykey>
+  </RedefinableHeader>
+  <Pools>
+    <Pool Id="f4ea59e1-570e-5bb4-8203-5a6a1ca466fc" Name="Main Process" Process="5c27b87a-c03c-5304-916d-ff5ab7cc6565" BoundaryVisible="false">
+      <Lanes />
+      <NodeGraphicsInfos>
+        <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="350" Width="700" BorderColor="-16777216" FillColor="-1">
+          <Coordinates XCoordinate="30" YCoordinate="30" />
+        </NodeGraphicsInfo>
+      </NodeGraphicsInfos>
+    </Pool>
+    <Pool Id="9d5d7369-dd08-5d72-a268-fa52d47c9384" Name="P33 · Vercel" Process="e0e18182-0a9c-59c6-b045-22b8b02e4f5e" BoundaryVisible="true">
+      <Lanes>
+        <Lane Id="4a18b643-4356-5fea-901d-be35692198af" Name="" ParentPool="9d5d7369-dd08-5d72-a268-fa52d47c9384">
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="72" Width="2550" BorderColor="-11513776" FillColor="-1">
+              <Coordinates XCoordinate="50" YCoordinate="0" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Lane>
+      </Lanes>
+      <NodeGraphicsInfos>
+        <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="72" Width="2600" BorderColor="-16777216" FillColor="-1">
+          <Coordinates XCoordinate="20" YCoordinate="154" />
+        </NodeGraphicsInfo>
+      </NodeGraphicsInfos>
+    </Pool>
+    <Pool Id="4d245f5e-f477-59e6-b71b-22283c4e06db" Name="P33 · Aether ERP" Process="6b738d04-1f19-5663-a243-c8ecc3d2e189" BoundaryVisible="true">
+      <Lanes>
+        <Lane Id="ac7c95af-f772-5eee-ac98-7b2bdb4e37c4" Name="Administrador del sitio" ParentPool="4d245f5e-f477-59e6-b71b-22283c4e06db">
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="264" Width="2550" BorderColor="-11513776" FillColor="-1">
+              <Coordinates XCoordinate="50" YCoordinate="0" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Lane>
+        <Lane Id="dde66ccb-afaa-5ea3-900c-7a6361177a8b" Name="Sistema Aether" ParentPool="4d245f5e-f477-59e6-b71b-22283c4e06db">
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="396" Width="2550" BorderColor="-11513776" FillColor="-1">
+              <Coordinates XCoordinate="50" YCoordinate="264" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Lane>
+      </Lanes>
+      <NodeGraphicsInfos>
+        <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="660" Width="2600" BorderColor="-16777216" FillColor="-1">
+          <Coordinates XCoordinate="20" YCoordinate="282" />
+        </NodeGraphicsInfo>
+      </NodeGraphicsInfos>
+    </Pool>
+    <Pool Id="317ab410-910b-5136-817a-a6c5ca602fb1" Name="P33 · Proveedor del dominio (DNS)" Process="059a61b6-9e2c-5025-b5ee-52488951af9a" BoundaryVisible="true">
+      <Lanes>
+        <Lane Id="ddf4bd4f-e80f-5911-bde0-13eb6adfe6ba" Name="" ParentPool="317ab410-910b-5136-817a-a6c5ca602fb1">
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="72" Width="2550" BorderColor="-11513776" FillColor="-1">
+              <Coordinates XCoordinate="50" YCoordinate="0" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Lane>
+      </Lanes>
+      <NodeGraphicsInfos>
+        <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="72" Width="2600" BorderColor="-16777216" FillColor="-1">
+          <Coordinates XCoordinate="20" YCoordinate="998" />
+        </NodeGraphicsInfo>
+      </NodeGraphicsInfos>
+    </Pool>
+  </Pools>
+  <MessageFlows>
+    <MessageFlow Id="8967eaa4-8d0e-54b4-8109-ea4cf8f0e55f" Name="Agregar dominio" Source="23fcd6c2-9e2a-558c-b6e4-7787bc439d0b" Target="9d5d7369-dd08-5d72-a268-fa52d47c9384">
+      <ConnectorGraphicsInfos>
+        <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+          <Coordinates XCoordinate="905" YCoordinate="570" />
+          <Coordinates XCoordinate="905" YCoordinate="226" />
+        </ConnectorGraphicsInfo>
+      </ConnectorGraphicsInfos>
+    </MessageFlow>
+    <MessageFlow Id="0c8cb6f6-356d-5bc7-922c-6dafed19ff3b" Name="Registros DNS" Source="c90e756a-b427-5b9f-956f-82b1a4be70a3" Target="317ab410-910b-5136-817a-a6c5ca602fb1">
+      <ConnectorGraphicsInfos>
+        <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+          <Coordinates XCoordinate="1439" YCoordinate="390" />
+          <Coordinates XCoordinate="1439" YCoordinate="998" />
+        </ConnectorGraphicsInfo>
+      </ConnectorGraphicsInfos>
+    </MessageFlow>
+  </MessageFlows>
+  <Associations>
+    <Association Id="a089ea0c-6067-5359-9151-578533eb908e" Source="046d1ca0-cf3a-5759-b814-c86e7ee2932d" Target="e3e24a78-9a8a-5dda-94c2-2b83f8f1c0aa">
+      <Object Id="5b5f2cad-f5c2-54b4-83e2-b4a63877b521" />
+      <ConnectorGraphicsInfos>
+        <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+          <Coordinates XCoordinate="1795" YCoordinate="841" />
+          <Coordinates XCoordinate="1795" YCoordinate="654" />
+        </ConnectorGraphicsInfo>
+      </ConnectorGraphicsInfos>
+    </Association>
+  </Associations>
+  <Artifacts>
+    <Artifact Id="40af087c-c180-5b7c-b6be-dec617d159ee" ArtifactType="Annotation" TextAnnotation="Canales digitales (P33)">
+      <NodeGraphicsInfos>
+        <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="44" Width="1400" BorderColor="-2763307" FillColor="-2763307">
+          <Coordinates XCoordinate="20" YCoordinate="20" />
+        </NodeGraphicsInfo>
+      </NodeGraphicsInfos>
+    </Artifact>
+    <Artifact Id="f4bf87cf-e3bc-5215-bb05-dbaa87962bc4" ArtifactType="Annotation" TextAnnotation="P33 · Dominio propio. Conectar un dominio ya comprado a un certamen, sitio web o academia, y darlo por verificado solo cuando de verdad muestra la plataforma.">
+      <NodeGraphicsInfos>
+        <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="48" Width="1400" BorderColor="-2763307" FillColor="-2763307">
+          <Coordinates XCoordinate="20" YCoordinate="90" />
+        </NodeGraphicsInfo>
+      </NodeGraphicsInfos>
+    </Artifact>
+    <Artifact Id="046d1ca0-cf3a-5759-b814-c86e7ee2932d" ArtifactType="Annotation" TextAnnotation="Que los DNS apunten bien no basta: si el dominio no está agregado en Vercel, no muestra la plataforma.">
+      <NodeGraphicsInfos>
+        <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="70" Width="168" BorderColor="-2763307" FillColor="-2763307">
+          <Coordinates XCoordinate="1711" YCoordinate="841" />
+        </NodeGraphicsInfo>
+      </NodeGraphicsInfos>
+    </Artifact>
+  </Artifacts>
+  <WorkflowProcesses>
+    <WorkflowProcess Id="5c27b87a-c03c-5304-916d-ff5ab7cc6565" Name="Main Process">
+      <ProcessHeader>
+        <Created>2026-10-19T00:00:00-03:00</Created>
+        <Description></Description>
+      </ProcessHeader>
+      <RedefinableHeader>
+        <Author>Aether</Author>
+        <Version>1.0</Version>
+        <Countrykey>CL</Countrykey>
+      </RedefinableHeader>
+    </WorkflowProcess>
+    <WorkflowProcess Id="e0e18182-0a9c-59c6-b045-22b8b02e4f5e" Name="P33 · Vercel">
+      <ProcessHeader>
+        <Created>2026-10-19T00:00:00-03:00</Created>
+        <Description>Participante externo de P33</Description>
+      </ProcessHeader>
+      <RedefinableHeader>
+        <Author>Aether</Author>
+        <Version>1.0</Version>
+        <Countrykey>CL</Countrykey>
+      </RedefinableHeader>
+    </WorkflowProcess>
+    <WorkflowProcess Id="6b738d04-1f19-5663-a243-c8ecc3d2e189" Name="P33 · Aether ERP">
+      <ProcessHeader>
+        <Created>2026-10-19T00:00:00-03:00</Created>
+        <Description>Dominio propio. Objetivo: Publicar cada sitio público en el dominio del cliente sin que quede apuntando a un error.</Description>
+      </ProcessHeader>
+      <RedefinableHeader>
+        <Author>Aether</Author>
+        <Version>1.0</Version>
+        <Countrykey>CL</Countrykey>
+      </RedefinableHeader>
+      <Activities>
+        <Activity Id="48c45f0e-a66b-5042-a55d-3880834a66df" Name="Tiene un dominio comprado">
+          <Description />
+          <Event>
+            <StartEvent Trigger="None" />
+          </Event>
+          <Documentation />
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="36" Width="36" BorderColor="-10311914" FillColor="-1638505">
+              <Coordinates XCoordinate="175" YCoordinate="330" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Activity>
+        <Activity Id="5b3cd1ae-de4f-51c9-9413-8555e3af7f4d" Name="Ingresar el dominio (al crear el sitio o después)">
+          <Description />
+          <Implementation>
+            <Task>
+              <TaskUser Implementation="Unspecified" />
+            </Task>
+          </Implementation>
+          <Documentation />
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="84" Width="132" BorderColor="-16553830" FillColor="-1249281">
+              <Coordinates XCoordinate="305" YCoordinate="306" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Activity>
+        <Activity Id="241fd81d-485e-5def-9d97-6ecea47885e1" Name="¿Es de otro destino?">
+          <Description />
+          <Route />
+          <Documentation />
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="50" Width="50" BorderColor="-5855715" FillColor="-52">
+              <Coordinates XCoordinate="524" YCoordinate="587" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Activity>
+        <Activity Id="41cebdf6-f1dd-5479-9d65-1ac2802685d4" Name="Rechazado: un dominio es de un solo destino">
+          <Description />
+          <Event>
+            <EndEvent Result="None" />
+          </Event>
+          <Documentation />
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="36" Width="36" BorderColor="-6750208" FillColor="-1135958">
+              <Coordinates XCoordinate="709" YCoordinate="726" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Activity>
+        <Activity Id="9c439eaa-ea83-505e-9ac1-ed25e3648dbe" Name="¿Hay VERCEL_API_TOKEN?">
+          <Description />
+          <Route />
+          <Documentation />
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="50" Width="50" BorderColor="-5855715" FillColor="-52">
+              <Coordinates XCoordinate="702" YCoordinate="587" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Activity>
+        <Activity Id="23fcd6c2-9e2a-558c-b6e4-7787bc439d0b" Name="Agregar el dominio al proyecto en Vercel">
+          <Description />
+          <Implementation>
+            <Task>
+              <TaskService />
+            </Task>
+          </Implementation>
+          <Documentation />
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="84" Width="132" BorderColor="-16553830" FillColor="-1249281">
+              <Coordinates XCoordinate="839" YCoordinate="570" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Activity>
+        <Activity Id="510e0493-5022-5d78-bb01-537feb84d35e" Name="Avisar: el administrador debe agregarlo en Vercel">
+          <Description />
+          <Implementation>
+            <Task>
+              <TaskService />
+            </Task>
+          </Implementation>
+          <Documentation />
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="84" Width="132" BorderColor="-16553830" FillColor="-1249281">
+              <Coordinates XCoordinate="839" YCoordinate="702" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Activity>
+        <Activity Id="26efd604-3881-5d41-b33c-8b7f61948271" Name="">
+          <Description />
+          <Route />
+          <Documentation />
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="50" Width="50" BorderColor="-5855715" FillColor="-52">
+              <Coordinates XCoordinate="1058" YCoordinate="587" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Activity>
+        <Activity Id="7634949e-8085-5cc0-a466-ecc04a249dda" Name="Mostrar los registros DNS a configurar">
+          <Description />
+          <Implementation>
+            <Task>
+              <TaskService />
+            </Task>
+          </Implementation>
+          <Documentation />
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="84" Width="132" BorderColor="-16553830" FillColor="-1249281">
+              <Coordinates XCoordinate="1195" YCoordinate="570" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Activity>
+        <Activity Id="c90e756a-b427-5b9f-956f-82b1a4be70a3" Name="Configurar los DNS en su proveedor">
+          <Description />
+          <Implementation>
+            <Task>
+              <TaskManual />
+            </Task>
+          </Implementation>
+          <Documentation />
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="84" Width="132" BorderColor="-16553830" FillColor="-1249281">
+              <Coordinates XCoordinate="1373" YCoordinate="306" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Activity>
+        <Activity Id="84e164fd-9cc2-5ad1-b20d-8aa47a2f7572" Name="Verificar">
+          <Description />
+          <Implementation>
+            <Task>
+              <TaskUser Implementation="Unspecified" />
+            </Task>
+          </Implementation>
+          <Documentation />
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="84" Width="132" BorderColor="-16553830" FillColor="-1249281">
+              <Coordinates XCoordinate="1551" YCoordinate="306" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Activity>
+        <Activity Id="e3e24a78-9a8a-5dda-94c2-2b83f8f1c0aa" Name="Pedir https://dominio/api/hosting/ping">
+          <Description />
+          <Implementation>
+            <Task>
+              <TaskService />
+            </Task>
+          </Implementation>
+          <Documentation />
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="84" Width="132" BorderColor="-16553830" FillColor="-1249281">
+              <Coordinates XCoordinate="1729" YCoordinate="570" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Activity>
+        <Activity Id="722a2bf0-0a23-5da8-b121-8b578c1ded24" Name="¿Responde app: aether-erp?">
+          <Description />
+          <Route />
+          <Documentation />
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="50" Width="50" BorderColor="-5855715" FillColor="-52">
+              <Coordinates XCoordinate="1948" YCoordinate="587" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Activity>
+        <Activity Id="bc38dcb9-7db6-5dfd-9a6e-28e488ceca72" Name="Revisar los DNS o el alta en Vercel">
+          <Description />
+          <Implementation>
+            <Task>
+              <TaskUser Implementation="Unspecified" />
+            </Task>
+          </Implementation>
+          <Documentation />
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="84" Width="132" BorderColor="-16553830" FillColor="-1249281">
+              <Coordinates XCoordinate="2085" YCoordinate="438" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Activity>
+        <Activity Id="0435095b-5929-5f1c-af6e-bf2ba6910d65" Name="Marcar verificado">
+          <Description />
+          <Implementation>
+            <Task>
+              <TaskService />
+            </Task>
+          </Implementation>
+          <Documentation />
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="84" Width="132" BorderColor="-16553830" FillColor="-1249281">
+              <Coordinates XCoordinate="2085" YCoordinate="570" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Activity>
+        <Activity Id="90c82537-dc81-5520-bc9c-010cb3843a88" Name="El enlace de la plataforma redirige al dominio">
+          <Description />
+          <Implementation>
+            <Task>
+              <TaskService />
+            </Task>
+          </Implementation>
+          <Documentation />
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="84" Width="132" BorderColor="-16553830" FillColor="-1249281">
+              <Coordinates XCoordinate="2263" YCoordinate="570" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Activity>
+        <Activity Id="f6a8cd17-7a1f-5b24-af7e-ba90309a7c0b" Name="Sitio en su dominio">
+          <Description />
+          <Event>
+            <EndEvent Result="None" />
+          </Event>
+          <Documentation />
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="36" Width="36" BorderColor="-6750208" FillColor="-1135958">
+              <Coordinates XCoordinate="2489" YCoordinate="594" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Activity>
+      </Activities>
+      <Transitions>
+        <Transition Id="e08937da-4c87-5e96-84b4-88550aaaa425" From="48c45f0e-a66b-5042-a55d-3880834a66df" To="5b3cd1ae-de4f-51c9-9413-8555e3af7f4d">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="211" YCoordinate="348" />
+              <Coordinates XCoordinate="305" YCoordinate="348" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+        <Transition Id="21cda48e-7c02-51c7-bfc8-156a89c8b065" From="5b3cd1ae-de4f-51c9-9413-8555e3af7f4d" To="241fd81d-485e-5def-9d97-6ecea47885e1">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="437" YCoordinate="348" />
+              <Coordinates XCoordinate="549" YCoordinate="348" />
+              <Coordinates XCoordinate="549" YCoordinate="587" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+        <Transition Id="4f144bae-a4b3-5a08-8f4d-ebaf406b6bc8" From="241fd81d-485e-5def-9d97-6ecea47885e1" To="9c439eaa-ea83-505e-9ac1-ed25e3648dbe" Name="No">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="574" YCoordinate="612" />
+              <Coordinates XCoordinate="702" YCoordinate="612" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+        <Transition Id="9b3d556b-d257-5a46-bed5-6a25c43d2578" From="241fd81d-485e-5def-9d97-6ecea47885e1" To="41cebdf6-f1dd-5479-9d65-1ac2802685d4" Name="Sí">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="549" YCoordinate="637" />
+              <Coordinates XCoordinate="549" YCoordinate="744" />
+              <Coordinates XCoordinate="709" YCoordinate="744" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+        <Transition Id="0ef2ffe9-fdb5-5ead-9542-c2efd31ea96a" From="9c439eaa-ea83-505e-9ac1-ed25e3648dbe" To="23fcd6c2-9e2a-558c-b6e4-7787bc439d0b" Name="Sí">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="752" YCoordinate="612" />
+              <Coordinates XCoordinate="839" YCoordinate="612" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+        <Transition Id="74617f64-21bf-525b-b84b-3b0289fbbb0c" From="9c439eaa-ea83-505e-9ac1-ed25e3648dbe" To="510e0493-5022-5d78-bb01-537feb84d35e" Name="No">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="727" YCoordinate="637" />
+              <Coordinates XCoordinate="727" YCoordinate="744" />
+              <Coordinates XCoordinate="839" YCoordinate="744" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+        <Transition Id="fe9ef406-8917-5504-b308-73da5fc931cc" From="23fcd6c2-9e2a-558c-b6e4-7787bc439d0b" To="26efd604-3881-5d41-b33c-8b7f61948271">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="971" YCoordinate="612" />
+              <Coordinates XCoordinate="1058" YCoordinate="612" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+        <Transition Id="dab22ee1-70f7-50fb-8919-1cd514399426" From="510e0493-5022-5d78-bb01-537feb84d35e" To="26efd604-3881-5d41-b33c-8b7f61948271">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="971" YCoordinate="744" />
+              <Coordinates XCoordinate="1083" YCoordinate="744" />
+              <Coordinates XCoordinate="1083" YCoordinate="637" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+        <Transition Id="eb5cfe8e-afd1-5118-9796-feefcfdeb35f" From="26efd604-3881-5d41-b33c-8b7f61948271" To="7634949e-8085-5cc0-a466-ecc04a249dda">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="1108" YCoordinate="612" />
+              <Coordinates XCoordinate="1195" YCoordinate="612" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+        <Transition Id="0aa6a815-7734-5fe3-8401-deb20a7d09be" From="7634949e-8085-5cc0-a466-ecc04a249dda" To="c90e756a-b427-5b9f-956f-82b1a4be70a3">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="1327" YCoordinate="612" />
+              <Coordinates XCoordinate="1350" YCoordinate="612" />
+              <Coordinates XCoordinate="1350" YCoordinate="348" />
+              <Coordinates XCoordinate="1373" YCoordinate="348" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+        <Transition Id="7f05846d-bf7d-5475-aa2f-4d459d2eb23b" From="c90e756a-b427-5b9f-956f-82b1a4be70a3" To="84e164fd-9cc2-5ad1-b20d-8aa47a2f7572">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="1505" YCoordinate="348" />
+              <Coordinates XCoordinate="1551" YCoordinate="348" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+        <Transition Id="b224ef03-fa92-53cd-8e33-d2d834ca5e99" From="84e164fd-9cc2-5ad1-b20d-8aa47a2f7572" To="e3e24a78-9a8a-5dda-94c2-2b83f8f1c0aa">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="1683" YCoordinate="348" />
+              <Coordinates XCoordinate="1706" YCoordinate="348" />
+              <Coordinates XCoordinate="1706" YCoordinate="612" />
+              <Coordinates XCoordinate="1729" YCoordinate="612" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+        <Transition Id="137b1697-299e-5d1c-9e64-e5ef5aef1a98" From="e3e24a78-9a8a-5dda-94c2-2b83f8f1c0aa" To="722a2bf0-0a23-5da8-b121-8b578c1ded24">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="1861" YCoordinate="612" />
+              <Coordinates XCoordinate="1948" YCoordinate="612" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+        <Transition Id="c38a15d5-7e2c-5652-8385-a4dd28cef970" From="722a2bf0-0a23-5da8-b121-8b578c1ded24" To="0435095b-5929-5f1c-af6e-bf2ba6910d65" Name="Sí">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="1998" YCoordinate="612" />
+              <Coordinates XCoordinate="2085" YCoordinate="612" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+        <Transition Id="ec314317-81ff-57df-bd6c-60ebabfb6eb6" From="722a2bf0-0a23-5da8-b121-8b578c1ded24" To="bc38dcb9-7db6-5dfd-9a6e-28e488ceca72" Name="No">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="1973" YCoordinate="587" />
+              <Coordinates XCoordinate="1973" YCoordinate="480" />
+              <Coordinates XCoordinate="2085" YCoordinate="480" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+        <Transition Id="4a996f6d-67e7-5e0c-a7ec-6dea9557897e" From="bc38dcb9-7db6-5dfd-9a6e-28e488ceca72" To="84e164fd-9cc2-5ad1-b20d-8aa47a2f7572">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="2151" YCoordinate="438" />
+              <Coordinates XCoordinate="2151" YCoordinate="348" />
+              <Coordinates XCoordinate="1683" YCoordinate="348" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+        <Transition Id="a7a579da-23ef-5fb4-8b87-cf41150a3d57" From="0435095b-5929-5f1c-af6e-bf2ba6910d65" To="90c82537-dc81-5520-bc9c-010cb3843a88">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="2217" YCoordinate="612" />
+              <Coordinates XCoordinate="2263" YCoordinate="612" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+        <Transition Id="18d75dcc-5044-5947-8117-04b1bdc1a2b9" From="90c82537-dc81-5520-bc9c-010cb3843a88" To="f6a8cd17-7a1f-5b24-af7e-ba90309a7c0b">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="2395" YCoordinate="612" />
+              <Coordinates XCoordinate="2489" YCoordinate="612" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+      </Transitions>
+    </WorkflowProcess>
+    <WorkflowProcess Id="059a61b6-9e2c-5025-b5ee-52488951af9a" Name="P33 · Proveedor del dominio (DNS)">
+      <ProcessHeader>
+        <Created>2026-10-19T00:00:00-03:00</Created>
+        <Description>Participante externo de P33</Description>
+      </ProcessHeader>
+      <RedefinableHeader>
+        <Author>Aether</Author>
+        <Version>1.0</Version>
+        <Countrykey>CL</Countrykey>
+      </RedefinableHeader>
+    </WorkflowProcess>
+  </WorkflowProcesses>
+</Package>

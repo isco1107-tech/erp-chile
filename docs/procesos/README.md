@@ -6,7 +6,7 @@
 
 ## Cómo abrirlos
 
-**Todo en un solo archivo, para Bizagi:** [`bizagi/modelo-procesos-aether.xpdl`](bizagi/modelo-procesos-aether.xpdl) trae los procesos en un mismo diagrama, de P00 a P41, uno debajo del otro con su título, con los colores y el formato que usa Bizagi al exportar XPDL. En Bizagi Modeler se abre con la opción de importar XPDL. El mismo diagrama en BPMN 2.0 está en [`bizagi/modelo-procesos-aether.bpmn`](bizagi/modelo-procesos-aether.bpmn), por si prefieres importar BPMN o abrirlo en otra herramienta.
+**Todo en un solo archivo, para Bizagi:** [`bizagi/modelo-procesos-aether.xpdl`](bizagi/modelo-procesos-aether.xpdl) trae los procesos en un mismo diagrama, una columna por área y cada proceso con su título, con los colores de Bizagi. Bizagi no lo abre con «Abrir» ni con doble clic (eso es solo para `.bpm`): se importa en la pestaña **Exportar/Importar → grupo Importar → XPDL**, y después se guarda como `.bpm`. Pasos completos en [`bizagi/LEEME.txt`](bizagi/LEEME.txt). Hay un XPDL por proceso en [`bizagi/por-proceso/`](bizagi/por-proceso/) y el mismo diagrama único en BPMN 2.0 en [`bizagi/modelo-procesos-aether.bpmn`](bizagi/modelo-procesos-aether.bpmn). Todos cumplen los esquemas oficiales (XPDL 2.2 de la WfMC y BPMN 2.0 de la OMG).
 
 | Herramienta | Cómo |
 |---|---|

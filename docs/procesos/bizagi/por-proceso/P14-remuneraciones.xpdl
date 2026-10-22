@@ -1,0 +1,535 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" Id="02c1da6a-b15f-5962-9934-262b21a95202" Name="P14 Remuneraciones" xmlns="http://www.wfmc.org/2009/XPDL2.2">
+  <PackageHeader>
+    <XPDLVersion>2.2</XPDLVersion>
+    <Vendor>Aether · generador de procesos</Vendor>
+    <Created>2026-10-19T00:00:00-03:00</Created>
+    <ModificationDate>2026-10-19T00:00:00-03:00</ModificationDate>
+    <Description>Período del mes con parámetros confirmados contra Previred, cálculo de liquidaciones, cierre con asiento y portal del trabajador.</Description>
+  </PackageHeader>
+  <RedefinableHeader>
+    <Author>Aether</Author>
+    <Version>1.0</Version>
+    <Countrykey>CL</Countrykey>
+  </RedefinableHeader>
+  <Pools>
+    <Pool Id="8b902fe8-62fe-5de6-b5f9-fbb9d91a6f0a" Name="Main Process" Process="afaa3def-9492-55fa-b152-f6b79c642dc1" BoundaryVisible="false">
+      <Lanes />
+      <NodeGraphicsInfos>
+        <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="350" Width="700" BorderColor="-16777216" FillColor="-1">
+          <Coordinates XCoordinate="30" YCoordinate="30" />
+        </NodeGraphicsInfo>
+      </NodeGraphicsInfos>
+    </Pool>
+    <Pool Id="9bb72412-4e1c-5a90-af46-5a463cf59475" Name="P14 · Trabajadores" Process="c1d9366e-27e1-50c3-adb9-b3d0ed2c0d37" BoundaryVisible="true">
+      <Lanes>
+        <Lane Id="86f44b65-97fb-5a87-bd85-403604a22ce3" Name="" ParentPool="9bb72412-4e1c-5a90-af46-5a463cf59475">
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="72" Width="2550" BorderColor="-11513776" FillColor="-1">
+              <Coordinates XCoordinate="50" YCoordinate="0" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Lane>
+      </Lanes>
+      <NodeGraphicsInfos>
+        <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="72" Width="2600" BorderColor="-16777216" FillColor="-1">
+          <Coordinates XCoordinate="20" YCoordinate="154" />
+        </NodeGraphicsInfo>
+      </NodeGraphicsInfos>
+    </Pool>
+    <Pool Id="da2a0f48-47ec-5ddd-8c37-99fa730d7ebe" Name="P14 · Aether ERP" Process="77eebbbb-356b-5cc3-ad8b-c0106574e860" BoundaryVisible="true">
+      <Lanes>
+        <Lane Id="c72b1c0c-ae20-5eb6-9076-c4ae31a9ecab" Name="Encargado de remuneraciones" ParentPool="da2a0f48-47ec-5ddd-8c37-99fa730d7ebe">
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="264" Width="2550" BorderColor="-11513776" FillColor="-1">
+              <Coordinates XCoordinate="50" YCoordinate="0" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Lane>
+        <Lane Id="c8281e43-9562-52a1-bdbb-9696f66d55c2" Name="Sistema Aether" ParentPool="da2a0f48-47ec-5ddd-8c37-99fa730d7ebe">
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="132" Width="2550" BorderColor="-11513776" FillColor="-1">
+              <Coordinates XCoordinate="50" YCoordinate="264" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Lane>
+        <Lane Id="bddc3ee5-c13b-5960-b1e0-bbbb7ec615ab" Name="Dueño o Contador (payroll:close)" ParentPool="da2a0f48-47ec-5ddd-8c37-99fa730d7ebe">
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="132" Width="2550" BorderColor="-11513776" FillColor="-1">
+              <Coordinates XCoordinate="50" YCoordinate="396" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Lane>
+      </Lanes>
+      <NodeGraphicsInfos>
+        <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="528" Width="2600" BorderColor="-16777216" FillColor="-1">
+          <Coordinates XCoordinate="20" YCoordinate="282" />
+        </NodeGraphicsInfo>
+      </NodeGraphicsInfos>
+    </Pool>
+    <Pool Id="ca892fd5-95c3-5c3b-a92c-ff27ebb341a1" Name="P14 · Previred" Process="53a93906-408a-5256-bb21-0673cc2f7e54" BoundaryVisible="true">
+      <Lanes>
+        <Lane Id="c7d46ba8-0b58-53ae-a572-cef771136a2f" Name="" ParentPool="ca892fd5-95c3-5c3b-a92c-ff27ebb341a1">
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="72" Width="2550" BorderColor="-11513776" FillColor="-1">
+              <Coordinates XCoordinate="50" YCoordinate="0" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Lane>
+      </Lanes>
+      <NodeGraphicsInfos>
+        <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="72" Width="2600" BorderColor="-16777216" FillColor="-1">
+          <Coordinates XCoordinate="20" YCoordinate="866" />
+        </NodeGraphicsInfo>
+      </NodeGraphicsInfos>
+    </Pool>
+  </Pools>
+  <MessageFlows>
+    <MessageFlow Id="b15fa60b-00ed-5587-a84c-999ee3a81e18" Name="Liquidación de sueldo" Source="04d31cde-8e04-50bf-bf72-8e8fe2735c05" Target="9bb72412-4e1c-5a90-af46-5a463cf59475">
+      <ConnectorGraphicsInfos>
+        <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+          <Coordinates XCoordinate="1973" YCoordinate="570" />
+          <Coordinates XCoordinate="1973" YCoordinate="226" />
+        </ConnectorGraphicsInfo>
+      </ConnectorGraphicsInfos>
+    </MessageFlow>
+    <MessageFlow Id="c6c5f271-32c2-576d-a3da-8c9e66155eb1" Name="Planilla de cotizaciones" Source="62bd27b3-0632-5d59-9a62-5311a6904fe8" Target="ca892fd5-95c3-5c3b-a92c-ff27ebb341a1">
+      <ConnectorGraphicsInfos>
+        <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+          <Coordinates XCoordinate="2151" YCoordinate="390" />
+          <Coordinates XCoordinate="2151" YCoordinate="866" />
+        </ConnectorGraphicsInfo>
+      </ConnectorGraphicsInfos>
+    </MessageFlow>
+  </MessageFlows>
+  <Associations>
+    <Association Id="b5fcd34a-0a2f-5f25-bc06-fdb7672e0485" Source="1d775a99-33a4-5b07-a24b-fa81d049ffd6" Target="08edfb46-1985-508d-a6f5-8e15e0521bcb">
+      <Object Id="62fcab5d-aa17-5abb-b5a6-c6041849b3da" />
+      <ConnectorGraphicsInfos>
+        <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+          <Coordinates XCoordinate="371" YCoordinate="445" />
+          <Coordinates XCoordinate="549" YCoordinate="390" />
+        </ConnectorGraphicsInfo>
+      </ConnectorGraphicsInfos>
+    </Association>
+  </Associations>
+  <Artifacts>
+    <Artifact Id="3f7b66cd-b749-59ea-b373-b3cd098f3286" ArtifactType="Annotation" TextAnnotation="Núcleo ERP y tributario (P14)">
+      <NodeGraphicsInfos>
+        <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="44" Width="1400" BorderColor="-2763307" FillColor="-2763307">
+          <Coordinates XCoordinate="20" YCoordinate="20" />
+        </NodeGraphicsInfo>
+      </NodeGraphicsInfos>
+    </Artifact>
+    <Artifact Id="899aabbf-25dd-51c2-8e5e-63a068ecf7e7" ArtifactType="Annotation" TextAnnotation="P14 · Remuneraciones. Período del mes con parámetros confirmados contra Previred, cálculo de liquidaciones, cierre con asiento y portal del trabajador.">
+      <NodeGraphicsInfos>
+        <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="48" Width="1400" BorderColor="-2763307" FillColor="-2763307">
+          <Coordinates XCoordinate="20" YCoordinate="90" />
+        </NodeGraphicsInfo>
+      </NodeGraphicsInfos>
+    </Artifact>
+    <Artifact Id="1d775a99-33a4-5b07-a24b-fa81d049ffd6" ArtifactType="Annotation" TextAnnotation="Los parámetros legales entran por pantalla cada mes: nunca están en el código.">
+      <NodeGraphicsInfos>
+        <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="70" Width="168" BorderColor="-2763307" FillColor="-2763307">
+          <Coordinates XCoordinate="287" YCoordinate="445" />
+        </NodeGraphicsInfo>
+      </NodeGraphicsInfos>
+    </Artifact>
+  </Artifacts>
+  <WorkflowProcesses>
+    <WorkflowProcess Id="afaa3def-9492-55fa-b152-f6b79c642dc1" Name="Main Process">
+      <ProcessHeader>
+        <Created>2026-10-19T00:00:00-03:00</Created>
+        <Description></Description>
+      </ProcessHeader>
+      <RedefinableHeader>
+        <Author>Aether</Author>
+        <Version>1.0</Version>
+        <Countrykey>CL</Countrykey>
+      </RedefinableHeader>
+    </WorkflowProcess>
+    <WorkflowProcess Id="c1d9366e-27e1-50c3-adb9-b3d0ed2c0d37" Name="P14 · Trabajadores">
+      <ProcessHeader>
+        <Created>2026-10-19T00:00:00-03:00</Created>
+        <Description>Participante externo de P14</Description>
+      </ProcessHeader>
+      <RedefinableHeader>
+        <Author>Aether</Author>
+        <Version>1.0</Version>
+        <Countrykey>CL</Countrykey>
+      </RedefinableHeader>
+    </WorkflowProcess>
+    <WorkflowProcess Id="77eebbbb-356b-5cc3-ad8b-c0106574e860" Name="P14 · Aether ERP">
+      <ProcessHeader>
+        <Created>2026-10-19T00:00:00-03:00</Created>
+        <Description>Remuneraciones. Objetivo: Pagar sueldos correctos con los parámetros legales del mes, sin cifras escritas en el código.</Description>
+      </ProcessHeader>
+      <RedefinableHeader>
+        <Author>Aether</Author>
+        <Version>1.0</Version>
+        <Countrykey>CL</Countrykey>
+      </RedefinableHeader>
+      <Activities>
+        <Activity Id="20d7c751-3c91-56ad-b025-c1092cbbc7da" Name="Cierre de mes">
+          <Description />
+          <Event>
+            <StartEvent Trigger="None" />
+          </Event>
+          <Documentation />
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="36" Width="36" BorderColor="-10311914" FillColor="-1638505">
+              <Coordinates XCoordinate="175" YCoordinate="330" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Activity>
+        <Activity Id="177b183f-3e61-5911-9483-dac45f9abcc9" Name="Crear el período del mes">
+          <Description />
+          <Implementation>
+            <Task>
+              <TaskUser Implementation="Unspecified" />
+            </Task>
+          </Implementation>
+          <Documentation />
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="84" Width="132" BorderColor="-16553830" FillColor="-1249281">
+              <Coordinates XCoordinate="305" YCoordinate="306" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Activity>
+        <Activity Id="08edfb46-1985-508d-a6f5-8e15e0521bcb" Name="Confirmar UF, UTM, topes y tasas">
+          <Description />
+          <Implementation>
+            <Task>
+              <TaskUser Implementation="Unspecified" />
+            </Task>
+          </Implementation>
+          <Documentation />
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="84" Width="132" BorderColor="-16553830" FillColor="-1249281">
+              <Coordinates XCoordinate="483" YCoordinate="306" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Activity>
+        <Activity Id="de269e34-76ee-563c-93ae-f64275cf036a" Name="Registrar ausencias, anticipos y préstamos">
+          <Description />
+          <Implementation>
+            <Task>
+              <TaskUser Implementation="Unspecified" />
+            </Task>
+          </Implementation>
+          <Documentation />
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="84" Width="132" BorderColor="-16553830" FillColor="-1249281">
+              <Coordinates XCoordinate="661" YCoordinate="306" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Activity>
+        <Activity Id="5eee8f86-eb07-527f-91f5-7e3101ca06f2" Name="Calcular las liquidaciones">
+          <Description />
+          <Implementation>
+            <Task>
+              <TaskService />
+            </Task>
+          </Implementation>
+          <Documentation />
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="84" Width="132" BorderColor="-16553830" FillColor="-1249281">
+              <Coordinates XCoordinate="839" YCoordinate="570" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Activity>
+        <Activity Id="307a0233-ec93-5c72-8826-122278fec38d" Name="Revisar liquidaciones y planilla Excel">
+          <Description />
+          <Implementation>
+            <Task>
+              <TaskUser Implementation="Unspecified" />
+            </Task>
+          </Implementation>
+          <Documentation />
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="84" Width="132" BorderColor="-16553830" FillColor="-1249281">
+              <Coordinates XCoordinate="1017" YCoordinate="306" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Activity>
+        <Activity Id="01bb2c5b-4827-5468-9503-4d6d879dc997" Name="¿Correctas?">
+          <Description />
+          <Route />
+          <Documentation />
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="50" Width="50" BorderColor="-5855715" FillColor="-52">
+              <Coordinates XCoordinate="1236" YCoordinate="323" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Activity>
+        <Activity Id="c0bf2df6-3052-5080-af3c-ca30fe744414" Name="Cerrar el período">
+          <Description />
+          <Implementation>
+            <Task>
+              <TaskUser Implementation="Unspecified" />
+            </Task>
+          </Implementation>
+          <Documentation />
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="84" Width="132" BorderColor="-16553830" FillColor="-1249281">
+              <Coordinates XCoordinate="1373" YCoordinate="702" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Activity>
+        <Activity Id="625d0709-9804-54bb-9eca-fe19f9a6e824" Name="¿Cambiaron anticipos o préstamos?">
+          <Description />
+          <Route />
+          <Documentation />
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="50" Width="50" BorderColor="-5855715" FillColor="-52">
+              <Coordinates XCoordinate="1592" YCoordinate="587" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Activity>
+        <Activity Id="ec615f1d-48cb-584f-b72c-f36207951d9a" Name="CLOSED, cuotas de préstamos y asiento contable">
+          <Description />
+          <Implementation>
+            <Task>
+              <TaskService />
+            </Task>
+          </Implementation>
+          <Documentation />
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="84" Width="132" BorderColor="-16553830" FillColor="-1249281">
+              <Coordinates XCoordinate="1729" YCoordinate="570" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Activity>
+        <Activity Id="04d31cde-8e04-50bf-bf72-8e8fe2735c05" Name="Liquidaciones en el portal del trabajador">
+          <Description />
+          <Implementation>
+            <Task>
+              <TaskService />
+            </Task>
+          </Implementation>
+          <Documentation />
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="84" Width="132" BorderColor="-16553830" FillColor="-1249281">
+              <Coordinates XCoordinate="1907" YCoordinate="570" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Activity>
+        <Activity Id="62bd27b3-0632-5d59-9a62-5311a6904fe8" Name="Declarar y pagar cotizaciones">
+          <Description />
+          <Implementation>
+            <Task>
+              <TaskManual />
+            </Task>
+          </Implementation>
+          <Documentation />
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="84" Width="132" BorderColor="-16553830" FillColor="-1249281">
+              <Coordinates XCoordinate="2085" YCoordinate="306" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Activity>
+        <Activity Id="185f2a24-a30e-5fe0-8e12-e26788695878" Name="Pagar sueldos">
+          <Description />
+          <Implementation>
+            <Task>
+              <TaskManual />
+            </Task>
+          </Implementation>
+          <Documentation />
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="84" Width="132" BorderColor="-16553830" FillColor="-1249281">
+              <Coordinates XCoordinate="2263" YCoordinate="306" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Activity>
+        <Activity Id="5452599f-f3f5-541a-9a8e-d19bc99f2c15" Name="Mes de remuneraciones cerrado">
+          <Description />
+          <Event>
+            <EndEvent Result="None" />
+          </Event>
+          <Documentation />
+          <NodeGraphicsInfos>
+            <NodeGraphicsInfo ToolId="BizAgi_Process_Modeler" Height="36" Width="36" BorderColor="-6750208" FillColor="-1135958">
+              <Coordinates XCoordinate="2489" YCoordinate="330" />
+            </NodeGraphicsInfo>
+          </NodeGraphicsInfos>
+        </Activity>
+      </Activities>
+      <Transitions>
+        <Transition Id="f7364588-3f49-5889-92ec-de1a72464402" From="20d7c751-3c91-56ad-b025-c1092cbbc7da" To="177b183f-3e61-5911-9483-dac45f9abcc9">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="211" YCoordinate="348" />
+              <Coordinates XCoordinate="305" YCoordinate="348" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+        <Transition Id="1a86b1b6-c03e-54a0-9e4a-04be7adc2949" From="177b183f-3e61-5911-9483-dac45f9abcc9" To="08edfb46-1985-508d-a6f5-8e15e0521bcb">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="437" YCoordinate="348" />
+              <Coordinates XCoordinate="483" YCoordinate="348" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+        <Transition Id="d560ef80-3b99-5899-86a5-0cdf470b8b29" From="08edfb46-1985-508d-a6f5-8e15e0521bcb" To="de269e34-76ee-563c-93ae-f64275cf036a">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="615" YCoordinate="348" />
+              <Coordinates XCoordinate="661" YCoordinate="348" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+        <Transition Id="ada1ad25-27f0-5498-b453-ccca3355e317" From="de269e34-76ee-563c-93ae-f64275cf036a" To="5eee8f86-eb07-527f-91f5-7e3101ca06f2">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="793" YCoordinate="348" />
+              <Coordinates XCoordinate="816" YCoordinate="348" />
+              <Coordinates XCoordinate="816" YCoordinate="612" />
+              <Coordinates XCoordinate="839" YCoordinate="612" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+        <Transition Id="1262301d-dbb2-534e-9332-797f66b06594" From="5eee8f86-eb07-527f-91f5-7e3101ca06f2" To="307a0233-ec93-5c72-8826-122278fec38d">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="971" YCoordinate="612" />
+              <Coordinates XCoordinate="994" YCoordinate="612" />
+              <Coordinates XCoordinate="994" YCoordinate="348" />
+              <Coordinates XCoordinate="1017" YCoordinate="348" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+        <Transition Id="ad3f5dcc-dac4-5ce8-921e-6369e0814c98" From="307a0233-ec93-5c72-8826-122278fec38d" To="01bb2c5b-4827-5468-9503-4d6d879dc997">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="1149" YCoordinate="348" />
+              <Coordinates XCoordinate="1236" YCoordinate="348" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+        <Transition Id="4a6701d7-ea27-5515-9a16-91a69372aee8" From="01bb2c5b-4827-5468-9503-4d6d879dc997" To="de269e34-76ee-563c-93ae-f64275cf036a" Name="No">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="1261" YCoordinate="373" />
+              <Coordinates XCoordinate="1261" YCoordinate="480" />
+              <Coordinates XCoordinate="727" YCoordinate="480" />
+              <Coordinates XCoordinate="727" YCoordinate="390" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+        <Transition Id="1f795541-b37d-5889-9b22-0cb419f6a069" From="01bb2c5b-4827-5468-9503-4d6d879dc997" To="c0bf2df6-3052-5080-af3c-ca30fe744414" Name="Sí">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="1261" YCoordinate="373" />
+              <Coordinates XCoordinate="1261" YCoordinate="744" />
+              <Coordinates XCoordinate="1373" YCoordinate="744" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+        <Transition Id="bfa2889c-528a-54d7-95c8-14a0ee5a7162" From="c0bf2df6-3052-5080-af3c-ca30fe744414" To="625d0709-9804-54bb-9eca-fe19f9a6e824">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="1505" YCoordinate="744" />
+              <Coordinates XCoordinate="1617" YCoordinate="744" />
+              <Coordinates XCoordinate="1617" YCoordinate="637" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+        <Transition Id="4e808ad1-bc03-5b72-a226-03f2de8e3ec0" From="625d0709-9804-54bb-9eca-fe19f9a6e824" To="5eee8f86-eb07-527f-91f5-7e3101ca06f2" Name="Sí: recalcular">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="1617" YCoordinate="587" />
+              <Coordinates XCoordinate="1617" YCoordinate="556" />
+              <Coordinates XCoordinate="905" YCoordinate="556" />
+              <Coordinates XCoordinate="905" YCoordinate="570" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+        <Transition Id="f8b2db50-1984-59c9-8edd-e1d43699b141" From="625d0709-9804-54bb-9eca-fe19f9a6e824" To="ec615f1d-48cb-584f-b72c-f36207951d9a" Name="No">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="1642" YCoordinate="612" />
+              <Coordinates XCoordinate="1729" YCoordinate="612" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+        <Transition Id="ffd8f434-73f6-5445-97a4-d81c8b380bf6" From="ec615f1d-48cb-584f-b72c-f36207951d9a" To="04d31cde-8e04-50bf-bf72-8e8fe2735c05">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="1861" YCoordinate="612" />
+              <Coordinates XCoordinate="1907" YCoordinate="612" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+        <Transition Id="084deec7-0c02-593e-b117-55e7bd308804" From="04d31cde-8e04-50bf-bf72-8e8fe2735c05" To="62bd27b3-0632-5d59-9a62-5311a6904fe8">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="2039" YCoordinate="612" />
+              <Coordinates XCoordinate="2062" YCoordinate="612" />
+              <Coordinates XCoordinate="2062" YCoordinate="348" />
+              <Coordinates XCoordinate="2085" YCoordinate="348" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+        <Transition Id="c2e21c6d-d370-55b0-81f7-4552f04cd080" From="62bd27b3-0632-5d59-9a62-5311a6904fe8" To="185f2a24-a30e-5fe0-8e12-e26788695878">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="2217" YCoordinate="348" />
+              <Coordinates XCoordinate="2263" YCoordinate="348" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+        <Transition Id="39933786-2361-5024-b399-bb3590cbb78a" From="185f2a24-a30e-5fe0-8e12-e26788695878" To="5452599f-f3f5-541a-9a8e-d19bc99f2c15">
+          <Condition />
+          <Description />
+          <ConnectorGraphicsInfos>
+            <ConnectorGraphicsInfo ToolId="BizAgi_Process_Modeler" BorderColor="-16777216">
+              <Coordinates XCoordinate="2395" YCoordinate="348" />
+              <Coordinates XCoordinate="2489" YCoordinate="348" />
+            </ConnectorGraphicsInfo>
+          </ConnectorGraphicsInfos>
+        </Transition>
+      </Transitions>
+    </WorkflowProcess>
+    <WorkflowProcess Id="53a93906-408a-5256-bb21-0673cc2f7e54" Name="P14 · Previred">
+      <ProcessHeader>
+        <Created>2026-10-19T00:00:00-03:00</Created>
+        <Description>Participante externo de P14</Description>
+      </ProcessHeader>
+      <RedefinableHeader>
+        <Author>Aether</Author>
+        <Version>1.0</Version>
+        <Countrykey>CL</Countrykey>
+      </RedefinableHeader>
+    </WorkflowProcess>
+  </WorkflowProcesses>
+</Package>

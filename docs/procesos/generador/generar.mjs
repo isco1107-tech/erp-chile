@@ -13,7 +13,7 @@ import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { aXml, aXmlCompleto, TIPOS } from './bpmn.mjs';
-import { xpdlCompleto } from './xpdl.mjs';
+import { xpdl } from './xpdl.mjs';
 import plataforma from './procesos/plataforma.mjs';
 import erp from './procesos/erp.mjs';
 import eventos from './procesos/eventos.mjs';
@@ -157,7 +157,7 @@ function readme(fichas) {
   L.push(`${fichas.length} diagramas BPMN 2.0 sacados del código de \`erp-chile\` y \`supersuite\`: cómo llega una empresa, cómo se da de alta y se pone en marcha, cómo opera cada mes y cómo la monitorea, la cobra y la administra la Supersuite.`, '');
   L.push('> Generado con `node docs/procesos/generador/generar.mjs`. No edites los `.bpmn`, este README ni `visor.html` a mano: cambia la definición en `generador/procesos/` y vuelve a generar.', '');
   L.push('## Cómo abrirlos', '');
-  L.push('**Todo en un solo archivo, para Bizagi:** [`bizagi/modelo-procesos-aether.xpdl`](bizagi/modelo-procesos-aether.xpdl) trae los procesos en un mismo diagrama, de P00 a P41, uno debajo del otro con su título, con los colores y el formato que usa Bizagi al exportar XPDL. En Bizagi Modeler se abre con la opción de importar XPDL. El mismo diagrama en BPMN 2.0 está en [`bizagi/modelo-procesos-aether.bpmn`](bizagi/modelo-procesos-aether.bpmn), por si prefieres importar BPMN o abrirlo en otra herramienta.', '');
+  L.push('**Todo en un solo archivo, para Bizagi:** [`bizagi/modelo-procesos-aether.xpdl`](bizagi/modelo-procesos-aether.xpdl) trae los procesos en un mismo diagrama, una columna por área y cada proceso con su título, con los colores de Bizagi. Bizagi no lo abre con «Abrir» ni con doble clic (eso es solo para `.bpm`): se importa en la pestaña **Exportar/Importar → grupo Importar → XPDL**, y después se guarda como `.bpm`. Pasos completos en [`bizagi/LEEME.txt`](bizagi/LEEME.txt). Hay un XPDL por proceso en [`bizagi/por-proceso/`](bizagi/por-proceso/) y el mismo diagrama único en BPMN 2.0 en [`bizagi/modelo-procesos-aether.bpmn`](bizagi/modelo-procesos-aether.bpmn). Todos cumplen los esquemas oficiales (XPDL 2.2 de la WfMC y BPMN 2.0 de la OMG).', '');
   L.push('| Herramienta | Cómo |', '|---|---|');
   L.push('| **Bizagi Modeler** | El archivo `.xpdl` de [`bizagi/`](bizagi/) (todo junto) o, para un diagrama por proceso, cada archivo de [`bpmn/`](bpmn/) con la opción de importar BPMN 2.0. Cada actividad lleva su descripción con la referencia al código. |');
   L.push('| **Camunda Modeler, bpmn.io, Signavio, Visual Paradigm** | Abren los `.bpmn` directamente. |');
@@ -263,11 +263,46 @@ const dirBizagi = join(RAIZ, 'bizagi');
 mkdirSync(dirBizagi, { recursive: true });
 const descripcionModelo = `${PROCESOS.length} procesos de Aether ERP y la Supersuite, de P00 a P41, uno debajo del otro con su título.`;
 const bizagi = {
-  xpdl: xpdlCompleto(PROCESOS, { nombre: NOMBRE_MODELO, descripcion: descripcionModelo, fecha: FECHA_MODELO }),
-  bpmn: aXmlCompleto(PROCESOS, { nombre: NOMBRE_MODELO, descripcion: descripcionModelo }),
+  xpdl: xpdl(PROCESOS, { nombre: NOMBRE_MODELO, descripcion: descripcionModelo, fecha: FECHA_MODELO, areas: AREAS, alcance: 'modelo' }),
+  bpmn: aXmlCompleto(PROCESOS, { nombre: NOMBRE_MODELO, descripcion: descripcionModelo, areas: AREAS }),
 };
 writeFileSync(join(dirBizagi, 'modelo-procesos-aether.xpdl'), bizagi.xpdl);
 writeFileSync(join(dirBizagi, 'modelo-procesos-aether.bpmn'), bizagi.bpmn);
+const LEEME_BIZAGI = [
+  'MODELO DE PROCESOS DE AETHER Y LA SUPERSUITE: CÓMO VERLO EN BIZAGI MODELER',
+  '',
+  'Bizagi no abre estos archivos con «Abrir» ni con doble clic: eso es solo para sus archivos .bpm.',
+  'Se IMPORTAN:',
+  '',
+  '1. Abre Bizagi Modeler y crea un modelo nuevo (o abre el tuyo).',
+  '2. Ve a la pestaña «Exportar/Importar» (en inglés: Export/Import).',
+  '3. En el grupo «Importar», haz clic en «XPDL».',
+  '4. Elige modelo-procesos-aether.xpdl y haz clic en «Abrir».',
+  '   Verás los procesos en un mismo diagrama, una columna por área (plataforma, ERP, certámenes,',
+  '   canales digitales y transversales), cada uno con su título. Usa el zoom para recorrerlo.',
+  '5. Guárdalo con «Guardar como»: desde ahí Bizagi ya lo abre como .bpm, con doble clic.',
+  '',
+  'Un diagrama por proceso: repite los pasos 2 a 4 con cada archivo de la carpeta por-proceso.',
+  'Si prefieres BPMN: en el mismo grupo «Importar», usa «BPMN» con modelo-procesos-aether.bpmn.',
+  '',
+  'Los archivos cumplen los esquemas oficiales (XPDL 2.2 de la WfMC y BPMN 2.0 de la OMG).',
+  'Si Bizagi muestra un mensaje de error al importar, copia el texto exacto: dice qué ajustar.',
+  '',
+].join('\r\n');
+writeFileSync(join(dirBizagi, 'LEEME.txt'), LEEME_BIZAGI);
+
+// Respaldo: un XPDL por proceso, por si se prefiere importar de a uno (cada uno queda como un diagrama).
+const dirPorProceso = join(dirBizagi, 'por-proceso');
+mkdirSync(dirPorProceso, { recursive: true });
+for (const viejo of readdirSync(dirPorProceso)) if (viejo.endsWith('.xpdl')) rmSync(join(dirPorProceso, viejo));
+const porProceso = [];
+for (const proc of PROCESOS) {
+  const contenido = xpdl([proc], { nombre: `${proc.id} ${proc.nombre}`, descripcion: proc.resumen, fecha: FECHA_MODELO, areas: AREAS, alcance: proc.id });
+  writeFileSync(join(dirPorProceso, `${proc.id}-${proc.slug}.xpdl`), contenido);
+  porProceso.push({ nombre: `por-proceso/${proc.id}-${proc.slug}.xpdl`, texto: contenido });
+}
+bizagi.porProceso = porProceso;
+bizagi.leeme = LEEME_BIZAGI;
 
 const datos = { areas: AREAS, niveles: NIVELES, brechas: BRECHAS, puesta: PUESTA_EN_MARCHA, procesos: fichas, bizagi };
 writeFileSync(join(RAIZ, 'visor.html'), paginaVisor(datos, { documento: true }));

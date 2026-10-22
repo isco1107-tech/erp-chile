@@ -442,14 +442,11 @@ function cliente() {
     guardar(nombre.replace(/\.bpmn$/, '.zip'), crearZip([{ nombre, texto: actual.xml }, { nombre: 'LEEME.txt', texto: LEEME }]));
   });
   document.getElementById('descargar-bizagi').addEventListener('click', () => {
-    const leeme = 'Modelo de procesos de Aether y la Supersuite: todos los procesos en un solo diagrama.\r\n\r\n' +
-      'modelo-procesos-aether.xpdl: en Bizagi Modeler, usa la opción de importar XPDL. Trae los colores y el formato de Bizagi.\r\n' +
-      'modelo-procesos-aether.bpmn: el mismo diagrama en BPMN 2.0, para importar como BPMN o abrir en Camunda Modeler o bpmn.io.\r\n' +
-      'Para un diagrama por proceso, usa el botón «Descargar los BPMN» del visor.\r\n';
     guardar('procesos-aether-bizagi.zip', crearZip([
+      { nombre: 'LEEME.txt', texto: datos.bizagi.leeme },
       { nombre: 'modelo-procesos-aether.xpdl', texto: datos.bizagi.xpdl },
       { nombre: 'modelo-procesos-aether.bpmn', texto: datos.bizagi.bpmn },
-      { nombre: 'LEEME.txt', texto: leeme },
+      ...datos.bizagi.porProceso,
     ]));
   });
   document.getElementById('descargar-todo').addEventListener('click', () => {

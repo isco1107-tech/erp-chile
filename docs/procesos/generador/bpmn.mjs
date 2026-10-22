@@ -318,53 +318,77 @@ function definicionEvento(n) {
   return `<bpmn:${d}EventDefinition />`;
 }
 
-/** Copia de una maqueta corrida dy hacia abajo (para poner varios procesos en un mismo lienzo). */
-export function desplazar(m, dy) {
+/** Copia de una maqueta corrida (dx, dy) (para poner varios procesos en un mismo lienzo). */
+export function desplazar(m, dx, dy) {
   const c = structuredClone(m);
-  const mover = (pts) => pts.forEach((p) => { p[1] += dy; });
-  for (const p of c.pools) p.y += dy;
-  for (const l of c.carriles) l.y += dy;
-  for (const n of c.nodos) { n.y += dy; n.cy += dy; n.filaY0 += dy; n.filaY1 += dy; }
+  const mover = (pts) => pts.forEach((p) => { p[0] += dx; p[1] += dy; });
+  for (const p of c.pools) { p.x += dx; p.y += dy; }
+  for (const l of c.carriles) { l.x += dx; l.y += dy; }
+  for (const n of c.nodos) { n.x += dx; n.cx += dx; n.y += dy; n.cy += dy; n.filaY0 += dy; n.filaY1 += dy; }
   for (const f of c.flujos) mover(f.puntos);
   for (const msg of c.mensajes) mover(msg.puntos);
-  for (const nota of c.notas) { nota.y += dy; if (nota.asoc) mover(nota.asoc.puntos); }
+  for (const nota of c.notas) { nota.x += dx; nota.y += dy; if (nota.asoc) mover(nota.asoc.puntos); }
   return c;
 }
 
-/** Procesos uno debajo del otro, cada uno con su título encima: lo que muestran los archivos "todo en uno". */
-export function apilar(procesos) {
+/**
+ * Todos los procesos en un mismo lienzo: una columna por área (como un mapa de
+ * procesos), cada proceso con su título encima. Así el lienzo queda bajo los
+ * 32.767 px por lado que soportan los programas de Windows.
+ */
+export function organizar(procesos, areas) {
   const ALTO_TITULO = 64;
   const SEPARACION = 110;
-  let cursor = 20;
-  return procesos.map((proc) => {
-    const base = maquetar(proc);
-    const titulo = { x: 20, y: cursor, w: Math.min(1400, Math.max(700, base.ancho - 40)), h: 48 };
-    const m = desplazar(base, cursor + ALTO_TITULO - 20);
-    cursor += ALTO_TITULO + base.alto - 20 + SEPARACION;
-    return { proc, m, titulo, alto: cursor };
-  });
+  const ENTRE_COLUMNAS = 240;
+  const ALTO_ENCABEZADO = 70;
+  const bloques = [];
+  const encabezados = [];
+  let x = 20;
+  let ancho = 0;
+  let alto = 0;
+  for (const area of areas) {
+    const propios = procesos.filter((p) => p.area === area.id);
+    if (!propios.length) continue;
+    const maquetas = propios.map((proc) => ({ proc, base: maquetar(proc) }));
+    const anchoColumna = Math.max(...maquetas.map((q) => q.base.ancho));
+    encabezados.push({ id: `area_${area.id}`, texto: `${area.nombre} (${propios.map((p) => p.id).join(', ')})`, x, y: 20, w: Math.min(1400, anchoColumna - 40), h: 44 });
+    let y = 20 + ALTO_ENCABEZADO;
+    for (const { proc, base } of maquetas) {
+      const titulo = { x, y, w: Math.min(1400, Math.max(700, base.ancho - 40)), h: 48 };
+      const m = desplazar(base, x - 20, y + ALTO_TITULO - 20);
+      bloques.push({ proc, m, titulo, primero: bloques.length === 0 || bloques.at(-1).proc.area !== area.id });
+      y += ALTO_TITULO + base.alto - 20 + SEPARACION;
+    }
+    alto = Math.max(alto, y);
+    x += anchoColumna + ENTRE_COLUMNAS;
+    ancho = x;
+  }
+  return { bloques, encabezados, ancho, alto };
 }
 
 const CABECERA = '<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bioc="http://bpmn.io/schema/bpmn/biocolor/1.0" xmlns:color="http://www.omg.org/spec/BPMN/non-normative/color/1.0"';
 
 /** Las piezas XML de un proceso ya maquetado: participantes, mensajes, procesos y diagrama. */
-function piezas(proc, m, { prefijoNombre = '' } = {}) {
+function piezas(proc, m, { prefijoNombre = '', colores = true, notasExtra = [] } = {}) {
   const { P } = m;
+  const pinta = (par) => (colores ? color(par) : '');
   const idPool = (p) => `${P}_pool_${p.id}`;
   const idProc = (p) => `${P}_proc_${p.id}`;
   const idNodo = (n) => `${P}_${n.id}`;
-  const colab = [];
+  const participantes = [];
+  const mensajes = [];
   const procesos = [];
   const formas = [];
   const aristas = [];
   for (const p of m.pools) {
-    colab.push(`    <bpmn:participant id="${idPool(p)}" name="${esc(prefijoNombre + p.nombre)}"${p.externo ? '' : ` processRef="${idProc(p)}"`}>${p.doc ? `\n${doc(p.doc, '      ')}    ` : ''}</bpmn:participant>`);
+    participantes.push(`    <bpmn:participant id="${idPool(p)}" name="${esc(prefijoNombre + p.nombre)}"${p.externo ? '' : ` processRef="${idProc(p)}"`}>${p.doc ? `\n${doc(p.doc, '      ')}    ` : ''}</bpmn:participant>`);
   }
   for (const msg of m.mensajes) {
     const ref = (x, n) => (n ? idNodo(n) : `${P}_pool_${x}`);
-    colab.push(`    <bpmn:messageFlow id="${msg.id}"${msg.etiqueta ? ` name="${esc(msg.etiqueta)}"` : ''} sourceRef="${ref(msg.desde, msg.s)}" targetRef="${ref(msg.hasta, msg.t)}" />`);
+    mensajes.push(`    <bpmn:messageFlow id="${msg.id}"${msg.etiqueta ? ` name="${esc(msg.etiqueta)}"` : ''} sourceRef="${ref(msg.desde, msg.s)}" targetRef="${ref(msg.hasta, msg.t)}" />`);
   }
 
+  const primerProceso = m.pools.find((x) => !x.externo);
   for (const p of m.pools.filter((x) => !x.externo)) {
     const propios = m.nodos.filter((n) => n.pool.id === p.id);
     procesos.push(`  <bpmn:process id="${idProc(p)}" name="${esc(prefijoNombre + p.nombre)}" isExecutable="false">`);
@@ -392,21 +416,24 @@ function piezas(proc, m, { prefijoNombre = '' } = {}) {
       procesos.push(`    <bpmn:textAnnotation id="${nota.id}"><bpmn:text>${esc(nota.texto)}</bpmn:text></bpmn:textAnnotation>`);
       if (nota.asoc) procesos.push(`    <bpmn:association id="${nota.asoc.id}" associationDirection="None" sourceRef="${nota.id}" targetRef="${idNodo(nota.asoc.n)}" />`);
     }
+    if (p === primerProceso) {
+      for (const nota of notasExtra) procesos.push(`    <bpmn:textAnnotation id="${nota.id}"><bpmn:text>${esc(nota.texto)}</bpmn:text></bpmn:textAnnotation>`);
+    }
     procesos.push('  </bpmn:process>');
   }
 
   for (const p of m.pools) {
-    formas.push(`      <bpmndi:BPMNShape id="${idPool(p)}_di" bpmnElement="${idPool(p)}" isHorizontal="true"${color(TONOS[p.tono ?? (p.externo ? 'externo' : 'aether')])}>${bounds(p)}</bpmndi:BPMNShape>`);
+    formas.push(`      <bpmndi:BPMNShape id="${idPool(p)}_di" bpmnElement="${idPool(p)}" isHorizontal="true"${pinta(TONOS[p.tono ?? (p.externo ? 'externo' : 'aether')])}>${bounds(p)}</bpmndi:BPMNShape>`);
     for (const c of p.carriles) {
-      formas.push(`      <bpmndi:BPMNShape id="${P}_carril_${c.id}_di" bpmnElement="${P}_carril_${c.id}" isHorizontal="true"${color(TONOS[p.tono ?? 'aether'])}>${bounds(c)}</bpmndi:BPMNShape>`);
+      formas.push(`      <bpmndi:BPMNShape id="${P}_carril_${c.id}_di" bpmnElement="${P}_carril_${c.id}" isHorizontal="true"${pinta(TONOS[p.tono ?? 'aether'])}>${bounds(c)}</bpmndi:BPMNShape>`);
     }
   }
   for (const n of m.nodos) {
     const extra = n.def.el === 'exclusiveGateway' ? ' isMarkerVisible="true"' : n.def.el === 'subProcess' ? ' isExpanded="false"' : '';
     const etiqueta = n.def.forma === 'evento' ? etiquetaEvento(n, m) : n.def.forma === 'compuerta' && n.nombre ? etiquetaCompuerta(n, m.flujos) : null;
-    formas.push(`      <bpmndi:BPMNShape id="${idNodo(n)}_di" bpmnElement="${idNodo(n)}"${extra}${color(COLORES[n.def.grupo])}>${bounds(n)}${etiqueta ? `<bpmndi:BPMNLabel>${bounds(etiqueta)}</bpmndi:BPMNLabel>` : ''}</bpmndi:BPMNShape>`);
+    formas.push(`      <bpmndi:BPMNShape id="${idNodo(n)}_di" bpmnElement="${idNodo(n)}"${extra}${pinta(COLORES[n.def.grupo])}>${bounds(n)}${etiqueta ? `<bpmndi:BPMNLabel>${bounds(etiqueta)}</bpmndi:BPMNLabel>` : ''}</bpmndi:BPMNShape>`);
   }
-  for (const nota of m.notas) formas.push(`      <bpmndi:BPMNShape id="${nota.id}_di" bpmnElement="${nota.id}">${bounds(nota)}</bpmndi:BPMNShape>`);
+  for (const nota of [...m.notas, ...notasExtra]) formas.push(`      <bpmndi:BPMNShape id="${nota.id}_di" bpmnElement="${nota.id}">${bounds(nota)}</bpmndi:BPMNShape>`);
   const wps = (pts) => pts.map(([x, y]) => `<di:waypoint x="${r(x)}" y="${r(y)}" />`).join('');
   for (const f of m.flujos) {
     aristas.push(`      <bpmndi:BPMNEdge id="${f.id}_di" bpmnElement="${f.id}">${wps(f.puntos)}${f.etiqueta ? `<bpmndi:BPMNLabel>${bounds(etiquetaFlujo(f))}</bpmndi:BPMNLabel>` : ''}</bpmndi:BPMNEdge>`);
@@ -418,7 +445,7 @@ function piezas(proc, m, { prefijoNombre = '' } = {}) {
   for (const nota of m.notas.filter((x) => x.asoc)) {
     aristas.push(`      <bpmndi:BPMNEdge id="${nota.asoc.id}_di" bpmnElement="${nota.asoc.id}">${wps(nota.asoc.puntos)}</bpmndi:BPMNEdge>`);
   }
-  return { colab, procesos, formas, aristas };
+  return { participantes, mensajes, procesos, formas, aristas };
 }
 
 /** La etiqueta de un mensaje va en el espacio entre las dos piscinas, donde no hay tareas. */
@@ -429,19 +456,19 @@ export function etiquetaMensaje(msg) {
   return { x: x + 6, y: yHueco - (msg.puntos.length > 2 ? 20 : 8), w: Math.max(40, msg.etiqueta.length * 6.2), h: 16 };
 }
 
-function documento(id, nombre, docColab, partes, extraColab = [], extraFormas = []) {
+function documento(id, nombre, docColab, partes, { cabecera = CABECERA } = {}) {
   const out = ['<?xml version="1.0" encoding="UTF-8"?>'];
-  out.push(`${CABECERA} id="${id}_definiciones" targetNamespace="https://aetherp.online/procesos" exporter="Aether · generador de procesos" exporterVersion="1.0">`);
+  out.push(`${cabecera} id="${id}_definiciones" targetNamespace="https://aetherp.online/procesos" exporter="Aether · generador de procesos" exporterVersion="1.0">`);
   out.push(`  <bpmn:collaboration id="${id}_colaboracion">`);
   out.push(doc(docColab, '    ').trimEnd());
-  for (const p of partes) out.push(...p.colab);
-  out.push(...extraColab);
+  // El esquema exige todos los participantes antes que los mensajes.
+  for (const p of partes) out.push(...p.participantes);
+  for (const p of partes) out.push(...p.mensajes);
   out.push('  </bpmn:collaboration>');
   for (const p of partes) out.push(...p.procesos);
   out.push(`  <bpmndi:BPMNDiagram id="${id}_diagrama" name="${esc(nombre)}">`);
   out.push(`    <bpmndi:BPMNPlane id="${id}_plano" bpmnElement="${id}_colaboracion">`);
   for (const p of partes) out.push(...p.formas);
-  out.push(...extraFormas);
   for (const p of partes) out.push(...p.aristas);
   out.push('    </bpmndi:BPMNPlane>');
   out.push('  </bpmndi:BPMNDiagram>');
@@ -456,11 +483,21 @@ export function aXml(proc) {
   return { xml, maqueta: m };
 }
 
-/** Un solo BPMN con todos los procesos en un mismo diagrama, apilados y con su título. */
-export function aXmlCompleto(procesos, { nombre, descripcion }) {
-  const bloques = apilar(procesos);
-  const partes = bloques.map((b) => piezas(b.proc, b.m, { prefijoNombre: `${b.proc.id} · ` }));
-  const titulos = bloques.map((b) => `    <bpmn:textAnnotation id="${b.proc.id}_titulo"><bpmn:text>${esc(`${b.proc.id} · ${b.proc.nombre}. ${b.proc.resumen}`)}</bpmn:text></bpmn:textAnnotation>`);
-  const formas = bloques.map((b) => `      <bpmndi:BPMNShape id="${b.proc.id}_titulo_di" bpmnElement="${b.proc.id}_titulo">${bounds(b.titulo)}</bpmndi:BPMNShape>`);
-  return documento('Aether', nombre, descripcion, partes, titulos, formas);
+const CABECERA_SIMPLE = '<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"';
+
+/**
+ * Un solo BPMN con todos los procesos en un mismo diagrama (una columna por
+ * área). Sin extensiones de color: solo BPMN 2.0 estándar, para Bizagi.
+ */
+export function aXmlCompleto(procesos, { nombre, descripcion, areas }) {
+  const { bloques, encabezados } = organizar(procesos, areas);
+  const partes = bloques.map((b) => {
+    const notasExtra = [{ id: `${b.proc.id}_titulo`, texto: `${b.proc.id} · ${b.proc.nombre}. ${b.proc.resumen}`, ...b.titulo }];
+    if (b.primero) {
+      const e = encabezados.find((x) => x.id === `area_${b.proc.area}`);
+      notasExtra.push({ id: `${b.proc.id}_${e.id}`, texto: e.texto, x: e.x, y: e.y, w: e.w, h: e.h });
+    }
+    return piezas(b.proc, b.m, { prefijoNombre: `${b.proc.id} · `, colores: false, notasExtra });
+  });
+  return documento('Aether', nombre, descripcion, partes, { cabecera: CABECERA_SIMPLE });
 }
