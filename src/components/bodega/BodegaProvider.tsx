@@ -595,8 +595,16 @@ export function BodegaProvider({ children }: { children: ReactNode }) {
       const store = storeRef.current;
       if (!store) return;
       const photoId = newId();
+      const lineId = newId();
+      const aiEnabled = bootRef.current.status === 'ready' ? bootRef.current.data.ai.enabled : true;
       await store.savePhoto({ id: photoId, blob: photo.blob, width: photo.width, height: photo.height, createdAt: Date.now() });
-      updateDraft((current) => addPhoto(current, photoId, { id: newId(), now: Date.now() }));
+      updateDraft((current) => {
+        const next = addPhoto(current, photoId, { id: lineId, now: Date.now() });
+        // Sin IA en el servidor no se manda la foto a "identificarse": la persona elige o crea el producto (la foto queda para el producto nuevo).
+        return aiEnabled
+          ? next
+          : setSource(next, lineId, { kind: 'resolve', reason: 'unavailable', candidates: [], read: null, photoId, code: null, message: 'La identificación por foto no está disponible en este servidor.' });
+      });
     },
     [updateDraft]
   );

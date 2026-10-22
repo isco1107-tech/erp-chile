@@ -64,7 +64,13 @@ export type IdentifyStatus =
   /** La IA está al tope por ahora: la app reintenta sola más tarde. */
   | 'busy'
   /** La IA no está disponible (no configurada o apagada): se sigue a mano. */
-  | 'unavailable';
+  | 'unavailable'
+  /**
+   * La IA falló por algo que no es saturación (respuesta inválida, error del proveedor).
+   * A diferencia de `busy`, el teléfono lo cuenta como un intento fallido: tras varios,
+   * entrega la foto a la persona en vez de reintentar para siempre y gastar cuota.
+   */
+  | 'error';
 
 export interface IdentifyResponse {
   status: IdentifyStatus;

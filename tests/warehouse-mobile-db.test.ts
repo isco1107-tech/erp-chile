@@ -402,6 +402,14 @@ describeDb('app del bodeguero contra PostgreSQL', () => {
       expect(visionRead).toHaveBeenCalledTimes(1);
     });
 
+    it('una falla del proveedor se informa como error (no como saturación) y deja constancia', async () => {
+      visionRead.mockRejectedValueOnce(new Error('respuesta inesperada'));
+      const result = await identifyPhoto({ companyId: companyC, userId: 'u1' }, await photo(70), undefined);
+      expect(result).toMatchObject({ status: 'error' });
+      expect(result.retryAfterMs).toBeGreaterThanOrEqual(15_000);
+      expect(await prisma.productPhotoScan.count({ where: { companyId: companyC, status: 'FAILED' } })).toBe(1);
+    });
+
     it('un producto que no está en el catálogo se ofrece como nuevo con lo leído', async () => {
       visionRead.mockResolvedValue({ raw: { isProduct: true, name: 'Cuaderno universitario', brand: 'Torre', confidence: 'medium', warnings: [] }, model: 'modelo-de-prueba' });
       const result = await identifyPhoto({ companyId: companyC, userId: 'u1' }, await photo(40), undefined);

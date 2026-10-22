@@ -181,9 +181,9 @@ export async function identifyPhoto(actor: Actor, bytes: Uint8Array, warehouseId
     }
     await recordFinished(reservation.id, companyId, 'FAILED', {});
     if (error instanceof VisionUnavailableError) {
-      return { status: 'busy', candidates: [], read: null, cached: false, retryAfterMs: 15_000, message: 'La IA no respondió. Se reintentará sola; mientras, puedes buscar el producto a mano.' };
+      return { status: 'error', candidates: [], read: null, cached: false, retryAfterMs: 15_000, message: 'La IA no respondió bien. Se reintentará sola; mientras, puedes buscar el producto a mano.' };
     }
     captureException(error, { module: 'bodega-movil', companyId, extra: { reason: 'vision-call' } });
-    return { status: 'busy', candidates: [], read: null, cached: false, retryAfterMs: 20_000, message: 'No se pudo identificar la foto por ahora. Se reintentará sola; mientras, puedes buscar el producto a mano.' };
+    return { status: 'error', candidates: [], read: null, cached: false, retryAfterMs: 20_000, message: 'No se pudo identificar la foto por ahora. Se reintentará sola; mientras, puedes buscar el producto a mano.' };
   }
 }

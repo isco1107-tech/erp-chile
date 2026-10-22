@@ -499,6 +499,21 @@ describe('motor de identificación', () => {
     expect(third.draft.lines.filter((l) => l.source.kind === 'identify')).toHaveLength(2);
   });
 
+  it('una falla del proveedor (no saturación) cuenta como intento y no se insiste para siempre', async () => {
+    let draft = withPhotos('foto-1');
+    const api = fakeApi({ identify: jest.fn(async () => okResponse(emptyIdentify({ status: 'error', retryAfterMs: 15_000, message: 'La IA no respondió bien.' }))) });
+    let t = NOW;
+    for (let attempt = 1; attempt < MAX_NETWORK_ATTEMPTS; attempt++) {
+      const pass = await runIdentifyPass(draft, 0, { api, getPhotoBlob, now: () => t, random: () => 0.5 });
+      draft = pass.draft;
+      expect(draft.lines[0]!.source).toMatchObject({ kind: 'identify', pending: { attempts: attempt, message: 'La IA no respondió bien.' } });
+      expect(pass.wakeAt! - t).toBeGreaterThanOrEqual(15_000);
+      t = pass.wakeAt! + 1;
+    }
+    const last = await runIdentifyPass(draft, 0, { api, getPhotoBlob, now: () => t, random: () => 0.5 });
+    expect(last.draft.lines[0]!.source).toMatchObject({ kind: 'resolve', reason: 'failed' });
+  });
+
   it('mientras la IA está ocupada, los códigos igual se reconocen (no usan IA)', async () => {
     let draft = withPhotos('foto-1');
     draft = addCode(draft, '4006381333931', { id: 'c1', now: NOW + 50 });

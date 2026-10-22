@@ -90,7 +90,7 @@ function Shell() {
     );
   }
 
-  if (screen === 'session' && draft) return <SessionScreen onBack={back} onDone={() => setScreen('home')} />;
+  if (screen === 'session' && draft) return <SessionScreen onBack={back} onDone={back} />;
   if (screen === 'outbox') return <OutboxScreen onBack={back} />;
   return <HomeScreen onStart={start} onContinue={() => go('session')} onOutbox={() => go('outbox')} />;
 }

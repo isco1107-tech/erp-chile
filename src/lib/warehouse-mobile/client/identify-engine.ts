@@ -98,7 +98,7 @@ export async function performIdentify(line: WaitingLine, warehouseId: string, ho
   const authFailure = (status: 401 | 403, message: string) => result({ kind: 'auth', status, message });
 
   /** Fallo sin respuesta útil: reintento con espera, o la persona decide si ya van muchos. */
-  const networkFailure = (message: string): IdentifyResult => {
+  const networkFailure = (message: string, hintMs?: number): IdentifyResult => {
     const attempts = pending.attempts + 1;
     if (attempts >= MAX_NETWORK_ATTEMPTS) {
       return result({
@@ -106,7 +106,7 @@ export async function performIdentify(line: WaitingLine, warehouseId: string, ho
         source: resolveSource(line, 'failed', { message: 'No se pudo reconocer por falta de conexión. Búscalo a mano o vuelve a intentarlo.' }),
       });
     }
-    return waitAgain({ attempts, nextAttemptAt: t + retryDelayMs(attempts - 1, { random }), message });
+    return waitAgain({ attempts, nextAttemptAt: t + retryDelayMs(attempts - 1, { random, hintMs }), message });
   };
 
   if (source.kind === 'code') {
@@ -163,6 +163,9 @@ export async function performIdentify(line: WaitingLine, warehouseId: string, ho
       return resolveWith('unreadable');
     case 'unavailable':
       return resolveWith('unavailable');
+    case 'error':
+      // Falla del proveedor (no saturación): cuenta como intento, para no insistir eternamente.
+      return networkFailure(data.message ?? 'La IA no respondió: se reintentará sola.', data.retryAfterMs);
     case 'busy': {
       // Un "ocupado" no es un fracaso: no cuenta como intento. Toda foto espera lo que pidió el servidor.
       holdUntil = Math.max(holdUntil, t + (data.retryAfterMs ?? 15_000) + Math.round(random() * 1_500));
