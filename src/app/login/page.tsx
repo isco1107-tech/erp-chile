@@ -29,6 +29,19 @@ function nextPath(json: { data?: { redirectTo?: unknown } }, callbackUrl: string
   return server === '/dashboard' && callbackUrl === '/bodega' ? callbackUrl : server;
 }
 
+/**
+ * La app del bodeguero necesita la cámara, y el permiso lo da una cabecera del DOCUMENTO (`Permissions-Policy`,
+ * ver next.config.js): una navegación interna desde esta página conservaría la política del login (sin cámara).
+ * Por eso a `/bodega` se entra con una carga completa de la página.
+ */
+function goTo(router: ReturnType<typeof useRouter>, path: string): void {
+  if (path === '/bodega') {
+    window.location.assign(path);
+    return;
+  }
+  router.push(path);
+}
+
 const LOGIN_REDIRECT_REASONS: Record<string, string> = {
   ip: 'Tu sesión sigue activa, pero tu empresa restringió el acceso a ciertas direcciones IP y la tuya no está autorizada. Contacta al administrador de tu empresa.',
 };
@@ -84,7 +97,7 @@ function LoginForm() {
         return;
       }
       toast.success('Inicio de sesión correcto');
-      router.push(nextPath(json, searchParams.get('callbackUrl')));
+      goTo(router, nextPath(json, searchParams.get('callbackUrl')));
     } catch (e) {
       setError('No pudimos conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.');
     } finally {
@@ -108,7 +121,7 @@ function LoginForm() {
         return;
       }
       toast.success('Inicio de sesión correcto');
-      router.push(nextPath(json, searchParams.get('callbackUrl')));
+      goTo(router, nextPath(json, searchParams.get('callbackUrl')));
     } catch (e) {
       setError('No pudimos verificar el código. Revisa tu conexión e inténtalo de nuevo.');
     } finally {

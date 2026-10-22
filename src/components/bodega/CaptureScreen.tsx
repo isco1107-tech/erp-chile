@@ -27,8 +27,12 @@ interface Props {
   scanOnly?: boolean;
 }
 
-/** Misma lectura repetida dentro de este lapso se ignora (el código sigue en cuadro un instante). */
-const REPEAT_GUARD_MS = 1800;
+/**
+ * Un mismo código vuelve a contar solo si salió del cuadro un momento: apuntar
+ * y quedarse mirando no debe sumar una unidad cada segundo. Para sumar otra
+ * unidad, se aparta la cámara y se vuelve a apuntar (o se usa el botón +).
+ */
+const ABSENCE_MS = 700;
 const SCAN_INTERVAL_MS = 140;
 
 function beep(): void {
@@ -80,7 +84,7 @@ export default function CaptureScreen({ onCode, onPhoto, onClose, scanOnly = fal
     let cancelled = false;
     let scanner: CodeScanner | null = null;
     let timer: ReturnType<typeof setTimeout> | null = null;
-    let last = { code: '', at: 0 };
+    let last = { code: '', seenAt: 0 };
 
     void (async () => {
       try {
@@ -103,8 +107,9 @@ export default function CaptureScreen({ onCode, onPhoto, onClose, scanOnly = fal
           if (!document.hidden && scanner && element.readyState >= 2) {
             const code = await scanner.scan(element).catch(() => null);
             const now = Date.now();
-            if (code && (code !== last.code || now - last.at > REPEAT_GUARD_MS)) {
-              last = { code, at: now };
+            const reappeared = code !== null && (code !== last.code || now - last.seenAt >= ABSENCE_MS);
+            if (code) last = { code: reappeared ? code : last.code, seenAt: now };
+            if (code && reappeared) {
               beep();
               navigator.vibrate?.(60);
               onCodeRef.current(code);

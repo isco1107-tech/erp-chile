@@ -11,10 +11,14 @@ import { VISION_JSON_SCHEMA, VISION_SYSTEM_PROMPT, VISION_USER_PROMPT } from '@/
  * de insistir. Quien decide si hay cupo antes de llamar es `identify.service.ts`.
  */
 
-/** Gemini respondió 429: se activó el enfriamiento general. */
+/**
+ * Gemini está saturado (429 por cuota o 503 por "alta demanda", que Google devuelve
+ * en picos aunque no se haya superado ninguna cuota): se activa el enfriamiento
+ * general. No es un error de la app, así que no se reporta como tal.
+ */
 export class VisionRateLimitedError extends Error {
   constructor() {
-    super('La IA alcanzó su límite de uso por ahora');
+    super('La IA está saturada por ahora');
   }
 }
 
@@ -80,7 +84,8 @@ export async function readProductPhoto(jpeg: Buffer): Promise<{ raw: unknown; mo
     }
   } catch (error) {
     if (error instanceof VisionUnavailableError) throw error;
-    if (statusOf(error) === 429) throw new VisionRateLimitedError();
+    const status = statusOf(error);
+    if (status === 429 || status === 503) throw new VisionRateLimitedError();
     if (controller.signal.aborted) throw new VisionUnavailableError('La IA tardó demasiado en responder');
     throw error;
   } finally {

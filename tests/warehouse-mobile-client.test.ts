@@ -390,6 +390,27 @@ describe('motor de envío', () => {
       expect(await store.getPhoto('foto-1')).not.toBeNull();
     });
 
+    it('si el almacenamiento de fotos falla varias veces, el producto se crea sin foto (no queda bloqueado)', async () => {
+      let entry = createOutboxEntry(create, NOW, 'foto-1');
+      const store = await setup([entry]);
+      await store.savePhoto({ id: 'foto-1', blob: new Blob(['x']), width: 10, height: 10, createdAt: NOW });
+      const serverError = async (): Promise<ApiResponse<never>> => ({ ok: false, failure: { kind: 'server', status: 500, message: 'Error del servidor' } });
+      const api = fakeApi({ uploadPhoto: jest.fn(serverError), sync: jest.fn(async (ops) => okResponse<SyncResponse>({ results: ops.map(applied) })) });
+
+      let t = NOW;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const pass = await runSyncPass([entry], { api, store, now: () => t, random: () => 0.5, maxBatch: 25 });
+        entry = pass.entries[0]!;
+        expect(entry).toMatchObject({ status: 'queued', attempts: attempt + 1, photoId: 'foto-1' });
+        expect(api.sync).not.toHaveBeenCalled();
+        t = entry.nextAttemptAt + 1;
+      }
+      const final = await runSyncPass([entry], { api, store, now: () => t, maxBatch: 25 });
+      expect(final.entries[0]).toMatchObject({ status: 'done', photoId: null });
+      const sent = api.sync.mock.calls[0]![0]![0]!;
+      expect(sent.kind === 'CREATE_PRODUCT' && sent.product.imageUrl).toBeUndefined();
+    });
+
     it('si la foto se perdió del teléfono, el producto se crea igual sin ella', async () => {
       const entry = createOutboxEntry(create, NOW, 'foto-perdida');
       const store = await setup([entry]);

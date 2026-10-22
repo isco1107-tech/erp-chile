@@ -17,6 +17,9 @@ import type { BodegaStore } from './store';
  *   cola espera a que la persona vuelva a entrar.
  */
 
+/** Fallos del servidor al subir la foto antes de crear el producto sin ella. */
+export const PHOTO_SERVER_ATTEMPTS = 2;
+
 export interface SyncDeps {
   api: Pick<BodegaApi, 'sync' | 'uploadPhoto'>;
   store: Pick<BodegaStore, 'getPhoto' | 'deletePhoto' | 'saveOutboxEntry'>;
@@ -88,13 +91,14 @@ export async function runSyncPass(initial: readonly OutboxEntry[], deps: SyncDep
             await persist([{ ...entry, status: 'queued', nextAttemptAt: startedAt }]);
           } else if (failure.kind === 'rate') {
             await persist([{ ...entry, status: 'queued', nextAttemptAt: now() + failure.retryAfterMs, lastError: failure.message }]);
-          } else if (failure.kind === 'client') {
-            // La foto no sirve (formato, tamaño): se crea el producto sin ella en vez de bloquearlo.
+          } else if (failure.kind === 'client' || (failure.kind === 'server' && entry.attempts >= PHOTO_SERVER_ATTEMPTS)) {
+            // La foto no sirve (formato, tamaño) o el almacenamiento falla una y otra vez: la foto es un
+            // adorno, el producto no. Se crea sin ella en vez de dejarlo bloqueado para siempre.
             entry = { ...entry, photoId: null };
           } else {
             await persist([failedAttempt(entry, now(), failure.message, retry)]);
           }
-          if (failure.kind !== 'client') continue;
+          if (failure.kind === 'auth' || failure.kind === 'rate' || (failure.kind !== 'client' && entry.photoId !== null)) continue;
         } else {
           entry = { ...entry, op: { ...op, product: { ...op.product, imageUrl: uploaded.data.url } } };
         }

@@ -169,7 +169,7 @@ export async function identifyPhoto(actor: Actor, bytes: Uint8Array, warehouseId
   } catch (error) {
     if (error instanceof VisionRateLimitedError) {
       await recordFinished(reservation.id, companyId, 'LIMITED', {});
-      captureMessage('Gemini respondió 429 a la lectura de fotos de bodega: se frena la lectura por el período de enfriamiento', 'warn', { module: 'bodega-movil', companyId });
+      captureMessage('Gemini está saturado (429/503) para la lectura de fotos de bodega: se frena la lectura por el período de enfriamiento', 'warn', { module: 'bodega-movil', companyId });
       return {
         status: 'busy',
         candidates: [],

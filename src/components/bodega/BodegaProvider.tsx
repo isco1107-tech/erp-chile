@@ -158,6 +158,8 @@ export function BodegaProvider({ children }: { children: ReactNode }) {
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
 
   const storeRef = useRef<BodegaStore | null>(null);
+  const storeKeyRef = useRef<string | null>(null);
+  const openChain = useRef<Promise<void>>(Promise.resolve());
   const bootRef = useRef<BootState>(boot);
   const draftRef = useRef<Draft | null>(null);
   const outboxRef = useRef<OutboxEntry[]>([]);
@@ -349,23 +351,38 @@ export function BodegaProvider({ children }: { children: ReactNode }) {
 
   // ── Apertura: base local, borrador, cola y servidor ───────────────────────
 
+  /**
+   * Abre la base local de esta persona. Idempotente y en fila: pedirla dos veces a la
+   * vez (arranque + reconexión) no cierra una base mientras la otra aún la usa.
+   */
   const openStoreFor = useCallback(
-    async (companyId: string, userId: string) => {
-      storeRef.current?.close();
-      const db = await openLocalDb(dbNameFor(companyId, userId));
-      const store = createBodegaStore(db);
-      storeRef.current = store;
-      setPersistent(db.persistent);
+    (companyId: string, userId: string): Promise<BodegaStore> => {
+      const key = `${companyId}:${userId}`;
+      const run = async (): Promise<BodegaStore> => {
+        if (storeKeyRef.current === key && storeRef.current) return storeRef.current;
+        storeRef.current?.close();
+        const db = await openLocalDb(dbNameFor(companyId, userId));
+        const store = createBodegaStore(db);
+        storeRef.current = store;
+        storeKeyRef.current = key;
+        setPersistent(db.persistent);
 
-      const now = Date.now();
-      const entries = pruneDone(recoverInterrupted(await store.loadOutbox(), now), now);
-      commitOutbox(entries);
-      const saved = await store.loadDraft();
-      draftRef.current = saved;
-      setDraft(saved);
-      holdUntilRef.current = 0;
-      void cleanupPhotos();
-      return store;
+        const now = Date.now();
+        const entries = pruneDone(recoverInterrupted(await store.loadOutbox(), now), now);
+        commitOutbox(entries);
+        const saved = await store.loadDraft();
+        draftRef.current = saved;
+        setDraft(saved);
+        holdUntilRef.current = 0;
+        void cleanupPhotos();
+        return store;
+      };
+      const next = openChain.current.then(run, run);
+      openChain.current = next.then(
+        () => undefined,
+        () => undefined
+      );
+      return next;
     },
     [cleanupPhotos, commitOutbox]
   );
@@ -386,10 +403,7 @@ export function BodegaProvider({ children }: { children: ReactNode }) {
     const response = await api.bootstrap();
     if (response.ok) {
       const data = response.data;
-      const last = readLastCtx();
-      if (!storeRef.current || last?.companyId !== data.company.id || last.userId !== data.user.id) {
-        await openStoreFor(data.company.id, data.user.id);
-      }
+      await openStoreFor(data.company.id, data.user.id);
       writeLastCtx({ companyId: data.company.id, userId: data.user.id });
       await storeRef.current?.saveBootstrap(data);
       chooseWarehouse(data);
@@ -444,9 +458,31 @@ export function BodegaProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /**
+   * Cuando vuelve la señal (o la persona vuelve a la app) no tiene sentido seguir
+   * esperando el plazo de un reintento calculado para cuando NO había conexión:
+   * todo lo que esperaba por falta de señal se intenta ahora. Lo que esperaba su
+   * turno de la IA no se toca (ese plazo lo fijó el servidor).
+   */
+  const wakeForConnection = useCallback(() => {
+    const now = Date.now();
+    commitOutbox(outboxRef.current.map((entry) => (entry.status === 'queued' && entry.nextAttemptAt > now ? { ...entry, nextAttemptAt: now } : entry)));
+    const current = draftRef.current;
+    if (!current) return;
+    const lines = current.lines.map((line) => {
+      const { source } = line;
+      if ((source.kind === 'code' || source.kind === 'identify') && source.pending.attempts > 0 && source.pending.nextAttemptAt > now) {
+        return { ...line, source: { ...source, pending: { ...source.pending, nextAttemptAt: now } } };
+      }
+      return line;
+    });
+    commitDraft({ ...current, lines });
+  }, [commitDraft, commitOutbox]);
+
   useEffect(() => {
     const handleOnline = () => {
       setOnline(true);
+      wakeForConnection();
       void refreshBootstrap();
       kickSyncRef.current();
       kickIdentifyRef.current();
@@ -454,6 +490,7 @@ export function BodegaProvider({ children }: { children: ReactNode }) {
     const handleOffline = () => setOnline(false);
     const handleVisible = () => {
       if (document.visibilityState !== 'visible') return;
+      wakeForConnection();
       kickSyncRef.current();
       kickIdentifyRef.current();
     };
@@ -471,7 +508,7 @@ export function BodegaProvider({ children }: { children: ReactNode }) {
       document.removeEventListener('visibilitychange', handleVisible);
       window.removeEventListener('beforeinstallprompt', handleInstall);
     };
-  }, [refreshBootstrap]);
+  }, [refreshBootstrap, wakeForConnection]);
 
   // Service worker: solo en producción, para no cachear nada mientras se desarrolla.
   useEffect(() => {
