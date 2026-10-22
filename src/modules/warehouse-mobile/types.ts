@@ -84,8 +84,8 @@ export interface LookupResponse {
 }
 
 export interface BootstrapResponse {
-  user: { name: string; roleLabel: string };
-  company: { name: string };
+  user: { id: string; name: string; roleLabel: string };
+  company: { id: string; name: string };
   warehouses: Array<{ id: string; name: string; code: string; isDefault: boolean }>;
   categories: Array<{ id: string; name: string }>;
   units: string[];

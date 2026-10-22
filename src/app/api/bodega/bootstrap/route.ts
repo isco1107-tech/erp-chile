@@ -17,8 +17,8 @@ export async function GET() {
     const [warehouses, categories] = await Promise.all([listWarehouseOptions(context.companyId), listCategoryOptions(context.companyId)]);
     if (warehouses.length === 0) return fail('La empresa no tiene bodegas creadas. Pide a un administrador que cree una.', 409);
     const data: BootstrapResponse = {
-      user: { name: context.name, roleLabel: context.customRoleName ?? ROLE_LABELS[context.role] },
-      company: { name: context.companyName },
+      user: { id: context.id, name: context.name, roleLabel: context.customRoleName ?? ROLE_LABELS[context.role] },
+      company: { id: context.companyId, name: context.companyName },
       warehouses,
       categories,
       units: [...UNITS],

@@ -12,6 +12,7 @@
  * no termina en `_test`: crea y borra empresas, productos y movimientos.
  */
 import type { PrismaClient } from '@prisma/client';
+import sharp from 'sharp';
 
 const TEST_URL = process.env.WAREHOUSE_TEST_DATABASE_URL;
 
@@ -46,7 +47,6 @@ describeDb('app del bodeguero contra PostgreSQL', () => {
   let processOperations: typeof import('@/modules/warehouse-mobile/services/sync.service').processOperations;
   let identifyPhoto: typeof import('@/modules/warehouse-mobile/services/identify.service').identifyPhoto;
   let findByCode: typeof import('@/modules/warehouse-mobile/services/catalog.service').findByCode;
-  let sharp: typeof import('sharp');
 
   const suffix = Math.random().toString(36).slice(2, 8);
   let companyA = '';
@@ -80,7 +80,6 @@ describeDb('app del bodeguero contra PostgreSQL', () => {
     ({ processOperations } = await import('@/modules/warehouse-mobile/services/sync.service'));
     ({ identifyPhoto } = await import('@/modules/warehouse-mobile/services/identify.service'));
     ({ findByCode } = await import('@/modules/warehouse-mobile/services/catalog.service'));
-    sharp = (await import('sharp')).default as unknown as typeof import('sharp');
 
     const a = await prisma.company.create({ data: { rut: `76${suffix}1-1`, businessName: `Bodega Test A ${suffix}` } });
     const b = await prisma.company.create({ data: { rut: `76${suffix}2-2`, businessName: `Bodega Test B ${suffix}` } });

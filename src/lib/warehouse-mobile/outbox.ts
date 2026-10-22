@@ -42,10 +42,18 @@ export function retryDelayMs(attempts: number, options: RetryOptions = {}): numb
 
 export type OutboxStatus = 'queued' | 'sending' | 'rejected' | 'done';
 
+/** Cómo se muestra la operación en la lista (el celular no vuelve a consultar el nombre del producto). */
+export interface OutboxLabel {
+  name: string;
+  sku: string;
+  unit: string;
+}
+
 export interface OutboxEntry {
   /** Igual a `op.clientOpId`. */
   id: string;
   op: SyncOperation;
+  label: OutboxLabel;
   /** Foto guardada en el teléfono que se sube antes de enviar (producto nuevo). */
   photoId: string | null;
   status: OutboxStatus;
@@ -56,8 +64,8 @@ export interface OutboxEntry {
   result: OpResult | null;
 }
 
-export function createOutboxEntry(op: SyncOperation, now: number, photoId: string | null = null): OutboxEntry {
-  return { id: op.clientOpId, op, photoId, status: 'queued', attempts: 0, nextAttemptAt: now, createdAt: now, lastError: null, result: null };
+export function createOutboxEntry(op: SyncOperation, now: number, photoId: string | null = null, label: OutboxLabel = { name: 'Producto', sku: '', unit: 'UN' }): OutboxEntry {
+  return { id: op.clientOpId, op, label, photoId, status: 'queued', attempts: 0, nextAttemptAt: now, createdAt: now, lastError: null, result: null };
 }
 
 /** Operaciones listas para enviar ahora, las más antiguas primero. */
