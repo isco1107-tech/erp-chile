@@ -78,6 +78,7 @@ import {
   GraduationCap,
   Layers,
   Sparkles,
+  Smartphone,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -141,6 +142,7 @@ export const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   inventoryCount: ClipboardCheck,
   lots: Hourglass,
   labels: Barcode,
+  mobile: Smartphone,
   collections: HandCoins,
   banks: Vault,
   cheques: FileCheck2,

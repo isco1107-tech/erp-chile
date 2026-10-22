@@ -513,7 +513,7 @@ export function BodegaProvider({ children }: { children: ReactNode }) {
   // Service worker: solo en producción, para no cachear nada mientras se desarrolla.
   useEffect(() => {
     if (process.env.NODE_ENV !== 'production' || !('serviceWorker' in navigator)) return;
-    void navigator.serviceWorker.register('/bodega/sw.js', { scope: '/bodega' }).catch(() => undefined);
+    void navigator.serviceWorker.register('/bodega-sw.js', { scope: '/bodega' }).catch(() => undefined);
   }, []);
 
   // Al cerrar o recargar con cambios sin guardar, se guarda lo último del borrador.

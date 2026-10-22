@@ -16,7 +16,8 @@ import { InvalidImageError } from '@/modules/warehouse-mobile/services/image.ser
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
-  return withBodegaAuth({ permission: 'products:read', limit: WAREHOUSE_IDENTIFY_RATE_LIMIT }, async (context) => {
+  // `inventory:write` y no `products:read`: cada foto gasta cuota de la IA, y la cámara solo se usa dentro de un movimiento.
+  return withBodegaAuth({ permission: 'inventory:write', limit: WAREHOUSE_IDENTIFY_RATE_LIMIT }, async (context) => {
     const companyLimit = checkRateLimit(context.companyId, WAREHOUSE_IDENTIFY_COMPANY_RATE_LIMIT);
     if (!companyLimit.allowed) return tooMany(companyLimit.retryAfterMs);
 

@@ -106,7 +106,7 @@ const PUBLIC_ROUTES = [
   // navegador en segundo plano, sin sesión garantizada. La pantalla en sí
   // (`/bodega`) SÍ exige sesión y NO está en esta lista.
   '/bodega/manifest.webmanifest',
-  '/bodega/sw.js',
+  '/bodega-sw.js',
 ];
 
 /**

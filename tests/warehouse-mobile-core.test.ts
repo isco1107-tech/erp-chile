@@ -23,6 +23,7 @@ import {
   summarizeOutbox,
   DONE_RETENTION_MS,
 } from '@/lib/warehouse-mobile/outbox';
+import { prefersWarehouseApp } from '@/lib/auth/landing';
 import { createProductOpSchema, moveOpSchema, syncOperationSchema, newProductSchema } from '@/modules/warehouse-mobile/schema';
 import type { AppliedOpResult } from '@/modules/warehouse-mobile/types';
 
@@ -444,5 +445,23 @@ describe('cola de envío del celular', () => {
     const oldQueued = createOutboxEntry(op('op-bbbbbbbb'), old);
     const oldRejected = { ...createOutboxEntry(op('op-cccccccc'), old), status: 'rejected' as const };
     expect(pruneDone([oldDone, oldQueued, oldRejected], now).map((e) => e.id)).toEqual(['op-bbbbbbbb', 'op-cccccccc']);
+  });
+});
+
+describe('a dónde entra el bodeguero al iniciar sesión', () => {
+  const phone = 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36';
+  const iphone = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1';
+  const desktop = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36';
+
+  it('un bodeguero desde el celular va a la app de bodega', () => {
+    expect(prefersWarehouseApp({ role: 'WAREHOUSE', userAgent: phone, hasInventory: true })).toBe(true);
+    expect(prefersWarehouseApp({ role: 'WAREHOUSE', userAgent: iphone, hasInventory: true })).toBe(true);
+  });
+
+  it('desde un computador, o con otro rol, o sin el módulo de inventario, sigue yendo al panel', () => {
+    expect(prefersWarehouseApp({ role: 'WAREHOUSE', userAgent: desktop, hasInventory: true })).toBe(false);
+    expect(prefersWarehouseApp({ role: 'OWNER', userAgent: phone, hasInventory: true })).toBe(false);
+    expect(prefersWarehouseApp({ role: 'WAREHOUSE', userAgent: phone, hasInventory: false })).toBe(false);
+    expect(prefersWarehouseApp({ role: 'WAREHOUSE', userAgent: null, hasInventory: true })).toBe(false);
   });
 });

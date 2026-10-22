@@ -1,6 +1,10 @@
 /*
  * Service worker de la app del bodeguero (alcance: /bodega).
  *
+ * Vive en la raíz (`/bodega-sw.js`) y no en `/bodega/`: un service worker solo puede
+ * controlar rutas bajo su propia carpeta, y la app abre en `/bodega` (sin barra
+ * final), que NO está bajo `/bodega/`. Se registra con `scope: '/bodega'`.
+ *
  * Hace tres cosas, y nada más:
  *  1. Guarda los archivos estáticos de la app (`/_next/static/…`, que tienen un
  *     nombre distinto en cada versión) para que abra rápido y sin señal.
