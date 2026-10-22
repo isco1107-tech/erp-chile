@@ -1,0 +1,35 @@
+import { can } from '@/lib/auth/guards';
+import { ROLE_LABELS } from '@/lib/auth/roles';
+import { UNITS } from '@/modules/inventory/schema';
+import { MAX_OPS_PER_BATCH } from '@/modules/warehouse-mobile/schema';
+import { fail, ok, withBodegaAuth } from '@/modules/warehouse-mobile/http';
+import { listCategoryOptions, listWarehouseOptions } from '@/modules/warehouse-mobile/services/catalog.service';
+import { visionAvailable } from '@/modules/warehouse-mobile/services/identify.service';
+import { MAX_PHOTO_BYTES } from '@/modules/warehouse-mobile/photo';
+import type { BootstrapResponse } from '@/modules/warehouse-mobile/types';
+
+/**
+ * Lo que la app necesita al abrir: quién es, qué bodegas hay y qué puede hacer.
+ * También sirve de "ping autenticado": si responde 200, hay sesión y señal.
+ */
+export async function GET() {
+  return withBodegaAuth({ permission: 'products:read' }, async (context) => {
+    const [warehouses, categories] = await Promise.all([listWarehouseOptions(context.companyId), listCategoryOptions(context.companyId)]);
+    if (warehouses.length === 0) return fail('La empresa no tiene bodegas creadas. Pide a un administrador que cree una.', 409);
+    const data: BootstrapResponse = {
+      user: { name: context.name, roleLabel: context.customRoleName ?? ROLE_LABELS[context.role] },
+      company: { name: context.companyName },
+      warehouses,
+      categories,
+      units: [...UNITS],
+      can: {
+        move: can(context, 'inventory:write'),
+        createProduct: can(context, 'products:write') && can(context, 'inventory:write'),
+        seeCosts: can(context, 'products:costs'),
+      },
+      ai: { enabled: visionAvailable() },
+      limits: { maxOpsPerBatch: MAX_OPS_PER_BATCH, maxPhotoBytes: MAX_PHOTO_BYTES },
+    };
+    return ok(data, { headers: { 'Cache-Control': 'private, no-store' } });
+  });
+}

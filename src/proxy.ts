@@ -102,6 +102,11 @@ const PUBLIC_ROUTES = [
   // Service worker de avisos push: el navegador lo revisa en segundo plano
   // y no debe recibir una redirección al login si la sesión ya venció.
   '/sw.js',
+  // App del bodeguero (`/bodega`): su manifest y su service worker los pide el
+  // navegador en segundo plano, sin sesión garantizada. La pantalla en sí
+  // (`/bodega`) SÍ exige sesión y NO está en esta lista.
+  '/bodega/manifest.webmanifest',
+  '/bodega/sw.js',
 ];
 
 /**
