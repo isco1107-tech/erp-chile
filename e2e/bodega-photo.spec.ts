@@ -1,5 +1,5 @@
 import { expect, test, devices, type Page } from '@playwright/test';
-import { STATE, blankVideo, fakeCamera, freshEan13, lookup, openApp, seedCatalog } from './bodega-support';
+import { STATE, blankVideo, fakeCamera, freshEan13, lookup, openApp, seedCatalog, setServerAi } from './bodega-support';
 
 /**
  * La IA se SIMULA (`page.route`): una prueba de punta a punta no debe depender de
@@ -30,6 +30,7 @@ test.describe('app del bodeguero con una foto (IA simulada)', () => {
       return route.fulfill({ json: { success: true, data: { status: 'matched', candidates: [{ ...harina, reason: 'text', score: 0.9, factor: 1, packagingName: null }], read: null, cached: false } } });
     });
 
+    await setServerAi(page, true);
     await openApp(page);
     await page.getByRole('button', { name: /Llegada de mercadería/ }).click();
     await takePhoto(page);
@@ -71,6 +72,7 @@ test.describe('app del bodeguero con una foto (IA simulada)', () => {
     // El almacenamiento de fotos falla: el producto se crea igual, sin foto (no queda bloqueado).
     await page.route('**/api/bodega/photo', (route) => route.fulfill({ status: 500, json: { success: false, error: 'Sin almacenamiento' } }));
 
+    await setServerAi(page, true);
     await openApp(page);
     await page.getByRole('button', { name: /Llegada de mercadería/ }).click();
     await takePhoto(page);
@@ -93,6 +95,23 @@ test.describe('app del bodeguero con una foto (IA simulada)', () => {
     expect(created.imageUrl).toBeNull();
   });
 
+  test('si el servidor no tiene IA, la foto no se manda a identificar y se resuelve a mano', async ({ page, request }) => {
+    await seedCatalog(request);
+    let calls = 0;
+    await page.route('**/api/bodega/identify', (route) => {
+      calls++;
+      return route.fulfill({ json: { success: true, data: { status: 'new', candidates: [], read: null, cached: false } } });
+    });
+
+    await setServerAi(page, false);
+    await openApp(page);
+    await page.getByRole('button', { name: /Llegada de mercadería/ }).click();
+    await takePhoto(page);
+    await expect(page.getByText('La identificación por foto no está disponible', { exact: true })).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('button', { name: 'Buscar a mano' })).toBeVisible();
+    expect(calls, 'sin IA en el servidor no se gasta una consulta por foto').toBe(0);
+  });
+
   test('si ya existe un producto parecido, se ofrece sumarlo al existente en vez de duplicarlo', async ({ page, request }) => {
     const warehouseId = await seedCatalog(request);
     const existing = (await lookup(request, 'E2E-HAR-1KG', warehouseId))!;
@@ -108,6 +127,7 @@ test.describe('app del bodeguero con una foto (IA simulada)', () => {
     );
     await page.route('**/api/bodega/photo', (route) => route.fulfill({ status: 500, json: { success: false, error: 'Sin almacenamiento' } }));
 
+    await setServerAi(page, true);
     await openApp(page);
     await page.getByRole('button', { name: /Llegada de mercadería/ }).click();
     await takePhoto(page);

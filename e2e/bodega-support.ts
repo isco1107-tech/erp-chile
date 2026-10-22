@@ -73,6 +73,21 @@ export async function seedCatalog(request: APIRequestContext) {
   return warehouseId;
 }
 
+/**
+ * Fija lo que el servidor dice sobre la IA en `/api/bodega/bootstrap`. La app solo
+ * manda una foto a identificar si el servidor la tiene disponible (llave de Gemini),
+ * y el CI no tiene esa llave: las pruebas con IA simulada deben encenderla aquí,
+ * antes de abrir la app, para que la foto llegue a la ruta simulada.
+ */
+export async function setServerAi(page: Page, enabled: boolean) {
+  await page.route('**/api/bodega/bootstrap', async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    body.data.ai.enabled = enabled;
+    await route.fulfill({ response, json: body });
+  });
+}
+
 export async function openApp(page: Page) {
   await page.goto('/bodega');
   await expect(page.getByText('¿Qué vas a hacer?')).toBeVisible({ timeout: 30_000 });
