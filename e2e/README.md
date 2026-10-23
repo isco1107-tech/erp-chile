@@ -46,7 +46,8 @@ Qué cubren:
   de nuestro almacenamiento (no hay almacenamiento real en las pruebas).
 - `retail.spec.ts`: Métricas de retail → Retail en vivo con su interruptor encendido (panel de la bodega, búsqueda,
   Excel) y apagado (fuera del menú, ruta y descarga cerradas); Stock muerto con su propio interruptor (se ve y se
-  ajusta el umbral solo con los dos encendidos; apagado él o el padre, menú, ruta y descarga cerradas).
+  ajusta el umbral solo con los dos encendidos; apagado él o el padre, menú, ruta y descarga cerradas); Mapa de calor
+  con su propio interruptor.
 - `movements.spec.ts`: el registro de movimientos por bodega (cada bodega ve solo lo suyo,
   con operario, motivo y foto) y el kardex por bodega.
 - `supplier-portal.spec.ts`: el portal del proveedor (`/proveedor`): entra con su código, ve solo

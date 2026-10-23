@@ -80,4 +80,38 @@ export const RETAIL_SECTIONS: ManualSection[] = [
       },
     ],
   },
+  {
+    id: 'mapa-de-calor',
+    key: 'hasRetailHeatmap',
+    anyOfFeatures: ['hasRetailMetrics'],
+    permission: 'retail:read',
+    chapter: 'Métricas de retail',
+    title: 'Mapa de calor de rotación',
+    summary:
+      'Muestra en una grilla de colores cuánto vendió cada producto semana a semana (o día a día) en una bodega, con los períodos sin stock marcados aparte, y qué pasó con la venta diaria cada vez que cambió el precio cobrado.',
+    route: '/dashboard/retail/mapa-de-calor',
+    screenshot: null,
+    topics: [
+      {
+        id: 'leer-mapa-de-calor',
+        title: 'Leer el mapa de calor',
+        steps: [
+          'Ve a Métricas de retail → Mapa de calor y elige la bodega en las pestañas de arriba.',
+          'Cada fila es un producto y cada celda una semana (de lunes a domingo) o un día: mientras más oscura, más se vendió. La cifra de la celda son las unidades vendidas, descontadas las devoluciones.',
+          'Una celda rayada significa que el producto estuvo sin stock todo ese período; un asterisco, que le faltó stock algún día. Pasa el cursor sobre una celda para ver el detalle.',
+          'En "Vista" elige las últimas 12 semanas o los últimos 28 días; en "Mostrar", los más vendidos o los menos vendidos que tienen stock. Filtra por "Categoría" o "Proveedor" y presiona "Aplicar".',
+        ],
+      },
+      {
+        id: 'reaccion-al-precio',
+        title: 'Ver cómo reaccionó la venta a un cambio de precio',
+        steps: [
+          'En la misma pantalla, la tarjeta "Cómo reaccionó la venta a los cambios de precio" lista los cambios del precio cobrado de los últimos 90 días.',
+          'Cada fila compara la venta diaria de hasta 14 días con stock antes del cambio con la de los días siguientes, y lo resume en una frase.',
+          'Si todavía no hay 5 días con stock a cada lado, dice "Faltan días para comparar" en vez de inventar una cifra.',
+        ],
+        tip: 'Es una comparación simple: la temporada, una promoción o la ubicación del producto también mueven la venta.',
+      },
+    ],
+  },
 ];

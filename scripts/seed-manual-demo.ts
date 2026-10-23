@@ -62,6 +62,7 @@ const ALL_FEATURES_ON: CompanyFeatureFlags = {
   hasEcommerce: true,
   hasRetailMetrics: true,
   hasDeadStock: true,
+  hasRetailHeatmap: true,
 };
 
 async function main() {

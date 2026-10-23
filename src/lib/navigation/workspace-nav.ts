@@ -100,7 +100,8 @@ export type NavIconKey =
   | 'tasks'
   | 'delegation'
   | 'retail'
-  | 'deadStock';
+  | 'deadStock'
+  | 'heatmap';
 
 export interface NavLink {
   /** Identificador estable (ver comentario del archivo). */
@@ -200,6 +201,9 @@ export function buildAvailableWorkspaceNav({ permissions, features }: Omit<NavAc
     // Cada funcionalidad de adentro tiene su propio interruptor.
     if (moduleEnabled(features, 'hasDeadStock')) {
       retail.push({ id: 'retail-dead-stock', href: '/dashboard/retail/stock-muerto', label: 'Stock muerto', icon: 'deadStock', keywords: ['sin rotacion', 'detenido', 'inmovilizado', 'no se vende', 'liquidar', 'degustacion', 'rebaja', 'obsoleto', 'stock parado'] });
+    }
+    if (moduleEnabled(features, 'hasRetailHeatmap')) {
+      retail.push({ id: 'retail-heatmap', href: '/dashboard/retail/mapa-de-calor', label: 'Mapa de calor', icon: 'heatmap', keywords: ['rotacion', 'semana', 'precio', 'elasticidad', 'cambio de precio', 'temporada', 'mas vendidos', 'menos vendidos', 'calor'] });
     }
     push('Métricas de retail', retail);
   }

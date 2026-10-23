@@ -496,6 +496,14 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       note('Umbral y avisos', 'Los administradores eligen desde cuántos días cuenta y si la campanita avisa al cumplirlos.'),
     ],
   },
+  'retail-heatmap': {
+    title: 'Mapa de calor',
+    steps: [
+      header('Qué rota y qué no', 'Venta de cada producto semana a semana o día a día; más oscuro, más vendido.'),
+      note('Sin stock no es sin demanda', 'Las celdas rayadas son períodos en que el producto no tenía stock.'),
+      note('Cambios de precio', 'Abajo, cómo cambió la venta diaria cuando cambió el precio cobrado.'),
+    ],
+  },
   agents: {
     title: 'Agentes',
     steps: [

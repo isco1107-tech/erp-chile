@@ -12,7 +12,7 @@ import { db, disableGuidedTour, owner } from './db';
 
 test.use(STATE);
 
-type RetailFlags = { hasRetailMetrics: boolean; hasDeadStock?: boolean };
+type RetailFlags = { hasRetailMetrics: boolean; hasDeadStock?: boolean; hasRetailHeatmap?: boolean };
 const setFlags = async (flags: RetailFlags) => {
   const { companyId } = await owner();
   await db().companyFeatures.upsert({ where: { companyId }, update: flags, create: { companyId, ...flags } });
@@ -25,7 +25,7 @@ test.describe('retail en vivo', () => {
   });
 
   test.afterAll(async () => {
-    await setFlags({ hasRetailMetrics: false, hasDeadStock: false });
+    await setFlags({ hasRetailMetrics: false, hasDeadStock: false, hasRetailHeatmap: false });
   });
 
   test('encendido: muestra el panel de la bodega y descarga el Excel', async ({ page, request }) => {
@@ -100,5 +100,20 @@ test.describe('retail en vivo', () => {
     await expect(page.getByRole('heading', { name: 'Módulo no incluido en tu plan actual' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Stock muerto' })).toHaveCount(0);
     expect((await request.get(`/api/retail/dead-stock/export?bodega=${warehouseId}`)).status()).toBe(403);
+  });
+
+  test('mapa de calor con su interruptor: se ve el mapa; apagado, ruta cerrada', async ({ page, request }) => {
+    const warehouseId = await seedCatalog(request);
+    await setFlags({ hasRetailMetrics: true, hasRetailHeatmap: true });
+
+    await page.goto(`/dashboard/retail/mapa-de-calor?bodega=${warehouseId}&orden=menos`);
+    await expect(page.getByRole('heading', { name: 'Mapa de calor' })).toBeVisible();
+    await expect(page.getByTestId('retail-heatmap').getByText('Aceite Maravilla Chef 900 ml')).toBeVisible();
+    await expect(page.getByText('Cómo reaccionó la venta a los cambios de precio')).toBeVisible();
+
+    await setFlags({ hasRetailMetrics: true, hasRetailHeatmap: false });
+    await page.goto('/dashboard/retail/mapa-de-calor');
+    await expect(page.getByRole('heading', { name: 'Módulo no incluido en tu plan actual' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Mapa de calor' })).toHaveCount(0);
   });
 });

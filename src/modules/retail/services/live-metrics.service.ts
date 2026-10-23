@@ -56,6 +56,21 @@ interface RawDay {
 /** Ajuste de entrada sin operario con la referencia que escribe Ventas al acreditar o anular. */
 const SALE_REVERSAL = Prisma.sql`("type" = 'ADJUSTMENT_IN' AND "userId" IS NULL AND (COALESCE("reference", '') LIKE ${SALE_REVERSAL_LIKE[0]} OR COALESCE("reference", '') LIKE ${SALE_REVERSAL_LIKE[1]}))`;
 
+/**
+ * El kardex de UNA bodega agregado por producto y día de Santiago desde `since`.
+ * Lo comparten el panel en vivo, el mapa de calor y la reposición predictiva:
+ * la misma regla de venta neta y de día con stock para todos.
+ */
+export async function dailyKardex(companyId: string, warehouseId: string, since: Date): Promise<Map<string, DayAggregate[]>> {
+  const daysByProduct = new Map<string, DayAggregate[]>();
+  for (const raw of await dailyAggregates(companyId, warehouseId, since)) {
+    const list = daysByProduct.get(raw.productId) ?? [];
+    list.push({ ...raw, lastSaleAt: raw.lastSaleAt ? new Date(raw.lastSaleAt) : null });
+    daysByProduct.set(raw.productId, list);
+  }
+  return daysByProduct;
+}
+
 async function dailyAggregates(companyId: string, warehouseId: string, since: Date): Promise<RawDay[]> {
   return prisma.$queryRaw<RawDay[]>`
     SELECT "productId",
@@ -80,7 +95,7 @@ export async function getLiveMetrics(companyId: string, filter: LiveMetricsFilte
   const [year, month, day] = window.completeDays[0]!.split('-').map(Number) as [number, number, number];
   const since = santiagoMidnightUtc(year, month, day);
 
-  const [stocks, aggregates] = await Promise.all([
+  const [stocks, daysByProduct] = await Promise.all([
     prisma.stock.findMany({
       where: {
         companyId,
@@ -98,15 +113,8 @@ export async function getLiveMetrics(companyId: string, filter: LiveMetricsFilte
         product: { select: { name: true, sku: true, brand: true, unit: true, category: { select: { name: true } } } },
       },
     }),
-    dailyAggregates(companyId, filter.warehouseId, since),
+    dailyKardex(companyId, filter.warehouseId, since),
   ]);
-
-  const daysByProduct = new Map<string, DayAggregate[]>();
-  for (const raw of aggregates) {
-    const list = daysByProduct.get(raw.productId) ?? [];
-    list.push({ ...raw, lastSaleAt: raw.lastSaleAt ? new Date(raw.lastSaleAt) : null });
-    daysByProduct.set(raw.productId, list);
-  }
 
   const rows: LiveMetricsRow[] = [];
   const computed: LiveMetrics[] = [];

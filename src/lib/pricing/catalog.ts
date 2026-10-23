@@ -137,4 +137,4 @@ export const PRICING_PLANS: readonly PricingPlan[] = [
  *   interruptor propio (`hasDeadStock`…): sin precio hasta que se defina; la
  *   Supersuite las enciende por su nombre (`metricas_retail`, `stock_muerto`…).
  */
-export const UNPRICED_FEATURES: readonly FeatureKey[] = ['hasDteBilling', 'hasFeeDocuments', 'hasAcademy', 'hasEcommerce', 'hasRetailMetrics', 'hasDeadStock'];
+export const UNPRICED_FEATURES: readonly FeatureKey[] = ['hasDteBilling', 'hasFeeDocuments', 'hasAcademy', 'hasEcommerce', 'hasRetailMetrics', 'hasDeadStock', 'hasRetailHeatmap'];

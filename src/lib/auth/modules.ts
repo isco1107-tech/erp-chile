@@ -52,6 +52,7 @@ export type FeatureKey = keyof Pick<
   | 'hasEcommerce'
   | 'hasRetailMetrics'
   | 'hasDeadStock'
+  | 'hasRetailHeatmap'
 >;
 
 export type CompanyFeatureFlags = Record<FeatureKey, boolean>;
@@ -377,6 +378,15 @@ export const MODULES: ModuleDefinition[] = [
     routes: ['/dashboard/retail/stock-muerto'],
     requires: 'hasRetailMetrics',
   },
+  {
+    key: 'hasRetailHeatmap',
+    label: 'Mapa de calor de rotación',
+    description:
+      'Dentro de Métricas de retail: venta de cada producto semana a semana (o día a día) en un mapa de calor que marca aparte los períodos sin stock, y cómo cambió la venta diaria con cada cambio de precio cobrado. Requiere Métricas de retail.',
+    permissions: [],
+    routes: ['/dashboard/retail/mapa-de-calor'],
+    requires: 'hasRetailMetrics',
+  },
 ];
 
 export const MODULE_KEYS: FeatureKey[] = MODULES.map((m) => m.key);
@@ -425,6 +435,7 @@ export const DEFAULT_FEATURES: CompanyFeatureFlags = {
   hasEcommerce: false,
   hasRetailMetrics: false,
   hasDeadStock: false,
+  hasRetailHeatmap: false,
 };
 
 /** Índice inverso permiso → módulo, construido una vez al cargar el módulo. */
@@ -496,6 +507,7 @@ export function toFeatureFlags(features: CompanyFeatures | null): CompanyFeature
     hasEcommerce: features.hasEcommerce,
     hasRetailMetrics: features.hasRetailMetrics,
     hasDeadStock: features.hasDeadStock,
+    hasRetailHeatmap: features.hasRetailHeatmap,
   };
 }
 

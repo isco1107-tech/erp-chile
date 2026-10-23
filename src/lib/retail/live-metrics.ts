@@ -119,6 +119,33 @@ export interface LiveMetrics {
 
 const EPSILON = 1e-9;
 
+/** Un día de un producto: lo vendido neto y si tuvo stock en algún momento. */
+export interface DayPoint {
+  day: string;
+  sold: number;
+  available: boolean;
+}
+
+/**
+ * Serie día a día de un producto en una bodega, para los días pedidos (del más
+ * antiguo al más nuevo; el último suele ser hoy). El stock se reconstruye hacia
+ * atrás desde el actual: un día sin movimientos conserva el saldo del anterior.
+ * Un día "tuvo stock" si en algún momento tuvo más de cero.
+ */
+export function dailySeries(currentStock: number, days: readonly DayAggregate[], dayKeys: readonly string[]): DayPoint[] {
+  const wanted = new Set(dayKeys);
+  const byDay = new Map<string, DayAggregate>();
+  for (const row of days) if (wanted.has(row.day)) byDay.set(row.day, row);
+  let level = currentStock;
+  for (const row of byDay.values()) level -= row.delta;
+  return dayKeys.map((day) => {
+    const row = byDay.get(day);
+    const available = row ? row.peak > EPSILON : level > EPSILON;
+    if (row) level = row.close;
+    return { day, sold: row ? row.sold - row.returned : 0, available };
+  });
+}
+
 /**
  * Métricas de un producto. `currentStock` es el saldo de hoy en la bodega; los
  * agregados fuera de la ventana se ignoran. El stock de cada día se reconstruye
@@ -147,18 +174,9 @@ export function computeLiveMetrics(
   }
   const opening = currentStock - totalDelta;
 
-  let level = opening;
-  let availableDays = 0;
-  let soldComplete = 0;
-  for (const day of window.completeDays) {
-    const row = byDay.get(day);
-    const available = row ? row.peak > EPSILON : level > EPSILON;
-    if (row) {
-      level = row.close;
-      soldComplete += row.sold - row.returned;
-    }
-    if (available) availableDays += 1;
-  }
+  const series = dailySeries(currentStock, days, [...window.completeDays, window.today]).slice(0, window.completeDays.length);
+  const availableDays = series.filter((point) => point.available).length;
+  const soldComplete = series.reduce((sum, point) => sum + point.sold, 0);
   const todayRow = byDay.get(window.today);
   const soldToday = todayRow ? todayRow.sold - todayRow.returned : 0;
 
