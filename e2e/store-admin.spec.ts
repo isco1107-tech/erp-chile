@@ -165,7 +165,8 @@ test.describe('productos y configuración', () => {
     await page.goto('/dashboard/store?tab=products');
     await page.getByLabel('Seleccionar Té de boldo, caja con 20 bolsitas').check();
     await page.getByRole('button', { name: 'Publicar', exact: true }).click();
-    await expect(page.getByText(/1 producto publicado/)).toBeVisible();
+    // El aviso trae título y, si el producto está agotado, una nota aparte que también empieza así: se mira el título.
+    await expect(page.getByText('1 producto publicado en la tienda')).toBeVisible();
 
     await page.getByRole('button', { name: /Editar la ficha de Miel de ulmo/ }).click();
     const dialog = page.getByRole('dialog');
@@ -197,9 +198,10 @@ test.describe('productos y configuración', () => {
     await page.getByRole('alertdialog').getByRole('button', { name: 'Cerrar la tienda' }).click();
     await expect(page.getByText('Tu tienda quedó cerrada')).toBeVisible();
     const origin = new URL(page.url()).origin;
-    const closed = await page.context().request.get(`${origin}/web/${STORE_SLUG}/pedido/${'0'.repeat(64)}`);
+    // `maxRetries`: una conexión que el servidor ya cerró por inactividad puede salir como «socket hang up» (ECONNRESET), no es un fallo de la tienda.
+    const closed = await page.context().request.get(`${origin}/web/${STORE_SLUG}/pedido/${'0'.repeat(64)}`, { maxRetries: 3 });
     expect(closed.status()).toBe(404);
-    const quote = await page.context().request.post(`${origin}/api/public/store/${STORE_SLUG}/quote`, { data: { lines: [] }, headers: { 'x-forwarded-for': '10.50.0.1' } });
+    const quote = await page.context().request.post(`${origin}/api/public/store/${STORE_SLUG}/quote`, { data: { lines: [] }, headers: { 'x-forwarded-for': '10.50.0.1' }, maxRetries: 3 });
     expect(quote.status()).toBe(404);
 
     await page.getByRole('button', { name: 'Abrir la tienda' }).click();

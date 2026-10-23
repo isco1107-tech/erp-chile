@@ -27,12 +27,12 @@ export interface DemoProduct {
 }
 
 export const DEMO_PRODUCTS: DemoProduct[] = [
-  { sku: 'E2E-ACE-900', slug: 'aceite-maravilla', name: 'Aceite de maravilla 900 ml', gross: 3990, stock: 120, collection: 'Despensa', extra: { featured: true, compareAtPrice: 4990, summary: 'Prensado en frío, ideal para cocinar y aliñar.', description: 'Aceite de maravilla de primera prensada.\n\nBotella de 900 ml. Guárdalo en un lugar fresco y seco.', photos: 3 } },
-  { sku: 'E2E-HAR-1KG', slug: 'harina-selecta', name: 'Harina selecta 1 kg', gross: 1190, stock: 40, collection: 'Despensa', extra: { maxPerOrder: 6 } },
-  { sku: 'E2E-MIE-500', slug: 'miel-de-ulmo', name: 'Miel de ulmo 500 g', gross: 7490, stock: 3, collection: 'Despensa', extra: { summary: 'Cosecha de la temporada, directo del apicultor.' } },
-  { sku: 'E2E-TE-20', slug: 'te-boldo-20', name: 'Té de boldo, caja con 20 bolsitas', gross: 1790, stock: 0, collection: 'Infusiones' },
-  { sku: 'E2E-MER-CA', slug: 'merken-ahumado', name: 'Merkén ahumado con cilantro en frasco de vidrio reutilizable de 250 gramos', gross: 4290, stock: 15, collection: 'Infusiones' },
-  { sku: 'E2E-SRV-ENV', slug: 'servicio-de-envoltorio', name: 'Servicio de envoltorio para regalo', gross: 2500, stock: 0, collection: 'Servicios', extra: { trackable: false } },
+  { sku: 'E2E-TDA-ACE-900', slug: 'aceite-maravilla', name: 'Aceite de maravilla 900 ml', gross: 3990, stock: 120, collection: 'Despensa', extra: { featured: true, compareAtPrice: 4990, summary: 'Prensado en frío, ideal para cocinar y aliñar.', description: 'Aceite de maravilla de primera prensada.\n\nBotella de 900 ml. Guárdalo en un lugar fresco y seco.', photos: 3 } },
+  { sku: 'E2E-TDA-HAR-1KG', slug: 'harina-selecta', name: 'Harina selecta 1 kg', gross: 1190, stock: 40, collection: 'Despensa', extra: { maxPerOrder: 6 } },
+  { sku: 'E2E-TDA-MIE-500', slug: 'miel-de-ulmo', name: 'Miel de ulmo 500 g', gross: 7490, stock: 3, collection: 'Despensa', extra: { summary: 'Cosecha de la temporada, directo del apicultor.' } },
+  { sku: 'E2E-TDA-TE-20', slug: 'te-boldo-20', name: 'Té de boldo, caja con 20 bolsitas', gross: 1790, stock: 0, collection: 'Infusiones' },
+  { sku: 'E2E-TDA-MER-CA', slug: 'merken-ahumado', name: 'Merkén ahumado con cilantro en frasco de vidrio reutilizable de 250 gramos', gross: 4290, stock: 15, collection: 'Infusiones' },
+  { sku: 'E2E-TDA-SRV-ENV', slug: 'servicio-de-envoltorio', name: 'Servicio de envoltorio para regalo', gross: 2500, stock: 0, collection: 'Servicios', extra: { trackable: false } },
 ];
 
 /** El neto que, con IVA 19 %, da exactamente `gross` (los precios de prueba se eligen para que calcen). */
