@@ -7,6 +7,7 @@ import MobileMenu from './MobileMenu';
 import { type NavItem } from './nav';
 import { cx, Img } from './parts';
 import SiteLink, { NEW_TAB_NOTICE } from './SiteLink';
+import CartButton from '@/components/store/CartButton';
 import type { Tone } from './tone';
 
 /** Íconos de las redes sociales con datos válidos (`socialHref` rechaza direcciones de otro sitio). */
@@ -220,6 +221,13 @@ export default function SiteHeader({ ctx, name, logoUrl, items, overlayTone }: H
       {header.ctaLabel}
     </SiteLink>
   );
+  // El carrito va antes del botón destacado y en todos los diseños de encabezado.
+  const trailing = (
+    <>
+      {ctx.store && <CartButton siteSlug={ctx.store.siteSlug} cartHref={ctx.store.cartHref} />}
+      {ctaButton}
+    </>
+  );
   const panelBase = 'ws-bg absolute inset-x-0 top-full max-h-[70dvh] overflow-y-auto border-b border-[color:var(--s-line)] px-5 py-4 shadow-xl';
   const panelTone: Tone = solid ? tone : 'default';
   const panelClass = cx(panelBase, `ws-tone-${panelTone}`, (minimal || floating) && '@2xl:inset-x-auto @2xl:right-8 @2xl:w-80 @2xl:rounded-b-[var(--ws-radius)] @2xl:border-x', floating && 'mt-2 rounded-[var(--ws-radius)] border-x');
@@ -245,7 +253,7 @@ export default function SiteHeader({ ctx, name, logoUrl, items, overlayTone }: H
     <div className={cx('mx-auto flex max-w-[var(--ws-max)] items-center justify-between gap-3', pad)}>
       <Brand ctx={ctx} name={name} logoUrl={logoUrl} />
       <div className="flex shrink-0 items-center gap-2">
-        {ctaButton}
+        {trailing}
         {menu}
       </div>
     </div>
@@ -256,7 +264,7 @@ export default function SiteHeader({ ctx, name, logoUrl, items, overlayTone }: H
         {!social && <div className={cx(bp.block, 'flex-1')} />}
         <Brand ctx={ctx} name={name} logoUrl={logoUrl} centered />
         <div className="flex flex-1 shrink-0 items-center justify-end gap-2">
-          {ctaButton}
+          {trailing}
           {menu}
         </div>
       </div>
@@ -270,7 +278,7 @@ export default function SiteHeader({ ctx, name, logoUrl, items, overlayTone }: H
       </div>
       <div className="flex shrink-0 items-center justify-end gap-2">
         {social && <SocialLinks ctx={ctx} className={bp.show} />}
-        {ctaButton}
+        {trailing}
         {menu}
       </div>
     </div>
@@ -281,7 +289,7 @@ export default function SiteHeader({ ctx, name, logoUrl, items, overlayTone }: H
       </div>
       {items.length > 0 && <DesktopNav ctx={ctx} items={items} className={bp.show} />}
       {social && <SocialLinks ctx={ctx} className={bp.show} />}
-      {ctaButton}
+      {trailing}
       {menu}
     </div>
   );
