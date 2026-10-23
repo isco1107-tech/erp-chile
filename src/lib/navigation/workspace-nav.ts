@@ -102,7 +102,8 @@ export type NavIconKey =
   | 'retail'
   | 'deadStock'
   | 'heatmap'
-  | 'basket';
+  | 'basket'
+  | 'reorder';
 
 export interface NavLink {
   /** Identificador estable (ver comentario del archivo). */
@@ -208,6 +209,9 @@ export function buildAvailableWorkspaceNav({ permissions, features }: Omit<NavAc
     }
     if (moduleEnabled(features, 'hasBasketAnalysis')) {
       retail.push({ id: 'retail-basket', href: '/dashboard/retail/canasta', label: 'Canasta cruzada', icon: 'basket', keywords: ['cross selling', 'venta cruzada', 'combo', 'se compran juntos', 'promocion conjunta', 'boleta', 'productores', 'pack'] });
+    }
+    if (moduleEnabled(features, 'hasSmartReorder')) {
+      retail.push({ id: 'retail-reorder', href: '/dashboard/retail/reposicion', label: 'Reposición predictiva', icon: 'reorder', keywords: ['reponer', 'pedido', 'quiebre de stock', 'pronostico', 'cuando pedir', 'cuanto pedir', 'tiempo de entrega', 'quincena', 'fin de semana', 'solicitud de compra'] });
     }
     push('Métricas de retail', retail);
   }

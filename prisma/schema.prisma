@@ -617,6 +617,9 @@ model CompanyFeatures {
   /// Canasta cruzada: qué productos se compran juntos (dentro de Métricas de
   /// retail, con interruptor propio).
   hasBasketAnalysis     Boolean  @default(false)
+  /// Reposición predictiva: cuándo se agota cada producto y cuánto pedir
+  /// (dentro de Métricas de retail, con interruptor propio).
+  hasSmartReorder       Boolean  @default(false)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 }
@@ -723,15 +726,23 @@ model CompanySettings {
 /// Ajustes de Métricas de retail, 1:1 con la empresa. Sin fila = valores de
 /// fábrica (ver `src/lib/retail/dead-stock.ts`).
 model RetailSettings {
-  id              String   @id @default(cuid())
-  companyId       String   @unique
-  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  id               String   @id @default(cuid())
+  companyId        String   @unique
+  company          Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   /// Stock muerto: días sin venderse (ni trasladarse a otra bodega) desde los
   /// que un producto con stock se considera detenido.
-  deadStockDays   Int      @default(30)
+  deadStockDays    Int      @default(30)
   /// Avisar por campanita y automatizaciones cuando un producto cumple el umbral.
-  deadStockAlerts Boolean  @default(true)
-  updatedAt       DateTime @updatedAt
+  deadStockAlerts  Boolean  @default(true)
+  /// Reposición predictiva: días que tarda en llegar un pedido cuando no hay
+  /// uno configurado para el proveedor ni medido en sus órdenes de compra.
+  reorderLeadDays  Int      @default(7)
+  /// Días de venta que debe cubrir cada pedido después de llegar.
+  reorderCoverDays Int      @default(14)
+  /// Tiempo de entrega configurado por proveedor: `{ "<contactId>": días }`.
+  /// Validado con Zod al guardar y al leer; manda sobre el medido.
+  supplierLeadDays Json?
+  updatedAt        DateTime @updatedAt
 }
 
 enum InternalDocumentKind {

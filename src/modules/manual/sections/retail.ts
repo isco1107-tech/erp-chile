@@ -139,4 +139,49 @@ export const RETAIL_SECTIONS: ManualSection[] = [
       },
     ],
   },
+  {
+    id: 'reposicion-predictiva',
+    key: 'hasSmartReorder',
+    anyOfFeatures: ['hasRetailMetrics'],
+    permission: 'retail:read',
+    chapter: 'Métricas de retail',
+    title: 'Reposición predictiva',
+    summary:
+      'Proyecta, producto por producto y en cada bodega, cuándo se agota el stock y cuánto conviene pedir, con la venta real, el día de la semana, los días de pago y lo que tarda cada proveedor en entregar. Con Compras, pasa las cantidades a una solicitud de compra.',
+    route: '/dashboard/retail/reposicion',
+    screenshot: null,
+    topics: [
+      {
+        id: 'leer-reposicion',
+        title: 'Saber qué pedir y cuándo',
+        steps: [
+          'Ve a Métricas de retail → Reposición predictiva y elige la bodega en las pestañas de arriba.',
+          'Arriba ves cuántos productos hay que pedir ya, cuántos esta semana, cuántos están al día y cuántos no tienen ritmo de venta para proyectar.',
+          'Cada producto muestra su stock (y lo que viene en camino en órdenes de compra enviadas), su venta diaria con el patrón detectado (por ejemplo, "Vende 40% más los sábados"), el tiempo de entrega y de dónde sale, el día en que se agota, hasta cuándo pedir y la cantidad sugerida.',
+          'Filtra por "Categoría" o "Proveedor" y presiona "Aplicar".',
+        ],
+        tip: 'Un producto sin 7 días con stock o sin ventas queda como "Sin ritmo de venta": no se inventa una proyección. El clima todavía no se considera.',
+      },
+      {
+        id: 'solicitud-desde-reposicion',
+        title: 'Crear la solicitud de compra',
+        permission: 'purchases:request',
+        steps: [
+          'Con el módulo Compras, marca los productos que quieres pedir (vienen marcados los de "Pedir ya" y "Pedir esta semana").',
+          'Presiona "Crear solicitud de compra": se crea un borrador en Compras → Solicitudes de compra con las cantidades sugeridas.',
+          'Revisa y ajusta las cantidades en la solicitud antes de enviarla a aprobación.',
+        ],
+      },
+      {
+        id: 'ajustes-reposicion',
+        title: 'Ajustar tiempos de entrega y cobertura',
+        permission: 'retail:manage',
+        steps: [
+          'En la tarjeta de ajustes, elige la "Entrega por defecto" (para proveedores sin tiempo propio) y cuántos días de venta debe cubrir cada pedido en "Cada pedido cubre".',
+          'Para un proveedor en particular, elígelo, escribe sus días de entrega y presiona "Agregar". Ese tiempo manda sobre el medido en sus órdenes de compra.',
+          'Presiona "Guardar ajustes".',
+        ],
+      },
+    ],
+  },
 ];

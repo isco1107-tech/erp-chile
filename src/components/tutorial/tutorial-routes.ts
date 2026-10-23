@@ -39,6 +39,7 @@ const TUTORIAL_ROUTES: readonly (readonly [string, string])[] = [
   ['/dashboard/retail/stock-muerto', 'retail-dead-stock'],
   ['/dashboard/retail/mapa-de-calor', 'retail-heatmap'],
   ['/dashboard/retail/canasta', 'retail-basket'],
+  ['/dashboard/retail/reposicion', 'retail-reorder'],
   ['/dashboard/products', 'products'],
   ['/dashboard/inventory', 'inventory'],
   ['/dashboard/inventory/counts', 'inventory-counts'],

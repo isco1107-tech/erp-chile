@@ -12,12 +12,38 @@ import { db, disableGuidedTour, owner } from './db';
 
 test.use(STATE);
 
-type RetailFlags = { hasRetailMetrics: boolean; hasDeadStock?: boolean; hasRetailHeatmap?: boolean; hasBasketAnalysis?: boolean };
+type RetailFlags = { hasRetailMetrics: boolean; hasDeadStock?: boolean; hasRetailHeatmap?: boolean; hasBasketAnalysis?: boolean; hasSmartReorder?: boolean; hasPurchases?: boolean };
 const setFlags = async (flags: RetailFlags) => {
   const { companyId } = await owner();
   await db().companyFeatures.upsert({ where: { companyId }, update: flags, create: { companyId, ...flags } });
 };
 const setRetail = (on: boolean) => setFlags({ hasRetailMetrics: on });
+
+/**
+ * Producto con 14 días de venta (2 por día) y 3 en stock en la bodega indicada, armado directo en el kardex
+ * para que la reposición tenga ritmo que proyectar. La historia se rearma en cada corrida (con fechas de hoy) para
+ * que no envejezca en una base reutilizada.
+ */
+async function ensureSellingProduct(warehouseId: string): Promise<{ id: string; name: string }> {
+  const { companyId } = await owner();
+  const name = 'Reposición E2E Mermelada 250 g';
+  const product =
+    (await db().product.findFirst({ where: { companyId, sku: 'E2E-REPO-1' }, select: { id: true } })) ??
+    (await db().product.create({ data: { companyId, sku: 'E2E-REPO-1', name, netPrice: 2000, grossPrice: 2380, costPricePMP: 1000 }, select: { id: true } }));
+  await db().inventoryMovement.deleteMany({ where: { companyId, productId: product.id } });
+  await db().stock.deleteMany({ where: { companyId, productId: product.id } });
+  const day = 86_400_000;
+  const now = Date.now();
+  let level = 31;
+  const base = { companyId, productId: product.id, warehouseId, unitCost: 1000, previousPmp: 1000, newPmp: 1000 };
+  await db().inventoryMovement.create({ data: { ...base, type: 'PURCHASE_IN', quantity: 31, totalCost: 31_000, previousStock: 0, newStock: 31, createdAt: new Date(now - 15 * day) } });
+  for (let d = 14; d >= 1; d -= 1) {
+    await db().inventoryMovement.create({ data: { ...base, type: 'SALE_OUT', quantity: 2, totalCost: 2000, previousStock: level, newStock: level - 2, createdAt: new Date(now - d * day) } });
+    level -= 2;
+  }
+  await db().stock.create({ data: { companyId, productId: product.id, warehouseId, quantity: level } });
+  return { id: product.id, name };
+}
 
 test.describe('retail en vivo', () => {
   test.beforeEach(async ({ context }) => {
@@ -25,7 +51,7 @@ test.describe('retail en vivo', () => {
   });
 
   test.afterAll(async () => {
-    await setFlags({ hasRetailMetrics: false, hasDeadStock: false, hasRetailHeatmap: false, hasBasketAnalysis: false });
+    await setFlags({ hasRetailMetrics: false, hasDeadStock: false, hasRetailHeatmap: false, hasBasketAnalysis: false, hasSmartReorder: false });
   });
 
   test('encendido: muestra el panel de la bodega y descarga el Excel', async ({ page, request }) => {
@@ -130,5 +156,37 @@ test.describe('retail en vivo', () => {
     await page.goto('/dashboard/retail/canasta');
     await expect(page.getByRole('heading', { name: 'Módulo no incluido en tu plan actual' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Canasta cruzada' })).toHaveCount(0);
+  });
+
+  test('reposición predictiva: con Compras, las cantidades sugeridas pasan a una solicitud de compra', async ({ page, request }) => {
+    const warehouseId = await seedCatalog(request);
+    const product = await ensureSellingProduct(warehouseId);
+    const { companyId } = await owner();
+    const hadPurchases = (await db().companyFeatures.findUnique({ where: { companyId } }))?.hasPurchases ?? false;
+    await setFlags({ hasRetailMetrics: true, hasSmartReorder: true, hasPurchases: true });
+
+    await page.goto(`/dashboard/retail/reposicion?bodega=${warehouseId}`);
+    await expect(page.getByRole('heading', { name: 'Reposición predictiva' })).toBeVisible();
+    const row = page.getByTestId('reorder-table').getByRole('row', { name: new RegExp(product.name) });
+    await expect(row.getByText('Pedir ya')).toBeVisible();
+    await expect(row.getByRole('checkbox')).toBeChecked();
+
+    // Solo este producto, para revisar la solicitud que sale.
+    const checkboxes = page.getByTestId('reorder-table').getByRole('checkbox');
+    for (const box of await checkboxes.all()) if (await box.isChecked()) await box.uncheck();
+    await row.getByRole('checkbox').check();
+    await page.getByRole('button', { name: 'Crear solicitud de compra' }).click();
+    await page.waitForURL(/\/dashboard\/purchase-requests\/[^/]+$/);
+
+    const requestId = page.url().split('/').pop()!;
+    const created = await db().purchaseRequest.findUniqueOrThrow({ where: { id: requestId }, include: { items: true } });
+    expect(created.status).toBe('DRAFT');
+    expect(created.items).toHaveLength(1);
+    expect(created.items[0]).toMatchObject({ productId: product.id });
+    expect(created.items[0]!.quantity).toBeGreaterThan(0);
+
+    await setFlags({ hasRetailMetrics: true, hasSmartReorder: false, hasPurchases: hadPurchases });
+    await page.goto('/dashboard/retail/reposicion');
+    await expect(page.getByRole('heading', { name: 'Módulo no incluido en tu plan actual' })).toBeVisible();
   });
 });

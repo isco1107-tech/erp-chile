@@ -35,6 +35,7 @@ import {
   Ship,
   Wrench,
   Activity,
+  CalendarSync,
   ShoppingBasket,
   Flame,
   Snail,
@@ -180,6 +181,7 @@ export const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   deadStock: Snail,
   heatmap: Flame,
   basket: ShoppingBasket,
+  reorder: CalendarSync,
 };
 
 

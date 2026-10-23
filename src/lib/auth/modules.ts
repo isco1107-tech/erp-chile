@@ -54,6 +54,7 @@ export type FeatureKey = keyof Pick<
   | 'hasDeadStock'
   | 'hasRetailHeatmap'
   | 'hasBasketAnalysis'
+  | 'hasSmartReorder'
 >;
 
 export type CompanyFeatureFlags = Record<FeatureKey, boolean>;
@@ -397,6 +398,15 @@ export const MODULES: ModuleDefinition[] = [
     routes: ['/dashboard/retail/canasta'],
     requires: 'hasRetailMetrics',
   },
+  {
+    key: 'hasSmartReorder',
+    label: 'Reposición predictiva',
+    description:
+      'Dentro de Métricas de retail: cuándo se agota cada producto y cuánto pedir, según su venta real, el día de la semana, los días de pago y el tiempo de entrega de su proveedor; con Compras, arma la solicitud de compra. Requiere Métricas de retail.',
+    permissions: [],
+    routes: ['/dashboard/retail/reposicion'],
+    requires: 'hasRetailMetrics',
+  },
 ];
 
 export const MODULE_KEYS: FeatureKey[] = MODULES.map((m) => m.key);
@@ -447,6 +457,7 @@ export const DEFAULT_FEATURES: CompanyFeatureFlags = {
   hasDeadStock: false,
   hasRetailHeatmap: false,
   hasBasketAnalysis: false,
+  hasSmartReorder: false,
 };
 
 /** Índice inverso permiso → módulo, construido una vez al cargar el módulo. */
@@ -520,6 +531,7 @@ export function toFeatureFlags(features: CompanyFeatures | null): CompanyFeature
     hasDeadStock: features.hasDeadStock,
     hasRetailHeatmap: features.hasRetailHeatmap,
     hasBasketAnalysis: features.hasBasketAnalysis,
+    hasSmartReorder: features.hasSmartReorder,
   };
 }
 

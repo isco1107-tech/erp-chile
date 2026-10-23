@@ -62,6 +62,7 @@ const FULL: CompanyFeatureFlags = {
   hasDeadStock: true,
   hasRetailHeatmap: true,
   hasBasketAnalysis: true,
+  hasSmartReorder: true,
 };
 
 const STARTER: CompanyFeatureFlags = { ...DEFAULT_FEATURES };

@@ -52,6 +52,7 @@ export const SCREEN_PURPOSES: Record<string, string> = {
   'retail-dead-stock': 'Productos con stock que llevan muchos días sin venderse, con su valor detenido y una sugerencia para moverlos.',
   'retail-heatmap': 'Venta de cada producto semana a semana en un mapa de calor, y cómo reaccionó la venta a cada cambio de precio.',
   'retail-basket': 'Qué productos se compran juntos en la misma boleta y qué pares valen como combo o promoción conjunta.',
+  'retail-reorder': 'Cuándo se agota cada producto y cuánto pedir, según su venta, el día de la semana, los días de pago y el tiempo de entrega del proveedor.',
   agents: 'Recomendaciones de los agentes ejecutivos (CEO, CFO, COO, Ventas) sobre tus datos reales.',
   products: 'Crear y editar productos, precios, códigos de barras, categorías, empaques y si son exentos de IVA.',
   inventory: 'Existencias por bodega, Kardex de cada producto, ajustes de stock y transferencias.',

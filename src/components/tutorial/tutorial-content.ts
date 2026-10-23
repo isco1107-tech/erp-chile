@@ -512,6 +512,14 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       note('Entre productores', 'Marca "Solo productos de proveedores distintos" para buscar promociones entre dos productores.'),
     ],
   },
+  'retail-reorder': {
+    title: 'Reposición predictiva',
+    steps: [
+      header('Qué pedir y cuándo', 'Cuándo se agota cada producto y cuánto pedir, con su venta real y lo que tarda el proveedor.'),
+      note('Patrones con respaldo', 'Fin de semana y días de pago se usan solo si los datos los sostienen.'),
+      note('A Compras en un clic', 'Marca productos y crea la solicitud de compra en borrador con las cantidades sugeridas.'),
+    ],
+  },
   agents: {
     title: 'Agentes',
     steps: [

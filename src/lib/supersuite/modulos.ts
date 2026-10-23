@@ -57,6 +57,7 @@ export const FLAG_A_MODULO: Partial<Record<FeatureKey, string>> = {
   hasDeadStock: 'stock_muerto',
   hasRetailHeatmap: 'mapa_calor',
   hasBasketAnalysis: 'canasta_cruzada',
+  hasSmartReorder: 'reposicion_predictiva',
 };
 
 /**
