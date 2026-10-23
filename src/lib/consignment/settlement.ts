@@ -1,3 +1,4 @@
+import type { DocumentStatus, DteType } from '@prisma/client';
 import { commissionOf, isValidCommissionBps } from './commission';
 
 /**
@@ -19,8 +20,6 @@ export const RETURN_DTE_TYPES = ['NOTA_CREDITO_61'] as const;
 /** Todos los que cuentan para una liquidación (para filtrar la consulta). */
 export const SETTLEMENT_DTE_TYPES = [...SALE_DTE_TYPES, ...RETURN_DTE_TYPES] as const;
 
-export type DocumentStatusLike = 'DRAFT' | 'ISSUED' | 'CANCELLED';
-
 /** `1` suma, `-1` resta, `0` no cuenta (guías, cotizaciones y notas de débito no son una venta del seller). */
 export function documentSign(dteType: string): 1 | -1 | 0 {
   if ((SALE_DTE_TYPES as readonly string[]).includes(dteType)) return 1;
@@ -39,8 +38,13 @@ export interface ConsignedSaleLine {
   subtotal: number;
   /** Comisión congelada al vender. */
   commissionBps: number | null;
-  dteType: string;
-  status: DocumentStatusLike;
+  /**
+   * Solo en una nota de crédito: la base neta que se le revierte al seller (la proporción de lo que se
+   * le acreditó por esa unidad en la venta original). `null` = se usa el subtotal de la línea.
+   */
+  baseNet?: number | null;
+  dteType: DteType;
+  status: DocumentStatus;
 }
 
 export interface SettlementAmounts {
@@ -59,10 +63,10 @@ function roundQty(value: number): number {
 
 /**
  * Lo que vale hoy una línea para el seller. Solo cuenta un documento emitido; un borrador o uno
- * anulado vale 0. La Nota de Crédito resta exactamente lo que habría sumado la venta (mismo
- * redondeo, con el signo aplicado al final). Una Nota de Crédito con cantidad 0 es un ajuste de
- * precio sin devolución física: no se descuenta sola, se corrige con el ajuste manual de la
- * liquidación.
+ * anulado vale 0. La Nota de Crédito resta lo que se le acreditó por esas unidades en la venta original
+ * (`baseNet`), con el mismo redondeo y el signo aplicado al final, aunque la nota se emita a otro precio:
+ * la diferencia de precio es de la empresa, no del seller. Una nota sin cantidad no descuenta nada (los
+ * ajustes de precio llegan como líneas sin producto y se corrigen con el ajuste manual de la liquidación).
  */
 export function currentContribution(line: ConsignedSaleLine): SettlementAmounts {
   if (line.status !== 'ISSUED') return ZERO_AMOUNTS;
@@ -70,12 +74,13 @@ export function currentContribution(line: ConsignedSaleLine): SettlementAmounts 
   if (sign === 0) return ZERO_AMOUNTS;
   if (sign === -1 && !(line.quantity > 0)) return ZERO_AMOUNTS;
   if (!isValidCommissionBps(line.commissionBps)) return ZERO_AMOUNTS;
-  const commission = commissionOf(line.subtotal, line.commissionBps);
+  const net = sign === -1 && line.baseNet !== null && line.baseNet !== undefined ? line.baseNet : line.subtotal;
+  const commission = commissionOf(net, line.commissionBps);
   return {
     quantity: roundQty(sign * line.quantity),
-    netAmount: sign * line.subtotal,
+    netAmount: sign * net,
     commissionAmount: sign * commission,
-    payoutAmount: sign * (line.subtotal - commission),
+    payoutAmount: sign * (net - commission),
   };
 }
 
@@ -152,11 +157,3 @@ export function sumSettledByItem(
   }
   return map;
 }
-
-export type SettlementStatusLike = 'CONFIRMED' | 'PAID' | 'VOIDED';
-
-export const SETTLEMENT_STATUS_LABELS: Record<SettlementStatusLike, string> = {
-  CONFIRMED: 'Por pagar',
-  PAID: 'Pagada',
-  VOIDED: 'Anulada',
-};

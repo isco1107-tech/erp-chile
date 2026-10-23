@@ -2,7 +2,9 @@
 
 import { revalidatePath } from 'next/cache';
 import { Prisma, type Contact } from '@prisma/client';
-import { requireAuthWithPermission, authErrorMessage } from '@/lib/auth/guards';
+import { requireAuthWithPermission, authErrorMessage, can } from '@/lib/auth/guards';
+import { createAuditLog } from '@/lib/auth/audit';
+import { isEntityId } from '@/lib/security/entity-id';
 import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import { contactCreateSchema, contactUpdateSchema } from '../schema';
 import * as contactsService from '../services/contacts.service';
@@ -12,6 +14,9 @@ import { lookupCompaniesByName, type CompanyLookupCandidate } from '../services/
 export type ActionResult<T> =
   | { success: true; data: T; message?: string }
   | { success: false; error: string };
+
+const INVALID_ID: { success: false; error: string } = { success: false, error: 'Datos inválidos' };
+const CONSIGNMENT_PERMISSION_ERROR = 'Marcar a un contacto como seller o cambiar su comisión requiere el permiso de consignación (Dueño, Administrador o Contador)';
 
 function toErrorMessage(error: unknown): string {
   const authMessage = authErrorMessage(error);
@@ -54,6 +59,7 @@ export async function listContactsPageAction(
 
 export async function getContactAction(id: string): Promise<ActionResult<Contact>> {
   try {
+    if (!isEntityId(id)) return INVALID_ID;
     const session = await requireAuthWithPermission('contacts:read');
     const contact = await contactsService.getContact(session.companyId, id);
     if (!contact) return { success: false, error: 'Contacto no encontrado' };
@@ -87,6 +93,8 @@ export async function createContactAction(input: unknown): Promise<ActionResult<
     if (!parsed.success) {
       return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
     }
+    // La comisión del seller define lo que se le paga: un vendedor que puede crear clientes no debería fijarla.
+    if (parsed.data.isConsignor && !can(session, 'consignment:write')) return { success: false, error: CONSIGNMENT_PERMISSION_ERROR };
     const data = await contactsService.createContact(session.companyId, parsed.data);
     revalidatePath('/dashboard/contacts');
     return { success: true, data, message: 'Contacto creado correctamente' };
@@ -97,12 +105,40 @@ export async function createContactAction(input: unknown): Promise<ActionResult<
 
 export async function updateContactAction(id: string, input: unknown): Promise<ActionResult<Contact>> {
   try {
+    if (!isEntityId(id)) return INVALID_ID;
     const session = await requireAuthWithPermission('contacts:write');
     const parsed = contactUpdateSchema.safeParse(input);
     if (!parsed.success) {
       return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
     }
+    // La condición de seller y su comisión definen lo que se le paga: solo cambian con permiso de consignación, y queda en la bitácora.
+    // Se compara contra lo guardado: el formulario manda siempre estos campos y editar otra cosa no es un cambio.
+    let consignmentChange: { from: { isConsignor: boolean; commissionBps: number | null }; to: { isConsignor: boolean; commissionBps: number | null } } | null = null;
+    if (parsed.data.isConsignor !== undefined || parsed.data.consignmentCommissionBps !== undefined) {
+      const current = await contactsService.getContact(session.companyId, id);
+      if (!current) return { success: false, error: 'Contacto no encontrado' };
+      const from = { isConsignor: current.isConsignor, commissionBps: current.consignmentCommissionBps };
+      const to = {
+        isConsignor: parsed.data.isConsignor ?? current.isConsignor,
+        commissionBps: parsed.data.consignmentCommissionBps === undefined ? current.consignmentCommissionBps : parsed.data.consignmentCommissionBps,
+      };
+      if (from.isConsignor !== to.isConsignor || (to.isConsignor && from.commissionBps !== to.commissionBps)) {
+        if (!can(session, 'consignment:write')) return { success: false, error: CONSIGNMENT_PERMISSION_ERROR };
+        consignmentChange = { from, to };
+      }
+    }
     const data = await contactsService.updateContact(session.companyId, id, parsed.data);
+    if (consignmentChange) {
+      await createAuditLog({
+        companyId: session.companyId,
+        userId: session.id,
+        userEmail: session.email,
+        action: 'UPDATE',
+        entity: 'Contact',
+        entityId: id,
+        metadata: { consignment: consignmentChange },
+      });
+    }
     revalidatePath('/dashboard/contacts');
     return { success: true, data, message: 'Contacto actualizado correctamente' };
   } catch (error) {
@@ -112,6 +148,7 @@ export async function updateContactAction(id: string, input: unknown): Promise<A
 
 export async function deleteContactAction(id: string): Promise<ActionResult<null>> {
   try {
+    if (!isEntityId(id)) return INVALID_ID;
     const session = await requireAuthWithPermission('contacts:write');
     await contactsService.deleteContact(session.companyId, id);
     revalidatePath('/dashboard/contacts');

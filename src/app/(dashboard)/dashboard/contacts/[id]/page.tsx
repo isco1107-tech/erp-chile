@@ -103,10 +103,11 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
   const purchaseRows = purchases?.success ? purchases.data.items : [];
   // Seller de consignación: su mercadería y, si el rol lo permite, lo que se le debe hoy.
   const showConsignment = contact.isConsignor && context.features.hasInventory && can(context, 'products:read');
+  // Un fallo al leer lo de consignación no debe tumbar la ficha entera: esa tarjeta simplemente no se muestra.
   const [consignorSummary, consignorPending] = showConsignment
     ? await Promise.all([
-        getConsignorSummary(context.companyId, id),
-        can(context, 'consignment:read') ? getPendingSettlement(context.companyId, id) : Promise.resolve(null),
+        getConsignorSummary(context.companyId, id).catch(() => null),
+        can(context, 'consignment:read') ? getPendingSettlement(context.companyId, id).catch(() => null) : Promise.resolve(null),
       ])
     : [null, null];
 

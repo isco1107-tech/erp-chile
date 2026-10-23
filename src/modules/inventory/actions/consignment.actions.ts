@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { Prisma } from '@prisma/client';
 import { requireAuthWithPermission, authErrorMessage } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
@@ -19,9 +20,13 @@ export type ActionResult<T> =
 function toErrorMessage(error: unknown, companyId?: string): string {
   const authMessage = authErrorMessage(error);
   if (authMessage) return authMessage;
-  const message = toFriendlyErrorMessage(error);
-  if (!(error instanceof Error) || message !== error.message) captureException(error, { module: 'consignacion', companyId });
-  return message;
+  // Los errores de negocio de los servicios son `Error` planos con un mensaje accionable en español.
+  if (error instanceof Error && error.constructor === Error) return error.message;
+  // Los de Prisma conocidos (dato repetido, registro ajeno…) ya tienen su traducción; los demás se reportan allí mismo.
+  if (error instanceof Prisma.PrismaClientKnownRequestError) return toFriendlyErrorMessage(error);
+  // Cualquier otra cosa es un fallo nuestro: el detalle va a observabilidad, no a la pantalla.
+  captureException(error, { module: 'consignacion', companyId });
+  return 'No se pudo completar la operación. Intenta de nuevo; si el problema sigue, contacta a soporte';
 }
 
 /** Sellers de la empresa, para elegir el dueño de un producto. */
@@ -132,7 +137,7 @@ export async function listSettlementsAction(consignorId?: string, status?: strin
     const session = await requireAuthWithPermission('consignment:read');
     companyId = session.companyId;
     const parsedStatus = SETTLEMENT_STATUSES.find((value) => value === status);
-    return { success: true, data: await settlementService.listSettlements(session.companyId, { consignorId: consignorId || undefined, status: parsedStatus }) };
+    return { success: true, data: await settlementService.listSettlements(session.companyId, { consignorId: consignorId ? String(consignorId) : undefined, status: parsedStatus }) };
   } catch (error) {
     return { success: false, error: toErrorMessage(error, companyId) };
   }

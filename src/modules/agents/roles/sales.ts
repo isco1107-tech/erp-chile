@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { DteType } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { formatCurrency } from '@/lib/chile/tax';
-import { productCostForMargin } from '@/lib/consignment/margin';
+import { lineCostForMargin, productCostForMargin } from '@/lib/consignment/margin';
 import { getCompanySettings } from '@/lib/services/company.service';
 import { generateAgentJson } from '../services/gemini-agent';
 import { INDUSTRY_LABELS } from '../services/business-metrics.service';
@@ -98,7 +98,7 @@ export async function runSalesAgent(companyId: string): Promise<string> {
     getCompanySettings(companyId),
     prisma.salesDocumentItem.findMany({
       where: { companyId, document: { status: 'ISSUED', issueDate: { gte: since } } },
-      select: { sku: true, description: true, productId: true, quantity: true, subtotal: true, unitCostPMP: true },
+      select: { sku: true, description: true, productId: true, quantity: true, subtotal: true, unitCostPMP: true, consignorId: true, consignorCommissionBps: true },
     }),
     prisma.salesDocument.findMany({
       where: { companyId, status: 'ISSUED', dteType: { in: SALES_DOCUMENT_TYPES }, issueDate: { gte: since } },
@@ -201,7 +201,7 @@ export async function runSalesAgent(companyId: string): Promise<string> {
     const entry = byProduct.get(key) ?? { label, quantitySold: 0, revenue: 0, cost: 0 };
     entry.quantitySold += item.quantity;
     entry.revenue += item.subtotal;
-    entry.cost += Math.round(item.quantity * item.unitCostPMP);
+    entry.cost += lineCostForMargin(item);
     byProduct.set(key, entry);
   }
 

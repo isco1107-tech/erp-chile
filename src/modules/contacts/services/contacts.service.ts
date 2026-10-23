@@ -3,6 +3,7 @@ import type { Contact, Prisma } from '@prisma/client';
 import { cleanRut, formatRut, validateRut } from '@/lib/chile/rut';
 import { normalizeAccountNumber } from '@/lib/treasury/banks';
 import { isValidCommissionBps } from '@/lib/consignment/commission';
+import { loadPendingBySeller } from '@/modules/inventory/services/consignment-settlement.service';
 import type { ContactCreateInput, ContactUpdateInput } from '../schema';
 
 export async function listContacts(companyId: string, query?: string): Promise<Contact[]> {
@@ -193,9 +194,17 @@ async function resolveConsignorUpdate(
   assertConsignorCommission(isConsignor, commissionBps);
 
   if (current.isConsignor && !isConsignor) {
-    const products = await prisma.product.count({ where: { companyId, consignorId: id } });
+    const [products, pending, unpaid] = await Promise.all([
+      prisma.product.count({ where: { companyId, consignorId: id } }),
+      loadPendingBySeller(prisma, companyId, id),
+      prisma.consignmentSettlement.count({ where: { companyId, consignorId: id, status: 'CONFIRMED' } }),
+    ]);
     if (products > 0) {
       throw new Error(`Este seller tiene ${products} producto${products === 1 ? '' : 's'} en consignación. Cambia el dueño de esos productos antes de quitarle la condición de seller`);
+    }
+    // Sin la condición de seller no se le puede liquidar: lo que se le debe quedaría invisible.
+    if ((pending.get(id)?.length ?? 0) > 0 || unpaid > 0) {
+      throw new Error('Este seller tiene ventas sin liquidar o liquidaciones sin pagar. Liquídalas y págalas antes de quitarle la condición de seller');
     }
   }
   return { isConsignor, consignmentCommissionBps: isConsignor ? commissionBps : null };
@@ -241,12 +250,15 @@ export async function updateContact(companyId: string, id: string, input: Contac
 }
 
 export async function deleteContact(companyId: string, id: string): Promise<void> {
-  const [consigned, settlements] = await Promise.all([
+  const [consigned, settlements, soldLines] = await Promise.all([
     prisma.product.count({ where: { companyId, consignorId: id } }),
     prisma.consignmentSettlement.count({ where: { companyId, consignorId: id } }),
+    prisma.salesDocumentItem.count({ where: { companyId, consignorId: id } }),
   ]);
   if (consigned > 0) throw new Error('Este seller tiene productos en consignación. Cambia el dueño de esos productos antes de eliminarlo');
   if (settlements > 0) throw new Error('Este seller tiene liquidaciones registradas, no se puede eliminar');
+  // Aunque ya no tenga productos: lo que se le debe por sus ventas vive en esas líneas y desaparecería con él.
+  if (soldLines > 0) throw new Error('Este seller tiene ventas de su mercadería registradas: se conserva para que su historial y lo que se le debe sigan visibles');
   const result = await prisma.contact.deleteMany({ where: { companyId, id } });
   if (result.count === 0) throw new Error('Contacto no encontrado');
 }

@@ -20,6 +20,8 @@ ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "consignmentCommissionBps" INTEGE
 -- Línea de venta: foto del seller y de la comisión al momento de vender.
 ALTER TABLE "SalesDocumentItem" ADD COLUMN IF NOT EXISTS "consignorId" TEXT;
 ALTER TABLE "SalesDocumentItem" ADD COLUMN IF NOT EXISTS "consignorCommissionBps" INTEGER;
+-- Nota de crédito: base neta que se le revierte al seller (la proporción de lo que se le acreditó en la venta original).
+ALTER TABLE "SalesDocumentItem" ADD COLUMN IF NOT EXISTS "consignorBaseNet" INTEGER;
 
 CREATE TABLE IF NOT EXISTS "ConsignmentSettlement" (
     "id" TEXT NOT NULL,
@@ -39,6 +41,7 @@ CREATE TABLE IF NOT EXISTS "ConsignmentSettlement" (
     "voidedAt" TIMESTAMP(3),
     "voidReason" TEXT,
     "createdById" TEXT,
+    "idempotencyKey" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "ConsignmentSettlement_pkey" PRIMARY KEY ("id")
@@ -62,8 +65,8 @@ CREATE TABLE IF NOT EXISTS "ConsignmentSettlementLine" (
 
 CREATE INDEX IF NOT EXISTS "ConsignmentSettlement_companyId_consignorId_createdAt_idx" ON "ConsignmentSettlement"("companyId", "consignorId", "createdAt");
 CREATE UNIQUE INDEX IF NOT EXISTS "ConsignmentSettlement_companyId_number_key" ON "ConsignmentSettlement"("companyId", "number");
-CREATE INDEX IF NOT EXISTS "ConsignmentSettlementLine_settlementId_idx" ON "ConsignmentSettlementLine"("settlementId");
-CREATE INDEX IF NOT EXISTS "ConsignmentSettlementLine_companyId_salesDocumentItemId_idx" ON "ConsignmentSettlementLine"("companyId", "salesDocumentItemId");
+CREATE UNIQUE INDEX IF NOT EXISTS "ConsignmentSettlement_companyId_idempotencyKey_key" ON "ConsignmentSettlement"("companyId", "idempotencyKey");
+CREATE UNIQUE INDEX IF NOT EXISTS "ConsignmentSettlementLine_settlementId_salesDocumentItemId_key" ON "ConsignmentSettlementLine"("settlementId", "salesDocumentItemId");
 CREATE INDEX IF NOT EXISTS "Product_companyId_consignorId_idx" ON "Product"("companyId", "consignorId");
 CREATE INDEX IF NOT EXISTS "SalesDocumentItem_companyId_consignorId_idx" ON "SalesDocumentItem"("companyId", "consignorId");
 
@@ -79,6 +82,11 @@ END $$;
 
 DO $$ BEGIN
   ALTER TABLE "ConsignmentSettlement" ADD CONSTRAINT "ConsignmentSettlement_consignorId_fkey" FOREIGN KEY ("consignorId") REFERENCES "Contact"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "ConsignmentSettlementLine" ADD CONSTRAINT "ConsignmentSettlementLine_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
 END $$;
 

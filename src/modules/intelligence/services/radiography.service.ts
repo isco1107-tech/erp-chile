@@ -12,6 +12,7 @@ import { scoreRfm, summarizeRfm, type RfmSegment } from '@/lib/intelligence/rfm'
 import type { SimulatorBaseline } from '@/lib/intelligence/simulator';
 import { herfindahl, median, percentChange, projectLinear, safeDivide } from '@/lib/intelligence/stats';
 import { upcomingTaxObligations } from '@/lib/intelligence/tax-calendar';
+import { lineCostForMargin } from '@/lib/consignment/margin';
 
 /**
  * Radiografía 360 de la empresa: carga una sola vez los documentos reales de
@@ -166,7 +167,7 @@ export async function getRadiography(companyId: string, options: { hasPayroll: b
         exemptAmount: true,
         ivaAmount: true,
         totalAmount: true,
-        items: { select: { productId: true, description: true, sku: true, quantity: true, subtotal: true, unitCostPMP: true } },
+        items: { select: { productId: true, description: true, sku: true, quantity: true, subtotal: true, unitCostPMP: true, consignorId: true, consignorCommissionBps: true } },
       },
     }),
     prisma.salesDocument.findMany({
@@ -221,7 +222,7 @@ export async function getRadiography(companyId: string, options: { hasPayroll: b
   for (const doc of sales) {
     const sign = signForSalesDteType(doc.dteType);
     const revenue = sign * (doc.netAmount + doc.exemptAmount);
-    const cost = sign * doc.items.reduce((sum, item) => sum + Math.round(item.quantity * item.unitCostPMP), 0);
+    const cost = sign * doc.items.reduce((sum, item) => sum + lineCostForMargin(item), 0);
     const key = monthKey(doc.issueDate);
     const bucket = monthByKey.get(key);
     if (bucket) {
@@ -256,7 +257,7 @@ export async function getRadiography(companyId: string, options: { hasPayroll: b
       const productKey = item.productId ?? `desc:${item.description}`;
       const agg = productAgg.get(productKey) ?? { name: item.description, sku: item.sku, netSales: 0, cost: 0, quantity: 0, lastSold: doc.issueDate };
       agg.netSales += sign * item.subtotal;
-      agg.cost += sign * Math.round(item.quantity * item.unitCostPMP);
+      agg.cost += sign * lineCostForMargin(item);
       agg.quantity += sign * item.quantity;
       if (doc.issueDate > agg.lastSold) agg.lastSold = doc.issueDate;
       productAgg.set(productKey, agg);

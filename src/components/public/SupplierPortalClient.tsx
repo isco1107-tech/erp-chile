@@ -3,7 +3,8 @@
 import { useMemo, useState } from 'react';
 import { Download, PackageSearch, Truck } from 'lucide-react';
 import { PublicBadge, PublicCard, PublicCardHeader, PublicFooter, PublicPage, PublicShell, PublicTopBar } from '@/components/public/PublicShell';
-import PortalProductCard, { URGENCY } from '@/components/public/PortalProductCard';
+import PortalProductCard from '@/components/public/PortalProductCard';
+import { URGENCY } from '@/components/public/portal-format';
 import SellerConsignmentSection from '@/components/public/SellerConsignmentSection';
 import type { SupplierPortalView } from '@/modules/inventory/services/supplier-portal.service';
 

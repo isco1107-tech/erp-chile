@@ -1,6 +1,7 @@
-import type { ConsignmentSettlementStatus, Prisma } from '@prisma/client';
+import type { ConsignmentSettlementStatus, DteType, Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
+import { formatCurrency } from '@/lib/chile/tax';
 import {
   SETTLEMENT_DTE_TYPES,
   pendingLines,
@@ -32,7 +33,7 @@ const MAX_AMOUNT = 2_147_483_647;
 
 /** Una línea pendiente con el documento del que viene, para mostrarla. */
 export interface PendingSettlementLine extends PendingLine {
-  dteType: string;
+  dteType: DteType;
   folio: number | null;
   issueDate: Date;
 }
@@ -59,6 +60,7 @@ export async function loadPendingBySeller(db: Db, companyId: string, consignorId
         quantity: true,
         subtotal: true,
         consignorCommissionBps: true,
+        consignorBaseNet: true,
         document: { select: { dteType: true, status: true, folio: true, issueDate: true } },
       },
       orderBy: [{ document: { issueDate: 'asc' } }, { id: 'asc' }],
@@ -71,7 +73,7 @@ export async function loadPendingBySeller(db: Db, companyId: string, consignorId
 
   const settled = sumSettledByItem(settledRows);
   const bySeller = new Map<string, ConsignedSaleLine[]>();
-  const documentOf = new Map<string, { dteType: string; folio: number | null; issueDate: Date }>();
+  const documentOf = new Map<string, { dteType: DteType; folio: number | null; issueDate: Date }>();
   for (const item of items) {
     if (!item.consignorId) continue;
     documentOf.set(item.id, { dteType: item.document.dteType, folio: item.document.folio, issueDate: item.document.issueDate });
@@ -84,6 +86,7 @@ export async function loadPendingBySeller(db: Db, companyId: string, consignorId
       quantity: item.quantity,
       subtotal: item.subtotal,
       commissionBps: item.consignorCommissionBps,
+      baseNet: item.consignorBaseNet,
       dteType: item.document.dteType,
       status: item.document.status,
     });
@@ -92,9 +95,9 @@ export async function loadPendingBySeller(db: Db, companyId: string, consignorId
 
   const result = new Map<string, PendingSettlementLine[]>();
   for (const [sellerId, lines] of bySeller) {
-    const pending = pendingLines(lines, settled).map((line) => {
+    const pending = pendingLines(lines, settled).flatMap((line) => {
       const document = documentOf.get(line.salesDocumentItemId);
-      return { ...line, dteType: document?.dteType ?? '', folio: document?.folio ?? null, issueDate: document?.issueDate ?? new Date(0) };
+      return document ? [{ ...line, ...document }] : [];
     });
     if (pending.length > 0) result.set(sellerId, pending);
   }
@@ -277,6 +280,16 @@ export async function generateSettlement(companyId: string, userId: string, inpu
     const locked = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM "Contact" WHERE id = ${input.consignorId} AND "companyId" = ${companyId} AND "isConsignor" = true FOR UPDATE`;
     if (locked.length === 0) throw new Error('Seller no encontrado');
 
+    // Un reintento de la misma generación (doble clic, pestaña repetida, respuesta perdida) devuelve la
+    // liquidación ya creada. Es lo único que protege un ajuste manual solo, que no tiene ventas que repartir.
+    if (input.idempotencyKey) {
+      const existing = await tx.consignmentSettlement.findFirst({
+        where: { companyId, idempotencyKey: input.idempotencyKey },
+        select: { id: true, number: true, consignorId: true, payoutAmount: true, units: true },
+      });
+      if (existing) return existing;
+    }
+
     const pending = (await loadPendingBySeller(tx, companyId, input.consignorId)).get(input.consignorId) ?? [];
     const adjustmentAmount = input.adjustmentAmount ?? 0;
     if (pending.length === 0 && adjustmentAmount === 0) throw new Error('No hay ventas pendientes de liquidar para este seller');
@@ -285,8 +298,15 @@ export async function generateSettlement(companyId: string, userId: string, inpu
     if (Math.abs(totals.netSales) > MAX_AMOUNT || Math.abs(totals.payoutAmount) > MAX_AMOUNT) {
       throw new Error('El monto de la liquidación es demasiado grande (máximo $2.147.483.647)');
     }
+    if (input.expectedPayoutAmount !== undefined && input.expectedPayoutAmount !== totals.payoutAmount) {
+      throw new Error(`Las ventas cambiaron desde que abriste la vista previa (ahora se le pagaría ${formatCurrency(totals.payoutAmount)}). Revísala y confirma de nuevo`);
+    }
     if (totals.payoutAmount < 0) {
-      throw new Error('Las devoluciones superan lo vendido: no hay nada que pagarle todavía. Ese saldo queda pendiente y se descuenta en la próxima liquidación');
+      throw new Error(
+        totals.linesPayout < 0
+          ? 'Las devoluciones superan lo vendido: no hay nada que pagarle todavía. Ese saldo queda pendiente y se descuenta en la próxima liquidación'
+          : 'El ajuste manual deja el total en negativo: corrígelo para que la liquidación no sea menor a cero'
+      );
     }
 
     const sequence = await tx.internalDocumentSequence.upsert({
@@ -308,6 +328,7 @@ export async function generateSettlement(companyId: string, userId: string, inpu
         payoutAmount: totals.payoutAmount,
         note: input.note || null,
         createdById: userId,
+        idempotencyKey: input.idempotencyKey || null,
         lines: {
           create: pending.map((line) => ({
             companyId,

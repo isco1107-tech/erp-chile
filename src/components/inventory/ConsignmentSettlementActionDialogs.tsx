@@ -59,12 +59,12 @@ export function PaySettlementDialog({ settlement, onClose, onDone }: DialogProps
   }
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
+    <Dialog open onOpenChange={(open) => !open && !saving && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Marcar como pagada</DialogTitle>
           <DialogDescription>
-            Liquidación N° {settlement.number} · {settlement.consignorName} · {formatCurrency(settlement.payoutAmount)}. Esto solo deja constancia: el pago al seller lo haces tú (transferencia, efectivo…).
+            Liquidación N° {settlement.number} · {settlement.consignorName} · {formatCurrency(settlement.payoutAmount)}. Esto solo deja constancia: no registra el pago ni genera asientos. El pago al seller (transferencia, efectivo…) y su contabilización los haces tú.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -76,9 +76,9 @@ export function PaySettlementDialog({ settlement, onClose, onDone }: DialogProps
             <Label htmlFor="settlement-reference">Referencia (opcional)</Label>
             <Input id="settlement-reference" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Ej: N° de transferencia" className="mt-1.5" />
           </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" disabled={saving} onClick={onClose}>
               Cancelar
             </Button>
             <Button type="submit" disabled={saving}>
@@ -121,7 +121,7 @@ export function VoidSettlementDialog({ settlement, onClose, onDone }: DialogProp
   }
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
+    <Dialog open onOpenChange={(open) => !open && !saving && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Anular liquidación N° {settlement.number}</DialogTitle>
@@ -134,9 +134,9 @@ export function VoidSettlementDialog({ settlement, onClose, onDone }: DialogProp
             <Label htmlFor="settlement-void-reason">Motivo</Label>
             <Input id="settlement-void-reason" value={reason} onChange={(e) => setReason(e.target.value)} className="mt-1.5" autoFocus />
           </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" disabled={saving} onClick={onClose}>
               Cancelar
             </Button>
             <Button type="submit" variant="destructive" disabled={saving}>

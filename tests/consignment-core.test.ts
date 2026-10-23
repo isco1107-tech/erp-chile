@@ -1,13 +1,15 @@
 import {
+  bpsToInput,
   bpsToPercent,
+  commissionBpsSchema,
   commissionOf,
   effectiveCommissionBps,
   formatCommission,
   isValidCommissionBps,
-  lineAmounts,
   parseCommissionPercent,
   percentToBps,
 } from '@/lib/consignment/commission';
+import { parseClpAmount } from '@/lib/consignment/amount';
 import { lineCostForMargin, productCostForMargin } from '@/lib/consignment/margin';
 import {
   currentContribution,
@@ -92,16 +94,49 @@ describe('comisión', () => {
   it('el neto se reparte exactamente entre empresa y seller', () => {
     for (const net of [1, 7, 999, 10_001, 123_457]) {
       for (const bps of [0, 1, 1550, 3333, 10_000]) {
-        const amounts = lineAmounts(net, bps);
-        expect(amounts.commissionAmount + amounts.payoutAmount).toBe(net);
-        expect(Number.isInteger(amounts.payoutAmount)).toBe(true);
+        const commission = commissionOf(net, bps);
+        expect(Number.isInteger(commission)).toBe(true);
+        expect(commission + (net - commission)).toBe(net);
+        expect(net - commission).toBeGreaterThanOrEqual(0);
       }
     }
+  });
+
+  it('escribe la comisión guardada como la lee el formulario, sin perder decimales', () => {
+    expect(bpsToInput(1500)).toBe('15');
+    expect(bpsToInput(1550)).toBe('15,5');
+    expect(bpsToInput(1234)).toBe('12,34');
+    for (const bps of [0, 1, 29, 1234, 1550, 10_000]) expect(parseCommissionPercent(bpsToInput(bps))).toBe(bps);
+  });
+
+  it('el esquema compartido de comisión acepta 0–10.000 enteros', () => {
+    expect(commissionBpsSchema.safeParse(1500).success).toBe(true);
+    expect(commissionBpsSchema.safeParse(10_001).success).toBe(false);
+    expect(commissionBpsSchema.safeParse(-1).success).toBe(false);
+    expect(commissionBpsSchema.safeParse(12.5).success).toBe(false);
   });
 
   it('muestra la comisión en formato chileno', () => {
     expect(formatCommission(1500)).toBe('15 %');
     expect(formatCommission(1550)).toBe('15,5 %');
+  });
+});
+
+describe('monto en pesos escrito por una persona', () => {
+  it('el punto separa miles: "3.000" son tres mil', () => {
+    expect(parseClpAmount('3.000')).toBe(3000);
+    expect(parseClpAmount('-1.500')).toBe(-1500);
+    expect(parseClpAmount('1.000.000')).toBe(1_000_000);
+    expect(parseClpAmount('+2.500')).toBe(2500);
+    expect(parseClpAmount('$ 2.000')).toBe(2000);
+    expect(parseClpAmount('-$ 2.000')).toBe(-2000);
+    expect(parseClpAmount('1500')).toBe(1500);
+    expect(parseClpAmount(' -750 ')).toBe(-750);
+    expect(parseClpAmount('0')).toBe(0);
+  });
+
+  it('rechaza lo que se leería mal en silencio', () => {
+    for (const text of ['', '-', 'abc', '1,5', '1.5', '1.50', '1.0000', '12.34.567', '3,000', '--5', '5-', '1e3', '9999999999999999999']) expect(parseClpAmount(text)).toBeNull();
   });
 });
 
@@ -144,6 +179,16 @@ describe('lo que vale una línea hoy', () => {
       commissionAmount: -sale.commissionAmount,
       payoutAmount: -sale.payoutAmount,
     });
+  });
+
+  it('una devolución revierte lo que se le acreditó por esas unidades, no el precio de la nota', () => {
+    // Venta: 3 unidades, $27.000 neto (con descuento) → al seller $21.600 al 20 %. Se devuelve 1 unidad con una nota de $10.000.
+    const credit = currentContribution(line({ dteType: 'NOTA_CREDITO_61', quantity: 1, subtotal: 10_000, baseNet: 9000 }));
+    expect(credit).toEqual({ quantity: -1, netAmount: -9000, commissionAmount: -1800, payoutAmount: -7200 });
+    // Sin base se usa el subtotal de la línea (comportamiento anterior).
+    expect(currentContribution(line({ dteType: 'NOTA_CREDITO_61', quantity: 1, subtotal: 10_000, baseNet: null })).netAmount).toBe(-10_000);
+    // La base solo manda en devoluciones.
+    expect(currentContribution(line({ subtotal: 10_000, baseNet: 1 })).netAmount).toBe(10_000);
   });
 
   it('una nota de crédito sin cantidad (ajuste de precio) no descuenta sola', () => {

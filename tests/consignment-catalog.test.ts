@@ -22,6 +22,8 @@ const MODELS = {
   contact: ['findFirst', 'create', 'updateMany', 'deleteMany'],
   product: ['findFirst', 'count', 'create', 'updateMany'],
   consignmentSettlement: ['count'],
+  consignmentSettlementLine: ['findMany'],
+  salesDocumentItem: ['count', 'findMany'],
   category: ['findFirst'],
 } as const;
 
@@ -47,7 +49,8 @@ let tx: { $queryRaw: jest.Mock; product: Mocks; contact: Mocks };
 beforeEach(() => {
   db = installDb();
   tx = {
-    $queryRaw: jest.fn().mockResolvedValue([]),
+    // El bloqueo de la fila devuelve exactamente el producto pedido (una fila).
+    $queryRaw: jest.fn().mockResolvedValue([{ id: 'p1' }]),
     product: { findFirst: jest.fn(), updateMany: jest.fn() },
     contact: { findFirst: jest.fn() },
   };
@@ -93,6 +96,9 @@ describe('contactos: seller', () => {
   it('cambiar la comisión de un seller la guarda; quitarle la condición la borra', async () => {
     db.contact.updateMany.mockResolvedValue({ count: 1 });
     db.product.count.mockResolvedValue(0);
+    db.salesDocumentItem.findMany.mockResolvedValue([]);
+    db.consignmentSettlementLine.findMany.mockResolvedValue([]);
+    db.consignmentSettlement.count.mockResolvedValue(0);
 
     db.contact.findFirst.mockResolvedValueOnce({ isConsignor: true, consignmentCommissionBps: 1500 }).mockResolvedValueOnce({ id: 'c1' });
     await updateContact(COMPANY, 'c1', { consignmentCommissionBps: 2500 });
@@ -106,25 +112,55 @@ describe('contactos: seller', () => {
   it('no se le quita la condición de seller mientras tenga productos en consignación', async () => {
     db.contact.findFirst.mockResolvedValue({ isConsignor: true, consignmentCommissionBps: 1500 });
     db.product.count.mockResolvedValue(3);
+    db.salesDocumentItem.findMany.mockResolvedValue([]);
+    db.consignmentSettlementLine.findMany.mockResolvedValue([]);
+    db.consignmentSettlement.count.mockResolvedValue(0);
     await expect(updateContact(COMPANY, 'c1', { isConsignor: false })).rejects.toThrow('3 productos en consignación');
     expect(whereOf(db.product.count)).toEqual({ companyId: COMPANY, consignorId: 'c1' });
     expect(db.contact.updateMany).not.toHaveBeenCalled();
   });
 
-  it('no se elimina un seller con productos ni con liquidaciones', async () => {
+  it('tampoco mientras se le deba algo: ventas sin liquidar o liquidaciones sin pagar', async () => {
+    db.contact.findFirst.mockResolvedValue({ isConsignor: true, consignmentCommissionBps: 1500 });
+    db.product.count.mockResolvedValue(0);
+    // Una venta emitida que nadie le ha liquidado.
+    db.salesDocumentItem.findMany.mockResolvedValue([
+      { id: 'i1', consignorId: 'c1', productId: 'p1', sku: 'P1', description: 'Taza', quantity: 2, subtotal: 10_000, consignorCommissionBps: 2000, consignorBaseNet: null, document: { dteType: 'BOLETA_39', status: 'ISSUED', folio: 5, issueDate: new Date('2026-10-01T15:00:00Z') } },
+    ]);
+    db.consignmentSettlementLine.findMany.mockResolvedValue([]);
+    db.consignmentSettlement.count.mockResolvedValue(0);
+    await expect(updateContact(COMPANY, 'c1', { isConsignor: false })).rejects.toThrow('ventas sin liquidar o liquidaciones sin pagar');
+
+    // Todo liquidado pero con una liquidación por pagar.
+    db.salesDocumentItem.findMany.mockResolvedValue([]);
+    db.consignmentSettlement.count.mockResolvedValue(1);
+    await expect(updateContact(COMPANY, 'c1', { isConsignor: false })).rejects.toThrow('ventas sin liquidar o liquidaciones sin pagar');
+    expect(whereOf(db.consignmentSettlement.count)).toEqual({ companyId: COMPANY, consignorId: 'c1', status: 'CONFIRMED' });
+    expect(db.contact.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('no se elimina un seller con productos, con liquidaciones ni con ventas de su mercadería', async () => {
     db.product.count.mockResolvedValue(1);
     db.consignmentSettlement.count.mockResolvedValue(0);
+    db.salesDocumentItem.count.mockResolvedValue(0);
     await expect(deleteContact(COMPANY, 'c1')).rejects.toThrow('productos en consignación');
 
     db.product.count.mockResolvedValue(0);
     db.consignmentSettlement.count.mockResolvedValue(2);
     await expect(deleteContact(COMPANY, 'c1')).rejects.toThrow('liquidaciones');
+
+    // Aunque ya no tenga productos ni liquidaciones: lo que se le debe vive en las líneas de venta.
+    db.consignmentSettlement.count.mockResolvedValue(0);
+    db.salesDocumentItem.count.mockResolvedValue(4);
+    await expect(deleteContact(COMPANY, 'c1')).rejects.toThrow('ventas de su mercadería');
+    expect(whereOf(db.salesDocumentItem.count)).toEqual({ companyId: COMPANY, consignorId: 'c1' });
     expect(db.contact.deleteMany).not.toHaveBeenCalled();
   });
 
   it('un contacto sin consignación se elimina como siempre', async () => {
     db.product.count.mockResolvedValue(0);
     db.consignmentSettlement.count.mockResolvedValue(0);
+    db.salesDocumentItem.count.mockResolvedValue(0);
     db.contact.deleteMany.mockResolvedValue({ count: 1 });
     await deleteContact(COMPANY, 'c1');
     expect(whereOf(db.contact.deleteMany)).toEqual({ companyId: COMPANY, id: 'c1' });
@@ -132,7 +168,7 @@ describe('contactos: seller', () => {
 });
 
 describe('catálogo: dueño del producto', () => {
-  const stockOf = (quantity: number) => ({ consignorId: null, consignmentCommissionBps: null, stocks: [{ quantity }] });
+  const stockOf = (quantity: number) => ({ id: 'p1', consignorId: null, consignmentCommissionBps: null, stocks: [{ quantity }] });
 
   it('un producto nuevo solo puede ser de un seller de la empresa', async () => {
     db.contact.findFirst.mockResolvedValue(null);
@@ -158,7 +194,20 @@ describe('catálogo: dueño del producto', () => {
 
   it('cambiar el dueño con stock en bodega se rechaza', async () => {
     tx.product.findFirst.mockResolvedValue(stockOf(5));
-    await expect(updateProduct(COMPANY, 'p1', { consignorId: 's1' })).rejects.toThrow('su stock debe estar en 0 (hoy tiene 5)');
+    await expect(updateProduct(COMPANY, 'p1', { consignorId: 's1' })).rejects.toThrow('su stock debe estar en 0 en todas las bodegas (hoy tiene 5)');
+    expect(tx.product.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('el stock se revisa en cada bodega: +5 y −5 no suman cero para este efecto', async () => {
+    tx.product.findFirst.mockResolvedValue({ id: 'p1', consignorId: null, consignmentCommissionBps: null, stocks: [{ quantity: 5 }, { quantity: -5 }] });
+    await expect(updateProduct(COMPANY, 'p1', { consignorId: 's1' })).rejects.toThrow('en todas las bodegas');
+    expect(tx.product.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('un id que no resuelve a UN producto bloqueado se rechaza antes de tocar nada', async () => {
+    tx.$queryRaw.mockResolvedValue([]); // lo que devuelve Postgres si el id no es un texto válido
+    await expect(updateProduct(COMPANY, { not: '' } as unknown as string, { consignorId: 's1' })).rejects.toThrow('Producto no encontrado');
+    expect(tx.product.findFirst).not.toHaveBeenCalled();
     expect(tx.product.updateMany).not.toHaveBeenCalled();
   });
 
@@ -181,7 +230,7 @@ describe('catálogo: dueño del producto', () => {
   });
 
   it('volver a producto propio borra la comisión del producto', async () => {
-    tx.product.findFirst.mockResolvedValue({ consignorId: 's1', consignmentCommissionBps: 1800, stocks: [{ quantity: 0 }] });
+    tx.product.findFirst.mockResolvedValue({ id: 'p1', consignorId: 's1', consignmentCommissionBps: 1800, stocks: [{ quantity: 0 }] });
     tx.product.updateMany.mockResolvedValue({ count: 1 });
     db.product.findFirst.mockResolvedValue({ id: 'p1' });
     await updateProduct(COMPANY, 'p1', { consignorId: null });
@@ -189,7 +238,7 @@ describe('catálogo: dueño del producto', () => {
   });
 
   it('ajustar solo la comisión no exige stock en 0 ni cambia el costo', async () => {
-    tx.product.findFirst.mockResolvedValue({ consignorId: 's1', consignmentCommissionBps: 1800, stocks: [{ quantity: 40 }] });
+    tx.product.findFirst.mockResolvedValue({ id: 'p1', consignorId: 's1', consignmentCommissionBps: 1800, stocks: [{ quantity: 40 }] });
     tx.product.updateMany.mockResolvedValue({ count: 1 });
     db.product.findFirst.mockResolvedValue({ id: 'p1' });
     await updateProduct(COMPANY, 'p1', { consignorId: 's1', consignmentCommissionBps: 2200 });

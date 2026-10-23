@@ -3,7 +3,8 @@
 import { useMemo } from 'react';
 import { PackageOpen } from 'lucide-react';
 import { PublicCard, PublicCardHeader } from '@/components/public/PublicShell';
-import PortalProductCard, { URGENCY, day, qty } from '@/components/public/PortalProductCard';
+import PortalProductCard from '@/components/public/PortalProductCard';
+import { URGENCY, day, qty } from '@/components/public/portal-format';
 import { formatCurrency } from '@/lib/chile/tax';
 import { formatCommission } from '@/lib/consignment/commission';
 import type { ConsignmentPortalView } from '@/modules/inventory/services/supplier-portal.service';

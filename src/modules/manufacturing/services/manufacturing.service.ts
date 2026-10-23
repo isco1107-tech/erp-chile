@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { estimateOrderCost, findShortages, finishedCost, scaleBom, validateBom, type Shortage } from '@/lib/manufacturing/production';
 import { applyStockIn, applyStockOut } from '@/modules/inventory/services/stock.service';
+import { assertProductsNotConsigned } from '@/modules/inventory/services/consignment-guards';
 import { createAndPostEntry, resolveMappedAccountId } from '@/modules/accounting/services/journal.service';
 import { isLedgerActive } from '@/modules/accounting/posting-rules/shared';
 import type { BomInput, CompleteProductionInput, ProductionOrderInput } from '../schema';
@@ -40,6 +41,10 @@ async function assertBomProducts(tx: Tx, companyId: string, input: BomInput) {
   if (products.length !== new Set(ids).size) throw new ManufacturingError('Uno de los productos no existe en tu catálogo');
   const untracked = products.find((product) => !product.isTrackable);
   if (untracked) throw new ManufacturingError(`${untracked.name} no controla stock: no puede ser parte de una receta`);
+  // La mercadería de un seller no se consume ni se produce: no es de la empresa.
+  await assertProductsNotConsigned(tx, companyId, ids, 'una receta de producción').catch((error: unknown) => {
+    throw new ManufacturingError(error instanceof Error ? error.message : 'Producto en consignación');
+  });
 }
 
 export async function saveBom(companyId: string, id: string | null, input: BomInput): Promise<{ id: string }> {
@@ -308,6 +313,11 @@ export async function completeProductionOrder(
     if (!order) throw new ManufacturingError('Orden no encontrada');
     if (order.status !== 'PLANNED' && order.status !== 'IN_PROGRESS') throw new ManufacturingError('La orden ya está terminada o anulada');
     const reference = `Orden de producción N° ${order.folio}`;
+
+    // Una orden creada antes de que un producto pasara a un seller no puede consumir ni producir lo que ya no es de la empresa.
+    await assertProductsNotConsigned(tx, companyId, [order.productId, ...order.components.map((component) => component.productId)], 'una orden de producción').catch((error: unknown) => {
+      throw new ManufacturingError(error instanceof Error ? error.message : 'Producto en consignación');
+    });
 
     let materials = 0;
     for (const component of order.components) {

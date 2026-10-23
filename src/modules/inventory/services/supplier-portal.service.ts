@@ -124,7 +124,9 @@ export async function setSupplierPortalMovement(companyId: string, contactId: st
 }
 
 export async function linkSupplierProduct(companyId: string, contactId: string, productId: string): Promise<void> {
-  await requireSupplier(companyId, contactId);
+  // Solo un proveedor surte productos «a mano»: lo de un seller es lo que tiene su nombre como dueño en el catálogo.
+  const supplier = await prisma.contact.findFirst({ where: { id: contactId, companyId, isSupplier: true }, select: { id: true } });
+  if (!supplier) throw new SupplierPortalError('El contacto no existe o no está marcado como proveedor');
   const product = await prisma.product.findFirst({ where: { id: productId, companyId }, select: { id: true } });
   if (!product) throw new SupplierPortalError('Producto no encontrado');
   await prisma.productSupplier.upsert({
@@ -359,6 +361,10 @@ export async function getSupplierPortalView(rawCode: string, now: Date = new Dat
 
   const rows = links.map((link) => toRow(link.product, link.lastReceivedAt));
 
+  // Lo vendido de la mercadería de un seller sale de SUS líneas de venta (con su nombre como dueño en ese momento),
+  // no de los movimientos del producto: si el producto cambió de dueño, no se le muestran ventas anteriores a él.
+  const soldBySeller = isConsignor && showMovement ? await soldLinesByProduct(companyId, contactId, since) : new Map<string, number>();
+
   return {
     company: { name: access.company.businessName, rut: access.company.rut, logoUrl: access.company.logoUrl, phone: access.company.phone, email: access.company.email },
     supplier: { name: access.contact.nombreFantasia?.trim() || access.contact.razonSocial, rut: access.contact.rut },
@@ -372,10 +378,34 @@ export async function getSupplierPortalView(rawCode: string, now: Date = new Dat
           companyId,
           contactId,
           commissionBps: access.contact.consignmentCommissionBps,
-          rows: consigned.map((product) => ({ ...toRow(product, null), commissionBps: effectiveCommissionBps(product.consignmentCommissionBps, access.contact.consignmentCommissionBps) })),
+          rows: consigned.map((product) => {
+            const row = toRow(product, null);
+            const sold = showMovement ? roundQty(soldBySeller.get(product.id) ?? 0) : null;
+            return {
+              ...row,
+              sold30: sold,
+              // Las bajas del producto pueden ser anteriores a que fuera de este seller: no se le muestran.
+              written30: null,
+              coverageDays: sold === null ? null : coverageDays(row.total, sold),
+              commissionBps: effectiveCommissionBps(product.consignmentCommissionBps, access.contact.consignmentCommissionBps),
+            };
+          }),
         })
       : null,
   };
+}
+
+/** Unidades vendidas netas (ventas menos devoluciones) de los productos de un seller desde `since`, por producto. */
+async function soldLinesByProduct(companyId: string, contactId: string, since: Date): Promise<Map<string, number>> {
+  const where = { companyId, consignorId: contactId, productId: { not: null }, document: { status: 'ISSUED' as const, issueDate: { gte: since } } };
+  const [sales, returns] = await Promise.all([
+    prisma.salesDocumentItem.groupBy({ by: ['productId'], where: { ...where, document: { ...where.document, dteType: { in: ['FACTURA_33', 'FACTURA_EXENTA_34', 'BOLETA_39', 'BOLETA_EXENTA_41'] as const } } }, _sum: { quantity: true } }),
+    prisma.salesDocumentItem.groupBy({ by: ['productId'], where: { ...where, document: { ...where.document, dteType: 'NOTA_CREDITO_61' as const } }, _sum: { quantity: true } }),
+  ]);
+  const map = new Map<string, number>();
+  for (const row of sales) if (row.productId) map.set(row.productId, (map.get(row.productId) ?? 0) + (row._sum.quantity ?? 0));
+  for (const row of returns) if (row.productId) map.set(row.productId, (map.get(row.productId) ?? 0) - (row._sum.quantity ?? 0));
+  return map;
 }
 
 /** Lo vendido sin liquidar (solo totales) y las liquidaciones del seller, sin anuladas ni detalle de documentos. */

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Boxes, HandCoins, Hourglass, Users } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { KpiCard } from '@/components/ui/KpiCard';
 import { formatCurrency } from '@/lib/chile/tax';
 import { cn } from '@/lib/utils';
@@ -10,7 +11,7 @@ import { listConsignedStockAction, listSettlementOverviewAction } from '@/module
 import type { ConsignedStockGroup } from '@/modules/inventory/services/consignment.service';
 import type { SettlementOverviewRow } from '@/modules/inventory/services/consignment-settlement.service';
 import ConsignedStockPanel from './ConsignedStockPanel';
-import SettlementsPanel from './SettlementsPanel';
+import ConsignmentSettlementsPanel from './ConsignmentSettlementsPanel';
 
 type Tab = 'EXISTENCIAS' | 'LIQUIDACIONES';
 
@@ -24,14 +25,18 @@ export default function ConsignmentClient({ canMoveStock, canSeeSettlements, can
   const [tab, setTab] = useState<Tab>('EXISTENCIAS');
   const [stock, setStock] = useState<ConsignedStockGroup[] | null>(null);
   const [overview, setOverview] = useState<SettlementOverviewRow[] | null>(null);
+  const [loadError, setLoadError] = useState('');
 
   const load = useCallback(async () => {
-    const [stockResult, overviewResult] = await Promise.all([listConsignedStockAction(), canSeeSettlements ? listSettlementOverviewAction() : Promise.resolve(null)]);
-    if (stockResult.success) setStock(stockResult.data);
-    else toast.error(stockResult.error);
-    if (overviewResult) {
-      if (overviewResult.success) setOverview(overviewResult.data);
-      else toast.error(overviewResult.error);
+    try {
+      const [stockResult, overviewResult] = await Promise.all([listConsignedStockAction(), canSeeSettlements ? listSettlementOverviewAction() : Promise.resolve(null)]);
+      const failure = !stockResult.success ? stockResult.error : overviewResult && !overviewResult.success ? overviewResult.error : '';
+      if (stockResult.success) setStock(stockResult.data);
+      if (overviewResult?.success) setOverview(overviewResult.data);
+      setLoadError(failure);
+      if (failure) toast.error(failure);
+    } catch {
+      setLoadError('No se pudo cargar la consignación. Revisa tu conexión e intenta de nuevo');
     }
   }, [canSeeSettlements]);
 
@@ -61,6 +66,15 @@ export default function ConsignmentClient({ canMoveStock, canSeeSettlements, can
         )}
       </div>
 
+      {loadError && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-destructive/40 bg-danger-soft p-3">
+          <p role="alert" className="text-sm text-destructive">{loadError}</p>
+          <Button type="button" size="sm" variant="outline" onClick={() => void load()}>
+            Reintentar
+          </Button>
+        </div>
+      )}
+
       {tabs.length > 1 && (
         <div role="tablist" aria-label="Secciones de consignación" className="inline-flex flex-wrap rounded-md bg-muted p-0.5">
           {tabs.map((t) => (
@@ -79,7 +93,7 @@ export default function ConsignmentClient({ canMoveStock, canSeeSettlements, can
       )}
 
       {tab === 'EXISTENCIAS' && <ConsignedStockPanel groups={stock} canMoveStock={canMoveStock} onChanged={load} />}
-      {tab === 'LIQUIDACIONES' && canSeeSettlements && <SettlementsPanel overview={overview} canManage={canManageSettlements} onChanged={load} />}
+      {tab === 'LIQUIDACIONES' && canSeeSettlements && <ConsignmentSettlementsPanel overview={overview} canManage={canManageSettlements} onChanged={load} />}
     </div>
   );
 }

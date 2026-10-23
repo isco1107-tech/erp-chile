@@ -54,7 +54,7 @@ export async function resolveSaleConsignment(
     dteType: string;
     productIds: ReadonlyArray<string | null | undefined>;
     /** Líneas del documento que referencia una Nota de Crédito. */
-    referencedItems?: ReadonlyArray<{ productId: string | null; consignorId: string | null; consignorCommissionBps: number | null }>;
+    referencedItems?: ReadonlyArray<{ productId: string | null; consignorId: string | null; consignorCommissionBps: number | null; quantity: number; subtotal: number }>;
   }
 ): Promise<Map<string, ConsignmentSnapshot>> {
   const sign = documentSign(params.dteType);
@@ -137,6 +137,8 @@ export async function returnConsignedStock(companyId: string, userId: string, in
       userId,
       reference: input.reference || 'Devolución al seller',
       notes: input.notes || undefined,
+      // No se puede devolver lo que no está, aunque la empresa permita vender con stock negativo.
+      forbidNegative: true,
     });
   }, LOCKING_TX_OPTIONS);
 }
@@ -151,7 +153,7 @@ export interface ConsignedProductRow {
   tracksLots: boolean;
   totalStock: number;
   /** Existencias por bodega, para que no se mezclen cuando hay más de una. */
-  byWarehouse: Array<{ warehouse: string; quantity: number }>;
+  byWarehouse: Array<{ warehouseId: string; warehouse: string; quantity: number }>;
   /** La comisión que regiría hoy en una venta (la del producto o, si no tiene, la del seller). */
   commissionBps: number | null;
 }
@@ -188,7 +190,7 @@ export async function listConsignedStock(companyId: string): Promise<ConsignedSt
         tracksLots: true,
         consignorId: true,
         consignmentCommissionBps: true,
-        stocks: { select: { quantity: true, warehouse: { select: { name: true } } } },
+        stocks: { select: { quantity: true, warehouse: { select: { id: true, name: true } } } },
       },
       orderBy: { name: 'asc' },
       take: 3000,
@@ -210,7 +212,7 @@ export async function listConsignedStock(companyId: string): Promise<ConsignedSt
       tracksLots: product.tracksLots,
       totalStock,
       byWarehouse: product.stocks
-        .map((stock) => ({ warehouse: stock.warehouse.name, quantity: roundQty(stock.quantity) }))
+        .map((stock) => ({ warehouseId: stock.warehouse.id, warehouse: stock.warehouse.name, quantity: roundQty(stock.quantity) }))
         .sort((a, b) => a.warehouse.localeCompare(b.warehouse, 'es')),
       commissionBps: effectiveCommissionBps(product.consignmentCommissionBps, sellerBps.get(product.consignorId)),
     });

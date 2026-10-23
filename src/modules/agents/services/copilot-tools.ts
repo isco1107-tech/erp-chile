@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { formatCurrency } from '@/lib/chile/tax';
 import { signForSalesDteType, signForPurchaseDocumentType, TAXABLE_SALES_DTE_TYPES, TAXABLE_PURCHASE_DOCUMENT_TYPES } from '@/lib/chile/document-sign';
 import { getCxCSummary, getCxPSummary } from '@/modules/treasury/services/treasury.service';
+import { lineCostForMargin } from '@/lib/consignment/margin';
 
 /**
  * Consultas de datos del Asistente (ver `assistant-data-tools.ts`, que decide
@@ -52,7 +53,7 @@ export async function getSalesMarginSummary(companyId: string, args: { from: str
     netSales += sign * document.netAmount;
     exemptSales += sign * document.exemptAmount;
     revenue += sign * (document.netAmount + document.exemptAmount);
-    cost += sign * document.items.reduce((sum, item) => sum + Math.round(item.quantity * item.unitCostPMP), 0);
+    cost += sign * document.items.reduce((sum, item) => sum + lineCostForMargin(item), 0);
   }
   const marginAmount = revenue - cost;
 

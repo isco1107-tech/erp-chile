@@ -1,22 +1,6 @@
-'use client';
-
 import { formatCommission } from '@/lib/consignment/commission';
+import { STATUS, day, qty } from '@/components/public/portal-format';
 import type { SupplierPortalRow } from '@/modules/inventory/services/supplier-portal.service';
-
-export const STATUS: Record<SupplierPortalRow['status'], { label: string }> = {
-  OUT: { label: 'Sin stock' },
-  LOW: { label: 'Stock bajo' },
-  OK: { label: 'Normal' },
-};
-
-/** Lo urgente primero: sin stock, luego bajo mínimo, luego el resto por nombre. */
-export const URGENCY: Record<SupplierPortalRow['status'], number> = { OUT: 0, LOW: 1, OK: 2 };
-
-export const qty = (value: number) => value.toLocaleString('es-CL', { maximumFractionDigits: 3 });
-
-export function day(value: Date | string): string {
-  return new Date(value).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'America/Santiago' });
-}
 
 /**
  * Una tarjeta de producto del portal: cuánto queda en bodega, por bodega, la última llegada y, si la

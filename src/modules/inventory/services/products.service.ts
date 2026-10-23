@@ -265,19 +265,22 @@ async function updateWithOwnership(
   data: Prisma.ProductUncheckedUpdateManyInput
 ): Promise<void> {
   await prisma.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT id FROM "Product" WHERE id = ${id} AND "companyId" = ${companyId} FOR UPDATE`;
+    const locked = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM "Product" WHERE id = ${id} AND "companyId" = ${companyId} FOR UPDATE`;
+    // Una sola fila: un id mal formado (que no sea texto) no debe resolverse a otro producto ni a todos.
+    if (locked.length !== 1) throw new Error('Producto no encontrado');
     const current = await tx.product.findFirst({
-      where: { companyId, id },
-      select: { consignorId: true, consignmentCommissionBps: true, stocks: { select: { quantity: true } } },
+      where: { companyId, id: locked[0]!.id },
+      select: { id: true, consignorId: true, consignmentCommissionBps: true, stocks: { select: { quantity: true } } },
     });
     if (!current) throw new Error('Producto no encontrado');
 
     const consignorId = input.consignorId === undefined ? current.consignorId : input.consignorId || null;
     if (consignorId !== current.consignorId) {
-      const totalStock = current.stocks.reduce((sum, stock) => sum + stock.quantity, 0);
-      if (Math.abs(totalStock) > 1e-9) {
+      // En cada bodega, no la suma: +5 en una y −5 en otra suman 0 pero dejarían unidades propias valorizadas en $0.
+      if (current.stocks.some((stock) => Math.abs(stock.quantity) > 1e-9)) {
+        const totalStock = current.stocks.reduce((sum, stock) => sum + stock.quantity, 0);
         throw new Error(
-          `Para cambiar el dueño de un producto su stock debe estar en 0 (hoy tiene ${totalStock}). Si ya hay mercadería, ajústala primero para no mezclar lo tuyo con lo del seller.`
+          `Para cambiar el dueño de un producto su stock debe estar en 0 en todas las bodegas (hoy tiene ${totalStock}). Si ya hay mercadería, ajústala primero para no mezclar lo tuyo con lo del seller.`
         );
       }
       if (consignorId) await assertConsignorInCompany(tx, companyId, consignorId);
@@ -290,7 +293,7 @@ async function updateWithOwnership(
         : input.consignmentCommissionBps
       : null;
 
-    const result = await tx.product.updateMany({ where: { companyId, id }, data });
+    const result = await tx.product.updateMany({ where: { companyId, id: current.id }, data });
     if (result.count === 0) throw new Error('Producto no encontrado');
   }, LOCKING_TX_OPTIONS);
 }

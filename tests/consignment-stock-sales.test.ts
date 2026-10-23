@@ -87,11 +87,17 @@ describe('foto de la venta', () => {
 
   it('una devolución copia la foto de la línea original y no la de hoy', () => {
     const map = snapshotsFromReferencedItems([
-      { productId: 'a', consignorId: 's1', consignorCommissionBps: 1500 },
-      { productId: 'b', consignorId: null, consignorCommissionBps: null },
-      { productId: null, consignorId: 's1', consignorCommissionBps: 1500 },
+      { productId: 'a', consignorId: 's1', consignorCommissionBps: 1500, quantity: 3, subtotal: 27_000 },
+      { productId: 'b', consignorId: null, consignorCommissionBps: null, quantity: 1, subtotal: 5000 },
+      { productId: null, consignorId: 's1', consignorCommissionBps: 1500, quantity: 1, subtotal: 5000 },
     ]);
     expect([...map.keys()]).toEqual(['a']);
+    // Además del dueño y la comisión, trae lo que se le acreditó por unidad: la devolución revierte exactamente eso.
+    expect(map.get('a')).toEqual({ consignorId: 's1', commissionBps: 1500, baseUnitNet: 9000 });
+  });
+
+  it('una línea original sin cantidad no inventa un neto por unidad', () => {
+    const map = snapshotsFromReferencedItems([{ productId: 'a', consignorId: 's1', consignorCommissionBps: 1500, quantity: 0, subtotal: 0 }]);
     expect(map.get('a')).toEqual({ consignorId: 's1', commissionBps: 1500 });
   });
 
@@ -132,9 +138,9 @@ describe('foto de la venta', () => {
       const map = await resolveSaleConsignment(db as unknown as Tx, 'company-a', {
         dteType: 'NOTA_CREDITO_61',
         productIds: ['p1'],
-        referencedItems: [{ productId: 'p1', consignorId: 's1', consignorCommissionBps: 1500 }],
+        referencedItems: [{ productId: 'p1', consignorId: 's1', consignorCommissionBps: 1500, quantity: 2, subtotal: 18_000 }],
       });
-      expect(map.get('p1')).toEqual({ consignorId: 's1', commissionBps: 1500 });
+      expect(map.get('p1')).toEqual({ consignorId: 's1', commissionBps: 1500, baseUnitNet: 9000 });
       expect(db.product.findMany).not.toHaveBeenCalled();
     });
 

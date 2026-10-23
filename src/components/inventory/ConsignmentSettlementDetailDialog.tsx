@@ -10,17 +10,19 @@ import type { SettlementDetail } from '@/modules/inventory/services/consignment-
 import { SETTLEMENT_STATUS_BADGE, formatShortDate } from './consignment-format';
 
 /** El estado de cuenta de una liquidación: cada línea con su neto, comisión y lo que se paga. */
-export default function SettlementDetailDialog({ id, onClose }: { id: string; onClose: () => void }) {
+export default function ConsignmentSettlementDetailDialog({ id, onClose }: { id: string; onClose: () => void }) {
   const [detail, setDetail] = useState<SettlementDetail | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
     let active = true;
-    void getSettlementAction(id).then((result) => {
-      if (!active) return;
-      if (result.success) setDetail(result.data);
-      else setError(result.error);
-    });
+    getSettlementAction(id)
+      .then((result) => {
+        if (!active) return;
+        if (result.success) setDetail(result.data);
+        else setError(result.error);
+      })
+      .catch(() => active && setError('No se pudo cargar la liquidación. Revisa tu conexión e intenta de nuevo'));
     return () => {
       active = false;
     };
@@ -34,11 +36,11 @@ export default function SettlementDetailDialog({ id, onClose }: { id: string; on
         <DialogHeader>
           <DialogTitle>{detail ? `Liquidación N° ${detail.number} · ${detail.consignorName}` : 'Liquidación'}</DialogTitle>
           <DialogDescription>
-            {detail ? `${detail.consignorRut} · generada el ${formatShortDate(detail.createdAt)}` : 'Cargando…'}
+            {detail ? `${detail.consignorRut} · generada el ${formatShortDate(detail.createdAt)}` : error ? 'No se pudo cargar' : 'Cargando…'}
           </DialogDescription>
         </DialogHeader>
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
 
         {detail && badge && (
           <div className="space-y-4">

@@ -103,6 +103,12 @@ function formatIsoDay(value: string | null | undefined): string {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('es-CL', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC' });
 }
 
+/**
+ * El asistente crea clientes y proveedores, no sellers: la condición de seller y su comisión definen lo que se
+ * le paga a un tercero y tienen su propio permiso (`consignment:write`) y su pantalla.
+ */
+const agentContactSchema = contactCreateSchema.omit({ isConsignor: true, consignmentCommissionBps: true });
+
 const CREATE_CONTACT: AgentAction = {
   type: 'CREATE_CONTACT',
   description: 'Crea un contacto nuevo (cliente y/o proveedor).',
@@ -121,7 +127,7 @@ const CREATE_CONTACT: AgentAction = {
   requiredPermission: 'contacts:write',
   auditEntity: 'Contact',
   async resolve(_actor, rawArgs) {
-    const parsed = contactCreateSchema.safeParse(rawArgs);
+    const parsed = agentContactSchema.safeParse(rawArgs);
     if (!parsed.success) throw new Error(firstIssueMessage(parsed.error));
     const tags = [parsed.data.isCustomer && 'cliente', parsed.data.isSupplier && 'proveedor'].filter(Boolean).join(' y ');
     return {
@@ -130,7 +136,7 @@ const CREATE_CONTACT: AgentAction = {
     };
   },
   async execute(actor, payload) {
-    const parsed = contactCreateSchema.parse(payload);
+    const parsed = agentContactSchema.parse(payload);
     const contact = await createContact(actor.companyId, parsed);
     return { message: `Contacto "${contact.razonSocial}" creado correctamente.`, entityId: contact.id, href: `/dashboard/contacts/${contact.id}` };
   },

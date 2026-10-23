@@ -36,9 +36,11 @@ export async function buildSupplierInventoryWorkbook(view: SupplierPortalView): 
 
 async function finish(wb: ExcelJS.Workbook, view: SupplierPortalView): Promise<Buffer> {
   // Pie con la fecha en cada hoja, para que el archivo diga a qué momento corresponde.
+  const when = view.generatedAt.toLocaleString('es-CL', { timeZone: 'America/Santiago', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   for (const ws of wb.worksheets) {
-    ws.addRow({});
-    const stamp = ws.addRow({ sku: `Al ${view.generatedAt.toLocaleString('es-CL', { timeZone: 'America/Santiago', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })} · ${view.company.name}` });
+    const label = ws.name === 'Liquidaciones' ? 'Al' : 'Existencias al';
+    const stamp = ws.getRow(ws.rowCount + 2).getCell(1);
+    stamp.value = `${label} ${when} · ${view.company.name}`;
     stamp.font = { italic: true, color: { argb: 'FF666666' } };
   }
   return Buffer.from(await wb.xlsx.writeBuffer());
@@ -104,7 +106,7 @@ function addSettlementsSheet(wb: ExcelJS.Workbook, view: SupplierPortalView): vo
   if (!consignment) return;
   const ws = wb.addWorksheet('Liquidaciones', { views: [{ state: 'frozen', ySplit: 1 }] });
   ws.columns = [
-    { header: 'N°', key: 'sku', width: 18 },
+    { header: 'N°', key: 'number', width: 18 },
     { header: 'Fecha', key: 'date', width: 14 },
     { header: 'Unidades', key: 'units', width: 11 },
     { header: 'Neto vendido', key: 'net', width: 15 },
@@ -116,10 +118,10 @@ function addSettlementsSheet(wb: ExcelJS.Workbook, view: SupplierPortalView): vo
   styleHeader(ws);
 
   const { pending } = consignment;
-  ws.addRow({ sku: 'Sin liquidar', date: '', units: pending.units, net: pending.netSales, commission: pending.commissionAmount, adjustment: null, payout: pending.payoutAmount, status: 'Vendido, aún sin liquidar' });
+  ws.addRow({ number: 'Sin liquidar', date: '', units: pending.units, net: pending.netSales, commission: pending.commissionAmount, adjustment: null, payout: pending.payoutAmount, status: 'Vendido, aún sin liquidar' });
   for (const settlement of consignment.settlements) {
     ws.addRow({
-      sku: settlement.number,
+      number: settlement.number,
       date: date(settlement.createdAt),
       units: settlement.units,
       net: settlement.netSales,

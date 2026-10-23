@@ -12,6 +12,8 @@ import type {
 } from '@prisma/client';
 import { applyStockIn, applyStockOut } from '@/modules/inventory/services/stock.service';
 import { resolveSaleConsignment } from '@/modules/inventory/services/consignment.service';
+import { assertSameOwnerSinceSale } from '@/modules/inventory/services/consignment-guards';
+import { documentSign } from '@/lib/consignment/settlement';
 import { getContactOutstandingBalance } from '@/modules/treasury/services/treasury.service';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { constraintInvolves } from '@/lib/prisma-errors';
@@ -73,6 +75,11 @@ function documentMovesStockOnIssue(
 ): boolean {
   const referencesIssuedGuide = referencedDocument?.dteType === 'GUIA_DESPACHO_52';
   return STOCK_AFFECTING_DTE_TYPES.includes(dteType) && !referencesIssuedGuide;
+}
+
+/** Base neta que se le revierte a un seller por una devolución de `quantity` unidades (solo hay si la foto trae su neto por unidad). */
+function baseNetOf(snapshot: { baseUnitNet?: number } | undefined, quantity: number): number | undefined {
+  return snapshot?.baseUnitNet === undefined ? undefined : Math.round(snapshot.baseUnitNet * quantity);
 }
 
 export async function createSalesDocument(
@@ -342,9 +349,15 @@ export async function createSalesDocument(
             );
           }
           previouslyCreditedByProduct?.set(item.productId, alreadyCredited + item.quantity);
+          // Reponer stock desde esta nota solo es coherente si el producto sigue con el mismo dueño que cuando se vendió.
+          assertSameOwnerSinceSale(
+            product,
+            product.consignorId,
+            referencedDocument?.items.find((candidate) => candidate.productId === item.productId)?.consignorId ?? null,
+            'acreditar'
+          );
           const restockUnitCost = sourceItem?.unitCostPMP ?? item.unitCostPMP;
-          restockedForAccounting.push({ unitCostPMP: restockUnitCost, quantity: item.quantity });
-          await applyStockIn(tx, companyId, {
+          const restocked = await applyStockIn(tx, companyId, {
             productId: item.productId,
             warehouseId: input.warehouseId,
             type: 'ADJUSTMENT_IN',
@@ -352,6 +365,8 @@ export async function createSalesDocument(
             unitCost: restockUnitCost,
             reference: `DTE ${dteLabel} Folio #${folio ?? '-'}`,
           });
+          // El reverso contable usa el costo que de verdad quedó en el kardex (un producto de seller entra a costo 0), no el de la línea original.
+          restockedForAccounting.push({ unitCostPMP: restocked.unitCost, quantity: item.quantity });
         } else {
           // El costo contable y el que se persiste en la línea salen del
           // movimiento real (`movement.unitCost`), no del PMP leído antes del
@@ -502,6 +517,8 @@ export async function createSalesDocument(
             unitCostPMP: (item.productId ? costByProduct.get(item.productId) : undefined) ?? item.unitCostPMP,
             consignorId: (item.productId ? consignmentByProduct.get(item.productId)?.consignorId : undefined) ?? undefined,
             consignorCommissionBps: (item.productId ? consignmentByProduct.get(item.productId)?.commissionBps : undefined) ?? undefined,
+            // Devolución de un seller: se le revierte la proporción de lo que se le acreditó por esas unidades, no el precio de la nota.
+            consignorBaseNet: baseNetOf(item.productId ? consignmentByProduct.get(item.productId) : undefined, item.quantity),
           })),
         },
       },
@@ -683,6 +700,8 @@ export async function cancelSalesDocument(companyId: string, id: string, reason?
         if (!item.productId) continue;
         const product = await tx.product.findFirst({ where: { id: item.productId, companyId } });
         if (!product || !product.isTrackable) continue;
+        // Una guía no lleva la foto del seller (no es la venta): el control aplica a facturas y boletas.
+        if (documentSign(document.dteType) !== 0) assertSameOwnerSinceSale(product, product.consignorId, item.consignorId, 'anular');
         await applyStockIn(tx, companyId, {
           productId: item.productId,
           warehouseId: document.warehouseId,
@@ -703,6 +722,7 @@ export async function cancelSalesDocument(companyId: string, id: string, reason?
         if (item.quantity <= 0) continue;
         const product = await tx.product.findFirst({ where: { id: item.productId, companyId } });
         if (!product || !product.isTrackable) continue;
+        assertSameOwnerSinceSale(product, product.consignorId, item.consignorId, 'anular');
         await applyStockOut(tx, companyId, {
           productId: item.productId,
           warehouseId: document.warehouseId,

@@ -8,6 +8,8 @@ import { effectiveCommissionBps } from './commission';
 export interface ConsignmentSnapshot {
   consignorId: string;
   commissionBps: number;
+  /** Solo en una devolución: neto por unidad con que se le acreditó al seller en la venta original. */
+  baseUnitNet?: number;
 }
 
 /**
@@ -32,12 +34,19 @@ export function snapshotForProduct(
  * consignación) la devolución tampoco descuenta nada al seller.
  */
 export function snapshotsFromReferencedItems(
-  items: ReadonlyArray<{ productId: string | null; consignorId: string | null; consignorCommissionBps: number | null }>
+  items: ReadonlyArray<{ productId: string | null; consignorId: string | null; consignorCommissionBps: number | null; quantity: number; subtotal: number }>
 ): Map<string, ConsignmentSnapshot> {
   const map = new Map<string, ConsignmentSnapshot>();
   for (const item of items) {
     if (!item.productId || !item.consignorId || item.consignorCommissionBps === null) continue;
-    if (!map.has(item.productId)) map.set(item.productId, { consignorId: item.consignorId, commissionBps: item.consignorCommissionBps });
+    if (!map.has(item.productId)) {
+      map.set(item.productId, {
+        consignorId: item.consignorId,
+        commissionBps: item.consignorCommissionBps,
+        // Lo que se le acreditó por unidad en la venta original: la devolución revierte exactamente eso.
+        ...(item.quantity > 0 ? { baseUnitNet: item.subtotal / item.quantity } : {}),
+      });
+    }
   }
   return map;
 }

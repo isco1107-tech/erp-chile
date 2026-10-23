@@ -59,6 +59,7 @@ const sold = (id: string, over: Row = {}, doc: Row = {}) => ({
   quantity: 2,
   subtotal: 10_000,
   consignorCommissionBps: 2000,
+  consignorBaseNet: null,
   document: { dteType: 'BOLETA_39', status: 'ISSUED', folio: 100, issueDate: new Date('2026-10-01T15:00:00Z'), ...doc },
   ...over,
 });
@@ -78,7 +79,10 @@ beforeEach(() => {
     salesDocumentItem: { findMany: jest.fn().mockResolvedValue([]) },
     consignmentSettlementLine: { findMany: jest.fn().mockResolvedValue([]) },
     internalDocumentSequence: { upsert: jest.fn().mockResolvedValue({ currentFolio: 7 }) },
-    consignmentSettlement: { create: jest.fn().mockImplementation(async ({ data }: { data: Row }) => ({ id: 'st1', ...data })) },
+    consignmentSettlement: {
+      create: jest.fn().mockImplementation(async ({ data }: { data: Row }) => ({ id: 'st1', ...data })),
+      findFirst: jest.fn().mockResolvedValue(null),
+    },
   };
   jest.spyOn(prisma, '$transaction').mockImplementation(((callback: (client: unknown) => unknown) => callback(tx)) as never);
 });
@@ -129,6 +133,13 @@ describe('lo pendiente de liquidar', () => {
     db.salesDocumentItem.findMany.mockResolvedValue([sold('a', {}, { status: 'CANCELLED' })]);
     db.consignmentSettlementLine.findMany.mockResolvedValue([]);
     expect((await loadPendingBySeller(prisma, COMPANY, SELLER)).size).toBe(0);
+  });
+
+  it('una devolución revierte la base que se le acreditó, no el precio de la nota', async () => {
+    db.salesDocumentItem.findMany.mockResolvedValue([sold('n', { quantity: 1, subtotal: 10_000, consignorBaseNet: 9000 }, { dteType: 'NOTA_CREDITO_61' })]);
+    db.consignmentSettlementLine.findMany.mockResolvedValue([]);
+    const pending = (await loadPendingBySeller(prisma, COMPANY, SELLER)).get(SELLER)!;
+    expect(pending[0]).toMatchObject({ quantity: -1, netAmount: -9000, commissionAmount: -1800, payoutAmount: -7200 });
   });
 
   it('separa a cada seller', async () => {
@@ -189,6 +200,35 @@ describe('generar la liquidación', () => {
     expect(tx.internalDocumentSequence.upsert).not.toHaveBeenCalled(); // no gasta un número
   });
 
+  it('un reintento con la misma clave devuelve la liquidación ya creada y no genera otra', async () => {
+    tx.consignmentSettlement.findFirst.mockResolvedValue({ id: 'st-previa', number: 7, consignorId: SELLER, payoutAmount: 50_000, units: 0 });
+    const result = await generate({ adjustmentAmount: 50_000, adjustmentNote: 'Bonificación acordada', idempotencyKey: 'intento-abc-123' });
+    expect(result).toMatchObject({ id: 'st-previa', number: 7 });
+    expect(tx.consignmentSettlement.findFirst.mock.calls[0]![0]).toMatchObject({ where: { companyId: COMPANY, idempotencyKey: 'intento-abc-123' } });
+    expect(tx.consignmentSettlement.create).not.toHaveBeenCalled();
+    expect(tx.internalDocumentSequence.upsert).not.toHaveBeenCalled();
+  });
+
+  it('con una clave nueva crea la liquidación y la guarda con su clave', async () => {
+    await generate({ adjustmentAmount: 3000, adjustmentNote: 'Bonificación acordada', idempotencyKey: 'intento-nuevo-1' });
+    expect((tx.consignmentSettlement.create.mock.calls[0]![0] as { data: Row }).data).toMatchObject({ idempotencyKey: 'intento-nuevo-1', payoutAmount: 3000 });
+  });
+
+  it('si las ventas cambiaron desde la vista previa, no liquida otro monto', async () => {
+    tx.salesDocumentItem.findMany.mockResolvedValue([sold('a')]);
+    await expect(generate({ expectedPayoutAmount: 5000 })).rejects.toThrow('Las ventas cambiaron desde que abriste la vista previa (ahora se le pagaría $8.000)');
+    expect(tx.consignmentSettlement.create).not.toHaveBeenCalled();
+    expect(tx.internalDocumentSequence.upsert).not.toHaveBeenCalled();
+    await generate({ expectedPayoutAmount: 8000 });
+    expect(tx.consignmentSettlement.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('un total negativo por el ajuste se explica distinto que uno por devoluciones', async () => {
+    tx.salesDocumentItem.findMany.mockResolvedValue([sold('a', { quantity: 1, subtotal: 5000 })]);
+    await expect(generate({ adjustmentAmount: -9000, adjustmentNote: 'Descuento acordado' })).rejects.toThrow('El ajuste manual deja el total en negativo');
+    expect(tx.consignmentSettlement.create).not.toHaveBeenCalled();
+  });
+
   it('el esquema pide el motivo de un ajuste', () => {
     expect(settlementGenerateSchema.safeParse({ consignorId: SELLER, adjustmentAmount: 500 }).success).toBe(false);
     expect(settlementGenerateSchema.safeParse({ consignorId: SELLER, adjustmentAmount: 500, adjustmentNote: 'ok' }).success).toBe(false);
@@ -235,6 +275,10 @@ describe('pagar y anular', () => {
   });
 
   it('valida la fecha de pago y el motivo de anulación', () => {
+    const today = new Date().toISOString().slice(0, 10);
+    expect(settlementPaySchema.safeParse({ id: 'x', paidAt: today }).success).toBe(true);
+    expect(settlementPaySchema.safeParse({ id: 'x', paidAt: '1999-12-31' }).success).toBe(false); // de otro siglo
+    expect(settlementPaySchema.safeParse({ id: 'x', paidAt: '2099-01-01' }).success).toBe(false); // en el futuro
     expect(settlementPaySchema.safeParse({ id: 'x', paidAt: '2026-10-20' }).success).toBe(true);
     expect(settlementPaySchema.safeParse({ id: 'x', paidAt: '2026-02-31' }).success).toBe(false);
     expect(settlementPaySchema.safeParse({ id: 'x', paidAt: '20/10/2026' }).success).toBe(false);

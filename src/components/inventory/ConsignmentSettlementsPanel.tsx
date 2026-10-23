@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -10,9 +10,9 @@ import { formatCurrency } from '@/lib/chile/tax';
 import { formatCommission } from '@/lib/consignment/commission';
 import { listSettlementsAction } from '@/modules/inventory/actions/consignment.actions';
 import type { SettlementListItem, SettlementOverviewRow } from '@/modules/inventory/services/consignment-settlement.service';
-import GenerateSettlementDialog from './GenerateSettlementDialog';
-import SettlementDetailDialog from './SettlementDetailDialog';
-import { PaySettlementDialog, VoidSettlementDialog, type SettlementRef } from './SettlementActionDialogs';
+import ConsignmentGenerateSettlementDialog from './ConsignmentGenerateSettlementDialog';
+import ConsignmentSettlementDetailDialog from './ConsignmentSettlementDetailDialog';
+import { PaySettlementDialog, VoidSettlementDialog, type SettlementRef } from './ConsignmentSettlementActionDialogs';
 import { SETTLEMENT_STATUS_BADGE, formatShortDate } from './consignment-format';
 
 interface Props {
@@ -28,8 +28,12 @@ const STATUS_FILTERS = [
   { value: 'VOIDED', label: 'Anuladas' },
 ];
 
-export default function SettlementsPanel({ overview, canManage, onChanged }: Props) {
+export default function ConsignmentSettlementsPanel({ overview, canManage, onChanged }: Props) {
   const [history, setHistory] = useState<SettlementListItem[] | null>(null);
+  const [historyError, setHistoryError] = useState('');
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  // Cada carga lleva un número: si el filtro cambia dos veces seguidas, solo vale la respuesta de la última.
+  const historySeq = useRef(0);
   const [consignorFilter, setConsignorFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [generateFor, setGenerateFor] = useState<string | null>(null);
@@ -38,9 +42,23 @@ export default function SettlementsPanel({ overview, canManage, onChanged }: Pro
   const [voidFor, setVoidFor] = useState<SettlementRef | null>(null);
 
   const loadHistory = useCallback(async () => {
-    const result = await listSettlementsAction(consignorFilter || undefined, statusFilter || undefined);
-    if (result.success) setHistory(result.data);
-    else toast.error(result.error);
+    const seq = ++historySeq.current;
+    setLoadingHistory(true);
+    try {
+      const result = await listSettlementsAction(consignorFilter || undefined, statusFilter || undefined);
+      if (seq !== historySeq.current) return;
+      if (result.success) {
+        setHistory(result.data);
+        setHistoryError('');
+      } else {
+        setHistoryError(result.error);
+        toast.error(result.error);
+      }
+    } catch {
+      if (seq === historySeq.current) setHistoryError('No se pudo cargar el historial. Revisa tu conexión e intenta de nuevo');
+    } finally {
+      if (seq === historySeq.current) setLoadingHistory(false);
+    }
   }, [consignorFilter, statusFilter]);
 
   useEffect(() => {
@@ -103,7 +121,7 @@ export default function SettlementsPanel({ overview, canManage, onChanged }: Pro
                       </td>
                       {canManage && (
                         <td className="p-2">
-                          <Button type="button" size="sm" variant={hasPending ? 'default' : 'outline'} onClick={() => setGenerateFor(row.consignorId)}>
+                          <Button type="button" size="sm" variant={hasPending ? 'default' : 'outline'} aria-label={`Liquidar a ${row.name}`} onClick={() => setGenerateFor(row.consignorId)}>
                             Liquidar
                           </Button>
                         </td>
@@ -138,12 +156,19 @@ export default function SettlementsPanel({ overview, canManage, onChanged }: Pro
             </select>
           </div>
         </header>
-        {history === null ? (
+        {historyError ? (
+          <div className="space-y-2 p-4">
+            <p role="alert" className="text-sm text-destructive">{historyError}</p>
+            <Button type="button" size="sm" variant="outline" onClick={() => void loadHistory()}>
+              Reintentar
+            </Button>
+          </div>
+        ) : history === null ? (
           <p className="p-4 text-sm text-muted-foreground">Cargando…</p>
         ) : history.length === 0 ? (
           <EmptyState title="Sin liquidaciones" description="Cuando liquides a un seller, su estado de cuenta queda guardado aquí." />
         ) : (
-          <div className="overflow-x-auto">
+          <div className={loadingHistory ? 'overflow-x-auto opacity-60 transition-opacity' : 'overflow-x-auto'} aria-busy={loadingHistory}>
             <table className="w-full min-w-[820px] table-auto text-sm">
               <thead className="bg-muted/60 text-left">
                 <tr>
@@ -174,15 +199,15 @@ export default function SettlementsPanel({ overview, canManage, onChanged }: Pro
                       </td>
                       <td className="p-2">
                         <div className="flex flex-wrap gap-2">
-                          <Button type="button" size="sm" variant="outline" onClick={() => setDetailId(row.id)}>
+                          <Button type="button" size="sm" variant="outline" aria-label={`Ver detalle de la liquidación N° ${row.number}`} onClick={() => setDetailId(row.id)}>
                             Ver detalle
                           </Button>
                           {canManage && row.status === 'CONFIRMED' && (
                             <>
-                              <Button type="button" size="sm" onClick={() => setPayFor(asRef(row))}>
+                              <Button type="button" size="sm" aria-label={`Marcar pagada la liquidación N° ${row.number}`} onClick={() => setPayFor(asRef(row))}>
                                 Marcar pagada
                               </Button>
-                              <Button type="button" size="sm" variant="outline" onClick={() => setVoidFor(asRef(row))}>
+                              <Button type="button" size="sm" variant="outline" aria-label={`Anular la liquidación N° ${row.number}`} onClick={() => setVoidFor(asRef(row))}>
                                 Anular
                               </Button>
                             </>
@@ -199,7 +224,7 @@ export default function SettlementsPanel({ overview, canManage, onChanged }: Pro
       </section>
 
       {generateFor && (
-        <GenerateSettlementDialog
+        <ConsignmentGenerateSettlementDialog
           consignorId={generateFor}
           onClose={() => setGenerateFor(null)}
           onDone={async () => {
@@ -208,7 +233,7 @@ export default function SettlementsPanel({ overview, canManage, onChanged }: Pro
           }}
         />
       )}
-      {detailId && <SettlementDetailDialog id={detailId} onClose={() => setDetailId(null)} />}
+      {detailId && <ConsignmentSettlementDetailDialog id={detailId} onClose={() => setDetailId(null)} />}
       {payFor && (
         <PaySettlementDialog
           settlement={payFor}

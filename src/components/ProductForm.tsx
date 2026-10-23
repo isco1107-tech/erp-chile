@@ -8,7 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CurrencyInput } from '@/components/ui/CurrencyInput';
 import { calculateGrossPrice, formatCurrency } from '@/lib/chile/tax';
-import { bpsToPercent, formatCommission, parseCommissionPercent } from '@/lib/consignment/commission';
+import { bpsToInput, formatCommission, parseCommissionPercent } from '@/lib/consignment/commission';
+import { nativeSelectClass } from '@/components/ui/field-classes';
+import { cn } from '@/lib/utils';
 import { UNITS, productCreateSchema, productUpdateSchema } from '@/modules/inventory/schema';
 import {
   createCategoryAction,
@@ -67,7 +69,14 @@ export default function ProductForm({
   // Sellers de consignación; si la empresa no tiene ninguno, el campo de dueño no aparece.
   const [consignors, setConsignors] = useState<ConsignorOption[]>([]);
   useEffect(() => {
-    listConsignorOptionsAction().then((result) => result.success && setConsignors(result.data));
+    let active = true;
+    // Si no se pueden cargar los sellers, el campo de dueño simplemente no aparece: el producto se edita igual.
+    listConsignorOptionsAction()
+      .then((result) => active && result.success && setConsignors(result.data))
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
   }, []);
 
   async function handleImage(file: File | undefined) {
@@ -102,8 +111,7 @@ export default function ProductForm({
         imageUrl: editingProduct.imageUrl ?? '',
         tracksLots: editingProduct.tracksLots,
         consignorId: editingProduct.consignorId ?? '',
-        consignmentCommission:
-          editingProduct.consignmentCommissionBps == null ? '' : String(bpsToPercent(editingProduct.consignmentCommissionBps)).replace('.', ','),
+        consignmentCommission: editingProduct.consignmentCommissionBps == null ? '' : bpsToInput(editingProduct.consignmentCommissionBps),
       });
       setErrors({});
     } else {
@@ -114,6 +122,12 @@ export default function ProductForm({
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
+
+  // Comisión que regiría si el campo queda vacío: la del seller elegido.
+  const sellerCommissionBps = consignors.find((seller) => seller.id === form.consignorId)?.commissionBps;
+  const commissionPlaceholder = sellerCommissionBps == null ? 'La del seller' : `Vacío = la del seller (${formatCommission(sellerCommissionBps)})`;
+  // Mientras los sellers no cargan (o si falló), el dueño actual del producto sigue apareciendo en la lista.
+  const currentConsignorMissing = Boolean(editingProduct?.consignorId) && !consignors.some((seller) => seller.id === editingProduct?.consignorId);
 
   const netPriceNumber = Number(form.netPrice);
   const grossPricePreview =
@@ -355,9 +369,10 @@ export default function ProductForm({
                 id="consignorId"
                 value={form.consignorId}
                 onChange={(e) => update('consignorId', e.target.value)}
-                className="mt-1.5 h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
+                className={cn(nativeSelectClass, 'mt-1.5')}
               >
                 <option value="">Propio (lo compras tú)</option>
+                {currentConsignorMissing && editingProduct?.consignorId && <option value={editingProduct.consignorId}>Seller: {editingProduct.consignor?.name ?? 'dueño actual'}</option>}
                 {consignors.map((seller) => (
                   <option key={seller.id} value={seller.id}>Seller: {seller.name}</option>
                 ))}
@@ -373,17 +388,12 @@ export default function ProductForm({
                   id="consignmentCommission"
                   inputMode="decimal"
                   className="mt-1.5"
-                  placeholder={
-                    (() => {
-                      const bps = consignors.find((seller) => seller.id === form.consignorId)?.commissionBps;
-                      return bps == null ? 'La del seller' : `Vacío = la del seller (${formatCommission(bps)})`;
-                    })()
-                  }
+                  placeholder={commissionPlaceholder}
                   value={form.consignmentCommission}
                   onChange={(e) => update('consignmentCommission', e.target.value)}
                   aria-invalid={!!errors.consignmentCommission}
                 />
-                {errors.consignmentCommission && <p className="mt-1 text-sm text-destructive">{errors.consignmentCommission}</p>}
+                {errors.consignmentCommission && <p role="alert" className="mt-1 text-sm text-destructive">{errors.consignmentCommission}</p>}
               </div>
             )}
           </div>

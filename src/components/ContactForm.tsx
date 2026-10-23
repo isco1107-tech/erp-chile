@@ -12,7 +12,7 @@ import { nativeSelectClass } from '@/components/ui/field-classes';
 import { BANK_ACCOUNT_TYPES, BANK_ACCOUNT_TYPE_LABELS, CHILEAN_BANKS } from '@/lib/treasury/banks';
 import { RutInput } from '@/components/ui/RutInput';
 import { regions } from '@/lib/chile/locations';
-import { bpsToPercent, parseCommissionPercent } from '@/lib/consignment/commission';
+import { bpsToInput, parseCommissionPercent } from '@/lib/consignment/commission';
 import { contactCreateSchema, contactUpdateSchema } from '@/modules/contacts/schema';
 import { createContactAction, lookupCompanyInfoAction, updateContactAction } from '@/modules/contacts/actions/contacts.actions';
 import type { CompanyLookupCandidate } from '@/modules/contacts/services/company-lookup.service';
@@ -125,7 +125,7 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
         isCustomer: editingContact.isCustomer,
         isSupplier: editingContact.isSupplier,
         isConsignor: editingContact.isConsignor,
-        consignmentCommission: editingContact.consignmentCommissionBps == null ? '' : String(bpsToPercent(editingContact.consignmentCommissionBps)).replace('.', ','),
+        consignmentCommission: editingContact.consignmentCommissionBps == null ? '' : bpsToInput(editingContact.consignmentCommissionBps),
         creditLimit: editingContact.creditLimit ?? 0,
         creditDays: editingContact.creditDays,
         priceListId: editingContact.priceListId ?? 'none',

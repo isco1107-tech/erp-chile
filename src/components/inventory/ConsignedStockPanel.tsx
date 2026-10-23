@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { formatCommission } from '@/lib/consignment/commission';
@@ -27,7 +27,7 @@ export default function ConsignedStockPanel({ groups, canMoveStock, onChanged }:
           title="Todavía no tienes sellers"
           description="Un seller pone productos a la venta sin dejar de ser dueño de la mercadería. Crea un contacto y márcalo como «Seller (consignación)» con su comisión."
           action={
-            <Link href="/dashboard/contacts?new=1" className="inline-flex h-8 items-center rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:opacity-90">
+            <Link href="/dashboard/contacts?new=1" className={buttonVariants({ size: 'sm' })}>
               Crear un seller
             </Link>
           }
@@ -48,7 +48,7 @@ export default function ConsignedStockPanel({ groups, canMoveStock, onChanged }:
                 {group.totalUnits.toLocaleString('es-CL')} unidades en bodega
               </p>
             </div>
-            <Link href={`/dashboard/contacts/${group.consignorId}`} className="inline-flex h-8 items-center rounded-lg border border-input px-3 text-sm hover:bg-muted">
+            <Link href={`/dashboard/contacts/${group.consignorId}`} className={buttonVariants({ size: 'sm', variant: 'outline' })} aria-label={`Ver la ficha de ${group.name}`}>
               Ver ficha
             </Link>
           </header>
@@ -76,11 +76,9 @@ export default function ConsignedStockPanel({ groups, canMoveStock, onChanged }:
                       <td className="p-2 font-mono text-xs">{product.sku}</td>
                       <td className="p-2">{product.name}</td>
                       <td className="p-2">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <StatusBadge tone={product.totalStock <= 0 ? 'danger' : product.minStock > 0 && product.totalStock <= product.minStock ? 'warning' : 'success'}>
-                            {product.totalStock.toLocaleString('es-CL')} {product.unit}
-                          </StatusBadge>
-                        </div>
+                        <StatusBadge tone={product.totalStock <= 0 ? 'danger' : product.minStock > 0 && product.totalStock <= product.minStock ? 'warning' : 'success'}>
+                          {product.totalStock.toLocaleString('es-CL')} {product.unit}
+                        </StatusBadge>
                         {product.byWarehouse.length > 1 && (
                           <p className="mt-1 text-xs text-muted-foreground">
                             {product.byWarehouse.map((row) => `${row.warehouse}: ${row.quantity.toLocaleString('es-CL')}`).join(' · ')}
@@ -91,10 +89,10 @@ export default function ConsignedStockPanel({ groups, canMoveStock, onChanged }:
                       {canMoveStock && (
                         <td className="p-2">
                           <div className="flex gap-2">
-                            <Button type="button" size="sm" variant="outline" onClick={() => setMove({ mode: 'receive', product, sellerName: group.name })}>
+                            <Button type="button" size="sm" variant="outline" aria-label={`Recibir mercadería de ${product.name}`} onClick={() => setMove({ mode: 'receive', product, sellerName: group.name })}>
                               Recibir
                             </Button>
-                            <Button type="button" size="sm" variant="outline" disabled={product.totalStock <= 0} onClick={() => setMove({ mode: 'return', product, sellerName: group.name })}>
+                            <Button type="button" size="sm" variant="outline" disabled={product.totalStock <= 0} aria-label={`Devolver ${product.name} al seller`} onClick={() => setMove({ mode: 'return', product, sellerName: group.name })}>
                               Devolver
                             </Button>
                           </div>

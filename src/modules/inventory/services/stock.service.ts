@@ -74,6 +74,11 @@ export interface StockOutParams extends MovementAttribution {
   quantity: number;
   reference?: string;
   notes?: string;
+  /**
+   * Nunca dejar el stock bajo cero, aunque la empresa permita vender con stock negativo. Para lo que
+   * saca mercadería física que tiene que existir (devolverle algo a un seller), no para ventas.
+   */
+  forbidNegative?: boolean;
 }
 
 async function getCompanyStockTotal(tx: TxClient, companyId: string, productId: string): Promise<number> {
@@ -117,8 +122,11 @@ export async function applyStockIn(tx: TxClient, companyId: string, params: Stoc
     throw new Error(`"${product.name}" no es un producto de seller: asígnale su seller en el catálogo antes de recibirlo en consignación.`);
   }
 
-  if (params.supplierId) {
-    const supplier = await tx.contact.findFirst({ where: { id: params.supplierId, companyId }, select: { id: true } });
+  // En una recepción de consignación el seller es el dueño del producto TAL COMO QUEDÓ bajo el
+  // bloqueo (no el que se leyó antes): así el kardex nunca atribuye la entrada a un dueño anterior.
+  const supplierId = params.consignment ? product.consignorId ?? undefined : params.supplierId;
+  if (supplierId) {
+    const supplier = await tx.contact.findFirst({ where: { id: supplierId, companyId }, select: { id: true } });
     if (!supplier) throw new Error('Proveedor no encontrado');
   }
 
@@ -168,7 +176,7 @@ export async function applyStockIn(tx: TxClient, companyId: string, params: Stoc
       userId: params.userId,
       reasonCode: params.reasonCode,
       evidenceUrl: params.evidenceUrl,
-      supplierId: params.supplierId,
+      supplierId,
     },
   });
 }
@@ -226,7 +234,8 @@ export async function applyStockOut(tx: TxClient, companyId: string, params: Sto
   });
   const localPreviousStock = stock?.quantity ?? 0;
   const settings = await tx.companySettings.findUnique({ where: { companyId } });
-  if (localPreviousStock < quantity && !settings?.allowNegativeStock) {
+  const allowNegative = Boolean(settings?.allowNegativeStock) && !params.forbidNegative;
+  if (localPreviousStock < quantity && !allowNegative) {
     throw new Error(`Stock insuficiente en ${warehouse.name} (disponible: ${localPreviousStock})`);
   }
   const localNewStock = localPreviousStock - quantity;
@@ -240,7 +249,7 @@ export async function applyStockOut(tx: TxClient, companyId: string, params: Sto
       companyId,
       productId,
       warehouseId,
-      ...(settings?.allowNegativeStock ? {} : { quantity: { gte: quantity } }),
+      ...(allowNegative ? {} : { quantity: { gte: quantity } }),
     },
     data: { quantity: { decrement: quantity } },
   });

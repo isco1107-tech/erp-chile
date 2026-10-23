@@ -132,6 +132,7 @@ model Company {
   productSuppliers          ProductSupplier[]
   supplierPortalAccesses    SupplierPortalAccess[]
   consignmentSettlements    ConsignmentSettlement[]
+  consignmentSettlementLines ConsignmentSettlementLine[]
   bankAccounts              BankAccount[]
   bankStatements            BankStatement[]
   bankStatementLines        BankStatementLine[]
@@ -1135,7 +1136,7 @@ model ConsignmentSettlement {
   companyId        String
   company          Company                     @relation(fields: [companyId], references: [id], onDelete: Cascade)
   consignorId      String
-  consignor        Contact                     @relation("ConsignmentSettlementConsignor", fields: [consignorId], references: [id])
+  consignor        Contact                     @relation("ConsignmentSettlementConsignor", fields: [consignorId], references: [id], onDelete: Restrict)
   /// Correlativo por empresa (`InternalDocumentSequence` `CONSIGNMENT_SETTLEMENT`).
   number           Int
   status           ConsignmentSettlementStatus @default(CONFIRMED)
@@ -1154,10 +1155,15 @@ model ConsignmentSettlement {
   voidedAt         DateTime?
   voidReason       String?
   createdById      String?
+  /// Clave del intento de la pantalla: un reintento de la misma generación devuelve la liquidación
+  /// ya creada en vez de generar otra (relevante cuando solo hay un ajuste manual, que no tiene
+  /// ventas que el bloqueo del seller pueda repartir).
+  idempotencyKey   String?
   createdAt        DateTime                    @default(now())
   lines            ConsignmentSettlementLine[]
 
   @@unique([companyId, number])
+  @@unique([companyId, idempotencyKey])
   @@index([companyId, consignorId, createdAt])
 }
 
@@ -1166,6 +1172,7 @@ model ConsignmentSettlement {
 model ConsignmentSettlementLine {
   id                  String                @id @default(cuid())
   companyId           String
+  company             Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
   settlementId        String
   settlement          ConsignmentSettlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
   /// Línea de venta de origen. Sin relación: el documento y su historia no dependen de esta foto.
@@ -1178,8 +1185,9 @@ model ConsignmentSettlementLine {
   commissionAmount    Int
   payoutAmount        Int
 
-  @@index([settlementId])
-  @@index([companyId, salesDocumentItemId])
+  /// Una línea de venta aparece una sola vez por liquidación (entre liquidaciones sí puede repetirse:
+  /// una anulación posterior genera un ajuste negativo).
+  @@unique([settlementId, salesDocumentItemId])
 }
 
 /// Operación que envió la app del bodeguero (`/bodega`). Es el registro de
@@ -1397,6 +1405,10 @@ model SalesDocumentItem {
   /// relación a propósito, para que borrar o editar al seller no borre la foto.
   consignorId            String?
   consignorCommissionBps Int?
+  /// Solo en una nota de crédito de un producto de seller: la base neta que se le revierte, que es
+  /// la proporción de lo que se le acreditó en la venta original (no el precio de la nota, que puede
+  /// ser otro). `null` = se usa el subtotal de la línea.
+  consignorBaseNet       Int?
   /// Línea de la nota de venta que esta línea factura o despacha.
   salesOrderItemId String?
   salesOrderItem   SalesOrderItem? @relation(fields: [salesOrderItemId], references: [id], onDelete: SetNull)

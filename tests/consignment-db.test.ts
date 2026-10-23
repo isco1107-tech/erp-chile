@@ -283,13 +283,14 @@ describeDb('consignación contra PostgreSQL', () => {
           paymentMethod: 'EFECTIVO',
           referenceType: 'BOLETA_39',
           referenceFolio: boleta.folio!,
-          items: [{ productId: ids.p1, description: 'Devolución taza', quantity: 1, unitPrice: 10_000 }],
+          // Se devuelve a un precio distinto del de la venta (12.000 vs 10.000): al seller se le revierte lo que se le acreditó por esa unidad.
+          items: [{ productId: ids.p1, description: 'Devolución taza', quantity: 1, unitPrice: 12_000 }],
         },
         'ISSUED'
       );
       await prisma.contact.update({ where: { id: ids.seller1 }, data: { consignmentCommissionBps: 2000 } });
       const credit = await prisma.salesDocumentItem.findFirstOrThrow({ where: { companyId: ids.companyA, document: { dteType: 'NOTA_CREDITO_61' } } });
-      expect(credit).toMatchObject({ consignorId: ids.seller1, consignorCommissionBps: 2000 });
+      expect(credit).toMatchObject({ consignorId: ids.seller1, consignorCommissionBps: 2000, subtotal: 12_000, consignorBaseNet: 10_000 });
 
       const pending = await settlements.getPendingSettlement(ids.companyA, ids.seller1);
       expect(pending.lines).toHaveLength(1);
@@ -338,6 +339,14 @@ describeDb('consignación contra PostgreSQL', () => {
       const movement = await prisma.inventoryMovement.findFirstOrThrow({ where: { productId: ids.p4, type: 'ADJUSTMENT_OUT' } });
       expect(movement).toMatchObject({ unitCost: 0, totalCost: 0, supplierId: ids.seller2, reference: 'Devolución al seller' });
       await expect(consignment.returnConsignedStock(ids.companyA, ids.user, { productId: ids.p4, warehouseId: ids.whA, quantity: 99 })).rejects.toThrow('Stock insuficiente');
+      // Aunque la empresa venda con stock negativo, no se le puede devolver al seller lo que no está.
+      await prisma.companySettings.upsert({ where: { companyId: ids.companyA }, create: { companyId: ids.companyA, allowNegativeStock: true }, update: { allowNegativeStock: true } });
+      try {
+        await expect(consignment.returnConsignedStock(ids.companyA, ids.user, { productId: ids.p4, warehouseId: ids.whA, quantity: 99 })).rejects.toThrow('Stock insuficiente');
+        expect(await stockOf(ids.p4)).toBe(before - 3);
+      } finally {
+        await prisma.companySettings.update({ where: { companyId: ids.companyA }, data: { allowNegativeStock: false } });
+      }
       expect((await settlements.getPendingSettlement(ids.companyA, ids.seller2)).lines).toEqual([]);
     });
   });
@@ -360,6 +369,30 @@ describeDb('consignación contra PostgreSQL', () => {
       // Lo vendido sin liquidar y las liquidaciones vigentes (la N° 3 está anulada y no se muestra).
       expect(consignmentView.pending).toEqual({ units: 1, netSales: 10_000, commissionAmount: 2000, payoutAmount: 8000 });
       expect(consignmentView.settlements.map((settlement) => [settlement.number, settlement.status]).sort()).toEqual([[1, 'PAID'], [2, 'CONFIRMED']]);
+    });
+
+    it('lo vendido sale de SUS líneas de venta (netas de devoluciones) y las bajas no se le muestran', async () => {
+      const rows = (await portal.getSupplierPortalView(code))!.consignment!.rows;
+      const taza = rows.find((row) => row.sku === 'P1')!;
+      // Tazas: boleta de 2, venta de 1 y venta de 2 (5), menos 1 devuelta por nota de crédito = 4.
+      expect(taza.sold30).toBe(4);
+      expect(taza.written30).toBeNull();
+      expect(taza.coverageDays).toBe(Math.floor(taza.total / (4 / 30)));
+      // El plato se vendió en una factura que se anuló: no cuenta.
+      expect(rows.find((row) => row.sku === 'P2')!.sold30).toBe(0);
+    });
+
+    it('sin «mostrar lo que sale» el seller no ve ventas ni cobertura, pero sí sus liquidaciones', async () => {
+      await portal.setSupplierPortalMovement(ids.companyA, ids.seller1, false);
+      const view = (await portal.getSupplierPortalView(code))!.consignment!;
+      expect(view.rows.every((row) => row.sold30 === null && row.coverageDays === null)).toBe(true);
+      expect(view.settlements).toHaveLength(2);
+      await portal.setSupplierPortalMovement(ids.companyA, ids.seller1, true);
+    });
+
+    it('un seller que no es proveedor no puede recibir productos «a mano» como proveedor', async () => {
+      await expect(portal.linkSupplierProduct(ids.companyA, ids.seller1, ids.p3)).rejects.toThrow('proveedor');
+      expect(await prisma.productSupplier.count({ where: { companyId: ids.companyA, supplierId: ids.seller1 } })).toBe(0);
     });
 
     it('jamás sale un cliente, un documento, un costo ni lo de otro seller', async () => {
@@ -424,6 +457,78 @@ describeDb('consignación contra PostgreSQL', () => {
       // El valor de inventario (stock × PMP) coincide con el libro: lo del seller vale 0.
       const valued = await prisma.stock.findMany({ where: { companyId: ids.companyC }, include: { product: { select: { costPricePMP: true } } } });
       expect(Math.round(valued.reduce((sum, row) => sum + row.quantity * row.product.costPricePMP, 0))).toBe(8 * 700);
+    });
+  });
+
+  describe('un producto que cambia de dueño no descuadra las devoluciones ni las anulaciones', () => {
+    it('no se repone desde un documento anterior al cambio de dueño; se vuelve a poder al restituirlo', async () => {
+      // Producto propio: entra a $1.000, se vende todo (stock 0) y pasa a un seller.
+      const pOwn = await product(ids.companyA, 'P6', 'Producto que cambia de dueño');
+      await stockService.registerStockIn(ids.companyA, { productId: pOwn.id, warehouseId: ids.whA, type: 'PURCHASE_IN', quantity: 3, unitCost: 1000 });
+      const venta = await sale(ids.companyA, ids.customer, ids.whA, [{ productId: pOwn.id, quantity: 3, unitPrice: 5000 }]);
+      expect(await stockOf(pOwn.id)).toBe(0);
+      await productsService.updateProduct(ids.companyA, pOwn.id, { consignorId: ids.seller2 });
+
+      const creditNote = () =>
+        salesService.createSalesDocument(
+          ids.companyA,
+          { contactId: ids.customer, warehouseId: ids.whA, dteType: 'NOTA_CREDITO_61', paymentMethod: 'EFECTIVO', referenceType: 'BOLETA_39', referenceFolio: venta.folio!, items: [{ productId: pOwn.id, description: 'Devolución', quantity: 1, unitPrice: 5000 }] },
+          'ISSUED'
+        );
+      await expect(creditNote()).rejects.toThrow('el producto cambió de dueño');
+      await expect(salesService.cancelSalesDocument(ids.companyA, venta.id, 'Error')).rejects.toThrow('el producto cambió de dueño');
+      expect(await stockOf(pOwn.id)).toBe(0);
+      expect((await prisma.salesDocument.findUniqueOrThrow({ where: { id: venta.id } })).status).toBe('ISSUED');
+
+      // Con el mismo dueño de la venta (vuelve a ser propio), la anulación repone al costo original.
+      await productsService.updateProduct(ids.companyA, pOwn.id, { consignorId: null });
+      await salesService.cancelSalesDocument(ids.companyA, venta.id, 'Error');
+      expect(await stockOf(pOwn.id)).toBe(3);
+    });
+  });
+
+  describe('lo que se le debe a un seller no desaparece con su ficha', () => {
+    it('no se elimina ni se desmarca con ventas sin liquidar, y la historia lo retiene', async () => {
+      const seller3 = (await contact(ids.companyA, 'Seller de paso', 7, { isConsignor: true, isCustomer: false, consignmentCommissionBps: 2500 })).id;
+      const p7 = (await product(ids.companyA, 'P7', 'Producto de paso', { consignorId: seller3 })).id;
+      await consignment.receiveConsignedStock(ids.companyA, ids.user, { productId: p7, warehouseId: ids.whA, quantity: 1 });
+      await sale(ids.companyA, ids.customer, ids.whA, [{ productId: p7, quantity: 1, unitPrice: 4000 }]);
+      // Stock en 0: el producto se puede pasar a propio, y el seller queda sin productos.
+      await productsService.updateProduct(ids.companyA, p7, { consignorId: null });
+
+      await expect(contactsService.updateContact(ids.companyA, seller3, { isConsignor: false })).rejects.toThrow('ventas sin liquidar o liquidaciones sin pagar');
+      await expect(contactsService.deleteContact(ids.companyA, seller3)).rejects.toThrow('ventas de su mercadería');
+      expect((await prisma.contact.findUniqueOrThrow({ where: { id: seller3 } })).isConsignor).toBe(true);
+
+      // Se liquida (3.000 = 4.000 − 25 %) pero sin pagar: sigue sin poder desmarcarse.
+      const settlement = await settlements.generateSettlement(ids.companyA, ids.user, { consignorId: seller3, adjustmentAmount: 0 });
+      expect(settlement.payoutAmount).toBe(3000);
+      await expect(contactsService.updateContact(ids.companyA, seller3, { isConsignor: false })).rejects.toThrow('ventas sin liquidar o liquidaciones sin pagar');
+
+      // Ya pagado y sin nada pendiente, la condición de seller se puede quitar; eliminarlo sigue sin poder: tiene historia.
+      await settlements.markSettlementPaid(ids.companyA, { id: settlement.id, paidAt: new Date().toISOString().slice(0, 10) });
+      await contactsService.updateContact(ids.companyA, seller3, { isConsignor: false });
+      expect((await prisma.contact.findUniqueOrThrow({ where: { id: seller3 } })).isConsignor).toBe(false);
+      await expect(contactsService.deleteContact(ids.companyA, seller3)).rejects.toThrow('liquidaciones');
+    });
+
+    it('un reintento con la misma clave devuelve la misma liquidación, también con solo un ajuste', async () => {
+      const key = `intento-${suffix}-1`;
+      const first = await settlements.generateSettlement(ids.companyA, ids.user, { consignorId: ids.seller2, adjustmentAmount: 5000, adjustmentNote: 'Bonificación acordada', idempotencyKey: key });
+      const second = await settlements.generateSettlement(ids.companyA, ids.user, { consignorId: ids.seller2, adjustmentAmount: 5000, adjustmentNote: 'Bonificación acordada', idempotencyKey: key });
+      expect(second.id).toBe(first.id);
+      expect((await settlements.listSettlements(ids.companyA, { consignorId: ids.seller2 })).filter((row) => row.payoutAmount === 5000)).toHaveLength(1);
+      // Con una clave distinta es otra liquidación.
+      const third = await settlements.generateSettlement(ids.companyA, ids.user, { consignorId: ids.seller2, adjustmentAmount: 5000, adjustmentNote: 'Bonificación acordada', idempotencyKey: `${key}-b` });
+      expect(third.id).not.toBe(first.id);
+    });
+
+    it('una vista previa vieja no liquida un monto distinto del que la persona confirmó', async () => {
+      await sale(ids.companyA, ids.customer, ids.whA, [{ productId: ids.p2, quantity: 1, unitPrice: 5000 }]);
+      const seller = await settlements.getPendingSettlement(ids.companyA, ids.seller1);
+      const shown = seller.totals.payoutAmount;
+      await sale(ids.companyA, ids.customer, ids.whA, [{ productId: ids.p2, quantity: 1, unitPrice: 5000 }]); // entra otra venta mientras tanto
+      await expect(settlements.generateSettlement(ids.companyA, ids.user, { consignorId: ids.seller1, adjustmentAmount: 0, expectedPayoutAmount: shown })).rejects.toThrow('Las ventas cambiaron');
     });
   });
 });

@@ -32,27 +32,42 @@ export default function ConsignmentMoveDialog({ mode, product, sellerName, onClo
   const [lotNumber, setLotNumber] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    void listWarehousesAction().then((result) => {
-      if (!result.success) return;
-      const list = result.data.map((warehouse) => ({ id: warehouse.id, name: warehouse.name }));
-      setWarehouses(list);
-      setWarehouseId((current) => current || list[0]?.id || '');
-    });
-  }, []);
 
   const receiving = mode === 'receive';
   const available = product.byWarehouse;
 
+  useEffect(() => {
+    let active = true;
+    listWarehousesAction()
+      .then((result) => {
+        if (!active) return;
+        if (!result.success) return setLoadError(result.error);
+        const list = result.data.map((warehouse) => ({ id: warehouse.id, name: warehouse.name }));
+        setWarehouses(list);
+        // Al devolver, la bodega que de verdad tiene stock; al recibir, la primera.
+        const withStock = !receiving ? list.find((warehouse) => (available.find((row) => row.warehouseId === warehouse.id)?.quantity ?? 0) > 0) : undefined;
+        setWarehouseId((current) => current || withStock?.id || list[0]?.id || '');
+      })
+      .catch(() => active && setLoadError('No se pudieron cargar las bodegas. Cierra y vuelve a intentar'));
+    return () => {
+      active = false;
+    };
+  }, [receiving, available]);
+
+  const hereQuantity = available.find((row) => row.warehouseId === warehouseId)?.quantity ?? 0;
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError('');
+    const amount = Number(quantity);
+    if (!Number.isFinite(amount)) return setError('Escribe una cantidad válida');
+    if (!receiving && amount > hereQuantity) return setError(`En esa bodega solo hay ${hereQuantity.toLocaleString('es-CL')} ${product.unit}: no se puede devolver más de lo que está`);
     const payload = {
       productId: product.id,
       warehouseId,
-      quantity: Number(quantity),
+      quantity: amount,
       reference: reference.trim() || undefined,
       notes: notes.trim() || undefined,
       ...(receiving && product.tracksLots ? { lotNumber: lotNumber.trim() || undefined, expiryDate } : {}),
@@ -79,7 +94,7 @@ export default function ConsignmentMoveDialog({ mode, product, sellerName, onClo
   }
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
+    <Dialog open onOpenChange={(open) => !open && !saving && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>{receiving ? 'Recibir mercadería del seller' : 'Devolver mercadería al seller'}</DialogTitle>
@@ -94,7 +109,7 @@ export default function ConsignmentMoveDialog({ mode, product, sellerName, onClo
             <select id="consignment-warehouse" className={nativeSelectClass} value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
               {warehouses.length === 0 && <option value="">Cargando…</option>}
               {warehouses.map((warehouse) => {
-                const here = available.find((row) => row.warehouse === warehouse.name)?.quantity;
+                const here = available.find((row) => row.warehouseId === warehouse.id)?.quantity;
                 return (
                   <option key={warehouse.id} value={warehouse.id}>
                     {warehouse.name}
@@ -133,13 +148,14 @@ export default function ConsignmentMoveDialog({ mode, product, sellerName, onClo
             <Input id="consignment-notes" value={notes} onChange={(e) => setNotes(e.target.value)} className="mt-1.5" />
           </div>
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {loadError && <p role="alert" className="text-sm text-destructive">{loadError}</p>}
+          {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" disabled={saving} onClick={onClose}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={saving}>
+            <Button type="submit" disabled={saving || warehouses.length === 0}>
               {saving ? 'Guardando…' : receiving ? 'Recibir' : 'Devolver'}
             </Button>
           </DialogFooter>

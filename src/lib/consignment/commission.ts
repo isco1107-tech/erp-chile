@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 /**
  * Comisión de la mercadería en consignación. Puro: sin base de datos.
  *
@@ -23,6 +25,18 @@ export function percentToBps(percent: number): number {
 export function bpsToPercent(bps: number): number {
   return bps / 100;
 }
+
+/** Cómo se escribe una comisión guardada en el campo del formulario: 1550 → "15,5". */
+export function bpsToInput(bps: number): string {
+  return String(bpsToPercent(bps)).replace('.', ',');
+}
+
+/** Esquema de una comisión en puntos base, compartido por contactos y productos. */
+export const commissionBpsSchema = z
+  .number()
+  .int('La comisión debe ser un número entero de puntos base')
+  .min(0, 'La comisión no puede ser negativa')
+  .max(MAX_COMMISSION_BPS, 'La comisión no puede superar el 100 %');
 
 /**
  * Lo que la persona escribe en el formulario ("15", "15,5", "15.5", "15 %") como puntos base,
@@ -56,16 +70,4 @@ export function effectiveCommissionBps(productBps: number | null | undefined, se
 /** Comisión de una línea con neto `netAmount` (CLP entero). `Math.round`, igual que el resto del sistema. */
 export function commissionOf(netAmount: number, bps: number): number {
   return Math.round((netAmount * bps) / MAX_COMMISSION_BPS);
-}
-
-export interface LineAmounts {
-  netAmount: number;
-  commissionAmount: number;
-  payoutAmount: number;
-}
-
-/** Lo que vale una línea para el seller: neto vendido, comisión de la empresa y lo que se le debe. */
-export function lineAmounts(netAmount: number, bps: number): LineAmounts {
-  const commissionAmount = commissionOf(netAmount, bps);
-  return { netAmount, commissionAmount, payoutAmount: netAmount - commissionAmount };
 }

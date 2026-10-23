@@ -5,6 +5,7 @@ import { Prisma, type Category } from '@prisma/client';
 import { requireAuthWithPermission, authErrorMessage, can } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 import { constraintInvolves, toFriendlyErrorMessage } from '@/lib/prisma-errors';
+import { isEntityId } from '@/lib/security/entity-id';
 import type { ProductPackaging } from '@prisma/client';
 import { categoryCreateSchema, productCreateSchema, productPackagingSchema, productUpdateSchema } from '../schema';
 import * as productsService from '../services/products.service';
@@ -72,8 +73,12 @@ export async function listProductsPageAction(
   }
 }
 
+const INVALID_ID: { success: false; error: string } = { success: false, error: 'Datos inválidos' };
+const CONSIGNMENT_PERMISSION_ERROR = 'Cambiar el dueño o la comisión de un producto de seller requiere el permiso de consignación (Dueño, Administrador o Contador)';
+
 export async function getProductAction(id: string): Promise<ActionResult<ProductWithStock>> {
   try {
+    if (!isEntityId(id)) return INVALID_ID;
     const session = await requireAuthWithPermission('products:read');
     const product = await productsService.getProduct(session.companyId, id);
     if (!product) return { success: false, error: 'Producto no encontrado' };
@@ -91,6 +96,8 @@ export async function createProductAction(input: unknown): Promise<ActionResult<
     const session = await requireAuthWithPermission('products:write');
     const parsed = productCreateSchema.safeParse(input);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
+    // Decidir que un producto es de un seller (y a qué comisión) es una decisión de dinero ajeno.
+    if (parsed.data.consignorId && !can(session, 'consignment:write')) return { success: false, error: CONSIGNMENT_PERMISSION_ERROR };
     const created = await productsService.createProduct(session.companyId, parsed.data);
     await createAuditLog({
       companyId: session.companyId,
@@ -112,9 +119,19 @@ export async function createProductAction(input: unknown): Promise<ActionResult<
 
 export async function updateProductAction(id: string, input: unknown): Promise<ActionResult<ProductWithStock>> {
   try {
+    if (!isEntityId(id)) return INVALID_ID;
     const session = await requireAuthWithPermission('products:write');
     const parsed = productUpdateSchema.safeParse(input);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
+    // La comisión y el dueño de un producto de seller definen lo que se le paga: solo cambian con permiso de consignación.
+    // Se compara contra lo guardado: el formulario manda siempre estos campos y editar otra cosa no es un cambio.
+    if (parsed.data.consignorId !== undefined || parsed.data.consignmentCommissionBps !== undefined) {
+      const current = await productsService.getProduct(session.companyId, id);
+      if (!current) return { success: false, error: 'Producto no encontrado' };
+      const ownerChanged = parsed.data.consignorId !== undefined && (parsed.data.consignorId || null) !== (current.consignorId ?? null);
+      const commissionChanged = parsed.data.consignmentCommissionBps !== undefined && (parsed.data.consignmentCommissionBps ?? null) !== (current.consignmentCommissionBps ?? null);
+      if ((ownerChanged || commissionChanged) && !can(session, 'consignment:write')) return { success: false, error: CONSIGNMENT_PERMISSION_ERROR };
+    }
     await productsService.updateProduct(session.companyId, id, parsed.data);
     await createAuditLog({
       companyId: session.companyId,
@@ -136,6 +153,7 @@ export async function updateProductAction(id: string, input: unknown): Promise<A
 
 export async function deleteProductAction(id: string): Promise<ActionResult<null>> {
   try {
+    if (!isEntityId(id)) return INVALID_ID;
     const session = await requireAuthWithPermission('products:write');
     await productsService.deleteProduct(session.companyId, id);
     await createAuditLog({
@@ -156,6 +174,7 @@ export async function deleteProductAction(id: string): Promise<ActionResult<null
 
 export async function setProductActiveAction(id: string, isActive: boolean): Promise<ActionResult<null>> {
   try {
+    if (!isEntityId(id)) return INVALID_ID;
     const session = await requireAuthWithPermission('products:write');
     await productsService.setProductActive(session.companyId, id, isActive);
     await createAuditLog({

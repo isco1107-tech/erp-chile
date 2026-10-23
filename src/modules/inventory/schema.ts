@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { isAllowedBlobUrl } from '@/lib/security/blob-url';
+import { commissionBpsSchema } from '@/lib/consignment/commission';
 
 /** Código de barras: lo que un lector puede escribir (ASCII imprimible, sin espacios a los lados). */
 const barcodeField = z
@@ -36,13 +37,7 @@ export const productCreateSchema = z.object({
   /** Seller dueño del producto (consignación). Vacío o `null` = producto propio. */
   consignorId: z.string().min(1).nullable().optional(),
   /** Comisión propia del producto en puntos base. `null` = la del seller. */
-  consignmentCommissionBps: z
-    .number()
-    .int('La comisión debe ser un número entero de puntos base')
-    .min(0, 'La comisión no puede ser negativa')
-    .max(10_000, 'La comisión no puede superar el 100 %')
-    .nullable()
-    .optional(),
+  consignmentCommissionBps: commissionBpsSchema.nullable().optional(),
 });
 
 export const productUpdateSchema = productCreateSchema.partial();
@@ -70,7 +65,7 @@ export type WarehouseCreateInput = z.infer<typeof warehouseCreateSchema>;
 export const consignmentReceiveSchema = z.object({
   productId: z.string().min(1, 'Selecciona un producto'),
   warehouseId: z.string().min(1, 'Selecciona una bodega'),
-  quantity: z.number().positive('La cantidad debe ser mayor a cero'),
+  quantity: z.number().positive('La cantidad debe ser mayor a cero').max(1_000_000, 'La cantidad es demasiado grande: revisa los ceros'),
   reference: z.string().trim().max(120, 'Máximo 120 caracteres').optional(),
   notes: z.string().trim().max(500, 'Máximo 500 caracteres').optional(),
   /** Solo productos con lotes: lote y vencimiento de lo que entra. */
@@ -86,6 +81,9 @@ const calendarDay = z
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha inválida')
   .refine((value) => !Number.isNaN(new Date(`${value}T12:00:00Z`).getTime()) && new Date(`${value}T12:00:00Z`).toISOString().startsWith(value), 'Fecha inválida');
 
+/** Una fecha de pago real: de este siglo y no más allá de mañana (el navegador puede ir un día adelantado). */
+const paymentDay = calendarDay.refine((value) => value >= '2000-01-01' && value <= new Date(Date.now() + 36 * 60 * 60_000).toISOString().slice(0, 10), 'La fecha de pago no es válida');
+
 /** Generar la liquidación de lo pendiente de un seller (con un ajuste manual opcional). */
 export const settlementGenerateSchema = z
   .object({
@@ -94,6 +92,10 @@ export const settlementGenerateSchema = z
     adjustmentAmount: z.number().int('El ajuste debe ser un monto entero').min(-100_000_000, 'Ajuste demasiado grande').max(100_000_000, 'Ajuste demasiado grande').default(0),
     adjustmentNote: z.string().trim().max(200, 'Máximo 200 caracteres').optional(),
     note: z.string().trim().max(300, 'Máximo 300 caracteres').optional(),
+    /** Intento de la pantalla: reenviarlo devuelve la liquidación ya creada en vez de generar otra. */
+    idempotencyKey: z.string().trim().min(8, 'Clave inválida').max(100, 'Clave inválida').optional(),
+    /** Lo que la persona vio en la vista previa: si las ventas cambiaron mientras tanto, se rechaza en vez de liquidar otro monto. */
+    expectedPayoutAmount: z.number().int().optional(),
   })
   .refine((data) => data.adjustmentAmount === 0 || (data.adjustmentNote ?? '').length >= 3, {
     message: 'Explica el motivo del ajuste',
@@ -103,7 +105,7 @@ export const settlementGenerateSchema = z
 /** Marcar una liquidación como pagada al seller. */
 export const settlementPaySchema = z.object({
   id: z.string().min(1),
-  paidAt: calendarDay,
+  paidAt: paymentDay,
   reference: z.string().trim().max(120, 'Máximo 120 caracteres').optional(),
 });
 
