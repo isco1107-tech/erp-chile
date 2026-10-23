@@ -175,4 +175,98 @@ export const INVENTARIO_SECTIONS: ManualSection[] = [
       },
     ],
   },
+  {
+    id: 'bodega-movil',
+    key: 'hasInventory',
+    permission: 'products:read',
+    chapter: 'Inventario',
+    title: 'Bodega móvil (app del bodeguero)',
+    summary:
+      'Una app para el celular del bodeguero: recibe mercadería, registra mermas y traslados, y consulta stock con la cámara o un lector de códigos. Funciona aunque se vaya la señal y todo llega al Kardex marcado como «App bodega».',
+    route: '/dashboard/inventory/mobile',
+    topics: [
+      {
+        id: 'instalar-app-bodega',
+        title: 'Abrir e instalar la app en el celular',
+        steps: [
+          'Ve a Inventario → Bodega móvil y escanea el código QR con la cámara del celular (o escribe la dirección que aparece junto al código).',
+          'Inicia sesión con tu usuario. La app abre directo en la pantalla de la bodega.',
+          'Para tenerla como una app: en Android abre el menú del navegador y elige "Instalar app"; en iPhone toca Compartir y "Agregar a inicio". También está "Instalar la app en el teléfono" en el menú (los tres puntos) de la app.',
+          'Cuando la cámara lo pida, acepta el permiso.',
+        ],
+        tip: 'Cada persona entra con su propio usuario. Si el celular se comparte, cierra sesión desde el menú de la app: lo que quedó sin enviar se conserva y se manda la próxima vez que entres con la misma cuenta.',
+      },
+      {
+        id: 'recibir-mercaderia-celular',
+        title: 'Recibir mercadería desde el celular',
+        permission: 'inventory:write',
+        steps: [
+          'En la app toca "Llegada de mercadería". Si tienes varias bodegas, elige la bodega arriba.',
+          'Opcional: escribe el "N° de guía o factura (opcional)".',
+          'Toca "Cámara" y apunta al código de barras: se lee solo y suma una unidad (aparta la cámara y vuelve a apuntar para sumar otra). Si el producto no tiene código, toca el botón redondo para sacarle una foto. Con un lector de mano, escanea en el campo "Escanea o escribe código o nombre".',
+          'Ajusta la cantidad de cada producto con los botones + y − o escribiéndola. En "Más datos" puedes poner el costo unitario neto (si tu rol puede verlo), lote y vencimiento, o una nota.',
+          'Toca "Enviar". Lo que aún se está reconociendo no impide seguir agregando, pero sí enviar: espera o elige el producto a mano.',
+        ],
+        tip: 'Una llegada con el mismo código de barras de un producto que ya existe se suma a ese producto: nunca se duplica.',
+      },
+      {
+        id: 'merma-traslado-celular',
+        title: 'Dar de baja una merma, un faltante o hacer un traslado',
+        permission: 'inventory:write',
+        steps: [
+          'Para algo que se botó, toca "Merma o bote" y elige el motivo: Vencido, Dañado, Perdido o robado, Consumo interno u Otro motivo. Para diferencias de conteo usa "Faltante" (menos de lo que dice el sistema) o "Sobrante" (más).',
+          'Para mover productos a otra bodega toca "Traslado entre bodegas" (solo aparece con más de una bodega) y elige la bodega de destino en "Va a".',
+          'Agrega los productos igual que en una llegada y toca "Enviar".',
+          'Si en el celular aparece "Solo hay N", la cantidad supera lo que dice el sistema: el servidor rechazará el movimiento si de verdad no alcanza.',
+        ],
+        tip: 'Las salidas descuentan al costo promedio (PMP) vigente y respetan los lotes: sale primero lo que vence antes.',
+      },
+      {
+        id: 'identificar-foto-celular',
+        title: 'Identificar un producto con una foto',
+        permission: 'inventory:write',
+        steps: [
+          'En la lista de cualquier movimiento toca "Cámara" y saca la foto del envase con el botón redondo. La foto queda en la lista como "Identificando el producto…" y puedes seguir agregando otras.',
+          'Si el producto ya existe, aparece con "La IA cree que es este producto. ¿Es correcto?": toca "Sí, es este" para confirmarlo o "Cambiar" para elegir otro. No se puede enviar sin confirmar.',
+          'Si hay varios parecidos, elige el correcto de la lista. Si no está en el catálogo, toca "Crear producto nuevo": se abre el formulario con los datos que la IA leyó. Revísalos y toca "Usar este producto".',
+          'Si dice "Esperando turno de la IA…" no hagas nada: la foto se identifica sola cuando haya cupo. También puedes tocar "Buscar a mano".',
+        ],
+        tip: 'Guarda el código de barras en el producto nuevo (el botón con el ícono de código lo lee con la cámara): la próxima vez se reconoce al escanearlo, sin IA.',
+      },
+      {
+        id: 'crear-producto-celular',
+        title: 'Crear un producto nuevo desde el celular',
+        permission: 'products:write',
+        steps: [
+          'Solo se puede en "Llegada de mercadería" o "Sobrante". Saca una foto del producto (o escanea su código) y toca "Crear producto nuevo".',
+          'Completa al menos el nombre. SKU vacío = el sistema asigna uno automático (PRD-000001, PRD-000002…). Marca, unidad, categoría, descripción, precio de venta neto y costo son opcionales.',
+          'Toca "Usar este producto", pon la cantidad que llegó y "Enviar".',
+          'El producto y su primera entrada se crean juntos: si algo falla, no queda un producto a medias. Después, en Inventario → Bodega móvil, ve los productos creados y completa precio y categoría en el Catálogo.',
+        ],
+        tip: 'Si el producto ya existe con el mismo código de barras, la app lo suma al existente. Si existe uno con el mismo nombre y marca, te lo muestra en "Pendientes y enviados" para que elijas "Sumar a…" o "Es otro producto: crearlo".',
+      },
+      {
+        id: 'sin-senal-celular',
+        title: 'Qué pasa si se va la señal o un movimiento se rechaza',
+        steps: [
+          'Sin señal puedes seguir trabajando: lo que toques en "Enviar" queda guardado en el celular y se manda solo cuando vuelve la conexión. Arriba verás "Sin conexión".',
+          'Entra a "Pendientes y enviados" para ver cada movimiento: "En cola", "Enviando…", "Enviado" o "No se aplicó" con el motivo.',
+          'Si un movimiento aparece con problema, léelo: por ejemplo "Stock insuficiente". Toca "Reintentar" cuando llegue la mercadería o "Descartar" si fue un error.',
+          'Si la sesión venció, la app avisa y pide "Iniciar sesión": no se pierde nada, y lo pendiente se envía al volver a entrar.',
+        ],
+        tip: 'Enviar dos veces el mismo movimiento nunca lo duplica: cada uno lleva una clave única y el servidor reconoce lo ya aplicado.',
+      },
+      {
+        id: 'ia-fotos-cuota',
+        title: 'Cómo se cuida la IA de las fotos',
+        steps: [
+          'Ve a Inventario → Bodega móvil: la tarjeta "Identificar productos con una foto" muestra una etiqueta que dice si está Disponible, Desactivada o Sin configurar.',
+          'La IA se usa solo cuando no hay código de barras: el código se resuelve en el catálogo, sin costo. Una misma foto no se lee dos veces.',
+          'Hay topes por minuto por persona, por empresa y en toda la plataforma, y un tope diario por empresa (se ven en la misma tarjeta). Al llegar a uno, la foto queda en espera en el celular y se identifica sola.',
+          'Si el proveedor de la IA responde que está saturado, se pausa la lectura unos segundos para todos y la app reintenta sola.',
+        ],
+        tip: 'Si "Sin configurar" aparece en tu servidor, la app sigue funcionando con código de barras y búsqueda a mano; avisa a quien administra la plataforma para activar la llave de la IA.',
+      },
+    ],
+  },
 ];

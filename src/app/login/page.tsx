@@ -21,9 +21,25 @@ const loginSchema = z.object({
 
 /** Mensajes de `/login?reason=...` para redirecciones desde el dashboard que no son un cierre de sesión normal (ver `(dashboard)/layout.tsx`). */
 /** Destino tras iniciar sesión: el que indica el servidor (el selector de empresa si trabaja en varias), solo si es una ruta interna. */
-function nextPath(json: { data?: { redirectTo?: unknown } }): string {
+function nextPath(json: { data?: { redirectTo?: unknown } }, callbackUrl: string | null): string {
   const target = json.data?.redirectTo;
-  return typeof target === 'string' && target.startsWith('/') && !target.startsWith('//') ? target : '/dashboard';
+  const server = typeof target === 'string' && target.startsWith('/') && !target.startsWith('//') ? target : '/dashboard';
+  // La app del bodeguero (`/bodega`) vuelve a sí misma tras iniciar sesión. Solo esa ruta, y solo si
+  // el servidor no mandó a otro lado (selector de empresa, cambio de contraseña).
+  return server === '/dashboard' && callbackUrl === '/bodega' ? callbackUrl : server;
+}
+
+/**
+ * La app del bodeguero necesita la cámara, y el permiso lo da una cabecera del DOCUMENTO (`Permissions-Policy`,
+ * ver next.config.js): una navegación interna desde esta página conservaría la política del login (sin cámara).
+ * Por eso a `/bodega` se entra con una carga completa de la página.
+ */
+function goTo(router: ReturnType<typeof useRouter>, path: string): void {
+  if (path === '/bodega') {
+    window.location.assign(path);
+    return;
+  }
+  router.push(path);
 }
 
 const LOGIN_REDIRECT_REASONS: Record<string, string> = {
@@ -81,7 +97,7 @@ function LoginForm() {
         return;
       }
       toast.success('Inicio de sesión correcto');
-      router.push(nextPath(json));
+      goTo(router, nextPath(json, searchParams.get('callbackUrl')));
     } catch (e) {
       setError('No pudimos conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.');
     } finally {
@@ -105,7 +121,7 @@ function LoginForm() {
         return;
       }
       toast.success('Inicio de sesión correcto');
-      router.push(nextPath(json));
+      goTo(router, nextPath(json, searchParams.get('callbackUrl')));
     } catch (e) {
       setError('No pudimos verificar el código. Revisa tu conexión e inténtalo de nuevo.');
     } finally {

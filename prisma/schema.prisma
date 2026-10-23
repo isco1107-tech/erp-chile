@@ -125,6 +125,8 @@ model Company {
   inventoryLots             InventoryLot[]
   inventoryCounts           InventoryCount[]
   inventoryCountLines       InventoryCountLine[]
+  warehouseMobileOps        WarehouseMobileOp[]
+  productPhotoScans         ProductPhotoScan[]
   bankAccounts              BankAccount[]
   bankStatements            BankStatement[]
   bankStatementLines        BankStatementLine[]
@@ -1011,6 +1013,54 @@ model InventoryMovement {
   createdAt      DateTime     @default(now())
 
   @@index([companyId, productId, createdAt])
+}
+
+/// Operación que envió la app del bodeguero (`/bodega`). Es el registro de
+/// idempotencia del celular: el teléfono guarda cada movimiento en una cola
+/// local y lo reenvía hasta recibir respuesta, así que el servidor tiene que
+/// poder reconocer "esto ya lo apliqué" y devolver el mismo resultado en vez de
+/// mover el stock dos veces. Solo se guarda lo que SE APLICÓ: un rechazo de
+/// negocio (stock insuficiente) no deja fila, para que el reintento con la
+/// misma clave funcione cuando la causa se corrija.
+model WarehouseMobileOp {
+  id         String   @id @default(cuid())
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// Clave que el celular genera al armar la operación (UUID).
+  clientOpId String
+  userId     String?
+  /// MOVE (entrada, salida, merma o traslado) o CREATE_PRODUCT (producto nuevo con su primera entrada).
+  kind       String
+  /// Lo que se le respondió al celular; se devuelve igual si repite el envío.
+  result     Json
+  createdAt  DateTime @default(now())
+
+  @@unique([companyId, clientOpId])
+  @@index([companyId, createdAt])
+}
+
+/// Foto de producto que se mandó a la IA. Cumple dos funciones: caché (la misma
+/// foto reenviada no vuelve a gastar una llamada) y libro de uso (la cuota de
+/// Gemini es una sola para toda la plataforma; contar filas recientes es lo que
+/// permite frenar a tiempo aunque las instancias del servidor no compartan
+/// memoria). `result` es lo que la IA leyó de la etiqueta, nunca el producto del
+/// catálogo: ese cruce se hace en cada consulta, con el catálogo de ese momento.
+model ProductPhotoScan {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId      String?
+  /// SHA-256 de los bytes recibidos (la foto ya reducida por el celular).
+  imageSha256 String
+  /// DONE (la IA respondió), FAILED (la llamada falló) o LIMITED (Gemini respondió 429).
+  status      String
+  model       String?
+  result      Json?
+  createdAt   DateTime @default(now())
+
+  @@index([companyId, imageSha256])
+  @@index([companyId, createdAt])
+  @@index([createdAt])
 }
 
 enum DteType {

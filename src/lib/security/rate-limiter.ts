@@ -284,6 +284,38 @@ export const MANUAL_ASSISTANT_CONFIRM_RATE_LIMIT: RateLimitConfig = {
   windowMs: 60_000,
 };
 
+/**
+ * App del bodeguero (`/api/bodega/*`). Son rutas autenticadas, así que el
+ * límite es por usuario (o por empresa), no por IP: toda una bodega comparte la
+ * misma salida a internet. Son topes de cortesía delante del control de cuota de
+ * la IA (`budget.ts`), que es el que protege a Gemini.
+ */
+export const WAREHOUSE_IDENTIFY_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'warehouse-identify-user',
+  limit: 20,
+  windowMs: 60_000,
+};
+export const WAREHOUSE_IDENTIFY_COMPANY_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'warehouse-identify-company',
+  limit: 60,
+  windowMs: 60_000,
+};
+export const WAREHOUSE_LOOKUP_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'warehouse-lookup-user',
+  limit: 180,
+  windowMs: 60_000,
+};
+export const WAREHOUSE_SYNC_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'warehouse-sync-user',
+  limit: 60,
+  windowMs: 60_000,
+};
+export const WAREHOUSE_PHOTO_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'warehouse-photo-user',
+  limit: 30,
+  windowMs: 60_000,
+};
+
 /** Descarga del manual en Word (`GET /api/manual/docx`): arma el archivo con
  * todas las capturas en cada pedido, así que se limita por usuario para que un
  * doble clic insistente o un script no lo genere decenas de veces seguidas. */

@@ -84,6 +84,15 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       note('Contabiliza', 'Revisa "Con diferencia" y presiona "Contabilizar": el stock se ajusta a lo contado y queda su asiento.'),
     ],
   },
+  'inventory-mobile': {
+    title: 'Bodega móvil',
+    steps: [
+      header('La app de tu bodeguero', 'Recibe, descuenta y traslada productos desde el celular, aunque se vaya la señal. Todo llega solo al Kardex.'),
+      note('Ábrela con el código QR', 'Escanéalo con el celular, inicia sesión y elige "Instalar app" (Android) o "Agregar a inicio" (iPhone).'),
+      note('Fotos con IA, cuidando la cuota', 'Si un producto no tiene código de barras, se le saca una foto. Hay topes por minuto y, si se llega a uno, la foto espera sola su turno.'),
+      note('Revisa lo que se creó', 'Los productos que el bodeguero da de alta desde el celular aparecen abajo: complétales precio y categoría en el Catálogo.'),
+    ],
+  },
   'inventory-lots': {
     title: 'Lotes y vencimientos',
     steps: [

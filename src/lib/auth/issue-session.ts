@@ -5,6 +5,7 @@ import { recordSession } from './sessions';
 import { getClientIp } from '@/lib/security/cloudflare';
 import { captureException } from '@/lib/observability';
 import { listAccessibleCompanies, selectableCount } from './accessible-companies';
+import { prefersWarehouseApp } from './landing';
 
 /** Pantalla donde quien tiene acceso a varias empresas elige en cuál trabajar. */
 export const COMPANY_PICKER_PATH = '/seleccionar-empresa';
@@ -30,9 +31,13 @@ export interface IssuableUser {
  */
 export async function issueSession(user: IssuableUser, req: Request): Promise<NextResponse> {
   let companyName: string | undefined;
+  let hasInventory = true;
   if (user.companyId) {
-    const company = await prisma.company.findUnique({ where: { id: user.companyId } });
-    if (company) companyName = company.businessName;
+    const company = await prisma.company.findUnique({ where: { id: user.companyId }, include: { features: { select: { hasInventory: true } } } });
+    if (company) {
+      companyName = company.businessName;
+      hasInventory = company.features?.hasInventory ?? true;
+    }
   }
 
   const token = await createSessionToken({
@@ -64,6 +69,9 @@ export async function issueSession(user: IssuableUser, req: Request): Promise<Ne
       captureException(error, { module: 'auth', userId: user.id, extra: { reason: 'login-company-list' } });
     }
   }
+
+  // Un bodeguero que entra desde el celular va a la app de bodega (el panel completo no es para esa pantalla).
+  if (redirectTo === '/dashboard' && prefersWarehouseApp({ role: user.role, userAgent: req.headers.get('user-agent'), hasInventory })) redirectTo = '/bodega';
 
   const res = NextResponse.json({ success: true, data: { redirectTo } });
   setSessionCookie(res, token);

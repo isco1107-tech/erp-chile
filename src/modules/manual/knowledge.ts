@@ -53,6 +53,7 @@ export const SCREEN_PURPOSES: Record<string, string> = {
   inventory: 'Existencias por bodega, Kardex de cada producto, ajustes de stock y transferencias.',
   'inventory-counts': 'Toma de inventario: contar la bodega (a mano o con lector) y ajustar el stock a lo contado.',
   'inventory-lots': 'Saldo por lote y fechas de vencimiento; las salidas consumen primero lo que vence antes.',
+  'inventory-mobile': 'Bodega móvil: la app del bodeguero para el celular (llegadas, mermas, traslados, con cámara y sin señal). Aquí se abre con un QR, se ve si la identificación por foto está disponible y qué se registró desde el celular.',
   'inventory-labels': 'Imprimir etiquetas con código de barras en hoja A4 o rollo.',
   crm: 'Embudo de negocios por etapa (auspicios, eventos, entradas corporativas…), con pronóstico ponderado.',
   'crm-tasks': 'Agenda comercial: llamadas, reuniones y seguimientos vencidos, de hoy y próximos.',

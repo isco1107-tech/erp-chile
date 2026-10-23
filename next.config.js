@@ -134,6 +134,16 @@ const nextConfig = {
         ],
       },
       {
+        // App del bodeguero: es la única parte del producto que usa la cámara
+        // (fotos de productos y lectura de códigos de barras). Va DESPUÉS de la
+        // global a propósito (la última gana); repite la política completa y
+        // solo abre `camera` al propio origen.
+        source: '/bodega/:path*',
+        headers: [
+          { key: 'Permissions-Policy', value: 'camera=(self), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()' },
+        ],
+      },
+      {
         // Va DESPUÉS de la global a propósito: con la misma clave repetida gana la última.
         source: '/web/:slug/raw',
         headers: [

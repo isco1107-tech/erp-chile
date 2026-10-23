@@ -234,69 +234,85 @@ export async function applyStockOut(tx: TxClient, companyId: string, params: Sto
 // contra `DIFERENCIA_INVENTARIO`, sin mirar `params.type`: aunque el
 // operador etiquete la entrada como "PURCHASE_IN" en el formulario de
 // Inventario, no hay una Factura de proveedor detrás que abonar.
+//
+// Las variantes `...Tx` hacen lo mismo dentro de una transacción que ya abrió
+// quien llama: la app del bodeguero (`warehouse-mobile`) necesita que el
+// movimiento y su registro de idempotencia queden o no queden juntos.
+export async function registerStockInTx(tx: TxClient, companyId: string, params: StockInParams): Promise<InventoryMovement> {
+  const movement = await applyStockIn(tx, companyId, params);
+  await postInventoryAdjustmentEntry(tx, companyId, movement, true);
+  return movement;
+}
+
+export async function registerStockOutTx(tx: TxClient, companyId: string, params: StockOutParams): Promise<InventoryMovement> {
+  const movement = await applyStockOut(tx, companyId, params);
+  await postInventoryAdjustmentEntry(tx, companyId, movement, false);
+  return movement;
+}
+
 export async function registerStockIn(companyId: string, params: StockInParams): Promise<InventoryMovement> {
-  return prisma.$transaction(async (tx) => {
-    const movement = await applyStockIn(tx, companyId, params);
-    await postInventoryAdjustmentEntry(tx, companyId, movement, true);
-    return movement;
-  }, LOCKING_TX_OPTIONS);
+  return prisma.$transaction((tx) => registerStockInTx(tx, companyId, params), LOCKING_TX_OPTIONS);
 }
 
 export async function registerStockOut(companyId: string, params: StockOutParams): Promise<InventoryMovement> {
-  return prisma.$transaction(async (tx) => {
-    const movement = await applyStockOut(tx, companyId, params);
-    await postInventoryAdjustmentEntry(tx, companyId, movement, false);
-    return movement;
-  }, LOCKING_TX_OPTIONS);
+  return prisma.$transaction((tx) => registerStockOutTx(tx, companyId, params), LOCKING_TX_OPTIONS);
 }
 
-export async function registerTransfer(
+export interface TransferParams {
+  productId: string;
+  fromWarehouseId: string;
+  toWarehouseId: string;
+  quantity: number;
+  reference?: string;
+  notes?: string;
+}
+
+export async function registerTransferTx(
+  tx: TxClient,
   companyId: string,
-  params: {
-    productId: string;
-    fromWarehouseId: string;
-    toWarehouseId: string;
-    quantity: number;
-    reference?: string;
-    notes?: string;
-  }
+  params: TransferParams
 ): Promise<{ out: InventoryMovement; in: InventoryMovement }> {
   const { productId, fromWarehouseId, toWarehouseId, quantity, reference, notes } = params;
   if (fromWarehouseId === toWarehouseId) {
     throw new Error('La bodega de origen y destino deben ser distintas');
   }
 
-  return prisma.$transaction(async (tx) => {
-    const out = await applyStockOut(tx, companyId, {
-      productId,
-      warehouseId: fromWarehouseId,
-      type: 'TRANSFER',
-      quantity,
-      reference,
-      notes,
-    });
-    // Los lotes viajan con la mercadería: lo que salió de cada lote entra al
-    // mismo lote en la bodega de destino; lo que salió sin lote, a SIN-LOTE.
-    const moved = (out.lotAllocations as LotAllocation[] | null) ?? null;
-    const movedTotal = moved?.reduce((sum, lot) => sum + lot.quantity, 0) ?? 0;
-    const lots = moved
-      ? [
-          ...moved.map((lot) => ({ lotNumber: lot.lotNumber, expiryDate: lot.expiryDate ? new Date(lot.expiryDate) : null, quantity: lot.quantity })),
-          ...(quantity - movedTotal > 1e-9 ? [{ lotNumber: NO_LOT, expiryDate: null, quantity: quantity - movedTotal }] : []),
-        ]
-      : undefined;
-    const inMove = await applyStockIn(tx, companyId, {
-      productId,
-      warehouseId: toWarehouseId,
-      type: 'TRANSFER',
-      quantity,
-      unitCost: out.unitCost,
-      reference,
-      notes,
-      lots,
-    });
-    return { out, in: inMove };
-  }, LOCKING_TX_OPTIONS);
+  const out = await applyStockOut(tx, companyId, {
+    productId,
+    warehouseId: fromWarehouseId,
+    type: 'TRANSFER',
+    quantity,
+    reference,
+    notes,
+  });
+  // Los lotes viajan con la mercadería: lo que salió de cada lote entra al
+  // mismo lote en la bodega de destino; lo que salió sin lote, a SIN-LOTE.
+  const moved = (out.lotAllocations as LotAllocation[] | null) ?? null;
+  const movedTotal = moved?.reduce((sum, lot) => sum + lot.quantity, 0) ?? 0;
+  const lots = moved
+    ? [
+        ...moved.map((lot) => ({ lotNumber: lot.lotNumber, expiryDate: lot.expiryDate ? new Date(lot.expiryDate) : null, quantity: lot.quantity })),
+        ...(quantity - movedTotal > 1e-9 ? [{ lotNumber: NO_LOT, expiryDate: null, quantity: quantity - movedTotal }] : []),
+      ]
+    : undefined;
+  const inMove = await applyStockIn(tx, companyId, {
+    productId,
+    warehouseId: toWarehouseId,
+    type: 'TRANSFER',
+    quantity,
+    unitCost: out.unitCost,
+    reference,
+    notes,
+    lots,
+  });
+  return { out, in: inMove };
+}
+
+export async function registerTransfer(companyId: string, params: TransferParams): Promise<{ out: InventoryMovement; in: InventoryMovement }> {
+  if (params.fromWarehouseId === params.toWarehouseId) {
+    throw new Error('La bodega de origen y destino deben ser distintas');
+  }
+  return prisma.$transaction((tx) => registerTransferTx(tx, companyId, params), LOCKING_TX_OPTIONS);
 }
 
 export async function listMovements(

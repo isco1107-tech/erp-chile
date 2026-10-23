@@ -29,3 +29,10 @@ Qué cubren:
 - `dashboard-routes.spec.ts`: cada pantalla del menú (leída de `workspace-nav.ts`)
   carga sin 5xx, sin la pantalla "Algo salió mal" y sin errores de JavaScript,
   con la empresa de prueba recién creada. Una pantalla nueva en el menú entra sola.
+- `bodega-api.spec.ts`, `bodega-barcode.spec.ts`, `bodega-photo.spec.ts`: la app del
+  bodeguero (`/bodega`) en un celular emulado. La API (sin sesión → 401 en JSON,
+  idempotencia, rechazos), la lectura de un EAN-13 con una **cámara falsa**
+  (`fake-camera.ts` dibuja el código en un video Y4M que Chromium reproduce en
+  bucle) y los flujos con foto con la IA **simulada** (`page.route`): una prueba
+  de punta a punta no debe depender de una llave de Gemini. Crean sus productos
+  por la propia API con claves fijas, así que se pueden repetir contra la misma base.

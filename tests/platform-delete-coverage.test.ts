@@ -109,6 +109,10 @@ const CASCADES_TO_COMPANY = new Set([
   'DelegationRule',
   'DataSubjectRequest',
   'PrivacyIncident',
+  // Bodega móvil: registro de idempotencia de la app del bodeguero y caché/libro
+  // de uso de la IA de fotos. `onDelete: Cascade` directo hacia Company.
+  'WarehouseMobileOp',
+  'ProductPhotoScan',
 ]);
 
 /** Cascadean desde `Project`, que se borra explícito en `hardDeleteTenant`. */
