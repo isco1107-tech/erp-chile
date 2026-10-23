@@ -70,7 +70,7 @@ function Shell() {
         <Lock className="size-10 text-muted-foreground" />
         <h1 className="text-xl font-semibold">Inicia sesión</h1>
         <p className="max-w-xs text-base text-muted-foreground">{boot.message}</p>
-        <a href="/login?callbackUrl=/bodega" className="inline-flex h-12 items-center rounded-xl bg-primary px-6 text-base font-semibold text-primary-foreground">
+        <a href="/bodega/ingresar" className="inline-flex h-12 items-center rounded-xl bg-primary px-6 text-base font-semibold text-primary-foreground">
           Entrar
         </a>
       </div>

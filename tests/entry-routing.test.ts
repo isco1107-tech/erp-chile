@@ -3,8 +3,10 @@ import { jwtVerify } from 'jose';
 import { proxy } from '@/proxy';
 import LoginLayout from '@/app/login/layout';
 import { AuthError, getAuthContext, TenantInactiveError } from '@/lib/auth/guards';
-import { clearSessionCookie, setSessionCookie } from '@/lib/auth/session';
+import { cookies } from 'next/headers';
+import { clearSessionCookie, setSessionCookie, setSessionCookieServer } from '@/lib/auth/session';
 
+jest.mock('next/headers', () => ({ cookies: jest.fn() }));
 jest.mock('jose', () => ({ jwtVerify: jest.fn(), SignJWT: jest.fn() }));
 jest.mock('@/lib/auth/guards', () => ({
   getAuthContext: jest.fn(),
@@ -133,5 +135,37 @@ describe('login con validación de sesión vigente', () => {
   it('no oculta errores de infraestructura como si fueran falta de sesión', async () => {
     context.mockRejectedValue(new Error('database unavailable'));
     await expect(LoginLayout({ children: 'login' })).rejects.toThrow('database unavailable');
+  });
+});
+
+describe('entrada instalada de bodega', () => {
+  it('abre un ingreso público y recuerda la app sin conceder una sesión', async () => {
+    const response = await proxy(request('/bodega/ingresar'));
+    expect(response.headers.get('x-middleware-next')).toBe('1');
+    expect(response.cookies.get('aether-entry')?.value).toBe('bodega');
+    expect(response.cookies.get('session')).toBeUndefined();
+  });
+  it('una sesión ausente o vencida vuelve al ingreso de bodega', async () => {
+    expect((await proxy(request('/bodega'))).headers.get('location')).toContain('/bodega/ingresar');
+    verify.mockRejectedValue(new Error('expired'));
+    const response = await proxy(request('/bodega', 'session=expired'));
+    expect(response.headers.get('location')).toContain('/bodega/ingresar');
+    expect(response.cookies.get('session')?.value).toBe('');
+  });
+  it('un enlace antiguo conserva el ingreso móvil', async () => {
+    expect((await proxy(request('/login?callbackUrl=%2Fbodega'))).headers.get('location')).toBe('https://aether.example/bodega/ingresar');
+  });
+  it('la preferencia de bodega no permite abrir el dashboard sin sesión', async () => {
+    expect((await proxy(request('/dashboard', 'aether-entry=bodega'))).headers.get('location')).toContain('/login?callbackUrl=');
+  });
+});
+
+describe('rotación de la sesión conserva la app elegida', () => {
+  it.each(['bodega', 'erp'])('mantiene la entrada %s al cambiar contraseña o empresa', async entry => {
+    const set = jest.fn();
+    jest.mocked(cookies).mockResolvedValue({ get: () => ({ value: entry }), set } as never);
+    await setSessionCookieServer('new-token');
+    expect(set).toHaveBeenCalledWith('aether-entry', entry, expect.objectContaining({ httpOnly: true, path: '/' }));
+    expect(set).toHaveBeenCalledWith(expect.objectContaining({ name: 'session', value: 'new-token' }));
   });
 });

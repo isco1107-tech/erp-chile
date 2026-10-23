@@ -103,7 +103,7 @@ export default function HomeScreen({ onStart, onContinue, onOutbox }: Props) {
               <TriangleAlert className="mt-0.5 size-4 shrink-0" /> {auth.message}
             </p>
             {auth.status === 401 ? (
-              <a href="/login?callbackUrl=/bodega" className="mt-2 inline-flex h-11 items-center rounded-xl bg-primary px-4 font-semibold text-primary-foreground">
+              <a href="/bodega/ingresar" className="mt-2 inline-flex h-11 items-center rounded-xl bg-primary px-4 font-semibold text-primary-foreground">
                 Iniciar sesión
               </a>
             ) : null}

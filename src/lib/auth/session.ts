@@ -93,7 +93,9 @@ export function clearSessionCookie(res: NextResponse) {
 export async function setSessionCookieServer(token: string) {
   const { cookies } = await import('next/headers');
   const store = await cookies();
-  store.set(ERP_ENTRY_COOKIE, 'erp', ERP_ENTRY_COOKIE_OPTIONS);
+  // Keep the chosen mobile app when rotating a session or changing company.
+  const entry = store.get(ERP_ENTRY_COOKIE)?.value === 'bodega' ? 'bodega' : 'erp';
+  store.set(ERP_ENTRY_COOKIE, entry, ERP_ENTRY_COOKIE_OPTIONS);
   store.set({
     name: 'session',
     value: token,

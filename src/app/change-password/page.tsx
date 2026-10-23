@@ -1,3 +1,5 @@
+import { cookies } from 'next/headers';
+import { ERP_ENTRY_COOKIE } from '@/lib/auth/entry-preference';
 import { redirect } from 'next/navigation';
 import { getAuthContext, AuthError, TenantInactiveError } from '@/lib/auth/guards';
 import ChangePasswordForm from '@/components/ChangePasswordForm';
@@ -19,8 +21,10 @@ export default async function ChangePasswordPage() {
     throw error;
   }
 
-  // Ya la cambió (por ejemplo, en otra pestaña): no tiene sentido insistir.
-  if (!context.mustChangePassword) redirect('/dashboard');
+  const destination = (await cookies()).get(ERP_ENTRY_COOKIE)?.value === 'bodega' ? '/bodega' : '/dashboard';
 
-  return <ChangePasswordForm email={context.email} />;
+  // Ya la cambió (por ejemplo, en otra pestaña): no tiene sentido insistir.
+  if (!context.mustChangePassword) redirect(destination);
+
+  return <ChangePasswordForm email={context.email} destination={destination} />;
 }

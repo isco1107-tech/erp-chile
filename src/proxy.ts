@@ -152,6 +152,22 @@ export async function proxy(req: NextRequest) {
   if (canonical) return NextResponse.redirect(`${canonical}${pathname}${req.nextUrl.search}`, 308);
   if (!isPlatformHost(host)) return routeCustomDomain(req, host ?? '');
 
+  // The dedicated mobile entry remains inside the installed app's scope.
+  if (pathname === '/bodega/ingresar') {
+    const response = NextResponse.next();
+    response.cookies.set(ERP_ENTRY_COOKIE, 'bodega', ERP_ENTRY_COOKIE_OPTIONS);
+    response.headers.set('Cache-Control', 'private, no-store');
+    return response;
+  }
+  if (pathname === '/login' && req.nextUrl.searchParams.get('callbackUrl') === '/bodega') {
+    return NextResponse.redirect(new URL('/bodega/ingresar', req.url));
+  }
+  if (pathname === '/login') {
+    const response = NextResponse.next();
+    response.cookies.set(ERP_ENTRY_COOKIE, 'erp', ERP_ENTRY_COOKIE_OPTIONS);
+    return response;
+  }
+
   // La raíz del dominio es siempre la landing comercial, también para quien
   // ya tiene sesión: al ERP se entra con el botón "Ingresar" (y /login manda
   // al panel si la sesión sigue vigente). Solo la app de escritorio, que no
@@ -203,7 +219,7 @@ export async function proxy(req: NextRequest) {
   const token = req.cookies.get('session')?.value;
 
   if (!token) {
-    const loginUrl = new URL('/login', req.url);
+    const loginUrl = new URL(pathname === '/bodega' || pathname.startsWith('/bodega/') ? '/bodega/ingresar' : '/login', req.url);
     loginUrl.searchParams.set('callbackUrl', pathname);
     return NextResponse.redirect(loginUrl);
   }
@@ -220,7 +236,7 @@ export async function proxy(req: NextRequest) {
 
     return NextResponse.next();
   } catch {
-    const loginUrl = new URL('/login', req.url);
+    const loginUrl = new URL(pathname === '/bodega' || pathname.startsWith('/bodega/') ? '/bodega/ingresar' : '/login', req.url);
     loginUrl.searchParams.set('callbackUrl', pathname);
     const response = NextResponse.redirect(loginUrl);
     response.cookies.delete('session');

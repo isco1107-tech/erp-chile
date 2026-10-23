@@ -9,10 +9,10 @@ import { cn } from '@/lib/utils';
 /**
  * Lista de empresas de `/seleccionar-empresa`. Elegir una llama a
  * `switchActiveCompanyAction`, que revalida el acceso, reemite la sesión y
- * redirige al panel (el redirect lanza por dentro: si la acción retorna, fue
- * un error).
+ * redirige al panel. En la app móvil devuelve el resultado para abrir bodega
+ * con un documento nuevo y su política de permisos de cámara.
  */
-export function CompanyPicker({ companies }: { companies: SwitchableCompany[] }) {
+export function CompanyPicker({ companies, warehouse = false }: { companies: SwitchableCompany[]; warehouse?: boolean }) {
   const [pending, startTransition] = useTransition();
   const [chosen, setChosen] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -21,10 +21,13 @@ export function CompanyPicker({ companies }: { companies: SwitchableCompany[] })
     setChosen(companyId);
     setError(null);
     startTransition(async () => {
-      const result = await switchActiveCompanyAction(companyId);
+      const result = await switchActiveCompanyAction(companyId, warehouse);
       if (!result.success) {
         setError(result.error);
         setChosen(null);
+      } else if (warehouse) {
+        // A fresh document enables the warehouse camera Permissions-Policy.
+        window.location.assign('/bodega');
       }
     });
   }

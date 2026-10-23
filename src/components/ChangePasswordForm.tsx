@@ -12,9 +12,10 @@ import { PASSWORD_REQUIREMENTS, passwordPolicySchema } from '@/lib/auth/password
 
 interface ChangePasswordFormProps {
   email: string;
+  destination?: '/bodega' | '/dashboard';
 }
 
-export default function ChangePasswordForm({ email }: ChangePasswordFormProps) {
+export default function ChangePasswordForm({ email, destination = '/dashboard' }: ChangePasswordFormProps) {
   const router = useRouter();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -36,7 +37,8 @@ export default function ChangePasswordForm({ email }: ChangePasswordFormProps) {
         return;
       }
       toast.success(result.message ?? 'Contraseña actualizada');
-      router.push('/dashboard');
+      if (destination === '/bodega') { window.location.assign(destination); return; }
+      router.push(destination);
       router.refresh();
     } finally {
       setSubmitting(false);

@@ -1,3 +1,5 @@
+import { cookies } from 'next/headers';
+import { ERP_ENTRY_COOKIE } from '@/lib/auth/entry-preference';
 import { redirect } from 'next/navigation';
 import { Building2 } from 'lucide-react';
 import { getAuthContext, AuthError, IpNotAllowedError, TenantInactiveError } from '@/lib/auth/guards';
@@ -29,7 +31,7 @@ export default async function SelectCompanyPage() {
   if (context.mustChangePassword) redirect('/change-password');
 
   const companies = await listAccessibleCompanies(context.id);
-  if (selectableCount(companies) < 2) redirect('/dashboard');
+  if (selectableCount(companies) < 2) redirect((await cookies()).get(ERP_ENTRY_COOKIE)?.value === 'bodega' ? '/bodega' : '/dashboard');
 
   return (
     <AuthShell>
@@ -45,6 +47,7 @@ export default async function SelectCompanyPage() {
           }
         />
         <CompanyPicker
+          warehouse={(await cookies()).get(ERP_ENTRY_COOKIE)?.value === 'bodega'}
           companies={companies.map((company) => ({
             id: company.id,
             name: company.name,

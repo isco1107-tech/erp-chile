@@ -1,6 +1,7 @@
 'use server';
 
 import { cookies, headers } from 'next/headers';
+import { ERP_ENTRY_COOKIE } from '@/lib/auth/entry-preference';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { getAuthContext, AuthError } from '@/lib/auth/guards';
@@ -68,12 +69,15 @@ export async function listSwitchableCompaniesAction(): Promise<ActionResult<Swit
  * render, así que va DESPUÉS del `try/catch`, nunca dentro: atraparlo ahí
  * lo convertiría en un error genérico y el redirect nunca ocurriría.
  */
-export async function switchActiveCompanyAction(targetCompanyId: string): Promise<ActionResult<null>> {
+export async function switchActiveCompanyAction(targetCompanyId: string, returnToCaller = false): Promise<ActionResult<null>> {
   const session = await getAuthContext();
 
   // Ya está trabajando en esa empresa (p. ej. la eligió en el selector del
   // login y era la hogar): no hace falta reemitir la sesión ni auditar un cambio.
-  if (targetCompanyId === session.companyId) redirect('/dashboard');
+  if (targetCompanyId === session.companyId) {
+    if (returnToCaller) return { success: true, data: null };
+    redirect((await cookies()).get(ERP_ENTRY_COOKIE)?.value === 'bodega' ? '/bodega' : '/dashboard');
+  }
 
   const user = await prisma.user.findUnique({
     where: { id: session.id },
@@ -156,5 +160,6 @@ export async function switchActiveCompanyAction(targetCompanyId: string): Promis
     metadata: { reason: 'active_company_switch', targetCompanyName },
   });
 
-  redirect('/dashboard');
+  if (returnToCaller) return { success: true, data: null };
+  redirect((await cookies()).get(ERP_ENTRY_COOKIE)?.value === 'bodega' ? '/bodega' : '/dashboard');
 }

@@ -727,7 +727,7 @@ export function BodegaProvider({ children }: { children: ReactNode }) {
     } catch {
       /* sin caché que limpiar */
     }
-    router.push('/login?callbackUrl=/bodega');
+    router.push('/bodega/ingresar');
   }, [router]);
 
   const summary = useMemo(() => summarizeOutbox(outbox), [outbox]);

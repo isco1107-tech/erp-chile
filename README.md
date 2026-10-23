@@ -39,6 +39,21 @@ npm run dev
 
 La app queda en `http://localhost:3000`.
 
+### App Bodega móvil
+
+Abre `/bodega` desde el teléfono: si falta sesión, aparece el ingreso exclusivo
+`/bodega/ingresar`. Se usa el mismo usuario y contraseña del ERP, con sus permisos,
+verificación en dos pasos y selección de empresa. Al completar el ingreso se abre
+la bodega, sin pasar por el dashboard. El acceso habitual `/login` conserva el ERP.
+
+Desde el menú de Bodega puedes instalarla en Android. En iPhone, usa Safari →
+Compartir → Agregar a inicio. Es una app web instalable (PWA); necesita HTTPS en
+producción para cámara e instalación. Los movimientos siguen usando las APIs del
+ERP; los pendientes sin señal se envían al recuperar la conexión.
+
+Pruebas del acceso: `npx playwright test e2e/bodega-entry.spec.ts` con la base de
+pruebas, contraseña del seed y navegador configurados (ver `e2e/README.md`).
+
 ### Variables de entorno
 
 `.env.example` documenta cada variable con qué hace y dónde conseguirla. Las mínimas para levantar:

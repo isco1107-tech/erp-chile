@@ -7,3 +7,7 @@ export const ERP_ENTRY_COOKIE_OPTIONS = {
   path: '/',
   maxAge: 365 * 24 * 60 * 60,
 };
+
+export function warehouseEntry(cookieHeader: string | null): boolean {
+  return cookieHeader?.split(';').some((part) => part.trim() === `${ERP_ENTRY_COOKIE}=bodega`) ?? false;
+}
