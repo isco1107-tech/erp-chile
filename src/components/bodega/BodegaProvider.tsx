@@ -73,8 +73,6 @@ export interface BodegaContextValue {
   identifying: boolean;
   warehouseId: string;
   setWarehouseId(id: string): void;
-  canInstall: boolean;
-  install(): Promise<void>;
   // borrador
   startDraft(mode: MobileMode): 'ok' | 'conflict';
   discardDraft(): void;
@@ -116,11 +114,6 @@ const PHOTO_GRACE_MS = 10 * 60_000;
 const PERSIST_DEBOUNCE_MS = 250;
 const MAX_LOOP_PASSES = 200;
 
-interface BeforeInstallPromptEvent extends Event {
-  prompt(): Promise<void>;
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
-}
-
 function readLastCtx(): { companyId: string; userId: string } | null {
   try {
     const raw = window.localStorage.getItem(LAST_CTX_KEY);
@@ -155,7 +148,6 @@ export function BodegaProvider({ children }: { children: ReactNode }) {
   const [syncing, setSyncing] = useState(false);
   const [identifying, setIdentifying] = useState(false);
   const [warehouseId, setWarehouseIdState] = useState('');
-  const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
 
   const storeRef = useRef<BodegaStore | null>(null);
   const storeKeyRef = useRef<string | null>(null);
@@ -494,27 +486,15 @@ export function BodegaProvider({ children }: { children: ReactNode }) {
       kickSyncRef.current();
       kickIdentifyRef.current();
     };
-    const handleInstall = (event: Event) => {
-      event.preventDefault();
-      setInstallEvent(event as BeforeInstallPromptEvent);
-    };
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     document.addEventListener('visibilitychange', handleVisible);
-    window.addEventListener('beforeinstallprompt', handleInstall);
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       document.removeEventListener('visibilitychange', handleVisible);
-      window.removeEventListener('beforeinstallprompt', handleInstall);
     };
   }, [refreshBootstrap, wakeForConnection]);
-
-  // Service worker: solo en producción, para no cachear nada mientras se desarrolla.
-  useEffect(() => {
-    if (process.env.NODE_ENV !== 'production' || !('serviceWorker' in navigator)) return;
-    void navigator.serviceWorker.register('/bodega-sw.js', { scope: '/bodega' }).catch(() => undefined);
-  }, []);
 
   // Al cerrar o recargar con cambios sin guardar, se guarda lo último del borrador.
   useEffect(() => {
@@ -705,13 +685,6 @@ export function BodegaProvider({ children }: { children: ReactNode }) {
     [cleanupPhotos, commitOutbox]
   );
 
-  const install = useCallback(async () => {
-    if (!installEvent) return;
-    await installEvent.prompt();
-    await installEvent.userChoice.catch(() => undefined);
-    setInstallEvent(null);
-  }, [installEvent]);
-
   const router = useRouter();
   const logout = useCallback(async () => {
     try {
@@ -745,8 +718,6 @@ export function BodegaProvider({ children }: { children: ReactNode }) {
     identifying,
     warehouseId,
     setWarehouseId,
-    canInstall: installEvent !== null,
-    install,
     startDraft,
     discardDraft,
     updateDraft,

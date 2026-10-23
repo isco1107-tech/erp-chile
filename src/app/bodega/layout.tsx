@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { WarehouseInstallProvider } from '@/components/bodega/InstallApp';
 
 /**
  * App del bodeguero (`/bodega`): instalable en el celular, a pantalla completa.
@@ -27,5 +28,5 @@ export const viewport: Viewport = {
 };
 
 export default function BodegaLayout({ children }: { children: React.ReactNode }) {
-  return children;
+  return <WarehouseInstallProvider>{children}</WarehouseInstallProvider>;
 }

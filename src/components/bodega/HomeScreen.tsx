@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowLeftRight, CloudUpload, Download, LogOut, PackageMinus, PackagePlus, Plus, Search, Trash2, Undo2, TriangleAlert, WifiOff, X } from 'lucide-react';
+import { ArrowLeftRight, CloudUpload, LogOut, PackageMinus, PackagePlus, Plus, Search, Trash2, Undo2, TriangleAlert, WifiOff, X } from 'lucide-react';
 import { MODE_DEFINITIONS, MOBILE_MODES, type MobileMode } from '@/lib/warehouse-mobile/modes';
 import { useConfirm } from '@/components/ui/confirm-provider';
+import InstallApp from './InstallApp';
 import { useBodega } from './BodegaProvider';
 import SearchSheet from './SearchSheet';
 import { Pill, Sheet, Spinner, formatQty, inputClass } from './ui';
@@ -35,7 +36,7 @@ interface Props {
 
 export default function HomeScreen({ onStart, onContinue, onOutbox }: Props) {
   const confirm = useConfirm();
-  const { boot, draft, summary, online, syncing, persistent, auth, warehouseId, setWarehouseId, canInstall, install, logout, discardDraft } = useBodega();
+  const { boot, draft, summary, online, syncing, persistent, auth, warehouseId, setWarehouseId, logout, discardDraft } = useBodega();
   const [looking, setLooking] = useState(false);
   const [menu, setMenu] = useState(false);
   const [info, setInfo] = useState<{ name: string; text: string } | null>(null);
@@ -97,6 +98,7 @@ export default function HomeScreen({ onStart, onContinue, onOutbox }: Props) {
       </header>
 
       <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+        <InstallApp />
         {auth ? (
           <div role="alert" className="rounded-2xl bg-warning-soft p-3 text-sm text-warning">
             <p className="flex items-start gap-2">
@@ -203,20 +205,6 @@ export default function HomeScreen({ onStart, onContinue, onOutbox }: Props) {
           <p className="text-sm text-muted-foreground">
             {data.user.name} · {data.user.roleLabel}
           </p>
-          {canInstall ? (
-            <button
-              type="button"
-              onClick={() => {
-                setMenu(false);
-                void install();
-              }}
-              className="flex h-14 w-full items-center gap-3 rounded-xl bg-muted px-4 text-base font-medium active:bg-secondary"
-            >
-              <Download className="size-5" /> Instalar la app en el teléfono
-            </button>
-          ) : (
-            <p className="rounded-xl bg-muted p-3 text-sm text-muted-foreground">Para tenerla como app: en Android abre el menú del navegador y elige «Instalar app»; en iPhone toca Compartir y «Agregar a inicio».</p>
-          )}
           <button type="button" onClick={() => void askLogout()} className="flex h-14 w-full items-center gap-3 rounded-xl bg-danger-soft px-4 text-base font-medium text-danger active:opacity-85">
             <LogOut className="size-5" /> Cerrar sesión
           </button>

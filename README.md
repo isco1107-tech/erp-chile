@@ -46,8 +46,10 @@ Abre `/bodega` desde el teléfono: si falta sesión, aparece el ingreso exclusiv
 verificación en dos pasos y selección de empresa. Al completar el ingreso se abre
 la bodega, sin pasar por el dashboard. El acceso habitual `/login` conserva el ERP.
 
-Desde el menú de Bodega puedes instalarla en Android. En iPhone, usa Safari →
-Compartir → Agregar a inicio. Es una app web instalable (PWA); necesita HTTPS en
+El botón «Descargar app» está disponible en el ingreso y en el inicio de Bodega.
+En Android abre el instalador del navegador; si no está disponible, muestra los
+pasos del menú. En iPhone indica Safari → Compartir → Agregar a pantalla de inicio.
+El botón se oculta al abrir la app instalada. Es una app web instalable (PWA); necesita HTTPS en
 producción para cámara e instalación. Los movimientos siguen usando las APIs del
 ERP; los pendientes sin señal se envían al recuperar la conexión.
 

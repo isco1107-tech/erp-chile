@@ -1,3 +1,4 @@
+import InstallApp from '@/components/bodega/InstallApp';
 import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import { LoginForm } from '@/components/auth/LoginPage';
@@ -18,6 +19,7 @@ export default async function WarehouseLoginPage() {
       <div className="w-full max-w-sm">
         <p className="mb-6 text-center text-sm font-semibold tracking-wide">AETHER · BODEGA MÓVIL</p>
         <Suspense fallback={<p role="status">Preparando el ingreso…</p>}><LoginForm warehouse /></Suspense>
+        <div className="mt-4"><InstallApp /></div>
         <p className="mt-6 text-center text-sm text-muted-foreground">Ingresos, salidas y traslados conectados a tu ERP.</p>
       </div>
     </main>
