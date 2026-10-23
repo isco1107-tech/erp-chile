@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { isAllowedBlobUrl } from '@/lib/security/blob-url';
+import { commissionBpsSchema } from '@/lib/consignment/commission';
 
 /** Código de barras: lo que un lector puede escribir (ASCII imprimible, sin espacios a los lados). */
 const barcodeField = z
@@ -33,6 +34,10 @@ export const productCreateSchema = z.object({
     .optional()
     .or(z.literal('')),
   tracksLots: z.boolean().optional(),
+  /** Seller dueño del producto (consignación). Vacío o `null` = producto propio. */
+  consignorId: z.string().min(1).nullable().optional(),
+  /** Comisión propia del producto en puntos base. `null` = la del seller. */
+  consignmentCommissionBps: commissionBpsSchema.nullable().optional(),
 });
 
 export const productUpdateSchema = productCreateSchema.partial();
@@ -55,6 +60,66 @@ export const warehouseCreateSchema = z.object({
 });
 
 export type WarehouseCreateInput = z.infer<typeof warehouseCreateSchema>;
+
+/** Recepción de mercadería de un seller (consignación): el producto ya trae su dueño. */
+export const consignmentReceiveSchema = z.object({
+  productId: z.string().min(1, 'Selecciona un producto'),
+  warehouseId: z.string().min(1, 'Selecciona una bodega'),
+  quantity: z.number().positive('La cantidad debe ser mayor a cero').max(1_000_000, 'La cantidad es demasiado grande: revisa los ceros'),
+  reference: z.string().trim().max(120, 'Máximo 120 caracteres').optional(),
+  notes: z.string().trim().max(500, 'Máximo 500 caracteres').optional(),
+  /** Solo productos con lotes: lote y vencimiento de lo que entra. */
+  lotNumber: z.string().trim().max(40, 'Máximo 40 caracteres').optional(),
+  expiryDate: z.union([z.literal(''), z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha de vencimiento inválida')]).optional(),
+});
+
+/** Devolución de mercadería al seller (sale de la bodega sin venderse). */
+export const consignmentReturnSchema = consignmentReceiveSchema.pick({ productId: true, warehouseId: true, quantity: true, reference: true, notes: true });
+
+const calendarDay = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha inválida')
+  .refine((value) => !Number.isNaN(new Date(`${value}T12:00:00Z`).getTime()) && new Date(`${value}T12:00:00Z`).toISOString().startsWith(value), 'Fecha inválida');
+
+/** Una fecha de pago real: de este siglo y no más allá de mañana (el navegador puede ir un día adelantado). */
+const paymentDay = calendarDay.refine((value) => value >= '2000-01-01' && value <= new Date(Date.now() + 36 * 60 * 60_000).toISOString().slice(0, 10), 'La fecha de pago no es válida');
+
+/** Generar la liquidación de lo pendiente de un seller (con un ajuste manual opcional). */
+export const settlementGenerateSchema = z
+  .object({
+    consignorId: z.string().min(1, 'Selecciona un seller'),
+    /** CLP con signo: una nota de crédito por precio, un descuento acordado… Con su motivo. */
+    adjustmentAmount: z.number().int('El ajuste debe ser un monto entero').min(-100_000_000, 'Ajuste demasiado grande').max(100_000_000, 'Ajuste demasiado grande').default(0),
+    adjustmentNote: z.string().trim().max(200, 'Máximo 200 caracteres').optional(),
+    note: z.string().trim().max(300, 'Máximo 300 caracteres').optional(),
+    /** Intento de la pantalla: reenviarlo devuelve la liquidación ya creada en vez de generar otra. */
+    idempotencyKey: z.string().trim().min(8, 'Clave inválida').max(100, 'Clave inválida').optional(),
+    /** Lo que la persona vio en la vista previa: si las ventas cambiaron mientras tanto, se rechaza en vez de liquidar otro monto. */
+    expectedPayoutAmount: z.number().int().optional(),
+  })
+  .refine((data) => data.adjustmentAmount === 0 || (data.adjustmentNote ?? '').length >= 3, {
+    message: 'Explica el motivo del ajuste',
+    path: ['adjustmentNote'],
+  });
+
+/** Marcar una liquidación como pagada al seller. */
+export const settlementPaySchema = z.object({
+  id: z.string().min(1),
+  paidAt: paymentDay,
+  reference: z.string().trim().max(120, 'Máximo 120 caracteres').optional(),
+});
+
+/** Anular una liquidación que aún no se pagó. */
+export const settlementVoidSchema = z.object({
+  id: z.string().min(1),
+  reason: z.string().trim().min(3, 'Indica el motivo de la anulación').max(200, 'Máximo 200 caracteres'),
+});
+
+export type SettlementGenerateInput = z.infer<typeof settlementGenerateSchema>;
+export type SettlementPayInput = z.infer<typeof settlementPaySchema>;
+export type SettlementVoidInput = z.infer<typeof settlementVoidSchema>;
+export type ConsignmentReceiveInput = z.infer<typeof consignmentReceiveSchema>;
+export type ConsignmentReturnInput = z.infer<typeof consignmentReturnSchema>;
 
 export const MOVEMENT_TYPES = ['PURCHASE_IN', 'SALE_OUT', 'ADJUSTMENT_IN', 'ADJUSTMENT_OUT', 'TRANSFER'] as const;
 

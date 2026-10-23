@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import type { Contact, GoodsReceipt, GoodsReceiptItem, PurchaseOrder, Warehouse } from '@prisma/client';
 import { applyStockIn, applyStockOut } from '@/modules/inventory/services/stock.service';
+import { assertProductsNotConsigned } from '@/modules/inventory/services/consignment-guards';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import type { GoodsReceiptCreateInput } from '../schema';
@@ -171,6 +172,7 @@ export async function cancelGoodsReceipt(companyId: string, id: string): Promise
       if (line.productId) {
         const product = await tx.product.findFirst({ where: { id: line.productId, companyId } });
         if (product?.isTrackable) {
+          await assertProductsNotConsigned(tx, companyId, [line.productId], 'la anulación de una recepción de compra');
           await applyStockOut(tx, companyId, {
             productId: line.productId,
             warehouseId: receipt.warehouseId,

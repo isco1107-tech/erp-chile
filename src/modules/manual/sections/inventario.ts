@@ -315,4 +315,93 @@ export const INVENTARIO_SECTIONS: ManualSection[] = [
       },
     ],
   },
+  {
+    id: 'consignacion',
+    key: 'hasInventory',
+    permission: 'products:read',
+    chapter: 'Inventario',
+    title: 'Consignación (sellers)',
+    summary:
+      'Un seller pone productos a la venta sin dejar de ser dueño de la mercadería hasta que se vende. Su stock no entra a tu inventario valorizado ni a tus compras: al vender se le liquida lo vendido menos tu comisión.',
+    route: '/dashboard/inventory/consignment',
+    // Pendiente: la captura se genera con `scripts/capture-manual-screenshots.ts` contra una base LOCAL
+    // con datos de demostración, y esta pantalla se escribió sin una. Al generarla, quitar esta línea.
+    screenshot: null,
+    topics: [
+      {
+        id: 'crear-seller',
+        title: 'Dar de alta a un seller',
+        permission: 'contacts:write',
+        route: '/dashboard/contacts',
+        steps: [
+          'Ve a Clientes & Proveedores y haz clic en "Nuevo contacto".',
+          'Completa RUT y razón social, y marca "Seller (consignación)". No lo marques como "Proveedor": a un proveedor se le compra, a un seller no.',
+          'Escribe su comisión en "Comisión para tu empresa (%)": es lo que se queda tu empresa de cada venta (ej. 20). Es obligatoria.',
+          'Guarda. Un seller puede ser también cliente o proveedor.',
+        ],
+        tip: 'Marcar a un contacto como seller o cambiar su comisión requiere el permiso de consignación (Dueño, Administrador o Contador), y queda en la bitácora. No puedes quitarle la condición de seller mientras tenga productos, ventas sin liquidar o liquidaciones sin pagar, ni eliminarlo si tiene ventas de su mercadería o liquidaciones.',
+      },
+      {
+        id: 'productos-del-seller',
+        title: 'Asignar productos a un seller',
+        permission: 'products:write',
+        route: '/dashboard/products',
+        steps: [
+          'Ve a Inventario → Catálogo de Productos y crea o edita el producto.',
+          'En "Dueño del producto" elige "Seller: …" en vez de "Propio (lo compras tú)". Este campo aparece cuando ya tienes al menos un seller.',
+          'Si este producto tiene una comisión distinta a la del seller, escríbela en "Comisión de este producto (%)". Vacío significa que vale la del seller.',
+          'Guarda. En la lista, el producto aparece con la etiqueta "Consignación" y el nombre del seller.',
+        ],
+        tip: 'Cambiar el dueño o la comisión de un producto requiere el permiso de consignación. El dueño solo se puede cambiar con el stock en 0 en todas las bodegas, para no mezclar lo tuyo con lo del seller; un producto de seller queda con costo 0 y no se compra desde Compras ni se usa en producción. Si cambias de dueño un producto ya vendido, las notas de crédito y anulaciones de esas ventas ya no podrán reponer su stock: usa un ajuste.',
+      },
+      {
+        id: 'recibir-devolver-seller',
+        title: 'Recibir y devolver mercadería del seller',
+        permission: 'inventory:write',
+        steps: [
+          'Ve a Inventario → Consignación. En "Existencias por seller" ves, por seller, cada producto suyo con lo que hay en bodega y su comisión.',
+          'Para que entre mercadería, haz clic en "Recibir" en la fila del producto, elige la Bodega, escribe la Cantidad y guarda con "Recibir". Si el producto lleva lotes, también se piden Lote y Vencimiento.',
+          'Para devolverle mercadería sin venderla, haz clic en "Devolver", elige la Bodega y la Cantidad, y guarda con "Devolver".',
+          'Ambos movimientos quedan en el Kardex a nombre del seller, sin compra, sin costo y sin asiento.',
+        ],
+        tip: 'Si intentas registrar como compra (o desde Compras) la mercadería de un seller, el sistema lo rechaza y te manda a esta pantalla. La devolución al seller no emite guía de despacho: no la documentes además con una Guía de Despacho desde Ventas, porque el stock se descontaría dos veces. No se puede devolver más de lo que hay en la bodega.',
+      },
+      {
+        id: 'liquidar-seller',
+        title: 'Liquidar a un seller',
+        permission: 'consignment:write',
+        steps: [
+          'Ve a Inventario → Consignación → pestaña "Liquidaciones". En "Lo que hay por liquidar" ves, por seller, lo vendido y lo que se le debe.',
+          'Haz clic en "Liquidar" en la fila del seller: se abre el detalle de cada venta con su neto, tu comisión y lo que se le paga.',
+          'Si corresponde, escribe un "Ajuste manual (CLP, opcional)" con su "Motivo del ajuste": negativo descuenta al seller (ej. una nota de crédito por precio), positivo se suma.',
+          'Revisa el total "Le pagas al seller" y presiona "Generar liquidación". Queda numerada y congelada. Si las ventas cambian mientras tienes la vista abierta, el sistema no liquida otro monto: vuelve a calcular y te pide confirmar de nuevo.',
+        ],
+        tip: 'Los montos son netos, sin IVA, y el ajuste manual se escribe en pesos enteros (el punto separa miles: 3.000 son tres mil). La liquidación es el estado de cuenta del seller: no registra el pago ni genera asientos ni documentos tributarios. Una devolución revierte lo que se le acreditó por esas unidades en la venta original, aunque la nota de crédito se emita a otro precio. Si las devoluciones superan lo vendido, el saldo queda pendiente para la próxima.',
+      },
+      {
+        id: 'portal-del-seller',
+        title: 'Darle al seller acceso a su portal',
+        permission: 'settings:company',
+        route: '/dashboard/contacts',
+        steps: [
+          'Ve a Clientes & Proveedores, haz clic en "Ver ficha" del seller y busca la sección "Portal del seller".',
+          'Presiona "Generar código" y entrégaselo (hay botones para "Copiar código", "Copiar enlace" y WhatsApp). El código completo se muestra solo esa vez.',
+          'Con su código, en la página /proveedor ve cuánto le queda de su mercadería, lo vendido sin liquidar y sus liquidaciones, y puede descargar un Excel. Solo ve sus propios montos, nunca clientes, documentos, costos ni a otros sellers.',
+          'Si no quieres que vea lo que sale (ventas y bajas de 30 días), desmarca "Mostrar también lo que sale". "Desactivar" deja sin efecto su código al instante, y "Generar código nuevo" reemplaza al anterior.',
+        ],
+        tip: 'Sus liquidaciones las ve siempre, aunque apagues lo que sale.',
+      },
+      {
+        id: 'pagar-anular-liquidacion',
+        title: 'Marcar una liquidación como pagada o anularla',
+        permission: 'consignment:write',
+        steps: [
+          'En la pestaña "Liquidaciones", baja a "Liquidaciones generadas". Usa los filtros de seller y estado, y "Ver detalle" para ver cada línea.',
+          'Cuando le pagues al seller (transferencia, efectivo…), haz clic en "Marcar pagada", elige la "Fecha de pago", anota la referencia y presiona "Marcar como pagada". Esto solo deja constancia: el pago y su contabilización los haces fuera de esta pantalla.',
+          'Si te equivocaste, haz clic en "Anular", escribe el "Motivo" y presiona "Anular liquidación": sus ventas vuelven a quedar pendientes para liquidarlas de nuevo.',
+        ],
+        tip: 'Una liquidación pagada no se anula. Si después anulas una venta o emites una nota de crédito, el ajuste aparece en la liquidación siguiente.',
+      },
+    ],
+  },
 ];

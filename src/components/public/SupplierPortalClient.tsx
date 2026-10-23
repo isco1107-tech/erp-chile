@@ -3,24 +3,12 @@
 import { useMemo, useState } from 'react';
 import { Download, PackageSearch, Truck } from 'lucide-react';
 import { PublicBadge, PublicCard, PublicCardHeader, PublicFooter, PublicPage, PublicShell, PublicTopBar } from '@/components/public/PublicShell';
-import type { SupplierPortalRow, SupplierPortalView } from '@/modules/inventory/services/supplier-portal.service';
+import PortalProductCard from '@/components/public/PortalProductCard';
+import { URGENCY } from '@/components/public/portal-format';
+import SellerConsignmentSection from '@/components/public/SellerConsignmentSection';
+import type { SupplierPortalView } from '@/modules/inventory/services/supplier-portal.service';
 
 type Filter = 'ALL' | 'OUT' | 'LOW';
-
-const STATUS: Record<SupplierPortalRow['status'], { label: string }> = {
-  OUT: { label: 'Sin stock' },
-  LOW: { label: 'Stock bajo' },
-  OK: { label: 'Normal' },
-};
-
-/** Lo urgente primero: sin stock, luego bajo mínimo, luego el resto por nombre. */
-const URGENCY: Record<SupplierPortalRow['status'], number> = { OUT: 0, LOW: 1, OK: 2 };
-
-const qty = (value: number) => value.toLocaleString('es-CL', { maximumFractionDigits: 3 });
-
-function day(value: Date | string): string {
-  return new Date(value).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'America/Santiago' });
-}
 
 function normalize(text: string): string {
   return text.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
@@ -28,9 +16,12 @@ function normalize(text: string): string {
 
 /**
  * Portal del proveedor (`/proveedor/[código]`): cuánto queda en bodega de CADA producto suyo,
- * con lo urgente arriba, para analizar y reponer. Solo lectura; solo cantidades.
+ * con lo urgente arriba, para analizar y reponer. Solo lectura; solo cantidades. Si el contacto es
+ * un seller de consignación, además ve su mercadería, lo vendido sin liquidar y sus liquidaciones.
  */
 export default function SupplierPortalClient({ code, view }: { code: string; view: SupplierPortalView }) {
+  // Un seller que no surte como proveedor ve solo su consignación; si además es proveedor, ve las dos cosas.
+  const showSupplier = view.rows.length > 0 || !view.consignment;
   const [filter, setFilter] = useState<Filter>('ALL');
   const [search, setSearch] = useState('');
 
@@ -49,117 +40,70 @@ export default function SupplierPortalClient({ code, view }: { code: string; vie
     { id: 'LOW', label: `Stock bajo (${summary.low})` },
   ];
 
+  const subtitle = !showSupplier
+    ? 'Aquí ves tu mercadería en consignación, lo vendido y tus liquidaciones.'
+    : summary.products === 0
+      ? 'Todavía no hay productos tuyos registrados en la bodega.'
+      : summary.out + summary.low === 0
+        ? `Tus ${summary.products} productos tienen existencias suficientes.`
+        : `${summary.out > 0 ? `${summary.out} sin stock` : ''}${summary.out > 0 && summary.low > 0 ? ' y ' : ''}${summary.low > 0 ? `${summary.low} con stock bajo` : ''}: conviene reponer.`;
+
   return (
     <PublicPage accent="emerald">
       <style>{STYLES}</style>
-      <PublicTopBar brand={view.company.name} right={<PublicBadge tone="accent">Portal de proveedores</PublicBadge>} />
+      <PublicTopBar brand={view.company.name} right={<PublicBadge tone="accent">{view.consignment && !showSupplier ? 'Portal de sellers' : 'Portal de proveedores'}</PublicBadge>} />
       <PublicShell wide>
         <PublicCard glow>
           <PublicCardHeader
             icon={<Truck className="size-5" />}
             eyebrow={`${view.supplier.name} · RUT ${view.supplier.rut}`}
-            title="Tu inventario en bodega"
-            subtitle={
-              summary.products === 0
-                ? 'Todavía no hay productos tuyos registrados en la bodega.'
-                : summary.out + summary.low === 0
-                  ? `Tus ${summary.products} productos tienen existencias suficientes.`
-                  : `${summary.out > 0 ? `${summary.out} sin stock` : ''}${summary.out > 0 && summary.low > 0 ? ' y ' : ''}${summary.low > 0 ? `${summary.low} con stock bajo` : ''}: conviene reponer.`
-            }
+            title={showSupplier ? 'Tu inventario en bodega' : 'Tu mercadería en bodega'}
+            subtitle={subtitle}
           />
           <div className="sp-toolbar">
-            <input
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Buscar por nombre o SKU"
-              aria-label="Buscar un producto"
-              className="sp-search"
-              autoComplete="off"
-            />
+            {showSupplier && (
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Buscar por nombre o SKU"
+                aria-label="Buscar un producto"
+                className="sp-search"
+                autoComplete="off"
+              />
+            )}
             <a href={`/proveedor/${code}/export`} className="sp-download" download>
               <Download className="size-4" aria-hidden="true" /> Descargar Excel
             </a>
           </div>
-          <div className="sp-chips" role="group" aria-label="Filtrar por estado">
-            {chips.map((chip) => (
-              <button key={chip.id} type="button" aria-pressed={filter === chip.id} onClick={() => setFilter(chip.id)} className="sp-chip">
-                {chip.label}
-              </button>
-            ))}
-          </div>
+          {showSupplier && (
+            <div className="sp-chips" role="group" aria-label="Filtrar por estado">
+              {chips.map((chip) => (
+                <button key={chip.id} type="button" aria-pressed={filter === chip.id} onClick={() => setFilter(chip.id)} className="sp-chip">
+                  {chip.label}
+                </button>
+              ))}
+            </div>
+          )}
         </PublicCard>
 
-        {rows.length === 0 ? (
-          <PublicCard>
-            <div className="sp-empty">
-              <PackageSearch className="size-8" aria-hidden="true" />
-              <p>{summary.products === 0 ? 'Aún no hay productos para mostrar.' : 'Ningún producto coincide con lo que buscas.'}</p>
-            </div>
-          </PublicCard>
-        ) : (
-          <ul className="sp-grid">
-            {rows.map((row) => (
-              <li key={row.sku} className="sp-item" data-status={row.status}>
-                <div className="sp-item-head">
-                  <div className="sp-item-name">
-                    <strong>{row.name}</strong>
-                    <span>
-                      SKU {row.sku}
-                      {row.brand ? ` · ${row.brand}` : ''}
-                    </span>
-                  </div>
-                  <span className="sp-tag" data-status={row.status}>
-                    {STATUS[row.status].label}
-                  </span>
-                </div>
+        {showSupplier &&
+          (rows.length === 0 ? (
+            <PublicCard>
+              <div className="sp-empty">
+                <PackageSearch className="size-8" aria-hidden="true" />
+                <p>{summary.products === 0 ? 'Aún no hay productos para mostrar.' : 'Ningún producto coincide con lo que buscas.'}</p>
+              </div>
+            </PublicCard>
+          ) : (
+            <ul className="sp-grid">
+              {rows.map((row) => (
+                <PortalProductCard key={row.sku} row={row} showMovement={view.showMovement} windowDays={view.windowDays} />
+              ))}
+            </ul>
+          ))}
 
-                <p className="sp-stock">
-                  <span className="sp-stock-value">{qty(row.total)}</span> <span className="sp-stock-unit">{row.unit} en bodega</span>
-                </p>
-                {row.minStock > 0 && <p className="sp-note">Mínimo definido por la empresa: {qty(row.minStock)} {row.unit}</p>}
-
-                {row.byWarehouse.length > 1 && (
-                  <ul className="sp-wh" aria-label="Existencias por bodega">
-                    {row.byWarehouse.map((entry) => (
-                      <li key={entry.warehouse}>
-                        <span>{entry.warehouse}</span>
-                        <strong>{qty(entry.quantity)}</strong>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-
-                <dl className="sp-facts">
-                  <div>
-                    <dt>Última llegada</dt>
-                    <dd>{row.lastReceivedAt ? `${day(row.lastReceivedAt)}${row.lastReceivedQty ? ` · ${qty(row.lastReceivedQty)} ${row.unit}` : ''}` : '—'}</dd>
-                  </div>
-                  {view.showMovement && row.sold30 !== null && (
-                    <>
-                      <div>
-                        <dt>Vendido ({view.windowDays} días)</dt>
-                        <dd>{qty(row.sold30)} {row.unit}</dd>
-                      </div>
-                      {row.written30 !== null && row.written30 > 0 && (
-                        <div>
-                          <dt>Bajas ({view.windowDays} días)</dt>
-                          <dd>{qty(row.written30)} {row.unit}</dd>
-                        </div>
-                      )}
-                      {row.coverageDays !== null && (
-                        <div>
-                          <dt>Alcanza para</dt>
-                          <dd>{row.coverageDays === 0 ? 'Sin stock' : `~${row.coverageDays} día${row.coverageDays === 1 ? '' : 's'}`}</dd>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </dl>
-              </li>
-            ))}
-          </ul>
-        )}
+        {view.consignment && <SellerConsignmentSection consignment={view.consignment} companyName={view.company.name} showMovement={view.showMovement} windowDays={view.windowDays} />}
 
         <PublicFooter>
           Existencias al {view.generatedAt.toLocaleString('es-CL', { timeZone: 'America/Santiago', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}. Solo lectura: para pedir un cambio, contacta a {view.company.name}
@@ -217,4 +161,14 @@ const STYLES = `
 .sp-facts dt { color: var(--pub-ink-dim); }
 .sp-facts dd { margin: 0; text-align: right; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .sp-empty { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; padding: 1.2rem 0; color: var(--pub-ink-dim); text-align: center; }
+.sp-kpis { margin: 1.1rem 0 0; display: grid; gap: 0.6rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); }
+.sp-kpis div { min-width: 0; padding: 0.7rem 0.85rem; border-radius: 12px; border: 1px solid var(--pub-line-soft); background: var(--pub-glass); }
+.sp-kpis div[data-strong="true"] { border-color: var(--pub-a); }
+.sp-kpis dt { font-size: 0.72rem; color: var(--pub-ink-dim); }
+.sp-kpis dd { margin: 0.2rem 0 0; font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.sp-table-wrap { margin-top: 1rem; overflow-x: auto; }
+.sp-table { width: 100%; min-width: 40rem; border-collapse: collapse; font-size: 0.82rem; }
+.sp-table th { text-align: left; padding: 0.4rem 0.6rem; color: var(--pub-ink-dim); font-weight: 600; font-size: 0.74rem; border-bottom: 1px solid var(--pub-line); white-space: nowrap; }
+.sp-table td { padding: 0.5rem 0.6rem; border-top: 1px solid var(--pub-line-soft); vertical-align: top; }
+.sp-table .num { text-align: right; font-variant-numeric: tabular-nums; }
 `;

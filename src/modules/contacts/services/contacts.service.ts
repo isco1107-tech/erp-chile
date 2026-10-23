@@ -2,6 +2,8 @@ import { prisma } from '@/lib/prisma';
 import type { Contact, Prisma } from '@prisma/client';
 import { cleanRut, formatRut, validateRut } from '@/lib/chile/rut';
 import { normalizeAccountNumber } from '@/lib/treasury/banks';
+import { isValidCommissionBps } from '@/lib/consignment/commission';
+import { loadPendingBySeller } from '@/modules/inventory/services/consignment-settlement.service';
 import type { ContactCreateInput, ContactUpdateInput } from '../schema';
 
 export async function listContacts(companyId: string, query?: string): Promise<Contact[]> {
@@ -34,6 +36,8 @@ export type ContactListItem = Pick<
   | 'region'
   | 'isCustomer'
   | 'isSupplier'
+  | 'isConsignor'
+  | 'consignmentCommissionBps'
   | 'creditLimit'
   | 'creditDays'
   | 'priceListId'
@@ -63,6 +67,8 @@ const CONTACT_LIST_ITEM_SELECT = {
   region: true,
   isCustomer: true,
   isSupplier: true,
+  isConsignor: true,
+  consignmentCommissionBps: true,
   priceListId: true,
   creditLimit: true,
   creditDays: true,
@@ -83,7 +89,7 @@ const CONTACT_LIST_ITEM_SELECT = {
  */
 export async function listContactsPage(
   companyId: string,
-  options?: { query?: string; type?: 'customers' | 'suppliers'; page?: number; pageSize?: number }
+  options?: { query?: string; type?: 'customers' | 'suppliers' | 'consignors'; page?: number; pageSize?: number }
 ): Promise<ListContactsResult> {
   const where: Prisma.ContactWhereInput = { companyId };
   const trimmed = options?.query?.trim();
@@ -93,6 +99,7 @@ export async function listContactsPage(
   }
   if (options?.type === 'customers') where.isCustomer = true;
   if (options?.type === 'suppliers') where.isSupplier = true;
+  if (options?.type === 'consignors') where.isConsignor = true;
 
   const page = options?.page && options.page > 0 ? options.page : 1;
   const pageSize = options?.pageSize && options.pageSize > 0 ? options.pageSize : CONTACTS_DEFAULT_PAGE_SIZE;
@@ -122,10 +129,18 @@ async function assertPriceListInCompany(companyId: string, priceListId: string |
   if (!list) throw new Error('Lista de precios no encontrada');
 }
 
+/** Un seller necesita su comisión: sin ella no se sabe cuánto se le debe al vender, y no se inventa una. */
+function assertConsignorCommission(isConsignor: boolean, commissionBps: number | null | undefined): void {
+  if (isConsignor && !isValidCommissionBps(commissionBps)) {
+    throw new Error('Indica la comisión del seller (un porcentaje entre 0 y 100)');
+  }
+}
+
 export async function createContact(companyId: string, input: ContactCreateInput): Promise<Contact> {
   const rutClean = cleanRut(input.rut);
   if (!validateRut(rutClean)) throw new Error('RUT inválido');
   await assertPriceListInCompany(companyId, input.priceListId);
+  assertConsignorCommission(input.isConsignor ?? false, input.consignmentCommissionBps);
 
   return prisma.contact.create({
     data: {
@@ -142,6 +157,8 @@ export async function createContact(companyId: string, input: ContactCreateInput
       region: input.region || undefined,
       isCustomer: input.isCustomer ?? true,
       isSupplier: input.isSupplier ?? false,
+      isConsignor: input.isConsignor ?? false,
+      consignmentCommissionBps: input.isConsignor ? input.consignmentCommissionBps : undefined,
       creditLimit: input.creditLimit ?? undefined,
       creditDays: input.creditDays ?? undefined,
       priceListId: input.priceListId ?? undefined,
@@ -158,8 +175,44 @@ function emptyToNull(value: string | undefined): string | null | undefined {
   return value === '' ? null : value;
 }
 
+/**
+ * Lo que cambia en la condición de seller al editar un contacto, validado contra lo que ya tiene
+ * guardado (el esquema de edición es parcial). Dejar de ser seller no se permite mientras tenga
+ * productos en consignación: quedarían sin dueño y pasarían a ser "propios" sin que nadie lo decida.
+ */
+async function resolveConsignorUpdate(
+  companyId: string,
+  id: string,
+  input: ContactUpdateInput
+): Promise<{ isConsignor?: boolean; consignmentCommissionBps?: number | null }> {
+  if (input.isConsignor === undefined && input.consignmentCommissionBps === undefined) return {};
+  const current = await prisma.contact.findFirst({ where: { companyId, id }, select: { isConsignor: true, consignmentCommissionBps: true } });
+  if (!current) throw new Error('Contacto no encontrado');
+
+  const isConsignor = input.isConsignor ?? current.isConsignor;
+  const commissionBps = input.consignmentCommissionBps === undefined ? current.consignmentCommissionBps : input.consignmentCommissionBps;
+  assertConsignorCommission(isConsignor, commissionBps);
+
+  if (current.isConsignor && !isConsignor) {
+    const [products, pending, unpaid] = await Promise.all([
+      prisma.product.count({ where: { companyId, consignorId: id } }),
+      loadPendingBySeller(prisma, companyId, id),
+      prisma.sellerSettlement.count({ where: { companyId, consignorId: id, status: 'CONFIRMED' } }),
+    ]);
+    if (products > 0) {
+      throw new Error(`Este seller tiene ${products} producto${products === 1 ? '' : 's'} en consignación. Cambia el dueño de esos productos antes de quitarle la condición de seller`);
+    }
+    // Sin la condición de seller no se le puede liquidar: lo que se le debe quedaría invisible.
+    if ((pending.get(id)?.length ?? 0) > 0 || unpaid > 0) {
+      throw new Error('Este seller tiene ventas sin liquidar o liquidaciones sin pagar. Liquídalas y págalas antes de quitarle la condición de seller');
+    }
+  }
+  return { isConsignor, consignmentCommissionBps: isConsignor ? commissionBps : null };
+}
+
 export async function updateContact(companyId: string, id: string, input: ContactUpdateInput): Promise<Contact> {
   await assertPriceListInCompany(companyId, input.priceListId);
+  const consignment = await resolveConsignorUpdate(companyId, id, input);
   const data: Prisma.ContactUpdateManyMutationInput & { priceListId?: string | null } = {
     razonSocial: input.razonSocial,
     nombreFantasia: emptyToNull(input.nombreFantasia),
@@ -171,6 +224,7 @@ export async function updateContact(companyId: string, id: string, input: Contac
     region: emptyToNull(input.region),
     isCustomer: input.isCustomer,
     isSupplier: input.isSupplier,
+    ...consignment,
     creditLimit: input.creditLimit,
     creditDays: input.creditDays,
     priceListId: input.priceListId,
@@ -196,6 +250,15 @@ export async function updateContact(companyId: string, id: string, input: Contac
 }
 
 export async function deleteContact(companyId: string, id: string): Promise<void> {
+  const [consigned, settlements, soldLines] = await Promise.all([
+    prisma.product.count({ where: { companyId, consignorId: id } }),
+    prisma.sellerSettlement.count({ where: { companyId, consignorId: id } }),
+    prisma.salesDocumentItem.count({ where: { companyId, consignorId: id } }),
+  ]);
+  if (consigned > 0) throw new Error('Este seller tiene productos en consignación. Cambia el dueño de esos productos antes de eliminarlo');
+  if (settlements > 0) throw new Error('Este seller tiene liquidaciones registradas, no se puede eliminar');
+  // Aunque ya no tenga productos: lo que se le debe por sus ventas vive en esas líneas y desaparecería con él.
+  if (soldLines > 0) throw new Error('Este seller tiene ventas de su mercadería registradas: se conserva para que su historial y lo que se le debe sigan visibles');
   const result = await prisma.contact.deleteMany({ where: { companyId, id } });
   if (result.count === 0) throw new Error('Contacto no encontrado');
 }

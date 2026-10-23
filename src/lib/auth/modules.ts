@@ -69,7 +69,7 @@ export const MODULES: ModuleDefinition[] = [
     key: 'hasInventory',
     label: 'Inventario y Catálogo',
     description: 'Productos, bodegas, stock y movimientos de Kardex.',
-    permissions: ['products:read', 'products:write', 'inventory:write'],
+    permissions: ['products:read', 'products:write', 'inventory:write', 'consignment:read', 'consignment:write'],
     routes: ['/dashboard/products', '/dashboard/inventory'],
   },
   {

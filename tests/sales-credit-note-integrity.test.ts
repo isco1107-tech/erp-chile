@@ -9,7 +9,8 @@ import { prisma } from '@/lib/prisma';
  */
 
 jest.mock('@/modules/inventory/services/stock.service', () => ({
-  applyStockIn: jest.fn(),
+  // Como el real, devuelve el movimiento creado: la nota de crédito usa su costo para el reverso contable.
+  applyStockIn: jest.fn(async (_tx: unknown, _companyId: string, params: { unitCost: number }) => ({ unitCost: params.unitCost })),
   applyStockOut: jest.fn(),
 }));
 jest.mock('@/modules/dte/services/stamping.service', () => ({

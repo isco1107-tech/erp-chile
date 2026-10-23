@@ -131,6 +131,8 @@ model Company {
   productPhotoScans         ProductPhotoScan[]
   productSuppliers          ProductSupplier[]
   supplierPortalAccesses    SupplierPortalAccess[]
+  sellerSettlements    SellerSettlement[]
+  sellerSettlementLines SellerSettlementLine[]
   bankAccounts              BankAccount[]
   bankStatements            BankStatement[]
   bankStatementLines        BankStatementLine[]
@@ -727,6 +729,8 @@ enum InternalDocumentKind {
   PRODUCTION_ORDER
   /// Orden de servicio técnico (`ServiceTicket.folio`).
   SERVICE_TICKET
+  /// Liquidación a un seller de consignación (`SellerSettlement.number`).
+  SELLER_SETTLEMENT
 }
 
 /// Correlativos internos (no folio SII) para documentos sin relevancia
@@ -884,6 +888,16 @@ model Contact {
   suppliedProducts          ProductSupplier[]       @relation("ProductSupplierContact")
   /// Acceso del proveedor a su portal de inventario (`/proveedor`).
   supplierPortalAccess      SupplierPortalAccess?
+  /// Seller de consignación: pone productos a la venta y la mercadería sigue
+  /// siendo suya hasta que se vende. No es proveedor (a un proveedor se le
+  /// compra); una misma persona puede ser ambas cosas.
+  isConsignor               Boolean                 @default(false)
+  /// Comisión por defecto de la empresa sobre lo que vende este seller, en
+  /// puntos base (1500 = 15 %). Obligatoria si `isConsignor`.
+  consignmentCommissionBps  Int?
+  /// Productos en consignación de este seller.
+  consignedProducts         Product[]               @relation("ProductConsignor")
+  sellerSettlements    SellerSettlement[] @relation("ConsignmentSettlementConsignor")
   /// Portal del cliente (`/cliente/[token]`): se guarda solo el hash SHA-256
   /// del enlace; el enlace en claro se muestra una vez al generarlo.
   portalTokenHash           String?                 @unique
@@ -969,6 +983,14 @@ model Product {
   /// Archivado = `false`: sale del POS y de los selectores de venta/compra, pero
   /// conserva su historial. Es la salida para productos que ya no se pueden borrar.
   isActive             Boolean                    @default(true)
+  /// Dueño del producto cuando está en consignación: la mercadería es de este
+  /// seller hasta que se vende. `null` = producto propio. Un producto en
+  /// consignación nunca se valoriza: su `costPricePMP` es siempre 0 (no entra al
+  /// valor de inventario ni genera costo de venta).
+  consignorId          String?
+  consignor            Contact?                   @relation("ProductConsignor", fields: [consignorId], references: [id], onDelete: SetNull)
+  /// Comisión propia de este producto (puntos base). `null` = la del seller.
+  consignmentCommissionBps Int?
   packagings           ProductPackaging[]
   lots                 InventoryLot[]
   inventoryCountLines  InventoryCountLine[]
@@ -996,6 +1018,7 @@ model Product {
   @@unique([companyId, sku])
   @@unique([companyId, barcode])
   @@index([companyId, name])
+  @@index([companyId, consignorId])
 }
 
 model Stock {
@@ -1093,6 +1116,78 @@ model SupplierPortalAccess {
   lastUsedAt   DateTime?
 
   @@index([companyId])
+}
+
+enum SellerSettlementStatus {
+  /// Generada: se le debe al seller lo que dice, aún sin pagar.
+  CONFIRMED
+  PAID
+  /// Anulada: sus líneas dejan de contar como liquidadas y vuelven a quedar pendientes.
+  VOIDED
+}
+
+/// Liquidación a un seller de consignación: lo vendido de su mercadería, la
+/// comisión de la empresa y lo que se le debe. Se arma sobre las líneas de venta
+/// (`SalesDocumentItem.consignorId`) y queda congelada: lo que cambie después
+/// (una anulación, una nota de crédito) aparece como ajuste en la siguiente. No
+/// genera asientos contables ni registra la factura del seller.
+model SellerSettlement {
+  id               String                      @id @default(cuid())
+  companyId        String
+  company          Company                     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  consignorId      String
+  consignor        Contact                     @relation("ConsignmentSettlementConsignor", fields: [consignorId], references: [id], onDelete: Restrict)
+  /// Correlativo por empresa (`InternalDocumentSequence` `SELLER_SETTLEMENT`).
+  number           Int
+  status           SellerSettlementStatus @default(CONFIRMED)
+  /// Unidades netas (ventas menos devoluciones).
+  units            Float
+  netSales         Int
+  commissionAmount Int
+  /// Ajuste manual con signo (p. ej. una nota de crédito por precio); con su motivo.
+  adjustmentAmount Int                         @default(0)
+  adjustmentNote   String?
+  /// Lo que se le debe al seller: líneas + ajuste.
+  payoutAmount     Int
+  note             String?
+  paidAt           DateTime?
+  paymentReference String?
+  voidedAt         DateTime?
+  voidReason       String?
+  createdById      String?
+  /// Clave del intento de la pantalla: un reintento de la misma generación devuelve la liquidación
+  /// ya creada en vez de generar otra (relevante cuando solo hay un ajuste manual, que no tiene
+  /// ventas que el bloqueo del seller pueda repartir).
+  idempotencyKey   String?
+  createdAt        DateTime                    @default(now())
+  lines            SellerSettlementLine[]
+
+  @@unique([companyId, number])
+  @@unique([companyId, idempotencyKey])
+  @@index([companyId, consignorId, createdAt])
+}
+
+/// Una línea de venta dentro de una liquidación, con los montos que tenía al
+/// liquidarse (con signo: una devolución o un ajuste por anulación van en negativo).
+model SellerSettlementLine {
+  id                  String                @id @default(cuid())
+  companyId           String
+  company             Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  settlementId        String
+  settlement          SellerSettlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+  /// Línea de venta de origen. Sin relación: el documento y su historia no dependen de esta foto.
+  salesDocumentItemId String
+  productId           String?
+  sku                 String?
+  description         String
+  quantity            Float
+  netAmount           Int
+  commissionAmount    Int
+  payoutAmount        Int
+
+  /// Una línea de venta aparece una sola vez por liquidación (entre liquidaciones sí puede repetirse:
+  /// una anulación posterior genera un ajuste negativo).
+  @@unique([settlementId, salesDocumentItemId])
 }
 
 /// Operación que envió la app del bodeguero (`/bodega`). Es el registro de
@@ -1304,11 +1399,22 @@ model SalesDocumentItem {
   iva              Int
   total            Int
   unitCostPMP      Float           @default(0)
+  /// Seller dueño del producto al momento de vender (consignación) y la comisión
+  /// vigente entonces, en puntos base. Es una foto: cambiar el producto o la
+  /// comisión después no toca lo ya vendido. `null` en productos propios. Sin
+  /// relación a propósito, para que borrar o editar al seller no borre la foto.
+  consignorId            String?
+  consignorCommissionBps Int?
+  /// Solo en una nota de crédito de un producto de seller: la base neta que se le revierte, que es
+  /// la proporción de lo que se le acreditó en la venta original (no el precio de la nota, que puede
+  /// ser otro). `null` = se usa el subtotal de la línea.
+  consignorBaseNet       Int?
   /// Línea de la nota de venta que esta línea factura o despacha.
   salesOrderItemId String?
   salesOrderItem   SalesOrderItem? @relation(fields: [salesOrderItemId], references: [id], onDelete: SetNull)
 
   @@index([companyId, documentId])
+  @@index([companyId, consignorId])
 }
 
 model PurchaseDocument {

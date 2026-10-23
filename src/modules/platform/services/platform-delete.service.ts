@@ -169,6 +169,9 @@ async function hardDeleteTenant(tx: Prisma.TransactionClient, companyId: string)
   await tx.budget.deleteMany({ where: { companyId } });
   await tx.project.deleteMany({ where: { companyId } });
 
+  // Liquidaciones a sellers de consignación: apuntan al seller (RESTRICT), así que salen antes que los contactos.
+  await tx.sellerSettlementLine.deleteMany({ where: { companyId } });
+  await tx.sellerSettlement.deleteMany({ where: { companyId } });
   await tx.contact.deleteMany({ where: { companyId } });
   await tx.cashRegister.deleteMany({ where: { companyId } });
   await tx.product.deleteMany({ where: { companyId } });
