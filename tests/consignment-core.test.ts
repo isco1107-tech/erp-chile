@@ -8,6 +8,7 @@ import {
   parseCommissionPercent,
   percentToBps,
 } from '@/lib/consignment/commission';
+import { lineCostForMargin, productCostForMargin } from '@/lib/consignment/margin';
 import {
   currentContribution,
   documentSign,
@@ -223,5 +224,28 @@ describe('totales de la liquidación', () => {
 
   it('sin líneas ni ajuste el total es cero', () => {
     expect(settlementTotals([])).toMatchObject({ netSales: 0, payoutAmount: 0, units: 0 });
+  });
+});
+
+describe('margen de la mercadería de un seller', () => {
+  it('el costo de una línea de seller es lo que se le debe; el de una propia, su PMP', () => {
+    const own = { quantity: 3, subtotal: 9000, unitCostPMP: 1000, consignorId: null, consignorCommissionBps: null };
+    expect(lineCostForMargin(own)).toBe(3000);
+    const seller = { ...own, unitCostPMP: 0, consignorId: 's1', consignorCommissionBps: 2000 };
+    expect(lineCostForMargin(seller)).toBe(7200); // 9.000 − 20 %
+    // Margen de la línea = la comisión.
+    expect(seller.subtotal - lineCostForMargin(seller)).toBe(1800);
+  });
+
+  it('una línea de seller sin comisión congelada no inventa un costo', () => {
+    expect(lineCostForMargin({ quantity: 2, subtotal: 5000, unitCostPMP: 0, consignorId: 's1', consignorCommissionBps: null })).toBe(0);
+  });
+
+  it('el costo de un producto de seller usa su comisión, o la del seller si no tiene propia', () => {
+    const product = { costPricePMP: 0, netPrice: 10_000, consignorId: 's1', consignmentCommissionBps: null };
+    expect(productCostForMargin(product, 2000)).toBe(8000);
+    expect(productCostForMargin({ ...product, consignmentCommissionBps: 1000 }, 2000)).toBe(9000);
+    expect(productCostForMargin(product, null)).toBe(0); // sin comisión: no se inventa
+    expect(productCostForMargin({ costPricePMP: 600, netPrice: 10_000, consignorId: null, consignmentCommissionBps: null }, 2000)).toBe(600);
   });
 });

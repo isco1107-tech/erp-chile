@@ -54,7 +54,7 @@ export const SCREEN_PURPOSES: Record<string, string> = {
   'inventory-counts': 'Toma de inventario: contar la bodega (a mano o con lector) y ajustar el stock a lo contado.',
   'inventory-lots': 'Saldo por lote y fechas de vencimiento; las salidas consumen primero lo que vence antes.',
   'inventory-movements': 'Movimientos de bodega: el registro de lo que entró y salió de CADA bodega por separado, con el operario que hizo cada ajuste, el motivo (vencido, mal estado, degustación…), el proveedor de las llegadas y la foto de respaldo. Se filtra y se descarga a Excel.',
-  'inventory-consignment': 'Consignación: mercadería de sellers, que es suya hasta que se vende. Muestra su stock por seller, permite recibir y devolver mercadería, y liquidar lo vendido menos tu comisión (con su pago o anulación). No se valoriza ni genera asientos.',
+  'inventory-consignment': 'Consignación: mercadería de sellers, que es suya hasta que se vende. Muestra su stock por seller, permite recibir y devolver mercadería, y liquidar lo vendido menos tu comisión (con su pago o anulación). No se valoriza ni genera asientos. Cada seller puede entrar a su portal con un código (se genera desde su ficha) para ver su stock, lo vendido y sus liquidaciones.',
   'inventory-mobile': 'Bodega móvil: la app del bodeguero para el celular (llegadas, mermas, traslados, con cámara y sin señal). Aquí se abre con un QR, se ve si la identificación por foto está disponible y qué se registró desde el celular.',
   'inventory-labels': 'Imprimir etiquetas con código de barras en hoja A4 o rollo.',
   crm: 'Embudo de negocios por etapa (auspicios, eventos, entradas corporativas…), con pronóstico ponderado.',

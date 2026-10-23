@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { signForSalesDteType, signForPurchaseDocumentType, TAXABLE_SALES_DTE_TYPES, TAXABLE_PURCHASE_DOCUMENT_TYPES } from '@/lib/chile/document-sign';
+import { lineCostForMargin, productCostForMargin } from '@/lib/consignment/margin';
 
 /**
  * Rango de fechas del reporte. Ambos extremos inclusive; `to` se extiende al
@@ -199,7 +200,7 @@ export async function buildReportDataset(companyId: string, range: ReportRange):
     prisma.company.findFirst({ where: { id: companyId }, select: { businessName: true, rut: true } }),
     prisma.product.findMany({
       where: { companyId },
-      include: { category: true, stocks: true },
+      include: { category: true, stocks: true, consignor: { select: { consignmentCommissionBps: true } } },
       orderBy: { name: 'asc' },
     }),
     prisma.stock.findMany({
@@ -242,7 +243,7 @@ export async function buildReportDataset(companyId: string, range: ReportRange):
   const ventasExentas = issuedSales.reduce((sum, d) => sum + signForSalesDteType(d.dteType) * d.exemptAmount, 0);
   const ivaDebito = issuedSales.reduce((sum, d) => sum + signForSalesDteType(d.dteType) * d.ivaAmount, 0);
   const costoVentas = issuedSales.reduce((sum, d) => {
-    const costo = d.items.reduce((s, i) => s + Math.round(i.unitCostPMP * i.quantity), 0);
+    const costo = d.items.reduce((s, i) => s + lineCostForMargin(i), 0);
     return sum + signForSalesDteType(d.dteType) * costo;
   }, 0);
   const ivaCredito = issuedPurchases.reduce((sum, d) => sum + signForPurchaseDocumentType(d.documentType) * d.ivaAmount, 0);
@@ -274,7 +275,8 @@ export async function buildReportDataset(companyId: string, range: ReportRange):
       stockMinimo: p.minStock,
       stockTotal,
       valorizado: Math.round(stockTotal * p.costPricePMP),
-      margenUnitario: Math.round(p.netPrice - p.costPricePMP),
+      // Un producto de seller no tiene costo propio: su margen es la comisión (precio menos lo que se le paga).
+      margenUnitario: Math.round(p.netPrice - productCostForMargin(p, p.consignor?.consignmentCommissionBps)),
     };
   });
 
@@ -306,7 +308,7 @@ export async function buildReportDataset(companyId: string, range: ReportRange):
   }));
 
   const ventas: SalesRow[] = salesDocs.map((d) => {
-    const costoVenta = d.items.reduce((sum, i) => sum + Math.round(i.unitCostPMP * i.quantity), 0);
+    const costoVenta = d.items.reduce((sum, i) => sum + lineCostForMargin(i), 0);
     return {
       fecha: d.issueDate,
       tipoDte: label(DTE_LABEL, d.dteType),
@@ -341,8 +343,8 @@ export async function buildReportDataset(companyId: string, range: ReportRange):
       neto: i.subtotal,
       iva: i.iva,
       total: i.total,
-      costoUnitario: i.unitCostPMP,
-      margenLinea: i.subtotal - Math.round(i.unitCostPMP * i.quantity),
+      costoUnitario: i.quantity > 0 ? lineCostForMargin(i) / i.quantity : i.unitCostPMP,
+      margenLinea: i.subtotal - lineCostForMargin(i),
     }))
   );
 

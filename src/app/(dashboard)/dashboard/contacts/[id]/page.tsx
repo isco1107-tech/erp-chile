@@ -97,8 +97,8 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
   const feeRows = fees?.success ? fees.data : [];
   const noteRows = promissoryNotes?.success ? promissoryNotes.data : [];
   const planRows = paymentPlans?.success ? paymentPlans.data : [];
-  // El portal del proveedor entrega datos de la empresa a un tercero: lo administra quien edita la empresa.
-  const supplierPortal = contact.isSupplier && context.features.hasInventory && can(context, 'settings:company') ? await getSupplierPortalAdmin(context.companyId, id) : null;
+  // El portal del proveedor (y del seller) entrega datos de la empresa a un tercero: lo administra quien edita la empresa.
+  const supplierPortal = (contact.isSupplier || contact.isConsignor) && context.features.hasInventory && can(context, 'settings:company') ? await getSupplierPortalAdmin(context.companyId, id) : null;
   const saleRows = sales?.success ? sales.data.items : [];
   const purchaseRows = purchases?.success ? purchases.data.items : [];
   // Seller de consignación: su mercadería y, si el rol lo permite, lo que se le debe hoy.

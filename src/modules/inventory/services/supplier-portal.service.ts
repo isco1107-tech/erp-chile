@@ -3,10 +3,17 @@ import { prisma } from '@/lib/prisma';
 import { toFeatureFlags } from '@/lib/auth/modules';
 import { MOVEMENT_WINDOW_DAYS, countStatuses, coverageDays, roundQty, stockStatus, type StatusCounts, type StockStatus } from '@/lib/supplier-portal/analysis';
 import { formatSupplierCode, hashSupplierCode, newSupplierCode, normalizeSupplierCode, supplierCodeHint } from '@/lib/supplier-portal/code';
+import { effectiveCommissionBps } from '@/lib/consignment/commission';
+import { settlementTotals } from '@/lib/consignment/settlement';
+import { loadPendingBySeller } from './consignment-settlement.service';
 
 /**
  * Portal de inventario del proveedor (`/proveedor`): cada proveedor entra con SU código y ve
  * cuánto le queda en la bodega de los productos que surte, para analizar y reponer.
+ *
+ * Un seller de consignación entra por el mismo portal y con el mismo tipo de código: además ve su
+ * mercadería (la que sigue siendo suya), lo vendido sin liquidar y sus liquidaciones. Ve sus propios
+ * montos (neto, comisión, lo que se le paga) pero jamás clientes, documentos, costos ni a otros sellers.
  *
  * Reglas que no se rompen:
  * - **Solo sus productos.** La lista sale de `ProductSupplier` del proveedor dueño del código;
@@ -31,18 +38,26 @@ export class SupplierPortalError extends Error {
 
 export interface SupplierPortalAdmin {
   access: { hint: string; createdAt: Date; lastUsedAt: Date | null; showMovement: boolean } | null;
+  isSupplier: boolean;
   products: Array<{ id: string; sku: string; name: string; unit: string; stock: number; lastReceivedAt: Date | null }>;
+  /** Solo si es seller: sus productos en consignación (se asignan en el Catálogo, no aquí). */
+  consignment: { products: Array<{ id: string; sku: string; name: string; unit: string; stock: number }> } | null;
 }
 
+/** Proveedor o seller de la empresa: los dos pueden tener portal. */
 async function requireSupplier(companyId: string, contactId: string): Promise<{ id: string; razonSocial: string }> {
-  const contact = await prisma.contact.findFirst({ where: { id: contactId, companyId, isSupplier: true }, select: { id: true, razonSocial: true } });
-  if (!contact) throw new SupplierPortalError('El contacto no existe o no está marcado como proveedor');
+  const contact = await prisma.contact.findFirst({
+    where: { id: contactId, companyId, OR: [{ isSupplier: true }, { isConsignor: true }] },
+    select: { id: true, razonSocial: true },
+  });
+  if (!contact) throw new SupplierPortalError('El contacto no existe o no está marcado como proveedor ni como seller');
   return contact;
 }
 
 export async function getSupplierPortalAdmin(companyId: string, contactId: string): Promise<SupplierPortalAdmin> {
-  const [access, links] = await Promise.all([
+  const [access, contact, links] = await Promise.all([
     prisma.supplierPortalAccess.findFirst({ where: { companyId, contactId }, select: { codeHint: true, createdAt: true, lastUsedAt: true, showMovement: true } }),
+    prisma.contact.findFirst({ where: { id: contactId, companyId }, select: { isSupplier: true, isConsignor: true } }),
     prisma.productSupplier.findMany({
       where: { companyId, supplierId: contactId },
       orderBy: { product: { name: 'asc' } },
@@ -50,8 +65,20 @@ export async function getSupplierPortalAdmin(companyId: string, contactId: strin
       select: { lastReceivedAt: true, product: { select: { id: true, sku: true, name: true, unit: true, stocks: { select: { quantity: true } } } } },
     }),
   ]);
+  const consigned = contact?.isConsignor
+    ? await prisma.product.findMany({
+        where: { companyId, consignorId: contactId, isActive: true },
+        orderBy: { name: 'asc' },
+        take: 500,
+        select: { id: true, sku: true, name: true, unit: true, stocks: { select: { quantity: true } } },
+      })
+    : null;
   return {
     access: access ? { hint: access.codeHint, createdAt: access.createdAt, lastUsedAt: access.lastUsedAt, showMovement: access.showMovement } : null,
+    isSupplier: contact?.isSupplier ?? false,
+    consignment: consigned
+      ? { products: consigned.map((product) => ({ id: product.id, sku: product.sku, name: product.name, unit: product.unit, stock: roundQty(product.stocks.reduce((sum, stock) => sum + stock.quantity, 0)) })) }
+      : null,
     products: links.map((link) => ({
       id: link.product.id,
       sku: link.product.sku,
@@ -151,6 +178,37 @@ export interface SupplierPortalRow {
   coverageDays: number | null;
 }
 
+/** Un producto en consignación del seller: lo mismo que ve un proveedor, más la comisión que rige. */
+export interface ConsignmentPortalRow extends SupplierPortalRow {
+  /** Comisión de la empresa sobre este producto (la propia o la del seller), en puntos base. */
+  commissionBps: number | null;
+}
+
+export interface ConsignmentPortalSettlement {
+  number: number;
+  createdAt: Date;
+  status: 'CONFIRMED' | 'PAID';
+  units: number;
+  netSales: number;
+  commissionAmount: number;
+  adjustmentAmount: number;
+  /** Lo que la empresa le paga al seller por esa liquidación. */
+  payoutAmount: number;
+  paidAt: Date | null;
+}
+
+/** La parte de seller del portal: su mercadería, lo vendido sin liquidar y sus liquidaciones. */
+export interface ConsignmentPortalView {
+  /** Comisión por defecto que se le aplica, en puntos base. */
+  commissionBps: number | null;
+  summary: StatusCounts;
+  rows: ConsignmentPortalRow[];
+  /** Vendido y todavía sin liquidar (solo totales: nunca el detalle de los documentos). */
+  pending: { units: number; netSales: number; commissionAmount: number; payoutAmount: number };
+  /** Liquidaciones generadas, las más recientes primero (las anuladas no se muestran). */
+  settlements: ConsignmentPortalSettlement[];
+}
+
 export interface SupplierPortalView {
   company: { name: string; rut: string; logoUrl: string | null; phone: string | null; email: string | null };
   supplier: { name: string; rut: string };
@@ -159,10 +217,15 @@ export interface SupplierPortalView {
   windowDays: number;
   summary: StatusCounts;
   rows: SupplierPortalRow[];
+  /** Solo si el contacto es seller de consignación. */
+  consignment: ConsignmentPortalView | null;
 }
 
 /** Cada cuánto como máximo se anota el último uso del código (no una escritura por cada vista). */
 const LAST_USED_EVERY_MS = 5 * 60_000;
+
+/** Cuántas liquidaciones se muestran al seller. */
+const PORTAL_SETTLEMENTS = 24;
 
 async function accessForCode(rawCode: string) {
   const normalized = normalizeSupplierCode(rawCode);
@@ -175,7 +238,7 @@ async function accessForCode(rawCode: string) {
       contactId: true,
       showMovement: true,
       lastUsedAt: true,
-      contact: { select: { razonSocial: true, nombreFantasia: true, rut: true } },
+      contact: { select: { razonSocial: true, nombreFantasia: true, rut: true, isConsignor: true, consignmentCommissionBps: true } },
       company: { select: { businessName: true, rut: true, logoUrl: true, phone: true, email: true, status: true, features: true } },
     },
   });
@@ -185,37 +248,57 @@ async function accessForCode(rawCode: string) {
   return access;
 }
 
+interface PortalProduct {
+  id: string;
+  sku: string;
+  name: string;
+  brand: string | null;
+  unit: string;
+  imageUrl: string | null;
+  minStock: number;
+  stocks: Array<{ quantity: number; warehouse: { name: string } }>;
+}
+
+const PORTAL_PRODUCT_SELECT = {
+  id: true,
+  sku: true,
+  name: true,
+  brand: true,
+  unit: true,
+  imageUrl: true,
+  minStock: true,
+  stocks: { select: { quantity: true, warehouse: { select: { name: true } } } },
+} as const;
+
 export async function getSupplierPortalView(rawCode: string, now: Date = new Date()): Promise<SupplierPortalView | null> {
   const access = await accessForCode(rawCode);
   if (!access) return null;
   const { companyId, contactId, showMovement } = access;
+  const isConsignor = access.contact.isConsignor;
 
   if (!access.lastUsedAt || now.getTime() - access.lastUsedAt.getTime() > LAST_USED_EVERY_MS) {
     // Anotar el uso nunca debe impedir ver el inventario.
     void prisma.supplierPortalAccess.updateMany({ where: { id: access.id }, data: { lastUsedAt: now } }).catch(() => undefined);
   }
 
-  const links = await prisma.productSupplier.findMany({
-    where: { companyId, supplierId: contactId, product: { isActive: true } },
-    orderBy: { product: { name: 'asc' } },
-    take: 1000,
-    select: {
-      lastReceivedAt: true,
-      product: {
-        select: {
-          id: true,
-          sku: true,
-          name: true,
-          brand: true,
-          unit: true,
-          imageUrl: true,
-          minStock: true,
-          stocks: { select: { quantity: true, warehouse: { select: { name: true } } } },
-        },
-      },
-    },
-  });
-  const productIds = links.map((link) => link.product.id);
+  const [links, consigned] = await Promise.all([
+    prisma.productSupplier.findMany({
+      where: { companyId, supplierId: contactId, product: { isActive: true } },
+      orderBy: { product: { name: 'asc' } },
+      take: 1000,
+      select: { lastReceivedAt: true, product: { select: PORTAL_PRODUCT_SELECT } },
+    }),
+    // Lo que sigue siendo del seller: solo los productos con SU id como dueño, de esta empresa.
+    isConsignor
+      ? prisma.product.findMany({
+          where: { companyId, consignorId: contactId, isActive: true },
+          orderBy: { name: 'asc' },
+          take: 1000,
+          select: { ...PORTAL_PRODUCT_SELECT, consignmentCommissionBps: true },
+        })
+      : Promise.resolve([]),
+  ]);
+  const productIds = [...new Set([...links.map((link) => link.product.id), ...consigned.map((product) => product.id)])];
 
   const since = new Date(now.getTime() - MOVEMENT_WINDOW_DAYS * 24 * 60 * 60_000);
   const [arrivals, outflows] = await Promise.all([
@@ -249,8 +332,7 @@ export async function getSupplierPortalView(rawCode: string, now: Date = new Dat
     outflow.set(row.productId, entry);
   }
 
-  const rows: SupplierPortalRow[] = links.map((link) => {
-    const { product } = link;
+  const toRow = (product: PortalProduct, fallbackReceivedAt: Date | null): SupplierPortalRow => {
     const total = roundQty(product.stocks.reduce((sum, stock) => sum + stock.quantity, 0));
     const arrival = lastArrival.get(product.id);
     const out = outflow.get(product.id);
@@ -267,13 +349,15 @@ export async function getSupplierPortalView(rawCode: string, now: Date = new Dat
       byWarehouse: product.stocks
         .map((stock) => ({ warehouse: stock.warehouse.name, quantity: roundQty(stock.quantity) }))
         .sort((a, b) => a.warehouse.localeCompare(b.warehouse, 'es')),
-      lastReceivedAt: arrival?.createdAt ?? link.lastReceivedAt,
+      lastReceivedAt: arrival?.createdAt ?? fallbackReceivedAt,
       lastReceivedQty: arrival ? roundQty(arrival.quantity) : null,
       sold30: showMovement ? sold : null,
       written30: showMovement ? roundQty(out?.written ?? 0) : null,
       coverageDays: showMovement ? coverageDays(total, sold) : null,
     };
-  });
+  };
+
+  const rows = links.map((link) => toRow(link.product, link.lastReceivedAt));
 
   return {
     company: { name: access.company.businessName, rut: access.company.rut, logoUrl: access.company.logoUrl, phone: access.company.phone, email: access.company.email },
@@ -283,5 +367,35 @@ export async function getSupplierPortalView(rawCode: string, now: Date = new Dat
     windowDays: MOVEMENT_WINDOW_DAYS,
     summary: countStatuses(rows),
     rows,
+    consignment: isConsignor
+      ? await buildConsignmentView({
+          companyId,
+          contactId,
+          commissionBps: access.contact.consignmentCommissionBps,
+          rows: consigned.map((product) => ({ ...toRow(product, null), commissionBps: effectiveCommissionBps(product.consignmentCommissionBps, access.contact.consignmentCommissionBps) })),
+        })
+      : null,
+  };
+}
+
+/** Lo vendido sin liquidar (solo totales) y las liquidaciones del seller, sin anuladas ni detalle de documentos. */
+async function buildConsignmentView(input: { companyId: string; contactId: string; commissionBps: number | null; rows: ConsignmentPortalRow[] }): Promise<ConsignmentPortalView> {
+  const { companyId, contactId } = input;
+  const [pendingBySeller, settlements] = await Promise.all([
+    loadPendingBySeller(prisma, companyId, contactId),
+    prisma.consignmentSettlement.findMany({
+      where: { companyId, consignorId: contactId, status: { not: 'VOIDED' } },
+      orderBy: { number: 'desc' },
+      take: PORTAL_SETTLEMENTS,
+      select: { number: true, createdAt: true, status: true, units: true, netSales: true, commissionAmount: true, adjustmentAmount: true, payoutAmount: true, paidAt: true },
+    }),
+  ]);
+  const totals = settlementTotals(pendingBySeller.get(contactId) ?? []);
+  return {
+    commissionBps: input.commissionBps,
+    summary: countStatuses(input.rows),
+    rows: input.rows,
+    pending: { units: totals.units, netSales: totals.netSales, commissionAmount: totals.commissionAmount, payoutAmount: totals.linesPayout },
+    settlements: settlements.map((settlement) => ({ ...settlement, status: settlement.status === 'PAID' ? 'PAID' : 'CONFIRMED' })),
   };
 }

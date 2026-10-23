@@ -379,6 +379,19 @@ export const INVENTARIO_SECTIONS: ManualSection[] = [
         tip: 'Los montos son netos, sin IVA. La liquidación es el estado de cuenta del seller: no genera asientos ni documentos tributarios. Si las devoluciones superan lo vendido, el saldo queda pendiente para la próxima.',
       },
       {
+        id: 'portal-del-seller',
+        title: 'Darle al seller acceso a su portal',
+        permission: 'settings:company',
+        route: '/dashboard/contacts',
+        steps: [
+          'Ve a Clientes & Proveedores, haz clic en "Ver ficha" del seller y busca la sección "Portal del seller".',
+          'Presiona "Generar código" y entrégaselo (hay botones para "Copiar código", "Copiar enlace" y WhatsApp). El código completo se muestra solo esa vez.',
+          'Con su código, en la página /proveedor ve cuánto le queda de su mercadería, lo vendido sin liquidar y sus liquidaciones, y puede descargar un Excel. Solo ve sus propios montos, nunca clientes, documentos, costos ni a otros sellers.',
+          'Si no quieres que vea lo que sale (ventas y bajas de 30 días), desmarca "Mostrar también lo que sale". "Desactivar" deja sin efecto su código al instante, y "Generar código nuevo" reemplaza al anterior.',
+        ],
+        tip: 'Sus liquidaciones las ve siempre, aunque apagues lo que sale.',
+      },
+      {
         id: 'pagar-anular-liquidacion',
         title: 'Marcar una liquidación como pagada o anularla',
         permission: 'consignment:write',

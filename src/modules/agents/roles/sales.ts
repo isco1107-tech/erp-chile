@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { DteType } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { formatCurrency } from '@/lib/chile/tax';
+import { productCostForMargin } from '@/lib/consignment/margin';
 import { getCompanySettings } from '@/lib/services/company.service';
 import { generateAgentJson } from '../services/gemini-agent';
 import { INDUSTRY_LABELS } from '../services/business-metrics.service';
@@ -131,18 +132,30 @@ export async function runSalesAgent(companyId: string): Promise<string> {
   const catalogProducts = scope.catalogPricing
     ? await prisma.product.findMany({
         where: { companyId, isTrackable: true },
-        select: { sku: true, name: true, netPrice: true, costPricePMP: true },
+        select: {
+          sku: true,
+          name: true,
+          netPrice: true,
+          costPricePMP: true,
+          consignorId: true,
+          consignmentCommissionBps: true,
+          consignor: { select: { consignmentCommissionBps: true } },
+        },
       })
     : [];
 
   const priced = catalogProducts
     .filter((p) => p.netPrice > 0)
-    .map((p) => ({
-      label: `${p.name} (${p.sku})`,
-      netPrice: p.netPrice,
-      cost: p.costPricePMP,
-      marginPercent: ((p.netPrice - p.costPricePMP) / p.netPrice) * 100,
-    }));
+    .map((p) => {
+      // Un producto de seller no tiene costo propio: su "costo" es lo que se le paga al seller, y el margen la comisión.
+      const cost = productCostForMargin(p, p.consignor?.consignmentCommissionBps);
+      return {
+        label: `${p.name} (${p.sku})`,
+        netPrice: p.netPrice,
+        cost,
+        marginPercent: ((p.netPrice - cost) / p.netPrice) * 100,
+      };
+    });
 
   const avgMargin = priced.length > 0 ? priced.reduce((sum, p) => sum + p.marginPercent, 0) / priced.length : 0;
 

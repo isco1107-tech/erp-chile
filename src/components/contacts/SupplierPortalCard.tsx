@@ -34,7 +34,10 @@ export default function SupplierPortalCard({ contactId, contactName, phone, admi
   const [query, setQuery] = useState('');
   const [found, setFound] = useState<Array<{ id: string; sku: string; name: string }>>([]);
   const searchSeq = useRef(0);
-  const { access, products } = admin;
+  const { access, products, consignment } = admin;
+  const isSellerOnly = Boolean(consignment) && !admin.isSupplier;
+  const title = consignment ? (admin.isSupplier ? 'Portal del proveedor y del seller' : 'Portal del seller') : 'Portal del proveedor';
+  const audience = isSellerOnly ? 'el seller' : 'el proveedor';
 
   // Búsqueda de productos para agregar, con una pequeña espera para no consultar en cada letra.
   useEffect(() => {
@@ -68,12 +71,12 @@ export default function SupplierPortalCard({ contactId, contactName, phone, admi
   }
 
   async function generate() {
-    if (access && !(await confirm({ title: '¿Generar un código nuevo?', description: 'El código anterior dejará de funcionar de inmediato. Tendrás que entregarle el nuevo al proveedor.', confirmLabel: 'Generar nuevo' }))) return;
+    if (access && !(await confirm({ title: '¿Generar un código nuevo?', description: `El código anterior dejará de funcionar de inmediato. Tendrás que entregarle el nuevo a ${audience}.`, confirmLabel: 'Generar nuevo' }))) return;
     await run(() => createSupplierPortalCodeAction(contactId), setIssued);
   }
 
   async function revoke() {
-    if (!(await confirm({ title: '¿Desactivar el acceso del proveedor?', description: 'Su código dejará de funcionar y no podrá ver más el inventario. Puedes generar uno nuevo cuando quieras.', confirmLabel: 'Desactivar' }))) return;
+    if (!(await confirm({ title: `¿Desactivar el acceso de ${audience}?`, description: 'Su código dejará de funcionar y no podrá ver más el inventario. Puedes generar uno nuevo cuando quieras.', confirmLabel: 'Desactivar' }))) return;
     await run(() => revokeSupplierPortalAction(contactId), () => setIssued(null));
   }
 
@@ -88,7 +91,7 @@ export default function SupplierPortalCard({ contactId, contactName, phone, admi
 
   const digits = (phone ?? '').replace(/\D/g, '');
   const whatsapp = issued
-    ? `https://wa.me/${digits.length >= 8 ? digits : ''}?text=${encodeURIComponent(`Hola ${contactName}, aquí puedes ver cuánto inventario te queda de tus productos: ${issued.url}\nO entra a ${baseUrl}/proveedor e ingresa tu código: ${issued.code}`)}`
+    ? `https://wa.me/${digits.length >= 8 ? digits : ''}?text=${encodeURIComponent(`Hola ${contactName}, aquí puedes ver cuánto inventario te queda de ${consignment ? 'tu mercadería y tus liquidaciones' : 'tus productos'}: ${issued.url}\nO entra a ${baseUrl}/proveedor e ingresa tu código: ${issued.code}`)}`
     : null;
 
   return (
@@ -99,10 +102,12 @@ export default function SupplierPortalCard({ contactId, contactName, phone, admi
             <Truck className="size-4 text-accent-foreground" strokeWidth={1.75} aria-hidden="true" />
           </span>
           <div>
-            <h3 className="text-sm font-semibold text-foreground">Portal del proveedor</h3>
+            <h3 className="text-sm font-semibold text-foreground">{title}</h3>
             <p className="text-xs text-muted-foreground">
               {access ? `Activo desde el ${formatDate(access.createdAt)} (código …${access.hint}). ${access.lastUsedAt ? `Último ingreso: ${formatDate(access.lastUsedAt)}.` : 'Aún no ha ingresado.'} ` : 'Sin acceso activo. '}
-              Con su código, el proveedor ve cuánto le queda en bodega de sus productos para analizar y reponer. Solo ve cantidades: nunca costos ni precios.
+              {consignment
+                ? 'Con su código, ve cuánto le queda en bodega de su mercadería, lo vendido sin liquidar y sus liquidaciones. Ve sus propios montos, nunca clientes, documentos, costos ni a otros sellers.'
+                : 'Con su código, el proveedor ve cuánto le queda en bodega de sus productos para analizar y reponer. Solo ve cantidades: nunca costos ni precios.'}
             </p>
           </div>
         </div>
@@ -120,7 +125,7 @@ export default function SupplierPortalCard({ contactId, contactName, phone, admi
 
       {issued && (
         <div className="mt-4 space-y-2 rounded-md bg-muted p-3">
-          <p className="text-xs font-medium">Entrégale este código al proveedor (se muestra solo ahora):</p>
+          <p className="text-xs font-medium">Entrégale este código a {audience} (se muestra solo ahora):</p>
           <p className="font-mono text-xl font-semibold tracking-wider" data-testid="supplier-code">
             {issued.code}
           </p>
@@ -157,11 +162,45 @@ export default function SupplierPortalCard({ contactId, contactName, phone, admi
           />
           <span>
             Mostrar también lo que sale (ventas y bajas de los últimos 30 días) y los días que alcanza el stock
-            <span className="block text-xs text-muted-foreground">Si lo apagas, el proveedor ve solo las existencias.</span>
+            <span className="block text-xs text-muted-foreground">Si lo apagas, {audience} ve solo las existencias{consignment ? ' (sus liquidaciones se ven siempre)' : ''}.</span>
           </span>
         </label>
       )}
 
+      {consignment && (
+        <div className="mt-5">
+          <h4 className="text-sm font-medium text-foreground">Mercadería de este seller ({consignment.products.length})</h4>
+          <p className="mb-2 text-xs text-muted-foreground">Son los productos con este seller como dueño. Se asignan desde el Catálogo de Productos («Dueño del producto»), no desde aquí.</p>
+          {consignment.products.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[420px] text-sm">
+                <thead className="text-left text-xs font-medium text-muted-foreground">
+                  <tr>
+                    <th className="py-1.5 pr-3">Producto</th>
+                    <th className="py-1.5 pr-3">SKU</th>
+                    <th className="py-1.5 pr-3 text-right">Stock</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {consignment.products.map((product) => (
+                    <tr key={product.id} className="border-t border-border">
+                      <td className="py-1.5 pr-3">{product.name}</td>
+                      <td className="py-1.5 pr-3 font-mono text-xs">{product.sku}</td>
+                      <td className="py-1.5 pr-3 text-right tabular-nums">
+                        {product.stock} {product.unit}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="rounded-md bg-muted p-3 text-sm text-muted-foreground">Todavía no tiene productos. En el Catálogo, elige a este seller en «Dueño del producto».</p>
+          )}
+        </div>
+      )}
+
+      {(admin.isSupplier || products.length > 0) && (
       <div className="mt-5">
         <h4 className="text-sm font-medium text-foreground">Productos de este proveedor ({products.length})</h4>
         <p className="mb-2 text-xs text-muted-foreground">Se agregan solos cuando el bodeguero registra una llegada de este proveedor en la app. Aquí puedes sumar o quitar productos a mano.</p>
@@ -231,6 +270,7 @@ export default function SupplierPortalCard({ contactId, contactName, phone, admi
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }
