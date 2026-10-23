@@ -7,10 +7,10 @@ import type { SupplierPortalRow, SupplierPortalView } from '@/modules/inventory/
 
 type Filter = 'ALL' | 'OUT' | 'LOW';
 
-const STATUS: Record<SupplierPortalRow['status'], { tone: 'warn' | 'accent' | 'ok'; label: string }> = {
-  OUT: { tone: 'warn', label: 'Sin stock' },
-  LOW: { tone: 'accent', label: 'Stock bajo' },
-  OK: { tone: 'ok', label: 'Normal' },
+const STATUS: Record<SupplierPortalRow['status'], { label: string }> = {
+  OUT: { label: 'Sin stock' },
+  LOW: { label: 'Stock bajo' },
+  OK: { label: 'Normal' },
 };
 
 /** Lo urgente primero: sin stock, luego bajo mínimo, luego el resto por nombre. */
@@ -109,7 +109,9 @@ export default function SupplierPortalClient({ code, view }: { code: string; vie
                       {row.brand ? ` · ${row.brand}` : ''}
                     </span>
                   </div>
-                  <PublicBadge tone={STATUS[row.status].tone}>{STATUS[row.status].label}</PublicBadge>
+                  <span className="sp-tag" data-status={row.status}>
+                    {STATUS[row.status].label}
+                  </span>
                 </div>
 
                 <p className="sp-stock">
@@ -192,8 +194,13 @@ const STYLES = `
   min-width: 0; padding: 1rem; border-radius: 16px; border: 1px solid var(--pub-line);
   background: linear-gradient(180deg, var(--pub-glass) 0%, var(--pub-glass-2) 100%), rgba(10,13,22,0.72);
 }
-.sp-item[data-status="OUT"] { border-color: color-mix(in oklab, var(--pub-danger) 55%, transparent); }
-.sp-item[data-status="LOW"] { border-color: color-mix(in oklab, var(--pub-a) 55%, transparent); }
+.sp-item[data-status="OUT"] { border-color: color-mix(in oklab, var(--pub-danger) 60%, transparent); }
+.sp-item[data-status="LOW"] { border-color: color-mix(in oklab, #f5b942 60%, transparent); }
+/* El estado se distingue por color Y por texto: rojo = sin stock, ámbar = bajo el mínimo, verde = normal. */
+.sp-tag { flex-shrink: 0; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.72rem; font-weight: 700; white-space: nowrap; border: 1px solid transparent; }
+.sp-tag[data-status="OUT"] { color: var(--pub-danger); background: color-mix(in oklab, var(--pub-danger) 14%, transparent); border-color: color-mix(in oklab, var(--pub-danger) 40%, transparent); }
+.sp-tag[data-status="LOW"] { color: #f5b942; background: color-mix(in oklab, #f5b942 14%, transparent); border-color: color-mix(in oklab, #f5b942 40%, transparent); }
+.sp-tag[data-status="OK"] { color: var(--pub-ok); background: color-mix(in oklab, var(--pub-ok) 12%, transparent); border-color: color-mix(in oklab, var(--pub-ok) 35%, transparent); }
 .sp-item-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.6rem; }
 .sp-item-name { min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
 .sp-item-name strong { font-size: 0.98rem; line-height: 1.25; overflow-wrap: anywhere; }

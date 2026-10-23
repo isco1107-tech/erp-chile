@@ -15,7 +15,14 @@ export default async function SupplierPortalPage({ params }: { params: Promise<{
   if (!checkRateLimit(ip, SUPPLIER_PORTAL_RATE_LIMIT).allowed) {
     return <PublicStatus accent="emerald" variant="error" title="Demasiadas consultas" message="Espera unos minutos y vuelve a intentarlo." />;
   }
-  const view = await getSupplierPortalView(decodeURIComponent(code));
+  // Un % mal formado en la dirección no debe romper la página: se trata como un código inválido.
+  let typed = code;
+  try {
+    typed = decodeURIComponent(code);
+  } catch {
+    typed = '';
+  }
+  const view = await getSupplierPortalView(typed);
   if (!view) {
     return <PublicStatus accent="emerald" variant="error" title="Código no válido" message="El código no existe, fue reemplazado o el acceso se desactivó. Pide uno nuevo a la empresa." />;
   }

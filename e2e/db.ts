@@ -1,3 +1,4 @@
+import type { BrowserContext } from '@playwright/test';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { OWNER_EMAIL } from './support';
@@ -44,4 +45,19 @@ export async function ensureWarehouse(name: string, code: string): Promise<{ id:
   if (existing) return { id: existing.id, name };
   const created = await db().warehouse.create({ data: { companyId, name, code } });
   return { id: created.id, name };
+}
+
+/**
+ * El recorrido guiado de cada pantalla se abre solo la primera vez y tapa los clics. Se apaga con la misma
+ * marca que guarda la app cuando la persona elige no ver más guías automáticas (las sigue teniendo en «Cómo usar»).
+ */
+export async function disableGuidedTour(context: BrowserContext): Promise<void> {
+  const { id } = await owner();
+  await context.addInitScript((userId) => {
+    try {
+      window.localStorage.setItem(`tutorial-auto-off:${userId}`, '1');
+    } catch {
+      /* sin storage: el recorrido se ofrecería igual */
+    }
+  }, id);
 }

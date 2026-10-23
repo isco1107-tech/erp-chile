@@ -1,6 +1,6 @@
 import { expect, test, devices } from '@playwright/test';
 import { hashSupplierCode, newSupplierCode, formatSupplierCode, supplierCodeHint } from '../src/lib/supplier-portal/code';
-import { db, ensureSupplier, owner } from './db';
+import { db, disableGuidedTour, ensureSupplier, owner } from './db';
 import { STATE } from './bodega-support';
 
 /**
@@ -106,6 +106,10 @@ test.describe('portal del proveedor', () => {
 
   test.describe('desde la ficha del proveedor (con la sesión del dueño)', () => {
     test.use(STATE);
+
+    test.beforeEach(async ({ context }) => {
+      await disableGuidedTour(context);
+    });
 
     test('el administrador genera el código, el proveedor entra con él, y al desactivarlo deja de funcionar', async ({ page, browser }) => {
       await page.goto(`/dashboard/contacts/${supplierId}`);

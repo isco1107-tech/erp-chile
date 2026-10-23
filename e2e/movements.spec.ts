@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { EAN_ACEITE, STATE, lookup, seedCatalog } from './bodega-support';
-import { ensureWarehouse, owner } from './db';
+import { disableGuidedTour, ensureWarehouse, owner } from './db';
 
 /**
  * Registro de movimientos por bodega: cada bodega se ve sola, y cada fila dice quién la hizo, el motivo
@@ -12,6 +12,10 @@ test.use(STATE);
 const RUN = Math.random().toString(36).slice(2, 7).toUpperCase();
 
 test.describe('movimientos de bodega', () => {
+  test.beforeEach(async ({ context }) => {
+    await disableGuidedTour(context);
+  });
+
   test('cada bodega muestra solo lo suyo, con operario, motivo y foto', async ({ page, request }) => {
     const centralId = await seedCatalog(request);
     const branch = await ensureWarehouse('Sucursal E2E', 'SUC-E2E');
