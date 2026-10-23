@@ -101,6 +101,8 @@ model Company {
   planName                  String                        @default("Starter")
   maxUsers                  Int                           @default(3)
   maxWarehouses             Int                           @default(1)
+  /// Sitios web activos (no archivados) que puede tener la empresa. Lo fija la Supersuite (`limites.ajustar`); 30 era el tope fijo anterior.
+  maxWebSites               Int                           @default(30)
   features                  CompanyFeatures?
   settings                  CompanySettings?
   taxPeriods                TaxPeriod[]
@@ -178,6 +180,12 @@ model Company {
   delegationRules           DelegationRule[]
   webSiteAssets             WebSiteAsset[]
   webSiteMessages           WebSiteMessage[]
+  webSiteStores             WebSiteStore[]
+  storeProducts             StoreProduct[]
+  storeOrders               StoreOrder[]
+  storeOrderItems           StoreOrderItem[]
+  storeStockReservations    StoreStockReservation[]
+  storeOrderEvents          StoreOrderEvent[]
   salesDocumentItems        SalesDocumentItem[]
   purchaseDocuments         PurchaseDocument[]
   purchaseDocumentItems     PurchaseDocumentItem[]
@@ -593,6 +601,9 @@ model CompanyFeatures {
   hasTeamTasks          Boolean  @default(false)
   /// Academia: ficha de alumnas, lista de asistencia y mensualidad pagada.
   hasAcademy            Boolean  @default(false)
+  /// Tienda en línea dentro del constructor de sitios: catálogo desde el inventario,
+  /// carrito, pago verificado, envío/retiro y pedidos. Ver `WebSiteStore`.
+  hasEcommerce          Boolean  @default(false)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 }
@@ -922,6 +933,7 @@ model Warehouse {
   cashRegisters    CashRegister[]
   importShipments  ImportShipment[]
   productionOrders ProductionOrder[]
+  webSiteStores    WebSiteStore[]
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
 
@@ -963,6 +975,7 @@ model Product {
   stocks               Stock[]
   movements            InventoryMovement[]
   suppliers            ProductSupplier[]
+  storeListings        StoreProduct[]
   salesDocumentItems   SalesDocumentItem[]
   salesOrderItems      SalesOrderItem[]
   priceListItems       PriceListItem[]
@@ -1233,6 +1246,8 @@ model SalesDocument {
   payments               Payment[]
   collectionReminderLogs CollectionReminderLog[]
   collectionNotes        CollectionNote[]
+  /// Pedido de la tienda en línea que originó esta venta (si lo hubo).
+  storeOrder             StoreOrder?
 
   // ── Facturación electrónica ──────────────────────────────────────────────
   // Todo nullable: los documentos emitidos antes de que existiera el módulo
@@ -3816,6 +3831,8 @@ enum WorkflowTriggerEvent {
   SERVICE_ESTIMATE_DECIDED
   /// Alguien escribió desde el formulario de contacto de un sitio web publicado.
   WEB_SITE_MESSAGE_RECEIVED
+  /// Pedido de la tienda en línea pagado (confirmado por la pasarela o por el equipo).
+  STORE_ORDER_PAID
 }
 
 enum WorkflowActionType {
@@ -5579,6 +5596,9 @@ model WebSite {
   contentUpdatedAt       DateTime         @default(now())
   assets                 WebSiteAsset[]
   messages               WebSiteMessage[]
+  store                  WebSiteStore?
+  storeProducts          StoreProduct[]
+  storeOrders            StoreOrder[]
   createdAt              DateTime         @default(now())
   updatedAt              DateTime         @updatedAt
 
@@ -5646,6 +5666,281 @@ model WebSiteMessage {
 
   @@index([companyId, siteId, createdAt])
   @@index([companyId, readAt])
+  @@index([companyId, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tienda en línea (`hasEcommerce`): la tienda de un sitio web. El inventario, los
+// precios y el kardex son los del ERP; acá solo vive lo propio de vender por
+// internet (qué se publica y cómo, pedidos, reservas de stock, envío y pago).
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum StoreOrderStatus {
+  OPEN
+  CANCELLED
+  EXPIRED
+}
+
+enum StorePaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum StoreFulfillmentStatus {
+  UNFULFILLED
+  PREPARING
+  READY_FOR_PICKUP
+  SHIPPED
+  DELIVERED
+}
+
+enum StoreDeliveryMethod {
+  SHIPPING
+  PICKUP
+}
+
+enum StorePaymentProvider {
+  KHIPU
+  WEBPAY
+  TRANSFER
+  PAY_ON_PICKUP
+}
+
+enum StoreDocumentType {
+  BOLETA
+  FACTURA
+}
+
+enum StoreReservationStatus {
+  ACTIVE
+  CONSUMED
+  RELEASED
+}
+
+/// Configuración de la tienda de un sitio (1:1 con `WebSite`). Cerrada por defecto:
+/// armarla no la abre al público hasta que alguien la active.
+model WebSiteStore {
+  id                 String     @id @default(cuid())
+  companyId          String
+  company            Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  siteId             String     @unique
+  site               WebSite    @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  enabled            Boolean    @default(false)
+  /// Bodega de la que sale lo que se vende por internet (su stock es el que se muestra y se descuenta).
+  warehouseId        String?
+  warehouse          Warehouse? @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  /// Correo al que llegan los avisos de pedidos nuevos (si no, el de la empresa).
+  notifyEmail        String?
+  /// WhatsApp o teléfono para dudas, visible en la tienda.
+  supportPhone       String?
+  pickupEnabled      Boolean    @default(false)
+  pickupAddress      String?
+  pickupInstructions String?
+  shippingEnabled    Boolean    @default(true)
+  /// `StoreShippingRate[]` (ver src/lib/ecommerce/shipping.ts): tarifas por región.
+  shippingRates      Json       @default("[]")
+  /// `StorePaymentProvider[]` habilitados para el comprador.
+  paymentMethods     Json       @default("[]")
+  /// Datos para pagar por transferencia manual (banco, cuenta, titular, correo de aviso).
+  bankTransferInfo   String?
+  /// Horas que se guarda el stock de un pedido a pagar por transferencia manual.
+  transferHoldHours  Int        @default(48)
+  /// Webpay Plus: código de comercio y llave secreta (cifrada). Sin ellos no se ofrece.
+  webpayCommerceCode String?
+  webpayApiSecret    String?
+  webpayProduction   Boolean    @default(false)
+  /// Permite pedir factura (con los datos de la empresa compradora).
+  invoiceEnabled     Boolean    @default(false)
+  termsText          String?
+  returnsText        String?
+  /// Compra mínima en CLP con IVA (0 = sin mínimo).
+  minOrderAmount     Int        @default(0)
+  /// Último número de pedido entregado (correlativo por tienda).
+  orderCounter       Int        @default(1000)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  @@index([companyId])
+}
+
+/// Un producto del ERP publicado en la tienda de un sitio. El precio y el stock NO
+/// se copian: salen siempre del catálogo y del kardex; acá solo la presentación.
+model StoreProduct {
+  id             String   @id @default(cuid())
+  companyId      String
+  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  siteId         String
+  site           WebSite  @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  productId      String
+  product        Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  published      Boolean  @default(false)
+  /// Dirección del producto en la tienda (`/producto/[slug]`), única por sitio.
+  slug           String
+  /// Nombre de vitrina; vacío = el del catálogo.
+  title          String?
+  summary        String?
+  description    String?
+  /// `[{ url, alt }]` (hasta 8; solo de nuestro almacenamiento).
+  images         Json     @default("[]")
+  /// Precio anterior con IVA, para mostrarlo tachado.
+  compareAtPrice Int?
+  collection     String?
+  featured       Boolean  @default(false)
+  sortOrder      Int      @default(0)
+  maxPerOrder    Int?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([siteId, productId])
+  @@unique([siteId, slug])
+  @@index([companyId, siteId, published])
+}
+
+/// Pedido de la tienda. Estado de pago y de entrega van separados (como en las
+/// tiendas conocidas): un pedido puede estar pagado y sin despachar. Los montos son
+/// CLP enteros y el total es exactamente el del documento de venta que se emite.
+model StoreOrder {
+  id                String                  @id @default(cuid())
+  companyId         String
+  company           Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  siteId            String
+  site              WebSite                 @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  /// Número visible del pedido, correlativo por tienda.
+  number            Int
+  status            StoreOrderStatus        @default(OPEN)
+  paymentStatus     StorePaymentStatus      @default(PENDING)
+  fulfillmentStatus StoreFulfillmentStatus  @default(UNFULFILLED)
+  /// Enlace secreto de seguimiento del comprador (64 hex).
+  accessToken       String                  @unique
+  /// Clave del navegador que armó el pedido: reintentar no lo duplica.
+  idempotencyKey    String
+  customerName      String
+  customerEmail     String
+  customerPhone     String
+  /// RUT del comprador (boleta nominativa o factura); vacío = consumidor final.
+  customerRut       String?
+  documentType      StoreDocumentType       @default(BOLETA)
+  /// Datos de facturación (`{ rut, razonSocial, giro, address, comuna }`) si pidió factura.
+  billing           Json?
+  deliveryMethod    StoreDeliveryMethod
+  /// `{ region, comuna, street, extra }` si es despacho.
+  shippingAddress   Json?
+  shippingRateId    String?
+  shippingRateName  String?
+  customerNotes     String?
+  /// Líneas con IVA (sin el despacho).
+  subtotal          Int
+  shippingTotal     Int                     @default(0)
+  total             Int
+  netAmount         Int
+  exemptAmount      Int                     @default(0)
+  ivaAmount         Int
+  paymentProvider   StorePaymentProvider?
+  /// Id del cobro en la pasarela (Khipu `payment_id`, Webpay `token`).
+  providerPaymentId String?
+  paymentUrl        String?
+  /// Autorización o referencia que entrega la pasarela al cobrar.
+  paymentReference  String?
+  /// Forma de pago con que se emite la venta en el ERP (`PAYMENT_METHODS` de Ventas): se conoce al cobrar.
+  paymentMethodCode String?
+  /// Hasta cuándo se guarda el stock si no se paga.
+  paymentExpiresAt  DateTime?
+  paidAt            DateTime?
+  /// Venta emitida en el ERP al cobrar (mueve el kardex y la contabilidad).
+  salesDocumentId   String?                 @unique
+  salesDocument     SalesDocument?          @relation(fields: [salesDocumentId], references: [id], onDelete: SetNull)
+  /// Por qué la venta no se pudo emitir (p. ej. stock insuficiente al cobrar): requiere atención.
+  documentError     String?
+  carrier           String?
+  trackingNumber    String?
+  trackingUrl       String?
+  shippedAt         DateTime?
+  deliveredAt       DateTime?
+  cancelledAt       DateTime?
+  cancelReason      String?
+  items             StoreOrderItem[]
+  events            StoreOrderEvent[]
+  reservations      StoreStockReservation[]
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  @@unique([siteId, number])
+  @@unique([siteId, idempotencyKey])
+  @@index([companyId, status, createdAt])
+  @@index([companyId, siteId, paymentStatus])
+  @@index([companyId, fulfillmentStatus])
+  @@index([companyId, customerEmail])
+  @@index([paymentExpiresAt])
+  @@index([providerPaymentId])
+}
+
+/// Línea de un pedido, con lo vendido tal como se vendió (nombre, SKU y precio al momento).
+model StoreOrderItem {
+  id        String     @id @default(cuid())
+  companyId String
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  orderId   String
+  order     StoreOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  /// Sin FK a propósito: borrar o archivar el producto no toca el historial de ventas.
+  productId String
+  sku       String
+  name      String
+  imageUrl  String?
+  unit      String     @default("UN")
+  quantity  Int
+  /// Precio neto unitario (el del catálogo al momento de la compra).
+  netUnit   Int
+  /// Precio unitario con IVA que vio el comprador.
+  grossUnit Int
+  isExempt  Boolean    @default(false)
+  subtotal  Int
+  iva       Int
+  total     Int
+
+  @@index([companyId, orderId])
+  @@index([companyId, productId])
+}
+
+/// Stock apartado para un pedido mientras se paga (y hasta que se emite la venta).
+/// Lo disponible que ve el comprador es stock físico menos estas reservas vigentes.
+model StoreStockReservation {
+  id          String                 @id @default(cuid())
+  companyId   String
+  company     Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  orderId     String
+  order       StoreOrder             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  /// Sin FK a propósito (ver `StoreOrderItem.productId`).
+  productId   String
+  warehouseId String
+  quantity    Int
+  status      StoreReservationStatus @default(ACTIVE)
+  /// Vencimiento de la reserva de un pedido sin pagar. `null` = se mantiene hasta emitir la venta o cancelar.
+  expiresAt   DateTime?
+  createdAt   DateTime               @default(now())
+
+  @@index([companyId, productId, warehouseId, status])
+  @@index([orderId])
+  @@index([status, expiresAt])
+}
+
+/// Historial del pedido: lo que pasó, cuándo y quién lo hizo (el sistema o una persona).
+model StoreOrderEvent {
+  id        String     @id @default(cuid())
+  companyId String
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  orderId   String
+  order     StoreOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  /// Código corto (`CREATED`, `PAID`, `SHIPPED`…).
+  type      String
+  message   String
+  /// Quien lo hizo; `null` = el sistema o el comprador.
+  userId    String?
+  userName  String?
+  createdAt DateTime   @default(now())
+
+  @@index([orderId, createdAt])
   @@index([companyId, createdAt])
 }
 
@@ -6038,57 +6333,57 @@ enum AcademyAttendanceStatus {
 
 /// Curso o grupo de clases ("Modelaje juvenil – sábados").
 model AcademyGroup {
-  id          String           @id @default(cuid())
-  companyId   String
-  company     Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  name        String
-  schedule    String?
+  id         String            @id @default(cuid())
+  companyId  String
+  company    Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  name       String
+  schedule   String?
   /// Mensualidad sugerida (CLP entero); `null` = se indica al marcar el pago.
-  monthlyFee  Int?
-  isActive    Boolean          @default(true)
-  students    AcademyStudent[]
-  sessions    AcademySession[]
-  materials   AcademyMaterial[]
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  monthlyFee Int?
+  isActive   Boolean           @default(true)
+  students   AcademyStudent[]
+  sessions   AcademySession[]
+  materials  AcademyMaterial[]
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
 
   @@index([companyId, isActive])
 }
 
 model AcademyStudent {
-  id            String                  @id @default(cuid())
-  companyId     String
-  company       Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  groupId       String?
-  group         AcademyGroup?           @relation(fields: [groupId], references: [id], onDelete: SetNull)
-  rut           String
-  rutClean      String
-  fullName      String
-  birthDate     DateTime?
-  email         String?
-  phone         String?
-  address       String?
+  id                    String                  @id @default(cuid())
+  companyId             String
+  company               Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  groupId               String?
+  group                 AcademyGroup?           @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  rut                   String
+  rutClean              String
+  fullName              String
+  birthDate             DateTime?
+  email                 String?
+  phone                 String?
+  address               String?
   /// Misma ficha que la de candidatas: contacto de emergencia y tallas.
   emergencyContactName  String?
   emergencyContactPhone String?
-  pantsSize     String?
-  shirtSize     String?
-  shoeSize      String?
+  pantsSize             String?
+  shirtSize             String?
+  shoeSize              String?
   /// Solo si es menor de edad.
-  guardianName  String?
-  guardianPhone String?
-  guardianEmail String?
+  guardianName          String?
+  guardianPhone         String?
+  guardianEmail         String?
   /// Autorización del uso de su imagen (fotos y videos de la academia).
-  photoConsent  Boolean                 @default(false)
+  photoConsent          Boolean                 @default(false)
   /// Observación especial (alergias, salud, etc.).
-  notes         String?
+  notes                 String?
   /// Primer mes que se le cobra (día 1, 12:00 UTC). Antes de ese mes no debe nada.
-  startMonth    DateTime
-  isActive      Boolean                 @default(true)
-  attendance    AcademyAttendance[]
-  payments      AcademyMonthlyPayment[]
-  createdAt     DateTime                @default(now())
-  updatedAt     DateTime                @updatedAt
+  startMonth            DateTime
+  isActive              Boolean                 @default(true)
+  attendance            AcademyAttendance[]
+  payments              AcademyMonthlyPayment[]
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
 
   @@unique([companyId, rutClean])
   @@index([companyId, isActive])
@@ -6112,21 +6407,21 @@ model AcademyAttendance {
 
 /// Mensualidad pagada. Que exista la fila = pagada; desmarcar la borra.
 model AcademyMonthlyPayment {
-  id        String         @id @default(cuid())
-  companyId String
-  company   Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  id          String          @id @default(cuid())
+  companyId   String
+  company     Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
   /// `null` si la alumna fue eliminada: el pago se conserva con su nombre y RUT.
-  studentId String?
-  student   AcademyStudent? @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  studentId   String?
+  student     AcademyStudent? @relation(fields: [studentId], references: [id], onDelete: SetNull)
   /// Copia del nombre y RUT al momento del pago, para que el registro sobreviva a la ficha.
   studentName String?
   studentRut  String?
   /// "YYYY-MM"
-  period    String
+  period      String
   /// CLP entero.
-  amount    Int
-  paidAt    DateTime       @default(now())
-  note      String?
+  amount      Int
+  paidAt      DateTime        @default(now())
+  note        String?
 
   @@unique([studentId, period])
   @@index([companyId, period])
@@ -6137,28 +6432,28 @@ model AcademyMonthlyPayment {
 /// `content`, validado con Zod al guardar y al leer; lo demás son columnas.
 /// El público solo ve el sitio publicado y nunca alumnas, RUT ni pagos.
 model AcademySite {
-  id              String    @id @default(cuid())
-  companyId       String    @unique
-  company         Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  id                     String    @id @default(cuid())
+  companyId              String    @unique
+  company                Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
   /// Único en toda la plataforma (la URL no lleva la empresa).
-  slug            String    @unique
-  name            String
-  isPublished     Boolean   @default(false)
-  publishedAt     DateTime?
-  heroImageUrl    String?
+  slug                   String    @unique
+  name                   String
+  isPublished            Boolean   @default(false)
+  publishedAt            DateTime?
+  heroImageUrl           String?
   /// Solo dígitos, formato wa.me.
-  whatsapp        String?
-  contactEmail    String?
+  whatsapp               String?
+  contactEmail           String?
   /// Una o varias cuentas separadas por coma, sin «@».
-  instagramHandle String?
-  address         String?
+  instagramHandle        String?
+  address                String?
   /// Dominio propio (ej. academiacr.cl), único en toda la plataforma junto a
   /// los de certámenes y sitios web (`src/lib/hosting/domain-lifecycle.ts`).
   customDomain           String?   @unique
   customDomainVerifiedAt DateTime?
-  content         Json      @default("{}")
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  content                Json      @default("{}")
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 }
 
 /// Clase programada en el calendario de la academia. Una por grupo y día: la
@@ -6236,35 +6531,35 @@ enum AcademyApplicationStatus {
 /// una alumna: el equipo la revisa y, al aprobarla, se crea la ficha
 /// (`studentId`). Mientras tanto no aparece en listas ni mensualidades.
 model AcademyApplication {
-  id               String                   @id @default(cuid())
-  companyId        String
-  company          Company                  @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  status           AcademyApplicationStatus @default(PENDING)
-  fullName         String
-  rut              String
-  rutClean         String
-  birthDate        DateTime
-  email            String?
-  phone            String
+  id                    String                   @id @default(cuid())
+  companyId             String
+  company               Company                  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  status                AcademyApplicationStatus @default(PENDING)
+  fullName              String
+  rut                   String
+  rutClean              String
+  birthDate             DateTime
+  email                 String?
+  phone                 String
   address               String?
   emergencyContactName  String?
   emergencyContactPhone String?
   pantsSize             String?
   shirtSize             String?
   shoeSize              String?
-  guardianName     String?
-  guardianPhone    String?
-  guardianEmail    String?
-  photoConsent     Boolean                  @default(false)
+  guardianName          String?
+  guardianPhone         String?
+  guardianEmail         String?
+  photoConsent          Boolean                  @default(false)
   /// Cuándo aceptó el aviso de privacidad al enviar (constancia de consentimiento).
-  consentAt        DateTime
+  consentAt             DateTime
   /// Grupo que eligió en el formulario (puede ser `null`: "aún no lo sé").
-  preferredGroupId String?
-  message          String?
+  preferredGroupId      String?
+  message               String?
   /// Ficha creada al aprobar.
-  studentId        String?
-  reviewedAt       DateTime?
-  createdAt        DateTime                 @default(now())
+  studentId             String?
+  reviewedAt            DateTime?
+  createdAt             DateTime                 @default(now())
 
   @@index([companyId, status, createdAt])
   @@index([companyId, rutClean])

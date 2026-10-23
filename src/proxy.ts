@@ -136,6 +136,12 @@ function routeCustomDomain(req: NextRequest, host: string): NextResponse {
     url.pathname = `/sitio/${encodeURIComponent(domainFromHost(host))}/${route.slug}`;
     return NextResponse.rewrite(url);
   }
+  if (route.kind === 'store') {
+    // Ficha de producto o seguimiento de pedido de la tienda de ese dominio: `/sitio/[host]/producto/[id]` decide si existe.
+    const url = req.nextUrl.clone();
+    url.pathname = `/sitio/${encodeURIComponent(domainFromHost(host))}/${route.prefix}/${route.id}`;
+    return NextResponse.rewrite(url);
+  }
   if (route.kind === 'seo') {
     // `robots.txt` y `sitemap.xml` del sitio de ese dominio (no los de la plataforma).
     const url = req.nextUrl.clone();

@@ -1,5 +1,6 @@
 import { captureException } from '@/lib/observability';
 import { pageUrl, SEO_HEADERS, sitePaths, sitemapXml } from '@/lib/web-sites/sitemap';
+import { listStoreSitemapPaths, resolvePublicStore } from '@/modules/ecommerce/services/store-public.service';
 import { getPublicWebSite, publicSiteUrl } from '@/modules/web-sites/services/web-sites.service';
 
 /**
@@ -15,7 +16,18 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
     if (!site || !site.indexable) return new Response('No encontrado', { status: 404 });
     const base = site.customDomain && site.customDomainVerified ? `https://${site.customDomain}` : publicSiteUrl(site.slug);
     const paths = site.mode === 'GUIDED' ? sitePaths(site.document) : [''];
-    return new Response(sitemapXml(paths.map((path) => ({ url: pageUrl(base, path), lastModified: site.publishedAt }))), {
+    // La tienda abierta suma su catálogo y cada ficha publicada.
+    // Si la tienda falla, el mapa del sitio sale igual (sin el catálogo) y el error se reporta.
+    let storeEntries: Awaited<ReturnType<typeof listStoreSitemapPaths>> = [];
+    if (site.mode === 'GUIDED') {
+      try {
+        const store = await resolvePublicStore(slug);
+        storeEntries = store ? await listStoreSitemapPaths(store) : [];
+      } catch (storeError) {
+        captureException(storeError, { module: 'tienda-en-linea', extra: { reason: 'sitemap-store', slug } });
+      }
+    }
+    return new Response(sitemapXml([...paths.map((path) => ({ url: pageUrl(base, path), lastModified: site.publishedAt })), ...storeEntries.map((entry) => ({ url: pageUrl(base, entry.path), lastModified: entry.lastModified }))]), {
       headers: { 'Content-Type': 'application/xml; charset=utf-8', ...SEO_HEADERS },
     });
   } catch (error) {

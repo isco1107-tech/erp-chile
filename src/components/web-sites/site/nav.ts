@@ -48,5 +48,17 @@ export function buildNavItems(ctx: RenderCtx, anchors: ReadonlySet<string>): Nav
     if (!usable && children.length === 0) continue;
     items.push({ key: entry.key, label: entry.label, link: usable, newTab: entry.newTab, current: isCurrent(ctx, usable), children });
   }
+  // La tienda abierta suma su entrada al menú, salvo que el sitio ya tenga un enlace propio a ella.
+  const store = ctx.store;
+  if (store && !items.some((item) => item.link?.href === store.catalogHref)) {
+    items.push({
+      key: 'store',
+      label: 'Tienda',
+      link: { href: store.catalogHref, external: false, pageId: null, anchor: null },
+      newTab: false,
+      current: store.current === 'catalog' || store.current === 'product',
+      children: [],
+    });
+  }
   return items;
 }

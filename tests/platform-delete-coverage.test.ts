@@ -117,6 +117,15 @@ const CASCADES_TO_COMPANY = new Set([
   // con `onDelete: Cascade` directo hacia Company.
   'ProductSupplier',
   'SupplierPortalAccess',
+  // Tienda en línea: configuración, publicación, pedidos y sus reservas e historial.
+  // Todos con `onDelete: Cascade` directo hacia Company (sin FK a Product ni a
+  // Warehouse en pedidos, ítems y reservas: no bloquean el borrado de esos padres).
+  'WebSiteStore',
+  'StoreProduct',
+  'StoreOrder',
+  'StoreOrderItem',
+  'StoreStockReservation',
+  'StoreOrderEvent',
 ]);
 
 /** Cascadean desde `Project`, que se borra explícito en `hardDeleteTenant`. */

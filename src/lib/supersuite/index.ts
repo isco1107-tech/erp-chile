@@ -78,7 +78,7 @@ export async function sincronizarEmpresaSupersuite(companyId: string): Promise<v
     if (!m) return;
     const empresa = await prisma.company.findFirst({
       where: { id: companyId },
-      select: { businessName: true, rut: true, ciudad: true, comuna: true, planName: true, status: true, createdAt: true, maxUsers: true, maxWarehouses: true, features: true },
+      select: { businessName: true, rut: true, ciudad: true, comuna: true, planName: true, status: true, createdAt: true, maxUsers: true, maxWarehouses: true, maxWebSites: true, features: true },
     });
     if (!empresa) return;
     m.cliente(companyId, fichaDeEmpresa(empresa));

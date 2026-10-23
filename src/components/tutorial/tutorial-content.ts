@@ -285,6 +285,16 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       note('Delegación', 'Escribe qué decisiones puede tomar cada persona y hasta qué monto; cualquiera puede consultarlo.'),
     ],
   },
+  store: {
+    title: 'Tienda en línea',
+    steps: [
+      header('Vende por internet desde tu sitio', 'Catálogo con tu inventario real, carrito, pago y entrega; cada venta queda en Ventas, Bodega y Contabilidad.'),
+      note('Qué le falta', 'Antes de abrir la tienda, esta lista te dice lo obligatorio: sitio publicado, bodega, un producto, un medio de pago y una forma de entrega.'),
+      note('Productos', 'Publica lo que quieras vender y arma su ficha con fotos y descripción. El precio y el stock siempre son los del inventario.'),
+      note('Pedidos', 'Confirma las transferencias, prepara y despacha. El comprador sigue su pedido desde un enlace que le llega por correo.'),
+      note('Envíos y Pagos', 'Define retiro, tarifas de despacho por región y los medios de pago: Khipu, Webpay Plus, transferencia o pagar al retirar.'),
+    ],
+  },
   'web-sites': {
     title: 'Sitios web',
     steps: [

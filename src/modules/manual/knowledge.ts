@@ -79,6 +79,7 @@ export const SCREEN_PURPOSES: Record<string, string> = {
   academy: 'Calendario de clases de la academia (mes o semana con horas, clases repetidas cada semana), lista de asistencia por clase, material de estudio que se envía por correo a las alumnas y sus apoderados, ficha de cada alumna y control de la mensualidad pagada. Recibe inscripciones por un link público que el equipo aprueba, y publica un sitio web propio de la academia (pestaña Sitio web).',
   tasks: 'Tareas del equipo con responsable y repetición, y reglas de delegación de decisiones.',
   'web-sites': 'Crear y publicar sitios web (guiado o HTML propio), dominio propio, formularios (contacto, cotización, inscripción, reserva) que tributan al CRM, la academia o las tareas, y la bandeja de lo que llega.',
+  store: 'Tienda en línea dentro de un sitio web: publicar productos del inventario, carrito, pago con Khipu, Webpay Plus, transferencia o pagar al retirar, despacho por región o retiro, y atender los pedidos (confirmar pago, preparar, despachar, cancelar, reembolsar). Cada venta pagada emite el documento y descuenta la bodega.',
   'treasury-cxc': 'Cuentas por cobrar: qué te deben los clientes, lo vencido, registrar cobros y enviar recordatorios.',
   'treasury-cxp': 'Cuentas por pagar: qué le debes a tus proveedores, lo que vence pronto y registrar pagos.',
   'treasury-cashflow': 'Ingresos y egresos reales del período por medio de pago, exportables a CSV.',
@@ -445,6 +446,15 @@ export const TROUBLESHOOTING: TroubleshootingItem[] = [
     answer: [
       'Abre la pestaña "Qué le falta": los ítems obligatorios (portada con título, forma de contacto, enlaces válidos, textos de ejemplo reemplazados) bloquean la publicación.',
       'Publicar requiere el permiso de publicar sitios (Dueño o Administrador).',
+    ],
+  },
+  {
+    problem: 'Un cliente pagó en la tienda y no veo la venta',
+    requires: 'hasEcommerce',
+    answer: [
+      'Abre Tienda en línea → Pedidos → "Requieren atención": si el pago llegó pero la venta no se pudo emitir (por ejemplo, ya no había stock), el pedido muestra el motivo. Repón el stock y pulsa "Reintentar emitir la venta".',
+      'Un pedido pagado por transferencia o al retirar se confirma a mano: ábrelo y pulsa "Confirmar pago recibido".',
+      'Un pedido pagado en línea se confirma solo, consultando a la pasarela con el monto exacto. Si no avanza, recarga el pedido: si el cobro no calza con el monto, queda sin aplicar y te avisamos.',
     ],
   },
   {

@@ -92,6 +92,7 @@ export type NavIconKey =
   | 'serviceDesk'
   | 'academy'
   | 'webSites'
+  | 'store'
   | 'invoiceArchive'
   | 'customerCare'
   | 'quality'
@@ -264,11 +265,15 @@ export function buildAvailableWorkspaceNav({ permissions, features }: Omit<NavAc
   }
   push('Operaciones', operaciones);
 
+  const sitios: NavLink[] = [];
   if (features.hasWebSites && allow('websites:read')) {
-    push('Sitios web', [
-      { id: 'web-sites', href: '/dashboard/web-sites', label: 'Sitios web', icon: 'webSites', keywords: ['pagina web', 'landing', 'diseno web', 'sitio', 'html', 'portafolio', 'catalogo', 'dominio', 'publicar', 'mensajes'] },
-    ]);
+    sitios.push({ id: 'web-sites', href: '/dashboard/web-sites', label: 'Sitios web', icon: 'webSites', keywords: ['pagina web', 'landing', 'diseno web', 'sitio', 'html', 'portafolio', 'catalogo', 'dominio', 'publicar', 'mensajes'] });
   }
+  // La tienda vive dentro de un sitio web: sin el módulo de sitios no hay dónde montarla.
+  if (features.hasEcommerce && features.hasWebSites && allow('store:read')) {
+    sitios.push({ id: 'store', href: '/dashboard/store', label: 'Tienda en línea', icon: 'store', keywords: ['tienda', 'carrito', 'pedidos', 'ecommerce', 'shopify', 'vender por internet', 'webpay', 'khipu', 'despacho', 'envios', 'catalogo'] });
+  }
+  push('Sitios web', sitios);
 
   const finanzas: NavLink[] = [];
   if (features.hasTreasury && allow('treasury:read')) {

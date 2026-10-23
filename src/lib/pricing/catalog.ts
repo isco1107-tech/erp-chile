@@ -134,4 +134,4 @@ export const PRICING_PLANS: readonly PricingPlan[] = [
  *   Ventas y Folios, así que la Supersuite puede encenderlo a mano.
  * - `hasFeeDocuments` (Boletas de Honorarios): fuera de la oferta comercial.
  */
-export const UNPRICED_FEATURES: readonly FeatureKey[] = ['hasDteBilling', 'hasFeeDocuments', 'hasAcademy'];
+export const UNPRICED_FEATURES: readonly FeatureKey[] = ['hasDteBilling', 'hasFeeDocuments', 'hasAcademy', 'hasEcommerce'];

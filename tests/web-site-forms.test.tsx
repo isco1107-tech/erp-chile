@@ -632,12 +632,13 @@ describe('GET /web/[slug]/sitemap.xml', () => {
   it('usa el dominio propio verificado como dirección canónica; sin él, la de la plataforma', async () => {
     const { GET } = await import('@/app/web/[slug]/sitemap.xml/route');
     const findUnique = jest.spyOn(prisma.webSite, 'findUnique');
-    findUnique.mockResolvedValueOnce(row() as never);
+    // Cada petición lee el sitio y luego busca su tienda (el sitio de la prueba no tiene).
+    findUnique.mockResolvedValueOnce(row() as never).mockResolvedValueOnce(null as never);
     const plain = await (await GET(new Request('https://app.test/web/solar-sur/sitemap.xml'), { params: Promise.resolve({ slug: 'solar-sur' }) })).text();
     expect(plain).toContain('<loc>https://app.test/web/solar-sur/</loc>');
     expect(plain).toContain('<loc>https://app.test/web/solar-sur/servicios</loc>');
 
-    findUnique.mockResolvedValueOnce(row({ customDomain: 'solarsur.cl', customDomainVerifiedAt: new Date() }) as never);
+    findUnique.mockResolvedValueOnce(row({ customDomain: 'solarsur.cl', customDomainVerifiedAt: new Date() }) as never).mockResolvedValueOnce(null as never);
     const own = await (await GET(new Request('https://app.test/web/solar-sur/sitemap.xml'), { params: Promise.resolve({ slug: 'solar-sur' }) })).text();
     expect(own).toContain('<loc>https://solarsur.cl/servicios</loc>');
   });

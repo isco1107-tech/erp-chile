@@ -24,7 +24,7 @@ const GENERIC_CUSTOMER_NAME = 'Consumidor Final';
  * sola vez por empresa y se reutiliza: `SalesDocument.contactId` es obligatorio,
  * así que sin esto no se podría emitir una boleta anónima.
  */
-async function getOrCreateGenericCustomer(tx: TxClient, companyId: string): Promise<string> {
+export async function getOrCreateGenericCustomer(tx: TxClient, companyId: string): Promise<string> {
   const rutClean = cleanRut(GENERIC_CUSTOMER_RUT);
   const existing = await tx.contact.findFirst({ where: { companyId, rutClean } });
   if (existing) return existing.id;

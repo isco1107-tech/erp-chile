@@ -43,6 +43,7 @@ export const FLAG_A_MODULO: Partial<Record<FeatureKey, string>> = {
   hasQuality: 'calidad',
   hasTeamTasks: 'tareas',
   hasAcademy: 'academia',
+  hasEcommerce: 'tienda_en_linea',
   // Módulos vendibles que la Supersuite no podía nombrar: solo se encendían por su id del tarifario.
   hasAdvancedReports: 'reportes',
   hasMultipleWarehouses: 'multibodega',
@@ -87,6 +88,7 @@ const ENTIDAD_A_MODULO: Record<string, string> = {
   Procedure: 'calidad', QualityInspection: 'calidad', QualityTemplate: 'calidad', SupplierProfile: 'calidad',
   TeamTask: 'tareas', DelegationRule: 'tareas',
   AcademyStudent: 'academia', AcademyGroup: 'academia', AcademyAttendance: 'academia', AcademyMonthlyPayment: 'academia', AcademyApplication: 'academia', AcademySite: 'academia', AcademyEnrollmentLink: 'academia', AcademySession: 'academia', AcademyMaterial: 'academia',
+  StoreOrder: 'tienda_en_linea', StoreProduct: 'tienda_en_linea', WebSiteStore: 'tienda_en_linea',
 };
 
 /** Módulo con que viaja lo que no es de un módulo de negocio (usuarios, roles, ajustes…): la Supersuite no lo cuenta como adopción. */
@@ -274,6 +276,8 @@ export function fichaComercial(input: {
   features: CompanyFeatureFlags;
   maxUsers: number;
   maxWarehouses: number;
+  /** Tope de sitios web; sin él (llamadores anteriores) la ficha no lo informa. */
+  maxWebSites?: number;
 }): { tarifaMensual?: number; metadata: Record<string, unknown> } {
   const modulos = tenantListPrice(input.planName, input.features, 0);
   const conUsuarios = tenantListPrice(input.planName, input.features, input.maxUsers);
@@ -291,6 +295,7 @@ export function fichaComercial(input: {
       usuariosAdicionales,
       tarifaUsuariosAdicionales: usuariosAdicionales * EXTRA_USER_PRICE,
       bodegasMax: input.maxWarehouses,
+      ...(input.maxWebSites !== undefined ? { sitiosMax: input.maxWebSites } : {}),
     },
   };
 }
@@ -325,6 +330,7 @@ export function fichaDeEmpresa(empresa: {
   createdAt: Date;
   maxUsers: number;
   maxWarehouses: number;
+  maxWebSites?: number;
   features: CompanyFeatures | null;
 }): DatosCliente {
   const comercial = fichaComercial({
@@ -332,6 +338,7 @@ export function fichaDeEmpresa(empresa: {
     features: toFeatureFlags(empresa.features),
     maxUsers: empresa.maxUsers,
     maxWarehouses: empresa.maxWarehouses,
+    maxWebSites: empresa.maxWebSites,
   });
   return {
     nombre: empresa.businessName,

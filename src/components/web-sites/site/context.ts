@@ -33,6 +33,17 @@ export interface RenderCtx {
   placeholders?: boolean;
   /** Ancho del contenido del tema: el encabezado calcula con él si su menú cabe en una fila. */
   siteWidth?: 'narrow' | 'normal' | 'wide';
+  /** El sitio tiene la tienda abierta: el encabezado muestra «Tienda» y el carrito. Nunca en la vista previa del editor. */
+  store?: StoreRenderInfo;
+}
+
+/** Lo mínimo que el encabezado necesita saber de la tienda (direcciones ya resueltas para este sitio). */
+export interface StoreRenderInfo {
+  siteSlug: string;
+  catalogHref: string;
+  cartHref: string;
+  /** Pantalla de la tienda que se está viendo (marca «Tienda» como actual). */
+  current: 'catalog' | 'product' | 'cart' | 'checkout' | 'order' | null;
 }
 
 export function resolveIn(ctx: RenderCtx, raw: string | null | undefined): ResolvedLink | null {

@@ -22,6 +22,10 @@ npm run test:e2e
 ```
 
 - `E2E_BASE_URL`: probar contra una app ya levantada (no arranca `next start`).
+- Tienda en línea (pasarelas simuladas): levanta la app con
+  `PAYMENTS_ENCRYPTION_KEY=cualquier-valor APP_URL=http://localhost:3100 KHIPU_API_BASE_URL=http://localhost:4010 WEBPAY_API_BASE_URL=http://localhost:4010`
+  y corre las pruebas con las MISMAS variables (la llave de cifrado debe coincidir: la prueba guarda con ella las
+  credenciales de la pasarela de la empresa). Sin ellas, los recorridos de pago en línea se saltan con un aviso.
 - `E2E_CHROMIUM_PATH`: usar un Chromium ya instalado en vez de `npx playwright install`.
 
 Qué cubren:
@@ -49,3 +53,19 @@ Qué cubren:
 `db.ts` arma lo que no tiene pantalla (un proveedor, el código de su portal, una segunda bodega)
 y lee el resultado directo de la base, así que estas pruebas necesitan `DATABASE_URL` apuntando
 a la base de pruebas (la misma de los pasos 1–2). Nunca contra la de producción.
+
+Tienda en línea (`/web/tienda-e2e`, panel en Sitios web → Tienda en línea):
+- `store-public.spec.ts`: el comprador, sin sesión: catálogo (precio con IVA, descuento, agotado, búsqueda y
+  colecciones), ficha con datos estructurados, carrito (cantidades, ajuste por stock, un precio escrito a mano
+  en el navegador no vale, celular emulado), finalizar compra con transferencia, retiro y despacho por región,
+  validación en español, reintento sin duplicar, y el pago en línea con **pasarelas simuladas**
+  (`fake-gateways.ts`, un servidor HTTP dentro de la prueba): Khipu (la app CONSULTA el cobro y un monto distinto
+  no paga), Webpay (puente con su CSP propia hacia Transbank, regreso, confirmación y anulación).
+- `store-admin.spec.ts`: el equipo: confirma una transferencia (se emite la venta y baja la bodega), prepara,
+  despacha con seguimiento (solo https) y entrega; cancela y libera el stock; descarga el Excel auditado;
+  publica y edita fichas; cambia ajustes, cierra y abre la tienda; «Qué le falta» bloquea una tienda incompleta.
+- `store-responsive.spec.ts`: las cinco pantallas de la tienda en 13 anchos (280 a 2560 px): nada desborda,
+  se sale de la pantalla, parte una palabra letra por letra ni queda bajo 11 px. Deja capturas en
+  `.vercel/responsive-check-store/`: **mirarlas**, el «pasó» no basta.
+- `store-support.ts` arma la tienda de demostración (idempotente) con casos incómodos y sirve las fotos de
+  prueba con `page.route`.

@@ -14,7 +14,8 @@ import 'server-only';
  * POST falsificado a la URL de notificación no puede marcar nada como pagado.
  */
 
-const KHIPU_API_BASE = process.env.KHIPU_API_BASE_URL?.replace(/\/$/, '') || 'https://payment-api.khipu.com';
+// El host de prueba solo vale fuera de producción: una variable mal puesta allá nunca desvía los cobros reales.
+const KHIPU_API_BASE = (process.env.VERCEL_ENV === 'production' ? undefined : process.env.KHIPU_API_BASE_URL?.replace(/\/$/, '')) || 'https://payment-api.khipu.com';
 const REQUEST_TIMEOUT_MS = 15_000;
 
 export class KhipuApiError extends Error {

@@ -408,6 +408,22 @@ export const WORKFLOW_TRIGGER_DEFINITIONS: Record<WorkflowTriggerEvent, Workflow
       { field: 'message', label: 'Respuestas', kind: 'string' },
     ],
   },
+  STORE_ORDER_PAID: {
+    event: 'STORE_ORDER_PAID',
+    label: 'Pedido de la tienda en línea pagado',
+    description: 'Se confirmó el pago de un pedido de la tienda (por la pasarela o por tu equipo). Útil para avisar a bodega o crear una tarea de despacho; filtra por medio de pago, forma de entrega o monto con las condiciones.',
+    fields: [
+      { field: 'orderId', label: 'ID del pedido', kind: 'string' },
+      { field: 'orderNumber', label: 'N° de pedido', kind: 'number' },
+      { field: 'siteName', label: 'Sitio', kind: 'string' },
+      { field: 'customerName', label: 'Comprador', kind: 'string' },
+      { field: 'customerEmail', label: 'Correo del comprador', kind: 'string' },
+      { field: 'totalAmount', label: 'Total pagado', kind: 'number' },
+      { field: 'paymentProvider', label: 'Medio de pago (KHIPU, WEBPAY, TRANSFER, PAY_ON_PICKUP)', kind: 'string' },
+      { field: 'deliveryMethod', label: 'Entrega (SHIPPING o PICKUP)', kind: 'string' },
+      { field: 'itemCount', label: 'Unidades', kind: 'number' },
+    ],
+  },
 };
 
 export const WORKFLOW_ACTION_TYPE_LABELS: Record<WorkflowActionType, string> = {

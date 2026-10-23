@@ -31,7 +31,7 @@ async function main() {
   const companies = await prisma.company.findMany({
     select: {
       id: true, businessName: true, rut: true, ciudad: true, comuna: true, status: true, createdAt: true,
-      planName: true, maxUsers: true, maxWarehouses: true, features: true,
+      planName: true, maxUsers: true, maxWarehouses: true, maxWebSites: true, features: true,
     },
     orderBy: { businessName: 'asc' },
   });

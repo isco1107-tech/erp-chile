@@ -1,9 +1,9 @@
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { isBlockEmpty, type WebSiteBlock } from '@/lib/web-sites/blocks';
 import { documentFromBlocks, findPage, homeOf, pageBlockAnchors, publishedPages, type SiteDocument } from '@/lib/web-sites/site';
 import { themeVariables, type WebSiteTheme } from '@/lib/web-sites/theme';
 import { SITE_FONT_CLASSES } from './site-fonts';
-import type { RenderCtx } from './site/context';
+import type { RenderCtx, StoreRenderInfo } from './site/context';
 import { MobileActionBar, WhatsappFloat } from './site/FloatingActions';
 import { buildNavItems } from './site/nav';
 import { cx } from './site/parts';
@@ -32,6 +32,9 @@ import { blockHeadingText, resolveAlign, sectionLook, toneVariables, type Tone }
  * cliente aparte.
  */
 
+/** Identificador de la «página» virtual con que se pinta una pantalla de la tienda. */
+export const STORE_VIRTUAL_PAGE_ID = '__store__';
+
 export interface SiteRendererProps {
   name: string;
   /** Secciones integradas en academia o certamen, sin otro encabezado, pie ni main. */
@@ -54,14 +57,20 @@ export interface SiteRendererProps {
   onSelectBlock?: (blockId: string) => void;
   /** Solo vista previa: sección resaltada. */
   selectedBlockId?: string | null;
+  /** Tienda abierta del sitio: el encabezado muestra «Tienda» y el carrito. Solo en el sitio publicado. */
+  store?: StoreRenderInfo;
+  /** Pantalla de la tienda (catálogo, producto, carrito…): reemplaza las secciones de la página y conserva el encabezado, el pie y el tema. */
+  content?: ReactNode;
 }
 
-export default function SiteRenderer({ embedded = false, name, logoUrl, theme, document, blocks, pageId, slug, mode, basePath, onNavigate, onSelectBlock, selectedBlockId }: SiteRendererProps) {
+export default function SiteRenderer({ embedded = false, name, logoUrl, theme, document, blocks, pageId, slug, mode, basePath, onNavigate, onSelectBlock, selectedBlockId, store, content }: SiteRendererProps) {
   const preview = mode === 'preview';
   const source = document ?? documentFromBlocks(blocks ?? [], theme);
   const doc = embedded ? { ...source, header: { ...source.header, enabled: false }, footer: { ...source.footer, enabled: false } } : source;
   const requested = pageId ? (preview ? findPage(doc, pageId) : publishedPages(doc).find((entry) => entry.id === pageId)) : null;
-  const page = requested ?? homeOf(doc);
+  // Una pantalla de la tienda no es ninguna página del sitio: con una página virtual, los enlaces del menú a las
+  // secciones del inicio (#servicios) salen como «/#servicios» y no como un ancla que aquí no existe.
+  const page = content ? { ...homeOf(doc), id: STORE_VIRTUAL_PAGE_ID, blocks: [] } : (requested ?? homeOf(doc));
   const selectable = preview && Boolean(onSelectBlock);
 
   // Se pintan las secciones visibles con contenido; en la vista previa, las vacías salen como marcador para poder elegirlas.
@@ -78,14 +87,16 @@ export default function SiteRenderer({ embedded = false, name, logoUrl, theme, d
     idPrefix: preview ? 'wsp-' : '',
     onNavigate,
     navigate: true,
-    h1BlockId: embedded ? null : shown.find((block) => blockHeadingText(block))?.id ?? null,
+    // La pantalla de la tienda trae su propio título principal.
+    h1BlockId: embedded || content ? null : shown.find((block) => blockHeadingText(block))?.id ?? null,
     siteWidth: theme.width,
+    store: preview ? undefined : store,
   };
   const bodyCtx: RenderCtx = selectable ? { ...ctx, navigate: false } : ctx;
 
   const first = shown[0];
   const firstEmpty = first ? isBlockEmpty(first) : false;
-  const overlayTone = first && first.type === 'hero' && !firstEmpty ? sectionLook(first).tone : null;
+  const overlayTone = !content && first && first.type === 'hero' && !firstEmpty ? sectionLook(first).tone : null;
   const overlay = doc.header.enabled && doc.header.style === 'transparent' && overlayTone !== null;
   const items = doc.header.enabled || doc.footer.enabled ? buildNavItems(ctx, renderedAnchors) : [];
 
@@ -113,7 +124,7 @@ export default function SiteRenderer({ embedded = false, name, logoUrl, theme, d
         {doc.header.enabled && <Announcement ctx={ctx} />}
         {doc.header.enabled && <SiteHeader ctx={ctx} name={name} logoUrl={logoUrl} items={items} overlayTone={overlayTone} />}
         <MainTag id={mainId} tabIndex={-1} className="grow outline-none">
-          {shown.map((block, index) => {
+          {content ?? shown.map((block, index) => {
             const look = looks[index]!;
             const empty = isBlockEmpty(block);
             return (

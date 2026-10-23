@@ -57,6 +57,7 @@ const FULL: CompanyFeatureFlags = {
   hasQuality: true,
   hasTeamTasks: true,
   hasAcademy: true,
+  hasEcommerce: true,
 };
 
 const STARTER: CompanyFeatureFlags = { ...DEFAULT_FEATURES };
