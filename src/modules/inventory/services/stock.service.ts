@@ -55,6 +55,12 @@ export interface StockInParams extends MovementAttribution {
   reference?: string;
   notes?: string;
   /**
+   * Recepción de mercadería de un seller (consignación). Es la ÚNICA forma de hacer entrar como
+   * `PURCHASE_IN` un producto que es del seller: Compras, recepciones, importaciones y la bodega
+   * móvil no la pasan, así que no pueden "comprarlo" por error.
+   */
+  consignment?: boolean;
+  /**
    * Reparto por lote de lo que entra (solo productos con `tracksLots`). Sin
    * reparto, todo entra al lote "SIN-LOTE". La suma debe igualar `quantity`.
    */
@@ -101,6 +107,16 @@ export async function applyStockIn(tx: TxClient, companyId: string, params: Stoc
   const warehouse = await tx.warehouse.findFirst({ where: { id: warehouseId, companyId } });
   if (!warehouse) throw new Error('Bodega no encontrada');
 
+  // Un producto de seller es del seller hasta que se vende: no se compra ni se valoriza. Su costo
+  // es siempre 0 (sin PMP, sin asiento, sin valor de inventario).
+  const isConsigned = product.consignorId !== null;
+  if (isConsigned && type === 'PURCHASE_IN' && !params.consignment) {
+    throw new Error(`"${product.name}" está en consignación: la mercadería es del seller y no se compra. Regístrala desde Inventario → Consignación.`);
+  }
+  if (params.consignment && !isConsigned) {
+    throw new Error(`"${product.name}" no es un producto de seller: asígnale su seller en el catálogo antes de recibirlo en consignación.`);
+  }
+
   if (params.supplierId) {
     const supplier = await tx.contact.findFirst({ where: { id: params.supplierId, companyId }, select: { id: true } });
     if (!supplier) throw new Error('Proveedor no encontrado');
@@ -112,12 +128,15 @@ export async function applyStockIn(tx: TxClient, companyId: string, params: Stoc
   const localPreviousStock = stock?.quantity ?? 0;
   const companyPreviousStock = await getCompanyStockTotal(tx, companyId, productId);
 
-  const { newPmp } = calculateNewPmp({
-    previousStock: companyPreviousStock,
-    previousPmp: product.costPricePMP,
-    incomingQuantity: quantity,
-    incomingUnitCost: unitCost,
-  });
+  const effectiveUnitCost = isConsigned ? 0 : unitCost;
+  const { newPmp } = isConsigned
+    ? { newPmp: 0 }
+    : calculateNewPmp({
+        previousStock: companyPreviousStock,
+        previousPmp: product.costPricePMP,
+        incomingQuantity: quantity,
+        incomingUnitCost: unitCost,
+      });
   const localNewStock = localPreviousStock + quantity;
 
   await tx.stock.upsert({
@@ -126,7 +145,7 @@ export async function applyStockIn(tx: TxClient, companyId: string, params: Stoc
     create: { companyId, productId, warehouseId, quantity: localNewStock },
   });
 
-  await tx.product.update({ where: { id: productId }, data: { costPricePMP: newPmp } });
+  if (!isConsigned) await tx.product.update({ where: { id: productId }, data: { costPricePMP: newPmp } });
 
   const lotAllocations = product.tracksLots ? await addToLots(tx, companyId, productId, warehouseId, quantity, params.lots) : null;
 
@@ -137,8 +156,8 @@ export async function applyStockIn(tx: TxClient, companyId: string, params: Stoc
       warehouseId,
       type,
       quantity,
-      unitCost,
-      totalCost: movementTotalCost(quantity, unitCost),
+      unitCost: effectiveUnitCost,
+      totalCost: movementTotalCost(quantity, effectiveUnitCost),
       previousStock: localPreviousStock,
       newStock: localNewStock,
       previousPmp: product.costPricePMP,

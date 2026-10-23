@@ -36,7 +36,8 @@ function fakeTx(overrides: Record<string, Record<string, jest.Mock>> = {}) {
     $queryRaw: jest.fn().mockResolvedValue([]),
     contact: { findFirst: jest.fn().mockResolvedValue({ id: 'cli1', creditLimit: null }) },
     warehouse: { findFirst: jest.fn().mockResolvedValue({ id: 'w1' }) },
-    product: { findFirst: jest.fn().mockResolvedValue({ id: 'p1', costPricePMP: 1000, isExempt: false, isTrackable: true }) },
+    // `findMany` lo usa la consignación para ver si alguna línea es de un seller (aquí, ninguna).
+    product: { findFirst: jest.fn().mockResolvedValue({ id: 'p1', costPricePMP: 1000, isExempt: false, isTrackable: true }), findMany: jest.fn().mockResolvedValue([]) },
     salesDocument: {
       findFirst: jest.fn().mockResolvedValue(null),
       findMany: jest.fn().mockResolvedValue([]),

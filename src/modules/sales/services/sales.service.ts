@@ -11,6 +11,7 @@ import type {
   Warehouse,
 } from '@prisma/client';
 import { applyStockIn, applyStockOut } from '@/modules/inventory/services/stock.service';
+import { resolveSaleConsignment } from '@/modules/inventory/services/consignment.service';
 import { getContactOutstandingBalance } from '@/modules/treasury/services/treasury.service';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { constraintInvolves } from '@/lib/prisma-errors';
@@ -446,6 +447,14 @@ export async function createSalesDocument(
       }
     }
 
+    // Productos de seller (consignación): foto del dueño y de la comisión de cada línea, para
+    // liquidarle lo vendido. Una devolución copia la de la línea original.
+    const consignmentByProduct = await resolveSaleConsignment(tx, companyId, {
+      dteType: input.dteType,
+      productIds: computedItems.map((item) => item.productId),
+      referencedItems: referencedDocument?.items,
+    });
+
     const created = await tx.salesDocument.create({
       data: {
         companyId,
@@ -491,6 +500,8 @@ export async function createSalesDocument(
             iva: item.iva,
             total: item.total,
             unitCostPMP: (item.productId ? costByProduct.get(item.productId) : undefined) ?? item.unitCostPMP,
+            consignorId: (item.productId ? consignmentByProduct.get(item.productId)?.consignorId : undefined) ?? undefined,
+            consignorCommissionBps: (item.productId ? consignmentByProduct.get(item.productId)?.commissionBps : undefined) ?? undefined,
           })),
         },
       },

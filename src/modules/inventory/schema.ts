@@ -66,6 +66,24 @@ export const warehouseCreateSchema = z.object({
 
 export type WarehouseCreateInput = z.infer<typeof warehouseCreateSchema>;
 
+/** Recepción de mercadería de un seller (consignación): el producto ya trae su dueño. */
+export const consignmentReceiveSchema = z.object({
+  productId: z.string().min(1, 'Selecciona un producto'),
+  warehouseId: z.string().min(1, 'Selecciona una bodega'),
+  quantity: z.number().positive('La cantidad debe ser mayor a cero'),
+  reference: z.string().trim().max(120, 'Máximo 120 caracteres').optional(),
+  notes: z.string().trim().max(500, 'Máximo 500 caracteres').optional(),
+  /** Solo productos con lotes: lote y vencimiento de lo que entra. */
+  lotNumber: z.string().trim().max(40, 'Máximo 40 caracteres').optional(),
+  expiryDate: z.union([z.literal(''), z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha de vencimiento inválida')]).optional(),
+});
+
+/** Devolución de mercadería al seller (sale de la bodega sin venderse). */
+export const consignmentReturnSchema = consignmentReceiveSchema.pick({ productId: true, warehouseId: true, quantity: true, reference: true, notes: true });
+
+export type ConsignmentReceiveInput = z.infer<typeof consignmentReceiveSchema>;
+export type ConsignmentReturnInput = z.infer<typeof consignmentReturnSchema>;
+
 export const MOVEMENT_TYPES = ['PURCHASE_IN', 'SALE_OUT', 'ADJUSTMENT_IN', 'ADJUSTMENT_OUT', 'TRANSFER'] as const;
 
 export const stockMovementSchema = z

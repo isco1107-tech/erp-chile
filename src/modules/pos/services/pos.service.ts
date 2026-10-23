@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import type { Prisma, SalesDocument, SalesDocumentItem } from '@prisma/client';
 import { applyStockOut, type TxClient } from '@/modules/inventory/services/stock.service';
+import { resolveSaleConsignment } from '@/modules/inventory/services/consignment.service';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { constraintInvolves } from '@/lib/prisma-errors';
 import { postSalesDocumentIssued } from '@/modules/accounting/posting-rules/sales-posting';
@@ -251,6 +252,12 @@ export async function createPosSale(
       }
     }
 
+    // Productos de seller (consignación): foto del dueño y de la comisión de cada línea.
+    const consignmentByProduct = await resolveSaleConsignment(tx, companyId, {
+      dteType: 'BOLETA_39',
+      productIds: computedItems.map((item) => item.productId),
+    });
+
     const document = await tx.salesDocument.create({
       data: {
         companyId,
@@ -293,6 +300,8 @@ export async function createPosSale(
             iva: item.iva,
             total: item.total,
             unitCostPMP: costByProduct.get(item.productId) ?? item.unitCostPMP,
+            consignorId: consignmentByProduct.get(item.productId)?.consignorId,
+            consignorCommissionBps: consignmentByProduct.get(item.productId)?.commissionBps,
           })),
         },
       },
