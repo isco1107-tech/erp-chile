@@ -1,11 +1,12 @@
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { cache } from 'react';
+import { renderStorePage, storeMetadata } from '@/components/store/store-pages';
+import { storeRouteFor } from '@/lib/ecommerce/store-route';
+import { loadDomainWebSite, resolveDomainStore } from '@/components/store/store-domain';
 import { findPublicPage, WebSiteDocument, webSiteMetadata } from '@/components/web-sites/WebSiteDocument';
 import { domainFromHost, platformBaseUrl } from '@/lib/hosting/custom-domain';
-import { getPageantSlugByDomain } from '@/modules/projects/services/public-site.service';
-import { getPublicWebSiteByDomain } from '@/modules/web-sites/services/web-sites.service';
+import { storeScreenHref } from '@/lib/ecommerce/store-href';
 
 /**
  * Página interna de un sitio web en su dominio propio (`minegocio.cl/servicios`).
@@ -16,12 +17,7 @@ import { getPublicWebSiteByDomain } from '@/modules/web-sites/services/web-sites
  * u está oculta, se redirige a la plataforma con esa misma ruta, que es lo que
  * hacía el proxy antes de que existieran las páginas.
  */
-const loadSite = cache(async (domain: string, requestDomain: string) => {
-  // Mismo orden que la raíz del dominio: si es de un certamen, el dominio es del certamen
-  // y ninguna página de un sitio web puede servirse bajo él.
-  if (await getPageantSlugByDomain(domain, requestDomain === domain)) return null;
-  return getPublicWebSiteByDomain(domain, requestDomain === domain);
-});
+const loadSite = loadDomainWebSite;
 
 type Params = Promise<{ host: string; page: string }>;
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -43,14 +39,34 @@ async function resolve(params: Params) {
   return { domain, pageSlug: page, site: valid, found: valid ? findPublicPage(valid, page) : null };
 }
 
-export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+/** Si la dirección es una pantalla de la tienda del sitio de este dominio (y la tienda está abierta). */
+async function resolveStore(params: Params, search: Record<string, string | string[] | undefined>) {
+  const { host, page } = await params;
+  const route = storeRouteFor(page, search);
+  if (!route) return null;
+  const found = await resolveDomainStore(host);
+  return found ? { ...found, route } : null;
+}
+
+export async function generateMetadata({ params, searchParams }: { params: Params; searchParams: SearchParams }): Promise<Metadata> {
+  const hit = await resolveStore(params, await searchParams);
+  if (hit) {
+    if (hit.route === 'to-catalog') return { robots: { index: false } };
+    return storeMetadata({ site: hit.site, store: hit.store, route: hit.route, basePath: '', siteUrl: `https://${hit.domain}` });
+  }
   const { domain, pageSlug, site, found } = await resolve(params);
   if (!site || !found) return { robots: { index: false } };
   return webSiteMetadata(site, `https://${domain}/${pageSlug}`, found);
 }
 
 export default async function CustomDomainInnerPage({ params, searchParams }: { params: Params; searchParams: SearchParams }) {
+  const search = await searchParams;
+  const hit = await resolveStore(params, search);
+  if (hit) {
+    if (hit.route === 'to-catalog') redirect(storeScreenHref('', 'catalog'));
+    return renderStorePage({ site: hit.site, store: hit.store, route: hit.route, basePath: '', siteUrl: `https://${hit.domain}` });
+  }
   const { pageSlug, site, found } = await resolve(params);
-  if (!site || !found) redirect(`${platformBaseUrl()}/${encodeURIComponent(pageSlug)}${queryString(await searchParams)}`);
+  if (!site || !found) redirect(`${platformBaseUrl()}/${encodeURIComponent(pageSlug)}${queryString(search)}`);
   return <WebSiteDocument site={site} pageSlug={pageSlug} basePath="" siteUrl={`https://${site.customDomain}`} />;
 }

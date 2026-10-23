@@ -41,6 +41,15 @@ function subscribe(onChange: () => void): () => void {
   };
 }
 
+/** `false` en el servidor y en la primera pintura del navegador: así no se muestra «carrito vacío» antes de leer el almacenamiento. */
+export function useHydrated(): boolean {
+  return useSyncExternalStore(
+    () => () => undefined,
+    () => true,
+    () => false
+  );
+}
+
 export function useCart(siteSlug: string) {
   const key = cartStorageKey(siteSlug);
   const raw = useSyncExternalStore(subscribe, () => read(key), () => '[]');

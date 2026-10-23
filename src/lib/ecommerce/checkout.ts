@@ -19,6 +19,9 @@ export const quoteSchema = z.object({
   lines: z.array(checkoutLineSchema).max(MAX_CART_LINES).default([]),
   /** Región elegida para calcular el despacho (opcional: sin ella no se ofrecen tarifas). */
   region: z.string().trim().max(80).optional(),
+  /** Forma de entrega y tarifa elegidas: con ellas el total incluye el despacho. */
+  deliveryMethod: z.enum(['SHIPPING', 'PICKUP']).optional(),
+  shippingRateId: z.string().trim().max(40).optional(),
 });
 
 export type QuoteInput = z.infer<typeof quoteSchema>;

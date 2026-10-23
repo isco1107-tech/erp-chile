@@ -308,6 +308,10 @@ export interface Quote {
   /** Productos del carrito que ya no se pueden comprar y hay que sacar. */
   removedProductIds: string[];
   shippingOptions: QuoteShippingOption[];
+  /** La tienda despacha a domicilio (tiene tarifas). */
+  shippingEnabled: boolean;
+  /** Regiones a las que llega algún despacho; `null` = todo Chile. */
+  shippingRegions: string[] | null;
   pickup: { address: string; instructions: string } | null;
   minOrderAmount: number;
   belowMinimum: boolean;
@@ -411,6 +415,8 @@ export async function quoteCart(ctx: PublicStoreContext, request: QuoteRequest):
     subtotal,
     removedProductIds: removed,
     shippingOptions,
+    shippingEnabled: ctx.settings.shippingEnabled && ctx.settings.shippingRates.length > 0,
+    shippingRegions: shippingRegionsOf(ctx),
     pickup: ctx.settings.pickupEnabled ? { address: ctx.settings.pickupAddress, instructions: ctx.settings.pickupInstructions } : null,
     minOrderAmount: ctx.settings.minOrderAmount,
     belowMinimum,
@@ -426,6 +432,24 @@ export async function quoteCart(ctx: PublicStoreContext, request: QuoteRequest):
   };
 }
 
+/** Regiones donde algún despacho aplica; `null` si alguna tarifa llega a todo Chile (o no hay despacho que listar). */
+function shippingRegionsOf(ctx: PublicStoreContext): string[] | null {
+  if (!ctx.settings.shippingEnabled || ctx.settings.shippingRates.length === 0) return [];
+  if (ctx.settings.shippingRates.some((rate) => rate.regions.length === 0)) return null;
+  return [...new Set(ctx.settings.shippingRates.flatMap((rate) => rate.regions))];
+}
+
 export function assertCartNotEmpty(lines: readonly CartLine[]): void {
   if (lines.length === 0) throw new StoreError('Tu carrito está vacío.');
+}
+
+/** Pedidos que esta tienda recibió en los últimos `minutes`: tope por sitio, contado en la base (el límite en memoria no se comparte entre instancias). */
+export async function countRecentOrders(companyId: string, siteId: string, minutes: number): Promise<number> {
+  return prisma.storeOrder.count({ where: { companyId, siteId, createdAt: { gte: new Date(Date.now() - minutes * 60_000) } } });
+}
+
+/** Direcciones de la tienda para el mapa del sitio (relativas a la raíz): el catálogo y cada ficha publicada. */
+export async function listStoreSitemapPaths(ctx: PublicStoreContext, limit = 2000): Promise<Array<{ path: string; lastModified: Date }>> {
+  const listings = await prisma.storeProduct.findMany({ where: PUBLISHED_WHERE(ctx), select: { slug: true, updatedAt: true }, orderBy: { updatedAt: 'desc' }, take: limit });
+  return [{ path: 'tienda', lastModified: listings[0]?.updatedAt ?? new Date() }, ...listings.map((listing) => ({ path: `producto/${listing.slug}`, lastModified: listing.updatedAt }))];
 }

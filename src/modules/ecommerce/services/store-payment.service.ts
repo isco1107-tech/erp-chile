@@ -136,6 +136,23 @@ export async function restartOrderPayment(accessToken: string): Promise<string> 
   return url;
 }
 
+/**
+ * Datos para mandar al comprador a Webpay: la dirección de Transbank (guardada al abrir el
+ * cobro) y el token. Solo mientras el pedido siga abierto con un cobro de Webpay pendiente;
+ * y solo si la dirección es de Transbank: jamás se manda al comprador a otro destino.
+ */
+export async function getWebpayBridge(accessToken: string): Promise<{ url: string; token: string } | null> {
+  if (!/^[a-f0-9]{64}$/.test(accessToken)) return null;
+  const order = await prisma.storeOrder.findUnique({
+    where: { accessToken },
+    select: { status: true, paymentStatus: true, paymentProvider: true, paymentUrl: true, providerPaymentId: true, paymentExpiresAt: true },
+  });
+  if (!order || order.status !== 'OPEN' || order.paymentStatus !== 'PENDING' || order.paymentProvider !== 'WEBPAY') return null;
+  if (!order.paymentUrl || !order.providerPaymentId || !isWebpayUrl(order.paymentUrl)) return null;
+  if (order.paymentExpiresAt && order.paymentExpiresAt.getTime() < Date.now()) return null;
+  return { url: order.paymentUrl, token: order.providerPaymentId };
+}
+
 // ---------------------------------------------------------------------------
 // Confirmar el pago
 // ---------------------------------------------------------------------------

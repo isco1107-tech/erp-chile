@@ -16,6 +16,12 @@ import 'server-only';
 
 const HOSTS = { integration: 'https://webpay3gint.transbank.cl', production: 'https://webpay3g.transbank.cl' } as const;
 const API_PATH = '/rswebpaytransaction/api/webpay/v1.2/transactions';
+/**
+ * Solo para pruebas de punta a punta con una pasarela simulada (igual que `KHIPU_API_BASE_URL`): cambia el host de las
+ * llamadas del SERVIDOR a la API. No afecta a la dirección a la que se manda al comprador, que sigue validándose contra
+ * los hosts oficiales de Transbank (`isWebpayUrl`). No se define en producción.
+ */
+const API_BASE_OVERRIDE = process.env.WEBPAY_API_BASE_URL?.replace(/\/$/, '');
 const REQUEST_TIMEOUT_MS = 20_000;
 
 export class WebpayApiError extends Error {
@@ -54,7 +60,7 @@ export interface WebpayTransaction {
 }
 
 async function webpayFetch(credentials: WebpayCredentials, path: string, init: RequestInit): Promise<unknown> {
-  const base = credentials.production ? HOSTS.production : HOSTS.integration;
+  const base = API_BASE_OVERRIDE || (credentials.production ? HOSTS.production : HOSTS.integration);
   const response = await fetch(`${base}${API_PATH}${path}`, {
     ...init,
     headers: {

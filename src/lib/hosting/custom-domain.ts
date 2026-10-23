@@ -146,6 +146,11 @@ export type CustomDomainRoute =
   | { kind: 'page'; slug: string }
   /** `robots.txt` o `sitemap.xml`: se reescribe a `/sitio/<dominio>/<archivo>`, del sitio de ese dominio. */
   | { kind: 'seo'; file: 'robots.txt' | 'sitemap.xml' }
+  /**
+   * `/producto/<dirección>` o `/pedido/<enlace>` de la tienda de un sitio web: se reescribe a
+   * `/sitio/<dominio>/<prefijo>/<id>`, que decide si la tienda existe (si no, va a la plataforma).
+   */
+  | { kind: 'store'; prefix: 'producto' | 'pedido'; id: string }
   /** Cualquier otra (panel, login…): va a la plataforma, nunca bajo el dominio del certamen. */
   | { kind: 'platform' };
 
@@ -157,8 +162,16 @@ export type CustomDomainRoute =
  */
 const WEB_SITE_RAW_RE = /^\/web\/[a-z0-9-]{3,50}\/raw\/?$/;
 
+/** Ficha de producto (`/producto/camisa-roja`) y seguimiento de pedido (`/pedido/<64 hex>`) de una tienda. */
+const STORE_PRODUCT_RE = /^\/producto\/([a-z0-9-]{2,60})\/?$/;
+const STORE_ORDER_RE = /^\/pedido\/([a-f0-9]{64})\/?$/;
+
 export function customDomainRoute(pathname: string): CustomDomainRoute {
   if (pathname === '/' || pathname === '') return { kind: 'site' };
+  const product = STORE_PRODUCT_RE.exec(pathname);
+  if (product) return { kind: 'store', prefix: 'producto', id: product[1]! };
+  const order = STORE_ORDER_RE.exec(pathname);
+  if (order) return { kind: 'store', prefix: 'pedido', id: order[1]! };
   const seo = CUSTOM_DOMAIN_SEO_FILES.find((file) => pathname === file);
   if (seo) return { kind: 'seo', file: seo === '/robots.txt' ? 'robots.txt' : 'sitemap.xml' };
   if (WEB_SITE_RAW_RE.test(pathname)) return { kind: 'pass' };

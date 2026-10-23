@@ -20,6 +20,22 @@ const WEB_SITE_SANDBOX_CSP = [
 ].join('; ');
 
 /**
+ * CSP de la página puente hacia Webpay (`/api/public/store/webpay/start`). DEBE ser
+ * idéntica a `WEBPAY_BRIDGE_CSP` de src/lib/ecommerce/webpay-bridge.ts (un test las
+ * compara). La global solo deja enviar formularios al propio origen (`form-action
+ * 'self'`), lo que bloquearía el POST a Transbank; esta lo permite SOLO hacia sus
+ * hosts, sin más recursos que el script de una línea (por su hash).
+ */
+const WEBPAY_BRIDGE_CSP = [
+  "default-src 'none'",
+  "script-src 'sha256-L4apREZm//cGgtIun4wuxOMRgynVrFlN3eegGdr86Ow='",
+  "style-src 'unsafe-inline'",
+  'form-action https://webpay3g.transbank.cl https://webpay3gint.transbank.cl',
+  "base-uri 'none'",
+  "frame-ancestors 'none'",
+].join('; ');
+
+/**
  * Productos del ecosistema servidos bajo el dominio de Aether
  * (aetherp.online/epione y aetherp.online/hermes). Cada uno es su propio
  * despliegue de Agenda Salud con basePath = el prefijo (VITE_BASE_PATH), así
@@ -149,6 +165,15 @@ const nextConfig = {
         headers: [
           { key: 'Content-Security-Policy', value: WEB_SITE_SANDBOX_CSP },
           { key: 'Referrer-Policy', value: 'no-referrer' },
+        ],
+      },
+      {
+        // Puente hacia Webpay: también DESPUÉS de la global (la última gana).
+        source: '/api/public/store/webpay/start',
+        headers: [
+          { key: 'Content-Security-Policy', value: WEBPAY_BRIDGE_CSP },
+          { key: 'Referrer-Policy', value: 'no-referrer' },
+          { key: 'Cache-Control', value: 'no-store' },
         ],
       },
     ];

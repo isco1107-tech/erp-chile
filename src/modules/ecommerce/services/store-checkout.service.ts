@@ -15,6 +15,7 @@ import { ratesForRegion, shippingPrice } from '@/lib/ecommerce/shipping';
 import { OutOfStockError, StoreError } from '../errors';
 import { notifyNewOrder, sendOrderReceivedEmail } from './store-notifications.service';
 import { startOrderPayment } from './store-payment.service';
+import { ownImageOrNull, parseStoreImages } from './store-catalog.service';
 import type { PublicStoreContext } from './store-public.service';
 import { cancelOrderInternal } from './store-fulfillment.service';
 import { reserveForOrder } from './store-stock.service';
@@ -106,7 +107,8 @@ export async function createStoreOrder(ctx: PublicStoreContext, input: CheckoutI
       productId: listing.productId,
       sku: listing.product.sku,
       name: listing.title?.trim() || listing.product.name,
-      imageUrl: listing.product.imageUrl,
+      // La foto del pedido es la de la tienda (o la del producto): solo de nuestro almacenamiento.
+      imageUrl: parseStoreImages(listing.images, ctx.companyId)[0]?.url ?? ownImageOrNull(ctx.companyId, listing.product.imageUrl),
       unit: listing.product.unit,
       isExempt: listing.product.isExempt,
       netUnit: listing.product.netPrice,

@@ -443,6 +443,34 @@ export const WEB_SITE_CONTACT_SITE_RATE_LIMIT: RateLimitConfig = {
   windowMs: 60 * 60_000,
 };
 
+/** Tienda en línea: cotizar el carrito (lee catálogo y stock) por IP. Un comprador cambia cantidades muchas veces. */
+export const STORE_QUOTE_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'store-quote-ip',
+  limit: 120,
+  windowMs: 10 * 60_000,
+};
+
+/** Tienda en línea: crear pedidos por IP. Un comprador real hace pocos; más es un bot probando tarjetas o agotando stock. */
+export const STORE_CHECKOUT_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'store-checkout-ip',
+  limit: 8,
+  windowMs: 60 * 60_000,
+};
+
+/** Mismo flujo, por tienda: tope global para que un ataque distribuido no reserve todo el stock ni llene la bandeja. */
+export const STORE_CHECKOUT_SITE_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'store-checkout-site',
+  limit: 120,
+  windowMs: 60 * 60_000,
+};
+
+/** Tienda en línea: abrir de nuevo el pago de un pedido y ver su seguimiento (consulta a la pasarela) por IP. */
+export const STORE_ORDER_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'store-order-ip',
+  limit: 60,
+  windowMs: 10 * 60_000,
+};
+
 /** Encuesta pública de satisfacción: vistas por IP. */
 export const SURVEY_VIEW_RATE_LIMIT: RateLimitConfig = {
   prefix: 'survey-view-ip',

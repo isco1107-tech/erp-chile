@@ -13,6 +13,7 @@ import { quotaReachedMessage, siteQuota, type SiteQuota } from '@/lib/web-sites/
 import { evaluateReadiness, type ReadinessReport } from '@/lib/web-sites/readiness';
 import { siteForms } from '@/lib/web-sites/site-forms';
 import type { CompanyFeatureFlags } from '@/lib/auth/modules';
+import { storePageConflicts } from '@/lib/ecommerce/routes';
 import { allBlocks, documentFromBlocks, homeOf, normalizeSiteDocument, parseSiteDocument, type SiteDocument } from '@/lib/web-sites/site';
 import { findIndustry, industryDocument } from '@/lib/web-sites/industries';
 import { starterDocument, starterHtml } from '@/lib/web-sites/templates';
@@ -338,7 +339,7 @@ export async function createWebSite(companyId: string, actor: { name: string }, 
 }
 
 export async function saveWebSiteContent(companyId: string, id: string, input: SaveWebSiteContentInput): Promise<{ version: string }> {
-  const site = await prisma.webSite.findFirst({ where: { id, companyId }, select: { mode: true, status: true } });
+  const site = await prisma.webSite.findFirst({ where: { id, companyId }, select: { mode: true, status: true, draftBlocks: true, theme: true, store: { select: { siteId: true } } } });
   if (!site) throw new WebSiteError('Sitio no encontrado');
   if (site.status === 'ARCHIVED') throw new WebSiteError('El sitio está archivado. Restáuralo para editarlo.');
 
@@ -350,6 +351,13 @@ export async function saveWebSiteContent(companyId: string, id: string, input: S
   if (incoming) {
     if (site.mode !== 'GUIDED') throw new WebSiteError('Este sitio usa HTML propio: no tiene secciones.');
     assertOwnImages(companyId, allBlocks(incoming).flatMap(blockImageUrls));
+    // Un sitio con tienda: /tienda, /carrito… son de la tienda. Se rechazan páginas NUEVAS con esos nombres; una que ya
+    // existía (el sitio es anterior a la tienda) no impide guardar lo demás, aunque la tienda no podrá abrirse hasta renombrarla.
+    if (site.store) {
+      const before = new Set(parseSiteDocument(site.draftBlocks, site.theme).pages.map((page) => page.slug));
+      const added = storePageConflicts(incoming.pages.map((page) => page.slug)).filter((slug) => !before.has(slug));
+      if (added.length > 0) throw new WebSiteError(`${added.map((slug) => `/${slug}`).join(', ')} ${added.length === 1 ? 'es una dirección' : 'son direcciones'} de la tienda en línea. Ponle otro nombre a la página.`);
+    }
     data.draftBlocks = json(incoming);
   }
   if (input.theme) data.theme = json(input.theme);
