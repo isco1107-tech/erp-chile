@@ -37,6 +37,8 @@ import {
 } from '@/lib/ecommerce/payment';
 import { REGION_NAMES, comunasOf, etaLabel, parseShippingRates, ratesForRegion, shippingPrice, shippingRateSchema, shippingRatesSchema } from '@/lib/ecommerce/shipping';
 import { productSlug } from '@/lib/ecommerce/slug';
+import { STORE_PAGE_SLUGS, storePageConflicts } from '@/lib/ecommerce/routes';
+import { evaluateStoreReadiness, type StoreReadinessInput } from '@/lib/ecommerce/readiness';
 import { checkoutSchema, quoteSchema } from '@/lib/ecommerce/checkout';
 import { isValidPageSlug } from '@/lib/web-sites/page-slugs';
 
@@ -364,9 +366,13 @@ describe('dirección del producto', () => {
     expect(productSlug('y'.repeat(200), ['y'.repeat(60)]).length).toBeLessThanOrEqual(60);
   });
 
-  it('las rutas de la tienda no pueden ser la dirección de una página del sitio', () => {
-    for (const slug of ['tienda', 'carrito', 'finalizar-compra', 'producto', 'pedido']) expect(isValidPageSlug(slug)).toBe(false);
-    expect(isValidPageSlug('nosotros')).toBe(true);
+  it('las rutas de la tienda se reservan solo para los sitios que tienen tienda: una página «tienda» anterior no cambia de dirección', () => {
+    expect([...STORE_PAGE_SLUGS].sort()).toEqual(['carrito', 'finalizar-compra', 'pedido', 'producto', 'tienda']);
+    // No son direcciones reservadas globalmente (eso renombraría en silencio páginas publicadas de sitios sin tienda).
+    for (const slug of STORE_PAGE_SLUGS) expect(isValidPageSlug(slug)).toBe(true);
+    expect(storePageConflicts(['nosotros', 'tienda', 'contacto', 'carrito'])).toEqual(['tienda', 'carrito']);
+    expect(storePageConflicts(['nosotros'])).toEqual([]);
+    expect(storePageConflicts([''])).toEqual([]);
   });
 });
 
@@ -433,5 +439,54 @@ describe('cuerpo del checkout', () => {
     expect(quoteSchema.safeParse({}).success).toBe(true);
     expect(quoteSchema.parse({}).lines).toEqual([]);
     expect(quoteSchema.safeParse({ lines: Array.from({ length: MAX_CART_LINES + 1 }, (_, i) => ({ productId: `p${i}`, quantity: 1 })) }).success).toBe(false);
+  });
+});
+
+describe('qué le falta a la tienda para abrirse', () => {
+  const ready = (over: Partial<StoreReadinessInput> = {}): StoreReadinessInput => ({
+    siteStatus: 'PUBLISHED',
+    hasWarehouse: true,
+    publishedProducts: 3,
+    soldOutProducts: 0,
+    pickupEnabled: true,
+    pickupAddress: 'Av. Alemania 123, Temuco',
+    shippingEnabled: false,
+    shippingRates: 0,
+    payment: { enabled: ['TRANSFER'], khipuConfigured: false, webpayConfigured: false, bankTransferInfo: 'Banco X', pickupEnabled: true },
+    termsText: 'Despachamos en 3 días hábiles. Aceptamos cambios dentro de 10 días con la boleta.',
+    supportPhone: '+56 9 1234 5678',
+    conflictingPages: [],
+    ...over,
+  });
+
+  it('con todo lo obligatorio listo se puede abrir', () => {
+    const report = evaluateStoreReadiness(ready());
+    expect(report.canOpen).toBe(true);
+    expect(report.missing).toEqual([]);
+  });
+
+  it.each([
+    ['sitio sin publicar', { siteStatus: 'DRAFT' as const }, 'site-published'],
+    ['sin bodega', { hasWarehouse: false }, 'warehouse'],
+    ['sin productos publicados', { publishedProducts: 0 }, 'products'],
+    ['sin medio de pago que funcione', { payment: { enabled: ['KHIPU' as const], khipuConfigured: false, webpayConfigured: false, bankTransferInfo: null, pickupEnabled: true } }, 'payments'],
+    ['sin forma de entregar', { pickupEnabled: false, shippingEnabled: true, shippingRates: 0 }, 'delivery'],
+    ['retiro sin dirección', { pickupAddress: '  ' }, 'delivery'],
+    ['una página usa /tienda', { conflictingPages: ['tienda'] }, 'page-conflicts'],
+  ])('%s bloquea la apertura', (_name, over, key) => {
+    const report = evaluateStoreReadiness(ready(over));
+    expect(report.canOpen).toBe(false);
+    expect(report.missing.map((item) => item.key)).toContain(key);
+  });
+
+  it('despacho con al menos una tarifa alcanza aunque no haya retiro', () => {
+    expect(evaluateStoreReadiness(ready({ pickupEnabled: false, shippingEnabled: true, shippingRates: 2 })).canOpen).toBe(true);
+  });
+
+  it('términos, teléfono y stock solo avisan: no bloquean', () => {
+    const report = evaluateStoreReadiness(ready({ termsText: 'corto', supportPhone: '', soldOutProducts: 2 }));
+    expect(report.canOpen).toBe(true);
+    expect(report.items.filter((item) => !item.ok).map((item) => item.key).sort()).toEqual(['stock', 'support', 'terms']);
+    expect(report.items.find((item) => item.key === 'stock')!.hint).toContain('2 productos publicados están agotados');
   });
 });

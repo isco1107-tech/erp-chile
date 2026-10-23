@@ -2013,3 +2013,153 @@ export function buildAcademyMaterialEmail(input: AcademyMaterialEmailInput): { s
 
   return { subject, html, text };
 }
+
+// ---------------------------------------------------------------------------
+// Tienda en línea
+// ---------------------------------------------------------------------------
+
+export type StoreOrderEmailKind = 'received' | 'paid' | 'shipped' | 'ready' | 'cancelled' | 'expired';
+
+export interface StoreOrderEmailInput {
+  kind: StoreOrderEmailKind;
+  companyName: string;
+  customerName: string;
+  orderNumber: number;
+  items: Array<{ name: string; quantity: number; total: number }>;
+  subtotal: number;
+  shippingTotal: number;
+  shippingLabel: string | null;
+  rounding: number;
+  total: number;
+  /** Líneas de texto sobre la entrega, el pago o el seguimiento (se escapan acá). */
+  details: string[];
+  orderUrl: string;
+  supportPhone: string | null;
+}
+
+const STORE_EMAIL_COPY: Record<StoreOrderEmailKind, { subject: (n: number) => string; title: string; lead: (name: string) => string; cta: string }> = {
+  received: {
+    subject: (n) => `Recibimos tu pedido #${n}`,
+    title: 'Recibimos tu pedido',
+    lead: (name) => `Gracias por tu compra, ${name}. Ya tenemos tu pedido; abajo está el detalle y el enlace para seguirlo.`,
+    cta: 'Ver mi pedido',
+  },
+  paid: {
+    subject: (n) => `Pago confirmado — pedido #${n}`,
+    title: 'Pago confirmado',
+    lead: (name) => `Hola ${name}, confirmamos el pago de tu pedido. Ya lo estamos preparando.`,
+    cta: 'Seguir mi pedido',
+  },
+  shipped: {
+    subject: (n) => `Tu pedido #${n} va en camino`,
+    title: 'Tu pedido va en camino',
+    lead: (name) => `Hola ${name}, despachamos tu pedido.`,
+    cta: 'Ver el seguimiento',
+  },
+  ready: {
+    subject: (n) => `Tu pedido #${n} está listo para retirar`,
+    title: 'Tu pedido está listo',
+    lead: (name) => `Hola ${name}, ya puedes retirar tu pedido.`,
+    cta: 'Ver mi pedido',
+  },
+  cancelled: {
+    subject: (n) => `Pedido #${n} cancelado`,
+    title: 'Pedido cancelado',
+    lead: (name) => `Hola ${name}, tu pedido fue cancelado.`,
+    cta: 'Ver mi pedido',
+  },
+  expired: {
+    subject: (n) => `Tu pedido #${n} venció`,
+    title: 'Tu pedido venció',
+    lead: (name) => `Hola ${name}, no recibimos el pago a tiempo y liberamos los productos de tu pedido. Si aún los quieres, vuelve a la tienda y compra de nuevo.`,
+    cta: 'Ver mi pedido',
+  },
+};
+
+/** Correo al comprador por cada hito de su pedido (recibido, pagado, despachado, listo, cancelado, vencido). */
+export function buildStoreOrderEmail(input: StoreOrderEmailInput): { subject: string; html: string; text: string } {
+  const copy = STORE_EMAIL_COPY[input.kind];
+  const rows = input.items
+    .map(
+      (item) =>
+        `<tr><td style="padding:6px 0;border-bottom:1px solid #e2e8f0;">${escapeHtml(item.name)} <span style="color:#64748b;">× ${item.quantity}</span></td><td style="padding:6px 0;border-bottom:1px solid #e2e8f0;text-align:right;">${escapeHtml(formatCurrency(item.total))}</td></tr>`
+    )
+    .join('');
+  const extraRow = (label: string, value: string) => `<tr><td style="padding:6px 0;color:#475569;">${escapeHtml(label)}</td><td style="padding:6px 0;text-align:right;">${escapeHtml(value)}</td></tr>`;
+  const details = input.details.map((line) => `<p style="margin:0 0 6px;">${escapeHtml(line)}</p>`).join('');
+
+  const html = layout({
+    title: copy.title,
+    body: `
+      <p style="margin:0 0 12px;">${escapeHtml(copy.lead(input.customerName))}</p>
+      <p style="margin:0 0 12px;color:#64748b;font-size:13px;">Pedido <strong>#${input.orderNumber}</strong></p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;border-collapse:collapse;margin:8px 0 4px;">
+        ${rows}
+        ${input.shippingLabel ? extraRow(input.shippingLabel, input.shippingTotal > 0 ? formatCurrency(input.shippingTotal) : 'Gratis') : ''}
+        ${input.rounding !== 0 ? extraRow('Ajuste por redondeo', formatCurrency(input.rounding)) : ''}
+        <tr><td style="padding:10px 0 0;font-weight:700;">Total</td><td style="padding:10px 0 0;text-align:right;font-weight:700;">${escapeHtml(formatCurrency(input.total))}</td></tr>
+      </table>
+      ${details ? `<div style="margin:16px 0 0;padding:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;">${details}</div>` : ''}
+    `,
+    ctaLabel: copy.cta,
+    ctaUrl: input.orderUrl,
+    footer: `${escapeHtml(input.companyName)}.${input.supportPhone ? ` Dudas: ${escapeHtml(input.supportPhone)}.` : ''} Recibes este correo porque hiciste una compra en nuestra tienda.`,
+  });
+
+  const text = [
+    `${copy.title} — ${input.companyName}`,
+    '',
+    copy.lead(input.customerName),
+    `Pedido #${input.orderNumber}`,
+    '',
+    ...input.items.map((item) => `- ${item.name} × ${item.quantity}: ${formatCurrency(item.total)}`),
+    ...(input.shippingLabel ? [`${input.shippingLabel}: ${input.shippingTotal > 0 ? formatCurrency(input.shippingTotal) : 'Gratis'}`] : []),
+    ...(input.rounding !== 0 ? [`Ajuste por redondeo: ${formatCurrency(input.rounding)}`] : []),
+    `Total: ${formatCurrency(input.total)}`,
+    ...(input.details.length ? ['', ...input.details] : []),
+    '',
+    `${copy.cta}: ${input.orderUrl}`,
+  ].join('\n');
+
+  return { subject: copy.subject(input.orderNumber), html, text };
+}
+
+export interface StoreTeamOrderEmailInput {
+  companyName: string;
+  siteName: string;
+  orderNumber: number;
+  customerName: string;
+  total: number;
+  paid: boolean;
+  deliveryLabel: string;
+  panelUrl: string;
+}
+
+/** Aviso al equipo (correo configurado en la tienda) de un pedido nuevo. */
+export function buildStoreTeamOrderEmail(input: StoreTeamOrderEmailInput): { subject: string; html: string; text: string } {
+  const subject = `${input.paid ? 'Nuevo pedido pagado' : 'Nuevo pedido por confirmar'} #${input.orderNumber} — ${input.siteName}`;
+  const html = layout({
+    title: input.paid ? 'Nuevo pedido pagado' : 'Nuevo pedido por confirmar',
+    body: `
+      <p style="margin:0 0 12px;">Entró el pedido <strong>#${input.orderNumber}</strong> en <strong>${escapeHtml(input.siteName)}</strong>.</p>
+      <p style="margin:0 0 4px;">Comprador: ${escapeHtml(input.customerName)}</p>
+      <p style="margin:0 0 4px;">Total: <strong>${escapeHtml(formatCurrency(input.total))}</strong></p>
+      <p style="margin:0 0 4px;">Entrega: ${escapeHtml(input.deliveryLabel)}</p>
+      <p style="margin:12px 0 0;color:#64748b;font-size:13px;">${input.paid ? 'El pago ya está confirmado: toca preparar el pedido.' : 'Todavía no está pagado: confírmalo cuando recibas el pago.'}</p>
+    `,
+    ctaLabel: 'Abrir el pedido',
+    ctaUrl: input.panelUrl,
+    footer: `${escapeHtml(input.companyName)} · Tienda en línea`,
+  });
+  const text = [
+    subject,
+    '',
+    `Comprador: ${input.customerName}`,
+    `Total: ${formatCurrency(input.total)}`,
+    `Entrega: ${input.deliveryLabel}`,
+    input.paid ? 'El pago ya está confirmado: toca preparar el pedido.' : 'Todavía no está pagado: confírmalo cuando recibas el pago.',
+    '',
+    `Abrir el pedido: ${input.panelUrl}`,
+  ].join('\n');
+  return { subject, html, text };
+}

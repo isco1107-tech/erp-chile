@@ -3831,6 +3831,8 @@ enum WorkflowTriggerEvent {
   SERVICE_ESTIMATE_DECIDED
   /// Alguien escribió desde el formulario de contacto de un sitio web publicado.
   WEB_SITE_MESSAGE_RECEIVED
+  /// Pedido de la tienda en línea pagado (confirmado por la pasarela o por el equipo).
+  STORE_ORDER_PAID
 }
 
 enum WorkflowActionType {
@@ -5841,6 +5843,8 @@ model StoreOrder {
   paymentUrl        String?
   /// Autorización o referencia que entrega la pasarela al cobrar.
   paymentReference  String?
+  /// Forma de pago con que se emite la venta en el ERP (`PAYMENT_METHODS` de Ventas): se conoce al cobrar.
+  paymentMethodCode String?
   /// Hasta cuándo se guarda el stock si no se paga.
   paymentExpiresAt  DateTime?
   paidAt            DateTime?
@@ -5869,6 +5873,7 @@ model StoreOrder {
   @@index([companyId, fulfillmentStatus])
   @@index([companyId, customerEmail])
   @@index([paymentExpiresAt])
+  @@index([providerPaymentId])
 }
 
 /// Línea de un pedido, con lo vendido tal como se vendió (nombre, SKU y precio al momento).

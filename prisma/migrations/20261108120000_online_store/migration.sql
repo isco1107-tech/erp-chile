@@ -36,6 +36,8 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
 END $$;
 
+ALTER TYPE "WorkflowTriggerEvent" ADD VALUE IF NOT EXISTS 'STORE_ORDER_PAID';
+
 ALTER TABLE "CompanyFeatures" ADD COLUMN IF NOT EXISTS "hasEcommerce" BOOLEAN NOT NULL DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS "WebSiteStore" (
@@ -121,6 +123,7 @@ CREATE TABLE IF NOT EXISTS "StoreOrder" (
     "providerPaymentId" TEXT,
     "paymentUrl" TEXT,
     "paymentReference" TEXT,
+    "paymentMethodCode" TEXT,
     "paymentExpiresAt" TIMESTAMP(3),
     "paidAt" TIMESTAMP(3),
     "salesDocumentId" TEXT,
@@ -208,6 +211,8 @@ CREATE INDEX IF NOT EXISTS "StoreOrder_companyId_fulfillmentStatus_idx" ON "Stor
 CREATE INDEX IF NOT EXISTS "StoreOrder_companyId_customerEmail_idx" ON "StoreOrder"("companyId", "customerEmail");
 
 CREATE INDEX IF NOT EXISTS "StoreOrder_paymentExpiresAt_idx" ON "StoreOrder"("paymentExpiresAt");
+
+CREATE INDEX IF NOT EXISTS "StoreOrder_providerPaymentId_idx" ON "StoreOrder"("providerPaymentId");
 
 CREATE UNIQUE INDEX IF NOT EXISTS "StoreOrder_siteId_number_key" ON "StoreOrder"("siteId", "number");
 

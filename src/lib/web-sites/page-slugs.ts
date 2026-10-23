@@ -40,12 +40,6 @@ export const RESERVED_PAGE_SLUGS: ReadonlySet<string> = new Set([
   'opengraph-image',
   'pagar',
   'politica-privacidad',
-  // Tienda en línea: rutas que un sitio con tienda sirve por su cuenta.
-  'carrito',
-  'finalizar-compra',
-  'pedido',
-  'producto',
-  'tienda',
   'register',
   'reset-password',
   'robots',
