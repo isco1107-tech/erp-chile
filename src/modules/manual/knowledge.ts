@@ -48,6 +48,7 @@ export const SCREEN_PURPOSES: Record<string, string> = {
   intelligence: 'Salud de la empresa, señales de alerta, clientes RFM, productos ABC y simulador de decisiones.',
   'intelligence-cash': 'Saldo de caja proyectado semana a semana con todos los compromisos con fecha.',
   'intelligence-flows': 'De cotización a cobro y de compra a pago, con tiempos y cuellos de botella.',
+  'retail-live': 'Sell-through y días de inventario restante de cada producto por bodega, actualizado cada minuto.',
   agents: 'Recomendaciones de los agentes ejecutivos (CEO, CFO, COO, Ventas) sobre tus datos reales.',
   products: 'Crear y editar productos, precios, códigos de barras, categorías, empaques y si son exentos de IVA.',
   inventory: 'Existencias por bodega, Kardex de cada producto, ajustes de stock y transferencias.',

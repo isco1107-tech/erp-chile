@@ -50,6 +50,7 @@ export type FeatureKey = keyof Pick<
   | 'hasTeamTasks'
   | 'hasAcademy'
   | 'hasEcommerce'
+  | 'hasRetailMetrics'
 >;
 
 export type CompanyFeatureFlags = Record<FeatureKey, boolean>;
@@ -351,6 +352,14 @@ export const MODULES: ModuleDefinition[] = [
     permissions: ['store:read', 'store:write', 'store:fulfill', 'store:manage'],
     routes: ['/dashboard/store'],
   },
+  {
+    key: 'hasRetailMetrics',
+    label: 'Métricas de retail',
+    description:
+      'Panel en vivo por bodega: sell-through (cuánto del stock disponible se vendió) y días de inventario restante de cada producto según su venta reciente, sin contar los días en que estuvo agotado.',
+    permissions: ['retail:read'],
+    routes: ['/dashboard/retail'],
+  },
 ];
 
 export const MODULE_KEYS: FeatureKey[] = MODULES.map((m) => m.key);
@@ -397,6 +406,7 @@ export const DEFAULT_FEATURES: CompanyFeatureFlags = {
   hasTeamTasks: false,
   hasAcademy: false,
   hasEcommerce: false,
+  hasRetailMetrics: false,
 };
 
 /** Índice inverso permiso → módulo, construido una vez al cargar el módulo. */
@@ -456,6 +466,7 @@ export function toFeatureFlags(features: CompanyFeatures | null): CompanyFeature
     hasTeamTasks: features.hasTeamTasks,
     hasAcademy: features.hasAcademy,
     hasEcommerce: features.hasEcommerce,
+    hasRetailMetrics: features.hasRetailMetrics,
   };
 }
 

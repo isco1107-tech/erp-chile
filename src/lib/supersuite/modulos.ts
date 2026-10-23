@@ -53,6 +53,7 @@ export const FLAG_A_MODULO: Partial<Record<FeatureKey, string>> = {
   hasMultiCompany: 'multiempresa',
   hasIntelligence: 'inteligencia',
   hasWebSites: 'sitios_web',
+  hasRetailMetrics: 'metricas_retail',
 };
 
 /**
@@ -89,6 +90,7 @@ const ENTIDAD_A_MODULO: Record<string, string> = {
   TeamTask: 'tareas', DelegationRule: 'tareas',
   AcademyStudent: 'academia', AcademyGroup: 'academia', AcademyAttendance: 'academia', AcademyMonthlyPayment: 'academia', AcademyApplication: 'academia', AcademySite: 'academia', AcademyEnrollmentLink: 'academia', AcademySession: 'academia', AcademyMaterial: 'academia',
   StoreOrder: 'tienda_en_linea', StoreProduct: 'tienda_en_linea', WebSiteStore: 'tienda_en_linea',
+  RetailMetrics: 'metricas_retail',
 };
 
 /** Módulo con que viaja lo que no es de un módulo de negocio (usuarios, roles, ajustes…): la Supersuite no lo cuenta como adopción. */

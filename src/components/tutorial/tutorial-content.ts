@@ -480,6 +480,14 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       note('Cuellos de botella', 'Cada tramo con su tiempo mediano; la etapa más lenta queda marcada.'),
     ],
   },
+  'retail-live': {
+    title: 'Retail en vivo',
+    steps: [
+      header('Ventas y stock al minuto', 'Sell-through y días de inventario restante de cada producto, una bodega a la vez.'),
+      note('Lo urgente primero', 'La tabla parte por lo que se agota antes. Toca una columna para ordenar por ella.'),
+      note('Se actualiza sola', 'Cada minuto mientras la tienes abierta. "Pausar" la detiene y "Actualizar ahora" la trae al instante.'),
+    ],
+  },
   agents: {
     title: 'Agentes',
     steps: [

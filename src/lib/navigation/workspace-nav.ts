@@ -98,7 +98,8 @@ export type NavIconKey =
   | 'quality'
   | 'procedures'
   | 'tasks'
-  | 'delegation';
+  | 'delegation'
+  | 'retail';
 
 export interface NavLink {
   /** Identificador estable (ver comentario del archivo). */
@@ -188,6 +189,12 @@ export function buildAvailableWorkspaceNav({ permissions, features }: Omit<NavAc
       { id: 'inventory-labels', href: '/dashboard/inventory/labels', label: 'Etiquetas', icon: 'labels', keywords: ['codigo de barras', 'etiqueta', 'gondola', 'imprimir', 'ean'] },
       { id: 'inventory-movements', href: '/dashboard/inventory/movements', label: 'Movimientos de bodega', icon: 'movements', keywords: ['kardex', 'merma', 'salida', 'ajuste', 'operario', 'foto', 'respaldo', 'degustacion', 'bodega', 'registro', 'quien'] },
       { id: 'inventory-mobile', href: '/dashboard/inventory/mobile', label: 'Bodega móvil', icon: 'mobile', keywords: ['celular', 'telefono', 'app', 'bodeguero', 'foto', 'camara', 'escanear', 'qr', 'merma', 'llegada'] },
+    ]);
+  }
+
+  if (features.hasRetailMetrics && allow('retail:read')) {
+    push('Métricas de retail', [
+      { id: 'retail-live', href: '/dashboard/retail', label: 'Retail en vivo', icon: 'retail', keywords: ['sell through', 'sell-through', 'rotacion', 'dias de inventario', 'cobertura', 'runway', 'quiebre', 'agotado', 'velocidad de venta', 'supermercado', 'gondola', 'en vivo'] },
     ]);
   }
 

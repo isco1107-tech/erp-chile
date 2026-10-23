@@ -604,6 +604,9 @@ model CompanyFeatures {
   /// Tienda en línea dentro del constructor de sitios: catálogo desde el inventario,
   /// carrito, pago verificado, envío/retiro y pedidos. Ver `WebSiteStore`.
   hasEcommerce          Boolean  @default(false)
+  /// Métricas de retail: sell-through y días de inventario restante por producto
+  /// y bodega, calculados en vivo desde el kardex. No guarda datos propios.
+  hasRetailMetrics      Boolean  @default(false)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 }

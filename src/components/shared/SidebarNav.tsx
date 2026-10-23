@@ -34,6 +34,7 @@ import {
   ClipboardPen,
   Ship,
   Wrench,
+  Activity,
   Archive,
   BookOpen,
   Factory,
@@ -172,6 +173,7 @@ export const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   pageantSite: Globe,
   packages: Layers,
   casting: Sparkles,
+  retail: Activity,
 };
 
 

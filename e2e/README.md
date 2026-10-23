@@ -44,6 +44,8 @@ Qué cubren:
   atribuida (proveedor, operario y bodega), y que una salida (merma, mal estado,
   degustación…) exige su foto: la subida de la foto se simula con una dirección válida
   de nuestro almacenamiento (no hay almacenamiento real en las pruebas).
+- `retail.spec.ts`: Métricas de retail → Retail en vivo con su interruptor encendido (panel de la bodega, búsqueda,
+  Excel) y apagado (fuera del menú, ruta y descarga cerradas).
 - `movements.spec.ts`: el registro de movimientos por bodega (cada bodega ve solo lo suyo,
   con operario, motivo y foto) y el kardex por bodega.
 - `supplier-portal.spec.ts`: el portal del proveedor (`/proveedor`): entra con su código, ve solo

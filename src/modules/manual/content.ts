@@ -6,6 +6,7 @@ import { INICIO_SECTIONS } from './sections/inicio';
 import { VENTAS_SECTIONS } from './sections/ventas';
 import { COMPRAS_SECTIONS } from './sections/compras';
 import { INVENTARIO_SECTIONS } from './sections/inventario';
+import { RETAIL_SECTIONS } from './sections/retail';
 import { OPERACIONES_SECTIONS } from './sections/operaciones';
 import { FINANZAS_SECTIONS } from './sections/finanzas';
 import { ADMINISTRACION_SECTIONS } from './sections/administracion';
@@ -34,6 +35,7 @@ export const MANUAL_SECTIONS: ManualSection[] = [
   ...VENTAS_SECTIONS,
   ...COMPRAS_SECTIONS,
   ...INVENTARIO_SECTIONS,
+  ...RETAIL_SECTIONS,
   ...OPERACIONES_SECTIONS,
   ...FINANZAS_SECTIONS,
   ...EVENTOS_SECTIONS,

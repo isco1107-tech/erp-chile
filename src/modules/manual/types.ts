@@ -34,6 +34,7 @@ export const MANUAL_CHAPTERS = [
   'Ventas',
   'Compras',
   'Inventario',
+  'Métricas de retail',
   'Operaciones',
   'Finanzas',
   'Reportes & SII',
