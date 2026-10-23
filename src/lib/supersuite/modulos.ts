@@ -1,5 +1,5 @@
 import type { AuditAction, CompanyFeatures } from '@prisma/client';
-import { getModule, toFeatureFlags, type CompanyFeatureFlags, type FeatureKey } from '@/lib/auth/modules';
+import { MODULES, getModule, toFeatureFlags, type CompanyFeatureFlags, type FeatureKey } from '@/lib/auth/modules';
 import type { DatosCliente } from './cliente';
 import { formatCurrency } from '@/lib/chile/tax';
 import { BASE_PLATFORM, EXTRA_USER_PRICE, INCLUDED_IN_BASE, PRICED_MODULES, PRICING_PLANS, UNPRICED_FEATURES } from '@/lib/pricing/catalog';
@@ -54,6 +54,7 @@ export const FLAG_A_MODULO: Partial<Record<FeatureKey, string>> = {
   hasIntelligence: 'inteligencia',
   hasWebSites: 'sitios_web',
   hasRetailMetrics: 'metricas_retail',
+  hasDeadStock: 'stock_muerto',
 };
 
 /**
@@ -90,7 +91,7 @@ const ENTIDAD_A_MODULO: Record<string, string> = {
   TeamTask: 'tareas', DelegationRule: 'tareas',
   AcademyStudent: 'academia', AcademyGroup: 'academia', AcademyAttendance: 'academia', AcademyMonthlyPayment: 'academia', AcademyApplication: 'academia', AcademySite: 'academia', AcademyEnrollmentLink: 'academia', AcademySession: 'academia', AcademyMaterial: 'academia',
   StoreOrder: 'tienda_en_linea', StoreProduct: 'tienda_en_linea', WebSiteStore: 'tienda_en_linea',
-  RetailMetrics: 'metricas_retail',
+  RetailMetrics: 'metricas_retail', RetailSettings: 'metricas_retail',
 };
 
 /** Módulo con que viaja lo que no es de un módulo de negocio (usuarios, roles, ajustes…): la Supersuite no lo cuenta como adopción. */
@@ -146,6 +147,24 @@ export function flagsDeModulo(modulo: string): FeatureKey[] {
   const flag = (Object.entries(FLAG_A_MODULO) as [FeatureKey, string][]).find(([, m]) => m === clave)?.[0];
   if (!flag) return [];
   return [...(PRICED_MODULES.find((m) => m.grants.includes(flag))?.grants ?? [flag])];
+}
+
+/**
+ * Lo que hay que encender para que los flags pedidos funcionen: una funcionalidad
+ * que vive dentro de otro módulo (`requires`) no sirve con el padre apagado, así
+ * que encenderla enciende también al padre. Apagar no arrastra nada: apagar el
+ * padre oculta a sus hijos sin borrarles el interruptor.
+ */
+export function flagsParaEncender(flags: readonly FeatureKey[]): FeatureKey[] {
+  const result = new Set<FeatureKey>();
+  const add = (flag: FeatureKey) => {
+    if (result.has(flag)) return;
+    result.add(flag);
+    const parent = MODULES.find((mod) => mod.key === flag)?.requires;
+    if (parent) add(parent);
+  };
+  for (const flag of flags) add(flag);
+  return [...result];
 }
 
 /** Flags de la plataforma base (Inventario, Costeo PMP): vienen con toda cuenta y no se apagan por orden. */

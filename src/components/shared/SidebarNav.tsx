@@ -35,6 +35,7 @@ import {
   Ship,
   Wrench,
   Activity,
+  Snail,
   Archive,
   BookOpen,
   Factory,
@@ -174,6 +175,7 @@ export const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   packages: Layers,
   casting: Sparkles,
   retail: Activity,
+  deadStock: Snail,
 };
 
 

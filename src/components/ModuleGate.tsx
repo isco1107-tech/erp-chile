@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import { Lock } from 'lucide-react';
 import { buttonVariants } from '@/components/ui/button';
 import { AuthError, TenantInactiveError, can, getAuthContext } from '@/lib/auth/guards';
-import { getModule, type FeatureKey } from '@/lib/auth/modules';
+import { getModule, moduleEnabled, type FeatureKey } from '@/lib/auth/modules';
 import type { Permission } from '@/lib/auth/permissions';
 
 interface ModuleGateProps {
@@ -41,7 +41,8 @@ export default async function ModuleGate({ moduleKey, permission, children }: Mo
     const context = await getAuthContext();
     const mod = getModule(moduleKey);
 
-    if (!context.features[moduleKey]) {
+    // Un módulo que vive dentro de otro (`requires`) necesita los dos encendidos.
+    if (!moduleEnabled(context.features, moduleKey)) {
       return (
         <LockedView
           title="Módulo no incluido en tu plan actual"

@@ -44,4 +44,40 @@ export const RETAIL_SECTIONS: ManualSection[] = [
       },
     ],
   },
+  {
+    id: 'stock-muerto',
+    key: 'hasDeadStock',
+    // Vive dentro de Métricas de retail: se documenta solo con los dos interruptores encendidos.
+    anyOfFeatures: ['hasRetailMetrics'],
+    permission: 'retail:read',
+    chapter: 'Métricas de retail',
+    title: 'Stock muerto',
+    summary:
+      'Lista, bodega por bodega, los productos con stock que llevan muchos días sin venderse ni trasladarse, con la plata que tienen inmovilizada y una sugerencia para moverlos. Avisa por la campanita cuando un producto cumple el umbral.',
+    route: '/dashboard/retail/stock-muerto',
+    screenshot: null,
+    topics: [
+      {
+        id: 'ver-stock-muerto',
+        title: 'Ver qué no se está vendiendo',
+        steps: [
+          'Ve a Métricas de retail → Stock muerto y elige la bodega en las pestañas de arriba.',
+          'Arriba ves cuántos productos están detenidos, el valor detenido (si tu rol puede ver costos), cuántos nunca se han vendido y cuántos vencen pronto.',
+          'Cada producto muestra su stock, cuántos días lleva sin rotar, su última venta, el vencimiento de su lote más próximo y una sugerencia: degustación, mejor ubicación, ajuste de precio, liquidar o devolver al proveedor.',
+          'Filtra por "Categoría" o "Proveedor" y presiona "Aplicar". "Descargar Excel" baja la lista con los mismos filtros.',
+        ],
+        tip: 'Lo recién llegado no aparece: el reloj corre desde la última venta o traslado, o desde que el producto volvió a tener stock después de agotarse.',
+      },
+      {
+        id: 'ajustar-stock-muerto',
+        title: 'Cambiar el umbral y los avisos',
+        permission: 'retail:manage',
+        steps: [
+          'En Stock muerto, elige en "Detenido desde" a los cuántos días sin rotar un producto se considera detenido (15, 30, 45, 60 o 90).',
+          'Activa o desactiva "Avisar al cumplirlo" y presiona "Guardar ajustes".',
+          'Con los avisos activos, la campanita avisa una vez al día con los productos que cumplieron el umbral (y luego el doble, el triple…), no todos los días. También puedes armar una automatización con el disparador "Stock muerto detectado".',
+        ],
+      },
+    ],
+  },
 ];

@@ -59,6 +59,7 @@ const FULL: CompanyFeatureFlags = {
   hasAcademy: true,
   hasEcommerce: true,
   hasRetailMetrics: true,
+  hasDeadStock: true,
 };
 
 const STARTER: CompanyFeatureFlags = { ...DEFAULT_FEATURES };

@@ -71,8 +71,10 @@ export function buildModuleCatalog(): CatalogArea[] {
   const fullIds = new Set(groupOf.keys());
 
   // Pantallas de cada módulo: las que desaparecen al apagar solo ese módulo.
+  // Los que viven dentro de otro (`requires`) van primero: apagar el padre
+  // también esconde sus pantallas, pero son del interruptor del hijo.
   const moduleOfItem = new Map<string, FeatureKey>();
-  for (const mod of MODULES) {
+  for (const mod of [...MODULES].sort((a, b) => Number(Boolean(b.requires)) - Number(Boolean(a.requires)))) {
     const without = navIds({ ...allFeatures(true), [mod.key]: false });
     for (const id of fullIds) if (!without.has(id) && !moduleOfItem.has(id)) moduleOfItem.set(id, mod.key);
   }

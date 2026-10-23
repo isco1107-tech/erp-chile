@@ -1,5 +1,5 @@
 import { ALL_PERMISSIONS, type Permission } from '@/lib/auth/permissions';
-import { MODULE_KEYS, type CompanyFeatureFlags } from '@/lib/auth/modules';
+import { MODULE_KEYS, moduleEnabled, type CompanyFeatureFlags } from '@/lib/auth/modules';
 
 /**
  * Registro único de navegación del panel. Lo consumen la barra lateral
@@ -99,7 +99,8 @@ export type NavIconKey =
   | 'procedures'
   | 'tasks'
   | 'delegation'
-  | 'retail';
+  | 'retail'
+  | 'deadStock';
 
 export interface NavLink {
   /** Identificador estable (ver comentario del archivo). */
@@ -193,9 +194,14 @@ export function buildAvailableWorkspaceNav({ permissions, features }: Omit<NavAc
   }
 
   if (features.hasRetailMetrics && allow('retail:read')) {
-    push('Métricas de retail', [
+    const retail: NavLink[] = [
       { id: 'retail-live', href: '/dashboard/retail', label: 'Retail en vivo', icon: 'retail', keywords: ['sell through', 'sell-through', 'rotacion', 'dias de inventario', 'cobertura', 'runway', 'quiebre', 'agotado', 'velocidad de venta', 'supermercado', 'gondola', 'en vivo'] },
-    ]);
+    ];
+    // Cada funcionalidad de adentro tiene su propio interruptor.
+    if (moduleEnabled(features, 'hasDeadStock')) {
+      retail.push({ id: 'retail-dead-stock', href: '/dashboard/retail/stock-muerto', label: 'Stock muerto', icon: 'deadStock', keywords: ['sin rotacion', 'detenido', 'inmovilizado', 'no se vende', 'liquidar', 'degustacion', 'rebaja', 'obsoleto', 'stock parado'] });
+    }
+    push('Métricas de retail', retail);
   }
 
   // CRM como grupo propio: embudo, agenda, contactos y reportes son un

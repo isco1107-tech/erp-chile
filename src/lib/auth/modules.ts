@@ -51,6 +51,7 @@ export type FeatureKey = keyof Pick<
   | 'hasAcademy'
   | 'hasEcommerce'
   | 'hasRetailMetrics'
+  | 'hasDeadStock'
 >;
 
 export type CompanyFeatureFlags = Record<FeatureKey, boolean>;
@@ -63,6 +64,13 @@ export interface ModuleDefinition {
   permissions: Permission[];
   /** Prefijos de ruta bloqueados cuando el módulo no está contratado. */
   routes: string[];
+  /**
+   * Módulo dentro del que vive este (una funcionalidad con interruptor propio
+   * dentro de otro módulo). Solo funciona con los dos encendidos: apagar el
+   * padre la oculta sin borrar su interruptor, y al volver a encenderlo vuelve
+   * como estaba. Usa los permisos del padre.
+   */
+  requires?: FeatureKey;
 }
 
 export const MODULES: ModuleDefinition[] = [
@@ -357,8 +365,17 @@ export const MODULES: ModuleDefinition[] = [
     label: 'Métricas de retail',
     description:
       'Panel en vivo por bodega: sell-through (cuánto del stock disponible se vendió) y días de inventario restante de cada producto según su venta reciente, sin contar los días en que estuvo agotado.',
-    permissions: ['retail:read'],
+    permissions: ['retail:read', 'retail:manage'],
     routes: ['/dashboard/retail'],
+  },
+  {
+    key: 'hasDeadStock',
+    label: 'Stock muerto',
+    description:
+      'Dentro de Métricas de retail: productos con stock que llevan N días sin venderse (30 por defecto), sin contar lo recién llegado, con su valor detenido, una sugerencia por producto y aviso por campanita y automatizaciones. Requiere Métricas de retail.',
+    permissions: [],
+    routes: ['/dashboard/retail/stock-muerto'],
+    requires: 'hasRetailMetrics',
   },
 ];
 
@@ -407,6 +424,7 @@ export const DEFAULT_FEATURES: CompanyFeatureFlags = {
   hasAcademy: false,
   hasEcommerce: false,
   hasRetailMetrics: false,
+  hasDeadStock: false,
 };
 
 /** Índice inverso permiso → módulo, construido una vez al cargar el módulo. */
@@ -418,6 +436,16 @@ for (const mod of MODULES) {
 /** Módulo que habilita un permiso, o `undefined` si el permiso es transversal. */
 export function moduleForPermission(permission: Permission): FeatureKey | undefined {
   return PERMISSION_TO_MODULE.get(permission);
+}
+
+/**
+ * El módulo funciona para la empresa: su interruptor encendido y, si vive
+ * dentro de otro (`requires`), también el de ese otro.
+ */
+export function moduleEnabled(features: CompanyFeatureFlags, key: FeatureKey): boolean {
+  if (!features[key]) return false;
+  const parent = MODULES.find((mod) => mod.key === key)?.requires;
+  return parent ? moduleEnabled(features, parent) : true;
 }
 
 export function getModule(key: FeatureKey): ModuleDefinition {
@@ -467,6 +495,7 @@ export function toFeatureFlags(features: CompanyFeatures | null): CompanyFeature
     hasAcademy: features.hasAcademy,
     hasEcommerce: features.hasEcommerce,
     hasRetailMetrics: features.hasRetailMetrics,
+    hasDeadStock: features.hasDeadStock,
   };
 }
 

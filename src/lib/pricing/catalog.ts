@@ -133,7 +133,8 @@ export const PRICING_PLANS: readonly PricingPlan[] = [
  *   no exista la integración con el SII. Sigue siendo el flag que habilita
  *   Ventas y Folios, así que la Supersuite puede encenderlo a mano.
  * - `hasFeeDocuments` (Boletas de Honorarios): fuera de la oferta comercial.
- * - `hasRetailMetrics` (Métricas de retail): sin precio hasta que se defina;
- *   la Supersuite lo enciende como `metricas_retail`.
+ * - `hasRetailMetrics` (Métricas de retail) y sus funcionalidades con
+ *   interruptor propio (`hasDeadStock`…): sin precio hasta que se defina; la
+ *   Supersuite las enciende por su nombre (`metricas_retail`, `stock_muerto`…).
  */
-export const UNPRICED_FEATURES: readonly FeatureKey[] = ['hasDteBilling', 'hasFeeDocuments', 'hasAcademy', 'hasEcommerce', 'hasRetailMetrics'];
+export const UNPRICED_FEATURES: readonly FeatureKey[] = ['hasDteBilling', 'hasFeeDocuments', 'hasAcademy', 'hasEcommerce', 'hasRetailMetrics', 'hasDeadStock'];

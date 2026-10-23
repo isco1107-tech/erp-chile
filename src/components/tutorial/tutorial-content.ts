@@ -488,6 +488,14 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       note('Se actualiza sola', 'Cada minuto mientras la tienes abierta. "Pausar" la detiene y "Actualizar ahora" la trae al instante.'),
     ],
   },
+  'retail-dead-stock': {
+    title: 'Stock muerto',
+    steps: [
+      header('Lo que no se vende', 'Productos con stock que llevan muchos días sin rotar, bodega por bodega, con su valor detenido.'),
+      note('Qué hacer con cada uno', 'Cada producto trae una sugerencia: degustación, mejor ubicación, rebaja, liquidar o devolver.'),
+      note('Umbral y avisos', 'Los administradores eligen desde cuántos días cuenta y si la campanita avisa al cumplirlos.'),
+    ],
+  },
   agents: {
     title: 'Agentes',
     steps: [

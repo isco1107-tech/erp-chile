@@ -105,6 +105,7 @@ model Company {
   maxWebSites               Int                           @default(30)
   features                  CompanyFeatures?
   settings                  CompanySettings?
+  retailSettings            RetailSettings?
   taxPeriods                TaxPeriod[]
   customRoles               CustomRole[]
   createdAt                 DateTime                      @default(now())
@@ -607,6 +608,9 @@ model CompanyFeatures {
   /// Métricas de retail: sell-through y días de inventario restante por producto
   /// y bodega, calculados en vivo desde el kardex. No guarda datos propios.
   hasRetailMetrics      Boolean  @default(false)
+  /// Stock muerto (dentro de Métricas de retail, con interruptor propio: se ve
+  /// solo con los dos encendidos). Productos con stock que no rotan.
+  hasDeadStock          Boolean  @default(false)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 }
@@ -708,6 +712,20 @@ model CompanySettings {
   mcpConnectorEnabled        Boolean      @default(false)
   createdAt                  DateTime     @default(now())
   updatedAt                  DateTime     @updatedAt
+}
+
+/// Ajustes de Métricas de retail, 1:1 con la empresa. Sin fila = valores de
+/// fábrica (ver `src/lib/retail/dead-stock.ts`).
+model RetailSettings {
+  id              String   @id @default(cuid())
+  companyId       String   @unique
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// Stock muerto: días sin venderse (ni trasladarse a otra bodega) desde los
+  /// que un producto con stock se considera detenido.
+  deadStockDays   Int      @default(30)
+  /// Avisar por campanita y automatizaciones cuando un producto cumple el umbral.
+  deadStockAlerts Boolean  @default(true)
+  updatedAt       DateTime @updatedAt
 }
 
 enum InternalDocumentKind {
@@ -3836,6 +3854,10 @@ enum WorkflowTriggerEvent {
   WEB_SITE_MESSAGE_RECEIVED
   /// Pedido de la tienda en línea pagado (confirmado por la pasarela o por el equipo).
   STORE_ORDER_PAID
+  /// Producto con stock que cumplió el umbral de días sin venderse (Métricas de
+  /// retail → Stock muerto). Lo emite la alerta operativa diaria en los hitos
+  /// N, 2N, 3N… días, no a diario.
+  DEAD_STOCK_DETECTED
 }
 
 enum WorkflowActionType {
