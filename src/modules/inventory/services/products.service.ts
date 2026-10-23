@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import type { Category, Prisma, Product, ProductPackaging } from '@prisma/client';
 import { calculateGrossPrice } from '@/lib/chile/tax';
+import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import type { CategoryCreateInput, ProductCreateInput, ProductPackagingInput, ProductUpdateInput } from '../schema';
 
 export type ProductWithStock = Product & { category: Category | null; totalStock: number };
@@ -57,6 +58,12 @@ export interface ProductListItem {
   imageUrl: string | null;
   tracksLots: boolean;
   isActive: boolean;
+  /** Seller dueño del producto (consignación); `null` = producto propio. */
+  consignorId: string | null;
+  /** Solo viene en el listado; al abrir un producto suelto basta `consignorId`. */
+  consignor?: { id: string; name: string } | null;
+  /** Comisión propia en puntos base; `null` = la del seller. */
+  consignmentCommissionBps: number | null;
 }
 
 export interface ListProductsResult {
@@ -113,6 +120,9 @@ export async function listProductsPage(
         imageUrl: true,
         tracksLots: true,
         isActive: true,
+        consignorId: true,
+        consignmentCommissionBps: true,
+        consignor: { select: { id: true, razonSocial: true, nombreFantasia: true } },
         stocks: { select: { quantity: true } },
       },
       orderBy: { name: 'asc' },
@@ -123,8 +133,9 @@ export async function listProductsPage(
   ]);
 
   return {
-    items: products.map(({ stocks, ...product }) => ({
+    items: products.map(({ stocks, consignor, ...product }) => ({
       ...product,
+      consignor: consignor ? { id: consignor.id, name: consignor.nombreFantasia?.trim() || consignor.razonSocial } : null,
       totalStock: stocks.reduce((sum, s) => sum + s.quantity, 0),
     })),
     total,
@@ -152,9 +163,16 @@ async function assertCategoryBelongsToCompany(companyId: string, categoryId: str
   if (!category) throw new Error('Categoría no encontrada');
 }
 
+/** El dueño de un producto en consignación debe ser un seller de la misma empresa (el id llega del cliente). */
+async function assertConsignorInCompany(db: Pick<Prisma.TransactionClient, 'contact'>, companyId: string, consignorId: string): Promise<void> {
+  const seller = await db.contact.findFirst({ where: { id: consignorId, companyId, isConsignor: true }, select: { id: true } });
+  if (!seller) throw new Error('El seller no existe o no está marcado como seller de consignación');
+}
+
 export async function createProduct(companyId: string, input: ProductCreateInput): Promise<Product> {
   if (input.categoryId) await assertCategoryBelongsToCompany(companyId, input.categoryId);
   if (input.barcode) await assertBarcodeFree(companyId, input.barcode);
+  if (input.consignorId) await assertConsignorInCompany(prisma, companyId, input.consignorId);
 
   return prisma.product.create({
     data: {
@@ -173,6 +191,9 @@ export async function createProduct(companyId: string, input: ProductCreateInput
       brand: input.brand || undefined,
       imageUrl: input.imageUrl || undefined,
       tracksLots: input.tracksLots ?? false,
+      // Un producto en consignación nace con costo 0: es del seller, no entra al valor de inventario.
+      consignorId: input.consignorId || undefined,
+      consignmentCommissionBps: input.consignorId ? input.consignmentCommissionBps ?? undefined : undefined,
     },
   });
 }
@@ -218,12 +239,60 @@ export async function updateProduct(companyId: string, id: string, input: Produc
     data.grossPrice = calculateGrossPrice(netPrice, isExempt);
   }
 
-  const result = await prisma.product.updateMany({ where: { companyId, id }, data });
-  if (result.count === 0) throw new Error('Producto no encontrado');
+  if (input.consignorId === undefined && input.consignmentCommissionBps === undefined) {
+    const result = await prisma.product.updateMany({ where: { companyId, id }, data });
+    if (result.count === 0) throw new Error('Producto no encontrado');
+  } else {
+    await updateWithOwnership(companyId, id, input, data);
+  }
 
   const updated = await prisma.product.findFirst({ where: { companyId, id } });
   if (!updated) throw new Error('Producto no encontrado');
   return updated;
+}
+
+/**
+ * Edición que toca al dueño (propio ↔ seller) o la comisión del producto. Cambiar el dueño solo se
+ * permite con el stock en 0: si ya hay mercadería no hay forma de saber de quién es, y mezclar lo
+ * tuyo con lo de un seller dejaría el inventario valorizado mal. El producto se bloquea mientras se
+ * revisa el stock para que una venta o una llegada concurrente no se cuele entre la lectura y el cambio.
+ * Un producto en consignación queda con costo 0 (no se valoriza).
+ */
+async function updateWithOwnership(
+  companyId: string,
+  id: string,
+  input: ProductUpdateInput,
+  data: Prisma.ProductUncheckedUpdateManyInput
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Product" WHERE id = ${id} AND "companyId" = ${companyId} FOR UPDATE`;
+    const current = await tx.product.findFirst({
+      where: { companyId, id },
+      select: { consignorId: true, consignmentCommissionBps: true, stocks: { select: { quantity: true } } },
+    });
+    if (!current) throw new Error('Producto no encontrado');
+
+    const consignorId = input.consignorId === undefined ? current.consignorId : input.consignorId || null;
+    if (consignorId !== current.consignorId) {
+      const totalStock = current.stocks.reduce((sum, stock) => sum + stock.quantity, 0);
+      if (Math.abs(totalStock) > 1e-9) {
+        throw new Error(
+          `Para cambiar el dueño de un producto su stock debe estar en 0 (hoy tiene ${totalStock}). Si ya hay mercadería, ajústala primero para no mezclar lo tuyo con lo del seller.`
+        );
+      }
+      if (consignorId) await assertConsignorInCompany(tx, companyId, consignorId);
+      data.costPricePMP = 0;
+    }
+    data.consignorId = consignorId;
+    data.consignmentCommissionBps = consignorId
+      ? input.consignmentCommissionBps === undefined
+        ? current.consignmentCommissionBps
+        : input.consignmentCommissionBps
+      : null;
+
+    const result = await tx.product.updateMany({ where: { companyId, id }, data });
+    if (result.count === 0) throw new Error('Producto no encontrado');
+  }, LOCKING_TX_OPTIONS);
 }
 
 export async function setProductActive(companyId: string, id: string, isActive: boolean): Promise<void> {

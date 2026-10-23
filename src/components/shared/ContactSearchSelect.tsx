@@ -16,8 +16,8 @@ interface Props {
   value: ContactOption | null;
   onChange: (contact: ContactOption | null) => void;
   placeholder?: string;
-  /** Filtra la lista a clientes o proveedores. Sin esto, muestra ambos. */
-  kind?: 'customer' | 'supplier';
+  /** Filtra la lista a clientes, proveedores o sellers de consignación. Sin esto, muestra todos. */
+  kind?: 'customer' | 'supplier' | 'consignor';
 }
 
 /**
@@ -40,7 +40,7 @@ export function ContactSearchSelect({ id, value, onChange, placeholder = 'Buscar
     const timer = window.setTimeout(async () => {
       const result = await listContactsAction(trimmed);
       if (current !== requestId.current || !result.success) return;
-      const filtered = result.data.filter((c) => (kind === 'customer' ? c.isCustomer : kind === 'supplier' ? c.isSupplier : true));
+      const filtered = result.data.filter((c) => (kind === 'customer' ? c.isCustomer : kind === 'supplier' ? c.isSupplier : kind === 'consignor' ? c.isConsignor : true));
       setResults(filtered.slice(0, 8).map((c) => ({ id: c.id, razonSocial: c.razonSocial, rut: c.rut })));
       setOpen(true);
     }, 250);

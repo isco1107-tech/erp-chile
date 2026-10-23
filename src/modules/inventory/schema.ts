@@ -33,6 +33,16 @@ export const productCreateSchema = z.object({
     .optional()
     .or(z.literal('')),
   tracksLots: z.boolean().optional(),
+  /** Seller dueño del producto (consignación). Vacío o `null` = producto propio. */
+  consignorId: z.string().min(1).nullable().optional(),
+  /** Comisión propia del producto en puntos base. `null` = la del seller. */
+  consignmentCommissionBps: z
+    .number()
+    .int('La comisión debe ser un número entero de puntos base')
+    .min(0, 'La comisión no puede ser negativa')
+    .max(10_000, 'La comisión no puede superar el 100 %')
+    .nullable()
+    .optional(),
 });
 
 export const productUpdateSchema = productCreateSchema.partial();

@@ -39,7 +39,7 @@ export async function listContactsAction(query?: string): Promise<ActionResult<C
  */
 export async function listContactsPageAction(
   query?: string,
-  type?: 'customers' | 'suppliers',
+  type?: 'customers' | 'suppliers' | 'consignors',
   page = 1,
   pageSize = 25
 ): Promise<ActionResult<ListContactsResult>> {

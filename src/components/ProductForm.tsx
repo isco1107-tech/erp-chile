@@ -8,12 +8,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CurrencyInput } from '@/components/ui/CurrencyInput';
 import { calculateGrossPrice, formatCurrency } from '@/lib/chile/tax';
+import { bpsToPercent, formatCommission, parseCommissionPercent } from '@/lib/consignment/commission';
 import { UNITS, productCreateSchema, productUpdateSchema } from '@/modules/inventory/schema';
 import {
   createCategoryAction,
   createProductAction,
   updateProductAction,
 } from '@/modules/inventory/actions/products.actions';
+import { listConsignorOptionsAction } from '@/modules/inventory/actions/consignment.actions';
+import type { ConsignorOption } from '@/modules/inventory/services/consignment.service';
 import type { ProductListItem } from '@/modules/inventory/services/products.service';
 import ProductPackagingsPanel from '@/components/inventory/ProductPackagingsPanel';
 import { ImagePlus, X } from 'lucide-react';
@@ -32,6 +35,10 @@ const EMPTY_FORM = {
   brand: '',
   imageUrl: '',
   tracksLots: false,
+  /** Vacío = producto propio; si no, el id del seller dueño (consignación). */
+  consignorId: '',
+  /** Comisión propia del producto en %, como la escribe la persona. Vacío = la del seller. */
+  consignmentCommission: '',
 };
 
 type FormState = typeof EMPTY_FORM;
@@ -57,6 +64,11 @@ export default function ProductForm({
   const [newCategoryName, setNewCategoryName] = useState('');
   const [creatingCategory, setCreatingCategory] = useState(false);
   const [uploading, setUploading] = useState(false);
+  // Sellers de consignación; si la empresa no tiene ninguno, el campo de dueño no aparece.
+  const [consignors, setConsignors] = useState<ConsignorOption[]>([]);
+  useEffect(() => {
+    listConsignorOptionsAction().then((result) => result.success && setConsignors(result.data));
+  }, []);
 
   async function handleImage(file: File | undefined) {
     if (!file) return;
@@ -89,6 +101,9 @@ export default function ProductForm({
         brand: editingProduct.brand ?? '',
         imageUrl: editingProduct.imageUrl ?? '',
         tracksLots: editingProduct.tracksLots,
+        consignorId: editingProduct.consignorId ?? '',
+        consignmentCommission:
+          editingProduct.consignmentCommissionBps == null ? '' : String(bpsToPercent(editingProduct.consignmentCommissionBps)).replace('.', ','),
       });
       setErrors({});
     } else {
@@ -128,6 +143,14 @@ export default function ProductForm({
     e.preventDefault();
     setErrors({});
 
+    // Un porcentaje escrito pero inválido se avisa; vacío significa "usa la comisión del seller".
+    const commissionText = form.consignmentCommission.trim();
+    const consignmentCommissionBps = form.consignorId && commissionText !== '' ? parseCommissionPercent(commissionText) : null;
+    if (form.consignorId && commissionText !== '' && consignmentCommissionBps === null) {
+      setErrors({ consignmentCommission: 'La comisión debe ser un porcentaje entre 0 y 100' });
+      return;
+    }
+
     const payload = {
       sku: form.sku,
       name: form.name,
@@ -142,6 +165,8 @@ export default function ProductForm({
       brand: form.brand.trim(),
       imageUrl: form.imageUrl,
       tracksLots: form.isTrackable && form.tracksLots,
+      consignorId: form.consignorId || null,
+      consignmentCommissionBps,
     };
 
     const schema = editingProduct ? productUpdateSchema : productCreateSchema;
@@ -319,6 +344,48 @@ export default function ProductForm({
                 </span>
               </span>
             </label>
+          </div>
+        )}
+
+        {(consignors.length > 0 || form.consignorId) && (
+          <div className="grid grid-cols-1 gap-4 rounded-lg border border-dashed border-border p-3 sm:col-span-2 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="consignorId">Dueño del producto</Label>
+              <select
+                id="consignorId"
+                value={form.consignorId}
+                onChange={(e) => update('consignorId', e.target.value)}
+                className="mt-1.5 h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
+              >
+                <option value="">Propio (lo compras tú)</option>
+                {consignors.map((seller) => (
+                  <option key={seller.id} value={seller.id}>Seller: {seller.name}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Solo se puede cambiar con el stock en 0. Un producto de seller no entra a tu inventario valorizado.
+              </p>
+            </div>
+            {form.consignorId && (
+              <div>
+                <Label htmlFor="consignmentCommission">Comisión de este producto (%)</Label>
+                <Input
+                  id="consignmentCommission"
+                  inputMode="decimal"
+                  className="mt-1.5"
+                  placeholder={
+                    (() => {
+                      const bps = consignors.find((seller) => seller.id === form.consignorId)?.commissionBps;
+                      return bps == null ? 'La del seller' : `Vacío = la del seller (${formatCommission(bps)})`;
+                    })()
+                  }
+                  value={form.consignmentCommission}
+                  onChange={(e) => update('consignmentCommission', e.target.value)}
+                  aria-invalid={!!errors.consignmentCommission}
+                />
+                {errors.consignmentCommission && <p className="mt-1 text-sm text-destructive">{errors.consignmentCommission}</p>}
+              </div>
+            )}
           </div>
         )}
 

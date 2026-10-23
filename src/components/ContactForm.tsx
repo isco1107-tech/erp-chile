@@ -12,6 +12,7 @@ import { nativeSelectClass } from '@/components/ui/field-classes';
 import { BANK_ACCOUNT_TYPES, BANK_ACCOUNT_TYPE_LABELS, CHILEAN_BANKS } from '@/lib/treasury/banks';
 import { RutInput } from '@/components/ui/RutInput';
 import { regions } from '@/lib/chile/locations';
+import { bpsToPercent, parseCommissionPercent } from '@/lib/consignment/commission';
 import { contactCreateSchema, contactUpdateSchema } from '@/modules/contacts/schema';
 import { createContactAction, lookupCompanyInfoAction, updateContactAction } from '@/modules/contacts/actions/contacts.actions';
 import type { CompanyLookupCandidate } from '@/modules/contacts/services/company-lookup.service';
@@ -31,6 +32,9 @@ const EMPTY_FORM = {
   comuna: '',
   isCustomer: true,
   isSupplier: false,
+  isConsignor: false,
+  /** Comisión del seller en porcentaje, como la escribe la persona ("15", "15,5"). */
+  consignmentCommission: '',
   creditLimit: 0,
   creditDays: 0,
   /** 'none' = precio del catálogo (sin lista). */
@@ -120,6 +124,8 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
         comuna: editingContact.comuna ?? '',
         isCustomer: editingContact.isCustomer,
         isSupplier: editingContact.isSupplier,
+        isConsignor: editingContact.isConsignor,
+        consignmentCommission: editingContact.consignmentCommissionBps == null ? '' : String(bpsToPercent(editingContact.consignmentCommissionBps)).replace('.', ','),
         creditLimit: editingContact.creditLimit ?? 0,
         creditDays: editingContact.creditDays,
         priceListId: editingContact.priceListId ?? 'none',
@@ -150,8 +156,15 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
     e.preventDefault();
     setErrors({});
 
+    const consignmentCommissionBps = form.isConsignor ? parseCommissionPercent(form.consignmentCommission) : null;
+    if (form.isConsignor && consignmentCommissionBps === null) {
+      setErrors({ consignmentCommission: 'Indica la comisión del seller (un porcentaje entre 0 y 100)' });
+      return;
+    }
+
     const payload = {
       ...form,
+      consignmentCommissionBps,
       email: form.email || undefined,
       creditLimit: noCreditLimit ? null : form.creditLimit,
       // Sin listas disponibles no se toca lo que el cliente ya tenga asignado.
@@ -330,7 +343,33 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
           <input type="checkbox" checked={form.isSupplier} onChange={(e) => update('isSupplier', e.target.checked)} />
           Proveedor
         </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={form.isConsignor} onChange={(e) => update('isConsignor', e.target.checked)} />
+          Seller (consignación)
+        </label>
       </div>
+
+      {form.isConsignor && (
+        <fieldset className="grid grid-cols-1 gap-4 rounded-lg border border-dashed border-border p-3 sm:grid-cols-2">
+          <legend className="px-1 text-xs font-medium text-muted-foreground">Consignación</legend>
+          <div>
+            <Label htmlFor="consignmentCommission">Comisión para tu empresa (%)</Label>
+            <Input
+              id="consignmentCommission"
+              inputMode="decimal"
+              placeholder="Ej: 20"
+              value={form.consignmentCommission}
+              onChange={(e) => update('consignmentCommission', e.target.value)}
+              aria-invalid={!!errors.consignmentCommission}
+              className="mt-1.5"
+            />
+            {errors.consignmentCommission && <p className="mt-1 text-sm text-destructive">{errors.consignmentCommission}</p>}
+          </div>
+          <p className="self-end text-xs text-muted-foreground">
+            Sus productos siguen siendo suyos hasta que se venden: no entran a tu inventario valorizado ni a tus compras. Al vender, le liquidas el neto menos esta comisión. Cada producto puede tener la suya.
+          </p>
+        </fieldset>
+      )}
 
       {form.isCustomer && (
         <div className="grid grid-cols-1 gap-4 rounded-lg border border-dashed border-border p-3 sm:grid-cols-2">

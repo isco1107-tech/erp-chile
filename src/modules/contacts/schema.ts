@@ -19,6 +19,19 @@ export const contactCreateSchema = z.object({
   comuna: z.string().optional(),
   isCustomer: z.boolean().optional(),
   isSupplier: z.boolean().optional(),
+  /** Seller de consignación: la mercadería es suya hasta que se vende (no es proveedor: a ese se le compra). */
+  isConsignor: z.boolean().optional(),
+  /**
+   * Comisión de la empresa sobre lo que vende el seller, en puntos base (1500 = 15 %). Obligatoria
+   * si `isConsignor`; el servicio lo exige porque el esquema se reutiliza parcial al editar.
+   */
+  consignmentCommissionBps: z
+    .number()
+    .int('La comisión debe ser un número entero de puntos base')
+    .min(0, 'La comisión no puede ser negativa')
+    .max(10_000, 'La comisión no puede superar el 100 %')
+    .nullable()
+    .optional(),
   creditLimit: z.number().int().nonnegative('El límite de crédito no puede ser negativo').nullable().optional(),
   creditDays: z.number().int().nonnegative('Los días de crédito no pueden ser negativos').optional(),
   /** Lista de precios del cliente; `null` = precio del catálogo. */
