@@ -1,3 +1,5 @@
+import { ShoppingBag } from 'lucide-react';
+import QuickCart from '@/components/store/QuickCart';
 import { ChevronDown } from 'lucide-react';
 import { pageLink, homeOf } from '@/lib/web-sites/site';
 import { SOCIAL_LABELS, SOCIAL_NETWORKS, socialHref } from '@/lib/web-sites/urls';
@@ -131,7 +133,13 @@ function DesktopNav({ ctx, items, className }: { ctx: RenderCtx; items: NavItem[
         {items.map((item) => (
           <li key={item.key} className={cx(item.children.length > 0 && 'group/dd relative')}>
             {item.link ? (
-              <SiteLink ctx={ctx} link={item.link} newTab={item.newTab} ariaCurrent={item.current ? 'page' : undefined} className="ws-navlink whitespace-nowrap">
+              <SiteLink
+                ctx={ctx}
+                link={item.link}
+                newTab={item.newTab}
+                ariaCurrent={item.current ? 'page' : undefined}
+                className="ws-navlink whitespace-nowrap"
+              >
                 {item.label}
                 {item.children.length > 0 && <ChevronDown className="size-4 opacity-70" aria-hidden="true" />}
               </SiteLink>
@@ -146,7 +154,13 @@ function DesktopNav({ ctx, items, className }: { ctx: RenderCtx; items: NavItem[
                 <ul className="ws-tone-default ws-bg rounded-[var(--ws-radius)] border border-[color:var(--s-line)] p-2 shadow-xl">
                   {item.children.map((child) => (
                     <li key={child.key}>
-                      <SiteLink ctx={ctx} link={child.link} newTab={child.newTab} ariaCurrent={child.current ? 'page' : undefined} className="ws-navlink w-full">
+                      <SiteLink
+                        ctx={ctx}
+                        link={child.link}
+                        newTab={child.newTab}
+                        ariaCurrent={child.current ? 'page' : undefined}
+                        className="ws-navlink w-full"
+                      >
                         {child.label}
                       </SiteLink>
                     </li>
@@ -224,13 +238,28 @@ export default function SiteHeader({ ctx, name, logoUrl, items, overlayTone }: H
   // El carrito va antes del botón destacado y en todos los diseños de encabezado.
   const trailing = (
     <>
-      {ctx.store && <CartButton siteSlug={ctx.store.siteSlug} cartHref={ctx.store.cartHref} />}
+      {ctx.store &&
+        (ctx.preview ? (
+          <span aria-label="Carrito, vista previa" className="ws-navlink !p-2.5">
+            <ShoppingBag className="size-5" />
+          </span>
+        ) : (
+          <>
+            <CartButton siteSlug={ctx.store.siteSlug} cartHref={ctx.store.cartHref} />
+            <QuickCart siteSlug={ctx.store.siteSlug} basePath={ctx.basePath} />
+          </>
+        ))}
       {ctaButton}
     </>
   );
   const panelBase = 'ws-bg absolute inset-x-0 top-full max-h-[70dvh] overflow-y-auto border-b border-[color:var(--s-line)] px-5 py-4 shadow-xl';
   const panelTone: Tone = solid ? tone : 'default';
-  const panelClass = cx(panelBase, `ws-tone-${panelTone}`, (minimal || floating) && '@2xl:inset-x-auto @2xl:right-8 @2xl:w-80 @2xl:rounded-b-[var(--ws-radius)] @2xl:border-x', floating && 'mt-2 rounded-[var(--ws-radius)] border-x');
+  const panelClass = cx(
+    panelBase,
+    `ws-tone-${panelTone}`,
+    (minimal || floating) && '@2xl:inset-x-auto @2xl:right-8 @2xl:w-80 @2xl:rounded-b-[var(--ws-radius)] @2xl:border-x',
+    floating && 'mt-2 rounded-[var(--ws-radius)] border-x',
+  );
   const menu = hasMenu && (
     <MobileMenu className={minimal ? undefined : bp.hide} panelClassName={panelClass}>
       <MobileNav ctx={ctx} items={items} tone={panelTone} />
@@ -245,7 +274,7 @@ export default function SiteHeader({ ctx, name, logoUrl, items, overlayTone }: H
       ? 'absolute inset-x-0 top-0'
       : floating
         ? cx('px-3 pt-3 @2xl:px-6', header.sticky ? 'sticky top-0' : 'relative')
-        : cx(solid ? 'ws-bg' : 'ws-glass border-b border-[color:var(--s-line)]', header.sticky ? 'sticky top-0' : 'relative')
+        : cx(solid ? 'ws-bg' : 'ws-glass border-b border-[color:var(--s-line)]', header.sticky ? 'sticky top-0' : 'relative'),
   );
 
   const pad = floating ? 'px-4 py-2.5 @2xl:px-6' : 'px-5 py-3 @2xl:px-8';
@@ -296,7 +325,13 @@ export default function SiteHeader({ ctx, name, logoUrl, items, overlayTone }: H
 
   const bar = (
     <header className={shell}>
-      {floating ? <div className="ws-glass relative mx-auto max-w-[calc(var(--ws-max)+1rem)] rounded-[calc(var(--ws-radius)+0.5rem)] border border-[color:var(--s-line)] shadow-lg">{inner}</div> : inner}
+      {floating ? (
+        <div className="ws-glass relative mx-auto max-w-[calc(var(--ws-max)+1rem)] rounded-[calc(var(--ws-radius)+0.5rem)] border border-[color:var(--s-line)] shadow-lg">
+          {inner}
+        </div>
+      ) : (
+        inner
+      )}
     </header>
   );
   // Transparente: va superpuesto (no fijo) sobre la portada, en un contenedor sin altura.

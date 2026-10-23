@@ -5,6 +5,7 @@
  *   npm run verify:responsive:web-sites
  *   npm run verify:responsive:web-sites -- --only=portadas
  *   npm run verify:responsive:web-sites -- --device=iphone-se,desktop
+ *   npm run verify:responsive:web-sites -- --workers=3
  *
  * Igual que el de certámenes y el de la academia: renderiza el sitio REAL
  * (`SiteRenderer`, el mismo de producción, con Tailwind compilado desde el
@@ -213,8 +214,13 @@ if (!fixtures.length || !devices.length) {
 
 const results = [];
 const failures = [];
-for (const name of fixtures) {
-  for (const device of devices) {
+// Independent browser contexts let cloud CI check the full matrix without sharing page state.
+const jobs = fixtures.flatMap((name) => devices.map((device) => ({ name, device })));
+const workers = Math.max(1, Math.min(4, Math.floor(Number(args.get('workers')) || 1)));
+let nextJob = 0;
+await Promise.all(Array.from({ length: workers }, async () => {
+  while (nextJob < jobs.length) {
+    const { name, device } = jobs[nextJob++];
     const context = await browser.newContext({ viewport: { width: device.width, height: device.height }, isMobile: device.mobile, hasTouch: device.mobile, deviceScaleFactor: 1, locale: 'es-CL', timezoneId: 'America/Santiago' });
     await context.route('**/*', (route) => {
       const url = new URL(route.request().url());
@@ -349,8 +355,10 @@ for (const name of fixtures) {
     await page.screenshot({ path: path.join(out, shot), fullPage: true, type: 'jpeg', quality: 50 });
     results.push({ fixture: name, device, problems, shot });
     await context.close();
+    if (results.length % 13 === 0) console.log(`${results.length}/${jobs.length} combinaciones revisadas`);
   }
-}
+}));
+results.sort((a, b) => fixtures.indexOf(a.fixture) - fixtures.indexOf(b.fixture) || devices.indexOf(a.device) - devices.indexOf(b.device));
 await browser.close();
 
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');

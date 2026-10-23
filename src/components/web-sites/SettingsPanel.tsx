@@ -11,6 +11,7 @@ import { SwitchRow, TextField } from './fields';
 import type { SettingsDraft } from './editor-shared';
 
 interface SettingsPanelProps {
+  commerce?: boolean;
   settings: SettingsDraft;
   onChange: (patch: Partial<SettingsDraft>) => void;
   disabled: boolean;
@@ -34,10 +35,29 @@ function truncate(text: string, max: number): string {
 
 /** Normalización suave mientras se escribe: no borra guiones del final para poder seguir escribiendo. */
 function typingSlug(raw: string): string {
-  return raw.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/-{2,}/g, '-').slice(0, SITE_SLUG_MAX);
+  return raw
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/-{2,}/g, '-')
+    .slice(0, SITE_SLUG_MAX);
 }
 
-export function SettingsPanel({ settings, onChange, disabled, savedSlug, isPublished, publicBase, contacts, contactName, companyLogoUrl, saving, dirty, onSave }: SettingsPanelProps) {
+export function SettingsPanel({
+  commerce = false,
+  settings,
+  onChange,
+  disabled,
+  savedSlug,
+  isPublished,
+  publicBase,
+  contacts,
+  contactName,
+  companyLogoUrl,
+  saving,
+  dirty,
+  onSave,
+}: SettingsPanelProps) {
   const contactId = useId();
   const slug = slugify(settings.slug);
   const slugProblem = siteSlugProblem(slug);
@@ -51,7 +71,19 @@ export function SettingsPanel({ settings, onChange, disabled, savedSlug, isPubli
     <div className="space-y-6">
       <section aria-label="Datos del sitio" className="space-y-4 rounded-lg border border-border bg-card p-4 shadow-card">
         <h2 className="text-sm font-semibold">Datos del sitio</h2>
-        <TextField label="Nombre interno" value={settings.name} onChange={(name) => onChange({ name })} max={80} disabled={disabled} error={nameProblem} hint="Solo lo ves tú en el panel; las visitas no lo ven." />
+        <TextField
+          label={commerce ? 'Nombre de tu marca' : 'Nombre interno'}
+          value={settings.name}
+          onChange={(name) => onChange({ name })}
+          max={80}
+          disabled={disabled}
+          error={nameProblem}
+          hint={
+            commerce
+              ? 'Se usa como nombre de tu tienda y en su encabezado cuando no defines otro texto de marca.'
+              : 'Solo lo ves tú en el panel; las visitas no lo ven.'
+          }
+        />
 
         <div className="space-y-1.5">
           <TextField
@@ -76,35 +108,67 @@ export function SettingsPanel({ settings, onChange, disabled, savedSlug, isPubli
           {slugChangedWhilePublished ? (
             <p role="status" className="flex items-start gap-2 rounded-lg bg-warning-soft px-3 py-2 text-xs text-warning">
               <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-              <span>Este sitio ya está publicado: si cambias la dirección, los enlaces que ya compartiste (WhatsApp, redes, tarjetas) dejarán de funcionar.</span>
+              <span>
+                Este sitio ya está publicado: si cambias la dirección, los enlaces que ya compartiste (WhatsApp, redes, tarjetas) dejarán de funcionar.
+              </span>
             </p>
           ) : null}
         </div>
 
-        <div className="space-y-1.5">
-          {contacts ? <Label htmlFor={contactId}>Cliente asociado (opcional)</Label> : <p className="text-sm leading-none font-medium">Cliente asociado</p>}
-          {contacts ? (
-            <select id={contactId} className={nativeSelectClass} value={settings.contactId ?? ''} disabled={disabled} onChange={(event) => onChange({ contactId: event.target.value || null })}>
-              <option value="">Sin cliente (sitio propio)</option>
-              {contacts.map((contact) => (
-                <option key={contact.id} value={contact.id}>
-                  {contact.label}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <p id={contactId} className="text-sm text-muted-foreground">
-              {contactName ?? 'Sin cliente asociado'} <span className="text-xs">(no tienes permiso para ver la lista de clientes)</span>
-            </p>
-          )}
-          <p className="text-xs text-muted-foreground">Úsalo si este sitio lo armas como servicio para un cliente: te ayuda a encontrarlo en la lista.</p>
-        </div>
+        {!commerce && (
+          <>
+            <div className="space-y-1.5">
+              {contacts ? <Label htmlFor={contactId}>Cliente asociado (opcional)</Label> : <p className="text-sm leading-none font-medium">Cliente asociado</p>}
+              {contacts ? (
+                <select
+                  id={contactId}
+                  className={nativeSelectClass}
+                  value={settings.contactId ?? ''}
+                  disabled={disabled}
+                  onChange={(event) => onChange({ contactId: event.target.value || null })}
+                >
+                  <option value="">Sin cliente (sitio propio)</option>
+                  {contacts.map((contact) => (
+                    <option key={contact.id} value={contact.id}>
+                      {contact.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <p id={contactId} className="text-sm text-muted-foreground">
+                  {contactName ?? 'Sin cliente asociado'} <span className="text-xs">(no tienes permiso para ver la lista de clientes)</span>
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">Úsalo si este sitio lo armas como servicio para un cliente: te ayuda a encontrarlo en la lista.</p>
+            </div>
+          </>
+        )}
       </section>
 
       <section aria-label="Buscadores" className="space-y-4 rounded-lg border border-border bg-card p-4 shadow-card">
         <h2 className="text-sm font-semibold">Cómo aparece en Google</h2>
-        <TextField label="Título para buscadores" value={settings.seoTitle} onChange={(seoTitle) => onChange({ seoTitle })} max={70} ideal={[10, 65]} disabled={disabled} placeholder="Ej.: Diseño de interiores en Santiago | Estudio Sol" hint="Es el título de la pestaña del navegador y el enlace azul en Google." />
-        <TextField label="Descripción para buscadores" value={settings.seoDescription} onChange={(seoDescription) => onChange({ seoDescription })} max={200} ideal={[50, 160]} multiline rows={3} disabled={disabled} placeholder="Ej.: Proyectos de interiorismo a medida para casas y oficinas. Cotiza sin costo." hint="Una o dos frases que inviten a entrar." />
+        <TextField
+          label="Título para buscadores"
+          value={settings.seoTitle}
+          onChange={(seoTitle) => onChange({ seoTitle })}
+          max={70}
+          ideal={[10, 65]}
+          disabled={disabled}
+          placeholder="Ej.: Diseño de interiores en Santiago | Estudio Sol"
+          hint="Es el título de la pestaña del navegador y el enlace azul en Google."
+        />
+        <TextField
+          label="Descripción para buscadores"
+          value={settings.seoDescription}
+          onChange={(seoDescription) => onChange({ seoDescription })}
+          max={200}
+          ideal={[50, 160]}
+          multiline
+          rows={3}
+          disabled={disabled}
+          placeholder="Ej.: Proyectos de interiorismo a medida para casas y oficinas. Cotiza sin costo."
+          hint="Una o dos frases que inviten a entrar."
+        />
 
         <div className="rounded-lg border border-border bg-background p-3" aria-label="Vista previa en Google" role="group">
           <p className="mb-2 text-xs font-medium text-muted-foreground uppercase">Así se vería en Google</p>
@@ -113,7 +177,9 @@ export function SettingsPanel({ settings, onChange, disabled, savedSlug, isPubli
             {slug || 'tu-direccion'}
           </p>
           <p className="mt-0.5 text-lg leading-snug text-info">{truncate(previewTitle, 60)}</p>
-          <p className="mt-0.5 text-sm text-muted-foreground">{previewDescription ? truncate(previewDescription, 160) : 'Sin descripción: Google mostrará un fragmento cualquiera de tu página.'}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {previewDescription ? truncate(previewDescription, 160) : 'Sin descripción: Google mostrará un fragmento cualquiera de tu página.'}
+          </p>
         </div>
 
         <SwitchRow
@@ -125,7 +191,13 @@ export function SettingsPanel({ settings, onChange, disabled, savedSlug, isPubli
         />
         {isPublished && settings.indexable && savedSlug ? (
           <p className="text-xs text-muted-foreground">
-            Mapa del sitio para Google Search Console: <span className="font-mono break-all text-foreground">{publicBase}{savedSlug}/sitemap.xml</span>. Con dominio propio, usa <span className="font-mono">tu-dominio/sitemap.xml</span>. Lista todas las páginas publicadas y se actualiza solo al publicar.
+            Mapa del sitio para Google Search Console:{' '}
+            <span className="font-mono break-all text-foreground">
+              {publicBase}
+              {savedSlug}/sitemap.xml
+            </span>
+            . Con dominio propio, usa <span className="font-mono">tu-dominio/sitemap.xml</span>. Lista todas las páginas publicadas y se actualiza solo al
+            publicar.
           </p>
         ) : null}
       </section>
@@ -139,8 +211,18 @@ export function SettingsPanel({ settings, onChange, disabled, savedSlug, isPubli
           hint="Aparece en la barra superior del sitio. Mejor con fondo transparente (PNG)."
           suggestion={companyLogoUrl ? { url: companyLogoUrl, label: 'Usar el logo de la empresa' } : null}
         />
-        <ImagePicker label="Imagen para redes" value={settings.ogImageUrl} onChange={(ogImageUrl) => onChange({ ogImageUrl })} hint="Se ve cuando compartes el enlace por WhatsApp, Facebook o LinkedIn. Ideal: horizontal, 1200 × 630 px." />
-        <ImagePicker label="Logo de la pestaña del navegador" value={settings.faviconUrl} onChange={(faviconUrl) => onChange({ faviconUrl })} hint="El ícono chico que se ve en la pestaña del navegador y en los favoritos. Ideal: cuadrado, de 512 × 512 px (mínimo 64 × 64). Sin logo, se ve el de Aether." />
+        <ImagePicker
+          label="Imagen para redes"
+          value={settings.ogImageUrl}
+          onChange={(ogImageUrl) => onChange({ ogImageUrl })}
+          hint="Se ve cuando compartes el enlace por WhatsApp, Facebook o LinkedIn. Ideal: horizontal, 1200 × 630 px."
+        />
+        <ImagePicker
+          label="Logo de la pestaña del navegador"
+          value={settings.faviconUrl}
+          onChange={(faviconUrl) => onChange({ faviconUrl })}
+          hint="El ícono chico que se ve en la pestaña del navegador y en los favoritos. Ideal: cuadrado, de 512 × 512 px (mínimo 64 × 64). Sin logo, se ve el de Aether."
+        />
       </section>
 
       <div className="flex flex-wrap items-center justify-end gap-3">

@@ -61,7 +61,13 @@ function report(items: ReadinessItem[]): ReadinessReport {
   return { items, score: items.length ? Math.round((done / items.length) * 100) : 0, blockers, canPublish: blockers === 0 };
 }
 
-const item = (id: string, label: string, ok: boolean, required: boolean, hintOk: string, hintTodo: string): ReadinessItem => ({ id, label, ok, required, hint: ok ? hintOk : hintTodo });
+const item = (id: string, label: string, ok: boolean, required: boolean, hintOk: string, hintTodo: string): ReadinessItem => ({
+  id,
+  label,
+  ok,
+  required,
+  hint: ok ? hintOk : hintTodo,
+});
 
 interface PlacedBlock {
   block: WebSiteBlock;
@@ -79,7 +85,8 @@ function linkProblems(doc: SiteDocument, placed: PlacedBlock[]): string[] {
       if (!isValidSiteLink(found.href, doc)) bad.push(`${found.label}${where(entry)}: el enlace no funciona`);
       else if (found.text !== null && !found.text.trim()) bad.push(`${found.label}${where(entry)} no tiene texto`);
     }
-    if (entry.block.type === 'contact' && entry.block.email && !safeHref(`mailto:${entry.block.email}`)) bad.push(`el correo de contacto ("${entry.block.email}")`);
+    if (entry.block.type === 'contact' && entry.block.email && !safeHref(`mailto:${entry.block.email}`))
+      bad.push(`el correo de contacto ("${entry.block.email}")`);
   }
   for (const found of chromeLinks(doc)) if (!isValidSiteLink(found.href, doc)) bad.push(`${found.label}: el enlace no funciona`);
   if (doc.header.enabled && doc.header.ctaHref.trim() && !doc.header.ctaLabel.trim()) bad.push('el botón del encabezado no tiene texto');
@@ -88,7 +95,11 @@ function linkProblems(doc: SiteDocument, placed: PlacedBlock[]): string[] {
 
 function hasContactWay(doc: SiteDocument, placed: PlacedBlock[]): boolean {
   if (doc.whatsapp.enabled && whatsappHref(doc.whatsapp.number)) return true;
-  return placed.some(({ block }) => block.type === 'form' || (block.type === 'contact' && Boolean(block.showForm || block.email.trim() || block.phone.trim() || whatsappHref(block.whatsapp) || block.address.trim())));
+  return placed.some(
+    ({ block }) =>
+      block.type === 'form' ||
+      (block.type === 'contact' && Boolean(block.showForm || block.email.trim() || block.phone.trim() || whatsappHref(block.whatsapp) || block.address.trim())),
+  );
 }
 
 /** Problemas de los formularios visibles: los que impiden publicar y los avisos (módulo no contratado). */
@@ -108,10 +119,31 @@ export function evaluateReadiness(input: ReadinessInput): ReadinessReport {
   const seoTitle = (input.seoTitle ?? '').trim();
   const seoDescription = (input.seoDescription ?? '').trim();
   const seoItems = [
-    item('seo-title', 'Título para buscadores', seoTitle.length >= 10 && seoTitle.length <= 65, false, 'El título se ve completo en Google.', 'Escribe un título de 10 a 65 caracteres: es lo que aparece en la pestaña y en Google.'),
-    item('seo-description', 'Descripción para buscadores', seoDescription.length >= 50 && seoDescription.length <= 160, false, 'La descripción tiene un largo ideal.', 'Escribe una descripción de 50 a 160 caracteres que invite a entrar.'),
+    item(
+      'seo-title',
+      'Título para buscadores',
+      seoTitle.length >= 10 && seoTitle.length <= 65,
+      false,
+      'El título se ve completo en Google.',
+      'Escribe un título de 10 a 65 caracteres: es lo que aparece en la pestaña y en Google.',
+    ),
+    item(
+      'seo-description',
+      'Descripción para buscadores',
+      seoDescription.length >= 50 && seoDescription.length <= 160,
+      false,
+      'La descripción tiene un largo ideal.',
+      'Escribe una descripción de 50 a 160 caracteres que invite a entrar.',
+    ),
   ];
-  const logo = item('logo', 'Logo', Boolean((input.logoUrl ?? '').trim()), false, 'El logo aparece en la barra superior.', 'Sube el logo: da confianza y se muestra arriba en el sitio.');
+  const logo = item(
+    'logo',
+    'Logo',
+    Boolean((input.logoUrl ?? '').trim()),
+    false,
+    'El logo aparece en la barra superior.',
+    'Sube el logo: da confianza y se muestra arriba en el sitio.',
+  );
 
   if (input.mode === 'HTML') {
     const html = (input.html ?? '').trim();
@@ -119,9 +151,30 @@ export function evaluateReadiness(input: ReadinessInput): ReadinessReport {
     const bytes = new TextEncoder().encode(html).length;
     const hints = htmlHints(html);
     return report([
-      item('html-content', 'Escribiste el contenido', html.length >= 50, true, 'Hay contenido para publicar.', 'Escribe o pega tu HTML: todavía está vacío o es demasiado corto.'),
-      item('html-size', 'El tamaño es razonable', bytes <= MAX_HTML_BYTES, true, 'El tamaño está dentro del límite.', `El HTML pesa ${Math.round(bytes / 1000)} KB; el máximo es ${MAX_HTML_BYTES / 1000} KB. Reduce estilos o mueve las imágenes a la biblioteca.`),
-      item('html-clean', 'Sin elementos que no funcionan', removed.length === 0, false, 'No hay nada que la plataforma tenga que quitar.', `Se quitarán al publicar: ${removed.join('; ')}.`),
+      item(
+        'html-content',
+        'Escribiste el contenido',
+        html.length >= 50,
+        true,
+        'Hay contenido para publicar.',
+        'Escribe o pega tu HTML: todavía está vacío o es demasiado corto.',
+      ),
+      item(
+        'html-size',
+        'El tamaño es razonable',
+        bytes <= MAX_HTML_BYTES,
+        true,
+        'El tamaño está dentro del límite.',
+        `El HTML pesa ${Math.round(bytes / 1000)} KB; el máximo es ${MAX_HTML_BYTES / 1000} KB. Reduce estilos o mueve las imágenes a la biblioteca.`,
+      ),
+      item(
+        'html-clean',
+        'Sin elementos que no funcionan',
+        removed.length === 0,
+        false,
+        'No hay nada que la plataforma tenga que quitar.',
+        `Se quitarán al publicar: ${removed.join('; ')}.`,
+      ),
       ...hints.map((hint) => item(`html-${hint.id}`, hint.label, hint.ok, false, 'Listo.', hint.hint)),
       ...seoItems,
       logo,
@@ -139,7 +192,8 @@ export function evaluateReadiness(input: ReadinessInput): ReadinessReport {
 
   const missingMustHave = info.mustHave.filter((need) => need.type !== 'hero' && need.type !== 'contact' && !visible.some((block) => block.type === need.type));
   const imagesWithoutAlt = visible.reduce((count, block) => {
-    if (block.style.canvas?.enabled) count += block.style.canvas.elements.filter((el) => !el.hidden && el.kind === 'image' && el.imageUrl && !el.alt.trim()).length;
+    if (block.style.canvas?.enabled)
+      count += block.style.canvas.elements.filter((el) => !el.hidden && el.kind === 'image' && el.imageUrl && !el.alt.trim()).length;
     if (block.type === 'image' || block.type === 'split') return count + (block.imageUrl && !block.alt.trim() ? 1 : 0);
     if (block.type === 'hero') return count + block.images.filter((image) => image.url && !image.alt.trim()).length;
     if (block.type === 'beforeafter') return count + block.items.filter((pair) => (pair.beforeUrl || pair.afterUrl) && !pair.alt.trim()).length;
@@ -156,12 +210,19 @@ export function evaluateReadiness(input: ReadinessInput): ReadinessReport {
   const themeIssues = themeProblems(theme);
   const badMedia = placed.flatMap((entry) => {
     const { block } = entry;
-    if (block.type === 'video' && block.url.trim() && !videoEmbed(block.url)) return [`el video${block.heading ? ` «${block.heading}»` : ''}${where(entry)} no es un enlace de YouTube ni de Vimeo`];
-    if (block.type === 'countdown' && block.target.trim() && Number.isNaN(Date.parse(block.target))) return [`la cuenta regresiva${where(entry)} no tiene una fecha válida`];
-    if (block.type === 'embed' && block.url.trim() && !embedFrom(block.url)) return [`«${block.heading || 'Incrustar'}»${where(entry)} no es un enlace de Spotify, SoundCloud, Calendly, Google Forms ni Google Calendar`];
-    if (block.type === 'beforeafter' && block.items.some((pair) => Boolean(pair.beforeUrl) !== Boolean(pair.afterUrl))) return [`«${block.heading || 'Antes y después'}»${where(entry)} tiene un par con una sola foto: sube las dos`];
+    if (block.type === 'video' && block.url.trim() && !videoEmbed(block.url))
+      return [`el video${block.heading ? ` «${block.heading}»` : ''}${where(entry)} no es un enlace de YouTube ni de Vimeo`];
+    if (block.type === 'countdown' && block.target.trim() && Number.isNaN(Date.parse(block.target)))
+      return [`la cuenta regresiva${where(entry)} no tiene una fecha válida`];
+    if (block.type === 'embed' && block.url.trim() && !embedFrom(block.url))
+      return [`«${block.heading || 'Incrustar'}»${where(entry)} no es un enlace de Spotify, SoundCloud, Calendly, Google Forms ni Google Calendar`];
+    if (block.type === 'beforeafter' && block.items.some((pair) => Boolean(pair.beforeUrl) !== Boolean(pair.afterUrl)))
+      return [`«${block.heading || 'Antes y después'}»${where(entry)} tiene un par con una sola foto: sube las dos`];
     if (block.type === 'hours' && isSampleWeek(block.week)) return [`el horario${where(entry)} sigue siendo el de ejemplo: confírmalo o cámbialo por el tuyo`];
-    if (block.type === 'catalog' && !isBlockEmpty(block) && !whatsappHref(block.whatsapp || doc.whatsapp.number)) return [`el catálogo${block.heading ? ` «${block.heading}»` : ''}${where(entry)} necesita un número de WhatsApp (en la sección o en el botón flotante) para que funcione "Pedir por WhatsApp"`];
+    if (block.type === 'catalog' && !block.store && !isBlockEmpty(block) && !whatsappHref(block.whatsapp || doc.whatsapp.number))
+      return [
+        `el catálogo${block.heading ? ` «${block.heading}»` : ''}${where(entry)} necesita un número de WhatsApp (en la sección o en el botón flotante) para que funcione "Pedir por WhatsApp"`,
+      ];
     return [];
   });
   const whatsappBroken = doc.whatsapp.enabled && !whatsappHref(doc.whatsapp.number);
@@ -175,30 +236,125 @@ export function evaluateReadiness(input: ReadinessInput): ReadinessReport {
   });
 
   return report([
-    item('hero', 'Portada con título', Boolean(hero && hero.type === 'hero' && hero.title.trim()), true, 'La portada dice qué ofreces.', `Agrega una ${BLOCK_INFO.hero.label.toLowerCase()} visible en la página de inicio y ponle un título: es lo primero que se ve.`),
-    item('contact', 'Una forma de contacto', hasContactWay(doc, placed), true, 'Tus clientes pueden escribirte.', 'Agrega una sección de Contacto con correo, teléfono, WhatsApp o el formulario activado, o activa el botón flotante de WhatsApp.'),
+    item(
+      'hero',
+      'Portada con título',
+      Boolean(hero && hero.type === 'hero' && hero.title.trim()),
+      true,
+      'La portada dice qué ofreces.',
+      `Agrega una ${BLOCK_INFO.hero.label.toLowerCase()} visible en la página de inicio y ponle un título: es lo primero que se ve.`,
+    ),
+    item(
+      'contact',
+      'Una forma de contacto',
+      hasContactWay(doc, placed),
+      true,
+      'Tus clientes pueden escribirte.',
+      'Agrega una sección de Contacto con correo, teléfono, WhatsApp o el formulario activado, o activa el botón flotante de WhatsApp.',
+    ),
     ...(hasForms
       ? [
-          item('forms', 'Los formularios están completos', forms.blocking.length === 0, true, 'Cada formulario pide lo que necesita su destino.', `Revisa ${forms.blocking.join('; ')}.`),
-          ...(forms.warnings.length > 0 ? [item('forms-destination', 'Destino de los formularios', false, false, 'Listo.', `${forms.warnings.join('; ')}.`)] : []),
+          item(
+            'forms',
+            'Los formularios están completos',
+            forms.blocking.length === 0,
+            true,
+            'Cada formulario pide lo que necesita su destino.',
+            `Revisa ${forms.blocking.join('; ')}.`,
+          ),
+          ...(forms.warnings.length > 0
+            ? [item('forms-destination', 'Destino de los formularios', false, false, 'Listo.', `${forms.warnings.join('; ')}.`)]
+            : []),
         ]
       : []),
-    item('links', 'Los enlaces funcionan', links.length === 0, true, 'Todos los botones, menús y correos son válidos.', `Revisa ${links.join('; ')}. Elige una página del sitio o usa https://…, un correo o un teléfono.`),
+    item(
+      'links',
+      'Los enlaces funcionan',
+      links.length === 0,
+      true,
+      'Todos los botones, menús y correos son válidos.',
+      `Revisa ${links.join('; ')}. Elige una página del sitio o usa https://…, un correo o un teléfono.`,
+    ),
     ...info.mustHave
       .filter((need) => need.type !== 'hero' && need.type !== 'contact')
-      .map((need) => item(`must-${need.type}-${need.label}`, need.label, !missingMustHave.includes(need), false, 'Incluido.', `${need.why} Agrega una sección "${need.label}".`)),
-    item('sample', 'Reemplazaste los textos de ejemplo', sampleCount === 0, true, 'Ya no quedan textos de ejemplo.', `Quedan ${sampleCount} texto(s) de ejemplo tal cual. Cámbialos por los tuyos antes de publicar.`),
-    item('empty', 'Sin secciones vacías', emptyBlocks.length === 0, false, 'Todas las secciones tienen contenido.', `Hay ${emptyBlocks.length} sección(es) sin contenido: complétalas o escóndelas.`),
+      .map((need) =>
+        item(
+          `must-${need.type}-${need.label}`,
+          need.label,
+          !missingMustHave.includes(need),
+          false,
+          'Incluido.',
+          `${need.why} Agrega una sección "${need.label}".`,
+        ),
+      ),
+    item(
+      'sample',
+      'Reemplazaste los textos de ejemplo',
+      sampleCount === 0,
+      true,
+      'Ya no quedan textos de ejemplo.',
+      `Quedan ${sampleCount} texto(s) de ejemplo tal cual. Cámbialos por los tuyos antes de publicar.`,
+    ),
+    item(
+      'empty',
+      'Sin secciones vacías',
+      emptyBlocks.length === 0,
+      false,
+      'Todas las secciones tienen contenido.',
+      `Hay ${emptyBlocks.length} sección(es) sin contenido: complétalas o escóndelas.`,
+    ),
     ...(multiPage || doc.pages.length > 1
       ? [
-          item('pages', 'Todas las páginas tienen contenido', emptyPages.length === 0, false, 'Cada página tiene algo que mostrar.', `${emptyPages.map((page) => `«${page.title}»`).join(', ')} no tiene contenido todavía: agrégale secciones u ocúltala.`),
-          item('navigation', 'Se puede navegar entre páginas', !multiPage || doc.header.enabled, false, 'El menú lleva a todas las páginas.', 'Tu sitio tiene varias páginas pero el encabezado está apagado: sin menú, nadie llega a las demás. Actívalo en "Encabezado y pie".'),
+          item(
+            'pages',
+            'Todas las páginas tienen contenido',
+            emptyPages.length === 0,
+            false,
+            'Cada página tiene algo que mostrar.',
+            `${emptyPages.map((page) => `«${page.title}»`).join(', ')} no tiene contenido todavía: agrégale secciones u ocúltala.`,
+          ),
+          item(
+            'navigation',
+            'Se puede navegar entre páginas',
+            !multiPage || doc.header.enabled,
+            false,
+            'El menú lleva a todas las páginas.',
+            'Tu sitio tiene varias páginas pero el encabezado está apagado: sin menú, nadie llega a las demás. Actívalo en "Encabezado y pie".',
+          ),
         ]
       : []),
-    item('media', 'Videos, fechas y WhatsApp correctos', badMedia.length === 0 && !whatsappBroken, false, 'Todo en orden.', [...badMedia, ...(whatsappBroken ? ['el número del botón flotante de WhatsApp no es válido'] : [])].join('; ') + '.'),
-    item('layout-photos', 'Los diseños con fotos tienen fotos', photoLayouts.length === 0, false, 'Cada diseño tiene las fotos que necesita.', `${photoLayouts.join('; ')}, que luce con fotos: súbelas o elige otro diseño.`),
-    item('images', 'Usas imágenes propias', imageCount > 0, false, 'El sitio tiene imágenes.', 'Sube al menos una foto propia; un sitio solo con texto se ve incompleto.'),
-    item('alt', 'Las imágenes tienen descripción', imagesWithoutAlt === 0, false, 'Todas las imágenes están descritas.', `${imagesWithoutAlt} imagen(es) sin descripción. La leen los lectores de pantalla y ayuda a que te encuentren.`),
+    item(
+      'media',
+      'Videos, fechas y WhatsApp correctos',
+      badMedia.length === 0 && !whatsappBroken,
+      false,
+      'Todo en orden.',
+      [...badMedia, ...(whatsappBroken ? ['el número del botón flotante de WhatsApp no es válido'] : [])].join('; ') + '.',
+    ),
+    item(
+      'layout-photos',
+      'Los diseños con fotos tienen fotos',
+      photoLayouts.length === 0,
+      false,
+      'Cada diseño tiene las fotos que necesita.',
+      `${photoLayouts.join('; ')}, que luce con fotos: súbelas o elige otro diseño.`,
+    ),
+    item(
+      'images',
+      'Usas imágenes propias',
+      imageCount > 0,
+      false,
+      'El sitio tiene imágenes.',
+      'Sube al menos una foto propia; un sitio solo con texto se ve incompleto.',
+    ),
+    item(
+      'alt',
+      'Las imágenes tienen descripción',
+      imagesWithoutAlt === 0,
+      false,
+      'Todas las imágenes están descritas.',
+      `${imagesWithoutAlt} imagen(es) sin descripción. La leen los lectores de pantalla y ayuda a que te encuentren.`,
+    ),
     item('theme', 'Colores legibles', themeIssues.length === 0, false, 'El texto se lee bien sobre el fondo.', themeIssues.join(' ')),
     ...seoItems,
     logo,

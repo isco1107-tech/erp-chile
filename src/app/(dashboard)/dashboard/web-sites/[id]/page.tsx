@@ -7,12 +7,20 @@ import { getWebSite } from '@/modules/web-sites/services/web-sites.service';
 
 export const metadata = { title: 'Editar sitio web' };
 
-export default async function WebSiteEditorPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string | string[]; form?: string | string[] }> }) {
+export default async function WebSiteEditorPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string | string[]; form?: string | string[] }>;
+}) {
   const [{ id }, { tab, form }] = await Promise.all([params, searchParams]);
   const context = await getAuthContext();
   // El servicio se llama directo (sin la acción): el permiso se exige acá.
   if (!can(context, 'websites:read')) redirect('/dashboard');
 
+  const store = await prisma.webSiteStore.findFirst({ where: { companyId: context.companyId, siteId: id, standalone: true }, select: { id: true } });
+  if (store) redirect(can(context, 'store:read') ? `/dashboard/store/${id}/editor` : '/dashboard/web-sites');
   const site = await getWebSite(context.companyId, id);
   if (!site) notFound();
 

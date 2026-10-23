@@ -1,3 +1,4 @@
+import CommerceCatalogSection from '@/components/store-builder/CommerceCatalogSection';
 import { ArrowRight, Check } from 'lucide-react';
 import { Fragment, type ReactNode } from 'react';
 import { safeImageSrc, whatsappHref } from '@/lib/web-sites/urls';
@@ -89,8 +90,23 @@ export function FeaturesSection({ block, ctx, center }: SectionProps<'features'>
               const photo = hasPhoto(ctx, item.imageUrl);
               return (
                 <li key={index} className={bentoClass(index, items.length)}>
-                  <MaybeLink ctx={ctx} href={item.href} className={cx('flex h-full flex-col overflow-hidden text-left', first ? cx('ws-tone-primary ws-bg', ROUNDED) : 'ws-card', linked(item) && 'ws-card-hover')}>
-                    {photo && <Photo ctx={ctx} src={item.imageUrl} alt="" className={cx('w-full object-cover', first ? 'aspect-[16/9] @3xl:aspect-auto @3xl:min-h-0 @3xl:flex-1' : 'aspect-[16/9]')} />}
+                  <MaybeLink
+                    ctx={ctx}
+                    href={item.href}
+                    className={cx(
+                      'flex h-full flex-col overflow-hidden text-left',
+                      first ? cx('ws-tone-primary ws-bg', ROUNDED) : 'ws-card',
+                      linked(item) && 'ws-card-hover',
+                    )}
+                  >
+                    {photo && (
+                      <Photo
+                        ctx={ctx}
+                        src={item.imageUrl}
+                        alt=""
+                        className={cx('w-full object-cover', first ? 'aspect-[16/9] @3xl:aspect-auto @3xl:min-h-0 @3xl:flex-1' : 'aspect-[16/9]')}
+                      />
+                    )}
                     <div className={cx('p-6 @2xl:p-7', first && '@2xl:p-9')}>
                       {!photo && icon(item, 'mb-5')}
                       {item.title && <h3 className={cx('ws-h', first ? 'text-2xl @2xl:text-3xl' : 'text-xl')}>{item.title}</h3>}
@@ -114,7 +130,13 @@ export function FeaturesSection({ block, ctx, center }: SectionProps<'features'>
               return (
                 <li key={index} className={cx('grid items-center gap-8 text-left @3xl:gap-14', '@3xl:grid-cols-2')}>
                   <div className={cx(index % 2 === 1 && '@3xl:order-2')}>
-                    {photo ? <Photo ctx={ctx} src={item.imageUrl} alt="" className={cx('aspect-[4/3] w-full object-cover shadow-xl', ROUNDED)} /> : <span className={cx('ws-icon-tile !flex aspect-[4/3] !h-auto !w-full', ROUNDED)}><SiteIconView name={item.icon || 'sparkles'} className="size-14" /></span>}
+                    {photo ? (
+                      <Photo ctx={ctx} src={item.imageUrl} alt="" className={cx('aspect-[4/3] w-full object-cover shadow-xl', ROUNDED)} />
+                    ) : (
+                      <span className={cx('ws-icon-tile !flex aspect-[4/3] !h-auto !w-full', ROUNDED)}>
+                        <SiteIconView name={item.icon || 'sparkles'} className="size-14" />
+                      </span>
+                    )}
                   </div>
                   <div>
                     <p className="ws-eyebrow mb-3">{String(index + 1).padStart(2, '0')}</p>
@@ -143,7 +165,13 @@ export function FeaturesSection({ block, ctx, center }: SectionProps<'features'>
           {heading}
           <ol className={cx('grid gap-x-8 gap-y-10', gridColumns(items.length, Number(block.columns)))}>
             {items.map((item, index) => (
-              <li key={index} className={cx('text-left', block.variant === 'minimal' ? 'border-t-2 border-[color:var(--s-mark)] pt-5' : 'border-t border-[color:var(--s-line)] pt-6')}>
+              <li
+                key={index}
+                className={cx(
+                  'text-left',
+                  block.variant === 'minimal' ? 'border-t-2 border-[color:var(--s-mark)] pt-5' : 'border-t border-[color:var(--s-line)] pt-6',
+                )}
+              >
                 <MaybeLink ctx={ctx} href={item.href} className="block">
                   {block.variant === 'numbered' && <p className="ws-h ws-num mb-4 text-5xl">{String(index + 1).padStart(2, '0')}</p>}
                   {item.title && <h3 className="ws-h text-xl">{item.title}</h3>}
@@ -164,7 +192,15 @@ export function FeaturesSection({ block, ctx, center }: SectionProps<'features'>
               const photo = hasPhoto(ctx, item.imageUrl);
               return (
                 <li key={index}>
-                  <MaybeLink ctx={ctx} href={item.href} className={cx('ws-tone-dark ws-bg relative flex h-full min-h-[20rem] flex-col justify-end overflow-hidden text-left @2xl:min-h-[24rem]', ROUNDED, linked(item) && 'ws-card-hover')}>
+                  <MaybeLink
+                    ctx={ctx}
+                    href={item.href}
+                    className={cx(
+                      'ws-tone-dark ws-bg relative flex h-full min-h-[20rem] flex-col justify-end overflow-hidden text-left @2xl:min-h-[24rem]',
+                      ROUNDED,
+                      linked(item) && 'ws-card-hover',
+                    )}
+                  >
                     {photo && <Photo ctx={ctx} src={item.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />}
                     <span aria-hidden="true" className="absolute inset-0 bg-[linear-gradient(to_top,rgb(0_0_0/.82),rgb(0_0_0/.25)_55%,transparent)]" />
                     <div className="relative p-6 @2xl:p-7">
@@ -185,7 +221,12 @@ export function FeaturesSection({ block, ctx, center }: SectionProps<'features'>
           {heading}
           <Carousel label={block.heading || 'Servicios'} itemClassName={CAROUSEL_ITEM}>
             {items.map((item, index) => (
-              <MaybeLink key={index} ctx={ctx} href={item.href} className={cx('ws-card block h-full overflow-hidden text-left', linked(item) && 'ws-card-hover')}>
+              <MaybeLink
+                key={index}
+                ctx={ctx}
+                href={item.href}
+                className={cx('ws-card block h-full overflow-hidden text-left', linked(item) && 'ws-card-hover')}
+              >
                 {hasPhoto(ctx, item.imageUrl) ? <Photo ctx={ctx} src={item.imageUrl} alt="" className="aspect-[16/10] w-full object-cover" /> : null}
                 <div className="p-6">
                   {!hasPhoto(ctx, item.imageUrl) && icon(item, 'mb-5')}
@@ -221,7 +262,16 @@ export function FeaturesSection({ block, ctx, center }: SectionProps<'features'>
               );
               return (
                 <li key={index}>
-                  <MaybeLink ctx={ctx} href={item.href} className={cx('block h-full text-left', cards ? 'ws-card p-6 @2xl:p-7' : 'p-2', cards && linked(item) && 'ws-card-hover', !cards && center && 'text-center')}>
+                  <MaybeLink
+                    ctx={ctx}
+                    href={item.href}
+                    className={cx(
+                      'block h-full text-left',
+                      cards ? 'ws-card p-6 @2xl:p-7' : 'p-2',
+                      cards && linked(item) && 'ws-card-hover',
+                      !cards && center && 'text-center',
+                    )}
+                  >
                     {body}
                   </MaybeLink>
                 </li>
@@ -272,7 +322,10 @@ export function StatsSection({ block, ctx, center }: SectionProps<'stats'>) {
           <SectionHeading ctx={ctx} blockId={block.id} center={center} title={block.heading} intro={block.intro} />
           <ul className={cx('grid grid-cols-2 border-y border-[color:var(--s-line)] text-center', odd, wide)}>
             {items.map((item, index) => (
-              <li key={index} className="border-[color:var(--s-line)] px-3 py-8 [&:nth-child(even)]:border-l [&:nth-child(n+3)]:border-t @2xl:not-first:border-l @2xl:[&:nth-child(n+3)]:border-t-0">
+              <li
+                key={index}
+                className="border-[color:var(--s-line)] px-3 py-8 [&:nth-child(even)]:border-l [&:nth-child(n+3)]:border-t @2xl:not-first:border-l @2xl:[&:nth-child(n+3)]:border-t-0"
+              >
                 {stat(item)}
               </li>
             ))}
@@ -320,7 +373,16 @@ export function StatsSection({ block, ctx, center }: SectionProps<'stats'>) {
 const STEP_COLS: Record<number, string> = { 1: '', 2: '@3xl:grid-cols-2', 3: '@3xl:grid-cols-3', 4: '@3xl:grid-cols-4' };
 
 function StepNumber({ n, className }: { n: number; className?: string }) {
-  return <span className={cx('ws-h flex size-11 shrink-0 items-center justify-center rounded-full bg-[color:var(--s-btn)] text-lg text-[color:var(--s-btn-fg)]', className)}>{n}</span>;
+  return (
+    <span
+      className={cx(
+        'ws-h flex size-11 shrink-0 items-center justify-center rounded-full bg-[color:var(--s-btn)] text-lg text-[color:var(--s-btn-fg)]',
+        className,
+      )}
+    >
+      {n}
+    </span>
+  );
 }
 
 export function StepsSection({ block, ctx, center }: SectionProps<'steps'>) {
@@ -335,7 +397,10 @@ export function StepsSection({ block, ctx, center }: SectionProps<'steps'>) {
           {heading}
           <ol className={cx('grid gap-8 text-left @3xl:gap-6', cols)}>
             {items.map((item, index) => (
-              <li key={index} className="relative flex gap-4 @3xl:block @3xl:after:absolute @3xl:after:top-[1.375rem] @3xl:after:right-0 @3xl:after:left-14 @3xl:after:h-px @3xl:after:bg-[color:var(--s-line)] @3xl:last:after:hidden">
+              <li
+                key={index}
+                className="relative flex gap-4 @3xl:block @3xl:after:absolute @3xl:after:top-[1.375rem] @3xl:after:right-0 @3xl:after:left-14 @3xl:after:h-px @3xl:after:bg-[color:var(--s-line)] @3xl:last:after:hidden"
+              >
                 <StepNumber n={index + 1} />
                 <div className="min-w-0 @3xl:mt-5 @3xl:pr-4">
                   {item.title && <h3 className="ws-h pt-2 text-xl @3xl:pt-0">{item.title}</h3>}
@@ -387,7 +452,10 @@ export function StepsSection({ block, ctx, center }: SectionProps<'steps'>) {
           {heading}
           <ol className={cx('max-w-2xl text-left', center && 'mx-auto')}>
             {items.map((item, index) => (
-              <li key={index} className="relative pb-10 pl-16 before:absolute before:top-12 before:bottom-0 before:left-[1.35rem] before:w-px before:bg-[color:var(--s-line)] last:pb-0 last:before:hidden">
+              <li
+                key={index}
+                className="relative pb-10 pl-16 before:absolute before:top-12 before:bottom-0 before:left-[1.35rem] before:w-px before:bg-[color:var(--s-line)] last:pb-0 last:before:hidden"
+              >
                 <StepNumber n={index + 1} className="absolute top-0 left-0" />
                 {item.title && <h3 className="ws-h pt-2 text-xl">{item.title}</h3>}
                 {item.text && <p className="ws-muted mt-1.5 leading-relaxed">{item.text}</p>}
@@ -458,7 +526,13 @@ export function PricingSection({ block, ctx, center }: SectionProps<'pricing'>) 
         {heading}
         <ul className="space-y-4">
           {items.map((plan, index) => (
-            <li key={index} className={cx('ws-card relative flex flex-col gap-5 p-6 text-left @2xl:flex-row @2xl:items-center @2xl:gap-8 @2xl:p-7', plan.highlighted && 'ring-2 ring-[color:var(--s-mark)]')}>
+            <li
+              key={index}
+              className={cx(
+                'ws-card relative flex flex-col gap-5 p-6 text-left @2xl:flex-row @2xl:items-center @2xl:gap-8 @2xl:p-7',
+                plan.highlighted && 'ring-2 ring-[color:var(--s-mark)]',
+              )}
+            >
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   {plan.name && <h3 className="ws-h min-w-0 text-xl break-words">{plan.name}</h3>}
@@ -481,7 +555,16 @@ export function PricingSection({ block, ctx, center }: SectionProps<'pricing'>) 
   // Cuatro planes van de a dos, o los cuatro en fila solo si la sección es ancha (80 rem): en tres columnas el cuarto quedaba solo, y en el ancho normal cuatro tarjetas no caben.
   const roomy = block.style.width === 'wide' || (block.style.width === 'auto' && ctx.siteWidth === 'wide');
   const four = roomy ? '@2xl:grid-cols-2 @6xl:grid-cols-4' : 'mx-auto max-w-4xl @2xl:grid-cols-2';
-  const grid = items.length === 1 ? 'mx-auto max-w-md' : items.length === 2 ? 'mx-auto max-w-3xl @2xl:grid-cols-2' : items.length === 3 ? 'mx-auto max-w-md @4xl:max-w-none @4xl:grid-cols-3' : items.length === 4 ? four : '@2xl:grid-cols-2 @5xl:grid-cols-3';
+  const grid =
+    items.length === 1
+      ? 'mx-auto max-w-md'
+      : items.length === 2
+        ? 'mx-auto max-w-3xl @2xl:grid-cols-2'
+        : items.length === 3
+          ? 'mx-auto max-w-md @4xl:max-w-none @4xl:grid-cols-3'
+          : items.length === 4
+            ? four
+            : '@2xl:grid-cols-2 @5xl:grid-cols-3';
 
   if (block.variant === 'minimal') {
     // Líneas verticales entre planes solo cuando van todos en una fila; en dos filas, separación normal.
@@ -498,7 +581,14 @@ export function PricingSection({ block, ctx, center }: SectionProps<'pricing'>) 
         {heading}
         <ul className={cx('grid gap-y-10', grid, row.ul)}>
           {items.map((plan, index) => (
-            <li key={index} className={cx('relative flex flex-col border-t-2 px-1 pt-7 text-left', plan.highlighted ? 'border-[color:var(--s-mark)]' : 'border-[color:var(--s-line)]', row.li)}>
+            <li
+              key={index}
+              className={cx(
+                'relative flex flex-col border-t-2 px-1 pt-7 text-left',
+                plan.highlighted ? 'border-[color:var(--s-mark)]' : 'border-[color:var(--s-line)]',
+                row.li,
+              )}
+            >
               {plan.highlighted && plan.badge && <span className="ws-eyebrow mb-3">{plan.badge}</span>}
               {plan.name && <h3 className="ws-h text-xl">{plan.name}</h3>}
               {plan.description && <p className="ws-muted mt-2 text-sm leading-relaxed">{plan.description}</p>}
@@ -520,8 +610,18 @@ export function PricingSection({ block, ctx, center }: SectionProps<'pricing'>) 
           const hl = plan.highlighted;
           return (
             <li key={index} className={cx(hl && '@4xl:z-10 @4xl:scale-[1.03]')}>
-              <div className={cx('relative flex h-full flex-col p-7 text-left @2xl:p-8', ROUNDED, hl ? 'ws-tone-primary ws-bg shadow-2xl ring-1 ring-[color:var(--s-mark)]' : 'ws-card')}>
-                {plan.badge && <span className="absolute -top-3 left-7 rounded-full bg-[color:var(--s-btn)] px-3 py-1 text-xs font-bold text-[color:var(--s-btn-fg)]">{plan.badge}</span>}
+              <div
+                className={cx(
+                  'relative flex h-full flex-col p-7 text-left @2xl:p-8',
+                  ROUNDED,
+                  hl ? 'ws-tone-primary ws-bg shadow-2xl ring-1 ring-[color:var(--s-mark)]' : 'ws-card',
+                )}
+              >
+                {plan.badge && (
+                  <span className="absolute -top-3 left-7 rounded-full bg-[color:var(--s-btn)] px-3 py-1 text-xs font-bold text-[color:var(--s-btn-fg)]">
+                    {plan.badge}
+                  </span>
+                )}
                 {plan.name && <h3 className="ws-h text-xl">{plan.name}</h3>}
                 {plan.description && <p className="ws-muted mt-2 text-sm leading-relaxed">{plan.description}</p>}
                 <PlanPrice plan={plan} className="mt-6" />
@@ -545,7 +645,14 @@ type Member = SectionProps<'team'>['block']['items'][number];
 export function TeamSection({ block, ctx, center }: SectionProps<'team'>) {
   const items = block.items.filter((member) => member.name);
   const heading = <SectionHeading ctx={ctx} blockId={block.id} center={center} title={block.heading} intro={block.intro} />;
-  const cols = items.length >= 4 ? '@2xl:grid-cols-3 @4xl:grid-cols-4' : items.length === 3 ? '@2xl:grid-cols-3' : items.length === 2 ? '@2xl:grid-cols-2 mx-auto max-w-2xl' : 'mx-auto max-w-xs';
+  const cols =
+    items.length >= 4
+      ? '@2xl:grid-cols-3 @4xl:grid-cols-4'
+      : items.length === 3
+        ? '@2xl:grid-cols-3'
+        : items.length === 2
+          ? '@2xl:grid-cols-2 mx-auto max-w-2xl'
+          : 'mx-auto max-w-xs';
   const names = (member: Member, className?: string) => (
     <>
       <h3 className={cx('ws-h text-lg', className)}>{member.name}</h3>
@@ -581,7 +688,10 @@ export function TeamSection({ block, ctx, center }: SectionProps<'team'>) {
           {heading}
           <ul className={cx('grid gap-4 @md:grid-cols-2', cols)}>
             {items.map((member, index) => (
-              <li key={index} className={cx('ws-tone-dark ws-bg relative flex min-h-[22rem] flex-col justify-end overflow-hidden text-left @2xl:min-h-[26rem]', ROUNDED)}>
+              <li
+                key={index}
+                className={cx('ws-tone-dark ws-bg relative flex min-h-[22rem] flex-col justify-end overflow-hidden text-left @2xl:min-h-[26rem]', ROUNDED)}
+              >
                 {hasPhoto(ctx, member.photoUrl) ? (
                   <Photo ctx={ctx} src={member.photoUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
                 ) : (
@@ -606,7 +716,11 @@ export function TeamSection({ block, ctx, center }: SectionProps<'team'>) {
           <ul className={cx('grid gap-x-12 gap-y-8', items.length > 1 && '@3xl:grid-cols-2')}>
             {items.map((member, index) => (
               <li key={index} className="flex items-start gap-5 text-left">
-                {safeImageSrc(member.photoUrl) || ctx.placeholders ? <Photo ctx={ctx} src={member.photoUrl} alt="" className="size-20 shrink-0 rounded-full object-cover @2xl:size-24" /> : <Avatar name={member.name} className="!size-20 text-2xl @2xl:!size-24" />}
+                {safeImageSrc(member.photoUrl) || ctx.placeholders ? (
+                  <Photo ctx={ctx} src={member.photoUrl} alt="" className="size-20 shrink-0 rounded-full object-cover @2xl:size-24" />
+                ) : (
+                  <Avatar name={member.name} className="!size-20 text-2xl @2xl:!size-24" />
+                )}
                 <div className="min-w-0">
                   {names(member)}
                   {member.bio && <p className="ws-muted mt-2 text-sm leading-relaxed">{member.bio}</p>}
@@ -623,7 +737,11 @@ export function TeamSection({ block, ctx, center }: SectionProps<'team'>) {
           <ul className={cx('grid grid-cols-2 gap-x-5 gap-y-10 text-center', cols)}>
             {items.map((member, index) => (
               <li key={index}>
-                {hasPhoto(ctx, member.photoUrl) ? <Photo ctx={ctx} src={member.photoUrl} alt="" className="mx-auto aspect-square w-full max-w-[13rem] rounded-full object-cover shadow-lg" /> : <Avatar name={member.name} className="mx-auto !size-28 text-3xl" />}
+                {hasPhoto(ctx, member.photoUrl) ? (
+                  <Photo ctx={ctx} src={member.photoUrl} alt="" className="mx-auto aspect-square w-full max-w-[13rem] rounded-full object-cover shadow-lg" />
+                ) : (
+                  <Avatar name={member.name} className="mx-auto !size-28 text-3xl" />
+                )}
                 {names(member, 'mt-5')}
                 {member.bio && <p className="ws-muted mx-auto mt-3 max-w-xs text-sm leading-relaxed">{member.bio}</p>}
               </li>
@@ -660,7 +778,9 @@ function PriceRow({ item, center }: { item: PriceItem; center?: boolean }) {
 }
 
 export function PricelistSection({ block, ctx, center }: SectionProps<'pricelist'>) {
-  const categories = block.categories.map((category) => ({ ...category, items: category.items.filter((item) => item.name) })).filter((category) => category.items.length > 0);
+  const categories = block.categories
+    .map((category) => ({ ...category, items: category.items.filter((item) => item.name) }))
+    .filter((category) => category.items.length > 0);
   const many = categories.length > 1;
   const heading = <SectionHeading ctx={ctx} blockId={block.id} center={center} title={block.heading} intro={block.intro} />;
   const note = block.note ? <p className={cx('ws-muted mt-2 text-sm', center && 'text-center')}>{block.note}</p> : null;
@@ -726,7 +846,9 @@ export function PricelistSection({ block, ctx, center }: SectionProps<'pricelist
               <ul className="grid gap-x-10 gap-y-6 @3xl:grid-cols-2">
                 {category.items.map((item, i) => (
                   <li key={i} className="flex items-start gap-4">
-                    {hasPhoto(ctx, item.imageUrl) && <Photo ctx={ctx} src={item.imageUrl} alt={item.name} className="size-20 shrink-0 rounded-[var(--ws-radius)] object-cover @2xl:size-24" />}
+                    {hasPhoto(ctx, item.imageUrl) && (
+                      <Photo ctx={ctx} src={item.imageUrl} alt={item.name} className="size-20 shrink-0 rounded-[var(--ws-radius)] object-cover @2xl:size-24" />
+                    )}
                     <div className="min-w-0 flex-1">
                       <PriceRow item={item} />
                     </div>
@@ -773,6 +895,18 @@ function OrderButton({ children }: { children: ReactNode }) {
 }
 
 export function CatalogSection({ block, ctx, center }: SectionProps<'catalog'>) {
+  if (block.store)
+    return (
+      <CommerceCatalogSection
+        block={block}
+        siteSlug={ctx.slug}
+        basePath={ctx.basePath}
+        preview={ctx.preview}
+        previewSiteId={ctx.commerce?.siteId}
+        products={ctx.commerce?.products[block.id]}
+        open={ctx.commerce?.open ?? false}
+      />
+    );
   const items = block.items.filter((item) => item.title || hasPhoto(ctx, item.imageUrl));
   const number = block.whatsapp || ctx.doc.whatsapp.number;
   const heading = <SectionHeading ctx={ctx} blockId={block.id} center={center} title={block.heading} intro={block.intro} />;
@@ -786,7 +920,12 @@ export function CatalogSection({ block, ctx, center }: SectionProps<'catalog'>) 
       </SiteLink>
     );
   };
-  const badge = (item: CatalogItem) => (item.badge ? <span className="absolute top-3 left-3 rounded-full bg-[color:var(--s-btn)] px-3 py-1 text-xs font-bold text-[color:var(--s-btn-fg)] shadow">{item.badge}</span> : null);
+  const badge = (item: CatalogItem) =>
+    item.badge ? (
+      <span className="absolute top-3 left-3 rounded-full bg-[color:var(--s-btn)] px-3 py-1 text-xs font-bold text-[color:var(--s-btn-fg)] shadow">
+        {item.badge}
+      </span>
+    ) : null;
   const info = (item: CatalogItem) => (
     <>
       {item.title && <h3 className="ws-h text-lg">{item.title}</h3>}

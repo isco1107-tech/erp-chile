@@ -21,11 +21,13 @@ export interface NavItem {
 
 /** ¿El enlace lleva a la página que se está viendo (sin ancla)? Es lo que marca `aria-current="page"`. */
 function isCurrent(ctx: RenderCtx, link: ResolvedLink | null): boolean {
+  if (ctx.store?.current) return Boolean(link && link.href === ctx.store.catalogHref && (ctx.store.current === 'catalog' || ctx.store.current === 'product'));
   return Boolean(link && !link.external && link.pageId === ctx.page.id && !link.anchor);
 }
 
 /** Un ancla de esta página que no se pinta (sección vacía u oculta) no debe quedar en el menú apuntando a nada. */
 function dangling(ctx: RenderCtx, link: ResolvedLink | null, anchors: ReadonlySet<string>): boolean {
+  if (ctx.store?.current) return false;
   return Boolean(link && link.pageId === ctx.page.id && link.anchor && !anchors.has(link.anchor));
 }
 

@@ -84,10 +84,7 @@ export async function ensureStore(companyId: string, siteId: string): Promise<vo
 export async function getStoreSettings(companyId: string, siteId: string): Promise<StoreSettingsView> {
   const site = await loadSite(companyId, siteId);
   await ensureStore(companyId, siteId);
-  const [store, khipuConfigured] = await Promise.all([
-    prisma.webSiteStore.findFirst({ where: { siteId, companyId } }),
-    hasKhipuCredential(companyId),
-  ]);
+  const [store, khipuConfigured] = await Promise.all([prisma.webSiteStore.findFirst({ where: { siteId, companyId } }), hasKhipuCredential(companyId)]);
   if (!store) throw new StoreNotFoundError('La tienda de este sitio no existe');
   return {
     siteId: site.id,
@@ -117,7 +114,9 @@ export async function getStoreSettings(companyId: string, siteId: string): Promi
   };
 }
 
-export function paymentSetupOf(settings: Pick<StoreSettingsView, 'paymentMethods' | 'khipuConfigured' | 'webpayCommerceCode' | 'webpayHasSecret' | 'bankTransferInfo' | 'pickupEnabled'>): StorePaymentSetup {
+export function paymentSetupOf(
+  settings: Pick<StoreSettingsView, 'paymentMethods' | 'khipuConfigured' | 'webpayCommerceCode' | 'webpayHasSecret' | 'bankTransferInfo' | 'pickupEnabled'>,
+): StorePaymentSetup {
   return {
     enabled: settings.paymentMethods,
     khipuConfigured: settings.khipuConfigured,
@@ -136,7 +135,8 @@ export async function updateStoreSettings(companyId: string, siteId: string, inp
     const warehouse = await prisma.warehouse.findFirst({ where: { id: input.warehouseId, companyId }, select: { id: true } });
     if (!warehouse) throw new StoreError('La bodega elegida no existe', 400, 'warehouseId');
   }
-  if (input.pickupEnabled && !input.pickupAddress.trim()) throw new StoreError('Para ofrecer retiro escribe la dirección donde se retira.', 400, 'pickupAddress');
+  if (input.pickupEnabled && !input.pickupAddress.trim())
+    throw new StoreError('Para ofrecer retiro escribe la dirección donde se retira.', 400, 'pickupAddress');
   if (input.paymentMethods.includes('TRANSFER') && !input.bankTransferInfo.trim()) {
     throw new StoreError('Para cobrar por transferencia escribe tus datos bancarios.', 400, 'bankTransferInfo');
   }
@@ -251,17 +251,26 @@ export interface StoreSiteRow {
   open: boolean;
   /** Ya se armó la configuración de su tienda (aunque esté cerrada). */
   hasStore: boolean;
+  standalone: boolean;
 }
 
 /** Sitios del constructor guiado (no archivados) donde se puede armar una tienda, con el estado de la suya. */
 export async function listStoreSites(companyId: string): Promise<StoreSiteRow[]> {
   const sites = await prisma.webSite.findMany({
-    where: { companyId, mode: 'GUIDED', status: { not: 'ARCHIVED' } },
+    where: { companyId, mode: 'GUIDED', status: { not: 'ARCHIVED' }, store: { isNot: null } },
     orderBy: [{ updatedAt: 'desc' }],
     take: 100,
-    select: { id: true, name: true, slug: true, status: true, store: { select: { enabled: true } } },
+    select: { id: true, name: true, slug: true, status: true, store: { select: { enabled: true, standalone: true } } },
   });
-  return sites.map((site) => ({ id: site.id, name: site.name, slug: site.slug, status: site.status, open: Boolean(site.store?.enabled), hasStore: Boolean(site.store) }));
+  return sites.map((site) => ({
+    id: site.id,
+    name: site.name,
+    slug: site.slug,
+    status: site.status,
+    open: Boolean(site.store?.enabled),
+    hasStore: Boolean(site.store),
+    standalone: Boolean(site.store?.standalone),
+  }));
 }
 
 /** Bodegas de la empresa para elegir de cuál sale lo que se vende. */

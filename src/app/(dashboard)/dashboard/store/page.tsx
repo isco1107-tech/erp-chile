@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { PageHeader } from '@/components/ui/PageHeader';
 import CreateStorefront from '@/components/store-admin/CreateStorefront';
 import { PageAccessNotice } from '@/components/shared/PageAccessNotice';
@@ -30,14 +31,22 @@ export default async function StorePage({ searchParams }: { searchParams: Promis
     return (
       <div className="space-y-6">
         {header}
-        {can(context, 'store:manage') ? <CreateStorefront /> : <p className="text-sm text-muted-foreground">Pide al administrador que cree tu primera tienda.</p>}
+        {can(context, 'store:manage') ? (
+          <CreateStorefront />
+        ) : (
+          <p className="text-sm text-muted-foreground">Pide al administrador que cree tu primera tienda.</p>
+        )}
       </div>
     );
   }
 
   const wanted = typeof sitio === 'string' ? sitio : undefined;
   const selected = sites.find((entry) => entry.id === wanted) ?? sites.find((entry) => entry.open) ?? sites.find((entry) => entry.hasStore) ?? sites[0]!;
-  const [settings, stats, warehouses] = await Promise.all([getStoreSettings(context.companyId, selected.id), getStoreStats(context.companyId, selected.id), listStoreWarehouses(context.companyId)]);
+  const [settings, stats, warehouses] = await Promise.all([
+    getStoreSettings(context.companyId, selected.id),
+    getStoreStats(context.companyId, selected.id),
+    listStoreWarehouses(context.companyId),
+  ]);
   const readiness = await getStoreReadiness(context.companyId, selected.id, settings);
   const initialTab = (TABS as readonly string[]).includes(typeof tab === 'string' ? tab : '') ? (tab as StoreTab) : 'orders';
 
@@ -45,6 +54,20 @@ export default async function StorePage({ searchParams }: { searchParams: Promis
     <div className="space-y-6">
       {header}
       {can(context, 'store:manage') && <CreateStorefront compact />}
+      {selected.standalone && (
+        <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-primary/25 bg-card p-5">
+          <div>
+            <h2 className="font-semibold">Creador de tu tienda y páginas de marca</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Portada, páginas, secciones de productos con carrito, diseño, formularios y dominio.</p>
+          </div>
+          <Link
+            href={`/dashboard/store/${selected.id}/editor`}
+            className="inline-flex min-h-11 items-center rounded-xl bg-primary px-5 py-2 font-medium text-primary-foreground"
+          >
+            Diseñar mi tienda
+          </Link>
+        </section>
+      )}
       <StoreAdminClient
         key={selected.id}
         sites={sites}

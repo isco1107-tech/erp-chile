@@ -15,7 +15,11 @@ import SiteRenderer from './SiteRenderer';
 
 /** Página publicada con esa dirección (`''` = inicio) o `null` si no existe o está oculta. */
 export function findPublicPage(site: PublicWebSite, pageSlug?: string): SitePage | null {
-  if (site.mode === 'HTML') return pageSlug ? null : { id: 'home', title: site.title, slug: '', menuLabel: '', showInMenu: true, hidden: false, seoTitle: '', seoDescription: '', blocks: [] };
+  if (site.standaloneStore && !site.storefrontHome) return null;
+  if (site.mode === 'HTML')
+    return pageSlug
+      ? null
+      : { id: 'home', title: site.title, slug: '', menuLabel: '', showInMenu: true, hidden: false, seoTitle: '', seoDescription: '', blocks: [] };
   return findPageBySlug(site.document, pageSlug ?? '');
 }
 

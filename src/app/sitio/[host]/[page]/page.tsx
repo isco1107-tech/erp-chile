@@ -1,3 +1,4 @@
+import StorefrontDocument from '@/components/store-builder/StorefrontDocument';
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -25,7 +26,8 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 /** Query string original, para no perderlo al mandar a la plataforma. */
 function queryString(search: Record<string, string | string[] | undefined>): string {
   const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(search)) for (const item of Array.isArray(value) ? value : value === undefined ? [] : [value]) query.append(key, item);
+  for (const [key, value] of Object.entries(search))
+    for (const item of Array.isArray(value) ? value : value === undefined ? [] : [value]) query.append(key, item);
   const text = query.toString();
   return text ? `?${text}` : '';
 }
@@ -68,5 +70,9 @@ export default async function CustomDomainInnerPage({ params, searchParams }: { 
   }
   const { pageSlug, site, found } = await resolve(params);
   if (!site || !found) redirect(`${platformBaseUrl()}/${encodeURIComponent(pageSlug)}${queryString(search)}`);
-  return <WebSiteDocument site={site} pageSlug={pageSlug} basePath="" siteUrl={`https://${site.customDomain}`} />;
+  return site.storefrontHome ? (
+    <StorefrontDocument site={site} pageSlug={pageSlug} basePath="" siteUrl={`https://${site.customDomain}`} />
+  ) : (
+    <WebSiteDocument site={site} pageSlug={pageSlug} basePath="" siteUrl={`https://${site.customDomain}`} />
+  );
 }

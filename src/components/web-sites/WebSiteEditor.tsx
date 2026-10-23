@@ -14,10 +14,11 @@ import { sampleBlock } from '@/lib/web-sites/section-samples';
 import { htmlHints, sanitizeHtml, wrapHtmlDocument } from '@/lib/web-sites/html';
 import { evaluateReadiness, type ReadinessReport } from '@/lib/web-sites/readiness';
 import { allBlocks, findPage, homeOf, normalizeSiteDocument, pageBlockAnchors, siteDocumentSchema, type SiteDocument } from '@/lib/web-sites/site';
+import { storefrontDesign } from '@/lib/ecommerce/storefront-design';
 import { KIND_INFO } from '@/lib/web-sites/templates';
 import { parseTheme, type WebSiteTheme } from '@/lib/web-sites/theme';
 import { siteSlugProblem, slugify } from '@/lib/web-sites/urls';
-import { getWebSiteAction, publishWebSiteAction, saveWebSiteContentAction, unpublishWebSiteAction, updateWebSiteSettingsAction } from '@/modules/web-sites/actions/web-sites.actions';
+import { useEditorRuntime } from './EditorRuntime';
 import type { WebSiteDetail } from '@/modules/web-sites/services/web-sites.service';
 import { AddPageDialog } from './AddPageDialog';
 import { AssetLibrary } from './AssetLibrary';
@@ -39,7 +40,18 @@ import { ThemePanel } from './ThemePanel';
 import WebSiteDomainPanel from './WebSiteDomainPanel';
 import WebSiteMessagesPanel from './WebSiteMessagesPanel';
 import { canRedo, canUndo, emptyHistory, recordChange, redoStep, structureSignature, undoStep, type HistoryState } from './editor-history';
-import { EditorAssetsContext, isEditorTab, settingsEqual, useDebouncedValue, type EditorAsset, type EditorAssetsContextValue, type EditorTab, type PreviewDevice, type SettingsDraft } from './editor-shared';
+import {
+  EditorAssetsContext,
+  isEditorTab,
+  settingsEqual,
+  useDebouncedValue,
+  type EditorAsset,
+  type EditorAssetsContextValue,
+  type EditorTab,
+  type PreviewDevice,
+  type SettingsDraft,
+  uploadWebSiteImage,
+} from './editor-shared';
 
 interface WebSiteEditorProps {
   site: WebSiteDetail;
@@ -105,7 +117,14 @@ function draftOf(site: WebSiteDetail): SettingsDraft {
 }
 
 function formatMoment(value: Date | string): string {
-  return new Date(value).toLocaleString('es-CL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'America/Santiago' });
+  return new Date(value).toLocaleString('es-CL', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+    timeZone: 'America/Santiago',
+  });
 }
 
 function agoLabel(ms: number): string {
@@ -132,20 +151,37 @@ function isTextEntry(target: EventTarget | null): boolean {
 
 const NETWORK_ERROR = 'No se pudo completar la acción. Revisa tu conexión e inténtalo de nuevo.';
 
-export default function WebSiteEditor({ site, contacts, canWrite, canPublish, formAccess, canReadAcademy, routeTargets, initialTab, initialFormId = null }: WebSiteEditorProps) {
+export default function WebSiteEditor({
+  site,
+  contacts,
+  canWrite,
+  canPublish,
+  formAccess,
+  canReadAcademy,
+  routeTargets,
+  initialTab,
+  initialFormId = null,
+}: WebSiteEditorProps) {
+  const { actions: editorActions, scope: editorScope } = useEditorRuntime();
   const confirm = useConfirm();
+  const isStore = editorScope === 'store';
   const isGuided = site.mode === 'GUIDED';
 
   const [tab, setTab] = useState<EditorTab>(isEditorTab(initialTab) ? initialTab : 'content');
   const [status, setStatus] = useState(site.status);
   const [publishedAt, setPublishedAt] = useState<Date | string | null>(site.publishedAt);
   const [pendingChanges, setPendingChanges] = useState(site.pendingChanges);
-  const [content, setContent] = useState<Content>(() => ({ document: site.document, theme: site.theme }));
+  const [content, setContent] = useState<Content>(() => ({
+    document: isStore && allBlocks(site.document).length === 0 ? storefrontDesign(site.name).document : site.document,
+    theme: site.theme,
+  }));
   const [html, setHtml] = useState(site.html);
   const [saved, setSaved] = useState<SavedContent>(() => ({ document: site.document, theme: site.theme, html: site.html }));
   const [settings, setSettings] = useState<SettingsDraft>(() => draftOf(site));
   const [savedSettings, setSavedSettings] = useState<SettingsDraft>(() => draftOf(site));
-  const [assets, setAssets] = useState<EditorAsset[]>(() => site.assets.map(({ id, url, fileName, mimeType, sizeBytes, alt }) => ({ id, url, fileName, mimeType, sizeBytes, alt })));
+  const [assets, setAssets] = useState<EditorAsset[]>(() =>
+    site.assets.map(({ id, url, fileName, mimeType, sizeBytes, alt }) => ({ id, url, fileName, mimeType, sizeBytes, alt })),
+  );
   const [version, setVersion] = useState(site.version);
   const [baseline, setBaseline] = useState<ContentSnapshot>(() => snapshotOf({ document: site.document, theme: site.theme, html: site.html }));
   const [busy, setBusy] = useState<Busy>(null);
@@ -159,7 +195,10 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, fo
   const [unread, setUnread] = useState(site.unreadMessages);
   const [messagesFormId, setMessagesFormId] = useState<string | null>(initialFormId);
   // Módulos contratados según los destinos de formularios: la lista "qué falta" avisa si un destino no está en el plan.
-  const formFeatures = useMemo(() => Object.fromEntries((['crm', 'academy', 'tasks'] as const).map((key) => [DESTINATION_INFO[key].feature ?? key, formAccess[key].enabled])), [formAccess]);
+  const formFeatures = useMemo(
+    () => Object.fromEntries((['crm', 'academy', 'tasks'] as const).map((key) => [DESTINATION_INFO[key].feature ?? key, formAccess[key].enabled])),
+    [formAccess],
+  );
   const [publishOpen, setPublishOpen] = useState(false);
   const [publishReport, setPublishReport] = useState<ReadinessReport | null>(null);
   const [historyFlags, setHistoryFlags] = useState({ undo: false, redo: false });
@@ -225,7 +264,7 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, fo
       setContent(next);
       syncHistoryFlags();
     },
-    [syncHistoryFlags]
+    [syncHistoryFlags],
   );
 
   const updateDocument = useCallback(
@@ -233,7 +272,7 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, fo
       const previous = contentRef.current;
       commit({ ...previous, document: updater(previous.document) }, 'document');
     },
-    [commit]
+    [commit],
   );
 
   const updateTheme = useCallback(
@@ -241,7 +280,7 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, fo
       const previous = contentRef.current;
       commit({ ...previous, theme: { ...previous.theme, ...patch } }, 'theme');
     },
-    [commit]
+    [commit],
   );
 
   const updateHtml = useCallback((next: string) => setHtml(next), []);
@@ -291,9 +330,21 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, fo
 
   const updateSettings = useCallback((patch: Partial<SettingsDraft>) => setSettings((previous) => ({ ...previous, ...patch })), []);
 
-  const addAsset = useCallback((asset: EditorAsset) => setAssets((previous) => (previous.some((item) => item.id === asset.id) ? previous : [asset, ...previous])), []);
+  const addAsset = useCallback(
+    (asset: EditorAsset) => setAssets((previous) => (previous.some((item) => item.id === asset.id) ? previous : [asset, ...previous])),
+    [],
+  );
 
-  const assetsContext = useMemo<EditorAssetsContextValue>(() => ({ siteId: site.id, assets, readOnly, addAsset }), [site.id, assets, readOnly, addAsset]);
+  const assetsContext = useMemo<EditorAssetsContextValue>(
+    () => ({
+      siteId: site.id,
+      assets,
+      readOnly,
+      addAsset,
+      ...(isStore ? { uploadAsset: (file: File, alt?: string) => uploadWebSiteImage(site.id, file, alt, '/api/store/asset-upload') } : {}),
+    }),
+    [site.id, assets, readOnly, addAsset, isStore],
+  );
 
   // -------------------------------------------------------------------------
   // Navegación: página actual, sección abierta y vista previa
@@ -312,7 +363,7 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, fo
       setOpenId(page.blocks[0]?.id ?? null);
       requestScroll({ pageId: nextId, target: 'top' });
     },
-    [requestScroll]
+    [requestScroll],
   );
 
   const editPage = useCallback(
@@ -320,7 +371,7 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, fo
       selectPage(nextId);
       setTab('content');
     },
-    [selectPage]
+    [selectPage],
   );
 
   // Un clic en el menú o en un botón de la vista previa: se cambia de página sin salir del editor.
@@ -334,7 +385,7 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, fo
       }
       requestScroll({ pageId: targetPageId, target: anchor ? 'anchor' : 'top', anchor });
     },
-    [requestScroll]
+    [requestScroll],
   );
 
   // Un clic en una sección de la vista previa: se abre para editarla y se lleva a la vista.
@@ -370,7 +421,7 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, fo
       const page = findPage(contentRef.current.document, pageIdRef.current);
       requestScroll({ pageId: pageIdRef.current, target: 'block', blockId: id, anchor: page ? (pageBlockAnchors(page).get(id) ?? null) : null });
     },
-    [requestScroll]
+    [requestScroll],
   );
 
   const focusArea = useCallback((area: 'top' | 'bottom') => requestScroll({ target: area }), [requestScroll]);
@@ -384,7 +435,7 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, fo
       setRevealId(blockId);
       requestScroll({ pageId: targetPageId, target: 'block', blockId, anchor: null });
     },
-    [requestScroll]
+    [requestScroll],
   );
 
   const seeFormMessages = useCallback((blockId: string) => {
@@ -395,9 +446,13 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, fo
   const addForm = useCallback(() => {
     const page = findPage(contentRef.current.document, pageIdRef.current);
     if (!page) return;
-    if (page.blocks.length >= MAX_BLOCKS) return void toast.error(`La página «${page.title}» ya tiene ${MAX_BLOCKS} secciones: agrega el formulario en otra página.`);
+    if (page.blocks.length >= MAX_BLOCKS)
+      return void toast.error(`La página «${page.title}» ya tiene ${MAX_BLOCKS} secciones: agrega el formulario en otra página.`);
     const block = sampleBlock('form');
-    updateDocument((previous) => ({ ...previous, pages: previous.pages.map((item) => (item.id === page.id ? { ...item, blocks: [...item.blocks, block] } : item)) }));
+    updateDocument((previous) => ({
+      ...previous,
+      pages: previous.pages.map((item) => (item.id === page.id ? { ...item, blocks: [...item.blocks, block] } : item)),
+    }));
     editForm(page.id, block.id);
     toast.success('Formulario agregado al final de la página: elige una plantilla y su destino en el ERP.');
   }, [editForm, updateDocument]);
@@ -412,24 +467,53 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, fo
   // -------------------------------------------------------------------------
 
   const live = useMemo(
-    () => ({ document, theme, html, pageId, name: settings.name, seoTitle: settings.seoTitle, seoDescription: settings.seoDescription, logoUrl: settings.logoUrl }),
-    [document, theme, html, pageId, settings.name, settings.seoTitle, settings.seoDescription, settings.logoUrl]
+    () => ({
+      document,
+      theme,
+      html,
+      pageId,
+      name: settings.name,
+      seoTitle: settings.seoTitle,
+      seoDescription: settings.seoDescription,
+      logoUrl: settings.logoUrl,
+    }),
+    [document, theme, html, pageId, settings.name, settings.seoTitle, settings.seoDescription, settings.logoUrl],
   );
   const debounced = useDebouncedValue(live, 150);
 
   const report = useMemo(
-    () => evaluateReadiness({ kind: site.kind, mode: site.mode, seoTitle: debounced.seoTitle, seoDescription: debounced.seoDescription, logoUrl: debounced.logoUrl, theme: debounced.theme, document: debounced.document, html: debounced.html, features: formFeatures }),
-    [debounced, site.kind, site.mode, formFeatures]
+    () =>
+      evaluateReadiness({
+        kind: site.kind,
+        mode: site.mode,
+        seoTitle: debounced.seoTitle,
+        seoDescription: debounced.seoDescription,
+        logoUrl: debounced.logoUrl,
+        theme: debounced.theme,
+        document: debounced.document,
+        html: debounced.html,
+        features: formFeatures,
+      }),
+    [debounced, site.kind, site.mode, formFeatures],
   );
   const sanitized = useMemo(() => (isGuided ? null : sanitizeHtml(debounced.html)), [isGuided, debounced.html]);
   const hints = useMemo(() => (isGuided ? [] : htmlHints(debounced.html)), [isGuided, debounced.html]);
   const srcDoc = useMemo(
-    () => (sanitized ? wrapHtmlDocument(sanitized.html, { title: debounced.seoTitle.trim() || debounced.name.trim() || site.name, description: debounced.seoDescription.trim() || null }) : ''),
-    [sanitized, debounced.seoTitle, debounced.name, debounced.seoDescription, site.name]
+    () =>
+      sanitized
+        ? wrapHtmlDocument(sanitized.html, {
+            title: debounced.seoTitle.trim() || debounced.name.trim() || site.name,
+            description: debounced.seoDescription.trim() || null,
+          })
+        : '',
+    [sanitized, debounced.seoTitle, debounced.name, debounced.seoDescription, site.name],
   );
 
   // Imágenes en uso (con el contenido actual, guardado o no): no se dejan eliminar desde la biblioteca.
-  const usedUrls = useMemo(() => new Set([...allBlocks(document).flatMap(blockImageUrls), settings.logoUrl, settings.ogImageUrl, settings.faviconUrl].filter(Boolean)), [document, settings.logoUrl, settings.ogImageUrl, settings.faviconUrl]);
+  const usedUrls = useMemo(
+    () => new Set([...allBlocks(document).flatMap(blockImageUrls), settings.logoUrl, settings.ogImageUrl, settings.faviconUrl].filter(Boolean)),
+    [document, settings.logoUrl, settings.ogImageUrl, settings.faviconUrl],
+  );
   const isUsed = useCallback((url: string) => usedUrls.has(url) || (!isGuided && html.includes(url)), [usedUrls, isGuided, html]);
 
   // -------------------------------------------------------------------------
@@ -450,13 +534,18 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, fo
       if (!check.success) return fail(friendlyIssue(check.error.issues));
     }
     const payload = isGuided ? { document: sent.document, theme: sent.theme } : { html: sent.html };
-    let result = await saveWebSiteContentAction(site.id, { ...payload, expectedUpdatedAt: version });
+    let result = await editorActions.saveWebSiteContentAction(site.id, { ...payload, expectedUpdatedAt: version });
     if (!result.success && result.error.includes(CONFLICT_MARKER)) {
       // Guardar ajustes, publicar o cambiar el dominio también mueve la versión del sitio sin tocar el contenido:
       // si el contenido del servidor sigue siendo el que cargamos, no hubo edición ajena y se reintenta.
-      const latest = await getWebSiteAction(site.id);
-      if (latest.success && JSON.stringify(latest.data.document) === baseline.document && JSON.stringify(latest.data.theme) === baseline.theme && latest.data.html === baseline.html) {
-        result = await saveWebSiteContentAction(site.id, { ...payload, expectedUpdatedAt: latest.data.version });
+      const latest = await editorActions.getWebSiteAction(site.id);
+      if (
+        latest.success &&
+        JSON.stringify(latest.data.document) === baseline.document &&
+        JSON.stringify(latest.data.theme) === baseline.theme &&
+        latest.data.html === baseline.html
+      ) {
+        result = await editorActions.saveWebSiteContentAction(site.id, { ...payload, expectedUpdatedAt: latest.data.version });
       }
     }
     if (!result.success) {
@@ -487,7 +576,7 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, fo
       return false;
     }
     const sent: SettingsDraft = { ...settings, name, slug, seoTitle: settings.seoTitle.trim(), seoDescription: settings.seoDescription.trim() };
-    const result = await updateWebSiteSettingsAction(site.id, {
+    const result = await editorActions.updateWebSiteSettingsAction(site.id, {
       name: sent.name,
       slug: sent.slug,
       seoTitle: sent.seoTitle,
@@ -590,7 +679,19 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, fo
   // -------------------------------------------------------------------------
 
   function openPublish() {
-    setPublishReport(evaluateReadiness({ kind: site.kind, mode: site.mode, seoTitle: settings.seoTitle, seoDescription: settings.seoDescription, logoUrl: settings.logoUrl, theme, document, html, features: formFeatures }));
+    setPublishReport(
+      evaluateReadiness({
+        kind: site.kind,
+        mode: site.mode,
+        seoTitle: settings.seoTitle,
+        seoDescription: settings.seoDescription,
+        logoUrl: settings.logoUrl,
+        theme,
+        document,
+        html,
+        features: formFeatures,
+      }),
+    );
     setPublishOpen(true);
   }
 
@@ -606,7 +707,7 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, fo
         setPublishOpen(false);
         return;
       }
-      const result = await publishWebSiteAction(site.id);
+      const result = await editorActions.publishWebSiteAction(site.id);
       if (!result.success) {
         toast.error(result.error, { duration: 8000 });
         return;
@@ -615,7 +716,7 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, fo
       setPublishedAt(result.data.publishedAt);
       setPendingChanges(false);
       setPublishOpen(false);
-      toast.success(result.message ?? 'Sitio publicado');
+      toast.success(result.message ?? (isStore ? 'Páginas de marca publicadas' : 'Sitio publicado'));
     } catch {
       toast.error(NETWORK_ERROR);
     } finally {
@@ -625,21 +726,23 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, fo
 
   async function unpublish() {
     const ok = await confirm({
-      title: '¿Despublicar el sitio?',
-      description: 'Dejará de verse en internet: quien abra el enlace verá un error. Tu borrador se conserva y puedes volver a publicarlo cuando quieras.',
-      confirmLabel: 'Despublicar',
+      title: isStore ? '¿Ocultar las páginas de marca?' : '¿Despublicar el sitio?',
+      description: isStore
+        ? 'La entrada volverá al catálogo. Las compras y el seguimiento de pedidos conservan su estado. Puedes publicar las páginas de marca nuevamente.'
+        : 'Dejará de verse en internet: quien abra el enlace verá un error. Tu borrador se conserva y puedes volver a publicarlo cuando quieras.',
+      confirmLabel: isStore ? 'Ocultar páginas' : 'Despublicar',
     });
     if (!ok) return;
     setBusy('unpublishing');
     try {
-      const result = await unpublishWebSiteAction(site.id);
+      const result = await editorActions.unpublishWebSiteAction(site.id);
       if (!result.success) {
         toast.error(result.error);
         return;
       }
       setStatus('DRAFT');
       setPendingChanges(false);
-      toast.success(result.message ?? 'Sitio despublicado');
+      toast.success(result.message ?? (isStore ? 'Portada oculta. El catálogo conserva su estado.' : 'Sitio despublicado'));
     } catch {
       toast.error(NETWORK_ERROR);
     } finally {
@@ -649,7 +752,11 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, fo
 
   async function reload() {
     if (anyDirty) {
-      const ok = await confirm({ title: '¿Recargar la página?', description: 'Se perderán los cambios que no alcanzaste a guardar.', confirmLabel: 'Recargar' });
+      const ok = await confirm({
+        title: '¿Recargar la página?',
+        description: 'Se perderán los cambios que no alcanzaste a guardar.',
+        confirmLabel: 'Recargar',
+      });
       if (!ok) return;
     }
     reloading.current = true;
@@ -663,23 +770,44 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, fo
   const idPrefix = `ws-${site.id}`;
   const tabs: EditorTabDef[] = [
     { id: 'content', label: 'Contenido' },
-    ...(isGuided ? ([{ id: 'pages', label: 'Páginas' }, { id: 'layout', label: 'Encabezado y pie' }] satisfies EditorTabDef[]) : []),
+    ...(isGuided
+      ? ([
+          { id: 'pages', label: 'Páginas' },
+          { id: 'layout', label: 'Encabezado y pie' },
+        ] satisfies EditorTabDef[])
+      : []),
     { id: 'design', label: 'Diseño' },
     { id: 'images', label: 'Imágenes' },
     { id: 'settings', label: 'Ajustes' },
     ...(isGuided ? ([{ id: 'forms', label: 'Formularios' }] satisfies EditorTabDef[]) : []),
-    { id: 'readiness', label: 'Qué le falta', badge: report.blockers > 0 ? { text: String(report.blockers), tone: 'danger', description: ` (${report.blockers} pendiente${report.blockers === 1 ? '' : 's'} obligatorio${report.blockers === 1 ? '' : 's'})` } : null },
+    {
+      id: 'readiness',
+      label: 'Qué le falta',
+      badge:
+        report.blockers > 0
+          ? {
+              text: String(report.blockers),
+              tone: 'danger',
+              description: ` (${report.blockers} pendiente${report.blockers === 1 ? '' : 's'} obligatorio${report.blockers === 1 ? '' : 's'})`,
+            }
+          : null,
+    },
     { id: 'messages', label: 'Mensajes', badge: unread > 0 ? { text: String(unread), tone: 'info', description: ` (${unread} sin leer)` } : null },
   ];
 
   const canSaveDraft = canWrite && !archived;
-  const nothingToPublish = status === 'PUBLISHED' && !pendingChanges && !contentDirty;
+  const nothingToPublish = status === 'PUBLISHED' && !pendingChanges && !contentDirty && !settingsDirty;
 
   // Estado del guardado, discreto y siempre visible.
   let saveNote: { text: string; tone: 'warning' | 'danger' | 'muted'; title?: string; spinner?: boolean } | null = null;
   if (busy === 'saving') saveNote = { text: 'Guardando…', tone: 'muted', spinner: true };
   else if (saveError && contentDirty) saveNote = { text: 'No se pudo guardar', tone: 'danger', title: saveError };
-  else if (anyDirty) saveNote = { text: 'Cambios sin guardar', tone: 'warning', title: contentDirty && !readOnly && !conflict ? 'Se guardan solos unos segundos después del último cambio.' : undefined };
+  else if (anyDirty)
+    saveNote = {
+      text: 'Cambios sin guardar',
+      tone: 'warning',
+      title: contentDirty && !readOnly && !conflict ? 'Se guardan solos unos segundos después del último cambio.' : undefined,
+    };
   else if (lastSavedAt !== null) saveNote = { text: `Guardado · ${agoLabel(Math.max(0, now - lastSavedAt))}`, tone: 'muted' };
 
   const preview = (
@@ -695,6 +823,7 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, fo
           document={debounced.document}
           pageId={debounced.pageId}
           slug={savedSettings.slug}
+          commerceSiteId={isStore ? site.id : undefined}
           onPageChange={selectPage}
           onNavigate={previewNavigate}
           onSelectBlock={previewSelectBlock}
@@ -711,58 +840,106 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, fo
     <EditorAssetsContext.Provider value={assetsContext}>
       <FormFieldsProvider access={formAccess} canReadAcademy={canReadAcademy}>
         <div className="space-y-6">
-          <Link href="/dashboard/web-sites" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="size-4" aria-hidden="true" /> Sitios web
+          <Link
+            href={isStore ? `/dashboard/store?sitio=${site.id}` : '/dashboard/web-sites'}
+            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="size-4" aria-hidden="true" /> {isStore ? 'Ecommerce · Administrar mi tienda' : 'Sitios web'}
           </Link>
 
           <PageHeader
-            eyebrow={`Sitios web · ${KIND_INFO[site.kind].label} · ${isGuided ? 'Modo guiado' : 'HTML propio'}`}
+            eyebrow={
+              isStore
+                ? 'Ecommerce · Creador de tienda y páginas de marca'
+                : `Sitios web · ${KIND_INFO[site.kind].label} · ${isGuided ? 'Modo guiado' : 'HTML propio'}`
+            }
             title={savedSettings.name}
             description={
               <span className="flex flex-wrap items-center gap-2">
-                <StatusBadge tone={status === 'PUBLISHED' ? 'success' : 'neutral'}>{status === 'PUBLISHED' ? 'Publicado' : status === 'ARCHIVED' ? 'Archivado' : 'Borrador'}</StatusBadge>
+                <StatusBadge tone={status === 'PUBLISHED' ? 'success' : 'neutral'}>
+                  {status === 'PUBLISHED' ? 'Publicado' : status === 'ARCHIVED' ? 'Archivado' : 'Borrador'}
+                </StatusBadge>
                 {status === 'PUBLISHED' && (pendingChanges || contentDirty) ? <StatusBadge tone="warning">Cambios sin publicar</StatusBadge> : null}
                 {status === 'PUBLISHED' && publishedAt ? <span>Publicado el {formatMoment(publishedAt)}</span> : null}
               </span>
             }
             actions={
               <div className="flex flex-wrap items-center justify-end gap-2">
-                <span aria-live="polite" title={saveNote?.title} className={`flex items-center gap-1.5 text-xs font-medium ${saveNote?.tone === 'warning' ? 'text-warning' : saveNote?.tone === 'danger' ? 'text-danger' : 'text-muted-foreground'}`}>
+                <span
+                  aria-live="polite"
+                  title={saveNote?.title}
+                  className={`flex items-center gap-1.5 text-xs font-medium ${saveNote?.tone === 'warning' ? 'text-warning' : saveNote?.tone === 'danger' ? 'text-danger' : 'text-muted-foreground'}`}
+                >
                   {saveNote ? (
                     <>
-                      {saveNote.spinner ? <Loader2 className="size-3 animate-spin" aria-hidden="true" /> : <span className={`size-1.5 rounded-full ${saveNote.tone === 'warning' ? 'bg-warning' : saveNote.tone === 'danger' ? 'bg-danger' : 'bg-success'}`} aria-hidden="true" />}
+                      {saveNote.spinner ? (
+                        <Loader2 className="size-3 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <span
+                          className={`size-1.5 rounded-full ${saveNote.tone === 'warning' ? 'bg-warning' : saveNote.tone === 'danger' ? 'bg-danger' : 'bg-success'}`}
+                          aria-hidden="true"
+                        />
+                      )}
                       {saveNote.text}
                     </>
                   ) : null}
                 </span>
                 {isGuided && canSaveDraft ? (
                   <div role="group" aria-label="Deshacer y rehacer" className="flex items-center gap-0.5">
-                    <Button type="button" variant="ghost" size="icon" disabled={!historyFlags.undo} title="Deshacer (Ctrl+Z)" aria-label="Deshacer" onClick={undo}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      disabled={!historyFlags.undo}
+                      title="Deshacer (Ctrl+Z)"
+                      aria-label="Deshacer"
+                      onClick={undo}
+                    >
                       <Undo2 aria-hidden="true" />
                     </Button>
-                    <Button type="button" variant="ghost" size="icon" disabled={!historyFlags.redo} title="Rehacer (Ctrl+Shift+Z)" aria-label="Rehacer" onClick={redo}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      disabled={!historyFlags.redo}
+                      title="Rehacer (Ctrl+Shift+Z)"
+                      aria-label="Rehacer"
+                      onClick={redo}
+                    >
                       <Redo2 aria-hidden="true" />
                     </Button>
                   </div>
                 ) : null}
                 {canSaveDraft ? (
-                  <Button type="button" variant="outline" disabled={!anyDirty || busy !== null || conflict} title="Guardar ahora (Ctrl+S)" onClick={() => void saveAll('manual')}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!anyDirty || busy !== null || conflict}
+                    title="Guardar ahora (Ctrl+S)"
+                    onClick={() => void saveAll('manual')}
+                  >
                     {busy === 'saving' ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Save aria-hidden="true" />} Guardar borrador
                   </Button>
                 ) : null}
                 {status === 'PUBLISHED' ? (
                   <a href={publicUrl} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: 'outline' })}>
-                    <ExternalLink aria-hidden="true" /> Ver sitio<span className="sr-only"> (se abre en otra pestaña)</span>
+                    <ExternalLink aria-hidden="true" /> {isStore ? 'Ver mi tienda' : 'Ver sitio'}
+                    <span className="sr-only"> (se abre en otra pestaña)</span>
                   </a>
                 ) : null}
                 {canPublish && status === 'PUBLISHED' ? (
                   <Button type="button" variant="ghost" disabled={busy !== null} onClick={() => void unpublish()}>
-                    {busy === 'unpublishing' ? <Loader2 className="animate-spin" aria-hidden="true" /> : null} Despublicar
+                    {busy === 'unpublishing' ? <Loader2 className="animate-spin" aria-hidden="true" /> : null} {isStore ? 'Ocultar portada' : 'Despublicar'}
                   </Button>
                 ) : null}
                 {canPublish && !archived ? (
-                  <Button type="button" disabled={busy !== null || conflict || nothingToPublish} title={nothingToPublish ? 'No hay cambios por publicar' : undefined} onClick={openPublish}>
-                    <Globe aria-hidden="true" /> {status === 'PUBLISHED' ? 'Publicar cambios' : 'Publicar'}
+                  <Button
+                    type="button"
+                    disabled={busy !== null || conflict || nothingToPublish}
+                    title={nothingToPublish ? 'No hay cambios por publicar' : undefined}
+                    onClick={openPublish}
+                  >
+                    <Globe aria-hidden="true" /> {status === 'PUBLISHED' ? 'Publicar cambios' : isStore ? 'Publicar páginas' : 'Publicar'}
                   </Button>
                 ) : null}
               </div>
@@ -774,7 +951,8 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, fo
               <p className="flex min-w-0 items-start gap-2">
                 <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
                 <span>
-                  <span className="font-semibold">Otra persona guardó cambios en este sitio mientras lo editabas.</span> Para no pisar su trabajo no se guardó lo tuyo. Recarga para ver la última versión
+                  <span className="font-semibold">Otra persona guardó cambios en este sitio mientras lo editabas.</span> Para no pisar su trabajo no se guardó
+                  lo tuyo. Recarga para ver la última versión
                   {anyDirty ? ' (lo que escribiste desde tu último guardado se perderá; cópialo antes si lo necesitas)' : ''}.
                 </span>
               </p>
@@ -787,34 +965,87 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, fo
           {readOnly ? (
             <p role="status" className="flex items-start gap-2 rounded-lg bg-muted px-4 py-3 text-sm text-muted-foreground">
               <Lock className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-              {archived ? 'Este sitio está archivado: solo puedes mirarlo. Restáuralo desde la lista de sitios para poder editarlo.' : 'Tienes permiso para ver este sitio, pero no para editarlo. Pídele a un administrador el permiso de edición de sitios web.'}
+              {archived
+                ? 'Este sitio está archivado: solo puedes mirarlo. Restáuralo desde la lista de sitios para poder editarlo.'
+                : isStore
+                  ? 'Puedes ver esta tienda. Para editar su diseño necesitas el permiso de administrar Ecommerce.'
+                  : 'Tienes permiso para ver este sitio, pero no para editarlo. Pídele a un administrador el permiso de edición de sitios web.'}
             </p>
           ) : null}
 
           <EditorTabs tabs={tabs} active={activeTab} onChange={setTab} idPrefix={idPrefix} />
 
-          <div role="tabpanel" id={tabPanelId(idPrefix)} aria-labelledby={tabId(idPrefix, activeTab)} tabIndex={0} className="outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+          <div
+            role="tabpanel"
+            id={tabPanelId(idPrefix)}
+            aria-labelledby={tabId(idPrefix, activeTab)}
+            tabIndex={0}
+            className="outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
             {activeTab === 'content' ? (
               <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
                 <div className="min-w-0 space-y-4">
                   {isGuided ? (
                     <>
-                      {!readOnly ? <StartGuide onGoToTab={setTab} /> : null}
-                      <PageSwitcher doc={document} pageId={pageId} onSelect={selectPage} onAddPage={() => setAddPageOpen(true)} onManagePages={() => setTab('pages')} readOnly={readOnly} />
-                      <SiteDesignAssistant disabled={readOnly || busy !== null} context={{ target: 'web', resourceId: site.id, pageId, current: { blocks: currentPage.blocks, theme } }} onApply={(proposal) => {
-                        if (proposal.target !== 'web') return;
-                        const previous = contentRef.current;
-                        const nextDocument = { ...previous.document, pages: previous.document.pages.map((p) => p.id === pageId ? { ...p, blocks: proposal.design.blocks } : p) };
-                        const checked = siteDocumentSchema.safeParse(nextDocument);
-                        if (!checked.success) { toast.error(checked.error.issues[0]?.message ?? 'La propuesta supera los límites del sitio'); return; }
-                        commit({ document: checked.data, theme: proposal.design.theme }, 'document');
-                        toast.success('Propuesta aplicada: puedes deshacerla con el historial');
-                      }} />
-                      <GuidedEditor kind={site.kind} document={document} pageId={pageId} onDocumentChange={updateDocument} openId={openId} onOpenChange={changeOpenSection} readOnly={readOnly} theme={theme} />
-                      <AddPageDialog open={addPageOpen} onOpenChange={setAddPageOpen} document={document} onDocumentChange={updateDocument} onAdded={selectPage} />
+                      {!readOnly && !isStore ? <StartGuide onGoToTab={setTab} /> : null}
+                      <PageSwitcher
+                        doc={document}
+                        pageId={pageId}
+                        onSelect={selectPage}
+                        onAddPage={() => setAddPageOpen(true)}
+                        onManagePages={() => setTab('pages')}
+                        readOnly={readOnly}
+                      />
+                      <SiteDesignAssistant
+                        disabled={readOnly || busy !== null}
+                        context={
+                          isStore
+                            ? { target: 'commerce', resourceId: site.id, pageId, current: { blocks: currentPage.blocks, theme } }
+                            : { target: 'web', resourceId: site.id, pageId, current: { blocks: currentPage.blocks, theme } }
+                        }
+                        onApply={(proposal) => {
+                          if (proposal.target !== 'web' && proposal.target !== 'commerce') return;
+                          const previous = contentRef.current;
+                          const nextDocument = {
+                            ...previous.document,
+                            pages: previous.document.pages.map((p) => (p.id === pageId ? { ...p, blocks: proposal.design.blocks } : p)),
+                          };
+                          const checked = siteDocumentSchema.safeParse(nextDocument);
+                          if (!checked.success) {
+                            toast.error(checked.error.issues[0]?.message ?? 'La propuesta supera los límites del sitio');
+                            return;
+                          }
+                          commit({ document: checked.data, theme: proposal.design.theme }, 'document');
+                          toast.success('Propuesta aplicada: puedes deshacerla con el historial');
+                        }}
+                      />
+                      <GuidedEditor
+                        kind={site.kind}
+                        document={document}
+                        pageId={pageId}
+                        onDocumentChange={updateDocument}
+                        openId={openId}
+                        onOpenChange={changeOpenSection}
+                        readOnly={readOnly}
+                        theme={theme}
+                      />
+                      <AddPageDialog
+                        open={addPageOpen}
+                        onOpenChange={setAddPageOpen}
+                        document={document}
+                        onDocumentChange={updateDocument}
+                        onAdded={selectPage}
+                      />
                     </>
                   ) : (
-                    <HtmlEditor html={html} onChange={updateHtml} siteName={settings.name || site.name} removed={sanitized?.removed ?? []} hints={hints} readOnly={readOnly} />
+                    <HtmlEditor
+                      html={html}
+                      onChange={updateHtml}
+                      siteName={settings.name || site.name}
+                      removed={sanitized?.removed ?? []}
+                      hints={hints}
+                      readOnly={readOnly}
+                    />
                   )}
                 </div>
                 {preview}
@@ -838,7 +1069,14 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, fo
             {activeTab === 'layout' && isGuided ? (
               <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
                 <div className="min-w-0">
-                  <LayoutPanel doc={document} pageId={pageId} onDocumentChange={updateDocument} onFocusArea={focusArea} onGoToTab={setTab} disabled={readOnly} />
+                  <LayoutPanel
+                    doc={document}
+                    pageId={pageId}
+                    onDocumentChange={updateDocument}
+                    onFocusArea={focusArea}
+                    onGoToTab={setTab}
+                    disabled={readOnly}
+                  />
                 </div>
                 {preview}
               </div>
@@ -855,7 +1093,10 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, fo
               ) : (
                 <div className="max-w-2xl space-y-3 rounded-lg border border-border bg-card p-5 shadow-card">
                   <h2 className="text-sm font-semibold">El estilo va dentro de tu HTML</h2>
-                  <p className="text-sm text-muted-foreground">En el modo HTML propio los colores, la tipografía y los espacios los defines tú con CSS, dentro de una etiqueta {'<style>'} en tu HTML. Esta pestaña solo aplica a los sitios armados por secciones.</p>
+                  <p className="text-sm text-muted-foreground">
+                    En el modo HTML propio los colores, la tipografía y los espacios los defines tú con CSS, dentro de una etiqueta {'<style>'} en tu HTML. Esta
+                    pestaña solo aplica a los sitios armados por secciones.
+                  </p>
                   <Button type="button" variant="outline" onClick={() => setTab('content')}>
                     Ir al contenido
                   </Button>
@@ -874,6 +1115,7 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, fo
             {activeTab === 'settings' ? (
               <div className="max-w-3xl space-y-6">
                 <SettingsPanel
+                  commerce={isStore}
                   settings={settings}
                   onChange={updateSettings}
                   disabled={readOnly}
@@ -903,13 +1145,23 @@ export default function WebSiteEditor({ site, contacts, canWrite, canPublish, fo
               </div>
             ) : null}
 
-            {activeTab === 'messages' ? <WebSiteMessagesPanel key={messagesFormId ?? 'all'} siteId={site.id} canWrite={canWrite} routeTargets={routeTargets} initialFormId={messagesFormId} onUnreadChange={setUnread} /> : null}
+            {activeTab === 'messages' ? (
+              <WebSiteMessagesPanel
+                key={messagesFormId ?? 'all'}
+                siteId={site.id}
+                canWrite={canWrite}
+                routeTargets={routeTargets}
+                initialFormId={messagesFormId}
+                onUnreadChange={setUnread}
+              />
+            ) : null}
           </div>
 
           {publishReport ? (
             <PublishDialog
               open={publishOpen}
               onOpenChange={setPublishOpen}
+              commerce={isStore}
               report={publishReport}
               republish={status === 'PUBLISHED'}
               unsavedNote={anyDirty}

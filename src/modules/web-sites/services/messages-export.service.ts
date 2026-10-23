@@ -12,8 +12,8 @@ const BRAND = 'FF12161F';
  * mismas preguntas de distintos formularios comparten columna por su texto).
  * Mismo patrón visual que el resto de las exportaciones del sistema.
  */
-export async function buildMessagesWorkbook(companyId: string, filter: MessageFilter): Promise<Buffer> {
-  const rows = await messagesForExport(companyId, filter);
+export async function buildMessagesWorkbook(companyId: string, filter: MessageFilter, module: 'all' | 'website' = 'all'): Promise<Buffer> {
+  const rows = await messagesForExport(companyId, filter, module);
 
   // Columnas de respuestas en el orden en que aparecen, sin repetir los datos de contacto.
   const answerColumns: string[] = [];
@@ -47,7 +47,8 @@ export async function buildMessagesWorkbook(companyId: string, filter: MessageFi
   header.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
   header.height = 26;
 
-  const date = (d: Date) => d.toLocaleString('es-CL', { timeZone: 'America/Santiago', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const date = (d: Date) =>
+    d.toLocaleString('es-CL', { timeZone: 'America/Santiago', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
   for (const row of rows) {
     const values: Record<string, string> = {

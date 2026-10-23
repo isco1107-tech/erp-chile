@@ -61,9 +61,31 @@ export interface SiteRendererProps {
   store?: StoreRenderInfo;
   /** Pantalla de la tienda (catálogo, producto, carrito…): reemplaza las secciones de la página y conserva el encabezado, el pie y el tema. */
   content?: ReactNode;
+  commerce?: RenderCtx['commerce'];
+  rootClassName?: string;
+  extraCss?: string;
 }
 
-export default function SiteRenderer({ embedded = false, name, logoUrl, theme, document, blocks, pageId, slug, mode, basePath, onNavigate, onSelectBlock, selectedBlockId, store, content }: SiteRendererProps) {
+export default function SiteRenderer({
+  embedded = false,
+  name,
+  logoUrl,
+  theme,
+  document,
+  blocks,
+  pageId,
+  slug,
+  mode,
+  basePath,
+  onNavigate,
+  onSelectBlock,
+  selectedBlockId,
+  store,
+  content,
+  commerce,
+  rootClassName,
+  extraCss = '',
+}: SiteRendererProps) {
   const preview = mode === 'preview';
   const source = document ?? documentFromBlocks(blocks ?? [], theme);
   const doc = embedded ? { ...source, header: { ...source.header, enabled: false }, footer: { ...source.footer, enabled: false } } : source;
@@ -88,9 +110,10 @@ export default function SiteRenderer({ embedded = false, name, logoUrl, theme, d
     onNavigate,
     navigate: true,
     // La pantalla de la tienda trae su propio título principal.
-    h1BlockId: embedded || content ? null : shown.find((block) => blockHeadingText(block))?.id ?? null,
+    h1BlockId: embedded || content ? null : (shown.find((block) => blockHeadingText(block))?.id ?? null),
     siteWidth: theme.width,
-    store: preview ? undefined : store,
+    store: preview && !commerce ? undefined : store,
+    commerce,
   };
   const bodyCtx: RenderCtx = selectable ? { ...ctx, navigate: false } : ctx;
 
@@ -101,8 +124,8 @@ export default function SiteRenderer({ embedded = false, name, logoUrl, theme, d
   const items = doc.header.enabled || doc.footer.enabled ? buildNavItems(ctx, renderedAnchors) : [];
 
   const rootStyle = { ...themeVariables(theme), ...toneVariables(theme) } as CSSProperties;
-  const mainId = `${ctx.idPrefix}${embedded ? "creative-main" : "main"}`;
-  const MainTag = embedded ? "div" : "main";
+  const mainId = `${ctx.idPrefix}${embedded ? 'creative-main' : 'main'}`;
+  const MainTag = embedded ? 'div' : 'main';
   const looks = shown.map((block) => sectionLook(block));
   // Lo que viene después de cada sección (para pintar su borde con forma): la siguiente o el pie.
   const afterLast: Tone = doc.footer.enabled ? footerTone(doc.footer.style) : 'default';
@@ -113,8 +136,15 @@ export default function SiteRenderer({ embedded = false, name, logoUrl, theme, d
   });
 
   return (
-    <div className={cx('ws-root', SITE_FONT_CLASSES)} style={rootStyle} data-ws-root="" data-btn={theme.buttonStyle} data-card={theme.cardStyle} data-anim={preview ? 'none' : theme.animation}>
-      <style>{SITE_CSS}</style>
+    <div
+      className={cx('ws-root', SITE_FONT_CLASSES, rootClassName)}
+      style={rootStyle}
+      data-ws-root=""
+      data-btn={theme.buttonStyle}
+      data-card={theme.cardStyle}
+      data-anim={preview ? 'none' : theme.animation}
+    >
+      <style>{SITE_CSS + extraCss}</style>
       <div className={cx('@container flex flex-col', !preview && !embedded && 'min-h-dvh')}>
         {!preview && !embedded && (
           <a href={`#${mainId}`} className="ws-skip">
@@ -124,28 +154,29 @@ export default function SiteRenderer({ embedded = false, name, logoUrl, theme, d
         {doc.header.enabled && <Announcement ctx={ctx} />}
         {doc.header.enabled && <SiteHeader ctx={ctx} name={name} logoUrl={logoUrl} items={items} overlayTone={overlayTone} />}
         <MainTag id={mainId} tabIndex={-1} className="grow outline-none">
-          {content ?? shown.map((block, index) => {
-            const look = looks[index]!;
-            const empty = isBlockEmpty(block);
-            return (
-              <SectionFrame
-                key={block.id}
-                ctx={bodyCtx}
-                block={block}
-                anchor={anchors.get(block.id) ?? block.id}
-                look={look}
-                align={resolveAlign(block)}
-                bleed={block.type === 'image' && block.size === 'full'}
-                glow={block.type === 'hero' && (block.variant === 'center' || block.variant === 'full' || block.variant === 'card')}
-                underHeader={overlay && index === 0}
-                nextTone={nextTones[index]}
-                onSelect={selectable ? onSelectBlock : undefined}
-                selected={selectable && selectedBlockId === block.id}
-              >
-                {empty ? <EmptyBlock block={block} /> : renderSection(block, bodyCtx, resolveAlign(block) === 'center', look)}
-              </SectionFrame>
-            );
-          })}
+          {content ??
+            shown.map((block, index) => {
+              const look = looks[index]!;
+              const empty = isBlockEmpty(block);
+              return (
+                <SectionFrame
+                  key={block.id}
+                  ctx={bodyCtx}
+                  block={block}
+                  anchor={anchors.get(block.id) ?? block.id}
+                  look={look}
+                  align={resolveAlign(block)}
+                  bleed={block.type === 'image' && block.size === 'full'}
+                  glow={block.type === 'hero' && (block.variant === 'center' || block.variant === 'full' || block.variant === 'card')}
+                  underHeader={overlay && index === 0}
+                  nextTone={nextTones[index]}
+                  onSelect={selectable ? onSelectBlock : undefined}
+                  selected={selectable && selectedBlockId === block.id}
+                >
+                  {empty ? <EmptyBlock block={block} /> : renderSection(block, bodyCtx, resolveAlign(block) === 'center', look)}
+                </SectionFrame>
+              );
+            })}
         </MainTag>
         <SiteFooter ctx={ctx} name={name} logoUrl={logoUrl} items={items} />
         {!embedded && <MobileActionBar ctx={ctx} />}

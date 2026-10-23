@@ -1,7 +1,7 @@
 'use client';
 
 import DomainPanel from '@/components/hosting/DomainPanel';
-import { getWebSiteDomainAction, removeWebSiteDomainAction, setWebSiteDomainAction } from '@/modules/web-sites/actions/web-sites.actions';
+import { useEditorRuntime } from './EditorRuntime';
 
 interface Props {
   siteId: string;
@@ -15,15 +15,16 @@ interface Props {
 
 /** «Dominio propio» de un sitio web: el panel común con las acciones de sitios web. */
 export default function WebSiteDomainPanel({ siteId, canPublish, initialDomain, platformUrl }: Props) {
+  const { actions: editorActions } = useEditorRuntime();
   return (
     <DomainPanel
       idPrefix={siteId}
       canPublish={canPublish}
       initialDomain={initialDomain}
       platformUrl={platformUrl}
-      load={() => getWebSiteDomainAction(siteId)}
-      save={(domain) => setWebSiteDomainAction(siteId, { domain })}
-      remove={() => removeWebSiteDomainAction(siteId)}
+      load={() => editorActions.getWebSiteDomainAction(siteId)}
+      save={(domain) => editorActions.setWebSiteDomainAction(siteId, { domain })}
+      remove={() => editorActions.removeWebSiteDomainAction(siteId)}
     />
   );
 }

@@ -1,37 +1,23 @@
 'use client';
-
 import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { readableOn } from '@/lib/web-sites/theme';
-import { Label } from '@/components/ui/label';
-import { ImageUploader } from '@/components/web-sites/ImageUploader';
+import Link from 'next/link';
 import DomainPanel from '@/components/hosting/DomainPanel';
-import {
-  getStoreBrandAction,
-  updateStoreBrandAction,
-  getStoreDomainAction,
-  setStoreDomainAction,
-  removeStoreDomainAction,
-} from '@/modules/ecommerce/actions/store-workspace.actions';
+import { getStoreBrandAction, getStoreDomainAction, setStoreDomainAction, removeStoreDomainAction } from '@/modules/ecommerce/actions/store-workspace.actions';
 import type { StoreBrand } from '@/modules/ecommerce/services/store-workspace.service';
 
 export default function StoreBrandPanel({ siteId, canManage }: { siteId: string; canManage: boolean }) {
   const [brand, setBrand] = useState<StoreBrand | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   useEffect(() => {
     let active = true;
     void getStoreBrandAction(siteId)
       .then((result) => {
-        if (active) {
-          if (result.success) setBrand(result.data);
-          else setError(result.error);
-        }
+        if (!active) return;
+        if (result.success) setBrand(result.data);
+        else setError(result.error);
       })
       .catch(() => {
-        if (active) setError('No pudimos cargar tu diseño.');
+        if (active) setError('No pudimos cargar la identidad de tu tienda.');
       });
     return () => {
       active = false;
@@ -43,100 +29,29 @@ export default function StoreBrandPanel({ siteId, canManage }: { siteId: string;
         {error ?? 'Cargando la identidad de tu tienda…'}
       </p>
     );
-  const patch = (value: Partial<StoreBrand>) => setBrand((current) => (current ? { ...current, ...value } : current));
   return (
     <div className="space-y-6">
-      <section className="rounded-2xl border border-border bg-card p-5 sm:p-6">
-        <h2 className="text-lg font-semibold">Una tienda con tu identidad</h2>
-        <p className="mt-1 text-sm text-muted-foreground">El diseño se adapta a tus colores, tus productos y cada pantalla.</p>
-        {!brand.standalone ? (
-          <p className="mt-4 text-sm text-muted-foreground">
-            Esta tienda se creó dentro de un sitio existente. Su nombre, logo y colores se editan desde el constructor de ese sitio.
-          </p>
+      <section className="rounded-2xl border border-primary/25 bg-card p-6">
+        <p className="text-xs font-semibold uppercase tracking-widest text-primary">Tu marca, tu tienda</p>
+        <h2 className="mt-2 text-xl font-semibold">Creador completo de tu Ecommerce</h2>
+        {brand.standalone ? (
+          <>
+            <p className="mt-3 max-w-3xl text-sm text-muted-foreground">
+              Diseña la portada, crea páginas de marca, agrega productos con carrito, formularios, galerías y campañas. Personaliza encabezado, pie, colores y
+              tipografías con vista previa de cada dispositivo.
+            </p>
+            <Link
+              href={`/dashboard/store/${siteId}/editor`}
+              className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-primary px-5 py-2 font-medium text-primary-foreground"
+            >
+              Abrir creador de mi tienda
+            </Link>
+          </>
         ) : (
-          <form
-            className="mt-5 grid gap-4 sm:grid-cols-2"
-            onSubmit={async (event) => {
-              event.preventDefault();
-              setBusy(true);
-              setError(null);
-              try {
-                const result = await updateStoreBrandAction(siteId, brand);
-                if (result.success) {
-                  setBrand(result.data);
-                  toast.success('Identidad de la tienda actualizada');
-                } else setError(result.error);
-              } catch {
-                setError('No pudimos guardar el diseño. Inténtalo de nuevo.');
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            <div className="space-y-2">
-              <Label htmlFor="brand-name">Nombre de tu marca</Label>
-              <Input
-                id="brand-name"
-                value={brand.name}
-                maxLength={80}
-                required
-                disabled={!canManage || busy}
-                onChange={(e) => patch({ name: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="brand-description">Presentación breve</Label>
-              <Input
-                id="brand-description"
-                value={brand.description}
-                maxLength={200}
-                disabled={!canManage || busy}
-                onChange={(e) => patch({ description: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="brand-primary">Color principal</Label>
-              <Input id="brand-primary" type="color" value={brand.primary} disabled={!canManage || busy} onChange={(e) => patch({ primary: e.target.value })} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="brand-accent">Color de acento</Label>
-              <Input id="brand-accent" type="color" value={brand.accent} disabled={!canManage || busy} onChange={(e) => patch({ accent: e.target.value })} />
-            </div>
-            {canManage && (
-              <div className="sm:col-span-2">
-                <Label>Logo de la tienda</Label>
-                <ImageUploader
-                  siteId={siteId}
-                  uploadEndpoint="/api/store/asset-upload"
-                  multiple={false}
-                  disabled={busy}
-                  onUploaded={(asset) => patch({ logoUrl: asset.url })}
-                />
-                {brand.logoUrl && (
-                  <Button type="button" variant="ghost" onClick={() => patch({ logoUrl: '' })}>
-                    Usar solo el nombre de mi marca
-                  </Button>
-                )}
-              </div>
-            )}
-            <div className="rounded-xl border border-border p-5 sm:col-span-2" style={{ background: brand.primary, color: readableOn(brand.primary) }}>
-              <p className="text-lg font-semibold">{brand.name}</p>
-              <p className="mt-2 text-sm">{brand.description || 'Tus productos, una experiencia de compra clara.'}</p>
-              <span className="mt-3 inline-block rounded-full bg-white px-4 py-2 text-sm font-semibold text-black">Ver colección</span>
-            </div>
-            {error && (
-              <p role="alert" className="text-sm text-danger sm:col-span-2">
-                {error}
-              </p>
-            )}
-            {canManage && (
-              <div className="sm:col-span-2">
-                <Button type="submit" disabled={busy}>
-                  {busy ? 'Guardando…' : 'Guardar identidad'}
-                </Button>
-              </div>
-            )}
-          </form>
+          <p className="mt-3 text-sm text-muted-foreground">
+            Esta tienda está adjunta a un sitio anterior. Conserva su diseño en el constructor de Sitios web. Las nuevas tiendas de Ecommerce tienen su propio
+            creador de páginas de marca.
+          </p>
         )}
       </section>
       {canManage && (

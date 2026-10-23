@@ -75,7 +75,14 @@ test('si falla el registro, elimina el archivo para evitar un huérfano en el al
   expect(del).toHaveBeenCalledWith(imageUrl);
 });
 test('la ruta del constructor conserva su permiso original aunque el cuerpo pida otro alcance', async () => {
+  jest.mocked(prisma.webSiteStore.findFirst).mockResolvedValue(null);
   expect((await uploadWebsite(request())).status).toBe(200);
   expect(requireAuthWithPermission).toHaveBeenCalledWith('websites:write');
   expect(assertStoreModule).not.toHaveBeenCalled();
+});
+
+test('un permiso del constructor no permite subir imágenes a una tienda independiente', async () => {
+  expect((await uploadWebsite(request())).status).toBe(403);
+  expect(prisma.webSiteStore.findFirst).toHaveBeenCalledWith({ where: { companyId: 'company-a', siteId: 'site-a', standalone: true }, select: { id: true } });
+  expect(put).not.toHaveBeenCalled();
 });

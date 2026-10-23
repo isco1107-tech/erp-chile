@@ -109,7 +109,9 @@ export function publicSiteUrl(slug: string): string {
 /** JSON con las claves ordenadas: el orden en que se armó un objeto no cuenta como diferencia. */
 function stableJson(value: unknown): string {
   return JSON.stringify(value ?? null, (_key, current: unknown) =>
-    current && typeof current === 'object' && !Array.isArray(current) ? Object.fromEntries(Object.entries(current as Record<string, unknown>).sort(([x], [y]) => x.localeCompare(y))) : current
+    current && typeof current === 'object' && !Array.isArray(current)
+      ? Object.fromEntries(Object.entries(current as Record<string, unknown>).sort(([x], [y]) => x.localeCompare(y)))
+      : current,
   );
 }
 
@@ -131,7 +133,10 @@ function hasPendingChanges(site: {
   if (site.status !== 'PUBLISHED') return false;
   if (site.mode === 'HTML') return sanitizeHtml(site.draftHtml ?? '').html !== (site.publishedHtml ?? '');
   // Se comparan ya leídos: un borrador guardado en el formato nuevo y una copia publicada en el antiguo con el mismo contenido no son "cambios".
-  return !sameJson(parseSiteDocument(site.draftBlocks, site.theme), parseSiteDocument(site.publishedBlocks, site.publishedTheme)) || !sameJson(parseTheme(site.theme), parseTheme(site.publishedTheme));
+  return (
+    !sameJson(parseSiteDocument(site.draftBlocks, site.theme), parseSiteDocument(site.publishedBlocks, site.publishedTheme)) ||
+    !sameJson(parseTheme(site.theme), parseTheme(site.publishedTheme))
+  );
 }
 
 /**
@@ -172,33 +177,60 @@ async function uniqueSlug(base: string, excludeId?: string): Promise<string> {
 // Lectura
 // ---------------------------------------------------------------------------
 
-export async function listWebSites(companyId: string, filter: { status?: WebSiteStatus | 'ALL'; q?: string } = {}): Promise<{ rows: WebSiteRow[]; counts: Record<string, number>; quota: SiteQuota }> {
+export async function listWebSites(
+  companyId: string,
+  filter: { status?: WebSiteStatus | 'ALL'; q?: string } = {},
+): Promise<{ rows: WebSiteRow[]; counts: Record<string, number>; quota: SiteQuota }> {
   const q = filter.q?.trim();
-  const [sites, unread, grouped, company] = await Promise.all([
+  const [sites, unread, grouped, company, totalActive] = await Promise.all([
     prisma.webSite.findMany({
       where: {
         companyId,
+        NOT: { store: { is: { standalone: true } } },
         ...(filter.status && filter.status !== 'ALL' ? { status: filter.status } : { status: { not: 'ARCHIVED' } }),
-        ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { slug: { contains: q, mode: 'insensitive' } }, { contact: { razonSocial: { contains: q, mode: 'insensitive' } } }] } : {}),
+        ...(q
+          ? {
+              OR: [
+                { name: { contains: q, mode: 'insensitive' } },
+                { slug: { contains: q, mode: 'insensitive' } },
+                { contact: { razonSocial: { contains: q, mode: 'insensitive' } } },
+              ],
+            }
+          : {}),
       },
       orderBy: { updatedAt: 'desc' },
       take: 100,
       select: {
-        id: true, name: true, slug: true, kind: true, mode: true, status: true, publishedAt: true, updatedAt: true, customDomain: true, customDomainVerifiedAt: true,
-        draftBlocks: true, publishedBlocks: true, theme: true, publishedTheme: true, draftHtml: true, publishedHtml: true,
+        id: true,
+        name: true,
+        slug: true,
+        kind: true,
+        mode: true,
+        status: true,
+        publishedAt: true,
+        updatedAt: true,
+        customDomain: true,
+        customDomainVerifiedAt: true,
+        draftBlocks: true,
+        publishedBlocks: true,
+        theme: true,
+        publishedTheme: true,
+        draftHtml: true,
+        publishedHtml: true,
         contact: { select: { razonSocial: true, nombreFantasia: true } },
       },
     }),
     prisma.webSiteMessage.groupBy({ by: ['siteId'], where: { companyId, readAt: null, archivedAt: null }, _count: { _all: true } }),
-    prisma.webSite.groupBy({ by: ['status'], where: { companyId }, _count: { _all: true } }),
+    prisma.webSite.groupBy({ by: ['status'], where: { companyId, NOT: { store: { is: { standalone: true } } } }, _count: { _all: true } }),
     prisma.company.findUnique({ where: { id: companyId }, select: { maxWebSites: true } }),
+    prisma.webSite.count({ where: { companyId, status: { not: 'ARCHIVED' } } }),
   ]);
   const unreadBySite = new Map(unread.map((row) => [row.siteId, row._count._all]));
   const counts: Record<string, number> = { DRAFT: 0, PUBLISHED: 0, ARCHIVED: 0 };
   for (const row of grouped) counts[row.status] = row._count._all;
   return {
     counts,
-    quota: siteQuota((counts.DRAFT ?? 0) + (counts.PUBLISHED ?? 0), company?.maxWebSites),
+    quota: siteQuota(totalActive, company?.maxWebSites),
     rows: sites.map((site) => ({
       id: site.id,
       name: site.name,
@@ -253,7 +285,15 @@ export async function getWebSite(companyId: string, id: string): Promise<WebSite
     publicUrl: publicSiteUrl(site.slug),
     companyLogoUrl: site.company.logoUrl,
     companyName: site.company.businessName,
-    assets: site.assets.map((asset) => ({ id: asset.id, url: asset.url, fileName: asset.fileName, mimeType: asset.mimeType, sizeBytes: asset.sizeBytes, alt: asset.alt ?? '', createdAt: asset.createdAt })),
+    assets: site.assets.map((asset) => ({
+      id: asset.id,
+      url: asset.url,
+      fileName: asset.fileName,
+      mimeType: asset.mimeType,
+      sizeBytes: asset.sizeBytes,
+      alt: asset.alt ?? '',
+      createdAt: asset.createdAt,
+    })),
     unreadMessages,
     version: site.contentUpdatedAt.toISOString(),
     createdAt: site.createdAt,
@@ -261,8 +301,21 @@ export async function getWebSite(companyId: string, id: string): Promise<WebSite
 }
 
 /** Evaluación en el servidor (la misma que ve el editor), para no confiar en el navegador. */
-export function readinessOf(site: Pick<WebSiteDetail, 'kind' | 'mode' | 'seoTitle' | 'seoDescription' | 'logoUrl' | 'theme' | 'document' | 'html'>, features?: Partial<CompanyFeatureFlags>): ReadinessReport {
-  return evaluateReadiness({ kind: site.kind, mode: site.mode, seoTitle: site.seoTitle, seoDescription: site.seoDescription, logoUrl: site.logoUrl, theme: site.theme, document: site.document, html: site.html, features });
+export function readinessOf(
+  site: Pick<WebSiteDetail, 'kind' | 'mode' | 'seoTitle' | 'seoDescription' | 'logoUrl' | 'theme' | 'document' | 'html'>,
+  features?: Partial<CompanyFeatureFlags>,
+): ReadinessReport {
+  return evaluateReadiness({
+    kind: site.kind,
+    mode: site.mode,
+    seoTitle: site.seoTitle,
+    seoDescription: site.seoDescription,
+    logoUrl: site.logoUrl,
+    theme: site.theme,
+    document: site.document,
+    html: site.html,
+    features,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -284,7 +337,12 @@ async function assertSiteQuota(companyId: string): Promise<void> {
   if (quota.reached) throw new WebSiteError(quotaReachedMessage(quota));
 }
 
-export async function createWebSite(companyId: string, actor: { name: string }, input: CreateWebSiteInput, options: { canReadContacts?: boolean } = {}): Promise<{ id: string; slug: string }> {
+export async function createWebSite(
+  companyId: string,
+  actor: { name: string },
+  input: CreateWebSiteInput,
+  options: { canReadContacts?: boolean } = {},
+): Promise<{ id: string; slug: string }> {
   await assertSiteQuota(companyId);
   const contactId = await assertContact(companyId, input.contactId);
 
@@ -304,9 +362,10 @@ export async function createWebSite(companyId: string, actor: { name: string }, 
   if (input.mode === 'GUIDED') {
     if (industry) {
       // Sin permiso para ver clientes, los datos salen de la ficha de la empresa, nunca de la del cliente.
-      const owner = contactId && options.canReadContacts !== false
-        ? await prisma.contact.findFirst({ where: { id: contactId, companyId }, select: { email: true, phone: true, address: true, comuna: true } })
-        : await prisma.company.findFirst({ where: { id: companyId }, select: { email: true, phone: true, address: true, comuna: true } });
+      const owner =
+        contactId && options.canReadContacts !== false
+          ? await prisma.contact.findFirst({ where: { id: contactId, companyId }, select: { email: true, phone: true, address: true, comuna: true } })
+          : await prisma.company.findFirst({ where: { id: companyId }, select: { email: true, phone: true, address: true, comuna: true } });
       const address = [owner?.address, owner?.comuna].filter((part) => part?.trim()).join(', ');
       guided = industryDocument(industry, { name: input.name, contact: { email: owner?.email, phone: owner?.phone, address } });
     } else {
@@ -339,7 +398,10 @@ export async function createWebSite(companyId: string, actor: { name: string }, 
 }
 
 export async function saveWebSiteContent(companyId: string, id: string, input: SaveWebSiteContentInput): Promise<{ version: string }> {
-  const site = await prisma.webSite.findFirst({ where: { id, companyId }, select: { mode: true, status: true, draftBlocks: true, theme: true, store: { select: { siteId: true } } } });
+  const site = await prisma.webSite.findFirst({
+    where: { id, companyId },
+    select: { mode: true, status: true, draftBlocks: true, theme: true, store: { select: { siteId: true, standalone: true } } },
+  });
   if (!site) throw new WebSiteError('Sitio no encontrado');
   if (site.status === 'ARCHIVED') throw new WebSiteError('El sitio está archivado. Restáuralo para editarlo.');
 
@@ -347,16 +409,25 @@ export async function saveWebSiteContent(companyId: string, id: string, input: S
   const savedAt = new Date();
   const data: Prisma.WebSiteUpdateManyMutationInput = { contentUpdatedAt: savedAt };
   // `document` es el sitio completo; `blocks` (sitio de una página) se acepta por compatibilidad.
-  const incoming: SiteDocument | null = input.document ? normalizeSiteDocument(input.document) : input.blocks ? documentFromBlocks(input.blocks, input.theme) : null;
+  const incoming: SiteDocument | null = input.document
+    ? normalizeSiteDocument(input.document)
+    : input.blocks
+      ? documentFromBlocks(input.blocks, input.theme)
+      : null;
   if (incoming) {
     if (site.mode !== 'GUIDED') throw new WebSiteError('Este sitio usa HTML propio: no tiene secciones.');
     assertOwnImages(companyId, allBlocks(incoming).flatMap(blockImageUrls));
+    if (!site.store?.standalone && allBlocks(incoming).some((block) => block.type === 'catalog' && block.store))
+      throw new WebSiteError('Los productos con carrito se editan desde el creador Ecommerce.');
     // Un sitio con tienda: /tienda, /carrito… son de la tienda. Se rechazan páginas NUEVAS con esos nombres; una que ya
     // existía (el sitio es anterior a la tienda) no impide guardar lo demás, aunque la tienda no podrá abrirse hasta renombrarla.
     if (site.store) {
       const before = new Set(parseSiteDocument(site.draftBlocks, site.theme).pages.map((page) => page.slug));
       const added = storePageConflicts(incoming.pages.map((page) => page.slug)).filter((slug) => !before.has(slug));
-      if (added.length > 0) throw new WebSiteError(`${added.map((slug) => `/${slug}`).join(', ')} ${added.length === 1 ? 'es una dirección' : 'son direcciones'} de la tienda en línea. Ponle otro nombre a la página.`);
+      if (added.length > 0)
+        throw new WebSiteError(
+          `${added.map((slug) => `/${slug}`).join(', ')} ${added.length === 1 ? 'es una dirección' : 'son direcciones'} de la tienda en línea. Ponle otro nombre a la página.`,
+        );
     }
     data.draftBlocks = json(incoming);
   }
@@ -370,7 +441,8 @@ export async function saveWebSiteContent(companyId: string, id: string, input: S
 
   const expected = input.expectedUpdatedAt ? new Date(input.expectedUpdatedAt) : null;
   const result = await prisma.webSite.updateMany({ where: { id, companyId, ...(expected ? { contentUpdatedAt: expected } : {}) }, data });
-  if (result.count === 0) throw new WebSiteError('Otra persona guardó cambios en este sitio mientras lo editabas. Recarga la página para ver la última versión.');
+  if (result.count === 0)
+    throw new WebSiteError('Otra persona guardó cambios en este sitio mientras lo editabas. Recarga la página para ver la última versión.');
   return { version: savedAt.toISOString() };
 }
 
@@ -409,7 +481,11 @@ export async function updateWebSiteSettings(companyId: string, id: string, input
  * Publica una copia del borrador. Exige pasar la lista "qué falta" (los ítems
  * obligatorios): la revisa el servidor, no el navegador.
  */
-export async function publishWebSite(companyId: string, id: string, features?: Partial<CompanyFeatureFlags>): Promise<{ publishedAt: Date; report: ReadinessReport }> {
+export async function publishWebSite(
+  companyId: string,
+  id: string,
+  features?: Partial<CompanyFeatureFlags>,
+): Promise<{ publishedAt: Date; report: ReadinessReport }> {
   const site = await getWebSite(companyId, id);
   if (!site) throw new WebSiteError('Sitio no encontrado');
   if (site.status === 'ARCHIVED') throw new WebSiteError('El sitio está archivado. Restáuralo antes de publicarlo.');
@@ -472,7 +548,16 @@ export async function duplicateWebSite(companyId: string, actor: { name: string 
       createdByName: actor.name,
       // Las imágenes se comparten por URL: se copian sus filas para que borrar
       // el archivo de un sitio no deje sin imagen al otro (ver `deleteAsset`).
-      assets: { create: source.assets.map((asset) => ({ companyId, url: asset.url, fileName: asset.fileName, mimeType: asset.mimeType, sizeBytes: asset.sizeBytes, alt: asset.alt })) },
+      assets: {
+        create: source.assets.map((asset) => ({
+          companyId,
+          url: asset.url,
+          fileName: asset.fileName,
+          mimeType: asset.mimeType,
+          sizeBytes: asset.sizeBytes,
+          alt: asset.alt,
+        })),
+      },
     },
     select: { id: true },
   });
@@ -486,7 +571,8 @@ export async function deleteWebSite(companyId: string, id: string): Promise<{ ur
   if (site.status === 'PUBLISHED') throw new WebSiteError('Despublica el sitio antes de eliminarlo.');
   // Los pedidos de la tienda cuelgan del sitio: eliminarlo los borraría junto con su historial de ventas y pagos.
   const orders = await prisma.storeOrder.count({ where: { siteId: id, companyId } });
-  if (orders > 0) throw new WebSiteError('Este sitio tiene pedidos de la tienda en línea. Archívalo en vez de eliminarlo para conservar el historial de ventas y pagos.');
+  if (orders > 0)
+    throw new WebSiteError('Este sitio tiene pedidos de la tienda en línea. Archívalo en vez de eliminarlo para conservar el historial de ventas y pagos.');
   await prisma.webSite.deleteMany({ where: { id, companyId } });
   return { urls: site.assets.map((asset) => asset.url), domain: site.customDomain };
 }
@@ -495,15 +581,35 @@ export async function deleteWebSite(companyId: string, id: string): Promise<{ ur
 // Biblioteca de imágenes
 // ---------------------------------------------------------------------------
 
-export async function registerAsset(companyId: string, siteId: string, input: { url: string; fileName: string; mimeType: string; sizeBytes: number; alt?: string }): Promise<WebSiteAssetRow> {
+export async function registerAsset(
+  companyId: string,
+  siteId: string,
+  input: { url: string; fileName: string; mimeType: string; sizeBytes: number; alt?: string },
+): Promise<WebSiteAssetRow> {
   const site = await prisma.webSite.findFirst({ where: { id: siteId, companyId }, select: { id: true } });
   if (!site) throw new WebSiteError('Sitio no encontrado');
   const count = await prisma.webSiteAsset.count({ where: { companyId, siteId } });
   if (count >= MAX_ASSETS_PER_SITE) throw new WebSiteError(`La biblioteca del sitio admite hasta ${MAX_ASSETS_PER_SITE} imágenes. Elimina las que no uses.`);
   const asset = await prisma.webSiteAsset.create({
-    data: { companyId, siteId, url: input.url, fileName: input.fileName.slice(0, 120), mimeType: input.mimeType, sizeBytes: input.sizeBytes, alt: input.alt?.slice(0, 160) || null },
+    data: {
+      companyId,
+      siteId,
+      url: input.url,
+      fileName: input.fileName.slice(0, 120),
+      mimeType: input.mimeType,
+      sizeBytes: input.sizeBytes,
+      alt: input.alt?.slice(0, 160) || null,
+    },
   });
-  return { id: asset.id, url: asset.url, fileName: asset.fileName, mimeType: asset.mimeType, sizeBytes: asset.sizeBytes, alt: asset.alt ?? '', createdAt: asset.createdAt };
+  return {
+    id: asset.id,
+    url: asset.url,
+    fileName: asset.fileName,
+    mimeType: asset.mimeType,
+    sizeBytes: asset.sizeBytes,
+    alt: asset.alt ?? '',
+    createdAt: asset.createdAt,
+  };
 }
 
 /** Comprueba, ANTES de subir el archivo, que el sitio es de la empresa y que la biblioteca tiene espacio. */
@@ -515,7 +621,9 @@ export async function assertCanAddAsset(companyId: string, siteId: string, incom
   if (count >= MAX_ASSETS_PER_SITE) throw new WebSiteError(`La biblioteca del sitio admite hasta ${MAX_ASSETS_PER_SITE} imágenes. Elimina las que no uses.`);
   const used = await prisma.webSiteAsset.aggregate({ where: { companyId }, _sum: { sizeBytes: true } });
   if ((used._sum.sizeBytes ?? 0) + incomingBytes > MAX_COMPANY_ASSET_BYTES) {
-    throw new WebSiteError(`Tu empresa llegó al límite de ${Math.round(MAX_COMPANY_ASSET_BYTES / (1024 * 1024))} MB en imágenes de sitios. Elimina imágenes que no uses (también en sitios archivados).`);
+    throw new WebSiteError(
+      `Tu empresa llegó al límite de ${Math.round(MAX_COMPANY_ASSET_BYTES / (1024 * 1024))} MB en imágenes de sitios. Elimina imágenes que no uses (también en sitios archivados).`,
+    );
   }
 }
 
@@ -526,10 +634,18 @@ export async function updateAssetAlt(companyId: string, assetId: string, alt: st
 
 /** Devuelve la URL a borrar del almacenamiento (`null` si otro sitio todavía la usa). */
 export async function deleteAsset(companyId: string, assetId: string): Promise<{ urlToDelete: string | null }> {
-  const asset = await prisma.webSiteAsset.findFirst({ where: { id: assetId, companyId }, include: { site: { select: { draftBlocks: true, publishedBlocks: true, logoUrl: true, ogImageUrl: true, faviconUrl: true, draftHtml: true, publishedHtml: true } } } });
+  const asset = await prisma.webSiteAsset.findFirst({
+    where: { id: assetId, companyId },
+    include: {
+      site: { select: { draftBlocks: true, publishedBlocks: true, logoUrl: true, ogImageUrl: true, faviconUrl: true, draftHtml: true, publishedHtml: true } },
+    },
+  });
   if (!asset) throw new WebSiteError('Imagen no encontrada');
-  const usedHere = [asset.site.draftBlocks, asset.site.publishedBlocks].some((value) => JSON.stringify(value ?? null).includes(asset.url)) ||
-    [asset.site.logoUrl, asset.site.ogImageUrl, asset.site.faviconUrl, asset.site.draftHtml, asset.site.publishedHtml].some((value) => (value ?? '').includes(asset.url));
+  const usedHere =
+    [asset.site.draftBlocks, asset.site.publishedBlocks].some((value) => JSON.stringify(value ?? null).includes(asset.url)) ||
+    [asset.site.logoUrl, asset.site.ogImageUrl, asset.site.faviconUrl, asset.site.draftHtml, asset.site.publishedHtml].some((value) =>
+      (value ?? '').includes(asset.url),
+    );
   if (usedHere) throw new WebSiteError('Esta imagen se usa en el sitio. Quítala de las secciones (y despublica o vuelve a publicar) antes de eliminarla.');
   await prisma.webSiteAsset.deleteMany({ where: { id: assetId, companyId } });
   const others = await prisma.webSiteAsset.count({ where: { url: asset.url, companyId } });
@@ -585,13 +701,30 @@ export interface PublicWebSite {
   customDomainVerified: boolean;
   publishedAt: Date | null;
   standaloneStore?: boolean;
+  storefrontHome?: boolean;
 }
 
 const PUBLIC_SELECT = {
-  id: true, companyId: true, name: true, slug: true, mode: true, status: true, seoTitle: true, seoDescription: true, indexable: true, logoUrl: true, ogImageUrl: true, faviconUrl: true,
-  publishedBlocks: true, publishedTheme: true, publishedHtml: true, publishedAt: true, customDomain: true, customDomainVerifiedAt: true,
+  id: true,
+  companyId: true,
+  name: true,
+  slug: true,
+  mode: true,
+  status: true,
+  seoTitle: true,
+  seoDescription: true,
+  indexable: true,
+  logoUrl: true,
+  ogImageUrl: true,
+  faviconUrl: true,
+  publishedBlocks: true,
+  publishedTheme: true,
+  publishedHtml: true,
+  publishedAt: true,
+  customDomain: true,
+  customDomainVerifiedAt: true,
   company: { select: { businessName: true, status: true, features: { select: { hasWebSites: true, hasEcommerce: true } } } },
-  store: { select: { standalone: true } },
+  store: { select: { standalone: true, homepageEnabled: true } },
 } satisfies Prisma.WebSiteSelect;
 
 type PublicRow = Prisma.WebSiteGetPayload<{ select: typeof PUBLIC_SELECT }>;
@@ -600,9 +733,10 @@ function toPublic(site: PublicRow | null, storefront = false): PublicWebSite | n
   if (!site || site.status !== 'PUBLISHED') return null;
   // Empresa suspendida/cancelada o sin el módulo: el sitio deja de verse en el acto.
   if (site.company.status === 'SUSPENDED' || site.company.status === 'CANCELLED') return null;
+  if (site.store?.standalone && !site.company.features?.hasEcommerce) return null;
   const storeAccess = Boolean(site.company.features?.hasEcommerce && site.store && (storefront || site.store.standalone));
   if (!site.company.features?.hasWebSites && !storeAccess) return null;
-  const document = parseSiteDocument(site.publishedBlocks, site.publishedTheme);
+  const document = parseSiteDocument(site.store?.standalone && !site.store.homepageEnabled ? [] : site.publishedBlocks, site.publishedTheme);
   return {
     id: site.id,
     companyId: site.companyId,
@@ -619,11 +753,12 @@ function toPublic(site: PublicRow | null, storefront = false): PublicWebSite | n
     document,
     blocks: homeOf(document).blocks,
     html: site.publishedHtml ?? '',
-    acceptsMessages: siteForms(document).some((form) => !form.hidden),
+    acceptsMessages: (!site.store?.standalone || site.store.homepageEnabled) && siteForms(document).some((form) => !form.hidden),
     customDomain: site.customDomain,
     customDomainVerified: Boolean(site.customDomainVerifiedAt),
     publishedAt: site.publishedAt,
     standaloneStore: site.store?.standalone ?? false,
+    storefrontHome: Boolean(site.store?.standalone && site.store.homepageEnabled),
   };
 }
 
@@ -642,7 +777,10 @@ export async function getPublicWebSiteByDomain(domain: string, reachedViaDomain 
   if (!row) return null;
   if (!row.customDomainVerifiedAt) {
     if (!reachedViaDomain) return null;
-    await prisma.webSite.updateMany({ where: { id: row.id, companyId: row.companyId, customDomain: domain, customDomainVerifiedAt: null }, data: { customDomainVerifiedAt: new Date() } });
+    await prisma.webSite.updateMany({
+      where: { id: row.id, companyId: row.companyId, customDomain: domain, customDomainVerifiedAt: null },
+      data: { customDomainVerifiedAt: new Date() },
+    });
   }
   return toPublic(row, storefront);
 }
@@ -653,7 +791,7 @@ export async function countRecentMessages(companyId: string, siteId: string, min
 }
 
 export async function countUnreadMessages(companyId: string): Promise<number> {
-  return prisma.webSiteMessage.count({ where: { companyId, readAt: null, archivedAt: null } });
+  return prisma.webSiteMessage.count({ where: { companyId, readAt: null, archivedAt: null, site: { NOT: { store: { is: { standalone: true } } } } } });
 }
 
 // ---------------------------------------------------------------------------
@@ -680,11 +818,23 @@ export async function listCatalogProducts(companyId: string, q?: string): Promis
   const rows = await prisma.product.findMany({
     where: {
       companyId,
-      ...(search ? { OR: [{ name: { contains: search, mode: 'insensitive' } }, { sku: { contains: search, mode: 'insensitive' } }, { brand: { contains: search, mode: 'insensitive' } }] } : {}),
+      ...(search
+        ? {
+            OR: [
+              { name: { contains: search, mode: 'insensitive' } },
+              { sku: { contains: search, mode: 'insensitive' } },
+              { brand: { contains: search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
     },
     orderBy: { name: 'asc' },
     take: 60,
     select: { id: true, name: true, sku: true, description: true, brand: true, grossPrice: true, imageUrl: true },
   });
-  return rows.map((row) => ({ ...row, description: row.description ?? '', imageUrl: row.imageUrl && isAllowedBlobUrl(row.imageUrl) && blobPathnameStartsWith(row.imageUrl, `products/${companyId}/`) ? row.imageUrl : null }));
+  return rows.map((row) => ({
+    ...row,
+    description: row.description ?? '',
+    imageUrl: row.imageUrl && isAllowedBlobUrl(row.imageUrl) && blobPathnameStartsWith(row.imageUrl, `products/${companyId}/`) ? row.imageUrl : null,
+  }));
 }

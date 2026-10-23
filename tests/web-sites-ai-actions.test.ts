@@ -1,3 +1,5 @@
+import { prisma } from '@/lib/prisma';
+import { assertStoreModule } from '@/modules/ecommerce/services/store-settings.service';
 import { proposeSiteDesignAction } from '@/modules/web-sites/actions/ai-designer.actions';
 import { requireAuthWithPermission } from '@/lib/auth/guards';
 import { checkRateLimit } from '@/lib/security/rate-limiter';
@@ -7,6 +9,8 @@ import { generateAgentText } from '@/modules/agents/services/gemini-agent';
 import { DEFAULT_THEME } from '@/lib/web-sites/theme';
 import { academyDesignSchema } from '@/lib/web-sites/ai-designer';
 
+jest.mock('@/lib/prisma', () => ({ prisma: { webSiteStore: { findFirst: jest.fn() } } }));
+jest.mock('@/modules/ecommerce/services/store-settings.service', () => ({ assertStoreModule: jest.fn() }));
 jest.mock('@/lib/auth/guards', () => ({ requireAuthWithPermission: jest.fn(), authErrorMessage: jest.fn(() => null) }));
 jest.mock('@/lib/security/rate-limiter', () => ({ checkRateLimit: jest.fn() }));
 jest.mock('@/modules/web-sites/services/web-sites.service', () => ({ getWebSite: jest.fn() }));
@@ -14,6 +18,7 @@ jest.mock('@/modules/projects/services/projects.service', () => ({ getProject: j
 jest.mock('@/modules/agents/services/gemini-agent', () => ({ generateAgentText: jest.fn() }));
 jest.mock('@/lib/observability', () => ({ captureException: jest.fn() }));
 
+const storeLookup = prisma.webSiteStore.findFirst as jest.Mock;
 const auth = jest.mocked(requireAuthWithPermission);
 const generator = jest.mocked(generateAgentText);
 const webSite = jest.mocked(getWebSite);
@@ -27,6 +32,7 @@ const env = { gemini: process.env.GEMINI_API_KEY, nvidia: process.env.NVIDIA_API
 
 beforeEach(() => {
   jest.resetAllMocks();
+  storeLookup.mockResolvedValue(null);
   web = { ...web, instruction: `Mejora el sitio en móvil ${++runs}` };
   auth.mockResolvedValue({ companyId: 'tenant-1', id: 'user-1' } as Awaited<ReturnType<typeof requireAuthWithPermission>>);
   limiter.mockReturnValue({ allowed: true, remaining: 4, retryAfterMs: null, limit: 5 });
@@ -37,8 +43,10 @@ beforeEach(() => {
   generator.mockResolvedValue(JSON.stringify({ target: 'web', summary: 'Diseño nuevo', changes: ['Mejor lectura'], design: current }));
 });
 afterAll(() => {
-  if (env.gemini === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = env.gemini;
-  if (env.nvidia === undefined) delete process.env.NVIDIA_API_KEY; else process.env.NVIDIA_API_KEY = env.nvidia;
+  if (env.gemini === undefined) delete process.env.GEMINI_API_KEY;
+  else process.env.GEMINI_API_KEY = env.gemini;
+  if (env.nvidia === undefined) delete process.env.NVIDIA_API_KEY;
+  else process.env.NVIDIA_API_KEY = env.nvidia;
 });
 
 it('exige permiso de escritura y busca el sitio dentro de la empresa de la sesión', async () => {
@@ -82,7 +90,10 @@ it('limita solicitudes por empresa antes de usar la cuota compartida', async () 
 });
 it('informa que no hay claves sin exponer valores del entorno', async () => {
   delete process.env.GEMINI_API_KEY;
-  expect(await proposeSiteDesignAction(web)).toEqual({ success: false, error: 'El asistente necesita GEMINI_API_KEY, NVIDIA_API_KEY o EXTRA_LLM_API_KEY configurada en el servidor.' });
+  expect(await proposeSiteDesignAction(web)).toEqual({
+    success: false,
+    error: 'El asistente necesita GEMINI_API_KEY, NVIDIA_API_KEY o EXTRA_LLM_API_KEY configurada en el servidor.',
+  });
   expect(generator).not.toHaveBeenCalled();
 });
 it('explica la cuota agotada sin exponer el detalle del proveedor', async () => {
@@ -107,4 +118,22 @@ it('no devuelve mensajes internos del proveedor que puedan contener credenciales
   const result = await proposeSiteDesignAction(web);
   expect(result.success).toBe(false);
   expect(JSON.stringify(result)).not.toContain('private details');
+});
+
+it('commerce requires its own permission and owned independent store before using the AI provider', async () => {
+  const request = { ...web, target: 'commerce' };
+  expect((await proposeSiteDesignAction(request)).success).toBe(false);
+  expect(auth).toHaveBeenCalledWith('store:manage');
+  expect(assertStoreModule).toHaveBeenCalledWith('tenant-1');
+  expect(prisma.webSiteStore.findFirst).toHaveBeenCalledWith({ where: { companyId: 'tenant-1', siteId: 'site-1', standalone: true }, select: { id: true } });
+  expect(generator).not.toHaveBeenCalled();
+  storeLookup.mockResolvedValue({ id: 'owned-store' });
+  generator.mockResolvedValue(JSON.stringify({ target: 'commerce', summary: 'Mejor marca', changes: ['Más claridad'], design: current }));
+  expect((await proposeSiteDesignAction(request)).success).toBe(true);
+});
+it('website AI permission never grants access to a standalone store', async () => {
+  storeLookup.mockResolvedValue({ id: 'owned-store' });
+  expect((await proposeSiteDesignAction(web)).success).toBe(false);
+  expect(webSite).not.toHaveBeenCalled();
+  expect(generator).not.toHaveBeenCalled();
 });

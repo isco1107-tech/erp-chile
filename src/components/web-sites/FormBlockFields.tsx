@@ -35,7 +35,7 @@ import {
   type FormPreset,
 } from '@/lib/web-sites/forms';
 import { DEAL_TYPE_LABELS, DEAL_TYPES } from '@/modules/crm/schema';
-import { listAcademyGroupNamesAction } from '@/modules/web-sites/actions/web-sites.actions';
+import { useEditorRuntime } from './EditorRuntime';
 import { Notice, PHOTO_TIP, Tip, type FieldsProps } from './block-fields-shared';
 import { ChoiceGroup, SwitchRow, TextField } from './fields';
 import { ImagePicker } from './ImagePicker';
@@ -51,7 +51,12 @@ import { ListEditor } from './ListEditor';
 // Qué destinos puede usar esta empresa y este usuario
 // ---------------------------------------------------------------------------
 
-const ALL_OPEN: FormDestinationAccess = { inbox: { enabled: true, allowed: true }, crm: { enabled: true, allowed: true }, academy: { enabled: true, allowed: true }, tasks: { enabled: true, allowed: true } };
+const ALL_OPEN: FormDestinationAccess = {
+  inbox: { enabled: true, allowed: true },
+  crm: { enabled: true, allowed: true },
+  academy: { enabled: true, allowed: true },
+  tasks: { enabled: true, allowed: true },
+};
 
 export const FormDestinationsContext = createContext<{ access: FormDestinationAccess; canReadAcademy: boolean }>({ access: ALL_OPEN, canReadAcademy: false });
 
@@ -77,7 +82,9 @@ function DestinationPicker({ value, onChange, disabled, exclude = [] }: Destinat
   return (
     <fieldset className="space-y-2">
       <legend className="text-sm font-medium text-foreground">¿A qué parte del ERP tributa cada envío?</legend>
-      <p className="text-xs text-muted-foreground">Todo envío queda siempre en la bandeja «Mensajes» del sitio. Además, puedes registrarlo en otro módulo para trabajarlo ahí.</p>
+      <p className="text-xs text-muted-foreground">
+        Todo envío queda siempre en la bandeja «Mensajes» del sitio. Además, puedes registrarlo en otro módulo para trabajarlo ahí.
+      </p>
       <div className="grid gap-2 sm:grid-cols-2">
         {FORM_DESTINATIONS.filter((destination) => !exclude.includes(destination)).map((destination) => {
           const info = DESTINATION_INFO[destination];
@@ -90,10 +97,18 @@ function DestinationPicker({ value, onChange, disabled, exclude = [] }: Destinat
               className={cn(
                 'flex cursor-pointer flex-col gap-1 rounded-lg border p-3 text-left transition-colors has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/50',
                 selected ? 'border-ring bg-accent' : 'border-border hover:bg-muted',
-                (disabled || blocked) && 'cursor-not-allowed opacity-60'
+                (disabled || blocked) && 'cursor-not-allowed opacity-60',
               )}
             >
-              <input type="radio" className="sr-only" name={name} value={destination} checked={selected} disabled={disabled || (blocked && !selected)} onChange={() => onChange(destination)} />
+              <input
+                type="radio"
+                className="sr-only"
+                name={name}
+                value={destination}
+                checked={selected}
+                disabled={disabled || (blocked && !selected)}
+                onChange={() => onChange(destination)}
+              />
               <span className="flex flex-wrap items-center gap-2">
                 <StatusBadge tone={destination === 'inbox' ? 'neutral' : 'info'}>{info.area}</StatusBadge>
                 {blocked ? (
@@ -139,7 +154,9 @@ function WhereDataGoes({ destination, fields, consent }: { destination: FormDest
             <ArrowRight className="mt-0.5 size-4 shrink-0 text-accent-foreground" aria-hidden="true" />
             <span>
               <span className="font-medium">Además:</span> {info.where}.{' '}
-              {!access[destination].enabled ? <span className="text-warning">Tu plan no incluye este módulo: por ahora quedará solo en la bandeja.</span> : null}
+              {!access[destination].enabled ? (
+                <span className="text-warning">Tu plan no incluye este módulo: por ahora quedará solo en la bandeja.</span>
+              ) : null}
             </span>
           </li>
         )}
@@ -154,7 +171,9 @@ function WhereDataGoes({ destination, fields, consent }: { destination: FormDest
               </li>
             ))}
           </ul>
-          {answersOnly.length > 0 && <p className="mt-1.5 text-xs text-muted-foreground">Las demás preguntas ({answersOnly.length}) van en las notas del registro y en la bandeja.</p>}
+          {answersOnly.length > 0 && (
+            <p className="mt-1.5 text-xs text-muted-foreground">Las demás preguntas ({answersOnly.length}) van en las notas del registro y en la bandeja.</p>
+          )}
         </div>
       )}
       {problems.length > 0 && (
@@ -173,14 +192,28 @@ function WhereDataGoes({ destination, fields, consent }: { destination: FormDest
   );
 }
 
-function DealTypeField({ value, onChange, disabled }: { value: (typeof DEAL_TYPES)[number]; onChange: (value: (typeof DEAL_TYPES)[number]) => void; disabled: boolean }) {
+function DealTypeField({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: (typeof DEAL_TYPES)[number];
+  onChange: (value: (typeof DEAL_TYPES)[number]) => void;
+  disabled: boolean;
+}) {
   const id = useId();
   return (
     <div className="space-y-1.5">
       <label htmlFor={id} className="text-sm font-medium">
         Tipo de negocio en el CRM
       </label>
-      <select id={id} className={nativeSelectClass} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value as (typeof DEAL_TYPES)[number])}>
+      <select
+        id={id}
+        className={nativeSelectClass}
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value as (typeof DEAL_TYPES)[number])}
+      >
         {DEAL_TYPES.map((type) => (
           <option key={type} value={type}>
             {DEAL_TYPE_LABELS[type]}
@@ -191,7 +224,21 @@ function DealTypeField({ value, onChange, disabled }: { value: (typeof DEAL_TYPE
   );
 }
 
-function DestinationExtras({ destination, dealType, inboxTag, onDealType, onTag, disabled }: { destination: FormDestination; dealType: (typeof DEAL_TYPES)[number]; inboxTag: string; onDealType: (value: (typeof DEAL_TYPES)[number]) => void; onTag: (value: string) => void; disabled: boolean }) {
+function DestinationExtras({
+  destination,
+  dealType,
+  inboxTag,
+  onDealType,
+  onTag,
+  disabled,
+}: {
+  destination: FormDestination;
+  dealType: (typeof DEAL_TYPES)[number];
+  inboxTag: string;
+  onDealType: (value: (typeof DEAL_TYPES)[number]) => void;
+  onTag: (value: string) => void;
+  disabled: boolean;
+}) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       <TextField
@@ -201,7 +248,9 @@ function DestinationExtras({ destination, dealType, inboxTag, onDealType, onTag,
         max={30}
         disabled={disabled}
         placeholder="Ej.: Inscripciones 2027"
-        hint={destination === 'crm' ? 'Filtra la bandeja y también queda como etiqueta de la oportunidad.' : 'Sirve para filtrar la bandeja. La visita no la ve.'}
+        hint={
+          destination === 'crm' ? 'Filtra la bandeja y también queda como etiqueta de la oportunidad.' : 'Sirve para filtrar la bandeja. La visita no la ve.'
+        }
       />
       {destination === 'crm' ? <DealTypeField value={dealType} onChange={onDealType} disabled={disabled} /> : null}
     </div>
@@ -217,8 +266,20 @@ export function ContactFormDestination({ block, disabled, onChange }: FieldsProp
   if (!block.showForm) return null;
   return (
     <div className="space-y-4 rounded-lg border border-border p-3">
-      <DestinationPicker value={block.destination === 'academy' ? 'inbox' : block.destination} onChange={(destination) => set({ destination })} disabled={disabled} exclude={['academy']} />
-      <DestinationExtras destination={block.destination} dealType={block.dealType} inboxTag={block.inboxTag} onDealType={(dealType) => set({ dealType })} onTag={(inboxTag) => set({ inboxTag })} disabled={disabled} />
+      <DestinationPicker
+        value={block.destination === 'academy' ? 'inbox' : block.destination}
+        onChange={(destination) => set({ destination })}
+        disabled={disabled}
+        exclude={['academy']}
+      />
+      <DestinationExtras
+        destination={block.destination}
+        dealType={block.dealType}
+        inboxTag={block.inboxTag}
+        onDealType={(dealType) => set({ dealType })}
+        onTag={(inboxTag) => set({ inboxTag })}
+        disabled={disabled}
+      />
       <WhereDataGoes destination={block.destination === 'academy' ? 'inbox' : block.destination} fields={CONTACT_FORM_FIELDS} consent="notice" />
       <Tip>¿Necesitas inscripciones, cotizaciones o reservas con preguntas propias? Agrega una sección «Formulario».</Tip>
     </div>
@@ -229,7 +290,18 @@ export function ContactFormDestination({ block, disabled, onChange }: FieldsProp
 // Una pregunta
 // ---------------------------------------------------------------------------
 
-function QuestionFields({ field, update, disabled, destination }: { field: FormField; update: (patch: Partial<FormField>) => void; disabled: boolean; destination: FormDestination }) {
+function QuestionFields({
+  field,
+  update,
+  disabled,
+  destination,
+}: {
+  field: FormField;
+  update: (patch: Partial<FormField>) => void;
+  disabled: boolean;
+  destination: FormDestination;
+}) {
+  const { actions: editorActions } = useEditorRuntime();
   const kindId = useId();
   const roleId = useId();
   const { canReadAcademy } = useDestinations();
@@ -246,7 +318,7 @@ function QuestionFields({ field, update, disabled, destination }: { field: FormF
   async function loadGroups() {
     setLoadingGroups(true);
     try {
-      const result = await listAcademyGroupNamesAction();
+      const result = await editorActions.listAcademyGroupNamesAction();
       if (!result.success) return void toast.error(result.error);
       if (result.data.length === 0) return void toast.info('La academia no tiene grupos activos todavía. Créalos en Academia → Grupos.');
       update({ options: ['Aún no lo sé', ...result.data].slice(0, MAX_FIELD_OPTIONS) });
@@ -265,7 +337,13 @@ function QuestionFields({ field, update, disabled, destination }: { field: FormF
           <label htmlFor={kindId} className="text-sm font-medium">
             Tipo de respuesta
           </label>
-          <select id={kindId} className={nativeSelectClass} value={field.kind} disabled={disabled} onChange={(event) => changeKind(event.target.value as FormField['kind'])}>
+          <select
+            id={kindId}
+            className={nativeSelectClass}
+            value={field.kind}
+            disabled={disabled}
+            onChange={(event) => changeKind(event.target.value as FormField['kind'])}
+          >
             {FORM_FIELD_KINDS.map((kind) => (
               <option key={kind} value={kind}>
                 {FIELD_KIND_INFO[kind].label}
@@ -278,7 +356,13 @@ function QuestionFields({ field, update, disabled, destination }: { field: FormF
           <label htmlFor={roleId} className="text-sm font-medium">
             Se guarda en el ERP como
           </label>
-          <select id={roleId} className={nativeSelectClass} value={field.role} disabled={disabled || roles.length === 0} onChange={(event) => update({ role: event.target.value as FormField['role'] })}>
+          <select
+            id={roleId}
+            className={nativeSelectClass}
+            value={field.role}
+            disabled={disabled || roles.length === 0}
+            onChange={(event) => update({ role: event.target.value as FormField['role'] })}
+          >
             <option value="">Solo como respuesta</option>
             {roles.map((role) => (
               <option key={role} value={role}>
@@ -289,14 +373,36 @@ function QuestionFields({ field, update, disabled, destination }: { field: FormF
           <p className="text-xs text-muted-foreground">Llena ese dato en el registro del destino (nombre del prospecto, RUT de la alumna…).</p>
         </div>
       </div>
-      <TextField label="Pregunta" value={field.label} onChange={(label) => update({ label })} max={100} disabled={disabled} placeholder="Ej.: ¿Qué servicio necesitas?" error={!field.label.trim() ? 'Escribe la pregunta.' : null} />
-      <TextField label="Aclaración (opcional)" value={field.help} onChange={(help) => update({ help })} max={160} disabled={disabled} placeholder="Ej.: Solo si es menor de edad" />
+      <TextField
+        label="Pregunta"
+        value={field.label}
+        onChange={(label) => update({ label })}
+        max={100}
+        disabled={disabled}
+        placeholder="Ej.: ¿Qué servicio necesitas?"
+        error={!field.label.trim() ? 'Escribe la pregunta.' : null}
+      />
+      <TextField
+        label="Aclaración (opcional)"
+        value={field.help}
+        onChange={(help) => update({ help })}
+        max={160}
+        disabled={disabled}
+        placeholder="Ej.: Solo si es menor de edad"
+      />
       {hasOptions ? (
         <div className="space-y-2">
           <TextField
             label="Opciones"
             value={field.options.join('\n')}
-            onChange={(value) => update({ options: value.split('\n').map((line) => line.slice(0, 80)).slice(0, MAX_FIELD_OPTIONS) })}
+            onChange={(value) =>
+              update({
+                options: value
+                  .split('\n')
+                  .map((line) => line.slice(0, 80))
+                  .slice(0, MAX_FIELD_OPTIONS),
+              })
+            }
             disabled={disabled}
             multiline
             rows={4}
@@ -310,7 +416,13 @@ function QuestionFields({ field, update, disabled, destination }: { field: FormF
           ) : null}
         </div>
       ) : null}
-      <SwitchRow label="Obligatoria" description="No se puede enviar el formulario sin responderla." checked={field.required} onChange={(required) => update({ required })} disabled={disabled} />
+      <SwitchRow
+        label="Obligatoria"
+        description="No se puede enviar el formulario sin responderla."
+        checked={field.required}
+        onChange={(required) => update({ required })}
+        disabled={disabled}
+      />
     </div>
   );
 }
@@ -336,7 +448,9 @@ function PresetPicker({ onPick, disabled }: { onPick: (preset: FormPreset) => vo
             >
               <span className="text-sm font-medium">{preset.label}</span>
               <span className="text-xs text-muted-foreground">{preset.description}</span>
-              <span className="text-xs font-medium text-accent-foreground">→ {enabled ? info.area : `${DESTINATION_INFO.inbox.area} (sin ${info.area} en tu plan)`}</span>
+              <span className="text-xs font-medium text-accent-foreground">
+                → {enabled ? info.area : `${DESTINATION_INFO.inbox.area} (sin ${info.area} en tu plan)`}
+              </span>
             </button>
           </li>
         );
@@ -390,16 +504,45 @@ export function FormFields({ block, disabled, onChange }: FieldsProps<BlockOf<'f
             {showPresets ? 'Ocultar' : 'Ver plantillas'}
           </Button>
         </div>
-        {showPresets ? <PresetPicker onPick={(preset) => void applyPreset(preset)} disabled={disabled} /> : <p className="text-xs text-muted-foreground">Contacto, cotización, inscripción, reserva, postulación, suscripción o reclamos: con las preguntas y el destino listos.</p>}
+        {showPresets ? (
+          <PresetPicker onPick={(preset) => void applyPreset(preset)} disabled={disabled} />
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Contacto, cotización, inscripción, reserva, postulación, suscripción o reclamos: con las preguntas y el destino listos.
+          </p>
+        )}
       </div>
 
-      <TextField label="Título de la sección" value={block.heading} onChange={(heading) => set({ heading })} max={120} disabled={disabled} placeholder="Ej.: Pide tu cotización" hint="También aparece en el menú y es el nombre del formulario en la bandeja." />
-      <TextField label="Texto de apoyo (opcional)" value={block.intro} onChange={(intro) => set({ intro })} max={400} disabled={disabled} multiline rows={2} placeholder="Ej.: Te respondemos el mismo día hábil, sin compromiso." />
+      <TextField
+        label="Título de la sección"
+        value={block.heading}
+        onChange={(heading) => set({ heading })}
+        max={120}
+        disabled={disabled}
+        placeholder="Ej.: Pide tu cotización"
+        hint="También aparece en el menú y es el nombre del formulario en la bandeja."
+      />
+      <TextField
+        label="Texto de apoyo (opcional)"
+        value={block.intro}
+        onChange={(intro) => set({ intro })}
+        max={400}
+        disabled={disabled}
+        multiline
+        rows={2}
+        placeholder="Ej.: Te respondemos el mismo día hábil, sin compromiso."
+      />
       <div className="space-y-1.5">
         <label htmlFor={purposeId} className="text-sm font-medium">
           ¿Para qué es este formulario?
         </label>
-        <select id={purposeId} className={nativeSelectClass} value={block.purpose} disabled={disabled} onChange={(event) => set({ purpose: event.target.value as BlockOf<'form'>['purpose'] })}>
+        <select
+          id={purposeId}
+          className={nativeSelectClass}
+          value={block.purpose}
+          disabled={disabled}
+          onChange={(event) => set({ purpose: event.target.value as BlockOf<'form'>['purpose'] })}
+        >
           {FORM_PURPOSES.map((purpose) => (
             <option key={purpose} value={purpose}>
               {PURPOSE_LABELS[purpose]}
@@ -421,7 +564,9 @@ export function FormFields({ block, disabled, onChange }: FieldsProps<BlockOf<'f
           createItem={() => createField('text', { label: '' })}
           cloneItem={(field) => ({ ...structuredClone(field), id: newFieldId(), role: '' as const })}
           onChange={(fields) => set({ fields })}
-          summary={(field) => `${field.label || 'Sin texto'} · ${FIELD_KIND_INFO[field.kind].label}${field.required ? ' · obligatoria' : ''}${field.role ? ` · ${ROLE_INFO[field.role].label}` : ''}`}
+          summary={(field) =>
+            `${field.label || 'Sin texto'} · ${FIELD_KIND_INFO[field.kind].label}${field.required ? ' · obligatoria' : ''}${field.role ? ` · ${ROLE_INFO[field.role].label}` : ''}`
+          }
           emptyText="Agrega preguntas o elige una plantilla."
           renderItem={(field, update) => <QuestionFields field={field} update={update} disabled={disabled} destination={block.destination} />}
         />
@@ -434,7 +579,14 @@ export function FormFields({ block, disabled, onChange }: FieldsProps<BlockOf<'f
           onChange={(destination) => set({ destination, ...(DESTINATION_INFO[destination].forcesConsent ? { consent: 'checkbox' } : {}) })}
           disabled={disabled}
         />
-        <DestinationExtras destination={block.destination} dealType={block.dealType} inboxTag={block.inboxTag} onDealType={(dealType) => set({ dealType })} onTag={(inboxTag) => set({ inboxTag })} disabled={disabled} />
+        <DestinationExtras
+          destination={block.destination}
+          dealType={block.dealType}
+          inboxTag={block.inboxTag}
+          onDealType={(dealType) => set({ dealType })}
+          onTag={(inboxTag) => set({ inboxTag })}
+          disabled={disabled}
+        />
         <WhereDataGoes destination={block.destination} fields={block.fields} consent={block.consent} />
       </div>
 
@@ -444,7 +596,11 @@ export function FormFields({ block, disabled, onChange }: FieldsProps<BlockOf<'f
         onChange={(consent) => set({ consent })}
         disabled={disabled || consentForced}
         columns={2}
-        hint={consentForced ? 'La academia guarda datos personales (RUT, fecha de nacimiento): la casilla es obligatoria.' : 'Con datos sensibles (RUT, salud, menores de edad) conviene pedir la casilla.'}
+        hint={
+          consentForced
+            ? 'La academia guarda datos personales (RUT, fecha de nacimiento): la casilla es obligatoria.'
+            : 'Con datos sensibles (RUT, salud, menores de edad) conviene pedir la casilla.'
+        }
         options={[
           { value: 'notice', label: 'Aviso con enlace', description: '“Usaremos tus datos solo para responderte, según el aviso de privacidad.”' },
           { value: 'checkbox', label: 'Casilla obligatoria', description: '“Leí y acepto el aviso de privacidad.” No se envía sin marcarla.' },
@@ -452,23 +608,59 @@ export function FormFields({ block, disabled, onChange }: FieldsProps<BlockOf<'f
       />
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <TextField label="Texto del botón" value={block.submitLabel} onChange={(submitLabel) => set({ submitLabel })} max={40} disabled={disabled} placeholder={defaults.submitLabel} hint="Vacío = el de la plantilla." />
-        <TextField label="Mensaje al enviar" value={block.successTitle} onChange={(successTitle) => set({ successTitle })} max={120} disabled={disabled} placeholder={defaults.successTitle} />
+        <TextField
+          label="Texto del botón"
+          value={block.submitLabel}
+          onChange={(submitLabel) => set({ submitLabel })}
+          max={40}
+          disabled={disabled}
+          placeholder={defaults.submitLabel}
+          hint="Vacío = el de la plantilla."
+        />
+        <TextField
+          label="Mensaje al enviar"
+          value={block.successTitle}
+          onChange={(successTitle) => set({ successTitle })}
+          max={120}
+          disabled={disabled}
+          placeholder={defaults.successTitle}
+        />
       </div>
-      <TextField label="Detalle del mensaje al enviar (opcional)" value={block.successText} onChange={(successText) => set({ successText })} max={300} disabled={disabled} multiline rows={2} placeholder={defaults.successText} hint="Di qué pasa ahora y cuándo: “Te respondemos dentro de 24 horas hábiles”." />
+      <TextField
+        label="Detalle del mensaje al enviar (opcional)"
+        value={block.successText}
+        onChange={(successText) => set({ successText })}
+        max={300}
+        disabled={disabled}
+        multiline
+        rows={2}
+        placeholder={defaults.successText}
+        hint="Di qué pasa ahora y cuándo: “Te respondemos dentro de 24 horas hábiles”."
+      />
 
       <TextField
         label="Frases a favor (opcional)"
         value={block.highlights.join('\n')}
-        onChange={(value) => set({ highlights: value.split('\n').map((line) => line.slice(0, 120)).slice(0, MAX_FORM_HIGHLIGHTS) })}
+        onChange={(value) =>
+          set({
+            highlights: value
+              .split('\n')
+              .map((line) => line.slice(0, 120))
+              .slice(0, MAX_FORM_HIGHLIGHTS),
+          })
+        }
         disabled={disabled}
         multiline
         rows={3}
         placeholder={'Respuesta en menos de 24 horas\nSin compromiso\nAtendemos todo Chile'}
         hint={`Una por línea, hasta ${MAX_FORM_HIGHLIGHTS}. Se muestran junto al formulario y ayudan a que más gente lo complete.`}
       />
-      {block.variant === 'photo' ? <ImagePicker label="Foto junto al formulario" value={block.imageUrl} onChange={(imageUrl) => set({ imageUrl })} hint={PHOTO_TIP} /> : null}
-      {block.variant === 'steps' && block.fields.length <= 4 ? <Notice>El diseño «Por pasos» luce con formularios largos (5 preguntas o más). Con pocas preguntas, «Tarjeta» es más directo.</Notice> : null}
+      {block.variant === 'photo' ? (
+        <ImagePicker label="Foto junto al formulario" value={block.imageUrl} onChange={(imageUrl) => set({ imageUrl })} hint={PHOTO_TIP} />
+      ) : null}
+      {block.variant === 'steps' && block.fields.length <= 4 ? (
+        <Notice>El diseño «Por pasos» luce con formularios largos (5 preguntas o más). Con pocas preguntas, «Tarjeta» es más directo.</Notice>
+      ) : null}
     </div>
   );
 }

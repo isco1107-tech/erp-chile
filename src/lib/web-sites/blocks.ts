@@ -276,7 +276,13 @@ export const teamBlockSchema = z.object({
 });
 
 export const TESTIMONIAL_VARIANTS = ['cards', 'quotes', 'carousel', 'masonry', 'spotlight', 'minimal'] as const;
-export const testimonialItemSchema = z.object({ quote: text(500), author: text(80), role: text(80), photoUrl: link, rating: z.number().int().min(0).max(5).default(0).catch(0) });
+export const testimonialItemSchema = z.object({
+  quote: text(500),
+  author: text(80),
+  role: text(80),
+  photoUrl: link,
+  rating: z.number().int().min(0).max(5).default(0).catch(0),
+});
 export const testimonialsBlockSchema = z.object({
   ...base,
   type: z.literal('testimonials'),
@@ -337,6 +343,10 @@ export const catalogItemSchema = z.object({
 export const catalogBlockSchema = z.object({
   ...base,
   type: z.literal('catalog'),
+  /** Solo Ecommerce: productos vivos del ERP; nunca precios escritos en el editor. */
+  store: z
+    .object({ collection: z.string().trim().max(80).default(''), featuredOnly: z.boolean().default(false), limit: z.number().int().min(1).max(24).default(8) })
+    .optional(),
   heading: text(120),
   intro: text(300),
   items: z.array(catalogItemSchema).max(MAX_CATALOG_ITEMS).default([]),
@@ -492,7 +502,13 @@ export const comparisonBlockSchema = z.object({
   columns: z.array(comparisonColumnSchema).max(MAX_COMPARISON_COLUMNS).default([]),
   rows: z.array(comparisonRowSchema).max(MAX_COMPARISON_ROWS).default([]),
   /** Columna destacada (0, 1, 2 o 3); -1 = ninguna. */
-  highlight: z.number().int().min(-1).max(MAX_COMPARISON_COLUMNS - 1).default(0).catch(0),
+  highlight: z
+    .number()
+    .int()
+    .min(-1)
+    .max(MAX_COMPARISON_COLUMNS - 1)
+    .default(0)
+    .catch(0),
   variant: choice(COMPARISON_VARIANTS, 'table'),
 });
 
@@ -634,7 +650,6 @@ export const postsBlockSchema = z.object({
   columns: choice(COLUMN_OPTIONS, '3'),
   variant: choice(POSTS_VARIANTS, 'grid'),
 });
-
 
 export const FORM_VARIANTS = ['card', 'split', 'minimal', 'photo', 'steps'] as const;
 export const MAX_FORM_HIGHLIGHTS = 6;
@@ -1240,7 +1255,12 @@ export function blockTexts(block: WebSiteBlock): string[] {
   // De un formulario cuentan sus títulos y las opciones de cada pregunta ("Servicio 1"
   // es de ejemplo); las preguntas mismas ("Nombre", "Correo") son publicables tal cual.
   visit(block.type === 'form' ? { ...block, fields: block.fields.map((field) => ({ options: field.options })) } : block);
-  if (block.style.canvas?.enabled) for (const element of block.style.canvas.elements) if (!element.hidden) { if (element.text) out.push(element.text); if (element.alt) out.push(element.alt); }
+  if (block.style.canvas?.enabled)
+    for (const element of block.style.canvas.elements)
+      if (!element.hidden) {
+        if (element.text) out.push(element.text);
+        if (element.alt) out.push(element.alt);
+      }
   return out;
 }
 
@@ -1382,7 +1402,9 @@ export function blockLinks(block: WebSiteBlock): BlockLink[] {
 export function isBlockEmpty(block: WebSiteBlock): boolean {
   const canvas = block.style.canvas;
   if (canvas?.enabled) {
-    const hasContent = canvas.elements.some((el) => !el.hidden && (el.kind === 'shape' || (el.kind === 'image' ? Boolean(el.imageUrl) : Boolean(el.text.trim()))));
+    const hasContent = canvas.elements.some(
+      (el) => !el.hidden && (el.kind === 'shape' || (el.kind === 'image' ? Boolean(el.imageUrl) : Boolean(el.text.trim()))),
+    );
     if (canvas.replaceContent) return !hasContent;
     if (hasContent) return false;
   }
@@ -1416,6 +1438,7 @@ export function isBlockEmpty(block: WebSiteBlock): boolean {
     case 'pricelist':
       return block.categories.every((category) => category.items.every((item) => !item.name.trim()));
     case 'catalog':
+      if (block.store) return false;
       return block.items.every((item) => !item.title.trim() && !item.imageUrl);
     case 'schedule':
       return block.rows.every((row) => !row.title.trim() && !row.time.trim());

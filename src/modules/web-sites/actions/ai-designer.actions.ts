@@ -9,6 +9,8 @@ import { getWebSite } from '../services/web-sites.service';
 import { getProject } from '@/modules/projects/services/projects.service';
 import { generateAgentText } from '@/modules/agents/services/gemini-agent';
 import { DESIGNER_MAX_OUTPUT_TOKENS, resolveAgentModel } from '@/modules/agents/services/model-tiers';
+import { assertStoreModule } from '@/modules/ecommerce/services/store-settings.service';
+import { prisma } from '@/lib/prisma';
 import { allBlocks } from '@/lib/web-sites/site';
 import { blockImageUrls } from '@/lib/web-sites/blocks';
 
@@ -21,24 +23,44 @@ export async function proposeSiteDesignAction(input: unknown): Promise<Result> {
     const parsed = designerRequestSchema.safeParse(input);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Revisa el requerimiento' };
     const request = parsed.data;
-    const session = await requireAuthWithPermission(request.target === 'web' ? 'websites:write' : request.target.startsWith('academy') ? 'academy:manage' : 'projects:write');
+    const session = await requireAuthWithPermission(
+      request.target === 'commerce'
+        ? 'store:manage'
+        : request.target === 'web'
+          ? 'websites:write'
+          : request.target.startsWith('academy')
+            ? 'academy:manage'
+            : 'projects:write',
+    );
     companyId = session.companyId;
     const allowedImages = designImages(request.current);
     let name = request.target.startsWith('academy') ? 'Academia' : '';
-    if (request.target === 'web') {
+    if (request.target === 'web' || request.target === 'commerce') {
+      if (request.target === 'commerce') {
+        await assertStoreModule(companyId);
+        const store = await prisma.webSiteStore.findFirst({ where: { companyId, siteId: request.resourceId, standalone: true }, select: { id: true } });
+        if (!store) return { success: false, error: 'Tienda no encontrada' };
+      }
+      if (
+        request.target === 'web' &&
+        (await prisma.webSiteStore.findFirst({ where: { companyId, siteId: request.resourceId, standalone: true }, select: { id: true } }))
+      )
+        return { success: false, error: 'Edita esta tienda desde Ecommerce.' };
       const site = await getWebSite(companyId, request.resourceId);
       if (!site) return { success: false, error: 'Sitio o página no encontrado' };
       name = site.name;
       allowedImages.push(...allBlocks(site.document).flatMap(blockImageUrls), ...site.assets.map((asset) => asset.url));
-    } else if ((request.target === 'event' || request.target === 'event-studio')) {
+    } else if (request.target === 'event' || request.target === 'event-studio') {
       const project = await getProject(companyId, request.resourceId);
       if (!project) return { success: false, error: 'Certamen o evento no encontrado' };
       name = project.name;
     }
-    if (JSON.stringify(request.current).length > 180_000) return { success: false, error: 'La página es demasiado grande para una sola propuesta. Reduce el contenido antes de pedir la generación.' };
+    if (JSON.stringify(request.current).length > 180_000)
+      return { success: false, error: 'La página es demasiado grande para una sola propuesta. Reduce el contenido antes de pedir la generación.' };
     const limited = checkRateLimit(companyId, { prefix: 'site-designer-ai', limit: 5, windowMs: 60_000 });
     if (!limited.allowed) return { success: false, error: 'Ya solicitaste varios diseños. Espera un minuto y vuelve a intentarlo.' };
-    if (!process.env.GEMINI_API_KEY && !process.env.NVIDIA_API_KEY && !process.env.EXTRA_LLM_API_KEY) return { success: false, error: 'El asistente necesita GEMINI_API_KEY, NVIDIA_API_KEY o EXTRA_LLM_API_KEY configurada en el servidor.' };
+    if (!process.env.GEMINI_API_KEY && !process.env.NVIDIA_API_KEY && !process.env.EXTRA_LLM_API_KEY)
+      return { success: false, error: 'El asistente necesita GEMINI_API_KEY, NVIDIA_API_KEY o EXTRA_LLM_API_KEY configurada en el servidor.' };
     const systemPrompt = designerSystemPrompt(request);
     const userPrompt = JSON.stringify({ name, requirement: request.instruction, current: request.current });
     // Reintentar la misma petición (doble clic, "intentar nuevamente") no debe gastar cuota de nuevo.
@@ -87,7 +109,8 @@ function rememberResponse(key: string, text: string): void {
 function providerFailureMessage(error: unknown): string {
   const status = (error as { status?: number; code?: number } | null)?.status ?? (error as { code?: number } | null)?.code;
   const name = (error as { name?: string } | null)?.name;
-  if (status === 429) return 'La cuota gratuita de IA se agotó por ahora. Espera unos minutos e inténtalo de nuevo, o pide al administrador configurar otro proveedor.';
+  if (status === 429)
+    return 'La cuota gratuita de IA se agotó por ahora. Espera unos minutos e inténtalo de nuevo, o pide al administrador configurar otro proveedor.';
   if (status === 401 || status === 403) return 'La clave de IA del servidor no es válida o no tiene acceso. Avisa al administrador.';
   if (status === 404) return 'El modelo de IA configurado ya no existe. Avisa al administrador para actualizar el modelo.';
   if (name === 'TimeoutError' || name === 'AbortError') return 'La IA tardó demasiado en responder. Pide un cambio más acotado o inténtalo de nuevo.';

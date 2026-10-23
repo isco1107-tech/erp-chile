@@ -5730,6 +5730,8 @@ model WebSiteStore {
   enabled            Boolean    @default(false)
   /// Tienda creada desde Ecommerce: su portada abre directamente el catálogo.
   standalone         Boolean    @default(false)
+  /// Portada de marca publicada desde el creador Ecommerce, independiente de abrir las compras.
+  homepageEnabled    Boolean    @default(false)
   /// Bodega de la que sale lo que se vende por internet (su stock es el que se muestra y se descuenta).
   warehouseId        String?
   warehouse          Warehouse? @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
