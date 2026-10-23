@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertTriangle, ChevronDown, PackagePlus, RefreshCw, Search, Sparkles, Trash2 } from 'lucide-react';
-import { canCreateInMode, lineUnit, type Draft, type DraftLine } from '@/lib/warehouse-mobile/draft';
-import { isInboundMode } from '@/lib/warehouse-mobile/modes';
+import { AlertTriangle, Camera, ChevronDown, PackagePlus, RefreshCw, Search, Sparkles, Trash2 } from 'lucide-react';
+import { canCreateInMode, evidencePhotoOf, lineUnit, type Draft, type DraftLine } from '@/lib/warehouse-mobile/draft';
+import { MODE_DEFINITIONS, isInboundMode } from '@/lib/warehouse-mobile/modes';
 import type { MobileCandidate } from '@/modules/warehouse-mobile/types';
 import { useBodega } from './BodegaProvider';
 import { BigButton, Field, PhotoThumb, Pill, ProductImage, QuantityStepper, Spinner, formatQty, inputClass } from './ui';
@@ -24,9 +24,11 @@ interface Props {
   onSearch: (lineId: string) => void;
   onCreate: (lineId: string) => void;
   onRetake: (lineId: string) => void;
+  /** Abre la cámara para la foto de respaldo de una salida. */
+  onEvidence: (lineId: string) => void;
 }
 
-export default function LineCard({ line, draft, problem, onSearch, onCreate, onRetake }: Props) {
+export default function LineCard({ line, draft, problem, onSearch, onCreate, onRetake, onEvidence }: Props) {
   const { boot, setLineQuantity, removeDraftLine, patchDraftLine, confirmDraftLine, resolveLine, retryIdentification } = useBodega();
   const [more, setMore] = useState(false);
   const data = boot.status === 'ready' ? boot.data : null;
@@ -195,6 +197,7 @@ export default function LineCard({ line, draft, problem, onSearch, onCreate, onR
   const showLots = inbound && product.tracksLots;
   const showCost = inbound && Boolean(data?.can.seeCosts);
   const needsConfirm = !source.confirmed;
+  const evidenceId = MODE_DEFINITIONS[draft.mode].requiresEvidence ? evidencePhotoOf(line) : null;
 
   return frame(
     <>
@@ -234,6 +237,25 @@ export default function LineCard({ line, draft, problem, onSearch, onCreate, onR
         <p className="mt-2 flex items-center gap-1.5 text-sm text-warning">
           <AlertTriangle className="size-4 shrink-0" /> Solo hay {formatQty(product.stock)} {product.unit}. Si no alcanza, el servidor lo rechazará.
         </p>
+      ) : null}
+
+      {MODE_DEFINITIONS[draft.mode].requiresEvidence ? (
+        <div className="mt-3 flex items-center gap-3 rounded-xl bg-muted p-2.5">
+          {evidenceId ? (
+            <PhotoThumb photoId={evidenceId} className="size-14" fallback={<Camera className="size-5" />} />
+          ) : (
+            <div className="flex size-14 shrink-0 items-center justify-center rounded-xl bg-card text-muted-foreground">
+              <Camera className="size-6" />
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium">{evidenceId ? 'Foto del producto lista' : 'Falta la foto del producto'}</p>
+            <p className="text-xs text-muted-foreground">Queda adjunta a la salida y la ve quien revisa los movimientos.</p>
+          </div>
+          <button type="button" onClick={() => onEvidence(line.id)} className="h-11 shrink-0 rounded-lg bg-card px-3 text-sm font-medium active:bg-secondary">
+            {evidenceId ? 'Cambiar' : 'Sacar foto'}
+          </button>
+        </div>
       ) : null}
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">

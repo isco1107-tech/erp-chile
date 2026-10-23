@@ -1,7 +1,8 @@
 import type { NewProductInput, SyncOperation } from '@/modules/warehouse-mobile/schema';
 import { MAX_QUANTITY } from '@/modules/warehouse-mobile/schema';
 import type { MobileCandidate, MobileProduct, VisionRead } from '@/modules/warehouse-mobile/types';
-import { MODE_DEFINITIONS, MAX_NOTE_LENGTH, isInboundMode, isTransferMode, type MobileMode, type WasteReason } from './modes';
+import { MODE_DEFINITIONS, MAX_NOTE_LENGTH, isInboundMode, isTransferMode, reasonRequiresNote, type MobileMode, type WasteReason } from './modes';
+import { skuForCatalog } from './codes';
 import { composeProductName } from './vision';
 
 /**
@@ -62,6 +63,12 @@ export interface DraftLine {
   lotNumber: string;
   expiryDate: string;
   note: string;
+  /**
+   * Foto del producto en cuestión tomada para respaldar una salida (merma, daño,
+   * degustación). Si el producto se identificó con una foto, esa misma foto sirve
+   * (ver `evidencePhotoOf`); esta es la que la persona saca a propósito.
+   */
+  evidencePhotoId: string | null;
   source: LineSource;
 }
 
@@ -69,6 +76,8 @@ export interface Draft {
   mode: MobileMode;
   warehouseId: string;
   targetWarehouseId: string;
+  /** Proveedor de quien llega la mercadería (modos de entrada). */
+  supplierId: string;
   reference: string;
   reason: WasteReason | '';
   note: string;
@@ -76,7 +85,25 @@ export interface Draft {
 }
 
 export function emptyDraft(mode: MobileMode, warehouseId: string): Draft {
-  return { mode, warehouseId, targetWarehouseId: '', reference: '', reason: '', note: '', lines: [] };
+  return { mode, warehouseId, targetWarehouseId: '', supplierId: '', reference: '', reason: '', note: '', lines: [] };
+}
+
+/**
+ * Un borrador guardado por una versión anterior de la app no trae los campos nuevos
+ * (proveedor, foto de respaldo): se completan para que nada falle al abrirlo.
+ */
+export function upgradeDraft(saved: Draft): Draft {
+  return {
+    ...saved,
+    supplierId: saved.supplierId ?? '',
+    lines: saved.lines.map((line) => ({ ...line, evidencePhotoId: line.evidencePhotoId ?? null })),
+  };
+}
+
+/** La foto que respalda una línea: la sacada a propósito o, si no, la que sirvió para identificar el producto. */
+export function evidencePhotoOf(line: DraftLine): string | null {
+  if (line.evidencePhotoId) return line.evidencePhotoId;
+  return line.source.kind === 'product' ? line.source.photoId : null;
 }
 
 export function freshPending(now: number): PendingState {
@@ -111,7 +138,7 @@ function withLines(draft: Draft, lines: DraftLine[]): Draft {
 }
 
 function newLine(id: string, now: number, quantity: number, source: LineSource): DraftLine {
-  return { id, createdAt: now, quantity, unitCost: '', lotNumber: '', expiryDate: '', note: '', source };
+  return { id, createdAt: now, quantity, unitCost: '', lotNumber: '', expiryDate: '', note: '', evidencePhotoId: null, source };
 }
 
 /** Dos líneas son "la misma" si apuntan al mismo producto y no llevan lote ni vencimiento propios. */
@@ -143,6 +170,8 @@ export function mergeDuplicates(lines: readonly DraftLine[]): DraftLine[] {
     const confirmed = target.source.kind === 'product' && line.source.kind === 'product' ? target.source.confirmed && line.source.confirmed : true;
     result[index] = {
       ...target,
+      // Si se junta con otra línea del mismo producto, la foto de respaldo no se pierde.
+      evidencePhotoId: target.evidencePhotoId ?? evidencePhotoOf(line),
       quantity: clampQuantity(target.quantity + line.quantity, unit),
       source: target.source.kind === 'product' ? { ...target.source, confirmed } : target.source,
     };
@@ -266,7 +295,8 @@ export function newProductFormFrom(options: { read?: VisionRead | null; code?: s
   return {
     name: read ? composeProductName(read) : '',
     brand: read?.brand ?? '',
-    sku: '',
+    // El código de producto impreso en la etiqueta es el SKU natural del producto nuevo (se puede cambiar).
+    sku: read?.sku ? skuForCatalog(read.sku) : '',
     barcode: read?.barcode ?? options.code ?? '',
     description: read?.description ?? '',
     unit: read?.unit ?? 'UN',
@@ -286,6 +316,8 @@ export interface DraftProblem {
 
 export interface ValidationContext {
   canCreateProduct: boolean;
+  /** Proveedores que tiene la empresa: con ninguno, elegir proveedor no es obligatorio. */
+  supplierCount: number;
 }
 
 /** Todo lo que impide enviar el borrador, en el orden en que la persona debería arreglarlo. */
@@ -299,7 +331,13 @@ export function validateDraft(draft: Draft, context: ValidationContext): DraftPr
     if (!draft.targetWarehouseId) problems.push({ message: 'Elige la bodega de destino.' });
     else if (draft.targetWarehouseId === draft.warehouseId) problems.push({ message: 'La bodega de destino debe ser distinta de la de origen.' });
   }
-  if (def.asksReason && !draft.reason) problems.push({ message: 'Indica el motivo de la merma.' });
+  if (def.asksReason && !draft.reason) problems.push({ message: 'Indica el motivo de la salida.' });
+  if (def.asksReason && reasonRequiresNote(draft.reason || null) && !draft.note.trim()) {
+    problems.push({ message: 'Cuenta qué pasó: "Otro motivo" necesita una explicación.' });
+  }
+  if (def.supplier === 'required' && context.supplierCount > 0 && !draft.supplierId) {
+    problems.push({ message: 'Elige el proveedor de esta llegada.' });
+  }
 
   for (const line of draft.lines) {
     const { source } = line;
@@ -322,6 +360,9 @@ export function validateDraft(draft: Draft, context: ValidationContext): DraftPr
       } else if (source.form.name.trim().length < 2) {
         problems.push({ lineId: line.id, message: 'Ponle un nombre al producto nuevo.' });
       }
+    }
+    if (def.requiresEvidence && !evidencePhotoOf(line)) {
+      problems.push({ lineId: line.id, message: 'Saca una foto del producto: queda adjunta a la salida.' });
     }
     if (!(line.quantity > 0)) problems.push({ lineId: line.id, message: 'La cantidad debe ser mayor a cero.' });
     if (line.unitCost.trim() && parseMoney(line.unitCost) === undefined) problems.push({ lineId: line.id, message: 'El costo no es un número válido.' });
@@ -368,7 +409,7 @@ export interface BuiltOperations {
   ops: SyncOperation[];
   /** Nombre, SKU y unidad de cada operación, para mostrarla en la lista de pendientes. */
   labels: Record<string, { name: string; sku: string; unit: string }>;
-  /** Foto guardada en el teléfono que debe subirse antes de enviar cada operación de producto nuevo. */
+  /** Foto guardada en el teléfono que debe subirse antes de enviar la operación: la de un producto nuevo o la de respaldo de una salida. */
   photos: Record<string, string>;
 }
 
@@ -384,6 +425,7 @@ export function toOperations(draft: Draft): BuiltOperations {
   const labels: BuiltOperations['labels'] = {};
   const reference = def.asksReference ? draft.reference.trim().slice(0, 60) : '';
   const draftNote = draft.note.trim();
+  const supplierId = def.supplier !== 'none' ? draft.supplierId : '';
 
   for (const line of draft.lines) {
     const { source } = line;
@@ -397,6 +439,7 @@ export function toOperations(draft: Draft): BuiltOperations {
       ...(unitCost !== undefined ? { unitCost } : {}),
       ...(reference ? { reference } : {}),
       ...(note ? { note } : {}),
+      ...(supplierId ? { supplierId } : {}),
       ...(line.lotNumber.trim() ? { lotNumber: line.lotNumber.trim() } : {}),
       ...(line.expiryDate ? { expiryDate: line.expiryDate } : {}),
       capturedAt,
@@ -411,6 +454,9 @@ export function toOperations(draft: Draft): BuiltOperations {
         ...(isTransferMode(draft.mode) ? { targetWarehouseId: draft.targetWarehouseId } : {}),
         ...(def.asksReason && draft.reason ? { reason: draft.reason } : {}),
       });
+      // La foto de respaldo se sube antes de enviar y su dirección se agrega a la operación.
+      const evidence = def.requiresEvidence ? evidencePhotoOf(line) : null;
+      if (evidence) photos[line.id] = evidence;
     } else if (source.kind === 'new' && (draft.mode === 'RECEIVE' || draft.mode === 'SURPLUS')) {
       const cost = parseMoney(source.form.unitCost);
       ops.push({

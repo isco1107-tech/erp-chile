@@ -1,8 +1,8 @@
 import 'server-only';
 
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 import { resolveAgentModel } from '@/modules/agents/services/model-tiers';
-import { VISION_JSON_SCHEMA, VISION_SYSTEM_PROMPT, VISION_USER_PROMPT } from '@/lib/warehouse-mobile/vision';
+import { VISION_JSON_SCHEMA, VISION_SYSTEM_PROMPT, VISION_USER_PROMPT, thinkingFor } from '@/lib/warehouse-mobile/vision';
 
 /**
  * Una única llamada a Gemini por foto. No reintenta ni espera a propósito: la
@@ -26,6 +26,26 @@ export class VisionRateLimitedError extends Error {
 export class VisionUnavailableError extends Error {}
 
 const CALL_TIMEOUT_MS = 25_000;
+
+/**
+ * Tope de la respuesta. La lectura mide ~150 tokens; el margen cubre el razonamiento si un
+ * modelo no deja apagarlo (los tokens de razonamiento cuentan contra este tope) sin permitir
+ * que una respuesta fuera de control tarde o cueste de más.
+ */
+const MAX_OUTPUT_TOKENS = 1024;
+
+const THINKING_LEVEL_ENUM = {
+  minimal: ThinkingLevel.MINIMAL,
+  low: ThinkingLevel.LOW,
+  medium: ThinkingLevel.MEDIUM,
+  high: ThinkingLevel.HIGH,
+} as const;
+
+function thinkingConfig(model: string): { thinkingLevel?: ThinkingLevel; thinkingBudget?: number } | undefined {
+  const setting = thinkingFor(model, process.env.WAREHOUSE_VISION_THINKING);
+  if (!setting) return undefined;
+  return setting.kind === 'level' ? { thinkingLevel: THINKING_LEVEL_ENUM[setting.level] } : { thinkingBudget: setting.tokens };
+}
 
 let cachedClient: GoogleGenAI | null = null;
 
@@ -72,6 +92,8 @@ export async function readProductPhoto(jpeg: Buffer): Promise<{ raw: unknown; mo
         responseMimeType: 'application/json',
         responseJsonSchema: VISION_JSON_SCHEMA,
         temperature: 0,
+        maxOutputTokens: MAX_OUTPUT_TOKENS,
+        thinkingConfig: thinkingConfig(model),
         abortSignal: controller.signal,
       },
     });

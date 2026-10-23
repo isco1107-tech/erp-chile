@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { UNITS } from '@/modules/inventory/schema';
-import { MAX_NOTE_LENGTH, MOBILE_MODES, WASTE_REASONS, isTransferMode, MODE_DEFINITIONS } from '@/lib/warehouse-mobile/modes';
+import { MAX_NOTE_LENGTH, MOBILE_MODES, WASTE_REASONS, isTransferMode, MODE_DEFINITIONS, reasonRequiresNote } from '@/lib/warehouse-mobile/modes';
 
 /**
  * Contrato entre el celular del bodeguero y el servidor. Lo importan los dos
@@ -80,6 +80,9 @@ export type NewProductInput = z.infer<typeof newProductSchema>;
 
 const capturedAtSchema = z.iso.datetime().optional();
 
+/** Foto de respaldo subida por `/api/bodega/photo` (propósito `evidence`). El servidor comprueba que sea de nuestro almacenamiento. */
+const evidenceUrlSchema = z.string().url().max(500);
+
 export const moveOpSchema = z
   .object({
     kind: z.literal('MOVE'),
@@ -93,6 +96,10 @@ export const moveOpSchema = z
     reference: referenceSchema.optional(),
     reason: z.enum(WASTE_REASONS).optional(),
     note: noteSchema.optional(),
+    /** Proveedor de quien llega la mercadería (llegada o sobrante). */
+    supplierId: idSchema.optional(),
+    /** Foto del producto en cuestión (merma, daño, degustación): queda adjunta al movimiento. */
+    evidenceUrl: evidenceUrlSchema.optional(),
     ...lotFields,
     capturedAt: capturedAtSchema,
   })
@@ -105,6 +112,12 @@ export const moveOpSchema = z
     }
     if (MODE_DEFINITIONS[op.mode].asksReason && !op.reason) {
       ctx.addIssue({ code: 'custom', path: ['reason'], message: 'Indica el motivo' });
+    }
+    if (reasonRequiresNote(op.reason) && !op.note?.trim()) {
+      ctx.addIssue({ code: 'custom', path: ['note'], message: 'Cuenta qué pasó: "Otro motivo" necesita una explicación' });
+    }
+    if (MODE_DEFINITIONS[op.mode].requiresEvidence && !op.evidenceUrl) {
+      ctx.addIssue({ code: 'custom', path: ['evidenceUrl'], message: 'Adjunta una foto del producto' });
     }
   });
 
@@ -123,6 +136,8 @@ export const createProductOpSchema = z.object({
   unitCost: unitCostSchema.optional(),
   reference: referenceSchema.optional(),
   note: noteSchema.optional(),
+  /** Proveedor de quien llega el producto nuevo. */
+  supplierId: idSchema.optional(),
   ...lotFields,
   /**
    * El bodeguero ya vio que existe un producto parecido y decidió que este es

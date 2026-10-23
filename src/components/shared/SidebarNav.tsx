@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
+  ArrowLeftRight,
   HeartHandshake,
   FileText,
   UserCheck,
@@ -143,6 +144,7 @@ export const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   lots: Hourglass,
   labels: Barcode,
   mobile: Smartphone,
+  movements: ArrowLeftRight,
   collections: HandCoins,
   banks: Vault,
   cheques: FileCheck2,

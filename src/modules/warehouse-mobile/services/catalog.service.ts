@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import type { Prisma } from '@prisma/client';
-import { codeVariants, looksLikeCode } from '@/lib/warehouse-mobile/codes';
+import { SKU_KEY_MIN, codeVariants, looksLikeCode, skuKey } from '@/lib/warehouse-mobile/codes';
 import { decideMatch, rankCandidates, searchTermsFor, type MatchSubject } from '@/lib/warehouse-mobile/match';
 import type { MatchReason, MobileCandidate, MobileProduct } from '../types';
 
@@ -73,6 +73,24 @@ export async function findByCode(companyId: string, rawCode: string, warehouseId
   return bySku ? toCandidate(bySku, warehouseId, 'sku', 1) : null;
 }
 
+/**
+ * Productos cuyo SKU, comparado sin mayúsculas ni separadores, es el que se leyó en la
+ * etiqueta ("ab-123" = "AB123"). Normalmente es uno; si hay más de uno la persona elige.
+ * Un SKU leído por la IA no tiene dígito verificador como un código de barras, así que
+ * esto SIEMPRE se muestra para confirmar: nunca suma stock solo.
+ */
+export async function findBySku(companyId: string, rawSku: string, warehouseId?: string): Promise<MobileCandidate[]> {
+  const key = skuKey(rawSku);
+  if (key.length < SKU_KEY_MIN) return [];
+  const found = await prisma.$queryRaw<Array<{ id: string }>>`
+    SELECT "id" FROM "Product"
+    WHERE "companyId" = ${companyId} AND regexp_replace(upper("sku"), '[^A-Z0-9]', '', 'g') = ${key}
+    LIMIT 5`;
+  if (found.length === 0) return [];
+  const rows = await prisma.product.findMany({ where: { companyId, id: { in: found.map((row) => row.id) } }, select: PRODUCT_SELECT });
+  return rows.sort((a, b) => Number(b.isActive) - Number(a.isActive)).map((row) => toCandidate(row, warehouseId, 'sku', 0.95));
+}
+
 /** Búsqueda manual por nombre, marca o SKU. Los productos activos van primero. */
 export async function searchProducts(companyId: string, query: string, warehouseId?: string, limit = 20): Promise<MobileProduct[]> {
   const text = query.trim();
@@ -137,6 +155,17 @@ export async function listWarehouseOptions(companyId: string): Promise<Array<{ i
     select: { id: true, name: true, code: true, isDefault: true },
     orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
   });
+}
+
+/** Proveedores de la empresa para elegir de quién llega la mercadería. */
+export async function listSupplierOptions(companyId: string): Promise<Array<{ id: string; name: string; rut: string }>> {
+  const rows = await prisma.contact.findMany({
+    where: { companyId, isSupplier: true },
+    select: { id: true, razonSocial: true, nombreFantasia: true, rut: true },
+    orderBy: { razonSocial: 'asc' },
+    take: 500,
+  });
+  return rows.map((row) => ({ id: row.id, name: row.nombreFantasia?.trim() || row.razonSocial, rut: row.rut }));
 }
 
 export async function listCategoryOptions(companyId: string): Promise<Array<{ id: string; name: string }>> {

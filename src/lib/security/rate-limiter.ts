@@ -471,3 +471,14 @@ export const ACADEMY_APPLICATION_COMPANY_RATE_LIMIT: RateLimitConfig = {
   limit: 60,
   windowMs: 60 * 60_000,
 };
+
+/**
+ * Portal de proveedores (`/proveedor`): intentos con un código, por IP. Es más estricto que el del
+ * cliente porque aquí SÍ se prueban códigos (la página de ingreso acepta cualquiera); con 80 bits
+ * adivinar uno es inviable de todos modos, esto frena el ruido y el abuso.
+ */
+export const SUPPLIER_PORTAL_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'supplier-portal-ip',
+  limit: 60,
+  windowMs: 15 * 60_000,
+};

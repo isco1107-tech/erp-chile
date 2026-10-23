@@ -13,6 +13,10 @@ import type { BodegaStore } from './store';
  *   MISMA clave y espera (ver `outbox.ts`).
  * - La foto de un producto nuevo se sube antes de enviar la operación; si la
  *   subida falla, la operación espera (no se envía sin su foto).
+ * - La foto de respaldo de una salida (merma, daño…) también se sube antes, pero a
+ *   diferencia de la del producto NUNCA se descarta: la salida sin su foto no se
+ *   registra. Si la foto ya no está en el teléfono o el servidor la rechaza, la
+ *   salida queda rechazada para que la persona la rehaga.
  * - Si la sesión venció, nada se pierde ni se cuenta como intento fallido: la
  *   cola espera a que la persona vuelva a entrar.
  */
@@ -21,7 +25,7 @@ import type { BodegaStore } from './store';
 export const PHOTO_SERVER_ATTEMPTS = 2;
 
 export interface SyncDeps {
-  api: Pick<BodegaApi, 'sync' | 'uploadPhoto'>;
+  api: Pick<BodegaApi, 'sync' | 'uploadPhoto' | 'uploadEvidence'>;
   store: Pick<BodegaStore, 'getPhoto' | 'deletePhoto' | 'saveOutboxEntry'>;
   now: () => number;
   random?: () => number;
@@ -38,6 +42,11 @@ export interface SyncPassResult {
   /** Cuándo mirar la cola otra vez, o `null` si no hay nada que reintentar. */
   wakeAt: number | null;
   applied: AppliedOpResult[];
+}
+
+/** Rechazo hecho en el propio teléfono: la persona debe rehacer o descartar la operación. */
+function rejectedLocally(entry: OutboxEntry, message: string): OutboxEntry {
+  return { ...entry, status: 'rejected', lastError: message, result: { clientOpId: entry.id, status: 'REJECTED', code: 'INVALID', message } };
 }
 
 function replaceEntries(entries: readonly OutboxEntry[], changed: readonly OutboxEntry[]): OutboxEntry[] {
@@ -103,6 +112,30 @@ export async function runSyncPass(initial: readonly OutboxEntry[], deps: SyncDep
           entry = { ...entry, op: { ...op, product: { ...op.product, imageUrl: uploaded.data.url } } };
         }
       }
+      await persist([entry]);
+    }
+    if (op.kind === 'MOVE' && entry.photoId && !op.evidenceUrl) {
+      const photo = await store.getPhoto(entry.photoId);
+      if (!photo) {
+        await persist([rejectedLocally(entry, 'La foto de respaldo ya no está en el teléfono. Descarta este movimiento y regístralo de nuevo con una foto.')]);
+        continue;
+      }
+      const uploaded = await api.uploadEvidence(photo.blob, entry.id);
+      if (!uploaded.ok) {
+        const { failure } = uploaded;
+        if (failure.kind === 'auth') {
+          auth = { status: failure.status, message: failure.message };
+          await persist([{ ...entry, status: 'queued', nextAttemptAt: startedAt }]);
+        } else if (failure.kind === 'rate') {
+          await persist([{ ...entry, status: 'queued', nextAttemptAt: now() + failure.retryAfterMs, lastError: failure.message }]);
+        } else if (failure.kind === 'client') {
+          await persist([rejectedLocally(entry, `La foto de respaldo no se pudo subir: ${failure.message}`)]);
+        } else {
+          await persist([failedAttempt(entry, now(), failure.message, retry)]);
+        }
+        continue;
+      }
+      entry = { ...entry, op: { ...op, evidenceUrl: uploaded.data.url } };
       await persist([entry]);
     }
     ready.push(entry);

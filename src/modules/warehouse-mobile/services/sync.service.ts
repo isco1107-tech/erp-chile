@@ -100,9 +100,35 @@ interface MoveInput {
   reference?: string;
   reason?: MoveOp['reason'];
   note?: string;
+  supplierId?: string;
+  evidenceUrl?: string;
   lotNumber?: string;
   expiryDate?: string;
   capturedAt?: string;
+}
+
+/** Que el proveedor elegido sea un proveedor de ESTA empresa (el id llega del celular). */
+async function assertSupplier(tx: TxClient, companyId: string, supplierId: string): Promise<void> {
+  const supplier = await tx.contact.findFirst({ where: { id: supplierId, companyId, isSupplier: true }, select: { id: true } });
+  if (!supplier) throw new OpReject('INVALID', 'El proveedor elegido ya no existe. Elige otro.');
+}
+
+/** Anota que este proveedor surte este producto (lo que luego ve en su portal). */
+async function linkSupplier(tx: TxClient, companyId: string, productId: string, supplierId: string): Promise<void> {
+  const now = new Date();
+  await tx.productSupplier.upsert({
+    where: { productId_supplierId: { productId, supplierId } },
+    update: { lastReceivedAt: now },
+    create: { companyId, productId, supplierId, lastReceivedAt: now },
+  });
+}
+
+/** La foto de respaldo solo vale si la subió esta app a la carpeta de evidencia de ESTA empresa. */
+function assertEvidenceUrl(companyId: string, evidenceUrl: string | undefined): void {
+  if (!evidenceUrl) return;
+  if (!(isAllowedBlobUrl(evidenceUrl) && blobPathnameStartsWith(evidenceUrl, `inventory-evidence/${companyId}/`))) {
+    throw new OpReject('INVALID', 'La foto de respaldo no es válida. Vuelve a sacarla.');
+  }
 }
 
 /** El movimiento en sí, dentro de una transacción ya abierta. */
@@ -123,6 +149,12 @@ async function moveInTx(tx: TxClient, actor: SyncActor, input: MoveInput): Promi
   const notes = buildMovementNote({ mode: input.mode, reason: input.reason, note: input.note, capturedAt: input.capturedAt });
   const reference = input.reference?.trim() || undefined;
   const movementType: MovementType = def.movement;
+  assertEvidenceUrl(companyId, input.evidenceUrl);
+  // El proveedor solo tiene sentido cuando entra mercadería.
+  const supplierId = def.direction === 'in' && def.supplier !== 'none' ? input.supplierId : undefined;
+  if (supplierId) await assertSupplier(tx, companyId, supplierId);
+  // Quién lo hizo, por qué y con qué foto: queda en el movimiento del kardex.
+  const attribution = { userId: actor.userId, evidenceUrl: input.evidenceUrl };
 
   if (def.direction === 'in') {
     // Sin permiso de costos o sin costo informado, la entrada entra al PMP vigente:
@@ -141,7 +173,10 @@ async function moveInTx(tx: TxClient, actor: SyncActor, input: MoveInput): Promi
       reference,
       notes,
       lots,
+      ...attribution,
+      supplierId,
     });
+    if (supplierId) await linkSupplier(tx, companyId, product.id, supplierId);
     return { product, newStock: movement.newStock };
   }
 
@@ -153,6 +188,8 @@ async function moveInTx(tx: TxClient, actor: SyncActor, input: MoveInput): Promi
       quantity: input.quantity,
       reference,
       notes,
+      ...attribution,
+      reasonCode: input.reason,
     });
     return { product, newStock: movement.newStock };
   }
@@ -165,6 +202,7 @@ async function moveInTx(tx: TxClient, actor: SyncActor, input: MoveInput): Promi
     quantity: input.quantity,
     reference,
     notes,
+    ...attribution,
   });
   return { product, newStock: moved.out.newStock };
 }
@@ -297,6 +335,7 @@ async function applyCreateProduct(actor: SyncActor, op: CreateProductOp): Promis
   const def = MODE_DEFINITIONS[op.mode];
   const outcome = await prisma.$transaction(async (tx) => {
     if (!(await claim(tx, actor, op.clientOpId, 'CREATE_PRODUCT'))) return null;
+    if (op.supplierId) await assertSupplier(tx, companyId, op.supplierId);
 
     const categoryId = await resolveCategory(tx, companyId, draft.categoryId, draft.categoryName);
     const sku = draft.sku ?? (await nextSkuFor(tx, companyId));
@@ -338,7 +377,10 @@ async function applyCreateProduct(actor: SyncActor, op: CreateProductOp): Promis
       reference: op.reference?.trim() || undefined,
       notes,
       lots,
+      userId: actor.userId,
+      supplierId: op.supplierId,
     });
+    if (op.supplierId) await linkSupplier(tx, companyId, created.id, op.supplierId);
 
     const result = applied(op, 'CREATE_PRODUCT', { product: { id: created.id, sku, name: draft.name, unit: draft.unit }, newStock: movement.newStock }, { createdProduct: true, mergedIntoExisting: false });
     await saveResult(tx, actor, op.clientOpId, result);
@@ -437,6 +479,8 @@ async function audit(actor: SyncActor, op: SyncOperation, result: AppliedOpResul
       unitCost: actor.canSeeCosts ? op.unitCost : undefined,
       reference: op.reference,
       reason: op.kind === 'MOVE' ? op.reason : undefined,
+      supplierId: op.supplierId,
+      withEvidence: op.kind === 'MOVE' && op.evidenceUrl ? true : undefined,
       mergedIntoExisting: result.mergedIntoExisting || undefined,
     },
   });

@@ -58,10 +58,19 @@ describeDb('app del bodeguero contra PostgreSQL', () => {
   let whB1 = '';
   let productA = '';
   let productB = '';
+  let operator1 = '';
+  let operator2 = '';
+  let supplierA1 = '';
+  let supplierA2 = '';
+  let notSupplierA = '';
+  let supplierB = '';
+
+  /** Foto de respaldo como la deja `/api/bodega/evidence`: en la carpeta de la empresa. */
+  const evidenceFor = (companyId: string, name = 'foto') => `https://abc123.public.blob.vercel-storage.com/inventory-evidence/${companyId}/bodega-${name}-${suffix}.jpg`;
 
   const actor = (companyId: string, overrides: Partial<import('@/modules/warehouse-mobile/services/sync.service').SyncActor> = {}) => ({
     companyId,
-    userId: 'user-1',
+    userId: operator1,
     userEmail: 'bodega@test.cl',
     canMove: true,
     canCreateProduct: true,
@@ -94,6 +103,16 @@ describeDb('app del bodeguero contra PostgreSQL', () => {
     productC = (await prisma.product.create({ data: { companyId: companyC, sku: 'ACE-900', name: 'Aceite Maravilla Chef 900 ml', brand: 'Chef', barcode: '4006381333931', netPrice: 1500, grossPrice: 1785 } })).id;
     await prisma.warehouse.create({ data: { companyId: companyC, name: 'Central C', code: 'CEN', isDefault: true } });
     productB = (await prisma.product.create({ data: { companyId: companyB, sku: 'ACE-900', name: 'Producto de otra empresa', netPrice: 100, grossPrice: 119 } })).id;
+
+    const user = (name: string, n: number) => prisma.user.create({ data: { email: `operario${n}-${suffix}@test.cl`, passwordHash: 'x', name, companyId: companyA, role: 'WAREHOUSE' } });
+    operator1 = (await user('Operaria Uno', 1)).id;
+    operator2 = (await user('Operario Dos', 2)).id;
+    const contact = (companyId: string, razonSocial: string, rut: string, isSupplier: boolean) =>
+      prisma.contact.create({ data: { companyId, razonSocial, rut, rutClean: rut.replace(/[.-]/g, ''), isSupplier, isCustomer: !isSupplier } });
+    supplierA1 = (await contact(companyA, 'Distribuidora Uno SpA', `77.${suffix.slice(0, 3)}.001-1`, true)).id;
+    supplierA2 = (await contact(companyA, 'Importadora Dos Ltda', `77.${suffix.slice(0, 3)}.002-2`, true)).id;
+    notSupplierA = (await contact(companyA, 'Cliente Que No Es Proveedor', `77.${suffix.slice(0, 3)}.003-3`, false)).id;
+    supplierB = (await contact(companyB, 'Proveedor De Otra Empresa', `77.${suffix.slice(0, 3)}.004-4`, true)).id;
   });
 
   afterAll(async () => {
@@ -105,9 +124,13 @@ describeDb('app del bodeguero contra PostgreSQL', () => {
       await prisma.inventoryLot.deleteMany({ where: { companyId } });
       await prisma.inventoryMovement.deleteMany({ where: { companyId } });
       await prisma.stock.deleteMany({ where: { companyId } });
+      await prisma.productSupplier.deleteMany({ where: { companyId } });
+      await prisma.supplierPortalAccess.deleteMany({ where: { companyId } });
       await prisma.product.deleteMany({ where: { companyId } });
+      await prisma.contact.deleteMany({ where: { companyId } });
       await prisma.category.deleteMany({ where: { companyId } });
       await prisma.warehouse.deleteMany({ where: { companyId } });
+      await prisma.user.deleteMany({ where: { companyId } });
       await prisma.company.delete({ where: { id: companyId } });
     }
     await prisma.$disconnect();
@@ -151,7 +174,7 @@ describeDb('app del bodeguero contra PostgreSQL', () => {
 
     it('una merma descuenta; si no alcanza, se rechaza sin guardar y el mismo envío funciona al llegar stock', async () => {
       const current = await stockOf(companyA, productA, whA1);
-      const waste = { kind: 'MOVE' as const, clientOpId: opId(), mode: 'WASTE' as const, reason: 'EXPIRED' as const, productId: productA, warehouseId: whA1, quantity: current + 100 };
+      const waste = { kind: 'MOVE' as const, clientOpId: opId(), mode: 'WASTE' as const, reason: 'EXPIRED' as const, evidenceUrl: evidenceFor(companyA, 'merma'), productId: productA, warehouseId: whA1, quantity: current + 100 };
 
       const [rejected] = await processOperations(actor(companyA), [waste]);
       expect(rejected).toMatchObject({ status: 'REJECTED', code: 'INSUFFICIENT_STOCK' });
@@ -163,7 +186,7 @@ describeDb('app del bodeguero contra PostgreSQL', () => {
       expect(accepted).toMatchObject({ status: 'APPLIED', newStock: 0 });
 
       const movement = await prisma.inventoryMovement.findFirst({ where: { companyId: companyA, type: 'ADJUSTMENT_OUT' }, orderBy: { createdAt: 'desc' } });
-      expect(movement?.notes).toContain('Merma o bote · Vencido');
+      expect(movement?.notes).toContain('Salida o merma · Vencido');
     });
 
     it('un traslado saca de una bodega y entra a la otra', async () => {
@@ -188,6 +211,170 @@ describeDb('app del bodeguero contra PostgreSQL', () => {
     it('sin permiso de movimientos, se rechaza', async () => {
       const [result] = await processOperations(actor(companyA, { canMove: false }), [{ kind: 'MOVE', clientOpId: opId(), mode: 'RECEIVE', productId: productA, warehouseId: whA1, quantity: 1 }]);
       expect(result).toMatchObject({ status: 'REJECTED', code: 'FORBIDDEN' });
+    });
+  });
+
+  describe('proveedor de cada ingreso', () => {
+    it('la llegada anota el proveedor y el operario, y deja al proveedor surtiendo ese producto', async () => {
+      const [result] = await processOperations(actor(companyA, { userId: operator1 }), [
+        { kind: 'MOVE', clientOpId: opId(), mode: 'RECEIVE', productId: productA, warehouseId: whA1, quantity: 6, supplierId: supplierA1 },
+      ]);
+      expect(result).toMatchObject({ status: 'APPLIED' });
+      const movement = await prisma.inventoryMovement.findFirst({ where: { companyId: companyA, productId: productA, supplierId: supplierA1 }, orderBy: { createdAt: 'desc' } });
+      expect(movement).toMatchObject({ type: 'PURCHASE_IN', quantity: 6, userId: operator1, supplierId: supplierA1, warehouseId: whA1 });
+
+      const link = await prisma.productSupplier.findUnique({ where: { productId_supplierId: { productId: productA, supplierId: supplierA1 } } });
+      expect(link).toMatchObject({ companyId: companyA });
+      expect(link?.lastReceivedAt).toBeInstanceOf(Date);
+    });
+
+    it('otra llegada del mismo proveedor actualiza la fecha y NO duplica el vínculo', async () => {
+      const first = await prisma.productSupplier.findUniqueOrThrow({ where: { productId_supplierId: { productId: productA, supplierId: supplierA1 } } });
+      await new Promise((resolve) => setTimeout(resolve, 15));
+      await processOperations(actor(companyA), [{ kind: 'MOVE', clientOpId: opId(), mode: 'RECEIVE', productId: productA, warehouseId: whA1, quantity: 1, supplierId: supplierA1 }]);
+      const links = await prisma.productSupplier.findMany({ where: { productId: productA, supplierId: supplierA1 } });
+      expect(links).toHaveLength(1);
+      expect(links[0]!.lastReceivedAt!.getTime()).toBeGreaterThan(first.lastReceivedAt!.getTime());
+    });
+
+    it('un producto puede tener más de un proveedor', async () => {
+      await processOperations(actor(companyA), [{ kind: 'MOVE', clientOpId: opId(), mode: 'RECEIVE', productId: productA, warehouseId: whA1, quantity: 2, supplierId: supplierA2 }]);
+      const suppliers = await prisma.productSupplier.findMany({ where: { productId: productA }, select: { supplierId: true } });
+      expect(suppliers.map((row) => row.supplierId).sort()).toEqual([supplierA1, supplierA2].sort());
+    });
+
+    it('el proveedor de otra empresa, o un contacto que no es proveedor, se rechazan sin mover el stock', async () => {
+      const before = await stockOf(companyA, productA, whA1);
+      for (const supplierId of [supplierB, notSupplierA, 'no-existe-123']) {
+        const [result] = await processOperations(actor(companyA), [{ kind: 'MOVE', clientOpId: opId(), mode: 'RECEIVE', productId: productA, warehouseId: whA1, quantity: 5, supplierId }]);
+        expect(result).toMatchObject({ status: 'REJECTED', code: 'INVALID' });
+      }
+      expect(await stockOf(companyA, productA, whA1)).toBe(before);
+      expect(await prisma.productSupplier.count({ where: { supplierId: { in: [supplierB, notSupplierA] } } })).toBe(0);
+    });
+
+    it('un producto nuevo creado en una llegada queda ligado a su proveedor', async () => {
+      const [result] = await processOperations(actor(companyA, { userId: operator2 }), [
+        { kind: 'CREATE_PRODUCT', clientOpId: opId(), mode: 'RECEIVE', warehouseId: whA1, quantity: 12, supplierId: supplierA2, product: { name: `Galletas Prueba ${suffix}`, brand: 'Costa', sku: `GAL-${suffix}`, unit: 'UN' } },
+      ]);
+      expect(result).toMatchObject({ status: 'APPLIED', createdProduct: true });
+      if (result?.status !== 'APPLIED') throw new Error('no se aplicó');
+      const link = await prisma.productSupplier.findUnique({ where: { productId_supplierId: { productId: result.productId, supplierId: supplierA2 } } });
+      expect(link).not.toBeNull();
+      const movement = await prisma.inventoryMovement.findFirst({ where: { productId: result.productId } });
+      expect(movement).toMatchObject({ supplierId: supplierA2, userId: operator2, quantity: 12 });
+    });
+
+    it('si el código de barras ya existe, se suma al producto existente y también queda ligado al proveedor', async () => {
+      const [result] = await processOperations(actor(companyA), [
+        { kind: 'CREATE_PRODUCT', clientOpId: opId(), mode: 'RECEIVE', warehouseId: whA1, quantity: 4, supplierId: supplierA2, product: { name: 'Lo que la foto dijo', barcode: '4006381333931', unit: 'UN' } },
+      ]);
+      expect(result).toMatchObject({ status: 'APPLIED', mergedIntoExisting: true, productId: productA });
+      expect(await prisma.productSupplier.count({ where: { productId: productA, supplierId: supplierA2 } })).toBe(1);
+    });
+
+    it('una salida o un traslado NO anotan proveedor aunque venga en la operación', async () => {
+      await processOperations(actor(companyA), [{ kind: 'MOVE', clientOpId: opId(), mode: 'RECEIVE', productId: productA, warehouseId: whA1, quantity: 30 }]);
+      const [result] = await processOperations(actor(companyA), [
+        { kind: 'MOVE', clientOpId: opId(), mode: 'TRANSFER', productId: productA, warehouseId: whA1, targetWarehouseId: whA2, quantity: 1, supplierId: supplierA1 },
+      ]);
+      expect(result).toMatchObject({ status: 'APPLIED' });
+      const movements = await prisma.inventoryMovement.findMany({ where: { companyId: companyA, type: 'TRANSFER' }, orderBy: { createdAt: 'desc' }, take: 2 });
+      expect(movements.every((movement) => movement.supplierId === null)).toBe(true);
+    });
+  });
+
+  describe('salidas con motivo, foto y operario', () => {
+    const waste = (overrides: Record<string, unknown> = {}) => ({
+      kind: 'MOVE' as const,
+      clientOpId: opId(),
+      mode: 'WASTE' as const,
+      reason: 'DAMAGED' as const,
+      productId: productA,
+      warehouseId: whA1,
+      quantity: 1,
+      evidenceUrl: evidenceFor(companyA, 'dano'),
+      ...overrides,
+    });
+
+    beforeAll(async () => {
+      await processOperations(actor(companyA), [{ kind: 'MOVE', clientOpId: opId(), mode: 'RECEIVE', productId: productA, warehouseId: whA1, quantity: 50 }]);
+      await processOperations(actor(companyA), [{ kind: 'MOVE', clientOpId: opId(), mode: 'RECEIVE', productId: productA, warehouseId: whA2, quantity: 20 }]);
+    });
+
+    it('queda en el movimiento el motivo, la foto, la bodega y quién lo hizo', async () => {
+      const op = waste({ reason: 'TASTING', note: 'degustación en feria', evidenceUrl: evidenceFor(companyA, 'degustacion') });
+      const [result] = await processOperations(actor(companyA, { userId: operator2 }), [op]);
+      expect(result).toMatchObject({ status: 'APPLIED' });
+      const movement = await prisma.inventoryMovement.findFirst({ where: { companyId: companyA, reasonCode: 'TASTING' } });
+      expect(movement).toMatchObject({
+        type: 'ADJUSTMENT_OUT',
+        quantity: 1,
+        warehouseId: whA1,
+        userId: operator2,
+        reasonCode: 'TASTING',
+        evidenceUrl: evidenceFor(companyA, 'degustacion'),
+      });
+      expect(movement?.notes).toContain('Degustación o muestra');
+      expect(movement?.notes).toContain('degustación en feria');
+    });
+
+    it('cada operario queda identificado en lo que ajustó', async () => {
+      await processOperations(actor(companyA, { userId: operator1 }), [waste({ reason: 'EXPIRED' })]);
+      await processOperations(actor(companyA, { userId: operator2 }), [waste({ reason: 'SHRINKAGE' })]);
+      const byReason = async (reasonCode: string) => (await prisma.inventoryMovement.findFirst({ where: { companyId: companyA, reasonCode }, orderBy: { createdAt: 'desc' } }))?.userId;
+      expect(await byReason('EXPIRED')).toBe(operator1);
+      expect(await byReason('SHRINKAGE')).toBe(operator2);
+    });
+
+    it('una salida sin foto, o con una foto que no es de la carpeta de esta empresa, se rechaza sin tocar el stock', async () => {
+      const before = await stockOf(companyA, productA, whA1);
+      const [noPhoto] = await processOperations(actor(companyA), [waste({ evidenceUrl: undefined })]);
+      expect(noPhoto).toMatchObject({ status: 'REJECTED', code: 'INVALID' });
+      const [otherCompany] = await processOperations(actor(companyA), [waste({ evidenceUrl: evidenceFor(companyB) })]);
+      expect(otherCompany).toMatchObject({ status: 'REJECTED', code: 'INVALID' });
+      const [otherFolder] = await processOperations(actor(companyA), [waste({ evidenceUrl: `https://abc123.public.blob.vercel-storage.com/products/${companyA}/foto.jpg` })]);
+      expect(otherFolder).toMatchObject({ status: 'REJECTED', code: 'INVALID' });
+      const [foreignHost] = await processOperations(actor(companyA), [waste({ evidenceUrl: `https://evil.example.com/inventory-evidence/${companyA}/foto.jpg` })]);
+      expect(foreignHost).toMatchObject({ status: 'REJECTED', code: 'INVALID' });
+      expect(await stockOf(companyA, productA, whA1)).toBe(before);
+    });
+
+    it('"Otro motivo" sin explicación se rechaza; con explicación se registra', async () => {
+      const [bare] = await processOperations(actor(companyA), [waste({ reason: 'OTHER' })]);
+      expect(bare).toMatchObject({ status: 'REJECTED', code: 'INVALID' });
+      const [explained] = await processOperations(actor(companyA), [waste({ reason: 'OTHER', note: 'Se cayó del camión' })]);
+      expect(explained).toMatchObject({ status: 'APPLIED' });
+    });
+
+    it('cada salida descuenta de SU bodega: las bodegas no se mezclan', async () => {
+      const central = await stockOf(companyA, productA, whA1);
+      const branch = await stockOf(companyA, productA, whA2);
+      await processOperations(actor(companyA), [waste({ warehouseId: whA2, quantity: 3, reason: 'DONATION' })]);
+      expect(await stockOf(companyA, productA, whA2)).toBe(branch - 3);
+      expect(await stockOf(companyA, productA, whA1)).toBe(central);
+      const movement = await prisma.inventoryMovement.findFirst({ where: { companyId: companyA, reasonCode: 'DONATION' } });
+      expect(movement?.warehouseId).toBe(whA2);
+    });
+
+    it('un traslado deja a la misma persona en la salida y en la entrada, cada una en su bodega', async () => {
+      const [result] = await processOperations(actor(companyA, { userId: operator1 }), [
+        { kind: 'MOVE', clientOpId: opId(), mode: 'TRANSFER', productId: productA, warehouseId: whA1, targetWarehouseId: whA2, quantity: 2, evidenceUrl: evidenceFor(companyA, 'traslado') },
+      ]);
+      expect(result).toMatchObject({ status: 'APPLIED' });
+      const moves = await prisma.inventoryMovement.findMany({ where: { companyId: companyA, type: 'TRANSFER', evidenceUrl: evidenceFor(companyA, 'traslado') } });
+      expect(moves.map((move) => move.warehouseId).sort()).toEqual([whA1, whA2].sort());
+      expect(moves.every((move) => move.userId === operator1)).toBe(true);
+    });
+
+    it('un reenvío de la misma salida no la duplica ni cambia a quien la hizo', async () => {
+      const op = waste({ reason: 'LOST' });
+      const before = await stockOf(companyA, productA, whA1);
+      await processOperations(actor(companyA, { userId: operator1 }), [op]);
+      const [again] = await processOperations(actor(companyA, { userId: operator2 }), [op]);
+      expect(again).toMatchObject({ status: 'APPLIED', replayed: true });
+      expect(await stockOf(companyA, productA, whA1)).toBe(before - 1);
+      expect(await prisma.inventoryMovement.count({ where: { companyId: companyA, reasonCode: 'LOST' } })).toBe(1);
     });
   });
 
@@ -421,6 +608,44 @@ describeDb('app del bodeguero contra PostgreSQL', () => {
       visionRead.mockResolvedValue({ raw: { isProduct: false, confidence: 'low', warnings: [] }, model: 'modelo-de-prueba' });
       const result = await identifyPhoto({ companyId: companyC, userId: 'u1' }, await photo(50), undefined);
       expect(result).toMatchObject({ status: 'unreadable', candidates: [] });
+    });
+
+    it('el SKU impreso en la etiqueta lleva al producto, sin importar mayúsculas ni guiones, pero siempre a confirmar', async () => {
+      visionRead.mockResolvedValue({ raw: { isProduct: true, sku: 'Cód.: ace 900', name: 'Otro nombre', confidence: 'high' }, model: 'modelo-de-prueba' });
+      const result = await identifyPhoto({ companyId: companyC, userId: 'u1' }, await photo(81), undefined);
+      expect(result.status).toBe('matched');
+      expect(result.candidates[0]).toMatchObject({ id: productC, reason: 'sku' });
+      // No es un código de barras (sin dígito verificador): no tiene la certeza de uno.
+      expect(result.candidates[0]!.score).toBeLessThan(1);
+    });
+
+    it('el SKU solo busca en el catálogo de la propia empresa', async () => {
+      const other = await prisma.company.create({ data: { rut: `76${suffix}9-9`, businessName: `Bodega Test D ${suffix}` } });
+      try {
+        visionRead.mockResolvedValue({ raw: { isProduct: true, sku: 'ACE-900', confidence: 'high' }, model: 'modelo-de-prueba' });
+        const result = await identifyPhoto({ companyId: other.id, userId: 'u1' }, await photo(82), undefined);
+        expect(result.status).toBe('new');
+        expect(result.candidates).toEqual([]);
+      } finally {
+        await prisma.productPhotoScan.deleteMany({ where: { companyId: other.id } });
+        await prisma.company.delete({ where: { id: other.id } });
+      }
+    });
+
+    it('si dos productos comparten el SKU una vez normalizado, la persona elige', async () => {
+      const a = await prisma.product.create({ data: { companyId: companyC, sku: 'DUP-100', name: 'Duplicado A', netPrice: 1, grossPrice: 1 } });
+      const b = await prisma.product.create({ data: { companyId: companyC, sku: 'dup100', name: 'Duplicado B', netPrice: 1, grossPrice: 1 } });
+      visionRead.mockResolvedValue({ raw: { isProduct: true, sku: 'DUP 100', confidence: 'high' }, model: 'modelo-de-prueba' });
+      const result = await identifyPhoto({ companyId: companyC, userId: 'u1' }, await photo(83), undefined);
+      expect(result.status).toBe('candidates');
+      expect(result.candidates.map((candidate) => candidate.id).sort()).toEqual([a.id, b.id].sort());
+    });
+
+    it('un SKU que no existe se ofrece como SKU del producto nuevo', async () => {
+      visionRead.mockResolvedValue({ raw: { isProduct: true, sku: 'ZZ-777', name: 'Producto sin registrar', brand: 'Marca', confidence: 'high' }, model: 'modelo-de-prueba' });
+      const result = await identifyPhoto({ companyId: companyC, userId: 'u1' }, await photo(84), undefined);
+      expect(result.status).toBe('new');
+      expect(result.read).toMatchObject({ sku: 'ZZ-777' });
     });
 
     it('un código de barras leído en la etiqueta lleva directo al producto', async () => {

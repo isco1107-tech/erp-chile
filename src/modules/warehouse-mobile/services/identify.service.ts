@@ -13,7 +13,7 @@ import {
 } from '@/lib/warehouse-mobile/budget';
 import { normalizeVisionRead } from '@/lib/warehouse-mobile/vision';
 import type { IdentifyResponse, VisionRead } from '../types';
-import { findByCode, matchByText } from './catalog.service';
+import { findByCode, findBySku, matchByText } from './catalog.service';
 import { prepareJpeg } from './image.service';
 import { readProductPhoto, visionConfigured, VisionRateLimitedError, VisionUnavailableError } from './vision.service';
 
@@ -61,7 +61,7 @@ function busyMessage(scope: BudgetScope): string {
   }
 }
 
-/** Cruza lo que se leyó con el catálogo: primero por código (exacto), luego por texto. */
+/** Cruza lo que se leyó con el catálogo: primero por código de barras, luego por SKU y por último por texto. */
 async function resolveRead(companyId: string, read: VisionRead | null, warehouseId: string | undefined, cached: boolean): Promise<IdentifyResponse> {
   if (!read) {
     return { status: 'unreadable', candidates: [], read: null, cached, message: 'No se alcanzó a leer el producto. Acércate, mejora la luz y vuelve a sacar la foto.' };
@@ -70,6 +70,13 @@ async function resolveRead(companyId: string, read: VisionRead | null, warehouse
   if (read.barcode) {
     const byCode = await findByCode(companyId, read.barcode, warehouseId);
     if (byCode) return { status: 'matched', candidates: [byCode], read, cached };
+  }
+
+  // El SKU impreso es el dato más fiable después del código de barras: se prueba antes que el texto.
+  if (read.sku) {
+    const bySku = await findBySku(companyId, read.sku, warehouseId);
+    if (bySku.length === 1) return { status: 'matched', candidates: bySku, read, cached };
+    if (bySku.length > 1) return { status: 'candidates', candidates: bySku, read, cached };
   }
 
   if (!read.name && !read.brand) return { status: 'new', candidates: [], read, cached };

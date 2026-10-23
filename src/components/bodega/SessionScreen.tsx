@@ -5,7 +5,7 @@ import { ArrowLeft, Camera, Check, ScanBarcode, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { looksLikeCode } from '@/lib/warehouse-mobile/codes';
 import { newProductFormFrom, summarizeDraft, validateDraft, type DraftLine, type NewProductForm } from '@/lib/warehouse-mobile/draft';
-import { MODE_DEFINITIONS, WASTE_REASONS, WASTE_REASON_LABELS, isTransferMode } from '@/lib/warehouse-mobile/modes';
+import { MODE_DEFINITIONS, WASTE_REASONS, WASTE_REASON_HINTS, WASTE_REASON_LABELS, isTransferMode, reasonRequiresNote } from '@/lib/warehouse-mobile/modes';
 import type { MobileProduct, VisionRead } from '@/modules/warehouse-mobile/types';
 import { useConfirm } from '@/components/ui/confirm-provider';
 import { useBodega } from './BodegaProvider';
@@ -46,6 +46,7 @@ export default function SessionScreen({ onBack, onDone }: Props) {
     addProductLine,
     addCodeLine,
     addPhotoLine,
+    attachEvidence,
     removeDraftLine,
     resolveLine,
     setLineSource,
@@ -55,13 +56,15 @@ export default function SessionScreen({ onBack, onDone }: Props) {
   } = useBodega();
 
   const [capturing, setCapturing] = useState(false);
+  /** Línea cuya foto de respaldo se está sacando. */
+  const [evidenceLineId, setEvidenceLineId] = useState<string | null>(null);
   const [search, setSearch] = useState<{ target: SearchTarget; query: string } | null>(null);
   const [creating, setCreating] = useState<NewProductTarget | null>(null);
   const [typed, setTyped] = useState('');
   const [showProblems, setShowProblems] = useState(false);
 
   const data = boot.status === 'ready' ? boot.data : null;
-  const problems = useMemo(() => (draft && data ? validateDraft(draft, { canCreateProduct: data.can.createProduct }) : []), [draft, data]);
+  const problems = useMemo(() => (draft && data ? validateDraft(draft, { canCreateProduct: data.can.createProduct, supplierCount: data.suppliers.length }) : []), [draft, data]);
 
   if (!draft || !data) return null;
   const def = MODE_DEFINITIONS[draft.mode];
@@ -138,6 +141,7 @@ export default function SessionScreen({ onBack, onDone }: Props) {
       onSearch={(lineId) => setSearch({ target: { kind: 'line', lineId }, query: '' })}
       onCreate={openCreate}
       onRetake={retake}
+      onEvidence={setEvidenceLineId}
     />
   );
 
@@ -191,6 +195,23 @@ export default function SessionScreen({ onBack, onDone }: Props) {
             </Field>
           ) : null}
 
+          {def.supplier !== 'none' ? (
+            data.suppliers.length > 0 ? (
+              <Field label={def.supplier === 'required' ? 'Proveedor *' : 'Proveedor (opcional)'} hint="De quién llega esta mercadería. Queda anotado en cada ingreso.">
+                <select value={draft.supplierId} onChange={(event) => updateDraft((current) => ({ ...current, supplierId: event.target.value }))} className={inputClass}>
+                  <option value="">Elige el proveedor</option>
+                  {data.suppliers.map((supplier) => (
+                    <option key={supplier.id} value={supplier.id}>
+                      {supplier.name} · {supplier.rut}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            ) : (
+              <p className="rounded-xl bg-muted p-3 text-sm text-muted-foreground">Aún no hay proveedores. Pide que los creen en Contactos (marcados como proveedor) para anotar de quién llega la mercadería.</p>
+            )
+          ) : null}
+
           {def.asksReference ? (
             <Field label="N° de guía o factura (opcional)">
               <input value={draft.reference} onChange={(event) => updateDraft((current) => ({ ...current, reference: event.target.value }))} className={inputClass} maxLength={60} autoComplete="off" placeholder="Ej. Guía 4521" />
@@ -213,10 +234,11 @@ export default function SessionScreen({ onBack, onDone }: Props) {
                   </button>
                 ))}
               </div>
+              {draft.reason ? <p className="mt-1.5 text-xs text-muted-foreground">{WASTE_REASON_HINTS[draft.reason]}</p> : null}
             </fieldset>
           ) : null}
 
-          <Field label="Nota general (opcional)">
+          <Field label={def.asksReason && reasonRequiresNote(draft.reason || null) ? 'Cuenta qué pasó *' : 'Nota general (opcional)'}>
             <input value={draft.note} onChange={(event) => updateDraft((current) => ({ ...current, note: event.target.value }))} className={inputClass} maxLength={120} autoComplete="off" />
           </Field>
         </div>
@@ -293,6 +315,15 @@ export default function SessionScreen({ onBack, onDone }: Props) {
           onPhoto={async (photo) => {
             await addPhotoLine(photo);
           }}
+        />
+      ) : null}
+
+      {evidenceLineId ? (
+        <CaptureScreen
+          photoOnly
+          onCode={() => undefined}
+          onPhoto={(photo) => attachEvidence(evidenceLineId, photo)}
+          onClose={() => setEvidenceLineId(null)}
         />
       ) : null}
 

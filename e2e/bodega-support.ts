@@ -55,6 +55,12 @@ export async function bootstrap(request: APIRequestContext) {
   return (await response.json()).data as { warehouses: Array<{ id: string; name: string }>; can: { move: boolean; createProduct: boolean } };
 }
 
+/** Dirección de una foto de respaldo como la deja `/api/bodega/evidence`: en la carpeta de la empresa, en nuestro almacenamiento. */
+export async function evidenceUrl(request: APIRequestContext, name: string): Promise<string> {
+  const { company } = (await (await request.get('/api/bodega/bootstrap')).json()).data as { company: { id: string } };
+  return `https://e2e.public.blob.vercel-storage.com/inventory-evidence/${company.id}/bodega-${name}.jpg`;
+}
+
 /** Productos conocidos de la prueba, creados por la propia API (idempotente: las claves son fijas). */
 export async function seedCatalog(request: APIRequestContext) {
   const { warehouses } = await bootstrap(request);

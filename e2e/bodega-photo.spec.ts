@@ -1,5 +1,6 @@
 import { expect, test, devices, type Page } from '@playwright/test';
 import { STATE, blankVideo, fakeCamera, freshEan13, lookup, openApp, seedCatalog, setServerAi } from './bodega-support';
+import { ensureSupplier } from './db';
 
 /**
  * La IA se SIMULA (`page.route`): una prueba de punta a punta no debe depender de
@@ -19,6 +20,7 @@ test.describe('app del bodeguero con una foto (IA simulada)', () => {
 
   test('la foto espera su turno de la IA, se sugiere el producto y hay que confirmarlo', async ({ page, request }) => {
     const warehouseId = await seedCatalog(request);
+    const supplier = await ensureSupplier('Proveedor Bodega E2E', '77.111.222');
     const harina = (await lookup(request, 'E2E-HAR-1KG', warehouseId))!;
     const before = harina.stock;
     let calls = 0;
@@ -33,6 +35,8 @@ test.describe('app del bodeguero con una foto (IA simulada)', () => {
     await setServerAi(page, true);
     await openApp(page);
     await page.getByRole('button', { name: /Llegada de mercadería/ }).click();
+    // Cada llegada es de un proveedor.
+    await page.getByLabel(/^Proveedor/).selectOption(supplier.id);
     await takePhoto(page);
     await expect(page.getByText('Esperando turno de la IA…').first()).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText('La IA cree que es este producto')).toBeVisible({ timeout: 30_000 });
@@ -52,6 +56,7 @@ test.describe('app del bodeguero con una foto (IA simulada)', () => {
 
   test('un producto que no está en el catálogo se crea con los datos revisados', async ({ page, request }) => {
     const warehouseId = await seedCatalog(request);
+    const supplier = await ensureSupplier('Proveedor Bodega E2E', '77.111.222');
     const barcode = freshEan13();
     // Un nombre propio de esta corrida: repetir la prueba contra la misma base no debe chocar con el aviso de duplicado.
     const unique = Math.random().toString(36).slice(2, 7).toUpperCase();
@@ -75,6 +80,8 @@ test.describe('app del bodeguero con una foto (IA simulada)', () => {
     await setServerAi(page, true);
     await openApp(page);
     await page.getByRole('button', { name: /Llegada de mercadería/ }).click();
+    // Cada llegada es de un proveedor.
+    await page.getByLabel(/^Proveedor/).selectOption(supplier.id);
     await takePhoto(page);
     await expect(page.getByText('No está en tu catálogo')).toBeVisible({ timeout: 30_000 });
     await page.getByRole('button', { name: 'Crear producto nuevo' }).click();
@@ -97,6 +104,7 @@ test.describe('app del bodeguero con una foto (IA simulada)', () => {
 
   test('si el servidor no tiene IA, la foto no se manda a identificar y se resuelve a mano', async ({ page, request }) => {
     await seedCatalog(request);
+    const supplier = await ensureSupplier('Proveedor Bodega E2E', '77.111.222');
     let calls = 0;
     await page.route('**/api/bodega/identify', (route) => {
       calls++;
@@ -106,6 +114,8 @@ test.describe('app del bodeguero con una foto (IA simulada)', () => {
     await setServerAi(page, false);
     await openApp(page);
     await page.getByRole('button', { name: /Llegada de mercadería/ }).click();
+    // Cada llegada es de un proveedor.
+    await page.getByLabel(/^Proveedor/).selectOption(supplier.id);
     await takePhoto(page);
     await expect(page.getByText('La identificación por foto no está disponible', { exact: true })).toBeVisible({ timeout: 20_000 });
     await expect(page.getByRole('button', { name: 'Buscar a mano' })).toBeVisible();
@@ -114,6 +124,7 @@ test.describe('app del bodeguero con una foto (IA simulada)', () => {
 
   test('si ya existe un producto parecido, se ofrece sumarlo al existente en vez de duplicarlo', async ({ page, request }) => {
     const warehouseId = await seedCatalog(request);
+    const supplier = await ensureSupplier('Proveedor Bodega E2E', '77.111.222');
     const existing = (await lookup(request, 'E2E-HAR-1KG', warehouseId))!;
     const before = existing.stock;
     await page.route('**/api/bodega/identify', (route) =>
@@ -130,6 +141,8 @@ test.describe('app del bodeguero con una foto (IA simulada)', () => {
     await setServerAi(page, true);
     await openApp(page);
     await page.getByRole('button', { name: /Llegada de mercadería/ }).click();
+    // Cada llegada es de un proveedor.
+    await page.getByLabel(/^Proveedor/).selectOption(supplier.id);
     await takePhoto(page);
     await page.getByRole('button', { name: 'Crear producto nuevo' }).click();
     await page.getByRole('button', { name: 'Usar este producto' }).click();
