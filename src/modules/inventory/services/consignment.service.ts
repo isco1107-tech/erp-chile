@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { normalizeLotNumber, parseExpiryDate } from '@/lib/inventory/lots';
 import { documentSign } from '@/lib/consignment/settlement';
+import { effectiveCommissionBps } from '@/lib/consignment/commission';
 import { snapshotForProduct, snapshotsFromReferencedItems, type ConsignmentSnapshot } from '@/lib/consignment/snapshot';
 import type { ConsignmentReceiveInput, ConsignmentReturnInput } from '../schema';
 import { applyStockIn, applyStockOut } from './stock.service';
@@ -138,4 +139,89 @@ export async function returnConsignedStock(companyId: string, userId: string, in
       notes: input.notes || undefined,
     });
   }, LOCKING_TX_OPTIONS);
+}
+
+export interface ConsignedProductRow {
+  id: string;
+  sku: string;
+  name: string;
+  unit: string;
+  minStock: number;
+  totalStock: number;
+  /** Existencias por bodega, para que no se mezclen cuando hay más de una. */
+  byWarehouse: Array<{ warehouse: string; quantity: number }>;
+  /** La comisión que regiría hoy en una venta (la del producto o, si no tiene, la del seller). */
+  commissionBps: number | null;
+}
+
+export interface ConsignedStockGroup {
+  consignorId: string;
+  name: string;
+  rut: string;
+  /** Comisión por defecto del seller, en puntos base. */
+  commissionBps: number | null;
+  totalUnits: number;
+  products: ConsignedProductRow[];
+}
+
+const roundQty = (value: number) => Math.round(value * 1000) / 1000;
+
+/** Existencias de la mercadería de cada seller (productos activos), por producto y por bodega. */
+export async function listConsignedStock(companyId: string): Promise<ConsignedStockGroup[]> {
+  const [sellers, products] = await Promise.all([
+    prisma.contact.findMany({
+      where: { companyId, isConsignor: true },
+      select: { id: true, razonSocial: true, nombreFantasia: true, rut: true, consignmentCommissionBps: true },
+      orderBy: { razonSocial: 'asc' },
+      take: 500,
+    }),
+    prisma.product.findMany({
+      where: { companyId, consignorId: { not: null }, isActive: true },
+      select: {
+        id: true,
+        sku: true,
+        name: true,
+        unit: true,
+        minStock: true,
+        consignorId: true,
+        consignmentCommissionBps: true,
+        stocks: { select: { quantity: true, warehouse: { select: { name: true } } } },
+      },
+      orderBy: { name: 'asc' },
+      take: 3000,
+    }),
+  ]);
+
+  const sellerBps = new Map(sellers.map((seller) => [seller.id, seller.consignmentCommissionBps]));
+  const bySeller = new Map<string, ConsignedProductRow[]>();
+  for (const product of products) {
+    if (!product.consignorId) continue;
+    const totalStock = roundQty(product.stocks.reduce((sum, stock) => sum + stock.quantity, 0));
+    const rows = bySeller.get(product.consignorId) ?? [];
+    rows.push({
+      id: product.id,
+      sku: product.sku,
+      name: product.name,
+      unit: product.unit,
+      minStock: product.minStock,
+      totalStock,
+      byWarehouse: product.stocks
+        .map((stock) => ({ warehouse: stock.warehouse.name, quantity: roundQty(stock.quantity) }))
+        .sort((a, b) => a.warehouse.localeCompare(b.warehouse, 'es')),
+      commissionBps: effectiveCommissionBps(product.consignmentCommissionBps, sellerBps.get(product.consignorId)),
+    });
+    bySeller.set(product.consignorId, rows);
+  }
+
+  return sellers.map((seller) => {
+    const rows = bySeller.get(seller.id) ?? [];
+    return {
+      consignorId: seller.id,
+      name: seller.nombreFantasia?.trim() || seller.razonSocial,
+      rut: seller.rut,
+      commissionBps: seller.consignmentCommissionBps,
+      totalUnits: roundQty(rows.reduce((sum, row) => sum + row.totalStock, 0)),
+      products: rows,
+    };
+  });
 }

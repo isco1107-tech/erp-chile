@@ -81,6 +81,41 @@ export const consignmentReceiveSchema = z.object({
 /** Devolución de mercadería al seller (sale de la bodega sin venderse). */
 export const consignmentReturnSchema = consignmentReceiveSchema.pick({ productId: true, warehouseId: true, quantity: true, reference: true, notes: true });
 
+const calendarDay = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha inválida')
+  .refine((value) => !Number.isNaN(new Date(`${value}T12:00:00Z`).getTime()) && new Date(`${value}T12:00:00Z`).toISOString().startsWith(value), 'Fecha inválida');
+
+/** Generar la liquidación de lo pendiente de un seller (con un ajuste manual opcional). */
+export const settlementGenerateSchema = z
+  .object({
+    consignorId: z.string().min(1, 'Selecciona un seller'),
+    /** CLP con signo: una nota de crédito por precio, un descuento acordado… Con su motivo. */
+    adjustmentAmount: z.number().int('El ajuste debe ser un monto entero').min(-100_000_000, 'Ajuste demasiado grande').max(100_000_000, 'Ajuste demasiado grande').default(0),
+    adjustmentNote: z.string().trim().max(200, 'Máximo 200 caracteres').optional(),
+    note: z.string().trim().max(300, 'Máximo 300 caracteres').optional(),
+  })
+  .refine((data) => data.adjustmentAmount === 0 || (data.adjustmentNote ?? '').length >= 3, {
+    message: 'Explica el motivo del ajuste',
+    path: ['adjustmentNote'],
+  });
+
+/** Marcar una liquidación como pagada al seller. */
+export const settlementPaySchema = z.object({
+  id: z.string().min(1),
+  paidAt: calendarDay,
+  reference: z.string().trim().max(120, 'Máximo 120 caracteres').optional(),
+});
+
+/** Anular una liquidación que aún no se pagó. */
+export const settlementVoidSchema = z.object({
+  id: z.string().min(1),
+  reason: z.string().trim().min(3, 'Indica el motivo de la anulación').max(200, 'Máximo 200 caracteres'),
+});
+
+export type SettlementGenerateInput = z.infer<typeof settlementGenerateSchema>;
+export type SettlementPayInput = z.infer<typeof settlementPaySchema>;
+export type SettlementVoidInput = z.infer<typeof settlementVoidSchema>;
 export type ConsignmentReceiveInput = z.infer<typeof consignmentReceiveSchema>;
 export type ConsignmentReturnInput = z.infer<typeof consignmentReturnSchema>;
 
