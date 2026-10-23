@@ -211,6 +211,13 @@ export const PERMISSIONS = {
   'websites:write': ['OWNER', 'ADMIN', 'SALES'],
   'websites:publish': ['OWNER', 'ADMIN'],
 
+  // Tienda en línea: ventas la arma y la atiende, bodega prepara y despacha, el
+  // contador consulta; abrirla al público, cobrar y devolver plata es de dueño y administradores.
+  'store:read': ['OWNER', 'ADMIN', 'SALES', 'WAREHOUSE', 'ACCOUNTANT'],
+  'store:write': ['OWNER', 'ADMIN', 'SALES'],
+  'store:fulfill': ['OWNER', 'ADMIN', 'SALES', 'WAREHOUSE'],
+  'store:manage': ['OWNER', 'ADMIN'],
+
   // Fidelización y voz del cliente: lo trabaja el equipo comercial; el
   // contador no lo necesita.
   'customercare:read': ['OWNER', 'ADMIN', 'SALES'],
@@ -364,6 +371,10 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'websites:read': 'Ver sitios web y sus mensajes',
   'websites:write': 'Crear y editar sitios web (borrador, imágenes y mensajes)',
   'websites:publish': 'Publicar sitios web y configurar su dominio propio',
+  'store:read': 'Ver los pedidos y los productos publicados de la tienda en línea',
+  'store:write': 'Publicar productos en la tienda, editar su ficha de venta y atender pedidos',
+  'store:fulfill': 'Preparar, despachar y entregar pedidos de la tienda (número de seguimiento incluido)',
+  'store:manage': 'Abrir y cerrar la tienda, configurar pagos y envíos, y cancelar pedidos ya pagados',
   'customercare:read': 'Ver encuestas de satisfacción, canales de origen y seguimientos de clientes',
   'customercare:write': 'Enviar encuestas, registrar seguimientos y ajustar la fidelización',
   'quality:read': 'Ver procedimientos, inspecciones de calidad y fichas de productores',

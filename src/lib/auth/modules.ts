@@ -49,6 +49,7 @@ export type FeatureKey = keyof Pick<
   | 'hasQuality'
   | 'hasTeamTasks'
   | 'hasAcademy'
+  | 'hasEcommerce'
 >;
 
 export type CompanyFeatureFlags = Record<FeatureKey, boolean>;
@@ -342,6 +343,14 @@ export const MODULES: ModuleDefinition[] = [
     permissions: ['academy:read', 'academy:write', 'academy:manage'],
     routes: ['/dashboard/academy'],
   },
+  {
+    key: 'hasEcommerce',
+    label: 'Tienda en línea',
+    description:
+      'Vende por internet desde un sitio web de la empresa: catálogo publicado desde el inventario, carrito, pago verificado (Khipu, Webpay Plus o transferencia), retiro o despacho por región y pedidos que descuentan el stock de la bodega al cobrar. Requiere el módulo Sitios Web.',
+    permissions: ['store:read', 'store:write', 'store:fulfill', 'store:manage'],
+    routes: ['/dashboard/store'],
+  },
 ];
 
 export const MODULE_KEYS: FeatureKey[] = MODULES.map((m) => m.key);
@@ -387,6 +396,7 @@ export const DEFAULT_FEATURES: CompanyFeatureFlags = {
   hasQuality: false,
   hasTeamTasks: false,
   hasAcademy: false,
+  hasEcommerce: false,
 };
 
 /** Índice inverso permiso → módulo, construido una vez al cargar el módulo. */
@@ -445,6 +455,7 @@ export function toFeatureFlags(features: CompanyFeatures | null): CompanyFeature
     hasQuality: features.hasQuality,
     hasTeamTasks: features.hasTeamTasks,
     hasAcademy: features.hasAcademy,
+    hasEcommerce: features.hasEcommerce,
   };
 }
 

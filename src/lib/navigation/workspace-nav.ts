@@ -92,6 +92,7 @@ export type NavIconKey =
   | 'serviceDesk'
   | 'academy'
   | 'webSites'
+  | 'store'
   | 'invoiceArchive'
   | 'customerCare'
   | 'quality'
@@ -264,11 +265,11 @@ export function buildAvailableWorkspaceNav({ permissions, features }: Omit<NavAc
   }
   push('Operaciones', operaciones);
 
+  const sitios: NavLink[] = [];
   if (features.hasWebSites && allow('websites:read')) {
-    push('Sitios web', [
-      { id: 'web-sites', href: '/dashboard/web-sites', label: 'Sitios web', icon: 'webSites', keywords: ['pagina web', 'landing', 'diseno web', 'sitio', 'html', 'portafolio', 'catalogo', 'dominio', 'publicar', 'mensajes'] },
-    ]);
+    sitios.push({ id: 'web-sites', href: '/dashboard/web-sites', label: 'Sitios web', icon: 'webSites', keywords: ['pagina web', 'landing', 'diseno web', 'sitio', 'html', 'portafolio', 'catalogo', 'dominio', 'publicar', 'mensajes'] });
   }
+  push('Sitios web', sitios);
 
   const finanzas: NavLink[] = [];
   if (features.hasTreasury && allow('treasury:read')) {
