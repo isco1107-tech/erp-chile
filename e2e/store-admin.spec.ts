@@ -77,7 +77,7 @@ test.describe('pedidos', () => {
       await expect(page.getByText('Pedido actualizado').last()).toBeVisible();
     }
     await expect(dialog.getByText('Entregado').first()).toBeVisible();
-    expect((await orderByToken(order.orderToken)).fulfillmentStatus).toBe('DELIVERED');
+    await expect.poll(async () => (await orderByToken(order.orderToken)).fulfillmentStatus).toBe('DELIVERED');
     await page.keyboard.press('Escape');
 
     // El comprador, sin sesión, ve su pedido entregado.

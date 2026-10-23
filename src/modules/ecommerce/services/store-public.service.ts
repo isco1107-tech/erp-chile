@@ -1,6 +1,8 @@
 import 'server-only';
 
-import type { Prisma, StoreDeliveryMethod, StorePaymentProvider } from '@prisma/client';
+import type { CatalogSort } from '@/lib/ecommerce/store-route';
+
+import { Prisma, StoreDeliveryMethod, StorePaymentProvider } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { MAX_LINE_QUANTITY, type CartLine } from '@/lib/ecommerce/cart';
 import { purchasableQuantity, stockLabel, type StockLabel } from '@/lib/ecommerce/availability';
@@ -61,7 +63,7 @@ const SITE_SELECT = {
     select: {
       businessName: true,
       status: true,
-      features: { select: { hasWebSites: true, hasEcommerce: true } },
+      features: { select: { hasEcommerce: true } },
       settings: { select: { khipuApiCredential: true } },
     },
   },
@@ -98,7 +100,7 @@ function toContext(site: SiteRow | null, options: { tracking?: boolean } = {}): 
   if (!site || site.status !== 'PUBLISHED') return null;
   const { company, store } = site;
   if (company.status !== 'ACTIVE' && company.status !== 'TRIAL') return null;
-  if (!company.features?.hasWebSites || !company.features.hasEcommerce) return null;
+  if (!company.features?.hasEcommerce) return null;
   if (!store) return null;
   if (!options.tracking && (!store.enabled || !store.warehouseId)) return null;
 
@@ -192,11 +194,28 @@ export interface PublicProductDetail extends PublicProductCard {
 }
 
 type ListingWithProduct = Prisma.StoreProductGetPayload<{
-  include: { product: { select: { id: true; sku: true; name: true; brand: true; unit: true; description: true; imageUrl: true; netPrice: true; isExempt: true; isTrackable: true } } };
+  include: {
+    product: {
+      select: {
+        id: true;
+        sku: true;
+        name: true;
+        brand: true;
+        unit: true;
+        description: true;
+        imageUrl: true;
+        netPrice: true;
+        isExempt: true;
+        isTrackable: true;
+      };
+    };
+  };
 }>;
 
 const LISTING_INCLUDE = {
-  product: { select: { id: true, sku: true, name: true, brand: true, unit: true, description: true, imageUrl: true, netPrice: true, isExempt: true, isTrackable: true } },
+  product: {
+    select: { id: true, sku: true, name: true, brand: true, unit: true, description: true, imageUrl: true, netPrice: true, isExempt: true, isTrackable: true },
+  },
 } satisfies Prisma.StoreProductInclude;
 
 function cardOf(ctx: PublicStoreContext, listing: ListingWithProduct, available: number | null): PublicProductCard {
@@ -226,7 +245,7 @@ const PUBLISHED_WHERE = (ctx: PublicStoreContext): Prisma.StoreProductWhereInput
   companyId: ctx.companyId,
   siteId: ctx.siteId,
   published: true,
-  product: { isActive: true },
+  product: { isActive: true, companyId: ctx.companyId },
 });
 
 export interface PublicCatalogPage {
@@ -237,8 +256,12 @@ export interface PublicCatalogPage {
   pageSize: number;
 }
 
-export async function listPublicProducts(ctx: PublicStoreContext, query: { collection?: string; q?: string; page?: number; featuredOnly?: boolean; limit?: number }): Promise<PublicCatalogPage> {
+export async function listPublicProducts(
+  ctx: PublicStoreContext,
+  query: { collection?: string; q?: string; page?: number; featuredOnly?: boolean; limit?: number; sort?: CatalogSort },
+): Promise<PublicCatalogPage> {
   const search = query.q?.trim().slice(0, 80);
+  const escapedSearch = search?.replace(/[\\%_]/g, '\\$&');
   const page = Math.max(1, Math.min(500, Math.floor(query.page ?? 1)));
   const pageSize = Math.max(1, Math.min(STORE_PAGE_SIZE, query.limit ?? STORE_PAGE_SIZE));
   const base = PUBLISHED_WHERE(ctx);
@@ -246,21 +269,55 @@ export async function listPublicProducts(ctx: PublicStoreContext, query: { colle
     ...base,
     ...(query.collection ? { collection: query.collection } : {}),
     ...(query.featuredOnly ? { featured: true } : {}),
-    ...(search ? { OR: [{ title: { contains: search, mode: 'insensitive' } }, { product: { name: { contains: search, mode: 'insensitive' } } }, { product: { brand: { contains: search, mode: 'insensitive' } } }] } : {}),
+    ...(search
+      ? {
+          OR: [
+            { title: { contains: escapedSearch, mode: 'insensitive' } },
+            { product: { name: { contains: escapedSearch, mode: 'insensitive' } } },
+            { product: { brand: { contains: escapedSearch, mode: 'insensitive' } } },
+          ],
+        }
+      : {}),
   };
 
+  // Sort by what the buyer actually sees: the ERP final price or the storefront title.
+  const sortByValue = query.sort === 'price-asc' || query.sort === 'price-desc' || query.sort === 'name';
+  const searchPattern = search ? `%${escapedSearch}%` : null;
+  const order =
+    query.sort === 'name'
+      ? Prisma.sql`LOWER(COALESCE(NULLIF(BTRIM(s.title), ''), p.name)) ASC`
+      : Prisma.sql`ROUND((CASE WHEN p."isExempt" THEN p."netPrice" ELSE p."netPrice" * 1.19 END)::numeric) ${query.sort === 'price-asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`}`;
+  const sortedIds = sortByValue
+    ? await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    SELECT s.id FROM "StoreProduct" s JOIN "Product" p ON p.id = s."productId" AND p."companyId" = s."companyId"
+    WHERE s."companyId" = ${ctx.companyId} AND s."siteId" = ${ctx.siteId} AND s.published = true AND p."isActive" = true
+    ${query.collection ? Prisma.sql`AND s.collection = ${query.collection}` : Prisma.empty}
+    ${query.featuredOnly ? Prisma.sql`AND s.featured = true` : Prisma.empty}
+    ${search ? Prisma.sql`AND (s.title ILIKE ${searchPattern} OR p.name ILIKE ${searchPattern} OR p.brand ILIKE ${searchPattern})` : Prisma.empty}
+    ORDER BY ${order}, s.id ASC
+    LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
+  `)
+    : null;
   const [total, listings, grouped] = await Promise.all([
     prisma.storeProduct.count({ where }),
     prisma.storeProduct.findMany({
-      where,
+      where: sortedIds ? { ...where, id: { in: sortedIds.map((row) => row.id) } } : where,
       include: LISTING_INCLUDE,
-      orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'desc' }],
-      skip: (page - 1) * pageSize,
+      orderBy: query.sort === 'newest' ? [{ createdAt: 'desc' }, { id: 'asc' }] : [{ featured: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'desc' }],
+      skip: sortedIds ? 0 : (page - 1) * pageSize,
       take: pageSize,
     }),
     prisma.storeProduct.groupBy({ by: ['collection'], where: { ...base, collection: { not: null } }, _count: { _all: true } }),
   ]);
-  const availability = await getAvailability(ctx.companyId, ctx.warehouseId, listings.map((listing) => listing.productId));
+  if (sortedIds) {
+    const rank = new Map(sortedIds.map((row, i) => [row.id, i]));
+    listings.sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0));
+  }
+  const availability = await getAvailability(
+    ctx.companyId,
+    ctx.warehouseId,
+    listings.map((listing) => listing.productId),
+  );
 
   return {
     total,
@@ -355,9 +412,14 @@ export interface QuoteRequest {
  */
 export async function quoteCart(ctx: PublicStoreContext, request: QuoteRequest): Promise<Quote> {
   const ids = [...new Set(request.lines.map((line) => line.productId))];
-  const listings = ids.length === 0 ? [] : await prisma.storeProduct.findMany({ where: { ...PUBLISHED_WHERE(ctx), productId: { in: ids } }, include: LISTING_INCLUDE });
+  const listings =
+    ids.length === 0 ? [] : await prisma.storeProduct.findMany({ where: { ...PUBLISHED_WHERE(ctx), productId: { in: ids } }, include: LISTING_INCLUDE });
   const byProduct = new Map(listings.map((listing) => [listing.productId, listing]));
-  const availability = await getAvailability(ctx.companyId, ctx.warehouseId, listings.map((listing) => listing.productId));
+  const availability = await getAvailability(
+    ctx.companyId,
+    ctx.warehouseId,
+    listings.map((listing) => listing.productId),
+  );
 
   const lines: QuoteLine[] = [];
   const removed: string[] = [];
@@ -424,7 +486,7 @@ export async function quoteCart(ctx: PublicStoreContext, request: QuoteRequest):
           quantity: line.quantity,
         };
       }),
-      shippingGross
+      shippingGross,
     );
   }
 
@@ -469,6 +531,14 @@ export async function countRecentOrders(companyId: string, siteId: string, minut
 
 /** Direcciones de la tienda para el mapa del sitio (relativas a la raíz): el catálogo y cada ficha publicada. */
 export async function listStoreSitemapPaths(ctx: PublicStoreContext, limit = 2000): Promise<Array<{ path: string; lastModified: Date }>> {
-  const listings = await prisma.storeProduct.findMany({ where: PUBLISHED_WHERE(ctx), select: { slug: true, updatedAt: true }, orderBy: { updatedAt: 'desc' }, take: limit });
-  return [{ path: 'tienda', lastModified: listings[0]?.updatedAt ?? new Date() }, ...listings.map((listing) => ({ path: `producto/${listing.slug}`, lastModified: listing.updatedAt }))];
+  const listings = await prisma.storeProduct.findMany({
+    where: PUBLISHED_WHERE(ctx),
+    select: { slug: true, updatedAt: true },
+    orderBy: { updatedAt: 'desc' },
+    take: limit,
+  });
+  return [
+    { path: 'tienda', lastModified: listings[0]?.updatedAt ?? new Date() },
+    ...listings.map((listing) => ({ path: `producto/${listing.slug}`, lastModified: listing.updatedAt })),
+  ];
 }

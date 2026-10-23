@@ -1,14 +1,15 @@
 import { Store, Truck, ShieldCheck } from 'lucide-react';
 import { catalogHref, storeScreenHref } from '@/lib/ecommerce/store-href';
 import { PAYMENT_PROVIDER_INFO } from '@/lib/ecommerce/payment';
-import type { PublicProductDetail, PublicStoreSettings } from '@/modules/ecommerce/services/store-public.service';
+import type { PublicProductCard, PublicProductDetail, PublicStoreSettings } from '@/modules/ecommerce/services/store-public.service';
 import ProductGallery from './ProductGallery';
+import ProductCard from './ProductCard';
 import ProductPurchase from './ProductPurchase';
 import { Breadcrumbs, discountPercent, Notice, PriceTag, StockText, StoreFrame } from './ui';
 import { Fit } from '@/components/web-sites/site/parts';
 
 /** Ficha de un producto: galería, precio con IVA, disponibilidad, compra y datos de entrega y pago. */
-export default function StoreProductScreen({ product, settings, basePath, siteSlug }: { product: PublicProductDetail; settings: PublicStoreSettings; basePath: string; siteSlug: string }) {
+export default function StoreProductScreen({ product, settings, basePath, siteSlug, related = [] }: { related?: PublicProductCard[]; product: PublicProductDetail; settings: PublicStoreSettings; basePath: string; siteSlug: string }) {
   const off = discountPercent(product.grossPrice, product.compareAtPrice);
   const paragraphs = product.description.split(/\n{2,}/).map((text) => text.trim()).filter(Boolean);
   const payments = settings.paymentProviders.map((provider) => PAYMENT_PROVIDER_INFO[provider].label);
@@ -95,6 +96,7 @@ export default function StoreProductScreen({ product, settings, basePath, siteSl
           </Notice>
         </section>
       )}
+      {related.length > 0 && <section aria-label="También en la tienda" className="mt-16 border-t border-[color:var(--s-line)] pt-10"><div className="mb-6 flex flex-wrap items-center justify-between gap-3"><h2 className="ws-h text-2xl">También en la tienda</h2><a href={catalogHref(basePath)} className="text-sm underline underline-offset-4">Ver toda la colección</a></div><ul className="ec-products grid grid-cols-1 gap-5 @sm:grid-cols-2 @4xl:grid-cols-4">{related.map((item) => <li key={item.id} className="min-w-0"><ProductCard product={item} basePath={basePath} siteSlug={siteSlug} /></li>)}</ul></section>}
     </StoreFrame>
   );
 }

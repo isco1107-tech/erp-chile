@@ -10,7 +10,7 @@ import { useQuote } from './use-quote';
 export default function CartScreen({ siteSlug, basePath }: { siteSlug: string; basePath: string }) {
   const cart = useCart(siteSlug);
   const hydrated = useHydrated();
-  const { quote, loading, error, notices, dismissNotices } = useQuote(siteSlug, cart.lines, cart);
+  const { quote, loading, error, notices, dismissNotices, refresh } = useQuote(siteSlug, cart.lines, cart);
   const catalog = storeScreenHref(basePath, 'catalog');
 
   if (!hydrated) {
@@ -58,7 +58,7 @@ export default function CartScreen({ siteSlug, basePath }: { siteSlug: string; b
       )}
       {error && (
         <div className="mb-5">
-          <Notice tone="error">{error}</Notice>
+          <Notice tone="error">{error}<button type="button" onClick={refresh} className="mt-2 block underline">Reintentar</button></Notice>
         </div>
       )}
 
@@ -71,7 +71,7 @@ export default function CartScreen({ siteSlug, basePath }: { siteSlug: string; b
           {lines.map((line) => {
             const max = Math.min(99, line.maxPerOrder ?? 99, line.available ?? 99);
             return (
-              <li key={line.productId} className="ws-card flex gap-3 p-3 @2xl:gap-4 @2xl:p-4">
+              <li key={line.productId} className="ws-card !rounded-2xl flex gap-3 p-3 @2xl:gap-4 @2xl:p-4">
                 <a href={productHref(basePath, line.slug)} className="shrink-0" tabIndex={-1} aria-hidden="true">
                   <ProductImage src={line.imageUrl} alt="" className="size-16 rounded-[var(--ws-radius)] object-cover @sm:size-20 @2xl:size-24" />
                 </a>
@@ -92,11 +92,11 @@ export default function CartScreen({ siteSlug, basePath }: { siteSlug: string; b
                   ) : (
                     <div className="mt-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
                       <div role="group" aria-label={`Cantidad de ${line.name}`} className="ws-card inline-flex items-center overflow-hidden !rounded-[var(--ws-button-radius)]">
-                        <button type="button" className="ws-cbtn !size-9 !rounded-none !border-0" onClick={() => cart.set(line.productId, line.quantity - 1, max)} aria-label={line.quantity <= 1 ? `Quitar ${line.name}` : 'Una unidad menos'}>
+                        <button type="button" className="ws-cbtn !size-11 !rounded-none !border-0" onClick={() => cart.set(line.productId, line.quantity - 1, max)} aria-label={line.quantity <= 1 ? `Quitar ${line.name}` : 'Una unidad menos'}>
                           <Minus className="size-4" aria-hidden="true" />
                         </button>
                         <output className="min-w-9 text-center text-sm font-semibold tabular-nums">{line.quantity}</output>
-                        <button type="button" className="ws-cbtn !size-9 !rounded-none !border-0" onClick={() => cart.set(line.productId, line.quantity + 1, max)} disabled={line.quantity >= max} aria-label="Una unidad más">
+                        <button type="button" className="ws-cbtn !size-11 !rounded-none !border-0" onClick={() => cart.set(line.productId, line.quantity + 1, max)} disabled={line.quantity >= max} aria-label="Una unidad más">
                           <Plus className="size-4" aria-hidden="true" />
                         </button>
                       </div>
@@ -110,7 +110,7 @@ export default function CartScreen({ siteSlug, basePath }: { siteSlug: string; b
           })}
         </ul>
 
-        <aside aria-label="Resumen" className="ws-card h-fit space-y-4 p-5 @4xl:sticky @4xl:top-24">
+        <aside aria-label="Resumen" className="ws-card ec-summary h-fit space-y-4 p-5 @4xl:sticky @4xl:top-24">
           <h2 className="ws-h text-lg">Resumen</h2>
           <dl className="space-y-2 text-sm">
             <div className="flex justify-between gap-3">
@@ -124,9 +124,9 @@ export default function CartScreen({ siteSlug, basePath }: { siteSlug: string; b
           </dl>
           {quote?.belowMinimum && <Notice>La compra mínima de esta tienda es de {money(quote.minOrderAmount)}. Agrega productos para continuar.</Notice>}
           <a
-            href={quote?.ready && !blocked ? storeScreenHref(basePath, 'checkout') : undefined}
-            aria-disabled={!quote?.ready || blocked}
-            className={`ws-btn ws-btn-main w-full ${!quote?.ready || blocked ? 'pointer-events-none opacity-50' : ''}`}
+            href={quote?.ready && !loading && !error && !blocked ? storeScreenHref(basePath, 'checkout') : undefined}
+            aria-disabled={!quote?.ready || loading || !!error || blocked}
+            className={`ws-btn ws-btn-main w-full ${!quote?.ready || loading || !!error || blocked ? 'pointer-events-none opacity-50' : ''}`}
           >
             Continuar con la compra
           </a>

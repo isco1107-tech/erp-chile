@@ -14,7 +14,7 @@ import type { PublicStoreContext } from '@/modules/ecommerce/services/store-publ
  */
 export const loadDomainWebSite = cache(async (domain: string, requestDomain: string): Promise<PublicWebSite | null> => {
   if (await getPageantSlugByDomain(domain, requestDomain === domain)) return null;
-  return getPublicWebSiteByDomain(domain, requestDomain === domain);
+  return getPublicWebSiteByDomain(domain, requestDomain === domain, true);
 });
 
 /**

@@ -54,7 +54,7 @@ function Field({ id, label, hint, children }: { id: string; label: string; hint?
 
 function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <fieldset className="ws-card min-w-0 p-5 @2xl:p-6">
+    <fieldset className="ws-card ec-checkout-group min-w-0 p-5 @2xl:p-6">
       {/* El título flota para quedar DENTRO de la tarjeta (un legend normal se dibuja encima del borde). */}
       <legend className="ws-h float-left mb-4 w-full p-0 text-lg">{title}</legend>
       <div className="clear-both min-w-0 space-y-4">{children}</div>
@@ -108,7 +108,7 @@ export default function CheckoutScreen({ siteSlug, basePath, termsText }: { site
   // Primera lectura del quote: sin entrega elegida se pide solo lo básico (qué ofrece la tienda).
   const [probe, setProbe] = useState<{ shipping: boolean; pickup: boolean } | null>(null);
   const delivery = form.delivery ?? (probe ? (probe.shipping ? 'SHIPPING' : probe.pickup ? 'PICKUP' : null) : null);
-  const { quote, loading, error, notices } = useQuote(siteSlug, cart.lines, cart, {
+  const { quote, loading, error, notices, refresh } = useQuote(siteSlug, cart.lines, cart, {
     region: delivery === 'SHIPPING' ? form.region || undefined : undefined,
     deliveryMethod: delivery ?? undefined,
     shippingRateId: delivery === 'SHIPPING' ? form.rateId || undefined : undefined,
@@ -160,7 +160,7 @@ export default function CheckoutScreen({ siteSlug, basePath, termsText }: { site
   }
 
   const invalid = (field: string) => (badField === field ? true : undefined);
-  const canSubmit = Boolean(quote?.ready) && !submitting && !loading && Boolean(delivery) && Boolean(payment) && (delivery !== 'SHIPPING' || Boolean(rateId));
+  const canSubmit = Boolean(quote?.ready) && !error && !submitting && !loading && Boolean(delivery) && Boolean(payment) && (delivery !== 'SHIPPING' || Boolean(rateId));
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -217,7 +217,7 @@ export default function CheckoutScreen({ siteSlug, basePath, termsText }: { site
       )}
       {error && (
         <div className="mb-5">
-          <Notice tone="error">{error}</Notice>
+          <Notice tone="error">{error}<button type="button" onClick={refresh} className="mt-2 block underline">Reintentar</button></Notice>
         </div>
       )}
       <form onSubmit={submit} className="grid gap-8 @4xl:grid-cols-[minmax(0,1fr)_24rem]">
@@ -379,7 +379,7 @@ export default function CheckoutScreen({ siteSlug, basePath, termsText }: { site
           </div>
         </div>
 
-        <aside aria-label="Resumen de tu pedido" className="ws-card h-fit min-w-0 space-y-4 p-5 @4xl:sticky @4xl:top-24">
+        <aside aria-label="Resumen de tu pedido" className="ws-card ec-summary h-fit min-w-0 space-y-4 p-5 @4xl:sticky @4xl:top-24">
           <h2 className="ws-h text-lg">Tu pedido</h2>
           <ul className="space-y-3">
             {(quote?.lines ?? []).map((line) => (

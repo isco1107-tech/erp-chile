@@ -36,7 +36,7 @@ function rootUrl(site: { slug: string; customDomain: string | null; customDomain
 async function resolveStore(slug: string, pageSlug: string, search: Record<string, string | string[] | undefined>) {
   const route = storeRouteFor(pageSlug, search);
   if (!route) return null;
-  const site = await loadSite(slug);
+  const site = await getPublicWebSite(slug, true);
   if (!site || site.mode !== 'GUIDED') return null;
   const store = await loadStoreBySlug(slug);
   if (!store || store.siteId !== site.id) return null;

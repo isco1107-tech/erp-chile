@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { cache } from 'react';
+import { redirect } from 'next/navigation';
 import { PublicStatus } from '@/components/public/PublicShell';
 import { findPublicPage, WebSiteDocument, webSiteMetadata } from '@/components/web-sites/WebSiteDocument';
 import { getPublicWebSite, publicSiteUrl } from '@/modules/web-sites/services/web-sites.service';
@@ -32,5 +33,6 @@ export default async function PublicWebSitePage({ params }: { params: Promise<{ 
   if (!site) {
     return <PublicStatus variant="error" title="Este sitio no está disponible" message="El enlace no existe o el sitio todavía no fue publicado." />;
   }
+  if (site.standaloneStore) redirect(`/web/${site.slug}/tienda`);
   return <WebSiteDocument site={site} basePath={`/web/${site.slug}`} siteUrl={siteRoot(site)} />;
 }

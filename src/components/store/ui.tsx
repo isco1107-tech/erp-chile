@@ -11,7 +11,7 @@ export const money = formatCurrency;
 export function StoreFrame({ children, width = 'wide', label }: { children: ReactNode; width?: 'wide' | 'narrow'; label?: string }) {
   return (
     <section aria-label={label} className="ws-section ws-bg ws-tone-default ws-sp-md">
-      <div className={cx('mx-auto w-full px-5 @2xl:px-8', width === 'narrow' ? 'max-w-3xl' : 'max-w-[var(--ws-max)]')}>{children}</div>
+      <div className={cx('ec-wrap mx-auto w-full', width === 'narrow' ? 'ec-narrow max-w-3xl' : 'max-w-[var(--ws-max)]')}>{children}</div>
     </section>
   );
 }

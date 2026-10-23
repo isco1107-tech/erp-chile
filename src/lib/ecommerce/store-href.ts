@@ -24,10 +24,11 @@ export function orderHref(basePath: string, accessToken: string): string {
 }
 
 /** Catálogo con filtros (`?coleccion=…&q=…&pagina=2`): los vacíos no se escriben. */
-export function catalogHref(basePath: string, query: { collection?: string | null; q?: string | null; page?: number | null } = {}): string {
+export function catalogHref(basePath: string, query: { collection?: string | null; q?: string | null; page?: number | null; sort?: import('./store-route').CatalogSort | null } = {}): string {
   const params = new URLSearchParams();
   if (query.collection) params.set('coleccion', query.collection);
   if (query.q) params.set('q', query.q);
+  if (query.sort && query.sort !== 'featured') params.set('orden', query.sort);
   if (query.page && query.page > 1) params.set('pagina', String(query.page));
   const text = params.toString();
   return `${storeScreenHref(basePath, 'catalog')}${text ? `?${text}` : ''}`;

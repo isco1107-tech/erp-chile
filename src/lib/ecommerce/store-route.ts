@@ -6,7 +6,11 @@ import { isStorePageSlug } from './routes';
  * Puro, para probarlo sin servidor.
  */
 
+export const CATALOG_SORTS = ['featured', 'newest', 'name', 'price-asc', 'price-desc'] as const;
+export type CatalogSort = (typeof CATALOG_SORTS)[number];
+
 export interface CatalogSearch {
+  sort?: CatalogSort;
   collection: string | null;
   q: string | null;
   page: number;
@@ -29,6 +33,7 @@ export function storeRouteFor(page: string, searchParams: SearchParams = {}): St
       return {
         kind: 'catalog',
         search: {
+          ...(CATALOG_SORTS.includes(first(searchParams.orden) as CatalogSort) && first(searchParams.orden) !== 'featured' ? { sort: first(searchParams.orden) as CatalogSort } : {}),
           collection: first(searchParams.coleccion)?.slice(0, 40) ?? null,
           q: first(searchParams.q)?.slice(0, 80) ?? null,
           page: Number.isFinite(rawPage) && rawPage >= 1 ? Math.min(500, Math.floor(rawPage)) : 1,

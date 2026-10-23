@@ -100,3 +100,9 @@ describe('a qué sección pertenece una ruta', () => {
     expect(findNavLinkForPath(links, '/dashboard/salesforce')).toBeNull();
   });
 });
+
+it('Ecommerce tiene su propia sección sin exigir Sitios web', () => {
+  const groups = buildAvailableWorkspaceNav({ permissions: ALL_PERMISSIONS, features: { ...DEFAULT_FEATURES, hasEcommerce: true, hasWebSites: false } });
+  expect(groups.find((group) => group.label === 'Ecommerce')?.links.map((link) => link.id)).toContain('store');
+  expect(groups.flatMap((group) => group.links).some((link) => link.id === 'web-sites')).toBe(false);
+});

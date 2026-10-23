@@ -116,3 +116,9 @@ describe('la tienda en un dominio propio', () => {
     expect(customDomainRoute('/dashboard/store')).toEqual({ kind: 'platform' });
   });
 });
+
+it('la ordenación del catálogo se conserva al paginar y solo acepta valores conocidos', () => {
+  expect(storeRouteFor('tienda', { orden: 'price-asc', pagina: '2' })).toMatchObject({ search: { sort: 'price-asc', page: 2 } });
+  expect(storeRouteFor('tienda', { orden: 'DROP TABLE' })).toEqual({ kind: 'catalog', search: { collection: null, q: null, page: 1 } });
+  expect(catalogHref('', { collection: 'Despensa', sort: 'price-desc', page: 2 })).toBe('/tienda?coleccion=Despensa&orden=price-desc&pagina=2');
+});

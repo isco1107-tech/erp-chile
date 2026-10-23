@@ -270,14 +270,14 @@ function toAsset(value: unknown): EditorAsset | null {
 }
 
 /** Contrato de `POST /api/web-sites/asset-upload`: `{success:true,data}` o `{success:false,error}`. */
-export async function uploadWebSiteImage(siteId: string, file: File, alt?: string): Promise<UploadOutcome> {
+export async function uploadWebSiteImage(siteId: string, file: File, alt?: string, endpoint = '/api/web-sites/asset-upload'): Promise<UploadOutcome> {
   const body = new FormData();
   body.append('siteId', siteId);
   body.append('file', file);
   if (alt?.trim()) body.append('alt', alt.trim());
   let response: Response;
   try {
-    response = await fetch('/api/web-sites/asset-upload', { method: 'POST', body });
+    response = await fetch(endpoint, { method: 'POST', body });
   } catch {
     return { ok: false, error: `${file.name}: no se pudo subir. Revisa tu conexión e inténtalo de nuevo.` };
   }

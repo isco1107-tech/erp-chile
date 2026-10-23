@@ -179,7 +179,7 @@ export async function issueSaleForOrder(companyId: string, orderId: string): Pro
     if (!(error instanceof StoreError)) captureException(error, { module: 'tienda-en-linea', companyId, extra: { orderId, reason: 'issue-sale' } });
     await prisma.storeOrder.updateMany({ where: { id: orderId, companyId, salesDocumentId: null }, data: { documentError: friendly.slice(0, 500) } });
     await prisma.storeOrderEvent.create({ data: { companyId, orderId, type: 'SALE_FAILED', message: friendly.slice(0, 500) } }).catch(() => undefined);
-    void notifyOrderProblem(companyId, orderId, `Cobramos el pedido pero no se pudo emitir la venta: ${friendly}`).catch((notifyError: unknown) =>
+    await notifyOrderProblem(companyId, orderId, `Cobramos el pedido pero no se pudo emitir la venta: ${friendly}`).catch((notifyError: unknown) =>
       captureException(notifyError, { module: 'tienda-en-linea', companyId, extra: { orderId, reason: 'sale-failed-notification' } })
     );
     return { status: 'FAILED', error: friendly };

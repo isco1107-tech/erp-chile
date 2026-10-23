@@ -69,6 +69,7 @@ export default async function CustomDomainSitePage({ params }: { params: Promise
     redirect(platformBaseUrl());
   }
   if (requestDomain !== domain) redirect(`https://${domain}`);
+  if (found.kind === 'web' && found.site.standaloneStore) redirect('/tienda');
   if (found.kind === 'pageant') return <PageantSiteDocument site={found.site} />;
   if (found.kind === 'academy') return <AcademySiteDocument site={found.site} />;
   return <WebSiteDocument site={found.site} basePath="" siteUrl={`https://${domain}`} />;

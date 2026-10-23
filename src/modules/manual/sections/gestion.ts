@@ -398,10 +398,10 @@ export const GESTION_SECTIONS: ManualSection[] = [
     id: 'tienda-en-linea',
     key: 'hasEcommerce',
     permission: 'store:read',
-    chapter: 'Sitios web',
+    chapter: 'Ecommerce',
     title: 'Tienda en línea',
     summary:
-      'Vende por internet desde tu sitio web: catálogo armado con tu inventario real, carrito, pago con Khipu o Webpay (o transferencia y pago al retirar), despacho por región o retiro en tienda. Cada venta pagada emite la boleta o factura, descuenta la bodega y queda en Tesorería y Contabilidad sin que nadie la digite otra vez. El precio, el IVA y el stock son siempre los del inventario.',
+      'Vende por internet desde tu propia tienda: catálogo armado con tu inventario real, carrito, pago con Khipu o Webpay (o transferencia y pago al retirar), despacho por región o retiro en tienda. Cada venta pagada emite la boleta o factura, descuenta la bodega y queda en Tesorería y Contabilidad sin que nadie la digite otra vez. El precio, el IVA y el stock son siempre los del inventario.',
     route: '/dashboard/store',
     topics: [
       {
@@ -409,11 +409,11 @@ export const GESTION_SECTIONS: ManualSection[] = [
         title: 'Preparar y abrir la tienda',
         permission: 'store:manage',
         steps: [
-          'Primero necesitas un sitio web armado con el constructor guiado y publicado (Sitios web → "Publicar"). La tienda vive dentro de ese sitio: si tienes varios, elige cuál en "Tienda del sitio".',
+          'En Ecommerce → Tienda en línea pulsa "Crear mi tienda" o "Nueva tienda". Escribe el nombre de tu marca y, si lo tienes, tu dominio. No necesitas activar Sitios web. La tienda empieza cerrada hasta que termines su configuración. Si tienes varias, elige cuál en "Tienda".',
           'En "Ajustes" elige la "Bodega de la que sale lo que vendes" (su stock es el que se muestra y se descuenta), un teléfono para dudas y los "Términos de la compra". Pulsa "Guardar cambios".',
           'En "Productos" publica lo que quieras vender; en "Envíos" activa el retiro y/o el despacho; en "Pagos" enciende al menos un medio de pago.',
           'Abre "Qué le falta": lo obligatorio (sitio publicado, bodega, un producto publicado, un medio de pago que funcione, una forma de entrega y que ninguna página del sitio use las direcciones tienda, producto, carrito, finalizar-compra o pedido) bloquea la apertura; lo recomendado solo avisa.',
-          'Cuando todo lo obligatorio esté listo pulsa "Abrir la tienda". Desde ese momento el sitio muestra "Tienda" en el menú y un carrito. "Cerrar la tienda" la saca de internet sin tocar los pedidos que ya hicieron.',
+          'En "Diseño y dominio" personaliza nombre, presentación, colores y logo, y conecta tu dominio siguiendo las instrucciones DNS. Cuando lo obligatorio esté listo pulsa "Abrir la tienda": su dirección abre directamente el catálogo. Las tiendas creadas dentro de un sitio anterior conservan su identidad en el constructor. "Cerrar la tienda" detiene compras nuevas y mantiene el seguimiento de los pedidos existentes.',
         ],
         tip: 'Si guardas cambios que dejan una tienda abierta incompleta (por ejemplo, sin medio de pago), se cierra sola: vender algo que no se puede cobrar es peor que cerrar.',
       },

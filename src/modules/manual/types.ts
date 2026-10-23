@@ -42,6 +42,7 @@ export const MANUAL_CHAPTERS = [
   'Certámenes & Eventos',
   'Personas & Equipo',
   'Sitios web',
+  'Ecommerce',
   'Referencia',
 ] as const;
 

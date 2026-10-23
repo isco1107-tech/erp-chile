@@ -16,12 +16,13 @@ import { getStoreSettingsAction, setStoreOpenAction, updateStoreSettingsAction }
 import type { StoreStats } from '@/modules/ecommerce/services/store-orders.service';
 import type { StoreSettingsView, StoreSiteRow } from '@/modules/ecommerce/services/store-settings.service';
 import OrdersPanel from './OrdersPanel';
+import StoreBrandPanel from './StoreBrandPanel';
 import ProductsPanel from './ProductsPanel';
 import { GeneralPanel, PaymentsPanel, ShippingPanel } from './SettingsPanels';
 import { draftFrom, inputFrom, isDirty, type SettingsDraft } from './settings-draft';
 import { ACTION_ERROR } from './store-admin-shared';
 
-export type StoreTab = 'orders' | 'products' | 'shipping' | 'payments' | 'settings';
+export type StoreTab = 'orders' | 'products' | 'shipping' | 'payments' | 'settings' | 'brand';
 
 const TABS: Array<{ value: StoreTab; label: string }> = [
   { value: 'orders', label: 'Pedidos' },
@@ -29,6 +30,7 @@ const TABS: Array<{ value: StoreTab; label: string }> = [
   { value: 'shipping', label: 'Envíos' },
   { value: 'payments', label: 'Pagos' },
   { value: 'settings', label: 'Ajustes' },
+  { value: 'brand', label: 'Diseño y dominio' },
 ];
 
 export interface StoreAdminClientProps {
@@ -129,6 +131,9 @@ export default function StoreAdminClient({ sites, siteId, initialSettings, initi
 
   const site = sites.find((entry) => entry.id === siteId);
   const settingsTab = tab === 'shipping' || tab === 'payments' || tab === 'settings';
+  const requiredItems = readiness.items.filter((item) => item.required);
+  const completed = requiredItems.filter((item) => item.ok).length;
+  const setupTab: Record<string, StoreTab> = { warehouse: 'settings', products: 'products', payments: 'payments', delivery: 'shipping', terms: 'settings', support: 'settings', stock: 'products' };
   const optionalMissing = readiness.items.filter((item) => !item.required && !item.ok);
 
   return (
@@ -137,7 +142,7 @@ export default function StoreAdminClient({ sites, siteId, initialSettings, initi
         <div className="flex flex-wrap items-center gap-3">
           {sites.length > 1 ? (
             <label className="flex items-center gap-2 text-sm font-medium">
-              Tienda del sitio
+              Tienda
               <select className={cn(nativeSelectClass, 'w-auto')} value={siteId} onChange={(event) => router.push(`/dashboard/store?sitio=${encodeURIComponent(event.target.value)}`)}>
                 {sites.map((entry) => (
                   <option key={entry.id} value={entry.id}>{entry.name}{entry.open ? ' · abierta' : ''}</option>
@@ -145,7 +150,7 @@ export default function StoreAdminClient({ sites, siteId, initialSettings, initi
               </select>
             </label>
           ) : (
-            <p className="text-sm font-medium">Tienda del sitio «{settings.siteName}»</p>
+            <p className="text-sm font-medium">{settings.siteName}</p>
           )}
           <StatusBadge tone={settings.enabled ? 'success' : 'neutral'}>{settings.enabled ? 'Abierta al público' : 'Cerrada'}</StatusBadge>
           {site?.status === 'DRAFT' && <StatusBadge tone="warning">Sitio sin publicar</StatusBadge>}
@@ -170,7 +175,8 @@ export default function StoreAdminClient({ sites, siteId, initialSettings, initi
           <summary className="cursor-pointer text-sm font-semibold">
             Qué le falta {readiness.missing.length > 0 ? `(${readiness.missing.length} ${readiness.missing.length === 1 ? 'cosa obligatoria' : 'cosas obligatorias'})` : optionalMissing.length > 0 ? `(${optionalMissing.length} ${optionalMissing.length === 1 ? 'recomendación' : 'recomendaciones'})` : '· todo listo'}
           </summary>
-          <ul className="mt-3 space-y-2">
+          <div className="mt-4 flex items-center gap-3"><progress aria-label="Configuración de la tienda" value={completed} max={requiredItems.length || 1} className="h-2 grow accent-primary" /><span className="text-xs text-muted-foreground">{completed} de {requiredItems.length} pasos listos</span></div>
+          <ul className="mt-4 space-y-4">
             {readiness.items.map((item) => (
               <li key={item.key} className="flex items-start gap-2 text-sm">
                 {item.ok ? <Check className="mt-0.5 size-4 shrink-0 text-success" aria-label="Listo" /> : item.required ? <X className="mt-0.5 size-4 shrink-0 text-danger" aria-label="Falta, es obligatorio" /> : <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" aria-label="Recomendado" />}
@@ -178,6 +184,7 @@ export default function StoreAdminClient({ sites, siteId, initialSettings, initi
                   <span className={cn(item.ok && 'text-muted-foreground')}>{item.label}{!item.ok && !item.required ? ' (recomendado)' : ''}</span>
                   {!item.ok && <span className="block text-xs text-muted-foreground">{item.hint}</span>}
                 </span>
+                {!item.ok && setupTab[item.key] && <Button type="button" variant="outline" size="sm" className="ml-auto shrink-0" onClick={() => selectTab(setupTab[item.key]!)}>Configurar</Button>}
               </li>
             ))}
           </ul>
@@ -191,15 +198,16 @@ export default function StoreAdminClient({ sites, siteId, initialSettings, initi
         <KpiCard label="Requieren atención" value={String(stats.attention)} icon={AlertTriangle} tone={stats.attention > 0 ? 'danger' : 'neutral'} hint="Una venta sin emitir o un pago tardío" />
       </div>
 
-      <div role="tablist" aria-label="Secciones de la tienda" className="inline-flex flex-wrap rounded-md bg-muted p-0.5">
+      <div role="tablist" aria-label="Secciones de la tienda" className="flex flex-wrap gap-1 rounded-xl border border-border bg-card p-1.5">
         {TABS.map((entry) => (
-          <button key={entry.value} type="button" role="tab" aria-selected={tab === entry.value} onClick={() => selectTab(entry.value)} className={cn('rounded px-3 py-1 text-xs font-medium transition-colors', tab === entry.value ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}>
+          <button key={entry.value} type="button" role="tab" aria-selected={tab === entry.value} onClick={() => selectTab(entry.value)} className={cn('min-h-11 rounded-lg px-4 py-2 text-sm font-medium transition-colors', tab === entry.value ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}>
             {entry.label}
             {entry.value !== 'orders' && entry.value !== 'products' && dirty && <span aria-label="con cambios sin guardar" className="ml-1 text-warning">●</span>}
           </button>
         ))}
       </div>
 
+      {tab === 'brand' && <StoreBrandPanel siteId={siteId} canManage={canManage} />}
       {tab === 'orders' && <OrdersPanel siteId={siteId} canWrite={canWrite} canFulfill={canFulfill} canManage={canManage} onStats={onStats} />}
       {tab === 'products' && <ProductsPanel siteId={siteId} canWrite={canWrite} canUploadImages={canUploadImages} onChanged={refreshReadiness} />}
       {tab === 'shipping' && <ShippingPanel draft={draft} patch={patch} settings={settings} disabled={!canManage || saving} />}

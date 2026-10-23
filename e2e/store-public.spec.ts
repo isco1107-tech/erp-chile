@@ -36,7 +36,7 @@ const orderToken = (url: string) => /\/pedido\/([a-f0-9]{64})/.exec(url)?.[1] ??
 test.describe('catálogo y ficha', () => {
   test('lista lo publicado con precio con IVA, descuento y agotado; busca y filtra por colección', async ({ page }) => {
     await page.goto(`/web/${STORE_SLUG}/tienda`);
-    await expect(page.getByRole('heading', { level: 1, name: 'Tienda' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: /Encuentra eso/ })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Aceite de maravilla 900 ml' }).first()).toBeVisible();
     await expect(page.getByText('$3.990').first()).toBeVisible();
     await expect(page.getByText('$4.990').first()).toBeVisible(); // precio anterior tachado
@@ -65,7 +65,7 @@ test.describe('catálogo y ficha', () => {
     await expect(page.getByRole('list', { name: 'Fotos del producto' }).getByRole('button')).toHaveCount(3);
     await expect(page.getByText('Botella de 900 ml.')).toBeVisible();
     await expect(page.getByText(/Retiro en tienda: Av. Alemania 0123/)).toBeVisible();
-    await expect(page.getByText('Cambios y devoluciones')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Cambios y devoluciones' })).toBeVisible();
     const structured = (await page.locator('script[type="application/ld+json"]').allTextContents()).join('\n');
     expect(structured).toContain('"@type":"Product"');
     expect(structured).toContain('"price":3990');

@@ -6,7 +6,15 @@ import type { StoreRoute } from '@/lib/ecommerce/store-route';
 import { productHref, storeScreenHref } from '@/lib/ecommerce/store-href';
 import { safeImageSrc } from '@/lib/web-sites/urls';
 import { getPublicOrder } from '@/modules/ecommerce/services/store-orders.service';
-import { getPublicProduct, listPublicProducts, resolvePublicStore, resolvePublicStoreByDomain, resolveStoreForOrders, resolveStoreForOrdersByDomain, type PublicStoreContext } from '@/modules/ecommerce/services/store-public.service';
+import {
+  getPublicProduct,
+  listPublicProducts,
+  resolvePublicStore,
+  resolvePublicStoreByDomain,
+  resolveStoreForOrders,
+  resolveStoreForOrdersByDomain,
+  type PublicStoreContext,
+} from '@/modules/ecommerce/services/store-public.service';
 import { getPublicWebSite, type PublicWebSite } from '@/modules/web-sites/services/web-sites.service';
 import CartScreen from './CartScreen';
 import CheckoutScreen from './CheckoutScreen';
@@ -24,7 +32,7 @@ import StoreProductScreen from './StoreProductScreen';
  */
 
 /** Una sola lectura por petición: `generateMetadata` y la página piden lo mismo. */
-export const loadSiteBySlug = cache((slug: string) => getPublicWebSite(slug));
+export const loadSiteBySlug = cache((slug: string) => getPublicWebSite(slug, true));
 const loadProduct = cache((store: PublicStoreContext, slug: string) => getPublicProduct(store, slug));
 export const loadStoreBySlug = cache((slug: string) => resolvePublicStore(slug));
 export const loadStoreByDomain = cache((domain: string) => resolvePublicStoreByDomain(domain));
@@ -46,28 +54,53 @@ interface RenderArgs {
 export async function renderStorePage({ site, store, route, basePath, siteUrl }: RenderArgs) {
   switch (route.kind) {
     case 'catalog': {
-      const catalog = await listPublicProducts(store, { collection: route.search.collection ?? undefined, q: route.search.q ?? undefined, page: route.search.page });
+      const catalog = await listPublicProducts(store, {
+        collection: route.search.collection ?? undefined,
+        q: route.search.q ?? undefined,
+        page: route.search.page,
+        sort: route.search.sort,
+      });
       return (
-        <StoreDocument site={site} basePath={basePath} current="catalog">
-          <StoreCatalogScreen catalog={catalog} query={route.search} basePath={basePath} siteSlug={site.slug} />
+        <StoreDocument site={site} basePath={basePath} current="catalog" settings={store.settings}>
+          <StoreCatalogScreen
+            storeName={site.name}
+            description={site.description}
+            settings={store.settings}
+            catalog={catalog}
+            query={route.search}
+            basePath={basePath}
+            siteSlug={site.slug}
+          />
         </StoreDocument>
       );
     }
     case 'cart':
       return (
-        <StoreDocument site={site} basePath={basePath} current="cart">
+        <StoreDocument site={site} basePath={basePath} current="cart" settings={store.settings}>
           <CartScreen siteSlug={site.slug} basePath={basePath} />
         </StoreDocument>
       );
     case 'checkout':
       return (
-        <StoreDocument site={site} basePath={basePath} current="checkout">
+        <StoreDocument site={site} basePath={basePath} current="checkout" settings={store.settings}>
           <CheckoutScreen siteSlug={site.slug} basePath={basePath} termsText={store.settings.termsText} />
         </StoreDocument>
       );
     case 'product': {
       const product = await loadProduct(store, route.slug);
       if (!product) redirect(storeScreenHref(basePath, 'catalog'));
+      const related = await listPublicProducts(store, { collection: product.collection ?? undefined, limit: 5 });
+      const alternatives = related.products.filter((item) => item.id !== product.id);
+      if (alternatives.filter((item) => item.available === null || item.available > 0).length < 4) {
+        const broader = await listPublicProducts(store, { limit: 8 });
+        const seen = new Set(alternatives.map((item) => item.id));
+        for (const item of broader.products)
+          if (item.id !== product.id && !seen.has(item.id)) {
+            alternatives.push(item);
+            seen.add(item.id);
+          }
+      }
+      alternatives.sort((a, b) => Number(b.available === null || b.available > 0) - Number(a.available === null || a.available > 0));
       const image = safeImageSrc(product.images[0]?.url);
       const jsonLd = {
         '@context': 'https://schema.org',
@@ -86,9 +119,9 @@ export async function renderStorePage({ site, store, route, basePath, siteUrl }:
         },
       };
       return (
-        <StoreDocument site={site} basePath={basePath} current="product">
+        <StoreDocument site={site} basePath={basePath} current="product" settings={store.settings}>
           <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdString(jsonLd) }} />
-          <StoreProductScreen product={product} settings={store.settings} basePath={basePath} siteSlug={site.slug} />
+          <StoreProductScreen product={product} settings={store.settings} related={alternatives.slice(0, 4)} basePath={basePath} siteSlug={site.slug} />
         </StoreDocument>
       );
     }
@@ -96,7 +129,7 @@ export async function renderStorePage({ site, store, route, basePath, siteUrl }:
       const order = await getPublicOrder(store.siteId, route.token);
       if (!order) notFound();
       return (
-        <StoreDocument site={site} basePath={basePath} current="order">
+        <StoreDocument site={site} basePath={basePath} current="order" settings={store.settings}>
           <StoreOrderScreen order={order} accessToken={route.token} basePath={basePath} />
         </StoreDocument>
       );
@@ -112,7 +145,9 @@ export async function storeMetadata({ site, store, route, siteUrl }: RenderArgs)
       return {
         title: `${route.search.collection ?? 'Tienda'} · ${site.title}`,
         description: `Compra en línea en ${site.name}.`,
-        alternates: { canonical: `${siteUrl}${storeScreenHref('', 'catalog')}${route.search.collection ? `?coleccion=${encodeURIComponent(route.search.collection)}` : ''}` },
+        alternates: {
+          canonical: `${siteUrl}${storeScreenHref('', 'catalog')}${route.search.collection ? `?coleccion=${encodeURIComponent(route.search.collection)}` : ''}`,
+        },
         robots: indexable && !route.search.q ? { index: true, follow: true } : { index: false, follow: true },
       };
     case 'product': {

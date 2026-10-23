@@ -58,7 +58,7 @@ export default function ProductPurchase({ siteSlug, productId, name, available, 
           href={checkoutHref}
           className="ws-btn ws-btn-alt w-full @md:w-auto"
           onClick={() => {
-            if (room > 0 && inCart === 0) add(productId, wanted, limit);
+            if (room > 0) add(productId, wanted, limit);
           }}
         >
           Comprar ahora

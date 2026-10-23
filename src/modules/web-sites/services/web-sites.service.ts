@@ -584,20 +584,24 @@ export interface PublicWebSite {
   customDomain: string | null;
   customDomainVerified: boolean;
   publishedAt: Date | null;
+  standaloneStore?: boolean;
 }
 
 const PUBLIC_SELECT = {
   id: true, companyId: true, name: true, slug: true, mode: true, status: true, seoTitle: true, seoDescription: true, indexable: true, logoUrl: true, ogImageUrl: true, faviconUrl: true,
   publishedBlocks: true, publishedTheme: true, publishedHtml: true, publishedAt: true, customDomain: true, customDomainVerifiedAt: true,
-  company: { select: { businessName: true, status: true, features: { select: { hasWebSites: true } } } },
+  company: { select: { businessName: true, status: true, features: { select: { hasWebSites: true, hasEcommerce: true } } } },
+  store: { select: { standalone: true } },
 } satisfies Prisma.WebSiteSelect;
 
 type PublicRow = Prisma.WebSiteGetPayload<{ select: typeof PUBLIC_SELECT }>;
 
-function toPublic(site: PublicRow | null): PublicWebSite | null {
+function toPublic(site: PublicRow | null, storefront = false): PublicWebSite | null {
   if (!site || site.status !== 'PUBLISHED') return null;
   // Empresa suspendida/cancelada o sin el módulo: el sitio deja de verse en el acto.
-  if (site.company.status === 'SUSPENDED' || site.company.status === 'CANCELLED' || !site.company.features?.hasWebSites) return null;
+  if (site.company.status === 'SUSPENDED' || site.company.status === 'CANCELLED') return null;
+  const storeAccess = Boolean(site.company.features?.hasEcommerce && site.store && (storefront || site.store.standalone));
+  if (!site.company.features?.hasWebSites && !storeAccess) return null;
   const document = parseSiteDocument(site.publishedBlocks, site.publishedTheme);
   return {
     id: site.id,
@@ -619,12 +623,13 @@ function toPublic(site: PublicRow | null): PublicWebSite | null {
     customDomain: site.customDomain,
     customDomainVerified: Boolean(site.customDomainVerifiedAt),
     publishedAt: site.publishedAt,
+    standaloneStore: site.store?.standalone ?? false,
   };
 }
 
-export async function getPublicWebSite(slug: string): Promise<PublicWebSite | null> {
+export async function getPublicWebSite(slug: string, storefront = false): Promise<PublicWebSite | null> {
   if (!/^[a-z0-9-]{3,50}$/.test(slug)) return null;
-  return toPublic(await prisma.webSite.findUnique({ where: { slug }, select: PUBLIC_SELECT }));
+  return toPublic(await prisma.webSite.findUnique({ where: { slug }, select: PUBLIC_SELECT }), storefront);
 }
 
 /**
@@ -632,14 +637,14 @@ export async function getPublicWebSite(slug: string): Promise<PublicWebSite | nu
  * petición llegó por ese mismo dominio: esa visita es la prueba de que el DNS
  * ya apunta acá, y deja el dominio verificado sin esperar a nadie.
  */
-export async function getPublicWebSiteByDomain(domain: string, reachedViaDomain = false): Promise<PublicWebSite | null> {
+export async function getPublicWebSiteByDomain(domain: string, reachedViaDomain = false, storefront = false): Promise<PublicWebSite | null> {
   const row = await prisma.webSite.findUnique({ where: { customDomain: domain }, select: PUBLIC_SELECT });
   if (!row) return null;
   if (!row.customDomainVerifiedAt) {
     if (!reachedViaDomain) return null;
     await prisma.webSite.updateMany({ where: { id: row.id, companyId: row.companyId, customDomain: domain, customDomainVerifiedAt: null }, data: { customDomainVerifiedAt: new Date() } });
   }
-  return toPublic(row);
+  return toPublic(row, storefront);
 }
 
 /** Mensajes recibidos por un sitio en los últimos `minutes` (tope contra spam que sobrevive a cada instancia serverless). */

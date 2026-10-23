@@ -270,7 +270,7 @@ export async function syncOrderPayment(orderId: string, companyId?: string, hint
       // Plata posiblemente recibida que no calza con el pedido: no se aplica a ciegas, se escala.
       captureMessage('tienda-en-linea:cobro-no-calza', 'error', { module: 'tienda-en-linea', companyId: order.companyId, extra: { orderId, provider: order.paymentProvider, reason: verdict.reason } });
       await prisma.storeOrderEvent.create({ data: { companyId: order.companyId, orderId: order.id, type: 'PAYMENT_MISMATCH', message: `${providerLabel}: el cobro no calza con el pedido (${verdict.reason}). No se aplicó.` } });
-      void notifyOrderProblem(order.companyId, order.id, `${providerLabel} informa un cobro que no calza con el pedido (${verdict.reason}). Revísalo en la pasarela.`).catch(() => undefined);
+      await notifyOrderProblem(order.companyId, order.id, `${providerLabel} informa un cobro que no calza con el pedido (${verdict.reason}). Revísalo en la pasarela.`).catch(() => undefined);
       return 'PENDING';
     case 'PENDING':
       return order.status === 'OPEN' ? await expireIfStale(order) : 'CLOSED';
@@ -343,7 +343,7 @@ export async function markOrderPaid(orderId: string, companyId: string, info: Pa
   if (!outcome) return;
 
   if (outcome.closed) {
-    void notifyOrderProblem(companyId, orderId, 'Recibimos el pago de un pedido que ya estaba cerrado. Reábrelo o reembolsa al comprador.').catch(() => undefined);
+    await notifyOrderProblem(companyId, orderId, 'Recibimos el pago de un pedido que ya estaba cerrado. Reábrelo o reembolsa al comprador.').catch(() => undefined);
     return;
   }
 

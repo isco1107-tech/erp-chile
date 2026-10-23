@@ -54,7 +54,7 @@ Qué cubren:
 y lee el resultado directo de la base, así que estas pruebas necesitan `DATABASE_URL` apuntando
 a la base de pruebas (la misma de los pasos 1–2). Nunca contra la de producción.
 
-Tienda en línea (`/web/tienda-e2e`, panel en Sitios web → Tienda en línea):
+Tienda en línea (`/web/tienda-e2e`, panel en Ecommerce → Tienda en línea):
 - `store-public.spec.ts`: el comprador, sin sesión: catálogo (precio con IVA, descuento, agotado, búsqueda y
   colecciones), ficha con datos estructurados, carrito (cantidades, ajuste por stock, un precio escrito a mano
   en el navegador no vale, celular emulado), finalizar compra con transferencia, retiro y despacho por región,
@@ -64,6 +64,8 @@ Tienda en línea (`/web/tienda-e2e`, panel en Sitios web → Tienda en línea):
 - `store-admin.spec.ts`: el equipo: confirma una transferencia (se emite la venta y baja la bodega), prepara,
   despacha con seguimiento (solo https) y entrega; cancela y libera el stock; descarga el Excel auditado;
   publica y edita fichas; cambia ajustes, cierra y abre la tienda; «Qué le falta» bloquea una tienda incompleta.
+- `store-workspace.spec.ts`: crea y personaliza una tienda propia con Sitios web desactivado; comprueba apertura directa del catálogo y funcionamiento de la API pública.
+- `store-experience.spec.ts`: orden por precio, filtros persistentes, carrito rápido con teclado y límites, ampliación de fotos, cantidades de «Comprar ahora» y recuperación de cotizaciones ante cortes de conexión.
 - `store-responsive.spec.ts`: las cinco pantallas de la tienda en 13 anchos (280 a 2560 px): nada desborda,
   se sale de la pantalla, parte una palabra letra por letra ni queda bajo 11 px. Deja capturas en
   `.vercel/responsive-check-store/`: **mirarlas**, el «pasó» no basta.

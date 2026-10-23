@@ -70,7 +70,7 @@ export function useQuote(siteSlug: string, lines: CartLine[], cart: CartApi, opt
         if (messages.length > 0) setNotices(messages);
         setQuote(next);
       } catch {
-        /* solicitud reemplazada por otra más nueva */
+        if (!controller.signal.aborted) { setLoading(false); setError('No pudimos actualizar tu carrito. Revisa tu conexión e inténtalo de nuevo.'); }
       }
     }, 250);
     return () => {

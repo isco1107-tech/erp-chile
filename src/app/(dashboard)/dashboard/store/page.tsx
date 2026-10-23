@@ -1,7 +1,5 @@
-import Link from 'next/link';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { buttonVariants } from '@/components/ui/button';
-import { EmptyState } from '@/components/ui/EmptyState';
+import CreateStorefront from '@/components/store-admin/CreateStorefront';
 import { PageAccessNotice } from '@/components/shared/PageAccessNotice';
 import StoreAdminClient, { type StoreTab } from '@/components/store-admin/StoreAdminClient';
 import { can, checkPageAccess } from '@/lib/auth/guards';
@@ -10,23 +8,21 @@ import { getStoreReadiness, getStoreSettings, listStoreSites, listStoreWarehouse
 
 export const metadata = { title: 'Tienda en línea' };
 
-const TABS: readonly StoreTab[] = ['orders', 'products', 'shipping', 'payments', 'settings'];
+const TABS: readonly StoreTab[] = ['orders', 'products', 'shipping', 'payments', 'settings', 'brand'];
 
 export default async function StorePage({ searchParams }: { searchParams: Promise<{ sitio?: string | string[]; tab?: string | string[] }> }) {
   const access = await checkPageAccess('store:read');
   if (access.denied) return <PageAccessNotice denied={access.denied} />;
   const context = access.context;
-  // La tienda vive dentro de un sitio web: sin ese módulo no hay dónde montarla.
-  if (!context.features.hasWebSites) return <PageAccessNotice denied="module" />;
 
   const { sitio, tab } = await searchParams;
   const sites = await listStoreSites(context.companyId);
 
   const header = (
     <PageHeader
-      eyebrow="Sitios web"
+      eyebrow="Ecommerce"
       title="Tienda en línea"
-      description="Vende por internet desde tu sitio: catálogo con el inventario real, carrito, pago con Khipu o Webpay, despacho o retiro, y cada venta queda en Ventas, Bodega y Contabilidad sin digitar nada."
+      description="Tu tienda, tus pedidos y tu inventario en un mismo lugar. Publica productos, cobra y prepara cada entrega desde el ERP."
     />
   );
 
@@ -34,17 +30,7 @@ export default async function StorePage({ searchParams }: { searchParams: Promis
     return (
       <div className="space-y-6">
         {header}
-        <EmptyState
-          title="Primero necesitas un sitio web"
-          description="La tienda vive dentro de un sitio armado con el constructor guiado. Crea uno y vuelve acá para publicar tus productos."
-          action={
-            can(context, 'websites:write') ? (
-              <Link href="/dashboard/web-sites/new" className={buttonVariants()}>
-                Crear un sitio web
-              </Link>
-            ) : undefined
-          }
-        />
+        {can(context, 'store:manage') ? <CreateStorefront /> : <p className="text-sm text-muted-foreground">Pide al administrador que cree tu primera tienda.</p>}
       </div>
     );
   }
@@ -58,6 +44,7 @@ export default async function StorePage({ searchParams }: { searchParams: Promis
   return (
     <div className="space-y-6">
       {header}
+      {can(context, 'store:manage') && <CreateStorefront compact />}
       <StoreAdminClient
         key={selected.id}
         sites={sites}
@@ -69,7 +56,7 @@ export default async function StorePage({ searchParams }: { searchParams: Promis
         canWrite={can(context, 'store:write')}
         canFulfill={can(context, 'store:fulfill')}
         canManage={can(context, 'store:manage')}
-        canUploadImages={can(context, 'websites:write')}
+        canUploadImages={can(context, 'store:write')}
         initialTab={initialTab}
       />
     </div>

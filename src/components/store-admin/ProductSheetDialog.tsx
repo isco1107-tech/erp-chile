@@ -210,6 +210,7 @@ export default function ProductSheetDialog({ siteId, productId, canWrite, canUpl
                 {canUploadImages && draft.images.length < 8 && (
                   <ImageUploader
                     siteId={siteId}
+                    uploadEndpoint="/api/store/asset-upload"
                     disabled={!canWrite || saving}
                     onUploaded={(asset) => {
                       setAssets((current) => [{ id: asset.id, url: asset.url, fileName: asset.fileName, alt: asset.alt }, ...current]);
@@ -217,7 +218,7 @@ export default function ProductSheetDialog({ siteId, productId, canWrite, canUpl
                     }}
                   />
                 )}
-                {!canUploadImages && <p className="text-xs text-muted-foreground">Para subir fotos nuevas necesitas el permiso de editar sitios web; puedes elegir las que ya están en la biblioteca.</p>}
+                {!canUploadImages && <p className="text-xs text-muted-foreground">Para subir fotos nuevas necesitas el permiso de editar la tienda; puedes elegir las que ya están en la biblioteca.</p>}
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">

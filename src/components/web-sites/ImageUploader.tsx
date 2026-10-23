@@ -8,6 +8,7 @@ import { EditorAssetsContext, ACCEPTED_IMAGE_ACCEPT, formatBytes, MAX_UPLOAD_BYT
 
 interface ImageUploaderProps {
   siteId: string;
+  uploadEndpoint?: string;
   disabled?: boolean;
   /** Varias imágenes a la vez (biblioteca) o una sola (selector de un bloque). */
   multiple?: boolean;
@@ -20,7 +21,7 @@ interface ImageUploaderProps {
 }
 
 /** Zona de arrastrar-soltar y botón de archivos. Sube de a una, con progreso simple. */
-export function ImageUploader({ siteId, disabled, multiple = true, askAlt = false, onUploaded, onFinished }: ImageUploaderProps) {
+export function ImageUploader({ siteId, uploadEndpoint, disabled, multiple = true, askAlt = false, onUploaded, onFinished }: ImageUploaderProps) {
   const inputId = useId();
   const assetContext = useContext(EditorAssetsContext);
   const [dragging, setDragging] = useState(false);
@@ -45,7 +46,7 @@ export function ImageUploader({ siteId, disabled, multiple = true, askAlt = fals
     const uploaded: EditorAsset[] = [];
     setProgress({ done: 0, total: valid.length });
     for (const [index, file] of valid.entries()) {
-      const outcome = await (assetContext?.uploadAsset ? assetContext.uploadAsset(file, askAlt ? alt : undefined) : uploadWebSiteImage(siteId, file, askAlt ? alt : undefined));
+      const outcome = await (assetContext?.uploadAsset ? assetContext.uploadAsset(file, askAlt ? alt : undefined) : uploadWebSiteImage(siteId, file, askAlt ? alt : undefined, uploadEndpoint));
       if (outcome.ok) {
         uploaded.push(outcome.asset);
         onUploaded(outcome.asset);

@@ -46,10 +46,10 @@ export interface StoreSettingsView {
   khipuConfigured: boolean;
 }
 
-/** Módulos que la tienda necesita: sitios y tienda. */
+/** Ecommerce tiene habilitación propia; reutiliza la infraestructura de publicación. */
 export async function assertStoreModule(companyId: string): Promise<void> {
-  const features = await prisma.companyFeatures.findUnique({ where: { companyId }, select: { hasWebSites: true, hasEcommerce: true } });
-  if (!features?.hasWebSites || !features.hasEcommerce) throw new StoreError('La tienda en línea no está habilitada en tu plan.', 403);
+  const features = await prisma.companyFeatures.findUnique({ where: { companyId }, select: { hasEcommerce: true } });
+  if (!features?.hasEcommerce) throw new StoreError('La tienda en línea no está habilitada en tu plan.', 403);
 }
 
 async function loadSite(companyId: string, siteId: string) {

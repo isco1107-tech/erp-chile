@@ -9,13 +9,13 @@ export default function ProductCard({ product, basePath, siteSlug, eager = false
   const off = discountPercent(product.grossPrice, product.compareAtPrice);
   const soldOut = product.stock.state === 'out';
   return (
-    <article className="ws-card ws-card-hover flex h-full min-w-0 flex-col overflow-hidden text-left">
-      <a href={href} className="relative block" tabIndex={-1} aria-hidden="true">
+    <article className="ws-card ec-product-card flex h-full min-w-0 flex-col overflow-hidden text-left">
+      <a href={href} className="ec-product-photo relative block" tabIndex={-1} aria-hidden="true">
         <ProductImage src={product.imageUrl} alt="" eager={eager} className={`aspect-square w-full object-cover ${soldOut ? 'opacity-55' : ''}`} />
         {off !== null && !soldOut && <span className="absolute top-3 left-3 rounded-full bg-[color:var(--s-btn)] px-2.5 py-1 text-xs font-bold text-[color:var(--s-btn-fg)] shadow">-{off}%</span>}
         {soldOut && <span className="absolute top-3 left-3 rounded-full bg-[color:var(--ws-dark)] px-2.5 py-1 text-xs font-bold text-[color:var(--ws-on-dark)] shadow">Agotado</span>}
       </a>
-      <div className="flex grow flex-col gap-1.5 p-4">
+      <div className="ec-product-body flex grow flex-col gap-1.5">
         {product.collection && <p className="ws-eyebrow break-words">{product.collection}</p>}
         <h3 className="ws-h text-base leading-snug break-words">
           <a href={href} className="underline-offset-4 hover:underline">

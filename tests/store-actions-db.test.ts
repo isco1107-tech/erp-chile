@@ -5,7 +5,7 @@
  *   WAREHOUSE_TEST_DATABASE_URL=postgresql://postgres:test@localhost:5432/erp_store_test \
  *     npx jest tests/store-actions-db.test.ts
  *
- * Lo que protege: que cada acción exija SU permiso (`store:read|write|fulfill|manage`) y los dos módulos,
+ * Lo que protege: que cada acción exija SU permiso (`store:read|write|fulfill|manage`) y el módulo Ecommerce,
  * que una empresa no pueda leer ni tocar pedidos, productos ni ajustes de otra, que confirmar un pago
  * emita la venta, que cancelar un pedido pagado exija administración, que la llave de Webpay no vuelva
  * al navegador ni a la bitácora, que abrir la tienda exija «qué le falta» y que el Excel respete el
@@ -52,6 +52,7 @@ describeDb('panel de la tienda contra PostgreSQL', () => {
 
   let prisma: PrismaClient;
   let actions: typeof import('@/modules/ecommerce/actions/store.actions');
+  let workspaceActions: typeof import('@/modules/ecommerce/actions/store-workspace.actions');
   let exportRoute: typeof import('@/app/api/store/orders/export/route');
   let checkout: typeof import('@/modules/ecommerce/services/store-checkout.service');
   let publicStore: typeof import('@/modules/ecommerce/services/store-public.service');
@@ -96,6 +97,7 @@ describeDb('panel de la tienda contra PostgreSQL', () => {
     ({ prisma } = await import('@/lib/prisma'));
     ({ encryptPaymentCredential: encrypt } = await import('@/lib/payments/crypto'));
     actions = await import('@/modules/ecommerce/actions/store.actions');
+    workspaceActions = await import('@/modules/ecommerce/actions/store-workspace.actions');
     exportRoute = await import('@/app/api/store/orders/export/route');
     checkout = await import('@/modules/ecommerce/services/store-checkout.service');
     publicStore = await import('@/modules/ecommerce/services/store-public.service');
@@ -221,6 +223,44 @@ describeDb('panel de la tienda contra PostgreSQL', () => {
         expect(result.success).toBe(false);
       } finally {
         await prisma.companyFeatures.update({ where: { companyId: ids.companyA }, data: { hasEcommerce: true } });
+      }
+    });
+  });
+
+  describe('identidad y creación desde Ecommerce', () => {
+    const identity = { name: 'Marca', description: '', primary: '#123456', accent: '#789abc' };
+    it('leer no concede creación, diseño ni dominio; el tenant siempre sale de la sesión', async () => {
+      asA(['store:read']);
+      expect((await workspaceActions.getStoreBrandAction(ids.siteA)).success).toBe(true);
+      for (const attempt of [
+        () => workspaceActions.createStorefrontAction({ name: 'Intrusa' }),
+        () => workspaceActions.updateStoreBrandAction(ids.siteA, identity),
+        () => workspaceActions.getStoreDomainAction(ids.siteA),
+        () => workspaceActions.setStoreDomainAction(ids.siteA, 'tienda.example.com'),
+        () => workspaceActions.removeStoreDomainAction(ids.siteA),
+      ]) expect(await attempt()).toMatchObject({ success: false, error: expect.stringMatching(/No autorizado/) });
+      asB();
+      expect((await workspaceActions.getStoreBrandAction(ids.siteA)).success).toBe(false);
+      expect((await workspaceActions.updateStoreBrandAction(ids.siteA, identity)).success).toBe(false);
+      expect((await workspaceActions.removeStoreDomainAction(ids.siteA)).success).toBe(false);
+      expect((await prisma.webSite.findUniqueOrThrow({ where: { id: ids.siteA } })).name).toBe('Tienda A');
+    });
+    it('puede crear sin Sitios web, pero no cuando Ecommerce está apagado', async () => {
+      asA();
+      await prisma.companyFeatures.update({ where: { companyId: ids.companyA }, data: { hasWebSites: false } });
+      let createdId = '';
+      try {
+        const result = await workspaceActions.createStorefrontAction({ name: 'Nueva marca', slug: `independiente-${suffix}` });
+        expect(result.success).toBe(true);
+        if (result.success) createdId = result.data.id;
+        expect(await prisma.webSiteStore.findUnique({ where: { siteId: createdId } })).toMatchObject({ standalone: true, enabled: false });
+        expect(auditCalls).toEqual(expect.arrayContaining([expect.objectContaining({ entityId: createdId, action: 'CREATE' })]));
+        await prisma.companyFeatures.update({ where: { companyId: ids.companyA }, data: { hasEcommerce: false } });
+        expect((await workspaceActions.createStorefrontAction({ name: 'No debe crearse' })).success).toBe(false);
+        expect((await workspaceActions.updateStoreBrandAction(createdId, identity)).success).toBe(false);
+      } finally {
+        await prisma.companyFeatures.update({ where: { companyId: ids.companyA }, data: { hasWebSites: true, hasEcommerce: true } });
+        if (createdId) await prisma.webSite.delete({ where: { id: createdId } });
       }
     });
   });

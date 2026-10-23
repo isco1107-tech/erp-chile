@@ -16,8 +16,7 @@ import { getStoreProduct, listSiteAssets, listStoreCatalog, removeStoreProduct, 
 import { assertStoreModule, getStoreReadiness, getStoreSettings, setStoreOpen, updateStoreSettings, type StoreSettingsView } from '../services/store-settings.service';
 
 /**
- * Acciones del panel «Tienda en línea». Cada una exige su permiso (`store:*`) y los dos módulos
- * (sitios web y tienda) en el servidor; la empresa sale SIEMPRE de la sesión. Devuelven
+ * Acciones del panel «Tienda en línea». Cada una exige su permiso (`store:*`) y el módulo Ecommerce en el servidor; la empresa sale SIEMPRE de la sesión. Devuelven
  * `ActionResult` con mensajes en español: solo el texto de un `StoreError` llega a la pantalla,
  * lo demás va a observabilidad.
  */
@@ -32,7 +31,7 @@ function fail(error: unknown, companyId?: string, extra?: Record<string, unknown
   return { success: false, error: toFriendlyErrorMessage(error) };
 }
 
-/** Sesión con el permiso pedido Y los dos módulos de la tienda. */
+/** Sesión con el permiso pedido Y el módulo Ecommerce. */
 async function storeSession(permission: Permission): Promise<AuthContext> {
   const session = await requireAuthWithPermission(permission);
   await assertStoreModule(session.companyId);

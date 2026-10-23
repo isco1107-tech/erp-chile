@@ -61,6 +61,14 @@ async function audit(page: Page, label: string): Promise<string[]> {
       const clips = style.overflowX === 'hidden' || style.overflowX === 'clip';
       if (clips && !el.classList.contains('ws-root') && !el.hasAttribute('data-truncate') && el.scrollWidth > el.clientWidth + 1 && el.children.length === 0) problems.push(`${where(el)} corta su texto`);
     }
+    for (const amount of document.querySelectorAll<HTMLElement>('.tabular-nums')) {
+      if (!/^[-$\d.,\s]+$/.test(amount.textContent?.trim() ?? '')) continue;
+      // Flex rows stretch the element to the product name's height: inspect the text itself.
+      const range = document.createRange();
+      range.selectNodeContents(amount);
+      const rows = new Set(Array.from(range.getClientRects()).filter((rect) => rect.width > 0 && rect.height > 0).map((rect) => Math.round(rect.top)));
+      if (rows.size > 1) problems.push(`un monto se parte en varias líneas (${amount.textContent?.trim()})`);
+    }
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
       const text = node.textContent?.trim();
@@ -90,6 +98,15 @@ for (const width of WIDTHS) {
       await page.goto(url);
       await page.waitForLoadState('networkidle');
       await prepare?.();
+      // Full-page captures must include lazy images below the initial viewport.
+      await page.locator('main img').evaluateAll(async (images) => {
+        await Promise.all(images.map(async (image) => {
+          const element = image as HTMLImageElement;
+          element.loading = 'eager';
+          await element.decode().catch(() => undefined);
+        }));
+      });
+      await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
       await page.waitForTimeout(250);
       await page.screenshot({ path: path.join(OUT, `${label}-${width}.png`), fullPage: true });
       problems.push(...(await audit(page, `${label} a ${width}px`)));
