@@ -113,6 +113,10 @@ const CASCADES_TO_COMPANY = new Set([
   // de uso de la IA de fotos. `onDelete: Cascade` directo hacia Company.
   'WarehouseMobileOp',
   'ProductPhotoScan',
+  // Portal de proveedores: qué productos surte cada proveedor y su acceso. Ambos
+  // con `onDelete: Cascade` directo hacia Company.
+  'ProductSupplier',
+  'SupplierPortalAccess',
 ]);
 
 /** Cascadean desde `Project`, que se borra explícito en `hardDeleteTenant`. */

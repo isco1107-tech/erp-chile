@@ -1,6 +1,6 @@
-import { codeVariants, isValidGtin, looksLikeCode, normalizeScannedCode, trustedGtin } from '@/lib/warehouse-mobile/codes';
-import { buildMovementNote, isInboundMode, isTransferMode, MODE_DEFINITIONS, MOBILE_MODES } from '@/lib/warehouse-mobile/modes';
-import { composeProductName, normalizeVisionRead, toDisplayCase } from '@/lib/warehouse-mobile/vision';
+import { codeVariants, isValidGtin, looksLikeCode, normalizeScannedCode, plausibleSku, skuForCatalog, skuKey, trustedGtin } from '@/lib/warehouse-mobile/codes';
+import { buildMovementNote, isInboundMode, isTransferMode, MODE_DEFINITIONS, MOBILE_MODES, WASTE_REASONS, WASTE_REASON_LABELS, WASTE_REASON_HINTS, reasonRequiresNote, wasteReasonLabel } from '@/lib/warehouse-mobile/modes';
+import { composeProductName, normalizeVisionRead, thinkingFor, toDisplayCase } from '@/lib/warehouse-mobile/vision';
 import { decideMatch, parseNetContent, rankCandidates, scoreTextMatch, searchTermsFor, tokenize } from '@/lib/warehouse-mobile/match';
 import {
   BUDGET_WINDOW_MS,
@@ -83,7 +83,7 @@ describe('modos de movimiento', () => {
   });
 
   it('el texto del kardex dice de dónde vino y por qué', () => {
-    expect(buildMovementNote({ mode: 'WASTE', reason: 'EXPIRED', note: 'pasillo 3' })).toBe('App bodega · Merma o bote · Vencido — pasillo 3');
+    expect(buildMovementNote({ mode: 'WASTE', reason: 'EXPIRED', note: 'pasillo 3' })).toBe('App bodega · Salida o merma · Vencido — pasillo 3');
     expect(buildMovementNote({ mode: 'RECEIVE' })).toBe('App bodega · Llegada de mercadería');
   });
 
@@ -99,12 +99,38 @@ describe('modos de movimiento', () => {
   });
 });
 
+const EVIDENCE = 'https://cdn.test.example/inventory-evidence/c1/bodega-op.jpg';
+
 describe('contrato de operaciones', () => {
   const base = { clientOpId: 'op-12345678', productId: 'p1', warehouseId: 'w1', quantity: 5 };
 
   it('acepta una llegada simple y una merma con motivo', () => {
     expect(moveOpSchema.safeParse({ kind: 'MOVE', mode: 'RECEIVE', ...base }).success).toBe(true);
-    expect(moveOpSchema.safeParse({ kind: 'MOVE', mode: 'WASTE', reason: 'DAMAGED', ...base }).success).toBe(true);
+    expect(moveOpSchema.safeParse({ kind: 'MOVE', mode: 'WASTE', reason: 'DAMAGED', evidenceUrl: EVIDENCE, ...base }).success).toBe(true);
+  });
+
+  it('una salida sin foto de respaldo se rechaza; un faltante no la necesita', () => {
+    const waste = moveOpSchema.safeParse({ kind: 'MOVE', mode: 'WASTE', reason: 'DAMAGED', ...base });
+    expect(waste.success).toBe(false);
+    expect(waste.error?.issues.map((issue) => issue.message)).toContain('Adjunta una foto del producto');
+    expect(moveOpSchema.safeParse({ kind: 'MOVE', mode: 'SHORTAGE', ...base }).success).toBe(true);
+  });
+
+  it('acepta todos los motivos de salida; "Otro motivo" necesita explicación', () => {
+    for (const reason of WASTE_REASONS) {
+      const op = { kind: 'MOVE', mode: 'WASTE', reason, evidenceUrl: EVIDENCE, note: 'detalle', ...base };
+      expect(moveOpSchema.safeParse(op).success).toBe(true);
+    }
+    const other = { kind: 'MOVE', mode: 'WASTE', reason: 'OTHER', evidenceUrl: EVIDENCE, ...base };
+    expect(moveOpSchema.safeParse(other).success).toBe(false);
+    expect(moveOpSchema.safeParse({ ...other, note: 'Se cayó del camión' }).success).toBe(true);
+    expect(moveOpSchema.safeParse({ ...other, reason: 'INVENTADO', note: 'x' }).success).toBe(false);
+  });
+
+  it('la llegada admite el proveedor, y el alta de un producto nuevo también', () => {
+    expect(moveOpSchema.safeParse({ kind: 'MOVE', mode: 'RECEIVE', supplierId: 'prov-1', ...base }).success).toBe(true);
+    const created = createProductOpSchema.safeParse({ kind: 'CREATE_PRODUCT', clientOpId: 'op-87654321', mode: 'RECEIVE', warehouseId: 'w1', quantity: 3, supplierId: 'prov-1', product: { name: 'Fideos Carozzi 400 g' } });
+    expect(created.success).toBe(true);
   });
 
   it('una merma sin motivo y un traslado sin destino se rechazan', () => {
@@ -463,5 +489,102 @@ describe('a dónde entra el bodeguero al iniciar sesión', () => {
     expect(prefersWarehouseApp({ role: 'OWNER', userAgent: phone, hasInventory: true })).toBe(false);
     expect(prefersWarehouseApp({ role: 'WAREHOUSE', userAgent: phone, hasInventory: false })).toBe(false);
     expect(prefersWarehouseApp({ role: 'WAREHOUSE', userAgent: null, hasInventory: true })).toBe(false);
+  });
+});
+
+
+describe('motivos de salida', () => {
+  it('cada motivo tiene su nombre y su ayuda, y los códigos viejos siguen existiendo', () => {
+    for (const reason of WASTE_REASONS) {
+      expect(WASTE_REASON_LABELS[reason]).toBeTruthy();
+      expect(WASTE_REASON_HINTS[reason]).toBeTruthy();
+    }
+    // Un celular sin señal puede tener guardada una operación con estos códigos: no se quitan.
+    for (const legacy of ['EXPIRED', 'DAMAGED', 'LOST', 'INTERNAL_USE', 'OTHER']) expect(WASTE_REASONS).toContain(legacy);
+    expect(WASTE_REASONS).toEqual(expect.arrayContaining(['TASTING', 'SHRINKAGE', 'DONATION', 'SUPPLIER_RETURN']));
+  });
+
+  it('el motivo se traduce a su nombre; un código desconocido no inventa nada', () => {
+    expect(wasteReasonLabel('TASTING')).toBe('Degustación o muestra');
+    expect(wasteReasonLabel('DAMAGED')).toBe('Mal estado o dañado');
+    expect(wasteReasonLabel('NO_EXISTE')).toBeNull();
+    expect(wasteReasonLabel(null)).toBeNull();
+  });
+
+  it('solo "Otro motivo" obliga a explicar', () => {
+    expect(reasonRequiresNote('OTHER')).toBe(true);
+    expect(reasonRequiresNote('EXPIRED')).toBe(false);
+    expect(reasonRequiresNote(null)).toBe(false);
+  });
+
+  it('la salida pide foto, la llegada pide proveedor, y el traslado ninguna de las dos', () => {
+    expect(MODE_DEFINITIONS.WASTE.requiresEvidence).toBe(true);
+    expect(MODE_DEFINITIONS.RECEIVE.supplier).toBe('required');
+    expect(MODE_DEFINITIONS.SURPLUS.supplier).toBe('optional');
+    expect(MODE_DEFINITIONS.TRANSFER).toMatchObject({ supplier: 'none', requiresEvidence: false });
+  });
+});
+
+describe('SKU leído en la etiqueta', () => {
+  it('limpia el rótulo y se queda con el código', () => {
+    expect(plausibleSku('SKU: CH-0900')).toBe('CH-0900');
+    expect(plausibleSku('Cód. AB123')).toBe('AB123');
+    expect(plausibleSku('Art. 4521/B')).toBe('4521/B');
+    expect(plausibleSku('  REF-77a  ')).toBe('REF-77a');
+    // Un código impreso con espacio se acepta; al guardarlo como SKU del catálogo se une con guion.
+    expect(plausibleSku('Cód.: ACE 900')).toBe('ACE 900');
+    expect(skuForCatalog('ACE 900')).toBe('ACE-900');
+  });
+
+  it('descarta lo que no parece un código', () => {
+    expect(plausibleSku(null)).toBeNull();
+    expect(plausibleSku('')).toBeNull();
+    expect(plausibleSku('AB')).toBeNull(); // muy corto
+    expect(plausibleSku('ACEITE')).toBeNull(); // una palabra, sin dígitos
+    expect(plausibleSku('A B C D 1')).toBeNull(); // demasiados espacios: es una frase, no un código
+    expect(plausibleSku('Caja de 12 unidades en bandeja')).toBeNull();
+    expect(plausibleSku('AB#123')).toBeNull(); // símbolos que el catálogo no admite
+    expect(plausibleSku('A'.repeat(41) + '1')).toBeNull(); // demasiado largo
+  });
+
+  it('compara sin mayúsculas ni separadores', () => {
+    expect(skuKey('ab-123')).toBe('AB123');
+    expect(skuKey('AB 123')).toBe('AB123');
+    expect(skuKey('AB.123/')).toBe('AB123');
+  });
+
+  it('la lectura de la IA trae el SKU limpio', () => {
+    const read = normalizeVisionRead({ isProduct: true, sku: 'SKU: CH-0900', name: 'ACEITE DE MARAVILLA', brand: 'CHEF', confidence: 'high' });
+    expect(read).toMatchObject({ sku: 'CH-0900', name: 'Aceite de Maravilla', brand: 'Chef', barcode: null });
+  });
+
+  it('un "SKU" que en realidad es un código de barras válido se trata como código de barras', () => {
+    const read = normalizeVisionRead({ isProduct: true, sku: '4006381333931', name: 'Marcador', confidence: 'medium' });
+    expect(read).toMatchObject({ sku: null, barcode: '4006381333931' });
+  });
+
+  it('solo con un SKU legible ya hay algo que buscar', () => {
+    expect(normalizeVisionRead({ isProduct: true, sku: 'CH-0900', confidence: 'low' })).toMatchObject({ sku: 'CH-0900', name: null });
+    expect(normalizeVisionRead({ isProduct: true, sku: 'xx', confidence: 'low' })).toBeNull();
+  });
+});
+
+describe('razonamiento de la IA al leer una etiqueta', () => {
+  it('Gemini 3 y 2.5 flash piensan lo mínimo por defecto', () => {
+    expect(thinkingFor('gemini-3.6-flash')).toEqual({ kind: 'level', level: 'minimal' });
+    expect(thinkingFor('gemini-3-pro-preview')).toEqual({ kind: 'level', level: 'minimal' });
+    expect(thinkingFor('gemini-2.5-flash')).toEqual({ kind: 'budget', tokens: 0 });
+  });
+
+  it('se puede cambiar o dejar el comportamiento del modelo', () => {
+    expect(thinkingFor('gemini-3.6-flash', 'low')).toEqual({ kind: 'level', level: 'low' });
+    expect(thinkingFor('gemini-3.6-flash', ' HIGH ')).toEqual({ kind: 'level', level: 'high' });
+    expect(thinkingFor('gemini-3.6-flash', 'default')).toBeNull();
+    expect(thinkingFor('gemini-3.6-flash', 'cualquier-cosa')).toEqual({ kind: 'level', level: 'minimal' });
+  });
+
+  it('un modelo que no se reconoce no recibe ningún ajuste (una opción desconocida daría error)', () => {
+    expect(thinkingFor('otro-modelo-1')).toBeNull();
+    expect(thinkingFor('gemini-2.5-pro')).toBeNull();
   });
 });

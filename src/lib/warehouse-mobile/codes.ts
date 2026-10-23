@@ -83,3 +83,48 @@ export function trustedGtin(raw: string | null | undefined): string | null {
   const digits = raw.replace(/[\s.-]/g, '');
   return isValidGtin(digits) ? digits : null;
 }
+
+/**
+ * Rótulos con los que una etiqueta antecede a su código ("SKU: AB-123", "Cód. AB123"). Se quita
+ * solo cuando lo separa un `:`, un `.` o un espacio: un guion forma parte del código
+ * ("REF-77a" es el SKU completo, no el rótulo "REF" y el código "77a").
+ */
+const SKU_LABEL = /^(?:sku|c[óo]d(?:igo)?|art(?:[íi]culo)?|ref(?:erencia)?|[íi]tem|modelo|p\/n|part\s*no)[\s:#.]+/i;
+
+/** Largo mínimo y máximo de un SKU creíble (el catálogo admite hasta 40). */
+const SKU_MIN = 3;
+const SKU_MAX = 40;
+
+/**
+ * SKU que la IA dice haber leído en la etiqueta, ya limpio, o `null` si no es creíble.
+ * Se le quita el rótulo ("Cód.:"), debe usar solo letras, números y `. _ - /` (admite hasta dos
+ * espacios: "ACE 900"), tener al menos un dígito (una palabra suelta no es un código) y un
+ * largo razonable. No se "arregla" lo dudoso: un SKU mal leído llevaría a otro producto, así
+ * que ante la duda se descarta. Para buscarlo se compara con `skuKey`; para guardarlo como SKU
+ * de un producto nuevo los espacios se cambian por guiones (`skuForCatalog`).
+ */
+export function plausibleSku(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const code = raw.trim().replace(SKU_LABEL, '').trim().replace(/\s+/g, ' ');
+  if (code.length < SKU_MIN || code.length > SKU_MAX) return null;
+  if ((code.match(/ /g)?.length ?? 0) > 2) return null;
+  if (!/^[A-Za-z0-9._\-/ ]+$/.test(code)) return null;
+  if (!/\d/.test(code)) return null;
+  return code;
+}
+
+/** El catálogo no admite espacios en un SKU: "ACE 900" se guarda como "ACE-900". */
+export function skuForCatalog(sku: string): string {
+  return sku.trim().replace(/\s+/g, '-');
+}
+
+/**
+ * Forma comparable de un SKU: mayúsculas y solo letras y números. "ab-123", "AB 123" y
+ * "AB123" son el mismo código impreso de distintas maneras.
+ */
+export function skuKey(sku: string): string {
+  return sku.toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+/** Un SKU de menos de 3 caracteres comparables coincidiría con cualquier cosa. */
+export const SKU_KEY_MIN = 3;

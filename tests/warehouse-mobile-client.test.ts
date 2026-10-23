@@ -6,6 +6,7 @@ import {
   clampQuantity,
   confirmLine,
   emptyDraft,
+  evidencePhotoOf,
   mergeDuplicates,
   newProductFormFrom,
   parseDecimal,
@@ -16,6 +17,7 @@ import {
   setSource,
   summarizeDraft,
   toOperations,
+  upgradeDraft,
   validateDraft,
   type Draft,
 } from '@/lib/warehouse-mobile/draft';
@@ -85,9 +87,9 @@ describe('borrador: líneas', () => {
   it('un producto sugerido por la IA bloquea el envío hasta que la persona lo confirme', () => {
     let draft = addPhoto(emptyDraft('RECEIVE', 'w1'), 'foto-1', { id: 'f1', now: NOW });
     draft = resolveWithProduct(draft, 'f1', aceite, { confirmed: false, origin: 'ai' });
-    expect(validateDraft(draft, { canCreateProduct: true }).map((p) => p.message)).toEqual(['Confirma que "Aceite Maravilla Chef 900 ml" es el producto correcto.']);
+    expect(validateDraft(draft, { canCreateProduct: true, supplierCount: 0 }).map((p) => p.message)).toEqual(['Confirma que "Aceite Maravilla Chef 900 ml" es el producto correcto.']);
     draft = confirmLine(draft, 'f1');
-    expect(validateDraft(draft, { canCreateProduct: true })).toEqual([]);
+    expect(validateDraft(draft, { canCreateProduct: true, supplierCount: 0 })).toEqual([]);
   });
 
   it('quita líneas y resume el estado del borrador', () => {
@@ -110,16 +112,74 @@ describe('borrador: líneas', () => {
 });
 
 describe('borrador: validación', () => {
-  const ok = { canCreateProduct: true };
+  const ok = { canCreateProduct: true, supplierCount: 0 };
 
   it('pide lo que falta según el modo', () => {
     const empty = emptyDraft('WASTE', 'w1');
-    expect(validateDraft(empty, ok).map((p) => p.message)).toEqual(['Agrega al menos un producto.', 'Indica el motivo de la merma.']);
+    expect(validateDraft(empty, ok).map((p) => p.message)).toEqual(['Agrega al menos un producto.', 'Indica el motivo de la salida.']);
 
     const transfer = addProduct(emptyDraft('TRANSFER', 'w1'), aceite, { id: 'l1', now: NOW });
     expect(validateDraft(transfer, ok).map((p) => p.message)).toEqual(['Elige la bodega de destino.']);
     expect(validateDraft({ ...transfer, targetWarehouseId: 'w1' }, ok).map((p) => p.message)).toEqual(['La bodega de destino debe ser distinta de la de origen.']);
     expect(validateDraft({ ...transfer, targetWarehouseId: 'w2' }, ok)).toEqual([]);
+  });
+
+  it('una llegada exige proveedor cuando la empresa tiene proveedores', () => {
+    const receive = addProduct(emptyDraft('RECEIVE', 'w1'), aceite, { id: 'l1', now: NOW });
+    expect(validateDraft(receive, { canCreateProduct: true, supplierCount: 0 })).toEqual([]);
+    expect(validateDraft(receive, { canCreateProduct: true, supplierCount: 3 }).map((p) => p.message)).toEqual(['Elige el proveedor de esta llegada.']);
+    expect(validateDraft({ ...receive, supplierId: 's1' }, { canCreateProduct: true, supplierCount: 3 })).toEqual([]);
+    // El sobrante lo admite pero no lo exige; la devolución de cliente y la merma no lo preguntan.
+    const surplus = addProduct(emptyDraft('SURPLUS', 'w1'), aceite, { id: 'l2', now: NOW });
+    expect(validateDraft(surplus, { canCreateProduct: true, supplierCount: 3 })).toEqual([]);
+  });
+
+  it('el proveedor viaja en cada ingreso (llegada y sobrante) y en ningún otro modo', () => {
+    const receive = { ...addProduct(emptyDraft('RECEIVE', 'w1'), aceite, { id: 'l1', now: NOW }), supplierId: 's1' };
+    expect(toOperations(receive).ops[0]).toMatchObject({ supplierId: 's1' });
+    const surplus = { ...addProduct(emptyDraft('SURPLUS', 'w1'), aceite, { id: 'l2', now: NOW }), supplierId: 's1' };
+    expect(toOperations(surplus).ops[0]).toMatchObject({ supplierId: 's1' });
+    const returned = { ...addProduct(emptyDraft('RETURN', 'w1'), aceite, { id: 'l3', now: NOW }), supplierId: 's1' };
+    expect(toOperations(returned).ops[0]).not.toHaveProperty('supplierId');
+    const form = { ...newProductFormFrom({}), name: 'Producto nuevo' };
+    const created = { ...setSource(addPhoto(emptyDraft('RECEIVE', 'w1'), 'foto', { id: 'n1', now: NOW }), 'n1', { kind: 'new', form, photoId: 'foto' }), supplierId: 's2' };
+    expect(toOperations(created).ops[0]).toMatchObject({ kind: 'CREATE_PRODUCT', supplierId: 's2' });
+  });
+
+  it('una salida exige la foto del producto; sirve la que se usó para identificarlo', () => {
+    const base = { ...addProduct(emptyDraft('WASTE', 'w1'), aceite, { id: 'l1', now: NOW }), reason: 'DAMAGED' as const };
+    expect(validateDraft(base, ok).map((p) => p.message)).toEqual(['Saca una foto del producto: queda adjunta a la salida.']);
+    // Foto sacada a propósito.
+    const withEvidence = { ...base, lines: [{ ...base.lines[0]!, evidencePhotoId: 'foto-1' }] };
+    expect(validateDraft(withEvidence, ok)).toEqual([]);
+    // Producto identificado con una foto: esa misma foto respalda la salida.
+    const byPhoto = { ...addProduct(emptyDraft('WASTE', 'w1'), aceite, { id: 'l2', now: NOW, photoId: 'foto-id' }), reason: 'TASTING' as const };
+    expect(validateDraft(byPhoto, ok)).toEqual([]);
+    expect(toOperations(byPhoto).photos).toEqual({ l2: 'foto-id' });
+    // Un faltante no necesita foto.
+    const shortage = addProduct(emptyDraft('SHORTAGE', 'w1'), aceite, { id: 'l3', now: NOW });
+    expect(validateDraft(shortage, ok)).toEqual([]);
+  });
+
+  it('"Otro motivo" obliga a explicar qué pasó', () => {
+    const base = addProduct(emptyDraft('WASTE', 'w1'), aceite, { id: 'l1', now: NOW, photoId: 'foto' });
+    const other = { ...base, reason: 'OTHER' as const };
+    expect(validateDraft(other, ok).map((p) => p.message)).toEqual(['Cuenta qué pasó: "Otro motivo" necesita una explicación.']);
+    expect(validateDraft({ ...other, note: 'Se cayó del camión' }, ok)).toEqual([]);
+  });
+
+  it('al juntar dos líneas del mismo producto no se pierde la foto de respaldo', () => {
+    let draft = addProduct(emptyDraft('WASTE', 'w1'), aceite, { id: 'l1', now: NOW });
+    draft = addProduct(draft, aceite, { id: 'l2', now: NOW + 1, photoId: 'foto-2' });
+    expect(draft.lines).toHaveLength(1);
+    expect(evidencePhotoOf(draft.lines[0]!)).toBe('foto-2');
+  });
+
+  it('un borrador guardado por la versión anterior se completa al abrirlo', () => {
+    const old = { mode: 'RECEIVE', warehouseId: 'w1', targetWarehouseId: '', reference: '', reason: '', note: '', lines: [{ id: 'l1', createdAt: NOW, quantity: 1, unitCost: '', lotNumber: '', expiryDate: '', note: '', source: { kind: 'product', product: aceite, confirmed: true, origin: 'code', photoId: null } }] } as unknown as Draft;
+    const upgraded = upgradeDraft(old);
+    expect(upgraded.supplierId).toBe('');
+    expect(upgraded.lines[0]!.evidencePhotoId).toBeNull();
   });
 
   it('una línea que aún se identifica o espera decisión impide enviar', () => {
@@ -140,7 +200,7 @@ describe('borrador: validación', () => {
     expect(validateDraft(build('RECEIVE'), ok)).toEqual([]);
     expect(validateDraft(build('SURPLUS'), ok)).toEqual([]);
     expect(validateDraft(build('WASTE'), ok)[0]!.message).toContain('Llegada de mercadería');
-    expect(validateDraft(build('RECEIVE'), { canCreateProduct: false })[0]!.message).toContain('no puede crear productos');
+    expect(validateDraft(build('RECEIVE'), { canCreateProduct: false, supplierCount: 0 })[0]!.message).toContain('no puede crear productos');
     const unnamed = setSource(build('RECEIVE'), 'n1', { kind: 'new', form: { ...form, name: ' ' }, photoId: null });
     expect(validateDraft(unnamed, ok)[0]!.message).toBe('Ponle un nombre al producto nuevo.');
   });
@@ -204,12 +264,16 @@ describe('borrador: operaciones a enviar', () => {
   it('la merma lleva su motivo; el traslado, su destino; la salida no lleva costo ni referencia', () => {
     let waste = addProduct(emptyDraft('WASTE', 'w1'), aceite, { id: 'wwwwwwww-1', now: NOW, quantity: 2 });
     waste = { ...waste, reason: 'EXPIRED', reference: 'no aplica' };
-    waste = { ...waste, lines: [{ ...waste.lines[0]!, unitCost: '500' }] };
-    const [wasteOp] = toOperations(waste).ops;
+    waste = { ...waste, lines: [{ ...waste.lines[0]!, unitCost: '500', evidencePhotoId: 'foto-merma' }] };
+    const built = toOperations(waste);
+    const [wasteOp] = built.ops;
     expect(wasteOp).toMatchObject({ kind: 'MOVE', mode: 'WASTE', reason: 'EXPIRED' });
     expect(wasteOp).not.toHaveProperty('unitCost');
     expect(wasteOp).not.toHaveProperty('reference');
-    expect(syncOperationSchema.safeParse(wasteOp).success).toBe(true);
+    // La foto de respaldo se sube antes de enviar; su dirección se agrega a la operación en ese momento.
+    expect(built.photos).toEqual({ 'wwwwwwww-1': 'foto-merma' });
+    expect(syncOperationSchema.safeParse(wasteOp).success).toBe(false);
+    expect(syncOperationSchema.safeParse({ ...wasteOp, evidenceUrl: 'https://cdn.test.example/inventory-evidence/c1/bodega-x.jpg' }).success).toBe(true);
 
     const transfer = { ...addProduct(emptyDraft('TRANSFER', 'w1'), harina, { id: 'tttttttt-1', now: NOW, quantity: 2.5 }), targetWarehouseId: 'w2' };
     const [transferOp] = toOperations(transfer).ops;
@@ -225,9 +289,11 @@ describe('borrador: operaciones a enviar', () => {
 
   it('el formulario de producto nuevo se prellena con lo leído y es editable', () => {
     const form = newProductFormFrom({
-      read: { name: 'Aceite de Maravilla', brand: 'Chef', variant: null, netContent: '900 ml', unit: 'UN', barcode: '4006381333931', description: 'Aceite vegetal', categoryHint: 'Abarrotes', lotNumber: 'L1', expiryDate: '2027-01-01', confidence: 'high', warnings: [] },
+      read: { name: 'Aceite de Maravilla', brand: 'Chef', variant: null, netContent: '900 ml', unit: 'UN', sku: 'CH-0900', barcode: '4006381333931', description: 'Aceite vegetal', categoryHint: 'Abarrotes', lotNumber: 'L1', expiryDate: '2027-01-01', confidence: 'high', warnings: [] },
     });
-    expect(form).toMatchObject({ name: 'Aceite de Maravilla Chef 900 ml', brand: 'Chef', barcode: '4006381333931', categoryName: 'Abarrotes', tracksLots: true, sku: '' });
+    expect(form).toMatchObject({ name: 'Aceite de Maravilla Chef 900 ml', brand: 'Chef', barcode: '4006381333931', categoryName: 'Abarrotes', tracksLots: true, sku: 'CH-0900' });
+    // Sin SKU en la etiqueta el campo queda vacío: el servidor asigna el siguiente PRD-000123.
+    expect(newProductFormFrom({ read: { ...{ name: 'X', brand: null, variant: null, netContent: null, unit: 'UN', sku: null, barcode: null, description: null, categoryHint: null, lotNumber: null, expiryDate: null, confidence: 'low' as const, warnings: [] } } }).sku).toBe('');
     expect(newProductFormFrom({ code: '7800000000017' })).toMatchObject({ name: '', barcode: '7800000000017', unit: 'UN' });
   });
 });
@@ -244,6 +310,7 @@ function fakeApi(overrides: Partial<BodegaApi> = {}): jest.Mocked<BodegaApi> {
     search: jest.fn(unexpected),
     identify: jest.fn(unexpected),
     uploadPhoto: jest.fn(unexpected),
+    uploadEvidence: jest.fn(unexpected),
     sync: jest.fn(unexpected),
     recent: jest.fn(unexpected),
     ...overrides,
@@ -417,6 +484,77 @@ describe('motor de envío', () => {
       const api = fakeApi({ sync: jest.fn(async (ops) => okResponse<SyncResponse>({ results: ops.map(applied) })) });
       const pass = await runSyncPass([entry], { api, store, now: () => NOW, maxBatch: 25 });
       expect(pass.entries[0]).toMatchObject({ status: 'done', photoId: null });
+    });
+  });
+
+  describe('salida con foto de respaldo', () => {
+    const waste: SyncOperation = { kind: 'MOVE', clientOpId: 'op-merma-0001', mode: 'WASTE', productId: 'p1', warehouseId: 'w1', quantity: 2, reason: 'DAMAGED' };
+    const evidenceUrl = 'https://cdn.example.com/inventory-evidence/c1/bodega-op-merma-0001.jpg';
+
+    it('sube la foto primero (a la carpeta de respaldo, no a la de productos) y envía la salida con su dirección', async () => {
+      const entry = createOutboxEntry(waste, NOW, 'foto-merma');
+      const store = await setup([entry]);
+      await store.savePhoto({ id: 'foto-merma', blob: new Blob(['x']), width: 10, height: 10, createdAt: NOW });
+      const api = fakeApi({
+        uploadEvidence: jest.fn(async () => okResponse({ url: evidenceUrl })),
+        sync: jest.fn(async (ops) => okResponse<SyncResponse>({ results: ops.map(applied) })),
+      });
+      const pass = await runSyncPass([entry], { api, store, now: () => NOW, maxBatch: 25 });
+      expect(api.uploadEvidence).toHaveBeenCalledWith(expect.anything(), 'op-merma-0001');
+      expect(api.uploadPhoto).not.toHaveBeenCalled();
+      const sent = api.sync.mock.calls[0]![0]![0]!;
+      expect(sent.kind === 'MOVE' && sent.evidenceUrl).toBe(evidenceUrl);
+      expect(pass.entries[0]!.status).toBe('done');
+      expect(await store.getPhoto('foto-merma')).toBeNull();
+    });
+
+    it('sin señal la salida espera con su foto: NUNCA se envía ni se registra sin ella', async () => {
+      let entry = createOutboxEntry(waste, NOW, 'foto-merma');
+      const store = await setup([entry]);
+      await store.savePhoto({ id: 'foto-merma', blob: new Blob(['x']), width: 10, height: 10, createdAt: NOW });
+      const serverError = async (): Promise<ApiResponse<never>> => ({ ok: false, failure: { kind: 'server', status: 500, message: 'Error del servidor' } });
+      const api = fakeApi({ uploadEvidence: jest.fn(serverError), sync: jest.fn() });
+      let t = NOW;
+      // A diferencia de la foto de un producto nuevo, aquí no hay "crear sin foto" por más fallos que haya.
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const pass = await runSyncPass([entry], { api, store, now: () => t, random: () => 0.5, maxBatch: 25 });
+        entry = pass.entries[0]!;
+        expect(entry).toMatchObject({ status: 'queued', attempts: attempt + 1, photoId: 'foto-merma' });
+        t = entry.nextAttemptAt + 1;
+      }
+      expect(api.sync).not.toHaveBeenCalled();
+      expect(await store.getPhoto('foto-merma')).not.toBeNull();
+    });
+
+    it('si el servidor rechaza la foto, la salida queda rechazada a la vista de la persona', async () => {
+      const entry = createOutboxEntry(waste, NOW, 'foto-merma');
+      const store = await setup([entry]);
+      await store.savePhoto({ id: 'foto-merma', blob: new Blob(['x']), width: 10, height: 10, createdAt: NOW });
+      const api = fakeApi({ uploadEvidence: jest.fn(async (): Promise<ApiResponse<never>> => ({ ok: false, failure: { kind: 'client', status: 400, message: 'La foto debe ser JPG, PNG o WEBP' } })) });
+      const pass = await runSyncPass([entry], { api, store, now: () => NOW, maxBatch: 25 });
+      expect(pass.entries[0]).toMatchObject({ status: 'rejected' });
+      expect(pass.entries[0]!.lastError).toContain('JPG, PNG o WEBP');
+      expect(api.sync).not.toHaveBeenCalled();
+    });
+
+    it('si la foto se perdió del teléfono, la salida se rechaza (no se registra sin foto)', async () => {
+      const entry = createOutboxEntry(waste, NOW, 'foto-perdida');
+      const store = await setup([entry]);
+      const api = fakeApi();
+      const pass = await runSyncPass([entry], { api, store, now: () => NOW, maxBatch: 25 });
+      expect(pass.entries[0]).toMatchObject({ status: 'rejected' });
+      expect(pass.entries[0]!.lastError).toContain('ya no está en el teléfono');
+      expect(api.sync).not.toHaveBeenCalled();
+    });
+
+    it('sesión vencida al subir la foto: no cuenta como intento y espera a que la persona vuelva a entrar', async () => {
+      const entry = createOutboxEntry(waste, NOW, 'foto-merma');
+      const store = await setup([entry]);
+      await store.savePhoto({ id: 'foto-merma', blob: new Blob(['x']), width: 10, height: 10, createdAt: NOW });
+      const api = fakeApi({ uploadEvidence: jest.fn(async (): Promise<ApiResponse<never>> => ({ ok: false, failure: { kind: 'auth', status: 401, message: 'Tu sesión venció' } })) });
+      const pass = await runSyncPass([entry], { api, store, now: () => NOW, maxBatch: 25 });
+      expect(pass.auth).toMatchObject({ status: 401 });
+      expect(pass.entries[0]).toMatchObject({ status: 'queued', attempts: 0 });
     });
   });
 });

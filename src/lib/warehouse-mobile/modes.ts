@@ -26,6 +26,13 @@ export interface ModeDefinition {
   asksReason: boolean;
   /** Pide el documento que respalda la llegada (guía o factura). */
   asksReference: boolean;
+  /**
+   * Proveedor de quien llega la mercadería: `required` (llegada) obliga a elegirlo cuando la
+   * empresa tiene proveedores, `optional` lo deja elegir, `none` no lo pregunta.
+   */
+  supplier: 'required' | 'optional' | 'none';
+  /** Pide una foto del producto en cuestión que queda adjunta al movimiento (merma, daño…). */
+  requiresEvidence: boolean;
 }
 
 export const MODE_DEFINITIONS: Record<MobileMode, ModeDefinition> = {
@@ -37,6 +44,8 @@ export const MODE_DEFINITIONS: Record<MobileMode, ModeDefinition> = {
     direction: 'in',
     asksReason: false,
     asksReference: true,
+    supplier: 'required',
+    requiresEvidence: false,
   },
   RETURN: {
     mode: 'RETURN',
@@ -46,6 +55,8 @@ export const MODE_DEFINITIONS: Record<MobileMode, ModeDefinition> = {
     direction: 'in',
     asksReason: false,
     asksReference: true,
+    supplier: 'none',
+    requiresEvidence: false,
   },
   SURPLUS: {
     mode: 'SURPLUS',
@@ -55,15 +66,19 @@ export const MODE_DEFINITIONS: Record<MobileMode, ModeDefinition> = {
     direction: 'in',
     asksReason: false,
     asksReference: false,
+    supplier: 'optional',
+    requiresEvidence: false,
   },
   WASTE: {
     mode: 'WASTE',
-    label: 'Merma o bote',
-    hint: 'Se venció, se dañó o se botó.',
+    label: 'Salida o merma',
+    hint: 'Se venció, se dañó, se usó para degustar o se perdió.',
     movement: 'ADJUSTMENT_OUT',
     direction: 'out',
     asksReason: true,
     asksReference: false,
+    supplier: 'none',
+    requiresEvidence: true,
   },
   SHORTAGE: {
     mode: 'SHORTAGE',
@@ -73,6 +88,8 @@ export const MODE_DEFINITIONS: Record<MobileMode, ModeDefinition> = {
     direction: 'out',
     asksReason: false,
     asksReference: false,
+    supplier: 'none',
+    requiresEvidence: false,
   },
   TRANSFER: {
     mode: 'TRANSFER',
@@ -82,19 +99,54 @@ export const MODE_DEFINITIONS: Record<MobileMode, ModeDefinition> = {
     direction: 'transfer',
     asksReason: false,
     asksReference: false,
+    supplier: 'none',
+    requiresEvidence: false,
   },
 };
 
-export const WASTE_REASONS = ['EXPIRED', 'DAMAGED', 'LOST', 'INTERNAL_USE', 'OTHER'] as const;
+/**
+ * Motivos de una salida de bodega. El orden es el de la lista que ve el bodeguero.
+ * Los códigos se guardan en `InventoryMovement.reasonCode` y viajan en la cola del
+ * celular: NO se renombran ni se quitan (un teléfono sin señal puede tener
+ * operaciones guardadas con un código viejo); solo se agregan.
+ */
+export const WASTE_REASONS = ['EXPIRED', 'DAMAGED', 'SHRINKAGE', 'TASTING', 'INTERNAL_USE', 'DONATION', 'SUPPLIER_RETURN', 'LOST', 'OTHER'] as const;
 export type WasteReason = (typeof WASTE_REASONS)[number];
 
 export const WASTE_REASON_LABELS: Record<WasteReason, string> = {
   EXPIRED: 'Vencido',
-  DAMAGED: 'Dañado',
-  LOST: 'Perdido o robado',
+  DAMAGED: 'Mal estado o dañado',
+  SHRINKAGE: 'Merma de manipulación o proceso',
+  TASTING: 'Degustación o muestra',
   INTERNAL_USE: 'Consumo interno',
+  DONATION: 'Donación',
+  SUPPLIER_RETURN: 'Devolución al proveedor',
+  LOST: 'Pérdida o robo',
   OTHER: 'Otro motivo',
 };
+
+/** Una línea para que el bodeguero elija bien entre motivos parecidos. */
+export const WASTE_REASON_HINTS: Record<WasteReason, string> = {
+  EXPIRED: 'Pasó su fecha de vencimiento.',
+  DAMAGED: 'Roto, abollado, mojado, en mal estado.',
+  SHRINKAGE: 'Se perdió al manipularlo, fraccionarlo o procesarlo.',
+  TASTING: 'Se abrió para probar o se entregó como muestra.',
+  INTERNAL_USE: 'Lo usó la propia empresa.',
+  DONATION: 'Se regaló o se donó.',
+  SUPPLIER_RETURN: 'Se devolvió al proveedor.',
+  LOST: 'No aparece o se lo llevaron.',
+  OTHER: 'Cuéntalo en el detalle.',
+};
+
+/** "Otro motivo" no dice nada por sí solo: obliga a explicarlo. */
+export function reasonRequiresNote(reason: WasteReason | null | undefined): boolean {
+  return reason === 'OTHER';
+}
+
+export function wasteReasonLabel(code: string | null | undefined): string | null {
+  if (!code) return null;
+  return (WASTE_REASON_LABELS as Record<string, string>)[code] ?? null;
+}
 
 export function isInboundMode(mode: MobileMode): boolean {
   return MODE_DEFINITIONS[mode].direction === 'in';

@@ -22,6 +22,7 @@ import {
   setQuantity,
   setSource,
   toOperations,
+  upgradeDraft,
   validateDraft,
   type Draft,
   type DraftLine,
@@ -82,6 +83,8 @@ export interface BodegaContextValue {
   addProductLine(product: MobileProduct, options?: { quantity?: number; confirmed?: boolean; origin?: 'code' | 'ai' | 'manual' }): void;
   addCodeLine(code: string, quantity?: number): void;
   addPhotoLine(photo: PreparedPhoto): Promise<void>;
+  /** Adjunta (o cambia) la foto de respaldo de una línea de salida. */
+  attachEvidence(lineId: string, photo: PreparedPhoto): Promise<void>;
   setLineQuantity(lineId: string, quantity: number): void;
   patchDraftLine(lineId: string, patch: Partial<Omit<DraftLine, 'id' | 'source' | 'createdAt'>>): void;
   removeDraftLine(lineId: string): void;
@@ -330,6 +333,7 @@ export function BodegaProvider({ children }: { children: ReactNode }) {
     for (const line of draftRef.current?.lines ?? []) {
       const id = photoIdOf(line.source);
       if (id) used.add(id);
+      if (line.evidencePhotoId) used.add(line.evidencePhotoId);
     }
     for (const entry of outboxRef.current) if (entry.photoId) used.add(entry.photoId);
     for (const id of await store.listPhotoIds()) {
@@ -370,7 +374,9 @@ export function BodegaProvider({ children }: { children: ReactNode }) {
         const now = Date.now();
         const entries = pruneDone(recoverInterrupted(await store.loadOutbox(), now), now);
         commitOutbox(entries);
-        const saved = await store.loadDraft();
+        const loaded = await store.loadDraft();
+        // Un borrador guardado por una versión anterior no trae proveedor ni foto de respaldo.
+        const saved = loaded ? upgradeDraft(loaded) : null;
         draftRef.current = saved;
         setDraft(saved);
         holdUntilRef.current = 0;
@@ -609,6 +615,19 @@ export function BodegaProvider({ children }: { children: ReactNode }) {
     [updateDraft]
   );
 
+  const attachEvidence = useCallback<BodegaContextValue['attachEvidence']>(
+    async (lineId, photo) => {
+      const store = storeRef.current;
+      if (!store) return;
+      const photoId = newId();
+      await store.savePhoto({ id: photoId, blob: photo.blob, width: photo.width, height: photo.height, createdAt: Date.now() });
+      updateDraft((current) => patchLine(current, lineId, { evidencePhotoId: photoId }));
+      // La foto anterior de esa línea (si la había) ya no se usa.
+      void cleanupPhotos();
+    },
+    [cleanupPhotos, updateDraft]
+  );
+
   const setLineQuantity = useCallback((lineId: string, quantity: number) => updateDraft((current) => setQuantity(current, lineId, quantity)), [updateDraft]);
   const patchDraftLine = useCallback<BodegaContextValue['patchDraftLine']>((lineId, patch) => updateDraft((current) => patchLine(current, lineId, patch)), [updateDraft]);
   const removeDraftLine = useCallback(
@@ -647,13 +666,15 @@ export function BodegaProvider({ children }: { children: ReactNode }) {
     const data = bootRef.current.status === 'ready' ? bootRef.current.data : null;
     if (!current || !data) return { ok: false, problems: [{ message: 'La app todavía no está lista.' }] };
 
-    const problems = validateDraft(current, { canCreateProduct: data.can.createProduct });
+    const problems = validateDraft(current, { canCreateProduct: data.can.createProduct, supplierCount: data.suppliers.length });
     if (problems.length > 0) return { ok: false, problems };
 
     const { ops, photos, labels } = toOperations(current);
     // Última red de seguridad: lo que sale del teléfono debe pasar el mismo esquema que valida el servidor.
     for (const op of ops) {
-      const valid = (op.kind === 'MOVE' ? moveOpSchema : createProductOpSchema).safeParse(op);
+      // La dirección de la foto de respaldo recién existe cuando la foto se sube, al enviar: se valida con una de mentira.
+      const checked = op.kind === 'MOVE' && photos[op.clientOpId] && !op.evidenceUrl ? { ...op, evidenceUrl: 'https://pendiente.invalid/foto.jpg' } : op;
+      const valid = (op.kind === 'MOVE' ? moveOpSchema : createProductOpSchema).safeParse(checked);
       if (!valid.success) return { ok: false, problems: [{ lineId: op.clientOpId, message: valid.error.issues[0]?.message ?? 'Hay un dato inválido.' }] };
     }
 
@@ -753,6 +774,7 @@ export function BodegaProvider({ children }: { children: ReactNode }) {
     addProductLine,
     addCodeLine,
     addPhotoLine,
+    attachEvidence,
     setLineQuantity,
     patchDraftLine,
     removeDraftLine,

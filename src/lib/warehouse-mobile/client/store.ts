@@ -73,7 +73,9 @@ export function createBodegaStore(db: LocalDb): BodegaStore {
       return (await db.entries<StoredPhoto>('photos')).map((row) => row.key);
     },
     async loadBootstrap() {
-      return (await db.get<BootstrapResponse>('meta', BOOTSTRAP_KEY)) ?? null;
+      const saved = (await db.get<BootstrapResponse>('meta', BOOTSTRAP_KEY)) ?? null;
+      // La copia guardada por una versión anterior no trae la lista de proveedores.
+      return saved ? { ...saved, suppliers: saved.suppliers ?? [] } : null;
     },
     async saveBootstrap(data) {
       await db.put('meta', BOOTSTRAP_KEY, data);

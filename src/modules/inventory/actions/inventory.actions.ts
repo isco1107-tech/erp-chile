@@ -109,6 +109,7 @@ export async function registerStockMovementAction(input: unknown): Promise<Actio
         reference,
         notes,
         lots,
+        userId: session.id,
       });
     } else if (type === 'TRANSFER') {
       await stockService.registerTransfer(session.companyId, {
@@ -118,6 +119,7 @@ export async function registerStockMovementAction(input: unknown): Promise<Actio
         quantity,
         reference,
         notes,
+        userId: session.id,
       });
     } else {
       await stockService.registerStockOut(session.companyId, {
@@ -127,6 +129,7 @@ export async function registerStockMovementAction(input: unknown): Promise<Actio
         quantity,
         reference,
         notes,
+        userId: session.id,
       });
     }
 

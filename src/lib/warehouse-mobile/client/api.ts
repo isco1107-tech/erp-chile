@@ -63,6 +63,8 @@ export interface BodegaApi {
   search(query: string, warehouseId: string): Promise<ApiResponse<LookupResponse>>;
   identify(photo: Blob, warehouseId: string): Promise<ApiResponse<IdentifyResponse>>;
   uploadPhoto(photo: Blob, clientOpId: string): Promise<ApiResponse<{ url: string }>>;
+  /** Foto de respaldo de una salida (merma, daño, degustación…). */
+  uploadEvidence(photo: Blob, clientOpId: string): Promise<ApiResponse<{ url: string }>>;
   sync(ops: readonly SyncOperation[]): Promise<ApiResponse<SyncResponse>>;
   recent(): Promise<ApiResponse<RecentOp[]>>;
 }
@@ -84,6 +86,12 @@ export function createBodegaApi(fetcher: Fetcher = (...args) => fetch(...args)):
       form.set('file', photo, 'foto.jpg');
       form.set('clientOpId', clientOpId);
       return call(fetcher, '/api/bodega/photo', { method: 'POST', body: form }, 45_000);
+    },
+    uploadEvidence: (photo, clientOpId) => {
+      const form = new FormData();
+      form.set('file', photo, 'foto.jpg');
+      form.set('clientOpId', clientOpId);
+      return call(fetcher, '/api/bodega/evidence', { method: 'POST', body: form }, 45_000);
     },
     sync: (ops) => call(fetcher, '/api/bodega/sync', json({ ops }), 60_000),
     recent: () => call(fetcher, '/api/bodega/recent', { method: 'GET', cache: 'no-store' }, 15_000),

@@ -24,13 +24,28 @@ function movementTotalCost(quantity: number, unitCost: number): number {
 
 export type TxClient = Prisma.TransactionClient;
 
+/**
+ * Quién, por qué y con qué respaldo se hizo un movimiento. Todo opcional: los
+ * movimientos que nacen de un documento de venta o compra no lo llevan.
+ */
+export interface MovementAttribution {
+  /** Operario que hizo el movimiento. */
+  userId?: string;
+  /** Motivo de una salida o ajuste (código de `WASTE_REASONS`). */
+  reasonCode?: string;
+  /** Foto de respaldo, ya subida a nuestro almacenamiento. */
+  evidenceUrl?: string;
+  /** Proveedor de quien llegó la mercadería (debe ser un contacto de la empresa). */
+  supplierId?: string;
+}
+
 export interface StockInLot {
   lotNumber: string;
   expiryDate?: Date | null;
   quantity: number;
 }
 
-export interface StockInParams {
+export interface StockInParams extends MovementAttribution {
   productId: string;
   warehouseId: string;
   type: MovementType;
@@ -45,7 +60,7 @@ export interface StockInParams {
   lots?: StockInLot[];
 }
 
-export interface StockOutParams {
+export interface StockOutParams extends MovementAttribution {
   productId: string;
   warehouseId: string;
   type: MovementType;
@@ -84,6 +99,11 @@ export async function applyStockIn(tx: TxClient, companyId: string, params: Stoc
 
   const warehouse = await tx.warehouse.findFirst({ where: { id: warehouseId, companyId } });
   if (!warehouse) throw new Error('Bodega no encontrada');
+
+  if (params.supplierId) {
+    const supplier = await tx.contact.findFirst({ where: { id: params.supplierId, companyId }, select: { id: true } });
+    if (!supplier) throw new Error('Proveedor no encontrado');
+  }
 
   const stock = await tx.stock.findUnique({
     where: { companyId_productId_warehouseId: { companyId, productId, warehouseId } },
@@ -125,6 +145,10 @@ export async function applyStockIn(tx: TxClient, companyId: string, params: Stoc
       reference,
       notes,
       lotAllocations: lotAllocations ?? undefined,
+      userId: params.userId,
+      reasonCode: params.reasonCode,
+      evidenceUrl: params.evidenceUrl,
+      supplierId: params.supplierId,
     },
   });
 }
@@ -223,6 +247,10 @@ export async function applyStockOut(tx: TxClient, companyId: string, params: Sto
       reference,
       notes,
       lotAllocations: lotAllocations ?? undefined,
+      userId: params.userId,
+      reasonCode: params.reasonCode,
+      evidenceUrl: params.evidenceUrl,
+      supplierId: params.supplierId,
     },
   });
 }
@@ -258,7 +286,7 @@ export async function registerStockOut(companyId: string, params: StockOutParams
   return prisma.$transaction((tx) => registerStockOutTx(tx, companyId, params), LOCKING_TX_OPTIONS);
 }
 
-export interface TransferParams {
+export interface TransferParams extends Pick<MovementAttribution, 'userId' | 'evidenceUrl'> {
   productId: string;
   fromWarehouseId: string;
   toWarehouseId: string;
@@ -284,6 +312,8 @@ export async function registerTransferTx(
     quantity,
     reference,
     notes,
+    userId: params.userId,
+    evidenceUrl: params.evidenceUrl,
   });
   // Los lotes viajan con la mercadería: lo que salió de cada lote entra al
   // mismo lote en la bodega de destino; lo que salió sin lote, a SIN-LOTE.
@@ -304,6 +334,8 @@ export async function registerTransferTx(
     reference,
     notes,
     lots,
+    userId: params.userId,
+    evidenceUrl: params.evidenceUrl,
   });
   return { out, in: inMove };
 }

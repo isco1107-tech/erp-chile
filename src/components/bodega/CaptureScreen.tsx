@@ -17,6 +17,9 @@ import { BigButton } from './ui';
  *
  * Si la cámara no se puede abrir (permiso negado, navegador sin soporte), se
  * ofrece la cámara del teléfono, que sí entrega la foto.
+ *
+ * Con `photoOnly` es la cámara de la foto de respaldo de una salida (merma, daño…):
+ * no lee códigos, saca UNA foto y se cierra sola.
  */
 
 interface Props {
@@ -25,6 +28,8 @@ interface Props {
   onClose: () => void;
   /** Solo leer UN código y cerrar (para llenar el código de barras de un producto nuevo). */
   scanOnly?: boolean;
+  /** Solo sacar UNA foto y cerrar (respaldo de una salida). */
+  photoOnly?: boolean;
 }
 
 /**
@@ -54,7 +59,7 @@ function beep(): void {
   }
 }
 
-export default function CaptureScreen({ onCode, onPhoto, onClose, scanOnly = false }: Props) {
+export default function CaptureScreen({ onCode, onPhoto, onClose, scanOnly = false, photoOnly = false }: Props) {
   const video = useRef<HTMLVideoElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const camera = useRef<CameraHandle | null>(null);
@@ -100,6 +105,7 @@ export default function CaptureScreen({ onCode, onPhoto, onClose, scanOnly = fal
         element.srcObject = handle.stream;
         await element.play().catch(() => undefined);
         setReady(true);
+        if (photoOnly) return;
 
         scanner = await createScanner();
         const tick = async () => {
@@ -137,7 +143,7 @@ export default function CaptureScreen({ onCode, onPhoto, onClose, scanOnly = fal
       camera.current?.stop();
       camera.current = null;
     };
-  }, [announce, scanOnly]);
+  }, [announce, scanOnly, photoOnly]);
 
   const takePhoto = async () => {
     const element = video.current;
@@ -148,6 +154,10 @@ export default function CaptureScreen({ onCode, onPhoto, onClose, scanOnly = fal
       beep();
       navigator.vibrate?.(40);
       await onPhoto(photo);
+      if (photoOnly) {
+        onCloseRef.current();
+        return;
+      }
       setAdded((count) => count + 1);
       announce('Foto guardada. Se está identificando.');
     } catch {
@@ -162,6 +172,10 @@ export default function CaptureScreen({ onCode, onPhoto, onClose, scanOnly = fal
     setBusy(true);
     try {
       await onPhoto(await prepareFromFile(file));
+      if (photoOnly) {
+        onCloseRef.current();
+        return;
+      }
       setAdded((count) => count + 1);
       announce('Foto guardada. Se está identificando.');
     } catch {
@@ -184,7 +198,7 @@ export default function CaptureScreen({ onCode, onPhoto, onClose, scanOnly = fal
       <video ref={video} playsInline muted autoPlay className="absolute inset-0 size-full object-cover" />
 
       {/* Marco de apuntado */}
-      {ready && !problem ? (
+      {ready && !problem && !photoOnly ? (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div className="h-[28%] w-[82%] rounded-2xl border-2 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
         </div>
@@ -195,7 +209,7 @@ export default function CaptureScreen({ onCode, onPhoto, onClose, scanOnly = fal
           <X className="size-6" />
         </button>
         <span className="rounded-full bg-black/55 px-3 py-1.5 text-sm font-medium" aria-live="polite">
-          {scanOnly ? 'Lee el código de barras' : added === 0 ? 'Nada agregado aún' : `${added} agregado${added === 1 ? '' : 's'}`}
+          {photoOnly ? 'Foto del producto' : scanOnly ? 'Lee el código de barras' : added === 0 ? 'Nada agregado aún' : `${added} agregado${added === 1 ? '' : 's'}`}
         </span>
         {torchSupported ? (
           <button type="button" onClick={() => void toggleTorch()} aria-label={torch ? 'Apagar linterna' : 'Encender linterna'} aria-pressed={torch} className="flex size-12 items-center justify-center rounded-full bg-black/55">
@@ -235,7 +249,11 @@ export default function CaptureScreen({ onCode, onPhoto, onClose, scanOnly = fal
       <div className="relative z-10 flex flex-col items-center gap-3 bg-gradient-to-t from-black/80 to-transparent px-4 pt-10 pb-[calc(1rem+env(safe-area-inset-bottom))]">
         {!problem ? (
           <p className="max-w-xs text-center text-sm text-white/90">
-            {scanOnly ? 'Apunta al código de barras del producto.' : 'Apunta al código de barras y se lee solo. Si no tiene, saca una foto del producto.'}
+            {photoOnly
+              ? 'Muestra el producto (o su daño) en la foto. Queda adjunta a la salida.'
+              : scanOnly
+                ? 'Apunta al código de barras del producto.'
+                : 'Apunta al código de barras y se lee solo. Si no tiene, saca una foto del producto.'}
           </p>
         ) : null}
         {scanOnly ? (
@@ -256,9 +274,15 @@ export default function CaptureScreen({ onCode, onPhoto, onClose, scanOnly = fal
             >
               <span className="size-14 rounded-full bg-white" />
             </button>
-            <BigButton onClick={onClose} className="h-14 min-w-24 bg-brand-gold text-brand-ink">
-              Listo
-            </BigButton>
+            {photoOnly ? (
+              <BigButton variant="secondary" onClick={onClose} className="h-14 min-w-24">
+                Cancelar
+              </BigButton>
+            ) : (
+              <BigButton onClick={onClose} className="h-14 min-w-24 bg-brand-gold text-brand-ink">
+                Listo
+              </BigButton>
+            )}
           </div>
         )}
       </div>

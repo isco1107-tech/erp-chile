@@ -42,6 +42,8 @@ export interface VisionRead {
   /** Contenido neto tal como está impreso ("900 ml"). */
   netContent: string | null;
   unit: string;
+  /** Código de producto impreso en la etiqueta (SKU, Cód., Art., Ref.), distinto del código de barras. */
+  sku: string | null;
   barcode: string | null;
   description: string | null;
   categoryHint: string | null;
@@ -89,11 +91,20 @@ export interface LookupResponse {
   results: MobileProduct[];
 }
 
+/** Proveedor de quien puede llegar mercadería (contacto marcado como proveedor). */
+export interface MobileSupplier {
+  id: string;
+  /** Nombre de fantasía si lo tiene; si no, la razón social. */
+  name: string;
+  rut: string;
+}
+
 export interface BootstrapResponse {
   user: { id: string; name: string; roleLabel: string };
   company: { id: string; name: string };
   warehouses: Array<{ id: string; name: string; code: string; isDefault: boolean }>;
   categories: Array<{ id: string; name: string }>;
+  suppliers: MobileSupplier[];
   units: string[];
   can: {
     move: boolean;

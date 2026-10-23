@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { parseExpiryDate } from '@/lib/inventory/lots';
-import { trustedGtin } from './codes';
+import { plausibleSku, trustedGtin } from './codes';
 import type { VisionRead } from '@/modules/warehouse-mobile/types';
 
 /**
@@ -16,16 +16,17 @@ import type { VisionRead } from '@/modules/warehouse-mobile/types';
 const UNIT_VALUES = ['UN', 'KG', 'MT', 'LTS', 'CJA', 'PAR'] as const;
 
 export const VISION_SYSTEM_PROMPT = [
-  'Eres el ayudante de un bodeguero chileno. Recibes UNA foto de un producto (su envase o etiqueta) y devuelves lo que se lee en ella para dar de alta o encontrar el producto en el inventario.',
+  'Eres el ayudante de un bodeguero chileno. Recibes UNA foto de un producto (su envase, caja o etiqueta) y devuelves lo que se lee en ella para encontrarlo o darlo de alta en el inventario.',
+  'Lo más importante es el CÓDIGO del producto: búscalo primero.',
   'Reglas que no se rompen:',
   '1. Solo escribe lo que se lee o se ve con claridad en la foto. Si un dato no está o no se entiende, OMITE el campo. Nunca lo adivines ni lo completes por lo que "debería" decir.',
-  '2. `name` es el nombre genérico del producto como se vende ("Aceite de maravilla", "Fideos espagueti"), SIN la marca ni el contenido. `brand` es la marca. `variant` es el sabor, tipo o versión ("Light", "Frutilla"). `netContent` es el contenido neto tal como está impreso ("900 ml", "1 kg", "6 x 330 ml").',
-  '3. `barcode` son SOLO los dígitos del código de barras si se leen completos. Si dudas de un dígito, omite el campo.',
-  '4. `lotNumber` y `expiryDate` solo si están impresos con claridad. `expiryDate` va en formato AAAA-MM-DD; si solo figura mes y año, omítela.',
-  '5. `unit` es la unidad en que se contaría este producto en una bodega: UN para casi todo lo envasado, KG o LTS solo si se vende a granel, CJA si la foto es de una caja con varias unidades.',
-  '6. `description` es una sola frase corta y factual con lo que dice la etiqueta. No escribas marketing ni inventes características.',
+  '2. `sku` es el código de producto o artículo que la etiqueta rotula como SKU, Cód., Código, Art., Artículo, Ref., Referencia, Item, Modelo o P/N. Cópialo EXACTO como está impreso, con sus letras, números y guiones. NO es el código de barras (los dígitos bajo las barras), ni el número de lote, ni una fecha, ni un precio. Si no hay uno rotulado, omítelo.',
+  '3. `barcode` son SOLO los dígitos del código de barras (los que van bajo las barras) si se leen completos. Si dudas de un dígito, omite el campo.',
+  '4. `name` es el nombre genérico del producto como se vende ("Aceite de maravilla", "Fideos espagueti"), SIN la marca ni el contenido. `brand` es la marca. `variant` es el sabor, tipo o versión ("Light", "Frutilla"). `netContent` es el contenido neto tal como está impreso ("900 ml", "1 kg", "6 x 330 ml").',
+  '5. `lotNumber` y `expiryDate` solo si están impresos con claridad. `expiryDate` va en formato AAAA-MM-DD; si solo figura mes y año, omítela.',
+  '6. `unit` es la unidad en que se contaría este producto en una bodega: UN para casi todo lo envasado, KG o LTS solo si se vende a granel, CJA si la foto es de una caja con varias unidades.',
   '7. Si la foto no muestra un producto (borrosa, vacía, una persona, un documento), responde `isProduct: false`.',
-  '8. Responde siempre en español y solo con el JSON pedido.',
+  '8. Sé breve: `warnings` solo si algo impide leer bien (máximo 2, de pocas palabras). Responde en español y solo con el JSON pedido.',
 ].join('\n');
 
 export const VISION_USER_PROMPT = 'Lee esta foto de producto y devuelve los datos pedidos.';
@@ -35,20 +36,20 @@ export const VISION_JSON_SCHEMA = {
   type: 'object',
   properties: {
     isProduct: { type: 'boolean', description: 'true si la foto muestra un producto o su etiqueta legible; false si no.' },
+    sku: { type: 'string', description: 'Código SKU/Cód./Art./Ref. impreso, copiado exacto. NO el código de barras ni el lote. Omite si no hay.' },
+    barcode: { type: 'string', description: 'Dígitos del código de barras si se leen completos. Omite si hay duda.' },
     name: { type: 'string', description: 'Nombre genérico del producto, sin marca ni contenido. Omite si no se lee.' },
     brand: { type: 'string', description: 'Marca. Omite si no se lee.' },
     variant: { type: 'string', description: 'Sabor, tipo o versión. Omite si no aplica o no se lee.' },
     netContent: { type: 'string', description: 'Contenido neto impreso, ej. "900 ml". Omite si no se lee.' },
     unit: { type: 'string', enum: [...UNIT_VALUES], description: 'Unidad de bodega del producto.' },
-    barcode: { type: 'string', description: 'Dígitos del código de barras si se leen completos. Omite si hay duda.' },
-    description: { type: 'string', description: 'Una frase corta y factual con lo que dice la etiqueta.' },
-    categoryHint: { type: 'string', description: 'Categoría general en una o dos palabras, ej. "Abarrotes", "Lácteos". Omite si no es evidente.' },
+    categoryHint: { type: 'string', description: 'Categoría general en una o dos palabras, ej. "Abarrotes". Omite si no es evidente.' },
     lotNumber: { type: 'string', description: 'Número de lote impreso. Omite si no se lee.' },
     expiryDate: { type: 'string', description: 'Fecha de vencimiento AAAA-MM-DD, solo si está completa y clara.' },
     confidence: { type: 'string', enum: ['high', 'medium', 'low'], description: 'Qué tan legible y segura es la lectura.' },
-    warnings: { type: 'array', items: { type: 'string' }, description: 'Avisos breves para quien revisa, ej. "etiqueta parcialmente tapada".' },
+    warnings: { type: 'array', items: { type: 'string' }, description: 'Máximo 2 avisos de pocas palabras. Omite si no hay.' },
   },
-  required: ['isProduct', 'confidence', 'warnings'],
+  required: ['isProduct', 'confidence'],
 } as const;
 
 const optionalText = z
@@ -58,6 +59,7 @@ const optionalText = z
 
 const rawVisionSchema = z.object({
   isProduct: z.boolean(),
+  sku: optionalText,
   name: optionalText,
   brand: optionalText,
   variant: optionalText,
@@ -71,9 +73,33 @@ const rawVisionSchema = z.object({
   confidence: z.enum(['high', 'medium', 'low']).catch('low'),
   warnings: z
     .array(z.string())
+    .optional()
     .catch([])
-    .transform((items) => items.slice(0, 5)),
+    .transform((items) => (items ?? []).slice(0, 5)),
 });
+
+export type ThinkingSetting = { kind: 'level'; level: 'minimal' | 'low' | 'medium' | 'high' } | { kind: 'budget'; tokens: number } | null;
+
+const THINKING_LEVELS = new Set(['minimal', 'low', 'medium', 'high']);
+
+/**
+ * Cuánto "razona" el modelo antes de responder. Leer una etiqueta es transcribir, no
+ * razonar: los modelos Gemini 3 piensan por defecto y eso suma varios segundos por foto
+ * sin mejorar la lectura. Por defecto se pide el mínimo (Gemini 3: `minimal`; Gemini 2.5
+ * flash: presupuesto 0). `WAREHOUSE_VISION_THINKING` lo cambia: `minimal|low|medium|high` o
+ * `default` para dejar el comportamiento del modelo. Un modelo que no se reconoce no recibe
+ * ningún ajuste: una opción que no entiende devolvería error en vez de una lectura.
+ */
+export function thinkingFor(model: string, override?: string): ThinkingSetting {
+  const wanted = override?.trim().toLowerCase();
+  if (wanted === 'default') return null;
+  const name = model.toLowerCase();
+  if (/gemini-3/.test(name)) {
+    return { kind: 'level', level: wanted && THINKING_LEVELS.has(wanted) ? (wanted as 'minimal' | 'low' | 'medium' | 'high') : 'minimal' };
+  }
+  if (/gemini-2\.5-flash/.test(name)) return { kind: 'budget', tokens: 0 };
+  return null;
+}
 
 /** Palabras que se dejan en minúscula al pasar un texto en MAYÚSCULAS a "Título". */
 const SMALL_WORDS = new Set(['de', 'del', 'la', 'el', 'los', 'las', 'y', 'con', 'sin', 'en', 'para', 'al', 'por', 'a', 'o']);
@@ -117,9 +143,16 @@ export function normalizeVisionRead(raw: unknown): VisionRead | null {
 
   const name = clean(data.name, 120);
   const brand = clean(data.brand, 80);
-  const barcode = trustedGtin(data.barcode);
+  let barcode = trustedGtin(data.barcode);
+  let sku = plausibleSku(data.sku);
+  // Un "SKU" que es en realidad un código de barras válido se trata como código de barras.
+  const skuAsGtin = trustedGtin(sku);
+  if (skuAsGtin) {
+    barcode = barcode ?? skuAsGtin;
+    sku = null;
+  }
   // Sin nombre, marca ni código no hay nada que buscar ni con qué crear.
-  if (!name && !brand && !barcode) return null;
+  if (!name && !brand && !barcode && !sku) return null;
 
   const unit = (UNIT_VALUES as readonly string[]).includes(data.unit ?? '') ? (data.unit as string) : 'UN';
   const variant = clean(data.variant, 60);
@@ -130,6 +163,7 @@ export function normalizeVisionRead(raw: unknown): VisionRead | null {
     variant: variant ? toDisplayCase(variant) : null,
     netContent: clean(data.netContent, 40),
     unit,
+    sku,
     barcode,
     description: clean(data.description, 300),
     categoryHint: clean(data.categoryHint, 60),

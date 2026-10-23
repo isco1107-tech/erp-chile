@@ -127,6 +127,8 @@ model Company {
   inventoryCountLines       InventoryCountLine[]
   warehouseMobileOps        WarehouseMobileOp[]
   productPhotoScans         ProductPhotoScan[]
+  productSuppliers          ProductSupplier[]
+  supplierPortalAccesses    SupplierPortalAccess[]
   bankAccounts              BankAccount[]
   bankStatements            BankStatement[]
   bankStatementLines        BankStatementLine[]
@@ -370,6 +372,8 @@ model User {
   /// y revoca los suyos, sin permiso especial más allá de que la empresa haya
   /// activado el conector.
   mcpPersonalTokens                McpPersonalToken[]
+  /// Movimientos de inventario que hizo esta persona (operario de bodega).
+  inventoryMovements               InventoryMovement[]
 
   /// Aceptación de los Términos de servicio y la política de privacidad de la
   /// plataforma al activar la cuenta (`TERMS_VERSION` en `src/lib/legal/constants.ts`).
@@ -863,6 +867,12 @@ model Contact {
   customerSurveys           CustomerSurvey[]
   customerFollowUps         CustomerFollowUp[]
   supplierProfile           SupplierProfile?
+  /// Entradas de mercadería que se anotaron a nombre de este proveedor.
+  suppliedMovements         InventoryMovement[]     @relation("MovementSupplier")
+  /// Productos que este proveedor surte (los que ve en su portal).
+  suppliedProducts          ProductSupplier[]       @relation("ProductSupplierContact")
+  /// Acceso del proveedor a su portal de inventario (`/proveedor`).
+  supplierPortalAccess      SupplierPortalAccess?
   /// Portal del cliente (`/cliente/[token]`): se guarda solo el hash SHA-256
   /// del enlace; el enlace en claro se muestra una vez al generarlo.
   portalTokenHash           String?                 @unique
@@ -952,6 +962,7 @@ model Product {
   inventoryCountLines  InventoryCountLine[]
   stocks               Stock[]
   movements            InventoryMovement[]
+  suppliers            ProductSupplier[]
   salesDocumentItems   SalesDocumentItem[]
   salesOrderItems      SalesOrderItem[]
   priceListItems       PriceListItem[]
@@ -1010,9 +1021,65 @@ model InventoryMovement {
   /// Lotes que movió este movimiento: `[{ lotNumber, expiryDate, quantity }]`.
   /// `null` en productos sin lotes y en movimientos previos a los lotes.
   lotAllocations Json?
+  /// Quién hizo el movimiento (el operario que ajustó). `null` en los que nacen de
+  /// un documento de venta o compra y en los anteriores a este campo.
+  userId         String?
+  user           User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  /// Motivo de una salida o un ajuste: código de `WASTE_REASONS` (vencido, mal
+  /// estado, degustación…). `null` cuando el movimiento no tiene un motivo.
+  reasonCode     String?
+  /// Foto de respaldo del producto en cuestión (merma, daño, degustación). Vive en
+  /// nuestro almacenamiento, bajo `inventory-evidence/{companyId}/`.
+  evidenceUrl    String?
+  /// Proveedor de quien llegó la mercadería (entradas hechas desde la app del bodeguero).
+  supplierId     String?
+  supplier       Contact?     @relation("MovementSupplier", fields: [supplierId], references: [id], onDelete: SetNull)
   createdAt      DateTime     @default(now())
 
   @@index([companyId, productId, createdAt])
+  @@index([companyId, warehouseId, createdAt])
+  @@index([companyId, supplierId, createdAt])
+}
+
+/// Qué productos surte cada proveedor. La app del bodeguero lo anota sola cada
+/// vez que registra una llegada "de" ese proveedor, y se puede ajustar a mano
+/// desde la ficha del proveedor. Es lo que ve el proveedor en su portal: solo
+/// los productos de esta lista, nunca el resto del catálogo.
+model ProductSupplier {
+  id             String    @id @default(cuid())
+  companyId      String
+  company        Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  productId      String
+  product        Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  supplierId     String
+  supplier       Contact   @relation("ProductSupplierContact", fields: [supplierId], references: [id], onDelete: Cascade)
+  /// Última llegada de este proveedor con este producto.
+  lastReceivedAt DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@unique([productId, supplierId])
+  @@index([companyId, supplierId])
+}
+
+/// Acceso de un proveedor a su portal de inventario (`/proveedor`). Un acceso por
+/// proveedor; generar un código nuevo invalida el anterior. Del código solo se
+/// guarda el SHA-256: el código en claro se muestra una vez, al generarlo.
+model SupplierPortalAccess {
+  id           String    @id @default(cuid())
+  companyId    String
+  company      Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contactId    String    @unique
+  contact      Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  codeHash     String    @unique
+  /// Últimos caracteres del código, para reconocerlo en pantalla sin revelarlo.
+  codeHint     String
+  /// El proveedor ve también cuánto salió (ventas y bajas) y los días de cobertura.
+  showMovement Boolean   @default(true)
+  createdById  String?
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+
+  @@index([companyId])
 }
 
 /// Operación que envió la app del bodeguero (`/bodega`). Es el registro de
