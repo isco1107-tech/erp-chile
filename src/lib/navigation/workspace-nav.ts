@@ -101,7 +101,8 @@ export type NavIconKey =
   | 'delegation'
   | 'retail'
   | 'deadStock'
-  | 'heatmap';
+  | 'heatmap'
+  | 'basket';
 
 export interface NavLink {
   /** Identificador estable (ver comentario del archivo). */
@@ -204,6 +205,9 @@ export function buildAvailableWorkspaceNav({ permissions, features }: Omit<NavAc
     }
     if (moduleEnabled(features, 'hasRetailHeatmap')) {
       retail.push({ id: 'retail-heatmap', href: '/dashboard/retail/mapa-de-calor', label: 'Mapa de calor', icon: 'heatmap', keywords: ['rotacion', 'semana', 'precio', 'elasticidad', 'cambio de precio', 'temporada', 'mas vendidos', 'menos vendidos', 'calor'] });
+    }
+    if (moduleEnabled(features, 'hasBasketAnalysis')) {
+      retail.push({ id: 'retail-basket', href: '/dashboard/retail/canasta', label: 'Canasta cruzada', icon: 'basket', keywords: ['cross selling', 'venta cruzada', 'combo', 'se compran juntos', 'promocion conjunta', 'boleta', 'productores', 'pack'] });
     }
     push('Métricas de retail', retail);
   }

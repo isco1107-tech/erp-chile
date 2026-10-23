@@ -504,6 +504,14 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       note('Cambios de precio', 'Abajo, cómo cambió la venta diaria cuando cambió el precio cobrado.'),
     ],
   },
+  'retail-basket': {
+    title: 'Canasta cruzada',
+    steps: [
+      header('Lo que se lleva junto', 'Pares de productos que aparecen en la misma boleta más de lo normal.'),
+      note('Combos sugeridos', 'Los pares más fuertes, en una frase, listos para probar un combo o una promoción conjunta.'),
+      note('Entre productores', 'Marca "Solo productos de proveedores distintos" para buscar promociones entre dos productores.'),
+    ],
+  },
   agents: {
     title: 'Agentes',
     steps: [

@@ -12,7 +12,7 @@ import { db, disableGuidedTour, owner } from './db';
 
 test.use(STATE);
 
-type RetailFlags = { hasRetailMetrics: boolean; hasDeadStock?: boolean; hasRetailHeatmap?: boolean };
+type RetailFlags = { hasRetailMetrics: boolean; hasDeadStock?: boolean; hasRetailHeatmap?: boolean; hasBasketAnalysis?: boolean };
 const setFlags = async (flags: RetailFlags) => {
   const { companyId } = await owner();
   await db().companyFeatures.upsert({ where: { companyId }, update: flags, create: { companyId, ...flags } });
@@ -25,7 +25,7 @@ test.describe('retail en vivo', () => {
   });
 
   test.afterAll(async () => {
-    await setFlags({ hasRetailMetrics: false, hasDeadStock: false, hasRetailHeatmap: false });
+    await setFlags({ hasRetailMetrics: false, hasDeadStock: false, hasRetailHeatmap: false, hasBasketAnalysis: false });
   });
 
   test('encendido: muestra el panel de la bodega y descarga el Excel', async ({ page, request }) => {
@@ -115,5 +115,20 @@ test.describe('retail en vivo', () => {
     await page.goto('/dashboard/retail/mapa-de-calor');
     await expect(page.getByRole('heading', { name: 'Módulo no incluido en tu plan actual' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Mapa de calor' })).toHaveCount(0);
+  });
+
+  test('canasta cruzada con su interruptor: se ve; apagada, ruta cerrada', async ({ page, request }) => {
+    const warehouseId = await seedCatalog(request);
+    await setFlags({ hasRetailMetrics: true, hasBasketAnalysis: true });
+
+    await page.goto(`/dashboard/retail/canasta?bodega=${warehouseId}`);
+    await expect(page.getByRole('heading', { name: 'Canasta cruzada' })).toBeVisible();
+    await expect(page.getByText('Boletas analizadas')).toBeVisible();
+    await expect(page.getByText('Combos sugeridos')).toBeVisible();
+
+    await setFlags({ hasRetailMetrics: true, hasBasketAnalysis: false });
+    await page.goto('/dashboard/retail/canasta');
+    await expect(page.getByRole('heading', { name: 'Módulo no incluido en tu plan actual' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Canasta cruzada' })).toHaveCount(0);
   });
 });

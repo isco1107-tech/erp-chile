@@ -614,6 +614,9 @@ model CompanyFeatures {
   /// Mapa de calor de rotación y reacción al precio (dentro de Métricas de
   /// retail, con interruptor propio).
   hasRetailHeatmap      Boolean  @default(false)
+  /// Canasta cruzada: qué productos se compran juntos (dentro de Métricas de
+  /// retail, con interruptor propio).
+  hasBasketAnalysis     Boolean  @default(false)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 }

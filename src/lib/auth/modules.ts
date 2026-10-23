@@ -53,6 +53,7 @@ export type FeatureKey = keyof Pick<
   | 'hasRetailMetrics'
   | 'hasDeadStock'
   | 'hasRetailHeatmap'
+  | 'hasBasketAnalysis'
 >;
 
 export type CompanyFeatureFlags = Record<FeatureKey, boolean>;
@@ -387,6 +388,15 @@ export const MODULES: ModuleDefinition[] = [
     routes: ['/dashboard/retail/mapa-de-calor'],
     requires: 'hasRetailMetrics',
   },
+  {
+    key: 'hasBasketAnalysis',
+    label: 'Canasta cruzada',
+    description:
+      'Dentro de Métricas de retail: qué productos se compran juntos en la misma boleta, cuántas veces más que lo normal, y los pares que valen como combo o promoción conjunta (también entre productores distintos). Requiere Métricas de retail.',
+    permissions: [],
+    routes: ['/dashboard/retail/canasta'],
+    requires: 'hasRetailMetrics',
+  },
 ];
 
 export const MODULE_KEYS: FeatureKey[] = MODULES.map((m) => m.key);
@@ -436,6 +446,7 @@ export const DEFAULT_FEATURES: CompanyFeatureFlags = {
   hasRetailMetrics: false,
   hasDeadStock: false,
   hasRetailHeatmap: false,
+  hasBasketAnalysis: false,
 };
 
 /** Índice inverso permiso → módulo, construido una vez al cargar el módulo. */
@@ -508,6 +519,7 @@ export function toFeatureFlags(features: CompanyFeatures | null): CompanyFeature
     hasRetailMetrics: features.hasRetailMetrics,
     hasDeadStock: features.hasDeadStock,
     hasRetailHeatmap: features.hasRetailHeatmap,
+    hasBasketAnalysis: features.hasBasketAnalysis,
   };
 }
 

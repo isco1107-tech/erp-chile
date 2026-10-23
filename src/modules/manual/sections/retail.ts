@@ -114,4 +114,29 @@ export const RETAIL_SECTIONS: ManualSection[] = [
       },
     ],
   },
+  {
+    id: 'canasta-cruzada',
+    key: 'hasBasketAnalysis',
+    anyOfFeatures: ['hasRetailMetrics'],
+    permission: 'retail:read',
+    chapter: 'Métricas de retail',
+    title: 'Canasta cruzada',
+    summary:
+      'Muestra qué productos se compran juntos en la misma boleta, cuántas veces más de lo normal, y sugiere los pares que valen como combo o promoción conjunta, también entre productores distintos.',
+    route: '/dashboard/retail/canasta',
+    screenshot: null,
+    topics: [
+      {
+        id: 'leer-canasta',
+        title: 'Ver qué se compra junto',
+        steps: [
+          'Ve a Métricas de retail → Canasta cruzada y elige la bodega en las pestañas de arriba.',
+          'Arriba ves cuántas boletas se analizaron, cuántos productos lleva una boleta en promedio y cuántos pares van juntos más de lo normal.',
+          'La tarjeta "Combos sugeridos" resume los pares más fuertes en una frase; la tabla muestra todos: cuántas boletas los traen juntos, qué parte de las boletas son, qué tan seguido uno lleva al otro y cuántas veces más que lo normal.',
+          'Ajusta el "Período", el mínimo en "Juntos en al menos" y, si buscas promociones entre productores, marca "Solo productos de proveedores distintos". Presiona "Aplicar".',
+        ],
+        tip: 'Con pocas boletas cualquier coincidencia parece relación: por eso se pide un mínimo de boletas juntos. Las compras de más de 40 productos distintos no entran.',
+      },
+    ],
+  },
 ];

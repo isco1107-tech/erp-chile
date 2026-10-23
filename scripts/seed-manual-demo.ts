@@ -63,6 +63,7 @@ const ALL_FEATURES_ON: CompanyFeatureFlags = {
   hasRetailMetrics: true,
   hasDeadStock: true,
   hasRetailHeatmap: true,
+  hasBasketAnalysis: true,
 };
 
 async function main() {
