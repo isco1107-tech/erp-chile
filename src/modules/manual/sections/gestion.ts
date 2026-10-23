@@ -279,7 +279,7 @@ export const GESTION_SECTIONS: ManualSection[] = [
         permission: 'websites:write',
         route: '/dashboard/web-sites/new',
         steps: [
-          'Haz clic en "Nuevo sitio" dentro de Sitios web.',
+          'Haz clic en "Nuevo sitio" dentro de Sitios web. Arriba ves "Cupo de sitios" (por ejemplo, 3 de 30): son los sitios activos que incluye tu cuenta; los archivados no cuentan. Con el cupo lleno el botón se apaga: archiva o elimina un sitio, o solicita ampliar el límite.',
           'Paso 1: elige el tipo (Página de captación, Sitio de empresa, Portafolio, Catálogo, Evento, Profesional independiente o En blanco) y revisa las secciones esenciales que sugiere.',
           'Paso 2: elige "Guiado" (recomendado, por secciones con ejemplos) u "HTML propio" (tu HTML y CSS; sin JavaScript ni formularios).',
           'Paso 3: escribe el nombre, la dirección pública (/web/tu-direccion, se autogenera) y, si corresponde, asocia un cliente.',

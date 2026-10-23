@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Archive, ArchiveRestore, CircleCheck, Clock, Copy, ExternalLink, FilePen, Globe, Mail, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, CircleCheck, Clock, Copy, ExternalLink, FilePen, Gauge, Globe, Mail, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import type { WebSiteMode, WebSiteStatus } from '@prisma/client';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,7 @@ import type { Tone } from '@/components/ui/tone';
 import { KIND_INFO } from '@/lib/web-sites/templates';
 import { cn } from '@/lib/utils';
 import type { FormDestination } from '@/lib/web-sites/forms';
+import type { SiteQuota } from '@/lib/web-sites/quota';
 import { archiveWebSiteAction, deleteWebSiteAction, duplicateWebSiteAction, listWebSitesAction, unpublishWebSiteAction } from '@/modules/web-sites/actions/web-sites.actions';
 import type { WebSiteRow } from '@/modules/web-sites/services/web-sites.service';
 import WebSiteMessagesPanel from './WebSiteMessagesPanel';
@@ -70,6 +71,7 @@ export default function WebSitesClient({ canWrite, canPublish, routeTargets = []
   const [query, setQuery] = useState('');
   const [rows, setRows] = useState<WebSiteRow[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const [quota, setQuota] = useState<SiteQuota | null>(null);
   const [unreadTotal, setUnreadTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loaded, setLoaded] = useState(false);
@@ -93,6 +95,7 @@ export default function WebSitesClient({ canWrite, canPublish, routeTargets = []
         if (result.success) {
           setRows(result.data.rows);
           setCounts(result.data.counts);
+          setQuota(result.data.quota);
           const source = unfiltered ? result.data.rows : all?.success ? all.data.rows : null;
           if (source) setUnreadTotal(source.reduce((sum, row) => sum + row.unreadMessages, 0));
           setLoadError(null);
@@ -196,7 +199,8 @@ export default function WebSitesClient({ canWrite, canPublish, routeTargets = []
     });
   }
 
-  const createCta = canWrite ? (
+  const quotaReached = Boolean(quota?.reached);
+  const createCta = canWrite && !quotaReached ? (
     <Link href="/dashboard/web-sites/new" className={cn(buttonVariants(), 'mt-1')}>
       <Plus className="size-4" aria-hidden="true" /> Crear tu primer sitio
     </Link>
@@ -209,10 +213,17 @@ export default function WebSitesClient({ canWrite, canPublish, routeTargets = []
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard label="Publicados" value={kpi(counts.PUBLISHED ?? 0)} icon={Globe} tone={(counts.PUBLISHED ?? 0) > 0 ? 'success' : 'neutral'} />
         <KpiCard label="Borradores" value={kpi(counts.DRAFT ?? 0)} icon={FilePen} tone="info" />
         <KpiCard label="Mensajes sin leer" value={kpi(unreadTotal)} icon={Mail} tone={unreadTotal > 0 ? 'warning' : 'neutral'} />
+        <KpiCard
+          label="Cupo de sitios"
+          value={loaded && quota ? `${quota.used} de ${quota.max}` : '—'}
+          icon={Gauge}
+          tone={quotaReached ? 'warning' : 'neutral'}
+          hint={quotaReached ? 'Archiva o elimina uno para crear otro' : 'Sitios activos (los archivados no cuentan)'}
+        />
       </div>
 
       <div role="tablist" aria-label="Vista" className="inline-flex flex-wrap rounded-md bg-muted p-0.5">

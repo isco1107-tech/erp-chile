@@ -7,7 +7,9 @@ import { isUniqueConstraintError } from '@/lib/prisma-errors';
 import { getAppUrl } from '@/lib/email/mailer';
 import { blobPathnameStartsWith, isAllowedBlobUrl } from '@/lib/security/blob-url';
 import { blockImageUrls, type WebSiteBlock } from '@/lib/web-sites/blocks';
+import { DEFAULT_MAX_WEB_SITES } from '@/lib/web-sites/constants';
 import { MAX_HTML_BYTES, sanitizeHtml } from '@/lib/web-sites/html';
+import { quotaReachedMessage, siteQuota, type SiteQuota } from '@/lib/web-sites/quota';
 import { evaluateReadiness, type ReadinessReport } from '@/lib/web-sites/readiness';
 import { siteForms } from '@/lib/web-sites/site-forms';
 import type { CompanyFeatureFlags } from '@/lib/auth/modules';
@@ -29,7 +31,8 @@ import type { CreateWebSiteInput, SaveWebSiteContentInput, WebSiteSettingsInput 
 
 export class WebSiteError extends Error {}
 
-export const MAX_SITES_PER_COMPANY = 30;
+/** Tope por omisión; el vigente de cada empresa lo fija la Supersuite (`Company.maxWebSites`). */
+export const MAX_SITES_PER_COMPANY = DEFAULT_MAX_WEB_SITES;
 export const MAX_ASSETS_PER_SITE = 60;
 export const MAX_ASSET_BYTES = 4 * 1024 * 1024;
 /** Tope de almacenamiento de imágenes de sitios por empresa (los sitios archivados también cuentan). */
@@ -168,9 +171,9 @@ async function uniqueSlug(base: string, excludeId?: string): Promise<string> {
 // Lectura
 // ---------------------------------------------------------------------------
 
-export async function listWebSites(companyId: string, filter: { status?: WebSiteStatus | 'ALL'; q?: string } = {}): Promise<{ rows: WebSiteRow[]; counts: Record<string, number> }> {
+export async function listWebSites(companyId: string, filter: { status?: WebSiteStatus | 'ALL'; q?: string } = {}): Promise<{ rows: WebSiteRow[]; counts: Record<string, number>; quota: SiteQuota }> {
   const q = filter.q?.trim();
-  const [sites, unread, grouped] = await Promise.all([
+  const [sites, unread, grouped, company] = await Promise.all([
     prisma.webSite.findMany({
       where: {
         companyId,
@@ -187,12 +190,14 @@ export async function listWebSites(companyId: string, filter: { status?: WebSite
     }),
     prisma.webSiteMessage.groupBy({ by: ['siteId'], where: { companyId, readAt: null, archivedAt: null }, _count: { _all: true } }),
     prisma.webSite.groupBy({ by: ['status'], where: { companyId }, _count: { _all: true } }),
+    prisma.company.findUnique({ where: { id: companyId }, select: { maxWebSites: true } }),
   ]);
   const unreadBySite = new Map(unread.map((row) => [row.siteId, row._count._all]));
   const counts: Record<string, number> = { DRAFT: 0, PUBLISHED: 0, ARCHIVED: 0 };
   for (const row of grouped) counts[row.status] = row._count._all;
   return {
     counts,
+    quota: siteQuota((counts.DRAFT ?? 0) + (counts.PUBLISHED ?? 0), company?.maxWebSites),
     rows: sites.map((site) => ({
       id: site.id,
       name: site.name,
@@ -263,9 +268,23 @@ export function readinessOf(site: Pick<WebSiteDetail, 'kind' | 'mode' | 'seoTitl
 // Escritura
 // ---------------------------------------------------------------------------
 
+/** Cupo de sitios de la empresa: el tope lo fija la Supersuite y cuentan los sitios no archivados. */
+export async function getSiteQuota(companyId: string): Promise<SiteQuota> {
+  const [company, used] = await Promise.all([
+    prisma.company.findUnique({ where: { id: companyId }, select: { maxWebSites: true } }),
+    prisma.webSite.count({ where: { companyId, status: { not: 'ARCHIVED' } } }),
+  ]);
+  return siteQuota(used, company?.maxWebSites);
+}
+
+/** Crear, duplicar y restaurar un sitio ocupan un lugar: las tres pasan por aquí. */
+async function assertSiteQuota(companyId: string): Promise<void> {
+  const quota = await getSiteQuota(companyId);
+  if (quota.reached) throw new WebSiteError(quotaReachedMessage(quota));
+}
+
 export async function createWebSite(companyId: string, actor: { name: string }, input: CreateWebSiteInput, options: { canReadContacts?: boolean } = {}): Promise<{ id: string; slug: string }> {
-  const total = await prisma.webSite.count({ where: { companyId, status: { not: 'ARCHIVED' } } });
-  if (total >= MAX_SITES_PER_COMPANY) throw new WebSiteError(`Llegaste al máximo de ${MAX_SITES_PER_COMPANY} sitios activos. Archiva o elimina alguno.`);
+  await assertSiteQuota(companyId);
   const contactId = await assertContact(companyId, input.contactId);
 
   let slug: string;
@@ -411,6 +430,8 @@ export async function unpublishWebSite(companyId: string, id: string): Promise<v
 }
 
 export async function archiveWebSite(companyId: string, id: string, archived: boolean): Promise<void> {
+  // Restaurar vuelve a ocupar un lugar: sin esto, archivar y restaurar sería una forma de pasarse del tope.
+  if (!archived) await assertSiteQuota(companyId);
   const result = await prisma.webSite.updateMany({
     where: { id, companyId, status: archived ? { not: 'ARCHIVED' } : 'ARCHIVED' },
     data: { status: archived ? 'ARCHIVED' : 'DRAFT' },
@@ -419,8 +440,7 @@ export async function archiveWebSite(companyId: string, id: string, archived: bo
 }
 
 export async function duplicateWebSite(companyId: string, actor: { name: string }, id: string): Promise<{ id: string }> {
-  const total = await prisma.webSite.count({ where: { companyId, status: { not: 'ARCHIVED' } } });
-  if (total >= MAX_SITES_PER_COMPANY) throw new WebSiteError(`Llegaste al máximo de ${MAX_SITES_PER_COMPANY} sitios activos.`);
+  await assertSiteQuota(companyId);
   const source = await prisma.webSite.findFirst({ where: { id, companyId }, include: { assets: true } });
   if (!source) throw new WebSiteError('Sitio no encontrado');
   const slug = await uniqueSlug(slugify(`${source.slug.slice(0, 40)}-copia`));

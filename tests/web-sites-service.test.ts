@@ -107,7 +107,7 @@ const MODEL_METHODS = {
   contact: ['findFirst'],
   project: ['findFirst', 'findUnique'],
   academySite: ['findUnique'],
-  company: ['findFirst'],
+  company: ['findFirst', 'findUnique'],
 } as const;
 
 interface Db {
@@ -153,6 +153,8 @@ beforeEach(() => {
   jest.restoreAllMocks();
   jest.resetAllMocks();
   db = installDb();
+  // Tope de sitios de la empresa (lo fija la Supersuite): por omisión el que regía antes.
+  db.company.findUnique.mockResolvedValue({ maxWebSites: MAX_SITES_PER_COMPANY });
   jest.mocked(isAllowedBlobUrl).mockImplementation((url: string) => url.startsWith('https://blob.test/'));
   jest.mocked(isVercelDomainsConfigured).mockReturnValue(false);
 });
@@ -955,8 +957,35 @@ describe('createWebSite', () => {
 
     await expect(createWebSite(COMPANY, { name: 'Ana' }, base)).rejects.toThrow(new RegExp(`máximo de ${MAX_SITES_PER_COMPANY} sitios activos`));
     expect(argsOf(db.webSite.count).where).toEqual({ companyId: COMPANY, status: { not: 'ARCHIVED' } });
+    expect(argsOf(db.company.findUnique)).toEqual({ where: { id: COMPANY }, select: { maxWebSites: true } });
     expect(db.webSite.create).not.toHaveBeenCalled();
     expect(db.contact.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('el tope que fija la Supersuite manda: con 2 sitios y un tope de 2 ya no deja crear, con tope de 3 sí', async () => {
+    db.webSite.count.mockResolvedValue(2);
+    db.company.findUnique.mockResolvedValue({ maxWebSites: 2 });
+    await expect(createWebSite(COMPANY, { name: 'Ana' }, base)).rejects.toThrow('máximo de 2 sitios activos');
+    expect(db.webSite.create).not.toHaveBeenCalled();
+
+    happyPath();
+    db.webSite.count.mockResolvedValue(2);
+    db.company.findUnique.mockResolvedValue({ maxWebSites: 3 });
+    await expect(createWebSite(COMPANY, { name: 'Ana' }, base)).resolves.toMatchObject({ id: 'new-site' });
+  });
+
+  it('un tope de 1 se dice en singular y bajar el tope por debajo de lo que ya hay solo impide crear más', async () => {
+    db.webSite.count.mockResolvedValue(5);
+    db.company.findUnique.mockResolvedValue({ maxWebSites: 1 });
+    await expect(createWebSite(COMPANY, { name: 'Ana' }, base)).rejects.toThrow('máximo de 1 sitio activo que incluye');
+    expect(db.webSite.deleteMany).not.toHaveBeenCalled();
+    expect(db.webSite.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('si la ficha de la empresa no trae tope, rige el de siempre (no deja crear sin límite)', async () => {
+    db.company.findUnique.mockResolvedValue(null);
+    db.webSite.count.mockResolvedValue(MAX_SITES_PER_COMPANY);
+    await expect(createWebSite(COMPANY, { name: 'Ana' }, base)).rejects.toThrow(`máximo de ${MAX_SITES_PER_COMPANY} sitios activos`);
   });
 
   it('con uno menos del máximo todavía deja crear', async () => {
@@ -1011,6 +1040,15 @@ describe('duplicateWebSite', () => {
 
     const created = argsOf(db.webSite.create).data.slug as string;
     expect(siteSlugProblem(created)).toBeNull();
+  });
+
+  it('duplicar también ocupa un lugar: con el cupo lleno no copia nada', async () => {
+    db.company.findUnique.mockResolvedValue({ maxWebSites: 4 });
+    db.webSite.count.mockResolvedValue(4);
+
+    await expect(duplicateWebSite(COMPANY, { name: 'Ana' }, SITE)).rejects.toThrow('máximo de 4 sitios activos');
+    expect(db.webSite.findFirst).not.toHaveBeenCalled();
+    expect(db.webSite.create).not.toHaveBeenCalled();
   });
 
   it('copia el sitio dentro de la misma empresa como borrador, con sus imágenes', async () => {
@@ -1136,10 +1174,13 @@ describe('aislamiento multi-tenant: la sesión de A nunca toca registros de B', 
   });
 
   it('listWebSites: solo devuelve, cuenta y suma no leídos de la empresa de la sesión', async () => {
-    const { rows, counts } = await listWebSites('A');
+    const { rows, counts, quota } = await listWebSites('A');
 
     expect(rows.map((row) => row.id)).toEqual(['site-a']);
     expect(counts).toEqual({ DRAFT: 1, PUBLISHED: 0, ARCHIVED: 0 }); // el sitio PUBLISHED de B no cuenta
+    // El cupo se calcula con los sitios de A y el tope de A (no el de B).
+    expect(quota).toEqual({ used: 1, max: MAX_SITES_PER_COMPANY, remaining: MAX_SITES_PER_COMPANY - 1, reached: false });
+    expect(argsOf(db.company.findUnique).where).toEqual({ id: 'A' });
     expect(rows[0]!.unreadMessages).toBe(1);
     expect(fake.calls.map((call) => `${call.model}.${call.method}`).sort()).toEqual(['webSite.findMany', 'webSite.groupBy', 'webSiteMessage.groupBy']);
     expectAllScoped(fake.calls, 'A');
@@ -1277,6 +1318,7 @@ describe('versión del contenido: la edición simultánea no se confunde con otr
 
   it('despublicar y archivar filtran por empresa y por el estado esperado; sin coincidencia lanzan error', async () => {
     db.webSite.updateMany.mockResolvedValue({ count: 1 });
+    db.webSite.count.mockResolvedValue(0); // restaurar pasa por el cupo de sitios
     await unpublishWebSite(COMPANY, SITE);
     expect(argsOf(db.webSite.updateMany, 0)).toEqual({ where: { id: SITE, companyId: COMPANY, status: 'PUBLISHED' }, data: { status: 'DRAFT' } });
 
@@ -1290,6 +1332,24 @@ describe('versión del contenido: la edición simultánea no se confunde con otr
     await expect(unpublishWebSite(COMPANY, SITE)).rejects.toThrow('El sitio no está publicado');
     await expect(archiveWebSite(COMPANY, SITE, true)).rejects.toThrow('El sitio ya está archivado');
     await expect(archiveWebSite(COMPANY, SITE, false)).rejects.toThrow('El sitio no está archivado');
+  });
+
+  it('restaurar un sitio archivado vuelve a ocupar un lugar: con el cupo lleno no se restaura (archivar y restaurar no es una forma de pasarse del tope)', async () => {
+    db.company.findUnique.mockResolvedValue({ maxWebSites: 3 });
+    db.webSite.count.mockResolvedValue(3);
+    db.webSite.updateMany.mockResolvedValue({ count: 1 });
+
+    await expect(archiveWebSite(COMPANY, SITE, false)).rejects.toThrow('máximo de 3 sitios activos');
+    expect(db.webSite.updateMany).not.toHaveBeenCalled();
+
+    // Archivar libera un lugar: no pasa por el cupo aunque esté lleno.
+    await archiveWebSite(COMPANY, SITE, true);
+    expect(db.webSite.updateMany).toHaveBeenCalledTimes(1);
+
+    // Con un lugar libre, restaurar sí funciona.
+    db.webSite.count.mockResolvedValue(2);
+    await archiveWebSite(COMPANY, SITE, false);
+    expect(db.webSite.updateMany).toHaveBeenCalledTimes(2);
   });
 
   it('flujo completo: ajustes y publicación no provocan falso conflicto; dos guardados de contenido con la misma versión sí chocan y no se pisan', async () => {

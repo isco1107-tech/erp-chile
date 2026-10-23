@@ -8,6 +8,7 @@ import { captureException } from '@/lib/observability';
 import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import { del } from '@/lib/storage/blob';
 import { DESTINATION_INFO, type FormDestination } from '@/lib/web-sites/forms';
+import type { SiteQuota } from '@/lib/web-sites/quota';
 import type { ReadinessReport } from '@/lib/web-sites/readiness';
 import { siteForms } from '@/lib/web-sites/site-forms';
 import { prisma } from '@/lib/prisma';
@@ -44,7 +45,7 @@ function revalidatePublic(slug: string): void {
 
 const STATUS_FILTERS = ['ALL', 'DRAFT', 'PUBLISHED', 'ARCHIVED'] as const;
 
-export async function listWebSitesAction(status: string = 'ALL', q?: string): Promise<ActionResult<{ rows: WebSiteRow[]; counts: Record<string, number> }>> {
+export async function listWebSitesAction(status: string = 'ALL', q?: string): Promise<ActionResult<{ rows: WebSiteRow[]; counts: Record<string, number>; quota: SiteQuota }>> {
   try {
     const session = await requireAuthWithPermission('websites:read');
     const safe = (STATUS_FILTERS as readonly string[]).includes(status) ? (status as WebSiteStatus | 'ALL') : 'ALL';

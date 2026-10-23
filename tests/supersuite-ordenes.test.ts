@@ -198,9 +198,36 @@ describe('webhook de órdenes', () => {
     expect((await enviar('plan.cambiar', { plan: 'Platino' })).cuerpo).toMatchObject({ ok: false, mensaje: expect.stringContaining('Platino') });
     expect((await enviar('limites.ajustar', { usuariosMax: null })).cuerpo.ok).toBe(false);
     expect((await enviar('limites.ajustar', { bodegasMax: 99 })).cuerpo.ok).toBe(false);
+    expect((await enviar('limites.ajustar', { sitiosMax: null })).cuerpo.ok).toBe(false);
+    expect((await enviar('limites.ajustar', { sitiosMax: 0 })).cuerpo.ok).toBe(false);
+    expect((await enviar('limites.ajustar', { sitiosMax: 100000 })).cuerpo.ok).toBe(false);
+    expect((await enviar('limites.ajustar', {})).cuerpo).toMatchObject({ ok: false, mensaje: expect.stringContaining('ningún límite') });
     findUnique.mockResolvedValue(null);
     expect((await enviar('modulo.activar', { modulo: 'pos' })).cuerpo).toMatchObject({ ok: false, mensaje: expect.stringContaining('no existe') });
     expect(updateTenantPlan).not.toHaveBeenCalled();
+  });
+
+  it('limites.ajustar fija el tope de sitios web sin tocar usuarios ni bodegas y lo deja en la bitácora', async () => {
+    findUnique.mockResolvedValue(empresa({ maxWebSites: 30 }));
+    const r = await enviar('limites.ajustar', { sitiosMax: 3 });
+    expect(r.cuerpo).toMatchObject({ ok: true, mensaje: 'Límites actualizados', datos: { usuariosMax: 2, bodegasMax: 1, sitiosMax: 3 } });
+    const [companyId, input] = updateTenantPlan.mock.calls[0];
+    expect(companyId).toBe('c1');
+    expect(input).toMatchObject({ maxUsers: 2, maxWarehouses: 1, maxWebSites: 3 });
+    expect(createAuditLog).toHaveBeenCalledWith(expect.objectContaining({ companyId: 'c1', userEmail: 'supersuite', metadata: expect.objectContaining({ maxWebSites: 3, tipo: 'limites.ajustar' }) }));
+  });
+
+  it('ajustar usuarios o bodegas conserva el tope de sitios vigente: no lo devuelve al de fábrica', async () => {
+    findUnique.mockResolvedValue(empresa({ maxWebSites: 7 }));
+    await enviar('limites.ajustar', { usuariosMax: 9 });
+    expect(updateTenantPlan.mock.calls[0][1]).toMatchObject({ maxUsers: 9, maxWarehouses: 1, maxWebSites: 7 });
+  });
+
+  it('activar un módulo o cambiar de plan tampoco toca el tope de sitios', async () => {
+    findUnique.mockResolvedValue(empresa({ maxWebSites: 12 }));
+    await enviar('modulo.activar', { modulo: 'pos' });
+    await enviar('plan.cambiar', { plan: 'comercio' });
+    for (const [, input] of updateTenantPlan.mock.calls) expect(input.maxWebSites).toBe(12);
   });
 
   it('cambiar de plan no quita los módulos que ya tenía', async () => {
@@ -255,6 +282,20 @@ describe('webhook de órdenes', () => {
       const bitacora = (createAuditLog as jest.Mock).mock.calls[0][0];
       expect(bitacora).toMatchObject({ companyId: 'nueva', userEmail: 'supersuite', entity: 'Company', action: 'CREATE' });
       expect(JSON.stringify(bitacora)).not.toContain('Clave-Inicial-2026!');
+    });
+
+    it('el tope de sitios web se puede fijar al crear la empresa; sin él rige el de fábrica', async () => {
+      findUnique.mockResolvedValue(null);
+      auditoria.mockResolvedValue(null);
+      createTenant.mockResolvedValue({ company: { id: 'nueva', businessName: 'Mi Empresa SpA' }, linkedExistingUser: false });
+      await enviar('empresa.crear', { ...alta, sitiosMax: 3 }, null);
+      expect(createTenant.mock.calls[0][0].maxWebSites).toBe(3);
+      createTenant.mockClear();
+      await enviar('empresa.crear', alta, null);
+      expect(createTenant.mock.calls[0][0].maxWebSites).toBeUndefined();
+      createTenant.mockClear();
+      expect((await enviar('empresa.crear', { ...alta, sitiosMax: 0 }, null)).cuerpo.ok).toBe(false);
+      expect(createTenant).not.toHaveBeenCalled();
     });
 
     it('rechaza datos inválidos, planes o módulos inexistentes y estados que no sirven para un alta, sin crear nada', async () => {

@@ -54,6 +54,8 @@ export async function createTenant(
         planName: input.planName,
         maxUsers: input.maxUsers,
         maxWarehouses: input.maxWarehouses,
+        // Sin valor, la columna usa su default (el tope que regía hasta ahora).
+        ...(input.maxWebSites !== undefined ? { maxWebSites: input.maxWebSites } : {}),
         features: { create: features },
         // Sin esto, una empresa nueva quedaba sin `CompanySettings` hasta que
         // alguien guardara el formulario de Configuración por primera vez —
@@ -111,6 +113,8 @@ export async function updateTenantPlan(companyId: string, input: CompanyPlanUpda
         planName: input.planName,
         maxUsers: input.maxUsers,
         maxWarehouses: input.maxWarehouses,
+        // `undefined` = no tocar: quien no habla de sitios no puede resetear el tope fijado por la Supersuite.
+        ...(input.maxWebSites !== undefined ? { maxWebSites: input.maxWebSites } : {}),
       },
     });
   });

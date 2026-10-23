@@ -52,12 +52,13 @@ function revalidar(): void {
 async function guardarCuenta(
   empresa: EmpresaConFlags,
   orden: OrdenRecibida,
-  cambios: { planName?: string; maxUsers?: number; maxWarehouses?: number; features?: CompanyFeatureFlags }
+  cambios: { planName?: string; maxUsers?: number; maxWarehouses?: number; maxWebSites?: number; features?: CompanyFeatureFlags }
 ): Promise<void> {
   const parsed = companyPlanUpdateSchema.safeParse({
     planName: cambios.planName ?? empresa.planName,
     maxUsers: cambios.maxUsers ?? empresa.maxUsers,
     maxWarehouses: cambios.maxWarehouses ?? empresa.maxWarehouses,
+    maxWebSites: cambios.maxWebSites ?? empresa.maxWebSites,
     features: cambios.features ?? toFeatureFlags(empresa.features),
   });
   if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? 'Datos inválidos para Aether');
@@ -68,7 +69,7 @@ async function guardarCuenta(
     action: 'UPDATE',
     entity: 'CompanyFeatures',
     entityId: empresa.id,
-    metadata: { origen: QUIEN, orden: orden.id, tipo: orden.tipo, plan: parsed.data.planName, maxUsers: parsed.data.maxUsers, maxWarehouses: parsed.data.maxWarehouses },
+    metadata: { origen: QUIEN, orden: orden.id, tipo: orden.tipo, plan: parsed.data.planName, maxUsers: parsed.data.maxUsers, maxWarehouses: parsed.data.maxWarehouses, maxWebSites: parsed.data.maxWebSites },
   });
   // La empresa pidió módulos o un plan y ya se atendió: se cierra su alerta en la Supersuite.
   solicitudModulosAtendidaSupersuite(empresa.id);
@@ -104,7 +105,7 @@ async function cambiarModulos(orden: OrdenRecibida, encender: boolean) {
   for (const g of porCambiar) for (const flag of g.flags) features[flag] = encender;
   await guardarCuenta(empresa, orden, { features });
 
-  const tarifaMensual = fichaComercial({ planName: empresa.planName, features, maxUsers: empresa.maxUsers, maxWarehouses: empresa.maxWarehouses }).tarifaMensual;
+  const tarifaMensual = fichaComercial({ planName: empresa.planName, features, maxUsers: empresa.maxUsers, maxWarehouses: empresa.maxWarehouses, maxWebSites: empresa.maxWebSites }).tarifaMensual;
   const nombres = porCambiar.map((g) => g.nombre).join(', ');
   const ya = grupos.length - porCambiar.length;
   return {
@@ -179,6 +180,7 @@ async function crearEmpresa(orden: OrdenRecibida) {
     planName: plan,
     maxUsers: numeroDe(d.usuariosMax) ?? preset.maxUsers,
     maxWarehouses: numeroDe(d.bodegasMax) ?? preset.maxWarehouses,
+    maxWebSites: numeroDe(d.sitiosMax),
     status: estado,
     features,
     adminName: textoDe(d.adminNombre),
@@ -243,14 +245,20 @@ export const manejadoresOrdenes: ManejadorOrdenes = {
   },
 
   'limites.ajustar': async (orden) => {
-    const { usuariosMax, bodegasMax } = orden.datos;
-    if (usuariosMax === null || bodegasMax === null) throw new Error('Aether exige un tope de usuarios y de bodegas (no admite "sin tope")');
+    const { usuariosMax, bodegasMax, sitiosMax } = orden.datos;
+    if (usuariosMax === null || bodegasMax === null || sitiosMax === null) throw new Error('Aether exige un tope de usuarios, de bodegas y de sitios web (no admite "sin tope")');
     const empresa = await empresaDe(orden);
-    await guardarCuenta(empresa, orden, {
+    const nuevo = {
       maxUsers: typeof usuariosMax === 'number' ? usuariosMax : undefined,
       maxWarehouses: typeof bodegasMax === 'number' ? bodegasMax : undefined,
-    });
-    return { mensaje: 'Límites actualizados' };
+      maxWebSites: typeof sitiosMax === 'number' ? sitiosMax : undefined,
+    };
+    if (nuevo.maxUsers === undefined && nuevo.maxWarehouses === undefined && nuevo.maxWebSites === undefined) {
+      throw new Error('La orden no indica ningún límite (usuariosMax, bodegasMax o sitiosMax)');
+    }
+    await guardarCuenta(empresa, orden, nuevo);
+    // Bajar el tope por debajo de lo que la empresa ya tiene no borra nada: solo impide crear más.
+    return { mensaje: 'Límites actualizados', datos: { usuariosMax: nuevo.maxUsers ?? empresa.maxUsers, bodegasMax: nuevo.maxWarehouses ?? empresa.maxWarehouses, sitiosMax: nuevo.maxWebSites ?? empresa.maxWebSites } };
   },
 
   'cuenta.suspender': (orden) => cambiarEstado(orden, 'SUSPENDED'),

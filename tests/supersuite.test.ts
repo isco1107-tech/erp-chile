@@ -86,6 +86,14 @@ describe('lo que la empresa le paga a Aether', () => {
     expect(ficha.metadata).toMatchObject({ planVigente: true, modulosExtra: [], usuariosAdicionales: 0 });
   });
 
+  it('la ficha informa el tope de sitios web cuando se conoce, y no lo inventa cuando no', () => {
+    const features = PLAN_PRESETS.Base!.features;
+    expect(fichaComercial({ planName: 'Base', features, maxUsers: 2, maxWarehouses: 1, maxWebSites: 5 }).metadata).toMatchObject({ sitiosMax: 5 });
+    expect(fichaComercial({ planName: 'Base', features, maxUsers: 2, maxWarehouses: 1 }).metadata).not.toHaveProperty('sitiosMax');
+    // El tope de sitios no es un módulo ni cambia la tarifa.
+    expect(fichaComercial({ planName: 'Base', features, maxUsers: 2, maxWarehouses: 1, maxWebSites: 500 }).tarifaMensual).toBe(fichaComercial({ planName: 'Base', features, maxUsers: 2, maxWarehouses: 1 }).tarifaMensual);
+  });
+
   it('el tope de usuarios heredado no infla la tarifa: va aparte', () => {
     const ficha = fichaComercial({ planName: 'Personalizado', features: PLAN_PRESETS.Base!.features, maxUsers: 50, maxWarehouses: 1 });
     expect(ficha.tarifaMensual).toBe(14990);
@@ -168,7 +176,7 @@ describe('con configuración', () => {
     const { s, findFirst } = cargar(env);
     findFirst.mockResolvedValue({
       businessName: 'Ferretería Sur', rut: '76.111.111-1', ciudad: null, comuna: null, planName: 'Comercio',
-      status: 'ACTIVE', createdAt: new Date('2025-01-10'), maxUsers: 5, maxWarehouses: 1,
+      status: 'ACTIVE', createdAt: new Date('2025-01-10'), maxUsers: 5, maxWarehouses: 1, maxWebSites: 8,
       features: { ...PLAN_PRESETS.Comercio!.features, hasAccounting: true },
     });
     s.registrarUsoSupersuite({ companyId: 'c1', entity: 'CompanyFeatures', action: 'UPDATE' });
@@ -176,7 +184,7 @@ describe('con configuración', () => {
     const envio = cuerposEnviados().find((e) => e.url === 'https://ss.test/ingesta/clientes')!;
     expect(envio.cuerpo[0]).toMatchObject({ plan: 'Comercio', tarifaMensual: 32990 + 17990 });
     expect(envio.cuerpo[0].metadata).toMatchObject({
-      planVigente: true, tarifaIncluyeIva: false, modulosExtra: ['accounting'], usuariosAdicionales: 2, tarifaUsuariosAdicionales: 5980,
+      planVigente: true, tarifaIncluyeIva: false, modulosExtra: ['accounting'], usuariosAdicionales: 2, tarifaUsuariosAdicionales: 5980, sitiosMax: 8,
     });
   });
 

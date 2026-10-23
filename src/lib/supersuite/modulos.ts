@@ -274,6 +274,8 @@ export function fichaComercial(input: {
   features: CompanyFeatureFlags;
   maxUsers: number;
   maxWarehouses: number;
+  /** Tope de sitios web; sin él (llamadores anteriores) la ficha no lo informa. */
+  maxWebSites?: number;
 }): { tarifaMensual?: number; metadata: Record<string, unknown> } {
   const modulos = tenantListPrice(input.planName, input.features, 0);
   const conUsuarios = tenantListPrice(input.planName, input.features, input.maxUsers);
@@ -291,6 +293,7 @@ export function fichaComercial(input: {
       usuariosAdicionales,
       tarifaUsuariosAdicionales: usuariosAdicionales * EXTRA_USER_PRICE,
       bodegasMax: input.maxWarehouses,
+      ...(input.maxWebSites !== undefined ? { sitiosMax: input.maxWebSites } : {}),
     },
   };
 }
@@ -325,6 +328,7 @@ export function fichaDeEmpresa(empresa: {
   createdAt: Date;
   maxUsers: number;
   maxWarehouses: number;
+  maxWebSites?: number;
   features: CompanyFeatures | null;
 }): DatosCliente {
   const comercial = fichaComercial({
@@ -332,6 +336,7 @@ export function fichaDeEmpresa(empresa: {
     features: toFeatureFlags(empresa.features),
     maxUsers: empresa.maxUsers,
     maxWarehouses: empresa.maxWarehouses,
+    maxWebSites: empresa.maxWebSites,
   });
   return {
     nombre: empresa.businessName,

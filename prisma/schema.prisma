@@ -101,6 +101,8 @@ model Company {
   planName                  String                        @default("Starter")
   maxUsers                  Int                           @default(3)
   maxWarehouses             Int                           @default(1)
+  /// Sitios web activos (no archivados) que puede tener la empresa. Lo fija la Supersuite (`limites.ajustar`); 30 era el tope fijo anterior.
+  maxWebSites               Int                           @default(30)
   features                  CompanyFeatures?
   settings                  CompanySettings?
   taxPeriods                TaxPeriod[]

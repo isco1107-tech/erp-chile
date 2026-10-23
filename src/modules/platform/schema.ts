@@ -3,6 +3,10 @@ import { validateRut } from '@/lib/chile/rut';
 import { MODULE_KEYS, type FeatureKey } from '@/lib/auth/modules';
 import { passwordPolicySchema } from '@/lib/auth/password-policy';
 import { MAX_WAREHOUSES, PLAN_NAMES } from '@/lib/pricing/presets';
+import { MAX_WEB_SITES_CEILING } from '@/lib/web-sites/constants';
+
+/** Tope de sitios web de la empresa: opcional para no obligar a los llamadores anteriores; sin valor no se toca. */
+const maxWebSites = z.number().int().min(1, 'Debe permitir al menos 1 sitio web').max(MAX_WEB_SITES_CEILING, `El máximo de sitios web es ${MAX_WEB_SITES_CEILING}`).optional();
 
 export const TENANT_STATUSES = ['ACTIVE', 'TRIAL', 'SUSPENDED', 'CANCELLED'] as const;
 
@@ -22,6 +26,7 @@ export const companyCreateSchema = z.object({
   planName: z.string().refine((name) => PLAN_NAMES.includes(name), 'Selecciona uno de los planes disponibles'),
   maxUsers: z.number().int().min(1, 'Debe permitir al menos 1 usuario'),
   maxWarehouses: z.number().int().min(1, 'Debe permitir al menos 1 bodega').max(MAX_WAREHOUSES, `El máximo de bodegas es ${MAX_WAREHOUSES}`),
+  maxWebSites,
   status: z.enum(TENANT_STATUSES, 'Selecciona un estado de cuenta'),
   features: companyFeaturesSchema,
   // Primer usuario administrador del tenant. Sin él la empresa nace inaccesible.
@@ -38,6 +43,7 @@ export const companyPlanUpdateSchema = z.object({
   planName: z.string().min(1, 'Seleccione un plan'),
   maxUsers: z.number().int().min(1, 'Debe permitir al menos 1 usuario'),
   maxWarehouses: z.number().int().min(1, 'Debe permitir al menos 1 bodega').max(MAX_WAREHOUSES, `El máximo de bodegas es ${MAX_WAREHOUSES}`),
+  maxWebSites,
   features: companyFeaturesSchema,
   /** Pantallas del menú apagadas para la empresa (se sanean contra el registro al guardar). */
   disabledNavItems: z.array(z.string().max(80)).max(300).optional(),
