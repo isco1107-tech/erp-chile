@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useForm } from '@mantine/form';
 import { z } from 'zod';
 import { KeyRound, Mail, ShieldCheck } from 'lucide-react';
@@ -12,6 +12,7 @@ import { PasswordInput } from '@/components/ui/PasswordInput';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { offerPasswordSave, readRememberedLogin, rememberedLoginSnapshot, saveRememberedLogin, subscribeRememberedLogin } from '@/lib/auth/remembered-login';
 import TurnstileWidget, { isTurnstileConfigured } from '@/components/security/TurnstileWidget';
 
 const loginSchema = z.object({
@@ -48,6 +49,10 @@ const LOGIN_REDIRECT_REASONS: Record<string, string> = {
 
 export function LoginForm({ warehouse = false }: { warehouse?: boolean }) {
   const router = useRouter();
+  const savedLogin = readRememberedLogin(useSyncExternalStore(subscribeRememberedLogin, rememberedLoginSnapshot, () => null));
+  const [rememberOverride, setRememberOverride] = useState<boolean | null>(null);
+  const remember = rememberOverride ?? savedLogin.remember;
+  const passwordInput = useRef<HTMLInputElement>(null);
   const searchParams = useSearchParams();
   const redirectReason = searchParams.get('reason');
   const [error, setError] = useState<string | null>(
@@ -74,6 +79,19 @@ export function LoginForm({ warehouse = false }: { warehouse?: boolean }) {
     }
   });
 
+  const { setFieldValue, isDirty } = form;
+  useEffect(() => {
+    if (savedLogin.username && !isDirty('username')) {
+      setFieldValue('username', savedLogin.username);
+      passwordInput.current?.focus();
+    }
+  }, [savedLogin.username, setFieldValue, isDirty]);
+
+  const rememberSuccessfulLogin = (username: string, password: string) => {
+    saveRememberedLogin(username, remember);
+    if (remember) offerPasswordSave(username, password);
+  };
+
   const handleSubmit = async (values: typeof form.values) => {
     setLoading(true);
     try {
@@ -96,6 +114,7 @@ export function LoginForm({ warehouse = false }: { warehouse?: boolean }) {
         setError(null);
         return;
       }
+      rememberSuccessfulLogin(values.username, values.password);
       toast.success('Inicio de sesión correcto');
       goTo(router, nextPath(json, warehouse ? '/bodega' : searchParams.get('callbackUrl')));
     } catch (e) {
@@ -120,6 +139,7 @@ export function LoginForm({ warehouse = false }: { warehouse?: boolean }) {
         setError(json.error || 'Código incorrecto');
         return;
       }
+      rememberSuccessfulLogin(form.values.username, form.values.password);
       toast.success('Inicio de sesión correcto');
       goTo(router, nextPath(json, warehouse ? '/bodega' : searchParams.get('callbackUrl')));
     } catch (e) {
@@ -176,13 +196,17 @@ export function LoginForm({ warehouse = false }: { warehouse?: boolean }) {
 
       {error && <AuthError>{error}</AuthError>}
 
-      <form onSubmit={form.onSubmit((values) => handleSubmit(values))} className="space-y-4">
+      <form method="post" autoComplete="on" onSubmit={form.onSubmit((values) => handleSubmit(values))} className="space-y-4">
         <div>
           <Label htmlFor="username">Correo o usuario</Label>
           <div className="relative mt-1.5">
             <Mail className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
             <Input
               id="username"
+              name="username"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               className={warehouse ? "h-12 pl-9 text-base" : "h-10 pl-9"}
               autoComplete="username"
               autoFocus
@@ -205,6 +229,8 @@ export function LoginForm({ warehouse = false }: { warehouse?: boolean }) {
             <KeyRound className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
             <PasswordInput
               id="password"
+              name="password"
+              ref={passwordInput}
               className={warehouse ? "h-12 pl-9 text-base" : "h-10 pl-9"}
               autoComplete="current-password"
               aria-invalid={Boolean(form.errors.password)}
@@ -213,6 +239,25 @@ export function LoginForm({ warehouse = false }: { warehouse?: boolean }) {
             />
           </div>
           {form.errors.password && <p id="password-error" className="mt-1.5 text-sm text-destructive">{form.errors.password}</p>}
+        </div>
+
+        <div className="space-y-1">
+          <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm">
+            <input type="checkbox" name="remember" checked={remember} onChange={(event) => {
+              setRememberOverride(event.target.checked);
+              if (!event.target.checked) saveRememberedLogin('', false);
+            }} className="size-5 accent-primary" />
+            Recordar mis datos en este dispositivo
+          </label>
+          <p className="text-xs text-muted-foreground">Recordamos tu usuario. Guarda la contraseña con el gestor de tu teléfono o navegador.</p>
+          {savedLogin.username ? (
+            <button type="button" onClick={() => {
+              saveRememberedLogin('', false);
+              setRememberOverride(false);
+              form.setValues({ username: '', password: '' });
+              document.getElementById('username')?.focus();
+            }} className="min-h-11 text-sm text-muted-foreground underline underline-offset-4">Olvidar usuario</button>
+          ) : null}
         </div>
 
         <TurnstileWidget key={turnstileKey} action="login" theme="dark" onToken={setTurnstileToken} className="flex min-h-[65px] justify-center" />

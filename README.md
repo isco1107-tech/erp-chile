@@ -56,6 +56,15 @@ ERP; los pendientes sin señal se envían al recuperar la conexión.
 Pruebas del acceso: `npx playwright test e2e/bodega-entry.spec.ts` con la base de
 pruebas, contraseña del seed y navegador configurados (ver `e2e/README.md`).
 
+### Recordar el ingreso
+
+El ingreso del ERP y de Bodega móvil tiene «Recordar mis datos en este dispositivo».
+Tras un ingreso completo (incluido 2FA cuando corresponda), recuerda el usuario en
+ese navegador. «Olvidar usuario» o desmarcar la opción elimina el identificador
+guardado. La contraseña solo se ofrece al gestor seguro del navegador cuando lo
+admite; nunca se guarda en localStorage ni en la caché de la app. Las sesiones
+conservan su límite de ocho horas y sus controles de revocación.
+
 ### Variables de entorno
 
 `.env.example` documenta cada variable con qué hace y dónde conseguirla. Las mínimas para levantar:
