@@ -84,12 +84,23 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       note('Contabiliza', 'Revisa "Con diferencia" y presiona "Contabilizar": el stock se ajusta a lo contado y queda su asiento.'),
     ],
   },
+  'inventory-movements': {
+    title: 'Movimientos de bodega',
+    steps: [
+      header('Qué entró y salió, bodega por bodega', 'Cada bodega se ve por separado: elige su pestaña. Nada se mezcla.'),
+      note('Quién, por qué y con qué foto', 'Cada fila dice qué operario hizo el movimiento, el motivo (vencido, mal estado, degustación…) y trae la foto del producto para verla en grande.'),
+      note('Filtra y descarga', 'Usa los filtros (tipo, motivo, operario, proveedor, fechas) y presiona "Aplicar filtros". "Descargar Excel" baja lo mismo que ves.'),
+      note('Mermas por motivo', 'Arriba de la lista, el resumen de salidas dice cuánto se pierde y por qué en esa bodega.'),
+    ],
+  },
   'inventory-mobile': {
     title: 'Bodega móvil',
     steps: [
       header('La app de tu bodeguero', 'Recibe, descuenta y traslada productos desde el celular, aunque se vaya la señal. Todo llega solo al Kardex.'),
       note('Ábrela con el código QR', 'Escanéalo con el celular, inicia sesión y elige "Instalar app" (Android) o "Agregar a inicio" (iPhone).'),
-      note('Fotos con IA, cuidando la cuota', 'Si un producto no tiene código de barras, se le saca una foto. Hay topes por minuto y, si se llega a uno, la foto espera sola su turno.'),
+      note('Cada llegada, con su proveedor', 'Al recibir mercadería el bodeguero elige de qué proveedor llega. Así cada proveedor queda ligado a sus productos.'),
+      note('Salidas con foto', 'Una merma, un producto en mal estado o una degustación se registra con su motivo y una foto del producto. Quedan en "Movimientos de bodega".'),
+      note('Fotos con IA, cuidando la cuota', 'Si un producto no tiene código de barras, se le saca una foto. La IA lee primero el SKU impreso. Hay topes por minuto y, si se llega a uno, la foto espera sola su turno.'),
       note('Revisa lo que se creó', 'Los productos que el bodeguero da de alta desde el celular aparecen abajo: complétales precio y categoría en el Catálogo.'),
     ],
   },

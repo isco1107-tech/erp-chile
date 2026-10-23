@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { toFeatureFlags } from '@/lib/auth/modules';
 import { MOVEMENT_WINDOW_DAYS, countStatuses, coverageDays, roundQty, stockStatus, type StatusCounts, type StockStatus } from '@/lib/supplier-portal/analysis';
 import { formatSupplierCode, hashSupplierCode, newSupplierCode, normalizeSupplierCode, supplierCodeHint } from '@/lib/supplier-portal/code';
 
@@ -175,11 +176,12 @@ async function accessForCode(rawCode: string) {
       showMovement: true,
       lastUsedAt: true,
       contact: { select: { razonSocial: true, nombreFantasia: true, rut: true } },
-      company: { select: { businessName: true, rut: true, logoUrl: true, phone: true, email: true, status: true, features: { select: { hasInventory: true } } } },
+      company: { select: { businessName: true, rut: true, logoUrl: true, phone: true, email: true, status: true, features: true } },
     },
   });
   // Empresa suspendida o cancelada (solo ACTIVE y TRIAL operan) o sin el módulo de inventario: el portal no existe para el proveedor.
-  if (!access || !(access.company.status === 'ACTIVE' || access.company.status === 'TRIAL') || !access.company.features?.hasInventory) return null;
+  // Una empresa sin fila de módulos se trata con los valores predeterminados, igual que en el resto de la app.
+  if (!access || !(access.company.status === 'ACTIVE' || access.company.status === 'TRIAL') || !toFeatureFlags(access.company.features).hasInventory) return null;
   return access;
 }
 

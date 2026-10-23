@@ -220,6 +220,17 @@ describeDb('portal de inventario del proveedor contra PostgreSQL', () => {
       expect(await service.getSupplierPortalView(code1)).not.toBeNull();
     });
 
+    it('una empresa sin fila de módulos se trata con los valores predeterminados (el inventario viene activo)', async () => {
+      const features = await prisma.companyFeatures.findUniqueOrThrow({ where: { companyId: ids.companyA } });
+      await prisma.companyFeatures.delete({ where: { companyId: ids.companyA } });
+      try {
+        expect(await service.getSupplierPortalView(code1)).not.toBeNull();
+      } finally {
+        const { id: _id, companyId: _companyId, ...rest } = features;
+        await prisma.companyFeatures.create({ data: { companyId: ids.companyA, ...rest } });
+      }
+    });
+
     it('anota el último uso sin escribir en cada vista', async () => {
       await prisma.supplierPortalAccess.updateMany({ where: { contactId: ids.s1 }, data: { lastUsedAt: null } });
       await service.getSupplierPortalView(code1);

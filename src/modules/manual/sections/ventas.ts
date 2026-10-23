@@ -296,6 +296,20 @@ export const VENTAS_SECTIONS: ManualSection[] = [
           'El enlace se muestra una sola vez. Puedes desactivarlo o generar uno nuevo (el anterior deja de funcionar).',
         ],
       },
+      {
+        id: 'portal-proveedor',
+        title: 'Darle al proveedor su portal de inventario',
+        permission: 'settings:company',
+        steps: [
+          'En la ficha del proveedor (un contacto marcado como proveedor), sección "Portal del proveedor", presiona "Generar código".',
+          'Se muestra su código de 16 letras y números (por ejemplo K7QM-4TXD-9HWB-2ZNC), que se ve una sola vez. Cópialo con "Copiar código" o envíalo con "WhatsApp".',
+          'El proveedor lo escribe en la dirección /proveedor de tu sitio (o abre el enlace directo) y ve cuánto le queda en bodega de SUS productos: existencias por bodega, si están bajo el mínimo, su última llegada y, si lo permites, lo que salió en los últimos 30 días. Puede descargarlo a Excel. Nunca ve costos ni precios.',
+          'Sus productos se agregan solos cuando el bodeguero registra una llegada de ese proveedor en la app. En la misma tarjeta puedes buscar un producto para agregarlo o quitar uno.',
+          'Si no quieres que vea lo que sale, desmarca "Mostrar también lo que sale (ventas y bajas de los últimos 30 días) y los días que alcanza el stock".',
+          '"Generar código nuevo" invalida el anterior al instante; "Desactivar" corta el acceso.',
+        ],
+        tip: 'Es información de tu empresa que ve un tercero: dalo solo a proveedores de confianza y desactívalo cuando termine la relación.',
+      },
     ],
   },
   {
