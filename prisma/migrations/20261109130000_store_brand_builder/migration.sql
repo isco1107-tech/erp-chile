@@ -1,0 +1,1 @@
+ALTER TABLE "WebSiteStore" ADD COLUMN IF NOT EXISTS "homepageEnabled" BOOLEAN NOT NULL DEFAULT false;

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { STOREFRONT_TEMPLATES } from '@/lib/ecommerce/storefront-design';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, ShoppingBag, Plus } from 'lucide-react';
 import { toast } from 'sonner';
@@ -39,7 +40,10 @@ export default function CreateStorefront({ compact = false }: { compact?: boolea
           setBusy(true);
           setError(null);
           try {
-            const result = await createStorefrontAction({ name: data.get('name'), slug: data.get('slug') }, String(data.get('domain') ?? ''));
+            const result = await createStorefrontAction(
+              { name: data.get('name'), slug: data.get('slug'), template: data.get('template') ?? 'editorial' },
+              String(data.get('domain') ?? ''),
+            );
             if (!result.success) {
               setError(result.error);
               return;
@@ -47,7 +51,7 @@ export default function CreateStorefront({ compact = false }: { compact?: boolea
             if (result.data.notice) toast.info(result.data.notice);
             else toast.success('Tienda creada. Configura tus productos, pagos y entregas para abrirla.');
             if (compact) setOpen(false);
-            router.push(`/dashboard/store?sitio=${encodeURIComponent(result.data.id)}&tab=products`);
+            router.push(`/dashboard/store/${encodeURIComponent(result.data.id)}/editor`);
             router.refresh();
           } catch {
             setError('No pudimos crear la tienda. Revisa tu conexión e inténtalo de nuevo.');
@@ -65,6 +69,23 @@ export default function CreateStorefront({ compact = false }: { compact?: boolea
           <Input id="store-slug" name="slug" placeholder="mi-tienda" maxLength={50} disabled={busy} />
           <p className="text-xs text-muted-foreground">Si la dejas vacía, la creamos para ti.</p>
         </div>
+        <fieldset className="space-y-3 sm:col-span-2">
+          <legend className="text-sm font-semibold">Elige cómo presentar tu marca</legend>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {STOREFRONT_TEMPLATES.map((template, index) => (
+              <label
+                key={template.id}
+                className="flex cursor-pointer items-start gap-3 rounded-xl border border-border p-4 has-checked:border-primary has-checked:bg-primary/5"
+              >
+                <input type="radio" name="template" value={template.id} defaultChecked={index === 0} className="mt-1" disabled={busy} />
+                <span>
+                  <strong className="block text-sm">{template.name}</strong>
+                  <span className="mt-1 block text-xs text-muted-foreground">{template.description}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
         <div className="space-y-2 sm:col-span-2">
           <Label htmlFor="store-domain">Tu dominio (opcional)</Label>
           <Input id="store-domain" name="domain" placeholder="mitienda.cl" disabled={busy} />

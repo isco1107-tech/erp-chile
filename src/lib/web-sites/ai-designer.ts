@@ -4,19 +4,33 @@ import { blocksSchema, blockImageUrls, BLOCK_INFO, BLOCK_TYPES, type WebSiteBloc
 import { themeSchema } from './theme';
 
 /** Solo campos de presentación: la IA nunca publica, cambia dominios o revela resultados. */
-export const eventDesignSchema = z.object({
-  publicTagline: z.string().trim().max(160),
-  publicDescription: z.string().trim().max(4000),
-  publicAccent: z.enum(['gold', 'violet', 'rose', 'cyan', 'emerald']),
-  sponsorExclusivityNote: z.string().trim().max(800),
-}).strict();
-export const academyDesignSchema = academySiteContentSchema.pick({
-  tagline: true, aboutTitle: true, intro: true, history: true, steps: true,
-  disciplines: true, benefits: true, feeNote: true, promo: true, faq: true, accent: true,
-}).strict();
+export const eventDesignSchema = z
+  .object({
+    publicTagline: z.string().trim().max(160),
+    publicDescription: z.string().trim().max(4000),
+    publicAccent: z.enum(['gold', 'violet', 'rose', 'cyan', 'emerald']),
+    sponsorExclusivityNote: z.string().trim().max(800),
+  })
+  .strict();
+export const academyDesignSchema = academySiteContentSchema
+  .pick({
+    tagline: true,
+    aboutTitle: true,
+    intro: true,
+    history: true,
+    steps: true,
+    disciplines: true,
+    benefits: true,
+    feeNote: true,
+    promo: true,
+    faq: true,
+    accent: true,
+  })
+  .strict();
 export const webDesignSchema = z.object({ blocks: blocksSchema, theme: themeSchema }).strict();
 const instruction = z.string().trim().min(10, 'Describe lo que necesitas con al menos 10 caracteres').max(4000);
 export const designerRequestSchema = z.discriminatedUnion('target', [
+  z.object({ target: z.literal('commerce'), resourceId: z.string().min(1).max(80), pageId: z.string().min(1).max(40), instruction, current: webDesignSchema }),
   z.object({ target: z.literal('web'), resourceId: z.string().min(1).max(80), pageId: z.string().min(1).max(40), instruction, current: webDesignSchema }),
   z.object({ target: z.literal('academy-studio'), instruction, current: webDesignSchema }),
   z.object({ target: z.literal('event-studio'), resourceId: z.string().min(1).max(80), instruction, current: webDesignSchema }),
@@ -25,6 +39,7 @@ export const designerRequestSchema = z.discriminatedUnion('target', [
 ]);
 const report = { summary: z.string().trim().min(1).max(1200), changes: z.array(z.string().trim().min(1).max(240)).min(1).max(12) };
 export const designerProposalSchema = z.discriminatedUnion('target', [
+  z.object({ target: z.literal('commerce'), ...report, design: webDesignSchema }).strict(),
   z.object({ target: z.literal('web'), ...report, design: webDesignSchema }).strict(),
   z.object({ target: z.literal('academy-studio'), ...report, design: webDesignSchema }).strict(),
   z.object({ target: z.literal('event-studio'), ...report, design: webDesignSchema }).strict(),
@@ -42,15 +57,37 @@ export function designImages(design: DesignerRequest['current']): string[] {
 }
 export function parseDesignerProposal(text: string, request: DesignerRequest, allowedImages: readonly string[]): DesignerProposal {
   if (text.length > 350_000) throw new Error('La propuesta es demasiado grande. Pide un cambio más específico.');
-  const json = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  const json = text
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/, '');
   let raw: unknown;
-  try { raw = JSON.parse(json); } catch { throw new Error('La IA no devolvió un diseño válido. Intenta describir un cambio más específico.'); }
+  try {
+    raw = JSON.parse(json);
+  } catch {
+    throw new Error('La IA no devolvió un diseño válido. Intenta describir un cambio más específico.');
+  }
   const parsed = designerProposalSchema.safeParse(raw);
   if (!parsed.success || parsed.data.target !== request.target) throw new Error('La propuesta no cumple el formato del creador web. Intenta nuevamente.');
   const allowed = new Set(allowedImages);
-  if (designImages(parsed.data.design).some((url) => !allowed.has(url))) throw new Error('La IA propuso imágenes ajenas al sitio. Sube tus imágenes y vuelve a intentarlo.');
-  if ((request.target === 'academy-studio' || request.target === 'event-studio') && 'blocks' in parsed.data.design && parsed.data.design.blocks.some((b) => (b.type === 'contact' && b.showForm) || b.type === 'form')) throw new Error('La IA propuso un formulario incompatible. Pide usar enlaces de contacto y el formulario nativo.');
-  if (parsed.data.target === 'web' && 'blocks' in request.current) return { ...parsed.data, design: { ...parsed.data.design, blocks: keepFormRouting(parsed.data.design.blocks, request.current.blocks) } };
+  if (designImages(parsed.data.design).some((url) => !allowed.has(url)))
+    throw new Error('La IA propuso imágenes ajenas al sitio. Sube tus imágenes y vuelve a intentarlo.');
+  if (
+    (request.target === 'academy-studio' || request.target === 'event-studio') &&
+    'blocks' in parsed.data.design &&
+    parsed.data.design.blocks.some((b) => (b.type === 'contact' && b.showForm) || b.type === 'form')
+  )
+    throw new Error('La IA propuso un formulario incompatible. Pide usar enlaces de contacto y el formulario nativo.');
+  if ((parsed.data.target === 'web' || parsed.data.target === 'commerce') && 'blocks' in request.current) {
+    const before = new Map(request.current.blocks.map((block) => [block.id, block]));
+    const blocks = keepFormRouting(parsed.data.design.blocks, request.current.blocks).map((block) => {
+      if (block.type !== 'catalog') return block;
+      if (parsed.data.target !== 'commerce') return { ...block, store: undefined };
+      const old = before.get(block.id);
+      return { ...block, items: [], store: old?.type === 'catalog' && old.store ? old.store : { collection: '', featuredOnly: false, limit: 8 } };
+    });
+    return { ...parsed.data, design: { ...parsed.data.design, blocks } };
+  }
   return parsed.data;
 }
 
@@ -66,7 +103,8 @@ export function keepFormRouting(proposed: WebSiteBlock[], current: WebSiteBlock[
     if (block.type !== 'form' && block.type !== 'contact') return block;
     const previous = before.get(block.id);
     if (block.type === 'form') {
-      if (previous?.type === 'form') return { ...block, destination: previous.destination, dealType: previous.dealType, inboxTag: previous.inboxTag, consent: previous.consent };
+      if (previous?.type === 'form')
+        return { ...block, destination: previous.destination, dealType: previous.dealType, inboxTag: previous.inboxTag, consent: previous.consent };
       return { ...block, destination: 'inbox', inboxTag: '' };
     }
     if (previous?.type === 'contact') return { ...block, destination: previous.destination, dealType: previous.dealType, inboxTag: previous.inboxTag };
@@ -76,7 +114,10 @@ export function keepFormRouting(proposed: WebSiteBlock[], current: WebSiteBlock[
 
 export function designerSystemPrompt(request: DesignerRequest): string {
   const schema = 'blocks' in request.current ? webDesignSchema : request.target === 'academy' ? academyDesignSchema : eventDesignSchema;
-  const catalog = 'blocks' in request.current ? `Tipos de sección disponibles: ${BLOCK_TYPES.map((t) => `${t}: ${BLOCK_INFO[t].description}`).join('; ')}. Puedes usar style.canvas para composiciones libres con texto, formas, imágenes y botones; usa posiciones porcentuales dentro de 0–100, sin salir del lienzo, y posiciones mobile explícitas. Conserva los ids existentes y asigna ids únicos a nuevos bloques. Máximo 12 secciones en una página generada; conserva las demás al editar.` : '';
+  const catalog =
+    'blocks' in request.current
+      ? `Tipos de sección disponibles: ${BLOCK_TYPES.map((t) => `${t}: ${BLOCK_INFO[t].description}`).join('; ')}. Puedes usar style.canvas para composiciones libres con texto, formas, imágenes y botones; usa posiciones porcentuales dentro de 0–100, sin salir del lienzo, y posiciones mobile explícitas. Conserva los ids existentes y asigna ids únicos a nuevos bloques. Máximo 12 secciones en una página generada; conserva las demás al editar.`
+      : '';
   return `Eres el director de diseño web y copywriter de Aether. Mejora el sitio existente según el requerimiento: jerarquía editorial clara, identidad coherente, navegación comprensible, accesibilidad, buena lectura en móvil y movimiento discreto solo si aporta. Responde en español de Chile.
 Devuelve SOLO JSON con {"target":"${request.target}","summary":"explicación breve","changes":["cambio concreto"],"design":...}.
 El schema de design es: ${JSON.stringify(z.toJSONSchema(schema, { unrepresentable: 'any', reused: 'ref' }))}.

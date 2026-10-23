@@ -3,7 +3,22 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { Archive, ArchiveRestore, ArrowRight, CheckCheck, Download, Inbox, Mail, MailOpen, MessageCircle, Phone, RefreshCw, Search, Send, Trash2 } from 'lucide-react';
+import {
+  Archive,
+  ArchiveRestore,
+  ArrowRight,
+  CheckCheck,
+  Download,
+  Inbox,
+  Mail,
+  MailOpen,
+  MessageCircle,
+  Phone,
+  RefreshCw,
+  Search,
+  Send,
+  Trash2,
+} from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { nativeSelectClass } from '@/components/ui/field-classes';
@@ -14,14 +29,7 @@ import { useConfirm } from '@/components/ui/confirm-provider';
 import { cn } from '@/lib/utils';
 import { DESTINATION_INFO, FORM_DESTINATIONS, FORM_PURPOSES, PURPOSE_LABELS, type FormDestination, type FormPurpose } from '@/lib/web-sites/forms';
 import { safeHref, whatsappHref } from '@/lib/web-sites/urls';
-import {
-  deleteWebSiteMessageAction,
-  listFormMessagesAction,
-  markWebSiteMessagesReadAction,
-  routeWebSiteMessageAction,
-  setWebSiteMessageArchivedAction,
-  setWebSiteMessageReadAction,
-} from '@/modules/web-sites/actions/web-sites.actions';
+import { useEditorRuntime } from './EditorRuntime';
 import type { FormMessageRow, FormMessagesPage } from '@/modules/web-sites/services/web-site-forms.service';
 
 /**
@@ -56,7 +64,14 @@ const STATUS_TABS: { value: StatusFilter; label: string }[] = [
 ];
 
 function formatAbsolute(value: Date | string): string {
-  return new Date(value).toLocaleString('es-CL', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'America/Santiago' });
+  return new Date(value).toLocaleString('es-CL', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'America/Santiago',
+  });
 }
 
 const relativeFormat = new Intl.RelativeTimeFormat('es-CL', { numeric: 'auto' });
@@ -97,16 +112,24 @@ function toQuery(filters: Filters, siteId?: string) {
   };
 }
 
-function exportHref(query: ReturnType<typeof toQuery>): string {
+function exportHref(query: ReturnType<typeof toQuery>, store = false): string {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) if (value) params.set(key, value);
-  return `/api/web-sites/messages/export?${params.toString()}`;
+  return `${store ? '/api/store/messages/export' : '/api/web-sites/messages/export'}?${params.toString()}`;
 }
 
 export default function WebSiteMessagesPanel({ siteId, canWrite, routeTargets = [], initialFormId = null, onUnreadChange }: Props) {
+  const { actions: editorActions, scope } = useEditorRuntime();
   const confirm = useConfirm();
   const searchId = useId();
-  const [filters, setFilters] = useState<Filters>(() => ({ status: 'inbox', formKey: siteId && initialFormId ? formKeyOf(siteId, initialFormId) : '', purpose: '', destination: '', tag: '', q: '' }));
+  const [filters, setFilters] = useState<Filters>(() => ({
+    status: 'inbox',
+    formKey: siteId && initialFormId ? formKeyOf(siteId, initialFormId) : '',
+    purpose: '',
+    destination: '',
+    tag: '',
+    q: '',
+  }));
   const [search, setSearch] = useState('');
   const [page, setPage] = useState<FormMessagesPage | null>(null);
   const [loading, setLoading] = useState(true);
@@ -138,7 +161,8 @@ export default function WebSiteMessagesPanel({ siteId, canWrite, routeTargets = 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    listFormMessagesAction(query)
+    editorActions
+      .listFormMessagesAction(query)
       .then((result) => {
         if (cancelled) return;
         if (result.success) {
@@ -160,15 +184,17 @@ export default function WebSiteMessagesPanel({ siteId, canWrite, routeTargets = 
     return () => {
       cancelled = true;
     };
-  }, [query, reloadKey]);
+  }, [query, reloadKey, editorActions]);
 
   const reload = useCallback(() => {
     setError(null);
     setReloadKey((key) => key + 1);
   }, []);
 
-  const patchRow = (id: string, patch: Partial<FormMessageRow>) => setPage((current) => (current ? { ...current, rows: current.rows.map((row) => (row.id === id ? { ...row, ...patch } : row)) } : current));
-  const dropRow = (id: string) => setPage((current) => (current ? { ...current, rows: current.rows.filter((row) => row.id !== id), total: Math.max(0, current.total - 1) } : current));
+  const patchRow = (id: string, patch: Partial<FormMessageRow>) =>
+    setPage((current) => (current ? { ...current, rows: current.rows.map((row) => (row.id === id ? { ...row, ...patch } : row)) } : current));
+  const dropRow = (id: string) =>
+    setPage((current) => (current ? { ...current, rows: current.rows.filter((row) => row.id !== id), total: Math.max(0, current.total - 1) } : current));
 
   async function toggleRead(message: FormMessageRow) {
     const markRead = !message.readAt;
@@ -177,7 +203,7 @@ export default function WebSiteMessagesPanel({ siteId, canWrite, routeTargets = 
     patchRow(message.id, { readAt: markRead ? new Date() : null });
     setPage((current) => (current ? { ...current, unread: Math.max(0, current.unread + (markRead ? -1 : 1)) } : current));
     try {
-      const result = await setWebSiteMessageReadAction(message.id, markRead);
+      const result = await editorActions.setWebSiteMessageReadAction(message.id, markRead);
       if (!result.success) {
         patchRow(message.id, { readAt: previous });
         reload();
@@ -195,7 +221,7 @@ export default function WebSiteMessagesPanel({ siteId, canWrite, routeTargets = 
     const archive = !message.archivedAt;
     setBusyId(message.id);
     try {
-      const result = await setWebSiteMessageArchivedAction(message.id, archive);
+      const result = await editorActions.setWebSiteMessageArchivedAction(message.id, archive);
       if (!result.success) return void toast.error(result.error);
       if ((archive && filters.status !== 'all' && filters.status !== 'archived') || (!archive && filters.status === 'archived')) dropRow(message.id);
       else patchRow(message.id, { archivedAt: archive ? new Date() : null, readAt: archive ? (message.readAt ?? new Date()) : message.readAt });
@@ -217,7 +243,7 @@ export default function WebSiteMessagesPanel({ siteId, canWrite, routeTargets = 
     if (!ok) return;
     setBusyId(message.id);
     try {
-      const result = await deleteWebSiteMessageAction(message.id);
+      const result = await editorActions.deleteWebSiteMessageAction(message.id);
       if (!result.success) return void toast.error(result.error);
       dropRow(message.id);
       toast.success('Mensaje eliminado');
@@ -238,9 +264,15 @@ export default function WebSiteMessagesPanel({ siteId, canWrite, routeTargets = 
     if (!ok) return;
     setBusyId(message.id);
     try {
-      const result = await routeWebSiteMessageAction(message.id, target);
+      const result = await editorActions.routeWebSiteMessageAction(message.id, target);
       if (!result.success) return void toast.error(result.error);
-      patchRow(message.id, { routedKind: result.data.kind, routedHref: result.data.href, routedId: result.data.id, routeNote: result.data.note, readAt: message.readAt ?? new Date() });
+      patchRow(message.id, {
+        routedKind: result.data.kind,
+        routedHref: result.data.href,
+        routedId: result.data.id,
+        routeNote: result.data.note,
+        readAt: message.readAt ?? new Date(),
+      });
       toast.success(result.message ?? 'Listo');
       reload();
     } catch {
@@ -252,7 +284,7 @@ export default function WebSiteMessagesPanel({ siteId, canWrite, routeTargets = 
 
   async function markAllRead() {
     try {
-      const result = await markWebSiteMessagesReadAction(query);
+      const result = await editorActions.markWebSiteMessagesReadAction(query);
       if (!result.success) return void toast.error(result.error);
       toast.success(result.message ?? 'Listo');
       reload();
@@ -277,7 +309,8 @@ export default function WebSiteMessagesPanel({ siteId, canWrite, routeTargets = 
               {page && page.unread > 0 && <StatusBadge tone="info">{page.unread} sin leer</StatusBadge>}
             </h2>
             <p className="text-xs text-muted-foreground">
-              Lo que llega desde {scoped ? 'los formularios de todos tus sitios' : 'los formularios de este sitio'}: contacto, cotizaciones, inscripciones y más, con dónde quedó cada uno en el ERP.
+              Lo que llega desde {scoped ? 'los formularios de todos tus sitios' : 'los formularios de este sitio'}: contacto, cotizaciones, inscripciones y
+              más, con dónde quedó cada uno en el ERP.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -286,7 +319,7 @@ export default function WebSiteMessagesPanel({ siteId, canWrite, routeTargets = 
                 <CheckCheck aria-hidden="true" /> Marcar todo como leído
               </Button>
             ) : null}
-            <a href={exportHref(query)} className={buttonVariants({ variant: 'outline', size: 'sm' })} download>
+            <a href={exportHref(query, scope === 'store')} className={buttonVariants({ variant: 'outline', size: 'sm' })} download>
               <Download aria-hidden="true" /> Excel
             </a>
             <Button type="button" variant="outline" size="sm" onClick={reload} disabled={loading}>
@@ -303,7 +336,10 @@ export default function WebSiteMessagesPanel({ siteId, canWrite, routeTargets = 
               role="tab"
               aria-selected={filters.status === tab.value}
               onClick={() => set({ status: tab.value })}
-              className={cn('rounded px-3 py-1 text-xs font-medium transition-colors', filters.status === tab.value ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}
+              className={cn(
+                'rounded px-3 py-1 text-xs font-medium transition-colors',
+                filters.status === tab.value ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+              )}
             >
               {tab.label}
             </button>
@@ -327,7 +363,12 @@ export default function WebSiteMessagesPanel({ siteId, canWrite, routeTargets = 
               </option>
             ))}
           </select>
-          <select aria-label="Propósito" className={nativeSelectClass} value={filters.purpose} onChange={(event) => set({ purpose: event.target.value as FormPurpose | '' })}>
+          <select
+            aria-label="Propósito"
+            className={nativeSelectClass}
+            value={filters.purpose}
+            onChange={(event) => set({ purpose: event.target.value as FormPurpose | '' })}
+          >
             <option value="">Cualquier propósito</option>
             {FORM_PURPOSES.map((purpose) => (
               <option key={purpose} value={purpose}>
@@ -335,7 +376,12 @@ export default function WebSiteMessagesPanel({ siteId, canWrite, routeTargets = 
               </option>
             ))}
           </select>
-          <select aria-label="Destino en el ERP" className={nativeSelectClass} value={filters.destination} onChange={(event) => set({ destination: event.target.value as FormDestination | '' })}>
+          <select
+            aria-label="Destino en el ERP"
+            className={nativeSelectClass}
+            value={filters.destination}
+            onChange={(event) => set({ destination: event.target.value as FormDestination | '' })}
+          >
             <option value="">Cualquier destino</option>
             {FORM_DESTINATIONS.map((destination) => (
               <option key={destination} value={destination}>
@@ -343,7 +389,13 @@ export default function WebSiteMessagesPanel({ siteId, canWrite, routeTargets = 
               </option>
             ))}
           </select>
-          <select aria-label="Etiqueta" className={nativeSelectClass} value={filters.tag} onChange={(event) => set({ tag: event.target.value })} disabled={(page?.tags.length ?? 0) === 0 && !filters.tag}>
+          <select
+            aria-label="Etiqueta"
+            className={nativeSelectClass}
+            value={filters.tag}
+            onChange={(event) => set({ tag: event.target.value })}
+            disabled={(page?.tags.length ?? 0) === 0 && !filters.tag}
+          >
             <option value="">Cualquier etiqueta</option>
             {(page?.tags ?? []).map((tag) => (
               <option key={tag} value={tag}>
@@ -352,7 +404,11 @@ export default function WebSiteMessagesPanel({ siteId, canWrite, routeTargets = 
             ))}
           </select>
         </div>
-        {page && page.total > rows.length ? <p className="text-xs text-muted-foreground">Se muestran los {rows.length} más recientes de {page.total}. Usa los filtros o descarga el Excel para verlos todos.</p> : null}
+        {page && page.total > rows.length ? (
+          <p className="text-xs text-muted-foreground">
+            Se muestran los {rows.length} más recientes de {page.total}. Usa los filtros o descarga el Excel para verlos todos.
+          </p>
+        ) : null}
       </div>
 
       {loading && !page && !error ? (
@@ -366,7 +422,13 @@ export default function WebSiteMessagesPanel({ siteId, canWrite, routeTargets = 
           ))}
         </ul>
       ) : error && !page ? (
-        <EmptyState icon={<Inbox className="size-10 text-muted-foreground/40" aria-hidden="true" />} title="No pudimos cargar los mensajes" description={error} actionLabel="Reintentar" onAction={reload} />
+        <EmptyState
+          icon={<Inbox className="size-10 text-muted-foreground/40" aria-hidden="true" />}
+          title="No pudimos cargar los mensajes"
+          description={error}
+          actionLabel="Reintentar"
+          onAction={reload}
+        />
       ) : rows.length === 0 ? (
         filtered || filters.status !== 'inbox' ? (
           <EmptyState

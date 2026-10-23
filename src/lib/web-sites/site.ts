@@ -116,7 +116,9 @@ export const footerSchema = z.object({
 });
 export type SiteFooter = z.infer<typeof footerSchema>;
 
-export const socialSchema = z.object(Object.fromEntries(SOCIAL_NETWORKS.map((network) => [network, text(200)])) as Record<SocialNetwork, ReturnType<typeof text>>);
+export const socialSchema = z.object(
+  Object.fromEntries(SOCIAL_NETWORKS.map((network) => [network, text(200)])) as Record<SocialNetwork, ReturnType<typeof text>>,
+);
 export type SiteSocial = z.infer<typeof socialSchema>;
 
 export const whatsappButtonSchema = z.object({
@@ -180,7 +182,8 @@ export const siteDocumentSchema = z
       if (index > 0) {
         const problem = pageSlugProblem(page.slug);
         if (problem) ctx.addIssue({ code: 'custom', message: `Página «${page.title}»: ${problem.toLowerCase()}`, path: ['pages', index, 'slug'] });
-        else if (slugs.has(page.slug)) ctx.addIssue({ code: 'custom', message: `Dos páginas usan la dirección «${page.slug}»`, path: ['pages', index, 'slug'] });
+        else if (slugs.has(page.slug))
+          ctx.addIssue({ code: 'custom', message: `Dos páginas usan la dirección «${page.slug}»`, path: ['pages', index, 'slug'] });
         slugs.add(page.slug);
       }
       for (const block of page.blocks) {
@@ -189,8 +192,10 @@ export const siteDocumentSchema = z
       }
       totalBlocks += page.blocks.length;
     });
-    if (totalBlocks > MAX_TOTAL_BLOCKS) ctx.addIssue({ code: 'custom', message: `El sitio puede tener hasta ${MAX_TOTAL_BLOCKS} secciones en total`, path: ['pages'] });
-    if (JSON.stringify(doc).length > MAX_DOCUMENT_BYTES) ctx.addIssue({ code: 'custom', message: 'El sitio es demasiado grande. Divide el contenido o quita secciones que no uses.', path: ['pages'] });
+    if (totalBlocks > MAX_TOTAL_BLOCKS)
+      ctx.addIssue({ code: 'custom', message: `El sitio puede tener hasta ${MAX_TOTAL_BLOCKS} secciones en total`, path: ['pages'] });
+    if (JSON.stringify(doc).length > MAX_DOCUMENT_BYTES)
+      ctx.addIssue({ code: 'custom', message: 'El sitio es demasiado grande. Divide el contenido o quita secciones que no uses.', path: ['pages'] });
   });
 
 export type SiteDocument = z.infer<typeof siteDocumentSchema>;
@@ -370,6 +375,12 @@ export function pagePath(page: SitePage, doc: SiteDocument, basePath: string): s
 // Enlaces
 // ---------------------------------------------------------------------------
 
+export const STORE_LINK_TARGETS = [
+  { value: 'store:catalog', label: 'Catálogo de productos', path: 'tienda' },
+  { value: 'store:cart', label: 'Carrito de compras', path: 'carrito' },
+  { value: 'store:checkout', label: 'Finalizar compra', path: 'finalizar-compra' },
+] as const;
+
 const PAGE_LINK_RE = /^page:([\w-]{1,40})(?:#([\w-]{1,60}))?$/;
 
 /** `page:<id>` o `page:<id>#ancla` → partes; `null` si no es un enlace interno. */
@@ -383,6 +394,7 @@ export function pageLink(pageId: string, anchor?: string | null): string {
 }
 
 export interface LinkContext {
+  commerce?: boolean;
   doc: SiteDocument;
   /** Página en la que está el enlace (un `#ancla` suelto es de esta página). */
   pageId: string;
@@ -405,6 +417,8 @@ export interface ResolvedLink {
 export function resolveLink(raw: string | null | undefined, ctx: LinkContext): ResolvedLink | null {
   const value = (raw ?? '').trim();
   if (!value) return null;
+  const storeTarget = STORE_LINK_TARGETS.find((target) => target.value === value);
+  if (storeTarget) return ctx.commerce ? { href: `${ctx.basePath}/${storeTarget.path}`, external: false, pageId: null, anchor: null } : null;
   const internal = parsePageLink(value);
   if (internal) {
     const target = publishedPages(ctx.doc).find((page) => page.id === internal.pageId);
@@ -421,6 +435,7 @@ export function resolveLink(raw: string | null | undefined, ctx: LinkContext): R
 
 /** ¿El enlace es válido dentro de este sitio? (para avisar antes de publicar). */
 export function isValidSiteLink(raw: string, doc: SiteDocument): boolean {
+  if (STORE_LINK_TARGETS.some((target) => target.value === raw.trim())) return true;
   const internal = parsePageLink(raw);
   if (internal) return publishedPages(doc).some((page) => page.id === internal.pageId);
   return safeHref(raw) !== null;
@@ -463,7 +478,9 @@ export function siteMenu(doc: SiteDocument, pageId: string): SiteNavItem[] {
         label: item.label,
         href: item.href,
         newTab: item.newTab,
-        children: item.children.filter((child) => child.label.trim() && child.href.trim()).map((child) => ({ key: child.id, label: child.label, href: child.href, newTab: child.newTab, children: [] })),
+        children: item.children
+          .filter((child) => child.label.trim() && child.href.trim())
+          .map((child) => ({ key: child.id, label: child.label, href: child.href, newTab: child.newTab, children: [] })),
       }))
       .filter((item) => item.href.trim() || item.children.length > 0);
   }
@@ -476,13 +493,18 @@ export function siteMenu(doc: SiteDocument, pageId: string): SiteNavItem[] {
   // Las anclas se calculan con TODAS las secciones visibles (igual que el renderizador) y después se descartan las vacías.
   const anchors = pageBlockAnchors(current);
   const published = new Set(current.blocks.filter((block) => !block.hidden && !isBlockEmpty(block)).map((block) => anchors.get(block.id)));
-  return buildNav(current.blocks).filter((entry) => published.has(entry.anchor)).map((entry) => ({ key: entry.anchor, label: entry.label, href: `#${entry.anchor}`, newTab: false, children: [] }));
+  return buildNav(current.blocks)
+    .filter((entry) => published.has(entry.anchor))
+    .map((entry) => ({ key: entry.anchor, label: entry.label, href: `#${entry.anchor}`, newTab: false, children: [] }));
 }
 
 /** Menú automático convertido en editable (el punto de partida al pasar a "menú propio"). */
 export function autoMenuItems(doc: SiteDocument): MenuItem[] {
   const pages = publishedPages(doc).filter((page) => page.showInMenu);
-  if (pages.length > 1) return pages.slice(0, MAX_MENU_ITEMS).map((page) => menuItemSchema.parse({ id: newLinkId(), label: pageMenuLabel(page).slice(0, 40), href: pageLink(page.id) }));
+  if (pages.length > 1)
+    return pages
+      .slice(0, MAX_MENU_ITEMS)
+      .map((page) => menuItemSchema.parse({ id: newLinkId(), label: pageMenuLabel(page).slice(0, 40), href: pageLink(page.id) }));
   const home = homeOf(doc);
   return buildNav(home.blocks)
     .slice(0, MAX_MENU_ITEMS)
@@ -494,16 +516,19 @@ export function chromeLinks(doc: SiteDocument): { label: string; href: string }[
   const out: { label: string; href: string }[] = [];
   if (doc.header.enabled) {
     if (doc.header.ctaHref.trim()) out.push({ label: `el botón «${doc.header.ctaLabel || 'del encabezado'}» del encabezado`, href: doc.header.ctaHref });
-    if (doc.header.announcement.enabled && doc.header.announcement.href.trim()) out.push({ label: 'el enlace de la barra de anuncio', href: doc.header.announcement.href });
+    if (doc.header.announcement.enabled && doc.header.announcement.href.trim())
+      out.push({ label: 'el enlace de la barra de anuncio', href: doc.header.announcement.href });
     if (doc.header.menuMode === 'custom') {
       for (const item of doc.header.menu) {
         if (item.href.trim()) out.push({ label: `el ítem «${item.label || 'sin nombre'}» del menú`, href: item.href });
-        for (const child of item.children) if (child.href.trim()) out.push({ label: `el ítem «${child.label || 'sin nombre'}» del submenú «${item.label}»`, href: child.href });
+        for (const child of item.children)
+          if (child.href.trim()) out.push({ label: `el ítem «${child.label || 'sin nombre'}» del submenú «${item.label}»`, href: child.href });
       }
     }
   }
   if (doc.footer.enabled && doc.footer.layout === 'columns') {
-    for (const column of doc.footer.columns) for (const entry of column.links) if (entry.href.trim()) out.push({ label: `el enlace «${entry.label || 'sin nombre'}» del pie`, href: entry.href });
+    for (const column of doc.footer.columns)
+      for (const entry of column.links) if (entry.href.trim()) out.push({ label: `el enlace «${entry.label || 'sin nombre'}» del pie`, href: entry.href });
   }
   return out;
 }
@@ -527,7 +552,13 @@ export function duplicatePage(doc: SiteDocument, pageId: string): { doc: SiteDoc
   if (!source) return null;
   const used = new Set(doc.pages.slice(1).map((page) => page.slug));
   const title = `${source.title} (copia)`.slice(0, 60);
-  const page: SitePage = { ...structuredClone(source), id: newPageId(), title, slug: uniquePageSlug(`${source.slug || 'inicio'}-copia`, title, used), blocks: source.blocks.map(cloneBlock) };
+  const page: SitePage = {
+    ...structuredClone(source),
+    id: newPageId(),
+    title,
+    slug: uniquePageSlug(`${source.slug || 'inicio'}-copia`, title, used),
+    blocks: source.blocks.map(cloneBlock),
+  };
   const pages = [...doc.pages];
   pages.splice(index + 1, 0, page);
   return { doc: { ...doc, pages }, page };
@@ -540,7 +571,9 @@ function withoutLinksTo(doc: SiteDocument, pageId: string): SiteDocument {
     ...doc,
     header: {
       ...doc.header,
-      menu: doc.header.menu.filter((item) => keep(item.href) || item.children.some((child) => keep(child.href))).map((item) => ({ ...item, href: keep(item.href) ? item.href : '', children: item.children.filter((child) => keep(child.href)) })),
+      menu: doc.header.menu
+        .filter((item) => keep(item.href) || item.children.some((child) => keep(child.href)))
+        .map((item) => ({ ...item, href: keep(item.href) ? item.href : '', children: item.children.filter((child) => keep(child.href)) })),
     },
     footer: { ...doc.footer, columns: doc.footer.columns.map((column) => ({ ...column, links: column.links.filter((entry) => keep(entry.href)) })) },
   };
@@ -575,7 +608,10 @@ export function setHomePage(doc: SiteDocument, pageId: string): SiteDocument {
 }
 
 export function updatePage(doc: SiteDocument, pageId: string, patch: Partial<Omit<SitePage, 'id'>>): SiteDocument {
-  return { ...doc, pages: doc.pages.map((page, index) => (page.id === pageId ? { ...page, ...patch, ...(index === 0 ? { slug: '', hidden: false } : {}) } : page)) };
+  return {
+    ...doc,
+    pages: doc.pages.map((page, index) => (page.id === pageId ? { ...page, ...patch, ...(index === 0 ? { slug: '', hidden: false } : {}) } : page)),
+  };
 }
 
 export function setPageBlocks(doc: SiteDocument, pageId: string, updater: (blocks: WebSiteBlock[]) => WebSiteBlock[]): SiteDocument {

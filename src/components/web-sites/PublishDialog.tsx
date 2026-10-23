@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import type { ReadinessReport } from '@/lib/web-sites/readiness';
 
 interface PublishDialogProps {
+  commerce?: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   report: ReadinessReport;
@@ -19,16 +20,30 @@ interface PublishDialogProps {
 }
 
 /** Resumen de "qué le falta" antes de publicar: bloqueadores en rojo, recomendaciones en ámbar. */
-export function PublishDialog({ open, onOpenChange, report, republish, unsavedNote, publishing, onConfirm, onSeeReadiness }: PublishDialogProps) {
+export function PublishDialog({
+  commerce = false,
+  open,
+  onOpenChange,
+  report,
+  republish,
+  unsavedNote,
+  publishing,
+  onConfirm,
+  onSeeReadiness,
+}: PublishDialogProps) {
   const blockers = report.items.filter((item) => item.required && !item.ok);
   const advice = report.items.filter((item) => !item.required && !item.ok);
   return (
     <Dialog open={open} onOpenChange={(next) => !publishing && onOpenChange(next)}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>{republish ? 'Publicar cambios' : 'Publicar sitio'}</DialogTitle>
+          <DialogTitle>{republish ? 'Publicar cambios' : commerce ? 'Publicar páginas de marca' : 'Publicar sitio'}</DialogTitle>
           <DialogDescription>
-            {republish ? 'Las visitas verán la versión que estás editando ahora.' : 'Al publicar, tu sitio queda visible en internet para cualquiera que tenga el enlace.'}
+            {commerce
+              ? 'Tu marca y sus páginas quedarán visibles. Las compras se abren por separado en la administración, cuando productos, pagos y entregas estén listos.'
+              : republish
+                ? 'Las visitas verán la versión que estás editando ahora.'
+                : 'Al publicar, tu sitio queda visible en internet para cualquiera que tenga el enlace.'}
             {unsavedNote ? ' Antes se guardarán tus cambios pendientes.' : ''}
           </DialogDescription>
         </DialogHeader>
@@ -79,7 +94,8 @@ export function PublishDialog({ open, onOpenChange, report, republish, unsavedNo
             Cancelar
           </Button>
           <Button type="button" disabled={!report.canPublish || publishing} onClick={onConfirm}>
-            {publishing ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Globe aria-hidden="true" />} {republish ? 'Publicar cambios' : 'Publicar ahora'}
+            {publishing ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Globe aria-hidden="true" />}{' '}
+            {republish ? 'Publicar cambios' : 'Publicar ahora'}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -29,7 +29,10 @@ jest.mock('@/lib/hosting/vercel-domains', () => ({
 }));
 jest.mock('node:dns/promises', () => ({ resolve4: jest.fn(), resolveCname: jest.fn() }));
 // La prueba real de un dominio pide https://dominio/api/hosting/ping: sin red en los tests, la IP se da por pública y `fetch` se simula.
-jest.mock('@/lib/security/outbound-url', () => ({ ...jest.requireActual('@/lib/security/outbound-url'), assertResolvesToPublicAddress: jest.fn().mockResolvedValue(undefined) }));
+jest.mock('@/lib/security/outbound-url', () => ({
+  ...jest.requireActual('@/lib/security/outbound-url'),
+  assertResolvesToPublicAddress: jest.fn().mockResolvedValue(undefined),
+}));
 jest.mock('jose', () => ({ jwtVerify: jest.fn(), SignJWT: jest.fn() }));
 jest.mock('@/lib/auth/audit', () => ({ createAuditLog: jest.fn() }));
 jest.mock('@/lib/storage/blob', () => ({ del: jest.fn() }));
@@ -44,13 +47,7 @@ import { Prisma, type Role } from '@prisma/client';
 import { resolvePermissions, sanitizePermissions } from '@/lib/auth/effective-permissions';
 import { createAuditLog } from '@/lib/auth/audit';
 import { AuthError, requireAuthWithPermission } from '@/lib/auth/guards';
-import {
-  DEFAULT_FEATURES,
-  availablePermissionGroups,
-  blockedModuleForRoute,
-  moduleForPermission,
-  type CompanyFeatureFlags,
-} from '@/lib/auth/modules';
+import { DEFAULT_FEATURES, availablePermissionGroups, blockedModuleForRoute, moduleForPermission, type CompanyFeatureFlags } from '@/lib/auth/modules';
 import { ALL_PERMISSIONS, checkPermission, permissionsForRole, rolesWithPermission, type Permission } from '@/lib/auth/permissions';
 import { buildAvailableWorkspaceNav } from '@/lib/navigation/workspace-nav';
 import { prisma } from '@/lib/prisma';
@@ -109,6 +106,7 @@ const MODEL_METHODS = {
   academySite: ['findUnique'],
   company: ['findFirst', 'findUnique'],
   storeOrder: ['count'],
+  webSiteStore: ['findFirst'],
 } as const;
 
 interface Db {
@@ -120,6 +118,7 @@ interface Db {
   academySite: Mocks;
   company: Mocks;
   storeOrder: Mocks;
+  webSiteStore: Mocks;
 }
 
 function delegateOf(model: string): Delegate {
@@ -155,6 +154,7 @@ beforeEach(() => {
   jest.restoreAllMocks();
   jest.resetAllMocks();
   db = installDb();
+  db.webSiteStore.findFirst.mockResolvedValue(null);
   // Tope de sitios de la empresa (lo fija la Supersuite): por omisión el que regía antes.
   db.company.findUnique.mockResolvedValue({ maxWebSites: MAX_SITES_PER_COMPANY });
   jest.mocked(isAllowedBlobUrl).mockImplementation((url: string) => url.startsWith('https://blob.test/'));
@@ -328,10 +328,10 @@ describe('saveWebSiteContent: guardar el borrador', () => {
     db.webSite.updateMany.mockResolvedValue({ count: 0 });
 
     await expect(saveWebSiteContent(COMPANY, SITE, { theme: parseTheme({}), expectedUpdatedAt: '2026-09-02T10:00:00.123Z' })).rejects.toThrow(
-      /Otra persona guardó cambios en este sitio mientras lo editabas/
+      /Otra persona guardó cambios en este sitio mientras lo editabas/,
     );
     await expect(saveWebSiteContent(COMPANY, SITE, { theme: parseTheme({}), expectedUpdatedAt: '2026-09-02T10:00:00.123Z' })).rejects.toBeInstanceOf(
-      WebSiteError
+      WebSiteError,
     );
   });
 
@@ -453,7 +453,10 @@ describe('imágenes propias de la empresa: host permitido Y carpeta de la empres
       ogImageUrl: 'https://blob.test/web-sites/company-a/site-1/og.png',
     });
 
-    expect(argsOf(db.webSite.updateMany).data).toMatchObject({ logoUrl: 'https://blob.test/branding/company-a/logo.png', ogImageUrl: 'https://blob.test/web-sites/company-a/site-1/og.png' });
+    expect(argsOf(db.webSite.updateMany).data).toMatchObject({
+      logoUrl: 'https://blob.test/branding/company-a/logo.png',
+      ogImageUrl: 'https://blob.test/web-sites/company-a/site-1/og.png',
+    });
   });
 });
 
@@ -554,7 +557,12 @@ describe('unusedAssetUrls y countRecentMessages: siempre por empresa', () => {
 
 describe('publishWebSite: publicar exige la lista "qué falta"', () => {
   it('con un sitio incompleto lanza un error que lista lo que falta y no publica', async () => {
-    const incompleto = siteRow({ draftBlocks: [{ ...createBlock('hero'), title: '' }, { ...createBlock('contact'), showForm: false }] });
+    const incompleto = siteRow({
+      draftBlocks: [
+        { ...createBlock('hero'), title: '' },
+        { ...createBlock('contact'), showForm: false },
+      ],
+    });
     db.webSite.findFirst.mockResolvedValue(incompleto);
     db.webSiteMessage.count.mockResolvedValue(0);
 
@@ -657,7 +665,7 @@ describe('getPublicWebSite: lo que ve el público', () => {
     async (slug) => {
       await expect(getPublicWebSite(slug)).resolves.toBeNull();
       expect(db.webSite.findUnique).not.toHaveBeenCalled();
-    }
+    },
   );
 
   it('consulta por slug y solo selecciona campos publicados (nunca el borrador)', async () => {
@@ -700,7 +708,10 @@ describe('getPublicWebSite: lo que ve el público', () => {
   });
 
   it('entrega los bloques PUBLICADOS parseados, no el borrador', async () => {
-    const published = [{ ...createBlock('hero'), title: 'Título publicado' }, { ...createBlock('contact'), showForm: true }];
+    const published = [
+      { ...createBlock('hero'), title: 'Título publicado' },
+      { ...createBlock('contact'), showForm: true },
+    ];
     db.webSite.findUnique.mockResolvedValue(
       publicRow({
         publishedBlocks: published,
@@ -709,7 +720,7 @@ describe('getPublicWebSite: lo que ve el público', () => {
         publishedTheme: { primary: '#abcdef' },
         seoTitle: '  Título SEO  ',
         seoDescription: '  ',
-      })
+      }),
     );
 
     const site = await getPublicWebSite('solar-sur');
@@ -724,7 +735,14 @@ describe('getPublicWebSite: lo que ve el público', () => {
   });
 
   it('descarta bloques dañados del JSON publicado sin tumbar el sitio', async () => {
-    db.webSite.findUnique.mockResolvedValue(publicRow({ publishedBlocks: [{ id: 'x', type: 'inexistente' }, { ...createBlock('hero'), title: 'Ok' }] }));
+    db.webSite.findUnique.mockResolvedValue(
+      publicRow({
+        publishedBlocks: [
+          { id: 'x', type: 'inexistente' },
+          { ...createBlock('hero'), title: 'Ok' },
+        ],
+      }),
+    );
     const site = await getPublicWebSite('solar-sur');
     expect(site!.blocks).toHaveLength(1);
   });
@@ -804,7 +822,11 @@ describe('getPublicWebSiteByDomain: dominio propio', () => {
     await expect(getPublicWebSiteByDomain('solar.cl', true)).resolves.toBeNull();
 
     db.webSite.findUnique.mockResolvedValueOnce(
-      publicRow({ customDomain: 'solar.cl', customDomainVerifiedAt: verified, company: { businessName: 'X', status: 'SUSPENDED', features: { hasWebSites: true } } })
+      publicRow({
+        customDomain: 'solar.cl',
+        customDomainVerifiedAt: verified,
+        company: { businessName: 'X', status: 'SUSPENDED', features: { hasWebSites: true } },
+      }),
     );
     await expect(getPublicWebSiteByDomain('solar.cl', true)).resolves.toBeNull();
   });
@@ -823,7 +845,11 @@ describe('deleteWebSite', () => {
   });
 
   it.each(['DRAFT', 'ARCHIVED'])('elimina con deleteMany acotado a la empresa un sitio en estado %s y devuelve archivos y dominio', async (status) => {
-    db.webSite.findFirst.mockResolvedValue({ status, customDomain: 'solar.cl', assets: [{ url: 'https://blob.test/a.png' }, { url: 'https://blob.test/b.png' }] });
+    db.webSite.findFirst.mockResolvedValue({
+      status,
+      customDomain: 'solar.cl',
+      assets: [{ url: 'https://blob.test/a.png' }, { url: 'https://blob.test/b.png' }],
+    });
     db.storeOrder.count.mockResolvedValue(0);
     db.webSite.deleteMany.mockResolvedValue({ count: 1 });
 
@@ -1098,6 +1124,7 @@ function matches(row: Row, where: Row = {}): boolean {
     if (cond instanceof Date) return row[key] instanceof Date && (row[key] as Date).getTime() === cond.getTime();
     if (cond !== null && typeof cond === 'object') {
       const op = cond as Row;
+      if (key === 'store' && 'is' in op) return row.store ? matches(row.store as Row, op.is as Row) : false;
       if ('not' in op) return row[key] !== op.not;
       if ('in' in op) return (op.in as unknown[]).includes(row[key]);
       throw new Error(`Operador no soportado por el fake: ${key}`);
@@ -1194,7 +1221,12 @@ describe('aislamiento multi-tenant: la sesión de A nunca toca registros de B', 
     expect(quota).toEqual({ used: 1, max: MAX_SITES_PER_COMPANY, remaining: MAX_SITES_PER_COMPANY - 1, reached: false });
     expect(argsOf(db.company.findUnique).where).toEqual({ id: 'A' });
     expect(rows[0]!.unreadMessages).toBe(1);
-    expect(fake.calls.map((call) => `${call.model}.${call.method}`).sort()).toEqual(['webSite.findMany', 'webSite.groupBy', 'webSiteMessage.groupBy']);
+    expect(fake.calls.map((call) => `${call.model}.${call.method}`).sort()).toEqual([
+      'webSite.count',
+      'webSite.findMany',
+      'webSite.groupBy',
+      'webSiteMessage.groupBy',
+    ]);
     expectAllScoped(fake.calls, 'A');
   });
 
@@ -1230,7 +1262,7 @@ describe('aislamiento multi-tenant: la sesión de A nunca toca registros de B', 
 
   it('updateWebSiteSettings: rechaza un contactId de B', async () => {
     await expect(updateWebSiteSettings('A', 'site-a', { name: 'Nuevo', slug: 'sitio-a', indexable: true, contactId: 'contact-b' })).rejects.toThrow(
-      'El cliente seleccionado no existe'
+      'El cliente seleccionado no existe',
     );
     expect(fake.byId('webSite', 'site-a')?.contactId).toBeNull();
   });
@@ -1300,7 +1332,7 @@ describe('aislamiento multi-tenant: la sesión de A nunca toca registros de B', 
       throw new Error('no debería crear');
     }) as never);
     await expect(createWebSite('A', { name: 'x' }, { name: 'Sitio nuevo', kind: 'BLANK', mode: 'GUIDED', contactId: 'contact-b' })).rejects.toThrow(
-      'El cliente seleccionado no existe'
+      'El cliente seleccionado no existe',
     );
   });
 });
@@ -1380,7 +1412,9 @@ describe('versión del contenido: la edición simultánea no se confunde con otr
     expect(first.version).not.toBe(v0);
 
     // El segundo editor también cargó v0: choca y NO pisa lo del primero.
-    await expect(saveWebSiteContent('A', 'site-a', { theme: parseTheme({ primary: '#222222' }), expectedUpdatedAt: v0 })).rejects.toThrow(/Otra persona guardó cambios/);
+    await expect(saveWebSiteContent('A', 'site-a', { theme: parseTheme({ primary: '#222222' }), expectedUpdatedAt: v0 })).rejects.toThrow(
+      /Otra persona guardó cambios/,
+    );
     expect(fake.byId('webSite', 'site-a')?.theme).toEqual(parseTheme({ primary: '#111111' }));
 
     // Tras recargar (versión nueva) sí puede guardar.
@@ -1558,7 +1592,7 @@ describe('acciones de Sitios web: RBAC por rol', () => {
     ['listWebSitesAction', () => actions.listWebSitesAction(), READ],
     ['getWebSiteAction', () => actions.getWebSiteAction('s'), READ],
     ['listFormMessagesAction', () => actions.listFormMessagesAction({ siteId: 's' }), READ],
-        ['createWebSiteAction', () => actions.createWebSiteAction({}), WRITE],
+    ['createWebSiteAction', () => actions.createWebSiteAction({}), WRITE],
     ['saveWebSiteContentAction', () => actions.saveWebSiteContentAction('s', {}), WRITE],
     ['updateWebSiteSettingsAction', () => actions.updateWebSiteSettingsAction('s', {}), WRITE],
     ['duplicateWebSiteAction', () => actions.duplicateWebSiteAction('s'), WRITE],
@@ -1591,7 +1625,14 @@ describe('acciones de Sitios web: RBAC por rol', () => {
     jest.mocked(requireAuthWithPermission).mockImplementation(async (permission: Permission) => {
       requested.push(permission);
       if (!checkPermission(currentRole, permission)) throw new AuthError(DENIED, 403);
-      return { id: 'u1', companyId: COMPANY, name: 'Ana', email: 'ana@x.cl', role: currentRole, permissions: resolvePermissions({ role: currentRole, customRolePermissions: null, features: { ...DEFAULT_FEATURES, hasWebSites: true } }) } as never;
+      return {
+        id: 'u1',
+        companyId: COMPANY,
+        name: 'Ana',
+        email: 'ana@x.cl',
+        role: currentRole,
+        permissions: resolvePermissions({ role: currentRole, customRolePermissions: null, features: { ...DEFAULT_FEATURES, hasWebSites: true } }),
+      } as never;
     });
   });
 
@@ -1677,7 +1718,9 @@ describe('acciones de Sitios web: RBAC por rol', () => {
     it('la regla es por permiso, no por rol: un rol personalizado con websites:publish sí puede, y uno sin él no', async () => {
       currentRole = 'SALES';
       const custom = (permissions: Permission[]) =>
-        jest.mocked(requireAuthWithPermission).mockResolvedValue({ id: 'u1', companyId: COMPANY, name: 'Ana', email: 'a@x.cl', role: 'SALES', permissions } as never);
+        jest
+          .mocked(requireAuthWithPermission)
+          .mockResolvedValue({ id: 'u1', companyId: COMPANY, name: 'Ana', email: 'a@x.cl', role: 'SALES', permissions } as never);
 
       custom(['websites:read', 'websites:write', 'websites:publish']);
       siteInState('PUBLISHED');
@@ -1738,7 +1781,9 @@ describe('acciones que eliminan: limpieza de archivos del almacenamiento', () =>
 
   /** getWebSite lee con include; deleteWebSite lee con select (estado, dominio y archivos). */
   function siteToDelete(assets: Array<{ url: string }>, over: Row = {}) {
-    db.webSite.findFirst.mockImplementation(async (args: { include?: unknown }) => (args.include ? siteRow() : { status: 'DRAFT', customDomain: 'solar.cl', assets, ...over }));
+    db.webSite.findFirst.mockImplementation(async (args: { include?: unknown }) =>
+      args.include ? siteRow() : { status: 'DRAFT', customDomain: 'solar.cl', assets, ...over },
+    );
     db.webSiteMessage.count.mockResolvedValue(0);
     db.storeOrder.count.mockResolvedValue(0);
     db.webSite.deleteMany.mockResolvedValue({ count: 1 });
@@ -1783,7 +1828,10 @@ describe('acciones que eliminan: limpieza de archivos del almacenamiento', () =>
     const result = await actions.deleteWebSiteAction(SITE);
 
     expect(result).toMatchObject({ success: true });
-    expect(captureException).toHaveBeenCalledWith(expect.objectContaining({ message: 'R2 timeout' }), expect.objectContaining({ module: 'sitios-web', companyId: COMPANY }));
+    expect(captureException).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'R2 timeout' }),
+      expect.objectContaining({ module: 'sitios-web', companyId: COMPANY }),
+    );
   });
 
   it('un sitio publicado no se elimina: no se borra ni fila ni archivo', async () => {
@@ -1876,7 +1924,8 @@ describe('permisos de Sitios web con la matriz real', () => {
   it('con hasWebSites=false los permisos websites:* quedan deshabilitados para TODOS los roles, incluido el OWNER', () => {
     for (const role of ['OWNER', 'ADMIN', 'SALES', 'WAREHOUSE', 'ACCOUNTANT'] as Role[]) {
       const permissions = resolvePermissions({ role, customRolePermissions: null, features: WITHOUT });
-      for (const permission of WEBSITE_PERMISSIONS) expect({ role, permission, has: permissions.includes(permission) }).toEqual({ role, permission, has: false });
+      for (const permission of WEBSITE_PERMISSIONS)
+        expect({ role, permission, has: permissions.includes(permission) }).toEqual({ role, permission, has: false });
     }
     // Lo demás sigue: la empresa no queda inutilizable por no tener el módulo.
     expect(resolvePermissions({ role: 'OWNER', customRolePermissions: null, features: WITHOUT })).toContain('settings:users');
@@ -1942,7 +1991,14 @@ describe('sitios de varias páginas', () => {
       ...doc,
       pages: [
         ...doc.pages,
-        { ...doc.pages[0]!, id: 'servicios', title: 'Servicios', slug: 'servicios', hidden, blocks: [{ ...createBlock('text'), heading: 'Servicios', body: 'Instalamos paneles.' } as WebSiteBlock, ...extra] },
+        {
+          ...doc.pages[0]!,
+          id: 'servicios',
+          title: 'Servicios',
+          slug: 'servicios',
+          hidden,
+          blocks: [{ ...createBlock('text'), heading: 'Servicios', body: 'Instalamos paneles.' } as WebSiteBlock, ...extra],
+        },
       ],
     };
   }
@@ -1956,7 +2012,11 @@ describe('sitios de varias páginas', () => {
       { ...createBlock('team'), items: [{ name: 'Ana', role: '', bio: '', photoUrl: 'https://cdn.evil.cl/ana.jpg' }] } as WebSiteBlock,
       { ...createBlock('logos'), items: [{ imageUrl: OTHER_COMPANY_ASSET, alt: 'x', href: '' }] } as WebSiteBlock,
       { ...createBlock('split'), heading: 'x', imageUrl: 'http://hotlink.cl/a.png' } as WebSiteBlock,
-      { ...createBlock('text'), heading: 'x', style: { background: 'image', backgroundImage: 'https://tracker.evil.cl/p.png', overlay: 50, spacing: 'auto', align: 'auto' } } as WebSiteBlock,
+      {
+        ...createBlock('text'),
+        heading: 'x',
+        style: { background: 'image', backgroundImage: 'https://tracker.evil.cl/p.png', overlay: 50, spacing: 'auto', align: 'auto' },
+      } as WebSiteBlock,
     ];
     for (const bad of cases) {
       guidedSite();
@@ -1979,7 +2039,12 @@ describe('sitios de varias páginas', () => {
     const doc = multiPage();
     const broken: SiteDocument = {
       ...doc,
-      pages: [{ ...doc.pages[0]!, slug: 'inicio', hidden: true }, doc.pages[1]!, { ...doc.pages[1]!, id: 'otra', slug: 'servicios', blocks: [] }, { ...doc.pages[1]!, id: 'login', title: 'Login', slug: 'login', blocks: [] }],
+      pages: [
+        { ...doc.pages[0]!, slug: 'inicio', hidden: true },
+        doc.pages[1]!,
+        { ...doc.pages[1]!, id: 'otra', slug: 'servicios', blocks: [] },
+        { ...doc.pages[1]!, id: 'login', title: 'Login', slug: 'login', blocks: [] },
+      ],
     };
     await saveWebSiteContent(COMPANY, SITE, { document: broken });
     const saved = argsOf(db.webSite.updateMany).data.draftBlocks as SiteDocument;
@@ -2004,7 +2069,9 @@ describe('sitios de varias páginas', () => {
 
   it('un sitio antiguo (lista de secciones) guardado de nuevo en el formato nuevo no cuenta como "cambios sin publicar"', async () => {
     const legacy = publishableBlocks();
-    db.webSite.findFirst.mockResolvedValue(siteRow({ status: 'PUBLISHED', publishedBlocks: legacy, publishedTheme: {}, draftBlocks: JSON.parse(JSON.stringify(parseSiteDocument(legacy))) }));
+    db.webSite.findFirst.mockResolvedValue(
+      siteRow({ status: 'PUBLISHED', publishedBlocks: legacy, publishedTheme: {}, draftBlocks: JSON.parse(JSON.stringify(parseSiteDocument(legacy))) }),
+    );
     db.webSiteMessage.count.mockResolvedValue(0);
     const site = await service.getWebSite(COMPANY, SITE);
     expect(site!.pendingChanges).toBe(false);
@@ -2072,7 +2139,9 @@ describe('productos del inventario para el catálogo', () => {
   });
 
   it('la acción exige editar sitios y además ver productos', async () => {
-    jest.mocked(requireAuthWithPermission).mockResolvedValue({ id: 'u1', companyId: COMPANY, email: 'a@b.cl', name: 'Ana', permissions: ['websites:write'] } as never);
+    jest
+      .mocked(requireAuthWithPermission)
+      .mockResolvedValue({ id: 'u1', companyId: COMPANY, email: 'a@b.cl', name: 'Ana', permissions: ['websites:write'] } as never);
     const denied = await actions.listCatalogProductsAction('x');
     expect(denied).toEqual({ success: false, error: expect.stringMatching(/productos/) });
     expect(requireAuthWithPermission).toHaveBeenCalledWith('websites:write');
@@ -2086,7 +2155,12 @@ describe('createWebSite por rubro sin permiso para ver clientes', () => {
     db.webSite.create.mockResolvedValue({ id: 'new-site', slug: 'x' });
     db.contact.findFirst.mockResolvedValueOnce({ id: 'contact-1' });
     db.company.findFirst.mockResolvedValue({ email: 'empresa@x.cl', phone: null, address: null, comuna: null });
-    await createWebSite(COMPANY, { name: 'Ana' }, { name: 'Sitio', kind: 'LANDING', mode: 'GUIDED', industry: 'restaurant', contactId: 'contact-1' }, { canReadContacts: false });
+    await createWebSite(
+      COMPANY,
+      { name: 'Ana' },
+      { name: 'Sitio', kind: 'LANDING', mode: 'GUIDED', industry: 'restaurant', contactId: 'contact-1' },
+      { canReadContacts: false },
+    );
     // Solo la verificación de que el cliente existe; nunca se leen sus datos de contacto.
     expect(db.contact.findFirst).toHaveBeenCalledTimes(1);
     const doc = argsOf(db.webSite.create).data.draftBlocks as SiteDocument;

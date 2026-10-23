@@ -53,9 +53,12 @@ export const SCREEN_PURPOSES: Record<string, string> = {
   inventory: 'Existencias por bodega, Kardex de cada producto, ajustes de stock y transferencias.',
   'inventory-counts': 'Toma de inventario: contar la bodega (a mano o con lector) y ajustar el stock a lo contado.',
   'inventory-lots': 'Saldo por lote y fechas de vencimiento; las salidas consumen primero lo que vence antes.',
-  'inventory-movements': 'Movimientos de bodega: el registro de lo que entró y salió de CADA bodega por separado, con el operario que hizo cada ajuste, el motivo (vencido, mal estado, degustación…), el proveedor de las llegadas y la foto de respaldo. Se filtra y se descarga a Excel.',
-  'inventory-consignment': 'Consignación: mercadería de sellers, que es suya hasta que se vende. Muestra su stock por seller, permite recibir y devolver mercadería, y liquidar lo vendido menos tu comisión (con su pago o anulación). No se valoriza ni genera asientos. Cada seller puede entrar a su portal con un código (se genera desde su ficha) para ver su stock, lo vendido y sus liquidaciones.',
-  'inventory-mobile': 'Bodega móvil: la app del bodeguero para el celular (llegadas, mermas, traslados, con cámara y sin señal). Aquí se abre con un QR, se ve si la identificación por foto está disponible y qué se registró desde el celular.',
+  'inventory-movements':
+    'Movimientos de bodega: el registro de lo que entró y salió de CADA bodega por separado, con el operario que hizo cada ajuste, el motivo (vencido, mal estado, degustación…), el proveedor de las llegadas y la foto de respaldo. Se filtra y se descarga a Excel.',
+  'inventory-consignment':
+    'Consignación: mercadería de sellers, que es suya hasta que se vende. Muestra su stock por seller, permite recibir y devolver mercadería, y liquidar lo vendido menos tu comisión (con su pago o anulación). No se valoriza ni genera asientos. Cada seller puede entrar a su portal con un código (se genera desde su ficha) para ver su stock, lo vendido y sus liquidaciones.',
+  'inventory-mobile':
+    'Bodega móvil: la app del bodeguero para el celular (llegadas, mermas, traslados, con cámara y sin señal). Aquí se abre con un QR, se ve si la identificación por foto está disponible y qué se registró desde el celular.',
   'inventory-labels': 'Imprimir etiquetas con código de barras en hoja A4 o rollo.',
   crm: 'Embudo de negocios por etapa (auspicios, eventos, entradas corporativas…), con pronóstico ponderado.',
   'crm-tasks': 'Agenda comercial: llamadas, reuniones y seguimientos vencidos, de hoy y próximos.',
@@ -77,10 +80,13 @@ export const SCREEN_PURPOSES: Record<string, string> = {
   'manufacturing-boms': 'Recetas (lista de materiales): qué insumos y cuánto lleva cada producto que fabricas.',
   'service-desk': 'Servicio técnico: recepción de equipos, diagnóstico, presupuesto aprobado por el cliente, reparación, entrega y cobro.',
   quality: 'Procedimientos con acuse de lectura, inspecciones de calidad por plantilla y ficha de productores.',
-  academy: 'Calendario de clases de la academia (mes o semana con horas, clases repetidas cada semana), lista de asistencia por clase, material de estudio que se envía por correo a las alumnas y sus apoderados, ficha de cada alumna y control de la mensualidad pagada. Recibe inscripciones por un link público que el equipo aprueba, y publica un sitio web propio de la academia (pestaña Sitio web).',
+  academy:
+    'Calendario de clases de la academia (mes o semana con horas, clases repetidas cada semana), lista de asistencia por clase, material de estudio que se envía por correo a las alumnas y sus apoderados, ficha de cada alumna y control de la mensualidad pagada. Recibe inscripciones por un link público que el equipo aprueba, y publica un sitio web propio de la academia (pestaña Sitio web).',
   tasks: 'Tareas del equipo con responsable y repetición, y reglas de delegación de decisiones.',
-  'web-sites': 'Crear y publicar sitios web (guiado o HTML propio), dominio propio, formularios (contacto, cotización, inscripción, reserva) que tributan al CRM, la academia o las tareas, y la bandeja de lo que llega.',
-  store: 'Ecommerce independiente, sin requerir Sitios web. Crear la tienda, configurar identidad y dominio, y vender por internet: publicar productos del inventario, carrito, pago con Khipu, Webpay Plus, transferencia o pagar al retirar, despacho por región o retiro, y atender los pedidos (confirmar pago, preparar, despachar, cancelar, reembolsar). Cada venta pagada emite el documento y descuenta la bodega.',
+  'web-sites':
+    'Crear y publicar sitios web (guiado o HTML propio), dominio propio, formularios (contacto, cotización, inscripción, reserva) que tributan al CRM, la academia o las tareas, y la bandeja de lo que llega.',
+  store:
+    'Ecommerce independiente, sin requerir Sitios web. Crear la tienda desde una plantilla, diseñar páginas de marca en el creador Ecommerce (páginas, secciones, lienzo, encabezado y pie, navegación, temas, imágenes, formularios, SEO, vista previa e IA), conectar el dominio y vender por internet: publicar productos del inventario, carrito, pago con Khipu, Webpay Plus, transferencia o pagar al retirar, despacho por región o retiro, y atender los pedidos (confirmar pago, preparar, despachar, cancelar, reembolsar). Publicar páginas y abrir compras son pasos independientes. Guardar borrador no cambia el diseño público; Ocultar portada vuelve al catálogo sin cerrar compras ni afectar pedidos. Los bloques de catálogo seleccionan colección, destacados y cantidad, con precios y stock del ERP. Cada venta pagada emite el documento y descuenta la bodega.',
   'treasury-cxc': 'Cuentas por cobrar: qué te deben los clientes, lo vencido, registrar cobros y enviar recordatorios.',
   'treasury-cxp': 'Cuentas por pagar: qué le debes a tus proveedores, lo que vence pronto y registrar pagos.',
   'treasury-cashflow': 'Ingresos y egresos reales del período por medio de pago, exportables a CSV.',
@@ -134,25 +140,135 @@ export const SCREEN_PURPOSES: Record<string, string> = {
  * gate con el mismo criterio que la pantalla.
  */
 const EXTRA_SCREENS: (NavigationEntry & Gated)[] = [
-  { label: 'Nueva venta', route: '/dashboard/sales/new', group: 'Ventas', requires: 'hasDteBilling', permission: 'sales:write', purpose: 'Formulario para emitir una factura, boleta, guía, nota o cotización.' },
-  { label: 'Nueva factura de proveedor', route: '/dashboard/purchases/new', group: 'Compras', requires: 'hasPurchases', permission: 'purchases:write', purpose: 'Formulario para registrar una factura o nota de un proveedor.' },
-  { label: 'Lista de oportunidades', route: '/dashboard/crm/list', group: 'CRM Comercial', requires: 'hasSalesPipeline', permission: 'crm:read', purpose: 'Todos los negocios en tabla, ordenables, con alertas de riesgo y exportación a Excel.' },
-  { label: 'Nuevo certamen', route: '/dashboard/projects/new', group: 'Certámenes & Eventos', requires: 'hasEventProjects', permission: 'projects:write', purpose: 'Formulario para crear un certamen o evento con fechas, presupuesto y gala.' },
-  { label: 'Recibir equipo', route: '/dashboard/service/new', group: 'Operaciones', requires: 'hasServiceDesk', permission: 'service:write', purpose: 'Registrar el ingreso de un equipo al servicio técnico.' },
-  { label: 'Tesorería & Cobranza (resumen)', route: '/dashboard/treasury', group: 'Finanzas', requires: 'hasTreasury', permission: 'treasury:read', purpose: 'Resumen de lo que entra y sale de la caja y el banco, y lo que falta por cobrar y pagar.' },
-  { label: 'Protección de datos', route: '/dashboard/settings/privacy', group: 'Configuración', permission: 'settings:company', purpose: 'Cumplimiento de la Ley 21.719: formulario público de derechos de los titulares con su plazo, búsqueda y copia de los datos de una persona, registro de actividades de tratamiento e incidentes de seguridad.' },
-  { label: 'Perfil de Empresa', route: '/dashboard/settings/company', group: 'Configuración', permission: 'settings:company', purpose: 'Razón social, RUT, giro, logo, parámetros tributarios (PPM, retención), stock negativo y umbral de aprobación de compras. También las integraciones propias de la empresa: Brevo (correo), ZapSign (firma de contratos) y Khipu (cobro en línea).' },
-  { label: 'Módulos y Menú', route: '/dashboard/settings/modules', group: 'Configuración', permission: 'settings:company', purpose: 'Encender o apagar cada sección del menú lateral para todo el equipo.' },
-  { label: 'Planes y Módulos', route: '/dashboard/settings/plans', group: 'Configuración', permission: 'settings:company', purpose: 'Ver el precio de cada plan y módulo de Aether, armar una selección y solicitar su contratación.' },
-  { label: 'Folios del SII', route: '/dashboard/settings/folios', group: 'Configuración', requires: 'hasDteBilling', permission: 'dte:manage_caf', purpose: 'Cargar los CAF del SII y ver cuántos folios quedan por tipo de documento.' },
-  { label: 'Equipo & Colaboradores', route: '/dashboard/settings/users', group: 'Configuración', permission: 'settings:users', purpose: 'Invitar personas, cambiar su rol, restablecer contraseñas y desactivar a quien ya no trabaja contigo.' },
-  { label: 'Roles Personalizados', route: '/dashboard/settings/roles', group: 'Configuración', permission: 'settings:users', purpose: 'Crear roles a medida con la lista exacta de permisos.' },
-  { label: 'Importación Masiva', route: '/dashboard/settings/import', group: 'Configuración', permission: 'import:data', purpose: 'Cargar productos, contactos, stock e históricos desde Excel, texto o fotos.' },
-  { label: 'Automatizaciones', route: '/dashboard/settings/automations', group: 'Configuración', permission: 'automation:manage', purpose: 'Reglas "cuando pase X, hacer Z": correo, aviso en la campanita o webhook.' },
-  { label: 'Auditoría & Trazabilidad', route: '/dashboard/settings/audit', group: 'Configuración', permission: 'audit:read', purpose: 'Registro de quién hizo qué y cuándo.' },
+  {
+    label: 'Nueva venta',
+    route: '/dashboard/sales/new',
+    group: 'Ventas',
+    requires: 'hasDteBilling',
+    permission: 'sales:write',
+    purpose: 'Formulario para emitir una factura, boleta, guía, nota o cotización.',
+  },
+  {
+    label: 'Nueva factura de proveedor',
+    route: '/dashboard/purchases/new',
+    group: 'Compras',
+    requires: 'hasPurchases',
+    permission: 'purchases:write',
+    purpose: 'Formulario para registrar una factura o nota de un proveedor.',
+  },
+  {
+    label: 'Lista de oportunidades',
+    route: '/dashboard/crm/list',
+    group: 'CRM Comercial',
+    requires: 'hasSalesPipeline',
+    permission: 'crm:read',
+    purpose: 'Todos los negocios en tabla, ordenables, con alertas de riesgo y exportación a Excel.',
+  },
+  {
+    label: 'Nuevo certamen',
+    route: '/dashboard/projects/new',
+    group: 'Certámenes & Eventos',
+    requires: 'hasEventProjects',
+    permission: 'projects:write',
+    purpose: 'Formulario para crear un certamen o evento con fechas, presupuesto y gala.',
+  },
+  {
+    label: 'Recibir equipo',
+    route: '/dashboard/service/new',
+    group: 'Operaciones',
+    requires: 'hasServiceDesk',
+    permission: 'service:write',
+    purpose: 'Registrar el ingreso de un equipo al servicio técnico.',
+  },
+  {
+    label: 'Tesorería & Cobranza (resumen)',
+    route: '/dashboard/treasury',
+    group: 'Finanzas',
+    requires: 'hasTreasury',
+    permission: 'treasury:read',
+    purpose: 'Resumen de lo que entra y sale de la caja y el banco, y lo que falta por cobrar y pagar.',
+  },
+  {
+    label: 'Protección de datos',
+    route: '/dashboard/settings/privacy',
+    group: 'Configuración',
+    permission: 'settings:company',
+    purpose:
+      'Cumplimiento de la Ley 21.719: formulario público de derechos de los titulares con su plazo, búsqueda y copia de los datos de una persona, registro de actividades de tratamiento e incidentes de seguridad.',
+  },
+  {
+    label: 'Perfil de Empresa',
+    route: '/dashboard/settings/company',
+    group: 'Configuración',
+    permission: 'settings:company',
+    purpose:
+      'Razón social, RUT, giro, logo, parámetros tributarios (PPM, retención), stock negativo y umbral de aprobación de compras. También las integraciones propias de la empresa: Brevo (correo), ZapSign (firma de contratos) y Khipu (cobro en línea).',
+  },
+  {
+    label: 'Módulos y Menú',
+    route: '/dashboard/settings/modules',
+    group: 'Configuración',
+    permission: 'settings:company',
+    purpose: 'Encender o apagar cada sección del menú lateral para todo el equipo.',
+  },
+  {
+    label: 'Planes y Módulos',
+    route: '/dashboard/settings/plans',
+    group: 'Configuración',
+    permission: 'settings:company',
+    purpose: 'Ver el precio de cada plan y módulo de Aether, armar una selección y solicitar su contratación.',
+  },
+  {
+    label: 'Folios del SII',
+    route: '/dashboard/settings/folios',
+    group: 'Configuración',
+    requires: 'hasDteBilling',
+    permission: 'dte:manage_caf',
+    purpose: 'Cargar los CAF del SII y ver cuántos folios quedan por tipo de documento.',
+  },
+  {
+    label: 'Equipo & Colaboradores',
+    route: '/dashboard/settings/users',
+    group: 'Configuración',
+    permission: 'settings:users',
+    purpose: 'Invitar personas, cambiar su rol, restablecer contraseñas y desactivar a quien ya no trabaja contigo.',
+  },
+  {
+    label: 'Roles Personalizados',
+    route: '/dashboard/settings/roles',
+    group: 'Configuración',
+    permission: 'settings:users',
+    purpose: 'Crear roles a medida con la lista exacta de permisos.',
+  },
+  {
+    label: 'Importación Masiva',
+    route: '/dashboard/settings/import',
+    group: 'Configuración',
+    permission: 'import:data',
+    purpose: 'Cargar productos, contactos, stock e históricos desde Excel, texto o fotos.',
+  },
+  {
+    label: 'Automatizaciones',
+    route: '/dashboard/settings/automations',
+    group: 'Configuración',
+    permission: 'automation:manage',
+    purpose: 'Reglas "cuando pase X, hacer Z": correo, aviso en la campanita o webhook.',
+  },
+  {
+    label: 'Auditoría & Trazabilidad',
+    route: '/dashboard/settings/audit',
+    group: 'Configuración',
+    permission: 'audit:read',
+    purpose: 'Registro de quién hizo qué y cuándo.',
+  },
   { label: 'Mi Perfil', route: '/dashboard/settings/profile', group: 'Configuración', purpose: 'Tus datos de contacto, tu foto y tu actividad reciente.' },
   { label: 'Seguridad', route: '/dashboard/settings/security', group: 'Configuración', purpose: 'Activar la verificación en dos pasos (2FA) de tu cuenta.' },
-  { label: 'Dispositivos Activos', route: '/dashboard/settings/sessions', group: 'Configuración', purpose: 'Sesiones abiertas de tu cuenta, para cerrar las que no reconozcas.' },
+  {
+    label: 'Dispositivos Activos',
+    route: '/dashboard/settings/sessions',
+    group: 'Configuración',
+    purpose: 'Sesiones abiertas de tu cuenta, para cerrar las que no reconozcas.',
+  },
 ];
 
 function isAvailable(item: Gated, features: CompanyFeatureFlags, permissions: readonly Permission[]): boolean {
@@ -170,7 +286,7 @@ export function getVisibleNavigation(features: CompanyFeatureFlags, permissions:
       route: link.href,
       group: group.label,
       purpose: SCREEN_PURPOSES[link.id] ?? link.label,
-    }))
+    })),
   );
   const menuRoutes = new Set(fromMenu.map((entry) => entry.route));
   const extras = EXTRA_SCREENS.filter((entry) => !menuRoutes.has(entry.route) && isAvailable(entry, features, permissions));
@@ -189,7 +305,7 @@ export const NAVIGATION_MAP: NavigationEntry[] = getVisibleNavigation(ALL_FEATUR
  */
 export function describeCurrentScreen(path: string): NavigationEntry | null {
   const matches = NAVIGATION_MAP.filter((entry) =>
-    entry.route === '/dashboard' ? path === '/dashboard' : path === entry.route || path.startsWith(`${entry.route}/`)
+    entry.route === '/dashboard' ? path === '/dashboard' : path === entry.route || path.startsWith(`${entry.route}/`),
   );
   if (matches.length === 0) return null;
   return matches.reduce((best, entry) => (entry.route.length > best.route.length ? entry : best));
@@ -492,35 +608,85 @@ export interface GlossaryTerm {
 
 /** Vocabulario tributario y del sistema que el asistente puede explicar sin inventar. */
 export const GLOSSARY: GlossaryTerm[] = [
-  { term: 'IVA', definition: 'Impuesto al Valor Agregado, 19% en Chile, sobre el monto neto de las líneas afectas. Los productos marcados como exentos no lo pagan.' },
+  {
+    term: 'IVA',
+    definition: 'Impuesto al Valor Agregado, 19% en Chile, sobre el monto neto de las líneas afectas. Los productos marcados como exentos no lo pagan.',
+  },
   { term: 'Neto / Bruto', definition: 'El neto es el monto sin IVA; el bruto es el neto más el IVA. Los montos finales se manejan en pesos enteros.' },
   { term: 'Débito fiscal', definition: 'El IVA que recaudaste en tus ventas del período y le debes al SII.' },
   { term: 'Crédito fiscal', definition: 'El IVA que pagaste en tus compras del período y puedes descontar del débito.' },
-  { term: 'Remanente de crédito fiscal', definition: 'Cuando el crédito del mes supera al débito, la diferencia queda como remanente y se arrastra al mes siguiente.' },
-  { term: 'F29', definition: 'Formulario mensual del SII donde se declara el IVA y el PPM. El sistema lo calcula sobre tus documentos reales como apoyo; la declaración la hace tu contador.' },
-  { term: 'PPM', definition: 'Pago Provisional Mensual: anticipo del impuesto a la renta, un porcentaje de tus ventas netas. La tasa se configura en el Perfil de Empresa.' },
-  { term: 'RCV', definition: 'Registro de Compras y Ventas: el libro que el SII arma con los documentos electrónicos informados. Se cuadra con el ERP antes de declarar.' },
-  { term: 'DTE', definition: 'Documento Tributario Electrónico: boleta (39), factura afecta (33), factura exenta (34), guía de despacho (52), nota de débito (56) y nota de crédito (61).' },
-  { term: 'Folio', definition: 'Número correlativo de cada documento tributario. No se reutiliza ni se salta: un documento emitido se corrige con nota de crédito, no borrándolo.' },
-  { term: 'CAF', definition: 'Código de Autorización de Folios: archivo del SII que autoriza un rango de folios para un tipo de documento y trae la llave con que se timbra.' },
+  {
+    term: 'Remanente de crédito fiscal',
+    definition: 'Cuando el crédito del mes supera al débito, la diferencia queda como remanente y se arrastra al mes siguiente.',
+  },
+  {
+    term: 'F29',
+    definition:
+      'Formulario mensual del SII donde se declara el IVA y el PPM. El sistema lo calcula sobre tus documentos reales como apoyo; la declaración la hace tu contador.',
+  },
+  {
+    term: 'PPM',
+    definition: 'Pago Provisional Mensual: anticipo del impuesto a la renta, un porcentaje de tus ventas netas. La tasa se configura en el Perfil de Empresa.',
+  },
+  {
+    term: 'RCV',
+    definition: 'Registro de Compras y Ventas: el libro que el SII arma con los documentos electrónicos informados. Se cuadra con el ERP antes de declarar.',
+  },
+  {
+    term: 'DTE',
+    definition:
+      'Documento Tributario Electrónico: boleta (39), factura afecta (33), factura exenta (34), guía de despacho (52), nota de débito (56) y nota de crédito (61).',
+  },
+  {
+    term: 'Folio',
+    definition:
+      'Número correlativo de cada documento tributario. No se reutiliza ni se salta: un documento emitido se corrige con nota de crédito, no borrándolo.',
+  },
+  {
+    term: 'CAF',
+    definition:
+      'Código de Autorización de Folios: archivo del SII que autoriza un rango de folios para un tipo de documento y trae la llave con que se timbra.',
+  },
   { term: 'Timbre electrónico (TED)', definition: 'Firma que va en cada documento emitido con CAF; permite verificar que no fue alterado.' },
   { term: 'Cotización', definition: 'Propuesta de precio al cliente. No es un documento tributario: no usa folio ni mueve stock.' },
   { term: 'Nota de venta', definition: 'Pedido del cliente que reserva stock y se factura o despacha por partes.' },
   { term: 'Guía de despacho', definition: 'Documento que acompaña la mercadería que sale; mueve stock y después se factura.' },
   { term: 'Nota de crédito', definition: 'Documento que anula o rebaja, total o parcialmente, uno emitido antes.' },
-  { term: 'PMP', definition: 'Precio Medio Ponderado: el costo unitario de un producto, recalculado en cada compra como promedio entre el stock que tenías y lo que entró.' },
-  { term: 'Kardex', definition: 'Historial de movimientos de un producto: cada entrada, salida, ajuste y transferencia, con cantidad, costo y documento de origen.' },
+  {
+    term: 'PMP',
+    definition: 'Precio Medio Ponderado: el costo unitario de un producto, recalculado en cada compra como promedio entre el stock que tenías y lo que entró.',
+  },
+  {
+    term: 'Kardex',
+    definition: 'Historial de movimientos de un producto: cada entrada, salida, ajuste y transferencia, con cantidad, costo y documento de origen.',
+  },
   { term: 'Stock valorizado', definition: 'La cantidad en bodega multiplicada por su costo PMP vigente: el valor contable del inventario.' },
-  { term: 'Lote / FEFO', definition: 'Un lote agrupa unidades con la misma fecha de vencimiento. FEFO ("primero en vencer, primero en salir") es la regla con que se despachan.' },
-  { term: 'Boleta de honorarios', definition: 'Documento de un profesional independiente por sus servicios, con una retención de impuesto calculada con la tasa de tu empresa.' },
+  {
+    term: 'Lote / FEFO',
+    definition: 'Un lote agrupa unidades con la misma fecha de vencimiento. FEFO ("primero en vencer, primero en salir") es la regla con que se despachan.',
+  },
+  {
+    term: 'Boleta de honorarios',
+    definition: 'Documento de un profesional independiente por sus servicios, con una retención de impuesto calculada con la tasa de tu empresa.',
+  },
   { term: 'Cuenta por cobrar (CxC)', definition: 'Lo que un cliente te debe por un documento a crédito todavía no pagado del todo.' },
   { term: 'Cuenta por pagar (CxP)', definition: 'Lo que le debes a un proveedor por una factura todavía no pagada del todo.' },
   { term: 'Conciliación bancaria', definition: 'Comparar la cartola del banco con tus cobros y pagos registrados para que ambos saldos calcen.' },
   { term: 'Nómina de pago', definition: 'Lote de facturas de proveedores que se pagan juntas con un archivo para el portal del banco.' },
   { term: 'Arqueo de caja', definition: 'Conteo del efectivo al cerrar un turno del POS, comparado contra lo esperado, dejando la diferencia declarada.' },
-  { term: 'Liquidación de sueldo', definition: 'Detalle mensual del sueldo de un trabajador: haberes, descuentos previsionales, impuesto único y líquido a pagar.' },
-  { term: 'Previred', definition: 'Plataforma donde se pagan las cotizaciones previsionales y que publica cada mes los indicadores (UF, UTM, topes y tasas) que usa el cálculo de sueldos.' },
-  { term: 'UF / UTM', definition: 'Unidades reajustables chilenas. Se usan para topes previsionales, planes de salud y tramos del impuesto único; su valor se confirma cada mes.' },
+  {
+    term: 'Liquidación de sueldo',
+    definition: 'Detalle mensual del sueldo de un trabajador: haberes, descuentos previsionales, impuesto único y líquido a pagar.',
+  },
+  {
+    term: 'Previred',
+    definition:
+      'Plataforma donde se pagan las cotizaciones previsionales y que publica cada mes los indicadores (UF, UTM, topes y tasas) que usa el cálculo de sueldos.',
+  },
+  {
+    term: 'UF / UTM',
+    definition: 'Unidades reajustables chilenas. Se usan para topes previsionales, planes de salud y tramos del impuesto único; su valor se confirma cada mes.',
+  },
   { term: 'Finiquito', definition: 'Documento que cierra la relación laboral con el cálculo de lo que se le debe al trabajador al término del contrato.' },
   { term: 'NPS / CSAT', definition: 'Indicadores de satisfacción: CSAT mide qué tan conforme quedó el cliente (1 a 5) y NPS cuánto te recomendaría (0 a 10).' },
   { term: 'RFM', definition: 'Segmentación de clientes por Recencia (cuándo compró), Frecuencia (cuántas veces) y Monto (cuánto).' },
@@ -529,9 +695,7 @@ export const GLOSSARY: GlossaryTerm[] = [
 
 /** Flujos cuyos módulos están todos contratados y a los que el usuario tiene acceso. */
 export function getVisibleWorkflows(features: CompanyFeatureFlags, permissions: readonly Permission[]): Workflow[] {
-  return WORKFLOWS.filter(
-    (workflow) => isAvailable(workflow, features, permissions) && (workflow.alsoRequires ?? []).every((key) => features[key])
-  );
+  return WORKFLOWS.filter((workflow) => isAvailable(workflow, features, permissions) && (workflow.alsoRequires ?? []).every((key) => features[key]));
 }
 
 /** Problemas frecuentes aplicables al plan y al rol de este usuario. */

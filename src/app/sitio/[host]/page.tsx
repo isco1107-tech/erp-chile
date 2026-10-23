@@ -1,3 +1,4 @@
+import StorefrontDocument from '@/components/store-builder/StorefrontDocument';
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -44,7 +45,9 @@ function SiteUnavailable({ domain }: { domain: string }) {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-2 bg-background px-6 text-center">
       <h1 className="text-xl font-semibold text-foreground">Sitio no disponible</h1>
-      <p className="max-w-md text-sm text-muted-foreground">{domain} está configurado, pero su sitio aún no está publicado. Vuelve a intentarlo en unos minutos.</p>
+      <p className="max-w-md text-sm text-muted-foreground">
+        {domain} está configurado, pero su sitio aún no está publicado. Vuelve a intentarlo en unos minutos.
+      </p>
     </main>
   );
 }
@@ -69,8 +72,12 @@ export default async function CustomDomainSitePage({ params }: { params: Promise
     redirect(platformBaseUrl());
   }
   if (requestDomain !== domain) redirect(`https://${domain}`);
-  if (found.kind === 'web' && found.site.standaloneStore) redirect('/tienda');
+  if (found.kind === 'web' && found.site.standaloneStore && !found.site.storefrontHome) redirect('/tienda');
   if (found.kind === 'pageant') return <PageantSiteDocument site={found.site} />;
   if (found.kind === 'academy') return <AcademySiteDocument site={found.site} />;
-  return <WebSiteDocument site={found.site} basePath="" siteUrl={`https://${domain}`} />;
+  return found.site.storefrontHome ? (
+    <StorefrontDocument site={found.site} basePath="" siteUrl={`https://${domain}`} />
+  ) : (
+    <WebSiteDocument site={found.site} basePath="" siteUrl={`https://${domain}`} />
+  );
 }

@@ -10,10 +10,12 @@ import { siteSlugProblem, slugify } from '@/lib/web-sites/urls';
 import { StoreError, StoreNotFoundError } from '../errors';
 import { publicSiteUrl } from '@/modules/web-sites/services/web-sites.service';
 import { ownImageOrNull } from './store-catalog.service';
+import { storefrontDesign } from '@/lib/ecommerce/storefront-design';
 
 export const storefrontSchema = z.object({
   name: z.string().trim().min(2, 'Escribe el nombre de tu tienda').max(80),
   slug: z.string().trim().max(50).optional(),
+  template: z.enum(['editorial', 'boutique', 'essential']).default('editorial'),
 });
 export const storeBrandSchema = z.object({
   name: z.string().trim().min(2).max(80),
@@ -24,22 +26,13 @@ export const storeBrandSchema = z.object({
 });
 
 /** Creates only a closed storefront shell. Opening still requires the server readiness checks. */
-export async function createStorefront(companyId: string, actorName: string, input: z.infer<typeof storefrontSchema>) {
+export async function createStorefront(companyId: string, actorName: string, input: z.input<typeof storefrontSchema>) {
   const requested = input.slug?.trim();
   const slug = requested ? slugify(requested) : `${slugify(input.name, 36) || 'tienda'}-${randomUUID().slice(0, 6)}`;
   const problem = siteSlugProblem(slug);
   if (problem) throw new StoreError(problem);
-  const theme = parseTheme({
-    primary: '#1b2924',
-    accent: '#486c55',
-    background: '#fafaf7',
-    text: '#202722',
-    radius: 'soft',
-    width: 'wide',
-    font: 'sans',
-    headingFont: 'same',
-  });
-  const document = documentFromBlocks([]);
+  const companyContact = await prisma.company.findUnique({ where: { id: companyId }, select: { email: true, phone: true } });
+  const { document, theme } = storefrontDesign(input.name, input.template, companyContact ?? {});
   return prisma.$transaction(async (tx) => {
     // Serializes quota checks, including concurrent store creations for this company.
     await tx.$queryRaw`SELECT id FROM "Company" WHERE id = ${companyId} FOR UPDATE`;
@@ -62,7 +55,7 @@ export async function createStorefront(companyId: string, actorName: string, inp
         createdByName: actorName,
         publishedAt: new Date(),
         draftBlocks: document as unknown as Prisma.InputJsonValue,
-        publishedBlocks: document as unknown as Prisma.InputJsonValue,
+        publishedBlocks: documentFromBlocks([]) as unknown as Prisma.InputJsonValue,
         theme: theme as Prisma.InputJsonValue,
         publishedTheme: theme as Prisma.InputJsonValue,
         store: { create: { companyId, standalone: true, enabled: false, warehouseId: warehouse?.id ?? null } },
@@ -88,7 +81,7 @@ export async function getStoreBrand(companyId: string, siteId: string) {
     primary: theme.primary,
     accent: theme.accent,
     domain: site.customDomain,
-    platformUrl: `${publicSiteUrl(site.slug)}/tienda`,
+    platformUrl: `${publicSiteUrl(site.slug)}${site.store?.standalone ? '' : '/tienda'}`,
     standalone: Boolean(site.store?.standalone),
   };
 }
@@ -103,7 +96,7 @@ export async function updateStoreBrand(companyId: string, siteId: string, input:
   const theme = parseTheme({ ...parseTheme(site.theme), primary: input.primary, accent: input.accent });
   await prisma.webSite.updateMany({
     where: { id: siteId, companyId },
-    data: { name: input.name, seoTitle: input.name, seoDescription: input.description, logoUrl, theme, publishedTheme: theme },
+    data: { contentUpdatedAt: new Date(), name: input.name, seoTitle: input.name, seoDescription: input.description, logoUrl, theme, publishedTheme: theme },
   });
   return getStoreBrand(companyId, siteId);
 }

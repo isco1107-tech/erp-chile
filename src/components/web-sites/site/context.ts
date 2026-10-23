@@ -1,4 +1,4 @@
-import { resolveLink, type ResolvedLink, type SiteDocument, type SitePage } from '@/lib/web-sites/site';
+import { pageLink, resolveLink, type ResolvedLink, type SiteDocument, type SitePage } from '@/lib/web-sites/site';
 
 /**
  * Contexto de pintado que comparten el encabezado, las secciones y el pie.
@@ -35,6 +35,7 @@ export interface RenderCtx {
   siteWidth?: 'narrow' | 'normal' | 'wide';
   /** El sitio tiene la tienda abierta: el encabezado muestra «Tienda» y el carrito. Nunca en la vista previa del editor. */
   store?: StoreRenderInfo;
+  commerce?: { siteId?: string; products: Record<string, import('@/modules/ecommerce/services/store-public.service').PublicProductCard[]>; open: boolean };
 }
 
 /** Lo mínimo que el encabezado necesita saber de la tienda (direcciones ya resueltas para este sitio). */
@@ -47,7 +48,11 @@ export interface StoreRenderInfo {
 }
 
 export function resolveIn(ctx: RenderCtx, raw: string | null | undefined): ResolvedLink | null {
-  return resolveLink(raw, { doc: ctx.doc, pageId: ctx.page.id, basePath: ctx.basePath });
+  // Commerce screens reuse the merchant chrome, but are not the home page.
+  // Section links must return to the published brand page instead of a missing #anchor in the cart.
+  const commerceScreen = Boolean(ctx.store?.current);
+  const value = commerceScreen && raw?.trim().startsWith('#') ? pageLink(ctx.page.id, raw.trim().slice(1)) : raw;
+  return resolveLink(value, { doc: ctx.doc, pageId: commerceScreen ? '' : ctx.page.id, basePath: ctx.basePath, commerce: Boolean(ctx.store) });
 }
 
 /** Contexto para el contenido de las secciones. */

@@ -5,8 +5,9 @@ import { ExternalLink, FileText, Globe, Hash, Link2Off, Mail, MessageCircle, Pho
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { nativeSelectClass } from '@/components/ui/field-classes';
-import { findPage, homeOf, isValidSiteLink, pageAnchors, pageLink, parsePageLink, type SiteDocument } from '@/lib/web-sites/site';
+import { STORE_LINK_TARGETS, findPage, homeOf, isValidSiteLink, pageAnchors, pageLink, parsePageLink, type SiteDocument } from '@/lib/web-sites/site';
 import { safeHref, whatsappHref } from '@/lib/web-sites/urls';
+import { useEditorRuntime } from './EditorRuntime';
 import { cn } from '@/lib/utils';
 
 /**
@@ -18,7 +19,7 @@ import { cn } from '@/lib/utils';
  * (`page:<id>#ancla`, `#ancla`, `https://wa.me/…`, `mailto:`, `tel:`, `https://`).
  */
 
-export type LinkKind = 'none' | 'page' | 'section' | 'whatsapp' | 'email' | 'phone' | 'url';
+export type LinkKind = 'store' | 'none' | 'page' | 'section' | 'whatsapp' | 'email' | 'phone' | 'url';
 
 const KINDS: { id: LinkKind; label: string; Icon: typeof Globe }[] = [
   { id: 'page', label: 'Una página de mi sitio', Icon: FileText },
@@ -34,6 +35,7 @@ const KINDS: { id: LinkKind; label: string; Icon: typeof Globe }[] = [
 export function linkKindOf(value: string, pageId: string): LinkKind {
   const raw = value.trim();
   if (!raw) return 'none';
+  if (STORE_LINK_TARGETS.some((target) => target.value === raw)) return 'store';
   const internal = parsePageLink(raw);
   if (internal) return internal.pageId === pageId && internal.anchor ? 'section' : 'page';
   if (raw.startsWith('#')) return 'section';
@@ -68,6 +70,7 @@ export interface LinkFieldProps {
 
 export function LinkField({ label, value, onChange, document, pageId, disabled, hint, newTab }: LinkFieldProps) {
   const id = useId();
+  const { scope } = useEditorRuntime();
   const [kind, setKind] = useState<LinkKind>(() => linkKindOf(value, pageId));
 
   // Si el valor cambia desde afuera (deshacer, otra sección), el tipo lo sigue; un campo vacío conserva el tipo elegido.
@@ -94,12 +97,19 @@ export function LinkField({ label, value, onChange, document, pageId, disabled, 
       return null;
     }
     if (kind === 'whatsapp' && !whatsappHref(whatsapp.number)) return 'Escribe el número completo, por ejemplo +56 9 1234 5678.';
-    return isValidSiteLink(raw, document) ? null : kind === 'email' ? 'Este correo no parece válido.' : kind === 'phone' ? 'Este teléfono no parece válido.' : 'Este enlace no parece válido. Revisa que empiece con https://';
+    return isValidSiteLink(raw, document)
+      ? null
+      : kind === 'email'
+        ? 'Este correo no parece válido.'
+        : kind === 'phone'
+          ? 'Este teléfono no parece válido.'
+          : 'Este enlace no parece válido. Revisa que empiece con https://';
   })();
 
   function changeKind(next: LinkKind) {
     setKind(next);
-    if (next === 'none') onChange('');
+    if (next === 'store') onChange('store:catalog');
+    else if (next === 'none') onChange('');
     else if (next === 'page') onChange(pageLink(document.pages.find((page) => page.id !== pageId)?.id ?? home.id));
     else if (next === 'section') onChange(anchorsHere[0] ? `#${anchorsHere[0].anchor}` : '');
     else onChange('');
@@ -121,6 +131,7 @@ export function LinkField({ label, value, onChange, document, pageId, disabled, 
           ¿A dónde lleva?
         </Label>
         <select id={selectId} className={nativeSelectClass} value={kind} disabled={disabled} onChange={(event) => changeKind(event.target.value as LinkKind)}>
+          {scope === 'store' && <option value="store">Mi tienda y carrito</option>}
           {KINDS.map((option) => (
             <option key={option.id} value={option.id} disabled={option.id === 'section' && anchorsHere.length === 0 && kind !== 'section'}>
               {option.label}
@@ -130,13 +141,32 @@ export function LinkField({ label, value, onChange, document, pageId, disabled, 
         </select>
       </div>
 
+      {kind === 'store' && (
+        <div className="space-y-1.5">
+          <Label htmlFor={`${id}-store`}>Destino de compra</Label>
+          <select id={`${id}-store`} className={nativeSelectClass} value={value} onChange={(event) => onChange(event.target.value)} disabled={disabled}>
+            {STORE_LINK_TARGETS.map((target) => (
+              <option key={target.value} value={target.value}>
+                {target.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       {kind === 'page' ? (
         <div className="grid gap-2 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor={`${id}-page`} className="text-xs text-muted-foreground">
               Página
             </Label>
-            <select id={`${id}-page`} className={nativeSelectClass} disabled={disabled} value={internal?.pageId ?? ''} onChange={(event) => onChange(pageLink(event.target.value))} aria-describedby={describedBy}>
+            <select
+              id={`${id}-page`}
+              className={nativeSelectClass}
+              disabled={disabled}
+              value={internal?.pageId ?? ''}
+              onChange={(event) => onChange(pageLink(event.target.value))}
+              aria-describedby={describedBy}
+            >
               {!internal ? <option value="">Elige una página…</option> : null}
               {document.pages.map((page, index) => (
                 <option key={page.id} value={page.id}>
@@ -174,9 +204,18 @@ export function LinkField({ label, value, onChange, document, pageId, disabled, 
           <Label htmlFor={`${id}-section`} className="text-xs text-muted-foreground">
             Sección
           </Label>
-          <select id={`${id}-section`} className={nativeSelectClass} disabled={disabled} value={sectionAnchor} onChange={(event) => onChange(event.target.value ? `#${event.target.value}` : '')} aria-describedby={describedBy}>
+          <select
+            id={`${id}-section`}
+            className={nativeSelectClass}
+            disabled={disabled}
+            value={sectionAnchor}
+            onChange={(event) => onChange(event.target.value ? `#${event.target.value}` : '')}
+            aria-describedby={describedBy}
+          >
             {!sectionAnchor ? <option value="">Elige una sección…</option> : null}
-            {sectionAnchor && !anchorsHere.some((entry) => entry.anchor === sectionAnchor) ? <option value={sectionAnchor}>#{sectionAnchor} (ya no existe)</option> : null}
+            {sectionAnchor && !anchorsHere.some((entry) => entry.anchor === sectionAnchor) ? (
+              <option value={sectionAnchor}>#{sectionAnchor} (ya no existe)</option>
+            ) : null}
             {anchorsHere.map((entry) => (
               <option key={entry.anchor} value={entry.anchor}>
                 {entry.label}
@@ -201,7 +240,12 @@ export function LinkField({ label, value, onChange, document, pageId, disabled, 
               disabled={disabled}
               defaultValue={whatsapp.number ? `+${whatsapp.number}` : ''}
               aria-describedby={describedBy}
-              onChange={(event) => onChange(whatsappHref(event.target.value, whatsapp.message || undefined) ?? (event.target.value.trim() ? `https://wa.me/${event.target.value.replace(/\D/g, '')}` : ''))}
+              onChange={(event) =>
+                onChange(
+                  whatsappHref(event.target.value, whatsapp.message || undefined) ??
+                    (event.target.value.trim() ? `https://wa.me/${event.target.value.replace(/\D/g, '')}` : ''),
+                )
+              }
             />
           </div>
           <div className="space-y-1.5">
@@ -279,7 +323,13 @@ export function LinkField({ label, value, onChange, document, pageId, disabled, 
 
       {newTab && kind !== 'none' ? (
         <label className={cn('flex items-center gap-2 text-sm', disabled && 'opacity-60')}>
-          <input type="checkbox" className="size-4 accent-[var(--color-primary)]" checked={newTab.checked} disabled={disabled} onChange={(event) => newTab.onChange(event.target.checked)} />
+          <input
+            type="checkbox"
+            className="size-4 accent-[var(--color-primary)]"
+            checked={newTab.checked}
+            disabled={disabled}
+            onChange={(event) => newTab.onChange(event.target.checked)}
+          />
           <ExternalLink className="size-3.5 text-muted-foreground" aria-hidden="true" /> Abrir en una pestaña nueva
         </label>
       ) : null}
