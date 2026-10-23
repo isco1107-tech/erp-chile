@@ -17,8 +17,16 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
     const base = site.customDomain && site.customDomainVerified ? `https://${site.customDomain}` : publicSiteUrl(site.slug);
     const paths = site.mode === 'GUIDED' ? sitePaths(site.document) : [''];
     // La tienda abierta suma su catálogo y cada ficha publicada.
-    const store = site.mode === 'GUIDED' ? await resolvePublicStore(slug) : null;
-    const storeEntries = store ? await listStoreSitemapPaths(store) : [];
+    // Si la tienda falla, el mapa del sitio sale igual (sin el catálogo) y el error se reporta.
+    let storeEntries: Awaited<ReturnType<typeof listStoreSitemapPaths>> = [];
+    if (site.mode === 'GUIDED') {
+      try {
+        const store = await resolvePublicStore(slug);
+        storeEntries = store ? await listStoreSitemapPaths(store) : [];
+      } catch (storeError) {
+        captureException(storeError, { module: 'tienda-en-linea', extra: { reason: 'sitemap-store', slug } });
+      }
+    }
     return new Response(sitemapXml([...paths.map((path) => ({ url: pageUrl(base, path), lastModified: site.publishedAt })), ...storeEntries.map((entry) => ({ url: pageUrl(base, entry.path), lastModified: entry.lastModified }))]), {
       headers: { 'Content-Type': 'application/xml; charset=utf-8', ...SEO_HEADERS },
     });

@@ -1,14 +1,14 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { loadStoreBySlug, renderStorePage, storeMetadata } from '@/components/store/store-pages';
-import { getPublicWebSite, publicSiteUrl } from '@/modules/web-sites/services/web-sites.service';
+import { loadSiteBySlug, loadStoreBySlug, renderStorePage, storeMetadata } from '@/components/store/store-pages';
+import { publicSiteUrl } from '@/modules/web-sites/services/web-sites.service';
 
 /** Ficha de un producto de la tienda de un sitio (`/web/[slug]/producto/[product]`). Solo existe con la tienda abierta. */
 type Params = Promise<{ slug: string; product: string }>;
 
 async function resolve(params: Params) {
   const { slug, product } = await params;
-  const site = await getPublicWebSite(slug);
+  const site = await loadSiteBySlug(slug);
   if (!site || site.mode !== 'GUIDED') return null;
   const store = await loadStoreBySlug(slug);
   if (!store || store.siteId !== site.id) return null;

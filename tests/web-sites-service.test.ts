@@ -108,6 +108,7 @@ const MODEL_METHODS = {
   project: ['findFirst', 'findUnique'],
   academySite: ['findUnique'],
   company: ['findFirst', 'findUnique'],
+  storeOrder: ['count'],
 } as const;
 
 interface Db {
@@ -118,6 +119,7 @@ interface Db {
   project: Mocks;
   academySite: Mocks;
   company: Mocks;
+  storeOrder: Mocks;
 }
 
 function delegateOf(model: string): Delegate {
@@ -822,6 +824,7 @@ describe('deleteWebSite', () => {
 
   it.each(['DRAFT', 'ARCHIVED'])('elimina con deleteMany acotado a la empresa un sitio en estado %s y devuelve archivos y dominio', async (status) => {
     db.webSite.findFirst.mockResolvedValue({ status, customDomain: 'solar.cl', assets: [{ url: 'https://blob.test/a.png' }, { url: 'https://blob.test/b.png' }] });
+    db.storeOrder.count.mockResolvedValue(0);
     db.webSite.deleteMany.mockResolvedValue({ count: 1 });
 
     const result = await deleteWebSite(COMPANY, SITE);
@@ -829,6 +832,15 @@ describe('deleteWebSite', () => {
     expect(argsOf(db.webSite.findFirst).where).toEqual({ id: SITE, companyId: COMPANY });
     expect(argsOf(db.webSite.deleteMany).where).toEqual({ id: SITE, companyId: COMPANY });
     expect(result).toEqual({ urls: ['https://blob.test/a.png', 'https://blob.test/b.png'], domain: 'solar.cl' });
+  });
+
+  it('un sitio con pedidos de la tienda no se elimina (se archiva): borrarlo se llevaría el historial de ventas y pagos', async () => {
+    db.webSite.findFirst.mockResolvedValue({ status: 'DRAFT', customDomain: null, assets: [] });
+    db.storeOrder.count.mockResolvedValue(3);
+
+    await expect(deleteWebSite(COMPANY, SITE)).rejects.toThrow(/pedidos de la tienda en línea/);
+    expect(argsOf(db.storeOrder.count).where).toEqual({ siteId: SITE, companyId: COMPANY });
+    expect(db.webSite.deleteMany).not.toHaveBeenCalled();
   });
 
   it('un sitio que no es de la empresa no se elimina', async () => {
@@ -1728,6 +1740,7 @@ describe('acciones que eliminan: limpieza de archivos del almacenamiento', () =>
   function siteToDelete(assets: Array<{ url: string }>, over: Row = {}) {
     db.webSite.findFirst.mockImplementation(async (args: { include?: unknown }) => (args.include ? siteRow() : { status: 'DRAFT', customDomain: 'solar.cl', assets, ...over }));
     db.webSiteMessage.count.mockResolvedValue(0);
+    db.storeOrder.count.mockResolvedValue(0);
     db.webSite.deleteMany.mockResolvedValue({ count: 1 });
   }
 

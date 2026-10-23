@@ -69,6 +69,8 @@ describeDb('panel de la tienda contra PostgreSQL', () => {
   const asA = (permissions: readonly string[] = ALL) => void (currentSession = sessionOf(ids.companyA, ids.userA, permissions));
   const asB = (permissions: readonly string[] = ALL) => void (currentSession = sessionOf(ids.companyB, ids.userB, permissions));
 
+  /** Cada compra de prueba es de una persona distinta: el tope de pedidos sin pagar es por correo. */
+  let buyers = 0;
   async function place(over: Record<string, unknown> = {}) {
     const ctx = await publicStore.resolvePublicStore(slugA);
     if (!ctx) throw new Error('La tienda de prueba no se resolvió');
@@ -77,7 +79,7 @@ describeDb('panel de la tienda contra PostgreSQL', () => {
       {
         idempotencyKey: key(),
         lines: [{ productId: ids.aceite, quantity: 1 }],
-        customer: { name: 'Camila Rojas', email: 'camila@correo.cl', phone: '+56 9 1234 5678', rut: '' },
+        customer: { name: 'Camila Rojas', email: `comprador${++buyers}.${suffix}@correo.cl`, phone: '+56 9 1234 5678', rut: '' },
         documentType: 'BOLETA',
         deliveryMethod: 'PICKUP',
         paymentProvider: 'TRANSFER',
@@ -422,7 +424,7 @@ describeDb('panel de la tienda contra PostgreSQL', () => {
     });
 
     it('descarga los pedidos de la empresa, no ejecuta fórmulas y deja la descarga auditada', async () => {
-      const created = await place({ customer: { name: '=HYPERLINK("http://evil.example","clic")', email: 'camila@correo.cl', phone: '+56 9 1234 5678', rut: '' } });
+      const created = await place({ customer: { name: '=HYPERLINK("http://evil.example","clic")', email: `formula.${suffix}@correo.cl`, phone: '+56 9 1234 5678', rut: '' } });
       asA(['store:read']);
       const response = await get(`?siteId=${ids.siteA}`);
       expect(response.status).toBe(200);

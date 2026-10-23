@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getAppUrl } from '@/lib/email/mailer';
 import { captureException } from '@/lib/observability';
+import { extractClientIp } from '@/lib/auth/ip-allowlist';
+import { STORE_GATEWAY_RETURN_RATE_LIMIT, checkRateLimit } from '@/lib/security/rate-limiter';
 import { handleWebpayReturn } from '@/modules/ecommerce/services/store-payment.service';
 
 export const dynamic = 'force-dynamic';
@@ -11,7 +13,9 @@ export const dynamic = 'force-dynamic';
  * Nada de lo que llega aquí se cree: solo sirve para ubicar el pedido, cuyo cobro se CONSULTA a
  * Transbank antes de darlo por pagado. Termina siempre con un 303 a la página del pedido.
  */
-async function handle(tokenWs: string | null, tbkToken: string | null) {
+async function handle(req: Request, tokenWs: string | null, tbkToken: string | null) {
+  // Cada regreso consulta a Transbank con la llave de la empresa: pasado el tope, el comprador vuelve a la plataforma y su pedido se resuelve con el aviso de la pasarela o el cron.
+  if (!checkRateLimit(extractClientIp(req) ?? 'unknown', STORE_GATEWAY_RETURN_RATE_LIMIT).allowed) return NextResponse.redirect(getAppUrl(), 303);
   try {
     const destination = await handleWebpayReturn({ tokenWs, tbkToken });
     // Un token que no es de este sistema no revela nada: vuelve a la plataforma.
@@ -24,7 +28,7 @@ async function handle(tokenWs: string | null, tbkToken: string | null) {
 
 export async function GET(req: Request) {
   const params = new URL(req.url).searchParams;
-  return handle(params.get('token_ws'), params.get('TBK_TOKEN'));
+  return handle(req, params.get('token_ws'), params.get('TBK_TOKEN'));
 }
 
 export async function POST(req: Request) {
@@ -41,5 +45,5 @@ export async function POST(req: Request) {
   } catch {
     /* cuerpo ilegible: se trata como un token que no es nuestro */
   }
-  return handle(tokenWs, tbkToken);
+  return handle(req, tokenWs, tbkToken);
 }

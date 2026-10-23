@@ -32,6 +32,15 @@ function write(key: string, lines: CartLine[]): void {
   window.dispatchEvent(new CustomEvent(CHANGE_EVENT, { detail: key }));
 }
 
+/** Carrito guardado, aunque el texto esté dañado (otro programa tocó el almacenamiento): entonces parte vacío. */
+function readLines(key: string): CartLine[] {
+  try {
+    return normalizeCart(JSON.parse(read(key)));
+  } catch {
+    return [];
+  }
+}
+
 function subscribe(onChange: () => void): () => void {
   window.addEventListener('storage', onChange);
   window.addEventListener(CHANGE_EVENT, onChange);
@@ -61,9 +70,9 @@ export function useCart(siteSlug: string) {
     }
   }, [raw]);
 
-  const add = useCallback((productId: string, quantity = 1, max?: number) => write(key, addToCart(normalizeCart(JSON.parse(read(key))), productId, quantity, max)), [key]);
-  const set = useCallback((productId: string, quantity: number, max?: number) => write(key, setQuantity(normalizeCart(JSON.parse(read(key))), productId, quantity, max)), [key]);
-  const remove = useCallback((productId: string) => write(key, removeFromCart(normalizeCart(JSON.parse(read(key))), productId)), [key]);
+  const add = useCallback((productId: string, quantity = 1, max?: number) => write(key, addToCart(readLines(key), productId, quantity, max)), [key]);
+  const set = useCallback((productId: string, quantity: number, max?: number) => write(key, setQuantity(readLines(key), productId, quantity, max)), [key]);
+  const remove = useCallback((productId: string) => write(key, removeFromCart(readLines(key), productId)), [key]);
   const clear = useCallback(() => write(key, []), [key]);
 
   return { lines, count: cartCount(lines), add, set, remove, clear };

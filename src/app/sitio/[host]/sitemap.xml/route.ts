@@ -17,8 +17,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ host: s
     const seo = await domainSeo(domain, domainFromHost((await headers()).get('host')));
     if (!seo || !seo.indexable) return new Response('No encontrado', { status: 404 });
     const base = `https://${domain}`;
-    const store = await resolvePublicStoreByDomain(domain);
-    const storeEntries = store ? await listStoreSitemapPaths(store) : [];
+    // Si la tienda falla, el mapa del sitio sale igual (sin el catálogo) y el error se reporta.
+    let storeEntries: Awaited<ReturnType<typeof listStoreSitemapPaths>> = [];
+    try {
+      const store = await resolvePublicStoreByDomain(domain);
+      storeEntries = store ? await listStoreSitemapPaths(store) : [];
+    } catch (storeError) {
+      captureException(storeError, { module: 'tienda-en-linea', extra: { reason: 'domain-sitemap-store', domain } });
+    }
     return new Response(sitemapXml([...sitePaths(seo.document).map((path) => ({ url: pageUrl(base, path), lastModified: seo.lastModified })), ...storeEntries.map((entry) => ({ url: pageUrl(base, entry.path), lastModified: entry.lastModified }))]), {
       headers: { 'Content-Type': 'application/xml; charset=utf-8', ...SEO_HEADERS },
     });

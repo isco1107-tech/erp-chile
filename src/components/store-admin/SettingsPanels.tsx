@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CurrencyInput } from '@/components/ui/CurrencyInput';
@@ -125,6 +125,8 @@ export function ShippingPanel({ draft, patch, disabled }: PanelProps) {
 
 export function PaymentsPanel({ draft, patch, settings, disabled }: PanelProps) {
   const [editingSecret, setEditingSecret] = useState(false);
+  // Al guardar llegan los ajustes nuevos: la llave vuelve a mostrarse como «guardada» (y no queda el campo abierto y vacío).
+  useEffect(() => setEditingSecret(false), [settings]);
   const has = (provider: SettingsDraft['paymentMethods'][number]) => draft.paymentMethods.includes(provider);
   const toggle = (provider: SettingsDraft['paymentMethods'][number], on: boolean) => patch({ paymentMethods: on ? [...draft.paymentMethods, provider] : draft.paymentMethods.filter((item) => item !== provider) });
   const webpayReady = Boolean(draft.webpayCommerceCode.trim() && ((settings.webpayHasSecret && !draft.clearWebpaySecret) || draft.webpayApiSecret));
@@ -151,7 +153,7 @@ export function PaymentsPanel({ draft, patch, settings, disabled }: PanelProps) 
           <Field label="Código de comercio"><Input value={draft.webpayCommerceCode} onChange={(event) => patch({ webpayCommerceCode: event.target.value.replace(/\D/g, '') })} maxLength={20} inputMode="numeric" disabled={disabled} autoComplete="off" /></Field>
           <div className="space-y-1">
             <label htmlFor="webpay-secret" className="block text-sm font-medium">Llave secreta</label>
-            {settings.webpayHasSecret && !draft.clearWebpaySecret && !editingSecret ? (
+            {settings.webpayHasSecret && !draft.clearWebpaySecret && !editingSecret && !draft.webpayApiSecret ? (
               <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge tone="success">Llave guardada</StatusBadge>
                 <Button type="button" size="sm" variant="outline" disabled={disabled} onClick={() => setEditingSecret(true)}>Reemplazar</Button>

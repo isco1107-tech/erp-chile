@@ -41,6 +41,7 @@ describeDb('tienda en línea contra PostgreSQL', () => {
   let stock: typeof import('@/modules/ecommerce/services/store-stock.service');
   let encrypt: (value: string) => string;
   let errors: typeof import('@/modules/ecommerce/errors');
+  let webSites: typeof import('@/modules/web-sites/services/web-sites.service');
 
   const suffix = Math.random().toString(36).slice(2, 8);
   const ids = { companyA: '', companyB: '', warehouse: '', warehouseB: '', siteA: '', siteB: '', user: '', aceite: '', harina: '', servicio: '', oculto: '', archivado: '', productoB: '' };
@@ -56,10 +57,12 @@ describeDb('tienda en línea contra PostgreSQL', () => {
   const key = () => `ck_${suffix}${String(++sequence).padStart(12, '0')}`;
   const lineAceite = (quantity = 1) => ({ productId: ids.aceite, quantity });
 
+  /** Cada compra de prueba es de una persona distinta: el tope de pedidos sin pagar es por correo. */
+  let buyers = 0;
   const base = (over: Record<string, unknown> = {}) => ({
     idempotencyKey: key(),
     lines: [lineAceite(1)],
-    customer: { name: 'Camila Rojas', email: 'camila@correo.cl', phone: '+56 9 1234 5678', rut: '' },
+    customer: { name: 'Camila Rojas', email: `comprador${++buyers}.${suffix}@correo.cl`, phone: '+56 9 1234 5678', rut: '' },
     documentType: 'BOLETA' as const,
     deliveryMethod: 'PICKUP' as const,
     paymentProvider: 'TRANSFER' as const,
@@ -101,6 +104,7 @@ describeDb('tienda en línea contra PostgreSQL', () => {
     (process.env as Record<string, string>).NODE_ENV = 'production';
     ({ prisma } = await import('@/lib/prisma'));
     errors = await import('@/modules/ecommerce/errors');
+    webSites = await import('@/modules/web-sites/services/web-sites.service');
     checkout = await import('@/modules/ecommerce/services/store-checkout.service');
     publicStore = await import('@/modules/ecommerce/services/store-public.service');
     payments = await import('@/modules/ecommerce/services/store-payment.service');
@@ -256,7 +260,8 @@ describeDb('tienda en línea contra PostgreSQL', () => {
       const page = await publicStore.listPublicProducts(await context(), {});
       expect(page.products.map((p) => p.slug).sort()).toEqual(['aceite-maravilla', 'harina-selecta', 'servicio-armado']);
       const aceite = page.products.find((p) => p.slug === 'aceite-maravilla')!;
-      expect(aceite).toMatchObject({ grossPrice: 9990, compareAtPrice: 12990, available: ACEITE_STOCK, featured: true });
+      // Al público se le informa hasta 99 (lo que cabe en un pedido), no el stock exacto de la bodega.
+      expect(aceite).toMatchObject({ grossPrice: 9990, compareAtPrice: 12990, available: 99, featured: true });
       expect(page.products.find((p) => p.slug === 'servicio-armado')!.available).toBeNull();
       expect(page.collections).toEqual([{ name: 'Despensa', count: 2 }, { name: 'Servicios', count: 1 }]);
       expect(JSON.stringify(page)).not.toContain('Aceite de la empresa B');
@@ -710,6 +715,177 @@ describeDb('tienda en línea contra PostgreSQL', () => {
     });
   });
 
+  // ── Revisión de seguridad: estados finales, carreras y límites ───────────
+
+  describe('el dinero y los estados finales', () => {
+    const khipuDone = (order: { id: string; total: number }, paymentId: string) => ({ payment_id: paymentId, status: 'done', amount: order.total, currency: 'CLP', transaction_id: order.id });
+
+    it('un pedido reembolsado no vuelve a «pagado» por un aviso repetido de la pasarela', async () => {
+      mockGateways({ khipu: () => ({ payment_id: 'kp-ref', payment_url: 'https://khipu.com/payment/kp-ref' }) });
+      const created = await place({ paymentProvider: 'KHIPU' });
+      const order = await prisma.storeOrder.findUniqueOrThrow({ where: { id: created.orderId } });
+      jest.restoreAllMocks();
+      mockGateways({ khipu: () => khipuDone(order, 'kp-ref') });
+      await payments.handleKhipuNotification('kp-ref');
+      expect((await prisma.storeOrder.findUniqueOrThrow({ where: { id: order.id } })).paymentStatus).toBe('PAID');
+
+      await fulfillment.cancelOrder(ids.companyA, order.id, { reason: 'Se acabó', refunded: true, refundNote: 'Devuelto por Khipu' }, actor(), true);
+      expect(await prisma.storeOrder.findUniqueOrThrow({ where: { id: order.id } })).toMatchObject({ status: 'CANCELLED', paymentStatus: 'REFUNDED' });
+
+      // La pasarela sigue diciendo «pagado» (el cobro existió): ni el aviso ni la consulta ni la confirmación manual lo reviven.
+      await payments.handleKhipuNotification('kp-ref');
+      await payments.markOrderPaid(order.id, ids.companyA, { reference: 'x', method: 'TRANSFERENCIA', source: 'Prueba' });
+      expect(await prisma.storeOrder.findUniqueOrThrow({ where: { id: order.id } })).toMatchObject({ status: 'CANCELLED', paymentStatus: 'REFUNDED' });
+      expect(await prisma.storeOrderEvent.count({ where: { orderId: order.id, type: { in: ['PAID', 'PAID_AFTER_CLOSE'] } } })).toBe(1);
+    });
+
+    it('Webpay: al volver a un pedido ya cerrado NO se confirma (commit) la transacción; solo se lee su resultado', async () => {
+      mockGateways({ webpay: () => ({ token: 'tok-cerrado', url: 'https://webpay3gint.transbank.cl/webpayserver/initTransaction' }) });
+      const created = await place({ paymentProvider: 'WEBPAY' });
+      const order = await prisma.storeOrder.findUniqueOrThrow({ where: { id: created.orderId } });
+      await fulfillment.cancelOrder(ids.companyA, order.id, { reason: 'Cliente se arrepintió', refunded: false, refundNote: '' }, actor(), false);
+
+      // Transacción sin confirmar: no se cobra nada y el pedido sigue cancelado y sin pago.
+      jest.restoreAllMocks();
+      const calls = mockGateways({ webpay: () => ({ status: 'INITIALIZED', amount: order.total, buy_order: order.id }) });
+      await payments.handleWebpayReturn({ tokenWs: 'tok-cerrado' });
+      expect(calls.filter((call) => call.method === 'PUT')).toEqual([]);
+      expect(await prisma.storeOrder.findUniqueOrThrow({ where: { id: order.id } })).toMatchObject({ status: 'CANCELLED', paymentStatus: 'PENDING' });
+    });
+
+    it('un cobro que falla se anota una sola vez aunque la página del pedido se recargue', async () => {
+      mockGateways({ webpay: () => ({ token: 'tok-fallo', url: 'https://webpay3gint.transbank.cl/webpayserver/initTransaction' }) });
+      const created = await place({ paymentProvider: 'WEBPAY' });
+      const order = await prisma.storeOrder.findUniqueOrThrow({ where: { id: created.orderId } });
+      jest.restoreAllMocks();
+      mockGateways({ webpay: () => ({ status: 'FAILED', response_code: -1, amount: order.total, buy_order: order.id }) });
+      for (let i = 0; i < 3; i += 1) expect(await payments.syncOrderPayment(order.id, ids.companyA)).toBe('FAILED');
+      expect(await prisma.storeOrderEvent.count({ where: { orderId: order.id, type: 'PAYMENT_FAILED' } })).toBe(1);
+    });
+
+    it('la página del pedido no consulta a la pasarela en cada visita', async () => {
+      mockGateways({ khipu: () => ({ payment_id: 'kp-thr', payment_url: 'https://khipu.com/payment/kp-thr' }) });
+      const created = await place({ paymentProvider: 'KHIPU' });
+      jest.restoreAllMocks();
+      const calls = mockGateways({ khipu: () => ({ payment_id: 'kp-thr', status: 'pending', amount: 1, currency: 'CLP', transaction_id: created.orderId }) });
+      for (let i = 0; i < 5; i += 1) await orders.getPublicOrder(ids.siteA, created.accessToken);
+      expect(calls.filter((call) => call.method === 'GET')).toHaveLength(1);
+    });
+
+    it('dos «Pagar ahora» a la vez dejan un solo cobro vigente y los dos reciben el mismo', async () => {
+      mockGateways({ khipu: () => ({ payment_id: 'kp-orig', payment_url: 'https://khipu.com/payment/kp-orig' }) });
+      const created = await place({ paymentProvider: 'KHIPU' });
+      await prisma.storeOrder.update({ where: { id: created.orderId }, data: { paymentStatus: 'FAILED' } });
+      jest.restoreAllMocks();
+      let n = 0;
+      mockGateways({ khipu: () => { n += 1; return { payment_id: `kp-r${n}`, payment_url: `https://khipu.com/payment/kp-r${n}` }; } });
+      const [a, b] = await Promise.all([payments.restartOrderPayment(created.accessToken), payments.restartOrderPayment(created.accessToken)]);
+      const order = await prisma.storeOrder.findUniqueOrThrow({ where: { id: created.orderId } });
+      expect(order.paymentStatus).toBe('PENDING');
+      expect(a).toBe(b);
+      expect(a).toBe(`https://khipu.com/payment/${order.providerPaymentId}`);
+    });
+
+    it('no se abre un cobro nuevo si la empresa está suspendida o el pedido ya cerró', async () => {
+      mockGateways({ khipu: () => ({ payment_id: 'kp-susp', payment_url: 'https://khipu.com/payment/kp-susp' }) });
+      const created = await place({ paymentProvider: 'KHIPU' });
+      await prisma.storeOrder.update({ where: { id: created.orderId }, data: { paymentStatus: 'FAILED' } });
+      await prisma.company.update({ where: { id: ids.companyA }, data: { status: 'SUSPENDED' } });
+      try {
+        await expect(payments.restartOrderPayment(created.accessToken)).rejects.toMatchObject({ status: 409 });
+      } finally {
+        await prisma.company.update({ where: { id: ids.companyA }, data: { status: 'ACTIVE' } });
+      }
+      await fulfillment.cancelOrder(ids.companyA, created.orderId, { reason: 'Prueba', refunded: false, refundNote: '' }, actor(), false);
+      await expect(payments.restartOrderPayment(created.accessToken)).rejects.toMatchObject({ status: 409 });
+    });
+
+    it('cerrar un pedido que se pagó justo antes no deja una venta viva sobre un pedido cancelado', async () => {
+      const created = await place({ lines: [lineAceite(1)] });
+      // El pago entra mientras otra solicitud ya había leído el pedido como «sin pagar».
+      await prisma.storeOrder.update({ where: { id: created.orderId }, data: { paymentStatus: 'PAID', paidAt: new Date() } });
+      const stale = { id: created.orderId, status: 'OPEN', salesDocumentId: null, paymentStatus: 'PENDING' };
+      jest.spyOn(prisma.storeOrder, 'findFirst').mockResolvedValueOnce(stale as never);
+      await expect(fulfillment.cancelOrderInternal(ids.companyA, created.orderId, { reason: 'No se recibió el pago a tiempo', actor: null, status: 'EXPIRED' })).rejects.toMatchObject({ status: 409 });
+      expect(await prisma.storeOrder.findUniqueOrThrow({ where: { id: created.orderId } })).toMatchObject({ status: 'OPEN', paymentStatus: 'PAID' });
+    });
+
+    it('reintentar un pedido de Webpay ya creado lleva a la página puente, no a la dirección cruda de Transbank', async () => {
+      mockGateways({ webpay: () => ({ token: 'tok-replay', url: 'https://webpay3gint.transbank.cl/webpayserver/initTransaction' }) });
+      const sameKey = key();
+      const first = await place({ paymentProvider: 'WEBPAY', idempotencyKey: sameKey });
+      const again = await place({ paymentProvider: 'WEBPAY', idempotencyKey: sameKey });
+      expect(again.replayed).toBe(true);
+      expect(again.redirectUrl).toBe(first.redirectUrl);
+      expect(again.redirectUrl).toContain(`/api/public/store/webpay/start?o=${first.accessToken}`);
+    });
+  });
+
+  describe('límites contra el abuso', () => {
+    it('una misma persona no puede dejar más de 5 pedidos abiertos sin pagar; pagar o cancelar libera cupo', async () => {
+      const email = `acaparador.${suffix}@correo.cl`;
+      const customer = { name: 'Acaparador', email, phone: '+56 9 1234 5678', rut: '' };
+      const placed: string[] = [];
+      for (let i = 0; i < checkout.MAX_OPEN_UNPAID_PER_EMAIL; i += 1) placed.push((await place({ customer })).orderId);
+      await expect(place({ customer })).rejects.toMatchObject({ status: 429 });
+      await expect(place({ customer: { ...customer, email: email.toUpperCase() } })).rejects.toMatchObject({ status: 429 });
+      // Otra persona sí puede comprar.
+      await expect(place()).resolves.toMatchObject({ replayed: false });
+      await fulfillment.cancelOrder(ids.companyA, placed[0]!, { reason: 'Prueba', refunded: false, refundNote: '' }, actor(), false);
+      await expect(place({ customer })).resolves.toMatchObject({ replayed: false });
+    });
+
+    it('al público no se le cuenta el stock exacto: se informa hasta lo que cabe en un pedido', async () => {
+      const previous = await onHand(ids.aceite);
+      await setStock(ids.aceite, 5000);
+      try {
+        const ctx = await context();
+        const page = await publicStore.listPublicProducts(ctx, {});
+        expect(page.products.find((card) => card.id === ids.aceite)!.available).toBe(99);
+        const quote = await publicStore.quoteCart(ctx, { lines: [lineAceite(1)] } as never);
+        expect(quote.lines[0]!.available).toBe(99);
+      } finally {
+        await setStock(ids.aceite, previous);
+      }
+    });
+  });
+
+  describe('seguimiento con la tienda cerrada y sitios con pedidos', () => {
+    it('el comprador sigue viendo su pedido aunque la tienda esté cerrada, pero ya no se vende', async () => {
+      const created = await place({ lines: [lineAceite(1)] });
+      await prisma.webSiteStore.update({ where: { siteId: ids.siteA }, data: { enabled: false } });
+      try {
+        expect(await publicStore.resolvePublicStore(slugA)).toBeNull();
+        const tracking = await publicStore.resolveStoreForOrders(slugA);
+        expect(tracking).toMatchObject({ siteId: ids.siteA });
+        expect(await orders.getPublicOrder(tracking!.siteId, created.accessToken)).toMatchObject({ number: created.number });
+        expect(await publicStore.resolveStoreForOrders(slugB.replace('tienda-b', 'no-existe'))).toBeNull();
+      } finally {
+        await prisma.webSiteStore.update({ where: { siteId: ids.siteA }, data: { enabled: true } });
+      }
+    });
+
+    it('una empresa suspendida o sin el módulo tampoco muestra seguimiento', async () => {
+      await prisma.company.update({ where: { id: ids.companyA }, data: { status: 'SUSPENDED' } });
+      try {
+        expect(await publicStore.resolveStoreForOrders(slugA)).toBeNull();
+      } finally {
+        await prisma.company.update({ where: { id: ids.companyA }, data: { status: 'ACTIVE' } });
+      }
+    });
+
+    it('un sitio con pedidos no se elimina (se archiva): borrarlo se llevaría el historial de ventas', async () => {
+      await place({ lines: [lineAceite(1)] });
+      await prisma.webSite.update({ where: { id: ids.siteA }, data: { status: 'DRAFT' } });
+      try {
+        await expect(webSites.deleteWebSite(ids.companyA, ids.siteA)).rejects.toThrow(/pedidos de la tienda/);
+      } finally {
+        await prisma.webSite.update({ where: { id: ids.siteA }, data: { status: 'PUBLISHED' } });
+      }
+      expect(await prisma.webSite.count({ where: { id: ids.siteA } })).toBe(1);
+    });
+  });
+
   // ── Vencimiento ──────────────────────────────────────────────────────────
 
   describe('reservas que vencen', () => {
@@ -802,7 +978,8 @@ describeDb('tienda en línea contra PostgreSQL', () => {
       expect(await orders.getPublicOrder(ids.siteA, 'corto')).toBeNull();
       // No trae datos internos.
       const text = JSON.stringify(view);
-      for (const forbidden of ['companyId', 'idempotencyKey', 'providerPaymentId', 'customerEmail', 'camila@correo.cl']) expect(text).not.toContain(forbidden);
+      const buyerEmail = (await prisma.storeOrder.findUniqueOrThrow({ where: { id: created.orderId } })).customerEmail;
+      for (const forbidden of ['companyId', 'idempotencyKey', 'providerPaymentId', 'customerEmail', buyerEmail]) expect(text).not.toContain(forbidden);
     });
   });
 

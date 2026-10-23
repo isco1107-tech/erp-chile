@@ -6,8 +6,8 @@ import type { StoreRoute } from '@/lib/ecommerce/store-route';
 import { productHref, storeScreenHref } from '@/lib/ecommerce/store-href';
 import { safeImageSrc } from '@/lib/web-sites/urls';
 import { getPublicOrder } from '@/modules/ecommerce/services/store-orders.service';
-import { getPublicProduct, listPublicProducts, resolvePublicStore, resolvePublicStoreByDomain, type PublicStoreContext } from '@/modules/ecommerce/services/store-public.service';
-import type { PublicWebSite } from '@/modules/web-sites/services/web-sites.service';
+import { getPublicProduct, listPublicProducts, resolvePublicStore, resolvePublicStoreByDomain, resolveStoreForOrders, resolveStoreForOrdersByDomain, type PublicStoreContext } from '@/modules/ecommerce/services/store-public.service';
+import { getPublicWebSite, type PublicWebSite } from '@/modules/web-sites/services/web-sites.service';
 import CartScreen from './CartScreen';
 import CheckoutScreen from './CheckoutScreen';
 import StoreCatalogScreen from './StoreCatalogScreen';
@@ -23,8 +23,14 @@ import StoreProductScreen from './StoreProductScreen';
  * (carrito, pago, pedido) no se indexan ni envían el enlace como referencia.
  */
 
+/** Una sola lectura por petición: `generateMetadata` y la página piden lo mismo. */
+export const loadSiteBySlug = cache((slug: string) => getPublicWebSite(slug));
+const loadProduct = cache((store: PublicStoreContext, slug: string) => getPublicProduct(store, slug));
 export const loadStoreBySlug = cache((slug: string) => resolvePublicStore(slug));
 export const loadStoreByDomain = cache((domain: string) => resolvePublicStoreByDomain(domain));
+/** Para el seguimiento de un pedido: sigue sirviéndose con la tienda cerrada. */
+export const loadOrderStoreBySlug = cache((slug: string) => resolveStoreForOrders(slug));
+export const loadOrderStoreByDomain = cache((domain: string) => resolveStoreForOrdersByDomain(domain));
 
 export type { StoreRoute };
 
@@ -60,7 +66,7 @@ export async function renderStorePage({ site, store, route, basePath, siteUrl }:
         </StoreDocument>
       );
     case 'product': {
-      const product = await getPublicProduct(store, route.slug);
+      const product = await loadProduct(store, route.slug);
       if (!product) redirect(storeScreenHref(basePath, 'catalog'));
       const image = safeImageSrc(product.images[0]?.url);
       const jsonLd = {
@@ -110,7 +116,7 @@ export async function storeMetadata({ site, store, route, siteUrl }: RenderArgs)
         robots: indexable && !route.search.q ? { index: true, follow: true } : { index: false, follow: true },
       };
     case 'product': {
-      const product = await getPublicProduct(store, route.slug);
+      const product = await loadProduct(store, route.slug);
       if (!product) return { title: 'Producto no disponible', robots: { index: false } };
       const image = safeImageSrc(product.images[0]?.url);
       const description = (product.summary || product.description || `Compra ${product.title} en ${site.name}.`).slice(0, 200);

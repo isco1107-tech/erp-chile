@@ -52,7 +52,7 @@ export async function applyFulfillment(companyId: string, orderId: string, input
   if (!allowed.ok) throw new StoreError(allowed.reason, 409);
 
   const trackingUrl = input.trackingUrl ? safeHref(input.trackingUrl) : null;
-  if (input.trackingUrl && (!trackingUrl || !/^https?:\/\//i.test(trackingUrl))) {
+  if (input.trackingUrl && (!trackingUrl || !/^https:\/\//i.test(trackingUrl))) {
     throw new StoreError('El enlace de seguimiento debe empezar con https://', 400, 'trackingUrl');
   }
 
@@ -106,10 +106,11 @@ export async function cancelOrderInternal(companyId: string, orderId: string, op
     try {
       await cancelSalesDocument(companyId, order.salesDocumentId, `Tienda en línea: ${options.reason}`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'No se pudo anular la venta';
+      const message = error instanceof Error ? error.message : '';
       // Ya anulada por otra vía (Ventas): se sigue. Cualquier otra causa frena el cierre.
       if (!/Solo se pueden anular documentos emitidos/i.test(message)) {
-        throw new StoreError(`No se pudo anular la venta del ERP: ${message}`, 409);
+        captureException(error, { module: 'tienda-en-linea', companyId, extra: { orderId, reason: 'cancel-sale' } });
+        throw new StoreError('No se pudo anular la venta del ERP. Anúlala desde Ventas y vuelve a intentarlo.', 409);
       }
     }
   }
@@ -117,8 +118,10 @@ export async function cancelOrderInternal(companyId: string, orderId: string, op
   const now = new Date();
   await prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "StoreOrder" WHERE id = ${orderId} AND "companyId" = ${companyId} FOR UPDATE`;
+    // Se cierra solo si el pedido sigue como lo vimos: si un pago llegó (o se emitió la venta) entre la lectura
+    // y el candado, cerrarlo dejaría una venta viva sobre un pedido cancelado o un pago sin pedido.
     const closed = await tx.storeOrder.updateMany({
-      where: { id: orderId, companyId, status: 'OPEN' },
+      where: { id: orderId, companyId, status: 'OPEN', paymentStatus: order.paymentStatus, salesDocumentId: order.salesDocumentId },
       data: {
         status: options.status,
         cancelledAt: now,
@@ -128,7 +131,12 @@ export async function cancelOrderInternal(companyId: string, orderId: string, op
         ...(order.salesDocumentId ? { documentError: null } : {}),
       },
     });
-    if (closed.count === 0) return;
+    if (closed.count === 0) {
+      const current = await tx.storeOrder.findFirst({ where: { id: orderId, companyId }, select: { status: true } });
+      // Ya lo cerró otra persona: nada que hacer. Sigue abierto pero cambió (se pagó): que se revise.
+      if (current?.status === 'OPEN') throw new StoreError('El pedido cambió mientras se cerraba (por ejemplo, llegó el pago). Recarga y revísalo.', 409);
+      return;
+    }
     await closeReservations(tx, companyId, orderId, 'RELEASED');
     await tx.storeOrderEvent.create({
       data: {

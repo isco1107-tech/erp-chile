@@ -90,12 +90,17 @@ const SITE_SELECT = {
 
 type SiteRow = Prisma.WebSiteGetPayload<{ select: typeof SITE_SELECT }>;
 
-function toContext(site: SiteRow | null): PublicStoreContext | null {
+/**
+ * `tracking`: solo para seguimiento de pedidos ya hechos. Aunque la tienda esté cerrada (o sin
+ * bodega) el comprador sigue viendo su pedido; el sitio, la empresa y el módulo sí deben estar activos.
+ */
+function toContext(site: SiteRow | null, options: { tracking?: boolean } = {}): PublicStoreContext | null {
   if (!site || site.status !== 'PUBLISHED') return null;
   const { company, store } = site;
   if (company.status !== 'ACTIVE' && company.status !== 'TRIAL') return null;
   if (!company.features?.hasWebSites || !company.features.hasEcommerce) return null;
-  if (!store?.enabled || !store.warehouseId) return null;
+  if (!store) return null;
+  if (!options.tracking && (!store.enabled || !store.warehouseId)) return null;
 
   const paymentProviders = usableProviders({
     enabled: parsePaymentMethods(store.paymentMethods),
@@ -113,7 +118,7 @@ function toContext(site: SiteRow | null): PublicStoreContext | null {
     siteName: site.name,
     customDomain: site.customDomain,
     customDomainVerified: Boolean(site.customDomainVerifiedAt),
-    warehouseId: store.warehouseId,
+    warehouseId: store.warehouseId ?? '',
     settings: {
       pickupEnabled: store.pickupEnabled,
       pickupAddress: store.pickupAddress ?? '',
@@ -135,6 +140,19 @@ function toContext(site: SiteRow | null): PublicStoreContext | null {
 export async function resolvePublicStore(slug: string): Promise<PublicStoreContext | null> {
   if (!/^[a-z0-9-]{3,50}$/.test(slug)) return null;
   return toContext(await prisma.webSite.findUnique({ where: { slug }, select: SITE_SELECT }));
+}
+
+/** Como `resolvePublicStore`, pero también con la tienda cerrada: solo para que el comprador siga viendo su pedido. */
+export async function resolveStoreForOrders(slug: string): Promise<PublicStoreContext | null> {
+  if (!/^[a-z0-9-]{3,50}$/.test(slug)) return null;
+  return toContext(await prisma.webSite.findUnique({ where: { slug }, select: SITE_SELECT }), { tracking: true });
+}
+
+/** Como `resolvePublicStoreByDomain`, pero también con la tienda cerrada (seguimiento de pedidos). */
+export async function resolveStoreForOrdersByDomain(domain: string): Promise<PublicStoreContext | null> {
+  const site = await prisma.webSite.findUnique({ where: { customDomain: domain }, select: SITE_SELECT });
+  if (!site?.customDomainVerifiedAt) return null;
+  return toContext(site, { tracking: true });
 }
 
 /** Tienda abierta del sitio con ese dominio propio (ya verificado). */
@@ -198,7 +216,8 @@ function cardOf(ctx: PublicStoreContext, listing: ListingWithProduct, available:
     collection: listing.collection,
     featured: listing.featured,
     stock: stockLabel(available),
-    available,
+    // Al público no se le cuenta el stock exacto: solo hasta lo que cabe en un pedido.
+    available: available === null ? null : Math.min(available, MAX_LINE_QUANTITY),
     maxPerOrder: listing.maxPerOrder,
   };
 }
@@ -362,7 +381,7 @@ export async function quoteCart(ctx: PublicStoreContext, request: QuoteRequest):
       grossUnit: card.grossPrice,
       quantity,
       requestedQuantity: requested.quantity,
-      available,
+      available: card.available,
       maxPerOrder: listing.maxPerOrder,
       displayTotal: card.grossPrice * quantity,
       problem: quantity === 0 ? 'OUT_OF_STOCK' : quantity < requested.quantity ? 'REDUCED' : null,

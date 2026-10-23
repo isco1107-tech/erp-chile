@@ -21,7 +21,7 @@ const API_PATH = '/rswebpaytransaction/api/webpay/v1.2/transactions';
  * llamadas del SERVIDOR a la API. No afecta a la dirección a la que se manda al comprador, que sigue validándose contra
  * los hosts oficiales de Transbank (`isWebpayUrl`). No se define en producción.
  */
-const API_BASE_OVERRIDE = process.env.WEBPAY_API_BASE_URL?.replace(/\/$/, '');
+const API_BASE_OVERRIDE = process.env.VERCEL_ENV === 'production' ? undefined : process.env.WEBPAY_API_BASE_URL?.replace(/\/$/, '');
 const REQUEST_TIMEOUT_MS = 20_000;
 
 export class WebpayApiError extends Error {

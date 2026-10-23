@@ -473,6 +473,19 @@ export const STORE_ORDER_RATE_LIMIT: RateLimitConfig = {
   windowMs: 10 * 60_000,
 };
 
+/** Tienda en línea: aviso de Khipu y regreso de Webpay por IP. Cada uno provoca una consulta a la pasarela con la llave de la empresa, así que no puede ser ilimitado; el tope de aviso es holgado porque Khipu notifica desde pocas direcciones. */
+export const STORE_GATEWAY_NOTIFY_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'store-gateway-notify-ip',
+  limit: 600,
+  windowMs: 10 * 60_000,
+};
+
+export const STORE_GATEWAY_RETURN_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'store-gateway-return-ip',
+  limit: 60,
+  windowMs: 10 * 60_000,
+};
+
 /** Encuesta pública de satisfacción: vistas por IP. */
 export const SURVEY_VIEW_RATE_LIMIT: RateLimitConfig = {
   prefix: 'survey-view-ip',

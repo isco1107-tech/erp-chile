@@ -18,7 +18,7 @@ import { cancelOrderInternal, type Actor } from './store-fulfillment.service';
 import { notifyNewOrder, notifyOrderProblem, sendOrderEmail } from './store-notifications.service';
 import { isErpPaymentMethod, issueSaleForOrder, type ErpPaymentMethod } from './store-sale.service';
 import { holdReservations, reserveForOrder } from './store-stock.service';
-import { orderPageUrl } from './store-urls';
+import { orderPageUrl, webpayStartUrl } from './store-urls';
 
 /**
  * Cobro de los pedidos. Regla central (igual que el pago de cuotas): un pedido SOLO pasa a
@@ -40,9 +40,10 @@ const ORDER_FOR_PAYMENT = {
     select: {
       name: true,
       slug: true,
+      status: true,
       customDomain: true,
       customDomainVerifiedAt: true,
-      company: { select: { businessName: true, settings: { select: { khipuApiCredential: true } } } },
+      company: { select: { businessName: true, status: true, features: { select: { hasEcommerce: true } }, settings: { select: { khipuApiCredential: true } } } },
       store: { select: { webpayCommerceCode: true, webpayApiSecret: true, webpayProduction: true, transferHoldHours: true } },
     },
   },
@@ -78,6 +79,7 @@ export async function startOrderPayment(orderId: string, companyId: string): Pro
   const order = await loadPaymentOrder(orderId, companyId);
   if (!order) throw new StoreNotFoundError('Pedido no encontrado');
   if (!order.paymentProvider || order.paymentProvider === 'TRANSFER' || order.paymentProvider === 'PAY_ON_PICKUP') return null;
+  if (order.status !== 'OPEN' || order.paymentStatus === 'PAID' || order.paymentStatus === 'REFUNDED') throw new StoreError('Este pedido ya no se puede pagar.', 409);
   const expiresAt = order.paymentExpiresAt ?? new Date(Date.now() + holdMinutes(order.paymentProvider, order.site.store?.transferHoldHours ?? 48) * 60_000);
 
   if (order.paymentProvider === 'KHIPU') {
@@ -96,8 +98,8 @@ export async function startOrderPayment(orderId: string, companyId: string): Pro
       payerEmail: order.customerEmail,
       body: `Compra en ${order.site.company.businessName}`,
     });
-    await prisma.storeOrder.updateMany({ where: { id: order.id, companyId, paymentStatus: { not: 'PAID' } }, data: { providerPaymentId: created.paymentId, paymentUrl: created.paymentUrl, paymentStatus: 'PENDING' } });
-    return created.paymentUrl;
+    const url = await claimPaymentSlot(order, { providerPaymentId: created.paymentId, paymentUrl: created.paymentUrl });
+    return url ?? created.paymentUrl;
   }
 
   const credentials = webpayCredentials(order);
@@ -110,8 +112,31 @@ export async function startOrderPayment(orderId: string, companyId: string): Pro
   });
   if (!isWebpayUrl(created.url)) throw new StoreError('Webpay respondió una dirección inesperada.', 502);
   // `paymentUrl` guarda la dirección de Transbank; al comprador se lo manda por la página puente (formulario POST con el token).
-  await prisma.storeOrder.updateMany({ where: { id: order.id, companyId, paymentStatus: { not: 'PAID' } }, data: { providerPaymentId: created.token, paymentUrl: created.url, paymentStatus: 'PENDING' } });
-  return `${getAppUrl()}/api/public/store/webpay/start?o=${order.accessToken}`;
+  await claimPaymentSlot(order, { providerPaymentId: created.token, paymentUrl: created.url });
+  return webpayStartUrl(order.accessToken);
+}
+
+/**
+ * Guarda el cobro recién abierto SOLO si el pedido sigue abierto, sin pagar y con el mismo cobro
+ * anterior que vimos al empezar. Si dos solicitudes abren un cobro a la vez (doble clic en
+ * «Pagar ahora»), gana una; la otra devuelve el cobro del ganador (el suyo vence solo en la
+ * pasarela) y así el pedido nunca queda ligado a un cobro distinto del que ve el comprador.
+ * Devuelve la dirección del cobro ganador cuando perdió la carrera, o `null` si ganó.
+ */
+async function claimPaymentSlot(order: PaymentOrder, charge: { providerPaymentId: string; paymentUrl: string }): Promise<string | null> {
+  const claimed = await prisma.storeOrder.updateMany({
+    where: { id: order.id, companyId: order.companyId, status: 'OPEN', paymentStatus: { in: ['PENDING', 'FAILED'] }, providerPaymentId: order.providerPaymentId },
+    data: { providerPaymentId: charge.providerPaymentId, paymentUrl: charge.paymentUrl, paymentStatus: 'PENDING' },
+  });
+  if (claimed.count > 0) return null;
+  const current = await prisma.storeOrder.findFirst({
+    where: { id: order.id, companyId: order.companyId },
+    select: { status: true, paymentStatus: true, providerPaymentId: true, paymentUrl: true },
+  });
+  if (current && current.status === 'OPEN' && current.paymentStatus === 'PENDING' && current.paymentUrl && current.providerPaymentId) {
+    return order.paymentProvider === 'WEBPAY' ? webpayStartUrl(order.accessToken) : current.paymentUrl;
+  }
+  throw new StoreError('Este pedido ya no se puede pagar.', 409);
 }
 
 /**
@@ -123,13 +148,18 @@ export async function restartOrderPayment(accessToken: string): Promise<string> 
   if (!/^[a-f0-9]{64}$/.test(accessToken)) throw new StoreNotFoundError();
   const order = await prisma.storeOrder.findUnique({ where: { accessToken }, include: ORDER_FOR_PAYMENT });
   if (!order) throw new StoreNotFoundError();
-  if (order.status !== 'OPEN' || order.paymentStatus === 'PAID') throw new StoreError('Este pedido ya no se puede pagar.', 409);
+  if (order.status !== 'OPEN' || order.paymentStatus === 'PAID' || order.paymentStatus === 'REFUNDED') throw new StoreError('Este pedido ya no se puede pagar.', 409);
   if (order.paymentProvider !== 'KHIPU' && order.paymentProvider !== 'WEBPAY') throw new StoreError('Este pedido no se paga en línea.', 409);
+  // Abrir un cobro nuevo exige que el sitio siga publicado y la empresa operando con el módulo (cobros ya abiertos se siguen registrando).
+  const { company } = order.site;
+  if (order.site.status !== 'PUBLISHED' || (company.status !== 'ACTIVE' && company.status !== 'TRIAL') || !company.features?.hasEcommerce) {
+    throw new StoreError('Esta tienda no está disponible en este momento. Intenta más tarde.', 409);
+  }
   if (order.paymentExpiresAt && order.paymentExpiresAt.getTime() < Date.now()) throw new StoreError('El tiempo para pagar este pedido terminó. Vuelve a la tienda y compra de nuevo.', 409);
 
   // Un cobro pendiente que sigue abierto se reutiliza; uno fallido se reemplaza.
   if (order.paymentStatus === 'PENDING' && order.paymentUrl && order.providerPaymentId) {
-    return order.paymentProvider === 'WEBPAY' ? `${getAppUrl()}/api/public/store/webpay/start?o=${order.accessToken}` : order.paymentUrl;
+    return order.paymentProvider === 'WEBPAY' ? webpayStartUrl(order.accessToken) : order.paymentUrl;
   }
   const url = await startOrderPayment(order.id, order.companyId);
   if (!url) throw new StoreError('No pudimos abrir el pago.', 502);
@@ -173,6 +203,8 @@ export async function syncOrderPayment(orderId: string, companyId?: string, hint
   const order = await loadPaymentOrder(orderId, companyId);
   if (!order) throw new StoreNotFoundError('Pedido no encontrado');
   if (order.paymentStatus === 'PAID') return 'PAID';
+  // Reembolsado es definitivo: un aviso repetido de la pasarela no lo vuelve a «pagado».
+  if (order.paymentStatus === 'REFUNDED') return 'CLOSED';
   if (order.status !== 'OPEN') {
     // Cerrado sin pagar: solo se mira si la pasarela cobró de todos modos (llegó tarde).
     if (order.paymentProvider !== 'KHIPU' && order.paymentProvider !== 'WEBPAY') return 'CLOSED';
@@ -197,7 +229,8 @@ export async function syncOrderPayment(orderId: string, companyId?: string, hint
       const credentials = webpayCredentials(order);
       if (!credentials || !order.providerPaymentId) return await expireIfStale(order);
       let transaction: WebpayTransaction;
-      if (hint.webpayToken && hint.webpayToken === order.providerPaymentId) {
+      // Solo se CONFIRMA (commit) un pedido abierto; en uno cerrado se lee el resultado sin tocar la transacción.
+      if (hint.webpayToken && hint.webpayToken === order.providerPaymentId && order.status === 'OPEN') {
         try {
           transaction = await commitWebpayTransaction(credentials, order.providerPaymentId);
         } catch (error) {
@@ -225,10 +258,14 @@ export async function syncOrderPayment(orderId: string, companyId?: string, hint
     case 'PAID':
       await markOrderPaid(order.id, order.companyId, { reference, method, source: providerLabel });
       return 'PAID';
-    case 'FAILED':
-      await prisma.storeOrder.updateMany({ where: { id: order.id, companyId: order.companyId, paymentStatus: 'PENDING' }, data: { paymentStatus: 'FAILED' } });
-      await prisma.storeOrderEvent.create({ data: { companyId: order.companyId, orderId: order.id, type: 'PAYMENT_FAILED', message: `${providerLabel}: el pago no se completó (${verdict.reason}).` } });
+    case 'FAILED': {
+      const failed = await prisma.storeOrder.updateMany({ where: { id: order.id, companyId: order.companyId, paymentStatus: 'PENDING' }, data: { paymentStatus: 'FAILED' } });
+      // El evento queda UNA vez: recargar la página del pedido vuelve a consultar y no debe repetirlo.
+      if (failed.count > 0) {
+        await prisma.storeOrderEvent.create({ data: { companyId: order.companyId, orderId: order.id, type: 'PAYMENT_FAILED', message: `${providerLabel}: el pago no se completó (${verdict.reason}).` } });
+      }
       return 'FAILED';
+    }
     case 'MISMATCH':
       // Plata posiblemente recibida que no calza con el pedido: no se aplica a ciegas, se escala.
       captureMessage('tienda-en-linea:cobro-no-calza', 'error', { module: 'tienda-en-linea', companyId: order.companyId, extra: { orderId, provider: order.paymentProvider, reason: verdict.reason } });
@@ -246,7 +283,13 @@ async function expireIfStale(order: PaymentOrder): Promise<SyncOutcome> {
   const online = order.paymentProvider === 'KHIPU' || order.paymentProvider === 'WEBPAY';
   const limit = (order.paymentExpiresAt?.getTime() ?? 0) + (online ? EXPIRY_GRACE_MS : 0);
   if (limit > Date.now()) return 'PENDING';
-  await cancelOrderInternal(order.companyId, order.id, { reason: 'No se recibió el pago a tiempo', actor: null, status: 'EXPIRED', notifyCustomer: true });
+  try {
+    await cancelOrderInternal(order.companyId, order.id, { reason: 'No se recibió el pago a tiempo', actor: null, status: 'EXPIRED', notifyCustomer: true });
+  } catch (error) {
+    // Cambió justo ahora (por ejemplo, entró el pago): no se vence; la próxima consulta lo resuelve.
+    if (error instanceof StoreError) return 'PENDING';
+    throw error;
+  }
   return 'CLOSED';
 }
 
@@ -270,11 +313,11 @@ export async function markOrderPaid(orderId: string, companyId: string, info: Pa
   const outcome = await prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "StoreOrder" WHERE id = ${orderId} AND "companyId" = ${companyId} FOR UPDATE`;
     const order = await tx.storeOrder.findFirst({ where: { id: orderId, companyId }, select: { id: true, status: true, paymentStatus: true } });
-    if (!order || order.paymentStatus === 'PAID') return null;
+    if (!order || order.paymentStatus === 'PAID' || order.paymentStatus === 'REFUNDED') return null;
     const closed = order.status !== 'OPEN';
 
     await tx.storeOrder.updateMany({
-      where: { id: orderId, companyId, paymentStatus: { not: 'PAID' } },
+      where: { id: orderId, companyId, paymentStatus: { in: ['PENDING', 'FAILED'] } },
       data: {
         paymentStatus: 'PAID',
         paidAt: now,

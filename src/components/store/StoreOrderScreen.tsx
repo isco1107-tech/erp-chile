@@ -24,6 +24,9 @@ function headline(order: PublicOrderView): { title: string; intro: string } {
     };
     return { title: `Pedido #${order.number}`, intro: done[order.fulfillmentStatus] };
   }
+  if (order.payment?.mode === 'ONLINE' && order.paymentStatus === 'FAILED') {
+    return { title: `Pedido #${order.number}`, intro: order.payment.canRetry ? 'No pudimos confirmar tu pago. Puedes intentarlo de nuevo mientras reservamos tus productos.' : 'No pudimos confirmar tu pago y el tiempo de reserva terminó.' };
+  }
   if (order.payment?.mode === 'ONLINE') return { title: `Pedido #${order.number}`, intro: 'Estamos esperando la confirmación de tu pago. Esta página se actualiza sola.' };
   return { title: `Pedido #${order.number}`, intro: 'Recibimos tu pedido. Sigue las instrucciones para completar tu pago.' };
 }

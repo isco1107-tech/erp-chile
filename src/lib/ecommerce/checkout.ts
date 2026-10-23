@@ -50,6 +50,18 @@ export const billingSchema = z.object({
   comuna: z.string().trim().min(2, 'Escribe la comuna').max(60),
 });
 
+/** Datos de facturación: sus campos comparten nombre con los de despacho (`comuna`, `address`) y con el RUT del comprador, así que llevan un id propio. */
+const BILLING_FIELD_IDS: Record<string, string> = { rut: 'billrut', razonSocial: 'billname', giro: 'billgiro', address: 'billaddress', comuna: 'billcomuna' };
+
+/** Id del campo del formulario (sin el prefijo `co-`) al que apunta un error de validación, a partir de su ruta. */
+export function checkoutFieldFor(path: ReadonlyArray<PropertyKey>): string | null {
+  const last = path[path.length - 1];
+  if (last === undefined) return null;
+  const name = String(last);
+  if (path[0] === 'billing') return BILLING_FIELD_IDS[name] ?? 'billrut';
+  return name;
+}
+
 export const customerSchema = z.object({
   name: z.string().trim().min(3, 'Escribe tu nombre completo').max(80),
   email: z.string().trim().toLowerCase().email('Escribe un correo válido').max(120),

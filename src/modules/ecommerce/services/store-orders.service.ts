@@ -371,6 +371,21 @@ function addressText(value: Prisma.JsonValue | null): string | null {
   return [record.street, record.extra, record.comuna, record.region].filter(Boolean).join(', ') || null;
 }
 
+const SYNC_MIN_INTERVAL_MS = 8_000;
+const lastSyncAt = new Map<string, number>();
+
+/** `true` si pasó el intervalo mínimo desde la última consulta de este pedido (memoria de la instancia). */
+function shouldSyncNow(orderId: string): boolean {
+  const now = Date.now();
+  const last = lastSyncAt.get(orderId);
+  if (last !== undefined && now - last < SYNC_MIN_INTERVAL_MS) return false;
+  if (lastSyncAt.size > 1000) {
+    for (const [id, at] of lastSyncAt) if (now - at > SYNC_MIN_INTERVAL_MS) lastSyncAt.delete(id);
+  }
+  lastSyncAt.set(orderId, now);
+  return true;
+}
+
 /**
  * Vista del pedido para quien lo compró. Entra con el enlace secreto (64 hex) y SOLO de la
  * tienda del sitio por el que llegó: el mismo token en otro sitio no existe. Si el pedido está
@@ -382,7 +397,9 @@ export async function getPublicOrder(siteId: string, accessToken: string, option
   const found = await prisma.storeOrder.findUnique({ where: { accessToken }, select: { id: true, siteId: true, companyId: true, status: true, paymentStatus: true, paymentProvider: true } });
   if (!found || found.siteId !== siteId) return null;
 
-  if (options.sync !== false && found.status === 'OPEN' && found.paymentStatus !== 'PAID' && (found.paymentProvider === 'KHIPU' || found.paymentProvider === 'WEBPAY')) {
+  // Solo mientras espera un cobro, y a lo más una consulta a la pasarela cada pocos segundos por pedido: la página
+  // se refresca sola y cualquiera con el enlace la puede abrir, así que no puede disparar una consulta por visita.
+  if (options.sync !== false && found.status === 'OPEN' && found.paymentStatus === 'PENDING' && (found.paymentProvider === 'KHIPU' || found.paymentProvider === 'WEBPAY') && shouldSyncNow(found.id)) {
     await syncOrderPayment(found.id, found.companyId).catch(() => undefined);
   }
 

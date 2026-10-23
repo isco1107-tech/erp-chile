@@ -88,6 +88,10 @@ export default function OrderDialog({ orderId, onClose, onChanged, canWrite, can
     setNote('');
     setReason('');
     setRefunded(false);
+    setMethod('TRANSFERENCIA');
+    setCarrier('');
+    setTracking('');
+    setTrackingUrl('');
     if (orderId) void load(orderId);
   }, [orderId, load]);
 
@@ -100,6 +104,9 @@ export default function OrderDialog({ orderId, onClose, onChanged, canWrite, can
         toast.success(result.message ?? 'Listo');
         setPanel(null);
         setNote('');
+        setCarrier('');
+        setTracking('');
+        setTrackingUrl('');
         onChanged();
         await load(orderId);
       } else {

@@ -9,7 +9,7 @@ type Params = Promise<{ host: string; token: string }>;
 
 async function resolve(params: Params) {
   const { host, token } = await params;
-  const found = await resolveDomainStore(host);
+  const found = await resolveDomainStore(host, { tracking: true });
   if (!found) return null;
   return { site: found.site, store: found.store, route: { kind: 'order' as const, token }, basePath: '', siteUrl: `https://${found.domain}` };
 }

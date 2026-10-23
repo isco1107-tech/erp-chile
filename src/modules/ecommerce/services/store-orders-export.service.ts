@@ -12,6 +12,9 @@ const CLP = '"$"#,##0';
 /** Texto escrito por el comprador: nunca se interpreta como fórmula de Excel. */
 const safe = (value: string): string => (/^[=+\-@\t\r]/.test(value) ? `'${value}` : value);
 
+/** Un teléfono con «+56…» es texto inofensivo: sin el apóstrofe que `safe` pondría a la vista en la celda. */
+const phoneText = (value: string): string => (/^\+?[0-9 ()\-]{6,24}$/.test(value) ? value : safe(value));
+
 /**
  * Pedidos de la tienda a Excel: una fila por pedido, con el cliente, la entrega, el pago y la venta del ERP.
  * Mismo patrón visual que el resto de las exportaciones. Son datos personales: cada descarga queda auditada
@@ -60,7 +63,7 @@ export async function buildOrdersWorkbook(companyId: string, query: Pick<OrderLi
       site: safe(order.siteName),
       name: safe(order.customerName),
       email: safe(order.customerEmail),
-      phone: safe(order.customerPhone),
+      phone: phoneText(order.customerPhone),
       rut: order.customerRut ?? '',
       document: order.documentType === 'FACTURA' ? 'Factura' : 'Boleta',
       delivery: order.deliveryMethod === 'PICKUP' ? 'Retiro' : 'Despacho',

@@ -19,6 +19,7 @@ import { ownImageOrNull, parseStoreImages } from './store-catalog.service';
 import type { PublicStoreContext } from './store-public.service';
 import { cancelOrderInternal } from './store-fulfillment.service';
 import { reserveForOrder } from './store-stock.service';
+import { webpayStartUrl } from './store-urls';
 
 /**
  * Crea el pedido de un comprador. Todo lo que importa se resuelve acá, en el servidor,
@@ -67,14 +68,25 @@ async function existingOrder(ctx: PublicStoreContext, input: CheckoutInput): Pro
     number: found.number,
     accessToken: found.accessToken,
     paymentProvider: found.paymentProvider ?? input.paymentProvider,
-    redirectUrl: pending && found.paymentUrl ? found.paymentUrl : null,
+    // Webpay no se abre con un enlace: va por la página puente (la dirección guardada es la de Transbank y pide un POST).
+    redirectUrl: pending && found.paymentUrl ? (found.paymentProvider === 'WEBPAY' ? webpayStartUrl(found.accessToken) : found.paymentUrl) : null,
     replayed: true,
   };
 }
 
+/** Pedidos abiertos y sin pagar que una misma persona puede tener en una tienda: frena el acaparar stock con pedidos que nunca se pagan. */
+export const MAX_OPEN_UNPAID_PER_EMAIL = 5;
+
 export async function createStoreOrder(ctx: PublicStoreContext, input: CheckoutInput): Promise<CreatedOrder> {
   const previous = await existingOrder(ctx, input);
   if (previous) return previous;
+
+  const openUnpaid = await prisma.storeOrder.count({
+    where: { siteId: ctx.siteId, companyId: ctx.companyId, status: 'OPEN', paymentStatus: { in: ['PENDING', 'FAILED'] }, customerEmail: { equals: input.customer.email, mode: 'insensitive' } },
+  });
+  if (openUnpaid >= MAX_OPEN_UNPAID_PER_EMAIL) {
+    throw new StoreError('Ya tienes varios pedidos por pagar en esta tienda. Págalos (revisa tu correo) o espera a que venzan antes de hacer otro.', 429);
+  }
 
   const { settings } = ctx;
 

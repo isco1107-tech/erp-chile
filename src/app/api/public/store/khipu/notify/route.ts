@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { captureException, captureMessage } from '@/lib/observability';
+import { STORE_GATEWAY_NOTIFY_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { limitByIp } from '@/modules/ecommerce/public-api';
 import { handleKhipuNotification } from '@/modules/ecommerce/services/store-payment.service';
 
 export const dynamic = 'force-dynamic';
@@ -18,6 +20,8 @@ const MAX_BODY_BYTES = 64 * 1024;
  * siempre); 500 ante un error interno, para que Khipu sí reintente.
  */
 export async function POST(req: Request) {
+  const limited = limitByIp(req, STORE_GATEWAY_NOTIFY_RATE_LIMIT);
+  if (limited) return limited;
   const contentLength = Number(req.headers.get('content-length') ?? NaN);
   if (Number.isFinite(contentLength) && contentLength > MAX_BODY_BYTES) {
     return NextResponse.json({ success: false, error: 'Body demasiado grande' }, { status: 413 });
@@ -36,7 +40,8 @@ export async function POST(req: Request) {
 
   try {
     const result = await handleKhipuNotification(paymentId);
-    if (result === 'unknown') captureMessage('tienda-en-linea:notificacion-desconocida', 'warn', { module: 'tienda-en-linea', extra: { paymentId } });
+    // Un cobro que no ubicamos puede ser dinero movido sin pedido (p. ej. un cobro que quedó huérfano): se escala.
+    if (result === 'unknown') captureMessage('tienda-en-linea:notificacion-desconocida', 'error', { module: 'tienda-en-linea', extra: { paymentId } });
     return NextResponse.json({ success: true });
   } catch (error) {
     captureException(error, { module: 'tienda-en-linea', extra: { reason: 'khipu-notify', paymentId } });

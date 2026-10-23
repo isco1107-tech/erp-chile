@@ -31,7 +31,7 @@ async function buy(request: APIRequestContext, slug: string, quantity: number, o
     data: {
       idempotencyKey: `ck_admin_${Date.now()}_${visitor}_xxxx`,
       lines: [{ productId: demo.productIds[slug], quantity }],
-      customer: { name: 'Camila Rojas', email: 'camila@correo.cl', phone: '+56 9 1234 5678' },
+      customer: { name: 'Camila Rojas', email: `camila.${visitor}.${Date.now()}@correo.cl`, phone: '+56 9 1234 5678' },
       documentType: 'BOLETA',
       deliveryMethod: 'PICKUP',
       paymentProvider: 'TRANSFER',
@@ -133,7 +133,7 @@ test.describe('pedidos', () => {
   });
 
   test('descarga el Excel de pedidos y la descarga queda auditada', async ({ page, request }) => {
-    const order = await buy(request, 'aceite-maravilla', 1, { customer: { name: '=2+2', email: 'camila@correo.cl', phone: '+56 9 1234 5678' } });
+    const order = await buy(request, 'aceite-maravilla', 1, { customer: { name: '=2+2', email: `formula.${Date.now()}@correo.cl`, phone: '+56 9 1234 5678' } });
     await page.goto('/dashboard/store');
     const download = page.waitForEvent('download');
     await page.getByRole('link', { name: 'Descargar Excel' }).click();

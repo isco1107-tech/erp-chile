@@ -31,18 +31,24 @@ export default function AddToCartButton({ siteSlug, productId, available, maxPer
     );
   }
   return (
-    <button
-      type="button"
-      className="ws-btn ws-btn-main ws-btn-sm w-full"
-      disabled={atLimit}
-      onClick={() => {
-        add(productId, 1, limit);
-        setAdded(true);
-      }}
-      aria-label={atLimit ? `${name}: ya tienes el máximo en tu carrito` : `Agregar ${name} al carrito`}
-    >
-      {added ? <Check className="size-4" aria-hidden="true" /> : <ShoppingBag className="size-4" aria-hidden="true" />}
-      <span aria-live="polite">{added ? 'Agregado' : atLimit ? 'En tu carrito' : 'Agregar'}</span>
-    </button>
+    <>
+      <button
+        type="button"
+        className="ws-btn ws-btn-main ws-btn-sm w-full"
+        disabled={atLimit}
+        onClick={() => {
+          add(productId, 1, limit);
+          setAdded(true);
+        }}
+        aria-label={atLimit ? `${name}: ya tienes el máximo en tu carrito` : `Agregar ${name} al carrito`}
+      >
+        {added ? <Check className="size-4" aria-hidden="true" /> : <ShoppingBag className="size-4" aria-hidden="true" />}
+        <span aria-hidden="true">{added ? 'Agregado' : atLimit ? 'En tu carrito' : 'Agregar'}</span>
+      </button>
+      {/* El nombre accesible del botón no cambia al pulsarlo: el aviso va aparte, en una región «viva». */}
+      <span className="sr-only" role="status">
+        {added ? `${name} agregado al carrito` : ''}
+      </span>
+    </>
   );
 }

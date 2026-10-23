@@ -20,6 +20,11 @@ export function orderPageUrl(site: SiteAddress, accessToken: string): string {
   return `${storeBaseUrl(site)}/pedido/${accessToken}`;
 }
 
+/** Página puente que manda al comprador a Webpay con un formulario POST (ver `webpay-bridge.ts`). */
+export function webpayStartUrl(accessToken: string): string {
+  return `${getAppUrl()}/api/public/store/webpay/start?o=${accessToken}`;
+}
+
 export function cartPageUrl(site: SiteAddress): string {
   return `${storeBaseUrl(site)}/carrito`;
 }

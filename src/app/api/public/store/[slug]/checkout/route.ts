@@ -1,4 +1,4 @@
-import { checkoutSchema } from '@/lib/ecommerce/checkout';
+import { checkoutFieldFor, checkoutSchema } from '@/lib/ecommerce/checkout';
 import { STORE_CHECKOUT_RATE_LIMIT, STORE_CHECKOUT_SITE_RATE_LIMIT, checkRateLimit } from '@/lib/security/rate-limiter';
 import { jsonError, jsonOk, limitByIp, readJsonBody, storeErrorResponse } from '@/modules/ecommerce/public-api';
 import { createStoreOrder } from '@/modules/ecommerce/services/store-checkout.service';
@@ -32,7 +32,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
   const parsed = checkoutSchema.safeParse(body);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
-    return jsonError(issue?.message ?? 'Revisa los datos de tu compra.', 400, issue?.path[0] ? { field: String(issue.path[issue.path.length - 1]) } : {});
+    const field = issue ? checkoutFieldFor(issue.path) : null;
+    return jsonError(issue?.message ?? 'Revisa los datos de tu compra.', 400, field ? { field } : {});
   }
 
   try {

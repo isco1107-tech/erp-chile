@@ -179,7 +179,7 @@ export interface CheckoutData {
 /** Llena «Finalizar compra» como lo haría una persona y devuelve el botón de enviar (sin pulsarlo). */
 export async function fillCheckout(page: import('@playwright/test').Page, data: CheckoutData): Promise<import('@playwright/test').Locator> {
   await page.getByLabel('Nombre completo').fill(data.name ?? 'Camila Rojas');
-  await page.getByLabel('Correo', { exact: false }).first().fill(data.email ?? 'camila@correo.cl');
+  await page.getByLabel('Correo', { exact: false }).first().fill(data.email ?? `camila.${Date.now()}.${Math.floor(Math.random() * 1e6)}@correo.cl`);
   await page.getByLabel('Teléfono').fill(data.phone ?? '+56 9 1234 5678');
   if (data.delivery === 'pickup') {
     await page.getByRole('radio', { name: /Retiro en tienda/ }).check();

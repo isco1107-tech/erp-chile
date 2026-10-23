@@ -484,6 +484,9 @@ export async function deleteWebSite(companyId: string, id: string): Promise<{ ur
   const site = await prisma.webSite.findFirst({ where: { id, companyId }, select: { status: true, customDomain: true, assets: { select: { url: true } } } });
   if (!site) throw new WebSiteError('Sitio no encontrado');
   if (site.status === 'PUBLISHED') throw new WebSiteError('Despublica el sitio antes de eliminarlo.');
+  // Los pedidos de la tienda cuelgan del sitio: eliminarlo los borraría junto con su historial de ventas y pagos.
+  const orders = await prisma.storeOrder.count({ where: { siteId: id, companyId } });
+  if (orders > 0) throw new WebSiteError('Este sitio tiene pedidos de la tienda en línea. Archívalo en vez de eliminarlo para conservar el historial de ventas y pagos.');
   await prisma.webSite.deleteMany({ where: { id, companyId } });
   return { urls: site.assets.map((asset) => asset.url), domain: site.customDomain };
 }

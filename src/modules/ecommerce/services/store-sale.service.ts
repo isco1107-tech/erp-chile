@@ -2,7 +2,7 @@ import 'server-only';
 
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { isUniqueConstraintError } from '@/lib/prisma-errors';
+import { isUniqueConstraintError, toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import { captureException } from '@/lib/observability';
 import { cleanRut, formatRut } from '@/lib/chile/rut';
 import { priceOrder } from '@/lib/ecommerce/pricing';
@@ -174,8 +174,8 @@ export async function issueSaleForOrder(companyId: string, orderId: string): Pro
     });
     return { status: 'ISSUED', salesDocumentId: document.id };
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'No se pudo emitir la venta';
-    const friendly = error instanceof StoreError ? message : `No se pudo emitir la venta en el ERP: ${message}`;
+    // Lo que se guarda en el pedido lo lee el equipo: un mensaje de negocio pasa tal cual; un error de base de datos se traduce (el detalle técnico va a observabilidad).
+    const friendly = error instanceof StoreError ? error.message : `No se pudo emitir la venta en el ERP: ${toFriendlyErrorMessage(error)}`;
     if (!(error instanceof StoreError)) captureException(error, { module: 'tienda-en-linea', companyId, extra: { orderId, reason: 'issue-sale' } });
     await prisma.storeOrder.updateMany({ where: { id: orderId, companyId, salesDocumentId: null }, data: { documentError: friendly.slice(0, 500) } });
     await prisma.storeOrderEvent.create({ data: { companyId, orderId, type: 'SALE_FAILED', message: friendly.slice(0, 500) } }).catch(() => undefined);

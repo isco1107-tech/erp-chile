@@ -60,10 +60,12 @@ describeDb('rutas públicas de la tienda contra PostgreSQL', () => {
   const params = <T extends Record<string, string>>(value: T) => ({ params: Promise.resolve(value) });
   const json = async (response: Response) => (await response.json()) as { success: boolean; error?: string; field?: string; code?: string; data?: Record<string, unknown> };
 
+  /** Cada compra de prueba es de una persona distinta: el tope de pedidos sin pagar es por correo. */
+  let buyers = 0;
   const checkoutBody = (over: Record<string, unknown> = {}) => ({
     idempotencyKey: key(),
     lines: [{ productId: ids.aceite, quantity: 1 }],
-    customer: { name: 'Camila Rojas', email: 'camila@correo.cl', phone: '+56 9 1234 5678' },
+    customer: { name: 'Camila Rojas', email: `comprador${++buyers}.${suffix}@correo.cl`, phone: '+56 9 1234 5678' },
     documentType: 'BOLETA',
     deliveryMethod: 'PICKUP',
     paymentProvider: 'TRANSFER',

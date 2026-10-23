@@ -39,7 +39,7 @@ import { REGION_NAMES, comunasOf, etaLabel, parseShippingRates, ratesForRegion, 
 import { productSlug } from '@/lib/ecommerce/slug';
 import { STORE_PAGE_SLUGS, storePageConflicts } from '@/lib/ecommerce/routes';
 import { evaluateStoreReadiness, type StoreReadinessInput } from '@/lib/ecommerce/readiness';
-import { checkoutSchema, quoteSchema } from '@/lib/ecommerce/checkout';
+import { checkoutFieldFor, checkoutSchema, quoteSchema } from '@/lib/ecommerce/checkout';
 import { isValidPageSlug } from '@/lib/web-sites/page-slugs';
 
 describe('despacho por región', () => {
@@ -409,6 +409,22 @@ describe('cuerpo del checkout', () => {
     const billing = { rut: '76.086.428-5', razonSocial: 'Mi Empresa SpA', giro: 'Comercio', address: 'Av. Siempre Viva 742', comuna: 'Temuco' };
     expect(checkoutSchema.safeParse({ ...base, documentType: 'FACTURA', billing }).success).toBe(true);
     expect(checkoutSchema.safeParse({ ...base, documentType: 'FACTURA', billing: { ...billing, rut: '11.111.111-2' } }).success).toBe(false);
+  });
+
+  it('un error de validación apunta al campo correcto del formulario, también en los datos de factura', () => {
+    // Los datos de facturación repiten nombres de campos de despacho (comuna, address) y del comprador (rut).
+    const billing = { rut: '11.111.111-2', razonSocial: 'X', giro: '', address: 'Av', comuna: '' };
+    const parsed = checkoutSchema.safeParse({ ...base, documentType: 'FACTURA', billing });
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) {
+      const fields = parsed.error.issues.map((issue) => checkoutFieldFor(issue.path)).sort();
+      expect(fields).toEqual(['billaddress', 'billcomuna', 'billgiro', 'billname', 'billrut']);
+    }
+    expect(checkoutFieldFor(['customer', 'rut'])).toBe('rut');
+    expect(checkoutFieldFor(['address', 'comuna'])).toBe('comuna');
+    expect(checkoutFieldFor(['customer', 'email'])).toBe('email');
+    expect(checkoutFieldFor(['billing'])).toBe('billrut');
+    expect(checkoutFieldFor([])).toBeNull();
   });
 
   it('el RUT del comprador, si lo da, debe ser válido y queda formateado', () => {

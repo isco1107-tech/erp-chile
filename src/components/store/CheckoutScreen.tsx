@@ -190,10 +190,18 @@ export default function CheckoutScreen({ siteSlug, basePath, termsText }: { site
         setBadField(result.field);
         document.getElementById(`co-${result.field}`)?.focus();
       }
-      // Una respuesta del servidor cierra el intento (el pedido no se creó o se canceló): el próximo es nuevo.
-      // Sin respuesta (sin conexión) se conserva la clave: reintentar no duplica el pedido.
-      if (result.status !== 0) keyRef.current = attemptKey(siteSlug, signature, true);
+      // Una respuesta de la tienda que rechaza la compra cierra el intento (el pedido no se creó o se canceló): el
+      // próximo es nuevo. Sin respuesta, con un error de infraestructura o un 500 inesperado el pedido pudo haberse
+      // creado: se conserva la clave y reintentar devuelve ese pedido en vez de duplicarlo.
+      if (result.fromApp && result.status !== 500) keyRef.current = attemptKey(siteSlug, signature, true);
       return;
+    }
+    // Compra hecha: la próxima es otra, no puede heredar la clave (devolvería este mismo pedido).
+    keyRef.current = null;
+    try {
+      window.sessionStorage.removeItem(`aether-ck:${siteSlug}`);
+    } catch {
+      /* sin almacenamiento: no hay clave guardada que borrar */
     }
     cart.clear();
     window.location.assign(result.data.redirectUrl ?? orderHref(basePath, result.data.orderToken));
@@ -405,6 +413,7 @@ export default function CheckoutScreen({ siteSlug, basePath, termsText }: { site
             </div>
           </dl>
           {quote?.belowMinimum && <Notice>La compra mínima de esta tienda es de {money(quote.minOrderAmount)}.</Notice>}
+          {quote?.lines.some((line) => line.problem === 'OUT_OF_STOCK') && <Notice>Hay productos agotados en tu carrito. Quítalos desde el carrito para poder continuar.</Notice>}
           {submitError && <Notice tone="error">{submitError}</Notice>}
           <button type="submit" disabled={!canSubmit} className={cx('ws-btn ws-btn-main w-full', !canSubmit && 'opacity-60')}>
             {submitting ? <Loader2 className="size-5 animate-spin" aria-hidden="true" /> : null}

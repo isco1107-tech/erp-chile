@@ -193,7 +193,7 @@ test.describe('comprar', () => {
     const body = {
       idempotencyKey: `ck_e2e_${Date.now()}_retry000`,
       lines: [{ productId: demo.productIds['harina-selecta'], quantity: 1 }],
-      customer: { name: 'Camila Rojas', email: 'camila@correo.cl', phone: '+56 9 1234 5678' },
+      customer: { name: 'Camila Rojas', email: `reintento.${Date.now()}@correo.cl`, phone: '+56 9 1234 5678' },
       documentType: 'BOLETA', deliveryMethod: 'PICKUP', paymentProvider: 'TRANSFER', acceptTerms: true, website: '',
     };
     void page;
