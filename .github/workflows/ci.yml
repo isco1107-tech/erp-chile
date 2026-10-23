@@ -59,6 +59,13 @@ jobs:
       DATABASE_URL: postgresql://e2e:e2e@localhost:5432/erp_e2e
       JWT_SECRET: solo-para-ci-e2e-no-es-un-secreto-real-0123456789
       SEED_ADMIN_PASSWORD: Ci-E2e-Prueba-2026!
+      # Tienda en línea: llave para cifrar las credenciales de pasarela de la empresa de pruebas y pasarelas
+      # SIMULADAS (e2e/fake-gateways.ts, que escucha en el puerto 4010 dentro de la prueba). APP_URL es la
+      # dirección a la que Webpay devuelve al comprador.
+      PAYMENTS_ENCRYPTION_KEY: solo-para-ci-e2e-llave-de-pasarelas-0123456789
+      APP_URL: http://localhost:3100
+      KHIPU_API_BASE_URL: http://localhost:4010
+      WEBPAY_API_BASE_URL: http://localhost:4010
     steps:
       - name: Checkout
         uses: actions/checkout@v4

@@ -71,24 +71,26 @@ export default function CartScreen({ siteSlug, basePath }: { siteSlug: string; b
           {lines.map((line) => {
             const max = Math.min(99, line.maxPerOrder ?? 99, line.available ?? 99);
             return (
-              <li key={line.productId} className="ws-card flex gap-4 p-3 @2xl:p-4">
+              <li key={line.productId} className="ws-card flex gap-3 p-3 @2xl:gap-4 @2xl:p-4">
                 <a href={productHref(basePath, line.slug)} className="shrink-0" tabIndex={-1} aria-hidden="true">
-                  <ProductImage src={line.imageUrl} alt="" className="size-20 rounded-[var(--ws-radius)] object-cover @2xl:size-24" />
+                  <ProductImage src={line.imageUrl} alt="" className="size-16 rounded-[var(--ws-radius)] object-cover @sm:size-20 @2xl:size-24" />
                 </a>
                 <div className="flex min-w-0 grow flex-col gap-2">
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start justify-between gap-2">
                     <h2 className="ws-h min-w-0 text-base leading-snug break-words">
                       <a href={productHref(basePath, line.slug)} className="underline-offset-4 hover:underline">
                         {line.name}
                       </a>
                     </h2>
-                    <p className="ws-h shrink-0 font-bold [color:var(--s-mark)]">{money(line.displayTotal)}</p>
+                    <button type="button" onClick={() => cart.remove(line.productId)} aria-label={`Quitar ${line.name} del carrito`} className="ws-muted -mt-1 -mr-1 shrink-0 cursor-pointer p-1 hover:[color:var(--s-fg)]">
+                      <Trash2 className="size-5" aria-hidden="true" />
+                    </button>
                   </div>
                   <p className="ws-muted text-sm">{money(line.grossUnit)} c/u</p>
                   {line.problem === 'OUT_OF_STOCK' ? (
                     <p className="ws-error">Este producto se agotó. Quítalo para seguir.</p>
                   ) : (
-                    <div className="mt-auto flex flex-wrap items-center gap-3">
+                    <div className="mt-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
                       <div role="group" aria-label={`Cantidad de ${line.name}`} className="ws-card inline-flex items-center overflow-hidden !rounded-[var(--ws-button-radius)]">
                         <button type="button" className="ws-cbtn !size-9 !rounded-none !border-0" onClick={() => cart.set(line.productId, line.quantity - 1, max)} aria-label={line.quantity <= 1 ? `Quitar ${line.name}` : 'Una unidad menos'}>
                           <Minus className="size-4" aria-hidden="true" />
@@ -98,13 +100,11 @@ export default function CartScreen({ siteSlug, basePath }: { siteSlug: string; b
                           <Plus className="size-4" aria-hidden="true" />
                         </button>
                       </div>
-                      {line.quantity >= max && max < 99 && <span className="ws-muted text-xs">Es lo máximo que podemos entregarte.</span>}
+                      <p className="ws-h font-bold [color:var(--s-mark)] tabular-nums">{money(line.displayTotal)}</p>
                     </div>
                   )}
+                  {line.quantity >= max && max < 99 && line.problem !== 'OUT_OF_STOCK' && <p className="ws-muted text-xs">Es lo máximo que podemos entregarte.</p>}
                 </div>
-                <button type="button" onClick={() => cart.remove(line.productId)} aria-label={`Quitar ${line.name} del carrito`} className="ws-muted h-fit shrink-0 cursor-pointer p-1 hover:[color:var(--s-fg)]">
-                  <Trash2 className="size-5" aria-hidden="true" />
-                </button>
               </li>
             );
           })}

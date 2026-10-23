@@ -161,3 +161,63 @@ export async function resetStoreOrders(): Promise<void> {
   await prisma.storeOrder.updateMany({ where: { companyId }, data: { salesDocumentId: null } });
   await prisma.storeOrder.deleteMany({ where: { companyId } });
 }
+
+/** Las pasarelas simuladas están conectadas a la app (se levantó con las variables de e2e/README.md). */
+export const GATEWAYS_CONFIGURED = Boolean(process.env.KHIPU_API_BASE_URL?.includes('localhost') && process.env.WEBPAY_API_BASE_URL?.includes('localhost'));
+export const GATEWAYS_HINT = 'Levanta la app con KHIPU_API_BASE_URL y WEBPAY_API_BASE_URL apuntando a localhost:4010 y APP_URL con su dirección (ver e2e/README.md).';
+
+export interface CheckoutData {
+  name?: string;
+  email?: string;
+  phone?: string;
+  delivery: 'pickup' | 'shipping';
+  payment: RegExp;
+  /** Despacho: región, comuna y calle. */
+  address?: { region: string; comuna: string; street: string };
+}
+
+/** Llena «Finalizar compra» como lo haría una persona y devuelve el botón de enviar (sin pulsarlo). */
+export async function fillCheckout(page: import('@playwright/test').Page, data: CheckoutData): Promise<import('@playwright/test').Locator> {
+  await page.getByLabel('Nombre completo').fill(data.name ?? 'Camila Rojas');
+  await page.getByLabel('Correo', { exact: false }).first().fill(data.email ?? 'camila@correo.cl');
+  await page.getByLabel('Teléfono').fill(data.phone ?? '+56 9 1234 5678');
+  if (data.delivery === 'pickup') {
+    await page.getByRole('radio', { name: /Retiro en tienda/ }).check();
+  } else {
+    await page.getByRole('radio', { name: /Despacho a domicilio/ }).check();
+    await page.getByLabel('Región').selectOption(data.address?.region ?? REGION_RM);
+    await page.getByLabel('Comuna').fill(data.address?.comuna ?? 'Ñuñoa');
+    await page.getByLabel('Calle y número').fill(data.address?.street ?? 'Av. Irarrázaval 2401');
+  }
+  await page.getByRole('radio', { name: data.payment }).check();
+  await page.getByRole('checkbox', { name: /Acepto las condiciones/ }).check();
+  return page.getByRole('button', { name: /^(Pagar \$|Confirmar pedido)/ });
+}
+
+/** Carrito del navegador (una clave por tienda): arma uno sin pasar por el catálogo. */
+export async function seedCart(page: import('@playwright/test').Page, lines: Array<{ productId: string; quantity: number }>): Promise<void> {
+  await page.addInitScript(
+    ({ key, value }) => {
+      try {
+        if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, value);
+      } catch {
+        /* sin storage */
+      }
+    },
+    { key: `aether-cart:${STORE_SLUG}`, value: JSON.stringify(lines) }
+  );
+}
+
+/** Pedido de la tienda con ese enlace secreto, leído directo de la base. */
+export async function orderByToken(token: string) {
+  return db().storeOrder.findUniqueOrThrow({ where: { accessToken: token }, include: { items: true, salesDocument: true } });
+}
+
+/** Unidades en la bodega de la tienda de un producto de la demo. */
+export async function onHandOf(slug: string): Promise<number> {
+  const { companyId } = await owner();
+  const demo = await db().storeProduct.findFirstOrThrow({ where: { companyId, slug }, select: { productId: true, siteId: true } });
+  const store = await db().webSiteStore.findFirstOrThrow({ where: { siteId: demo.siteId }, select: { warehouseId: true } });
+  const stock = await db().stock.findFirst({ where: { companyId, productId: demo.productId, warehouseId: store.warehouseId! }, select: { quantity: true } });
+  return stock?.quantity ?? 0;
+}

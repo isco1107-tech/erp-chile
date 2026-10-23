@@ -450,10 +450,12 @@ export const STORE_QUOTE_RATE_LIMIT: RateLimitConfig = {
   windowMs: 10 * 60_000,
 };
 
-/** Tienda en línea: crear pedidos por IP. Un comprador real hace pocos; más es un bot probando tarjetas o agotando stock. */
+/** Tienda en línea: crear pedidos por IP. Un comprador real hace pocos; más es un bot probando tarjetas o agotando stock.
+ * No puede ser muy bajo: las redes móviles comparten una IP entre muchos clientes y no deben bloquearse entre sí
+ * (el tope por tienda, más abajo, frena el ataque distribuido). */
 export const STORE_CHECKOUT_RATE_LIMIT: RateLimitConfig = {
   prefix: 'store-checkout-ip',
-  limit: 8,
+  limit: 20,
   windowMs: 60 * 60_000,
 };
 

@@ -16,7 +16,7 @@ export default function ProductCard({ product, basePath, siteSlug, eager = false
         {soldOut && <span className="absolute top-3 left-3 rounded-full bg-[color:var(--ws-dark)] px-2.5 py-1 text-xs font-bold text-[color:var(--ws-on-dark)] shadow">Agotado</span>}
       </a>
       <div className="flex grow flex-col gap-1.5 p-4">
-        {product.collection && <p className="ws-eyebrow !text-[0.68rem] break-words">{product.collection}</p>}
+        {product.collection && <p className="ws-eyebrow break-words">{product.collection}</p>}
         <h3 className="ws-h text-base leading-snug break-words">
           <a href={href} className="underline-offset-4 hover:underline">
             {product.title}

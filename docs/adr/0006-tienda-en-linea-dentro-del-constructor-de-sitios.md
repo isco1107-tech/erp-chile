@@ -1,6 +1,6 @@
 # 0006 — Tienda en línea dentro del constructor de sitios
 
-Estado: aceptada (2026-10-23). Fase 1 en construcción; lo que falta está en «Alcance y lo que NO está».
+Estado: aceptada (2026-10-23). Fase 1 construida de punta a punta (esquema, servicios, rutas públicas, pantallas del comprador, panel del equipo, manual y pruebas); lo que falta está en «Alcance y lo que NO está».
 
 ## Contexto
 
@@ -30,3 +30,6 @@ El constructor de sitios (ADR 0003) ya publica sitios con catálogo de productos
 - Las reservas hacen que el stock «visible» de la tienda sea menor que el físico mientras hay pagos en curso. El resto del ERP (POS, Ventas) no ve esas reservas: una venta de mostrador puede llevarse unidades reservadas. Se acepta y se resuelve con el aviso del punto 5; apartar stock para el resto de los canales exigiría que el POS lea las reservas.
 - Una tienda con muchas ventas simultáneas del mismo producto serializa sus pedidos en el lock de su fila de stock (milisegundos por pedido).
 - Esas cinco direcciones NO se reservan para todos los sitios (`parseSiteDocument` repara las direcciones reservadas y renombraría en silencio páginas ya publicadas): solo valen para un sitio con tienda. Abrir la tienda exige que ninguna página las use, guardar el contenido de un sitio con tienda rechaza páginas nuevas con esos nombres y un sitio anterior que tenga una página `tienda` la sigue mostrando mientras no active su tienda.
+- **Webpay Plus se escribió sin credenciales reales.** Su cliente (`src/lib/payments/webpay.ts`) sigue la documentación v1.2 y se probó contra una pasarela simulada y respuestas simuladas; antes de abrir una tienda en producción hay que recorrerlo con las credenciales de integración de Transbank (ambiente «Integración» en Pagos) y recién después pasar a «Producción».
+- **El puente hacia Webpay lleva su propia CSP.** La global solo deja enviar formularios al propio origen; la página puente (`/api/public/store/webpay/start`) necesita enviar el `token_ws` por POST a Transbank, así que se le fija una política mínima (`form-action` solo a los hosts de Transbank, el único script por su hash). Está duplicada en `next.config.js` (Next aplica primero las cabeceras globales y no deja que el handler las reemplace) y un test las compara.
+- **Límites por IP no pueden ser muy bajos:** las redes móviles comparten IP entre muchos compradores, así que el tope por IP del checkout es holgado (20 por hora) y el freno contra el ataque distribuido es el tope por tienda (en memoria y contado en la base).
