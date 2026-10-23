@@ -394,4 +394,83 @@ export const GESTION_SECTIONS: ManualSection[] = [
       },
     ],
   },
+  {
+    id: 'tienda-en-linea',
+    key: 'hasEcommerce',
+    permission: 'store:read',
+    chapter: 'Sitios web',
+    title: 'Tienda en línea',
+    summary:
+      'Vende por internet desde tu sitio web: catálogo armado con tu inventario real, carrito, pago con Khipu o Webpay (o transferencia y pago al retirar), despacho por región o retiro en tienda. Cada venta pagada emite la boleta o factura, descuenta la bodega y queda en Tesorería y Contabilidad sin que nadie la digite otra vez. El precio, el IVA y el stock son siempre los del inventario.',
+    route: '/dashboard/store',
+    topics: [
+      {
+        id: 'preparar-y-abrir-la-tienda',
+        title: 'Preparar y abrir la tienda',
+        permission: 'store:manage',
+        steps: [
+          'Primero necesitas un sitio web armado con el constructor guiado y publicado (Sitios web → "Publicar"). La tienda vive dentro de ese sitio: si tienes varios, elige cuál en "Tienda del sitio".',
+          'En "Ajustes" elige la "Bodega de la que sale lo que vendes" (su stock es el que se muestra y se descuenta), un teléfono para dudas y los "Términos de la compra". Pulsa "Guardar cambios".',
+          'En "Productos" publica lo que quieras vender; en "Envíos" activa el retiro y/o el despacho; en "Pagos" enciende al menos un medio de pago.',
+          'Abre "Qué le falta": lo obligatorio (sitio publicado, bodega, un producto publicado, un medio de pago que funcione, una forma de entrega y que ninguna página del sitio use las direcciones tienda, producto, carrito, finalizar-compra o pedido) bloquea la apertura; lo recomendado solo avisa.',
+          'Cuando todo lo obligatorio esté listo pulsa "Abrir la tienda". Desde ese momento el sitio muestra "Tienda" en el menú y un carrito. "Cerrar la tienda" la saca de internet sin tocar los pedidos que ya hicieron.',
+        ],
+        tip: 'Si guardas cambios que dejan una tienda abierta incompleta (por ejemplo, sin medio de pago), se cierra sola: vender algo que no se puede cobrar es peor que cerrar.',
+      },
+      {
+        id: 'publicar-productos-ficha',
+        title: 'Publicar productos y armar su ficha de venta',
+        permission: 'store:write',
+        steps: [
+          'En "Productos" marca las casillas de los productos y pulsa "Publicar" (o "Quitar de la tienda"). Usa el buscador y el filtro "Todos / Publicados / Sin publicar" para encontrarlos.',
+          'Pulsa el lápiz ("Editar la ficha de …") para cambiar cómo se ve cada producto: "Nombre en la tienda", "Resumen corto", "Descripción", "Fotos" (elige de la biblioteca del sitio o sube nuevas), "Colección", "Máximo por pedido", "Precio anterior (tachado)", "Orden en el catálogo", "Destacado" y "Dirección en internet". Guarda con "Guardar ficha".',
+          'El precio con IVA, si el producto es exento y las unidades disponibles salen siempre del inventario: se cambian en Inventario, no acá. Un producto sin control de stock (un servicio) siempre se puede pedir.',
+          '"Quitar de la tienda" en la ficha borra su presentación (fotos, descripción); el producto sigue en tu inventario.',
+        ],
+      },
+      {
+        id: 'configurar-envios-y-pagos',
+        title: 'Configurar retiro, despacho y medios de pago',
+        permission: 'store:manage',
+        steps: [
+          'En "Envíos", "Retiro en tienda" pide la dirección y un horario opcional. En "Despacho a domicilio" crea una tarifa con "Agregar tarifa": nombre, precio con IVA (0 = gratis), "Gratis desde" un monto de compra, plazo en días hábiles y las regiones a las que llega (sin ninguna marcada, llega a todo Chile). Aether no consulta a ningún courier: el precio es el que tú fijes.',
+          'En "Pagos", "Transferencia con Khipu" usa la llave de Khipu de tu empresa (Configuración → Datos de la empresa → "Cobro en línea (Khipu)"). "Tarjeta (Webpay Plus)" pide tu "Código de comercio" y tu "Llave secreta" (se guarda cifrada y no se vuelve a mostrar); empieza en "Integración (pruebas)" y pasa a "Producción" cuando Transbank te lo habilite.',
+          '"Transferencia bancaria" muestra tus datos al comprador después de su pedido y guarda el pedido las horas que indiques; "Pagar al retirar" necesita el retiro encendido. Ambos los confirmas tú a mano en el pedido.',
+          'Activa "Permitir pedir factura" si quieres que los compradores puedan pedirla (te entregan los datos de su empresa). Pulsa "Guardar cambios".',
+        ],
+        tip: 'Webpay Plus se prueba primero con las credenciales de integración que entrega Transbank. Un pedido solo se da por pagado después de consultar a la pasarela con el monto exacto.',
+      },
+      {
+        id: 'atender-pedidos',
+        title: 'Atender los pedidos',
+        permission: 'store:fulfill',
+        steps: [
+          'En "Pedidos" usa las vistas "Por confirmar pago", "Por preparar", "En entrega", "Requieren atención" y "Cerrados", o busca por número, nombre, correo o teléfono. Cada compra nueva te avisa en la campanita.',
+          'Abre un pedido para ver al cliente, la entrega, los productos y el historial. Si pagó por transferencia o va a pagar al retirar, pulsa "Confirmar pago recibido", elige la forma de pago y pulsa "Confirmar pago": se emite la boleta o factura, se descuenta la bodega y el comprador recibe su aviso.',
+          'Avanza la entrega con "Empezar a preparar", "Marcar listo para retirar" o "Marcar despachado" (anota transportista, número y enlace de seguimiento si los tienes) y por último "Marcar entregado". El comprador ve cada paso en su página del pedido.',
+          '"Descargar Excel" baja los pedidos filtrados (hasta 10.000); cada descarga queda en la bitácora porque contiene datos de clientes.',
+        ],
+      },
+      {
+        id: 'cancelar-reembolsar-reintentar',
+        title: 'Cancelar, reembolsar y resolver lo que requiere atención',
+        permission: 'store:write',
+        steps: [
+          '"Cancelar pedido" cierra el pedido, libera el stock apartado y avisa al comprador. Cancelar uno ya pagado lo hace un administrador de la tienda; si ya devolviste el dinero por la pasarela o el banco, marca "Ya le devolví el dinero". Aether no devuelve plata por la pasarela.',
+          'Si el pago se recibió pero la venta no se pudo emitir (por ejemplo, alguien vendió el stock por otro canal), el pedido aparece en "Requieren atención" con el motivo: repón el stock y pulsa "Reintentar emitir la venta". El dinero recibido nunca se pierde.',
+          'Si el pago llegó cuando el pedido ya estaba vencido o cancelado, un administrador puede "Reabrir el pedido" (si todavía hay stock) o "Registrar reembolso".',
+        ],
+        tip: 'Los pedidos sin pagar se liberan solos: 60 minutos si se paga en línea y las horas que configures para transferencia o pago al retirar.',
+      },
+      {
+        id: 'como-compra-el-cliente',
+        title: 'Cómo compra tu cliente',
+        steps: [
+          'Entra a la dirección de tu sitio (o a tu dominio propio) y ve "Tienda" en el menú: busca, filtra por colección, abre la ficha de un producto y lo agrega al carrito.',
+          'En "Finalizar compra" ingresa sus datos, elige despacho (según su región) o retiro, boleta o factura y el medio de pago. Si paga en línea, lo llevamos a Khipu o a Webpay y vuelve a su página de pedido.',
+          'Su página del pedido (el enlace llega por correo) muestra el estado, cómo pagar si falta, el seguimiento del envío y se actualiza sola mientras espera la confirmación del pago.',
+        ],
+      },
+    ],
+  },
 ];

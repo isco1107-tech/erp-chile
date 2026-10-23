@@ -242,3 +242,29 @@ export async function setStoreOpen(companyId: string, siteId: string, open: bool
   return report;
 }
 
+export interface StoreSiteRow {
+  id: string;
+  name: string;
+  slug: string;
+  status: WebSiteStatus;
+  /** La tienda de este sitio está abierta al público. */
+  open: boolean;
+  /** Ya se armó la configuración de su tienda (aunque esté cerrada). */
+  hasStore: boolean;
+}
+
+/** Sitios del constructor guiado (no archivados) donde se puede armar una tienda, con el estado de la suya. */
+export async function listStoreSites(companyId: string): Promise<StoreSiteRow[]> {
+  const sites = await prisma.webSite.findMany({
+    where: { companyId, mode: 'GUIDED', status: { not: 'ARCHIVED' } },
+    orderBy: [{ updatedAt: 'desc' }],
+    take: 100,
+    select: { id: true, name: true, slug: true, status: true, store: { select: { enabled: true } } },
+  });
+  return sites.map((site) => ({ id: site.id, name: site.name, slug: site.slug, status: site.status, open: Boolean(site.store?.enabled), hasStore: Boolean(site.store) }));
+}
+
+/** Bodegas de la empresa para elegir de cuál sale lo que se vende. */
+export async function listStoreWarehouses(companyId: string): Promise<Array<{ id: string; name: string }>> {
+  return prisma.warehouse.findMany({ where: { companyId }, orderBy: [{ isDefault: 'desc' }, { name: 'asc' }], take: 20, select: { id: true, name: true } });
+}

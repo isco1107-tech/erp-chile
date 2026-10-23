@@ -92,3 +92,14 @@ export const orderListQuerySchema = z.object({
 });
 
 export type OrderListQuery = z.infer<typeof orderListQuerySchema>;
+
+export const confirmPaymentSchema = z.object({
+  /** Forma de pago con que se emite la venta en el ERP; vacío = la que corresponde al medio elegido. */
+  method: z.enum(['EFECTIVO', 'TRANSFERENCIA', 'TARJETA_DEBITO', 'TARJETA_CREDITO']).optional(),
+  /** Referencia del pago (número de transferencia, comprobante…). */
+  note: z.string().trim().max(200).default(''),
+});
+
+export const refundSchema = z.object({
+  note: z.string().trim().max(200).default(''),
+});

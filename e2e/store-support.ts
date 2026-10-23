@@ -13,7 +13,7 @@ import { db, owner } from './db';
 export const STORE_SLUG = 'tienda-e2e';
 export const STORE_NAME = 'Almacén Los Aromos';
 export const REGION_RM = 'Región Metropolitana de Santiago';
-export const REGION_ARAUCANIA = 'Región de la Araucanía';
+export const REGION_ARAUCANIA = 'Región de La Araucanía';
 
 export interface DemoProduct {
   sku: string;

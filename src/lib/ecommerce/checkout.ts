@@ -33,7 +33,14 @@ const rutField = z
   .refine((value) => validateRut(value), 'El RUT no es válido')
   .transform((value) => formatRut(cleanRut(value)));
 
-const optionalRut = z.union([z.literal(''), rutField]).optional();
+// Un `z.union` con el campo del RUT mostraba «Invalid input» (en inglés) en vez del mensaje del RUT.
+const optionalRut = z
+  .string()
+  .trim()
+  .max(14)
+  .refine((value) => value === '' || validateRut(value), 'El RUT no es válido')
+  .transform((value) => (value === '' ? '' : formatRut(cleanRut(value))))
+  .optional();
 
 export const billingSchema = z.object({
   rut: rutField,

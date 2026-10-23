@@ -415,6 +415,10 @@ describe('cuerpo del checkout', () => {
     const ok = checkoutSchema.safeParse({ ...base, customer: { ...base.customer, rut: '760864285' } });
     expect(ok.success && ok.data.customer.rut).toBe('76.086.428-5');
     expect(checkoutSchema.safeParse({ ...base, customer: { ...base.customer, rut: '12.345.678-0' } }).success).toBe(false);
+    // El mensaje del RUT inválido llega en español (una unión de zod mostraba «Invalid input»).
+    const invalid = checkoutSchema.safeParse({ ...base, customer: { ...base.customer, rut: '12.345.678-0' } });
+    expect(!invalid.success && invalid.error.issues[0]?.message).toBe('El RUT no es válido');
+    expect(checkoutSchema.safeParse({ ...base, customer: { ...base.customer, rut: undefined } }).success).toBe(true);
   });
 
   it('rechaza carrito vacío, productos repetidos, cantidades imposibles y términos sin aceptar', () => {

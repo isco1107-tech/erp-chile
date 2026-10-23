@@ -130,6 +130,88 @@ export async function listStoreOrders(companyId: string, query: OrderListQuery):
   };
 }
 
+/** Tope de filas de la exportación a Excel. */
+export const ORDERS_EXPORT_LIMIT = 10_000;
+
+export interface StoreOrderExportRow {
+  number: number;
+  createdAt: Date;
+  siteName: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  customerRut: string | null;
+  documentType: 'BOLETA' | 'FACTURA';
+  deliveryMethod: StoreDeliveryMethod;
+  address: string;
+  shippingRateName: string | null;
+  paymentProvider: StorePaymentProvider | null;
+  paymentStatus: StorePaymentStatus;
+  fulfillmentStatus: StoreFulfillmentStatus;
+  status: StoreOrderStatus;
+  items: string;
+  subtotal: number;
+  shippingTotal: number;
+  total: number;
+  paidAt: Date | null;
+  saleFolio: number | null;
+  carrier: string | null;
+  trackingNumber: string | null;
+}
+
+/** Pedidos con los mismos filtros de la bandeja (sitio, vista, búsqueda), sin paginar, hasta `ORDERS_EXPORT_LIMIT`. */
+export async function ordersForExport(companyId: string, query: Pick<OrderListQuery, 'siteId' | 'view' | 'q'>): Promise<{ rows: StoreOrderExportRow[]; truncated: boolean }> {
+  const search = query.q?.trim();
+  const base: Prisma.StoreOrderWhereInput = {
+    companyId,
+    ...(query.siteId ? { siteId: query.siteId } : {}),
+    ...(search
+      ? {
+          OR: [
+            ...(/^#?\d{1,9}$/.test(search) ? [{ number: Number(search.replace('#', '')) }] : []),
+            { customerName: { contains: search, mode: 'insensitive' as const } },
+            { customerEmail: { contains: search, mode: 'insensitive' as const } },
+            { customerPhone: { contains: search } },
+          ],
+        }
+      : {}),
+  };
+  const orders = await prisma.storeOrder.findMany({
+    where: { AND: [base, viewWhere(query.view)] },
+    orderBy: { createdAt: 'desc' },
+    take: ORDERS_EXPORT_LIMIT + 1,
+    include: { items: { select: { name: true, quantity: true } }, site: { select: { name: true } }, salesDocument: { select: { folio: true } } },
+  });
+  return {
+    truncated: orders.length > ORDERS_EXPORT_LIMIT,
+    rows: orders.slice(0, ORDERS_EXPORT_LIMIT).map((order) => ({
+      number: order.number,
+      createdAt: order.createdAt,
+      siteName: order.site.name,
+      customerName: order.customerName,
+      customerEmail: order.customerEmail,
+      customerPhone: order.customerPhone,
+      customerRut: order.customerRut,
+      documentType: order.documentType,
+      deliveryMethod: order.deliveryMethod,
+      address: addressText(order.shippingAddress) ?? '',
+      shippingRateName: order.shippingRateName,
+      paymentProvider: order.paymentProvider,
+      paymentStatus: order.paymentStatus,
+      fulfillmentStatus: order.fulfillmentStatus,
+      status: order.status,
+      items: order.items.map((item) => `${item.name} × ${item.quantity}`).join('; '),
+      subtotal: order.subtotal,
+      shippingTotal: order.shippingTotal,
+      total: order.total,
+      paidAt: order.paidAt,
+      saleFolio: order.salesDocument?.folio ?? null,
+      carrier: order.carrier,
+      trackingNumber: order.trackingNumber,
+    })),
+  };
+}
+
 export interface StoreStats {
   paidToday: number;
   salesToday: number;

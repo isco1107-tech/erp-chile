@@ -276,3 +276,22 @@ export async function removeStoreProduct(companyId: string, siteId: string, prod
   await assertSite(companyId, siteId);
   await prisma.storeProduct.deleteMany({ where: { companyId, siteId, productId } });
 }
+
+export interface SiteAssetRow {
+  id: string;
+  url: string;
+  fileName: string;
+  alt: string;
+}
+
+/** Fotos de la biblioteca del sitio (las mismas del constructor), para elegirlas en la ficha de un producto. */
+export async function listSiteAssets(companyId: string, siteId: string): Promise<SiteAssetRow[]> {
+  await assertSite(companyId, siteId);
+  const assets = await prisma.webSiteAsset.findMany({
+    where: { companyId, siteId, mimeType: { startsWith: 'image/' } },
+    orderBy: { createdAt: 'desc' },
+    take: 200,
+    select: { id: true, url: true, fileName: true, alt: true },
+  });
+  return assets.map((asset) => ({ id: asset.id, url: asset.url, fileName: asset.fileName, alt: asset.alt ?? '' }));
+}
