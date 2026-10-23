@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { Prisma, type InventoryMovement, type Warehouse } from '@prisma/client';
+import { Prisma, type Warehouse } from '@prisma/client';
 import { requireAuthWithPermission, getAuthContext, authErrorMessage, can } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
@@ -154,7 +154,7 @@ export async function registerStockMovementAction(input: unknown): Promise<Actio
 export async function listMovementsAction(
   productId: string,
   warehouseId?: string
-): Promise<ActionResult<InventoryMovement[]>> {
+): Promise<ActionResult<stockService.KardexRow[]>> {
   try {
     const session = await requireAuthWithPermission('products:read');
     const data = await stockService.listMovements(session.companyId, productId, { warehouseId });

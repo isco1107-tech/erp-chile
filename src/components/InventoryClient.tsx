@@ -18,6 +18,7 @@ import { listProductsAction } from '@/modules/inventory/actions/products.actions
 import type { StockByWarehouseRow } from '@/modules/inventory/services/stock.service';
 import type { ProductWithStock } from '@/modules/inventory/services/products.service';
 import { formatCurrency } from '@/lib/chile/tax';
+import type { KardexRow } from '@/modules/inventory/services/stock.service';
 import { InfoTooltip } from '@/components/ui/InfoTooltip';
 import { TAX_GLOSSARY } from '@/lib/chile/glossary';
 
@@ -44,7 +45,9 @@ export default function InventoryClient() {
   const [creatingWarehouse, setCreatingWarehouse] = useState(false);
 
   const [selectedProduct, setSelectedProduct] = useState<{ id: string; label: string } | null>(null);
-  const [movements, setMovements] = useState<InventoryMovement[]>([]);
+  const [movements, setMovements] = useState<KardexRow[]>([]);
+  /** Bodega del kardex abierto: con varias bodegas el kardex es de UNA a la vez (el saldo corre por bodega). */
+  const [kardexWarehouse, setKardexWarehouse] = useState('');
   const [loadingMovements, setLoadingMovements] = useState(false);
 
   async function loadStock(q?: string, wId?: string) {
@@ -109,10 +112,14 @@ export default function InventoryClient() {
     }
   }
 
-  async function handleSelectProduct(productId: string, label: string) {
+  async function handleSelectProduct(productId: string, label: string, forWarehouse?: string) {
+    // Con más de una bodega no se mezclan: el kardex abre en la bodega filtrada arriba (o la principal).
+    const preferred = forWarehouse ?? kardexWarehouse ?? '';
+    const chosen = warehouses.length > 1 ? (warehouses.some((entry) => entry.id === preferred) ? preferred : warehouses.some((entry) => entry.id === warehouseId) ? warehouseId : (warehouses.find((entry) => entry.isDefault) ?? warehouses[0])!.id) : '';
+    setKardexWarehouse(chosen);
     setSelectedProduct({ id: productId, label });
     setLoadingMovements(true);
-    const result = await listMovementsAction(productId);
+    const result = await listMovementsAction(productId, chosen || undefined);
     if (result.success) setMovements(result.data);
     else toast.error(result.error);
     setLoadingMovements(false);
@@ -239,8 +246,18 @@ export default function InventoryClient() {
             <h3 className="font-medium">Kardex — {selectedProduct.label}</h3>
             <Button type="button" size="sm" variant="ghost" onClick={() => setSelectedProduct(null)}>Cerrar</Button>
           </div>
+          {warehouses.length > 1 && (
+            <div className="mb-3 flex flex-wrap items-center gap-2" role="group" aria-label="Bodega del kardex">
+              <span className="text-xs text-muted-foreground">Bodega:</span>
+              {warehouses.map((entry) => (
+                <Button key={entry.id} type="button" size="sm" variant={entry.id === kardexWarehouse ? 'default' : 'outline'} aria-pressed={entry.id === kardexWarehouse} onClick={() => handleSelectProduct(selectedProduct.id, selectedProduct.label, entry.id)}>
+                  {entry.name}
+                </Button>
+              ))}
+            </div>
+          )}
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] table-auto text-sm">
+            <table className="w-full min-w-[1000px] table-auto text-sm">
               <thead className="bg-muted/50 text-left">
                 <tr>
                   <th scope="col" className="p-2 font-medium">Fecha</th>
@@ -252,18 +269,21 @@ export default function InventoryClient() {
                     PMP (antes → después)
                     <InfoTooltip text={TAX_GLOSSARY.pmp} />
                   </th>
+                  <th scope="col" className="p-2 font-medium">Motivo</th>
+                  <th scope="col" className="p-2 font-medium">Operario</th>
+                  <th scope="col" className="p-2 font-medium">Foto</th>
                   <th scope="col" className="p-2 font-medium">Referencia</th>
                 </tr>
               </thead>
               <tbody>
                 {loadingMovements && (
                   <tr>
-                    <td className="p-4 text-center text-muted-foreground" colSpan={7}>Cargando...</td>
+                    <td className="p-4 text-center text-muted-foreground" colSpan={10}>Cargando...</td>
                   </tr>
                 )}
                 {!loadingMovements && movements.length === 0 && (
                   <tr>
-                    <td colSpan={7}>
+                    <td colSpan={10}>
                       <EmptyState
                         title="Sin movimientos registrados"
                         description="Este producto todavía no tiene entradas ni salidas de kardex."
@@ -279,6 +299,15 @@ export default function InventoryClient() {
                     <td className="p-2">{formatCurrency(m.unitCost)}</td>
                     <td className="p-2">{m.previousStock} → {m.newStock}</td>
                     <td className="p-2">{formatCurrency(m.previousPmp)} → {formatCurrency(m.newPmp)}</td>
+                    <td className="p-2">{m.reasonLabel ?? '—'}</td>
+                    <td className="p-2">{m.operator ?? '—'}</td>
+                    <td className="p-2">
+                      {m.evidenceUrl ? (
+                        <a href={m.evidenceUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline-offset-2 hover:underline">Ver foto</a>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
                     <td className="p-2">{m.reference ?? '—'}</td>
                   </tr>
                 ))}

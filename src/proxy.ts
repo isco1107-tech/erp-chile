@@ -72,6 +72,9 @@ const PUBLIC_ROUTES = [
   // Portal de clientes (`/cliente/[token]`): el cliente no tiene cuenta ERP;
   // la ruta valida el token ella misma contra `Contact.portalTokenHash`.
   '/cliente',
+  // Portal de proveedores (`/proveedor`): el proveedor no tiene cuenta ERP; entra con el código que le
+  // dio la empresa y las rutas lo validan ellas mismas contra `SupplierPortalAccess.codeHash`.
+  '/proveedor',
   // Activos estáticos de marca (logo/ícono de Aether ERP en `public/branding`)
   // — deben verse en TODA la superficie del producto, incluida la pantalla de
   // login, que por definición no tiene sesión.

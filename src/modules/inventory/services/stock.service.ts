@@ -1,3 +1,4 @@
+import { wasteReasonLabel } from '@/lib/warehouse-mobile/modes';
 import { prisma } from '@/lib/prisma';
 import type { InventoryMovement, MovementType, Prisma, Warehouse } from '@prisma/client';
 import { calculateNewPmp } from '@/lib/inventory/pmp';
@@ -347,16 +348,37 @@ export async function registerTransfer(companyId: string, params: TransferParams
   return prisma.$transaction((tx) => registerTransferTx(tx, companyId, params), LOCKING_TX_OPTIONS);
 }
 
+/** Una fila del kardex de un producto, con la bodega, quién la hizo, el motivo y la foto de respaldo. */
+export interface KardexRow extends InventoryMovement {
+  warehouseName: string;
+  /** Nombre del operario que hizo el movimiento (`null` en los que nacen de un documento). */
+  operator: string | null;
+  supplier: string | null;
+  reasonLabel: string | null;
+}
+
 export async function listMovements(
   companyId: string,
   productId: string,
   options?: { warehouseId?: string; take?: number }
-): Promise<InventoryMovement[]> {
-  return prisma.inventoryMovement.findMany({
+): Promise<KardexRow[]> {
+  const rows = await prisma.inventoryMovement.findMany({
     where: { companyId, productId, warehouseId: options?.warehouseId },
     orderBy: { createdAt: 'desc' },
     take: options?.take ?? 100,
+    include: {
+      warehouse: { select: { name: true } },
+      user: { select: { name: true } },
+      supplier: { select: { razonSocial: true, nombreFantasia: true } },
+    },
   });
+  return rows.map(({ warehouse, user, supplier, ...movement }) => ({
+    ...movement,
+    warehouseName: warehouse.name,
+    operator: user?.name ?? null,
+    supplier: supplier ? supplier.nombreFantasia?.trim() || supplier.razonSocial : null,
+    reasonLabel: wasteReasonLabel(movement.reasonCode),
+  }));
 }
 
 export async function listWarehouses(companyId: string): Promise<Warehouse[]> {

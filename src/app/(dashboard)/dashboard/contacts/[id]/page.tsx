@@ -18,6 +18,9 @@ import { formatCurrency } from '@/lib/chile/tax';
 import { formatRut } from '@/lib/chile/rut';
 import WhatsAppButton from '@/components/shared/WhatsAppButton';
 import CustomerPortalCard from '@/components/contacts/CustomerPortalCard';
+import SupplierPortalCard from '@/components/contacts/SupplierPortalCard';
+import { getSupplierPortalAdmin } from '@/modules/inventory/services/supplier-portal.service';
+import { getAppUrl } from '@/lib/email/mailer';
 
 export const metadata = { title: 'Ficha de Contacto' };
 
@@ -91,6 +94,8 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
   const feeRows = fees?.success ? fees.data : [];
   const noteRows = promissoryNotes?.success ? promissoryNotes.data : [];
   const planRows = paymentPlans?.success ? paymentPlans.data : [];
+  // El portal del proveedor entrega datos de la empresa a un tercero: lo administra quien edita la empresa.
+  const supplierPortal = contact.isSupplier && context.features.hasInventory && can(context, 'settings:company') ? await getSupplierPortalAdmin(context.companyId, id) : null;
   const saleRows = sales?.success ? sales.data.items : [];
   const purchaseRows = purchases?.success ? purchases.data.items : [];
 
@@ -134,6 +139,8 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
           createdAt={contact.portalTokenCreatedAt}
         />
       )}
+
+      {supplierPortal && <SupplierPortalCard contactId={contact.id} contactName={contact.razonSocial} phone={contact.phone} admin={supplierPortal} baseUrl={getAppUrl()} />}
 
       {sponsorships && sponsorshipRows.length > 0 && (
         <SectionCard
