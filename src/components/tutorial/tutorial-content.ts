@@ -93,6 +93,15 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       note('Mermas por motivo', 'Arriba de la lista, el resumen de salidas dice cuánto se pierde y por qué en esa bodega.'),
     ],
   },
+  'inventory-consignment': {
+    title: 'Consignación',
+    steps: [
+      header('Mercadería de sellers', 'Un seller pone productos a la venta y la mercadería sigue siendo suya hasta que se vende. No entra a tu inventario valorizado ni a tus compras.'),
+      note('Recibe y devuelve', 'En "Existencias por seller" usa "Recibir" cuando llega mercadería y "Devolver" cuando se la devuelves. Nada de esto genera compra ni asiento.'),
+      note('Liquida lo vendido', 'En la pestaña "Liquidaciones", "Liquidar" arma lo vendido menos tu comisión. Revísalo y presiona "Generar liquidación".'),
+      note('Marca el pago', 'Cuando le pagues al seller, "Marcar pagada" deja constancia. Si te equivocaste, "Anular" devuelve esas ventas a pendientes.'),
+    ],
+  },
   'inventory-mobile': {
     title: 'Bodega móvil',
     steps: [

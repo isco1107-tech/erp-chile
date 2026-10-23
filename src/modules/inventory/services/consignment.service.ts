@@ -147,6 +147,8 @@ export interface ConsignedProductRow {
   name: string;
   unit: string;
   minStock: number;
+  /** Si lleva lotes, al recibir se piden lote y vencimiento. */
+  tracksLots: boolean;
   totalStock: number;
   /** Existencias por bodega, para que no se mezclen cuando hay más de una. */
   byWarehouse: Array<{ warehouse: string; quantity: number }>;
@@ -183,6 +185,7 @@ export async function listConsignedStock(companyId: string): Promise<ConsignedSt
         name: true,
         unit: true,
         minStock: true,
+        tracksLots: true,
         consignorId: true,
         consignmentCommissionBps: true,
         stocks: { select: { quantity: true, warehouse: { select: { name: true } } } },
@@ -204,6 +207,7 @@ export async function listConsignedStock(companyId: string): Promise<ConsignedSt
       name: product.name,
       unit: product.unit,
       minStock: product.minStock,
+      tracksLots: product.tracksLots,
       totalStock,
       byWarehouse: product.stocks
         .map((stock) => ({ warehouse: stock.warehouse.name, quantity: roundQty(stock.quantity) }))
@@ -224,4 +228,23 @@ export async function listConsignedStock(companyId: string): Promise<ConsignedSt
       products: rows,
     };
   });
+}
+
+export interface ConsignorSummary {
+  products: number;
+  /** Unidades que hay hoy en bodega de sus productos. */
+  units: number;
+}
+
+/** Cuántos productos tiene un seller y cuánto hay en bodega (para su ficha). */
+export async function getConsignorSummary(companyId: string, consignorId: string): Promise<ConsignorSummary> {
+  const products = await prisma.product.findMany({
+    where: { companyId, consignorId, isActive: true },
+    select: { stocks: { select: { quantity: true } } },
+    take: 3000,
+  });
+  return {
+    products: products.length,
+    units: roundQty(products.reduce((sum, product) => sum + product.stocks.reduce((inner, stock) => inner + stock.quantity, 0), 0)),
+  };
 }
