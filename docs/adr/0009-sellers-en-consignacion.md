@@ -1,4 +1,4 @@
-# 0008 — Sellers en consignación, separados de los proveedores
+# 0009 — Sellers en consignación, separados de los proveedores
 
 Estado: aceptada (2026-10-23)
 
