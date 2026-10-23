@@ -1,4 +1,4 @@
-import type { ConsignmentSettlementStatus, DteType, Prisma } from '@prisma/client';
+import type { SellerSettlementStatus, DteType, Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { formatCurrency } from '@/lib/chile/tax';
@@ -27,7 +27,7 @@ import type { SettlementGenerateInput, SettlementPayInput, SettlementVoidInput }
  *   documenta lo que se le paga (factura del seller, IVA crédito) se define aparte.
  */
 
-type Db = Pick<Prisma.TransactionClient, 'salesDocumentItem' | 'consignmentSettlementLine'>;
+type Db = Pick<Prisma.TransactionClient, 'salesDocumentItem' | 'sellerSettlementLine'>;
 
 const MAX_AMOUNT = 2_147_483_647;
 
@@ -65,7 +65,7 @@ export async function loadPendingBySeller(db: Db, companyId: string, consignorId
       },
       orderBy: [{ document: { issueDate: 'asc' } }, { id: 'asc' }],
     }),
-    db.consignmentSettlementLine.findMany({
+    db.sellerSettlementLine.findMany({
       where: { companyId, settlement: { status: { not: 'VOIDED' }, ...(consignorId ? { consignorId } : {}) } },
       select: { salesDocumentItemId: true, quantity: true, netAmount: true, commissionAmount: true, payoutAmount: true },
     }),
@@ -153,7 +153,7 @@ export async function listSettlementOverview(companyId: string): Promise<Settlem
       take: 500,
     }),
     loadPendingBySeller(prisma, companyId),
-    prisma.consignmentSettlement.groupBy({
+    prisma.sellerSettlement.groupBy({
       by: ['consignorId'],
       where: { companyId, status: 'CONFIRMED' },
       _sum: { payoutAmount: true },
@@ -185,7 +185,7 @@ export interface SettlementListItem {
   number: number;
   consignorId: string;
   consignorName: string;
-  status: ConsignmentSettlementStatus;
+  status: SellerSettlementStatus;
   units: number;
   netSales: number;
   commissionAmount: number;
@@ -198,9 +198,9 @@ export interface SettlementListItem {
 
 export async function listSettlements(
   companyId: string,
-  options: { consignorId?: string; status?: ConsignmentSettlementStatus } = {}
+  options: { consignorId?: string; status?: SellerSettlementStatus } = {}
 ): Promise<SettlementListItem[]> {
-  const rows = await prisma.consignmentSettlement.findMany({
+  const rows = await prisma.sellerSettlement.findMany({
     where: { companyId, ...(options.consignorId ? { consignorId: options.consignorId } : {}), ...(options.status ? { status: options.status } : {}) },
     select: {
       id: true,
@@ -233,7 +233,7 @@ export interface SettlementDetail extends SettlementListItem {
 }
 
 export async function getSettlement(companyId: string, id: string): Promise<SettlementDetail | null> {
-  const row = await prisma.consignmentSettlement.findFirst({
+  const row = await prisma.sellerSettlement.findFirst({
     where: { id, companyId },
     include: {
       consignor: { select: { razonSocial: true, nombreFantasia: true, rut: true } },
@@ -283,7 +283,7 @@ export async function generateSettlement(companyId: string, userId: string, inpu
     // Un reintento de la misma generación (doble clic, pestaña repetida, respuesta perdida) devuelve la
     // liquidación ya creada. Es lo único que protege un ajuste manual solo, que no tiene ventas que repartir.
     if (input.idempotencyKey) {
-      const existing = await tx.consignmentSettlement.findFirst({
+      const existing = await tx.sellerSettlement.findFirst({
         where: { companyId, idempotencyKey: input.idempotencyKey },
         select: { id: true, number: true, consignorId: true, payoutAmount: true, units: true },
       });
@@ -310,12 +310,12 @@ export async function generateSettlement(companyId: string, userId: string, inpu
     }
 
     const sequence = await tx.internalDocumentSequence.upsert({
-      where: { companyId_kind: { companyId, kind: 'CONSIGNMENT_SETTLEMENT' } },
+      where: { companyId_kind: { companyId, kind: 'SELLER_SETTLEMENT' } },
       update: { currentFolio: { increment: 1 } },
-      create: { companyId, kind: 'CONSIGNMENT_SETTLEMENT', currentFolio: 1 },
+      create: { companyId, kind: 'SELLER_SETTLEMENT', currentFolio: 1 },
     });
 
-    return tx.consignmentSettlement.create({
+    return tx.sellerSettlement.create({
       data: {
         companyId,
         consignorId: input.consignorId,
@@ -350,7 +350,7 @@ export async function generateSettlement(companyId: string, userId: string, inpu
 
 /** Por qué no se pudo cambiar el estado de una liquidación (no existe, ya pagada o anulada). */
 async function describeBlockedTransition(companyId: string, id: string, verb: 'pagar' | 'anular'): Promise<string> {
-  const current = await prisma.consignmentSettlement.findFirst({ where: { id, companyId }, select: { status: true, number: true } });
+  const current = await prisma.sellerSettlement.findFirst({ where: { id, companyId }, select: { status: true, number: true } });
   if (!current) return 'Liquidación no encontrada';
   if (current.status === 'PAID') return verb === 'anular' ? `La liquidación N° ${current.number} ya está pagada y no se puede anular` : `La liquidación N° ${current.number} ya está pagada`;
   if (current.status === 'VOIDED') return `La liquidación N° ${current.number} está anulada`;
@@ -359,7 +359,7 @@ async function describeBlockedTransition(companyId: string, id: string, verb: 'p
 
 /** Marca la liquidación como pagada. El `updateMany` condicionado al estado evita pagarla dos veces. */
 export async function markSettlementPaid(companyId: string, input: SettlementPayInput): Promise<void> {
-  const { count } = await prisma.consignmentSettlement.updateMany({
+  const { count } = await prisma.sellerSettlement.updateMany({
     where: { id: input.id, companyId, status: 'CONFIRMED' },
     data: { status: 'PAID', paidAt: new Date(`${input.paidAt}T12:00:00Z`), paymentReference: input.reference || null },
   });
@@ -371,7 +371,7 @@ export async function markSettlementPaid(companyId: string, input: SettlementPay
  * se anula (el dinero ya salió); se corrige con un ajuste en la siguiente.
  */
 export async function voidSettlement(companyId: string, input: SettlementVoidInput): Promise<void> {
-  const { count } = await prisma.consignmentSettlement.updateMany({
+  const { count } = await prisma.sellerSettlement.updateMany({
     where: { id: input.id, companyId, status: 'CONFIRMED' },
     data: { status: 'VOIDED', voidedAt: new Date(), voidReason: input.reason },
   });

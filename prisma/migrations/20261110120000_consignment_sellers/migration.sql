@@ -3,11 +3,11 @@
 -- tablas nuevas; nada existente se modifica ni se borra.
 
 DO $$ BEGIN
-  CREATE TYPE "ConsignmentSettlementStatus" AS ENUM ('CONFIRMED', 'PAID', 'VOIDED');
+  CREATE TYPE "SellerSettlementStatus" AS ENUM ('CONFIRMED', 'PAID', 'VOIDED');
 EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
 END $$;
 
-ALTER TYPE "InternalDocumentKind" ADD VALUE IF NOT EXISTS 'CONSIGNMENT_SETTLEMENT';
+ALTER TYPE "InternalDocumentKind" ADD VALUE IF NOT EXISTS 'SELLER_SETTLEMENT';
 
 -- Contacto: el seller y su comisión por defecto (puntos base: 1500 = 15 %).
 ALTER TABLE "Contact" ADD COLUMN IF NOT EXISTS "isConsignor" BOOLEAN NOT NULL DEFAULT false;
@@ -23,12 +23,12 @@ ALTER TABLE "SalesDocumentItem" ADD COLUMN IF NOT EXISTS "consignorCommissionBps
 -- Nota de crédito: base neta que se le revierte al seller (la proporción de lo que se le acreditó en la venta original).
 ALTER TABLE "SalesDocumentItem" ADD COLUMN IF NOT EXISTS "consignorBaseNet" INTEGER;
 
-CREATE TABLE IF NOT EXISTS "ConsignmentSettlement" (
+CREATE TABLE IF NOT EXISTS "SellerSettlement" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "consignorId" TEXT NOT NULL,
     "number" INTEGER NOT NULL,
-    "status" "ConsignmentSettlementStatus" NOT NULL DEFAULT 'CONFIRMED',
+    "status" "SellerSettlementStatus" NOT NULL DEFAULT 'CONFIRMED',
     "units" DOUBLE PRECISION NOT NULL,
     "netSales" INTEGER NOT NULL,
     "commissionAmount" INTEGER NOT NULL,
@@ -44,10 +44,10 @@ CREATE TABLE IF NOT EXISTS "ConsignmentSettlement" (
     "idempotencyKey" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "ConsignmentSettlement_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "SellerSettlement_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE IF NOT EXISTS "ConsignmentSettlementLine" (
+CREATE TABLE IF NOT EXISTS "SellerSettlementLine" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "settlementId" TEXT NOT NULL,
@@ -60,13 +60,13 @@ CREATE TABLE IF NOT EXISTS "ConsignmentSettlementLine" (
     "commissionAmount" INTEGER NOT NULL,
     "payoutAmount" INTEGER NOT NULL,
 
-    CONSTRAINT "ConsignmentSettlementLine_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "SellerSettlementLine_pkey" PRIMARY KEY ("id")
 );
 
-CREATE INDEX IF NOT EXISTS "ConsignmentSettlement_companyId_consignorId_createdAt_idx" ON "ConsignmentSettlement"("companyId", "consignorId", "createdAt");
-CREATE UNIQUE INDEX IF NOT EXISTS "ConsignmentSettlement_companyId_number_key" ON "ConsignmentSettlement"("companyId", "number");
-CREATE UNIQUE INDEX IF NOT EXISTS "ConsignmentSettlement_companyId_idempotencyKey_key" ON "ConsignmentSettlement"("companyId", "idempotencyKey");
-CREATE UNIQUE INDEX IF NOT EXISTS "ConsignmentSettlementLine_settlementId_salesDocumentItemId_key" ON "ConsignmentSettlementLine"("settlementId", "salesDocumentItemId");
+CREATE INDEX IF NOT EXISTS "SellerSettlement_companyId_consignorId_createdAt_idx" ON "SellerSettlement"("companyId", "consignorId", "createdAt");
+CREATE UNIQUE INDEX IF NOT EXISTS "SellerSettlement_companyId_number_key" ON "SellerSettlement"("companyId", "number");
+CREATE UNIQUE INDEX IF NOT EXISTS "SellerSettlement_companyId_idempotencyKey_key" ON "SellerSettlement"("companyId", "idempotencyKey");
+CREATE UNIQUE INDEX IF NOT EXISTS "SellerSettlementLine_settlementId_salesDocumentItemId_key" ON "SellerSettlementLine"("settlementId", "salesDocumentItemId");
 CREATE INDEX IF NOT EXISTS "Product_companyId_consignorId_idx" ON "Product"("companyId", "consignorId");
 CREATE INDEX IF NOT EXISTS "SalesDocumentItem_companyId_consignorId_idx" ON "SalesDocumentItem"("companyId", "consignorId");
 
@@ -76,21 +76,21 @@ EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
 END $$;
 
 DO $$ BEGIN
-  ALTER TABLE "ConsignmentSettlement" ADD CONSTRAINT "ConsignmentSettlement_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  ALTER TABLE "SellerSettlement" ADD CONSTRAINT "SellerSettlement_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
 END $$;
 
 DO $$ BEGIN
-  ALTER TABLE "ConsignmentSettlement" ADD CONSTRAINT "ConsignmentSettlement_consignorId_fkey" FOREIGN KEY ("consignorId") REFERENCES "Contact"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  ALTER TABLE "SellerSettlement" ADD CONSTRAINT "SellerSettlement_consignorId_fkey" FOREIGN KEY ("consignorId") REFERENCES "Contact"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
 END $$;
 
 DO $$ BEGIN
-  ALTER TABLE "ConsignmentSettlementLine" ADD CONSTRAINT "ConsignmentSettlementLine_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  ALTER TABLE "SellerSettlementLine" ADD CONSTRAINT "SellerSettlementLine_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
 END $$;
 
 DO $$ BEGIN
-  ALTER TABLE "ConsignmentSettlementLine" ADD CONSTRAINT "ConsignmentSettlementLine_settlementId_fkey" FOREIGN KEY ("settlementId") REFERENCES "ConsignmentSettlement"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  ALTER TABLE "SellerSettlementLine" ADD CONSTRAINT "SellerSettlementLine_settlementId_fkey" FOREIGN KEY ("settlementId") REFERENCES "SellerSettlement"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
 END $$;

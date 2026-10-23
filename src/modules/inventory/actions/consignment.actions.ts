@@ -6,7 +6,7 @@ import { requireAuthWithPermission, authErrorMessage } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import { captureException } from '@/lib/observability';
-import type { ConsignmentSettlementStatus } from '@prisma/client';
+import type { SellerSettlementStatus } from '@prisma/client';
 import { consignmentReceiveSchema, consignmentReturnSchema, settlementGenerateSchema, settlementPaySchema, settlementVoidSchema } from '../schema';
 import * as consignmentService from '../services/consignment.service';
 import * as settlementService from '../services/consignment-settlement.service';
@@ -129,7 +129,7 @@ export async function getPendingSettlementAction(consignorId: string): Promise<A
   }
 }
 
-const SETTLEMENT_STATUSES: readonly ConsignmentSettlementStatus[] = ['CONFIRMED', 'PAID', 'VOIDED'];
+const SETTLEMENT_STATUSES: readonly SellerSettlementStatus[] = ['CONFIRMED', 'PAID', 'VOIDED'];
 
 export async function listSettlementsAction(consignorId?: string, status?: string): Promise<ActionResult<SettlementListItem[]>> {
   let companyId: string | undefined;
@@ -170,7 +170,7 @@ export async function generateSettlementAction(input: unknown): Promise<ActionRe
       userId: session.id,
       userEmail: session.email,
       action: 'CREATE',
-      entity: 'ConsignmentSettlement',
+      entity: 'SellerSettlement',
       entityId: settlement.id,
       metadata: { number: settlement.number, consignorId: settlement.consignorId, payoutAmount: settlement.payoutAmount, units: settlement.units, adjustmentAmount: parsed.data.adjustmentAmount },
     });
@@ -195,7 +195,7 @@ export async function markSettlementPaidAction(input: unknown): Promise<ActionRe
       userId: session.id,
       userEmail: session.email,
       action: 'UPDATE',
-      entity: 'ConsignmentSettlement',
+      entity: 'SellerSettlement',
       entityId: parsed.data.id,
       metadata: { status: 'PAID', paidAt: parsed.data.paidAt, reference: parsed.data.reference },
     });
@@ -220,7 +220,7 @@ export async function voidSettlementAction(input: unknown): Promise<ActionResult
       userId: session.id,
       userEmail: session.email,
       action: 'UPDATE',
-      entity: 'ConsignmentSettlement',
+      entity: 'SellerSettlement',
       entityId: parsed.data.id,
       metadata: { status: 'VOIDED', reason: parsed.data.reason },
     });

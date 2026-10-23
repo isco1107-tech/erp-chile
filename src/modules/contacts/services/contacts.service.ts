@@ -197,7 +197,7 @@ async function resolveConsignorUpdate(
     const [products, pending, unpaid] = await Promise.all([
       prisma.product.count({ where: { companyId, consignorId: id } }),
       loadPendingBySeller(prisma, companyId, id),
-      prisma.consignmentSettlement.count({ where: { companyId, consignorId: id, status: 'CONFIRMED' } }),
+      prisma.sellerSettlement.count({ where: { companyId, consignorId: id, status: 'CONFIRMED' } }),
     ]);
     if (products > 0) {
       throw new Error(`Este seller tiene ${products} producto${products === 1 ? '' : 's'} en consignación. Cambia el dueño de esos productos antes de quitarle la condición de seller`);
@@ -252,7 +252,7 @@ export async function updateContact(companyId: string, id: string, input: Contac
 export async function deleteContact(companyId: string, id: string): Promise<void> {
   const [consigned, settlements, soldLines] = await Promise.all([
     prisma.product.count({ where: { companyId, consignorId: id } }),
-    prisma.consignmentSettlement.count({ where: { companyId, consignorId: id } }),
+    prisma.sellerSettlement.count({ where: { companyId, consignorId: id } }),
     prisma.salesDocumentItem.count({ where: { companyId, consignorId: id } }),
   ]);
   if (consigned > 0) throw new Error('Este seller tiene productos en consignación. Cambia el dueño de esos productos antes de eliminarlo');

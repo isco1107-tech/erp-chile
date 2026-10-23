@@ -114,8 +114,8 @@ describeDb('consignación contra PostgreSQL', () => {
         await prisma.account.deleteMany({ where: { companyId } });
         await prisma.accountingPeriod.deleteMany({ where: { companyId } });
         await prisma.payment.deleteMany({ where: { companyId } });
-        await prisma.consignmentSettlementLine.deleteMany({ where: { companyId } });
-        await prisma.consignmentSettlement.deleteMany({ where: { companyId } });
+        await prisma.sellerSettlementLine.deleteMany({ where: { companyId } });
+        await prisma.sellerSettlement.deleteMany({ where: { companyId } });
         await prisma.supplierPortalAccess.deleteMany({ where: { companyId } });
         await prisma.salesDocumentItem.deleteMany({ where: { companyId } });
         await prisma.salesDocument.deleteMany({ where: { companyId } });
@@ -302,7 +302,7 @@ describeDb('consignación contra PostgreSQL', () => {
       const settlement = await settlements.generateSettlement(ids.companyA, ids.user, { consignorId: ids.seller1, adjustmentAmount: -1000, adjustmentNote: 'Descuento acordado' });
       // +16.000 de la venta nueva, −8.000 de la nota de crédito, −1.000 de ajuste.
       expect(settlement).toMatchObject({ number: 3, payoutAmount: 7000 });
-      const row = await prisma.consignmentSettlement.findUniqueOrThrow({ where: { id: settlement.id } });
+      const row = await prisma.sellerSettlement.findUniqueOrThrow({ where: { id: settlement.id } });
       expect(row).toMatchObject({ adjustmentAmount: -1000, adjustmentNote: 'Descuento acordado', createdById: ids.user, companyId: ids.companyA });
     });
   });

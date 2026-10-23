@@ -131,8 +131,8 @@ model Company {
   productPhotoScans         ProductPhotoScan[]
   productSuppliers          ProductSupplier[]
   supplierPortalAccesses    SupplierPortalAccess[]
-  consignmentSettlements    ConsignmentSettlement[]
-  consignmentSettlementLines ConsignmentSettlementLine[]
+  sellerSettlements    SellerSettlement[]
+  sellerSettlementLines SellerSettlementLine[]
   bankAccounts              BankAccount[]
   bankStatements            BankStatement[]
   bankStatementLines        BankStatementLine[]
@@ -729,8 +729,8 @@ enum InternalDocumentKind {
   PRODUCTION_ORDER
   /// Orden de servicio técnico (`ServiceTicket.folio`).
   SERVICE_TICKET
-  /// Liquidación a un seller de consignación (`ConsignmentSettlement.number`).
-  CONSIGNMENT_SETTLEMENT
+  /// Liquidación a un seller de consignación (`SellerSettlement.number`).
+  SELLER_SETTLEMENT
 }
 
 /// Correlativos internos (no folio SII) para documentos sin relevancia
@@ -897,7 +897,7 @@ model Contact {
   consignmentCommissionBps  Int?
   /// Productos en consignación de este seller.
   consignedProducts         Product[]               @relation("ProductConsignor")
-  consignmentSettlements    ConsignmentSettlement[] @relation("ConsignmentSettlementConsignor")
+  sellerSettlements    SellerSettlement[] @relation("ConsignmentSettlementConsignor")
   /// Portal del cliente (`/cliente/[token]`): se guarda solo el hash SHA-256
   /// del enlace; el enlace en claro se muestra una vez al generarlo.
   portalTokenHash           String?                 @unique
@@ -1118,7 +1118,7 @@ model SupplierPortalAccess {
   @@index([companyId])
 }
 
-enum ConsignmentSettlementStatus {
+enum SellerSettlementStatus {
   /// Generada: se le debe al seller lo que dice, aún sin pagar.
   CONFIRMED
   PAID
@@ -1131,15 +1131,15 @@ enum ConsignmentSettlementStatus {
 /// (`SalesDocumentItem.consignorId`) y queda congelada: lo que cambie después
 /// (una anulación, una nota de crédito) aparece como ajuste en la siguiente. No
 /// genera asientos contables ni registra la factura del seller.
-model ConsignmentSettlement {
+model SellerSettlement {
   id               String                      @id @default(cuid())
   companyId        String
   company          Company                     @relation(fields: [companyId], references: [id], onDelete: Cascade)
   consignorId      String
   consignor        Contact                     @relation("ConsignmentSettlementConsignor", fields: [consignorId], references: [id], onDelete: Restrict)
-  /// Correlativo por empresa (`InternalDocumentSequence` `CONSIGNMENT_SETTLEMENT`).
+  /// Correlativo por empresa (`InternalDocumentSequence` `SELLER_SETTLEMENT`).
   number           Int
-  status           ConsignmentSettlementStatus @default(CONFIRMED)
+  status           SellerSettlementStatus @default(CONFIRMED)
   /// Unidades netas (ventas menos devoluciones).
   units            Float
   netSales         Int
@@ -1160,7 +1160,7 @@ model ConsignmentSettlement {
   /// ventas que el bloqueo del seller pueda repartir).
   idempotencyKey   String?
   createdAt        DateTime                    @default(now())
-  lines            ConsignmentSettlementLine[]
+  lines            SellerSettlementLine[]
 
   @@unique([companyId, number])
   @@unique([companyId, idempotencyKey])
@@ -1169,12 +1169,12 @@ model ConsignmentSettlement {
 
 /// Una línea de venta dentro de una liquidación, con los montos que tenía al
 /// liquidarse (con signo: una devolución o un ajuste por anulación van en negativo).
-model ConsignmentSettlementLine {
+model SellerSettlementLine {
   id                  String                @id @default(cuid())
   companyId           String
   company             Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
   settlementId        String
-  settlement          ConsignmentSettlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+  settlement          SellerSettlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
   /// Línea de venta de origen. Sin relación: el documento y su historia no dependen de esta foto.
   salesDocumentItemId String
   productId           String?

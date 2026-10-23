@@ -21,8 +21,8 @@ type Delegate = Record<string, (...args: never[]) => unknown>;
 const MODELS = {
   contact: ['findFirst', 'create', 'updateMany', 'deleteMany'],
   product: ['findFirst', 'count', 'create', 'updateMany'],
-  consignmentSettlement: ['count'],
-  consignmentSettlementLine: ['findMany'],
+  sellerSettlement: ['count'],
+  sellerSettlementLine: ['findMany'],
   salesDocumentItem: ['count', 'findMany'],
   category: ['findFirst'],
 } as const;
@@ -97,8 +97,8 @@ describe('contactos: seller', () => {
     db.contact.updateMany.mockResolvedValue({ count: 1 });
     db.product.count.mockResolvedValue(0);
     db.salesDocumentItem.findMany.mockResolvedValue([]);
-    db.consignmentSettlementLine.findMany.mockResolvedValue([]);
-    db.consignmentSettlement.count.mockResolvedValue(0);
+    db.sellerSettlementLine.findMany.mockResolvedValue([]);
+    db.sellerSettlement.count.mockResolvedValue(0);
 
     db.contact.findFirst.mockResolvedValueOnce({ isConsignor: true, consignmentCommissionBps: 1500 }).mockResolvedValueOnce({ id: 'c1' });
     await updateContact(COMPANY, 'c1', { consignmentCommissionBps: 2500 });
@@ -113,8 +113,8 @@ describe('contactos: seller', () => {
     db.contact.findFirst.mockResolvedValue({ isConsignor: true, consignmentCommissionBps: 1500 });
     db.product.count.mockResolvedValue(3);
     db.salesDocumentItem.findMany.mockResolvedValue([]);
-    db.consignmentSettlementLine.findMany.mockResolvedValue([]);
-    db.consignmentSettlement.count.mockResolvedValue(0);
+    db.sellerSettlementLine.findMany.mockResolvedValue([]);
+    db.sellerSettlement.count.mockResolvedValue(0);
     await expect(updateContact(COMPANY, 'c1', { isConsignor: false })).rejects.toThrow('3 productos en consignación');
     expect(whereOf(db.product.count)).toEqual({ companyId: COMPANY, consignorId: 'c1' });
     expect(db.contact.updateMany).not.toHaveBeenCalled();
@@ -127,30 +127,30 @@ describe('contactos: seller', () => {
     db.salesDocumentItem.findMany.mockResolvedValue([
       { id: 'i1', consignorId: 'c1', productId: 'p1', sku: 'P1', description: 'Taza', quantity: 2, subtotal: 10_000, consignorCommissionBps: 2000, consignorBaseNet: null, document: { dteType: 'BOLETA_39', status: 'ISSUED', folio: 5, issueDate: new Date('2026-10-01T15:00:00Z') } },
     ]);
-    db.consignmentSettlementLine.findMany.mockResolvedValue([]);
-    db.consignmentSettlement.count.mockResolvedValue(0);
+    db.sellerSettlementLine.findMany.mockResolvedValue([]);
+    db.sellerSettlement.count.mockResolvedValue(0);
     await expect(updateContact(COMPANY, 'c1', { isConsignor: false })).rejects.toThrow('ventas sin liquidar o liquidaciones sin pagar');
 
     // Todo liquidado pero con una liquidación por pagar.
     db.salesDocumentItem.findMany.mockResolvedValue([]);
-    db.consignmentSettlement.count.mockResolvedValue(1);
+    db.sellerSettlement.count.mockResolvedValue(1);
     await expect(updateContact(COMPANY, 'c1', { isConsignor: false })).rejects.toThrow('ventas sin liquidar o liquidaciones sin pagar');
-    expect(whereOf(db.consignmentSettlement.count)).toEqual({ companyId: COMPANY, consignorId: 'c1', status: 'CONFIRMED' });
+    expect(whereOf(db.sellerSettlement.count)).toEqual({ companyId: COMPANY, consignorId: 'c1', status: 'CONFIRMED' });
     expect(db.contact.updateMany).not.toHaveBeenCalled();
   });
 
   it('no se elimina un seller con productos, con liquidaciones ni con ventas de su mercadería', async () => {
     db.product.count.mockResolvedValue(1);
-    db.consignmentSettlement.count.mockResolvedValue(0);
+    db.sellerSettlement.count.mockResolvedValue(0);
     db.salesDocumentItem.count.mockResolvedValue(0);
     await expect(deleteContact(COMPANY, 'c1')).rejects.toThrow('productos en consignación');
 
     db.product.count.mockResolvedValue(0);
-    db.consignmentSettlement.count.mockResolvedValue(2);
+    db.sellerSettlement.count.mockResolvedValue(2);
     await expect(deleteContact(COMPANY, 'c1')).rejects.toThrow('liquidaciones');
 
     // Aunque ya no tenga productos ni liquidaciones: lo que se le debe vive en las líneas de venta.
-    db.consignmentSettlement.count.mockResolvedValue(0);
+    db.sellerSettlement.count.mockResolvedValue(0);
     db.salesDocumentItem.count.mockResolvedValue(4);
     await expect(deleteContact(COMPANY, 'c1')).rejects.toThrow('ventas de su mercadería');
     expect(whereOf(db.salesDocumentItem.count)).toEqual({ companyId: COMPANY, consignorId: 'c1' });
@@ -159,7 +159,7 @@ describe('contactos: seller', () => {
 
   it('un contacto sin consignación se elimina como siempre', async () => {
     db.product.count.mockResolvedValue(0);
-    db.consignmentSettlement.count.mockResolvedValue(0);
+    db.sellerSettlement.count.mockResolvedValue(0);
     db.salesDocumentItem.count.mockResolvedValue(0);
     db.contact.deleteMany.mockResolvedValue({ count: 1 });
     await deleteContact(COMPANY, 'c1');

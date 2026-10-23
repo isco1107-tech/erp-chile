@@ -413,7 +413,7 @@ async function buildConsignmentView(input: { companyId: string; contactId: strin
   const { companyId, contactId } = input;
   const [pendingBySeller, settlements] = await Promise.all([
     loadPendingBySeller(prisma, companyId, contactId),
-    prisma.consignmentSettlement.findMany({
+    prisma.sellerSettlement.findMany({
       where: { companyId, consignorId: contactId, status: { not: 'VOIDED' } },
       orderBy: { number: 'desc' },
       take: PORTAL_SETTLEMENTS,
