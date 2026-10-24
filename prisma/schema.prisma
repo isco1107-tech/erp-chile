@@ -106,6 +106,8 @@ model Company {
   features                  CompanyFeatures?
   settings                  CompanySettings?
   retailSettings            RetailSettings?
+  shrinkageSettings         ShrinkageSettings?
+  shrinkageLiabilities      ShrinkageLiability[]
   taxPeriods                TaxPeriod[]
   customRoles               CustomRole[]
   createdAt                 DateTime                      @default(now())
@@ -620,6 +622,10 @@ model CompanyFeatures {
   /// Reposición predictiva: cuándo se agota cada producto y cuánto pedir
   /// (dentro de Métricas de retail, con interruptor propio).
   hasSmartReorder       Boolean  @default(false)
+  /// Mermas con responsable (dentro de Inventario, con interruptor propio):
+  /// quién responde por cada pérdida (la tienda o el productor) y avisos de
+  /// lotes por vencer.
+  hasShrinkageLiability Boolean  @default(false)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 }
@@ -920,6 +926,7 @@ model Contact {
   suppliedMovements         InventoryMovement[]     @relation("MovementSupplier")
   /// Productos que este proveedor surte (los que ve en su portal).
   suppliedProducts          ProductSupplier[]       @relation("ProductSupplierContact")
+  shrinkageLiabilities      ShrinkageLiability[]    @relation("ShrinkageLiabilitySupplier")
   /// Acceso del proveedor a su portal de inventario (`/proveedor`).
   supplierPortalAccess      SupplierPortalAccess?
   /// Portal del cliente (`/cliente/[token]`): se guarda solo el hash SHA-256
@@ -1052,13 +1059,13 @@ model Stock {
 }
 
 model InventoryMovement {
-  id             String       @id @default(cuid())
+  id             String              @id @default(cuid())
   companyId      String
-  company        Company      @relation(fields: [companyId], references: [id])
+  company        Company             @relation(fields: [companyId], references: [id])
   productId      String
-  product        Product      @relation(fields: [productId], references: [id])
+  product        Product             @relation(fields: [productId], references: [id])
   warehouseId    String
-  warehouse      Warehouse    @relation(fields: [warehouseId], references: [id])
+  warehouse      Warehouse           @relation(fields: [warehouseId], references: [id])
   type           MovementType
   quantity       Float
   unitCost       Float
@@ -1075,7 +1082,7 @@ model InventoryMovement {
   /// Quién hizo el movimiento (el operario que ajustó). `null` en los que nacen de
   /// un documento de venta o compra y en los anteriores a este campo.
   userId         String?
-  user           User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user           User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
   /// Motivo de una salida o un ajuste: código de `WASTE_REASONS` (vencido, mal
   /// estado, degustación…). `null` cuando el movimiento no tiene un motivo.
   reasonCode     String?
@@ -1084,8 +1091,10 @@ model InventoryMovement {
   evidenceUrl    String?
   /// Proveedor de quien llegó la mercadería (entradas hechas desde la app del bodeguero).
   supplierId     String?
-  supplier       Contact?     @relation("MovementSupplier", fields: [supplierId], references: [id], onDelete: SetNull)
-  createdAt      DateTime     @default(now())
+  supplier       Contact?            @relation("MovementSupplier", fields: [supplierId], references: [id], onDelete: SetNull)
+  /// Quién responde por esta pérdida (solo salidas; ver `ShrinkageLiability`).
+  liability      ShrinkageLiability?
+  createdAt      DateTime            @default(now())
 
   @@index([companyId, productId, createdAt])
   @@index([companyId, warehouseId, createdAt])
@@ -1096,6 +1105,48 @@ model InventoryMovement {
 /// vez que registra una llegada "de" ese proveedor, y se puede ajustar a mano
 /// desde la ficha del proveedor. Es lo que ve el proveedor en su portal: solo
 /// los productos de esta lista, nunca el resto del catálogo.
+/// Quién responde por una pérdida (merma, rotura, vencimiento, faltante): la
+/// tienda o el proveedor/productor. Una fila por salida del kardex, aparte de
+/// `InventoryMovement` para no tocar el registro contable del stock. Se
+/// asigna a mano (o confirmando la sugerencia por motivo de
+/// `ShrinkageSettings.defaults`); sin fila, la pérdida está "sin asignar".
+model ShrinkageLiability {
+  id             String            @id @default(cuid())
+  companyId      String
+  company        Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  movementId     String            @unique
+  movement       InventoryMovement @relation(fields: [movementId], references: [id], onDelete: Cascade)
+  /// `STORE` (la tienda) o `SUPPLIER` (el proveedor o productor). Lista cerrada
+  /// en `src/lib/inventory/shrinkage.ts`.
+  party          String
+  /// Proveedor que responde, si `party = SUPPLIER`.
+  supplierId     String?
+  supplier       Contact?          @relation("ShrinkageLiabilitySupplier", fields: [supplierId], references: [id], onDelete: SetNull)
+  assignedById   String?
+  assignedByName String?
+  assignedAt     DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([companyId, supplierId])
+  @@index([companyId, party])
+}
+
+/// Ajustes de mermas con responsable, 1:1 con la empresa. Sin fila, todo
+/// queda sin sugerencia y los avisos de vencimiento a 7 días.
+model ShrinkageSettings {
+  id              String   @id @default(cuid())
+  companyId       String   @unique
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// Responsable sugerido por motivo: `{ "EXPIRED": "SUPPLIER", … }`. Lo define
+  /// cada empresa según sus acuerdos; validado con Zod al guardar y al leer.
+  defaults        Json?
+  /// Avisar por la campanita de los lotes que están por vencer.
+  expiryAlerts    Boolean  @default(true)
+  /// Con cuántos días de anticipación (además del día en que vence).
+  expiryAlertDays Int      @default(7)
+  updatedAt       DateTime @updatedAt
+}
+
 model ProductSupplier {
   id             String    @id @default(cuid())
   companyId      String

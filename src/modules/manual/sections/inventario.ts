@@ -315,4 +315,60 @@ export const INVENTARIO_SECTIONS: ManualSection[] = [
       },
     ],
   },
+  {
+    id: 'mermas-responsables',
+    key: 'hasShrinkageLiability',
+    // Vive dentro de Inventario: se documenta solo con los dos interruptores encendidos.
+    anyOfFeatures: ['hasInventory'],
+    permission: 'products:read',
+    chapter: 'Inventario',
+    title: 'Mermas y responsables',
+    summary:
+      'Cada pérdida de una bodega —merma, rotura, vencido, faltante de un conteo— con quién responde por ella: la tienda o el proveedor. Sirve para la liquidación con cada productor, y avisa por la campanita de los lotes por vencer.',
+    route: '/dashboard/inventory/mermas',
+    screenshot: null,
+    topics: [
+      {
+        id: 'ver-mermas-responsables',
+        title: 'Ver las pérdidas y quién responde',
+        steps: [
+          'Ve a Inventario → Mermas y responsables y elige la bodega en las pestañas de arriba. Cada bodega se ve por separado.',
+          'Por defecto ves los últimos 30 días. Cambia "Desde" y "Hasta", el "Motivo", el "Responsable" o el "Proveedor que responde" y presiona "Aplicar filtros". "Limpiar" vuelve a lo de siempre.',
+          'Arriba ves el total perdido, lo que está a cargo de la tienda, lo que está a cargo de proveedores y cuántas pérdidas siguen sin asignar (en pesos si tu rol puede ver costos; si no, en unidades).',
+          'La tarjeta "Por proveedor" suma lo asignado a cada productor en el período. Toca su nombre para ver solo sus pérdidas.',
+        ],
+        tip: 'Cuenta como pérdida toda salida con motivo (salvo la devolución al proveedor), los ajustes de salida hechos por una persona y los faltantes de las tomas de inventario. El consumo de producción y las devoluciones por nota de crédito no aparecen.',
+      },
+      {
+        id: 'asignar-responsable',
+        title: 'Asignar quién responde',
+        permission: 'inventory:write',
+        steps: [
+          'En la columna "Quién responde", elige "La tienda" o el proveedor en la lista. Se guarda al instante y queda registrado quién lo asignó.',
+          'Si la pérdida tiene una sugerencia según los acuerdos de tu empresa, aparece "Sugerido: …" con el botón "Confirmar".',
+          'Para aceptar de una vez todas las sugerencias de la bodega y el período, presiona "Confirmar sugerencias". Las que no tienen sugerencia siguen "Sin asignar".',
+          'Elige "Sin asignar" para quitar un responsable puesto por error.',
+        ],
+        tip: 'En la lista solo aparecen los proveedores asociados al producto. Si falta uno, asócialo en la ficha del producto.',
+      },
+      {
+        id: 'acuerdos-por-motivo',
+        title: 'Definir los acuerdos y los avisos de vencimiento',
+        permission: 'settings:company',
+        steps: [
+          'Abre "Acuerdos por motivo y avisos de vencimiento" (arriba de las pestañas de bodega). En "Quién responde según el motivo", elige para cada motivo si por defecto responde la tienda o el proveedor, o déjalo en "Sin definir".',
+          'Si responde el proveedor, se sugiere el de la llegada registrada o, si el producto tiene uno solo, ese. Con varios proveedores y sin llegada, decide una persona.',
+          'Activa "Avisar de lotes por vencer", elige cuántos días antes en "Avisar con" y presiona "Guardar ajustes". La campanita avisa ese día y el día en que el lote vence.',
+        ],
+      },
+      {
+        id: 'descargar-mermas',
+        title: 'Descargar para la liquidación',
+        steps: [
+          'Aplica los filtros (por ejemplo, un proveedor y el mes) y presiona "Descargar Excel".',
+          'El archivo trae cada pérdida con su motivo, operario, quién responde, quién lo asignó y el enlace a la foto. Cada descarga queda en la bitácora.',
+        ],
+      },
+    ],
+  },
 ];

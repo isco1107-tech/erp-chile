@@ -182,6 +182,7 @@ export const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   heatmap: Flame,
   basket: ShoppingBasket,
   reorder: CalendarSync,
+  shrinkage: Scale,
 };
 
 

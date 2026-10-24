@@ -58,6 +58,7 @@ export const FLAG_A_MODULO: Partial<Record<FeatureKey, string>> = {
   hasRetailHeatmap: 'mapa_calor',
   hasBasketAnalysis: 'canasta_cruzada',
   hasSmartReorder: 'reposicion_predictiva',
+  hasShrinkageLiability: 'mermas_responsable',
 };
 
 /**
@@ -95,6 +96,7 @@ const ENTIDAD_A_MODULO: Record<string, string> = {
   AcademyStudent: 'academia', AcademyGroup: 'academia', AcademyAttendance: 'academia', AcademyMonthlyPayment: 'academia', AcademyApplication: 'academia', AcademySite: 'academia', AcademyEnrollmentLink: 'academia', AcademySession: 'academia', AcademyMaterial: 'academia',
   StoreOrder: 'tienda_en_linea', StoreProduct: 'tienda_en_linea', WebSiteStore: 'tienda_en_linea',
   RetailMetrics: 'metricas_retail', RetailSettings: 'metricas_retail',
+  ShrinkageLiability: 'mermas_responsable', ShrinkageSettings: 'mermas_responsable',
 };
 
 /** Módulo con que viaja lo que no es de un módulo de negocio (usuarios, roles, ajustes…): la Supersuite no lo cuenta como adopción. */

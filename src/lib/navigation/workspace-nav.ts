@@ -103,7 +103,8 @@ export type NavIconKey =
   | 'deadStock'
   | 'heatmap'
   | 'basket'
-  | 'reorder';
+  | 'reorder'
+  | 'shrinkage';
 
 export interface NavLink {
   /** Identificador estable (ver comentario del archivo). */
@@ -185,7 +186,7 @@ export function buildAvailableWorkspaceNav({ permissions, features }: Omit<NavAc
   push('Inteligencia de Negocio', inteligencia);
 
   if (features.hasInventory && allow('products:read')) {
-    push('Inventario', [
+    const inventory: NavLink[] = [
       { id: 'products', href: '/dashboard/products', label: 'Catálogo de Productos', icon: 'products', keywords: ['productos', 'articulos', 'sku'] },
       { id: 'inventory', href: '/dashboard/inventory', label: 'Inventario', icon: 'inventory', keywords: ['stock', 'bodega', 'kardex', 'existencias'] },
       { id: 'inventory-counts', href: '/dashboard/inventory/counts', label: 'Toma de inventario', icon: 'inventoryCount', keywords: ['conteo', 'inventario fisico', 'merma', 'ajuste', 'cuadratura'] },
@@ -193,7 +194,12 @@ export function buildAvailableWorkspaceNav({ permissions, features }: Omit<NavAc
       { id: 'inventory-labels', href: '/dashboard/inventory/labels', label: 'Etiquetas', icon: 'labels', keywords: ['codigo de barras', 'etiqueta', 'gondola', 'imprimir', 'ean'] },
       { id: 'inventory-movements', href: '/dashboard/inventory/movements', label: 'Movimientos de bodega', icon: 'movements', keywords: ['kardex', 'merma', 'salida', 'ajuste', 'operario', 'foto', 'respaldo', 'degustacion', 'bodega', 'registro', 'quien'] },
       { id: 'inventory-mobile', href: '/dashboard/inventory/mobile', label: 'Bodega móvil', icon: 'mobile', keywords: ['celular', 'telefono', 'app', 'bodeguero', 'foto', 'camara', 'escanear', 'qr', 'merma', 'llegada'] },
-    ]);
+    ];
+    // Funcionalidad con su propio interruptor dentro de Inventario.
+    if (moduleEnabled(features, 'hasShrinkageLiability')) {
+      inventory.push({ id: 'inventory-shrinkage', href: '/dashboard/inventory/mermas', label: 'Mermas y responsables', icon: 'shrinkage', keywords: ['merma', 'rotura', 'vencido', 'perdida', 'responsable', 'productor', 'proveedor', 'liquidacion', 'faltante', 'quien paga'] });
+    }
+    push('Inventario', inventory);
   }
 
   if (features.hasRetailMetrics && allow('retail:read')) {

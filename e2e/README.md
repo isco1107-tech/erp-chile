@@ -48,6 +48,8 @@ Qué cubren:
   Excel) y apagado (fuera del menú, ruta y descarga cerradas); Stock muerto con su propio interruptor (se ve y se
   ajusta el umbral solo con los dos encendidos; apagado él o el padre, menú, ruta y descarga cerradas); Mapa de calor,
   Canasta cruzada y Reposición predictiva (hasta crear la solicitud de compra), cada uno con su propio interruptor.
+- `inventory-shrinkage.spec.ts`: Inventario → Mermas y responsables con su propio interruptor: asignar una pérdida al
+  proveedor, verla en "Por proveedor" y descargar el Excel; apagado, fuera del menú y con ruta y descarga cerradas.
 - `movements.spec.ts`: el registro de movimientos por bodega (cada bodega ve solo lo suyo,
   con operario, motivo y foto) y el kardex por bodega.
 - `supplier-portal.spec.ts`: el portal del proveedor (`/proveedor`): entra con su código, ve solo

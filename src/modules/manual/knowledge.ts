@@ -60,6 +60,7 @@ export const SCREEN_PURPOSES: Record<string, string> = {
   'inventory-lots': 'Saldo por lote y fechas de vencimiento; las salidas consumen primero lo que vence antes.',
   'inventory-movements': 'Movimientos de bodega: el registro de lo que entró y salió de CADA bodega por separado, con el operario que hizo cada ajuste, el motivo (vencido, mal estado, degustación…), el proveedor de las llegadas y la foto de respaldo. Se filtra y se descarga a Excel.',
   'inventory-mobile': 'Bodega móvil: la app del bodeguero para el celular (llegadas, mermas, traslados, con cámara y sin señal). Aquí se abre con un QR, se ve si la identificación por foto está disponible y qué se registró desde el celular.',
+  'inventory-shrinkage': 'Mermas y responsables: cada pérdida de una bodega (merma, rotura, vencido, faltante) con quién responde, la tienda o el proveedor, para liquidar con cada productor sin discusión; también avisa de los lotes por vencer.',
   'inventory-labels': 'Imprimir etiquetas con código de barras en hoja A4 o rollo.',
   crm: 'Embudo de negocios por etapa (auspicios, eventos, entradas corporativas…), con pronóstico ponderado.',
   'crm-tasks': 'Agenda comercial: llamadas, reuniones y seguimientos vencidos, de hoy y próximos.',

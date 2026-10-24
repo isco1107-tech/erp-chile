@@ -128,6 +128,9 @@ const CASCADES_TO_COMPANY = new Set([
   'StoreOrderEvent',
   // Métricas de retail: ajustes (umbral de stock muerto). `onDelete: Cascade` directo hacia Company.
   'RetailSettings',
+  // Mermas con responsable: responsable por pérdida y acuerdos por motivo.
+  'ShrinkageLiability',
+  'ShrinkageSettings',
 ]);
 
 /** Cascadean desde `Project`, que se borra explícito en `hardDeleteTenant`. */

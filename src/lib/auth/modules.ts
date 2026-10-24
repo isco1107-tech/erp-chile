@@ -55,6 +55,7 @@ export type FeatureKey = keyof Pick<
   | 'hasRetailHeatmap'
   | 'hasBasketAnalysis'
   | 'hasSmartReorder'
+  | 'hasShrinkageLiability'
 >;
 
 export type CompanyFeatureFlags = Record<FeatureKey, boolean>;
@@ -407,6 +408,15 @@ export const MODULES: ModuleDefinition[] = [
     routes: ['/dashboard/retail/reposicion'],
     requires: 'hasRetailMetrics',
   },
+  {
+    key: 'hasShrinkageLiability',
+    label: 'Mermas con responsable',
+    description:
+      'Dentro de Inventario: quién responde por cada merma, rotura, vencimiento o faltante (la tienda o el productor), con un responsable sugerido por motivo según los acuerdos de la empresa, el resumen por productor para la liquidación y avisos por campanita de los lotes por vencer.',
+    permissions: [],
+    routes: ['/dashboard/inventory/mermas'],
+    requires: 'hasInventory',
+  },
 ];
 
 export const MODULE_KEYS: FeatureKey[] = MODULES.map((m) => m.key);
@@ -458,6 +468,7 @@ export const DEFAULT_FEATURES: CompanyFeatureFlags = {
   hasRetailHeatmap: false,
   hasBasketAnalysis: false,
   hasSmartReorder: false,
+  hasShrinkageLiability: false,
 };
 
 /** Índice inverso permiso → módulo, construido una vez al cargar el módulo. */
@@ -532,6 +543,7 @@ export function toFeatureFlags(features: CompanyFeatures | null): CompanyFeature
     hasRetailHeatmap: features.hasRetailHeatmap,
     hasBasketAnalysis: features.hasBasketAnalysis,
     hasSmartReorder: features.hasSmartReorder,
+    hasShrinkageLiability: features.hasShrinkageLiability,
   };
 }
 
