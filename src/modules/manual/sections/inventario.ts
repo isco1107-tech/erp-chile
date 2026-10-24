@@ -426,9 +426,6 @@ export const INVENTARIO_SECTIONS: ManualSection[] = [
     summary:
       'Un seller pone productos a la venta sin dejar de ser dueño de la mercadería hasta que se vende. Su stock no entra a tu inventario valorizado ni a tus compras: al vender se le liquida lo vendido menos tu comisión.',
     route: '/dashboard/inventory/consignment',
-    // Pendiente: la captura se genera con `scripts/capture-manual-screenshots.ts` contra una base LOCAL
-    // con datos de demostración, y esta pantalla se escribió sin una. Al generarla, quitar esta línea.
-    screenshot: null,
     topics: [
       {
         id: 'crear-seller',

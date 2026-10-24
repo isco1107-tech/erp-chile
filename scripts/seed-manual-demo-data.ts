@@ -23,7 +23,9 @@ import { prisma } from '../src/lib/prisma';
 import { formatRut } from '../src/lib/chile/rut';
 import { contactCreateSchema } from '../src/modules/contacts/schema';
 import { createContact } from '../src/modules/contacts/services/contacts.service';
-import { categoryCreateSchema, productCreateSchema, warehouseCreateSchema } from '../src/modules/inventory/schema';
+import { categoryCreateSchema, consignmentReceiveSchema, productCreateSchema, settlementGenerateSchema, warehouseCreateSchema } from '../src/modules/inventory/schema';
+import { receiveConsignedStock } from '../src/modules/inventory/services/consignment.service';
+import { generateSettlement } from '../src/modules/inventory/services/consignment-settlement.service';
 import { createCategory, createProduct } from '../src/modules/inventory/services/products.service';
 import { createWarehouse } from '../src/modules/inventory/services/stock.service';
 import { purchaseDocumentCreateSchema } from '../src/modules/purchases/schema';
@@ -242,6 +244,56 @@ async function main() {
   await sale(molino, 'FACTURA_33', 'CREDITO_30', [['LEC-1000', 24]], 'DRAFT');
   await registerSalesPayment(companyId, f1.id, registerPaymentSchema.parse({ amount: 60_000, paymentMethod: 'TRANSFERENCIA', referenceNumber: 'TRF-88213' }));
   await registerSalesPayment(companyId, f3.id, registerPaymentSchema.parse({ amount: f3.totalAmount, paymentMethod: 'TRANSFERENCIA', referenceNumber: 'TRF-88290' }));
+
+  // ── Consignación: dos sellers con su mercadería, una liquidación hecha y ventas por liquidar ──
+  const sellers = [
+    { razonSocial: 'Miel del Sur SpA', body: 76654321, giro: 'Productores de miel', email: 'contacto@mieldelsur.cl', commissionBps: 2000 },
+    { razonSocial: 'Quesería Los Boldos Limitada', body: 77312450, giro: 'Quesería artesanal', email: 'ventas@losboldos.cl', commissionBps: 1500 },
+  ];
+  const sellerIds: string[] = [];
+  for (const s of sellers) {
+    const contact = await createContact(
+      companyId,
+      contactCreateSchema.parse({ rut: rut(s.body), razonSocial: s.razonSocial, giro: s.giro, email: s.email, isCustomer: false, isConsignor: true, consignmentCommissionBps: s.commissionBps })
+    );
+    sellerIds.push(contact.id);
+  }
+  const consignedData = [
+    { sku: 'MIEL-500', name: 'Miel de ulmo 500 g', netPrice: 5_900, minStock: 12, barcode: '7801234500103', sellerIndex: 0, received: 40 },
+    { sku: 'QUE-300', name: 'Queso de cabra 300 g', netPrice: 7_200, minStock: 8, barcode: '7801234500110', sellerIndex: 1, received: 24 },
+  ];
+  const consigned: Record<string, string> = {};
+  for (const p of consignedData) {
+    const product = await createProduct(
+      companyId,
+      productCreateSchema.parse({ sku: p.sku, name: p.name, categoryId: categories['Insumos'], netPrice: p.netPrice, minStock: p.minStock, barcode: p.barcode, consignorId: sellerIds[p.sellerIndex] })
+    );
+    consigned[p.sku] = product.id;
+    await receiveConsignedStock(
+      companyId,
+      owner.id,
+      consignmentReceiveSchema.parse({ productId: product.id, warehouseId: central.id, quantity: p.received, reference: `Guía de ${sellers[p.sellerIndex]!.razonSocial}` })
+    );
+  }
+  const consignedSale = (contactId: string, lines: [string, number][]) =>
+    createSalesDocument(
+      companyId,
+      salesDocumentCreateSchema.parse({
+        contactId,
+        warehouseId: central.id,
+        dteType: 'FACTURA_33',
+        paymentMethod: 'TRANSFERENCIA',
+        sellerId: owner.id,
+        items: lines.map(([sku, quantity]) => {
+          const p = consignedData.find((item) => item.sku === sku)!;
+          return { productId: consigned[sku], sku, description: p.name, quantity, unitPrice: p.netPrice };
+        }),
+      }),
+      'ISSUED'
+    );
+  await consignedSale(molino, [['MIEL-500', 10], ['QUE-300', 4]]);
+  await generateSettlement(companyId, owner.id, settlementGenerateSchema.parse({ consignorId: sellerIds[0], note: 'Ventas de la primera quincena', idempotencyKey: 'demo-liquidacion-1' }));
+  await consignedSale(costaAzul, [['MIEL-500', 6], ['QUE-300', 5]]);
 
   await createSalesOrder(
     companyId,
