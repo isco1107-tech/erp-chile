@@ -116,6 +116,7 @@ export default function PosWorkspace(props: Props) {
         </div>
       </div>
 
+      <div className="grid grid-cols-3 gap-2 rounded-2xl border bg-card p-3 text-center text-xs sm:text-sm"><p><strong className="block text-foreground">1 · Vender</strong><span className="text-muted-foreground">Busca, escanea y cobra</span></p><p><strong className="block text-foreground">2 · Controlar</strong><span className="text-muted-foreground">Registra ingresos y retiros</span></p><p><strong className="block text-foreground">3 · Cerrar</strong><span className="text-muted-foreground">Cuenta y confirma el arqueo</span></p></div>
       {shiftClosed && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warning/30 bg-warning-soft p-4 text-sm text-warning">
         <p>Este turno fue cerrado desde otro equipo. La venta que ves en pantalla no se puede cobrar en este turno. Consulta el historial antes de abrir otra caja.</p>
         <Button type="button" variant="outline" disabled={operationPending} onClick={() => router.refresh()}>Ir a apertura de caja</Button>

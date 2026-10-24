@@ -68,14 +68,16 @@ export async function seedCatalog(request: APIRequestContext) {
   const response = await request.post('/api/bodega/sync', {
     data: {
       ops: [
-        { kind: 'CREATE_PRODUCT', clientOpId: 'e2e-seed-aceite-0001', mode: 'RECEIVE', warehouseId, quantity: 10, product: { name: 'Aceite Maravilla Chef 900 ml', sku: 'E2E-ACE-900', brand: 'Chef', barcode: EAN_ACEITE, unit: 'UN' } },
-        { kind: 'CREATE_PRODUCT', clientOpId: 'e2e-seed-harina-0001', mode: 'RECEIVE', warehouseId, quantity: 4, product: { name: 'Harina E2E Selecta 1 kg', sku: 'E2E-HAR-1KG', brand: 'Selecta', unit: 'KG' } },
+        { kind: 'CREATE_PRODUCT', clientOpId: 'e2e-seed-aceite-0001', confirmDistinct: true, mode: 'RECEIVE', warehouseId, quantity: 10, product: { name: 'Aceite Maravilla Chef 900 ml', sku: 'E2E-ACE-900', brand: 'Chef', barcode: EAN_ACEITE, unit: 'UN' } },
+        { kind: 'CREATE_PRODUCT', clientOpId: 'e2e-seed-harina-0001', confirmDistinct: true, mode: 'RECEIVE', warehouseId, quantity: 4, product: { name: 'Harina E2E Selecta 1 kg', sku: 'E2E-HAR-1KG', brand: 'Selecta', unit: 'KG' } },
       ],
     },
   });
   expect(response.status()).toBe(200);
   const results = (await response.json()).data.results as Array<{ status: string }>;
-  for (const result of results) expect(['APPLIED', 'REJECTED']).toContain(result.status);
+  // Estos SKU de prueba son deliberadamente distintos del catálogo de Ecommerce.
+  // Un rechazo no debe pasar silenciosamente y producir luego un match nulo.
+  for (const result of results) expect(result.status).toBe('APPLIED');
   return warehouseId;
 }
 

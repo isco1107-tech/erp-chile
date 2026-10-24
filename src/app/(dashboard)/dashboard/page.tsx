@@ -796,6 +796,7 @@ export default async function DashboardPage() {
         </section>
       )}
 
+      <Link href="/apps" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-card p-5 shadow-card"><span><strong className="block text-lg">Aplicaciones Aether</strong><span className="text-sm text-muted-foreground">Control para el dueño, POS, Bodega móvil y Seller Center.</span></span><span className="rounded-xl bg-primary px-4 py-3 text-sm font-medium text-primary-foreground">Abrir centro de aplicaciones</span></Link>
       {/* Acción destacada + módulos contratados */}
       <section className="grid grid-cols-12 gap-5">
         {suggestedAction && (

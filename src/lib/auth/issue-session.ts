@@ -5,7 +5,7 @@ import { recordSession } from './sessions';
 import { getClientIp } from '@/lib/security/cloudflare';
 import { captureException } from '@/lib/observability';
 import { listAccessibleCompanies, selectableCount } from './accessible-companies';
-import { ERP_ENTRY_COOKIE, ERP_ENTRY_COOKIE_OPTIONS, warehouseEntry, posEntry } from './entry-preference';
+import { ERP_ENTRY_COOKIE, ERP_ENTRY_COOKIE_OPTIONS, warehouseEntry, posEntry, controlEntry } from './entry-preference';
 import { prefersWarehouseApp } from './landing';
 
 /** Pantalla donde quien tiene acceso a varias empresas elige en cuál trabajar. */
@@ -73,7 +73,8 @@ export async function issueSession(user: IssuableUser, req: Request): Promise<Ne
 
   // Un bodeguero que entra desde el celular va a la app de bodega (el panel completo no es para esa pantalla).
   if (redirectTo === '/dashboard') {
-    if (posEntry(req.headers.get('cookie'))) redirectTo = '/pos';
+    if (controlEntry(req.headers.get('cookie'))) redirectTo = '/control';
+    else if (posEntry(req.headers.get('cookie'))) redirectTo = '/pos';
     else if (warehouseEntry(req.headers.get('cookie')) || prefersWarehouseApp({ role: user.role, userAgent: req.headers.get('user-agent'), hasInventory })) redirectTo = '/bodega';
   }
 
@@ -81,5 +82,6 @@ export async function issueSession(user: IssuableUser, req: Request): Promise<Ne
   setSessionCookie(res, token);
   if (warehouseEntry(req.headers.get('cookie'))) res.cookies.set(ERP_ENTRY_COOKIE, 'bodega', ERP_ENTRY_COOKIE_OPTIONS);
   if (posEntry(req.headers.get('cookie'))) res.cookies.set(ERP_ENTRY_COOKIE, 'pos', ERP_ENTRY_COOKIE_OPTIONS);
+  if (controlEntry(req.headers.get('cookie'))) res.cookies.set(ERP_ENTRY_COOKIE, 'control', ERP_ENTRY_COOKIE_OPTIONS);
   return res;
 }

@@ -27,7 +27,7 @@ function nextPath(json: { data?: { redirectTo?: unknown } }, callbackUrl: string
   const server = typeof target === 'string' && target.startsWith('/') && !target.startsWith('//') ? target : '/dashboard';
   // La app del bodeguero (`/bodega`) vuelve a sí misma tras iniciar sesión. Solo esa ruta, y solo si
   // el servidor no mandó a otro lado (selector de empresa, cambio de contraseña).
-  return server === '/dashboard' && (callbackUrl === '/bodega' || callbackUrl === '/pos') ? callbackUrl : server;
+  return server === '/dashboard' && (callbackUrl === '/bodega' || callbackUrl === '/pos' || callbackUrl === '/control') ? callbackUrl : server;
 }
 
 /**
@@ -47,7 +47,7 @@ const LOGIN_REDIRECT_REASONS: Record<string, string> = {
   ip: 'Tu sesión sigue activa, pero tu empresa restringió el acceso a ciertas direcciones IP y la tuya no está autorizada. Contacta al administrador de tu empresa.',
 };
 
-export function LoginForm({ warehouse = false, pos = false }: { warehouse?: boolean; pos?: boolean }) {
+export function LoginForm({ warehouse = false, pos = false, control = false }: { warehouse?: boolean; pos?: boolean; control?: boolean }) {
   const router = useRouter();
   const savedLogin = readRememberedLogin(useSyncExternalStore(subscribeRememberedLogin, rememberedLoginSnapshot, () => null));
   const [rememberOverride, setRememberOverride] = useState<boolean | null>(null);
@@ -116,7 +116,7 @@ export function LoginForm({ warehouse = false, pos = false }: { warehouse?: bool
       }
       rememberSuccessfulLogin(values.username, values.password);
       toast.success('Inicio de sesión correcto');
-      goTo(router, nextPath(json, warehouse ? '/bodega' : pos ? '/pos' : searchParams.get('callbackUrl')));
+      goTo(router, nextPath(json, warehouse ? '/bodega' : pos ? '/pos' : control ? '/control' : searchParams.get('callbackUrl')));
     } catch (e) {
       setError('No pudimos conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.');
     } finally {
@@ -141,7 +141,7 @@ export function LoginForm({ warehouse = false, pos = false }: { warehouse?: bool
       }
       rememberSuccessfulLogin(form.values.username, form.values.password);
       toast.success('Inicio de sesión correcto');
-      goTo(router, nextPath(json, warehouse ? '/bodega' : pos ? '/pos' : searchParams.get('callbackUrl')));
+      goTo(router, nextPath(json, warehouse ? '/bodega' : pos ? '/pos' : control ? '/control' : searchParams.get('callbackUrl')));
     } catch (e) {
       setError('No pudimos verificar el código. Revisa tu conexión e inténtalo de nuevo.');
     } finally {
@@ -190,8 +190,8 @@ export function LoginForm({ warehouse = false, pos = false }: { warehouse?: bool
   return (
     <AuthCard>
       <AuthCardHeader
-        title={warehouse ? "Ingresa a Bodega móvil" : pos ? "Ingresa al Punto de Venta" : "Ingresa a tu empresa"}
-        description={warehouse ? "Usa tu usuario y contraseña del ERP. Entrarás directamente a tu bodega." : pos ? "Usa tu cuenta personal del ERP. Las ventas y los movimientos quedarán identificados con tu cajero." : "Usa el correo y la contraseña con que te invitaron."}
+        title={warehouse ? "Ingresa a Bodega móvil" : pos ? "Ingresa al Punto de Venta" : control ? "Ingresa a Aether Control" : "Ingresa a tu empresa"}
+        description={warehouse ? "Usa tu usuario y contraseña del ERP. Entrarás directamente a tu bodega." : pos ? "Usa tu cuenta personal del ERP. Las ventas y los movimientos quedarán identificados con tu cajero." : control ? "Usa la cuenta del dueño. Entrarás directamente al control de tu empresa." : "Usa el correo y la contraseña con que te invitaron."}
       />
 
       {error && <AuthError>{error}</AuthError>}

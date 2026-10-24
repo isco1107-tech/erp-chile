@@ -14,6 +14,7 @@ test('la app abre su propio ingreso y mantiene al usuario dentro de bodega', asy
   await page.getByRole('button', { name: 'Entrar', exact: true }).click();
   await expect(page).toHaveURL(/\/bodega$/);
   await expect(page.getByRole('button', { name: 'Menú', exact: true })).toBeVisible();
+  await page.screenshot({path:'.vercel/apps-review/bodega-390.png',fullPage:true});
   const response = await page.request.get('/api/bodega/bootstrap');
   expect(response.status()).toBe(200);
   await page.getByRole('button', { name: 'Menú', exact: true }).click();

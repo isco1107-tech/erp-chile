@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
  * usuario). Antes era un botón rojo sólido siempre visible, que competía con
  * la navegación por atención para una acción que se usa una vez al día.
  */
-export default function LogoutButton({ variant = 'text', className, destination = '/login' }: { variant?: 'text' | 'icon'; className?: string; destination?: '/login' | '/pos/ingresar' }) {
+export default function LogoutButton({ variant = 'text', className, destination = '/login' }: { variant?: 'text' | 'icon'; className?: string; destination?: '/login' | '/pos/ingresar' | '/control/ingresar' }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 

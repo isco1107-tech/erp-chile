@@ -162,7 +162,8 @@ export function buildAvailableWorkspaceNav({ permissions, features }: Omit<NavAc
     if (links.length > 0) groups.push({ label, links, collapsedByDefault });
   };
 
-  const principal: NavLink[] = [{ id: 'home', href: '/dashboard', label: 'Inicio', icon: 'home', exact: true, keywords: ['dashboard', 'panel', 'resumen'] }];
+  const principal: NavLink[] = [{ id: 'home', href: '/dashboard', label: 'Inicio', icon: 'home', exact: true, keywords: ['dashboard', 'panel', 'resumen', 'apps'] }];
+  principal.push({ id: 'apps', href: '/apps', label: 'Aplicaciones', icon: 'home', keywords: ['apps', 'descargas', 'instalar', 'control'] });
   if (features.hasPos && allow('pos:operate')) {
     principal.push({ id: 'pos', href: '/dashboard/pos', label: 'Punto de Venta', icon: 'pos', keywords: ['pos', 'caja', 'boleta'] });
   }

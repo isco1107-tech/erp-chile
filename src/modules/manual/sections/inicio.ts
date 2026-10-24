@@ -6,6 +6,7 @@ import type { ManualSection } from '../types';
  * transversales (listados, mensajería, multiempresa).
  */
 export const INICIO_SECTIONS: ManualSection[] = [
+  { id: 'aplicaciones', screenshot: null, key: 'always', chapter: 'Primeros pasos', title: 'Centro de aplicaciones', summary: 'Instala las aplicaciones para dirección, mostrador, bodega y proveedores desde un solo lugar, con los mismos datos del ERP y los permisos de cada cuenta.', route: '/apps', topics: [{ id: 'instalar', title: 'Elegir e instalar una aplicación', steps: ['Abre Aplicaciones desde el menú o /apps. Elige la tarjeta para tu trabajo.', 'En POS usa Descargar app POS y elige Windows, Mac o Linux. Bodega, Control y Seller Center se instalan desde su propia página con Agregar a pantalla de inicio.', 'Control requiere la cuenta del dueño y consulta datos cada 15 segundos. Si falla la conexión muestra la última consulta como desactualizada. Los portales propuestos no tienen una descarga hasta resolver sus accesos personales.'] }] },
   {
     id: 'primeros-pasos',
     key: 'always',

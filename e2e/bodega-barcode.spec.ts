@@ -78,7 +78,7 @@ test.describe('app del bodeguero con un código de barras', () => {
 
     await context.setOffline(false);
     await expect.poll(async () => (await lookup(request, EAN_ACEITE, warehouseId))!.stock, { timeout: 60_000 }).toBe(before - 1);
-    await expect(page.getByText('En línea')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('Sin pendientes', {exact:true})).toBeVisible({ timeout: 30_000 });
 
     // Quedó en el kardex de ESA bodega con motivo, foto y la persona que lo hizo.
     const { id: ownerId } = await owner();

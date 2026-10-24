@@ -168,6 +168,11 @@ export async function proxy(req: NextRequest) {
     response.headers.set('Cache-Control', 'private, no-store');
     return response;
   }
+  if (pathname === '/control/ingresar') {
+    const response = NextResponse.next(); response.cookies.set(ERP_ENTRY_COOKIE,'control',ERP_ENTRY_COOKIE_OPTIONS); response.headers.set('Cache-Control','private, no-store'); return response;
+  }
+  if (pathname === '/control/manifest.webmanifest' || pathname === '/control/install-sw.js' || pathname === '/apps') return NextResponse.next();
+  if (pathname === '/login' && req.nextUrl.searchParams.get('callbackUrl') === '/control') return NextResponse.redirect(new URL('/control/ingresar',req.url));
   if (pathname === '/pos/ingresar') {
     const response = NextResponse.next();
     response.cookies.set(ERP_ENTRY_COOKIE, 'pos', ERP_ENTRY_COOKIE_OPTIONS);
@@ -237,7 +242,7 @@ export async function proxy(req: NextRequest) {
   const token = req.cookies.get('session')?.value;
 
   if (!token) {
-    const loginUrl = new URL(pathname === '/bodega' || pathname.startsWith('/bodega/') ? '/bodega/ingresar' : pathname === '/pos' || pathname.startsWith('/pos/') ? '/pos/ingresar' : '/login', req.url);
+    const loginUrl = new URL(pathname === '/bodega' || pathname.startsWith('/bodega/') ? '/bodega/ingresar' : pathname === '/pos' || pathname.startsWith('/pos/') ? '/pos/ingresar' : pathname === '/control' || pathname.startsWith('/control/') ? '/control/ingresar' : '/login', req.url);
     loginUrl.searchParams.set('callbackUrl', pathname);
     return NextResponse.redirect(loginUrl);
   }
@@ -253,10 +258,11 @@ export async function proxy(req: NextRequest) {
     if (payload.purpose !== 'session') throw new Error('Token de sesión inválido');
 
     const response = NextResponse.next();
+    if (pathname === '/control' || pathname.startsWith('/control/')) response.cookies.set(ERP_ENTRY_COOKIE,'control',ERP_ENTRY_COOKIE_OPTIONS);
     if (pathname === '/pos' || pathname.startsWith('/pos/')) response.cookies.set(ERP_ENTRY_COOKIE, 'pos', ERP_ENTRY_COOKIE_OPTIONS);
     return response;
   } catch {
-    const loginUrl = new URL(pathname === '/bodega' || pathname.startsWith('/bodega/') ? '/bodega/ingresar' : pathname === '/pos' || pathname.startsWith('/pos/') ? '/pos/ingresar' : '/login', req.url);
+    const loginUrl = new URL(pathname === '/bodega' || pathname.startsWith('/bodega/') ? '/bodega/ingresar' : pathname === '/pos' || pathname.startsWith('/pos/') ? '/pos/ingresar' : pathname === '/control' || pathname.startsWith('/control/') ? '/control/ingresar' : '/login', req.url);
     loginUrl.searchParams.set('callbackUrl', pathname);
     const response = NextResponse.redirect(loginUrl);
     response.cookies.delete('session');

@@ -144,6 +144,23 @@ describeDb('POS multicaja contra PostgreSQL', () => {
     }
   });
 
+  it('Control consolida ventas, cobros y efectivo sin mezclar empresas', async () => {
+    const f = await fixture();
+    const shift = await cash.openShift(f.companyId, f.user1, { cashRegisterId: f.register1, initialAmount: 10000 });
+    await pos.createPosSale(f.companyId, f.user1, shift.id, saleInput(f));
+    await cash.registerCashMovement(f.companyId, shift.id, f.user1, {type:'INFLOW',amount:1000,reason:'Refuerzo de fondo'});
+    const other = await fixture();
+    const otherShift = await cash.openShift(other.companyId, other.user1, {cashRegisterId:other.register1,initialAmount:99999});
+    await pos.createPosSale(other.companyId,other.user1,otherShift.id,saleInput(other));
+    const { controlSnapshot } = await import('@/modules/control/service');
+    const snapshot = await controlSnapshot({companyId:f.companyId,companyName:'Mi empresa',name:'Dueño',permissions:['sales:read','products:read','treasury:read','pos:operate']} as import('@/lib/auth/guards').AuthContext);
+    expect(snapshot).toMatchObject({salesToday:1190,salesMonth:1190,incomeToday:1190,expenseToday:0,openRegisters:1});
+    expect(snapshot.registers).toHaveLength(1);
+    expect(snapshot.registers[0]).toMatchObject({id:shift.id,expected:12190});
+    expect(snapshot.activity.filter(event=>event.kind==='sale')).toHaveLength(1);
+    expect(snapshot.activity.some(event=>event.kind==='cash' && event.amount===1000)).toBe(true);
+  });
+
   it('el primer acceso concurrente provisiona una sola Caja Principal disponible', async () => {
     const f = await fixture();
     await prisma.cashRegister.deleteMany({ where: { companyId: f.companyId } });

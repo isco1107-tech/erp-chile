@@ -83,12 +83,12 @@ export default function HomeScreen({ onStart, onContinue, onOutbox }: Props) {
           <Pill tone="warning">
             <WifiOff className="size-3.5" /> Sin conexión
           </Pill>
-        ) : syncing || summary.pending > 0 ? (
+        ) : syncing ? (
           <Pill tone="info">
             <Spinner className="size-3.5" /> Enviando
           </Pill>
-        ) : (
-          <Pill tone="success">En línea</Pill>
+        ) : summary.rejected > 0 ? (<Pill tone="danger">Revisar {summary.rejected}</Pill>) : summary.pending > 0 ? (<Pill tone="warning">{summary.pending} pendientes</Pill>) : (
+          <Pill tone="success">Sin pendientes</Pill>
         )}
         <button type="button" onClick={() => setMenu(true)} aria-label="Menú" className="flex size-11 items-center justify-center rounded-xl bg-muted active:bg-secondary">
           <span aria-hidden="true" className="text-xl leading-none">
@@ -98,6 +98,12 @@ export default function HomeScreen({ onStart, onContinue, onOutbox }: Props) {
       </header>
 
       <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+        <section className="rounded-3xl bg-primary p-5 text-primary-foreground" aria-label="Estado de tu trabajo">
+          <p className="text-xs font-semibold tracking-widest opacity-70">BODEGA MÓVIL · OPERACIONES</p>
+          <h2 className="mt-2 text-2xl font-semibold">Cada movimiento cuenta.</h2>
+          <p className="mt-2 text-sm opacity-80">Selecciona tu bodega, captura los productos y confirma el envío al ERP.</p>
+          <div className="mt-5 grid grid-cols-3 gap-2 text-center"><div><strong className="block text-2xl">{draft?.lines.length ?? 0}</strong><span className="text-xs opacity-80">En tu lista</span></div><div><strong className="block text-2xl">{summary.pending}</strong><span className="text-xs opacity-80">Por enviar</span></div><div><strong className="block text-2xl">{summary.rejected}</strong><span className="text-xs opacity-80">Por revisar</span></div></div>
+        </section>
         <InstallApp />
         {auth ? (
           <div role="alert" className="rounded-2xl bg-warning-soft p-3 text-sm text-warning">
@@ -202,6 +208,7 @@ export default function HomeScreen({ onStart, onContinue, onOutbox }: Props) {
 
       <Sheet open={menu} title="Menú" onClose={() => setMenu(false)}>
         <div className="space-y-2">
+          <a href="/apps" className="flex min-h-12 items-center rounded-xl border px-4 font-medium">Centro de aplicaciones</a>
           <p className="text-sm text-muted-foreground">
             {data.user.name} · {data.user.roleLabel}
           </p>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { Download, Monitor } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -27,7 +28,7 @@ const systems = [
 export function PosDesktopDownload() {
   const [open, setOpen] = useState(false);
   return <>
-    <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
+    <Button type="button" variant="outline" size="sm" onClick={() => { if (document.querySelector('[data-pos-pending="true"]')) { toast.warning('Confirma la operación pendiente antes de abrir las descargas.'); return; } setOpen(true); }}>
       <Download className="size-4" aria-hidden="true" /> Descargar app POS
     </Button>
     <Dialog open={open} onOpenChange={setOpen}>
@@ -46,6 +47,7 @@ export function PosDesktopDownload() {
             </div>;
           })}
         </div>
+        <a href="/apps" className="mt-4 block text-sm underline">Ver todas las aplicaciones Aether</a>
         <p className="mt-4 text-xs text-muted-foreground">Instala la aplicación y fíjala en el escritorio, el menú Inicio o el Dock. La aplicación requiere una cuenta activa con acceso al POS. Cada persona debe usar su propia cuenta.</p>
         {releases.length > 0 && <p className="mt-3 text-xs text-muted-foreground">Los instaladores aún no tienen firma comercial. <a className="underline" href="/downloads/POS-SHA256SUMS.txt" target="_blank" rel="noreferrer">Verificar integridad SHA-256</a>.</p>}
       </DialogContent>

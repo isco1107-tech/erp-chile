@@ -13,10 +13,12 @@ export function warehouseEntry(cookieHeader: string | null): boolean {
 }
 
 /** Lista cerrada: preferencia de navegación, sin otorgar ningún permiso. */
-export function entryDestination(value: string | undefined): '/bodega' | '/pos' | '/dashboard' {
-  return value === 'bodega' ? '/bodega' : value === 'pos' ? '/pos' : '/dashboard';
+export function entryDestination(value: string | undefined): '/bodega' | '/pos' | '/control' | '/dashboard' {
+  return value === 'bodega' ? '/bodega' : value === 'pos' ? '/pos' : value === 'control' ? '/control' : '/dashboard';
 }
 
 export function posEntry(cookieHeader: string | null): boolean {
   return cookieHeader?.split(';').some((part) => part.trim() === `${ERP_ENTRY_COOKIE}=pos`) ?? false;
 }
+
+export function controlEntry(header:string|null):boolean {return header?.split(';').some(part=>part.trim()===`${ERP_ENTRY_COOKIE}=control`)??false;}

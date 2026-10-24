@@ -12,7 +12,7 @@ import { PASSWORD_REQUIREMENTS, passwordPolicySchema } from '@/lib/auth/password
 
 interface ChangePasswordFormProps {
   email: string;
-  destination?: '/bodega' | '/pos' | '/dashboard';
+  destination?: '/bodega' | '/pos' | '/control' | '/dashboard';
 }
 
 export default function ChangePasswordForm({ email, destination = '/dashboard' }: ChangePasswordFormProps) {

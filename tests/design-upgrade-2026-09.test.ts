@@ -22,8 +22,8 @@ function hrefs(permissions: Permission[], features: CompanyFeatureFlags = ALL_FE
 }
 
 describe('buildWorkspaceNav', () => {
-  it('sin permisos solo muestra Inicio y el manual', () => {
-    expect(hrefs([])).toEqual(['/dashboard', '/dashboard/manual']);
+  it('sin permisos muestra Inicio, Aplicaciones y el manual', () => {
+    expect(hrefs([])).toEqual(['/dashboard', '/apps', '/dashboard/manual']);
   });
 
   it('enlaza la escaleta y el vestuario, que antes no tenían ningún acceso', () => {

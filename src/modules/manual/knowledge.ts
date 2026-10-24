@@ -42,6 +42,7 @@ export interface NavigationEntry extends Gated {
 
 /** Para qué sirve cada ítem del menú lateral, por su `id` estable de `workspace-nav.ts`. */
 export const SCREEN_PURPOSES: Record<string, string> = {
+  apps: 'Instalar POS, Bodega móvil, Aether Control y Seller Center desde el centro de aplicaciones.',
   home: 'Resumen del negocio al entrar: ventas, compras, IVA, stock crítico y accesos rápidos.',
   pos: 'Operar varias cajas con cajeros identificados: apertura con fondo inicial, boletas, ingresos, retiros, cierre con arqueo y comprobante por turno.',
   messaging: 'Chat interno cifrado con el equipo de la empresa.',

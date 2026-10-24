@@ -523,7 +523,8 @@ export default function PosTerminal(props: Props) {
               </Button>
             </div>
 
-            <div className="mt-2 grid grid-cols-3 gap-1">
+            <Input id="cash-received" inputMode="numeric" autoComplete="off" aria-label="Efectivo recibido" className="mt-3 h-12 text-lg tabular-nums" placeholder="Escribe el efectivo recibido" value={cashReceived} onChange={(event) => { if (/^\d*$/.test(event.target.value)) setCashReceived(event.target.value); }} />
+            <details className="mt-3"><summary className="min-h-11 cursor-pointer py-3 text-sm font-medium">Abrir teclado táctil</summary><div className="grid grid-cols-3 gap-1">
               {KEYPAD.map((key) => (
                 <Button key={key} type="button" variant="outline" className="h-11 text-lg" onClick={() => pressKey(key)}>
                   {key}
@@ -540,7 +541,7 @@ export default function PosTerminal(props: Props) {
               <Button type="button" variant="outline" className="h-11" onClick={() => setCashReceived('')}>
                 C
               </Button>
-            </div>
+            </div></details>
 
             <div
               className={`mt-3 flex items-baseline justify-between rounded-xl border px-3 py-3 ${
@@ -567,7 +568,7 @@ export default function PosTerminal(props: Props) {
           />
         </div>
 
-        <div className="flex gap-2">
+        <div className="sticky bottom-3 z-10 flex gap-2 rounded-2xl border bg-card p-3 shadow-card">
           <Button type="button" variant="outline" onClick={clearAll} disabled={cart.length === 0}>
             Cancelar
           </Button>
