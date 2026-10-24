@@ -55,6 +55,12 @@ export const PERMISSIONS = {
 
   'inventory:write': ['OWNER', 'ADMIN', 'WAREHOUSE'],
 
+  // Consignación: lo que se le debe a cada seller y su pago. Permiso propio (y no `treasury:*`) a
+  // propósito: vive dentro del módulo de Inventario y no debe exigir contratar Tesorería. Quien
+  // mueve la mercadería del seller (recibir, devolver) usa `inventory:write`, no esto.
+  'consignment:read': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
+  'consignment:write': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
+
   'pos:operate': ['OWNER', 'ADMIN', 'SALES'],
   // Cerrar la caja es el control sobre el propio cajero: quien vende no debería
   // ser quien declara cuánto había. Por defecto queda fuera de SALES.
@@ -312,6 +318,8 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'products:write': 'Crear y editar productos',
   'products:costs': 'Ver costos de compra y PMP',
   'inventory:write': 'Ajustar stock en bodega',
+  'consignment:read': 'Ver las liquidaciones y saldos de los sellers de consignación',
+  'consignment:write': 'Generar, pagar y anular liquidaciones a sellers de consignación',
   'pos:operate': 'Vender en el Punto de Venta y abrir caja',
   'pos:close': 'Cerrar caja y hacer el arqueo',
   'treasury:read': 'Ver cuentas por cobrar y pagar',

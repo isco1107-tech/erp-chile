@@ -28,7 +28,18 @@ import {
   TeamFields,
   VideoFields,
 } from './BlockEditorMore';
-import { AreasFields, BeforeAfterFields, ComparisonFields, EmbedFields, HoursFields, LinksFields, MarqueeFields, PostsFields, TabsFields, TimelineFields } from './BlockEditorExtra';
+import {
+  AreasFields,
+  BeforeAfterFields,
+  ComparisonFields,
+  EmbedFields,
+  HoursFields,
+  LinksFields,
+  MarqueeFields,
+  PostsFields,
+  TabsFields,
+  TimelineFields,
+} from './BlockEditorExtra';
 import { ButtonFields, Notice, Optional, PHOTO_TIP, Tip, type FieldsProps } from './block-fields-shared';
 import { ContactFormDestination, FormFields } from './FormBlockFields';
 import { ChoiceGroup, SwitchRow, TextField } from './fields';
@@ -38,6 +49,8 @@ import { LinkField } from './LinkField';
 import { ListEditor } from './ListEditor';
 import { RichTextField } from './RichTextField';
 import { StarRating } from './StarRating';
+import { useEditorRuntime } from './EditorRuntime';
+import StoreCatalogFields from '@/components/store-builder/StoreCatalogFields';
 
 interface BlockFieldsProps {
   block: WebSiteBlock;
@@ -50,6 +63,7 @@ interface BlockFieldsProps {
 
 /** Formulario de una sección: los campos dependen del tipo. */
 export function BlockFields({ block, disabled, onChange, document, pageId }: BlockFieldsProps) {
+  const { scope } = useEditorRuntime();
   const common = { disabled, onChange, document, pageId };
   switch (block.type) {
     case 'hero':
@@ -81,7 +95,7 @@ export function BlockFields({ block, disabled, onChange, document, pageId }: Blo
     case 'pricelist':
       return <PricelistFields block={block} {...common} />;
     case 'catalog':
-      return <CatalogFields block={block} {...common} />;
+      return scope === 'store' ? <StoreCatalogFields block={block} {...common} /> : <CatalogFields block={block} {...common} />;
     case 'schedule':
       return <ScheduleFields block={block} {...common} />;
     case 'faq':
@@ -136,15 +150,45 @@ const COLUMN_OPTIONS = [
 function HeroFields({ block, disabled, onChange, document, pageId }: FieldsProps<BlockOf<'hero'>>) {
   const set = (patch: Partial<BlockOf<'hero'>>) => onChange({ ...block, ...patch });
   const usesImage = block.variant !== 'minimal' && block.variant !== 'gradient';
-  const sideImage = block.variant === 'split' || block.variant === 'split-left' || block.variant === 'collage' || block.variant === 'editorial' || block.variant === 'stacked';
+  const sideImage =
+    block.variant === 'split' || block.variant === 'split-left' || block.variant === 'collage' || block.variant === 'editorial' || block.variant === 'stacked';
   return (
     <div className="space-y-5">
-      <TextField label="Texto pequeño sobre el título (opcional)" value={block.eyebrow} onChange={(eyebrow) => set({ eyebrow })} max={60} disabled={disabled} placeholder="Ej.: Desde 1998 en Concepción" />
-      <TextField label="Título principal" value={block.title} onChange={(title) => set({ title })} max={120} disabled={disabled} placeholder="Ej.: Instalamos paneles solares en todo el Biobío" hint="Di en una frase qué haces y para quién." />
-      <TextField label="Frase de apoyo" value={block.subtitle} onChange={(subtitle) => set({ subtitle })} max={300} disabled={disabled} multiline rows={2} placeholder="Ej.: Ahorra hasta un 70 % en tu cuenta de luz, con instalación y garantía incluidas." />
+      <TextField
+        label="Texto pequeño sobre el título (opcional)"
+        value={block.eyebrow}
+        onChange={(eyebrow) => set({ eyebrow })}
+        max={60}
+        disabled={disabled}
+        placeholder="Ej.: Desde 1998 en Concepción"
+      />
+      <TextField
+        label="Título principal"
+        value={block.title}
+        onChange={(title) => set({ title })}
+        max={120}
+        disabled={disabled}
+        placeholder="Ej.: Instalamos paneles solares en todo el Biobío"
+        hint="Di en una frase qué haces y para quién."
+      />
+      <TextField
+        label="Frase de apoyo"
+        value={block.subtitle}
+        onChange={(subtitle) => set({ subtitle })}
+        max={300}
+        disabled={disabled}
+        multiline
+        rows={2}
+        placeholder="Ej.: Ahorra hasta un 70 % en tu cuenta de luz, con instalación y garantía incluidas."
+      />
       {usesImage ? (
         <div className="space-y-2">
-          <ImagePicker label={sideImage ? 'Foto principal' : 'Foto de fondo'} value={block.imageUrl} onChange={(imageUrl) => set({ imageUrl })} hint={`Horizontal y luminosa se ve mejor. ${PHOTO_TIP}`} />
+          <ImagePicker
+            label={sideImage ? 'Foto principal' : 'Foto de fondo'}
+            value={block.imageUrl}
+            onChange={(imageUrl) => set({ imageUrl })}
+            hint={`Horizontal y luminosa se ve mejor. ${PHOTO_TIP}`}
+          />
           {!block.imageUrl && block.variant !== 'center' ? <Notice>Esta portada se ve mucho mejor con una foto. Sin ella queda vacía.</Notice> : null}
         </div>
       ) : (
@@ -168,8 +212,20 @@ function HeroFields({ block, disabled, onChange, document, pageId }: FieldsProps
             summary={(image) => image.alt}
             renderItem={(image, update) => (
               <>
-                <ImagePicker label="Foto" value={image.url} onChange={(url, asset) => update({ url, ...(asset && !image.alt.trim() ? { alt: asset.alt } : {}) })} />
-                <TextField label="Descripción de la foto" value={image.alt} onChange={(alt) => update({ alt })} max={160} disabled={disabled} placeholder="Ej.: Equipo trabajando en terreno" warning={image.url && !image.alt.trim() ? 'Falta la descripción de la foto.' : null} />
+                <ImagePicker
+                  label="Foto"
+                  value={image.url}
+                  onChange={(url, asset) => update({ url, ...(asset && !image.alt.trim() ? { alt: asset.alt } : {}) })}
+                />
+                <TextField
+                  label="Descripción de la foto"
+                  value={image.alt}
+                  onChange={(alt) => update({ alt })}
+                  max={160}
+                  disabled={disabled}
+                  placeholder="Ej.: Equipo trabajando en terreno"
+                  warning={image.url && !image.alt.trim() ? 'Falta la descripción de la foto.' : null}
+                />
               </>
             )}
           />
@@ -213,7 +269,15 @@ function TextFields({ block, disabled, onChange, document, pageId }: FieldsProps
   const set = (patch: Partial<BlockOf<'text'>>) => onChange({ ...block, ...patch });
   return (
     <div className="space-y-4">
-      <TextField label="Título de la sección" value={block.heading} onChange={(heading) => set({ heading })} max={120} disabled={disabled} placeholder="Ej.: Quiénes somos" hint="Este título también aparece en el menú del sitio." />
+      <TextField
+        label="Título de la sección"
+        value={block.heading}
+        onChange={(heading) => set({ heading })}
+        max={120}
+        disabled={disabled}
+        placeholder="Ej.: Quiénes somos"
+        hint="Este título también aparece en el menú del sitio."
+      />
       <RichTextField
         label="Texto"
         value={block.body}
@@ -234,11 +298,50 @@ function SplitFields({ block, disabled, onChange, document, pageId }: FieldsProp
   const set = (patch: Partial<BlockOf<'split'>>) => onChange({ ...block, ...patch });
   return (
     <div className="space-y-4">
-      <TextField label="Texto pequeño sobre el título (opcional)" value={block.eyebrow} onChange={(eyebrow) => set({ eyebrow })} max={60} disabled={disabled} placeholder="Ej.: Nuestro taller" />
-      <TextField label="Título" value={block.heading} onChange={(heading) => set({ heading })} max={120} disabled={disabled} placeholder="Ej.: Hecho a mano, a tu medida" hint="También aparece en el menú del sitio." />
-      <RichTextField label="Texto" value={block.body} onChange={(body) => set({ body })} max={3000} rows={6} disabled={disabled} document={document} pageId={pageId} placeholder="Ej.: Cada mueble se diseña contigo y se fabrica en nuestro taller de Valdivia en 3 semanas." />
-      <ImagePicker label="Foto" value={block.imageUrl} onChange={(imageUrl, asset) => set({ imageUrl, ...(asset && !block.alt.trim() ? { alt: asset.alt } : {}) })} hint={PHOTO_TIP} />
-      <TextField label="Descripción de la foto" value={block.alt} onChange={(alt) => set({ alt })} max={160} disabled={disabled} placeholder="Ej.: Carpintero lijando una mesa de roble" hint="Describe lo que se ve: la leen los lectores de pantalla y ayuda a que te encuentren en Google." warning={block.imageUrl && !block.alt.trim() ? 'Falta la descripción de la foto.' : null} />
+      <TextField
+        label="Texto pequeño sobre el título (opcional)"
+        value={block.eyebrow}
+        onChange={(eyebrow) => set({ eyebrow })}
+        max={60}
+        disabled={disabled}
+        placeholder="Ej.: Nuestro taller"
+      />
+      <TextField
+        label="Título"
+        value={block.heading}
+        onChange={(heading) => set({ heading })}
+        max={120}
+        disabled={disabled}
+        placeholder="Ej.: Hecho a mano, a tu medida"
+        hint="También aparece en el menú del sitio."
+      />
+      <RichTextField
+        label="Texto"
+        value={block.body}
+        onChange={(body) => set({ body })}
+        max={3000}
+        rows={6}
+        disabled={disabled}
+        document={document}
+        pageId={pageId}
+        placeholder="Ej.: Cada mueble se diseña contigo y se fabrica en nuestro taller de Valdivia en 3 semanas."
+      />
+      <ImagePicker
+        label="Foto"
+        value={block.imageUrl}
+        onChange={(imageUrl, asset) => set({ imageUrl, ...(asset && !block.alt.trim() ? { alt: asset.alt } : {}) })}
+        hint={PHOTO_TIP}
+      />
+      <TextField
+        label="Descripción de la foto"
+        value={block.alt}
+        onChange={(alt) => set({ alt })}
+        max={160}
+        disabled={disabled}
+        placeholder="Ej.: Carpintero lijando una mesa de roble"
+        hint="Describe lo que se ve: la leen los lectores de pantalla y ayuda a que te encuentren en Google."
+        warning={block.imageUrl && !block.alt.trim() ? 'Falta la descripción de la foto.' : null}
+      />
       <ChoiceGroup
         label="¿De qué lado va la foto?"
         value={block.imageSide}
@@ -252,7 +355,17 @@ function SplitFields({ block, disabled, onChange, document, pageId }: FieldsProp
         ]}
       />
       <Optional title="Botón (opcional)" filled={Boolean(block.buttonLabel.trim() || block.buttonHref.trim())}>
-        <ButtonFields legend="Botón" label={block.buttonLabel} href={block.buttonHref} onLabel={(buttonLabel) => set({ buttonLabel })} onHref={(buttonHref) => set({ buttonHref })} document={document} pageId={pageId} disabled={disabled} labelPlaceholder="Ej.: Ver más trabajos" />
+        <ButtonFields
+          legend="Botón"
+          label={block.buttonLabel}
+          href={block.buttonHref}
+          onLabel={(buttonLabel) => set({ buttonLabel })}
+          onHref={(buttonHref) => set({ buttonHref })}
+          document={document}
+          pageId={pageId}
+          disabled={disabled}
+          labelPlaceholder="Ej.: Ver más trabajos"
+        />
       </Optional>
     </div>
   );
@@ -262,7 +375,12 @@ function ImageFields({ block, disabled, onChange }: FieldsProps<BlockOf<'image'>
   const set = (patch: Partial<BlockOf<'image'>>) => onChange({ ...block, ...patch });
   return (
     <div className="space-y-4">
-      <ImagePicker label="Imagen" value={block.imageUrl} onChange={(imageUrl, asset) => set({ imageUrl, ...(asset && !block.alt.trim() ? { alt: asset.alt } : {}) })} hint={PHOTO_TIP} />
+      <ImagePicker
+        label="Imagen"
+        value={block.imageUrl}
+        onChange={(imageUrl, asset) => set({ imageUrl, ...(asset && !block.alt.trim() ? { alt: asset.alt } : {}) })}
+        hint={PHOTO_TIP}
+      />
       <TextField
         label="Descripción de la imagen"
         value={block.alt}
@@ -273,7 +391,14 @@ function ImageFields({ block, disabled, onChange }: FieldsProps<BlockOf<'image'>
         hint="Describe lo que se ve: la leen los lectores de pantalla y ayuda a que te encuentren en Google."
         warning={block.imageUrl && !block.alt.trim() ? 'Falta la descripción de la imagen.' : null}
       />
-      <TextField label="Pie de foto (opcional)" value={block.caption} onChange={(caption) => set({ caption })} max={200} disabled={disabled} placeholder="Ej.: Proyecto terminado en Providencia, 2025" />
+      <TextField
+        label="Pie de foto (opcional)"
+        value={block.caption}
+        onChange={(caption) => set({ caption })}
+        max={200}
+        disabled={disabled}
+        placeholder="Ej.: Proyecto terminado en Providencia, 2025"
+      />
       <ChoiceGroup
         label="Tamaño de la imagen"
         value={block.size}
@@ -294,8 +419,25 @@ function GalleryFields({ block, disabled, onChange }: FieldsProps<BlockOf<'galle
   const withPhoto = block.images.filter((image) => image.url).length;
   return (
     <div className="space-y-4">
-      <TextField label="Título de la sección" value={block.heading} onChange={(heading) => set({ heading })} max={120} disabled={disabled} placeholder="Ej.: Nuestros trabajos" hint="También aparece en el menú del sitio." />
-      {block.variant === 'grid' || block.variant === 'masonry' || block.variant === 'carousel' || block.variant === 'polaroid' ? <ChoiceGroup label="Fotos por fila" value={block.columns} onChange={(columns) => set({ columns })} disabled={disabled} options={COLUMN_OPTIONS} hint="En el celular se ven de a una o dos, sin importar lo que elijas." /> : null}
+      <TextField
+        label="Título de la sección"
+        value={block.heading}
+        onChange={(heading) => set({ heading })}
+        max={120}
+        disabled={disabled}
+        placeholder="Ej.: Nuestros trabajos"
+        hint="También aparece en el menú del sitio."
+      />
+      {block.variant === 'grid' || block.variant === 'masonry' || block.variant === 'carousel' || block.variant === 'polaroid' ? (
+        <ChoiceGroup
+          label="Fotos por fila"
+          value={block.columns}
+          onChange={(columns) => set({ columns })}
+          disabled={disabled}
+          options={COLUMN_OPTIONS}
+          hint="En el celular se ven de a una o dos, sin importar lo que elijas."
+        />
+      ) : null}
       <div className="space-y-2">
         <p className="text-sm font-medium">
           Fotos ({block.images.length}/{MAX_GALLERY_IMAGES})
@@ -314,9 +456,28 @@ function GalleryFields({ block, disabled, onChange }: FieldsProps<BlockOf<'galle
           summary={(image) => image.alt || image.caption}
           renderItem={(image, update) => (
             <>
-              <ImagePicker label="Foto" value={image.url} onChange={(url, asset) => update({ url, ...(asset && !image.alt.trim() ? { alt: asset.alt } : {}) })} />
-              <TextField label="Descripción de la foto" value={image.alt} onChange={(alt) => update({ alt })} max={160} disabled={disabled} placeholder="Ej.: Baño con tinas de cerámica" warning={image.url && !image.alt.trim() ? 'Falta la descripción de la foto.' : null} />
-              <TextField label="Texto bajo la foto (opcional)" value={image.caption} onChange={(caption) => update({ caption })} max={120} disabled={disabled} placeholder="Ej.: Providencia, 2025" />
+              <ImagePicker
+                label="Foto"
+                value={image.url}
+                onChange={(url, asset) => update({ url, ...(asset && !image.alt.trim() ? { alt: asset.alt } : {}) })}
+              />
+              <TextField
+                label="Descripción de la foto"
+                value={image.alt}
+                onChange={(alt) => update({ alt })}
+                max={160}
+                disabled={disabled}
+                placeholder="Ej.: Baño con tinas de cerámica"
+                warning={image.url && !image.alt.trim() ? 'Falta la descripción de la foto.' : null}
+              />
+              <TextField
+                label="Texto bajo la foto (opcional)"
+                value={image.caption}
+                onChange={(caption) => update({ caption })}
+                max={120}
+                disabled={disabled}
+                placeholder="Ej.: Providencia, 2025"
+              />
             </>
           )}
         />
@@ -333,9 +494,35 @@ function FeaturesFields({ block, disabled, onChange, document, pageId }: FieldsP
   const set = (patch: Partial<BlockOf<'features'>>) => onChange({ ...block, ...patch });
   return (
     <div className="space-y-4">
-      <TextField label="Título de la sección" value={block.heading} onChange={(heading) => set({ heading })} max={120} disabled={disabled} placeholder="Ej.: Nuestros servicios" hint="También aparece en el menú del sitio." />
-      <TextField label="Introducción (opcional)" value={block.intro} onChange={(intro) => set({ intro })} max={300} disabled={disabled} multiline rows={2} placeholder="Ej.: Todo lo que necesitas para tu hogar, en un solo lugar." />
-      {block.variant === 'cards' || block.variant === 'icons' || block.variant === 'numbered' || block.variant === 'minimal' || block.variant === 'overlay' ? <ChoiceGroup label="Tarjetas por fila" value={block.columns} onChange={(columns) => set({ columns })} disabled={disabled} options={COLUMN_OPTIONS} hint="Tres a seis tarjetas en total es lo ideal." /> : null}
+      <TextField
+        label="Título de la sección"
+        value={block.heading}
+        onChange={(heading) => set({ heading })}
+        max={120}
+        disabled={disabled}
+        placeholder="Ej.: Nuestros servicios"
+        hint="También aparece en el menú del sitio."
+      />
+      <TextField
+        label="Introducción (opcional)"
+        value={block.intro}
+        onChange={(intro) => set({ intro })}
+        max={300}
+        disabled={disabled}
+        multiline
+        rows={2}
+        placeholder="Ej.: Todo lo que necesitas para tu hogar, en un solo lugar."
+      />
+      {block.variant === 'cards' || block.variant === 'icons' || block.variant === 'numbered' || block.variant === 'minimal' || block.variant === 'overlay' ? (
+        <ChoiceGroup
+          label="Tarjetas por fila"
+          value={block.columns}
+          onChange={(columns) => set({ columns })}
+          disabled={disabled}
+          options={COLUMN_OPTIONS}
+          hint="Tres a seis tarjetas en total es lo ideal."
+        />
+      ) : null}
       <div className="space-y-2">
         <p className="text-sm font-medium">
           Tarjetas ({block.items.length}/{MAX_LIST_ITEMS})
@@ -352,12 +539,36 @@ function FeaturesFields({ block, disabled, onChange, document, pageId }: FieldsP
           summary={(item) => item.title}
           renderItem={(item, update) => (
             <>
-              <TextField label="Título" value={item.title} onChange={(title) => update({ title })} max={80} disabled={disabled} placeholder="Ej.: Instalación en 48 horas" hint="Responde “¿qué gano yo?”." />
-              <TextField label="Descripción" value={item.text} onChange={(text) => update({ text })} max={400} disabled={disabled} multiline rows={3} placeholder="Ej.: Coordinamos la visita y dejamos todo funcionando en dos días." />
+              <TextField
+                label="Título"
+                value={item.title}
+                onChange={(title) => update({ title })}
+                max={80}
+                disabled={disabled}
+                placeholder="Ej.: Instalación en 48 horas"
+                hint="Responde “¿qué gano yo?”."
+              />
+              <TextField
+                label="Descripción"
+                value={item.text}
+                onChange={(text) => update({ text })}
+                max={400}
+                disabled={disabled}
+                multiline
+                rows={3}
+                placeholder="Ej.: Coordinamos la visita y dejamos todo funcionando en dos días."
+              />
               <IconPicker label="Ícono (opcional)" value={item.icon} onChange={(icon) => update({ icon })} disabled={disabled} />
               <ImagePicker label="Imagen (opcional)" value={item.imageUrl} onChange={(imageUrl) => update({ imageUrl })} hint={PHOTO_TIP} />
               <Optional title="Que la tarjeta lleve a otra parte (opcional)" filled={Boolean(item.href.trim())}>
-                <LinkField label="Al tocar la tarjeta lleva a…" value={item.href} onChange={(href) => update({ href })} document={document} pageId={pageId} disabled={disabled} />
+                <LinkField
+                  label="Al tocar la tarjeta lleva a…"
+                  value={item.href}
+                  onChange={(href) => update({ href })}
+                  document={document}
+                  pageId={pageId}
+                  disabled={disabled}
+                />
               </Optional>
             </>
           )}
@@ -371,15 +582,56 @@ function CtaFields({ block, disabled, onChange, document, pageId }: FieldsProps<
   const set = (patch: Partial<BlockOf<'cta'>>) => onChange({ ...block, ...patch });
   return (
     <div className="space-y-4">
-      <TextField label="Mensaje principal" value={block.title} onChange={(title) => set({ title })} max={120} disabled={disabled} placeholder="Ej.: ¿Listo para renovar tu cocina?" />
-      <TextField label="Texto de apoyo (opcional)" value={block.text} onChange={(text) => set({ text })} max={300} disabled={disabled} multiline rows={2} placeholder="Ej.: Cuéntanos tu proyecto y te respondemos en el día." />
-      <ButtonFields legend="Botón principal" label={block.buttonLabel} href={block.buttonHref} onLabel={(buttonLabel) => set({ buttonLabel })} onHref={(buttonHref) => set({ buttonHref })} document={document} pageId={pageId} disabled={disabled} labelPlaceholder="Ej.: Escribir por WhatsApp" />
+      <TextField
+        label="Mensaje principal"
+        value={block.title}
+        onChange={(title) => set({ title })}
+        max={120}
+        disabled={disabled}
+        placeholder="Ej.: ¿Listo para renovar tu cocina?"
+      />
+      <TextField
+        label="Texto de apoyo (opcional)"
+        value={block.text}
+        onChange={(text) => set({ text })}
+        max={300}
+        disabled={disabled}
+        multiline
+        rows={2}
+        placeholder="Ej.: Cuéntanos tu proyecto y te respondemos en el día."
+      />
+      <ButtonFields
+        legend="Botón principal"
+        label={block.buttonLabel}
+        href={block.buttonHref}
+        onLabel={(buttonLabel) => set({ buttonLabel })}
+        onHref={(buttonHref) => set({ buttonHref })}
+        document={document}
+        pageId={pageId}
+        disabled={disabled}
+        labelPlaceholder="Ej.: Escribir por WhatsApp"
+      />
       <Optional title="Segundo botón (opcional)" filled={Boolean(block.secondaryLabel.trim() || block.secondaryHref.trim())}>
-        <ButtonFields legend="Segundo botón" label={block.secondaryLabel} href={block.secondaryHref} onLabel={(secondaryLabel) => set({ secondaryLabel })} onHref={(secondaryHref) => set({ secondaryHref })} document={document} pageId={pageId} disabled={disabled} labelPlaceholder="Ej.: Ver precios" />
+        <ButtonFields
+          legend="Segundo botón"
+          label={block.secondaryLabel}
+          href={block.secondaryHref}
+          onLabel={(secondaryLabel) => set({ secondaryLabel })}
+          onHref={(secondaryHref) => set({ secondaryHref })}
+          document={document}
+          pageId={pageId}
+          disabled={disabled}
+          labelPlaceholder="Ej.: Ver precios"
+        />
       </Optional>
       {block.variant === 'split' ? (
         <div className="space-y-2">
-          <ImagePicker label="Foto" value={block.imageUrl} onChange={(imageUrl) => set({ imageUrl })} hint={`Una foto que invite a dar el paso: tu local, tu equipo o el resultado de tu trabajo. ${PHOTO_TIP}`} />
+          <ImagePicker
+            label="Foto"
+            value={block.imageUrl}
+            onChange={(imageUrl) => set({ imageUrl })}
+            hint={`Una foto que invite a dar el paso: tu local, tu equipo o el resultado de tu trabajo. ${PHOTO_TIP}`}
+          />
           {!block.imageUrl ? <Notice>El diseño “Con foto” necesita una foto; sin ella se ve como una tarjeta.</Notice> : null}
         </div>
       ) : null}
@@ -390,8 +642,25 @@ function CtaFields({ block, disabled, onChange, document, pageId }: FieldsProps<
 function FaqFields({ block, disabled, onChange, document, pageId }: FieldsProps<BlockOf<'faq'>>) {
   return (
     <div className="space-y-4">
-      <TextField label="Título de la sección" value={block.heading} onChange={(heading) => onChange({ ...block, heading })} max={120} disabled={disabled} placeholder="Ej.: Preguntas frecuentes" hint="También aparece en el menú del sitio." />
-      <TextField label="Introducción (opcional)" value={block.intro} onChange={(intro) => onChange({ ...block, intro })} max={300} disabled={disabled} multiline rows={2} placeholder="Ej.: Si no encuentras tu respuesta, escríbenos por WhatsApp." />
+      <TextField
+        label="Título de la sección"
+        value={block.heading}
+        onChange={(heading) => onChange({ ...block, heading })}
+        max={120}
+        disabled={disabled}
+        placeholder="Ej.: Preguntas frecuentes"
+        hint="También aparece en el menú del sitio."
+      />
+      <TextField
+        label="Introducción (opcional)"
+        value={block.intro}
+        onChange={(intro) => onChange({ ...block, intro })}
+        max={300}
+        disabled={disabled}
+        multiline
+        rows={2}
+        placeholder="Ej.: Si no encuentras tu respuesta, escríbenos por WhatsApp."
+      />
       <Tip>Anota lo que más te preguntan por WhatsApp: precios, plazos, formas de pago, cobertura. Cada respuesta en pocas líneas.</Tip>
       <div className="space-y-2">
         <p className="text-sm font-medium">
@@ -409,8 +678,25 @@ function FaqFields({ block, disabled, onChange, document, pageId }: FieldsProps<
           summary={(item) => item.question}
           renderItem={(item, update) => (
             <>
-              <TextField label="Pregunta" value={item.question} onChange={(question) => update({ question })} max={200} disabled={disabled} placeholder="Ej.: ¿Hacen despacho a regiones?" />
-              <RichTextField label="Respuesta" value={item.answer} onChange={(answer) => update({ answer })} max={1000} rows={4} disabled={disabled} document={document} pageId={pageId} placeholder="Ej.: Sí, despachamos a todo Chile por Starken. El plazo es de 2 a 5 días hábiles." />
+              <TextField
+                label="Pregunta"
+                value={item.question}
+                onChange={(question) => update({ question })}
+                max={200}
+                disabled={disabled}
+                placeholder="Ej.: ¿Hacen despacho a regiones?"
+              />
+              <RichTextField
+                label="Respuesta"
+                value={item.answer}
+                onChange={(answer) => update({ answer })}
+                max={1000}
+                rows={4}
+                disabled={disabled}
+                document={document}
+                pageId={pageId}
+                placeholder="Ej.: Sí, despachamos a todo Chile por Starken. El plazo es de 2 a 5 días hábiles."
+              />
             </>
           )}
         />
@@ -423,7 +709,15 @@ function TestimonialsFields({ block, disabled, onChange }: FieldsProps<BlockOf<'
   const set = (patch: Partial<BlockOf<'testimonials'>>) => onChange({ ...block, ...patch });
   return (
     <div className="space-y-4">
-      <TextField label="Título de la sección" value={block.heading} onChange={(heading) => set({ heading })} max={120} disabled={disabled} placeholder="Ej.: Lo que dicen nuestros clientes" hint="También aparece en el menú del sitio." />
+      <TextField
+        label="Título de la sección"
+        value={block.heading}
+        onChange={(heading) => set({ heading })}
+        max={120}
+        disabled={disabled}
+        placeholder="Ej.: Lo que dicen nuestros clientes"
+        hint="También aparece en el menú del sitio."
+      />
       <Tip>Con nombre y, si puedes, cargo o empresa. Pide autorización antes de publicar la opinión de alguien.</Tip>
       <div className="space-y-2">
         <p className="text-sm font-medium">
@@ -441,13 +735,46 @@ function TestimonialsFields({ block, disabled, onChange }: FieldsProps<BlockOf<'
           summary={(item) => item.author || item.quote}
           renderItem={(item, update) => (
             <>
-              <TextField label="Lo que dijo" value={item.quote} onChange={(quote) => update({ quote })} max={500} disabled={disabled} multiline rows={3} placeholder="Ej.: Quedamos felices con el resultado, cumplieron los plazos y el precio acordado." />
+              <TextField
+                label="Lo que dijo"
+                value={item.quote}
+                onChange={(quote) => update({ quote })}
+                max={500}
+                disabled={disabled}
+                multiline
+                rows={3}
+                placeholder="Ej.: Quedamos felices con el resultado, cumplieron los plazos y el precio acordado."
+              />
               <div className="grid gap-4 sm:grid-cols-2">
-                <TextField label="Nombre" value={item.author} onChange={(author) => update({ author })} max={80} disabled={disabled} placeholder="Ej.: María González" />
-                <TextField label="Cargo o empresa (opcional)" value={item.role} onChange={(role) => update({ role })} max={80} disabled={disabled} placeholder="Ej.: Gerenta, Panadería Sol" />
+                <TextField
+                  label="Nombre"
+                  value={item.author}
+                  onChange={(author) => update({ author })}
+                  max={80}
+                  disabled={disabled}
+                  placeholder="Ej.: María González"
+                />
+                <TextField
+                  label="Cargo o empresa (opcional)"
+                  value={item.role}
+                  onChange={(role) => update({ role })}
+                  max={80}
+                  disabled={disabled}
+                  placeholder="Ej.: Gerenta, Panadería Sol"
+                />
               </div>
-              <StarRating value={item.rating} onChange={(rating) => update({ rating })} disabled={disabled} label={`Estrellas de ${item.author.trim() || 'este testimonio'}`} />
-              <ImagePicker label="Foto de la persona (opcional)" value={item.photoUrl} onChange={(photoUrl) => update({ photoUrl })} hint="Pídele permiso; sin foto se muestra solo el nombre." />
+              <StarRating
+                value={item.rating}
+                onChange={(rating) => update({ rating })}
+                disabled={disabled}
+                label={`Estrellas de ${item.author.trim() || 'este testimonio'}`}
+              />
+              <ImagePicker
+                label="Foto de la persona (opcional)"
+                value={item.photoUrl}
+                onChange={(photoUrl) => update({ photoUrl })}
+                hint="Pídele permiso; sin foto se muestra solo el nombre."
+              />
             </>
           )}
         />
@@ -465,8 +792,25 @@ function ContactFields({ block, disabled, onChange, document, pageId }: FieldsPr
   const hasWay = Boolean(block.email.trim() || block.phone.trim() || block.whatsapp.trim() || block.showForm);
   return (
     <div className="space-y-4">
-      <TextField label="Título de la sección" value={block.heading} onChange={(heading) => set({ heading })} max={120} disabled={disabled} placeholder="Ej.: Contacto" hint="Aparece en el menú del sitio y sirve para que los botones lleven hasta aquí." />
-      <TextField label="Texto de apoyo (opcional)" value={block.text} onChange={(text) => set({ text })} max={400} disabled={disabled} multiline rows={2} placeholder="Ej.: Escríbenos y te respondemos en menos de 24 horas." />
+      <TextField
+        label="Título de la sección"
+        value={block.heading}
+        onChange={(heading) => set({ heading })}
+        max={120}
+        disabled={disabled}
+        placeholder="Ej.: Contacto"
+        hint="Aparece en el menú del sitio y sirve para que los botones lleven hasta aquí."
+      />
+      <TextField
+        label="Texto de apoyo (opcional)"
+        value={block.text}
+        onChange={(text) => set({ text })}
+        max={400}
+        disabled={disabled}
+        multiline
+        rows={2}
+        placeholder="Ej.: Escríbenos y te respondemos en menos de 24 horas."
+      />
       {!hasWay ? <Notice>Pon al menos una forma de contacto (correo, teléfono, WhatsApp o el formulario): sin ella nadie puede escribirte.</Notice> : null}
       <div className="grid gap-4 sm:grid-cols-2">
         <TextField
@@ -479,7 +823,15 @@ function ContactFields({ block, disabled, onChange, document, pageId }: FieldsPr
           placeholder="hola@tudominio.cl"
           error={block.email.trim() && !safeHref(`mailto:${block.email.trim()}`) ? 'Este correo no parece válido.' : null}
         />
-        <TextField label="Teléfono" type="tel" value={block.phone} onChange={(phone) => set({ phone })} max={40} disabled={disabled} placeholder="+56 2 2345 6789" />
+        <TextField
+          label="Teléfono"
+          type="tel"
+          value={block.phone}
+          onChange={(phone) => set({ phone })}
+          max={40}
+          disabled={disabled}
+          placeholder="+56 2 2345 6789"
+        />
         <TextField
           label="WhatsApp"
           type="tel"
@@ -489,14 +841,47 @@ function ContactFields({ block, disabled, onChange, document, pageId }: FieldsPr
           disabled={disabled}
           placeholder="+56 9 1234 5678"
           hint="Con código de país, para que el botón abra la conversación."
-          warning={block.whatsapp.trim() && !whatsappHref(block.whatsapp) ? 'El número no parece válido: inclúyelo completo, por ejemplo +56 9 1234 5678.' : null}
+          warning={
+            block.whatsapp.trim() && !whatsappHref(block.whatsapp) ? 'El número no parece válido: inclúyelo completo, por ejemplo +56 9 1234 5678.' : null
+          }
         />
-        <TextField label="Dirección (opcional)" value={block.address} onChange={(address) => set({ address })} max={200} disabled={disabled} placeholder="Ej.: Av. Providencia 1234, Providencia, Santiago" />
+        <TextField
+          label="Dirección (opcional)"
+          value={block.address}
+          onChange={(address) => set({ address })}
+          max={200}
+          disabled={disabled}
+          placeholder="Ej.: Av. Providencia 1234, Providencia, Santiago"
+        />
       </div>
-      <TextField label="Horario de atención (opcional)" value={block.hours} onChange={(hours) => set({ hours })} max={300} disabled={disabled} multiline rows={3} placeholder={'Lunes a viernes: 9:00 a 18:00\nSábado: 10:00 a 14:00'} hint="Una línea por día o rango de días. Si cierras a la hora de almuerzo, dilo aquí." />
-      <SwitchRow label="Mostrar mapa con la dirección" description={block.address.trim() ? 'Se muestra un mapa de Google con la dirección que escribiste.' : 'Escribe una dirección arriba para que el mapa funcione.'} checked={block.showMap} onChange={(showMap) => set({ showMap })} disabled={disabled} />
+      <TextField
+        label="Horario de atención (opcional)"
+        value={block.hours}
+        onChange={(hours) => set({ hours })}
+        max={300}
+        disabled={disabled}
+        multiline
+        rows={3}
+        placeholder={'Lunes a viernes: 9:00 a 18:00\nSábado: 10:00 a 14:00'}
+        hint="Una línea por día o rango de días. Si cierras a la hora de almuerzo, dilo aquí."
+      />
+      <SwitchRow
+        label="Mostrar mapa con la dirección"
+        description={
+          block.address.trim() ? 'Se muestra un mapa de Google con la dirección que escribiste.' : 'Escribe una dirección arriba para que el mapa funcione.'
+        }
+        checked={block.showMap}
+        onChange={(showMap) => set({ showMap })}
+        disabled={disabled}
+      />
       {block.showMap && !block.address.trim() ? <Notice>Activaste el mapa, pero falta la dirección.</Notice> : null}
-      <SwitchRow label="Mostrar formulario de mensajes" description="Lo que escriban las visitas llega a la pestaña Mensajes de este sitio y te avisamos en el panel." checked={block.showForm} onChange={(showForm) => set({ showForm })} disabled={disabled} />
+      <SwitchRow
+        label="Mostrar formulario de mensajes"
+        description="Lo que escriban las visitas llega a la pestaña Mensajes de este sitio y te avisamos en el panel."
+        checked={block.showForm}
+        onChange={(showForm) => set({ showForm })}
+        disabled={disabled}
+      />
       <ContactFormDestination block={block} disabled={disabled} onChange={onChange} document={document} pageId={pageId} />
     </div>
   );

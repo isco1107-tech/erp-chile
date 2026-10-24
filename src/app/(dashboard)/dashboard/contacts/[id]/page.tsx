@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import type { LucideIcon } from 'lucide-react';
-import { Building2, Handshake, Receipt, FileSignature, CreditCard, ShoppingCart, ArrowRight } from 'lucide-react';
+import { Building2, Handshake, Receipt, FileSignature, CreditCard, ShoppingCart, ArrowRight, PackageOpen } from 'lucide-react';
 import { can, getAuthContext } from '@/lib/auth/guards';
 import { getContactAction } from '@/modules/contacts/actions/contacts.actions';
 import { listSponsorshipContractsAction } from '@/modules/sponsorships/actions/sponsorships.actions';
@@ -23,6 +23,9 @@ import SellerCenterAccountsCard from '@/components/contacts/SellerCenterAccounts
 import { moduleEnabled } from '@/lib/auth/modules';
 import { listSupplierAccounts } from '@/modules/inventory/services/seller-center.service';
 import { getSupplierPortalAdmin } from '@/modules/inventory/services/supplier-portal.service';
+import { getConsignorSummary } from '@/modules/inventory/services/consignment.service';
+import { getPendingSettlement } from '@/modules/inventory/services/consignment-settlement.service';
+import { formatCommission } from '@/lib/consignment/commission';
 import { getAppUrl } from '@/lib/email/mailer';
 
 export const metadata = { title: 'Ficha de Contacto' };
@@ -97,12 +100,21 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
   const feeRows = fees?.success ? fees.data : [];
   const noteRows = promissoryNotes?.success ? promissoryNotes.data : [];
   const planRows = paymentPlans?.success ? paymentPlans.data : [];
-  // El portal del proveedor entrega datos de la empresa a un tercero: lo administra quien edita la empresa.
-  const supplierPortal = contact.isSupplier && context.features.hasInventory && can(context, 'settings:company') ? await getSupplierPortalAdmin(context.companyId, id) : null;
-  // Seller Center (interruptor propio dentro de Inventario): cuentas por persona del proveedor.
-  const sellerAccounts = contact.isSupplier && moduleEnabled(context.features, 'hasSellerCenter') && can(context, 'settings:company') ? await listSupplierAccounts(context.companyId, id) : null;
+  // El portal del proveedor (y del seller) entrega datos de la empresa a un tercero: lo administra quien edita la empresa.
+  const supplierPortal = (contact.isSupplier || contact.isConsignor) && context.features.hasInventory && can(context, 'settings:company') ? await getSupplierPortalAdmin(context.companyId, id) : null;
+  // Seller Center (interruptor propio dentro de Inventario): cuentas por persona del seller de consignación.
+  const sellerAccounts = contact.isConsignor && moduleEnabled(context.features, 'hasSellerCenter') && can(context, 'settings:company') ? await listSupplierAccounts(context.companyId, id) : null;
   const saleRows = sales?.success ? sales.data.items : [];
   const purchaseRows = purchases?.success ? purchases.data.items : [];
+  // Seller de consignación: su mercadería y, si el rol lo permite, lo que se le debe hoy.
+  const showConsignment = contact.isConsignor && context.features.hasInventory && can(context, 'products:read');
+  // Un fallo al leer lo de consignación no debe tumbar la ficha entera: esa tarjeta simplemente no se muestra.
+  const [consignorSummary, consignorPending] = showConsignment
+    ? await Promise.all([
+        getConsignorSummary(context.companyId, id).catch(() => null),
+        can(context, 'consignment:read') ? getPendingSettlement(context.companyId, id).catch(() => null) : Promise.resolve(null),
+      ])
+    : [null, null];
 
   return (
     <div className="space-y-5">
@@ -119,6 +131,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
           <div className="flex gap-1.5">
             {contact.isCustomer && <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium">Cliente</span>}
             {contact.isSupplier && <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium">Proveedor</span>}
+            {contact.isConsignor && <span className="rounded-full bg-warning-soft px-2.5 py-1 text-xs font-medium text-warning">Seller</span>}
           </div>
         </div>
       </div>
@@ -134,6 +147,22 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
           <Field label="Días de crédito" value={contact.creditDays > 0 ? `${contact.creditDays} días` : 'Al contado'} />
         </div>
       </SectionCard>
+
+      {consignorSummary && (
+        <SectionCard
+          icon={PackageOpen}
+          title="Consignación"
+          action={<Link href="/dashboard/inventory/consignment" className="flex items-center gap-1 text-xs font-medium text-primary hover:underline">Ver consignación <ArrowRight className="size-3.5" /></Link>}
+        >
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <Field label="Comisión" value={contact.consignmentCommissionBps === null ? 'Sin definir' : formatCommission(contact.consignmentCommissionBps)} />
+            <Field label="Productos suyos" value={String(consignorSummary.products)} />
+            <Field label="Unidades en bodega" value={consignorSummary.units.toLocaleString('es-CL')} />
+            {consignorPending && <Field label="Por liquidar" value={formatCurrency(consignorPending.totals.linesPayout)} />}
+          </div>
+          <p className="mt-3 text-xs text-muted-foreground">Su mercadería es suya hasta que se vende: no entra a tu inventario valorizado ni a tus compras.</p>
+        </SectionCard>
+      )}
 
       {contact.isCustomer && context.features.hasDteBilling && can(context, 'contacts:write') && (
         <CustomerPortalCard

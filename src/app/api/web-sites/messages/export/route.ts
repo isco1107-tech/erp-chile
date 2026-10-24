@@ -28,7 +28,7 @@ export async function GET(req: Request) {
     });
     if (!parsed.success) return NextResponse.json({ success: false, error: 'Filtros inválidos' }, { status: 400 });
 
-    const buffer = await buildMessagesWorkbook(session.companyId, parsed.data);
+    const buffer = await buildMessagesWorkbook(session.companyId, parsed.data, 'website');
 
     await createAuditLog({
       companyId: session.companyId,

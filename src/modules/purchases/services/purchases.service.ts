@@ -10,6 +10,7 @@ import type {
 } from '@prisma/client';
 import { computeDocument } from '@/modules/sales/calc';
 import { applyStockIn, applyStockOut, type TxClient } from '@/modules/inventory/services/stock.service';
+import { assertProductsNotConsigned } from '@/modules/inventory/services/consignment-guards';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import {
   postPurchaseCreditNoteIssued,
@@ -268,6 +269,7 @@ export async function createPurchaseDocument(
               );
             }
           }
+          await assertProductsNotConsigned(tx, companyId, [item.productId], 'una devolución a proveedor');
           await applyStockOut(tx, companyId, {
             productId: item.productId,
             warehouseId,
@@ -842,6 +844,7 @@ export async function issuePurchaseDocument(companyId: string, id: string): Prom
               );
             }
           }
+          await assertProductsNotConsigned(tx, companyId, [item.productId], 'una devolución a proveedor');
           await applyStockOut(tx, companyId, {
             productId: item.productId,
             warehouseId: item.warehouseId,

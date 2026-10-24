@@ -138,7 +138,19 @@ export function planRoute(destination: FormDestination, features: Partial<Compan
 }
 
 /** Datos que la ficha de la academia guarda en su propio campo (no se repiten en el comentario). */
-const ACADEMY_ROLES: ReadonlySet<string> = new Set(['name', 'rut', 'birthDate', 'phone', 'email', 'address', 'guardianName', 'guardianPhone', 'guardianEmail', 'photoConsent', 'message']);
+const ACADEMY_ROLES: ReadonlySet<string> = new Set([
+  'name',
+  'rut',
+  'birthDate',
+  'phone',
+  'email',
+  'address',
+  'guardianName',
+  'guardianPhone',
+  'guardianEmail',
+  'photoConsent',
+  'message',
+]);
 
 function summaryWithout(answers: FormAnswer[], roles: ReadonlySet<string>): string {
   return answersText(answers.filter((answer) => !answer.role || !roles.has(answer.role)));
@@ -172,13 +184,20 @@ async function executePlan(companyId: string, plan: Exclude<RoutePlan, { kind: '
         amount: plan.amount,
         summary: plan.summary,
       });
-      return { kind: 'crm', id: lead.opportunityId, note: lead.deduplicated ? 'La misma persona escribió en las últimas 24 horas: se sumó como nota a esa oportunidad.' : null };
+      return {
+        kind: 'crm',
+        id: lead.opportunityId,
+        note: lead.deduplicated ? 'La misma persona escribió en las últimas 24 horas: se sumó como nota a esa oportunidad.' : null,
+      };
     }
     case 'academy': {
       // El grupo elegido se busca por nombre entre los grupos activos de ESTA empresa.
       let preferredGroupId: string | null = null;
       if (plan.groupName) {
-        const group = await prisma.academyGroup.findFirst({ where: { companyId, isActive: true, name: { equals: plan.groupName, mode: 'insensitive' } }, select: { id: true } });
+        const group = await prisma.academyGroup.findFirst({
+          where: { companyId, isActive: true, name: { equals: plan.groupName, mode: 'insensitive' } },
+          select: { id: true },
+        });
         preferredGroupId = group?.id ?? null;
       }
       const result = await submitApplication({ companyId, companyName: '' }, { ...plan.input, preferredGroupId });
@@ -188,7 +207,15 @@ async function executePlan(companyId: string, plan: Exclude<RoutePlan, { kind: '
     }
     case 'tasks': {
       const task = await prisma.teamTask.create({
-        data: { companyId, title: plan.title, description: plan.description, priority: 'NORMAL', dueDate: tomorrowDay(), assigneeId: actorUserId, createdById: actorUserId },
+        data: {
+          companyId,
+          title: plan.title,
+          description: plan.description,
+          priority: 'NORMAL',
+          dueDate: tomorrowDay(),
+          assigneeId: actorUserId,
+          createdById: actorUserId,
+        },
         select: { id: true },
       });
       return { kind: 'tasks', id: task.id, note: null };
@@ -212,16 +239,30 @@ export interface PublicFormInput {
 }
 
 export type PublicSubmitResult =
-  | { ok: true; messageId: string; form: SiteForm; name: string; email: string | null; phone: string | null; message: string; summary: string; routed: Routed | null }
+  | {
+      ok: true;
+      messageId: string;
+      form: SiteForm;
+      name: string;
+      email: string | null;
+      phone: string | null;
+      message: string;
+      summary: string;
+      routed: Routed | null;
+    }
   | { ok: false; status: 400 | 404; error: string; fieldId?: string };
 
-export async function submitPublicForm(site: Pick<PublicWebSite, 'id' | 'companyId' | 'name' | 'document'>, input: PublicFormInput): Promise<PublicSubmitResult> {
+export async function submitPublicForm(
+  site: Pick<PublicWebSite, 'id' | 'companyId' | 'name' | 'document'>,
+  input: PublicFormInput,
+): Promise<PublicSubmitResult> {
   const form = findPublishedForm(site.document, input.formId);
   if (!form) return { ok: false, status: 404, error: 'Este formulario ya no está disponible' };
 
   const validated = validateFormAnswers(form.fields, input.answers);
   if (!validated.ok) return { ok: false, status: 400, error: validated.error, fieldId: validated.fieldId };
-  if (needsConsentCheckbox(form) && input.acceptPrivacy !== true) return { ok: false, status: 400, error: 'Debes aceptar el aviso de privacidad para enviar el formulario' };
+  if (needsConsentCheckbox(form) && input.acceptPrivacy !== true)
+    return { ok: false, status: 400, error: 'Debes aceptar el aviso de privacidad para enviar el formulario' };
 
   const answers = validated.answers;
   const ctx: RouteContext = { siteName: site.name, form, answers };
@@ -264,9 +305,16 @@ export async function submitPublicForm(site: Pick<PublicWebSite, 'id' | 'company
       });
     } catch (error) {
       // El envío ya quedó en la bandeja: un problema del destino no lo pierde.
-      captureException(error, { module: 'sitios-web', companyId: site.companyId, extra: { reason: 'form-route', destination: plan.kind, messageId: message.id } });
+      captureException(error, {
+        module: 'sitios-web',
+        companyId: site.companyId,
+        extra: { reason: 'form-route', destination: plan.kind, messageId: message.id },
+      });
       await prisma.webSiteMessage
-        .updateMany({ where: { id: message.id, companyId: site.companyId }, data: { routeNote: `No se pudo registrar en «${DESTINATION_INFO[plan.kind].label}»: quedó solo en la bandeja. Envíalo de nuevo desde aquí.` } })
+        .updateMany({
+          where: { id: message.id, companyId: site.companyId },
+          data: { routeNote: `No se pudo registrar en «${DESTINATION_INFO[plan.kind].label}»: quedó solo en la bandeja. Envíalo de nuevo desde aquí.` },
+        })
         .catch(() => undefined);
     }
   }
@@ -342,17 +390,28 @@ export const MAX_MESSAGES_PAGE = 200;
 const isPurpose = (value: string | null): value is FormPurpose => value !== null && (FORM_PURPOSES as readonly string[]).includes(value);
 const isDestination = (value: string | null): value is FormDestination => value !== null && (FORM_DESTINATIONS as readonly string[]).includes(value);
 
-function whereOf(companyId: string, filter: MessageFilter): Prisma.WebSiteMessageWhereInput {
+function whereOf(companyId: string, filter: MessageFilter, scope: 'all' | 'website' = 'all'): Prisma.WebSiteMessageWhereInput {
   const q = filter.q?.trim().slice(0, 100);
   const status = filter.status ?? 'inbox';
   return {
     companyId,
+    ...(scope === 'website' ? { site: { NOT: { store: { is: { standalone: true } } } } } : {}),
     ...(filter.siteId ? { siteId: filter.siteId } : {}),
     ...(filter.formId === 'legacy' ? { formId: null } : filter.formId ? { formId: filter.formId } : {}),
     ...(filter.purpose ? (filter.purpose === 'contact' ? { OR: [{ purpose: 'contact' }, { purpose: null }] } : { purpose: filter.purpose }) : {}),
-    ...(filter.destination ? (filter.destination === 'inbox' ? { OR: [{ destination: 'inbox' }, { destination: null }] } : { destination: filter.destination }) : {}),
+    ...(filter.destination
+      ? filter.destination === 'inbox'
+        ? { OR: [{ destination: 'inbox' }, { destination: null }] }
+        : { destination: filter.destination }
+      : {}),
     ...(filter.tag ? { tag: filter.tag } : {}),
-    ...(status === 'inbox' ? { archivedAt: null } : status === 'unread' ? { archivedAt: null, readAt: null } : status === 'archived' ? { archivedAt: { not: null } } : {}),
+    ...(status === 'inbox'
+      ? { archivedAt: null }
+      : status === 'unread'
+        ? { archivedAt: null, readAt: null }
+        : status === 'archived'
+          ? { archivedAt: { not: null } }
+          : {}),
     ...(q
       ? {
           AND: [
@@ -376,9 +435,16 @@ function toRow(message: Prisma.WebSiteMessageGetPayload<{ include: { site: { sel
   const routedKind = isDestination(message.routedKind) ? message.routedKind : null;
   // Los mensajes de antes no guardaban respuestas: se arman con sus campos fijos.
   const stored = parseStoredAnswers(message.answers);
-  const answers: FormAnswer[] = stored.length > 0
-    ? stored
-    : CONTACT_FORM_FIELDS.map((field) => ({ id: field.id, label: field.label, kind: field.kind, role: field.role, value: (field.id === 'name' ? message.name : field.id === 'email' ? message.email : field.id === 'phone' ? message.phone : message.message) ?? '' }));
+  const answers: FormAnswer[] =
+    stored.length > 0
+      ? stored
+      : CONTACT_FORM_FIELDS.map((field) => ({
+          id: field.id,
+          label: field.label,
+          kind: field.kind,
+          role: field.role,
+          value: (field.id === 'name' ? message.name : field.id === 'email' ? message.email : field.id === 'phone' ? message.phone : message.message) ?? '',
+        }));
   return {
     id: message.id,
     siteId: message.siteId,
@@ -404,9 +470,13 @@ function toRow(message: Prisma.WebSiteMessageGetPayload<{ include: { site: { sel
   };
 }
 
-export async function listFormMessages(companyId: string, filter: MessageFilter = {}): Promise<FormMessagesPage> {
-  const where = whereOf(companyId, filter);
-  const scope: Prisma.WebSiteMessageWhereInput = { companyId, ...(filter.siteId ? { siteId: filter.siteId } : {}) };
+export async function listFormMessages(companyId: string, filter: MessageFilter = {}, module: 'all' | 'website' = 'all'): Promise<FormMessagesPage> {
+  const where = whereOf(companyId, filter, module);
+  const scope: Prisma.WebSiteMessageWhereInput = {
+    companyId,
+    ...(module === 'website' ? { site: { NOT: { store: { is: { standalone: true } } } } } : {}),
+    ...(filter.siteId ? { siteId: filter.siteId } : {}),
+  };
   const [rows, total, unread, grouped, unreadGrouped, tagRows, sites] = await Promise.all([
     prisma.webSiteMessage.findMany({ where, orderBy: { createdAt: 'desc' }, take: MAX_MESSAGES_PAGE, include: { site: { select: { name: true } } } }),
     prisma.webSiteMessage.count({ where }),
@@ -414,7 +484,11 @@ export async function listFormMessages(companyId: string, filter: MessageFilter 
     prisma.webSiteMessage.groupBy({ by: ['siteId', 'formId', 'formTitle'], where: scope, _count: { _all: true }, _max: { createdAt: true } }),
     prisma.webSiteMessage.groupBy({ by: ['siteId', 'formId'], where: { ...scope, readAt: null, archivedAt: null }, _count: { _all: true } }),
     prisma.webSiteMessage.findMany({ where: { ...scope, tag: { not: null } }, distinct: ['tag'], select: { tag: true }, take: 50 }),
-    prisma.webSite.findMany({ where: { companyId }, select: { id: true, name: true }, orderBy: { name: 'asc' } }),
+    prisma.webSite.findMany({
+      where: { companyId, ...(filter.siteId ? { id: filter.siteId } : {}), ...(module === 'website' ? { NOT: { store: { is: { standalone: true } } } } : {}) },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    }),
   ]);
   const siteNames = new Map(sites.map((site) => [site.id, site.name]));
   const unreadBy = new Map(unreadGrouped.map((row) => [`${row.siteId}:${row.formId ?? ''}`, row._count._all]));
@@ -429,7 +503,15 @@ export async function listFormMessages(companyId: string, filter: MessageFilter 
       current.total += row._count._all;
       if (latest > current.latest) Object.assign(current, { title, latest });
     } else {
-      facets.set(key, { siteId: row.siteId, siteName: siteNames.get(row.siteId) ?? 'Sitio', formId: row.formId, title, total: row._count._all, unread: unreadBy.get(key) ?? 0, latest });
+      facets.set(key, {
+        siteId: row.siteId,
+        siteName: siteNames.get(row.siteId) ?? 'Sitio',
+        formId: row.formId,
+        title,
+        total: row._count._all,
+        unread: unreadBy.get(key) ?? 0,
+        latest,
+      });
     }
   }
   return {
@@ -443,13 +525,19 @@ export async function listFormMessages(companyId: string, filter: MessageFilter 
 }
 
 export async function setMessageArchived(companyId: string, messageId: string, archived: boolean): Promise<void> {
-  const result = await prisma.webSiteMessage.updateMany({ where: { id: messageId, companyId }, data: { archivedAt: archived ? new Date() : null, ...(archived ? { readAt: new Date() } : {}) } });
+  const result = await prisma.webSiteMessage.updateMany({
+    where: { id: messageId, companyId },
+    data: { archivedAt: archived ? new Date() : null, ...(archived ? { readAt: new Date() } : {}) },
+  });
   if (result.count === 0) throw new FormRoutingError('Mensaje no encontrado');
 }
 
 /** Marca como leídos todos los pendientes que calzan con el filtro. Devuelve cuántos. */
-export async function markAllRead(companyId: string, filter: MessageFilter): Promise<number> {
-  const result = await prisma.webSiteMessage.updateMany({ where: { ...whereOf(companyId, { ...filter, status: 'unread' }) }, data: { readAt: new Date() } });
+export async function markAllRead(companyId: string, filter: MessageFilter, module: 'all' | 'website' = 'all'): Promise<number> {
+  const result = await prisma.webSiteMessage.updateMany({
+    where: { ...whereOf(companyId, { ...filter, status: 'unread' }, module) },
+    data: { readAt: new Date() },
+  });
   return result.count;
 }
 
@@ -470,10 +558,20 @@ export interface RouteActor {
  * la creación falla, la reserva se devuelve. Una tarea creada a mano queda a
  * nombre de quien la envía.
  */
-export async function routeExistingMessage(actor: RouteActor, messageId: string, destination: Exclude<FormDestination, 'inbox'>): Promise<{ kind: FormDestination; id: string | null; href: string | null; note: string | null }> {
-  const message = await prisma.webSiteMessage.findFirst({ where: { id: messageId, companyId: actor.companyId }, include: { site: { select: { name: true } } } });
+export async function routeExistingMessage(
+  actor: RouteActor,
+  messageId: string,
+  destination: Exclude<FormDestination, 'inbox'>,
+): Promise<{ kind: FormDestination; id: string | null; href: string | null; note: string | null }> {
+  const message = await prisma.webSiteMessage.findFirst({
+    where: { id: messageId, companyId: actor.companyId },
+    include: { site: { select: { name: true } } },
+  });
   if (!message) throw new FormRoutingError('Mensaje no encontrado');
-  if (message.routedId) throw new FormRoutingError(`Este mensaje ya está registrado en «${DESTINATION_INFO[isDestination(message.routedKind) ? message.routedKind : destination].label}».`);
+  if (message.routedId)
+    throw new FormRoutingError(
+      `Este mensaje ya está registrado en «${DESTINATION_INFO[isDestination(message.routedKind) ? message.routedKind : destination].label}».`,
+    );
   const info = DESTINATION_INFO[destination];
   if (info.feature && !actor.features[info.feature]) throw new FormRoutingError(`Tu plan no incluye el módulo de ${info.area}.`);
 
@@ -488,14 +586,25 @@ export async function routeExistingMessage(actor: RouteActor, messageId: string,
   if (planned.plan.kind === 'inbox') throw new FormRoutingError(planned.plan.note ?? 'No se pudo enviar a ese destino.');
 
   const claimedAt = new Date();
-  const claim = await prisma.webSiteMessage.updateMany({ where: { id: messageId, companyId: actor.companyId, routedId: null, routedAt: message.routedAt }, data: { routedAt: claimedAt, routedKind: destination } });
+  const claim = await prisma.webSiteMessage.updateMany({
+    where: { id: messageId, companyId: actor.companyId, routedId: null, routedAt: message.routedAt },
+    data: { routedAt: claimedAt, routedKind: destination },
+  });
   if (claim.count === 0) throw new FormRoutingError('Otra persona acaba de enviar este mensaje a otra parte. Actualiza la bandeja.');
   try {
     const routed = await executePlan(actor.companyId, planned.plan, ctx, actor.userId);
-    await prisma.webSiteMessage.updateMany({ where: { id: messageId, companyId: actor.companyId }, data: { routedKind: routed.kind, routedId: routed.id, routeNote: routed.note, readAt: message.readAt ?? claimedAt } });
+    await prisma.webSiteMessage.updateMany({
+      where: { id: messageId, companyId: actor.companyId },
+      data: { routedKind: routed.kind, routedId: routed.id, routeNote: routed.note, readAt: message.readAt ?? claimedAt },
+    });
     return { kind: routed.kind, id: routed.id, href: destinationHref(routed.kind, routed.id), note: routed.note };
   } catch (error) {
-    await prisma.webSiteMessage.updateMany({ where: { id: messageId, companyId: actor.companyId, routedAt: claimedAt }, data: { routedAt: message.routedAt, routedKind: message.routedKind } }).catch(() => undefined);
+    await prisma.webSiteMessage
+      .updateMany({
+        where: { id: messageId, companyId: actor.companyId, routedAt: claimedAt },
+        data: { routedAt: message.routedAt, routedKind: message.routedKind },
+      })
+      .catch(() => undefined);
     throw error;
   }
 }
@@ -505,7 +614,12 @@ export async function routeExistingMessage(actor: RouteActor, messageId: string,
 // ---------------------------------------------------------------------------
 
 /** Todos los mensajes que calzan con el filtro (para la planilla), hasta 5.000. */
-export async function messagesForExport(companyId: string, filter: MessageFilter): Promise<FormMessageRow[]> {
-  const rows = await prisma.webSiteMessage.findMany({ where: whereOf(companyId, filter), orderBy: { createdAt: 'desc' }, take: 5000, include: { site: { select: { name: true } } } });
+export async function messagesForExport(companyId: string, filter: MessageFilter, module: 'all' | 'website' = 'all'): Promise<FormMessageRow[]> {
+  const rows = await prisma.webSiteMessage.findMany({
+    where: whereOf(companyId, filter, module),
+    orderBy: { createdAt: 'desc' },
+    take: 5000,
+    include: { site: { select: { name: true } } },
+  });
   return rows.map(toRow);
 }

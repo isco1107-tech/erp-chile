@@ -1,3 +1,4 @@
+import StorefrontDocument from '@/components/store-builder/StorefrontDocument';
 import type { Metadata } from 'next';
 import { cache } from 'react';
 import { redirect } from 'next/navigation';
@@ -33,6 +34,10 @@ export default async function PublicWebSitePage({ params }: { params: Promise<{ 
   if (!site) {
     return <PublicStatus variant="error" title="Este sitio no está disponible" message="El enlace no existe o el sitio todavía no fue publicado." />;
   }
-  if (site.standaloneStore) redirect(`/web/${site.slug}/tienda`);
-  return <WebSiteDocument site={site} basePath={`/web/${site.slug}`} siteUrl={siteRoot(site)} />;
+  if (site.standaloneStore && !site.storefrontHome) redirect(`/web/${site.slug}/tienda`);
+  return site.storefrontHome ? (
+    <StorefrontDocument site={site} basePath={`/web/${site.slug}`} siteUrl={siteRoot(site)} />
+  ) : (
+    <WebSiteDocument site={site} basePath={`/web/${site.slug}`} siteUrl={siteRoot(site)} />
+  );
 }

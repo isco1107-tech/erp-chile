@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { cleanRut, validateRut } from '@/lib/chile/rut';
 import { BANK_ACCOUNT_TYPES, BANK_CODES } from '@/lib/treasury/banks';
+import { commissionBpsSchema } from '@/lib/consignment/commission';
 
 const rutField = z
   .string()
@@ -19,6 +20,13 @@ export const contactCreateSchema = z.object({
   comuna: z.string().optional(),
   isCustomer: z.boolean().optional(),
   isSupplier: z.boolean().optional(),
+  /** Seller de consignación: la mercadería es suya hasta que se vende (no es proveedor: a ese se le compra). */
+  isConsignor: z.boolean().optional(),
+  /**
+   * Comisión de la empresa sobre lo que vende el seller, en puntos base (1500 = 15 %). Obligatoria
+   * si `isConsignor`; el servicio lo exige porque el esquema se reutiliza parcial al editar.
+   */
+  consignmentCommissionBps: commissionBpsSchema.nullable().optional(),
   creditLimit: z.number().int().nonnegative('El límite de crédito no puede ser negativo').nullable().optional(),
   creditDays: z.number().int().nonnegative('Los días de crédito no pueden ser negativos').optional(),
   /** Lista de precios del cliente; `null` = precio del catálogo. */

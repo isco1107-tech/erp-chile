@@ -11,6 +11,7 @@ import { SITE_CSS } from '@/components/web-sites/site/site-css';
 import { SITE_FONT_CLASSES } from '@/components/web-sites/site-fonts';
 import { safeImageSrc, safeHref } from '@/lib/web-sites/urls';
 import CartButton from './CartButton';
+import SiteRenderer from '@/components/web-sites/SiteRenderer';
 import { ProductImage } from './ui';
 import QuickCart from './QuickCart';
 import { STORE_CSS } from './store-style';
@@ -38,6 +39,39 @@ export default function StoreDocument({
   const contact = settings?.supportPhone ? safeHref(`tel:${settings.supportPhone.replace(/[^+\d]/g, '')}`) : null;
   const style = { ...themeVariables(site.theme), ...toneVariables(site.theme), '--ec-on-primary': readableOn(site.theme.primary) } as CSSProperties;
   const steps = current === 'cart' || current === 'checkout' || current === 'order';
+  if (site.storefrontHome)
+    return (
+      <SiteRenderer
+        name={site.name}
+        logoUrl={site.logoUrl}
+        theme={site.theme}
+        document={site.document}
+        slug={site.slug}
+        mode="public"
+        basePath={basePath}
+        store={storeRenderInfo(site.slug, basePath, current)}
+        rootClassName="ec-store"
+        extraCss={STORE_CSS}
+        content={
+          <>
+            {steps && (
+              <nav className="ec-steps" aria-label="Pasos de la compra">
+                <span aria-current={current === 'cart' ? 'step' : undefined}>
+                  <b>1</b> Carrito
+                </span>
+                <span aria-current={current === 'checkout' ? 'step' : undefined}>
+                  <b>2</b> Entrega y pago
+                </span>
+                <span aria-current={current === 'order' ? 'step' : undefined}>
+                  <b>3</b> Tu pedido
+                </span>
+              </nav>
+            )}
+            {children}
+          </>
+        }
+      />
+    );
   return (
     <div
       className={`ws-root ws-tone-default ec-store ${SITE_FONT_CLASSES}`}
@@ -157,7 +191,9 @@ export default function StoreDocument({
                 <ShieldCheck className="size-3.5" /> Precios finales en pesos chilenos · Compra sin crear cuenta
               </span>
             </div>
-            <a href={`${platformBaseUrl()}/`} target="_blank" rel="noopener noreferrer" className="ws-muted mt-4 inline-block !text-[11px]">Hecho con Aether ERP</a>
+            <a href={`${platformBaseUrl()}/`} target="_blank" rel="noopener noreferrer" className="ws-muted mt-4 inline-block !text-[11px]">
+              Hecho con Aether ERP
+            </a>
           </div>
         </footer>
       </div>

@@ -70,7 +70,7 @@ export const FLAG_A_MODULO: Partial<Record<FeatureKey, string>> = {
 const ENTIDAD_A_MODULO: Record<string, string> = {
   SalesDocument: 'ventas', SalesOrder: 'ventas', PriceList: 'ventas', SalesCommissionRate: 'ventas', historicalSales: 'ventas',
   CashShift: 'pos', CashRegister: 'pos', CashMovement: 'pos',
-  Product: 'inventario', InventoryCount: 'inventario', Warehouse: 'inventario',
+  Product: 'inventario', InventoryCount: 'inventario', Warehouse: 'inventario', SellerSettlement: 'inventario',
   PurchaseDocument: 'compras', PurchaseOrder: 'compras', PurchaseRequest: 'compras', GoodsReceipt: 'compras',
   ImportShipment: 'compras', ReceivedDte: 'compras',
   Payment: 'tesoreria', PaymentBatch: 'tesoreria',

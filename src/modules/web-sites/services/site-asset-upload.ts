@@ -40,6 +40,11 @@ export async function uploadSiteAsset(req: Request, scope: 'website' | 'store') 
       const store = await prisma.webSiteStore.findFirst({ where: { companyId: session.companyId, siteId }, select: { id: true } });
       if (!store) return NextResponse.json({ success: false, error: 'Tienda no encontrada' }, { status: 404 });
     }
+    if (
+      scope === 'website' &&
+      (await prisma.webSiteStore.findFirst({ where: { companyId: session.companyId, siteId, standalone: true }, select: { id: true } }))
+    )
+      return NextResponse.json({ success: false, error: 'Administra las imágenes desde Ecommerce.' }, { status: 403 });
     await assertCanAddAsset(session.companyId, siteId, file.size);
 
     const bytes = new Uint8Array(await file.arrayBuffer());

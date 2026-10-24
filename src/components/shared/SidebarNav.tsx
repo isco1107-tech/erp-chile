@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
   ArrowLeftRight,
+  PackageOpen,
   HeartHandshake,
   FileText,
   UserCheck,
@@ -151,6 +152,7 @@ export const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   labels: Barcode,
   mobile: Smartphone,
   movements: ArrowLeftRight,
+  consignment: PackageOpen,
   collections: HandCoins,
   banks: Vault,
   cheques: FileCheck2,

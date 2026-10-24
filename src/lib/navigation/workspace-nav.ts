@@ -79,6 +79,7 @@ export type NavIconKey =
   | 'labels'
   | 'mobile'
   | 'movements'
+  | 'consignment'
   | 'collections'
   | 'banks'
   | 'cheques'
@@ -193,6 +194,7 @@ export function buildAvailableWorkspaceNav({ permissions, features }: Omit<NavAc
       { id: 'inventory-lots', href: '/dashboard/inventory/lots', label: 'Lotes y vencimientos', icon: 'lots', keywords: ['lote', 'vencimiento', 'caducidad', 'fefo', 'expira'] },
       { id: 'inventory-labels', href: '/dashboard/inventory/labels', label: 'Etiquetas', icon: 'labels', keywords: ['codigo de barras', 'etiqueta', 'gondola', 'imprimir', 'ean'] },
       { id: 'inventory-movements', href: '/dashboard/inventory/movements', label: 'Movimientos de bodega', icon: 'movements', keywords: ['kardex', 'merma', 'salida', 'ajuste', 'operario', 'foto', 'respaldo', 'degustacion', 'bodega', 'registro', 'quien'] },
+      { id: 'inventory-consignment', href: '/dashboard/inventory/consignment', label: 'Consignación', icon: 'consignment', keywords: ['seller', 'sellers', 'consignacion', 'comision', 'liquidacion', 'vendedor externo', 'marketplace', 'mercaderia de terceros', 'pagar a seller'] },
       { id: 'inventory-mobile', href: '/dashboard/inventory/mobile', label: 'Bodega móvil', icon: 'mobile', keywords: ['celular', 'telefono', 'app', 'bodeguero', 'foto', 'camara', 'escanear', 'qr', 'merma', 'llegada'] },
     ];
     // Funcionalidad con su propio interruptor dentro de Inventario.

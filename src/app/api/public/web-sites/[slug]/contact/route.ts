@@ -44,7 +44,10 @@ function readSubmission(body: unknown): { ok: true; input: PublicFormInput } | {
   }
   const legacy = publicWebSiteMessageSchema.safeParse(body);
   if (!legacy.success) return { ok: false, error: legacy.error.issues[0]?.message ?? 'Revisa los datos del formulario' };
-  return { ok: true, input: { formId: null, answers: { name: legacy.data.name, email: legacy.data.email, phone: legacy.data.phone ?? '', message: legacy.data.message } } };
+  return {
+    ok: true,
+    input: { formId: null, answers: { name: legacy.data.name, email: legacy.data.email, phone: legacy.data.phone ?? '', message: legacy.data.message } },
+  };
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ slug: string }> }) {
@@ -69,7 +72,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
   }
 
   // Señuelo: un bot completa el campo oculto. Se responde "ok" sin registrar nada.
-  if (body && typeof body === 'object' && typeof (body as Record<string, unknown>)[WEB_SITE_HONEYPOT_FIELD] === 'string' && (body as Record<string, string>)[WEB_SITE_HONEYPOT_FIELD] !== '') {
+  if (
+    body &&
+    typeof body === 'object' &&
+    typeof (body as Record<string, unknown>)[WEB_SITE_HONEYPOT_FIELD] === 'string' &&
+    (body as Record<string, string>)[WEB_SITE_HONEYPOT_FIELD] !== ''
+  ) {
     return NextResponse.json({ success: true, data: null });
   }
 
@@ -99,10 +107,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
         await notifyCompany(site.companyId, {
           severity: 'INFO',
           title: isContact ? 'Nuevo mensaje desde tu sitio web' : `${purpose}: nuevo envío desde tu sitio web`,
-          message: (isContact ? `${result.name} escribió desde "${site.name}": ${result.message}${where}` : `${result.name} completó «${result.form.title}» en "${site.name}".${where} ${result.summary}`).slice(0, 500),
+          message: (isContact
+            ? `${result.name} escribió desde "${site.name}": ${result.message}${where}`
+            : `${result.name} completó «${result.form.title}» en "${site.name}".${where} ${result.summary}`
+          ).slice(0, 500),
           // El push se ve en la pantalla bloqueada: sin correo, teléfono ni respuestas.
           pushMessage: isContact ? `${result.name} escribió desde "${site.name}".` : `${result.name} completó «${result.form.title}» en "${site.name}".`,
-          href: routedHref ?? `/dashboard/web-sites/${site.id}?tab=messages`,
+          href: routedHref ?? (site.standaloneStore ? `/dashboard/store/${site.id}/editor?tab=messages` : `/dashboard/web-sites/${site.id}?tab=messages`),
         });
       } catch (error) {
         captureException(error, { module: 'sitios-web', companyId: site.companyId, extra: { reason: 'form-notification' } });

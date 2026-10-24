@@ -6,6 +6,7 @@ import { formatCurrency } from '@/lib/chile/tax';
 import { getCxCSummary, getCxPSummary, getCashFlow, listReceivables } from '@/modules/treasury/services/treasury.service';
 import { getCompanySettings } from '@/lib/services/company.service';
 import type { AgentDataScope } from '../constants';
+import { lineCostForMargin } from '@/lib/consignment/margin';
 
 export const INDUSTRY_LABELS: Record<IndustryType, string> = {
   SERVICES: 'Servicios',
@@ -106,7 +107,7 @@ export async function getFinancialSnapshot(companyId: string): Promise<Financial
   for (const document of monthDocuments) {
     const sign = documentSign(document.dteType);
     const revenue = sign * (document.netAmount + document.exemptAmount);
-    const cost = sign * document.items.reduce((sum, item) => sum + Math.round(item.quantity * item.unitCostPMP), 0);
+    const cost = sign * document.items.reduce((sum, item) => sum + lineCostForMargin(item), 0);
     if (document.issueDate >= currentMonthStart && document.issueDate < nextMonthStart) {
       monthNetSales += sign * document.netAmount;
       monthVat += sign * document.ivaAmount;

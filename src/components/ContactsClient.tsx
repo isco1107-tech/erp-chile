@@ -13,7 +13,7 @@ import { listContactsPageAction, deleteContactAction, getContactAction } from '@
 import type { ContactListItem } from '@/modules/contacts/services/contacts.service';
 
 import { useConfirm } from '@/components/ui/confirm-provider';
-type Filter = 'all' | 'customers' | 'suppliers';
+type Filter = 'all' | 'customers' | 'suppliers' | 'consignors';
 
 const DEFAULT_PAGE_SIZE = 25;
 
@@ -141,6 +141,9 @@ export default function ContactsClient() {
             <Button type="button" size="sm" variant={filter === 'suppliers' ? 'default' : 'outline'} onClick={() => setFilter('suppliers')}>
               Proveedores
             </Button>
+            <Button type="button" size="sm" variant={filter === 'consignors' ? 'default' : 'outline'} onClick={() => setFilter('consignors')}>
+              Sellers
+            </Button>
           </div>
         </div>
 
@@ -208,7 +211,8 @@ export default function ContactsClient() {
                 <td className="p-2">{c.razonSocial}</td>
                 <td className="p-2">
                   {c.isCustomer && <span className="mr-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs">Cliente</span>}
-                  {c.isSupplier && <span className="rounded-full bg-secondary px-2 py-0.5 text-xs">Proveedor</span>}
+                  {c.isSupplier && <span className="mr-1 rounded-full bg-secondary px-2 py-0.5 text-xs">Proveedor</span>}
+                  {c.isConsignor && <span className="rounded-full bg-warning-soft px-2 py-0.5 text-xs text-warning">Seller</span>}
                 </td>
                 <td className="p-2">{c.comuna}</td>
                 <td className="p-2">{c.phone}</td>

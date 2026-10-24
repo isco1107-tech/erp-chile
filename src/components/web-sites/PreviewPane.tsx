@@ -6,6 +6,7 @@ import type { WebSiteTheme } from '@/lib/web-sites/theme';
 import type { SiteDocument } from '@/lib/web-sites/site';
 import { cn } from '@/lib/utils';
 import SiteRenderer from './SiteRenderer';
+import { STORE_CSS } from '@/components/store/store-style';
 import { DESKTOP_PREVIEW_WIDTH, MOBILE_PREVIEW_WIDTH, TABLET_PREVIEW_WIDTH, type PreviewDevice } from './editor-shared';
 
 /**
@@ -33,6 +34,7 @@ type PreviewPaneProps = {
       document: SiteDocument;
       /** Página que se muestra. */
       pageId: string;
+      commerceSiteId?: string;
       slug: string;
       /** Elegir otra página desde el selector de la barra. */
       onPageChange: (pageId: string) => void;
@@ -92,7 +94,9 @@ function performScroll(container: HTMLElement, request: PreviewScrollRequest) {
     if (element) revealInside(container, element, 'start');
     else container.scrollTo({ top: 0, behavior });
   } else {
-    const element = (request.blockId ? findBlockElement(container, request.blockId) : null) ?? (request.anchor ? container.querySelector<HTMLElement>(`[id="${CSS.escape(request.anchor)}"]`) : null);
+    const element =
+      (request.blockId ? findBlockElement(container, request.blockId) : null) ??
+      (request.anchor ? container.querySelector<HTMLElement>(`[id="${CSS.escape(request.anchor)}"]`) : null);
     if (element) revealInside(container, element, 'nearest');
   }
 }
@@ -178,7 +182,7 @@ export const PreviewPane = memo(function PreviewPane(props: PreviewPaneProps) {
               onClick={() => onDeviceChange(id)}
               className={cn(
                 'flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50',
-                device === id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                device === id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
               )}
             >
               <Icon className="size-3.5" aria-hidden="true" /> <span className="max-sm:sr-only">{label}</span>
@@ -200,6 +204,14 @@ export const PreviewPane = memo(function PreviewPane(props: PreviewPaneProps) {
               pageId={guided.pageId}
               slug={guided.slug}
               mode="preview"
+              store={
+                guided.commerceSiteId
+                  ? { siteSlug: guided.slug, catalogHref: `/web/${guided.slug}/tienda`, cartHref: `/web/${guided.slug}/carrito`, current: null }
+                  : undefined
+              }
+              rootClassName={guided.commerceSiteId ? 'ec-store' : undefined}
+              extraCss={guided.commerceSiteId ? STORE_CSS : undefined}
+              commerce={guided.commerceSiteId ? { siteId: guided.commerceSiteId, products: {}, open: false } : undefined}
               basePath={`/web/${guided.slug}`}
               onNavigate={guided.onNavigate}
               onSelectBlock={guided.onSelectBlock}
@@ -207,13 +219,18 @@ export const PreviewPane = memo(function PreviewPane(props: PreviewPaneProps) {
             />
           </div>
         ) : props.mode === 'HTML' ? (
-          <div className={cn('mx-auto h-full bg-white shadow-sm', device !== 'desktop' && 'border-x border-border')} style={device === 'desktop' ? undefined : { width: deviceWidth, maxWidth: '100%' }}>
+          <div
+            className={cn('mx-auto h-full bg-white shadow-sm', device !== 'desktop' && 'border-x border-border')}
+            style={device === 'desktop' ? undefined : { width: deviceWidth, maxWidth: '100%' }}
+          >
             <iframe sandbox="" srcDoc={props.srcDoc} title="Vista previa" className="block size-full border-0 bg-white" />
           </div>
         ) : null}
       </div>
       <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
-        {guided ? 'Haz clic en una sección para editarla · el menú de la vista previa te lleva entre páginas.' : 'Así se verá tu sitio publicado. Los enlaces y el formulario no funcionan en la vista previa.'}
+        {guided
+          ? 'Haz clic en una sección para editarla · el menú de la vista previa te lleva entre páginas.'
+          : 'Así se verá tu sitio publicado. Los enlaces y el formulario no funcionan en la vista previa.'}
       </p>
     </section>
   );

@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { safeImageSrc } from '@/lib/web-sites/urls';
-import { deleteWebSiteAssetAction, updateWebSiteAssetAltAction } from '@/modules/web-sites/actions/web-sites.actions';
+import { useEditorRuntime } from './EditorRuntime';
 import { ImageUploader } from './ImageUploader';
 import { copyText, formatBytes, useEditorAssets, type EditorAsset } from './editor-shared';
 
@@ -21,7 +21,20 @@ interface AssetLibraryProps {
   onDeleted: (assetId: string) => void;
 }
 
-function AssetCard({ asset, canWrite, used, onAltSaved, onDeleted }: { asset: EditorAsset; canWrite: boolean; used: boolean; onAltSaved: (alt: string) => void; onDeleted: () => void }) {
+function AssetCard({
+  asset,
+  canWrite,
+  used,
+  onAltSaved,
+  onDeleted,
+}: {
+  asset: EditorAsset;
+  canWrite: boolean;
+  used: boolean;
+  onAltSaved: (alt: string) => void;
+  onDeleted: () => void;
+}) {
+  const { actions: editorActions } = useEditorRuntime();
   const confirm = useConfirm();
   const [alt, setAlt] = useState(asset.alt);
   const [savingAlt, setSavingAlt] = useState(false);
@@ -35,7 +48,7 @@ function AssetCard({ asset, canWrite, used, onAltSaved, onDeleted }: { asset: Ed
     setSavingAlt(true);
     setMessage(null);
     try {
-      const result = await updateWebSiteAssetAltAction(asset.id, { alt: next });
+      const result = await editorActions.updateWebSiteAssetAltAction(asset.id, { alt: next });
       if (result.success) {
         setAlt(next);
         onAltSaved(next);
@@ -53,11 +66,15 @@ function AssetCard({ asset, canWrite, used, onAltSaved, onDeleted }: { asset: Ed
       setMessage('Esta imagen se usa en tu sitio. Quítala de las secciones (o del logo) antes de eliminarla.');
       return;
     }
-    const ok = await confirm({ title: `¿Eliminar "${asset.fileName}"?`, description: 'Se borra de la biblioteca y del almacenamiento. No se puede deshacer.', confirmLabel: 'Eliminar' });
+    const ok = await confirm({
+      title: `¿Eliminar "${asset.fileName}"?`,
+      description: 'Se borra de la biblioteca y del almacenamiento. No se puede deshacer.',
+      confirmLabel: 'Eliminar',
+    });
     if (!ok) return;
     setDeleting(true);
     try {
-      const result = await deleteWebSiteAssetAction(asset.id);
+      const result = await editorActions.deleteWebSiteAssetAction(asset.id);
       if (result.success) {
         toast.success(result.message ?? 'Imagen eliminada');
         onDeleted();
@@ -102,7 +119,11 @@ function AssetCard({ asset, canWrite, used, onAltSaved, onDeleted }: { asset: Ed
             }}
           />
           <p id={`${inputId}-hint`} className="text-xs text-muted-foreground">
-            {savingAlt ? 'Guardando…' : !alt.trim() ? 'Sin descripción: agrégala para lectores de pantalla y Google. Se guarda al salir del campo.' : 'Se guarda al salir del campo.'}
+            {savingAlt
+              ? 'Guardando…'
+              : !alt.trim()
+                ? 'Sin descripción: agrégala para lectores de pantalla y Google. Se guarda al salir del campo.'
+                : 'Se guarda al salir del campo.'}
           </p>
         </div>
         {message ? (
@@ -114,7 +135,14 @@ function AssetCard({ asset, canWrite, used, onAltSaved, onDeleted }: { asset: Ed
           <Button type="button" size="sm" variant="outline" aria-label={`Copiar dirección de ${asset.fileName}`} onClick={() => void copyText(asset.url)}>
             <Copy aria-hidden="true" /> Copiar dirección
           </Button>
-          <Button type="button" size="sm" variant="ghost" disabled={!canWrite || deleting} aria-label={`Eliminar ${asset.fileName}`} onClick={() => void remove()}>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            disabled={!canWrite || deleting}
+            aria-label={`Eliminar ${asset.fileName}`}
+            onClick={() => void remove()}
+          >
             <Trash2 aria-hidden="true" /> Eliminar
           </Button>
         </div>
@@ -131,7 +159,9 @@ export function AssetLibrary({ isUsed, onAltSaved, onDeleted }: AssetLibraryProp
       <section aria-label="Subir imágenes" className="space-y-3 rounded-lg border border-border bg-card p-4 shadow-card">
         <div>
           <h2 className="text-sm font-semibold">Subir imágenes</h2>
-          <p className="text-xs text-muted-foreground">Puedes subir varias a la vez. Después las eliges en cada sección, en el logo o las copias para tu HTML.</p>
+          <p className="text-xs text-muted-foreground">
+            Puedes subir varias a la vez. Después las eliges en cada sección, en el logo o las copias para tu HTML.
+          </p>
         </div>
         <ImageUploader siteId={siteId} disabled={readOnly} onUploaded={addAsset} />
       </section>
@@ -151,7 +181,14 @@ export function AssetLibrary({ isUsed, onAltSaved, onDeleted }: AssetLibraryProp
         ) : (
           <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {assets.map((asset) => (
-              <AssetCard key={asset.id} asset={asset} canWrite={!readOnly} used={isUsed(asset.url)} onAltSaved={(alt) => onAltSaved(asset.id, alt)} onDeleted={() => onDeleted(asset.id)} />
+              <AssetCard
+                key={asset.id}
+                asset={asset}
+                canWrite={!readOnly}
+                used={isUsed(asset.url)}
+                onAltSaved={(alt) => onAltSaved(asset.id, alt)}
+                onDeleted={() => onDeleted(asset.id)}
+              />
             ))}
           </ul>
         )}

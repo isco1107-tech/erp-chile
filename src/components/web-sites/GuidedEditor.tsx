@@ -2,6 +2,8 @@
 
 import { canvasSchema } from '@/lib/web-sites/canvas';
 import { CanvasEditor } from './CanvasEditor';
+import { useEditorRuntime } from './EditorRuntime';
+import { liveCatalogBlock } from '@/lib/ecommerce/storefront-design';
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, Check, ChevronDown, Circle, Eye, EyeOff, Lightbulb, Plus } from 'lucide-react';
@@ -24,6 +26,17 @@ import { BLOCK_ICONS, blockSummary } from './editor-shared';
 import { MoveSectionDialog, type PageOption } from './MoveSectionDialog';
 import { SectionMenu } from './SectionMenu';
 import { SectionStyleFields } from './SectionStyleFields';
+
+const STORE_KIND_INFO = {
+  ...KIND_INFO.CATALOG,
+  label: 'Ecommerce',
+  description: 'Tu marca, productos reales y compras integradas al ERP.',
+  mustHave: [
+    { type: 'hero' as const, label: 'Portada de tu marca', why: 'Presenta tu propuesta con claridad.' },
+    { type: 'catalog' as const, label: 'Productos con carrito', why: 'Tus productos publicados con precios y disponibilidad del ERP.' },
+    { type: 'contact' as const, label: 'Contacto', why: 'Un canal claro para consultas.' },
+  ],
+};
 
 interface GuidedEditorProps {
   kind: WebSiteKind;
@@ -54,14 +67,26 @@ function useStable<T>(value: T, equal: (a: T, b: T) => boolean): T {
 }
 
 function samePages(a: PageOption[], b: PageOption[]): boolean {
-  return a.length === b.length && a.every((page, index) => {
-    const other = b[index];
-    return other !== undefined && page.id === other.id && page.title === other.title && page.hidden === other.hidden && page.blockCount === other.blockCount && page.hasHero === other.hasHero && page.isHome === other.isHome;
-  });
+  return (
+    a.length === b.length &&
+    a.every((page, index) => {
+      const other = b[index];
+      return (
+        other !== undefined &&
+        page.id === other.id &&
+        page.title === other.title &&
+        page.hidden === other.hidden &&
+        page.blockCount === other.blockCount &&
+        page.hasHero === other.hasHero &&
+        page.isHome === other.isHome
+      );
+    })
+  );
 }
 
 export function GuidedEditor({ kind, document, pageId, onDocumentChange, openId, onOpenChange, readOnly, theme, unavailableTypes }: GuidedEditorProps) {
   const confirm = useConfirm();
+  const { scope } = useEditorRuntime();
   const page = findPage(document, pageId) ?? homeOf(document);
   const currentPageId = page.id;
   const blocks = page.blocks;
@@ -81,8 +106,15 @@ export function GuidedEditor({ kind, document, pageId, onDocumentChange, openId,
   const revealRequest = useRef<string | null>(null);
 
   const pageOptions = useStable(
-    document.pages.map<PageOption>((item, index) => ({ id: item.id, title: item.title, isHome: index === 0, hidden: item.hidden, blockCount: item.blocks.length, hasHero: item.blocks.some((block) => block.type === 'hero') })),
-    samePages
+    document.pages.map<PageOption>((item, index) => ({
+      id: item.id,
+      title: item.title,
+      isHome: index === 0,
+      hidden: item.hidden,
+      blockCount: item.blocks.length,
+      hasHero: item.blocks.some((block) => block.type === 'hero'),
+    })),
+    samePages,
   );
 
   // Tras subir/bajar una sección el foco vuelve a su botón; tras agregar una, se lleva a la vista y se enfoca su primer campo.
@@ -107,7 +139,7 @@ export function GuidedEditor({ kind, document, pageId, onDocumentChange, openId,
 
   const updateBlocks = useCallback(
     (updater: (previous: WebSiteBlock[]) => WebSiteBlock[]) => onDocumentChange((previous) => setPageBlocks(previous, currentPageId, updater)),
-    [onDocumentChange, currentPageId]
+    [onDocumentChange, currentPageId],
   );
 
   const addBlock = useCallback(
@@ -121,7 +153,8 @@ export function GuidedEditor({ kind, document, pageId, onDocumentChange, openId,
         return;
       }
       // Desde la biblioteca de diseños llega con el contenido de muestra (se ve el diseño al tiro); desde la guía, vacía.
-      const block = variant !== undefined ? sampleBlock(type, variant) : createBlock(type);
+      const block: WebSiteBlock =
+        scope === 'store' && type === 'catalog' ? liveCatalogBlock(variant) : variant !== undefined ? sampleBlock(type, variant) : createBlock(type);
       if (canvas) block.style.canvas = canvasSchema.parse({ enabled: true, replaceContent: true });
       revealRequest.current = block.id;
       onDocumentChange((previous) => {
@@ -139,10 +172,13 @@ export function GuidedEditor({ kind, document, pageId, onDocumentChange, openId,
       onOpenChange(block.id);
       setAddAt(null);
     },
-    [limitMessage, hasHero, onDocumentChange, onOpenChange, currentPageId]
+    [scope, limitMessage, hasHero, onDocumentChange, onOpenChange, currentPageId],
   );
 
-  const changeBlock = useCallback((id: string, next: WebSiteBlock) => updateBlocks((previous) => previous.map((block) => (block.id === id ? next : block))), [updateBlocks]);
+  const changeBlock = useCallback(
+    (id: string, next: WebSiteBlock) => updateBlocks((previous) => previous.map((block) => (block.id === id ? next : block))),
+    [updateBlocks],
+  );
 
   const moveBlock = useCallback(
     (id: string, dir: -1 | 1) => {
@@ -158,10 +194,13 @@ export function GuidedEditor({ kind, document, pageId, onDocumentChange, openId,
         return next;
       });
     },
-    [updateBlocks]
+    [updateBlocks],
   );
 
-  const toggleHidden = useCallback((id: string) => updateBlocks((previous) => previous.map((block) => (block.id === id ? { ...block, hidden: !block.hidden } : block))), [updateBlocks]);
+  const toggleHidden = useCallback(
+    (id: string) => updateBlocks((previous) => previous.map((block) => (block.id === id ? { ...block, hidden: !block.hidden } : block))),
+    [updateBlocks],
+  );
 
   const duplicateBlock = useCallback(
     (id: string) => {
@@ -189,7 +228,7 @@ export function GuidedEditor({ kind, document, pageId, onDocumentChange, openId,
       });
       onOpenChange(copy.id);
     },
-    [blocks, limitMessage, onDocumentChange, onOpenChange, currentPageId]
+    [blocks, limitMessage, onDocumentChange, onOpenChange, currentPageId],
   );
 
   const removeBlock = useCallback(
@@ -204,7 +243,7 @@ export function GuidedEditor({ kind, document, pageId, onDocumentChange, openId,
       updateBlocks((previous) => previous.filter((item) => item.id !== block.id));
       if (openId === block.id) onOpenChange(null);
     },
-    [confirm, updateBlocks, onOpenChange, openId]
+    [confirm, updateBlocks, onOpenChange, openId],
   );
 
   const transferBlock = useCallback(
@@ -247,7 +286,7 @@ export function GuidedEditor({ kind, document, pageId, onDocumentChange, openId,
       if (mode === 'move' && openId === source.id) onOpenChange(null);
       toast.success(mode === 'move' ? `La sección se movió al final de «${target.title}».` : `Se copió la sección al final de «${target.title}».`);
     },
-    [transfer, blocks, document.pages, atSiteMax, onDocumentChange, currentPageId, onOpenChange, openId]
+    [transfer, blocks, document.pages, atSiteMax, onDocumentChange, currentPageId, onOpenChange, openId],
   );
 
   const toggleOpen = useCallback((id: string) => onOpenChange(openId === id ? null : id), [onOpenChange, openId]);
@@ -256,10 +295,10 @@ export function GuidedEditor({ kind, document, pageId, onDocumentChange, openId,
 
   const present = useMemo(() => new Set(allBlocks(document).map((block) => block.type)), [document]);
   const suggestions = useMemo(() => {
-    const info = KIND_INFO[kind];
+    const info = scope === 'store' ? STORE_KIND_INFO : KIND_INFO[kind];
     const missing = info.mustHave.filter((need) => !present.has(need.type)).map((need) => ({ type: need.type, why: need.why }));
     return buildSuggestions(missing, present);
-  }, [kind, present]);
+  }, [kind, present, scope]);
 
   const whereLabel = (() => {
     if (addAt === null) return 'al final';
@@ -273,7 +312,14 @@ export function GuidedEditor({ kind, document, pageId, onDocumentChange, openId,
 
   return (
     <div className="space-y-4">
-      <KindGuide kind={kind} document={document} pageTitle={page.title} canAdd={!readOnly && !limitMessage} onAdd={(type) => addBlock(type)} hasHero={hasHero} />
+      <KindGuide
+        kind={kind}
+        document={document}
+        pageTitle={page.title}
+        canAdd={!readOnly && !limitMessage}
+        onAdd={(type) => addBlock(type)}
+        hasHero={hasHero}
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
@@ -287,10 +333,20 @@ export function GuidedEditor({ kind, document, pageId, onDocumentChange, openId,
             {total} de {MAX_TOTAL_BLOCKS} en todo el sitio
           </p>
         </div>
-        <div className="flex flex-wrap gap-2"><Button type="button" size="sm" variant="outline" disabled={readOnly || Boolean(limitMessage)} onClick={() => addBlock('text', undefined, undefined, true)}>Crear lienzo libre</Button>
-        <Button type="button" size="sm" disabled={readOnly || Boolean(limitMessage)} onClick={() => openAddDialog(blocks.length)}>
-          <Plus aria-hidden="true" /> Agregar sección
-        </Button></div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={readOnly || Boolean(limitMessage)}
+            onClick={() => addBlock('text', undefined, undefined, true)}
+          >
+            Crear lienzo libre
+          </Button>
+          <Button type="button" size="sm" disabled={readOnly || Boolean(limitMessage)} onClick={() => openAddDialog(blocks.length)}>
+            <Plus aria-hidden="true" /> Agregar sección
+          </Button>
+        </div>
       </div>
       {limitMessage ? (
         <p role="status" className="rounded-lg bg-warning-soft px-3 py-2 text-xs text-warning">
@@ -302,7 +358,11 @@ export function GuidedEditor({ kind, document, pageId, onDocumentChange, openId,
         <div className="rounded-lg border border-dashed border-border bg-card">
           <EmptyState
             title="Esta página todavía no tiene secciones"
-            description={page.id === homeOf(document).id ? 'Empieza por una portada y una sección de contacto; después agrega lo demás.' : 'Agrega una portada o un texto para empezar, o copia secciones desde otra página.'}
+            description={
+              page.id === homeOf(document).id
+                ? 'Empieza por una portada y una sección de contacto; después agrega lo demás.'
+                : 'Agrega una portada o un texto para empezar, o copia secciones desde otra página.'
+            }
             actionLabel={readOnly || limitMessage ? undefined : 'Agregar sección'}
             onAction={() => openAddDialog(0)}
           />
@@ -335,7 +395,13 @@ export function GuidedEditor({ kind, document, pageId, onDocumentChange, openId,
             ))}
           </ol>
           {!readOnly ? (
-            <Button type="button" variant="outline" className="w-full border-dashed" disabled={Boolean(limitMessage)} onClick={() => openAddDialog(blocks.length)}>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full border-dashed"
+              disabled={Boolean(limitMessage)}
+              onClick={() => openAddDialog(blocks.length)}
+            >
               <Plus aria-hidden="true" /> Agregar sección al final
             </Button>
           ) : null}
@@ -373,8 +439,23 @@ export function GuidedEditor({ kind, document, pageId, onDocumentChange, openId,
 // Mini-guía "qué debe tener un sitio de …" (cuenta las secciones de todo el sitio)
 // ---------------------------------------------------------------------------
 
-function KindGuide({ kind, document, pageTitle, canAdd, hasHero, onAdd }: { kind: WebSiteKind; document: SiteDocument; pageTitle: string; canAdd: boolean; hasHero: boolean; onAdd: (type: BlockType) => void }) {
-  const info = KIND_INFO[kind];
+function KindGuide({
+  kind,
+  document,
+  pageTitle,
+  canAdd,
+  hasHero,
+  onAdd,
+}: {
+  kind: WebSiteKind;
+  document: SiteDocument;
+  pageTitle: string;
+  canAdd: boolean;
+  hasHero: boolean;
+  onAdd: (type: BlockType) => void;
+}) {
+  const { scope } = useEditorRuntime();
+  const info = scope === 'store' ? STORE_KIND_INFO : KIND_INFO[kind];
   const blocks = allBlocks(document);
   const checks = info.mustHave.map((need) => {
     const ok = blocks.some((block) => !block.hidden && block.type === need.type);
@@ -402,14 +483,28 @@ function KindGuide({ kind, document, pageTitle, canAdd, hasHero, onAdd }: { kind
         <ul className="space-y-2">
           {checks.map(({ need, ok, hiddenOnly }) => (
             <li key={`${need.type}-${need.label}`} className="flex items-start gap-2 text-sm">
-              {ok ? <Check className="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" /> : <Circle className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
+              {ok ? (
+                <Check className="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" />
+              ) : (
+                <Circle className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              )}
               <span className="min-w-0 flex-1">
                 <span className={cn('font-medium', ok && 'text-muted-foreground line-through decoration-1')}>{need.label}</span>
                 <span className="sr-only">{ok ? ' (lista)' : ' (falta)'}</span>
-                {!ok ? <span className="block text-xs text-muted-foreground">{hiddenOnly ? 'Ya la tienes, pero está oculta: muéstrala con el botón del ojo.' : need.why}</span> : null}
+                {!ok ? (
+                  <span className="block text-xs text-muted-foreground">
+                    {hiddenOnly ? 'Ya la tienes, pero está oculta: muéstrala con el botón del ojo.' : need.why}
+                  </span>
+                ) : null}
               </span>
               {!ok && canAdd && !hiddenOnly && !(need.type === 'hero' && hasHero) ? (
-                <Button type="button" size="xs" variant="outline" onClick={() => onAdd(need.type)} aria-label={`Agregar sección: ${need.label} (a la página ${pageTitle})`}>
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="outline"
+                  onClick={() => onAdd(need.type)}
+                  aria-label={`Agregar sección: ${need.label} (a la página ${pageTitle})`}
+                >
                   <Plus aria-hidden="true" /> Agregar
                 </Button>
               ) : null}
@@ -426,11 +521,24 @@ function KindGuide({ kind, document, pageTitle, canAdd, hasHero, onAdd }: { kind
 // Punto para insertar una sección entre dos tarjetas
 // ---------------------------------------------------------------------------
 
-function InsertPoint({ position, readOnly, canGrow, onInsert }: { position: number; readOnly: boolean; canGrow: boolean; onInsert: (position: number) => void }) {
+function InsertPoint({
+  position,
+  readOnly,
+  canGrow,
+  onInsert,
+}: {
+  position: number;
+  readOnly: boolean;
+  canGrow: boolean;
+  onInsert: (position: number) => void;
+}) {
   if (readOnly || !canGrow) return <div className="h-3" aria-hidden="true" />;
   return (
     <div className="group/insert relative flex h-6 items-center justify-center">
-      <span aria-hidden="true" className="absolute inset-x-0 top-1/2 border-t border-dashed border-border opacity-0 transition-opacity group-focus-within/insert:opacity-100 group-hover/insert:opacity-100" />
+      <span
+        aria-hidden="true"
+        className="absolute inset-x-0 top-1/2 border-t border-dashed border-border opacity-0 transition-opacity group-focus-within/insert:opacity-100 group-hover/insert:opacity-100"
+      />
       <button
         type="button"
         aria-label={position === 0 ? 'Agregar sección al comienzo de la página' : `Agregar sección aquí (entre la sección ${position} y la ${position + 1})`}
@@ -438,7 +546,9 @@ function InsertPoint({ position, readOnly, canGrow, onInsert }: { position: numb
         className="relative flex h-5 items-center gap-1 rounded-full border border-border bg-card px-1 text-xs text-muted-foreground opacity-50 shadow-card outline-none transition-all group-focus-within/insert:opacity-100 group-hover/insert:opacity-100 hover:border-ring hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         <Plus className="size-3" aria-hidden="true" />
-        <span className="max-w-0 overflow-hidden whitespace-nowrap transition-all group-focus-within/insert:max-w-40 group-focus-within/insert:pr-1 group-hover/insert:max-w-40 group-hover/insert:pr-1">Agregar sección aquí</span>
+        <span className="max-w-0 overflow-hidden whitespace-nowrap transition-all group-focus-within/insert:max-w-40 group-focus-within/insert:pr-1 group-hover/insert:max-w-40 group-hover/insert:pr-1">
+          Agregar sección aquí
+        </span>
       </button>
     </div>
   );
@@ -470,7 +580,26 @@ interface SectionCardProps {
   onInsert: (position: number) => void;
 }
 
-const SectionCard = memo(function SectionCard({ block, index, total, open, readOnly, canGrow, hasOtherPages, document, pageId, theme, onToggleOpen, onMove, onToggleHidden, onDuplicate, onRemove, onChange, onTransfer, onInsert }: SectionCardProps) {
+const SectionCard = memo(function SectionCard({
+  block,
+  index,
+  total,
+  open,
+  readOnly,
+  canGrow,
+  hasOtherPages,
+  document,
+  pageId,
+  theme,
+  onToggleOpen,
+  onMove,
+  onToggleHidden,
+  onDuplicate,
+  onRemove,
+  onChange,
+  onTransfer,
+  onInsert,
+}: SectionCardProps) {
   const info = block.style.canvas?.enabled && block.style.canvas.replaceContent ? { ...BLOCK_INFO[block.type], label: 'Lienzo libre' } : BLOCK_INFO[block.type];
   const Icon = BLOCK_ICONS[info.icon];
   const name = `${info.label} (sección ${index + 1})`;
@@ -479,7 +608,10 @@ const SectionCard = memo(function SectionCard({ block, index, total, open, readO
   return (
     <li>
       <InsertPoint position={index} readOnly={readOnly} canGrow={canGrow} onInsert={onInsert} />
-      <div id={`sec-${block.id}`} className={cn('rounded-lg border bg-card shadow-card', open ? 'border-ring/60' : 'border-border', block.hidden && 'opacity-80')}>
+      <div
+        id={`sec-${block.id}`}
+        className={cn('rounded-lg border bg-card shadow-card', open ? 'border-ring/60' : 'border-border', block.hidden && 'opacity-80')}
+      >
         <div className="flex items-center gap-2 p-2">
           <button
             type="button"
@@ -501,13 +633,37 @@ const SectionCard = memo(function SectionCard({ block, index, total, open, readO
             <ChevronDown className={cn('size-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')} aria-hidden="true" />
           </button>
           <div className="flex shrink-0 items-center gap-0.5">
-            <Button id={`sec-${block.id}-up`} type="button" variant="ghost" size="icon-sm" disabled={readOnly || index === 0} aria-label={`Subir ${name}`} onClick={() => onMove(block.id, -1)}>
+            <Button
+              id={`sec-${block.id}-up`}
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              disabled={readOnly || index === 0}
+              aria-label={`Subir ${name}`}
+              onClick={() => onMove(block.id, -1)}
+            >
               <ArrowUp aria-hidden="true" />
             </Button>
-            <Button id={`sec-${block.id}-down`} type="button" variant="ghost" size="icon-sm" disabled={readOnly || index === total - 1} aria-label={`Bajar ${name}`} onClick={() => onMove(block.id, 1)}>
+            <Button
+              id={`sec-${block.id}-down`}
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              disabled={readOnly || index === total - 1}
+              aria-label={`Bajar ${name}`}
+              onClick={() => onMove(block.id, 1)}
+            >
               <ArrowDown aria-hidden="true" />
             </Button>
-            <Button type="button" variant="ghost" size="icon-sm" disabled={readOnly} aria-label={`${block.hidden ? 'Mostrar' : 'Ocultar'} ${name}`} title={block.hidden ? 'Mostrar en el sitio' : 'Ocultar del sitio (se conserva el contenido)'} onClick={() => onToggleHidden(block.id)}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              disabled={readOnly}
+              aria-label={`${block.hidden ? 'Mostrar' : 'Ocultar'} ${name}`}
+              title={block.hidden ? 'Mostrar en el sitio' : 'Ocultar del sitio (se conserva el contenido)'}
+              onClick={() => onToggleHidden(block.id)}
+            >
               {block.hidden ? <Eye aria-hidden="true" /> : <EyeOff aria-hidden="true" />}
             </Button>
             <SectionMenu
@@ -532,10 +688,26 @@ const SectionCard = memo(function SectionCard({ block, index, total, open, readO
                 {info.help}
               </span>
             </p>
-            {!(block.style.canvas?.enabled && block.style.canvas.replaceContent) && <><LayoutPicker block={block} theme={theme ?? DEFAULT_THEME} document={document} disabled={readOnly} onChange={(next) => onChange(block.id, next)} />
-            <BlockFields block={block} disabled={readOnly} document={document} pageId={pageId} onChange={(next) => onChange(block.id, next)} />
-            </>}
-            <CanvasEditor background={theme?.background} value={block.style.canvas} disabled={readOnly} document={document} pageId={pageId} onChange={(canvas) => onChange(block.id, { ...block, style: { ...block.style, canvas } })} />
+            {!(block.style.canvas?.enabled && block.style.canvas.replaceContent) && (
+              <>
+                <LayoutPicker
+                  block={block}
+                  theme={theme ?? DEFAULT_THEME}
+                  document={document}
+                  disabled={readOnly}
+                  onChange={(next) => onChange(block.id, next)}
+                />
+                <BlockFields block={block} disabled={readOnly} document={document} pageId={pageId} onChange={(next) => onChange(block.id, next)} />
+              </>
+            )}
+            <CanvasEditor
+              background={theme?.background}
+              value={block.style.canvas}
+              disabled={readOnly}
+              document={document}
+              pageId={pageId}
+              onChange={(canvas) => onChange(block.id, { ...block, style: { ...block.style, canvas } })}
+            />
             <SectionStyleFields
               style={block.style}
               type={block.type}

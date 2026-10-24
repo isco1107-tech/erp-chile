@@ -46,11 +46,13 @@ type Row = Record<string, unknown>;
 
 const MODEL_METHODS = {
   webSite: ['findUnique', 'findFirst'],
+  webSiteStore: ['findFirst'],
   webSiteAsset: ['count', 'create', 'aggregate'],
   webSiteMessage: ['create', 'count'],
 } as const;
 
 interface Db {
+  webSiteStore: Mocks;
   webSite: Mocks;
   webSiteAsset: Mocks;
   webSiteMessage: Mocks;
@@ -84,6 +86,7 @@ beforeEach(() => {
   jest.restoreAllMocks();
   jest.resetAllMocks();
   db = installDb();
+  db.webSiteStore.findFirst.mockResolvedValue(null);
 });
 
 afterAll(() => jest.restoreAllMocks());
@@ -105,7 +108,10 @@ function publicRow(over: Row = {}): Row {
     indexable: true,
     logoUrl: null,
     ogImageUrl: null,
-    publishedBlocks: [{ ...createBlock('hero'), title: 'Paneles solares' }, { ...createBlock('contact'), showForm: true }],
+    publishedBlocks: [
+      { ...createBlock('hero'), title: 'Paneles solares' },
+      { ...createBlock('contact'), showForm: true },
+    ],
     publishedTheme: {},
     publishedHtml: null,
     publishedAt: new Date('2026-09-03T12:00:00.000Z'),
@@ -396,7 +402,12 @@ describe('POST /api/public/web-sites/[slug]/contact', () => {
   });
 
   it('éxito: la empresa sale del SITIO, nunca del cuerpo (companyId y siteId del cuerpo se ignoran)', async () => {
-    siteWithForm({ publishedBlocks: [{ ...createBlock('hero'), title: 'Paneles solares' }, { ...createBlock('contact'), id: 'contacto-1', showForm: true }] });
+    siteWithForm({
+      publishedBlocks: [
+        { ...createBlock('hero'), title: 'Paneles solares' },
+        { ...createBlock('contact'), id: 'contacto-1', showForm: true },
+      ],
+    });
 
     const res = await contactPOST(post({ ...VALID, companyId: 'otra', siteId: 'otro-sitio', id: 'inyectado', readAt: '2020-01-01' }), ctx());
 
@@ -454,7 +465,15 @@ describe('POST /api/public/web-sites/[slug]/contact', () => {
     expect(emitWorkflowEvent).toHaveBeenCalledWith(
       COMPANY,
       'WEB_SITE_MESSAGE_RECEIVED',
-      expect.objectContaining({ siteId: SITE_ID, siteName: 'Solar Sur', senderName: 'Ana Pérez', senderEmail: 'ana@correo.cl', senderPhone: '+56 9 1234 5678', message: VALID.message, messageId: 'msg-1' })
+      expect.objectContaining({
+        siteId: SITE_ID,
+        siteName: 'Solar Sur',
+        senderName: 'Ana Pérez',
+        senderEmail: 'ana@correo.cl',
+        senderPhone: '+56 9 1234 5678',
+        message: VALID.message,
+        messageId: 'msg-1',
+      }),
     );
   });
 
@@ -509,11 +528,14 @@ describe('POST /api/web-sites/asset-upload', () => {
   /** `File` acepta ArrayBuffer, no un Uint8Array genérico: se copia el tramo exacto de bytes. */
   const blobPart = (data: Uint8Array): ArrayBuffer => data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
 
-  function upload(options: { siteId?: string | null; content?: Uint8Array; type?: string; name?: string; extra?: Record<string, string> | null; file?: boolean } = {}) {
+  function upload(
+    options: { siteId?: string | null; content?: Uint8Array; type?: string; name?: string; extra?: Record<string, string> | null; file?: boolean } = {},
+  ) {
     const form = new FormData();
     if (options.siteId !== null) form.append('siteId', options.siteId ?? 'site-1');
     for (const [key, value] of Object.entries(options.extra ?? {})) form.append(key, value);
-    if (options.file !== false) form.append('file', new File([blobPart(options.content ?? bytes(PNG))], options.name ?? 'logo.png', { type: options.type ?? 'image/png' }));
+    if (options.file !== false)
+      form.append('file', new File([blobPart(options.content ?? bytes(PNG))], options.name ?? 'logo.png', { type: options.type ?? 'image/png' }));
     return new Request('https://app.test/api/web-sites/asset-upload', { method: 'POST', body: form });
   }
 
@@ -521,7 +543,12 @@ describe('POST /api/web-sites/asset-upload', () => {
     db.webSite.findFirst.mockResolvedValue({ id: 'site-1', status: 'DRAFT', ...over });
     db.webSiteAsset.count.mockResolvedValue(0);
     db.webSiteAsset.aggregate.mockResolvedValue({ _sum: { sizeBytes: 0 } });
-    db.webSiteAsset.create.mockImplementation(async ({ data }: { data: Row }) => ({ id: 'asset-1', ...data, alt: data.alt ?? null, createdAt: new Date('2026-09-10T00:00:00Z') }));
+    db.webSiteAsset.create.mockImplementation(async ({ data }: { data: Row }) => ({
+      id: 'asset-1',
+      ...data,
+      alt: data.alt ?? null,
+      createdAt: new Date('2026-09-10T00:00:00Z'),
+    }));
     jest.mocked(put).mockImplementation((async (pathname: string) => ({ url: `https://blob.test/${pathname}`, pathname })) as never);
   }
 
@@ -552,7 +579,12 @@ describe('POST /api/web-sites/asset-upload', () => {
   });
 
   it.each([
-    ['un SVG con script declarado como image/png', ascii('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(document.cookie)</script></svg>'), 'image/png', 'logo.png'],
+    [
+      'un SVG con script declarado como image/png',
+      ascii('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(document.cookie)</script></svg>'),
+      'image/png',
+      'logo.png',
+    ],
     ['un SVG declarado como image/svg+xml', ascii('<?xml version="1.0"?><svg onload="alert(1)"/>'), 'image/svg+xml', 'logo.svg'],
     ['un HTML declarado como image/png', ascii('<html><body><script>alert(1)</script></body></html>'), 'image/png', 'foto.png'],
     ['un GIF (formato excluido a propósito)', ascii('GIF89a\u0001\u0000\u0001\u0000'), 'image/gif', 'animado.gif'],
@@ -820,7 +852,7 @@ describe('GET /web/[slug]/raw', () => {
 
   it('envuelve el contenido con el título y la descripción del sitio, escapados', async () => {
     db.webSite.findUnique.mockResolvedValue(
-      publicRow({ mode: 'HTML', publishedBlocks: [], publishedHtml: '<p>hola</p>', seoTitle: 'Solar "Sur" <b>', seoDescription: 'Paneles & más' })
+      publicRow({ mode: 'HTML', publishedBlocks: [], publishedHtml: '<p>hola</p>', seoTitle: 'Solar "Sur" <b>', seoDescription: 'Paneles & más' }),
     );
 
     const body = await (await get()).text();
@@ -886,9 +918,9 @@ describe('GET /web/[slug]/raw', () => {
       else process.env.APP_URL = ORIGINAL_APP_URL;
     });
 
-    const htmlSite = (over: Row = {}) => publicRow({ mode: 'HTML', publishedBlocks: [], publishedHtml: '<p>CONTENIDO DEL CLIENTE</p>', customDomain: 'mio.cl', ...over });
-    const getVia = (host: string, slug = 'solar-sur') =>
-      rawGET(new Request(`https://${host}/web/${slug}/raw`, { headers: { host } }), ctx(slug));
+    const htmlSite = (over: Row = {}) =>
+      publicRow({ mode: 'HTML', publishedBlocks: [], publishedHtml: '<p>CONTENIDO DEL CLIENTE</p>', customDomain: 'mio.cl', ...over });
+    const getVia = (host: string, slug = 'solar-sur') => rawGET(new Request(`https://${host}/web/${slug}/raw`, { headers: { host } }), ctx(slug));
 
     it('el host de otro dominio propio NO puede mostrar el HTML de un sitio ajeno: 404 con noindex y sin filtrar el contenido', async () => {
       db.webSite.findUnique.mockResolvedValue(htmlSite());

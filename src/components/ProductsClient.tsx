@@ -230,6 +230,11 @@ export default function ProductsClient() {
                   <td className="p-2">
                     {p.name}
                     {!p.isActive && <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">Archivado</span>}
+                    {p.consignor && (
+                      <span className="ml-2 rounded-full bg-warning-soft px-2 py-0.5 text-xs text-warning" title="Mercadería del seller hasta que se vende">
+                        Consignación · {p.consignor.name}
+                      </span>
+                    )}
                   </td>
                   <td className="p-2">{p.category?.name ?? '—'}</td>
                   <td className="p-2">{p.unit}</td>
