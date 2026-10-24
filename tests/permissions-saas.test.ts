@@ -58,6 +58,13 @@ const FULL: CompanyFeatureFlags = {
   hasTeamTasks: true,
   hasAcademy: true,
   hasEcommerce: true,
+  hasRetailMetrics: true,
+  hasDeadStock: true,
+  hasRetailHeatmap: true,
+  hasBasketAnalysis: true,
+  hasSmartReorder: true,
+  hasShrinkageLiability: true,
+  hasSellerCenter: true,
 };
 
 const STARTER: CompanyFeatureFlags = { ...DEFAULT_FEATURES };

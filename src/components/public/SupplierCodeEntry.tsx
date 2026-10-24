@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Truck } from 'lucide-react';
 import { PublicButton, PublicCard, PublicCardHeader, PublicField, PublicFooter, PublicPage, PublicShell, PublicTopBar } from '@/components/public/PublicShell';
@@ -54,7 +55,9 @@ export default function SupplierCodeEntry({ prefill = '' }: { prefill?: string }
             </PublicButton>
           </form>
         </PublicCard>
-        <PublicFooter>¿No tienes un código? Pídeselo a la empresa a la que le surtes mercadería.</PublicFooter>
+        <PublicFooter>
+          ¿Tienes una cuenta con correo y contraseña? <Link href="/proveedor/cuenta/ingresar">Ingresa aquí</Link>. ¿No tienes un código? Pídeselo a la empresa a la que le surtes mercadería.
+        </PublicFooter>
       </PublicShell>
     </PublicPage>
   );

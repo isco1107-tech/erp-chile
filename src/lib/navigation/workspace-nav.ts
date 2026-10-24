@@ -1,5 +1,5 @@
 import { ALL_PERMISSIONS, type Permission } from '@/lib/auth/permissions';
-import { MODULE_KEYS, type CompanyFeatureFlags } from '@/lib/auth/modules';
+import { MODULE_KEYS, moduleEnabled, type CompanyFeatureFlags } from '@/lib/auth/modules';
 
 /**
  * Registro único de navegación del panel. Lo consumen la barra lateral
@@ -99,7 +99,13 @@ export type NavIconKey =
   | 'quality'
   | 'procedures'
   | 'tasks'
-  | 'delegation';
+  | 'delegation'
+  | 'retail'
+  | 'deadStock'
+  | 'heatmap'
+  | 'basket'
+  | 'reorder'
+  | 'shrinkage';
 
 export interface NavLink {
   /** Identificador estable (ver comentario del archivo). */
@@ -181,7 +187,7 @@ export function buildAvailableWorkspaceNav({ permissions, features }: Omit<NavAc
   push('Inteligencia de Negocio', inteligencia);
 
   if (features.hasInventory && allow('products:read')) {
-    push('Inventario', [
+    const inventory: NavLink[] = [
       { id: 'products', href: '/dashboard/products', label: 'Catálogo de Productos', icon: 'products', keywords: ['productos', 'articulos', 'sku'] },
       { id: 'inventory', href: '/dashboard/inventory', label: 'Inventario', icon: 'inventory', keywords: ['stock', 'bodega', 'kardex', 'existencias'] },
       { id: 'inventory-counts', href: '/dashboard/inventory/counts', label: 'Toma de inventario', icon: 'inventoryCount', keywords: ['conteo', 'inventario fisico', 'merma', 'ajuste', 'cuadratura'] },
@@ -190,7 +196,32 @@ export function buildAvailableWorkspaceNav({ permissions, features }: Omit<NavAc
       { id: 'inventory-movements', href: '/dashboard/inventory/movements', label: 'Movimientos de bodega', icon: 'movements', keywords: ['kardex', 'merma', 'salida', 'ajuste', 'operario', 'foto', 'respaldo', 'degustacion', 'bodega', 'registro', 'quien'] },
       { id: 'inventory-consignment', href: '/dashboard/inventory/consignment', label: 'Consignación', icon: 'consignment', keywords: ['seller', 'sellers', 'consignacion', 'comision', 'liquidacion', 'vendedor externo', 'marketplace', 'mercaderia de terceros', 'pagar a seller'] },
       { id: 'inventory-mobile', href: '/dashboard/inventory/mobile', label: 'Bodega móvil', icon: 'mobile', keywords: ['celular', 'telefono', 'app', 'bodeguero', 'foto', 'camara', 'escanear', 'qr', 'merma', 'llegada'] },
-    ]);
+    ];
+    // Funcionalidad con su propio interruptor dentro de Inventario.
+    if (moduleEnabled(features, 'hasShrinkageLiability')) {
+      inventory.push({ id: 'inventory-shrinkage', href: '/dashboard/inventory/mermas', label: 'Mermas y responsables', icon: 'shrinkage', keywords: ['merma', 'rotura', 'vencido', 'perdida', 'responsable', 'productor', 'proveedor', 'liquidacion', 'faltante', 'quien paga'] });
+    }
+    push('Inventario', inventory);
+  }
+
+  if (features.hasRetailMetrics && allow('retail:read')) {
+    const retail: NavLink[] = [
+      { id: 'retail-live', href: '/dashboard/retail', label: 'Retail en vivo', icon: 'retail', keywords: ['sell through', 'sell-through', 'rotacion', 'dias de inventario', 'cobertura', 'runway', 'quiebre', 'agotado', 'velocidad de venta', 'supermercado', 'gondola', 'en vivo'] },
+    ];
+    // Cada funcionalidad de adentro tiene su propio interruptor.
+    if (moduleEnabled(features, 'hasDeadStock')) {
+      retail.push({ id: 'retail-dead-stock', href: '/dashboard/retail/stock-muerto', label: 'Stock muerto', icon: 'deadStock', keywords: ['sin rotacion', 'detenido', 'inmovilizado', 'no se vende', 'liquidar', 'degustacion', 'rebaja', 'obsoleto', 'stock parado'] });
+    }
+    if (moduleEnabled(features, 'hasRetailHeatmap')) {
+      retail.push({ id: 'retail-heatmap', href: '/dashboard/retail/mapa-de-calor', label: 'Mapa de calor', icon: 'heatmap', keywords: ['rotacion', 'semana', 'precio', 'elasticidad', 'cambio de precio', 'temporada', 'mas vendidos', 'menos vendidos', 'calor'] });
+    }
+    if (moduleEnabled(features, 'hasBasketAnalysis')) {
+      retail.push({ id: 'retail-basket', href: '/dashboard/retail/canasta', label: 'Canasta cruzada', icon: 'basket', keywords: ['cross selling', 'venta cruzada', 'combo', 'se compran juntos', 'promocion conjunta', 'boleta', 'productores', 'pack'] });
+    }
+    if (moduleEnabled(features, 'hasSmartReorder')) {
+      retail.push({ id: 'retail-reorder', href: '/dashboard/retail/reposicion', label: 'Reposición predictiva', icon: 'reorder', keywords: ['reponer', 'pedido', 'quiebre de stock', 'pronostico', 'cuando pedir', 'cuanto pedir', 'tiempo de entrega', 'quincena', 'fin de semana', 'solicitud de compra'] });
+    }
+    push('Métricas de retail', retail);
   }
 
   // CRM como grupo propio: embudo, agenda, contactos y reportes son un

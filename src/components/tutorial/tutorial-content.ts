@@ -93,6 +93,15 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       note('Mermas por motivo', 'Arriba de la lista, el resumen de salidas dice cuánto se pierde y por qué en esa bodega.'),
     ],
   },
+  'inventory-shrinkage': {
+    title: 'Mermas y responsables',
+    steps: [
+      header('Quién responde por cada pérdida', 'Mermas, roturas, vencidos y faltantes de cada bodega, con quién paga: la tienda, el proveedor o el seller.'),
+      note('Asigna o confirma', 'Elige el responsable en la lista o confirma la sugerencia que sale de los acuerdos de tu empresa.'),
+      note('Para la liquidación', 'La tarjeta "Por proveedor o seller" suma lo de cada productor y "Descargar Excel" lo lleva a una planilla.'),
+      note('Lotes por vencer', 'Los administradores eligen con cuántos días de anticipación avisa la campanita.'),
+    ],
+  },
   'inventory-consignment': {
     title: 'Consignación',
     steps: [
@@ -487,6 +496,46 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
     steps: [
       header('Tu operación de punta a punta', 'De cotización a cobro y de compra a pago, reconstruido con tus documentos.'),
       note('Cuellos de botella', 'Cada tramo con su tiempo mediano; la etapa más lenta queda marcada.'),
+    ],
+  },
+  'retail-live': {
+    title: 'Retail en vivo',
+    steps: [
+      header('Ventas y stock al minuto', 'Sell-through y días de inventario restante de cada producto, una bodega a la vez.'),
+      note('Lo urgente primero', 'La tabla parte por lo que se agota antes. Toca una columna para ordenar por ella.'),
+      note('Se actualiza sola', 'Cada minuto mientras la tienes abierta. "Pausar" la detiene y "Actualizar ahora" la trae al instante.'),
+    ],
+  },
+  'retail-dead-stock': {
+    title: 'Stock muerto',
+    steps: [
+      header('Lo que no se vende', 'Productos con stock que llevan muchos días sin rotar, bodega por bodega, con su valor detenido.'),
+      note('Qué hacer con cada uno', 'Cada producto trae una sugerencia: degustación, mejor ubicación, rebaja, liquidar o devolver.'),
+      note('Umbral y avisos', 'Los administradores eligen desde cuántos días cuenta y si la campanita avisa al cumplirlos.'),
+    ],
+  },
+  'retail-heatmap': {
+    title: 'Mapa de calor',
+    steps: [
+      header('Qué rota y qué no', 'Venta de cada producto semana a semana o día a día; más oscuro, más vendido.'),
+      note('Sin stock no es sin demanda', 'Las celdas rayadas son períodos en que el producto no tenía stock.'),
+      note('Cambios de precio', 'Abajo, cómo cambió la venta diaria cuando cambió el precio cobrado.'),
+    ],
+  },
+  'retail-basket': {
+    title: 'Canasta cruzada',
+    steps: [
+      header('Lo que se lleva junto', 'Pares de productos que aparecen en la misma boleta más de lo normal.'),
+      note('Combos sugeridos', 'Los pares más fuertes, en una frase, listos para probar un combo o una promoción conjunta.'),
+      note('Entre productores', 'Marca "Solo productos de proveedores distintos" para buscar promociones entre dos productores.'),
+    ],
+  },
+  'retail-reorder': {
+    title: 'Reposición predictiva',
+    steps: [
+      header('Qué pedir y cuándo', 'Cuándo se agota cada producto y cuánto pedir, con su venta real y lo que tarda el proveedor.'),
+      note('Patrones con respaldo', 'Fin de semana y días de pago se usan solo si los datos los sostienen.'),
+      note('A Compras en un clic', 'Marca productos y crea la solicitud de compra en borrador con las cantidades sugeridas.'),
     ],
   },
   agents: {

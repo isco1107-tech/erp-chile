@@ -155,6 +155,28 @@ describe('webhook de órdenes', () => {
     }
   });
 
+  it('encender una funcionalidad que vive dentro de otro módulo enciende también al padre; apagarla no lo apaga', async () => {
+    const r = await enviar('modulo.activar', { modulo: 'stock_muerto' });
+    expect(r.cuerpo).toMatchObject({ ok: true, mensaje: 'Activado en Aether: stock_muerto' });
+    expect(updateTenantPlan.mock.calls[0][1].features).toMatchObject({ hasDeadStock: true, hasRetailMetrics: true });
+
+    // Con el hijo encendido pero el padre apagado, "ya estaba activo" no es verdad: se enciende el padre.
+    updateTenantPlan.mockClear();
+    findUnique.mockResolvedValue(empresa({ features: { ...DEFAULT_FEATURES, hasDeadStock: true, hasRetailMetrics: false } }));
+    expect((await enviar('modulo.activar', { modulo: 'stock_muerto' })).cuerpo.ok).toBe(true);
+    expect(updateTenantPlan.mock.calls[0][1].features).toMatchObject({ hasDeadStock: true, hasRetailMetrics: true });
+
+    updateTenantPlan.mockClear();
+    findUnique.mockResolvedValue(empresa({ features: { ...DEFAULT_FEATURES, hasDeadStock: true, hasRetailMetrics: true } }));
+    expect((await enviar('modulo.desactivar', { modulo: 'stock_muerto' })).cuerpo.ok).toBe(true);
+    expect(updateTenantPlan.mock.calls[0][1].features).toMatchObject({ hasDeadStock: false, hasRetailMetrics: true });
+
+    // Apagar el padre oculta al hijo sin borrarle su interruptor: al volver, vuelve como estaba.
+    updateTenantPlan.mockClear();
+    expect((await enviar('modulo.desactivar', { modulo: 'metricas_retail' })).cuerpo.ok).toBe(true);
+    expect(updateTenantPlan.mock.calls[0][1].features).toMatchObject({ hasDeadStock: true, hasRetailMetrics: false });
+  });
+
   it('un nombre inexistente en una lista no deja la orden a medias', async () => {
     const r = await enviar('modulo.activar', { modulos: ['pos', 'teletransporte', 'otro'] });
     expect(r.cuerpo).toMatchObject({ ok: false, mensaje: expect.stringContaining('"teletransporte", "otro"') });

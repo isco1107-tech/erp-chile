@@ -224,6 +224,12 @@ export const PERMISSIONS = {
   'store:fulfill': ['OWNER', 'ADMIN', 'SALES', 'WAREHOUSE'],
   'store:manage': ['OWNER', 'ADMIN'],
 
+  // Métricas de retail: unidades vendidas y stock, sin costos ni precios. Las
+  // usan quienes reponen y venden en el local, no solo la dirección.
+  'retail:read': ALL_ROLES,
+  // Cambiar umbrales y avisos afecta lo que ve y recibe todo el equipo.
+  'retail:manage': ['OWNER', 'ADMIN'],
+
   // Fidelización y voz del cliente: lo trabaja el equipo comercial; el
   // contador no lo necesita.
   'customercare:read': ['OWNER', 'ADMIN', 'SALES'],
@@ -383,6 +389,8 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'store:write': 'Publicar productos en la tienda, editar su ficha de venta y atender pedidos',
   'store:fulfill': 'Preparar, despachar y entregar pedidos de la tienda (número de seguimiento incluido)',
   'store:manage': 'Abrir y cerrar la tienda, configurar pagos y envíos, y cancelar pedidos ya pagados',
+  'retail:read': 'Ver las métricas de retail: sell-through y días de inventario restante por producto y bodega',
+  'retail:manage': 'Configurar las métricas de retail: umbrales y avisos (por ejemplo, desde cuántos días un producto es stock muerto)',
   'customercare:read': 'Ver encuestas de satisfacción, canales de origen y seguimientos de clientes',
   'customercare:write': 'Enviar encuestas, registrar seguimientos y ajustar la fidelización',
   'quality:read': 'Ver procedimientos, inspecciones de calidad y fichas de productores',
