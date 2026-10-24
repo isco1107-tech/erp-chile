@@ -98,13 +98,14 @@
       }
       const reachable = await probeConnectivity(4000);
       if (reachable) {
-        await switchWindow('app');
-        return;
+        if (await switchWindow('app')) return;
+        statusEl.textContent = 'No pudimos abrir la aplicación. Reintentando…';
       }
       if (manual) {
         statusEl.textContent = 'Seguimos sin conexión. Reintentando automáticamente…';
         button.disabled = false;
       }
+      button.disabled = false;
       checking = false;
     }
 

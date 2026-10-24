@@ -20,8 +20,10 @@ async function probeConnectivity(timeoutMs) {
 async function switchWindow(mode) {
   try {
     await window.__TAURI__.core.invoke('switch_main_window', { mode });
+    return true;
   } catch (_err) {
     // Si el comando falla, el reintento automático de la pantalla de origen
     // (setInterval en offline.html) lo vuelve a intentar solo.
+    return false;
   }
 }

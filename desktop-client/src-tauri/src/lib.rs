@@ -58,7 +58,7 @@ fn build_main_window(app: &AppHandle, mode: &str) -> tauri::Result<()> {
 /// Una pérdida de red con la caja abierta NUNCA destruye la webview: conserva
 /// el carrito y el resultado pendiente de una venta hasta verificarlo en ERP.
 #[tauri::command]
-fn switch_main_window(app: AppHandle, window: tauri::WebviewWindow, mode: String) -> Result<(), String> {
+async fn switch_main_window(app: AppHandle, window: tauri::WebviewWindow, mode: String) -> Result<(), String> {
     if !is_local_ui_url(&window.url().map_err(|e| e.to_string())?) {
         return Err("Solo la pantalla local puede cambiar la ventana".into());
     }
@@ -83,7 +83,10 @@ fn show_and_focus_main(app: &AppHandle) {
     } else {
         // No debería pasar (la ventana "main" se crea apenas termina el
         // splash), pero si pasa, mostramos algo en vez de no hacer nada.
-        let _ = build_main_window(app, "app");
+        let handle = app.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            let _ = build_main_window(&handle, "app");
+        });
     }
 }
 
