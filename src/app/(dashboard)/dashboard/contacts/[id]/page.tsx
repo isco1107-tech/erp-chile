@@ -19,6 +19,9 @@ import { formatRut } from '@/lib/chile/rut';
 import WhatsAppButton from '@/components/shared/WhatsAppButton';
 import CustomerPortalCard from '@/components/contacts/CustomerPortalCard';
 import SupplierPortalCard from '@/components/contacts/SupplierPortalCard';
+import SellerCenterAccountsCard from '@/components/contacts/SellerCenterAccountsCard';
+import { moduleEnabled } from '@/lib/auth/modules';
+import { listSupplierAccounts } from '@/modules/inventory/services/seller-center.service';
 import { getSupplierPortalAdmin } from '@/modules/inventory/services/supplier-portal.service';
 import { getConsignorSummary } from '@/modules/inventory/services/consignment.service';
 import { getPendingSettlement } from '@/modules/inventory/services/consignment-settlement.service';
@@ -99,6 +102,8 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
   const planRows = paymentPlans?.success ? paymentPlans.data : [];
   // El portal del proveedor (y del seller) entrega datos de la empresa a un tercero: lo administra quien edita la empresa.
   const supplierPortal = (contact.isSupplier || contact.isConsignor) && context.features.hasInventory && can(context, 'settings:company') ? await getSupplierPortalAdmin(context.companyId, id) : null;
+  // Seller Center (interruptor propio dentro de Inventario): cuentas por persona del seller de consignación.
+  const sellerAccounts = contact.isConsignor && moduleEnabled(context.features, 'hasSellerCenter') && can(context, 'settings:company') ? await listSupplierAccounts(context.companyId, id) : null;
   const saleRows = sales?.success ? sales.data.items : [];
   const purchaseRows = purchases?.success ? purchases.data.items : [];
   // Seller de consignación: su mercadería y, si el rol lo permite, lo que se le debe hoy.
@@ -170,6 +175,8 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
       )}
 
       {supplierPortal && <SupplierPortalCard contactId={contact.id} contactName={contact.razonSocial} phone={contact.phone} admin={supplierPortal} baseUrl={getAppUrl()} />}
+
+      {sellerAccounts && <SellerCenterAccountsCard supplierId={contact.id} accounts={sellerAccounts} baseUrl={getAppUrl()} />}
 
       {sponsorships && sponsorshipRows.length > 0 && (
         <SectionCard

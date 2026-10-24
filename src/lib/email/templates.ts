@@ -2163,3 +2163,71 @@ export function buildStoreTeamOrderEmail(input: StoreTeamOrderEmailInput): { sub
   ].join('\n');
   return { subject, html, text };
 }
+
+export interface SupplierAccountInviteEmailInput {
+  companyName: string;
+  supplierName: string;
+  inviterName: string;
+  acceptUrl: string;
+  expiresInDays: number;
+}
+
+/** Invitación al Seller Center: la persona del seller crea su contraseña (o entra con la que ya tiene). */
+export function buildSupplierAccountInviteEmail(input: SupplierAccountInviteEmailInput): { subject: string; html: string; text: string } {
+  const subject = `${input.companyName} te invitó a su portal de proveedores`;
+  const html = layout({
+    title: 'Portal de proveedores',
+    body: `
+      <p style="margin:0 0 12px;"><strong>${escapeHtml(input.inviterName)}</strong>, de <strong>${escapeHtml(input.companyName)}</strong>,
+      te dio acceso a su portal de proveedores en nombre de <strong>${escapeHtml(input.supplierName)}</strong>.</p>
+      <p style="margin:0;">Ahí verás tus ventas, tu mercadería en bodega, tus liquidaciones y tus mermas. Abre el enlace para crear tu
+      contraseña; si ya tienes una cuenta en este portal, entra con la misma.</p>
+    `,
+    ctaLabel: 'Activar mi acceso',
+    ctaUrl: input.acceptUrl,
+    footer: `Este enlace vence en ${input.expiresInDays} días y sirve una sola vez.<br>
+      Si no esperabas esta invitación, ignora este mensaje: sin abrir el enlace no se activa ningún acceso.`,
+  });
+  const text = [
+    `${input.inviterName}, de ${input.companyName}, te dio acceso a su portal de proveedores en nombre de ${input.supplierName}.`,
+    '',
+    'Activa tu acceso en este enlace (crea tu contraseña o entra con la que ya tienes):',
+    input.acceptUrl,
+    '',
+    `El enlace vence en ${input.expiresInDays} días y sirve una sola vez.`,
+    'Si no esperabas esta invitación, ignora este mensaje.',
+  ].join('\n');
+  return { subject, html, text };
+}
+
+export interface SupplierAccountResetEmailInput {
+  name: string;
+  resetUrl: string;
+  expiresInMinutes: number;
+}
+
+export function buildSupplierAccountResetEmail(input: SupplierAccountResetEmailInput): { subject: string; html: string; text: string } {
+  const subject = 'Recupera tu contraseña del portal de proveedores';
+  const html = layout({
+    title: 'Recuperar contraseña',
+    body: `
+      <p style="margin:0 0 12px;">Hola ${escapeHtml(input.name)}, recibimos una solicitud para restablecer la contraseña de tu
+      cuenta del portal de proveedores.</p>
+      <p style="margin:0;">Elige una nueva contraseña desde el siguiente enlace.</p>
+    `,
+    ctaLabel: 'Elegir nueva contraseña',
+    ctaUrl: input.resetUrl,
+    footer: `Este enlace vence en ${input.expiresInMinutes} minutos y sirve una sola vez.<br>
+      Si no pediste el cambio, ignora este correo: tu contraseña actual sigue siendo válida.`,
+  });
+  const text = [
+    `Hola ${input.name}, recibimos una solicitud para restablecer la contraseña de tu cuenta del portal de proveedores.`,
+    '',
+    'Elige una nueva contraseña en este enlace:',
+    input.resetUrl,
+    '',
+    `El enlace vence en ${input.expiresInMinutes} minutos y sirve una sola vez.`,
+    'Si no pediste el cambio, ignora este correo: tu contraseña actual sigue siendo válida.',
+  ].join('\n');
+  return { subject, html, text };
+}

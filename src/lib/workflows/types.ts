@@ -408,6 +408,19 @@ export const WORKFLOW_TRIGGER_DEFINITIONS: Record<WorkflowTriggerEvent, Workflow
       { field: 'message', label: 'Respuestas', kind: 'string' },
     ],
   },
+  DEAD_STOCK_DETECTED: {
+    event: 'DEAD_STOCK_DETECTED',
+    label: 'Stock muerto detectado',
+    description: 'Un producto con stock cumplió los días sin venderse configurados en Métricas de retail → Stock muerto (se avisa al cumplirlos y luego cada otro tanto, no a diario).',
+    fields: [
+      { field: 'sku', label: 'SKU', kind: 'string' },
+      { field: 'productName', label: 'Producto', kind: 'string' },
+      { field: 'warehouseName', label: 'Bodega', kind: 'string' },
+      { field: 'stock', label: 'Stock detenido', kind: 'number' },
+      { field: 'daysStopped', label: 'Días sin rotar', kind: 'number' },
+      { field: 'neverSold', label: 'Nunca se ha vendido', kind: 'boolean' },
+    ],
+  },
   STORE_ORDER_PAID: {
     event: 'STORE_ORDER_PAID',
     label: 'Pedido de la tienda en línea pagado',

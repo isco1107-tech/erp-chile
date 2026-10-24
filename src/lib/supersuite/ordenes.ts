@@ -4,14 +4,14 @@ import { revalidatePath } from 'next/cache';
 import type { Company, CompanyFeatures, Role, WorkflowNotificationSeverity } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { createAuditLog } from '@/lib/auth/audit';
-import { toFeatureFlags, type CompanyFeatureFlags } from '@/lib/auth/modules';
+import { toFeatureFlags, type CompanyFeatureFlags, type FeatureKey } from '@/lib/auth/modules';
 import { notifyCompany } from '@/lib/notifications/company-notification';
 import { cleanRut, formatRut } from '@/lib/chile/rut';
 import { PLAN_NAMES, PLAN_PRESETS } from '@/lib/pricing/presets';
 import { companyCreateSchema, companyPlanUpdateSchema } from '@/modules/platform/schema';
 import * as platformService from '@/modules/platform/services/platform.service';
 import type { ManejadorOrdenes, OrdenRecibida } from './cliente';
-import { catalogoDeModulos, catalogoDePlanes, cuentaConPlan, fichaComercial, flagsDeLaBase, flagsDeModulo, planDeAether } from './modulos';
+import { catalogoDeModulos, catalogoDePlanes, cuentaConPlan, fichaComercial, flagsDeLaBase, flagsDeModulo, flagsParaEncender, planDeAether } from './modulos';
 import { sincronizarEmpresaSupersuite, solicitudModulosAtendidaSupersuite } from './index';
 
 /**
@@ -100,9 +100,11 @@ async function cambiarModulos(orden: OrdenRecibida, encender: boolean) {
 
   const empresa = await empresaDe(orden);
   const features = toFeatureFlags(empresa.features);
-  const porCambiar = grupos.filter((g) => g.flags.some((flag) => features[flag] !== encender));
+  // Encender una funcionalidad que vive dentro de otro módulo enciende también al padre.
+  const flagsDe = (g: { flags: FeatureKey[] }) => (encender ? flagsParaEncender(g.flags) : g.flags);
+  const porCambiar = grupos.filter((g) => flagsDe(g).some((flag) => features[flag] !== encender));
   if (!porCambiar.length) return { mensaje: encender ? 'Ya estaba activo' : 'Ya estaba apagado' };
-  for (const g of porCambiar) for (const flag of g.flags) features[flag] = encender;
+  for (const g of porCambiar) for (const flag of flagsDe(g)) features[flag] = encender;
   await guardarCuenta(empresa, orden, { features });
 
   const tarifaMensual = fichaComercial({ planName: empresa.planName, features, maxUsers: empresa.maxUsers, maxWarehouses: empresa.maxWarehouses, maxWebSites: empresa.maxWebSites }).tarifaMensual;

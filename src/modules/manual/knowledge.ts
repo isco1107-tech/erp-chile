@@ -48,6 +48,11 @@ export const SCREEN_PURPOSES: Record<string, string> = {
   intelligence: 'Salud de la empresa, señales de alerta, clientes RFM, productos ABC y simulador de decisiones.',
   'intelligence-cash': 'Saldo de caja proyectado semana a semana con todos los compromisos con fecha.',
   'intelligence-flows': 'De cotización a cobro y de compra a pago, con tiempos y cuellos de botella.',
+  'retail-live': 'Sell-through y días de inventario restante de cada producto por bodega, actualizado cada minuto.',
+  'retail-dead-stock': 'Productos con stock que llevan muchos días sin venderse, con su valor detenido y una sugerencia para moverlos.',
+  'retail-heatmap': 'Venta de cada producto semana a semana en un mapa de calor, y cómo reaccionó la venta a cada cambio de precio.',
+  'retail-basket': 'Qué productos se compran juntos en la misma boleta y qué pares valen como combo o promoción conjunta.',
+  'retail-reorder': 'Cuándo se agota cada producto y cuánto pedir, según su venta, el día de la semana, los días de pago y el tiempo de entrega del proveedor.',
   agents: 'Recomendaciones de los agentes ejecutivos (CEO, CFO, COO, Ventas) sobre tus datos reales.',
   products: 'Crear y editar productos, precios, códigos de barras, categorías, empaques y si son exentos de IVA.',
   inventory: 'Existencias por bodega, Kardex de cada producto, ajustes de stock y transferencias.',
@@ -57,6 +62,8 @@ export const SCREEN_PURPOSES: Record<string, string> = {
     'Movimientos de bodega: el registro de lo que entró y salió de CADA bodega por separado, con el operario que hizo cada ajuste, el motivo (vencido, mal estado, degustación…), el proveedor de las llegadas y la foto de respaldo. Se filtra y se descarga a Excel.',
   'inventory-consignment':
     'Consignación: mercadería de sellers, que es suya hasta que se vende. Muestra su stock por seller, permite recibir y devolver mercadería, y liquidar lo vendido menos tu comisión (con su pago o anulación). No se valoriza ni genera asientos. Cada seller puede entrar a su portal con un código (se genera desde su ficha) para ver su stock, lo vendido y sus liquidaciones.',
+  'inventory-shrinkage':
+    'Mermas y responsables: cada pérdida de una bodega (merma, rotura, vencido, faltante) con quién responde, la tienda, el proveedor o el seller, para liquidar con cada productor sin discusión; también avisa de los lotes por vencer.',
   'inventory-mobile':
     'Bodega móvil: la app del bodeguero para el celular (llegadas, mermas, traslados, con cámara y sin señal). Aquí se abre con un QR, se ve si la identificación por foto está disponible y qué se registró desde el celular.',
   'inventory-labels': 'Imprimir etiquetas con código de barras en hoja A4 o rollo.',

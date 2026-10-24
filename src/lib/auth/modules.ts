@@ -50,6 +50,13 @@ export type FeatureKey = keyof Pick<
   | 'hasTeamTasks'
   | 'hasAcademy'
   | 'hasEcommerce'
+  | 'hasRetailMetrics'
+  | 'hasDeadStock'
+  | 'hasRetailHeatmap'
+  | 'hasBasketAnalysis'
+  | 'hasSmartReorder'
+  | 'hasShrinkageLiability'
+  | 'hasSellerCenter'
 >;
 
 export type CompanyFeatureFlags = Record<FeatureKey, boolean>;
@@ -62,6 +69,13 @@ export interface ModuleDefinition {
   permissions: Permission[];
   /** Prefijos de ruta bloqueados cuando el módulo no está contratado. */
   routes: string[];
+  /**
+   * Módulo dentro del que vive este (una funcionalidad con interruptor propio
+   * dentro de otro módulo). Solo funciona con los dos encendidos: apagar el
+   * padre la oculta sin borrar su interruptor, y al volver a encenderlo vuelve
+   * como estaba. Usa los permisos del padre.
+   */
+  requires?: FeatureKey;
 }
 
 export const MODULES: ModuleDefinition[] = [
@@ -351,6 +365,68 @@ export const MODULES: ModuleDefinition[] = [
     permissions: ['store:read', 'store:write', 'store:fulfill', 'store:manage'],
     routes: ['/dashboard/store'],
   },
+  {
+    key: 'hasRetailMetrics',
+    label: 'Métricas de retail',
+    description:
+      'Panel en vivo por bodega: sell-through (cuánto del stock disponible se vendió) y días de inventario restante de cada producto según su venta reciente, sin contar los días en que estuvo agotado.',
+    permissions: ['retail:read', 'retail:manage'],
+    routes: ['/dashboard/retail'],
+  },
+  {
+    key: 'hasDeadStock',
+    label: 'Stock muerto',
+    description:
+      'Dentro de Métricas de retail: productos con stock que llevan N días sin venderse (30 por defecto), sin contar lo recién llegado, con su valor detenido, una sugerencia por producto y aviso por campanita y automatizaciones. Requiere Métricas de retail.',
+    permissions: [],
+    routes: ['/dashboard/retail/stock-muerto'],
+    requires: 'hasRetailMetrics',
+  },
+  {
+    key: 'hasRetailHeatmap',
+    label: 'Mapa de calor de rotación',
+    description:
+      'Dentro de Métricas de retail: venta de cada producto semana a semana (o día a día) en un mapa de calor que marca aparte los períodos sin stock, y cómo cambió la venta diaria con cada cambio de precio cobrado. Requiere Métricas de retail.',
+    permissions: [],
+    routes: ['/dashboard/retail/mapa-de-calor'],
+    requires: 'hasRetailMetrics',
+  },
+  {
+    key: 'hasBasketAnalysis',
+    label: 'Canasta cruzada',
+    description:
+      'Dentro de Métricas de retail: qué productos se compran juntos en la misma boleta, cuántas veces más que lo normal, y los pares que valen como combo o promoción conjunta (también entre productores distintos). Requiere Métricas de retail.',
+    permissions: [],
+    routes: ['/dashboard/retail/canasta'],
+    requires: 'hasRetailMetrics',
+  },
+  {
+    key: 'hasSmartReorder',
+    label: 'Reposición predictiva',
+    description:
+      'Dentro de Métricas de retail: cuándo se agota cada producto y cuánto pedir, según su venta real, el día de la semana, los días de pago y el tiempo de entrega de su proveedor; con Compras, arma la solicitud de compra. Requiere Métricas de retail.',
+    permissions: [],
+    routes: ['/dashboard/retail/reposicion'],
+    requires: 'hasRetailMetrics',
+  },
+  {
+    key: 'hasShrinkageLiability',
+    label: 'Mermas con responsable',
+    description:
+      'Dentro de Inventario: quién responde por cada merma, rotura, vencimiento o faltante (la tienda o el productor), con un responsable sugerido por motivo según los acuerdos de la empresa, el resumen por productor para la liquidación y avisos por campanita de los lotes por vencer.',
+    permissions: [],
+    routes: ['/dashboard/inventory/mermas'],
+    requires: 'hasInventory',
+  },
+  {
+    key: 'hasSellerCenter',
+    label: 'Seller Center',
+    description:
+      'Dentro de Inventario: cuentas con correo y contraseña para cada persona de un seller en consignación. Ven, mes a mes, lo vendido de su mercadería con la comisión y lo que les corresponde, su mercadería en bodega, sus liquidaciones y sus mermas. Se invitan desde la ficha del seller.',
+    permissions: [],
+    routes: [],
+    requires: 'hasInventory',
+  },
 ];
 
 export const MODULE_KEYS: FeatureKey[] = MODULES.map((m) => m.key);
@@ -397,6 +473,13 @@ export const DEFAULT_FEATURES: CompanyFeatureFlags = {
   hasTeamTasks: false,
   hasAcademy: false,
   hasEcommerce: false,
+  hasRetailMetrics: false,
+  hasDeadStock: false,
+  hasRetailHeatmap: false,
+  hasBasketAnalysis: false,
+  hasSmartReorder: false,
+  hasShrinkageLiability: false,
+  hasSellerCenter: false,
 };
 
 /** Índice inverso permiso → módulo, construido una vez al cargar el módulo. */
@@ -408,6 +491,16 @@ for (const mod of MODULES) {
 /** Módulo que habilita un permiso, o `undefined` si el permiso es transversal. */
 export function moduleForPermission(permission: Permission): FeatureKey | undefined {
   return PERMISSION_TO_MODULE.get(permission);
+}
+
+/**
+ * El módulo funciona para la empresa: su interruptor encendido y, si vive
+ * dentro de otro (`requires`), también el de ese otro.
+ */
+export function moduleEnabled(features: CompanyFeatureFlags, key: FeatureKey): boolean {
+  if (!features[key]) return false;
+  const parent = MODULES.find((mod) => mod.key === key)?.requires;
+  return parent ? moduleEnabled(features, parent) : true;
 }
 
 export function getModule(key: FeatureKey): ModuleDefinition {
@@ -456,6 +549,13 @@ export function toFeatureFlags(features: CompanyFeatures | null): CompanyFeature
     hasTeamTasks: features.hasTeamTasks,
     hasAcademy: features.hasAcademy,
     hasEcommerce: features.hasEcommerce,
+    hasRetailMetrics: features.hasRetailMetrics,
+    hasDeadStock: features.hasDeadStock,
+    hasRetailHeatmap: features.hasRetailHeatmap,
+    hasBasketAnalysis: features.hasBasketAnalysis,
+    hasSmartReorder: features.hasSmartReorder,
+    hasShrinkageLiability: features.hasShrinkageLiability,
+    hasSellerCenter: features.hasSellerCenter,
   };
 }
 

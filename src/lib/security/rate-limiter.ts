@@ -525,3 +525,20 @@ export const SUPPLIER_PORTAL_RATE_LIMIT: RateLimitConfig = {
   limit: 60,
   windowMs: 15 * 60_000,
 };
+
+/** Seller Center (`/proveedor/cuenta`): intentos de ingreso con correo y contraseña, por IP. */
+export const SUPPLIER_ACCOUNT_LOGIN_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'supplier-account-login-ip',
+  limit: 10,
+  windowMs: 60_000,
+};
+
+/**
+ * Seller Center: pedir un enlace de recuperación o aceptar una invitación, por IP. Cada pedido
+ * puede mandar un correo: más estricto que el ingreso.
+ */
+export const SUPPLIER_ACCOUNT_LINK_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'supplier-account-link-ip',
+  limit: 5,
+  windowMs: 5 * 60_000,
+};

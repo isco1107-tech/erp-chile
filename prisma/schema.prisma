@@ -105,6 +105,10 @@ model Company {
   maxWebSites               Int                           @default(30)
   features                  CompanyFeatures?
   settings                  CompanySettings?
+  retailSettings            RetailSettings?
+  shrinkageSettings         ShrinkageSettings?
+  shrinkageLiabilities      ShrinkageLiability[]
+  supplierPortalMemberships SupplierPortalMembership[]
   taxPeriods                TaxPeriod[]
   customRoles               CustomRole[]
   createdAt                 DateTime                      @default(now())
@@ -606,6 +610,28 @@ model CompanyFeatures {
   /// Tienda en línea dentro del constructor de sitios: catálogo desde el inventario,
   /// carrito, pago verificado, envío/retiro y pedidos. Ver `WebSiteStore`.
   hasEcommerce          Boolean  @default(false)
+  /// Métricas de retail: sell-through y días de inventario restante por producto
+  /// y bodega, calculados en vivo desde el kardex. No guarda datos propios.
+  hasRetailMetrics      Boolean  @default(false)
+  /// Stock muerto (dentro de Métricas de retail, con interruptor propio: se ve
+  /// solo con los dos encendidos). Productos con stock que no rotan.
+  hasDeadStock          Boolean  @default(false)
+  /// Mapa de calor de rotación y reacción al precio (dentro de Métricas de
+  /// retail, con interruptor propio).
+  hasRetailHeatmap      Boolean  @default(false)
+  /// Canasta cruzada: qué productos se compran juntos (dentro de Métricas de
+  /// retail, con interruptor propio).
+  hasBasketAnalysis     Boolean  @default(false)
+  /// Reposición predictiva: cuándo se agota cada producto y cuánto pedir
+  /// (dentro de Métricas de retail, con interruptor propio).
+  hasSmartReorder       Boolean  @default(false)
+  /// Mermas con responsable (dentro de Inventario, con interruptor propio):
+  /// quién responde por cada pérdida (la tienda o el productor) y avisos de
+  /// lotes por vencer.
+  hasShrinkageLiability Boolean  @default(false)
+  /// Seller Center (dentro de Inventario, con interruptor propio): cuentas por
+  /// persona del proveedor/productor con ventas en $, existencias y mermas.
+  hasSellerCenter       Boolean  @default(false)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 }
@@ -707,6 +733,28 @@ model CompanySettings {
   mcpConnectorEnabled        Boolean      @default(false)
   createdAt                  DateTime     @default(now())
   updatedAt                  DateTime     @updatedAt
+}
+
+/// Ajustes de Métricas de retail, 1:1 con la empresa. Sin fila = valores de
+/// fábrica (ver `src/lib/retail/dead-stock.ts`).
+model RetailSettings {
+  id               String   @id @default(cuid())
+  companyId        String   @unique
+  company          Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// Stock muerto: días sin venderse (ni trasladarse a otra bodega) desde los
+  /// que un producto con stock se considera detenido.
+  deadStockDays    Int      @default(30)
+  /// Avisar por campanita y automatizaciones cuando un producto cumple el umbral.
+  deadStockAlerts  Boolean  @default(true)
+  /// Reposición predictiva: días que tarda en llegar un pedido cuando no hay
+  /// uno configurado para el proveedor ni medido en sus órdenes de compra.
+  reorderLeadDays  Int      @default(7)
+  /// Días de venta que debe cubrir cada pedido después de llegar.
+  reorderCoverDays Int      @default(14)
+  /// Tiempo de entrega configurado por proveedor: `{ "<contactId>": días }`.
+  /// Validado con Zod al guardar y al leer; manda sobre el medido.
+  supplierLeadDays Json?
+  updatedAt        DateTime @updatedAt
 }
 
 enum InternalDocumentKind {
@@ -815,10 +863,10 @@ model JobPosition {
 }
 
 model Contact {
-  id                        String                  @id @default(cuid())
+  id                        String                     @id @default(cuid())
   archivedInvoices          ArchivedInvoice[]
   companyId                 String
-  company                   Company                 @relation(fields: [companyId], references: [id])
+  company                   Company                    @relation(fields: [companyId], references: [id])
   rut                       String
   rutClean                  String
   razonSocial               String
@@ -829,8 +877,8 @@ model Contact {
   address                   String?
   comuna                    String?
   region                    String?
-  isCustomer                Boolean                 @default(true)
-  isSupplier                Boolean                 @default(false)
+  isCustomer                Boolean                    @default(true)
+  isSupplier                Boolean                    @default(false)
   /// CLP entero. `null` = sin límite configurado (no se bloquean ventas a
   /// crédito para este cliente). Se valida solo al EMITIR una venta con
   /// `paymentMethod: CREDITO_30`: deuda vigente + total del documento nuevo
@@ -838,20 +886,20 @@ model Contact {
   creditLimit               Int?
   /// Días de crédito pactados (0 = contado). Hoy es informativo — sugiere el
   /// vencimiento en el formulario de venta — no es en sí un límite duro.
-  creditDays                Int                     @default(0)
-  createdAt                 DateTime                @default(now())
-  updatedAt                 DateTime                @updatedAt
+  creditDays                Int                        @default(0)
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
   salesDocuments            SalesDocument[]
   salesOrders               SalesOrder[]
   /// Lista de precios que se aplica por defecto a este cliente (Ventas y
   /// notas de venta). `null` = precio base del catálogo.
   priceListId               String?
-  priceList                 PriceList?              @relation(fields: [priceListId], references: [id], onDelete: SetNull)
+  priceList                 PriceList?                 @relation(fields: [priceListId], references: [id], onDelete: SetNull)
   purchaseDocuments         PurchaseDocument[]
   purchaseOrders            PurchaseOrder[]
   payments                  Payment[]
-  journalLinesAsCustomer    JournalLine[]           @relation("JournalLineCustomer")
-  journalLinesAsSupplier    JournalLine[]           @relation("JournalLineSupplier")
+  journalLinesAsCustomer    JournalLine[]              @relation("JournalLineCustomer")
+  journalLinesAsSupplier    JournalLine[]              @relation("JournalLineSupplier")
   sponsorshipContracts      SponsorshipContract[]
   feeDocuments              FeeDocument[]
   promissoryNotes           PromissoryNote[]
@@ -866,7 +914,7 @@ model Contact {
   /// Correo al que el banco avisa el pago (si no, `email`).
   paymentNoticeEmail        String?
   /// Excluye al cliente de los recordatorios automáticos de cobranza.
-  collectionRemindersPaused Boolean                 @default(false)
+  collectionRemindersPaused Boolean                    @default(false)
   cheques                   Cheque[]
   paymentBatchItems         PaymentBatchItem[]
   collectionReminderLogs    CollectionReminderLog[]
@@ -883,11 +931,13 @@ model Contact {
   customerFollowUps         CustomerFollowUp[]
   supplierProfile           SupplierProfile?
   /// Entradas de mercadería que se anotaron a nombre de este proveedor.
-  suppliedMovements         InventoryMovement[]     @relation("MovementSupplier")
+  suppliedMovements         InventoryMovement[]        @relation("MovementSupplier")
   /// Productos que este proveedor surte (los que ve en su portal).
-  suppliedProducts          ProductSupplier[]       @relation("ProductSupplierContact")
+  suppliedProducts          ProductSupplier[]          @relation("ProductSupplierContact")
+  shrinkageLiabilities      ShrinkageLiability[]       @relation("ShrinkageLiabilitySupplier")
   /// Acceso del proveedor a su portal de inventario (`/proveedor`).
   supplierPortalAccess      SupplierPortalAccess?
+  supplierPortalMemberships SupplierPortalMembership[]
   /// Seller de consignación: pone productos a la venta y la mercadería sigue
   /// siendo suya hasta que se vende. No es proveedor (a un proveedor se le
   /// compra); una misma persona puede ser ambas cosas.
@@ -900,7 +950,7 @@ model Contact {
   sellerSettlements    SellerSettlement[] @relation("ConsignmentSettlementConsignor")
   /// Portal del cliente (`/cliente/[token]`): se guarda solo el hash SHA-256
   /// del enlace; el enlace en claro se muestra una vez al generarlo.
-  portalTokenHash           String?                 @unique
+  portalTokenHash           String?                    @unique
   portalTokenCreatedAt      DateTime?
 
   @@unique([companyId, rutClean])
@@ -1037,13 +1087,13 @@ model Stock {
 }
 
 model InventoryMovement {
-  id             String       @id @default(cuid())
+  id             String              @id @default(cuid())
   companyId      String
-  company        Company      @relation(fields: [companyId], references: [id])
+  company        Company             @relation(fields: [companyId], references: [id])
   productId      String
-  product        Product      @relation(fields: [productId], references: [id])
+  product        Product             @relation(fields: [productId], references: [id])
   warehouseId    String
-  warehouse      Warehouse    @relation(fields: [warehouseId], references: [id])
+  warehouse      Warehouse           @relation(fields: [warehouseId], references: [id])
   type           MovementType
   quantity       Float
   unitCost       Float
@@ -1060,7 +1110,7 @@ model InventoryMovement {
   /// Quién hizo el movimiento (el operario que ajustó). `null` en los que nacen de
   /// un documento de venta o compra y en los anteriores a este campo.
   userId         String?
-  user           User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user           User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
   /// Motivo de una salida o un ajuste: código de `WASTE_REASONS` (vencido, mal
   /// estado, degustación…). `null` cuando el movimiento no tiene un motivo.
   reasonCode     String?
@@ -1069,8 +1119,10 @@ model InventoryMovement {
   evidenceUrl    String?
   /// Proveedor de quien llegó la mercadería (entradas hechas desde la app del bodeguero).
   supplierId     String?
-  supplier       Contact?     @relation("MovementSupplier", fields: [supplierId], references: [id], onDelete: SetNull)
-  createdAt      DateTime     @default(now())
+  supplier       Contact?            @relation("MovementSupplier", fields: [supplierId], references: [id], onDelete: SetNull)
+  /// Quién responde por esta pérdida (solo salidas; ver `ShrinkageLiability`).
+  liability      ShrinkageLiability?
+  createdAt      DateTime            @default(now())
 
   @@index([companyId, productId, createdAt])
   @@index([companyId, warehouseId, createdAt])
@@ -1081,6 +1133,48 @@ model InventoryMovement {
 /// vez que registra una llegada "de" ese proveedor, y se puede ajustar a mano
 /// desde la ficha del proveedor. Es lo que ve el proveedor en su portal: solo
 /// los productos de esta lista, nunca el resto del catálogo.
+/// Quién responde por una pérdida (merma, rotura, vencimiento, faltante): la
+/// tienda o el proveedor/productor. Una fila por salida del kardex, aparte de
+/// `InventoryMovement` para no tocar el registro contable del stock. Se
+/// asigna a mano (o confirmando la sugerencia por motivo de
+/// `ShrinkageSettings.defaults`); sin fila, la pérdida está "sin asignar".
+model ShrinkageLiability {
+  id             String            @id @default(cuid())
+  companyId      String
+  company        Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  movementId     String            @unique
+  movement       InventoryMovement @relation(fields: [movementId], references: [id], onDelete: Cascade)
+  /// `STORE` (la tienda) o `SUPPLIER` (el proveedor o productor). Lista cerrada
+  /// en `src/lib/inventory/shrinkage.ts`.
+  party          String
+  /// Proveedor que responde, si `party = SUPPLIER`.
+  supplierId     String?
+  supplier       Contact?          @relation("ShrinkageLiabilitySupplier", fields: [supplierId], references: [id], onDelete: SetNull)
+  assignedById   String?
+  assignedByName String?
+  assignedAt     DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([companyId, supplierId])
+  @@index([companyId, party])
+}
+
+/// Ajustes de mermas con responsable, 1:1 con la empresa. Sin fila, todo
+/// queda sin sugerencia y los avisos de vencimiento a 7 días.
+model ShrinkageSettings {
+  id              String   @id @default(cuid())
+  companyId       String   @unique
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// Responsable sugerido por motivo: `{ "EXPIRED": "SUPPLIER", … }`. Lo define
+  /// cada empresa según sus acuerdos; validado con Zod al guardar y al leer.
+  defaults        Json?
+  /// Avisar por la campanita de los lotes que están por vencer.
+  expiryAlerts    Boolean  @default(true)
+  /// Con cuántos días de anticipación (además del día en que vence).
+  expiryAlertDays Int      @default(7)
+  updatedAt       DateTime @updatedAt
+}
+
 model ProductSupplier {
   id             String    @id @default(cuid())
   companyId      String
@@ -1116,6 +1210,59 @@ model SupplierPortalAccess {
   lastUsedAt   DateTime?
 
   @@index([companyId])
+}
+
+/// Persona de un proveedor o productor con cuenta en el Seller Center
+/// (`/proveedor/cuenta`). Es una identidad de la PLATAFORMA, sin `companyId`:
+/// la misma persona puede surtir a varias empresas y cada acceso es una
+/// `SupplierPortalMembership`. Ninguna empresa puede ver ni cambiar su
+/// contraseña; los correos de acceso salen por la cuenta de la plataforma.
+model SupplierPortalPerson {
+  id                  String                     @id @default(cuid())
+  /// En minúsculas y sin espacios.
+  email               String                     @unique
+  name                String
+  /// `null` hasta que acepta su primera invitación.
+  passwordHash        String?
+  failedLoginAttempts Int                        @default(0)
+  loginLockedUntil    DateTime?
+  /// Sube al cambiar o recuperar la contraseña: invalida las sesiones abiertas.
+  sessionVersion      Int                        @default(0)
+  resetTokenHash      String?                    @unique
+  resetExpiresAt      DateTime?
+  lastLoginAt         DateTime?
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+  memberships         SupplierPortalMembership[]
+}
+
+/// Acceso de una persona al Seller Center de UNA empresa, en nombre de UN
+/// proveedor de esa empresa. Lo crea la empresa al invitar (`settings:company`)
+/// y lo puede desactivar cuando quiera: la sesión se revalida en cada página.
+model SupplierPortalMembership {
+  id              String               @id @default(cuid())
+  companyId       String
+  company         Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  supplierId      String
+  supplier        Contact              @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  personId        String
+  person          SupplierPortalPerson @relation(fields: [personId], references: [id], onDelete: Cascade)
+  /// El nombre con que ESTA empresa invitó a la persona: su lista nunca muestra el que escribió otra empresa.
+  personName      String
+  isActive        Boolean              @default(true)
+  /// SHA-256 del enlace de invitación (el enlace en claro solo viaja por correo).
+  inviteTokenHash String?              @unique
+  inviteExpiresAt DateTime?
+  acceptedAt      DateTime?
+  invitedById     String?
+  invitedByName   String?
+  lastAccessAt    DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@unique([companyId, personId])
+  @@index([companyId, supplierId])
+  @@index([personId])
 }
 
 enum SellerSettlementStatus {
@@ -3942,6 +4089,10 @@ enum WorkflowTriggerEvent {
   WEB_SITE_MESSAGE_RECEIVED
   /// Pedido de la tienda en línea pagado (confirmado por la pasarela o por el equipo).
   STORE_ORDER_PAID
+  /// Producto con stock que cumplió el umbral de días sin venderse (Métricas de
+  /// retail → Stock muerto). Lo emite la alerta operativa diaria en los hitos
+  /// N, 2N, 3N… días, no a diario.
+  DEAD_STOCK_DETECTED
 }
 
 enum WorkflowActionType {

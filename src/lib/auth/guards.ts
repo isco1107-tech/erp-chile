@@ -6,6 +6,7 @@ import { verifySessionToken, type SessionPayload } from './session';
 import type { Permission } from './permissions';
 import {
   DEFAULT_FEATURES,
+  moduleEnabled,
   moduleForPermission,
   toFeatureFlags,
   type CompanyFeatureFlags,
@@ -270,6 +271,15 @@ export async function requireAuthWithPermission(permission: Permission): Promise
     throw new AuthError('No autorizado para esta acción', 403);
   }
   return context;
+}
+
+/**
+ * Para una funcionalidad con interruptor propio dentro de otro módulo
+ * (`requires`): el permiso del padre no basta, también tiene que estar
+ * encendido su interruptor (y el del padre).
+ */
+export function assertModuleEnabled(context: Pick<AuthContext, 'features'>, key: FeatureKey): void {
+  if (!moduleEnabled(context.features, key)) throw new ModuleNotEnabledError(key);
 }
 
 /** Por qué una página no se puede mostrar a este usuario. */

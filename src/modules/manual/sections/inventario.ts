@@ -316,6 +316,108 @@ export const INVENTARIO_SECTIONS: ManualSection[] = [
     ],
   },
   {
+    id: 'mermas-responsables',
+    key: 'hasShrinkageLiability',
+    // Vive dentro de Inventario: se documenta solo con los dos interruptores encendidos.
+    anyOfFeatures: ['hasInventory'],
+    permission: 'products:read',
+    chapter: 'Inventario',
+    title: 'Mermas y responsables',
+    summary:
+      'Cada pérdida de una bodega —merma, rotura, vencido, faltante de un conteo— con quién responde por ella: la tienda, el proveedor o el seller dueño de la mercadería en consignación. Sirve para la liquidación con cada productor, y avisa por la campanita de los lotes por vencer.',
+    route: '/dashboard/inventory/mermas',
+    screenshot: null,
+    topics: [
+      {
+        id: 'ver-mermas-responsables',
+        title: 'Ver las pérdidas y quién responde',
+        steps: [
+          'Ve a Inventario → Mermas y responsables y elige la bodega en las pestañas de arriba. Cada bodega se ve por separado.',
+          'Por defecto ves los últimos 30 días. Cambia "Desde" y "Hasta", el "Motivo", el "Responsable" o el "Proveedor o seller que responde" y presiona "Aplicar filtros". "Limpiar" vuelve a lo de siempre.',
+          'Arriba ves el total perdido, lo que está a cargo de la tienda, lo que está a cargo de proveedores o sellers y cuántas pérdidas siguen sin asignar (en pesos si tu rol puede ver costos; si no, en unidades).',
+          'La tarjeta "Por proveedor o seller" suma lo asignado a cada productor en el período. Toca su nombre para ver solo sus pérdidas.',
+        ],
+        tip: 'Cuenta como pérdida toda salida con motivo (salvo la devolución al proveedor), los ajustes de salida hechos por una persona y los faltantes de las tomas de inventario. El consumo de producción y las devoluciones por nota de crédito no aparecen.',
+      },
+      {
+        id: 'asignar-responsable',
+        title: 'Asignar quién responde',
+        permission: 'inventory:write',
+        steps: [
+          'En la columna "Quién responde", elige "La tienda" o el proveedor o seller en la lista. Se guarda al instante y queda registrado quién lo asignó.',
+          'Si la pérdida tiene una sugerencia según los acuerdos de tu empresa, aparece "Sugerido: …" con el botón "Confirmar".',
+          'Para aceptar de una vez todas las sugerencias de la bodega y el período, presiona "Confirmar sugerencias". Las que no tienen sugerencia siguen "Sin asignar".',
+          'Elige "Sin asignar" para quitar un responsable puesto por error.',
+        ],
+        tip: 'En la lista aparecen el seller dueño del producto (si es mercadería en consignación) y los proveedores asociados al producto. Si falta uno, asócialo en la ficha del producto.',
+      },
+      {
+        id: 'acuerdos-por-motivo',
+        title: 'Definir los acuerdos y los avisos de vencimiento',
+        permission: 'settings:company',
+        steps: [
+          'Abre "Acuerdos por motivo y avisos de vencimiento" (arriba de las pestañas de bodega). En "Quién responde según el motivo", elige para cada motivo si por defecto responde la tienda o el proveedor/seller, o déjalo en "Sin definir".',
+          'Si responde el proveedor o seller, se sugiere el seller dueño de la mercadería en consignación; si no es de un seller, el proveedor de la llegada registrada o, si el producto tiene uno solo, ese. Con varios proveedores y sin llegada, decide una persona.',
+          'Activa "Avisar de lotes por vencer", elige cuántos días antes en "Avisar con" y presiona "Guardar ajustes". La campanita avisa ese día y el día en que el lote vence.',
+        ],
+      },
+      {
+        id: 'descargar-mermas',
+        title: 'Descargar para la liquidación',
+        steps: [
+          'Aplica los filtros (por ejemplo, un seller y el mes) y presiona "Descargar Excel".',
+          'El archivo trae cada pérdida con su motivo, operario, quién responde, quién lo asignó y el enlace a la foto. Cada descarga queda en la bitácora.',
+        ],
+      },
+    ],
+  },
+  {
+    id: 'seller-center',
+    key: 'hasSellerCenter',
+    // Vive dentro de Inventario: se documenta solo con los dos interruptores encendidos.
+    anyOfFeatures: ['hasInventory'],
+    permission: 'settings:company',
+    chapter: 'Inventario',
+    title: 'Seller Center (cuentas de sellers)',
+    summary:
+      'Cuentas con correo y contraseña para cada persona de un seller en consignación. Entran a /proveedor/cuenta y ven, mes a mes, lo vendido de su mercadería con tu comisión y lo que les corresponde, su mercadería en bodega, lo pendiente de liquidar, sus liquidaciones y sus mermas. Nunca ven costos, clientes, documentos ni a otros sellers.',
+    route: '/dashboard/contacts',
+    screenshot: null,
+    topics: [
+      {
+        id: 'invitar-seller',
+        title: 'Invitar a una persona del seller',
+        steps: [
+          'Abre la ficha del seller (Ventas → Clientes & Proveedores, un contacto marcado como "Seller (consignación)") y busca la tarjeta "Seller Center: cuentas del seller".',
+          'Escribe su nombre y su correo y presiona "Invitar". Le llega un enlace para crear su contraseña; vence en 7 días y sirve una sola vez.',
+          'Si la persona ya tiene cuenta porque otra empresa la invitó, entra con su misma contraseña: no se crea una nueva.',
+          'Mientras no la acepte aparece "Invitación enviada". Con "Reenviar" le llega un enlace nuevo (el anterior deja de servir) y con "Anular" se cancela.',
+        ],
+        tip: 'Cada persona tiene su propia cuenta: si alguien deja de trabajar con el seller, desactivas solo a esa persona. El código del "Portal del seller" sigue funcionando aparte.',
+      },
+      {
+        id: 'quitar-acceso-seller',
+        title: 'Quitar o devolver el acceso',
+        steps: [
+          'En la misma tarjeta, presiona "Desactivar" junto a la persona. Deja de entrar de inmediato, aunque tenga la sesión abierta.',
+          'Para devolverle el acceso, presiona "Reactivar".',
+        ],
+      },
+      {
+        id: 'que-ve-el-seller',
+        title: 'Qué ve el seller',
+        steps: [
+          'Entra en la dirección /proveedor/cuenta de tu sitio con su correo y su contraseña. Si la olvida, la recupera con "¿Olvidaste tu contraseña?".',
+          'Elige el mes y ve lo vendido neto de su mercadería (sin IVA, después de descuentos), tu comisión y lo que le corresponde, por producto: boletas y facturas emitidas menos notas de crédito, con la misma cuenta de sus liquidaciones.',
+          'Ve su mercadería en bodega, lo vendido que falta liquidar y sus liquidaciones (por pagar y pagadas).',
+          'Ve sus mermas del mes con el motivo y la foto: las de su mercadería desde que la recibiste y las que le asignaste. Si usas "Mermas y responsables", también ve quién respondió por cada una.',
+          'Puede descargar todo con "Descargar Excel". Si trabaja con más de una empresa, cambia de una a otra en "Empresa".',
+        ],
+        tip: 'Es información de tu empresa que ve un tercero: invita solo a personas de sellers de confianza.',
+      },
+    ],
+  },
+  {
     id: 'consignacion',
     key: 'hasInventory',
     permission: 'products:read',

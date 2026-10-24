@@ -14,6 +14,8 @@ import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import { captureException } from '@/lib/observability';
 import { findLotExpiryMilestones } from '@/modules/inventory/services/lots.service';
 import { avisarFoliosSupersuite } from '@/lib/supersuite';
+import { alertDeadStock } from '@/modules/retail/services/dead-stock-alerts.service';
+import { alertExpiringLots } from '@/modules/inventory/services/shrinkage.service';
 
 const OPERATIONAL_STATUSES = ['ACTIVE', 'TRIAL'] as const;
 
@@ -207,7 +209,7 @@ export async function runOperationalAlertsCron(): Promise<{ processedCompanies: 
     select: {
       id: true,
       businessName: true,
-      features: { select: { hasInventory: true, hasPurchases: true, hasTreasury: true, hasCandidates: true, hasDteBilling: true } },
+      features: { select: { hasInventory: true, hasPurchases: true, hasTreasury: true, hasCandidates: true, hasDteBilling: true, hasRetailMetrics: true, hasDeadStock: true, hasShrinkageLiability: true } },
     },
   });
 
@@ -260,6 +262,15 @@ export async function runOperationalAlertsCron(): Promise<{ processedCompanies: 
       const lotMilestones = company.features?.hasInventory ? await findLotExpiryMilestones(company.id, new Date()) : [];
       for (const lot of lotMilestones) {
         void emitWorkflowEvent(company.id, 'LOT_EXPIRING', { ...lot });
+      }
+      // Stock muerto (Métricas de retail, con su propio interruptor): avisa solo en los hitos del umbral.
+      // Un fallo acá no debe tapar el resto de las alertas de la empresa.
+      if (company.features?.hasRetailMetrics && company.features.hasDeadStock) {
+        await alertDeadStock(company.id).catch((error: unknown) => captureException(error, { module: 'retail', companyId: company.id, extra: { reason: 'dead-stock-alert' } }));
+      }
+      // Mermas con responsable (con su propio interruptor dentro de Inventario): lotes por vencer a la campanita.
+      if (company.features?.hasInventory && company.features.hasShrinkageLiability) {
+        await alertExpiringLots(company.id).catch((error: unknown) => captureException(error, { module: 'inventario', companyId: company.id, extra: { reason: 'expiring-lots-alert' } }));
       }
 
       const totalIssues = lowStock.length + pendingApprovals.length + overdueReceivables.length + expiringContracts.length + mismatchedPurchases.length;
