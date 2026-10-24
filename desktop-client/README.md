@@ -21,8 +21,10 @@ What this client adds on top of "a browser window pointed at the ERP"
   Only packaged local pages may invoke it; it rejects calls from the hosted
   ERP and refuses to replace an already opened remote app.
 
-The `AetherDesktop` user agent (`src-tauri/src/lib.rs`) keeps root navigation inside
-the ERP, and falls back to login when the session has expired.
+The full ERP edition's `AetherDesktop` user agent keeps root navigation inside
+the ERP and falls back to login when the session has expired. The POS edition
+keeps the native WebView2/WKWebView user agent for browser and Turnstile login
+compatibility; its dedicated `/pos` route determines the destination.
 
 ## Dedicated point of sale
 

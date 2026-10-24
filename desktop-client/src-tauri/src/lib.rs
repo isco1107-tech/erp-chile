@@ -12,8 +12,6 @@ const APP_URL: &str = "https://aetherp.online/dashboard";
 const APP_TITLE: &str = "Aether POS";
 #[cfg(not(feature = "pos"))]
 const APP_TITLE: &str = "Aether ERP";
-#[cfg(feature = "pos")]
-const USER_AGENT: &str = concat!("Mozilla/5.0 AetherDesktop/", env!("CARGO_PKG_VERSION"), " AetherPOS/", env!("CARGO_PKG_VERSION"));
 #[cfg(not(feature = "pos"))]
 const USER_AGENT: &str = concat!("Mozilla/5.0 AetherDesktop/", env!("CARGO_PKG_VERSION"));
 
@@ -38,12 +36,15 @@ fn build_main_window(app: &AppHandle, mode: &str) -> tauri::Result<()> {
         WebviewUrl::External(APP_URL.parse().expect("APP_URL inválida"))
     };
 
-    let window = WebviewWindowBuilder::new(app, "main", target)
+    let builder = WebviewWindowBuilder::new(app, "main", target)
         .title(APP_TITLE)
         .inner_size(1280.0, 800.0)
-        .min_inner_size(900.0, 600.0)
-        .user_agent(USER_AGENT)
-        .build()?;
+        .min_inner_size(900.0, 600.0);
+    // POS uses the native WebView2/WKWebView UA for login/Turnstile compatibility.
+    // Its dedicated /pos entry determines the destination without a UA marker.
+    #[cfg(not(feature = "pos"))]
+    let builder = builder.user_agent(USER_AGENT);
+    let window = builder.build()?;
 
     if let Some(splash) = app.get_webview_window("splash") {
         let _ = splash.close();
@@ -154,14 +155,18 @@ mod tests {
     }
 
     #[test]
-    fn desktop_target_and_user_agent_match_the_edition() {
-        if cfg!(feature = "pos") {
+    fn desktop_target_and_identity_match_the_edition() {
+        #[cfg(feature = "pos")]
+        {
             assert_eq!(APP_URL, "https://aetherp.online/pos");
-            assert!(USER_AGENT.contains(" AetherPOS/"));
-        } else {
-            assert_eq!(APP_URL, "https://aetherp.online/dashboard");
-            assert!(!USER_AGENT.contains(" AetherPOS/"));
+            let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.pos.conf.json")).unwrap();
+            assert_eq!(config["identifier"], "com.aether.pos");
+            assert_eq!(config["productName"], APP_TITLE);
         }
-        assert!(USER_AGENT.contains(env!("CARGO_PKG_VERSION")));
+        #[cfg(not(feature = "pos"))]
+        {
+            assert_eq!(APP_URL, "https://aetherp.online/dashboard");
+            assert!(USER_AGENT.contains(env!("CARGO_PKG_VERSION")));
+        }
     }
 }
