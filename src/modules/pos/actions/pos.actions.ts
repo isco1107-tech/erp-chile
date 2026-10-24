@@ -26,7 +26,12 @@ import type {
 import type { PosProduct, PosSaleListItem, PosSaleResult } from '../services/pos.service';
 
 function redactPosCosts<T extends { items: Array<{ unitCostPMP: number }> }>(sale: T): T {
-  return { ...sale, items: sale.items.map((item) => ({ ...item, unitCostPMP: 0 })) };
+  return { ...sale, items: sale.items.map((item) => ({
+    ...item,
+    unitCostPMP: 0,
+    consignorCommissionBps: null,
+    consignorBaseNet: null,
+  })) };
 }
 
 export type ActionResult<T> =

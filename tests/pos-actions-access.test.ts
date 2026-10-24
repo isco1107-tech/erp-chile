@@ -168,7 +168,7 @@ it('el movimiento usa al operario autenticado y conserva la clave del reintento'
 describe('reserva de costos en la respuesta de venta', () => {
   const sale = {
     id: 'sale-1', folio: 123, totalAmount: 1190, paymentMethod: 'EFECTIVO', changeDue: 810,
-    items: [{ productId: 'product-1', quantity: 1, unitPrice: 1000, total: 1190, unitCostPMP: 550 }],
+    items: [{ productId: 'product-1', quantity: 1, unitPrice: 1000, total: 1190, unitCostPMP: 550, consignorCommissionBps: 2000, consignorBaseNet: 1000 }],
   } as pos.PosSaleResult;
   const input = { items: [{ productId: 'product-1', quantity: 1 }], paymentMethod: 'EFECTIVO', cashReceived: 2000 };
 
@@ -178,7 +178,7 @@ describe('reserva de costos en la respuesta de venta', () => {
     const result = await createPosSaleAction('shift-1', input);
     expect(result.success).toBe(true);
     if (!result.success) throw new Error(result.error);
-    expect(result.data).toMatchObject({ totalAmount: 1190, changeDue: 810, items: [{ unitPrice: 1000, total: 1190, unitCostPMP: canReadCosts ? 550 : 0 }] });
+    expect(result.data).toMatchObject({ totalAmount: 1190, changeDue: 810, items: [{ unitPrice: 1000, total: 1190, unitCostPMP: canReadCosts ? 550 : 0, consignorCommissionBps: canReadCosts ? 2000 : null, consignorBaseNet: canReadCosts ? 1000 : null }] });
     expect(pos.createPosSale).toHaveBeenCalledWith(session.companyId, session.id, 'shift-1', input);
     expect(sale.items[0]!.unitCostPMP).toBe(550);
   });

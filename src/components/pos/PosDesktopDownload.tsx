@@ -31,7 +31,7 @@ export function PosDesktopDownload() {
       <Download className="size-4" aria-hidden="true" /> Descargar app POS
     </Button>
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent>
+      <DialogContent className="theme-saas-light">
         <DialogHeader>
           <DialogTitle>Instalar Aether POS</DialogTitle>
           <DialogDescription>Abre tu punto de venta desde el escritorio y entra con tu cuenta de cajero. Ventas, stock y caja se confirman en el ERP con conexión a internet.</DialogDescription>

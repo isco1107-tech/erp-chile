@@ -195,8 +195,13 @@ test('dos cajeros venden en paralelo, registran efectivo, cierran su turno y el 
     expect(await db().cashShift.findFirstOrThrow({ where: { companyId, userId: secondId } })).toMatchObject({ status: 'CLOSED', initialAmount: 5000, expectedAmount: 5000, actualAmount: 5000, difference: 0 });
     await second.bringToFront();
     await second.evaluate(() => window.dispatchEvent(new Event('focus')));
-    await expect(second.getByText(/Este turno fue cerrado desde otro equipo/)).toBeVisible();
-    await expect(second.getByRole('button', { name: /^Cobrar / })).toBeDisabled();
+    // Next puede sincronizar la página completa al volver al equipo, o el
+    // monitor puede mostrar el aviso conservando el terminal. Ambos estados
+    // deben impedir cobrar en el turno que el supervisor acaba de cerrar.
+    await expect(second.getByText(/Este turno fue cerrado desde otro equipo/).or(second.getByRole('heading', { name: 'Abrir caja', exact: true }))).toBeVisible({ timeout: 20_000 });
+    const chargeButton = second.getByRole('button', { name: /^Cobrar / });
+    if (await chargeButton.count()) await expect(chargeButton).toBeDisabled();
+    else await expect(second.getByRole('button', { name: 'Abrir caja y comenzar a vender' })).toBeDisabled();
   } finally {
     await firstContext.close(); await secondContext.close(); await supervisorContext.close();
   }

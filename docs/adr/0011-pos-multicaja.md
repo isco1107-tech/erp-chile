@@ -1,4 +1,4 @@
-# 0010 · POS independiente y control de turnos multicaja
+# 0011 · POS independiente y control de turnos multicaja
 
 Fecha: 2026-10-23. Estado: aceptado.
 
