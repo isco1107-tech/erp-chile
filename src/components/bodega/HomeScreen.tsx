@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowLeftRight, CloudUpload, LogOut, PackageMinus, PackagePlus, Plus, Search, Trash2, Undo2, TriangleAlert, WifiOff, X } from 'lucide-react';
+import { ArrowLeftRight, CloudUpload, LogOut, PackageMinus, PackagePlus, Plus, Search, ClipboardList, Trash2, Undo2, TriangleAlert, WifiOff, X } from 'lucide-react';
 import { MODE_DEFINITIONS, MOBILE_MODES, type MobileMode } from '@/lib/warehouse-mobile/modes';
 import { useConfirm } from '@/components/ui/confirm-provider';
 import InstallApp from './InstallApp';
@@ -74,10 +74,10 @@ export default function HomeScreen({ onStart, onContinue, onOutbox }: Props) {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex items-center gap-3 border-b border-border bg-card px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))]">
+      <header className="flex flex-wrap items-center gap-3 border-b border-border bg-card px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))]">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-xs text-muted-foreground">{data.company.name}</p>
-          <h1 className="truncate text-lg font-semibold">Hola, {data.user.name.split(' ')[0]}</h1>
+          <p data-truncate className="truncate text-xs text-muted-foreground">{data.company.name}</p>
+          <h1 data-truncate className="truncate text-lg font-semibold">Hola, {data.user.name.split(' ')[0]}</h1>
         </div>
         {!online ? (
           <Pill tone="warning">
@@ -98,13 +98,15 @@ export default function HomeScreen({ onStart, onContinue, onOutbox }: Props) {
       </header>
 
       <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
-        <section className="rounded-3xl bg-primary p-5 text-primary-foreground" aria-label="Estado de tu trabajo">
-          <p className="text-xs font-semibold tracking-widest opacity-70">BODEGA MÓVIL · OPERACIONES</p>
-          <h2 className="mt-2 text-2xl font-semibold">Cada movimiento cuenta.</h2>
-          <p className="mt-2 text-sm opacity-80">Selecciona tu bodega, captura los productos y confirma el envío al ERP.</p>
-          <div className="mt-5 grid grid-cols-3 gap-2 text-center"><div><strong className="block text-2xl">{draft?.lines.length ?? 0}</strong><span className="text-xs opacity-80">En tu lista</span></div><div><strong className="block text-2xl">{summary.pending}</strong><span className="text-xs opacity-80">Por enviar</span></div><div><strong className="block text-2xl">{summary.rejected}</strong><span className="text-xs opacity-80">Por revisar</span></div></div>
+        <section className="rounded-2xl bg-primary p-4 text-primary-foreground" aria-label="Estado de tu trabajo">
+          <p className="text-xs font-semibold tracking-widest opacity-70">BODEGA MÓVIL</p>
+          <h2 className="mt-1 text-lg font-semibold">¿Qué vas a mover hoy?</h2>
+          <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+            <button type="button" onClick={onContinue} disabled={!draft} className="min-h-14 rounded-xl border border-current/20 p-2 disabled:opacity-50"><strong className="block text-xl">{draft?.lines.length ?? 0}</strong><span className="text-xs">En tu lista</span></button>
+            <button type="button" onClick={onOutbox} className="min-h-14 rounded-xl border border-current/20 p-2"><strong className="block text-xl">{summary.pending}</strong><span className="text-xs">Por enviar</span></button>
+            <button type="button" onClick={onOutbox} className="min-h-14 rounded-xl border border-current/20 p-2"><strong className="block text-xl">{summary.rejected}</strong><span className="text-xs">Por revisar</span></button>
+          </div>
         </section>
-        <InstallApp />
         {auth ? (
           <div role="alert" className="rounded-2xl bg-warning-soft p-3 text-sm text-warning">
             <p className="flex items-start gap-2">
@@ -176,6 +178,8 @@ export default function HomeScreen({ onStart, onContinue, onOutbox }: Props) {
           <p className="rounded-2xl bg-muted p-4 text-sm text-muted-foreground">Tu rol solo permite consultar productos. Pide a un administrador que te habilite para registrar movimientos.</p>
         )}
 
+        <InstallApp />
+
         <button type="button" onClick={() => setLooking(true)} className="flex min-h-14 w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 text-left active:bg-muted">
           <Search className="size-5 text-muted-foreground" />
           <span className="flex-1 text-base font-medium">Consultar cuánto hay de un producto</span>
@@ -188,6 +192,12 @@ export default function HomeScreen({ onStart, onContinue, onOutbox }: Props) {
           {summary.pending > 0 ? <Pill tone={summary.stalled > 0 ? 'warning' : 'info'}>{summary.pending} por enviar</Pill> : null}
         </button>
       </div>
+
+      <nav aria-label="Acciones rápidas de bodega" className="grid shrink-0 grid-cols-3 gap-1 border-t bg-card px-3 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
+        <button type="button" onClick={() => setLooking(true)} className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl text-xs font-medium active:bg-muted"><Search className="size-5" aria-hidden="true" />Consultar</button>
+        <button type="button" onClick={onContinue} disabled={!draft} className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl text-xs font-medium active:bg-muted disabled:opacity-40"><ClipboardList className="size-5" aria-hidden="true" />Mi lista{draft?.lines.length ? ` · ${draft.lines.length}` : ''}</button>
+        <button type="button" onClick={onOutbox} className={`flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl text-xs font-medium active:bg-muted ${summary.rejected ? 'text-danger' : ''}`}><CloudUpload className="size-5" aria-hidden="true" />Envíos{summary.pending + summary.rejected > 0 ? ` · ${summary.pending + summary.rejected}` : ''}</button>
+      </nav>
 
       <SearchSheet
         open={looking}
@@ -209,6 +219,7 @@ export default function HomeScreen({ onStart, onContinue, onOutbox }: Props) {
       <Sheet open={menu} title="Menú" onClose={() => setMenu(false)}>
         <div className="space-y-2">
           <a href="/apps" className="flex min-h-12 items-center rounded-xl border px-4 font-medium">Centro de aplicaciones</a>
+          <p className="break-words font-semibold">{data.company.name}</p>
           <p className="text-sm text-muted-foreground">
             {data.user.name} · {data.user.roleLabel}
           </p>

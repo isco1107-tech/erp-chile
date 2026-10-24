@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { ApplicationInstallProvider } from '@/components/apps/InstallApplication';
 export const metadata = {
   title: 'Aether Control',
   manifest: '/control/manifest.webmanifest',
@@ -15,7 +16,9 @@ export const viewport = {
 export default function Layout({ children }: { children: ReactNode }) {
   return (
     <div className="theme-saas-light bodega-app min-h-dvh bg-background text-foreground">
-      {children}
+      <ApplicationInstallProvider scope="/control">
+        {children}
+      </ApplicationInstallProvider>
     </div>
   );
 }

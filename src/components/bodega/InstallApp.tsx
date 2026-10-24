@@ -54,8 +54,7 @@ export function WarehouseInstallProvider({ children }: { children: ReactNode }) 
     prompt.current = null;
     try {
       await event.prompt();
-      await event.userChoice;
-      return true;
+      return (await event.userChoice).outcome === 'accepted';
     } catch {
       return false;
     }

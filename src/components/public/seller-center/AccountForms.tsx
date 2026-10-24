@@ -3,6 +3,7 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import InstallApplication from '@/components/apps/InstallApplication';
 import { KeyRound, LogIn, MailCheck, Truck } from 'lucide-react';
 import { PublicButton, PublicCard, PublicCardHeader, PublicField, PublicFooter, PublicPage, PublicShell, PublicTopBar } from '@/components/public/PublicShell';
 import { PASSWORD_REQUIREMENTS, passwordPolicySchema } from '@/lib/auth/password-policy';
@@ -26,10 +27,11 @@ async function post(path: string, body: unknown): Promise<ApiResult> {
 
 function Frame({ children, footer }: { children: ReactNode; footer?: ReactNode }) {
   return (
-    <PublicPage accent="emerald">
-      <PublicTopBar brand="Portal de proveedores" />
+    <PublicPage accent="gold">
+      <PublicTopBar brand="Aether · Seller Center" />
       <PublicShell>
         {children}
+        <InstallApplication name="Seller Center" scope="/proveedor/cuenta" />
         {footer && <PublicFooter>{footer}</PublicFooter>}
       </PublicShell>
     </PublicPage>

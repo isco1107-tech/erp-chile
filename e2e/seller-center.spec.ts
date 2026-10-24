@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import { expect, test, type Browser } from '@playwright/test';
 import { STATE, seedCatalog } from './bodega-support';
@@ -13,27 +14,47 @@ import { db, disableGuidedTour, owner } from './db';
 
 test.use(STATE);
 
+const collectProblems: (
+  rootSelector: string,
+) => Array<{ kind: string; detail: string }> = createRequire(
+  `${process.cwd()}/package.json`,
+)('./scripts/responsive/page-checks.cjs');
+
 const EMAIL = 'rosa.e2e@productores.cl';
 const PASSWORD = 'Miel-del-Sur-2026';
 const TOKEN = 'E2eSellerCenterToken_0123456789abcdefghijkl';
-const hash = (token: string) => createHash('sha256').update(token, 'utf8').digest('hex');
+const hash = (token: string) =>
+  createHash('sha256').update(token, 'utf8').digest('hex');
 
 const setSellerCenter = async (on: boolean) => {
   const { companyId } = await owner();
-  await db().companyFeatures.upsert({ where: { companyId }, update: { hasInventory: true, hasSellerCenter: on }, create: { companyId, hasInventory: true, hasSellerCenter: on } });
+  await db().companyFeatures.upsert({
+    where: { companyId },
+    update: { hasInventory: true, hasSellerCenter: on },
+    create: { companyId, hasInventory: true, hasSellerCenter: on },
+  });
 };
 
 /** Seller de consignación (comisión 20 %) de la empresa de pruebas; se crea una vez y se reutiliza. */
-async function ensureSeller(razonSocial: string, rutBody: string): Promise<{ id: string; name: string }> {
+async function ensureSeller(
+  razonSocial: string,
+  rutBody: string,
+): Promise<{ id: string; name: string }> {
   const { companyId } = await owner();
   const rutClean = `${rutBody}K`;
   const data = { isConsignor: true, consignmentCommissionBps: 2000 };
-  const found = await db().contact.findFirst({ where: { companyId, rutClean }, select: { id: true } });
+  const found = await db().contact.findFirst({
+    where: { companyId, rutClean },
+    select: { id: true },
+  });
   if (found) {
     await db().contact.update({ where: { id: found.id }, data });
     return { id: found.id, name: razonSocial };
   }
-  const created = await db().contact.create({ data: { companyId, razonSocial, rut: `${rutBody}-K`, rutClean, ...data }, select: { id: true } });
+  const created = await db().contact.create({
+    data: { companyId, razonSocial, rut: `${rutBody}-K`, rutClean, ...data },
+    select: { id: true },
+  });
   return { id: created.id, name: razonSocial };
 }
 
@@ -43,25 +64,69 @@ async function seedSellerSales(warehouseId: string) {
   const seller = await ensureSeller('Miel E2E del Sur', '76222333');
   const other = await ensureSeller('Otro Seller E2E', '76222444');
   const product = async (sku: string, name: string, consignorId: string) => {
-    const found = await db().product.findFirst({ where: { companyId, sku }, select: { id: true } });
+    const found = await db().product.findFirst({
+      where: { companyId, sku },
+      select: { id: true },
+    });
     if (found) {
-      await db().product.update({ where: { id: found.id }, data: { consignorId, costPricePMP: 0 } });
+      await db().product.update({
+        where: { id: found.id },
+        data: { consignorId, costPricePMP: 0 },
+      });
       return found.id;
     }
-    return (await db().product.create({ data: { companyId, sku, name, netPrice: 3000, grossPrice: 3570, costPricePMP: 0, consignorId }, select: { id: true } })).id;
+    return (
+      await db().product.create({
+        data: {
+          companyId,
+          sku,
+          name,
+          netPrice: 3000,
+          grossPrice: 3570,
+          costPricePMP: 0,
+          consignorId,
+        },
+        select: { id: true },
+      })
+    ).id;
   };
   const own = await product('E2E-SC-MIEL', 'Miel E2E Ulmo 500 g', seller.id);
-  const theirs = await product('E2E-SC-OTRO', 'Mermelada E2E de Otro Seller', other.id);
+  const theirs = await product(
+    'E2E-SC-OTRO',
+    'Mermelada E2E de Otro Seller',
+    other.id,
+  );
   const customer =
-    (await db().contact.findFirst({ where: { companyId, rutClean: '666666666' }, select: { id: true } })) ??
-    (await db().contact.create({ data: { companyId, razonSocial: 'Consumidor final E2E', rut: '66.666.666-6', rutClean: '666666666', isCustomer: true }, select: { id: true } }));
-  await db().salesDocumentItem.deleteMany({ where: { companyId, productId: { in: [own, theirs] } } });
+    (await db().contact.findFirst({
+      where: { companyId, rutClean: '666666666' },
+      select: { id: true },
+    })) ??
+    (await db().contact.create({
+      data: {
+        companyId,
+        razonSocial: 'Consumidor final E2E',
+        rut: '66.666.666-6',
+        rutClean: '666666666',
+        isCustomer: true,
+      },
+      select: { id: true },
+    }));
+  await db().salesDocumentItem.deleteMany({
+    where: { companyId, productId: { in: [own, theirs] } },
+  });
   const folio = 900_000 + Math.floor(Math.random() * 90_000);
   const sales = [
     [own, 'Miel E2E Ulmo 500 g', seller.id, 3, 9000, 0],
     [theirs, 'Mermelada E2E de Otro Seller', other.id, 2, 8000, 1],
   ] as const;
-  for (const [productId, description, consignorId, quantity, subtotal, offset] of sales) {
+  for (const [
+    productId,
+    description,
+    consignorId,
+    quantity,
+    subtotal,
+    offset,
+  ] of sales) {
     await db().salesDocument.create({
       data: {
         companyId,
@@ -73,7 +138,46 @@ async function seedSellerSales(warehouseId: string) {
         paymentMethod: 'EFECTIVO',
         netAmount: subtotal,
         totalAmount: subtotal,
-        items: { create: [{ companyId, productId, description, quantity, unitPrice: subtotal / quantity, subtotal, iva: 0, total: subtotal, consignorId, consignorCommissionBps: 2000 }] },
+        items: {
+          create: [
+            {
+              companyId,
+              productId,
+              description,
+              quantity,
+              unitPrice: subtotal / quantity,
+              subtotal,
+              iva: 0,
+              total: subtotal,
+              consignorId,
+              consignorCommissionBps: 2000,
+            },
+          ],
+        },
+      },
+    });
+  }
+  const settlement = await db().sellerSettlement.findFirst({
+    where: { companyId, idempotencyKey: 'e2e-mobile-settlement' },
+    select: { id: true },
+  });
+  if (!settlement) {
+    const max = await db().sellerSettlement.aggregate({
+      where: { companyId },
+      _max: { number: true },
+    });
+    await db().sellerSettlement.create({
+      data: {
+        companyId,
+        consignorId: seller.id,
+        number: (max._max.number ?? 0) + 1,
+        idempotencyKey: 'e2e-mobile-settlement',
+        status: 'PAID',
+        units: 3,
+        netSales: 9000,
+        commissionAmount: 1800,
+        payoutAmount: 7200,
+        paidAt: new Date(),
       },
     });
   }
@@ -83,7 +187,8 @@ async function seedSellerSales(warehouseId: string) {
 }
 
 /** Contexto sin la sesión del panel: el seller no es usuario de la empresa. */
-const supplierContext = (browser: Browser) => browser.newContext({ storageState: { cookies: [], origins: [] } });
+const supplierContext = (browser: Browser) =>
+  browser.newContext({ storageState: { cookies: [], origins: [] } });
 
 test.describe('seller center', () => {
   test.beforeEach(async ({ context }) => {
@@ -94,11 +199,16 @@ test.describe('seller center', () => {
     await setSellerCenter(false);
   });
 
-  test('invitar, activar la cuenta, ver ventas en $, salir y volver a entrar; desactivada queda afuera', async ({ page, request, browser }) => {
+  test('invitar, activar la cuenta, ver ventas en $, salir y volver a entrar; desactivada queda afuera', async ({
+    page,
+    request,
+    browser,
+  }) => {
     const warehouseId = await seedCatalog(request);
     const seller = await seedSellerSales(warehouseId);
     await setSellerCenter(true);
 
+    test.setTimeout(180000);
     // La empresa invita desde la ficha del seller.
     await page.goto(`/dashboard/contacts/${seller.id}`);
     const card = page.getByTestId('seller-center-card');
@@ -106,15 +216,25 @@ test.describe('seller center', () => {
     await card.getByLabel('Correo de la persona').fill(EMAIL);
     await card.getByRole('button', { name: 'Invitar' }).click();
     await expect(page.getByText(`Invitación enviada a ${EMAIL}`)).toBeVisible();
-    await expect(card.getByText('Invitación enviada', { exact: true })).toBeVisible();
-    const person = await db().supplierPortalPerson.findUniqueOrThrow({ where: { email: EMAIL }, select: { id: true } });
-    await db().supplierPortalMembership.updateMany({ where: { personId: person.id }, data: { inviteTokenHash: hash(TOKEN) } });
+    await expect(
+      card.getByText('Invitación enviada', { exact: true }),
+    ).toBeVisible();
+    const person = await db().supplierPortalPerson.findUniqueOrThrow({
+      where: { email: EMAIL },
+      select: { id: true },
+    });
+    await db().supplierPortalMembership.updateMany({
+      where: { personId: person.id },
+      data: { inviteTokenHash: hash(TOKEN) },
+    });
 
     // La persona activa su cuenta con el enlace.
     const supplierCtx = await supplierContext(browser);
     const portal = await supplierCtx.newPage();
     await portal.goto(`/proveedor/cuenta/invitacion/${TOKEN}`);
-    await expect(portal.getByRole('heading', { name: 'Hola, Rosa Productora' })).toBeVisible();
+    await expect(
+      portal.getByRole('heading', { name: 'Hola, Rosa Productora' }),
+    ).toBeVisible();
     await portal.getByLabel('Contraseña nueva').fill('corta');
     await portal.getByLabel('Repite la contraseña').fill('corta');
     await portal.getByRole('button', { name: 'Activar mi acceso' }).click();
@@ -124,21 +244,121 @@ test.describe('seller center', () => {
     await portal.getByRole('button', { name: 'Activar mi acceso' }).click();
 
     // Lo vendido de SU mercadería, con la comisión (20 %) y lo que le corresponde; nunca lo de otro seller.
-    await expect(portal.getByRole('heading', { name: /Tu resumen de/ })).toBeVisible();
+    await expect(
+      portal.getByRole('heading', { name: /Tu resumen de/ }),
+    ).toBeVisible();
     const sales = portal.getByRole('list', { name: 'Ventas por producto' });
     await expect(sales.getByText('Miel E2E Ulmo 500 g')).toBeVisible();
     await expect(sales.getByText('$9.000')).toBeVisible();
     await expect(sales.getByText('$1.800')).toBeVisible();
     await expect(sales.getByText('$7.200')).toBeVisible();
-    await expect(portal.getByText('Mermelada E2E de Otro Seller')).toHaveCount(0);
-    await expect(portal.getByRole('heading', { name: 'Tu mercadería en consignación' })).toBeVisible();
-    const [download] = await Promise.all([portal.waitForEvent('download'), portal.getByRole('link', { name: 'Descargar Excel' }).click()]);
-    expect(download.suggestedFilename()).toMatch(/^portal-proveedor-\d{4}-\d{2}\.xlsx$/);
+    await expect(portal.getByText('Mermelada E2E de Otro Seller')).toHaveCount(
+      0,
+    );
+    await expect(
+      portal.getByRole('heading', { name: 'Tu mercadería en consignación' }),
+    ).toBeVisible();
+    await portal.setViewportSize({ width: 390, height: 844 });
+    await portal
+      .getByRole('searchbox', { name: 'Buscar en mis ventas' })
+      .fill('NoExiste');
+    await expect(
+      portal.getByText('No hay productos que coincidan con tu búsqueda.', {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await portal
+      .getByRole('searchbox', { name: 'Buscar en mis ventas' })
+      .fill('Miel');
+    await expect(sales.getByText('Miel E2E Ulmo 500 g')).toBeVisible();
+    await portal
+      .getByRole('searchbox', { name: 'Buscar en mis ventas' })
+      .fill('');
+    await portal
+      .getByRole('searchbox', { name: 'Buscar en mi mercadería' })
+      .fill('NoExiste');
+    await expect(
+      portal.getByText('No hay mercadería que coincida con tu búsqueda.', {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await portal
+      .getByRole('searchbox', { name: 'Buscar en mi mercadería' })
+      .fill('');
+    await expect(
+      portal.getByRole('list', { name: 'Liquidaciones en el teléfono' }),
+    ).toBeVisible();
+    await expect(
+      portal
+        .getByRole('list', { name: 'Liquidaciones en el teléfono' })
+        .getByText('Pagada', { exact: true }),
+    ).toBeVisible();
+    await db().supplierPortalPerson.updateMany({
+      where: { id: person.id },
+      data: {
+        name: 'Rosa Productora de Temuco/Longuimay y representante de la asociación de pequeños productores del sur',
+      },
+    });
+    await portal.reload();
+    for (const width of [
+      280, 320, 360, 375, 390, 430, 768, 820, 1024, 1280, 1440, 1920, 2560,
+    ]) {
+      await portal.setViewportSize({ width, height: 844 });
+      const problems = await portal.evaluate(collectProblems, '.sc-app');
+      expect(problems, JSON.stringify(problems, null, 2)).toEqual([]);
+      await portal.screenshot({
+        path: `.vercel/apps-review/seller-${width}.png`,
+        fullPage: true,
+      });
+    }
+    await portal.setViewportSize({ width: 390, height: 844 });
+    await portal
+      .getByRole('navigation', { name: 'Secciones de Seller Center' })
+      .getByRole('link', { name: 'Mercadería', exact: true })
+      .click();
+    await expect(portal).toHaveURL(/#seller-stock$/);
+    await portal.getByRole('navigation', { name: 'Secciones de Seller Center' }).getByRole('link', { name: 'Mermas', exact: true }).click();
+    await expect(portal.getByRole('heading', { name: /^Mermas de/ })).toBeInViewport();
+    await portal.screenshot({ path: '.vercel/apps-review/seller-mermas-390.png' });
+    await portal.getByRole('heading', { name: 'Tus liquidaciones', exact: true }).scrollIntoViewIfNeeded();
+    await expect(portal.getByRole('list', { name: 'Liquidaciones en el teléfono' })).toBeVisible();
+    await portal.screenshot({ path: '.vercel/apps-review/seller-liquidaciones-390.png' });
+    await supplierCtx.setOffline(true);
+    await expect(
+      portal.getByText(
+        'Sin conexión · estos datos pueden estar desactualizados',
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(
+      portal.getByRole('button', { name: 'Actualizar', exact: true }),
+    ).toBeDisabled();
+    await supplierCtx.setOffline(false);
+    await portal.route('**/api/supplier-portal/logout', (route) =>
+      route.fulfill({ status: 503, json: { error: 'Sin conexión' } }),
+    );
+    await portal.getByRole('button', { name: 'Salir', exact: true }).click();
+    await expect(portal.getByText('No se pudo cerrar la sesión. Revisa la conexión e inténtalo nuevamente.', { exact: true })).toBeVisible();
+    await expect(
+      portal.getByRole('heading', { name: /Tu resumen de/ }),
+    ).toBeVisible();
+    await portal.unroute('**/api/supplier-portal/logout');
+    const [download] = await Promise.all([
+      portal.waitForEvent('download'),
+      portal.getByRole('link', { name: 'Descargar Excel' }).click(),
+    ]);
+    expect(download.suggestedFilename()).toMatch(
+      /^portal-proveedor-\d{4}-\d{2}\.xlsx$/,
+    );
 
     // Su cookie no sirve como sesión del panel.
-    const cookie = (await supplierCtx.cookies()).find((entry) => entry.name === 'supplier_session');
+    const cookie = (await supplierCtx.cookies()).find(
+      (entry) => entry.name === 'supplier_session',
+    );
     expect(cookie?.httpOnly).toBe(true);
-    const forged = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const forged = await browser.newContext({
+      storageState: { cookies: [], origins: [] },
+    });
     await forged.addCookies([{ ...cookie!, name: 'session' }]);
     const forgedPage = await forged.newPage();
     await forgedPage.goto('/dashboard');
@@ -147,39 +367,63 @@ test.describe('seller center', () => {
 
     // Salir y volver a entrar; con la contraseña equivocada no.
     await portal.getByRole('button', { name: 'Salir' }).click();
-    await expect(portal.getByRole('heading', { name: 'Ingresa a tu cuenta' })).toBeVisible();
+    await expect(
+      portal.getByRole('heading', { name: 'Ingresa a tu cuenta' }),
+    ).toBeVisible();
     await portal.getByLabel('Correo').fill(EMAIL);
     await portal.getByLabel('Contraseña').fill('Otra-Clave-2026');
     await portal.getByRole('button', { name: 'Ingresar' }).click();
-    await expect(portal.getByText('Correo o contraseña incorrectos')).toBeVisible();
+    await expect(
+      portal.getByText('Correo o contraseña incorrectos'),
+    ).toBeVisible();
     await portal.getByLabel('Contraseña').fill(PASSWORD);
     await portal.getByRole('button', { name: 'Ingresar' }).click();
-    await expect(portal.getByRole('heading', { name: /Tu resumen de/ })).toBeVisible();
+    await expect(
+      portal.getByRole('heading', { name: /Tu resumen de/ }),
+    ).toBeVisible();
 
     // La empresa la desactiva: en la siguiente página queda afuera, aunque tenga la sesión abierta.
     await page.reload();
     await expect(card.getByText('Activa', { exact: true })).toBeVisible();
     await card.getByRole('button', { name: 'Desactivar' }).click();
-    await page.getByRole('alertdialog').getByRole('button', { name: 'Desactivar' }).click();
-    await expect(page.getByText('Acceso desactivado: ya no puede entrar')).toBeVisible();
+    await page
+      .getByRole('alertdialog')
+      .getByRole('button', { name: 'Desactivar' })
+      .click();
+    await expect(
+      page.getByText('Acceso desactivado: ya no puede entrar'),
+    ).toBeVisible();
     await portal.reload();
-    await expect(portal.getByRole('heading', { name: 'Ingresa a tu cuenta' })).toBeVisible();
+    await expect(
+      portal.getByRole('heading', { name: 'Ingresa a tu cuenta' }),
+    ).toBeVisible();
     await supplierCtx.close();
   });
 
-  test('apagado: el portal no existe y la ficha no ofrece invitar', async ({ page, request, browser }) => {
+  test('apagado: el portal no existe y la ficha no ofrece invitar', async ({
+    page,
+    request,
+    browser,
+  }) => {
     const warehouseId = await seedCatalog(request);
     const seller = await seedSellerSales(warehouseId);
     await setSellerCenter(false);
 
     await page.goto(`/dashboard/contacts/${seller.id}`);
-    await expect(page.getByRole('heading', { name: 'Miel E2E del Sur' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Miel E2E del Sur' }),
+    ).toBeVisible();
     await expect(page.getByTestId('seller-center-card')).toHaveCount(0);
 
     const supplierCtx = await supplierContext(browser);
-    const response = await supplierCtx.request.post('/api/supplier-portal/login', { data: { email: EMAIL, password: PASSWORD } });
+    const response = await supplierCtx.request.post(
+      '/api/supplier-portal/login',
+      { data: { email: EMAIL, password: PASSWORD } },
+    );
     expect(response.status()).toBe(401);
-    const exported = await supplierCtx.request.get('/api/supplier-portal/export');
+    const exported = await supplierCtx.request.get(
+      '/api/supplier-portal/export',
+    );
     expect(exported.status()).toBe(401);
     await supplierCtx.close();
   });
