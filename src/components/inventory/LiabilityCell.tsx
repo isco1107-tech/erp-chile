@@ -22,13 +22,13 @@ const partyText = (party: LiableParty, supplier: { name: string } | null) => (pa
 /**
  * Quién responde por una pérdida: el estado, la sugerencia según los acuerdos
  * de la empresa y (con `inventory:write`) el selector para asignarlo. La
- * acción valida en el servidor que la pérdida y el proveedor sean de la empresa.
+ * acción valida en el servidor que la pérdida y el proveedor o seller sean de la empresa.
  */
 export function LiabilityCell({ row, canEdit }: { row: Pick<ShrinkageRow, 'id' | 'productName' | 'state' | 'liability' | 'suggestion' | 'productSuppliers'>; canEdit: boolean }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
-  // Los proveedores del producto, más el sugerido o el asignado si no está entre ellos.
+  // El seller dueño y los proveedores del producto, más el sugerido o el asignado si no está entre ellos.
   const suppliers = [...row.productSuppliers];
   for (const extra of [row.suggestion?.supplier, row.liability?.supplier]) if (extra && !suppliers.some((entry) => entry.id === extra.id)) suppliers.push(extra);
 
@@ -81,7 +81,7 @@ export function LiabilityCell({ row, canEdit }: { row: Pick<ShrinkageRow, 'id' |
           <option value="">Sin asignar</option>
           <option value="STORE">{LIABLE_PARTY_LABELS.STORE}</option>
           {suppliers.length > 0 ? (
-            <optgroup label="El proveedor">
+            <optgroup label="El proveedor o seller">
               {suppliers.map((supplier) => (
                 <option key={supplier.id} value={`SUPPLIER:${supplier.id}`}>
                   {supplier.name}
@@ -90,7 +90,7 @@ export function LiabilityCell({ row, canEdit }: { row: Pick<ShrinkageRow, 'id' |
             </optgroup>
           ) : (
             <option value="SUPPLIER:" disabled>
-              El proveedor (el producto no tiene proveedor asociado)
+              El proveedor o seller (el producto no tiene ninguno asociado)
             </option>
           )}
         </select>

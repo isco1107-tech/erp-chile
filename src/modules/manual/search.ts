@@ -15,19 +15,28 @@ export function normalizeSearch(text: string): string {
  * Filtra el manual por un texto libre. Cada palabra debe aparecer en el
  * título de la sección, del tema, en su resumen o en algún paso: "anular
  * boleta" encuentra "Anular una boleta hecha por error" aunque las palabras
- * no estén juntas.
+ * no estén juntas. Lo que coincide en un título va primero (quien busca
+ * "liquidación" quiere el tema que se llama así, no uno que la menciona de
+ * pasada); a igual relevancia se conserva el orden del manual.
  */
 export function searchManual(sections: readonly ManualSection[], query: string): ManualSection[] {
   const words = normalizeSearch(query).split(/\s+/).filter(Boolean);
   if (words.length === 0) return [...sections];
+  const inTitle = (title: string) => {
+    const text = normalizeSearch(title);
+    return words.every((word) => text.includes(word));
+  };
   return sections
-    .map((section) => {
+    .map((section, order) => {
       const sectionText = normalizeSearch(`${section.title} ${section.summary}`);
       const topics = section.topics.filter((topic) => {
         const haystack = `${sectionText} ${normalizeSearch([topic.title, ...topic.steps, topic.tip ?? ''].join(' '))}`;
         return words.every((word) => haystack.includes(word));
       });
-      return { ...section, topics };
+      const score = (inTitle(section.title) ? 2 : 0) + (topics.some((topic) => inTitle(topic.title)) ? 1 : 0);
+      return { section: { ...section, topics }, score, order };
     })
-    .filter((section) => section.topics.length > 0);
+    .filter((entry) => entry.section.topics.length > 0)
+    .sort((a, b) => b.score - a.score || a.order - b.order)
+    .map((entry) => entry.section);
 }

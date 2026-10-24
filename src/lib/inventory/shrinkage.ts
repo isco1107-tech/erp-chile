@@ -9,9 +9,10 @@ import { WASTE_REASONS, type WasteReason } from '@/lib/warehouse-mobile/modes';
  * - El responsable sugerido sale de lo que la EMPRESA definió por motivo
  *   (sus acuerdos con cada productor); sin definición no hay sugerencia y la
  *   pérdida queda "sin asignar". No se inventa un reparto.
- * - Si responde el proveedor, tiene que quedar claro CUÁL: el de la llegada
- *   del movimiento o, si el producto tiene uno solo, ese. Con varios y sin
- *   llegada, decide una persona.
+ * - Si responde el proveedor, tiene que quedar claro CUÁL: el seller dueño de
+ *   la mercadería en consignación (`Product.consignorId`), si no el de la
+ *   llegada del movimiento o, si el producto tiene uno solo, ese. Con varios y
+ *   sin llegada, decide una persona.
  * - Los motivos son los de `WASTE_REASONS` (lista cerrada que nunca se
  *   renombra) más `NONE` para las salidas sin motivo (faltantes de un conteo).
  */
@@ -21,7 +22,7 @@ export type LiableParty = (typeof LIABLE_PARTIES)[number];
 
 export const LIABLE_PARTY_LABELS: Record<LiableParty, string> = {
   STORE: 'La tienda',
-  SUPPLIER: 'El proveedor',
+  SUPPLIER: 'El proveedor o seller',
 };
 
 /** Motivos que pueden tener un responsable por defecto: los de la app de bodega y "sin motivo". */
@@ -50,6 +51,8 @@ export interface LiabilitySuggestion {
 export function suggestLiability(input: {
   reasonCode: string | null;
   defaults: Partial<Record<ShrinkageReasonKey, LiableParty>>;
+  /** Seller dueño de la mercadería en consignación, si la tiene: es quien responde. */
+  productConsignorId?: string | null;
   /** Proveedor de la llegada registrada en el propio movimiento, si lo hay. */
   movementSupplierId: string | null;
   /** Proveedores del producto (`ProductSupplier`). */
@@ -58,7 +61,7 @@ export function suggestLiability(input: {
   const party = input.defaults[reasonKey(input.reasonCode)];
   if (!party) return null;
   if (party === 'STORE') return { party, supplierId: null };
-  const supplierId = input.movementSupplierId ?? (input.productSupplierIds.length === 1 ? input.productSupplierIds[0]! : null);
+  const supplierId = input.productConsignorId ?? input.movementSupplierId ?? (input.productSupplierIds.length === 1 ? input.productSupplierIds[0]! : null);
   return supplierId ? { party, supplierId } : null;
 }
 
@@ -121,7 +124,7 @@ export const LIABILITY_STATES = ['UNASSIGNED', 'STORE', 'SUPPLIER'] as const sat
 export const LIABILITY_STATE_LABELS: Record<LiabilityState, string> = {
   UNASSIGNED: 'Sin asignar',
   STORE: 'La tienda',
-  SUPPLIER: 'El proveedor',
+  SUPPLIER: 'El proveedor o seller',
 };
 
 export const isLiabilityState = (value: unknown): value is LiabilityState =>

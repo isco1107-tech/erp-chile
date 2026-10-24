@@ -4,7 +4,7 @@ import { db, disableGuidedTour, ensureSupplier, owner } from './db';
 
 /**
  * Mermas con responsable (Inventario, con su propio interruptor): la pérdida de una bodega se asigna al
- * proveedor, cuenta en "Por proveedor" y se descarga a Excel; con el interruptor apagado no aparece en el
+ * proveedor, cuenta en "Por proveedor o seller" y se descarga a Excel; con el interruptor apagado no aparece en el
  * menú y la ruta y la descarga quedan cerradas. Los interruptores se cambian en la base, como lo haría la
  * orden `modulo.activar|desactivar` de la Supersuite.
  */

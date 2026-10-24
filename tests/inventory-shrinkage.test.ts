@@ -30,6 +30,11 @@ describe('responsable sugerido', () => {
     expect(reasonKey('INVENTADO')).toBe('NONE');
   });
 
+  it('la mercadería de un seller la responde su dueño, antes que la llegada o los proveedores', () => {
+    expect(suggestLiability({ reasonCode: 'EXPIRED', defaults, productConsignorId: 'seller', movementSupplierId: 'llegada', productSupplierIds: ['a', 'b'] })).toEqual({ party: 'SUPPLIER', supplierId: 'seller' });
+    expect(suggestLiability({ reasonCode: 'DAMAGED', defaults, productConsignorId: 'seller', movementSupplierId: null, productSupplierIds: [] })).toEqual({ party: 'STORE', supplierId: null });
+  });
+
   it('el proveedor: el de la llegada, o el único del producto; con varios y sin llegada decide una persona', () => {
     expect(suggestLiability({ reasonCode: 'EXPIRED', defaults, movementSupplierId: 'llegada', productSupplierIds: ['a', 'b'] })).toEqual({ party: 'SUPPLIER', supplierId: 'llegada' });
     expect(suggestLiability({ reasonCode: 'EXPIRED', defaults, movementSupplierId: null, productSupplierIds: ['a'] })).toEqual({ party: 'SUPPLIER', supplierId: 'a' });

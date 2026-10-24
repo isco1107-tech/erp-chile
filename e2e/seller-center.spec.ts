@@ -1,12 +1,12 @@
 import { createHash } from 'node:crypto';
 import { expect, test, type Browser } from '@playwright/test';
 import { STATE, seedCatalog } from './bodega-support';
-import { db, disableGuidedTour, ensureSupplier, owner } from './db';
+import { db, disableGuidedTour, owner } from './db';
 
 /**
- * Seller Center (Inventario, con su propio interruptor): la empresa invita a una persona del
- * proveedor desde su ficha; la persona activa su cuenta con el enlace, ve sus ventas en $ (solo de
- * lo que surte en exclusiva), descarga el Excel, sale y vuelve a entrar. Desactivarla la deja afuera
+ * Seller Center (Inventario, con su propio interruptor): la empresa invita a una persona de un seller
+ * desde su ficha; la persona activa su cuenta con el enlace, ve lo vendido de su mercadería con la
+ * comisión y lo que le corresponde (nunca lo de otro seller), descarga el Excel, sale y vuelve a entrar. Desactivarla la deja afuera
  * aunque tenga la sesión abierta, su cookie no sirve como sesión del panel y, con el interruptor
  * apagado, el portal no existe. El enlace del correo se fija en la base (el correo no sale en local).
  */
@@ -23,26 +23,45 @@ const setSellerCenter = async (on: boolean) => {
   await db().companyFeatures.upsert({ where: { companyId }, update: { hasInventory: true, hasSellerCenter: on }, create: { companyId, hasInventory: true, hasSellerCenter: on } });
 };
 
-/** Proveedor con un producto exclusivo vendido hoy (3 × $3.000 neto) y otro compartido con otro proveedor. */
-async function seedSupplierSales(warehouseId: string) {
+/** Seller de consignación (comisión 20 %) de la empresa de pruebas; se crea una vez y se reutiliza. */
+async function ensureSeller(razonSocial: string, rutBody: string): Promise<{ id: string; name: string }> {
   const { companyId } = await owner();
-  const supplier = await ensureSupplier('Miel E2E del Sur', '76222333');
-  const other = await ensureSupplier('Otro Productor E2E', '76222444');
-  const product = async (sku: string, name: string, suppliers: string[]) => {
-    const found = (await db().product.findFirst({ where: { companyId, sku }, select: { id: true } })) ?? (await db().product.create({ data: { companyId, sku, name, netPrice: 3000, grossPrice: 3570, costPricePMP: 1234 }, select: { id: true } }));
-    for (const supplierId of suppliers) {
-      await db().productSupplier.upsert({ where: { productId_supplierId: { productId: found.id, supplierId } }, update: {}, create: { companyId, productId: found.id, supplierId } });
+  const rutClean = `${rutBody}K`;
+  const data = { isConsignor: true, consignmentCommissionBps: 2000 };
+  const found = await db().contact.findFirst({ where: { companyId, rutClean }, select: { id: true } });
+  if (found) {
+    await db().contact.update({ where: { id: found.id }, data });
+    return { id: found.id, name: razonSocial };
+  }
+  const created = await db().contact.create({ data: { companyId, razonSocial, rut: `${rutBody}-K`, rutClean, ...data }, select: { id: true } });
+  return { id: created.id, name: razonSocial };
+}
+
+/** Un seller con su producto vendido hoy (3 × $3.000 neto) y otro seller con una venta que no debe ver. */
+async function seedSellerSales(warehouseId: string) {
+  const { companyId } = await owner();
+  const seller = await ensureSeller('Miel E2E del Sur', '76222333');
+  const other = await ensureSeller('Otro Seller E2E', '76222444');
+  const product = async (sku: string, name: string, consignorId: string) => {
+    const found = await db().product.findFirst({ where: { companyId, sku }, select: { id: true } });
+    if (found) {
+      await db().product.update({ where: { id: found.id }, data: { consignorId, costPricePMP: 0 } });
+      return found.id;
     }
-    return found.id;
+    return (await db().product.create({ data: { companyId, sku, name, netPrice: 3000, grossPrice: 3570, costPricePMP: 0, consignorId }, select: { id: true } })).id;
   };
-  const own = await product('E2E-SC-MIEL', 'Miel E2E Ulmo 500 g', [supplier.id]);
-  const shared = await product('E2E-SC-CANASTA', 'Canasta E2E Compartida', [supplier.id, other.id]);
+  const own = await product('E2E-SC-MIEL', 'Miel E2E Ulmo 500 g', seller.id);
+  const theirs = await product('E2E-SC-OTRO', 'Mermelada E2E de Otro Seller', other.id);
   const customer =
-    (await db().contact.findFirst({ where: { companyId, rutClean: '66666666' + '6' }, select: { id: true } })) ??
+    (await db().contact.findFirst({ where: { companyId, rutClean: '666666666' }, select: { id: true } })) ??
     (await db().contact.create({ data: { companyId, razonSocial: 'Consumidor final E2E', rut: '66.666.666-6', rutClean: '666666666', isCustomer: true }, select: { id: true } }));
-  await db().salesDocumentItem.deleteMany({ where: { companyId, productId: { in: [own, shared] } } });
+  await db().salesDocumentItem.deleteMany({ where: { companyId, productId: { in: [own, theirs] } } });
   const folio = 900_000 + Math.floor(Math.random() * 90_000);
-  for (const [productId, quantity, subtotal, offset] of [[own, 3, 9000, 0], [shared, 2, 8000, 1]] as const) {
+  const sales = [
+    [own, 'Miel E2E Ulmo 500 g', seller.id, 3, 9000, 0],
+    [theirs, 'Mermelada E2E de Otro Seller', other.id, 2, 8000, 1],
+  ] as const;
+  for (const [productId, description, consignorId, quantity, subtotal, offset] of sales) {
     await db().salesDocument.create({
       data: {
         companyId,
@@ -54,16 +73,16 @@ async function seedSupplierSales(warehouseId: string) {
         paymentMethod: 'EFECTIVO',
         netAmount: subtotal,
         totalAmount: subtotal,
-        items: { create: [{ companyId, productId, description: 'Línea', quantity, unitPrice: subtotal / quantity, subtotal, iva: 0, total: subtotal, unitCostPMP: 1234 }] },
+        items: { create: [{ companyId, productId, description, quantity, unitPrice: subtotal / quantity, subtotal, iva: 0, total: subtotal, consignorId, consignorCommissionBps: 2000 }] },
       },
     });
   }
   // Sin accesos previos de esta persona: cada corrida parte de cero.
   await db().supplierPortalPerson.deleteMany({ where: { email: EMAIL } });
-  return supplier;
+  return seller;
 }
 
-/** Contexto sin la sesión del panel: el proveedor no es usuario de la empresa. */
+/** Contexto sin la sesión del panel: el seller no es usuario de la empresa. */
 const supplierContext = (browser: Browser) => browser.newContext({ storageState: { cookies: [], origins: [] } });
 
 test.describe('seller center', () => {
@@ -77,11 +96,11 @@ test.describe('seller center', () => {
 
   test('invitar, activar la cuenta, ver ventas en $, salir y volver a entrar; desactivada queda afuera', async ({ page, request, browser }) => {
     const warehouseId = await seedCatalog(request);
-    const supplier = await seedSupplierSales(warehouseId);
+    const seller = await seedSellerSales(warehouseId);
     await setSellerCenter(true);
 
-    // La empresa invita desde la ficha del proveedor.
-    await page.goto(`/dashboard/contacts/${supplier.id}`);
+    // La empresa invita desde la ficha del seller.
+    await page.goto(`/dashboard/contacts/${seller.id}`);
     const card = page.getByTestId('seller-center-card');
     await card.getByLabel('Nombre de la persona').fill('Rosa Productora');
     await card.getByLabel('Correo de la persona').fill(EMAIL);
@@ -104,14 +123,15 @@ test.describe('seller center', () => {
     await portal.getByLabel('Repite la contraseña').fill(PASSWORD);
     await portal.getByRole('button', { name: 'Activar mi acceso' }).click();
 
-    // Ventas en $ solo del producto exclusivo; el compartido muestra existencias pero no ventas.
+    // Lo vendido de SU mercadería, con la comisión (20 %) y lo que le corresponde; nunca lo de otro seller.
     await expect(portal.getByRole('heading', { name: /Tu resumen de/ })).toBeVisible();
     const sales = portal.getByRole('list', { name: 'Ventas por producto' });
     await expect(sales.getByText('Miel E2E Ulmo 500 g')).toBeVisible();
     await expect(sales.getByText('$9.000')).toBeVisible();
-    await expect(sales.getByText('Canasta E2E Compartida')).toHaveCount(0);
-    await expect(portal.getByText(/también lo surte otro proveedor/)).toBeVisible();
-    await expect(portal.getByText('1234')).toHaveCount(0);
+    await expect(sales.getByText('$1.800')).toBeVisible();
+    await expect(sales.getByText('$7.200')).toBeVisible();
+    await expect(portal.getByText('Mermelada E2E de Otro Seller')).toHaveCount(0);
+    await expect(portal.getByRole('heading', { name: 'Tu mercadería en consignación' })).toBeVisible();
     const [download] = await Promise.all([portal.waitForEvent('download'), portal.getByRole('link', { name: 'Descargar Excel' }).click()]);
     expect(download.suggestedFilename()).toMatch(/^portal-proveedor-\d{4}-\d{2}\.xlsx$/);
 
@@ -149,10 +169,10 @@ test.describe('seller center', () => {
 
   test('apagado: el portal no existe y la ficha no ofrece invitar', async ({ page, request, browser }) => {
     const warehouseId = await seedCatalog(request);
-    const supplier = await seedSupplierSales(warehouseId);
+    const seller = await seedSellerSales(warehouseId);
     await setSellerCenter(false);
 
-    await page.goto(`/dashboard/contacts/${supplier.id}`);
+    await page.goto(`/dashboard/contacts/${seller.id}`);
     await expect(page.getByRole('heading', { name: 'Miel E2E del Sur' })).toBeVisible();
     await expect(page.getByTestId('seller-center-card')).toHaveCount(0);
 

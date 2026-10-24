@@ -1,43 +1,44 @@
 import 'server-only';
 
-import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { santiagoMidnightUtc } from '@/lib/chile/timezone';
 import { isAllowedBlobUrl } from '@/lib/security/blob-url';
-import { exclusiveProductIds, monthLabel, shiftMonth, summarizeSales, type SalesLine } from '@/lib/supplier-portal/accounts';
-import type { StatusCounts } from '@/lib/supplier-portal/analysis';
+import { SETTLEMENT_DTE_TYPES, currentContribution } from '@/lib/consignment/settlement';
+import { monthLabel, shiftMonth } from '@/lib/supplier-portal/accounts';
 import { roundQty } from '@/lib/supplier-portal/analysis';
 import { LOSS_WHERE, reasonLabelOf } from './shrinkage.service';
-import { buildSupplierInventory, type SupplierPortalRow } from './supplier-portal.service';
+import { buildPortalView, type SupplierPortalView } from './supplier-portal.service';
 import type { SupplierAccount } from './seller-center-auth.service';
 
 /**
- * Lo que ve la persona del proveedor en el Seller Center, para UN mes.
+ * Lo que ve la persona de un seller en el Seller Center, para UN mes (ADR 0010).
  *
- * Reglas que no se rompen (ver ADR 0008):
- * - **Ventas en $ solo de lo que es suyo.** Se informan unidades y neto cobrado (después del
- *   descuento de la línea, sin IVA) de boletas y facturas EMITIDAS, menos las notas de crédito,
- *   y SOLO de los productos que surte en exclusiva: un producto con dos proveedores comparte una
- *   sola venta y mostrarla sería mostrar la de otro productor. Esos muestran existencias.
- * - **Jamás** el costo de la tienda, su margen, clientes, documentos, otros proveedores ni las
- *   notas internas de una merma. Todo se arma campo por campo.
- * - **Mermas solo para mirar.** Las de sus productos exclusivos y las que la tienda le asignó; si
- *   la empresa usa «Mermas con responsable», quién respondió (sin nombrar a otro proveedor).
+ * Reglas que no se rompen:
+ * - **Las ventas salen de SUS líneas de venta** (`SalesDocumentItem.consignorId`, la foto del seller
+ *   y de la comisión al vender), con la misma regla de la liquidación (`currentContribution`):
+ *   boletas y facturas emitidas suman, las notas de crédito restan lo que se le acreditó. Así lo que
+ *   ve el seller cuadra con lo que se le liquida. Si un producto cambió de dueño, no ve ventas ajenas.
+ * - **Su mercadería, lo pendiente y sus liquidaciones** son la misma vista del portal con código
+ *   (`buildPortalView`), armada campo por campo.
+ * - **Mermas solo para mirar:** las que la tienda le asignó y las de sus productos desde su primera
+ *   recepción (antes eran de otro dueño). Nunca costos, notas internas ni otros sellers.
  */
 
 export const MAX_LOSS_ROWS = 1000;
-const SALE_TYPES = ['FACTURA_33', 'FACTURA_EXENTA_34', 'BOLETA_39', 'BOLETA_EXENTA_41'] as const;
-const CREDIT_NOTE = 'NOTA_CREDITO_61';
 
 export type LossResponsible = 'YOU' | 'STORE' | 'UNASSIGNED' | 'OTHER';
 
 export interface SellerCenterSalesRow {
-  sku: string;
+  key: string;
+  sku: string | null;
   name: string;
-  unit: string;
   units: number;
+  /** Neto vendido (sin IVA, después de descuentos). */
   net: number;
-  averagePrice: number | null;
+  /** Lo que se queda la empresa. */
+  commission: number;
+  /** Lo que le corresponde al seller. */
+  payout: number;
 }
 
 export interface SellerCenterLossRow {
@@ -57,8 +58,8 @@ export interface SellerCenterView {
   month: string;
   monthLabel: string;
   generatedAt: string;
-  sales: { rows: SellerCenterSalesRow[]; units: number; net: number; exclusiveProducts: number; sharedProducts: number };
-  inventory: { rows: SupplierPortalRow[]; summary: StatusCounts };
+  sales: { rows: SellerCenterSalesRow[]; units: number; net: number; commission: number; payout: number };
+  portal: SupplierPortalView;
   losses: { rows: SellerCenterLossRow[]; units: number; yoursUnits: number; truncated: boolean };
 }
 
@@ -68,79 +69,93 @@ function monthBounds(month: string): { from: Date; to: Date } {
   return { from: santiagoMidnightUtc(y, m, 1), to: santiagoMidnightUtc(ny, nm, 1) };
 }
 
-/** Productos del proveedor y cuántos proveedores tiene cada uno (en la empresa). */
-async function supplierProducts(companyId: string, supplierId: string) {
-  const links = await prisma.productSupplier.findMany({ where: { companyId, supplierId }, select: { productId: true }, take: 5000 });
-  const ids = links.map((link) => link.productId);
-  if (ids.length === 0) return { all: [] as string[], exclusive: new Set<string>() };
-  const counts = await prisma.productSupplier.groupBy({ by: ['productId'], where: { companyId, productId: { in: ids } }, _count: { _all: true } });
-  return { all: ids, exclusive: exclusiveProductIds(counts.map((row) => ({ productId: row.productId, supplierCount: row._count._all }))) };
-}
-
-async function salesLines(companyId: string, productIds: string[], from: Date, to: Date): Promise<SalesLine[]> {
-  if (productIds.length === 0) return [];
-  const rows = await prisma.$queryRaw<Array<{ productId: string; units: number; net: number }>>`
-    SELECT i."productId",
-           SUM(CASE WHEN d."dteType"::text = ${CREDIT_NOTE} THEN -i."quantity" ELSE i."quantity" END)::float8 AS "units",
-           SUM(CASE WHEN d."dteType"::text = ${CREDIT_NOTE} THEN -i."subtotal" ELSE i."subtotal" END)::float8 AS "net"
-    FROM "SalesDocumentItem" i
-    JOIN "SalesDocument" d ON d."id" = i."documentId"
-    WHERE d."companyId" = ${companyId}
-      AND i."companyId" = ${companyId}
-      AND d."status" = 'ISSUED'
-      AND d."dteType"::text IN (${Prisma.join([...SALE_TYPES, CREDIT_NOTE])})
-      AND i."productId" IN (${Prisma.join(productIds)})
-      AND d."issueDate" >= ${from}
-      AND d."issueDate" < ${to}
-    GROUP BY i."productId"`;
-  return rows.map((row) => ({ productId: row.productId, units: Number(row.units), net: Number(row.net) }));
-}
-
-export async function getSellerCenterView(account: SupplierAccount, month: string, now: Date = new Date()): Promise<SellerCenterView> {
-  const { companyId, supplierId } = account;
-  const { from, to } = monthBounds(month);
-  const products = await supplierProducts(companyId, supplierId);
-  const exclusive = [...products.exclusive];
-
-  const [lines, inventory, losses] = await Promise.all([
-    salesLines(companyId, exclusive, from, to),
-    buildSupplierInventory(companyId, supplierId, true, now),
-    prisma.inventoryMovement.findMany({
-      where: {
-        companyId,
-        createdAt: { gte: from, lt: to },
-        AND: [LOSS_WHERE, { OR: [...(exclusive.length ? [{ productId: { in: exclusive } }] : []), { liability: { supplierId, companyId } }] }],
-      },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      take: MAX_LOSS_ROWS + 1,
-      select: {
-        id: true,
-        createdAt: true,
-        quantity: true,
-        reasonCode: true,
-        reference: true,
-        evidenceUrl: true,
-        product: { select: { sku: true, name: true, unit: true } },
-        liability: { select: { party: true, supplierId: true } },
-      },
-    }),
-  ]);
-
-  const names = new Map<string, { sku: string; name: string; unit: string }>();
-  const summary = summarizeSales(lines);
-  if (summary.products.length) {
-    for (const product of await prisma.product.findMany({ where: { companyId, id: { in: summary.products.map((row) => row.productId) } }, select: { id: true, sku: true, name: true, unit: true } })) {
-      names.set(product.id, { sku: product.sku, name: product.name, unit: product.unit });
-    }
+/** Ventas del mes por producto, con la regla de la liquidación. */
+async function monthSales(companyId: string, consignorId: string, from: Date, to: Date): Promise<SellerCenterView['sales']> {
+  const items = await prisma.salesDocumentItem.findMany({
+    where: { companyId, consignorId, document: { status: 'ISSUED', dteType: { in: [...SETTLEMENT_DTE_TYPES] }, issueDate: { gte: from, lt: to } } },
+    select: {
+      id: true,
+      productId: true,
+      sku: true,
+      description: true,
+      quantity: true,
+      subtotal: true,
+      consignorCommissionBps: true,
+      consignorBaseNet: true,
+      document: { select: { dteType: true, status: true } },
+    },
+    take: 20_000,
+  });
+  const byProduct = new Map<string, SellerCenterSalesRow>();
+  for (const item of items) {
+    const amounts = currentContribution({
+      salesDocumentItemId: item.id,
+      productId: item.productId,
+      sku: item.sku,
+      description: item.description,
+      quantity: item.quantity,
+      subtotal: item.subtotal,
+      commissionBps: item.consignorCommissionBps,
+      baseNet: item.consignorBaseNet,
+      dteType: item.document.dteType,
+      status: item.document.status,
+    });
+    const key = item.productId ?? `${item.sku ?? ''}|${item.description}`;
+    const row = byProduct.get(key) ?? { key, sku: item.sku, name: item.description, units: 0, net: 0, commission: 0, payout: 0 };
+    row.units = roundQty(row.units + amounts.quantity);
+    row.net += amounts.netAmount;
+    row.commission += amounts.commissionAmount;
+    row.payout += amounts.payoutAmount;
+    byProduct.set(key, row);
   }
+  const rows = [...byProduct.values()].filter((row) => row.units !== 0 || row.net !== 0).sort((a, b) => b.net - a.net || a.name.localeCompare(b.name, 'es'));
+  return {
+    rows,
+    units: roundQty(rows.reduce((sum, row) => sum + row.units, 0)),
+    net: rows.reduce((sum, row) => sum + row.net, 0),
+    commission: rows.reduce((sum, row) => sum + row.commission, 0),
+    payout: rows.reduce((sum, row) => sum + row.payout, 0),
+  };
+}
+
+/** Mermas del mes: las asignadas al seller y las de sus productos desde que los recibió por primera vez. */
+async function monthLosses(account: SupplierAccount, from: Date, to: Date): Promise<SellerCenterView['losses']> {
+  const { companyId, supplierId: consignorId } = account;
+  const owned = await prisma.product.findMany({ where: { companyId, consignorId }, select: { id: true }, take: 5000 });
+  const ownedIds = owned.map((product) => product.id);
+  // Cuándo empezó a ser suyo: su primera recepción en consignación (lleva al seller como `supplierId`).
+  const firstReceipts = ownedIds.length
+    ? await prisma.inventoryMovement.groupBy({ by: ['productId'], where: { companyId, supplierId: consignorId, productId: { in: ownedIds }, type: 'PURCHASE_IN' }, _min: { createdAt: true } })
+    : [];
+  const ownedSince = firstReceipts.flatMap((row) => (row._min.createdAt ? [{ productId: row.productId, createdAt: { gte: row._min.createdAt } }] : []));
+
+  const movements = await prisma.inventoryMovement.findMany({
+    where: {
+      companyId,
+      createdAt: { gte: from, lt: to },
+      AND: [LOSS_WHERE, { OR: [...ownedSince, { liability: { supplierId: consignorId, companyId } }] }],
+    },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: MAX_LOSS_ROWS + 1,
+    select: {
+      id: true,
+      createdAt: true,
+      quantity: true,
+      reasonCode: true,
+      reference: true,
+      evidenceUrl: true,
+      product: { select: { sku: true, name: true, unit: true } },
+      liability: { select: { party: true, supplierId: true } },
+    },
+  });
 
   const responsibleOf = (liability: { party: string; supplierId: string | null } | null): LossResponsible | null => {
     if (!account.showsLiability) return null;
     if (!liability) return 'UNASSIGNED';
     if (liability.party === 'STORE') return 'STORE';
-    return liability.supplierId === supplierId ? 'YOU' : 'OTHER';
+    return liability.supplierId === consignorId ? 'YOU' : 'OTHER';
   };
-  const lossRows: SellerCenterLossRow[] = losses.slice(0, MAX_LOSS_ROWS).map((movement) => ({
+  const rows: SellerCenterLossRow[] = movements.slice(0, MAX_LOSS_ROWS).map((movement) => ({
     id: movement.id,
     createdAt: movement.createdAt.toISOString(),
     sku: movement.product.sku,
@@ -151,27 +166,29 @@ export async function getSellerCenterView(account: SupplierAccount, month: strin
     evidenceUrl: movement.evidenceUrl && isAllowedBlobUrl(movement.evidenceUrl) ? movement.evidenceUrl : null,
     responsible: responsibleOf(movement.liability),
   }));
-
   return {
-    month,
-    monthLabel: monthLabel(month),
-    generatedAt: now.toISOString(),
-    sales: {
-      rows: summary.products.flatMap((row) => {
-        const product = names.get(row.productId);
-        return product ? [{ ...product, units: row.units, net: row.net, averagePrice: row.averagePrice }] : [];
-      }),
-      units: summary.units,
-      net: summary.net,
-      exclusiveProducts: exclusive.length,
-      sharedProducts: products.all.length - exclusive.length,
-    },
-    inventory,
-    losses: {
-      rows: lossRows,
-      units: roundQty(lossRows.reduce((sum, row) => sum + row.quantity, 0)),
-      yoursUnits: roundQty(lossRows.filter((row) => row.responsible === 'YOU').reduce((sum, row) => sum + row.quantity, 0)),
-      truncated: losses.length > MAX_LOSS_ROWS,
-    },
+    rows,
+    units: roundQty(rows.reduce((sum, row) => sum + row.quantity, 0)),
+    yoursUnits: roundQty(rows.filter((row) => row.responsible === 'YOU').reduce((sum, row) => sum + row.quantity, 0)),
+    truncated: movements.length > MAX_LOSS_ROWS,
   };
+}
+
+export async function getSellerCenterView(account: SupplierAccount, month: string, now: Date = new Date()): Promise<SellerCenterView> {
+  const { from, to } = monthBounds(month);
+  const [sales, portal, losses] = await Promise.all([
+    monthSales(account.companyId, account.supplierId, from, to),
+    buildPortalView(
+      {
+        companyId: account.companyId,
+        contactId: account.supplierId,
+        showMovement: true,
+        contact: account.contact,
+        company: { businessName: account.company.name, rut: account.company.rut, logoUrl: account.company.logoUrl, phone: account.company.phone, email: account.company.email },
+      },
+      now
+    ),
+    monthLosses(account, from, to),
+  ]);
+  return { month, monthLabel: monthLabel(month), generatedAt: now.toISOString(), sales, portal, losses };
 }

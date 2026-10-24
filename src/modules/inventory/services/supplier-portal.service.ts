@@ -275,13 +275,30 @@ const PORTAL_PRODUCT_SELECT = {
 export async function getSupplierPortalView(rawCode: string, now: Date = new Date()): Promise<SupplierPortalView | null> {
   const access = await accessForCode(rawCode);
   if (!access) return null;
-  const { companyId, contactId, showMovement } = access;
-  const isConsignor = access.contact.isConsignor;
-
   if (!access.lastUsedAt || now.getTime() - access.lastUsedAt.getTime() > LAST_USED_EVERY_MS) {
     // Anotar el uso nunca debe impedir ver el inventario.
     void prisma.supplierPortalAccess.updateMany({ where: { id: access.id }, data: { lastUsedAt: now } }).catch(() => undefined);
   }
+  return buildPortalView(access, now);
+}
+
+/** De quién es la vista: lo resuelve quien llama (el código del portal o la sesión del Seller Center). */
+export interface PortalSubject {
+  companyId: string;
+  contactId: string;
+  showMovement: boolean;
+  contact: { razonSocial: string; nombreFantasia: string | null; rut: string; isConsignor: boolean; consignmentCommissionBps: number | null };
+  company: { businessName: string; rut: string; logoUrl: string | null; phone: string | null; email: string | null };
+}
+
+/**
+ * La vista del portal para un contacto ya autorizado: sus productos como proveedor y, si es seller, su
+ * mercadería, lo vendido sin liquidar y sus liquidaciones. La comparten el portal con código y el
+ * Seller Center; se arma campo por campo.
+ */
+export async function buildPortalView(access: PortalSubject, now: Date = new Date()): Promise<SupplierPortalView> {
+  const { companyId, contactId, showMovement } = access;
+  const isConsignor = access.contact.isConsignor;
 
   const [links, consigned] = await Promise.all([
     prisma.productSupplier.findMany({

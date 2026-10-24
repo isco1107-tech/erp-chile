@@ -29,7 +29,7 @@ const reasonName = (key: ShrinkageReasonKey) => (key === 'NONE' ? 'Sin motivo' :
 
 /**
  * Pérdidas del kardex de UNA bodega (mermas, roturas, vencidos, faltantes) con
- * quién responde por cada una: la tienda o el proveedor. Sirve para la
+ * quién responde por cada una: la tienda o el proveedor/seller. Sirve para la
  * liquidación con cada productor sin discutir pérdida por pérdida.
  */
 export default async function ShrinkagePage({ searchParams }: { searchParams: Promise<Params> }) {
@@ -79,7 +79,7 @@ export default async function ShrinkagePage({ searchParams }: { searchParams: Pr
       <PageHeader
         eyebrow="Inventario"
         title="Mermas y responsables"
-        description="Cada pérdida de la bodega —merma, rotura, vencido, faltante de un conteo— con quién responde por ella: la tienda o el proveedor. Así la liquidación con cada productor sale sin discusión."
+        description="Cada pérdida de la bodega —merma, rotura, vencido, faltante de un conteo— con quién responde por ella: la tienda, el proveedor o el seller. Así la liquidación con cada productor sale sin discusión."
         actions={
           <a href={`/api/inventory/shrinkage/export?${query({})}`} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium hover:bg-muted">
             <Download className="size-4" aria-hidden="true" /> Descargar Excel
@@ -155,7 +155,7 @@ export default async function ShrinkagePage({ searchParams }: { searchParams: Pr
           </select>
         </label>
         <label className="space-y-1 text-xs font-medium text-muted-foreground">
-          Proveedor que responde
+          Proveedor o seller que responde
           <select name="proveedor" defaultValue={supplierId ?? ''} className={selectClass}>
             <option value="">Todos</option>
             {suppliers.map((supplier) => (
@@ -184,10 +184,10 @@ export default async function ShrinkagePage({ searchParams }: { searchParams: Pr
           tone="danger"
         />
         <KpiCard label="A cargo de la tienda" value={amount(summary.byState.STORE)} icon={Store} tone="neutral" />
-        <KpiCard label="A cargo de proveedores" value={amount(summary.byState.SUPPLIER)} icon={Truck} tone="info" />
+        <KpiCard label="A cargo de proveedores o sellers" value={amount(summary.byState.SUPPLIER)} icon={Truck} tone="info" />
         <KpiCard
           label="Sin asignar"
-          labelExtra={<InfoTooltip text="Pérdidas a las que nadie les ha dicho quién responde. No entran en la cuenta de ningún proveedor hasta asignarlas." />}
+          labelExtra={<InfoTooltip text="Pérdidas a las que nadie les ha dicho quién responde. No entran en la cuenta de ningún proveedor ni seller hasta asignarlas." />}
           value={String(summary.byState.UNASSIGNED.movements)}
           icon={Scale}
           tone="warning"
@@ -197,8 +197,8 @@ export default async function ShrinkagePage({ searchParams }: { searchParams: Pr
       {summary.bySupplier.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Por proveedor</CardTitle>
-            <CardDescription>Pérdidas asignadas a cada proveedor en el período: lo que se descuenta o se conversa en su liquidación.</CardDescription>
+            <CardTitle>Por proveedor o seller</CardTitle>
+            <CardDescription>Pérdidas asignadas a cada proveedor o seller en el período: lo que se descuenta o se conversa en su liquidación.</CardDescription>
           </CardHeader>
           <CardContent className="overflow-x-auto">
             <table className="w-full text-sm" data-testid="shrinkage-by-supplier">

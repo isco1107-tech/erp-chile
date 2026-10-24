@@ -148,13 +148,28 @@ describeDb('Mermas con responsable contra PostgreSQL', () => {
     await expect(shrinkage.assignLiability(ids.b!, actor, { movementId: m.vencido!, party: 'STORE' })).rejects.toThrow('no existe en tu empresa');
     await expect(shrinkage.assignLiability(ids.a!, actor, { movementId: m.devolucion!, party: 'STORE' })).rejects.toThrow('no existe en tu empresa');
     await expect(shrinkage.assignLiability(ids.a!, actor, { movementId: m.venta!, party: 'STORE' })).rejects.toThrow('no existe en tu empresa');
-    await expect(shrinkage.assignLiability(ids.a!, actor, { movementId: m.mixtoVencido!, party: 'SUPPLIER', supplierId: ids.ajeno })).rejects.toThrow('proveedor de tu empresa');
-    await expect(shrinkage.assignLiability(ids.a!, actor, { movementId: m.mixtoVencido!, party: 'SUPPLIER', supplierId: ids.cliente })).rejects.toThrow('proveedor de tu empresa');
+    await expect(shrinkage.assignLiability(ids.a!, actor, { movementId: m.mixtoVencido!, party: 'SUPPLIER', supplierId: ids.ajeno })).rejects.toThrow('proveedor o seller de tu empresa');
+    await expect(shrinkage.assignLiability(ids.a!, actor, { movementId: m.mixtoVencido!, party: 'SUPPLIER', supplierId: ids.cliente })).rejects.toThrow('proveedor o seller de tu empresa');
     expect((await shrinkage.listShrinkage(ids.b!, { ...period(), warehouseId: ids.w1! }, { includeCosts: true })).rows).toEqual([]);
-    expect(await shrinkage.listSuppliersForShrinkage(ids.a!)).toEqual([
-      { id: ids.miel, name: 'Miel del Sur' },
-      { id: ids.quesos, name: 'Quesos Llanquihue' },
-    ]);
+    expect((await shrinkage.listSuppliersForShrinkage(ids.a!)).map((entry) => entry.name)).toEqual(expect.arrayContaining(['Miel del Sur', 'Quesos Llanquihue']));
+    expect((await shrinkage.listSuppliersForShrinkage(ids.a!)).map((entry) => entry.name)).not.toContain('Cliente');
+  });
+
+  it('la mercadería de un seller: se sugiere al seller dueño y se le puede asignar aunque no sea proveedor', async () => {
+    const seller = (await prisma.contact.create({ data: { companyId: ids.a!, razonSocial: 'Artesana Seller', rut: '76.700.000-7', rutClean: '767000007', isConsignor: true, consignmentCommissionBps: 2000 } })).id;
+    const consigned = (await prisma.product.create({ data: { companyId: ids.a!, sku: `Seller-${suffix}`, name: 'Cerámica', netPrice: 1000, grossPrice: 1190, consignorId: seller } })).id;
+    // También lo surte un proveedor: igual responde la dueña de la mercadería.
+    await prisma.productSupplier.create({ data: { companyId: ids.a!, productId: consigned, supplierId: ids.quesos! } });
+    const lost = await prisma.inventoryMovement.create({
+      data: { companyId: ids.a!, productId: consigned, warehouseId: ids.w2!, type: 'ADJUSTMENT_OUT', quantity: 1, unitCost: 0, totalCost: 0, previousStock: 5, newStock: 4, previousPmp: 0, newPmp: 0, reasonCode: 'EXPIRED', userId: ids.user },
+    });
+    await shrinkage.saveShrinkageSettings(ids.a!, { defaults: { EXPIRED: 'SUPPLIER' }, expiryAlerts: true, expiryAlertDays: 7 });
+    const row = (await list({ warehouseId: ids.w2! })).rows.find((entry) => entry.id === lost.id)!;
+    expect(row.suggestion).toEqual({ party: 'SUPPLIER', supplier: { id: seller, name: 'Artesana Seller' } });
+    expect(row.productSuppliers.map((entry) => entry.id)).toEqual([seller, ids.quesos]);
+    await shrinkage.assignLiability(ids.a!, actor, { movementId: lost.id, party: 'SUPPLIER', supplierId: seller });
+    expect((await list({ warehouseId: ids.w2!, supplierId: seller })).rows.map((entry) => entry.id)).toEqual([lost.id]);
+    expect((await shrinkage.listSuppliersForShrinkage(ids.a!)).map((entry) => entry.name)).toContain('Artesana Seller');
   });
 
   it('avisa por la campanita los lotes a los días configurados y los que vencen hoy', async () => {

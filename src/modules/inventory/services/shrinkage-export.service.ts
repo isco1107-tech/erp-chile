@@ -32,7 +32,7 @@ export async function buildShrinkageWorkbook(
     { header: 'Operario', key: 'operator', width: 20 },
     ...(options.includeCosts ? [{ header: 'Costo (PMP)', key: 'cost', width: 14 }] : []),
     { header: 'Responde', key: 'state', width: 14 },
-    { header: 'Proveedor que responde', key: 'supplier', width: 30 },
+    { header: 'Proveedor o seller que responde', key: 'supplier', width: 30 },
     { header: 'Asignado por', key: 'assignedBy', width: 20 },
     { header: 'Foto de respaldo', key: 'photo', width: 40 },
   ];

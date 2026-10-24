@@ -1,7 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  exclusiveProductIds,
   hashAccountToken,
   isMonthKey,
   isWellFormedToken,
@@ -10,13 +9,12 @@ import {
   normalizeEmail,
   recentMonths,
   shiftMonth,
-  summarizeSales,
 } from '@/lib/supplier-portal/accounts';
 
 /**
- * Seller Center (cuentas del proveedor): enlaces de un solo uso que solo se guardan como huella,
- * meses de Santiago y ventas solo de lo que el proveedor surte en exclusiva. La sesión se firma con
- * una clave propia: un token del proveedor no sirve como sesión del panel, ni al revés.
+ * Seller Center (cuentas de sellers): enlaces de un solo uso que solo se guardan como huella y meses
+ * de Santiago. La sesión se firma con una clave propia: un token del seller no sirve como sesión del
+ * panel, ni al revés. Las ventas usan la regla de la liquidación (`tests/consignment-*.test.ts`).
  */
 
 describe('enlaces y correos', () => {
@@ -42,33 +40,6 @@ describe('meses', () => {
     expect(shiftMonth('2026-01', -1)).toBe('2025-12');
     expect(recentMonths('2026-02', 3)).toEqual(['2026-02', '2026-01', '2025-12']);
     expect(monthLabel('2026-10')).toBe('octubre 2026');
-  });
-});
-
-describe('ventas del proveedor', () => {
-  it('suma boletas y facturas menos notas de crédito, con precio promedio entero', () => {
-    const result = summarizeSales([
-      { productId: 'miel', units: 3, net: 9000 },
-      { productId: 'miel', units: 2, net: 6200 },
-      { productId: 'miel', units: -1, net: -3000 },
-      { productId: 'queso', units: 1, net: 4500 },
-      // Devuelto todo: no queda nada que informar.
-      { productId: 'pan', units: 1, net: 1000 },
-      { productId: 'pan', units: -1, net: -1000 },
-    ]);
-    expect(result.products).toEqual([
-      { productId: 'miel', units: 4, net: 12200, averagePrice: 3050 },
-      { productId: 'queso', units: 1, net: 4500, averagePrice: 4500 },
-    ]);
-    expect(result).toMatchObject({ units: 5, net: 16700 });
-  });
-
-  it('una nota de crédito de solo precio deja el monto sin unidades: sin precio promedio', () => {
-    expect(summarizeSales([{ productId: 'miel', units: 0, net: -500 }]).products).toEqual([{ productId: 'miel', units: 0, net: -500, averagePrice: null }]);
-  });
-
-  it('solo cuentan los productos que surte un único proveedor', () => {
-    expect([...exclusiveProductIds([{ productId: 'a', supplierCount: 1 }, { productId: 'b', supplierCount: 2 }])]).toEqual(['a']);
   });
 });
 

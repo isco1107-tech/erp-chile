@@ -2172,7 +2172,7 @@ export interface SupplierAccountInviteEmailInput {
   expiresInDays: number;
 }
 
-/** Invitación al Seller Center: la persona del proveedor crea su contraseña (o entra con la que ya tiene). */
+/** Invitación al Seller Center: la persona del seller crea su contraseña (o entra con la que ya tiene). */
 export function buildSupplierAccountInviteEmail(input: SupplierAccountInviteEmailInput): { subject: string; html: string; text: string } {
   const subject = `${input.companyName} te invitó a su portal de proveedores`;
   const html = layout({
@@ -2180,7 +2180,7 @@ export function buildSupplierAccountInviteEmail(input: SupplierAccountInviteEmai
     body: `
       <p style="margin:0 0 12px;"><strong>${escapeHtml(input.inviterName)}</strong>, de <strong>${escapeHtml(input.companyName)}</strong>,
       te dio acceso a su portal de proveedores en nombre de <strong>${escapeHtml(input.supplierName)}</strong>.</p>
-      <p style="margin:0;">Ahí verás tus ventas, tus existencias en bodega y tus mermas. Abre el enlace para crear tu
+      <p style="margin:0;">Ahí verás tus ventas, tu mercadería en bodega, tus liquidaciones y tus mermas. Abre el enlace para crear tu
       contraseña; si ya tienes una cuenta en este portal, entra con la misma.</p>
     `,
     ctaLabel: 'Activar mi acceso',

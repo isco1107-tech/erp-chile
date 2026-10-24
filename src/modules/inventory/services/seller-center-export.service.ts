@@ -21,38 +21,72 @@ function sheet(wb: ExcelJS.Workbook, name: string, columns: Array<Partial<ExcelJ
   return ws;
 }
 
-/** El mes del Seller Center a Excel: ventas, existencias y mermas. Valores como datos, nunca fórmulas. */
+/** El mes del Seller Center a Excel: ventas, mercadería, liquidaciones y mermas. Valores como datos, nunca fórmulas. */
 export async function buildSellerCenterWorkbook(view: SellerCenterView, names: { company: string; supplier: string }): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
 
   const sales = sheet(wb, 'Ventas', [
     { header: 'SKU', key: 'sku', width: 16 },
     { header: 'Producto', key: 'name', width: 40 },
-    { header: 'Unidad', key: 'unit', width: 8 },
     { header: 'Vendido', key: 'units', width: 12 },
-    { header: 'Neto cobrado', key: 'net', width: 16 },
-    { header: 'Precio neto promedio', key: 'avg', width: 18 },
+    { header: 'Neto vendido', key: 'net', width: 16 },
+    { header: 'Comisión', key: 'commission', width: 14 },
+    { header: 'Te corresponde', key: 'payout', width: 16 },
   ]);
-  for (const row of view.sales.rows) sales.addRow({ sku: row.sku, name: row.name, unit: row.unit, units: row.units, net: row.net, avg: row.averagePrice ?? undefined });
+  for (const row of view.sales.rows) sales.addRow({ sku: row.sku ?? '', name: row.name, units: row.units, net: row.net, commission: row.commission, payout: row.payout });
   sales.getColumn('units').numFmt = QTY;
-  sales.getColumn('net').numFmt = CLP;
-  sales.getColumn('avg').numFmt = CLP;
+  for (const key of ['net', 'commission', 'payout']) sales.getColumn(key).numFmt = CLP;
   sales.addRow({});
-  const note = sales.addRow({ sku: `${names.supplier} en ${names.company} · ${view.monthLabel} · neto sin IVA de boletas y facturas emitidas menos notas de crédito · solo productos que surtes en exclusiva` });
+  const note = sales.addRow({ sku: `${names.supplier} en ${names.company} · ${view.monthLabel} · neto sin IVA de boletas y facturas emitidas menos notas de crédito, con la cuenta de las liquidaciones` });
   note.font = { italic: true, color: { argb: 'FF666666' } };
 
-  const stock = sheet(wb, 'Existencias', [
+  const consignment = view.portal.consignment;
+  const stock = sheet(wb, 'Mercadería', [
     { header: 'SKU', key: 'sku', width: 16 },
     { header: 'Producto', key: 'name', width: 40 },
     { header: 'Unidad', key: 'unit', width: 8 },
     { header: 'En bodega', key: 'total', width: 12 },
-    { header: 'Mínimo', key: 'min', width: 10 },
+    { header: 'Comisión (%)', key: 'commission', width: 12 },
     { header: 'Por bodega', key: 'byWarehouse', width: 40 },
   ]);
-  for (const row of view.inventory.rows) {
-    stock.addRow({ sku: row.sku, name: row.name, unit: row.unit, total: row.total, min: row.minStock || undefined, byWarehouse: row.byWarehouse.map((entry) => `${entry.warehouse}: ${entry.quantity}`).join(' · ') });
+  for (const row of consignment?.rows ?? []) {
+    stock.addRow({
+      sku: row.sku,
+      name: row.name,
+      unit: row.unit,
+      total: row.total,
+      commission: row.commissionBps === null ? undefined : row.commissionBps / 100,
+      byWarehouse: row.byWarehouse.map((entry) => `${entry.warehouse}: ${entry.quantity}`).join(' · '),
+    });
   }
   stock.getColumn('total').numFmt = QTY;
+
+  const settlements = sheet(wb, 'Liquidaciones', [
+    { header: 'N°', key: 'number', width: 8 },
+    { header: 'Fecha', key: 'date', width: 16 },
+    { header: 'Estado', key: 'status', width: 12 },
+    { header: 'Unidades', key: 'units', width: 12 },
+    { header: 'Neto vendido', key: 'net', width: 16 },
+    { header: 'Comisión', key: 'commission', width: 14 },
+    { header: 'Ajuste', key: 'adjustment', width: 12 },
+    { header: 'Te corresponde', key: 'payout', width: 16 },
+    { header: 'Pagada el', key: 'paidAt', width: 16 },
+  ]);
+  for (const row of consignment?.settlements ?? []) {
+    settlements.addRow({
+      number: row.number,
+      date: dayTimeLabel(new Date(row.createdAt)),
+      status: row.status === 'PAID' ? 'Pagada' : 'Por pagar',
+      units: row.units,
+      net: row.netSales,
+      commission: row.commissionAmount,
+      adjustment: row.adjustmentAmount,
+      payout: row.payoutAmount,
+      paidAt: row.paidAt ? dayTimeLabel(new Date(row.paidAt)) : '',
+    });
+  }
+  settlements.getColumn('units').numFmt = QTY;
+  for (const key of ['net', 'commission', 'adjustment', 'payout']) settlements.getColumn(key).numFmt = CLP;
 
   const losses = sheet(wb, 'Mermas', [
     { header: 'Fecha', key: 'date', width: 16 },

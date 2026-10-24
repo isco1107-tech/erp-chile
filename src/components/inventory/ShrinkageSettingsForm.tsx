@@ -46,7 +46,7 @@ export function ShrinkageSettingsForm({ defaults, expiryAlerts, expiryAlertDays 
       <div>
         <h2 className="text-sm font-semibold">Quién responde según el motivo</h2>
         <p className="text-xs text-muted-foreground">
-          Tus acuerdos con los productores. Sirve de sugerencia en cada pérdida; si responde el proveedor, se sugiere el de la llegada o, si el producto tiene uno solo, ese.
+          Tus acuerdos con los productores. Sirve de sugerencia en cada pérdida; si responde el proveedor o seller, se sugiere el seller dueño de la mercadería en consignación, si no el proveedor de la llegada o, si el producto tiene uno solo, ese.
         </p>
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">

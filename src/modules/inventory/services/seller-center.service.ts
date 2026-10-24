@@ -7,7 +7,7 @@ import { INVITE_TTL_DAYS, hashAccountToken, newAccountToken, normalizeEmail } fr
 import { SellerCenterError } from './seller-center-auth.service';
 
 /**
- * Seller Center desde la ficha del proveedor: la empresa invita a las personas del proveedor y
+ * Seller Center desde la ficha del seller: la empresa invita a las personas del seller y
  * puede quitarles el acceso cuando quiera. Todo filtra por `companyId`; de la persona (que es de
  * la plataforma) solo se ve su correo y el nombre con que ESTA empresa la invitó, nunca si tiene
  * accesos en otras empresas.
@@ -38,8 +38,8 @@ function statusOf(row: { isActive: boolean; acceptedAt: Date | null; inviteExpir
 }
 
 async function requireSupplier(companyId: string, supplierId: string) {
-  const contact = await prisma.contact.findFirst({ where: { id: supplierId, companyId, isSupplier: true }, select: { id: true, razonSocial: true, nombreFantasia: true } });
-  if (!contact) throw new SellerCenterError('El contacto no existe o no está marcado como proveedor');
+  const contact = await prisma.contact.findFirst({ where: { id: supplierId, companyId, isConsignor: true }, select: { id: true, razonSocial: true, nombreFantasia: true } });
+  if (!contact) throw new SellerCenterError('El contacto no existe o no está marcado como seller (consignación)');
   return contact;
 }
 
@@ -80,7 +80,7 @@ const inviteData = (now: Date) => {
 };
 
 /**
- * Invita a una persona a entrar en nombre del proveedor. Si la persona ya existe en la plataforma
+ * Invita a una persona a entrar en nombre del seller. Si la persona ya existe en la plataforma
  * (otra empresa la invitó antes) se reutiliza sin cambiar su nombre: al aceptar, entra con su
  * contraseña de siempre. Una persona tiene a lo más un acceso por empresa.
  */
@@ -97,7 +97,7 @@ export async function inviteSupplierPerson(
   const person = await prisma.supplierPortalPerson.upsert({ where: { email }, create: { email, name: input.name.trim() }, update: {}, select: { id: true } });
 
   const existing = await prisma.supplierPortalMembership.findUnique({ where: { companyId_personId: { companyId, personId: person.id } }, select: { id: true, supplierId: true, acceptedAt: true, isActive: true } });
-  if (existing && existing.supplierId !== supplierId) throw new SellerCenterError('Esa persona ya tiene acceso en nombre de otro proveedor de tu empresa');
+  if (existing && existing.supplierId !== supplierId) throw new SellerCenterError('Esa persona ya tiene acceso en nombre de otro seller de tu empresa');
   if (existing?.acceptedAt && existing.isActive) throw new SellerCenterError('Esa persona ya tiene acceso');
   if (existing?.acceptedAt && !existing.isActive) throw new SellerCenterError('Esa persona tiene el acceso desactivado: reactívalo en la lista');
 
@@ -114,9 +114,9 @@ export async function inviteSupplierPerson(
 export async function resendSupplierInvite(companyId: string, membershipId: string, actor: InviteActor, now: Date = new Date()): Promise<{ supplierId: string; delivery: EmailResult['status'] }> {
   const row = await prisma.supplierPortalMembership.findFirst({
     where: { id: membershipId, companyId, acceptedAt: null, isActive: true },
-    select: { id: true, supplierId: true, person: { select: { email: true } }, company: { select: { businessName: true } }, supplier: { select: { razonSocial: true, nombreFantasia: true, isSupplier: true } } },
+    select: { id: true, supplierId: true, person: { select: { email: true } }, company: { select: { businessName: true } }, supplier: { select: { razonSocial: true, nombreFantasia: true, isConsignor: true } } },
   });
-  if (!row || !row.supplier.isSupplier) throw new SellerCenterError('Esa invitación ya no está pendiente');
+  if (!row || !row.supplier.isConsignor) throw new SellerCenterError('Esa invitación ya no está pendiente');
   const { token, data } = inviteData(now);
   // Condicionado a que siga pendiente: si la aceptaron entre medio, no se le pone un enlace nuevo.
   const { count } = await prisma.supplierPortalMembership.updateMany({ where: { id: row.id, companyId, acceptedAt: null }, data: { ...data, invitedById: actor.id, invitedByName: actor.name } });

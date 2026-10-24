@@ -1,7 +1,8 @@
 /**
  * Seller Center contra una base PostgreSQL REAL: invitar, aceptar, ingresar con bloqueo, sesión
  * revalidada en cada página (acceso, empresa, módulo, versión), aislamiento entre empresas y lo
- * que ve el proveedor (ventas en $ solo de sus productos exclusivos, mermas, nada de costos).
+ * que ve el seller (sus ventas con la regla de la liquidación, lo pendiente, sus mermas desde que
+ * recibió la mercadería, nada de costos ni de otros sellers).
  *
  *   RETAIL_TEST_DATABASE_URL=postgresql://postgres@localhost:54329/erp_test \
  *     npx jest tests/seller-center-db.test.ts
@@ -9,7 +10,7 @@
  * Se niega a correr si el servidor no es local o si la base no termina en `_test` (la base del
  * `.env` del proyecto ES la de producción, CLAUDE.md §5).
  */
-import type { PrismaClient } from '@prisma/client';
+import type { Prisma, PrismaClient } from '@prisma/client';
 
 // `jose` es ESM y no carga en Jest: aquí se prueba lo que hace la base con el contenido del token.
 jest.mock('@/lib/supplier-portal/session', () => ({
@@ -59,7 +60,7 @@ describeDb('Seller Center contra PostgreSQL', () => {
   const session = (input: { personId: string; membershipId: string; sessionVersion: number }) => JSON.stringify({ purpose: 'supplier_session', ...input });
   const setToken = (membershipId: string, token: string) => prisma.supplierPortalMembership.update({ where: { id: membershipId }, data: { inviteTokenHash: hash(token) } });
 
-  async function sale(companyId: string, productId: string, quantity: number, subtotal: number, dteType: 'BOLETA_39' | 'NOTA_CREDITO_61' = 'BOLETA_39', status: 'ISSUED' | 'CANCELLED' = 'ISSUED') {
+  async function sale(companyId: string, productId: string, quantity: number, subtotal: number, consignorId: string, dteType: 'BOLETA_39' | 'NOTA_CREDITO_61' = 'BOLETA_39', status: 'ISSUED' | 'CANCELLED' = 'ISSUED') {
     const warehouseId = companyId === ids.a ? ids.wa! : ids.wb!;
     const contactId = companyId === ids.a ? ids.customerA! : ids.customerB!;
     await prisma.salesDocument.create({
@@ -74,7 +75,7 @@ describeDb('Seller Center contra PostgreSQL', () => {
         paymentMethod: 'EFECTIVO',
         netAmount: subtotal,
         totalAmount: subtotal,
-        items: { create: [{ companyId, productId, description: 'Línea', quantity, unitPrice: Math.round(subtotal / quantity), subtotal, iva: 0, total: subtotal, unitCostPMP: 777 }] },
+        items: { create: [{ companyId, productId, sku: 'SKU-LINEA', description: 'Miel de ulmo', quantity, unitPrice: Math.round(subtotal / quantity), subtotal, iva: 0, total: subtotal, unitCostPMP: 777, consignorId, consignorCommissionBps: 2000 }] },
       },
     });
   }
@@ -95,23 +96,34 @@ describeDb('Seller Center contra PostgreSQL', () => {
     await company('b', 2);
     ids.wa = (await prisma.warehouse.create({ data: { companyId: ids.a!, name: 'Sala', code: 'SALA', isDefault: true } })).id;
     ids.wb = (await prisma.warehouse.create({ data: { companyId: ids.b!, name: 'Sala', code: 'SALA', isDefault: true } })).id;
-    const contact = (companyId: string, name: string, n: number, isSupplier: boolean) =>
-      prisma.contact.create({ data: { companyId, razonSocial: name, rut: `75.${n}00.000-${n}`, rutClean: `75${n}00000${n}`, isSupplier, isCustomer: !isSupplier } }).then((c) => c.id);
-    ids.miel = await contact(ids.a!, 'Miel del Sur', 1, true);
-    ids.quesos = await contact(ids.a!, 'Quesos Llanquihue', 2, true);
-    ids.customerA = await contact(ids.a!, 'Consumidor final', 3, false);
-    ids.supplierB = await contact(ids.b!, 'Miel del Sur (en B)', 4, true);
-    ids.customerB = await contact(ids.b!, 'Consumidor final', 5, false);
+    const contact = (companyId: string, name: string, n: number, kind: 'seller' | 'supplier' | 'customer') =>
+      prisma.contact
+        .create({
+          data: {
+            companyId,
+            razonSocial: name,
+            rut: `75.${n}00.000-${n}`,
+            rutClean: `75${n}00000${n}`,
+            isConsignor: kind === 'seller',
+            consignmentCommissionBps: kind === 'seller' ? 2000 : null,
+            isSupplier: kind === 'supplier',
+            isCustomer: kind === 'customer',
+          },
+        })
+        .then((c) => c.id);
+    ids.miel = await contact(ids.a!, 'Miel del Sur', 1, 'seller');
+    ids.quesos = await contact(ids.a!, 'Lácteos Llanquihue', 2, 'seller');
+    ids.onlySupplier = await contact(ids.a!, 'Distribuidora Solo Proveedor', 6, 'supplier');
+    ids.customerA = await contact(ids.a!, 'Consumidor final', 3, 'customer');
+    ids.supplierB = await contact(ids.b!, 'Miel del Sur (en B)', 4, 'seller');
+    ids.customerB = await contact(ids.b!, 'Consumidor final', 5, 'customer');
 
-    const product = async (companyId: string, sku: string, suppliers: string[]) => {
-      const id = (await prisma.product.create({ data: { companyId, sku: `${sku}-${suffix}`, name: sku, netPrice: 3000, grossPrice: 3570, costPricePMP: 1500 } })).id;
-      for (const supplierId of suppliers) await prisma.productSupplier.create({ data: { companyId, productId: id, supplierId } });
-      return id;
-    };
-    ids.pMiel = await product(ids.a!, 'Miel', [ids.miel!]);
-    ids.pCanasta = await product(ids.a!, 'Canasta', [ids.miel!, ids.quesos!]);
-    ids.pQueso = await product(ids.a!, 'Queso', [ids.quesos!]);
-    ids.pMielB = await product(ids.b!, 'MielB', [ids.supplierB!]);
+    // Mercadería en consignación: cada producto tiene un solo dueño.
+    const product = (companyId: string, sku: string, consignorId: string) =>
+      prisma.product.create({ data: { companyId, sku: `${sku}-${suffix}`, name: sku, netPrice: 3000, grossPrice: 3570, costPricePMP: 1500, consignorId } }).then((p) => p.id);
+    ids.pMiel = await product(ids.a!, 'Miel', ids.miel!);
+    ids.pQueso = await product(ids.a!, 'Queso', ids.quesos!);
+    ids.pMielB = await product(ids.b!, 'MielB', ids.supplierB!);
   });
 
   afterAll(async () => {
@@ -122,6 +134,8 @@ describeDb('Seller Center contra PostgreSQL', () => {
       await prisma.inventoryMovement.deleteMany({ where: { companyId } });
       await prisma.salesDocumentItem.deleteMany({ where: { companyId } });
       await prisma.salesDocument.deleteMany({ where: { companyId } });
+      await prisma.sellerSettlementLine.deleteMany({ where: { companyId } });
+      await prisma.sellerSettlement.deleteMany({ where: { companyId } });
       await prisma.productSupplier.deleteMany({ where: { companyId } });
       await prisma.product.deleteMany({ where: { companyId } });
       await prisma.contact.deleteMany({ where: { companyId } });
@@ -140,6 +154,8 @@ describeDb('Seller Center contra PostgreSQL', () => {
     await setToken(membershipId, TOKEN_A);
 
     expect(await auth.inspectInvitation(TOKEN_A)).toMatchObject({ state: 'valid', email, hasPassword: false, supplierName: 'Miel del Sur' });
+    // Un contacto que solo es proveedor no tiene Seller Center: es el portal de los sellers.
+    await expect(admin.inviteSupplierPerson(ids.a!, ids.onlySupplier!, actor, { name: 'X', email: `x-${suffix}@campo.cl` })).rejects.toThrow('no está marcado como seller');
     await expect(auth.acceptInvitation(TOKEN_A, 'corta')).rejects.toThrow('al menos 8');
     const accepted = await auth.acceptInvitation(TOKEN_A, PASSWORD);
     expect(accepted).toMatchObject({ membershipId, sessionVersion: 0 });
@@ -213,48 +229,55 @@ describeDb('Seller Center contra PostgreSQL', () => {
     await expect(admin.setSupplierAccountActive(ids.b!, ids.mA!, false)).rejects.toThrow('no existe en tu empresa');
     await expect(admin.cancelSupplierInvite(ids.b!, ids.mA!)).rejects.toThrow();
     await expect(admin.resendSupplierInvite(ids.b!, ids.mA!, actor)).rejects.toThrow();
-    await expect(admin.inviteSupplierPerson(ids.a!, ids.supplierB!, actor, { name: 'X', email: `x-${suffix}@campo.cl` })).rejects.toThrow('no está marcado como proveedor');
-    await expect(admin.inviteSupplierPerson(ids.a!, ids.customerA!, actor, { name: 'X', email: `x-${suffix}@campo.cl` })).rejects.toThrow('no está marcado como proveedor');
-    await expect(admin.inviteSupplierPerson(ids.a!, ids.quesos!, actor, { name: 'Rosa', email })).rejects.toThrow('otro proveedor de tu empresa');
+    await expect(admin.inviteSupplierPerson(ids.a!, ids.supplierB!, actor, { name: 'X', email: `x-${suffix}@campo.cl` })).rejects.toThrow('no está marcado como seller');
+    await expect(admin.inviteSupplierPerson(ids.a!, ids.customerA!, actor, { name: 'X', email: `x-${suffix}@campo.cl` })).rejects.toThrow('no está marcado como seller');
+    await expect(admin.inviteSupplierPerson(ids.a!, ids.quesos!, actor, { name: 'Rosa', email })).rejects.toThrow('otro seller de tu empresa');
     await expect(auth.switchSupplierMembership(ids.person!, 'acceso-ajeno')).rejects.toThrow('no está disponible');
     await prisma.supplierPortalPerson.deleteMany({ where: { email: `x-${suffix}@campo.cl` } });
   });
 
-  it('ve ventas en $ solo de lo que surte en exclusiva, sus mermas, y jamás costos', async () => {
-    await sale(ids.a!, ids.pMiel!, 3, 9000);
-    await sale(ids.a!, ids.pMiel!, 1, 3000, 'NOTA_CREDITO_61');
-    await sale(ids.a!, ids.pMiel!, 5, 15000, 'BOLETA_39', 'CANCELLED');
-    await sale(ids.a!, ids.pCanasta!, 2, 8000);
-    await sale(ids.a!, ids.pQueso!, 4, 12000);
-    await sale(ids.b!, ids.pMielB!, 7, 21000);
+  it('ve sus ventas con la comisión y lo que le corresponde, lo pendiente, sus mermas desde que recibió, y jamás costos', async () => {
+    await sale(ids.a!, ids.pMiel!, 3, 9000, ids.miel!);
+    await sale(ids.a!, ids.pMiel!, 1, 3000, ids.miel!, 'NOTA_CREDITO_61');
+    await sale(ids.a!, ids.pMiel!, 5, 15000, ids.miel!, 'BOLETA_39', 'CANCELLED');
+    await sale(ids.a!, ids.pQueso!, 4, 12000, ids.quesos!);
+    await sale(ids.b!, ids.pMielB!, 7, 21000, ids.supplierB!);
 
-    const loss = (productId: string, quantity: number, reasonCode: string) =>
-      prisma.inventoryMovement.create({ data: { companyId: ids.a!, productId, warehouseId: ids.wa!, type: 'ADJUSTMENT_OUT', quantity, unitCost: 1500, totalCost: 1500 * quantity, previousStock: 50, newStock: 50 - quantity, previousPmp: 1500, newPmp: 1500, reasonCode, notes: 'Nota interna de la tienda', evidenceUrl: 'https://evil.example.com/x.jpg' } });
-    const own = await loss(ids.pMiel!, 2, 'EXPIRED');
-    const sharedMine = await loss(ids.pCanasta!, 1, 'DAMAGED');
-    await loss(ids.pCanasta!, 4, 'DAMAGED');
-    await loss(ids.pQueso!, 3, 'EXPIRED');
+    const at = (minutesAgo: number) => new Date(now.getTime() - minutesAgo * 60_000);
+    const movement = (productId: string, data: Pick<Prisma.InventoryMovementUncheckedCreateInput, 'type' | 'quantity'> & Partial<Prisma.InventoryMovementUncheckedCreateInput>, createdAt: Date) =>
+      prisma.inventoryMovement.create({ data: { companyId: ids.a!, productId, warehouseId: ids.wa!, unitCost: 0, totalCost: 0, previousStock: 50, newStock: 48, previousPmp: 0, newPmp: 0, createdAt, ...data } });
+    const loss = (productId: string, quantity: number, reasonCode: string, createdAt: Date) =>
+      movement(productId, { type: 'ADJUSTMENT_OUT', quantity, unitCost: 1500, totalCost: 1500 * quantity, reasonCode, notes: 'Nota interna de la tienda', evidenceUrl: 'https://evil.example.com/x.jpg' }, createdAt);
+    // Antes de recibirla, la mercadería era de otro dueño: esa merma no es suya.
+    await loss(ids.pMiel!, 9, 'DAMAGED', at(30));
+    await movement(ids.pMiel!, { type: 'PURCHASE_IN', quantity: 20, supplierId: ids.miel!, reference: 'Recepción en consignación' }, at(20));
+    const own = await loss(ids.pMiel!, 2, 'EXPIRED', at(10));
+    const assigned = await loss(ids.pQueso!, 1, 'DAMAGED', at(5));
+    await loss(ids.pQueso!, 4, 'DAMAGED', at(4));
     await prisma.shrinkageLiability.create({ data: { companyId: ids.a!, movementId: own.id, party: 'SUPPLIER', supplierId: ids.miel! } });
-    await prisma.shrinkageLiability.create({ data: { companyId: ids.a!, movementId: sharedMine.id, party: 'SUPPLIER', supplierId: ids.miel! } });
+    await prisma.shrinkageLiability.create({ data: { companyId: ids.a!, movementId: assigned.id, party: 'SUPPLIER', supplierId: ids.miel! } });
 
     const account = await auth.resolveSupplierSession(session({ personId: ids.person!, membershipId: ids.mA!, sessionVersion: 1 }));
     const view = await views.getSellerCenterView(account!, month);
-    expect(view.sales).toMatchObject({ units: 2, net: 6000, exclusiveProducts: 1, sharedProducts: 1 });
-    expect(view.sales.rows).toEqual([{ sku: `Miel-${suffix}`, name: 'Miel', unit: 'UN', units: 2, net: 6000, averagePrice: 3000 }]);
-    expect(view.inventory.rows.map((row) => row.name).sort()).toEqual(['Canasta', 'Miel']);
-    expect(view.losses.rows.map((row) => [row.name, row.quantity, row.responsible]).sort()).toEqual([
-      ['Canasta', 1, 'YOU'],
+    // 3 vendidas a $9.000 menos 1 devuelta a $3.000; la anulada no cuenta; comisión 20 %.
+    expect(view.sales).toMatchObject({ units: 2, net: 6000, commission: 1200, payout: 4800 });
+    expect(view.sales.rows).toEqual([{ key: ids.pMiel, sku: 'SKU-LINEA', name: 'Miel de ulmo', units: 2, net: 6000, commission: 1200, payout: 4800 }]);
+    // Su mercadería y lo pendiente vienen de la misma vista del portal (lo vendido aún no liquidado).
+    expect(view.portal.consignment?.rows.map((row) => row.name)).toEqual(['Miel']);
+    expect(view.portal.consignment?.pending).toMatchObject({ units: 2, netSales: 6000, commissionAmount: 1200, payoutAmount: 4800 });
+    expect(view.losses.rows.map((row) => [row.name, row.quantity, row.responsible])).toEqual([
+      ['Queso', 1, 'YOU'],
       ['Miel', 2, 'YOU'],
     ]);
     expect(view.losses).toMatchObject({ units: 3, yoursUnits: 3 });
-    // Ni costos, ni notas internas, ni fotos fuera de nuestro almacenamiento, ni otro proveedor.
+    // Ni costos, ni notas internas, ni fotos fuera de nuestro almacenamiento, ni otro seller ni clientes.
     const json = JSON.stringify(view);
-    for (const forbidden of ['1500', '777', 'costPrice', 'totalCost', 'Nota interna', 'evil.example', 'Quesos', 'Consumidor']) expect(json).not.toContain(forbidden);
+    for (const forbidden of ['1500', '777', 'costPrice', 'totalCost', 'Nota interna', 'evil.example', 'Lácteos', 'Consumidor']) expect(json).not.toContain(forbidden);
 
     // La otra empresa ve solo lo suyo.
     const inB = await auth.resolveSupplierSession(session({ personId: ids.person!, membershipId: ids.mB!, sessionVersion: 1 }));
     const viewB = await views.getSellerCenterView(inB!, month);
-    expect(viewB.sales).toMatchObject({ units: 7, net: 21000 });
+    expect(viewB.sales).toMatchObject({ units: 7, net: 21000, payout: 16800 });
     expect(viewB.losses.rows).toEqual([]);
   });
 });

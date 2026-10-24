@@ -88,7 +88,7 @@ export function SellerCenterLogin() {
   return (
     <Frame footer={<>¿Solo tienes un código de acceso? <Link href="/proveedor">Ingresa con tu código</Link>.</>}>
       <PublicCard glow>
-        <PublicCardHeader icon={<Truck className="size-5" />} title="Ingresa a tu cuenta" subtitle="Tus ventas, tus existencias en bodega y tus mermas, con el correo al que te llegó la invitación." />
+        <PublicCardHeader icon={<Truck className="size-5" />} title="Ingresa a tu cuenta" subtitle="Tus ventas, tu mercadería en bodega, tus liquidaciones y tus mermas, con el correo al que te llegó la invitación." />
         <form onSubmit={submit} noValidate className="pub-form">
           <PublicField id="sc-email" label="Correo">
             <input id="sc-email" type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} maxLength={254} required autoFocus />

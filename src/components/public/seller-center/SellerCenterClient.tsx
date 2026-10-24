@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Download, LogOut, PackageX, Receipt, ShoppingBag, Truck } from 'lucide-react';
+import { Download, HandCoins, LogOut, PackageX, Receipt, ShoppingBag, Truck } from 'lucide-react';
 import { PublicBadge, PublicCard, PublicCardHeader, PublicFooter, PublicPage, PublicShell, PublicTopBar } from '@/components/public/PublicShell';
-import SupplierInventoryGrid from '@/components/public/SupplierInventoryGrid';
+import SellerConsignmentSection from '@/components/public/SellerConsignmentSection';
+import { PORTAL_STYLES } from '@/components/public/portal-styles';
 import { formatCurrency } from '@/lib/chile/tax';
 import { dayTimeLabel } from '@/lib/retail/live-metrics';
 import type { SellerCenterView, LossResponsible } from '@/modules/inventory/services/seller-center-view.service';
@@ -30,13 +31,14 @@ async function post(path: string, body: unknown): Promise<boolean> {
 }
 
 /**
- * Seller Center (`/proveedor/cuenta`): el mes del proveedor en una pantalla. Ventas en $ de lo que
- * surte en exclusiva, existencias de todo lo suyo y sus mermas. Solo lectura.
+ * Seller Center (`/proveedor/cuenta`): el mes del seller en una pantalla. Lo vendido de su mercadería
+ * con la comisión y lo que le corresponde, su mercadería en bodega, lo pendiente de liquidar, sus
+ * liquidaciones y sus mermas. Solo lectura.
  */
 export default function SellerCenterClient({ account, view, months }: { account: SellerCenterAccountView; view: SellerCenterView; months: Array<{ value: string; label: string }> }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const { sales, inventory, losses } = view;
+  const { sales, portal, losses } = view;
 
   async function logout() {
     setBusy(true);
@@ -55,6 +57,7 @@ export default function SellerCenterClient({ account, view, months }: { account:
 
   return (
     <PublicPage accent="emerald">
+      <style>{PORTAL_STYLES}</style>
       <style>{STYLES}</style>
       <PublicTopBar
         brand={account.company.name}
@@ -73,7 +76,7 @@ export default function SellerCenterClient({ account, view, months }: { account:
             icon={<Truck className="size-5" />}
             eyebrow={`${account.supplier.name} · RUT ${account.supplier.rut}`}
             title={`Tu resumen de ${view.monthLabel}`}
-            subtitle="Tus ventas, tus existencias en bodega y tus mermas. Solo lectura."
+            subtitle="Tus ventas, tu mercadería en bodega, tus liquidaciones y tus mermas. Solo lectura."
           />
           <div className="sc-controls">
             <form method="get" className="sc-month">
@@ -113,11 +116,18 @@ export default function SellerCenterClient({ account, view, months }: { account:
             <Receipt className="size-5" aria-hidden="true" />
             <span className="sc-kpi-label">Vendido (neto)</span>
             <strong className="sc-kpi-value">{formatCurrency(sales.net)}</strong>
+            <span className="sc-kpi-note">{qty(sales.units)} unidades</span>
           </li>
           <li>
             <ShoppingBag className="size-5" aria-hidden="true" />
-            <span className="sc-kpi-label">Unidades vendidas</span>
-            <strong className="sc-kpi-value">{qty(sales.units)}</strong>
+            <span className="sc-kpi-label">Comisión de {account.company.name}</span>
+            <strong className="sc-kpi-value">{formatCurrency(sales.commission)}</strong>
+          </li>
+          <li>
+            <HandCoins className="size-5" aria-hidden="true" />
+            <span className="sc-kpi-label">Te corresponde</span>
+            <strong className="sc-kpi-value">{formatCurrency(sales.payout)}</strong>
+            <span className="sc-kpi-note">de lo vendido en el mes</span>
           </li>
           <li>
             <PackageX className="size-5" aria-hidden="true" />
@@ -125,45 +135,37 @@ export default function SellerCenterClient({ account, view, months }: { account:
             <strong className="sc-kpi-value">{qty(losses.units)}</strong>
             {losses.yoursUnits > 0 && <span className="sc-kpi-note">{qty(losses.yoursUnits)} a tu cargo</span>}
           </li>
-          <li>
-            <Truck className="size-5" aria-hidden="true" />
-            <span className="sc-kpi-label">Por reponer</span>
-            <strong className="sc-kpi-value">{inventory.summary.out + inventory.summary.low}</strong>
-            <span className="sc-kpi-note">sin stock o bajo el mínimo</span>
-          </li>
         </ul>
 
         <PublicCard>
-          <h2 className="sc-h2">Ventas por producto</h2>
-          <p className="sc-lead">
-            Neto cobrado (sin IVA, después de descuentos) en boletas y facturas emitidas, menos las notas de crédito.
-            {sales.sharedProducts > 0 &&
-              ` ${sales.sharedProducts === 1 ? 'Un producto tuyo también lo surte' : `${sales.sharedProducts} productos tuyos también los surte`} otro proveedor: de ${sales.sharedProducts === 1 ? 'ese' : 'esos'} ves las existencias, pero no las ventas.`}
-          </p>
+          <h2 className="sc-h2">Ventas de {view.monthLabel}</h2>
+          <p className="sc-lead">Neto vendido (sin IVA, después de descuentos) en boletas y facturas emitidas, menos las notas de crédito, con la misma cuenta de tus liquidaciones.</p>
           {sales.rows.length === 0 ? (
-            <p className="sc-empty">{sales.exclusiveProducts === 0 ? 'Aún no hay productos que surtas solo tú.' : `Sin ventas en ${view.monthLabel}.`}</p>
+            <p className="sc-empty">Sin ventas en {view.monthLabel}.</p>
           ) : (
             <ul className="sc-rows" aria-label="Ventas por producto">
               {sales.rows.map((row) => (
-                <li key={row.sku} className="sc-row">
+                <li key={row.key} className="sc-row">
                   <div className="sc-row-name">
                     <strong>{row.name}</strong>
-                    <span>SKU {row.sku}</span>
+                    {row.sku && <span>SKU {row.sku}</span>}
                   </div>
                   <dl className="sc-row-facts">
                     <div>
                       <dt>Vendido</dt>
-                      <dd>
-                        {qty(row.units)} {row.unit}
-                      </dd>
+                      <dd>{qty(row.units)}</dd>
                     </div>
                     <div>
                       <dt>Neto</dt>
                       <dd>{formatCurrency(row.net)}</dd>
                     </div>
                     <div>
-                      <dt>Precio prom.</dt>
-                      <dd>{row.averagePrice === null ? '—' : formatCurrency(row.averagePrice)}</dd>
+                      <dt>Comisión</dt>
+                      <dd>{formatCurrency(row.commission)}</dd>
+                    </div>
+                    <div>
+                      <dt>Te corresponde</dt>
+                      <dd>{formatCurrency(row.payout)}</dd>
                     </div>
                   </dl>
                 </li>
@@ -172,12 +174,11 @@ export default function SellerCenterClient({ account, view, months }: { account:
           )}
         </PublicCard>
 
-        <h2 className="sc-h2 sc-section">Tus existencias en bodega</h2>
-        <SupplierInventoryGrid rows={inventory.rows} summary={inventory.summary} showMovement windowDays={30} />
+        {portal.consignment && <SellerConsignmentSection consignment={portal.consignment} companyName={account.company.name} showMovement windowDays={portal.windowDays} />}
 
         <PublicCard>
           <h2 className="sc-h2">Mermas de {view.monthLabel}</h2>
-          <p className="sc-lead">Pérdidas de tus productos (vencidos, dañados, faltantes) y las que la tienda te asignó. Si no estás de acuerdo con una, conversa con {account.company.name}.</p>
+          <p className="sc-lead">Pérdidas de tu mercadería (vencidos, dañados, faltantes) y las que la tienda te asignó. Si no estás de acuerdo con una, conversa con {account.company.name}.</p>
           {losses.rows.length === 0 ? (
             <p className="sc-empty">Sin mermas en {view.monthLabel}.</p>
           ) : (

@@ -422,7 +422,7 @@ export const MODULES: ModuleDefinition[] = [
     key: 'hasSellerCenter',
     label: 'Seller Center',
     description:
-      'Dentro de Inventario: cuentas con correo y contraseña para cada persona del proveedor o productor. Ven sus ventas en unidades y pesos (solo de los productos que surten en exclusiva), sus existencias por bodega y sus mermas. Se invitan desde la ficha del proveedor.',
+      'Dentro de Inventario: cuentas con correo y contraseña para cada persona de un seller en consignación. Ven, mes a mes, lo vendido de su mercadería con la comisión y lo que les corresponde, su mercadería en bodega, sus liquidaciones y sus mermas. Se invitan desde la ficha del seller.',
     permissions: [],
     routes: [],
     requires: 'hasInventory',

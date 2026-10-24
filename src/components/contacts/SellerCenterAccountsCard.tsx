@@ -23,9 +23,9 @@ function formatDate(value: Date | string): string {
 }
 
 /**
- * Seller Center desde la ficha del proveedor: invitar a sus personas (cada una con su correo y su
- * contraseña) y quitarles el acceso. Ven ventas en $ de lo que surten en exclusiva, existencias y
- * mermas; nunca costos de la tienda ni otros proveedores.
+ * Seller Center desde la ficha del seller: invitar a sus personas (cada una con su correo y su
+ * contraseña) y quitarles el acceso. Ven lo vendido de su mercadería con la comisión, su stock, sus
+ * liquidaciones y sus mermas; nunca costos de la tienda, clientes ni otros sellers.
  */
 export default function SellerCenterAccountsCard({ supplierId, accounts, baseUrl }: { supplierId: string; accounts: SupplierAccountRow[]; baseUrl: string }) {
   const router = useRouter();
@@ -75,10 +75,10 @@ export default function SellerCenterAccountsCard({ supplierId, accounts, baseUrl
           <Users className="size-4 text-accent-foreground" strokeWidth={1.75} aria-hidden="true" />
         </span>
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-foreground">Seller Center: cuentas del proveedor</h3>
+          <h3 className="text-sm font-semibold text-foreground">Seller Center: cuentas del seller</h3>
           <p className="text-xs text-muted-foreground">
-            Cada persona del proveedor entra en {baseUrl}/proveedor/cuenta con su correo y su contraseña. Ve sus ventas en pesos (solo de los productos que surte en exclusiva), sus
-            existencias por bodega y sus mermas. Nunca ve costos, márgenes, clientes ni otros proveedores.
+            Cada persona del seller entra en {baseUrl}/proveedor/cuenta con su correo y su contraseña. Ve lo vendido de su mercadería con tu comisión y lo que le
+            corresponde, su mercadería en bodega, sus liquidaciones y sus mermas. Nunca ve costos, clientes, documentos ni otros sellers.
           </p>
         </div>
       </div>
@@ -127,10 +127,10 @@ export default function SellerCenterAccountsCard({ supplierId, accounts, baseUrl
           ))}
         </ul>
       ) : (
-        <p className="mt-4 rounded-md bg-muted p-3 text-sm text-muted-foreground">Nadie de este proveedor tiene cuenta todavía.</p>
+        <p className="mt-4 rounded-md bg-muted p-3 text-sm text-muted-foreground">Nadie de este seller tiene cuenta todavía.</p>
       )}
 
-      <form onSubmit={invite} className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]" aria-label="Invitar a una persona del proveedor">
+      <form onSubmit={invite} className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]" aria-label="Invitar a una persona del seller">
         <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Nombre" aria-label="Nombre de la persona" maxLength={120} required />
         <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Correo" aria-label="Correo de la persona" maxLength={254} required />
         <Button type="submit" size="sm" disabled={busy || name.trim().length < 2 || !email.includes('@')}>

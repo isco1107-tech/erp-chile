@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { z } from 'zod';
 
 /**
- * Seller Center: cuentas por persona del proveedor o productor (`/proveedor/cuenta`).
+ * Seller Center: cuentas por persona de un seller de consignación (`/proveedor/cuenta`).
  * Funciones puras y constantes compartidas por el servidor y los formularios.
  *
  * Reglas:
@@ -71,57 +71,4 @@ const MONTH_NAMES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'jul
 export function monthLabel(month: string): string {
   const [y, m] = month.split('-').map(Number) as [number, number];
   return `${MONTH_NAMES[m - 1]} ${y}`;
-}
-
-// ─── Ventas del proveedor ────────────────────────────────────────────────────
-
-export interface SalesLine {
-  productId: string;
-  /** Unidades: positivas en boletas y facturas, negativas en notas de crédito. */
-  units: number;
-  /** Neto cobrado (después del descuento de la línea, sin IVA), con el mismo signo. */
-  net: number;
-}
-
-export interface ProductSales {
-  productId: string;
-  units: number;
-  net: number;
-  /** Precio neto promedio cobrado por unidad; `null` si no quedaron unidades vendidas. */
-  averagePrice: number | null;
-}
-
-/**
- * Suma por producto lo vendido (boletas y facturas) menos lo devuelto (notas de crédito).
- * Solo se informan los productos con algo vendido o devuelto; el monto es entero (CLP).
- */
-export function summarizeSales(lines: readonly SalesLine[]): { products: ProductSales[]; units: number; net: number } {
-  const byProduct = new Map<string, { units: number; net: number }>();
-  for (const line of lines) {
-    const entry = byProduct.get(line.productId) ?? { units: 0, net: 0 };
-    entry.units += line.units;
-    entry.net += line.net;
-    byProduct.set(line.productId, entry);
-  }
-  const products = [...byProduct.entries()]
-    .map(([productId, entry]) => {
-      const units = Math.round(entry.units * 1000) / 1000;
-      return { productId, units, net: Math.round(entry.net), averagePrice: units > 0 ? Math.round(entry.net / units) : null };
-    })
-    .filter((entry) => entry.units !== 0 || entry.net !== 0)
-    .sort((a, b) => b.net - a.net || b.units - a.units);
-  return {
-    products,
-    units: Math.round(products.reduce((sum, entry) => sum + entry.units, 0) * 1000) / 1000,
-    net: products.reduce((sum, entry) => sum + entry.net, 0),
-  };
-}
-
-/**
- * Productos cuyas ventas se le muestran al proveedor: los que surte SOLO él. Un producto con
- * dos proveedores comparte un solo stock y una sola venta, y mostrarla sería mostrarle ventas
- * de otro productor.
- */
-export function exclusiveProductIds(links: ReadonlyArray<{ productId: string; supplierCount: number }>): Set<string> {
-  return new Set(links.filter((link) => link.supplierCount === 1).map((link) => link.productId));
 }

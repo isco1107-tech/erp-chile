@@ -96,9 +96,9 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
   'inventory-shrinkage': {
     title: 'Mermas y responsables',
     steps: [
-      header('Quién responde por cada pérdida', 'Mermas, roturas, vencidos y faltantes de cada bodega, con quién paga: la tienda o el proveedor.'),
+      header('Quién responde por cada pérdida', 'Mermas, roturas, vencidos y faltantes de cada bodega, con quién paga: la tienda, el proveedor o el seller.'),
       note('Asigna o confirma', 'Elige el responsable en la lista o confirma la sugerencia que sale de los acuerdos de tu empresa.'),
-      note('Para la liquidación', 'La tarjeta "Por proveedor" suma lo de cada productor y "Descargar Excel" lo lleva a una planilla.'),
+      note('Para la liquidación', 'La tarjeta "Por proveedor o seller" suma lo de cada productor y "Descargar Excel" lo lleva a una planilla.'),
       note('Lotes por vencer', 'Los administradores eligen con cuántos días de anticipación avisa la campanita.'),
     ],
   },

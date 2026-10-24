@@ -95,7 +95,7 @@ export interface ShrinkageRow {
   evidenceUrl: string | null;
   operator: string | null;
   totalCost: number | null;
-  /** Proveedores del producto, para elegir quién responde. */
+  /** Seller dueño del producto (primero) y sus proveedores, para elegir quién responde. */
   productSuppliers: Array<{ id: string; name: string }>;
   state: LiabilityState;
   liability: { party: LiableParty; supplier: { id: string; name: string } | null; assignedByName: string | null; assignedAt: string } | null;
@@ -144,7 +144,17 @@ export async function listShrinkage(
         evidenceUrl: true,
         supplierId: true,
         user: { select: { name: true } },
-        product: { select: { id: true, name: true, sku: true, unit: true, suppliers: { where: { companyId }, select: { supplier: { select: { id: true, razonSocial: true } } } } } },
+        product: {
+          select: {
+            id: true,
+            name: true,
+            sku: true,
+            unit: true,
+            // El dueño de la mercadería en consignación (seller), si la tiene, y quienes la surten.
+            consignor: { select: { id: true, razonSocial: true, companyId: true } },
+            suppliers: { where: { companyId }, select: { supplier: { select: { id: true, razonSocial: true } } } },
+          },
+        },
         liability: { select: { party: true, assignedByName: true, assignedAt: true, supplier: { select: { id: true, razonSocial: true, companyId: true } } } },
       },
     }),
@@ -153,6 +163,11 @@ export async function listShrinkage(
   const truncated = movements.length > MAX_SHRINKAGE_ROWS;
   const supplierNames = new Map<string, string>();
   for (const movement of movements) for (const link of movement.product.suppliers) supplierNames.set(link.supplier.id, link.supplier.razonSocial);
+  const consignorOf = (product: (typeof movements)[number]['product']) => (product.consignor && product.consignor.companyId === companyId ? { id: product.consignor.id, name: product.consignor.razonSocial } : null);
+  for (const movement of movements) {
+    const consignor = consignorOf(movement.product);
+    if (consignor) supplierNames.set(consignor.id, consignor.name);
+  }
   const arrivalSupplierIds = [...new Set(movements.map((movement) => movement.supplierId).filter((id): id is string => Boolean(id) && !supplierNames.has(id!)))];
   if (arrivalSupplierIds.length) {
     for (const contact of await prisma.contact.findMany({ where: { companyId, id: { in: arrivalSupplierIds } }, select: { id: true, razonSocial: true } })) supplierNames.set(contact.id, contact.razonSocial);
@@ -167,6 +182,7 @@ export async function listShrinkage(
       : suggestLiability({
           reasonCode: movement.reasonCode,
           defaults: settings.defaults,
+          productConsignorId: consignorOf(movement.product)?.id ?? null,
           movementSupplierId: movement.supplierId,
           productSupplierIds: movement.product.suppliers.map((link) => link.supplier.id),
         });
@@ -184,7 +200,10 @@ export async function listShrinkage(
       evidenceUrl: movement.evidenceUrl,
       operator: movement.user?.name ?? null,
       totalCost: options.includeCosts ? movement.totalCost : null,
-      productSuppliers: movement.product.suppliers.map((link) => ({ id: link.supplier.id, name: link.supplier.razonSocial })),
+      productSuppliers: [
+        ...(consignorOf(movement.product) ? [consignorOf(movement.product)!] : []),
+        ...movement.product.suppliers.map((link) => ({ id: link.supplier.id, name: link.supplier.razonSocial })),
+      ].filter((entry, index, all) => all.findIndex((other) => other.id === entry.id) === index),
       state: assigned ? (assigned.party as LiableParty) : 'UNASSIGNED',
       liability: assigned
         ? { party: assigned.party as LiableParty, supplier: assignedSupplier, assignedByName: assigned.assignedByName, assignedAt: assigned.assignedAt.toISOString() }
@@ -201,9 +220,9 @@ export async function listShrinkage(
   return { rows, summary, truncated };
 }
 
-/** Proveedores de la empresa, para filtrar por quién responde. */
+/** Proveedores y sellers de la empresa, para filtrar por quién responde. */
 export async function listSuppliersForShrinkage(companyId: string): Promise<Array<{ id: string; name: string }>> {
-  const contacts = await prisma.contact.findMany({ where: { companyId, isSupplier: true }, select: { id: true, razonSocial: true }, orderBy: { razonSocial: 'asc' }, take: 500 });
+  const contacts = await prisma.contact.findMany({ where: { companyId, OR: [{ isSupplier: true }, { isConsignor: true }] }, select: { id: true, razonSocial: true }, orderBy: { razonSocial: 'asc' }, take: 500 });
   return contacts.map((contact) => ({ id: contact.id, name: contact.razonSocial }));
 }
 
@@ -232,8 +251,8 @@ export async function assignLiability(
   }
   let supplierId: string | null = null;
   if (input.party === 'SUPPLIER') {
-    const supplier = await prisma.contact.findFirst({ where: { id: input.supplierId ?? '', companyId, isSupplier: true }, select: { id: true } });
-    if (!supplier) throw new ShrinkageError('Elige un proveedor de tu empresa');
+    const supplier = await prisma.contact.findFirst({ where: { id: input.supplierId ?? '', companyId, OR: [{ isSupplier: true }, { isConsignor: true }] }, select: { id: true } });
+    if (!supplier) throw new ShrinkageError('Elige un proveedor o seller de tu empresa');
     supplierId = supplier.id;
   }
   const data = { party: input.party, supplierId, assignedById: actor.id, assignedByName: actor.name, assignedAt: new Date() };

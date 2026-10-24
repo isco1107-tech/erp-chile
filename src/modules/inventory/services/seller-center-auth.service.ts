@@ -21,7 +21,7 @@ import {
 import { verifySupplierSessionToken } from '@/lib/supplier-portal/session';
 
 /**
- * Seller Center: ingreso de las personas de un proveedor (`/proveedor/cuenta`).
+ * Seller Center: ingreso de las personas de un seller de consignación (`/proveedor/cuenta`).
  *
  * Reglas que no se rompen:
  * - **La persona es de la plataforma, el acceso es de la empresa.** `SupplierPortalPerson` no
@@ -29,7 +29,7 @@ import { verifySupplierSessionToken } from '@/lib/supplier-portal/session';
  *   entra. Ninguna empresa ve ni cambia la contraseña, y los correos de acceso salen por la cuenta
  *   de la plataforma (nunca por el Brevo de una empresa, que podría leerlos).
  * - **Todo se revalida en cada página.** El token solo dice quién y con qué acceso; el acceso tiene
- *   que seguir activo y aceptado, el contacto seguir siendo proveedor, la empresa operando (ACTIVE
+ *   que seguir activo y aceptado, el contacto seguir siendo seller, la empresa operando (ACTIVE
  *   o TRIAL), con Inventario y Seller Center encendidos, y la versión de sesión coincidir.
  * - **Fuerza bruta acotada.** Igual que el login del panel: lock de la fila, 5 intentos y 15
  *   minutos de bloqueo, y un `bcrypt` de relleno cuando el correo no existe.
@@ -58,7 +58,8 @@ const LAST_ACCESS_EVERY_MS = 5 * 60_000;
 const USABLE_MEMBERSHIP = {
   isActive: true,
   acceptedAt: { not: null },
-  supplier: { isSupplier: true },
+  // Solo sellers de consignación: el Seller Center es su portal (ADR 0010).
+  supplier: { isConsignor: true },
   company: { status: { in: [...OPERATIONAL] } },
 } satisfies Prisma.SupplierPortalMembershipWhereInput;
 
@@ -73,8 +74,10 @@ export interface SupplierAccount {
   membershipId: string;
   companyId: string;
   supplierId: string;
-  company: { name: string; logoUrl: string | null; email: string | null; phone: string | null };
+  company: { name: string; rut: string; logoUrl: string | null; email: string | null; phone: string | null };
   supplier: { name: string; rut: string };
+  /** Lo que necesita la vista compartida con el portal (`buildPortalView`). */
+  contact: { razonSocial: string; nombreFantasia: string | null; rut: string; isConsignor: boolean; consignmentCommissionBps: number | null };
   /** La empresa usa «Mermas con responsable»: se muestra quién respondió por cada merma. */
   showsLiability: boolean;
   /** Los demás accesos de la misma persona (otras empresas), para cambiar de una a otra. */
@@ -109,8 +112,8 @@ export async function resolveSupplierSession(token: string | undefined, now: Dat
       supplierId: true,
       lastAccessAt: true,
       person: { select: { id: true, name: true, email: true, sessionVersion: true } },
-      company: { select: { businessName: true, logoUrl: true, email: true, phone: true, features: true } },
-      supplier: { select: { razonSocial: true, nombreFantasia: true, rut: true } },
+      company: { select: { businessName: true, rut: true, logoUrl: true, email: true, phone: true, features: true } },
+      supplier: { select: { razonSocial: true, nombreFantasia: true, rut: true, isConsignor: true, consignmentCommissionBps: true } },
     },
   });
   if (!membership || membership.person.sessionVersion !== payload.sessionVersion || !sellerCenterOn(membership.company.features)) return null;
@@ -127,8 +130,9 @@ export async function resolveSupplierSession(token: string | undefined, now: Dat
     membershipId: membership.id,
     companyId: membership.companyId,
     supplierId: membership.supplierId,
-    company: { name: membership.company.businessName, logoUrl: membership.company.logoUrl, email: membership.company.email, phone: membership.company.phone },
+    company: { name: membership.company.businessName, rut: membership.company.rut, logoUrl: membership.company.logoUrl, email: membership.company.email, phone: membership.company.phone },
     supplier: { name: supplierName(membership.supplier), rut: membership.supplier.rut },
+    contact: membership.supplier,
     showsLiability: moduleEnabled(toFeatureFlags(membership.company.features), 'hasShrinkageLiability'),
     others: others.map((entry) => ({ membershipId: entry.id, companyName: entry.companyName, supplierName: entry.supplierName })),
   };
@@ -214,7 +218,7 @@ const INVITATION_SELECT = {
   inviteExpiresAt: true,
   personId: true,
   company: { select: { businessName: true, status: true, features: true } },
-  supplier: { select: { razonSocial: true, nombreFantasia: true, isSupplier: true } },
+  supplier: { select: { razonSocial: true, nombreFantasia: true, isConsignor: true } },
   person: { select: { email: true, name: true, passwordHash: true } },
 } satisfies Prisma.SupplierPortalMembershipSelect;
 
@@ -227,7 +231,7 @@ function invitationUsable(row: InvitationRow | null, now: Date): row is Invitati
       !row.acceptedAt &&
       row.inviteExpiresAt &&
       row.inviteExpiresAt > now &&
-      row.supplier.isSupplier &&
+      row.supplier.isConsignor &&
       (OPERATIONAL as readonly string[]).includes(row.company.status) &&
       sellerCenterOn(row.company.features)
   );
