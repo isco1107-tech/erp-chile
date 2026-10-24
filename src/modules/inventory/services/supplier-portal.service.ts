@@ -195,6 +195,24 @@ export async function getSupplierPortalView(rawCode: string, now: Date = new Dat
     void prisma.supplierPortalAccess.updateMany({ where: { id: access.id }, data: { lastUsedAt: now } }).catch(() => undefined);
   }
 
+  const { rows, summary } = await buildSupplierInventory(companyId, contactId, showMovement, now);
+
+  return {
+    company: { name: access.company.businessName, rut: access.company.rut, logoUrl: access.company.logoUrl, phone: access.company.phone, email: access.company.email },
+    supplier: { name: access.contact.nombreFantasia?.trim() || access.contact.razonSocial, rut: access.contact.rut },
+    generatedAt: now,
+    showMovement,
+    windowDays: MOVEMENT_WINDOW_DAYS,
+    summary,
+    rows,
+  };
+}
+
+/**
+ * Existencias de los productos del proveedor (y, si `showMovement`, lo que salió en 30 días). La
+ * comparten el portal con código y el Seller Center: solo cantidades, campo por campo.
+ */
+export async function buildSupplierInventory(companyId: string, contactId: string, showMovement: boolean, now: Date = new Date()): Promise<{ rows: SupplierPortalRow[]; summary: StatusCounts }> {
   const links = await prisma.productSupplier.findMany({
     where: { companyId, supplierId: contactId, product: { isActive: true } },
     orderBy: { product: { name: 'asc' } },
@@ -275,13 +293,5 @@ export async function getSupplierPortalView(rawCode: string, now: Date = new Dat
     };
   });
 
-  return {
-    company: { name: access.company.businessName, rut: access.company.rut, logoUrl: access.company.logoUrl, phone: access.company.phone, email: access.company.email },
-    supplier: { name: access.contact.nombreFantasia?.trim() || access.contact.razonSocial, rut: access.contact.rut },
-    generatedAt: now,
-    showMovement,
-    windowDays: MOVEMENT_WINDOW_DAYS,
-    summary: countStatuses(rows),
-    rows,
-  };
+  return { rows, summary: countStatuses(rows) };
 }

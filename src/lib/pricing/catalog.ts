@@ -137,6 +137,7 @@ export const PRICING_PLANS: readonly PricingPlan[] = [
  *   interruptor propio (`hasDeadStock`…), y Mermas con responsable
  *   (`hasShrinkageLiability`, dentro de Inventario): sin precio hasta que se
  *   defina; la Supersuite las enciende por su nombre (`metricas_retail`,
- *   `stock_muerto`, `mermas_responsable`…).
+ *   `stock_muerto`, `mermas_responsable`…). Igual el Seller Center
+ *   (`hasSellerCenter`, `seller_center`).
  */
-export const UNPRICED_FEATURES: readonly FeatureKey[] = ['hasDteBilling', 'hasFeeDocuments', 'hasAcademy', 'hasEcommerce', 'hasRetailMetrics', 'hasDeadStock', 'hasRetailHeatmap', 'hasBasketAnalysis', 'hasSmartReorder', 'hasShrinkageLiability'];
+export const UNPRICED_FEATURES: readonly FeatureKey[] = ['hasDteBilling', 'hasFeeDocuments', 'hasAcademy', 'hasEcommerce', 'hasRetailMetrics', 'hasDeadStock', 'hasRetailHeatmap', 'hasBasketAnalysis', 'hasSmartReorder', 'hasShrinkageLiability', 'hasSellerCenter'];

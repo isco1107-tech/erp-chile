@@ -59,6 +59,7 @@ export const FLAG_A_MODULO: Partial<Record<FeatureKey, string>> = {
   hasBasketAnalysis: 'canasta_cruzada',
   hasSmartReorder: 'reposicion_predictiva',
   hasShrinkageLiability: 'mermas_responsable',
+  hasSellerCenter: 'seller_center',
 };
 
 /**
@@ -97,6 +98,7 @@ const ENTIDAD_A_MODULO: Record<string, string> = {
   StoreOrder: 'tienda_en_linea', StoreProduct: 'tienda_en_linea', WebSiteStore: 'tienda_en_linea',
   RetailMetrics: 'metricas_retail', RetailSettings: 'metricas_retail',
   ShrinkageLiability: 'mermas_responsable', ShrinkageSettings: 'mermas_responsable',
+  SupplierPortalMembership: 'seller_center',
 };
 
 /** Módulo con que viaja lo que no es de un módulo de negocio (usuarios, roles, ajustes…): la Supersuite no lo cuenta como adopción. */

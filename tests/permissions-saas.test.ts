@@ -64,6 +64,7 @@ const FULL: CompanyFeatureFlags = {
   hasBasketAnalysis: true,
   hasSmartReorder: true,
   hasShrinkageLiability: true,
+  hasSellerCenter: true,
 };
 
 const STARTER: CompanyFeatureFlags = { ...DEFAULT_FEATURES };

@@ -371,4 +371,50 @@ export const INVENTARIO_SECTIONS: ManualSection[] = [
       },
     ],
   },
+  {
+    id: 'seller-center',
+    key: 'hasSellerCenter',
+    // Vive dentro de Inventario: se documenta solo con los dos interruptores encendidos.
+    anyOfFeatures: ['hasInventory'],
+    permission: 'settings:company',
+    chapter: 'Inventario',
+    title: 'Seller Center (cuentas de proveedores)',
+    summary:
+      'Cuentas con correo y contraseña para cada persona de un proveedor o productor. Entran a /proveedor/cuenta y ven sus ventas del mes en unidades y pesos (solo de los productos que surten en exclusiva), sus existencias por bodega y sus mermas. Nunca ven costos, márgenes, clientes ni otros proveedores.',
+    route: '/dashboard/contacts',
+    screenshot: null,
+    topics: [
+      {
+        id: 'invitar-proveedor',
+        title: 'Invitar a una persona del proveedor',
+        steps: [
+          'Abre la ficha del proveedor (Ventas → Clientes & Proveedores, un contacto marcado como proveedor) y busca la tarjeta "Seller Center: cuentas del proveedor".',
+          'Escribe su nombre y su correo y presiona "Invitar". Le llega un enlace para crear su contraseña; vence en 7 días y sirve una sola vez.',
+          'Si la persona ya tiene cuenta porque otra empresa la invitó, entra con su misma contraseña: no se crea una nueva.',
+          'Mientras no la acepte aparece "Invitación enviada". Con "Reenviar" le llega un enlace nuevo (el anterior deja de servir) y con "Anular" se cancela.',
+        ],
+        tip: 'Cada persona tiene su propia cuenta: si alguien deja de trabajar con el proveedor, desactivas solo a esa persona.',
+      },
+      {
+        id: 'quitar-acceso-proveedor',
+        title: 'Quitar o devolver el acceso',
+        steps: [
+          'En la misma tarjeta, presiona "Desactivar" junto a la persona. Deja de entrar de inmediato, aunque tenga la sesión abierta.',
+          'Para devolverle el acceso, presiona "Reactivar".',
+        ],
+      },
+      {
+        id: 'que-ve-el-proveedor',
+        title: 'Qué ve el proveedor',
+        steps: [
+          'Entra en la dirección /proveedor/cuenta de tu sitio con su correo y su contraseña. Si la olvida, la recupera con "¿Olvidaste tu contraseña?".',
+          'Elige el mes y ve lo vendido neto (sin IVA, después de descuentos) y las unidades de cada producto: boletas y facturas emitidas menos notas de crédito.',
+          'Solo ve ventas de los productos que surte en exclusiva. Si otro proveedor también surte un producto, de ese ve las existencias, pero no las ventas.',
+          'Ve sus existencias por bodega, lo que está sin stock o bajo el mínimo, y sus mermas del mes con el motivo y la foto. Si usas "Mermas y responsables", también ve quién respondió por cada una.',
+          'Puede descargar todo el mes con "Descargar Excel". Si surte a más de una empresa, cambia de una a otra en "Empresa".',
+        ],
+        tip: 'Es información de tu empresa que ve un tercero: invita solo a personas de proveedores de confianza.',
+      },
+    ],
+  },
 ];

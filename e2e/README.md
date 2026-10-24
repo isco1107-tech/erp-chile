@@ -50,6 +50,9 @@ Qué cubren:
   Canasta cruzada y Reposición predictiva (hasta crear la solicitud de compra), cada uno con su propio interruptor.
 - `inventory-shrinkage.spec.ts`: Inventario → Mermas y responsables con su propio interruptor: asignar una pérdida al
   proveedor, verla en "Por proveedor" y descargar el Excel; apagado, fuera del menú y con ruta y descarga cerradas.
+- `seller-center.spec.ts`: Seller Center con su propio interruptor: el dueño invita a una persona del proveedor desde su
+  ficha, la persona activa su cuenta, ve ventas en $ solo de lo exclusivo y descarga el Excel, sale y vuelve a entrar;
+  desactivada queda afuera con la sesión abierta, su cookie no sirve como sesión del panel y, apagado, el portal no existe.
 - `movements.spec.ts`: el registro de movimientos por bodega (cada bodega ve solo lo suyo,
   con operario, motivo y foto) y el kardex por bodega.
 - `supplier-portal.spec.ts`: el portal del proveedor (`/proveedor`): entra con su código, ve solo

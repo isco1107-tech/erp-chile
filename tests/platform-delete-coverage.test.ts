@@ -117,6 +117,8 @@ const CASCADES_TO_COMPANY = new Set([
   // con `onDelete: Cascade` directo hacia Company.
   'ProductSupplier',
   'SupplierPortalAccess',
+  // Seller Center: acceso de una persona del proveedor (la persona es de la plataforma, sin empresa).
+  'SupplierPortalMembership',
   // Tienda en línea: configuración, publicación, pedidos y sus reservas e historial.
   // Todos con `onDelete: Cascade` directo hacia Company (sin FK a Product ni a
   // Warehouse en pedidos, ítems y reservas: no bloquean el borrado de esos padres).

@@ -107,7 +107,7 @@ const day = (key: string) => {
   return { y, m, d };
 };
 
-function reasonLabelOf(reasonCode: string | null, reference: string | null): string {
+export function reasonLabelOf(reasonCode: string | null, reference: string | null): string {
   const label = wasteReasonLabel(reasonCode);
   if (label) return label;
   return reference?.startsWith(COUNT_SHORTAGE_PREFIX) ? 'Faltante en toma de inventario' : 'Ajuste de salida sin motivo';

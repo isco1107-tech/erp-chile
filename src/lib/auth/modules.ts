@@ -56,6 +56,7 @@ export type FeatureKey = keyof Pick<
   | 'hasBasketAnalysis'
   | 'hasSmartReorder'
   | 'hasShrinkageLiability'
+  | 'hasSellerCenter'
 >;
 
 export type CompanyFeatureFlags = Record<FeatureKey, boolean>;
@@ -417,6 +418,15 @@ export const MODULES: ModuleDefinition[] = [
     routes: ['/dashboard/inventory/mermas'],
     requires: 'hasInventory',
   },
+  {
+    key: 'hasSellerCenter',
+    label: 'Seller Center',
+    description:
+      'Dentro de Inventario: cuentas con correo y contraseña para cada persona del proveedor o productor. Ven sus ventas en unidades y pesos (solo de los productos que surten en exclusiva), sus existencias por bodega y sus mermas. Se invitan desde la ficha del proveedor.',
+    permissions: [],
+    routes: [],
+    requires: 'hasInventory',
+  },
 ];
 
 export const MODULE_KEYS: FeatureKey[] = MODULES.map((m) => m.key);
@@ -469,6 +479,7 @@ export const DEFAULT_FEATURES: CompanyFeatureFlags = {
   hasBasketAnalysis: false,
   hasSmartReorder: false,
   hasShrinkageLiability: false,
+  hasSellerCenter: false,
 };
 
 /** Índice inverso permiso → módulo, construido una vez al cargar el módulo. */
@@ -544,6 +555,7 @@ export function toFeatureFlags(features: CompanyFeatures | null): CompanyFeature
     hasBasketAnalysis: features.hasBasketAnalysis,
     hasSmartReorder: features.hasSmartReorder,
     hasShrinkageLiability: features.hasShrinkageLiability,
+    hasSellerCenter: features.hasSellerCenter,
   };
 }
 

@@ -66,6 +66,7 @@ const ALL_FEATURES_ON: CompanyFeatureFlags = {
   hasBasketAnalysis: true,
   hasSmartReorder: true,
   hasShrinkageLiability: true,
+  hasSellerCenter: true,
 };
 
 async function main() {
