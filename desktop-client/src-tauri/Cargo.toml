@@ -1,9 +1,13 @@
 [package]
 name = "aether"
-version = "0.2.0"
+version = "0.3.0"
 description = "Aether ERP Desktop Client"
 authors = ["Aether"]
 edition = "2021"
+
+[features]
+default = []
+pos = []
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

@@ -4,31 +4,26 @@ use tauri::{
     AppHandle, Manager, WebviewUrl, WebviewWindowBuilder,
 };
 
-/// Debe coincidir con DASHBOARD_URL en src/network-check.js — no hay paso de
-/// build que los mantenga sincronizados si el dominio cambia.
-const DASHBOARD_URL: &str = "https://aetherp.online/dashboard";
-const USER_AGENT: &str = "Mozilla/5.0 AetherDesktop/0.2.0";
+#[cfg(feature = "pos")]
+const APP_URL: &str = "https://aetherp.online/pos";
+#[cfg(not(feature = "pos"))]
+const APP_URL: &str = "https://aetherp.online/dashboard";
+#[cfg(feature = "pos")]
+const APP_TITLE: &str = "Aether POS";
+#[cfg(not(feature = "pos"))]
+const APP_TITLE: &str = "Aether ERP";
+#[cfg(feature = "pos")]
+const USER_AGENT: &str = concat!("Mozilla/5.0 AetherDesktop/", env!("CARGO_PKG_VERSION"), " AetherPOS/", env!("CARGO_PKG_VERSION"));
+#[cfg(not(feature = "pos"))]
+const USER_AGENT: &str = concat!("Mozilla/5.0 AetherDesktop/", env!("CARGO_PKG_VERSION"));
 
-/// Se inyecta en cada carga de página de la ventana "main" — tanto el
-/// dashboard remoto como `offline.html` local — para que la app misma
-/// reaccione a los eventos online/offline del navegador y recupere el shell
-/// sola, sin que la persona tenga que hacer nada. Esto NO sincroniza datos
-/// (eso queda para una etapa aparte): solo evita que la ventana se quede
-/// mostrando el error de red genérico del sistema operativo.
-const CONNECTIVITY_WATCH_SCRIPT: &str = r#"
-(function () {
-  if (window.__aetherConnectivityWatch) return;
-  window.__aetherConnectivityWatch = true;
-  window.addEventListener('offline', function () {
-    window.__TAURI__.core.invoke('switch_main_window', { mode: 'offline' }).catch(function () {});
-  });
-  window.addEventListener('online', function () {
-    window.__TAURI__.core.invoke('switch_main_window', { mode: 'app' }).catch(function () {});
-  });
-})();
-"#;
+fn is_local_ui_url(url: &tauri::Url) -> bool {
+    (url.scheme() == "tauri" && url.host_str() == Some("localhost"))
+        || ((url.scheme() == "http" || url.scheme() == "https")
+            && url.host_str() == Some("tauri.localhost"))
+}
 
-/// Reconstruye la ventana "main" apuntando al dashboard remoto o a la
+/// Reconstruye la ventana "main" apuntando a la app remota o a la
 /// pantalla local de sin conexión, y cierra la ventana de splash si sigue
 /// abierta. Se reconstruye en vez de navegarse in-place para no depender de
 /// la resolución manual de la URL de un recurso local empaquetado.
@@ -40,15 +35,14 @@ fn build_main_window(app: &AppHandle, mode: &str) -> tauri::Result<()> {
     let target = if mode == "offline" {
         WebviewUrl::App("offline.html".into())
     } else {
-        WebviewUrl::External(DASHBOARD_URL.parse().expect("DASHBOARD_URL inválida"))
+        WebviewUrl::External(APP_URL.parse().expect("APP_URL inválida"))
     };
 
     let window = WebviewWindowBuilder::new(app, "main", target)
-        .title("Aether ERP")
+        .title(APP_TITLE)
         .inner_size(1280.0, 800.0)
         .min_inner_size(900.0, 600.0)
         .user_agent(USER_AGENT)
-        .initialization_script(CONNECTIVITY_WATCH_SCRIPT)
         .build()?;
 
     if let Some(splash) = app.get_webview_window("splash") {
@@ -60,14 +54,23 @@ fn build_main_window(app: &AppHandle, mode: &str) -> tauri::Result<()> {
     Ok(())
 }
 
-/// Invocado desde `splash.html` (decisión inicial) y desde `offline.html` /
-/// el script de arriba (reconexión). `mode` es "app" u "offline" — nunca una
-/// URL arbitraria: el frontend no elige a dónde navega la ventana, solo
-/// entre estos dos destinos fijos conocidos en tiempo de compilación.
+/// Solo las pantallas locales de arranque pueden reemplazar la ventana.
+/// Una pérdida de red con la caja abierta NUNCA destruye la webview: conserva
+/// el carrito y el resultado pendiente de una venta hasta verificarlo en ERP.
 #[tauri::command]
-fn switch_main_window(app: AppHandle, mode: String) -> Result<(), String> {
-    let mode = if mode == "offline" { "offline" } else { "app" };
-    build_main_window(&app, mode).map_err(|e| e.to_string())
+fn switch_main_window(app: AppHandle, window: tauri::WebviewWindow, mode: String) -> Result<(), String> {
+    if !is_local_ui_url(&window.url().map_err(|e| e.to_string())?) {
+        return Err("Solo la pantalla local puede cambiar la ventana".into());
+    }
+    if mode != "app" && mode != "offline" {
+        return Err("Modo de ventana inválido".into());
+    }
+    if let Some(main) = app.get_webview_window("main") {
+        if !is_local_ui_url(&main.url().map_err(|e| e.to_string())?) {
+            return Err("La aplicación ya está abierta".into());
+        }
+    }
+    build_main_window(&app, &mode).map_err(|e| e.to_string())
 }
 
 /// Usada por el ícono de la bandeja del sistema (menú "Mostrar Aether" y
@@ -93,7 +96,8 @@ pub fn run() {
             let handle = app.handle().clone();
 
             WebviewWindowBuilder::new(&handle, "splash", WebviewUrl::App("splash.html".into()))
-                .title("Aether")
+                .title(APP_TITLE)
+                .initialization_script(format!("window.__aetherAppTitle = '{}';", APP_TITLE))
                 .inner_size(360.0, 420.0)
                 .resizable(false)
                 .decorations(false)
@@ -113,7 +117,7 @@ pub fn run() {
             TrayIconBuilder::new()
                 .icon(tray_icon)
                 .menu(&tray_menu)
-                .tooltip("Aether ERP")
+                .tooltip(APP_TITLE)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "quit" => app.exit(0),
                     "show" => show_and_focus_main(app),
@@ -130,4 +134,31 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_packaged_pages_can_replace_the_app_window() {
+        for url in ["tauri://localhost/offline.html", "http://tauri.localhost/splash.html", "https://tauri.localhost/offline.html"] {
+            assert!(is_local_ui_url(&url.parse().unwrap()), "{}", url);
+        }
+        for url in [APP_URL, "https://aetherp.online/pos/ingresar", "https://tauri.localhost.example/offline.html", "https://localhost/offline.html", "file:///offline.html"] {
+            assert!(!is_local_ui_url(&url.parse().unwrap()), "{}", url);
+        }
+    }
+
+    #[test]
+    fn desktop_target_and_user_agent_match_the_edition() {
+        if cfg!(feature = "pos") {
+            assert_eq!(APP_URL, "https://aetherp.online/pos");
+            assert!(USER_AGENT.contains(" AetherPOS/"));
+        } else {
+            assert_eq!(APP_URL, "https://aetherp.online/dashboard");
+            assert!(!USER_AGENT.contains(" AetherPOS/"));
+        }
+        assert!(USER_AGENT.contains(env!("CARGO_PKG_VERSION")));
+    }
 }

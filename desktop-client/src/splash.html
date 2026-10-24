@@ -68,6 +68,7 @@
   </div>
   <script src="network-check.js"></script>
   <script>
+    document.querySelector('.brand').textContent = window.__aetherAppTitle || 'Aether';
     (async function () {
       const reachable = await probeConnectivity(6000);
       await switchWindow(reachable ? 'app' : 'offline');

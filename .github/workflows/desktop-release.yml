@@ -2,8 +2,13 @@ name: Desktop installers
 
 on:
   workflow_dispatch:
-  push:
-    branches: ['codex/desktop-release-*']
+    inputs:
+      edition:
+        description: Edición del instalador
+        type: choice
+        options: [erp, pos]
+        default: erp
+        required: true
 
 permissions:
   contents: read
@@ -47,13 +52,26 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev patchelf
       - run: npm ci
         working-directory: desktop-client
-      - run: npm run tauri -- build --bundles ${{ matrix.bundle }}
+      - name: Verify native shell
+        if: runner.os == 'Windows'
+        working-directory: desktop-client/src-tauri
+        run: cargo test --locked --lib --features pos
+      - name: Build installer
+        shell: bash
+        run: |
+          if [[ "$AETHER_EDITION" == "pos" ]]; then
+            npm run build:pos -- --bundles "$AETHER_BUNDLE"
+          else
+            npm run tauri -- build --bundles "$AETHER_BUNDLE"
+          fi
         working-directory: desktop-client
         env:
           NO_STRIP: 'true'
+          AETHER_EDITION: ${{ inputs.edition }}
+          AETHER_BUNDLE: ${{ matrix.bundle }}
       - uses: actions/upload-artifact@v4
         with:
-          name: aether-${{ matrix.artifact }}
+          name: aether-${{ inputs.edition }}-${{ matrix.artifact }}
           path: ${{ matrix.path }}
           if-no-files-found: error
           retention-days: 7

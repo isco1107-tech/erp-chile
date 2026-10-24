@@ -1,10 +1,11 @@
 {
   "name": "desktop-client",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "scripts": {
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "build:pos": "tauri build --features pos --config src-tauri/tauri.pos.conf.json"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2"
