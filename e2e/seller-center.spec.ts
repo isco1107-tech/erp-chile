@@ -162,23 +162,19 @@ async function seedSellerSales(warehouseId: string) {
     select: { id: true },
   });
   if (!settlement) {
-    const max = await db().sellerSettlement.aggregate({
-      where: { companyId },
-      _max: { number: true },
-    });
-    await db().sellerSettlement.create({
-      data: {
-        companyId,
-        consignorId: seller.id,
-        number: (max._max.number ?? 0) + 1,
-        idempotencyKey: 'e2e-mobile-settlement',
-        status: 'PAID',
-        units: 3,
-        netSales: 9000,
-        commissionAmount: 1800,
-        payoutAmount: 7200,
-        paidAt: new Date(),
-      },
+    await db().$transaction(async tx => {
+      const sequence = await tx.internalDocumentSequence.upsert({
+        where: { companyId_kind: { companyId, kind: 'SELLER_SETTLEMENT' } },
+        update: { currentFolio: { increment: 1 } },
+        create: { companyId, kind: 'SELLER_SETTLEMENT', currentFolio: 1 },
+      });
+      await tx.sellerSettlement.create({
+        data: {
+          companyId, consignorId: seller.id, number: sequence.currentFolio,
+          idempotencyKey: 'e2e-mobile-settlement', status: 'PAID', units: 3,
+          netSales: 9000, commissionAmount: 1800, payoutAmount: 7200, paidAt: new Date(),
+        },
+      });
     });
   }
   // Sin accesos previos de esta persona: cada corrida parte de cero.
