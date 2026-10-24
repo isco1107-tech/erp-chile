@@ -94,7 +94,8 @@ export async function setSessionCookieServer(token: string) {
   const { cookies } = await import('next/headers');
   const store = await cookies();
   // Keep the chosen mobile app when rotating a session or changing company.
-  const entry = store.get(ERP_ENTRY_COOKIE)?.value === 'bodega' ? 'bodega' : 'erp';
+  const preferred = store.get(ERP_ENTRY_COOKIE)?.value;
+  const entry = preferred === 'bodega' || preferred === 'pos' ? preferred : 'erp';
   store.set(ERP_ENTRY_COOKIE, entry, ERP_ENTRY_COOKIE_OPTIONS);
   store.set({
     name: 'session',

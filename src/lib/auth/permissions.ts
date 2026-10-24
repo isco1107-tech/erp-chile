@@ -62,8 +62,8 @@ export const PERMISSIONS = {
   'consignment:write': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
 
   'pos:operate': ['OWNER', 'ADMIN', 'SALES'],
-  // Cerrar la caja es el control sobre el propio cajero: quien vende no debería
-  // ser quien declara cuánto había. Por defecto queda fuera de SALES.
+  // Supervisar cierres ajenos exige permiso adicional. El cajero puede cerrar
+  // su propio turno con pos:operate, dejando contado y descuadre auditados.
   'pos:close': ['OWNER', 'ADMIN'],
 
   'treasury:read': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
@@ -314,8 +314,8 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'inventory:write': 'Ajustar stock en bodega',
   'consignment:read': 'Ver las liquidaciones y saldos de los sellers de consignación',
   'consignment:write': 'Generar, pagar y anular liquidaciones a sellers de consignación',
-  'pos:operate': 'Vender en el Punto de Venta y abrir caja',
-  'pos:close': 'Cerrar caja y hacer el arqueo',
+  'pos:operate': 'Vender, abrir y cerrar el turno propio de caja',
+  'pos:close': 'Supervisar y cerrar turnos de otros cajeros',
   'treasury:read': 'Ver cuentas por cobrar y pagar',
   'treasury:write': 'Registrar pagos y cobranzas',
   'reports:read': 'Descargar reportes y libro Excel',

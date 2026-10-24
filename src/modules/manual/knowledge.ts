@@ -43,7 +43,7 @@ export interface NavigationEntry extends Gated {
 /** Para qué sirve cada ítem del menú lateral, por su `id` estable de `workspace-nav.ts`. */
 export const SCREEN_PURPOSES: Record<string, string> = {
   home: 'Resumen del negocio al entrar: ventas, compras, IVA, stock crítico y accesos rápidos.',
-  pos: 'Vender en mostrador: abrir la caja, cobrar con boleta y cerrar el turno con arqueo.',
+  pos: 'Operar varias cajas con cajeros identificados: apertura con fondo inicial, boletas, ingresos, retiros, cierre con arqueo y comprobante por turno.',
   messaging: 'Chat interno cifrado con el equipo de la empresa.',
   intelligence: 'Salud de la empresa, señales de alerta, clientes RFM, productos ABC y simulador de decisiones.',
   'intelligence-cash': 'Saldo de caja proyectado semana a semana con todos los compromisos con fecha.',
@@ -530,7 +530,7 @@ export const TROUBLESHOOTING: TroubleshootingItem[] = [
   {
     problem: 'No puedo cerrar la caja',
     requires: 'hasPos',
-    answer: ['Cerrar caja requiere el permiso de cierre (por defecto Dueño y Administrador). Avisa a quien lo tenga para hacer el arqueo.'],
+    answer: ['Cada cajero puede cerrar su propio turno desde Caja y arqueo. Para cerrar el turno de otra persona necesitas permiso de supervisión (por defecto Dueño y Administrador), desde Turnos y multicaja → Ver turno. Actualiza el arqueo y explica cualquier diferencia antes de confirmar.'],
   },
   {
     problem: 'Una compra quedó "Pendiente de aprobación" o "No coincide con OC"',

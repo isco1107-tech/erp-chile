@@ -1,5 +1,5 @@
 import { cookies } from 'next/headers';
-import { ERP_ENTRY_COOKIE } from '@/lib/auth/entry-preference';
+import { ERP_ENTRY_COOKIE, entryDestination } from '@/lib/auth/entry-preference';
 import { redirect } from 'next/navigation';
 import { getAuthContext, AuthError, TenantInactiveError } from '@/lib/auth/guards';
 import ChangePasswordForm from '@/components/ChangePasswordForm';
@@ -21,7 +21,7 @@ export default async function ChangePasswordPage() {
     throw error;
   }
 
-  const destination = (await cookies()).get(ERP_ENTRY_COOKIE)?.value === 'bodega' ? '/bodega' : '/dashboard';
+  const destination = entryDestination((await cookies()).get(ERP_ENTRY_COOKIE)?.value);
 
   // Ya la cambió (por ejemplo, en otra pestaña): no tiene sentido insistir.
   if (!context.mustChangePassword) redirect(destination);

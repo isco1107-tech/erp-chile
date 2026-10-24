@@ -51,11 +51,23 @@ export async function ensureDefaultCashRegister(companyId: string): Promise<Cash
     (await prisma.warehouse.findFirst({ where: { companyId }, orderBy: { createdAt: 'asc' } }));
   if (!warehouse) return null;
 
-  const created = await prisma.cashRegister.create({
-    data: { companyId, warehouseId: warehouse.id, name: 'Caja Principal' },
-    include: { warehouse: { select: { id: true, name: true } } },
-  });
-  return created;
+  try {
+    return await prisma.cashRegister.upsert({
+      where: { companyId_name: { companyId, name: 'Caja Principal' } },
+      update: { isActive: true },
+      create: { companyId, warehouseId: warehouse.id, name: 'Caja Principal' },
+      include: { warehouse: { select: { id: true, name: true } } },
+    });
+  } catch (error) {
+    if (constraintInvolves(error, 'name')) {
+      const winner = await prisma.cashRegister.findFirst({
+        where: { companyId, name: 'Caja Principal', isActive: true },
+        include: { warehouse: { select: { id: true, name: true } } },
+      });
+      if (winner) return winner;
+    }
+    throw error;
+  }
 }
 
 export async function createCashRegister(
@@ -94,6 +106,30 @@ export async function getShift(companyId: string, shiftId: string): Promise<Open
       user: { select: { id: true, name: true, email: true } },
     },
   });
+}
+
+export type CashRegisterStatus = CashRegisterWithWarehouse & {
+  occupied: boolean;
+  cashierName: string | null;
+  ownShift: boolean;
+};
+
+/** Solo ocupación e identidad: nunca expone el arqueo de otro cajero. */
+export async function listCashRegisterStatuses(companyId: string, userId: string): Promise<CashRegisterStatus[]> {
+  const registers = await prisma.cashRegister.findMany({
+    where: { companyId, isActive: true },
+    include: {
+      warehouse: { select: { id: true, name: true } },
+      shifts: { where: { companyId, status: 'OPEN' }, select: { userId: true, user: { select: { name: true } } }, take: 1 },
+    },
+    orderBy: { name: 'asc' },
+  });
+  return registers.map(({ shifts, ...register }) => ({
+    ...register,
+    occupied: shifts.length > 0,
+    cashierName: shifts[0]?.user?.name ?? null,
+    ownShift: shifts[0]?.userId === userId,
+  }));
 }
 
 /**
@@ -260,10 +296,27 @@ export async function registerCashMovement(
   // ingreso/egreso quedaría fuera del arqueo aunque el turno siguiera OPEN al
   // momento de crearse.
   return prisma.$transaction(async (tx) => {
+    if (input.idempotencyKey) {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`pos-movement:${companyId}:${input.idempotencyKey}`}, 0))`;
+      const existing = await tx.cashMovement.findUnique({
+        where: { companyId_idempotencyKey: { companyId, idempotencyKey: input.idempotencyKey } },
+      });
+      if (existing) {
+        if (existing.cashShiftId !== shiftId || existing.userId !== userId || existing.type !== input.type || existing.amount !== input.amount || existing.reason !== input.reason.trim()) {
+          throw new Error('La clave del movimiento ya se usó con otros datos. Actualiza la caja antes de continuar');
+        }
+        return existing;
+      }
+    }
     await lockShiftRow(tx, companyId, shiftId);
     const shift = await tx.cashShift.findFirst({ where: { id: shiftId, companyId } });
     if (!shift) throw new Error('Turno no encontrado');
     if (shift.status !== 'OPEN') throw new Error('El turno ya está cerrado');
+    if (shift.userId !== userId) throw new Error('Solo el cajero del turno puede registrar ingresos o retiros');
+    if (input.type === 'OUTFLOW') {
+      const summary = await getShiftSummary(companyId, shiftId, tx);
+      if (input.amount > summary.expectedAmount) throw new Error('El retiro supera el efectivo disponible en esta caja');
+    }
 
     return tx.cashMovement.create({
       data: {
@@ -273,6 +326,7 @@ export async function registerCashMovement(
         type: input.type,
         amount: input.amount,
         reason: input.reason.trim(),
+        idempotencyKey: input.idempotencyKey,
       },
     });
   }, LOCKING_TX_OPTIONS);
@@ -299,9 +353,10 @@ export interface ClosedShiftResult {
 export async function closeShift(
   companyId: string,
   shiftId: string,
-  input: { actualAmount: number; closingNotes?: string }
+  input: { actualAmount: number; closingNotes?: string },
+  actorUserId?: string
 ): Promise<ClosedShiftResult> {
-  const { shift, summary } = await prisma.$transaction(async (tx) => {
+  const { shift, summary, replayed } = await prisma.$transaction(async (tx) => {
     // Lock del turno ANTES de calcular el resumen: si el resumen se calculara
     // afuera de esta transacción (como antes), una venta que entra justo entre
     // el cálculo y el UPDATE quedaría fuera del arqueo congelado aunque el
@@ -311,6 +366,10 @@ export async function closeShift(
     // rechaza antes de mutar nada.
     await lockShiftRow(tx, companyId, shiftId);
     const summary = await getShiftSummary(companyId, shiftId, tx);
+
+    if (computeDifference(input.actualAmount, summary.expectedAmount) !== 0 && (input.closingNotes?.trim().length ?? 0) < 3) {
+      throw new Error('Explica el faltante o sobrante antes de cerrar la caja');
+    }
 
     // Cierre condicionado al estado OPEN: si otro cierre ganó la carrera, este
     // afecta 0 filas y falla, en vez de pisar el arqueo ya declarado.
@@ -322,22 +381,27 @@ export async function closeShift(
         expectedAmount: summary.expectedAmount,
         actualAmount: input.actualAmount,
         difference: computeDifference(input.actualAmount, summary.expectedAmount),
-        closingNotes: input.closingNotes || undefined,
+        closingNotes: input.closingNotes?.trim() || undefined,
       },
     });
-    if (updated.count !== 1) throw new Error('El turno ya fue cerrado');
-
     const result = await tx.cashShift.findFirst({ where: { id: shiftId, companyId } });
     if (!result) throw new Error('Turno no encontrado');
+    if (updated.count !== 1) {
+      if (result.status === 'CLOSED' && result.actualAmount === input.actualAmount && (result.closingNotes ?? '') === (input.closingNotes?.trim() ?? '')) {
+        return { shift: result, summary, replayed: true };
+      }
+      throw new Error('El turno ya fue cerrado. Consulta su comprobante en el historial');
+    }
 
     // Cada boleta del turno ya posteó su propio asiento al emitirse
     // (`postSalesDocumentIssued`): acá solo se contabiliza el descuadre entre
     // lo esperado y lo contado, nunca el total vendido de nuevo.
-    await postCashShiftDifference(tx, companyId, { id: result.id, difference: result.difference ?? 0 });
+    await postCashShiftDifference(tx, companyId, { id: result.id, difference: result.difference ?? 0 }, { createdByUserId: actorUserId });
 
-    return { shift: result, summary };
+    return { shift: result, summary, replayed: false };
   }, LOCKING_TX_OPTIONS);
 
+  if (replayed) return { shift, summary };
   const cashRegister = await prisma.cashRegister.findFirst({ where: { id: shift.cashRegisterId, companyId }, select: { name: true } });
   // Turno cerrado: en la Supersuite la caja queda "apagada", no "sin señal".
   latidoCajaSupersuite(companyId, { id: shift.cashRegisterId, name: cashRegister?.name ?? 'Caja' }, true);
@@ -356,14 +420,15 @@ export type ShiftHistoryItem = CashShift & {
   user: { name: string; email: string } | null;
 };
 
-export async function listShifts(companyId: string, options?: { take?: number }): Promise<ShiftHistoryItem[]> {
+export async function listShifts(companyId: string, options?: { take?: number; userId?: string; cursor?: string }): Promise<ShiftHistoryItem[]> {
   return prisma.cashShift.findMany({
-    where: { companyId },
+    where: { companyId, ...(options?.userId ? { userId: options.userId } : {}) },
     include: {
       cashRegister: { select: { name: true } },
       user: { select: { name: true, email: true } },
     },
-    orderBy: { openedAt: 'desc' },
+    orderBy: [{ openedAt: 'desc' }, { id: 'desc' }],
+    ...(options?.cursor ? { cursor: { id: options.cursor }, skip: 1 } : {}),
     take: options?.take ?? 30,
   });
 }

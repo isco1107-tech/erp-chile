@@ -319,6 +319,12 @@ export async function createSalesDocument(
     // nace al emitirse, y mover stock antes dejaba inventario sin respaldo
     // contable (N-01).
     if (affectsStock || (isCreditNote && isIssuing)) {
+      // Mismo orden de inventario que POS, aun con otros tipos de DTE y
+      // contadores de folio: dos canales con carritos A/B y B/A no cruzan locks.
+      const stockProductIds = [...new Set(computedItems.flatMap((item) => item.productId ? [item.productId] : []))].sort();
+      if (stockProductIds.length > 0) {
+        await tx.$queryRaw`SELECT id FROM "Product" WHERE "companyId" = ${companyId} AND id = ANY(${stockProductIds}) ORDER BY id FOR UPDATE`;
+      }
       const sourceItems = isCreditNote && referencedDocument ? referencedDocument.items : computedItems;
       for (const item of computedItems) {
         if (!item.productId) continue;

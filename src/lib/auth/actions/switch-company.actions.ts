@@ -1,7 +1,7 @@
 'use server';
 
 import { cookies, headers } from 'next/headers';
-import { ERP_ENTRY_COOKIE } from '@/lib/auth/entry-preference';
+import { ERP_ENTRY_COOKIE, entryDestination } from '@/lib/auth/entry-preference';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { getAuthContext, AuthError } from '@/lib/auth/guards';
@@ -76,7 +76,7 @@ export async function switchActiveCompanyAction(targetCompanyId: string, returnT
   // login y era la hogar): no hace falta reemitir la sesión ni auditar un cambio.
   if (targetCompanyId === session.companyId) {
     if (returnToCaller) return { success: true, data: null };
-    redirect((await cookies()).get(ERP_ENTRY_COOKIE)?.value === 'bodega' ? '/bodega' : '/dashboard');
+    redirect(entryDestination((await cookies()).get(ERP_ENTRY_COOKIE)?.value));
   }
 
   const user = await prisma.user.findUnique({
@@ -161,5 +161,5 @@ export async function switchActiveCompanyAction(targetCompanyId: string, returnT
   });
 
   if (returnToCaller) return { success: true, data: null };
-  redirect((await cookies()).get(ERP_ENTRY_COOKIE)?.value === 'bodega' ? '/bodega' : '/dashboard');
+  redirect(entryDestination((await cookies()).get(ERP_ENTRY_COOKIE)?.value));
 }

@@ -63,7 +63,7 @@ export async function getAvailability(
     client.product.findMany({ where: { companyId, id: { in: ids } }, select: { id: true, isTrackable: true } }),
     client.stock.findMany({ where: { companyId, warehouseId, productId: { in: ids } }, select: { productId: true, quantity: true } }),
     reservedByStore(client, companyId, warehouseId, ids, now),
-    getReservedStock(companyId, ids, warehouseId),
+    getReservedStock(companyId, ids, warehouseId, client),
   ]);
   const onHandBy = new Map(stocks.map((row) => [row.productId, row.quantity]));
 
@@ -92,7 +92,7 @@ export async function getAvailability(
  * cruzar locks entre pedidos) y devuelve cuántas unidades tiene cada uno. Un producto sin
  * fila de stock no tiene unidades.
  */
-async function lockStockRows(tx: Tx, companyId: string, warehouseId: string, productIds: string[]): Promise<void> {
+export async function lockStockRows(tx: Tx, companyId: string, warehouseId: string, productIds: string[]): Promise<void> {
   if (productIds.length === 0) return;
   const ordered = [...new Set(productIds)].sort();
   await tx.$queryRaw`SELECT id FROM "Stock" WHERE "companyId" = ${companyId} AND "warehouseId" = ${warehouseId} AND "productId" = ANY(${ordered}) ORDER BY "productId" FOR UPDATE`;

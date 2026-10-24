@@ -225,9 +225,9 @@ export async function applyOrderProgress(
  * Stock comprometido por notas abiertas, por producto (y por bodega si se
  * indica): lo que falta despachar.
  */
-export async function getReservedStock(companyId: string, productIds: string[], warehouseId?: string): Promise<Map<string, number>> {
+export async function getReservedStock(companyId: string, productIds: string[], warehouseId?: string, client: Prisma.TransactionClient = prisma): Promise<Map<string, number>> {
   if (productIds.length === 0) return new Map();
-  const lines = await prisma.salesOrderItem.findMany({
+  const lines = await client.salesOrderItem.findMany({
     where: {
       companyId,
       productId: { in: productIds },

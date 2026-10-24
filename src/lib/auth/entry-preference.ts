@@ -11,3 +11,12 @@ export const ERP_ENTRY_COOKIE_OPTIONS = {
 export function warehouseEntry(cookieHeader: string | null): boolean {
   return cookieHeader?.split(';').some((part) => part.trim() === `${ERP_ENTRY_COOKIE}=bodega`) ?? false;
 }
+
+/** Lista cerrada: preferencia de navegación, sin otorgar ningún permiso. */
+export function entryDestination(value: string | undefined): '/bodega' | '/pos' | '/dashboard' {
+  return value === 'bodega' ? '/bodega' : value === 'pos' ? '/pos' : '/dashboard';
+}
+
+export function posEntry(cookieHeader: string | null): boolean {
+  return cookieHeader?.split(';').some((part) => part.trim() === `${ERP_ENTRY_COOKIE}=pos`) ?? false;
+}

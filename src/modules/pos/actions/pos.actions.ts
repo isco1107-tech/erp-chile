@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { Prisma, type CashMovement, type CashRegister, type CashShift } from '@prisma/client';
-import { requireAuthWithPermission, authErrorMessage, can } from '@/lib/auth/guards';
+import { requireAuthWithPermission, authErrorMessage, can, type AuthContext } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 import { latidoCajaSupersuite, supersuiteHabilitada } from '@/lib/supersuite';
 import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
@@ -21,6 +21,7 @@ import type {
   OpenShiftDetail,
   ShiftHistoryItem,
   ShiftSummary,
+  CashRegisterStatus,
 } from '../services/cash.service';
 import type { PosProduct, PosSaleListItem, PosSaleResult } from '../services/pos.service';
 
@@ -39,6 +40,29 @@ function toErrorMessage(error: unknown): string {
     return 'Ya existe un registro con ese identificador';
   }
   return toFriendlyErrorMessage(error);
+}
+
+async function requireShiftAccess(session: AuthContext, shiftId: string): Promise<OpenShiftDetail> {
+  const shift = await cashService.getShift(session.companyId, shiftId);
+  if (!shift || (shift.userId !== session.id && !can(session, 'pos:close'))) {
+    throw new Error('No tienes acceso a este turno de caja');
+  }
+  return shift;
+}
+
+function refreshPos(): void {
+  revalidatePath('/dashboard/pos');
+  revalidatePath('/pos');
+}
+
+export async function listCashRegisterStatusesAction(): Promise<ActionResult<CashRegisterStatus[]>> {
+  try {
+    const session = await requireAuthWithPermission('pos:operate');
+    await cashService.ensureDefaultCashRegister(session.companyId);
+    return { success: true, data: await cashService.listCashRegisterStatuses(session.companyId, session.id) };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
 }
 
 export async function listCashRegistersAction(): Promise<ActionResult<CashRegisterWithWarehouse[]>> {
@@ -73,7 +97,7 @@ export async function createCashRegisterAction(input: unknown): Promise<ActionRe
       entityId: register.id,
       metadata: { name: register.name },
     });
-    revalidatePath('/dashboard/pos');
+    refreshPos();
     return { success: true, data: register, message: `Caja "${register.name}" creada` };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
@@ -122,7 +146,7 @@ export async function openShiftAction(input: unknown): Promise<ActionResult<Cash
       entityId: shift.id,
       metadata: { initialAmount: shift.initialAmount, cashRegisterId: shift.cashRegisterId },
     });
-    revalidatePath('/dashboard/pos');
+    refreshPos();
     return { success: true, data: shift, message: 'Caja abierta' };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
@@ -132,6 +156,7 @@ export async function openShiftAction(input: unknown): Promise<ActionResult<Cash
 export async function getShiftSummaryAction(shiftId: string): Promise<ActionResult<ShiftSummary>> {
   try {
     const session = await requireAuthWithPermission('pos:operate');
+    await requireShiftAccess(session, shiftId);
     return { success: true, data: await cashService.getShiftSummary(session.companyId, shiftId) };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
@@ -140,15 +165,14 @@ export async function getShiftSummaryAction(shiftId: string): Promise<ActionResu
 
 export async function closeShiftAction(shiftId: string, input: unknown): Promise<ActionResult<ClosedShiftResult>> {
   try {
-    // Cerrar caja es el control sobre el cajero: exige su propio permiso.
-    const session = await requireAuthWithPermission('pos:close');
+    // El cajero cierra su turno. `pos:close` permite además supervisar otros.
+    const session = await requireAuthWithPermission('pos:operate');
     const parsed = closeShiftSchema.safeParse(input);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
 
-    const shift = await cashService.getShift(session.companyId, shiftId);
-    if (!shift) return { success: false, error: 'Turno no encontrado' };
+    const shift = await requireShiftAccess(session, shiftId);
 
-    const result = await cashService.closeShift(session.companyId, shiftId, parsed.data);
+    const result = await cashService.closeShift(session.companyId, shiftId, parsed.data, session.id);
     await createAuditLog({
       companyId: session.companyId,
       userId: session.id,
@@ -164,7 +188,7 @@ export async function closeShiftAction(shiftId: string, input: unknown): Promise
         descuadre: result.shift.difference,
       },
     });
-    revalidatePath('/dashboard/pos');
+    refreshPos();
     return {
       success: true,
       data: result,
@@ -194,7 +218,7 @@ export async function registerCashMovementAction(
       entityId: movement.id,
       metadata: { type: movement.type, amount: movement.amount, reason: movement.reason },
     });
-    revalidatePath('/dashboard/pos');
+    refreshPos();
     return { success: true, data: movement, message: 'Movimiento registrado' };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
@@ -204,6 +228,7 @@ export async function registerCashMovementAction(
 export async function listCashMovementsAction(shiftId: string): Promise<ActionResult<CashMovement[]>> {
   try {
     const session = await requireAuthWithPermission('pos:operate');
+    await requireShiftAccess(session, shiftId);
     return { success: true, data: await cashService.listCashMovements(session.companyId, shiftId) };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
@@ -235,7 +260,7 @@ export async function createPosSaleAction(shiftId: string, input: unknown): Prom
       entityId: sale.id,
       metadata: { folio: sale.folio, total: sale.totalAmount, medioPago: sale.paymentMethod, origen: 'POS' },
     });
-    revalidatePath('/dashboard/pos');
+    refreshPos();
     revalidatePath('/dashboard/inventory');
     return { success: true, data: can(session, 'products:costs') ? sale : redactPosCosts(sale), message: `Boleta #${sale.folio} emitida` };
   } catch (error) {
@@ -246,16 +271,21 @@ export async function createPosSaleAction(shiftId: string, input: unknown): Prom
 export async function listShiftSalesAction(shiftId: string): Promise<ActionResult<PosSaleListItem[]>> {
   try {
     const session = await requireAuthWithPermission('pos:operate');
+    await requireShiftAccess(session, shiftId);
     return { success: true, data: await posService.listShiftSales(session.companyId, shiftId) };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
   }
 }
 
-export async function listShiftsAction(): Promise<ActionResult<ShiftHistoryItem[]>> {
+export async function listShiftsAction(cursor?: string): Promise<ActionResult<ShiftHistoryItem[]>> {
   try {
     const session = await requireAuthWithPermission('pos:operate');
-    return { success: true, data: await cashService.listShifts(session.companyId) };
+    if (cursor !== undefined) {
+      if (typeof cursor !== 'string' || !cursor || cursor.length > 100) return { success: false, error: 'Página de turnos inválida' };
+      await requireShiftAccess(session, cursor);
+    }
+    return { success: true, data: await cashService.listShifts(session.companyId, { userId: can(session, 'pos:close') ? undefined : session.id, ...(cursor ? { cursor } : {}) }) };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
   }

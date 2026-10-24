@@ -9,16 +9,26 @@ export const VENTAS_SECTIONS: ManualSection[] = [
     chapter: 'Ventas',
     title: 'Punto de Venta (POS)',
     summary:
-      'La caja del mostrador: vendes escaneando productos, cobras en efectivo, tarjeta o transferencia y emites la boleta al instante. Cada turno se abre con un fondo de caja y se cierra con un arqueo.',
+      'Mostrador con varias cajas simultáneas: cada cajero entra con su cuenta, declara el fondo inicial, registra ventas y movimientos y cierra su turno con arqueo. El supervisor consulta las cajas y sus comprobantes.',
     route: '/dashboard/pos',
     topics: [
+      {
+        id: 'instalar-app-pos',
+        title: 'Instalar el POS en el computador',
+        steps: [
+          'Abre /pos en el navegador o Punto de Venta dentro del ERP y presiona "Descargar app POS".',
+          'Descarga el instalador para Windows, Mac o Linux, instálalo y fija Aether POS en el escritorio, Inicio o Dock.',
+          'Abre Aether POS e ingresa con tu cuenta personal. Entrarás directamente al mostrador. La aplicación necesita internet para confirmar ventas, stock y movimientos de caja.',
+        ],
+        tip: 'Si una operación queda pendiente por un corte de conexión, mantén abierta la app y reintenta la misma operación. No cambies de cajero hasta recuperar el resultado.',
+      },
       {
         id: 'abrir-caja',
         title: 'Abrir la caja al empezar el turno',
         steps: [
-          'Entra a Punto de Venta (grupo Principal del menú). Si no tienes un turno abierto verás la pantalla "Abrir caja".',
-          'Elige la caja. Si es la primera vez, créala con "Crear caja" indicando su nombre (ej. "Caja 1 Mesón") y la bodega desde la que descuenta stock.',
-          'Escribe el monto inicial en efectivo (el fondo de cambio con el que partes) y confirma.',
+          'Ingresa con tu propio usuario y contraseña y entra a Punto de Venta. Verifica tu nombre y correo en "Cajero identificado". Si no tienes un turno abierto verás "Abrir caja".',
+          'Elige una caja disponible: las ocupadas muestran al cajero y no se pueden seleccionar. "Actualizar cajas" consulta su estado. Cada persona y cada caja pueden tener un solo turno abierto.',
+          'Cuenta el efectivo inicial, escribe el monto (también si es cero) y presiona "Abrir caja y comenzar a vender". Un administrador puede agregar cajas con "+ Nueva caja" → "Crear caja", indicando la bodega desde la que descuentan stock.',
         ],
       },
       {
@@ -31,26 +41,36 @@ export const VENTAS_SECTIONS: ManualSection[] = [
           'Opcional: ingresa el RUT del cliente. Sin RUT, la boleta sale a consumidor final.',
           'Presiona "Cobrar": se emite la boleta y queda lista para imprimir en formato de ticket 80 mm. "Reimprimir boleta" la vuelve a imprimir.',
         ],
-        tip: 'Si se corta la conexión al cobrar, vuelve a presionar "Cobrar": la venta no se duplica.',
+        tip: 'El catálogo se actualiza al volver a la pantalla y periódicamente. "Actualizar catálogo" permite consultarlo a mano; el servidor vuelve a validar precios y stock al cobrar. Si se corta la conexión al cobrar, conserva el carrito y reintenta la misma venta sin editarlo: no se duplica. No cierres la app hasta confirmar el resultado.',
       },
       {
         id: 'movimientos-caja',
         title: 'Registrar un ingreso o retiro de efectivo',
         steps: [
           'Ve a la pestaña "Caja y arqueo" → "Movimiento de efectivo".',
-          'Elige "Ingreso" o "Retiro", escribe el monto y el motivo (ej. "retiro a bóveda", "compra de insumos") y presiona "Registrar".',
+          'Elige "Ingreso" o "Retiro", escribe el monto y el motivo (ej. "retiro a bóveda", "compra de insumos") y presiona "Registrar". El movimiento aparece en la "Bitácora de efectivo" y modifica el esperado de este turno.',
+          'Registra solamente dinero que entra o sale físicamente del cajón. No ingreses otra vez el dinero de una venta ya cobrada. Si falla la conexión, reintenta con los mismos datos sin modificarlos.',
         ],
       },
       {
         id: 'cerrar-caja',
         title: 'Cerrar la caja (arqueo)',
-        permission: 'pos:close',
         steps: [
-          'En "Caja y arqueo" revisa el resumen del turno y el efectivo esperado en el cajón.',
+          'En "Caja y arqueo" presiona "Actualizar arqueo" y revisa el resumen del turno y el efectivo esperado en el cajón. Cada cajero puede cerrar su propio turno.',
           'Cuenta el dinero real y escríbelo en "Efectivo contado en el cajón". Si hay diferencia, explícala en las observaciones.',
-          'Presiona "Cerrar caja". Débito, crédito y transferencias no entran al cajón: se concilian con el banco, no con el arqueo.',
+          'Presiona "Cerrar caja" y confirma. Si hay un sobrante o faltante, explica la diferencia en las observaciones antes de confirmar. Débito, crédito y transferencias se concilian con el banco.',
         ],
         tip: 'Cierra siempre el turno el mismo día, aunque haya diferencia: dejarlo abierto descuadra también el turno siguiente.',
+      },
+      {
+        id: 'historial-multicaja',
+        title: 'Consultar turnos y comprobantes',
+        steps: [
+          'Abre "Mis turnos"; si tienes permiso de supervisión se llama "Turnos y multicaja". También se muestra debajo de "Abrir caja".',
+          'Filtra "Todos", "Abiertos" o "Cerrados" y presiona "Ver turno". Revisa sus ventas y movimientos. En un turno cerrado verás "Comprobante de cierre" y podrás usar "Imprimir comprobante de cierre".',
+          'Cada cajero ve sus propios turnos. El supervisor con permiso de cierre ve todos los turnos de la empresa y puede cerrar un turno ajeno contando el efectivo y declarando sus observaciones; los ingresos y retiros siguen a cargo del cajero de ese turno.',
+        ],
+        tip: 'Las cajas del mismo local trabajan en paralelo. El stock se valida en el ERP al confirmar cada venta para evitar vender dos veces las últimas unidades.',
       },
       {
         id: 'anular-venta-pos',

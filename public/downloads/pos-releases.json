@@ -1,1 +1,42 @@
-[]
+[
+  {
+    "platform": "windows",
+    "architecture": "x64",
+    "version": "0.3.0",
+    "file": "aether-pos-windows.exe",
+    "size": 2348796,
+    "sha256": "6a947683ea0908147ff8da4a58302d2ca489646e104c6560767b1dafce41e940",
+    "sourceSha": "8b993a62cd48a7ea1cf87f05da286adf537f1cd5",
+    "workflowRunId": 40044642271
+  },
+  {
+    "platform": "macos",
+    "architecture": "arm64",
+    "version": "0.3.0",
+    "file": "aether-pos-macos.dmg",
+    "size": 5695203,
+    "sha256": "250e75976a1909bf7a023ef5164f1b91981eec2e97703ed8d1f565e7d775b8d4",
+    "sourceSha": "8b993a62cd48a7ea1cf87f05da286adf537f1cd5",
+    "workflowRunId": 40044642271
+  },
+  {
+    "platform": "macos",
+    "architecture": "x64",
+    "version": "0.3.0",
+    "file": "aether-pos-macos-intel.dmg",
+    "size": 5768324,
+    "sha256": "1766e6bf7055899a13236e15821b7a87f3420dfb0c5338b287424a7c62d9e071",
+    "sourceSha": "8b993a62cd48a7ea1cf87f05da286adf537f1cd5",
+    "workflowRunId": 40044642271
+  },
+  {
+    "platform": "linux",
+    "architecture": "x64",
+    "version": "0.3.0",
+    "file": "aether-pos-linux.AppImage",
+    "size": 82827768,
+    "sha256": "3640eedc46993f0d8c0ae94e7216b4fdeba202d12528410468fb2ebcc519c2bd",
+    "sourceSha": "8b993a62cd48a7ea1cf87f05da286adf537f1cd5",
+    "workflowRunId": 40044642271
+  }
+]

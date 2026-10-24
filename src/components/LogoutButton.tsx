@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { LogOut } from 'lucide-react';
+import { toast } from 'sonner';
 import { captureException } from '@/lib/observability';
 import { cn } from '@/lib/utils';
 
@@ -11,15 +12,21 @@ import { cn } from '@/lib/utils';
  * usuario). Antes era un botón rojo sólido siempre visible, que competía con
  * la navegación por atención para una acción que se usa una vez al día.
  */
-export default function LogoutButton({ variant = 'text', className }: { variant?: 'text' | 'icon'; className?: string }) {
+export default function LogoutButton({ variant = 'text', className, destination = '/login' }: { variant?: 'text' | 'icon'; className?: string; destination?: '/login' | '/pos/ingresar' }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
   async function handleLogout() {
+    if (document.querySelector('[data-pos-pending="true"]')) {
+      toast.warning('Confirma la operación pendiente antes de cambiar de cajero.');
+      return;
+    }
     setLoading(true);
     try {
-      await fetch('/api/auth/signout', { method: 'POST' });
-      router.push('/login');
+      const response = await fetch('/api/auth/signout', { method: 'POST' });
+      if (!response.ok) throw new Error('No se pudo cerrar la sesión');
+      router.push(destination);
+      router.refresh();
     } catch (e) {
       captureException(e, { module: 'auth', extra: { reason: 'logout-button' } });
     } finally {

@@ -1817,12 +1817,15 @@ model CashMovement {
   type        CashMovementType
   amount      Int
   reason      String
+  /// Reenvío del mismo ingreso/retiro: se confirma una sola vez por empresa.
+  idempotencyKey String?
   userId      String?
   user        User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
   createdAt   DateTime         @default(now())
 
   @@index([companyId, cashShiftId])
   @@index([userId])
+  @@unique([companyId, idempotencyKey])
 }
 
 model Invitation {

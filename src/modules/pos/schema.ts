@@ -24,7 +24,7 @@ export const openShiftSchema = z.object({
   initialAmount: z
     .number()
     .int('El monto inicial debe ser un número entero')
-    .min(0, 'El monto inicial no puede ser negativo'),
+    .min(0, 'El monto inicial no puede ser negativo').max(2_147_483_647, 'El monto supera el máximo permitido'),
   openingNotes: z.string().max(300).optional().or(z.literal('')),
 });
 
@@ -36,16 +36,17 @@ export const closeShiftSchema = z.object({
   actualAmount: z
     .number()
     .int('El monto contado debe ser un número entero')
-    .min(0, 'El monto contado no puede ser negativo'),
-  closingNotes: z.string().max(500).optional().or(z.literal('')),
+    .min(0, 'El monto contado no puede ser negativo').max(2_147_483_647, 'El monto supera el máximo permitido'),
+  closingNotes: z.string().trim().max(500).optional().or(z.literal('')),
 });
 
 export type CloseShiftInput = z.infer<typeof closeShiftSchema>;
 
 export const cashMovementSchema = z.object({
   type: z.enum(['INFLOW', 'OUTFLOW']),
-  amount: z.number().int('El monto debe ser un número entero').positive('El monto debe ser mayor a cero'),
-  reason: z.string().min(3, 'Indique el motivo del movimiento').max(200),
+  amount: z.number().int('El monto debe ser un número entero').positive('El monto debe ser mayor a cero').max(2_147_483_647, 'El monto supera el máximo permitido'),
+  reason: z.string().trim().min(3, 'Indique el motivo del movimiento').max(200),
+  idempotencyKey: z.string().min(1).max(100).optional(),
 });
 
 export type CashMovementInput = z.infer<typeof cashMovementSchema>;
@@ -71,7 +72,7 @@ export const posSaleSchema = z
     cashReceived: z.number().int().min(0).optional(),
     /** RUT opcional del cliente. Sin él la boleta va al receptor genérico del SII. */
     customerRut: z.string().optional().or(z.literal('')),
-    idempotencyKey: z.string().optional(),
+    idempotencyKey: z.string().min(1).max(100).optional(),
   })
   // Sin este refinamiento, omitir `cashReceived` saltaba por completo la
   // comprobación de "efectivo suficiente" del servicio y la venta se registraba
@@ -84,7 +85,7 @@ export const posSaleSchema = z
 export type PosSaleInput = z.infer<typeof posSaleSchema>;
 
 export const cashRegisterCreateSchema = z.object({
-  name: z.string().min(2, 'El nombre de la caja es obligatorio').max(60),
+  name: z.string().trim().min(2, 'El nombre de la caja es obligatorio').max(60),
   warehouseId: z.string().min(1, 'Seleccione la bodega desde la que descuenta stock'),
 });
 

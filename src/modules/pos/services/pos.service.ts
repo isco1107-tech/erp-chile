@@ -11,6 +11,7 @@ import { cleanRut, formatRut, validateRut } from '@/lib/chile/rut';
 import { assignSalesFolio, stampDocument } from '@/modules/dte/services/stamping.service';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import type { WorkflowEventPayload } from '@/lib/workflows/types';
+import { getAvailability, lockStockRows } from '@/modules/ecommerce/services/store-stock.service';
 import { CASH_PAYMENT_METHODS, type PosSaleInput } from '../schema';
 
 /**
@@ -30,8 +31,10 @@ export async function getOrCreateGenericCustomer(tx: TxClient, companyId: string
   const existing = await tx.contact.findFirst({ where: { companyId, rutClean } });
   if (existing) return existing.id;
 
-  const created = await tx.contact.create({
-    data: {
+  const created = await tx.contact.upsert({
+    where: { companyId_rutClean: { companyId, rutClean } },
+    update: {},
+    create: {
       companyId,
       rut: GENERIC_CUSTOMER_RUT,
       rutClean,
@@ -56,8 +59,10 @@ async function resolveCustomer(tx: TxClient, companyId: string, rawRut?: string)
 
   // Cliente nuevo de mostrador: se registra con lo mínimo para no frenar la
   // venta. El vendedor puede completar sus datos después desde Contactos.
-  const created = await tx.contact.create({
-    data: {
+  const created = await tx.contact.upsert({
+    where: { companyId_rutClean: { companyId, rutClean } },
+    update: {},
+    create: {
       companyId,
       rut: formatRut(rutClean),
       rutClean,
@@ -73,6 +78,20 @@ export type PosSaleResult = SalesDocument & {
   items: SalesDocumentItem[];
   changeDue: number;
 };
+
+function replaySale(existing: SalesDocument & { items: SalesDocumentItem[]; contact: { rutClean: string } }, userId: string, shiftId: string, input: PosSaleInput): PosSaleResult {
+  if (existing.status === 'CANCELLED') throw new Error('Esta venta ya fue anulada. Revisa las ventas del turno antes de volver a cobrar');
+  const quantities = (items: { productId: string | null; quantity: number }[]) => {
+    const totals = new Map<string, number>();
+    for (const item of items) if (item.productId) totals.set(item.productId, (totals.get(item.productId) ?? 0) + item.quantity);
+    return [...totals].sort(([a], [b]) => a.localeCompare(b));
+  };
+  if (existing.cashShiftId !== shiftId || existing.sellerId !== userId || existing.paymentMethod !== input.paymentMethod || existing.contact.rutClean !== cleanRut(input.customerRut?.trim() || GENERIC_CUSTOMER_RUT) || JSON.stringify(quantities(existing.items)) !== JSON.stringify(quantities(input.items))) {
+    throw new Error('La clave de venta ya se usó para otra operación. Revisa las ventas del turno antes de continuar');
+  }
+  const { contact: _contact, ...document } = existing;
+  return { ...document, changeDue: input.paymentMethod === 'EFECTIVO' ? Math.max(0, (input.cashReceived ?? 0) - existing.totalAmount) : 0 };
+}
 
 /**
  * Registra una venta de mostrador completa en una sola transacción: emite la
@@ -99,16 +118,13 @@ export async function createPosSale(
 
   const result = await prisma.$transaction(async (tx) => {
     if (input.idempotencyKey) {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`pos-sale:${companyId}:${input.idempotencyKey}`}, 0))`;
       const existing = await tx.salesDocument.findUnique({
         where: { companyId_idempotencyKey: { companyId, idempotencyKey: input.idempotencyKey } },
-        include: { items: true },
+        include: { items: true, contact: { select: { rutClean: true } } },
       });
       if (existing) {
-        const changeDue =
-          CASH_PAYMENT_METHODS.includes(input.paymentMethod) && input.cashReceived !== undefined
-            ? Math.max(0, input.cashReceived - existing.totalAmount)
-            : 0;
-        return { ...existing, changeDue };
+        return replaySale(existing, userId, shiftId, input);
       }
     }
 
@@ -126,6 +142,26 @@ export async function createPosSale(
     if (!shift) throw new Error('No tienes un turno de caja abierto');
 
     const warehouseId = shift.cashRegister.warehouseId;
+    // Ventas y Ecommerce asignan folio antes de bloquear inventario. Mantener
+    // ese orden evita cruzar FolioSequence/CAF con Product entre canales.
+    const folioAssignment = await assignSalesFolio(tx, companyId, 'BOLETA_39');
+    const folio = folioAssignment.folio;
+    // Orden único en multicaja: dos carritos A/B y B/A no cruzan los locks.
+    const productIds = [...new Set(input.items.map((item) => item.productId))].sort();
+    await tx.$queryRaw`SELECT id FROM "Product" WHERE "companyId" = ${companyId} AND id = ANY(${productIds}) ORDER BY id FOR UPDATE`;
+    // Comparte el bloqueo de stock con el checkout online: una reserva no
+    // puede aparecer entre la comprobación de disponibilidad y la venta.
+    await lockStockRows(tx, companyId, warehouseId, productIds);
+    const availability = await getAvailability(companyId, warehouseId, productIds, { client: tx });
+    const quantities = new Map<string, number>();
+    for (const item of input.items) quantities.set(item.productId, (quantities.get(item.productId) ?? 0) + item.quantity);
+    for (const [productId, quantity] of quantities) {
+      const info = availability.get(productId);
+      const available = info ? Math.max(0, info.onHand - info.reservedByStore - info.committed) : 0;
+      if (info?.trackable && quantity > available + 1e-9 && (info.reservedByStore > 0 || info.committed > 0)) {
+        throw new Error(`Stock reservado para pedidos. Disponible para esta caja: ${available}`);
+      }
+    }
     const contactId = await resolveCustomer(tx, companyId, input.customerRut);
     // Se necesita el contacto completo (no solo el id) para el receptor del
     // timbre electrónico si la empresa tiene CAF cargado — ver más abajo.
@@ -136,7 +172,7 @@ export async function createPosSale(
     // cliente permitiría vender a $1 desde la consola del navegador.
     const lines = [];
     for (const item of input.items) {
-      const product = await tx.product.findFirst({ where: { id: item.productId, companyId } });
+      const product = await tx.product.findFirst({ where: { id: item.productId, companyId, isActive: true } });
       if (!product) throw new Error('Producto no encontrado en el catálogo');
       lines.push({
         productId: product.id,
@@ -148,7 +184,7 @@ export async function createPosSale(
         // atributo tributario del producto y `computeDocument` lo necesita para
         // dejar la línea fuera de la base imponible.
         isExempt: product.isExempt,
-        discountPercent: item.discountPercent ?? 0,
+        discountPercent: 0,
         unitCostPMP: product.costPricePMP,
         isTrackable: product.isTrackable,
       });
@@ -170,8 +206,6 @@ export async function createPosSale(
     // tipo de documento por el camino del CAF, quedaban dos contadores de
     // folio independientes para BOLETA_39, con riesgo real de duplicados ante
     // el SII.
-    const folioAssignment = await assignSalesFolio(tx, companyId, 'BOLETA_39');
-    const folio = folioAssignment.folio;
     const reference = `POS ${DTE_TYPE_LABELS.BOLETA_39} Folio #${folio}`;
 
     // El costo que se persiste en la línea se toma del movimiento de Kardex, no
@@ -189,6 +223,7 @@ export async function createPosSale(
         type: 'SALE_OUT',
         quantity: item.quantity,
         reference,
+        userId,
       });
       costByProduct.set(item.productId, movement.unitCost);
       costedItemsForAccounting.push({ unitCostPMP: movement.unitCost, quantity: item.quantity });
@@ -313,6 +348,7 @@ export async function createPosSale(
     await postSalesDocumentIssued(tx, companyId, document, costedItemsForAccounting, {
       isImmediatePayment: true,
       affectsStock: costedItemsForAccounting.length > 0,
+      createdByUserId: userId,
     });
 
     await tx.payment.create({
@@ -350,15 +386,11 @@ export async function createPosSale(
     if (input.idempotencyKey && constraintInvolves(error, 'idempotencyKey')) {
       const existing = await prisma.salesDocument.findUnique({
         where: { companyId_idempotencyKey: { companyId, idempotencyKey: input.idempotencyKey } },
-        include: { items: true },
+        include: { items: true, contact: { select: { rutClean: true } } },
       });
       if (existing) {
         emittedSalePayload = null;
-        const changeDue =
-          CASH_PAYMENT_METHODS.includes(input.paymentMethod) && input.cashReceived !== undefined
-            ? Math.max(0, input.cashReceived - existing.totalAmount)
-            : 0;
-        return { ...existing, changeDue };
+        return replaySale(existing, userId, shiftId, input);
       }
     }
     throw error;
@@ -400,6 +432,7 @@ export async function listPosProducts(companyId: string, warehouseId: string): P
     orderBy: { name: 'asc' },
   });
 
+  const availability = await getAvailability(companyId, warehouseId, products.map((product) => product.id));
   return products.map((product) => ({
     barcode: product.barcode,
     packagings: product.packagings.map((p) => ({ barcode: p.barcode as string, factor: p.factor, name: p.name })),
@@ -408,7 +441,12 @@ export async function listPosProducts(companyId: string, warehouseId: string): P
     name: product.name,
     netPrice: product.netPrice,
     grossPrice: product.grossPrice,
-    stock: product.stocks.reduce((sum, s) => sum + s.quantity, 0),
+    stock: (() => {
+      const info = availability.get(product.id);
+      // El mostrador admite fracciones (kg, metros); la tienda online redondea
+      // a unidades enteras, por eso no usamos su campo `available` aquí.
+      return info ? Math.max(0, info.onHand - info.reservedByStore - info.committed) : product.stocks.reduce((sum, s) => sum + s.quantity, 0);
+    })(),
     isTrackable: product.isTrackable,
     isExempt: product.isExempt,
   }));

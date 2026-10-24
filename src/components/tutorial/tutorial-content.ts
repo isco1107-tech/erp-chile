@@ -50,10 +50,11 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
   pos: {
     title: 'Punto de Venta',
     steps: [
-      header('Abre tu turno', 'Antes de vender elige la caja y declara el efectivo inicial. Las ventas descuentan stock de la bodega asociada a esa caja.'),
+      header('Tu cuenta y tu caja', 'Ingresa con tu propia cuenta, verifica el cajero identificado, elige una caja disponible y declara el efectivo inicial. Cada caja tiene un turno y descuenta stock de su bodega.'),
       note('Arma la venta', 'En "Vender" escanea el código de barras o escribe el SKU o nombre y presiona Enter. Ajusta cantidades con − y +.'),
       note('Cobra y emite la boleta', 'Elige el medio de pago (en efectivo el sistema calcula el vuelto) y presiona "Cobrar". La boleta queda lista para el ticket de 80 mm.'),
-      note('Cierra la caja', 'Al terminar, en "Caja y arqueo" cuenta el efectivo, escríbelo y presiona "Cerrar caja". La diferencia queda registrada.'),
+      note('Ingresos, retiros y cierre', 'En "Caja y arqueo" registra ingresos o retiros con monto y motivo. Al terminar actualiza el arqueo, cuenta el efectivo y presiona "Cerrar caja"; si hay diferencia, explícala.'),
+      note('Historial y multicaja', 'En "Mis turnos" revisa e imprime comprobantes. Con permiso de supervisión verás "Turnos y multicaja" para consultar y cerrar las cajas de otros cajeros.'),
     ],
   },
   products: {

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Delete, Printer, ScanBarcode, Trash2 } from 'lucide-react';
+import { Delete, Printer, RefreshCw, ScanBarcode, Trash2 } from 'lucide-react';
 import { createIdempotencyTracker } from '@/lib/idempotency';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,6 +34,9 @@ interface CartLine {
 
 interface Props {
   shiftId: string;
+  shiftClosed?: boolean;
+  onBusyChange?: (value: boolean) => void;
+  onPendingChange?: (value: boolean) => void;
   warehouseId: string;
   warehouseName: string;
   cashRegisterName: string;
@@ -60,8 +63,17 @@ export default function PosTerminal(props: Props) {
   const [customerRut, setCustomerRut] = useState('');
   const [saving, setSaving] = useState(false);
   const [ticket, setTicket] = useState<TicketData | null>(null);
+  const [uncertainCharge, setUncertainCharge] = useState(false);
+  const uncertain = useRef(false);
 
   const searchRef = useRef<HTMLInputElement>(null);
+  const charging = useRef(false);
+  const { onBusyChange, onPendingChange } = props;
+  useEffect(() => { onPendingChange?.(saving || uncertainCharge); }, [saving, uncertainCharge, onPendingChange]);
+  useEffect(() => { onBusyChange?.(saving); }, [saving, onBusyChange]);
+  const [online, setOnline] = useState(true);
+  const [catalogError, setCatalogError] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   // Una clave por venta: un reintento de la MISMA venta (respuesta perdida,
   // doble clic) no emite una segunda boleta. Ver `src/lib/idempotency.ts`.
   const idempotency = useRef(createIdempotencyTracker());
@@ -78,14 +90,55 @@ export default function PosTerminal(props: Props) {
     requestAnimationFrame(() => searchRef.current?.focus());
   }, []);
 
+  const refreshProducts = useCallback(async (showError = true) => {
+    if (uncertain.current) return;
+    setLoadingProducts(true);
+    try {
+      const result = await listPosProductsAction(props.warehouseId);
+      if (!result.success) {
+        setCatalogError(true);
+        if (showError) toast.error(result.error);
+        return;
+      }
+      setProducts(result.data);
+      // Otra caja puede haber vendido desde que agregamos una línea. Conserva
+      // el carrito, pero actualiza su referencia de stock y precio del catálogo.
+      setCart((previous) => previous.map((line) => {
+        const product = result.data.find((item) => item.id === line.productId);
+        return product ? { ...line, stock: product.stock, netPrice: product.netPrice, isExempt: product.isExempt } : line;
+      }));
+      setCatalogError(false);
+      setLastRefresh(new Date());
+    } catch {
+      setCatalogError(true);
+      if (showError) toast.error('No se pudo actualizar el catálogo. Revisa la conexión e intenta nuevamente.');
+    } finally { setLoadingProducts(false); }
+  }, [props.warehouseId]);
+
   useEffect(() => {
-    listPosProductsAction(props.warehouseId).then((result) => {
-      if (result.success) setProducts(result.data);
-      else toast.error(result.error);
-      setLoadingProducts(false);
-      focusSearch();
-    });
-  }, [props.warehouseId, focusSearch]);
+    void refreshProducts().then(focusSearch);
+    const onOnline = () => { setOnline(true); if (!charging.current) void refreshProducts(false); };
+    const onOffline = () => setOnline(false);
+    const onVisible = () => { if (document.visibilityState === 'visible' && !charging.current && navigator.onLine) void refreshProducts(false); };
+    setOnline(navigator.onLine);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    document.addEventListener('visibilitychange', onVisible);
+    const timer = window.setInterval(onVisible, 60_000);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.clearInterval(timer);
+    };
+  }, [refreshProducts, focusSearch]);
+
+  useEffect(() => {
+    if (cart.length === 0) return;
+    const beforeUnload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', beforeUnload);
+    return () => window.removeEventListener('beforeunload', beforeUnload);
+  }, [cart.length]);
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -112,7 +165,7 @@ export default function PosTerminal(props: Props) {
   const received = Number(cashReceived) || 0;
   const change = received - total;
   const isCash = paymentMethod === 'EFECTIVO';
-  const canCharge = cart.length > 0 && !saving && (!isCash || received >= total);
+  const canCharge = cart.length > 0 && !saving && !props.shiftClosed && online && !catalogError && !loadingProducts && (!isCash || received >= total);
 
   function addProduct(product: PosProduct, units = 1) {
     setCart((prev) => {
@@ -204,11 +257,13 @@ export default function PosTerminal(props: Props) {
   }
 
   async function handleCharge() {
-    if (cart.length === 0) return;
+    if (cart.length === 0 || charging.current || !online || (props.shiftClosed && !uncertain.current)) return;
+    charging.current = true;
 
     const rut = customerRut.trim();
     if (rut && !validateRut(rut)) {
       toast.error('El RUT del cliente no es válido');
+      charging.current = false;
       return;
     }
 
@@ -216,6 +271,7 @@ export default function PosTerminal(props: Props) {
     if (lowStock.length > 0) {
       const detail = lowStock.map((l) => `${l.sku} (disponible ${l.stock})`).join(', ');
       if (!await confirm(`Stock insuficiente en: ${detail}. El sistema rechazará la venta. ¿Intentar de todos modos?`)) {
+        charging.current = false;
         return;
       }
     }
@@ -234,10 +290,14 @@ export default function PosTerminal(props: Props) {
       });
 
       if (!result.success) {
+        uncertain.current = false;
+        setUncertainCharge(false);
         toast.error(result.error);
         return;
       }
 
+      uncertain.current = false;
+      setUncertainCharge(false);
       const sale = result.data;
       idempotency.current.reset();
       setTicket({
@@ -278,23 +338,31 @@ export default function PosTerminal(props: Props) {
       setQuery('');
       // El stock cambió: se recarga para que la próxima venta valide contra el
       // saldo real y no contra el que se cargó al abrir la caja.
-      listPosProductsAction(props.warehouseId).then((r) => {
-        if (r.success) setProducts(r.data);
-      });
+      void refreshProducts(false);
       router.refresh();
       focusSearch();
     } catch {
       // Red caída: el carrito se conserva y el reintento usa la misma clave,
       // así que si la venta alcanzó a registrarse no se duplica.
-      toast.error('No se pudo contactar al servidor. Revisa la conexión y vuelve a cobrar: la venta no se duplicará.');
+      uncertain.current = true;
+      setUncertainCharge(true);
+      toast.error('No se pudo confirmar el cobro. Reintenta esta misma venta sin modificarla para recuperar el resultado sin duplicarla.');
     } finally {
+      charging.current = false;
       setSaving(false);
     }
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
-      <div className="space-y-3">
+    <div className="space-y-3">
+      {!online && <p role="alert" className="rounded-xl border border-warning/30 bg-warning-soft p-3 text-sm text-warning">Sin conexión. Conservamos la venta en esta pantalla; vuelve a conectarte para confirmar el cobro en el ERP.</p>}
+      {catalogError && online && <p role="alert" className="rounded-xl border border-warning/30 bg-warning-soft p-3 text-sm text-warning">No se pudo actualizar el catálogo. Presiona "Actualizar catálogo" para continuar.</p>}
+      {uncertainCharge && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warning/30 bg-warning-soft p-4 text-sm text-warning">
+        <p>El cobro está pendiente de confirmación. Conservamos la misma venta y su clave: no cierres la app ni registres otra venta hasta recuperar el resultado.</p>
+        <Button type="button" disabled={saving || !online} onClick={handleCharge}>{saving ? 'Consultando…' : 'Confirmar el mismo cobro'}</Button>
+      </div>}
+      <fieldset disabled={saving || props.shiftClosed || uncertainCharge} className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="min-w-0 space-y-3">
         <div className="rounded-2xl border border-border bg-card shadow-card p-4">
           <Label htmlFor="pos-search" className="mb-2 flex items-center gap-2">
             <ScanBarcode className="size-4 text-muted-foreground" aria-hidden="true" /> Escanear o buscar producto
@@ -311,18 +379,22 @@ export default function PosTerminal(props: Props) {
             className="h-12 text-lg"
             aria-describedby="pos-search-hint"
           />
-          <p id="pos-search-hint" className="mt-2 text-xs text-muted-foreground">
-            {loadingProducts ? 'Cargando catálogo…' : 'El lector de código de barras agrega el producto al instante.'}
-          </p>
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+            <p id="pos-search-hint" className="text-xs text-muted-foreground">
+              {loadingProducts ? 'Actualizando catálogo…' : lastRefresh ? `Stock consultado a las ${lastRefresh.toLocaleTimeString('es-CL', { timeZone: 'America/Santiago', hour: '2-digit', minute: '2-digit' })}. Se valida otra vez al cobrar.` : 'El lector de código de barras agrega el producto al instante.'}
+            </p>
+            <Button type="button" variant="ghost" size="xs" onClick={() => void refreshProducts()} disabled={loadingProducts || !online}>
+              <RefreshCw className={`mr-1 size-3 ${loadingProducts ? 'animate-spin' : ''}`} aria-hidden="true" /> Actualizar catálogo
+            </Button>
+          </div>
           {matches.length > 0 && (
             <ul className="mt-2 divide-y divide-border rounded-lg border border-border">
               {matches.map((product) => (
                 <li
                   key={product.id}
-                  className="flex cursor-pointer items-center justify-between border-b border-border px-3 py-3 text-sm transition-colors last:border-0 hover:bg-accent"
-                  onClick={() => addProduct(product)}
                 >
-                  <span>
+                  <button type="button" onClick={() => addProduct(product)} className="flex w-full flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-3 text-left text-sm transition-colors last:border-0 hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring">
+                  <span className="min-w-0 break-words">
                     <span className="font-medium">{product.sku}</span> — {product.name}
                   </span>
                   <span className="flex items-center gap-3 text-muted-foreground">
@@ -331,6 +403,7 @@ export default function PosTerminal(props: Props) {
                     </span>
                     <span className="font-medium text-foreground">{formatCurrency(product.grossPrice)}</span>
                   </span>
+                  </button>
                 </li>
               ))}
             </ul>
@@ -392,7 +465,7 @@ export default function PosTerminal(props: Props) {
         </div>
       </div>
 
-      <div className="space-y-3">
+      <div className="min-w-0 space-y-3">
         <div className="rounded-2xl bg-primary p-5 text-primary-foreground shadow-card">
           <p className="text-[11px] font-medium tracking-wide uppercase opacity-70">
             {props.cashRegisterName} · {props.warehouseName}
@@ -510,6 +583,7 @@ export default function PosTerminal(props: Props) {
         )}
       </div>
 
+      </fieldset>
       {ticket && <PosTicket data={ticket} />}
     </div>
   );
