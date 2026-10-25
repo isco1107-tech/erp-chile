@@ -156,9 +156,11 @@ describeDb('POS multicaja contra PostgreSQL', () => {
     const snapshot = await controlSnapshot({companyId:f.companyId,companyName:'Mi empresa',name:'Dueño',permissions:['sales:read','products:read','treasury:read','pos:operate']} as import('@/lib/auth/guards').AuthContext);
     expect(snapshot).toMatchObject({salesToday:1190,salesMonth:1190,incomeToday:1190,expenseToday:0,openRegisters:1});
     expect(snapshot.registers).toHaveLength(1);
-    expect(snapshot.registers[0]).toMatchObject({id:shift.id,expected:12190});
+    expect(snapshot.registers[0]).toMatchObject({id:shift.id,name:'Caja 1',expected:12190});
+    expect(snapshot.registers[0].cashier).toMatch(/^Cajero \d+$/);
     expect(snapshot.activity.filter(event=>event.kind==='sale')).toHaveLength(1);
-    expect(snapshot.activity.some(event=>event.kind==='cash' && event.amount===1000)).toBe(true);
+    expect(snapshot.activity.some(event=>event.kind==='cash' && event.amount===1000 && event.detail.startsWith('Caja 1 · Refuerzo de fondo · Cajero '))).toBe(true);
+    expect(snapshot.activity.some(event=>event.kind==='stock' && event.label.startsWith('Producto POS') && event.detail.startsWith('Bodega POS · '))).toBe(true);
   });
 
   it('el primer acceso concurrente provisiona una sola Caja Principal disponible', async () => {
