@@ -22,7 +22,7 @@ interface Props {
 export default function HeldSalesDialog({ open, held, currentHasItems, onResume, onDiscard, onClose }: Props) {
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="theme-saas-light max-w-xl">
         <DialogHeader>
           <DialogTitle>Ventas en espera</DialogTitle>
           <DialogDescription>

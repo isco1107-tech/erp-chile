@@ -74,7 +74,7 @@ export default function PaymentDialog(props: Props) {
 
   return (
     <Dialog open={props.open} onOpenChange={(next) => { if (!next && !props.saving) onClose(); }}>
-      <DialogContent className="max-w-xl" showClose={false} onKeyDown={handleKeyDown} initialFocus={isCash ? cashInput : confirmButton}>
+      <DialogContent className="theme-saas-light max-w-xl" showClose={false} onKeyDown={handleKeyDown} initialFocus={isCash ? cashInput : confirmButton}>
         <DialogTitle className="sr-only">Cobrar la venta</DialogTitle>
         <DialogDescription className="sr-only">Elige el medio de pago, ingresa el efectivo recibido y confirma el cobro.</DialogDescription>
 

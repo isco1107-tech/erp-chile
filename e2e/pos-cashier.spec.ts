@@ -248,8 +248,9 @@ test.describe('cajero', () => {
     await scan(page, skuB);
     await page.getByLabel('RUT del cliente', { exact: true }).press('Enter');
     await chargeCash(page, '5000');
-    await expect.poll(async () => (await writes(page)).length).toBe(1);
-    const job = (await writes(page))[0];
+    // La boleta viaja por tandas de 256 bytes (sin control de flujo, una larga desbordaría la impresora): se une todo.
+    await expect.poll(async () => (await writes(page)).flat().length).toBeGreaterThan(200);
+    const job = (await writes(page)).flat();
     expect(job.slice(0, 5)).toEqual([0x1b, 0x40, 0x1b, 0x74, 19]); // inicializa y elige la tabla PC858
     expect(job.slice(5, 10)).toEqual(PULSE); // el cajón se abre mientras sale la boleta
     const text = Buffer.from(job).toString('latin1');

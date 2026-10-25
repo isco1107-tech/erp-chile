@@ -27,7 +27,7 @@ export default function DrawerOpenDialog({ open, busy, onConfirm, onClose }: Pro
 
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next && !busy) onClose(); }}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="theme-saas-light max-w-md">
         <DialogHeader>
           <DialogTitle>Abrir cajón sin venta</DialogTitle>
           <DialogDescription>Queda registrado con tu nombre y la caja. Úsalo solo para dar cambio o mover efectivo.</DialogDescription>

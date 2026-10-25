@@ -53,7 +53,7 @@ export default function HardwareDialog({ open, onClose }: { open: boolean; onClo
 
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="theme-saas-light max-w-xl">
         <DialogHeader>
           <DialogTitle>Cajón e impresora</DialogTitle>
           <DialogDescription>Vale solo para este equipo. Si no configuras nada, el POS vende igual: la boleta se imprime desde el navegador y el cajón se abre a mano.</DialogDescription>
@@ -113,6 +113,12 @@ export default function HardwareDialog({ open, onClose }: { open: boolean; onClo
                 <Switch label="Imprimir la boleta al cobrar" checked={config.printAfterSale} onCheckedChange={(printAfterSale) => update({ printAfterSale })} />
               </Row>
             </div>
+          )}
+
+          {config.mode === 'system' && config.openOnCashSale && !config.printAfterSale && (
+            <p role="status" className="rounded-lg border border-warning/30 bg-warning-soft p-3 text-xs font-medium text-warning">
+              Con la impresora del sistema el cajón solo se abre al imprimir. Activa «Imprimir la boleta al cobrar» para que se abra en cada venta en efectivo.
+            </p>
           )}
 
           {direct && (

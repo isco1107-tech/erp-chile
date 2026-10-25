@@ -185,12 +185,13 @@ export default function PosTerminal(props: Props) {
     };
   }, [refreshProducts, focusSearch]);
 
+  // Solo la venta en curso se perdería al salir: las ventas en espera se guardan solas en este equipo.
   useEffect(() => {
-    if (cart.length === 0 && held.length === 0) return;
+    if (cart.length === 0) return;
     const beforeUnload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
     window.addEventListener('beforeunload', beforeUnload);
     return () => window.removeEventListener('beforeunload', beforeUnload);
-  }, [cart.length, held.length]);
+  }, [cart.length]);
 
   // Imprime la boleta del navegador DESPUÉS de que React la dibujó (cobro con impresión automática).
   useEffect(() => {
@@ -738,12 +739,12 @@ export default function PosTerminal(props: Props) {
         )}
 
         <div className="rounded-2xl border border-border bg-card shadow-card overflow-x-auto">
-          <table className="w-full min-w-[560px] table-auto text-sm">
+          <table className="w-full min-w-[340px] table-auto text-sm">
             <thead className="bg-muted/50 text-left">
               <tr>
                 <th className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase p-3 text-left">Producto</th>
                 <th className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase p-3 text-left">Cantidad</th>
-                <th className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase p-3 text-right">Precio c/IVA</th>
+                <th className="hidden text-[11px] font-semibold tracking-wide text-muted-foreground uppercase p-3 text-right md:table-cell">Precio c/IVA</th>
                 <th className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase p-3 text-right">Total</th>
                 <th className="p-2"></th>
               </tr>
@@ -791,7 +792,7 @@ export default function PosTerminal(props: Props) {
                       <p className="mt-1 text-xs text-destructive">Sobre stock ({formatQuantity(line.stock)})</p>
                     )}
                   </td>
-                  <td className="p-2 text-right tabular-nums text-muted-foreground">{formatCurrency(line.grossPrice)}</td>
+                  <td className="hidden p-2 text-right tabular-nums text-muted-foreground md:table-cell">{formatCurrency(line.grossPrice)}</td>
                   <td className="p-2 text-right text-base font-semibold tabular-nums">{formatCurrency(line.total)}</td>
                   <td className="p-2">
                     <Button type="button" size="xs" variant="ghost" aria-label={`Quitar ${line.name}`} onClick={() => { setCart((previous) => removeLine(previous, line.productId)); focusSearch(); }}>
