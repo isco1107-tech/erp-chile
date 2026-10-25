@@ -37,6 +37,12 @@ Con el mismo entorno y versión de dependencias, la unión de archivos de las
 pasó de **227,91 MiB a 15,09 MiB**, conservando las 60 capturas. Los archivos
 públicos quedaron en **34,77 MiB**. Se comprobó la conversión nativa a WebP.
 
+En Vercel el paso final **informa pero no detiene el despliegue** (`VERCEL` definida):
+allí `next build` termina sin las trazas del servidor base
+(`.next/next-server.js.nft.json`) y la lectura de ese archivo hizo fallar con
+ENOENT todos los despliegues de producción desde el 25 de octubre de 2026. La
+exigencia real corre en el CI de GitHub (`npm run build`, sin `VERCEL`).
+
 Ejecutar `npm run build` contra un entorno de desarrollo seguro. El paso final
 `scripts/check-function-storage.cjs` mide los archivos únicos y las rutas más
 pesadas. Sumar las trazas de todas las rutas cuenta dependencias repetidas y
