@@ -427,7 +427,7 @@ test.describe('seller center', () => {
   for (const channel of ['email', 'whatsapp'] as const) test(`crear seller con ${channel}, activar su cuenta e ingresar en su app`, async ({ page, browser }) => {
     test.setTimeout(150000);
     const database = new URL(process.env.DATABASE_URL!);
-    if (!['localhost', '127.0.0.1', '[::1]'].includes(database.hostname) || !/_test$/.test(database.pathname)) throw new Error('Solo base local de pruebas');
+    if (!['localhost', '127.0.0.1', '[::1]'].includes(database.hostname) || !/_test$|_e2e$/.test(database.pathname)) throw new Error('Solo base local de pruebas');
     await setSellerCenter(true);
     const { companyId } = await owner();
     const key = randomBytes(6).toString('hex');
