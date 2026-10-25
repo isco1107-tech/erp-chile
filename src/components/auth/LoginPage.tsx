@@ -31,12 +31,12 @@ function nextPath(json: { data?: { redirectTo?: unknown } }, callbackUrl: string
 }
 
 /**
- * La app del bodeguero necesita la cámara, y el permiso lo da una cabecera del DOCUMENTO (`Permissions-Policy`,
- * ver next.config.js): una navegación interna desde esta página conservaría la política del login (sin cámara).
- * Por eso a `/bodega` se entra con una carga completa de la página.
+ * La app del bodeguero necesita la cámara y el POS el USB (cajón e impresora), y el permiso lo da una cabecera
+ * del DOCUMENTO (`Permissions-Policy`, ver next.config.js): una navegación interna desde esta página conservaría
+ * la política del login (sin cámara ni USB). Por eso a `/bodega` y `/pos` se entra con una carga completa.
  */
 function goTo(router: ReturnType<typeof useRouter>, path: string): void {
-  if (path === '/bodega') {
+  if (path === '/bodega' || path === '/pos') {
     window.location.assign(path);
     return;
   }

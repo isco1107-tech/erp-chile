@@ -160,6 +160,16 @@ const nextConfig = {
         ],
       },
       {
+        // Punto de venta independiente: el cajón y la impresora pueden conectarse por USB directo
+        // (WebUSB), así que abre `usb` al propio origen. Va DESPUÉS de la global (la última gana) y
+        // repite la política completa. El resto del ERP sigue sin USB; el POS dentro del panel
+        // (`/dashboard/pos`) usa puerto serie o la impresora del sistema.
+        source: '/pos/:path*',
+        headers: [
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=(self), browsing-topics=()' },
+        ],
+      },
+      {
         // Va DESPUÉS de la global a propósito: con la misma clave repetida gana la última.
         source: '/web/:slug/raw',
         headers: [

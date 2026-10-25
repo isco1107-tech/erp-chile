@@ -20,6 +20,7 @@ import type { CashMovement } from '@prisma/client';
 import { formatCurrency } from '@/lib/chile/tax';
 import { createIdempotencyTracker } from '@/lib/idempotency';
 import CashShiftReceipt from './CashShiftReceipt';
+import { usePosHardware } from './hardware/PosHardwareProvider';
 import { POS_PAYMENT_METHOD_LABELS, type PosPaymentMethod } from '@/modules/pos/schema';
 
 import { useConfirm } from '@/components/ui/confirm-provider';
@@ -52,6 +53,7 @@ interface Props {
 export default function CashPanel(props: Props) {
   const confirm = useConfirm();
   const router = useRouter();
+  const hardware = usePosHardware();
 
   const [summary, setSummary] = useState<ShiftSummary | null>(null);
   const [movements, setMovements] = useState<CashMovement[]>([]);
@@ -135,6 +137,10 @@ export default function CashPanel(props: Props) {
       toast.success(result.message ?? 'Movimiento registrado');
       setMovementAmount('');
       setMovementReason('');
+      // El efectivo entra o sale del cajón: se abre para que el cajero lo mueva. Si falla, el movimiento ya quedó registrado.
+      if (hardware.direct && hardware.config.openOnMovement) {
+        void hardware.openDrawer().then((opened) => { if (!opened.ok) toast.error(`El movimiento quedó registrado, pero ${opened.error}`); });
+      }
       await load();
     } catch {
       movementPending.current = true;

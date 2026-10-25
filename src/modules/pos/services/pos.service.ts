@@ -74,6 +74,23 @@ async function resolveCustomer(tx: TxClient, companyId: string, rawRut?: string)
   return created.id;
 }
 
+/**
+ * Nombre del cliente que corresponde a un RUT, para confirmar al cajero que
+ * tecleó el RUT correcto. Solo clientes de la empresa y solo el nombre: el
+ * mostrador no necesita (ni debe ver) el resto de la ficha.
+ */
+export async function findCustomerNameByRut(companyId: string, rawRut: string): Promise<string | null> {
+  const trimmed = rawRut.trim();
+  if (!validateRut(trimmed)) return null;
+  const rutClean = cleanRut(trimmed);
+  if (rutClean === cleanRut(GENERIC_CUSTOMER_RUT)) return null;
+  const contact = await prisma.contact.findFirst({
+    where: { companyId, rutClean, isCustomer: true },
+    select: { razonSocial: true },
+  });
+  return contact?.razonSocial ?? null;
+}
+
 export type PosSaleResult = SalesDocument & {
   items: SalesDocumentItem[];
   changeDue: number;

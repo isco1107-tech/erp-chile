@@ -10,6 +10,7 @@ import {
   cashMovementSchema,
   cashRegisterCreateSchema,
   closeShiftSchema,
+  drawerOpenSchema,
   openShiftSchema,
   posSaleSchema,
 } from '../schema';
@@ -291,6 +292,51 @@ export async function listShiftsAction(cursor?: string): Promise<ActionResult<Sh
       await requireShiftAccess(session, cursor);
     }
     return { success: true, data: await cashService.listShifts(session.companyId, { userId: can(session, 'pos:close') ? undefined : session.id, ...(cursor ? { cursor } : {}) }) };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+/**
+ * Nombre del cliente de un RUT (si existe en la empresa). Es solo una ayuda para
+ * que el cajero confirme el RUT: la venta no depende de que exista.
+ */
+export async function lookupPosCustomerAction(rut: unknown): Promise<ActionResult<{ name: string | null }>> {
+  try {
+    const session = await requireAuthWithPermission('pos:operate');
+    if (typeof rut !== 'string' || rut.length > 20) return { success: false, error: 'RUT inválido' };
+    return { success: true, data: { name: await posService.findCustomerNameByRut(session.companyId, rut) } };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+/**
+ * Deja constancia de que el cajero abrió el cajón SIN una venta. Se llama antes
+ * del pulso: si no queda registrado, el cajón no se abre. Solo sobre su propio
+ * turno abierto.
+ */
+export async function registerDrawerOpenAction(shiftId: unknown, input: unknown): Promise<ActionResult<null>> {
+  try {
+    const session = await requireAuthWithPermission('pos:operate');
+    const parsed = drawerOpenSchema.safeParse(input);
+    if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
+    if (typeof shiftId !== 'string' || !shiftId) return { success: false, error: 'Turno inválido' };
+
+    const shift = await cashService.getOpenShiftForUser(session.companyId, session.id);
+    if (!shift || shift.id !== shiftId) {
+      return { success: false, error: 'Solo puedes abrir el cajón desde tu turno de caja abierto' };
+    }
+    await createAuditLog({
+      companyId: session.companyId,
+      userId: session.id,
+      userEmail: session.email,
+      action: 'UPDATE',
+      entity: 'CashShift',
+      entityId: shift.id,
+      metadata: { evento: 'APERTURA_CAJON_SIN_VENTA', motivo: parsed.data.reason, caja: shift.cashRegister.name },
+    });
+    return { success: true, data: null, message: 'Apertura de cajón registrada' };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
   }

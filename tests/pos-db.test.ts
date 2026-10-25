@@ -163,6 +163,21 @@ describeDb('POS multicaja contra PostgreSQL', () => {
     expect(snapshot.activity.some(event=>event.kind==='stock' && event.label.startsWith('Producto POS') && event.detail.startsWith('Bodega POS · '))).toBe(true);
   });
 
+  it('el nombre del cliente por RUT sale solo de la empresa y nunca del consumidor final ni de un proveedor', async () => {
+    const a = await fixture();
+    const b = await fixture();
+    await prisma.contact.create({ data: { companyId: a.companyId, rut: '12.345.678-5', rutClean: '123456785', razonSocial: 'Ana Soto', isCustomer: true } });
+    await prisma.contact.create({ data: { companyId: a.companyId, rut: '10.000.013-K', rutClean: '10000013K', razonSocial: 'Proveedor Sur', isCustomer: false, isSupplier: true } });
+    await prisma.$transaction((tx) => pos.getOrCreateGenericCustomer(tx, a.companyId));
+    expect(await pos.findCustomerNameByRut(a.companyId, '12.345.678-5')).toBe('Ana Soto');
+    expect(await pos.findCustomerNameByRut(a.companyId, ' 123456785 ')).toBe('Ana Soto');
+    expect(await pos.findCustomerNameByRut(b.companyId, '12.345.678-5')).toBeNull();
+    expect(await pos.findCustomerNameByRut(a.companyId, '12.345.678-9')).toBeNull();
+    expect(await pos.findCustomerNameByRut(a.companyId, '10.000.013-K')).toBeNull();
+    expect(await pos.findCustomerNameByRut(a.companyId, '66.666.666-6')).toBeNull();
+    expect(await pos.findCustomerNameByRut(a.companyId, 'no es un rut')).toBeNull();
+  });
+
   it('el primer acceso concurrente provisiona una sola Caja Principal disponible', async () => {
     const f = await fixture();
     await prisma.cashRegister.deleteMany({ where: { companyId: f.companyId } });
