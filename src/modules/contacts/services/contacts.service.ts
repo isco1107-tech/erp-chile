@@ -123,9 +123,9 @@ export async function getContact(companyId: string, id: string): Promise<Contact
 }
 
 /** La lista de precios asignada debe ser de la misma empresa. */
-async function assertPriceListInCompany(companyId: string, priceListId: string | null | undefined): Promise<void> {
+async function assertPriceListInCompany(companyId: string, priceListId: string | null | undefined, client: Prisma.TransactionClient = prisma): Promise<void> {
   if (!priceListId) return;
-  const list = await prisma.priceList.findFirst({ where: { id: priceListId, companyId }, select: { id: true } });
+  const list = await client.priceList.findFirst({ where: { id: priceListId, companyId }, select: { id: true } });
   if (!list) throw new Error('Lista de precios no encontrada');
 }
 
@@ -136,13 +136,13 @@ function assertConsignorCommission(isConsignor: boolean, commissionBps: number |
   }
 }
 
-export async function createContact(companyId: string, input: ContactCreateInput): Promise<Contact> {
+export async function createContact(companyId: string, input: ContactCreateInput, client: Prisma.TransactionClient = prisma): Promise<Contact> {
   const rutClean = cleanRut(input.rut);
   if (!validateRut(rutClean)) throw new Error('RUT inválido');
-  await assertPriceListInCompany(companyId, input.priceListId);
+  await assertPriceListInCompany(companyId, input.priceListId, client);
   assertConsignorCommission(input.isConsignor ?? false, input.consignmentCommissionBps);
 
-  return prisma.contact.create({
+  return client.contact.create({
     data: {
       companyId,
       rut: formatRut(rutClean),

@@ -1,5 +1,10 @@
 'use client';
 
+import Link from 'next/link';
+import {
+  sellerDeliveryMessage,
+  type SellerInvitationDelivery,
+} from '@/lib/supplier-portal/identity';
 import { useEffect, useState, type FormEvent } from 'react';
 import type { Contact } from '@prisma/client';
 import { toast } from 'sonner';
@@ -9,15 +14,35 @@ import { CurrencyInput } from '@/components/ui/CurrencyInput';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { nativeSelectClass } from '@/components/ui/field-classes';
-import { BANK_ACCOUNT_TYPES, BANK_ACCOUNT_TYPE_LABELS, CHILEAN_BANKS } from '@/lib/treasury/banks';
+import {
+  BANK_ACCOUNT_TYPES,
+  BANK_ACCOUNT_TYPE_LABELS,
+  CHILEAN_BANKS,
+} from '@/lib/treasury/banks';
 import { RutInput } from '@/components/ui/RutInput';
 import { regions } from '@/lib/chile/locations';
-import { bpsToInput, parseCommissionPercent } from '@/lib/consignment/commission';
-import { contactCreateSchema, contactUpdateSchema } from '@/modules/contacts/schema';
-import { createContactAction, lookupCompanyInfoAction, updateContactAction } from '@/modules/contacts/actions/contacts.actions';
+import {
+  bpsToInput,
+  parseCommissionPercent,
+} from '@/lib/consignment/commission';
+import {
+  contactCreateWithAccessSchema,
+  contactUpdateSchema,
+} from '@/modules/contacts/schema';
+import {
+  createContactAction,
+  lookupCompanyInfoAction,
+  updateContactAction,
+} from '@/modules/contacts/actions/contacts.actions';
 import type { CompanyLookupCandidate } from '@/modules/contacts/services/company-lookup.service';
 import { listPriceListsAction } from '@/modules/sales/actions/price-lists.actions';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
 const EMPTY_FORM = {
@@ -49,14 +74,27 @@ const EMPTY_FORM = {
 type FormState = typeof EMPTY_FORM;
 
 interface ContactFormProps {
+  canInviteSellers?: boolean;
   editingContact: ContactListItem | null;
   onSaved: (contact: Contact) => void;
   onCancelEdit: () => void;
 }
 
-export default function ContactForm({ editingContact, onSaved, onCancelEdit }: ContactFormProps) {
+export default function ContactForm({
+  editingContact,
+  onSaved,
+  onCancelEdit,
+  canInviteSellers = false,
+}: ContactFormProps) {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [inviteSeller, setInviteSeller] = useState(true);
+  const [personName, setPersonName] = useState('');
+  const [channel, setChannel] = useState<'email' | 'whatsapp' | null>(null);
+  const [createdPhone, setCreatedPhone] = useState<{
+    contact: Contact;
+    url: string;
+  } | null>(null);
   const [saving, setSaving] = useState(false);
   // $0 de límite es un valor de negocio real ("este cliente no tiene crédito
   // autorizado, todo al contado"), así que "sin límite" necesita su propio
@@ -64,14 +102,26 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
   const [noCreditLimit, setNoCreditLimit] = useState(true);
   // Listas de precios activas; si el usuario no puede verlas (sin permiso de
   // ventas), el campo simplemente no aparece.
-  const [priceLists, setPriceLists] = useState<{ id: string; name: string }[]>([]);
+  const [priceLists, setPriceLists] = useState<{ id: string; name: string }[]>(
+    [],
+  );
   useEffect(() => {
-    listPriceListsAction().then((r) => r.success && setPriceLists(r.data.filter((list) => list.isActive).map(({ id, name }) => ({ id, name }))));
+    listPriceListsAction().then(
+      (r) =>
+        r.success &&
+        setPriceLists(
+          r.data
+            .filter((list) => list.isActive)
+            .map(({ id, name }) => ({ id, name })),
+        ),
+    );
   }, []);
 
   const [companyQuery, setCompanyQuery] = useState('');
   const [searchingCompany, setSearchingCompany] = useState(false);
-  const [companyCandidates, setCompanyCandidates] = useState<CompanyLookupCandidate[] | null>(null);
+  const [companyCandidates, setCompanyCandidates] = useState<
+    CompanyLookupCandidate[] | null
+  >(null);
 
   async function handleCompanySearch() {
     if (!companyQuery.trim()) return;
@@ -83,7 +133,10 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
         toast.error(result.error);
         return;
       }
-      if (result.data.length === 0) toast.info('No se encontraron resultados — completa los datos manualmente');
+      if (result.data.length === 0)
+        toast.info(
+          'No se encontraron resultados — completa los datos manualmente',
+        );
       setCompanyCandidates(result.data);
     } finally {
       setSearchingCompany(false);
@@ -106,7 +159,7 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
     toast.success(
       candidate.rutVerified
         ? 'Datos precargados — revisa antes de guardar'
-        : 'Datos precargados, pero no se confirmó el RUT — complétalo o verifícalo manualmente'
+        : 'Datos precargados, pero no se confirmó el RUT — complétalo o verifícalo manualmente',
     );
   }
 
@@ -125,7 +178,10 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
         isCustomer: editingContact.isCustomer,
         isSupplier: editingContact.isSupplier,
         isConsignor: editingContact.isConsignor,
-        consignmentCommission: editingContact.consignmentCommissionBps == null ? '' : bpsToInput(editingContact.consignmentCommissionBps),
+        consignmentCommission:
+          editingContact.consignmentCommissionBps == null
+            ? ''
+            : bpsToInput(editingContact.consignmentCommissionBps),
         creditLimit: editingContact.creditLimit ?? 0,
         creditDays: editingContact.creditDays,
         priceListId: editingContact.priceListId ?? 'none',
@@ -142,7 +198,8 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
     }
   }, [editingContact]);
 
-  const comunaOptions = regions.find((r) => r.name === form.region)?.comunas ?? [];
+  const comunaOptions =
+    regions.find((r) => r.name === form.region)?.comunas ?? [];
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -152,29 +209,55 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
     setForm((prev) => ({ ...prev, region: value, comuna: '' }));
   }
 
+  const effectiveChannel =
+    channel ?? (form.email.trim() ? 'email' : 'whatsapp');
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setErrors({});
 
-    const consignmentCommissionBps = form.isConsignor ? parseCommissionPercent(form.consignmentCommission) : null;
+    const consignmentCommissionBps = form.isConsignor
+      ? parseCommissionPercent(form.consignmentCommission)
+      : null;
     if (form.isConsignor && consignmentCommissionBps === null) {
-      setErrors({ consignmentCommission: 'Indica la comisión del seller (un porcentaje entre 0 y 100)' });
+      setErrors({
+        consignmentCommission:
+          'Indica la comisión del seller (un porcentaje entre 0 y 100)',
+      });
       return;
     }
 
     const payload = {
       ...form,
+      sellerCenterAccess:
+        !editingContact && form.isConsignor && canInviteSellers && inviteSeller
+          ? {
+              name:
+                personName.trim() ||
+                (form.nombreFantasia || form.razonSocial).trim().slice(0, 120),
+              ...(effectiveChannel === 'email'
+                ? { email: form.email }
+                : { phone: form.phone }),
+            }
+          : undefined,
       consignmentCommissionBps,
       email: form.email || undefined,
       creditLimit: noCreditLimit ? null : form.creditLimit,
       // Sin listas disponibles no se toca lo que el cliente ya tenga asignado.
-      priceListId: priceLists.length === 0 ? undefined : form.priceListId === 'none' ? null : form.priceListId,
+      priceListId:
+        priceLists.length === 0
+          ? undefined
+          : form.priceListId === 'none'
+            ? null
+            : form.priceListId,
       bankCode: form.bankCode === 'none' ? null : form.bankCode,
-      bankAccountType: form.bankAccountType === 'none' ? null : form.bankAccountType,
+      bankAccountType:
+        form.bankAccountType === 'none' ? null : form.bankAccountType,
       bankAccountNumber: form.bankAccountNumber.trim() || null,
       paymentNoticeEmail: form.paymentNoticeEmail.trim() || null,
     };
-    const schema = editingContact ? contactUpdateSchema : contactCreateSchema;
+    const schema = editingContact
+      ? contactUpdateSchema
+      : contactCreateWithAccessSchema;
     const parsed = schema.safeParse(payload);
     if (!parsed.success) {
       const fieldErrors: Record<string, string> = {};
@@ -188,9 +271,10 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
 
     setSaving(true);
     try {
-      const result = editingContact
-        ? await updateContactAction(editingContact.id, parsed.data)
-        : await createContactAction(parsed.data);
+      const result: Awaited<ReturnType<typeof createContactAction>> =
+        editingContact
+          ? await updateContactAction(editingContact.id, parsed.data)
+          : await createContactAction(parsed.data);
 
       if (!result.success) {
         toast.error(result.error);
@@ -198,7 +282,18 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
         return;
       }
 
-      toast.success(result.message ?? 'Contacto guardado');
+      const onboarding: SellerInvitationDelivery | undefined =
+        result.onboarding;
+      if (
+        onboarding?.delivery === 'failed' ||
+        onboarding?.delivery === 'logged'
+      )
+        toast.warning(result.message);
+      else toast.success(result.message ?? 'Contacto guardado');
+      if (onboarding?.whatsappUrl) {
+        setCreatedPhone({ contact: result.data, url: onboarding.whatsappUrl });
+        return;
+      }
       setForm(EMPTY_FORM);
       onSaved(result.data);
     } finally {
@@ -206,8 +301,55 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
     }
   }
 
+  if (createdPhone)
+    return (
+      <section
+        className="space-y-4 rounded-2xl border bg-card p-5"
+        aria-label="Activación del seller"
+      >
+        <h2 className="text-lg font-semibold">
+          Seller creado · comparte su acceso
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          {sellerDeliveryMessage('whatsapp')} El mensaje incluye su usuario, un
+          enlace provisional y los pasos para elegir contraseña e instalar
+          Seller Center.
+        </p>
+        <a
+          href={createdPhone.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex min-h-12 items-center rounded-xl bg-primary px-4 font-semibold text-primary-foreground"
+        >
+          Compartir invitación por WhatsApp
+        </a>
+        <div className="flex flex-wrap gap-3">
+          <Link
+            href={`/dashboard/contacts/${createdPhone.contact.id}`}
+            className="inline-flex min-h-11 items-center underline"
+          >
+            Ver ficha del seller
+          </Link>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              onSaved(createdPhone.contact);
+              setCreatedPhone(null);
+              setForm(EMPTY_FORM);
+            }}
+          >
+            Volver a contactos
+          </Button>
+        </div>
+      </section>
+    );
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border border-border p-4">
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-4 rounded-xl border border-border p-4"
+    >
       {!editingContact && (
         <div className="space-y-2 rounded-lg border border-dashed border-border p-3">
           <Label htmlFor="companyQuery">Buscar empresa con IA</Label>
@@ -224,17 +366,26 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
               }}
               placeholder="Ej: Coca-Cola, Arauco, Falabella..."
             />
-            <Button type="button" variant="outline" disabled={searchingCompany} onClick={handleCompanySearch}>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={searchingCompany}
+              onClick={handleCompanySearch}
+            >
               {searchingCompany ? 'Buscando...' : 'Buscar'}
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Busca en internet razón social, RUT, giro y dirección para precargar el formulario. Siempre revisa los datos antes de guardar.
+            Busca en internet razón social, RUT, giro y dirección para precargar
+            el formulario. Siempre revisa los datos antes de guardar.
           </p>
           {companyCandidates && companyCandidates.length > 0 && (
             <ul className="space-y-1.5">
               {companyCandidates.map((c, i) => (
-                <li key={i} className="rounded-lg border border-border p-2.5 text-sm">
+                <li
+                  key={i}
+                  className="rounded-lg border border-border p-2.5 text-sm"
+                >
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="font-medium">{c.razonSocial}</p>
@@ -242,12 +393,22 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
                         {c.rut ? c.rut : 'RUT no confirmado'}
                         {c.giro && ` — ${c.giro}`}
                       </p>
-                      {c.address && <p className="text-xs text-muted-foreground">{c.address}</p>}
+                      {c.address && (
+                        <p className="text-xs text-muted-foreground">
+                          {c.address}
+                        </p>
+                      )}
                       {!c.rutVerified && (
-                        <p className="text-xs text-amber-600 dark:text-amber-500">RUT sin confirmar — verifícalo antes de guardar</p>
+                        <p className="text-xs text-amber-600 dark:text-amber-500">
+                          RUT sin confirmar — verifícalo antes de guardar
+                        </p>
                       )}
                     </div>
-                    <Button type="button" size="xs" onClick={() => applyCompanyCandidate(c)}>
+                    <Button
+                      type="button"
+                      size="xs"
+                      onClick={() => applyCompanyCandidate(c)}
+                    >
                       Usar
                     </Button>
                   </div>
@@ -261,8 +422,15 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <Label htmlFor="rut">RUT</Label>
-          <RutInput id="rut" value={form.rut} onChange={(value) => update('rut', value)} invalid={!!errors.rut} />
-          {errors.rut && <p className="mt-1 text-sm text-destructive">{errors.rut}</p>}
+          <RutInput
+            id="rut"
+            value={form.rut}
+            onChange={(value) => update('rut', value)}
+            invalid={!!errors.rut}
+          />
+          {errors.rut && (
+            <p className="mt-1 text-sm text-destructive">{errors.rut}</p>
+          )}
         </div>
 
         <div>
@@ -273,28 +441,52 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
             onChange={(e) => update('razonSocial', e.target.value)}
             aria-invalid={!!errors.razonSocial}
           />
-          {errors.razonSocial && <p className="mt-1 text-sm text-destructive">{errors.razonSocial}</p>}
+          {errors.razonSocial && (
+            <p className="mt-1 text-sm text-destructive">
+              {errors.razonSocial}
+            </p>
+          )}
         </div>
 
         <div>
           <Label htmlFor="nombreFantasia">Nombre de Fantasía</Label>
-          <Input id="nombreFantasia" value={form.nombreFantasia} onChange={(e) => update('nombreFantasia', e.target.value)} />
+          <Input
+            id="nombreFantasia"
+            value={form.nombreFantasia}
+            onChange={(e) => update('nombreFantasia', e.target.value)}
+          />
         </div>
 
         <div>
           <Label htmlFor="giro">Giro</Label>
-          <Input id="giro" value={form.giro} onChange={(e) => update('giro', e.target.value)} />
+          <Input
+            id="giro"
+            value={form.giro}
+            onChange={(e) => update('giro', e.target.value)}
+          />
         </div>
 
         <div>
           <Label htmlFor="email">Email</Label>
-          <Input id="email" type="email" value={form.email} onChange={(e) => update('email', e.target.value)} aria-invalid={!!errors.email} />
-          {errors.email && <p className="mt-1 text-sm text-destructive">{errors.email}</p>}
+          <Input
+            id="email"
+            type="email"
+            value={form.email}
+            onChange={(e) => update('email', e.target.value)}
+            aria-invalid={!!errors.email}
+          />
+          {errors.email && (
+            <p className="mt-1 text-sm text-destructive">{errors.email}</p>
+          )}
         </div>
 
         <div>
           <Label htmlFor="phone">Teléfono</Label>
-          <Input id="phone" value={form.phone} onChange={(e) => update('phone', e.target.value)} />
+          <Input
+            id="phone"
+            value={form.phone}
+            onChange={(e) => update('phone', e.target.value)}
+          />
         </div>
 
         <div>
@@ -307,7 +499,9 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
           >
             <option value="">Seleccione región</option>
             {regions.map((r) => (
-              <option key={r.code} value={r.name}>{r.name}</option>
+              <option key={r.code} value={r.name}>
+                {r.name}
+              </option>
             ))}
           </select>
         </div>
@@ -321,39 +515,65 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
             disabled={!form.region}
             className="h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm dark:bg-input/30"
           >
-            <option value="">{form.region ? 'Seleccione comuna' : 'Seleccione una región primero'}</option>
+            <option value="">
+              {form.region
+                ? 'Seleccione comuna'
+                : 'Seleccione una región primero'}
+            </option>
             {comunaOptions.map((c) => (
-              <option key={c} value={c}>{c}</option>
+              <option key={c} value={c}>
+                {c}
+              </option>
             ))}
           </select>
         </div>
 
         <div className="sm:col-span-2">
           <Label htmlFor="address">Dirección</Label>
-          <Input id="address" value={form.address} onChange={(e) => update('address', e.target.value)} />
+          <Input
+            id="address"
+            value={form.address}
+            onChange={(e) => update('address', e.target.value)}
+          />
         </div>
       </div>
 
       <div className="flex items-center gap-6">
         <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={form.isCustomer} onChange={(e) => update('isCustomer', e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={form.isCustomer}
+            onChange={(e) => update('isCustomer', e.target.checked)}
+          />
           Cliente
         </label>
         <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={form.isSupplier} onChange={(e) => update('isSupplier', e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={form.isSupplier}
+            onChange={(e) => update('isSupplier', e.target.checked)}
+          />
           Proveedor
         </label>
         <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={form.isConsignor} onChange={(e) => update('isConsignor', e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={form.isConsignor}
+            onChange={(e) => update('isConsignor', e.target.checked)}
+          />
           Seller (consignación)
         </label>
       </div>
 
       {form.isConsignor && (
         <fieldset className="grid grid-cols-1 gap-4 rounded-lg border border-dashed border-border p-3 sm:grid-cols-2">
-          <legend className="px-1 text-xs font-medium text-muted-foreground">Consignación</legend>
+          <legend className="px-1 text-xs font-medium text-muted-foreground">
+            Consignación
+          </legend>
           <div>
-            <Label htmlFor="consignmentCommission">Comisión para tu empresa (%)</Label>
+            <Label htmlFor="consignmentCommission">
+              Comisión para tu empresa (%)
+            </Label>
             <Input
               id="consignmentCommission"
               inputMode="decimal"
@@ -363,11 +583,85 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
               aria-invalid={!!errors.consignmentCommission}
               className="mt-1.5"
             />
-            {errors.consignmentCommission && <p className="mt-1 text-sm text-destructive">{errors.consignmentCommission}</p>}
+            {errors.consignmentCommission && (
+              <p className="mt-1 text-sm text-destructive">
+                {errors.consignmentCommission}
+              </p>
+            )}
           </div>
           <p className="self-end text-xs text-muted-foreground">
-            Sus productos siguen siendo suyos hasta que se venden: no entran a tu inventario valorizado ni a tus compras. Al vender, le liquidas el neto menos esta comisión. Cada producto puede tener la suya.
+            Sus productos siguen siendo suyos hasta que se venden: no entran a
+            tu inventario valorizado ni a tus compras. Al vender, le liquidas el
+            neto menos esta comisión. Cada producto puede tener la suya.
           </p>
+        </fieldset>
+      )}
+
+      {!editingContact && form.isConsignor && canInviteSellers && (
+        <fieldset className="space-y-3 rounded-xl border bg-muted/40 p-4">
+          <legend className="px-1 text-sm font-semibold">
+            Acceso a Seller Center
+          </legend>
+          <label className="flex min-h-11 items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={inviteSeller}
+              onChange={(event) => setInviteSeller(event.target.checked)}
+            />
+            Crear su invitación al guardar el seller
+          </label>
+          {inviteSeller && (
+            <>
+              <div>
+                <Label htmlFor="seller-person-name">
+                  Nombre de la persona (opcional)
+                </Label>
+                <Input
+                  id="seller-person-name"
+                  value={personName}
+                  onChange={(event) => setPersonName(event.target.value)}
+                  maxLength={120}
+                  placeholder={
+                    form.nombreFantasia ||
+                    form.razonSocial ||
+                    'Persona responsable del seller'
+                  }
+                />
+              </div>
+              <div>
+                <Label htmlFor="seller-invite-channel">
+                  Enviar invitación por
+                </Label>
+                <select
+                  id="seller-invite-channel"
+                  className={nativeSelectClass}
+                  value={effectiveChannel}
+                  onChange={(event) =>
+                    setChannel(event.target.value as 'email' | 'whatsapp')
+                  }
+                >
+                  <option value="email">Correo del seller</option>
+                  <option value="whatsapp">
+                    WhatsApp al teléfono del seller
+                  </option>
+                </select>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {effectiveChannel === 'email'
+                  ? 'Al guardar enviaremos un correo al email de arriba con su usuario y un enlace provisional para crear su contraseña.'
+                  : 'Completa el teléfono de arriba. Al guardar verás el botón para compartir por WhatsApp un enlace de activación de un solo uso.'}{' '}
+                La persona entra a Seller Center e instala su app desde el
+                teléfono.
+              </p>
+              {errors.sellerCenterAccess && (
+                <p role="alert" className="text-sm text-destructive">
+                  Revisa el nombre y{' '}
+                  {effectiveChannel === 'email' ? 'el correo' : 'el celular'}{' '}
+                  del acceso a Seller Center.
+                </p>
+              )}
+            </>
+          )}
         </fieldset>
       )}
 
@@ -376,11 +670,20 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
           <div>
             <Label htmlFor="creditLimit">Límite de crédito</Label>
             <label className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-              <input type="checkbox" checked={noCreditLimit} onChange={(e) => setNoCreditLimit(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={noCreditLimit}
+                onChange={(e) => setNoCreditLimit(e.target.checked)}
+              />
               Sin límite (no se bloquean ventas a crédito)
             </label>
             {!noCreditLimit && (
-              <CurrencyInput id="creditLimit" className="mt-1.5" value={form.creditLimit} onChange={(v) => update('creditLimit', v)} />
+              <CurrencyInput
+                id="creditLimit"
+                className="mt-1.5"
+                value={form.creditLimit}
+                onChange={(v) => update('creditLimit', v)}
+              />
             )}
           </div>
           <div>
@@ -390,7 +693,9 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
               type="number"
               min={0}
               value={form.creditDays}
-              onChange={(e) => update('creditDays', Number(e.target.value) || 0)}
+              onChange={(e) =>
+                update('creditDays', Number(e.target.value) || 0)
+              }
             />
             <p className="mt-1 text-xs text-muted-foreground">0 = contado</p>
           </div>
@@ -398,9 +703,16 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
             <div className="sm:col-span-2">
               <Label htmlFor="priceListId">Lista de precios</Label>
               <Select
-                items={{ none: 'Precio del catálogo', ...Object.fromEntries(priceLists.map((list) => [list.id, list.name])) }}
+                items={{
+                  none: 'Precio del catálogo',
+                  ...Object.fromEntries(
+                    priceLists.map((list) => [list.id, list.name]),
+                  ),
+                }}
                 value={form.priceListId}
-                onValueChange={(value) => update('priceListId', value as string)}
+                onValueChange={(value) =>
+                  update('priceListId', value as string)
+                }
               >
                 <SelectTrigger id="priceListId" className="mt-1.5">
                   <SelectValue />
@@ -408,11 +720,15 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
                 <SelectContent>
                   <SelectItem value="none">Precio del catálogo</SelectItem>
                   {priceLists.map((list) => (
-                    <SelectItem key={list.id} value={list.id}>{list.name}</SelectItem>
+                    <SelectItem key={list.id} value={list.id}>
+                      {list.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <p className="mt-1 text-xs text-muted-foreground">Al venderle, los precios se proponen desde esta lista.</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Al venderle, los precios se proponen desde esta lista.
+              </p>
             </div>
           )}
         </div>
@@ -420,34 +736,71 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
 
       {form.isSupplier && (
         <fieldset className="grid grid-cols-1 gap-4 rounded-lg border border-dashed border-border p-3 sm:grid-cols-2">
-          <legend className="px-1 text-xs font-medium text-muted-foreground">Datos para pagarle (nómina de pagos)</legend>
+          <legend className="px-1 text-xs font-medium text-muted-foreground">
+            Datos para pagarle (nómina de pagos)
+          </legend>
           <div>
             <Label htmlFor="bankCode">Banco</Label>
-            <select id="bankCode" className={cn(nativeSelectClass, 'mt-1.5')} value={form.bankCode} onChange={(e) => update('bankCode', e.target.value)}>
+            <select
+              id="bankCode"
+              className={cn(nativeSelectClass, 'mt-1.5')}
+              value={form.bankCode}
+              onChange={(e) => update('bankCode', e.target.value)}
+            >
               <option value="none">Sin registrar</option>
               {CHILEAN_BANKS.map((bank) => (
-                <option key={bank.code} value={bank.code}>{bank.name}</option>
+                <option key={bank.code} value={bank.code}>
+                  {bank.name}
+                </option>
               ))}
             </select>
           </div>
           <div>
             <Label htmlFor="bankAccountType">Tipo de cuenta</Label>
-            <select id="bankAccountType" className={cn(nativeSelectClass, 'mt-1.5')} value={form.bankAccountType} onChange={(e) => update('bankAccountType', e.target.value)}>
+            <select
+              id="bankAccountType"
+              className={cn(nativeSelectClass, 'mt-1.5')}
+              value={form.bankAccountType}
+              onChange={(e) => update('bankAccountType', e.target.value)}
+            >
               <option value="none">Sin registrar</option>
               {BANK_ACCOUNT_TYPES.map((type) => (
-                <option key={type} value={type}>{BANK_ACCOUNT_TYPE_LABELS[type]}</option>
+                <option key={type} value={type}>
+                  {BANK_ACCOUNT_TYPE_LABELS[type]}
+                </option>
               ))}
             </select>
           </div>
           <div>
             <Label htmlFor="bankAccountNumber">N° de cuenta</Label>
-            <Input id="bankAccountNumber" inputMode="numeric" value={form.bankAccountNumber} onChange={(e) => update('bankAccountNumber', e.target.value)} aria-invalid={!!errors.bankAccountNumber} />
-            {errors.bankAccountNumber && <p className="mt-1 text-sm text-destructive">{errors.bankAccountNumber}</p>}
+            <Input
+              id="bankAccountNumber"
+              inputMode="numeric"
+              value={form.bankAccountNumber}
+              onChange={(e) => update('bankAccountNumber', e.target.value)}
+              aria-invalid={!!errors.bankAccountNumber}
+            />
+            {errors.bankAccountNumber && (
+              <p className="mt-1 text-sm text-destructive">
+                {errors.bankAccountNumber}
+              </p>
+            )}
           </div>
           <div>
             <Label htmlFor="paymentNoticeEmail">Correo de aviso de pago</Label>
-            <Input id="paymentNoticeEmail" type="email" placeholder={form.email || 'pagos@proveedor.cl'} value={form.paymentNoticeEmail} onChange={(e) => update('paymentNoticeEmail', e.target.value)} aria-invalid={!!errors.paymentNoticeEmail} />
-            {errors.paymentNoticeEmail && <p className="mt-1 text-sm text-destructive">{errors.paymentNoticeEmail}</p>}
+            <Input
+              id="paymentNoticeEmail"
+              type="email"
+              placeholder={form.email || 'pagos@proveedor.cl'}
+              value={form.paymentNoticeEmail}
+              onChange={(e) => update('paymentNoticeEmail', e.target.value)}
+              aria-invalid={!!errors.paymentNoticeEmail}
+            />
+            {errors.paymentNoticeEmail && (
+              <p className="mt-1 text-sm text-destructive">
+                {errors.paymentNoticeEmail}
+              </p>
+            )}
           </div>
         </fieldset>
       )}
@@ -456,7 +809,11 @@ export default function ContactForm({ editingContact, onSaved, onCancelEdit }: C
 
       <div className="flex items-center gap-2">
         <Button type="submit" disabled={saving}>
-          {saving ? 'Guardando...' : editingContact ? 'Guardar cambios' : 'Crear contacto'}
+          {saving
+            ? 'Guardando...'
+            : editingContact
+              ? 'Guardar cambios'
+              : 'Crear contacto'}
         </Button>
         {editingContact && (
           <Button type="button" variant="outline" onClick={onCancelEdit}>

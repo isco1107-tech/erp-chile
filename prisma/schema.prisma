@@ -1220,7 +1220,9 @@ model SupplierPortalAccess {
 model SupplierPortalPerson {
   id                  String                     @id @default(cuid())
   /// En minúsculas y sin espacios.
-  email               String                     @unique
+  email               String?                    @unique
+  /// E.164. Una cuenta se invita por correo O por teléfono; no se fusionan identidades.
+  phone               String?                    @unique
   name                String
   /// `null` hasta que acepta su primera invitación.
   passwordHash        String?

@@ -189,6 +189,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
     steps: [
       header('Ficha única', 'Cada contacto con su RUT validado, datos, condiciones de crédito, lista de precios y datos bancarios.'),
       primary('Botón "Nuevo contacto"', 'Abre el formulario. "Buscar empresa con IA" te ayuda a completar los datos de una empresa a partir de su nombre o RUT.'),
+      note('Invitar al seller', 'Al marcar Seller (consignación), puedes crear su invitación al guardar: por correo llega un enlace de activación y por teléfono lo compartes por WhatsApp. La persona elige su contraseña y puede instalar Seller Center en su teléfono.'),
       note('Portal del cliente', 'En la ficha puedes generar un enlace para que el cliente vea su saldo, descargue sus documentos y revise sus pagos.'),
       search('Busca por RUT o razón social', 'Antes de crear un contacto, búscalo: duplicarlo ensucia el historial.'),
     ],

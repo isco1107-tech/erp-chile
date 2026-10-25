@@ -2165,6 +2165,8 @@ export function buildStoreTeamOrderEmail(input: StoreTeamOrderEmailInput): { sub
 }
 
 export interface SupplierAccountInviteEmailInput {
+  loginIdentifier?: string;
+  appUrl?: string;
   companyName: string;
   supplierName: string;
   inviterName: string;
@@ -2174,14 +2176,17 @@ export interface SupplierAccountInviteEmailInput {
 
 /** Invitación al Seller Center: la persona del seller crea su contraseña (o entra con la que ya tiene). */
 export function buildSupplierAccountInviteEmail(input: SupplierAccountInviteEmailInput): { subject: string; html: string; text: string } {
-  const subject = `${input.companyName} te invitó a su portal de proveedores`;
+  const subject = `${input.companyName} te invita a Seller Center`;
   const html = layout({
-    title: 'Portal de proveedores',
+    title: 'Activa tu cuenta de Seller Center',
     body: `
       <p style="margin:0 0 12px;"><strong>${escapeHtml(input.inviterName)}</strong>, de <strong>${escapeHtml(input.companyName)}</strong>,
       te dio acceso a su portal de proveedores en nombre de <strong>${escapeHtml(input.supplierName)}</strong>.</p>
       <p style="margin:0;">Ahí verás tus ventas, tu mercadería en bodega, tus liquidaciones y tus mermas. Abre el enlace para crear tu
-      contraseña; si ya tienes una cuenta en este portal, entra con la misma.</p>
+      contraseña; si ya tienes una cuenta en Seller Center, entra con la misma.</p>
+      ${input.loginIdentifier ? `<p>Tu usuario: <strong>${escapeHtml(input.loginIdentifier)}</strong>.</p>` : ''}
+      <p>Este enlace es tu acceso provisional. Si es tu primera cuenta, elige tu contraseña personal; si ya tienes una, usa la misma.</p>
+      ${input.appUrl ? `<p>Después de activar tu cuenta, ingresa en <a href="${escapeHtml(input.appUrl)}">Seller Center</a> y toca <strong>Instalar Seller Center</strong> para agregar su app a la pantalla de inicio de tu teléfono.</p>` : ''}
     `,
     ctaLabel: 'Activar mi acceso',
     ctaUrl: input.acceptUrl,
@@ -2189,7 +2194,10 @@ export function buildSupplierAccountInviteEmail(input: SupplierAccountInviteEmai
       Si no esperabas esta invitación, ignora este mensaje: sin abrir el enlace no se activa ningún acceso.`,
   });
   const text = [
-    `${input.inviterName}, de ${input.companyName}, te dio acceso a su portal de proveedores en nombre de ${input.supplierName}.`,
+    `${input.inviterName}, de ${input.companyName}, te dio acceso a Seller Center en nombre de ${input.supplierName}.`,
+    ...(input.loginIdentifier ? [`Tu usuario: ${input.loginIdentifier}`] : []),
+    'Este enlace es tu acceso provisional: crea tu contraseña personal si es tu primera cuenta, o usa la que ya tienes.',
+    ...(input.appUrl ? [`App para el teléfono: ${input.appUrl} . Toca Instalar Seller Center para agregarla a la pantalla de inicio.`] : []),
     '',
     'Activa tu acceso en este enlace (crea tu contraseña o entra con la que ya tienes):',
     input.acceptUrl,

@@ -7,7 +7,7 @@ import { SUPPLIER_PORTAL_RATE_LIMIT, checkRateLimit } from '@/lib/security/rate-
 import { getClientIp } from '@/lib/security/cloudflare';
 import { inspectInvitation } from '@/modules/inventory/services/seller-center-auth.service';
 
-export const metadata: Metadata = { title: 'Activar acceso · Portal de proveedores', robots: { index: false, follow: false }, referrer: 'no-referrer' };
+export const metadata: Metadata = { title: 'Activar cuenta · Seller Center', robots: { index: false, follow: false }, referrer: 'no-referrer' };
 export const dynamic = 'force-dynamic';
 
 export default async function SellerCenterInvitationPage({ params }: { params: Promise<{ token: string }> }) {
@@ -26,5 +26,5 @@ export default async function SellerCenterInvitationPage({ params }: { params: P
       </PublicStatus>
     );
   }
-  return <SellerCenterAccept token={token} email={invitation.email} personName={invitation.personName} hasPassword={invitation.hasPassword} companyName={invitation.companyName} supplierName={invitation.supplierName} />;
+  return <SellerCenterAccept token={token} email={invitation.email} phone={invitation.phone} personName={invitation.personName} hasPassword={invitation.hasPassword} companyName={invitation.companyName} supplierName={invitation.supplierName} />;
 }

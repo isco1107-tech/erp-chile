@@ -176,7 +176,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
 
       {supplierPortal && <SupplierPortalCard contactId={contact.id} contactName={contact.razonSocial} phone={contact.phone} admin={supplierPortal} baseUrl={getAppUrl()} />}
 
-      {sellerAccounts && <SellerCenterAccountsCard supplierId={contact.id} accounts={sellerAccounts} baseUrl={getAppUrl()} />}
+      {sellerAccounts && <SellerCenterAccountsCard supplierId={contact.id} accounts={sellerAccounts} baseUrl={getAppUrl()} initialName={contact.nombreFantasia || contact.razonSocial} initialEmail={contact.email || ''} initialPhone={contact.phone || ''} />}
 
       {sponsorships && sponsorshipRows.length > 0 && (
         <SectionCard

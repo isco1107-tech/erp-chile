@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes, randomInt } from 'node:crypto';
 import { expect, test, type Browser } from '@playwright/test';
+import { validateRut } from '../src/lib/chile/rut';
 import { STATE, seedCatalog } from './bodega-support';
 import { db, disableGuidedTour, owner } from './db';
 
@@ -211,9 +212,9 @@ test.describe('seller center', () => {
     await card.getByLabel('Nombre de la persona').fill('Rosa Productora');
     await card.getByLabel('Correo de la persona').fill(EMAIL);
     await card.getByRole('button', { name: 'Invitar' }).click();
-    await expect(page.getByText(`Invitación enviada a ${EMAIL}`)).toBeVisible();
+    await expect(card.getByText(EMAIL, { exact: true })).toBeVisible();
     await expect(
-      card.getByText('Invitación enviada', { exact: true }),
+      card.getByText('Pendiente de activación', { exact: true }),
     ).toBeVisible();
     const person = await db().supplierPortalPerson.findUniqueOrThrow({
       where: { email: EMAIL },
@@ -366,7 +367,7 @@ test.describe('seller center', () => {
     await expect(
       portal.getByRole('heading', { name: 'Ingresa a tu cuenta' }),
     ).toBeVisible();
-    await portal.getByLabel('Correo').fill(EMAIL);
+    await portal.getByLabel('Correo o teléfono', { exact: true }).fill(EMAIL);
     await portal.getByLabel('Contraseña').fill('Otra-Clave-2026');
     await portal.getByRole('button', { name: 'Ingresar' }).click();
     await expect(
@@ -423,4 +424,95 @@ test.describe('seller center', () => {
     expect(exported.status()).toBe(401);
     await supplierCtx.close();
   });
+  for (const channel of ['email', 'whatsapp'] as const) test(`crear seller con ${channel}, activar su cuenta e ingresar en su app`, async ({ page, browser }) => {
+    test.setTimeout(150000);
+    const database = new URL(process.env.DATABASE_URL!);
+    if (!['localhost', '127.0.0.1', '[::1]'].includes(database.hostname) || !/_test$/.test(database.pathname)) throw new Error('Solo base local de pruebas');
+    await setSellerCenter(true);
+    const { companyId } = await owner();
+    const key = randomBytes(6).toString('hex');
+    const body = String(randomInt(70000000, 99000000));
+    const dv = [...'0123456789K'].find(value => validateRut(body + value))!;
+    const rut = `${body}-${dv}`;
+    const label = `Seller alta ${channel} ${key}`;
+    const email = `alta-${key}@prueba.local`;
+    const phone = `+569${String(randomInt(10000000, 99999999))}`;
+    await page.goto('/dashboard/contacts?new=1');
+    await page.locator('#rut').fill(rut);
+    await page.locator('#razonSocial').fill(label);
+    if (channel === 'email') await page.locator('#email').fill(email);
+    else await page.locator('#phone').fill(phone);
+    await page.getByRole('checkbox', { name: 'Seller (consignación)', exact: true }).check();
+    await page.locator('#consignmentCommission').fill('20');
+    await page.getByRole('checkbox', { name: 'Crear su invitación al guardar el seller', exact: true }).check();
+    await page.locator('#seller-person-name').fill('Rosa Seller');
+    await expect(page.locator('#seller-invite-channel')).toHaveValue(channel);
+    await page.getByRole('button', { name: 'Crear contacto', exact: true }).click();
+    await expect.poll(() => db().contact.count({ where: { companyId, rutClean: body + dv } })).toBe(1);
+    const contact = await db().contact.findFirstOrThrow({ where: { companyId, rutClean: body + dv } });
+    await expect.poll(() => db().supplierPortalMembership.count({ where: { companyId, supplierId: contact.id } })).toBe(1);
+    const membership = await db().supplierPortalMembership.findFirstOrThrow({ where: { companyId, supplierId: contact.id }, include: { person: true } });
+    expect(membership.acceptedAt).toBeNull();
+    expect(membership.person.passwordHash).toBeNull();
+    let token: string;
+    if (channel === 'whatsapp') {
+      expect(membership.person).toMatchObject({ email: null, phone });
+      const share = page.getByRole('link', { name: 'Compartir invitación por WhatsApp', exact: true });
+      await expect(share).toBeVisible();
+      const url = new URL((await share.getAttribute('href'))!);
+      expect(url.origin).toBe('https://wa.me');
+      expect(url.pathname).toBe('/' + phone.slice(1));
+      token = /invitacion\/([\w-]{43})/.exec(url.searchParams.get('text')!)![1]!;
+      expect(membership.inviteTokenHash).toBe(hash(token));
+      await page.screenshot({ path: '.vercel/apps-review/seller-alta-whatsapp.png', fullPage: true });
+    } else {
+      expect(membership.person).toMatchObject({ email, phone: null });
+      token = randomBytes(32).toString('base64url');
+      // Local mail is not delivered: model the one-use link received by the recipient.
+      await db().supplierPortalMembership.updateMany({ where: { companyId, id: membership.id }, data: { inviteTokenHash: hash(token) } });
+    }
+    const ctx = await supplierContext(browser);
+    try {
+      const app = await ctx.newPage();
+      await app.setViewportSize({ width: 390, height: 844 });
+      await app.goto(`/proveedor/cuenta/invitacion/${token}`);
+      await expect(app.getByRole('heading', { name: 'Hola, Rosa Seller', exact: true })).toBeVisible();
+      await app.getByLabel('Contraseña nueva', { exact: true }).fill(PASSWORD);
+      await app.getByLabel('Repite la contraseña', { exact: true }).fill(PASSWORD);
+      await app.screenshot({ path: `.vercel/apps-review/seller-activar-${channel}.png`, fullPage: true });
+      if (channel === 'whatsapp') {
+        for (const width of [280, 320, 360, 375, 390, 430, 768, 820, 1024, 1280, 1440, 1920, 2560]) {
+          await app.setViewportSize({ width, height: 844 });
+          expect(await app.evaluate(collectProblems, '.seller-center-app')).toEqual([]);
+          await app.screenshot({ path: `.vercel/apps-review/seller-activar-${width}.png`, fullPage: true });
+        }
+        await app.setViewportSize({ width: 390, height: 844 });
+      }
+      await app.getByRole('button', { name: 'Activar mi acceso', exact: true }).click();
+      await expect(app).toHaveURL(/\/proveedor\/cuenta$/);
+      await expect(app.getByRole('heading', { name: /Tu resumen de/ })).toBeVisible();
+      await expect(app.getByText('Mermelada E2E de Otro Seller')).toHaveCount(0);
+      expect((await app.request.get('/api/control')).status()).toBe(401);
+      expect((await (await app.request.get('/proveedor/cuenta/manifest.webmanifest')).json())).toMatchObject({ id: '/proveedor/cuenta', start_url: '/proveedor/cuenta', display: 'standalone' });
+      await expect(app.getByRole('button', { name: 'Instalar Seller Center', exact: true })).toBeVisible();
+      await app.getByRole('button', { name: 'Salir', exact: true }).click();
+      await expect(app.getByRole('heading', { name: 'Ingresa a tu cuenta', exact: true })).toBeVisible();
+      if (channel === 'whatsapp') {
+        for (const width of [280, 320, 360, 375, 390, 430, 768, 820, 1024, 1280, 1440, 1920, 2560]) {
+          await app.setViewportSize({ width, height: 844 });
+          expect(await app.evaluate(collectProblems, '.seller-center-app')).toEqual([]);
+        }
+        await app.setViewportSize({ width: 390, height: 844 });
+      }
+      await app.getByLabel('Correo o teléfono', { exact: true }).fill(channel === 'email' ? email : phone.slice(3));
+      await app.getByLabel('Contraseña', { exact: true }).fill(PASSWORD);
+      await app.getByRole('button', { name: 'Ingresar', exact: true }).click();
+      await expect(app).toHaveURL(/\/proveedor\/cuenta$/);
+      await page.goto(`/dashboard/contacts/${contact.id}`);
+      await expect(page.getByTestId('seller-center-card').getByText('Activa', { exact: true })).toBeVisible();
+      await app.goto(`/proveedor/cuenta/invitacion/${token}`);
+      await expect(app.getByRole('heading', { name: 'Enlace no válido', exact: true })).toBeVisible();
+    } finally { await ctx.close(); }
+  });
+
 });

@@ -7,5 +7,9 @@ export const metadata: Metadata = appMetadata('seller');
 export const viewport: Viewport = appViewport('seller');
 
 export default function Layout({ children }: { children: ReactNode }) {
-  return <ApplicationInstallProvider app="seller">{children}</ApplicationInstallProvider>;
+  return (
+    <ApplicationInstallProvider app="seller">
+      <div className="seller-center-app">{children}</div>
+    </ApplicationInstallProvider>
+  );
 }

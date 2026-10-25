@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { cleanRut, validateRut } from '@/lib/chile/rut';
 import { BANK_ACCOUNT_TYPES, BANK_CODES } from '@/lib/treasury/banks';
+import { sellerInvitationSchema } from '@/lib/supplier-portal/identity';
 import { commissionBpsSchema } from '@/lib/consignment/commission';
 
 const rutField = z
@@ -48,3 +49,6 @@ export const contactUpdateSchema = contactCreateSchema.partial();
 
 export type ContactCreateInput = z.infer<typeof contactCreateSchema>;
 export type ContactUpdateInput = z.infer<typeof contactUpdateSchema>;
+
+/** Access is explicit and authorized separately from creating an ordinary contact. */
+export const contactCreateWithAccessSchema = contactCreateSchema.extend({ sellerCenterAccess: sellerInvitationSchema.optional() });
