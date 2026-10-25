@@ -120,7 +120,7 @@ describe('interruptor propio dentro de Métricas de retail', () => {
     expect(flagsDeModulo('stock_muerto')).toEqual(['hasDeadStock']);
     expect(flagsParaEncender(['hasDeadStock']).sort()).toEqual(['hasDeadStock', 'hasRetailMetrics']);
     expect(flagsParaEncender(['hasRetailMetrics'])).toEqual(['hasRetailMetrics']);
-    const item = catalogoDeModulos().find((entry) => entry.id === 'stock_muerto');
-    expect(item).toMatchObject({ precioMensual: null, desactivable: true });
+    const item = catalogoDeModulos().find((entry) => entry.alias.includes('stock_muerto'));
+    expect(item).toMatchObject({ id: 'dead-stock', precioMensual: 3990, desactivable: true });
   });
 });

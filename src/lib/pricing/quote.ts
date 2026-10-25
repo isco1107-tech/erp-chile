@@ -73,7 +73,8 @@ export interface Quote {
 /**
  * Cotización de una selección. Si hay plan, cuesta el precio del plan y los
  * ítems sueltos que el plan ya incluye no se cobran dos veces. Ids
- * desconocidos se descartan (no se pueden cotizar).
+ * desconocidos se descartan (no se pueden cotizar). Un ítem con `requires`
+ * arrastra a su padre.
  */
 export function buildQuote(
   itemIds: readonly string[],
@@ -84,13 +85,17 @@ export function buildQuote(
   const inPlan = new Set(plan?.moduleIds ?? []);
   const seen = new Set<string>();
   const items: PricedModule[] = [];
-  for (const id of itemIds) {
-    if (seen.has(id)) continue;
+  // Una funcionalidad que vive dentro de otro módulo cotiza también al padre (primero), si la empresa no lo tiene.
+  const add = (id: string) => {
+    if (seen.has(id)) return;
     seen.add(id);
     const item = MODULES_BY_ID.get(id);
-    if (!item || isModuleContracted(item, features) || inPlan.has(id)) continue;
+    if (!item) return;
+    if (item.requires) add(item.requires);
+    if (isModuleContracted(item, features) || inPlan.has(id)) return;
     items.push(item);
-  }
+  };
+  for (const id of itemIds) add(id);
   const net = (plan?.price ?? 0) + items.reduce((sum, m) => sum + m.price, 0);
   const iva = calculateIva(net);
   return { items, plan, net, iva, total: net + iva };

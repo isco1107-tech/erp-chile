@@ -196,7 +196,7 @@ describe('webhook de órdenes', () => {
   it('modulos.listar entrega el catálogo; con empresa, su estado y si va en su plan', async () => {
     const general = (await enviar('modulos.listar', {}, null)).cuerpo as unknown as { ok: boolean; datos: { modulos: { id: string; estado?: string }[]; planes: { nombre: string }[] } };
     expect(general.ok).toBe(true);
-    expect(general.datos.modulos.map((m) => m.id)).toEqual(expect.arrayContaining(['pos', 'web-sites', 'ventas', 'academia']));
+    expect(general.datos.modulos.map((m) => m.id)).toEqual(expect.arrayContaining(['pos', 'web-sites', 'ventas', 'academy']));
     expect(general.datos.modulos.every((m) => m.estado === undefined)).toBe(true);
     expect(general.datos.planes.map((p) => p.nombre)).toEqual(expect.arrayContaining(['Base', 'Comercio', 'Total']));
 

@@ -91,6 +91,37 @@ describe('cotización', () => {
   });
 });
 
+describe('módulos que antes estaban sin precio', () => {
+  it('solo quedan fuera de la oferta la facturación electrónica y los honorarios', () => {
+    expect([...UNPRICED_FEATURES].sort()).toEqual(['hasDteBilling', 'hasFeeDocuments']);
+  });
+
+  it('una funcionalidad con interruptor propio cotiza también a su padre, primero, y no lo repite', () => {
+    const quote = buildQuote(['dead-stock', 'smart-reorder'], null, NONE);
+    expect(quote.items.map((m) => m.id)).toEqual(['retail-metrics', 'dead-stock', 'smart-reorder']);
+    expect(quote.net).toBe(7990 + 3990 + 8990);
+  });
+
+  it('no vuelve a cobrar al padre que la empresa ya tiene', () => {
+    const quote = buildQuote(['basket-analysis'], null, withFeatures('hasRetailMetrics'));
+    expect(quote.items.map((m) => m.id)).toEqual(['basket-analysis']);
+  });
+
+  it('cada `requires` apunta a un ítem que existe y que no depende de otro', () => {
+    const byId = new Map(PRICED_MODULES.map((m) => [m.id, m]));
+    for (const m of PRICED_MODULES.filter((item) => item.requires)) {
+      const parent = byId.get(m.requires!);
+      expect(parent).toBeDefined();
+      expect(parent!.requires).toBeUndefined();
+    }
+  });
+
+  it('el plan Total cuesta menos que todos los módulos por separado', () => {
+    const total = PRICING_PLANS.find((p) => p.id === 'total')!;
+    expect(comparePlan(total, NONE).savings).toBeGreaterThan(0.4);
+  });
+});
+
 describe('solicitud de contratación', () => {
   it('exige al menos un módulo o un plan', () => {
     expect(moduleRequestSchema.safeParse({ itemIds: [] }).success).toBe(false);

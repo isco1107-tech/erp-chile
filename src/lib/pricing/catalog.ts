@@ -39,6 +39,12 @@ export interface PricedModule {
   grants: FeatureKey[];
   /** Qué resuelve, en una línea. */
   summary: string;
+  /**
+   * Id del ítem dentro del que vive (una funcionalidad con interruptor propio
+   * que solo sirve con el módulo padre encendido). Contratarla cotiza también
+   * al padre si la empresa no lo tiene.
+   */
+  requires?: string;
 }
 
 /** Plataforma base: todos los clientes la tienen; se muestra como referencia. */
@@ -52,6 +58,9 @@ export const PRICED_MODULES: readonly PricedModule[] = [
   { id: 'purchases', label: 'Compras y Proveedores', category: 'Núcleo comercial', price: 8990, grants: ['hasPurchases'], summary: 'Solicitudes, órdenes de compra, recepción y facturas de proveedor.' },
   { id: 'warehouses', label: 'Multibodega', category: 'Núcleo comercial', price: 6990, grants: ['hasMultipleWarehouses'], summary: 'Más de una bodega y transferencias entre ellas.' },
   { id: 'manufacturing', label: 'Producción', category: 'Núcleo comercial', price: 14990, grants: ['hasProduction'], summary: 'Recetas y órdenes de producción que consumen insumos y dejan el producto terminado a su costo real.' },
+  { id: 'ecommerce', label: 'Tienda en Línea', category: 'Núcleo comercial', price: 14990, grants: ['hasEcommerce'], summary: 'Catálogo, carrito y pago verificado (Khipu, Webpay Plus o transferencia) desde tu inventario; cada pedido pagado emite la venta y descuenta el stock.' },
+  { id: 'shrinkage-liability', label: 'Mermas con Responsable', category: 'Núcleo comercial', price: 5990, grants: ['hasShrinkageLiability'], summary: 'Quién responde por cada merma, rotura o faltante (la tienda o el productor) y el resumen por productor para liquidar.' },
+  { id: 'seller-center', label: 'Seller Center', category: 'Núcleo comercial', price: 8990, grants: ['hasSellerCenter'], summary: 'Cuentas para cada persona de un seller en consignación: ven lo vendido, su comisión, su mercadería y sus liquidaciones.' },
   { id: 'service-desk', label: 'Servicio Técnico', category: 'Núcleo comercial', price: 9990, grants: ['hasServiceDesk'], summary: 'Órdenes de servicio con diagnóstico y presupuesto que el cliente aprueba desde su enlace.' },
   { id: 'treasury', label: 'Tesorería y Cobranzas', category: 'Finanzas', price: 9990, grants: ['hasTreasury'], summary: 'Cuentas por cobrar y pagar, pagos y flujo de caja.' },
   { id: 'accounting', label: 'Contabilidad', category: 'Finanzas', price: 17990, grants: ['hasAccounting'], summary: 'Asientos automáticos, libro diario y mayor, balance y cierre mensual.' },
@@ -66,9 +75,15 @@ export const PRICED_MODULES: readonly PricedModule[] = [
   { id: 'org-chart', label: 'Organigrama', category: 'Personas y gestión', price: 2990, grants: ['hasOrgChart'], summary: 'Ficha de staff con foto, cargo y jerarquía de reporte.' },
   { id: 'multi-company', label: 'Multiempresa (por empresa extra)', category: 'Personas y gestión', price: 14990, grants: ['hasMultiCompany'], summary: 'Administra más de una empresa con el mismo acceso.' },
   { id: 'payroll', label: 'Personas y Remuneraciones', category: 'Personas y gestión', price: 12990, grants: ['hasPayroll'], summary: 'Trabajadores, liquidaciones de sueldo y vacaciones.' },
+  { id: 'academy', label: 'Academia', category: 'Personas y gestión', price: 12990, grants: ['hasAcademy'], summary: 'Alumnas, grupos, calendario de clases, asistencia, mensualidades, material y sitio web propio con inscripción en línea.' },
   { id: 'quality', label: 'Calidad y Procedimientos', category: 'Personas y gestión', price: 9990, grants: ['hasQuality'], summary: 'Procedimientos con acuse de lectura e inspecciones.' },
   { id: 'customer-care', label: 'Fidelización y Clientes', category: 'Personas y gestión', price: 6990, grants: ['hasCustomerCare'], summary: 'Encuestas CSAT/NPS y seguimiento de clientes inactivos.' },
   { id: 'intelligence', label: 'Centro de Inteligencia 360', category: 'Inteligencia y web', price: 14990, grants: ['hasIntelligence'], summary: 'Salud de la empresa, caja a 13 semanas y flujos del negocio.' },
+  { id: 'retail-metrics', label: 'Métricas de Retail', category: 'Inteligencia y web', price: 7990, grants: ['hasRetailMetrics'], summary: 'Panel en vivo por bodega: sell-through y días de inventario restante de cada producto.' },
+  { id: 'dead-stock', label: 'Stock Muerto', category: 'Inteligencia y web', price: 3990, grants: ['hasDeadStock'], requires: 'retail-metrics', summary: 'Productos que llevan días sin venderse, con su valor detenido y aviso periódico.' },
+  { id: 'retail-heatmap', label: 'Mapa de Calor de Rotación', category: 'Inteligencia y web', price: 4990, grants: ['hasRetailHeatmap'], requires: 'retail-metrics', summary: 'Venta de cada producto semana a semana y cómo reaccionó a cada cambio de precio.' },
+  { id: 'basket-analysis', label: 'Canasta Cruzada', category: 'Inteligencia y web', price: 4990, grants: ['hasBasketAnalysis'], requires: 'retail-metrics', summary: 'Qué productos se compran juntos en la misma boleta y cuáles valen como combo.' },
+  { id: 'smart-reorder', label: 'Reposición Predictiva', category: 'Inteligencia y web', price: 8990, grants: ['hasSmartReorder'], requires: 'retail-metrics', summary: 'Cuándo se agota cada producto y cuánto pedir según su venta real y el plazo de su proveedor.' },
   { id: 'agents', label: 'Agentes de IA (equipo ejecutivo)', category: 'Inteligencia y web', price: 9990, grants: ['hasCrm'], summary: 'Equipo ejecutivo virtual que analiza tus datos y recomienda.' },
   { id: 'web-sites', label: 'Sitios Web (por sitio)', category: 'Inteligencia y web', price: 9990, grants: ['hasWebSites'], summary: 'Constructor de sitios web con formulario de contacto.' },
   { id: 'event-projects', label: 'Eventos y Proyectos', category: 'Certámenes y eventos', price: 19990, grants: ['hasEventProjects'], summary: 'Certámenes con centro de mando, micrositio y afiches.' },
@@ -119,7 +134,7 @@ export const PRICING_PLANS: readonly PricingPlan[] = [
   {
     id: 'total',
     label: 'Total',
-    price: 229990,
+    price: 269990,
     includedUsers: 25,
     moduleIds: PRICED_MODULES.map((m) => m.id),
     tagline: 'Todos los módulos, para operar sin límites de áreas.',
@@ -133,11 +148,8 @@ export const PRICING_PLANS: readonly PricingPlan[] = [
  *   no exista la integración con el SII. Sigue siendo el flag que habilita
  *   Ventas y Folios, así que la Supersuite puede encenderlo a mano.
  * - `hasFeeDocuments` (Boletas de Honorarios): fuera de la oferta comercial.
- * - `hasRetailMetrics` (Métricas de retail) y sus funcionalidades con
- *   interruptor propio (`hasDeadStock`…), y Mermas con responsable
- *   (`hasShrinkageLiability`, dentro de Inventario): sin precio hasta que se
- *   defina; la Supersuite las enciende por su nombre (`metricas_retail`,
- *   `stock_muerto`, `mermas_responsable`…). Igual el Seller Center
- *   (`hasSellerCenter`, `seller_center`).
+ *
+ * Todo lo demás tiene precio en `PRICED_MODULES`. Un módulo nuevo sin precio
+ * definido se agrega aquí hasta que el dueño lo fije.
  */
-export const UNPRICED_FEATURES: readonly FeatureKey[] = ['hasDteBilling', 'hasFeeDocuments', 'hasAcademy', 'hasEcommerce', 'hasRetailMetrics', 'hasDeadStock', 'hasRetailHeatmap', 'hasBasketAnalysis', 'hasSmartReorder', 'hasShrinkageLiability', 'hasSellerCenter'];
+export const UNPRICED_FEATURES: readonly FeatureKey[] = ['hasDteBilling', 'hasFeeDocuments'];

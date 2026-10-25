@@ -32,6 +32,7 @@ export default function PlansAndModulesClient({ features }: { features: CompanyF
   const inPlan = useMemo(() => new Set(plan?.moduleIds ?? []), [plan]);
   const quote = useMemo(() => buildQuote([...selected], planId, features), [selected, planId, features]);
   const hasSelection = quote.plan !== null || quote.items.length > 0;
+  const inQuote = useMemo(() => new Set(quote.items.map((m) => m.id)), [quote]);
 
   function toggleModule(id: string) {
     setSent(false);
@@ -167,7 +168,10 @@ export default function PlansAndModulesClient({ features }: { features: CompanyF
                 {items.map((item) => {
                   const contracted = isModuleContracted(item, features);
                   const covered = !contracted && inPlan.has(item.id);
-                  const checked = !contracted && !covered && selected.has(item.id);
+                  const checked = !contracted && !covered && inQuote.has(item.id);
+                  // Lo que se cotiza solo porque otro ítem marcado lo necesita: no se puede desmarcar aparte.
+                  const needed = checked && (!selected.has(item.id) || PRICED_MODULES.some((m) => m.requires === item.id && inQuote.has(m.id)));
+                  const parent = item.requires ? PRICED_MODULES.find((m) => m.id === item.requires) : undefined;
                   const inputId = `module-${item.id}`;
                   return (
                     <li key={item.id} className="flex items-start gap-3 px-4 py-3">
@@ -176,7 +180,7 @@ export default function PlansAndModulesClient({ features }: { features: CompanyF
                         type="checkbox"
                         className="mt-1 size-4 shrink-0 accent-primary"
                         checked={checked || covered}
-                        disabled={contracted || covered}
+                        disabled={contracted || covered || needed}
                         onChange={() => toggleModule(item.id)}
                       />
                       <label htmlFor={inputId} className="min-w-0 flex-1 cursor-pointer">
@@ -184,8 +188,10 @@ export default function PlansAndModulesClient({ features }: { features: CompanyF
                           <span className="text-sm font-medium text-foreground">{item.label}</span>
                           {contracted && <StatusBadge tone="success">Ya lo tienes</StatusBadge>}
                           {covered && <StatusBadge tone="info">Incluido en el plan elegido</StatusBadge>}
+                          {needed && <StatusBadge tone="info">Lo necesita lo que marcaste</StatusBadge>}
                         </span>
                         <span className="mt-0.5 block text-xs text-muted-foreground">{item.summary}</span>
+                        {parent && <span className="mt-0.5 block text-xs text-muted-foreground">Funciona dentro de {parent.label}.</span>}
                       </label>
                       <p className="shrink-0 text-right text-sm font-medium text-foreground">
                         {formatCurrency(item.price)}
