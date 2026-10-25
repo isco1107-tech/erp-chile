@@ -1,24 +1,15 @@
+import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import { ApplicationInstallProvider } from '@/components/apps/InstallApplication';
-export const metadata = {
-  title: 'Aether Control',
-  manifest: '/control/manifest.webmanifest',
-  robots: { index: false, follow: false },
-  appleWebApp: { capable: true, title: 'Aether Control' },
-  icons: { apple: '/branding/app-icon-512.png' },
-};
-export const viewport = {
-  width: 'device-width',
-  initialScale: 1,
-  viewportFit: 'cover' as const,
-  themeColor: '#12161f',
-};
+import { appMetadata, appViewport } from '@/lib/apps/manifest';
+
+export const metadata: Metadata = appMetadata('control');
+export const viewport: Viewport = appViewport('control');
+
 export default function Layout({ children }: { children: ReactNode }) {
   return (
     <div className="theme-saas-light bodega-app min-h-dvh bg-background text-foreground">
-      <ApplicationInstallProvider scope="/control">
-        {children}
-      </ApplicationInstallProvider>
+      <ApplicationInstallProvider app="control">{children}</ApplicationInstallProvider>
     </div>
   );
 }

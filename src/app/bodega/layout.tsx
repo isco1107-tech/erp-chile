@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
-import { WarehouseInstallProvider } from '@/components/bodega/InstallApp';
+import { ApplicationInstallProvider } from '@/components/apps/InstallApplication';
+import { appMetadata, appViewport } from '@/lib/apps/manifest';
 
 /**
  * App del bodeguero (`/bodega`): instalable en el celular, a pantalla completa.
@@ -11,22 +12,10 @@ import { WarehouseInstallProvider } from '@/components/bodega/InstallApp';
  * sesión, y se guardan en la base local de cada persona.
  */
 
-export const metadata: Metadata = {
-  title: 'Aether Bodega',
-  description: 'Ingresa, descuenta y traslada productos de tu bodega desde el celular.',
-  manifest: '/bodega/manifest.webmanifest',
-  robots: { index: false, follow: false },
-  appleWebApp: { capable: true, title: 'Bodega', statusBarStyle: 'black-translucent' },
-  icons: { icon: '/icon.png', apple: '/branding/app-icon-512.png' },
-};
+export const metadata: Metadata = appMetadata('bodega');
 
-export const viewport: Viewport = {
-  themeColor: '#12161f',
-  width: 'device-width',
-  initialScale: 1,
-  viewportFit: 'cover',
-};
+export const viewport: Viewport = appViewport('bodega');
 
 export default function BodegaLayout({ children }: { children: React.ReactNode }) {
-  return <WarehouseInstallProvider>{children}</WarehouseInstallProvider>;
+  return <ApplicationInstallProvider app="bodega">{children}</ApplicationInstallProvider>;
 }

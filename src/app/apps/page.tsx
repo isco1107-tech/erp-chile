@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ArrowUpRight, LayoutGrid, Monitor, ShieldCheck } from 'lucide-react';
 import { APP_CATALOG, APP_OPPORTUNITIES } from '@/lib/apps/catalog';
+import { appIconPaths } from '@/lib/apps/registry';
 import { PosDesktopDownload } from '@/components/pos/PosDesktopDownload';
 import erpReleases from '../../../public/downloads/releases.json';
 export const metadata = {
@@ -49,10 +50,25 @@ export default function AppsPage() {
               key={app.id}
               className="flex min-w-0 flex-col rounded-3xl border bg-card p-6 shadow-card sm:p-8"
             >
-              <p className="text-xs font-semibold tracking-widest text-muted-foreground">
-                {app.eyebrow}
-              </p>
-              <h2 className="mt-3 text-2xl font-semibold">{app.name}</h2>
+              <div className="flex items-center gap-4">
+                {/* El ícono real que quedará en la pantalla de inicio: cada app tiene el suyo. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={appIconPaths(app.id).any192}
+                  alt=""
+                  width={64}
+                  height={64}
+                  className="size-16 shrink-0 rounded-2xl shadow-card"
+                />
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold tracking-widest text-muted-foreground">
+                    {app.eyebrow}
+                  </p>
+                  <h2 className="mt-1 text-2xl font-semibold [overflow-wrap:anywhere]">
+                    {app.name}
+                  </h2>
+                </div>
+              </div>
               <p className="mt-3 flex-1 text-muted-foreground">
                 {app.description}
               </p>
@@ -128,7 +144,9 @@ export default function AppsPage() {
         <footer className="flex gap-3 border-t pt-6 text-sm text-muted-foreground">
           <ShieldCheck className="size-5 shrink-0" />
           <p>
-            Instalar una app no amplía permisos ni módulos contratados. Bodega
+            Cada app se instala por separado y tiene su propio ícono: instalar
+            una no hace pasar por instalada a otra. Instalar una app no amplía
+            permisos ni módulos contratados. Bodega
             conserva envíos pendientes; POS, Control y portales necesitan
             conexión para confirmar o consultar datos.
           </p>

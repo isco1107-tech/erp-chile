@@ -1,3 +1,4 @@
+/** `id` es también el id de la app en `registry.ts` (de ahí salen su ícono y su nombre en el teléfono). */
 export const APP_CATALOG = [
   {
     id: 'control',
@@ -20,7 +21,7 @@ export const APP_CATALOG = [
     href: '/pos',
     description:
       'Un espacio de trabajo para cada cajero: apertura, venta, ingresos, retiros y cierre conectado al ERP.',
-    format: 'Windows, Mac y Linux',
+    format: 'Windows, Mac y Linux · también instalable en tablet y teléfono',
     features: ['Multicaja', 'Boletas e inventario', 'Arqueo por cajero'],
   },
   {

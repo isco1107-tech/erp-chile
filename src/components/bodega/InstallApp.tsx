@@ -1,83 +1,33 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useState } from 'react';
 import { Download, Smartphone } from 'lucide-react';
-
-interface InstallPrompt extends Event {
-  prompt(): Promise<void>;
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
-}
-
-const InstallContext = createContext<{ installed: boolean; install(): Promise<boolean> } | null>(null);
-
-function standalone() {
-  return window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
-}
-
-function subscribeStandalone(listener: () => void) {
-  const media = window.matchMedia('(display-mode: standalone)');
-  media.addEventListener('change', listener);
-  return () => media.removeEventListener('change', listener);
-}
-
-/** Shared by the login and the warehouse so an install prompt survives client navigation. */
-export function WarehouseInstallProvider({ children }: { children: ReactNode }) {
-  const prompt = useRef<InstallPrompt | null>(null);
-  const [installed, setInstalled] = useState(false);
-  const inApp = useSyncExternalStore(subscribeStandalone, standalone, () => false);
-
-  useEffect(() => {
-    const onPrompt = (event: Event) => {
-      event.preventDefault();
-      prompt.current = event as InstallPrompt;
-    };
-    const onInstalled = () => {
-      prompt.current = null;
-      setInstalled(true);
-    };
-    window.addEventListener('beforeinstallprompt', onPrompt);
-    window.addEventListener('appinstalled', onInstalled);
-    // Register before signing in too: installation must not depend on warehouse bootstrap.
-    if (process.env.NODE_ENV === 'production' && 'serviceWorker' in navigator) {
-      void navigator.serviceWorker.register('/bodega-sw.js', { scope: '/bodega' }).catch(() => undefined);
-    }
-    return () => {
-      window.removeEventListener('beforeinstallprompt', onPrompt);
-      window.removeEventListener('appinstalled', onInstalled);
-    };
-  }, []);
-
-  const install = useCallback(async () => {
-    const event = prompt.current;
-    if (!event) return false;
-    // Browser install prompts can only be used once. A dismissal is not an installation.
-    prompt.current = null;
-    try {
-      await event.prompt();
-      return (await event.userChoice).outcome === 'accepted';
-    } catch {
-      return false;
-    }
-  }, []);
-
-  return <InstallContext.Provider value={{ installed: installed || inApp, install }}>{children}</InstallContext.Provider>;
-}
+import { appIconPaths } from '@/lib/apps/registry';
+import { detectDevice, useApplicationInstall } from '@/components/apps/InstallApplication';
 
 export default function InstallApp() {
-  const context = useContext(InstallContext);
+  const context = useApplicationInstall();
   const [guide, setGuide] = useState<'iphone' | 'android' | 'desktop' | null>(null);
   const [busy, setBusy] = useState(false);
-  if (!context) throw new Error('InstallApp requires WarehouseInstallProvider');
+  // Abierta desde su ícono, o ya instalada en el teléfono: no se ofrece instalar de nuevo.
   if (context.installed) return null;
+  // Visitada desde el navegador con la app ya instalada: se dice la verdad en vez de ofrecer instalar otra vez.
+  if (context.elsewhere) {
+    return (
+      <section aria-label="Bodega móvil ya instalada" className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={appIconPaths('bodega').any192} alt="" width={44} height={44} className="size-11 shrink-0 rounded-xl" />
+        <p className="text-sm">Bodega móvil ya está en este teléfono. Ábrela desde su ícono en la pantalla de inicio.</p>
+      </section>
+    );
+  }
 
   const download = async () => {
     setBusy(true);
     setGuide(null);
     try {
       if (await context.install()) return;
-      const agent = navigator.userAgent;
-      const iphone = /iPhone|iPad|iPod/i.test(agent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-      setGuide(iphone ? 'iphone' : /Android/i.test(agent) ? 'android' : 'desktop');
+      setGuide(detectDevice());
     } finally {
       setBusy(false);
     }
@@ -85,6 +35,12 @@ export default function InstallApp() {
 
   return (
     <section aria-label="Instalar Bodega móvil" className="rounded-2xl border border-border bg-card p-4">
+      <div className="mb-3 flex items-center gap-3">
+        {/* El ícono real de la app: es el que quedará en la pantalla de inicio. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={appIconPaths('bodega').any192} alt="" width={44} height={44} className="size-11 shrink-0 rounded-xl" />
+        <p className="text-sm text-muted-foreground">Cada app de Aether se instala por separado, con su propio ícono.</p>
+      </div>
       <button type="button" onClick={() => void download()} disabled={busy} aria-expanded={guide !== null} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-base font-semibold text-primary-foreground disabled:opacity-60">
         <Download className="size-5 shrink-0" aria-hidden="true" />
         {busy ? 'Abriendo instalación…' : 'Descargar app'}

@@ -431,7 +431,7 @@ export default function SellerCenterClient({
           )}
         </PublicCard>
 
-        <InstallApplication name="Seller Center" scope="/proveedor/cuenta" />
+        <InstallApplication />
         <PublicFooter>
           Datos al {dayTimeLabel(new Date(view.generatedAt))}. Solo lectura:
           para pedir un cambio, contacta a {account.company.name}

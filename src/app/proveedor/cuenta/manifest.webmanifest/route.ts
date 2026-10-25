@@ -1,30 +1,6 @@
-export const dynamic = 'force-static';
-export function GET() {
-  return Response.json(
-    {
-      name: 'Seller Center',
-      short_name: 'Seller Center',
-      id: '/proveedor/cuenta',
-      start_url: '/proveedor/cuenta',
-      scope: '/proveedor/cuenta',
-      display: 'standalone',
-      background_color: '#ffffff',
-      theme_color: '#12161f',
-      lang: 'es-CL',
-      icons: [
-        { src: '/icon.png', sizes: '192x192', type: 'image/png' },
-        {
-          src: '/branding/app-icon-512.png',
-          sizes: '512x512',
-          type: 'image/png',
-        },
-      ],
-    },
-    {
-      headers: {
-        'Content-Type': 'application/manifest+json',
-        'Cache-Control': 'public, max-age=3600',
-      },
-    },
-  );
+import { appManifestResponse } from '@/lib/apps/manifest';
+
+/** Manifest de la app «seller»: su identidad, alcance e íconos salen de `src/lib/apps/registry.ts`. */
+export function GET(request: Request) {
+  return appManifestResponse('seller', request);
 }

@@ -25,7 +25,7 @@ export default async function Page() {
       <Suspense fallback={<p>Preparando el ingreso…</p>}>
         <LoginForm control />
       </Suspense>
-      <InstallApplication name="Aether Control" scope="/control" />
+      <InstallApplication />
       <a href="/apps" className="text-center text-sm underline">
         Todas las aplicaciones
       </a>

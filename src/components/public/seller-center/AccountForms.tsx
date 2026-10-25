@@ -31,7 +31,7 @@ function Frame({ children, footer }: { children: ReactNode; footer?: ReactNode }
       <PublicTopBar brand="Aether · Seller Center" />
       <PublicShell>
         {children}
-        <InstallApplication name="Seller Center" scope="/proveedor/cuenta" />
+        <InstallApplication />
         {footer && <PublicFooter>{footer}</PublicFooter>}
       </PublicShell>
     </PublicPage>

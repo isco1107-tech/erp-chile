@@ -32,9 +32,12 @@ import { getOnboardingStatus } from '@/lib/services/onboarding.service';
 import { getVisibleManualSections } from '@/modules/manual/content';
 import { toManualHints } from '@/modules/manual/hints';
 import { prisma } from '@/lib/prisma';
+import { APPS } from '@/lib/apps/registry';
+import { AppWindowMarker } from '@/components/apps/InstallApplication';
 
 export const metadata = {
   title: { default: 'Panel', template: '%s · Aether ERP' },
+  appleWebApp: { capable: true, title: APPS.erp.shortName, statusBarStyle: 'default' as const },
 };
 
 function initials(name: string): string {
@@ -133,6 +136,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="theme-saas-light min-h-screen bg-background text-foreground" style={brandThemeStyle}>
+      <AppWindowMarker app="erp" />
       <a
         href="#contenido-principal"
         className="sr-only z-50 rounded-lg bg-card px-4 py-2 text-sm font-medium text-foreground shadow-popover focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
