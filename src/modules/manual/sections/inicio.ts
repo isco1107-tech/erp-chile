@@ -177,7 +177,7 @@ export const INICIO_SECTIONS: ManualSection[] = [
   },
   {
     id: 'mensajeria',
-    key: 'always',
+    key: 'hasMessaging',
     permission: 'messaging:use',
     chapter: 'Primeros pasos',
     title: 'Mensajería interna',

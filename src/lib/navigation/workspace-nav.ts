@@ -167,7 +167,7 @@ export function buildAvailableWorkspaceNav({ permissions, features }: Omit<NavAc
   if (features.hasPos && allow('pos:operate')) {
     principal.push({ id: 'pos', href: '/dashboard/pos', label: 'Punto de Venta', icon: 'pos', keywords: ['pos', 'caja', 'boleta'] });
   }
-  if (allow('messaging:use')) {
+  if (features.hasMessaging && allow('messaging:use')) {
     principal.push({ id: 'messaging', href: '/dashboard/messaging', label: 'Mensajería', icon: 'messaging', keywords: ['chat', 'mensajes'] });
   }
   push('Principal', principal);

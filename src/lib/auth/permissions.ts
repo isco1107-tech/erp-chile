@@ -422,7 +422,6 @@ export const CORE_PERMISSION_GROUP = {
     'settings:users',
     'audit:read',
     'import:data',
-    'messaging:use',
   ] as Permission[],
 };
 

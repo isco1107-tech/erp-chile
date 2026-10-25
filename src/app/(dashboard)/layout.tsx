@@ -223,7 +223,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
               <div className="flex-1" />
               <HowToUseButton />
               <HeaderAssistantButtons />
-              {allow('messaging:use') && <MessagingBell />}
+              {features.hasMessaging && allow('messaging:use') && <MessagingBell />}
               <NotificationBell />
               <Link
                 href="/dashboard/settings/profile"
