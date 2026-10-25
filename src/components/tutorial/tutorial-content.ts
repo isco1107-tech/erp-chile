@@ -38,6 +38,14 @@ const note = (title: string, description: string): TutorialStep => ({ title, des
 
 export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
   apps: {title: 'Aplicaciones Aether', steps: [header('Cada tarea en su app', 'Elige Control, POS, Bodega móvil o Seller Center según tu trabajo.'), note('Instalar y entrar', 'Usa Descargar app POS para el computador o Abrir e instalar para el teléfono. Cada app valida su propia cuenta y permisos.')]},
+  exports: {
+    title: 'Exportar datos',
+    steps: [
+      header('Todo lo que necesitas en Excel', 'Aquí ves y descargas las boletas y los movimientos de inventario de toda la empresa. Elige la pestaña de arriba.'),
+      note('Elige las fechas', 'Usa los atajos (Hoy, Este mes, Mes anterior…) o escribe Desde y Hasta y presiona "Aplicar filtros". "Todo el historial" quita el límite.'),
+      note('Descarga lo que ves', '"Descargar Excel" baja exactamente lo que muestra la pantalla: boletas con su detalle de productos, o movimientos con su bodega, motivo y operario.'),
+    ],
+  },
   dashboard: {
     title: 'Bienvenida',
     steps: [

@@ -54,6 +54,7 @@ Qué cubren:
   ficha, la persona activa su cuenta, ve lo vendido con la comisión y lo que le corresponde y descarga el Excel, sale y
   vuelve a entrar; desactivada queda afuera con la sesión abierta, su cookie no sirve como sesión del panel y, apagado,
   el portal no existe.
+- `exports.spec.ts`: Exportar datos: el menú ofrece la pantalla, las boletas se ven y se descargan con su detalle (Excel real leído de vuelta), los movimientos de todas las bodegas se ven y se filtran por bodega, cada descarga queda auditada, sin sesión no se baja nada y un rol sin los permisos no ve la pestaña ni descarga.
 - `movements.spec.ts`: el registro de movimientos por bodega (cada bodega ve solo lo suyo,
   con operario, motivo y foto) y el kardex por bodega.
 - `supplier-portal.spec.ts`: el portal del proveedor (`/proveedor`): entra con su código, ve solo

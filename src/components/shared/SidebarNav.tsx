@@ -57,6 +57,7 @@ import {
   Shirt,
   Gavel,
   Scale,
+  Download,
   BookOpenText,
   BookMarked,
   Sheet,
@@ -185,6 +186,7 @@ export const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   basket: ShoppingBasket,
   reorder: CalendarSync,
   shrinkage: Scale,
+  exports: Download,
 };
 
 

@@ -1,5 +1,6 @@
 import { ALL_PERMISSIONS, type Permission } from '@/lib/auth/permissions';
 import { MODULE_KEYS, moduleEnabled, type CompanyFeatureFlags } from '@/lib/auth/modules';
+import { canOpenExports, exportAccess } from '@/lib/exports/access';
 
 /**
  * Registro único de navegación del panel. Lo consumen la barra lateral
@@ -105,7 +106,8 @@ export type NavIconKey =
   | 'heatmap'
   | 'basket'
   | 'reorder'
-  | 'shrinkage';
+  | 'shrinkage'
+  | 'exports';
 
 export interface NavLink {
   /** Identificador estable (ver comentario del archivo). */
@@ -169,6 +171,10 @@ export function buildAvailableWorkspaceNav({ permissions, features }: Omit<NavAc
   }
   if (features.hasMessaging && allow('messaging:use')) {
     principal.push({ id: 'messaging', href: '/dashboard/messaging', label: 'Mensajería', icon: 'messaging', keywords: ['chat', 'mensajes'] });
+  }
+  // «Exportar datos» junto a lo de uso diario: es lo que se busca cuando hay que sacar los datos a Excel.
+  if (canOpenExports(exportAccess({ permissions, features }))) {
+    principal.push({ id: 'exports', href: '/dashboard/exports', label: 'Exportar datos', icon: 'exports', keywords: ['excel', 'exportar', 'descargar', 'boletas', 'ventas', 'movimientos', 'inventario', 'kardex', 'bajar', 'planilla', 'datos'] });
   }
   push('Principal', principal);
 

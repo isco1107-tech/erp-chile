@@ -16,6 +16,7 @@ const HOME_PATH = '/dashboard';
 
 const TUTORIAL_ROUTES: readonly (readonly [string, string])[] = [
   ['/apps', 'apps'],
+  ['/dashboard/exports', 'exports'],
   ['/dashboard/settings', 'settings'],
   ['/dashboard/settings/company', 'settings-company'],
   ['/dashboard/settings/modules', 'settings-modules'],

@@ -2,6 +2,7 @@ import { Prisma, type MovementType } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { santiagoMidnightUtc } from '@/lib/chile/timezone';
 import { wasteReasonLabel } from '@/lib/warehouse-mobile/modes';
+import { KIND_TYPES, LOG_KINDS, LOG_KIND_LABELS, type LogKind } from '@/lib/inventory/movement-kinds';
 
 /**
  * Registro de movimientos de inventario POR BODEGA: qué entró y salió, quién lo hizo, por qué y con
@@ -9,26 +10,7 @@ import { wasteReasonLabel } from '@/lib/warehouse-mobile/modes';
  * `companyId`.
  */
 
-/** Tipos de movimiento que se pueden filtrar. */
-export const LOG_KINDS = ['ALL', 'ARRIVALS', 'ADJUST_IN', 'OUTFLOWS', 'SALES', 'TRANSFERS'] as const;
-export type LogKind = (typeof LOG_KINDS)[number];
-
-export const LOG_KIND_LABELS: Record<LogKind, string> = {
-  ALL: 'Todos los movimientos',
-  ARRIVALS: 'Llegadas de mercadería',
-  ADJUST_IN: 'Ajustes de entrada (sobrantes, devoluciones)',
-  OUTFLOWS: 'Salidas y mermas',
-  SALES: 'Ventas',
-  TRANSFERS: 'Traslados',
-};
-
-const KIND_TYPES: Record<Exclude<LogKind, 'ALL'>, MovementType[]> = {
-  ARRIVALS: ['PURCHASE_IN'],
-  ADJUST_IN: ['ADJUSTMENT_IN'],
-  OUTFLOWS: ['ADJUSTMENT_OUT'],
-  SALES: ['SALE_OUT'],
-  TRANSFERS: ['TRANSFER'],
-};
+export { LOG_KINDS, LOG_KIND_LABELS, type LogKind };
 
 export interface MovementLogFilter {
   /** Obligatoria: el registro es de UNA bodega. */
