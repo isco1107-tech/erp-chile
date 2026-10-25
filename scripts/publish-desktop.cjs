@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
 const { execFileSync } = require('node:child_process');
+const { publishInstallers } = require('./lib/desktop-release.cjs');
 
 function main() {
   const state = JSON.parse(fs.readFileSync('.vercel/desktop-build.json', 'utf8'));
@@ -34,9 +35,10 @@ function main() {
     const release = { platform: target.platform, architecture: target.architecture, version, file: `aether-${state.edition}-${target.suffix}`, size: data.length, sha256: createHash('sha256').update(data).digest('hex'), sourceSha: state.sha, workflowRunId: state.runId };
     return { source, release };
   });
+  const releases = publishInstallers({ edition: state.edition, version, sourceSha: state.sha, installers });
+  // Update the active download URLs only after GitHub confirms every digest and
+  // the release is public. A failed upload leaves the active manifests intact.
   fs.mkdirSync('public/downloads', { recursive: true });
-  for (const installer of installers) fs.copyFileSync(installer.source, path.join('public/downloads', installer.release.file));
-  const releases = installers.map(installer => installer.release);
   const manifest = state.edition === 'pos' ? 'pos-releases.json' : 'releases.json';
   const sums = state.edition === 'pos' ? 'POS-SHA256SUMS.txt' : 'SHA256SUMS.txt';
   fs.writeFileSync(path.join('public/downloads', manifest), JSON.stringify(releases, null, 2) + '\n');

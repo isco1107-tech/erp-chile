@@ -25,3 +25,9 @@ desktop-client
 # Videos fuente de /landing-v2: la página sirve los fotogramas WebP de seq/
 # (scripts/generate-cinematic-frames.cjs los genera a partir de estos).
 /public/marketing/cinematic/*.mp4
+
+# Native installers are published on GitHub Releases. Never upload local copies
+# in a CLI deployment; /downloads/* redirects preserve the public links.
+/public/downloads/*.exe
+/public/downloads/*.dmg
+/public/downloads/*.AppImage

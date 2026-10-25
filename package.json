@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && node scripts/migrate-deploy.mjs && next build",
+    "build": "prisma generate && node scripts/migrate-deploy.mjs && next build && node scripts/check-function-storage.cjs",
     "typecheck": "tsc --noEmit",
     "test": "jest --runInBand",
     "test:e2e": "playwright test",

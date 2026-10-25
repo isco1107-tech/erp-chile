@@ -130,7 +130,12 @@ async function main() {
       await app.close();
     }
     for (const release of releases) {
-      const file = await page.request.get(`${origin}/downloads/${release.file}`, { maxRedirects: 0, timeout: 120000 });
+      const entry = await page.request.get(`${origin}/downloads/${release.file}`, { maxRedirects: 0, timeout: 120000 });
+      if (release.url) {
+        assert.equal(entry.status(), 307, release.file);
+        assert.equal(entry.headers().location, release.url, release.file);
+      }
+      const file = release.url ? await page.request.get(release.url, { timeout: 120000 }) : entry;
       assert.equal(file.status(), 200, release.file);
       assert.match(file.headers()['content-disposition'] || '', /attachment/i, release.file);
       const data = await file.body();

@@ -29,7 +29,9 @@ async function loadPublicImage(publicPath: string): Promise<ManualDocxImage | nu
   // Solo capturas propias del manual: nunca una ruta que salga de esa carpeta.
   if (!publicPath.startsWith(SCREENSHOT_PREFIX) || publicPath.includes('..')) return null;
   try {
-    const data = await readFile(path.join(process.cwd(), 'public', publicPath));
+    // Keep the static base directory narrow: a dynamic path under `public/`
+    // makes file tracing bundle every installer/marketing asset in this function.
+    const data = await readFile(path.join(process.cwd(), 'public/manual/screenshots', publicPath.slice(SCREENSHOT_PREFIX.length)));
     const size = readImageSize(data);
     return size ? { data, ...size } : null;
   } catch {

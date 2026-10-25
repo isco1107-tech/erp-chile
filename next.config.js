@@ -50,6 +50,16 @@ const ECOSYSTEM_ZONES = [
   .map((zone) => ({ ...zone, origin: zone.origin.replace(/\/+$/, '') }))
   .filter((zone) => /^https?:\/\//.test(zone.origin));
 
+// Vercel's Linux runtime uses glibc. Sharp's broad optional-dependency trace
+// also includes musl and WASM binaries that this runtime never loads. Detect
+// glibc rather than excluding binaries for developers running another platform.
+const usesGlibc = process.platform === 'linux' && Boolean(process.report?.getReport().header.glibcVersionRuntime);
+const unusedSharpBinaries = usesGlibc ? [
+  './node_modules/@img/sharp-linuxmusl-*/**/*',
+  './node_modules/@img/sharp-libvips-linuxmusl-*/**/*',
+  './node_modules/@img/sharp-wasm32/**/*',
+] : [];
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -60,6 +70,26 @@ const nextConfig = {
   // en Vercel `public/` se sirve desde el CDN y no entra sola a la función.
   outputFileTracingIncludes: {
     '/api/manual/docx': ['./public/manual/screenshots/**/*'],
+  },
+  outputFileTracingExcludes: {
+    '/*': unusedSharpBinaries,
+    // Next also traces its base server separately from individual routes.
+    'next-server': unusedSharpBinaries,
+    '/api/manual/docx': ['./public/downloads/**/*', './public/marketing/**/*'],
+  },
+  async redirects() {
+    // Keep existing download buttons/bookmarks. Large installers are delivered
+    // by GitHub Releases rather than stored in every Vercel deployment.
+    const releases = [
+      ...require('./public/downloads/releases.json'),
+      ...require('./public/downloads/pos-releases.json'),
+    ];
+    return releases.filter((release) => release.url).map((release) => ({
+      source: `/downloads/${release.file}`,
+      destination: release.url,
+      // This stable path points to the current version; never cache it forever.
+      permanent: false,
+    }));
   },
   async rewrites() {
     return {
