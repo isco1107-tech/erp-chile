@@ -23,7 +23,12 @@ const PRODUCT_LINE = `Producto vendido ${RUN}`;
 const LIMITED_PASSWORD = `Limit-${randomUUID()}!`;
 
 let companyId = '';
-let previousFlags: { hasInventory: boolean; hasDteBilling: boolean } = { hasInventory: false, hasDteBilling: false };
+/**
+ * Cómo estaban los módulos de la empresa antes de la prueba. En una base recién sembrada la empresa NO tiene fila de
+ * módulos (rige `DEFAULT_FEATURES`, con Inventario encendido): hay que dejarla igual, sin fila, y no con una fila con
+ * los valores de la columna, porque otras pruebas de la suite dependen de ese estado.
+ */
+let before: { hadRow: boolean; hasInventory: boolean; hasDteBilling: boolean } | null = null;
 
 const XLSX = 'spreadsheetml';
 
@@ -40,7 +45,7 @@ async function workbookOf(response: APIResponse): Promise<ExcelJS.Workbook> {
 test.beforeAll(async () => {
   ({ companyId } = await owner());
   const current = await db().companyFeatures.findUnique({ where: { companyId } });
-  previousFlags = { hasInventory: current?.hasInventory ?? false, hasDteBilling: current?.hasDteBilling ?? false };
+  before = { hadRow: current !== null, hasInventory: current?.hasInventory ?? true, hasDteBilling: current?.hasDteBilling ?? false };
   await db().companyFeatures.upsert({
     where: { companyId },
     update: { hasInventory: true, hasDteBilling: true },
@@ -59,8 +64,10 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  if (!companyId) return;
-  await db().companyFeatures.update({ where: { companyId }, data: previousFlags });
+  // Sin `before` la preparación no llegó a correr en este proceso: no hay nada que devolver.
+  if (!companyId || !before) return;
+  if (before.hadRow) await db().companyFeatures.update({ where: { companyId }, data: { hasInventory: before.hasInventory, hasDteBilling: before.hasDteBilling } });
+  else await db().companyFeatures.deleteMany({ where: { companyId } });
   await db().user.updateMany({ where: { companyId, email: { endsWith: `-${RUN}@prueba.local` } }, data: { isActive: false } });
 });
 
@@ -163,7 +170,8 @@ test('cada descarga queda en la bitácora de auditoría', async ({ request }) =>
 });
 
 test('sin sesión no se descarga nada', async ({ playwright, baseURL }) => {
-  const anonymous = await playwright.request.newContext({ baseURL });
+  // Sin `storageState` explícito, el contexto hereda la sesión del dueño de `test.use(STATE)`.
+  const anonymous = await playwright.request.newContext({ baseURL, storageState: { cookies: [], origins: [] } });
   expect([401, 403]).toContain((await anonymous.get('/api/exports/sales')).status());
   expect([401, 403]).toContain((await anonymous.get('/api/exports/inventory-movements')).status());
   await anonymous.dispose();
