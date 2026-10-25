@@ -8,6 +8,54 @@ import type { ManualSection } from '../types';
 export const INICIO_SECTIONS: ManualSection[] = [
   { id: 'aplicaciones', screenshot: null, key: 'always', chapter: 'Primeros pasos', title: 'Centro de aplicaciones', summary: 'Instala las aplicaciones para dirección, mostrador, bodega y proveedores desde un solo lugar, con los mismos datos del ERP y los permisos de cada cuenta.', route: '/apps', topics: [{ id: 'instalar', title: 'Elegir e instalar una aplicación', steps: ['Abre Aplicaciones desde el menú o /apps. Elige la tarjeta para tu trabajo.', 'En POS usa Descargar app POS y elige Windows, Mac o Linux. Bodega, Control y Seller Center se instalan desde su propia página con Agregar a pantalla de inicio.', 'Control requiere la cuenta del dueño y consulta datos cada 15 segundos. Si falla la conexión muestra la última consulta como desactualizada. En Control puedes ir a Resumen, Cajas o Actividad y filtrar o buscar movimientos. Seller Center tiene accesos a ventas, mercadería y mermas, búsqueda de productos y liquidaciones adaptadas al teléfono. En Bodega usa Consultar, Mi lista y Envíos para retomar el trabajo sin perder lo pendiente. Los portales propuestos no tienen una descarga hasta resolver sus accesos personales.'] }] },
   {
+    id: 'exportar-datos',
+    key: 'always',
+    anyOfFeatures: ['hasDteBilling', 'hasPos', 'hasInventory'],
+    anyOfPermissions: ['sales:read', 'pos:close', 'products:read'],
+    chapter: 'Primeros pasos',
+    title: 'Exportar datos',
+    summary:
+      'Un solo lugar para ver y bajar a Excel todas las boletas y demás documentos de venta de la empresa, y todos los movimientos de inventario de todas las bodegas. Lo que ves en pantalla es lo mismo que trae el archivo.',
+    route: '/dashboard/exports',
+    screenshot: null,
+    topics: [
+      {
+        id: 'boletas',
+        title: 'Descargar las boletas y documentos de venta',
+        permission: 'sales:read',
+        steps: [
+          'Abre Exportar datos desde el menú (grupo Principal) y elige la pestaña "Boletas y documentos de venta".',
+          'Elige las fechas con los atajos (Hoy, Ayer, Últimos 7 días, Este mes, Mes anterior, Este año, Todo el historial) o escribe "Desde" y "Hasta" y presiona "Aplicar filtros".',
+          'En "Documento" elige Boletas (lo habitual), Facturas, Notas de crédito y débito, Guías de despacho o Todos. En "Estado" elige Emitidos, Anulados o ambos. También puedes filtrar por bodega y buscar por folio, nombre o RUT del cliente.',
+          'Arriba ves cuántos documentos hay, el total vendido (las notas de crédito restan), el neto con su IVA y cuántos están anulados. Abajo, la lista de a 50 documentos, con Anterior y Siguiente.',
+          'Presiona "Descargar Excel". El archivo trae tres hojas: Documentos (una fila por documento), Detalle de productos (una fila por producto vendido) y Resumen por tipo de documento y medio de pago.',
+        ],
+        tip: 'Un archivo trae como máximo los 20.000 documentos más recientes del filtro. Si hay más, la pantalla lo avisa: baja por mes.',
+      },
+      {
+        id: 'movimientos',
+        title: 'Descargar los movimientos de inventario',
+        permission: 'products:read',
+        steps: [
+          'En Exportar datos elige la pestaña "Movimientos de inventario".',
+          'Elige el rango de fechas, el tipo de movimiento (llegadas, ajustes de entrada, salidas y mermas, ventas o traslados), la bodega (o "Todas las bodegas") y, si quieres, un producto por nombre, SKU o marca. Presiona "Aplicar filtros".',
+          'Cada fila dice la bodega, el producto, el tipo de movimiento, la cantidad, el stock que quedó en esa bodega, el motivo y el operario. Quien puede ver costos también ve el costo.',
+          'Presiona "Descargar Excel". El archivo trae una fila por movimiento (con la foto de respaldo como enlace) y una hoja de Resumen por tipo y por bodega.',
+        ],
+        tip: 'Para filtrar por operario, motivo o proveedor, o ver las fotos en grande, usa Movimientos de bodega en el grupo Inventario.',
+      },
+      {
+        id: 'quien-descarga',
+        title: 'Quién puede descargar y qué queda registrado',
+        steps: [
+          'La pestaña de boletas aparece con el permiso de ver ventas (o, en una empresa que solo tiene Punto de Venta, con el de consultar los turnos de caja). La de movimientos, con el de ver productos.',
+          'Cada descarga queda en la bitácora de auditoría con quién la hizo y con qué filtros, porque trae nombres y RUT de clientes.',
+          'Si tu empresa tiene Reportes Excel, el botón "Libro completo en Excel" lleva al libro con Panel, Productos, Inventario, Kardex, Ventas, Compras y el resto.',
+        ],
+      },
+    ],
+  },
+  {
     id: 'primeros-pasos',
     key: 'always',
     chapter: 'Primeros pasos',
