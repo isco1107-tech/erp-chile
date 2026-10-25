@@ -14,7 +14,7 @@ export const viewport = {
 export default function Layout({ children }: { children: ReactNode }) {
   return (
     <ApplicationInstallProvider scope="/proveedor/cuenta">
-      {children}
+      <div className="seller-center-app">{children}</div>
     </ApplicationInstallProvider>
   );
 }

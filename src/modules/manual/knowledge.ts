@@ -76,7 +76,7 @@ export const SCREEN_PURPOSES: Record<string, string> = {
   'sales-orders': 'Notas de venta (pedidos): reservan stock y se facturan o despachan por partes.',
   'price-lists': 'Listas de precios por tipo de cliente y por volumen, asignables a cada cliente.',
   'sales-commissions': 'Comisión de cada vendedor según su venta neta del mes y su tasa.',
-  contacts: 'Ficha de clientes y proveedores: RUT, contacto, crédito, lista de precios, datos bancarios y portal del cliente.',
+  contacts: 'Ficha de clientes, proveedores y sellers: RUT, contacto, crédito, datos bancarios y portales. Al crear un seller se puede invitar por correo o compartir por WhatsApp su activación de Seller Center, con contraseña propia y app instalable.',
   'customer-care': 'Canal de origen de clientes, encuestas de satisfacción (CSAT y NPS) y seguimiento de clientes inactivos.',
   'invoice-archive': 'Archivo de facturas de proveedores con su foto o PDF e histórico por proveedor.',
   purchases: 'Registrar facturas de proveedores, aprobar compras y anularlas.',

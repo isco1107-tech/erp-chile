@@ -17,7 +17,7 @@ type Filter = 'all' | 'customers' | 'suppliers' | 'consignors';
 
 const DEFAULT_PAGE_SIZE = 25;
 
-export default function ContactsClient() {
+export default function ContactsClient({ canInviteSellers = false }: { canInviteSellers?: boolean }) {
   const confirm = useConfirm();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -161,6 +161,7 @@ export default function ContactsClient() {
 
       {showForm && (
         <ContactForm
+          canInviteSellers={canInviteSellers}
           editingContact={editingContact}
           onSaved={handleSaved}
           onCancelEdit={() => {

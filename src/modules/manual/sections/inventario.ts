@@ -380,7 +380,7 @@ export const INVENTARIO_SECTIONS: ManualSection[] = [
     chapter: 'Inventario',
     title: 'Seller Center (cuentas de sellers)',
     summary:
-      'Cuentas con correo y contraseña para cada persona de un seller en consignación. Entran a /proveedor/cuenta y ven, mes a mes, lo vendido de su mercadería con tu comisión y lo que les corresponde, su mercadería en bodega, lo pendiente de liquidar, sus liquidaciones y sus mermas. Nunca ven costos, clientes, documentos ni a otros sellers.',
+      'Cuentas con correo o celular y contraseña para cada persona de un seller en consignación. Entran a /proveedor/cuenta y ven, mes a mes, lo vendido de su mercadería con tu comisión y lo que les corresponde, su mercadería en bodega, lo pendiente de liquidar, sus liquidaciones y sus mermas. Nunca ven costos, clientes, documentos ni a otros sellers.',
     route: '/dashboard/contacts',
     screenshot: null,
     topics: [
@@ -388,10 +388,12 @@ export const INVENTARIO_SECTIONS: ManualSection[] = [
         id: 'invitar-seller',
         title: 'Invitar a una persona del seller',
         steps: [
-          'Abre la ficha del seller (Ventas → Clientes & Proveedores, un contacto marcado como "Seller (consignación)") y busca la tarjeta "Seller Center: cuentas del seller".',
-          'Escribe su nombre y su correo y presiona "Invitar". Le llega un enlace para crear su contraseña; vence en 7 días y sirve una sola vez.',
+          'Al crear un contacto marcado como "Seller (consignación)", completa su correo o teléfono y deja marcada la opción "Crear su invitación al guardar el seller". Necesitas administrar la empresa y tener Seller Center habilitado.',
+          'En "Enviar invitación por" elige "Correo del seller" o "WhatsApp al teléfono del seller". Con "Crear contacto" se guardan juntos el seller y su invitación. Por correo se envía su usuario y un enlace provisional; por teléfono aparece "Compartir invitación por WhatsApp" para confirmar el envío desde WhatsApp.',
+          'Para un seller existente, abre su ficha y busca la tarjeta "Seller Center: cuentas del seller".',
+          'Elige el canal de invitación y escribe su nombre y su correo o celular. Presiona "Invitar". Por correo se envía el enlace; por WhatsApp debes compartirlo con el botón. El enlace permite crear su contraseña, vence en 7 días y sirve una sola vez.',
           'Si la persona ya tiene cuenta porque otra empresa la invitó, entra con su misma contraseña: no se crea una nueva.',
-          'Mientras no la acepte aparece "Invitación enviada". Con "Reenviar" le llega un enlace nuevo (el anterior deja de servir) y con "Anular" se cancela.',
+          'Mientras no la acepte aparece "Pendiente de activación". "Reenviar" genera un enlace nuevo y deja sin efecto el anterior; si es por WhatsApp debes volver a compartirlo. "Anular" cancela la invitación.',
         ],
         tip: 'Cada persona tiene su propia cuenta: si alguien deja de trabajar con el seller, desactivas solo a esa persona. El código del "Portal del seller" sigue funcionando aparte.',
       },
@@ -407,7 +409,7 @@ export const INVENTARIO_SECTIONS: ManualSection[] = [
         id: 'que-ve-el-seller',
         title: 'Qué ve el seller',
         steps: [
-          'Entra en la dirección /proveedor/cuenta de tu sitio con su correo y su contraseña. Si la olvida, la recupera con "¿Olvidaste tu contraseña?".',
+          'Entra en /proveedor/cuenta con su correo o celular y la contraseña que eligió. Puede instalar la app independiente con "Instalar Seller Center". Para recuperar por correo usa "¿Olvidaste tu contraseña?"; si su cuenta es por teléfono, debe contactar a la empresa para verificar su identidad.',
           'Elige el mes y ve lo vendido neto de su mercadería (sin IVA, después de descuentos), tu comisión y lo que le corresponde, por producto: boletas y facturas emitidas menos notas de crédito, con la misma cuenta de sus liquidaciones.',
           'Ve su mercadería en bodega, lo vendido que falta liquidar y sus liquidaciones (por pagar y pagadas).',
           'Ve sus mermas del mes con el motivo y la foto: las de su mercadería desde que la recibiste y las que le asignaste. Si usas "Mermas y responsables", también ve quién respondió por cada una.',

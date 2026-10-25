@@ -254,6 +254,7 @@ select option {
 
 /* La firma "Hecho con Aether ERP" es para superficies públicas; dentro del
    panel de una empresa (y en el login de Aether) sobra y tapaba contenido. */
+.seller-center-app ~ .aether-platform-badge,
 .theme-saas-light ~ .aether-platform-badge,
 .auth-shell ~ .aether-platform-badge {
   display: none;
@@ -528,3 +529,8 @@ html.pos-printing {
   size: 50mm 25mm;
   margin: 0;
 }
+
+/* Personal Seller Center app: readable account forms and no iOS input zoom. */
+.seller-center-app .pub-eyebrow { font-size: 0.75rem; }
+.seller-center-app .pub-field input { font-size: 1rem; }
+.seller-center-app .pub-title { overflow-wrap: anywhere; }

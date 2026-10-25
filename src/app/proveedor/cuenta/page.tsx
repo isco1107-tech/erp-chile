@@ -6,7 +6,7 @@ import { isMonthKey, monthLabel, recentMonths } from '@/lib/supplier-portal/acco
 import { currentSupplierAccount } from '@/lib/supplier-portal/current-account';
 import { getSellerCenterView } from '@/modules/inventory/services/seller-center-view.service';
 
-export const metadata: Metadata = { title: 'Portal de proveedores', robots: { index: false, follow: false }, referrer: 'no-referrer' };
+export const metadata: Metadata = { title: 'Seller Center', robots: { index: false, follow: false }, referrer: 'no-referrer' };
 export const dynamic = 'force-dynamic';
 
 /** Meses que se pueden elegir: los últimos 12. */

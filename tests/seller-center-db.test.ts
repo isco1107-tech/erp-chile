@@ -11,6 +11,8 @@
  * `.env` del proyecto ES la de producción, CLAUDE.md §5).
  */
 import type { Prisma, PrismaClient } from '@prisma/client';
+import { sendEmail } from '@/lib/email/mailer';
+jest.mock('@/lib/email/mailer', () => ({ getAppUrl: () => 'https://aether.test', sendEmail: jest.fn(async () => ({ status: 'sent', provider: 'none' })) }));
 
 // `jose` es ESM y no carga en Jest: aquí se prueba lo que hace la base con el contenido del token.
 jest.mock('@/lib/supplier-portal/session', () => ({
@@ -49,6 +51,8 @@ describeDb('Seller Center contra PostgreSQL', () => {
   const ids: Record<string, string> = {};
   const actor = { id: 'u-admin', name: 'Ana Administradora' };
   const email = `productora-${suffix}@campo.cl`;
+  const phone = `+569${String(Date.now()).slice(-8)}`;
+  const automaticEmail = `automatic-${suffix}@campo.cl`;
   const lockEmail = `bloqueo-${suffix}@campo.cl`;
   const PASSWORD = 'Miel-del-Sur-2026';
   const TOKEN_A = 'A'.repeat(43);
@@ -143,7 +147,7 @@ describeDb('Seller Center contra PostgreSQL', () => {
       await prisma.companyFeatures.deleteMany({ where: { companyId } });
       await prisma.company.delete({ where: { id: companyId } });
     }
-    await prisma.supplierPortalPerson.deleteMany({ where: { email: { in: [email, lockEmail] } } });
+    await prisma.supplierPortalPerson.deleteMany({ where: { OR: [{ email: { in: [email, lockEmail, automaticEmail] } }, { phone }] } });
     await prisma.$disconnect();
   });
 
@@ -280,4 +284,48 @@ describeDb('Seller Center contra PostgreSQL', () => {
     expect(viewB.sales).toMatchObject({ units: 7, net: 21000, payout: 16800 });
     expect(viewB.losses.rows).toEqual([]);
   });
+  it('el celular recibe una invitación WhatsApp de un solo uso, conserva su identidad y exige la contraseña al sumar otra empresa', async () => {
+    const invited = await admin.inviteSupplierPerson(ids.a!, ids.quesos!, actor, { name: 'Rosa celular', phone });
+    expect(invited.delivery).toBe('whatsapp');
+    const message = new URL(invited.whatsappUrl!).searchParams.get('text')!;
+    const originalToken = /invitacion\/([\w-]{43})/.exec(message)![1]!;
+    expect(message).toContain(phone);
+    const pending = await prisma.supplierPortalMembership.findFirstOrThrow({ where: { companyId: ids.a!, id: invited.membershipId }, include: { person: true } });
+    expect(pending.person).toMatchObject({ email: null, phone, passwordHash: null });
+    expect(pending.inviteTokenHash).toBe(hash(originalToken));
+    const resent = await admin.resendSupplierInvite(ids.a!, invited.membershipId, actor);
+    expect(await auth.inspectInvitation(originalToken)).toEqual({ state: 'invalid' });
+    const token = /invitacion\/([\w-]{43})/.exec(new URL(resent.whatsappUrl!).searchParams.get('text')!)![1]!;
+    expect(await auth.inspectInvitation(token)).toMatchObject({ state: 'valid', email: null, phone, hasPassword: false });
+    const accepted = await auth.acceptInvitation(token, PASSWORD);
+    expect(await auth.loginSupplierPerson(phone.slice(3), PASSWORD)).toMatchObject({ personId: accepted.personId });
+    expect(await auth.loginSupplierPerson(phone, 'Otra-Clave-2026')).toBeNull();
+    await expect(auth.acceptInvitation(token, PASSWORD)).rejects.toThrow();
+    const second = await admin.inviteSupplierPerson(ids.b!, ids.supplierB!, actor, { name: 'Rosa en B', phone });
+    const secondToken = /invitacion\/([\w-]{43})/.exec(new URL(second.whatsappUrl!).searchParams.get('text')!)![1]!;
+    await expect(auth.acceptInvitation(secondToken, 'Otra-Clave-2026')).rejects.toThrow('no es correcta');
+    expect(await auth.acceptInvitation(secondToken, PASSWORD)).toMatchObject({ personId: accepted.personId });
+    await admin.setSupplierAccountActive(ids.a!, invited.membershipId, false);
+    expect(await auth.resolveSupplierSession(session(accepted))).toBeNull();
+    expect(await auth.loginSupplierPerson(phone, PASSWORD)).toMatchObject({ membershipId: second.membershipId });
+  });
+
+  it('crear el seller y su acceso es atómico; un correo fallido conserva ambos para reenviarlo', async () => {
+    const { createSellerWithInvitation } = await import('@/modules/contacts/services/seller-onboarding.service');
+    const input = { rut: '12.345.678-5', razonSocial: `Nuevo seller ${suffix}`, isConsignor: true, consignmentCommissionBps: 2000 };
+    jest.mocked(sendEmail).mockClear();
+    await expect(createSellerWithInvitation(ids.a!, actor, input, { name: 'Rosa', email })).rejects.toThrow('otro seller');
+    expect(await prisma.contact.count({ where: { companyId: ids.a!, rutClean: '123456785' } })).toBe(0);
+    expect(sendEmail).not.toHaveBeenCalled();
+    jest.mocked(sendEmail).mockResolvedValueOnce({ status: 'failed', provider: 'none' });
+    const created = await createSellerWithInvitation(ids.a!, actor, input, { name: 'Nueva persona', email: automaticEmail });
+    expect(created.onboarding.delivery).toBe('failed');
+    expect(await prisma.contact.count({ where: { companyId: ids.a!, id: created.contact.id } })).toBe(1);
+    expect(await prisma.supplierPortalMembership.count({ where: { companyId: ids.a!, id: created.onboarding.membershipId, supplierId: created.contact.id, acceptedAt: null } })).toBe(1);
+    expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({ to: automaticEmail, text: expect.stringContaining('Instalar Seller Center') }));
+    expect(jest.mocked(sendEmail).mock.calls[0]![0]).not.toHaveProperty('companyId');
+    expect((await admin.resendSupplierInvite(ids.a!, created.onboarding.membershipId, actor)).delivery).toBe('sent');
+    expect(await prisma.contact.count({ where: { companyId: ids.a!, id: created.contact.id } })).toBe(1);
+  });
+
 });
