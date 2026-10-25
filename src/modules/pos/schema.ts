@@ -90,3 +90,16 @@ export const cashRegisterCreateSchema = z.object({
 });
 
 export type CashRegisterCreateInput = z.infer<typeof cashRegisterCreateSchema>;
+
+/** Motivos habituales para abrir el cajón sin una venta; el cajero también puede escribir otro. */
+export const DRAWER_OPEN_REASONS = ['Dar cambio', 'Error de cobro', 'Ingreso o retiro de efectivo'] as const;
+
+/**
+ * Abrir el cajón sin vender es la forma clásica de sacar efectivo sin rastro,
+ * por eso exige un motivo y queda en la bitácora con la caja y el cajero.
+ */
+export const drawerOpenSchema = z.object({
+  reason: z.string().trim().min(3, 'Indica el motivo para abrir el cajón').max(120, 'El motivo es muy largo'),
+});
+
+export type DrawerOpenInput = z.infer<typeof drawerOpenSchema>;

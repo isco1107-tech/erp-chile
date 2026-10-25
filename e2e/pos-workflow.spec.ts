@@ -50,15 +50,32 @@ async function open(page: Page, register: string, initial: string) {
 }
 
 async function sell(page: Page, debit = false, loseResponse = false) {
-  await page.getByLabel('Escanear o buscar producto').fill(`POS-E2E-${run}`);
-  await page.getByLabel('Escanear o buscar producto').press('Enter');
-  if (debit) await page.getByRole('button', { name: 'Débito', exact: true }).click();
-  else await page.getByRole('button', { name: 'Exacto', exact: true }).click();
+  const search = page.getByLabel('Escanear o buscar producto');
+  await search.fill(`POS-E2E-${run}`);
+  await search.press('Enter');
+  // Al primer producto lo primero que se pide es el RUT; Enter sin RUT = consumidor final.
+  await expect(page.getByRole('heading', { name: '¿Boleta con RUT?', exact: true })).toBeVisible();
+  await expect(page.getByLabel('RUT del cliente', { exact: true })).toBeFocused();
+  await page.getByLabel('RUT del cliente', { exact: true }).press('Enter');
+  await expect(page.getByTestId('pos-customer')).toHaveText('Consumidor final');
   if (loseResponse) {
     for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: 1000 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1), `POS sin desborde de página en ${width}px`).toBe(true);
       await page.screenshot({ path: path.join(captureDirectory, `terminal-${width}.png`), fullPage: true });
+    }
+    await page.setViewportSize({ width: 1440, height: 1000 });
+  }
+  await page.getByRole('button', { name: /^Cobrar / }).click();
+  const dialog = page.getByRole('dialog', { name: 'Cobrar la venta' });
+  await expect(dialog).toBeVisible();
+  if (debit) await dialog.getByRole('radio', { name: /^Débito/ }).click();
+  else await dialog.getByRole('button', { name: /^Exacto/ }).click();
+  if (loseResponse) {
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1), `Cobro sin desborde de página en ${width}px`).toBe(true);
+      await page.screenshot({ path: path.join(captureDirectory, `cobro-${width}.png`), fullPage: true });
     }
     await page.setViewportSize({ width: 1440, height: 1000 });
     let dropped = false;
@@ -70,7 +87,7 @@ async function sell(page: Page, debit = false, loseResponse = false) {
       } else await route.continue();
     });
   }
-  await page.getByRole('button', { name: /^Cobrar / }).click();
+  await dialog.getByRole('button', { name: /^Cobrar \$/ }).click();
   if (loseResponse) {
     await expect(page.getByRole('button', { name: 'Confirmar el mismo cobro', exact: true })).toBeVisible();
     await expect(page.getByLabel('Escanear o buscar producto')).toBeDisabled();
@@ -81,7 +98,7 @@ async function sell(page: Page, debit = false, loseResponse = false) {
     await page.getByRole('button', { name: 'Confirmar el mismo cobro', exact: true }).click();
     await page.unroute('**/pos');
   }
-  await expect(page.getByRole('button', { name: /^Reimprimir boleta #/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Imprimir boleta #/ })).toBeVisible();
 }
 
 test.beforeAll(async () => {

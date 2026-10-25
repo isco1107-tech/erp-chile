@@ -44,7 +44,7 @@ export interface NavigationEntry extends Gated {
 export const SCREEN_PURPOSES: Record<string, string> = {
   apps: 'Instalar POS, Bodega móvil, Aether Control y Seller Center desde el centro de aplicaciones.',
   home: 'Resumen del negocio al entrar: ventas, compras, IVA, stock crítico y accesos rápidos.',
-  pos: 'Operar varias cajas con cajeros identificados: apertura con fondo inicial, boletas, ingresos, retiros, cierre con arqueo y comprobante por turno.',
+  pos: 'Operar varias cajas con cajeros identificados: apertura con fondo inicial, venta con RUT del cliente y cobro por teclado, vuelto a la vista, cajón de dinero e impresora, ventas en espera, ingresos, retiros, cierre con arqueo y comprobante por turno.',
   messaging: 'Chat interno cifrado con el equipo de la empresa.',
   intelligence: 'Salud de la empresa, señales de alerta, clientes RFM, productos ABC y simulador de decisiones.',
   'intelligence-cash': 'Saldo de caja proyectado semana a semana con todos los compromisos con fecha.',

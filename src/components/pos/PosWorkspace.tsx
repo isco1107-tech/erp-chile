@@ -10,6 +10,7 @@ import ShiftHistoryPanel from './ShiftHistoryPanel';
 import { formatCurrency } from '@/lib/chile/tax';
 import { Button } from '@/components/ui/button';
 import { PosDesktopDownload } from './PosDesktopDownload';
+import { PosHardwareProvider } from './hardware/PosHardwareProvider';
 
 /** Cada cuánto la caja avisa a la Supersuite que sigue viva (el umbral de "sin señal" allá es 2 minutos). */
 const LATIDO_MS = 60_000;
@@ -84,6 +85,7 @@ export default function PosWorkspace(props: Props) {
   }, [props.reportarLatidos]);
 
   return (
+    <PosHardwareProvider>
     <div className="space-y-5" data-pos-pending={operationPending ? 'true' : undefined}>
       <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
         <div>
@@ -125,6 +127,7 @@ export default function PosWorkspace(props: Props) {
         <PosTerminal
           shiftId={props.shiftId}
           shiftClosed={shiftClosed}
+          active={tab === 'terminal'}
           onBusyChange={(value) => { busy.current = value; }}
           onPendingChange={setPendingSale}
           warehouseId={props.warehouseId}
@@ -153,5 +156,6 @@ export default function PosWorkspace(props: Props) {
         </div>
       )}
     </div>
+    </PosHardwareProvider>
   );
 }

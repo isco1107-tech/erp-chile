@@ -35,13 +35,41 @@ export const VENTAS_SECTIONS: ManualSection[] = [
         id: 'vender-pos',
         title: 'Registrar una venta',
         steps: [
-          'En la pestaña "Vender", escanea el código de barras o escribe el SKU o nombre y presiona Enter: el producto entra al carrito.',
-          'Ajusta cantidades con los botones − y +, o quita una línea con el ícono de basurero.',
-          'Elige el medio de pago. En efectivo, ingresa el monto recibido (o usa "Exacto") y el sistema calcula el vuelto.',
-          'Opcional: ingresa el RUT del cliente. Sin RUT, la boleta sale a consumidor final.',
-          'Presiona "Cobrar": se emite la boleta y queda lista para imprimir en formato de ticket 80 mm. "Reimprimir boleta" la vuelve a imprimir.',
+          'En la pestaña "Vender", escanea el código de barras o escribe el SKU o nombre y presiona Enter: el producto entra al carrito. Para varias unidades escribe la cantidad, un asterisco y escanea (por ejemplo 3* y después el código).',
+          'Al escanear el PRIMER producto de la venta, lo primero que pide el sistema es el RUT del cliente ("¿Boleta con RUT?"): escríbelo y presiona Enter. Sin RUT, presiona Enter sin escribir (o Esc, o el botón "Consumidor final") y la boleta sale a consumidor final. Si el cliente ya existe en tu empresa, verás su nombre junto al RUT. Mientras se pide el RUT puedes seguir escaneando productos. "Cambiar" (F4) corrige el RUT más tarde.',
+          'Ajusta cantidades con los botones − y +, o escribe la cantidad en la propia línea; quita una línea con el ícono de basurero. Si te equivocas con toda la venta, "Cancelar venta" la vacía.',
+          'Presiona "Cobrar" (o F9, o Enter con el buscador vacío). Elige el medio de pago con los botones o con las teclas E (Efectivo), D (Débito), C (Crédito) o T (Transferencia). En efectivo escribe lo que entrega el cliente, o usa "Exacto" (tecla X) o los montos sugeridos: el sistema muestra al instante el vuelto o lo que falta.',
+          'Presiona el "Cobrar" del diálogo (o Enter): se emite la boleta, se abre el cajón si lo configuraste y el "Vuelto" queda a la vista, en grande, hasta la próxima venta. "Imprimir boleta" la imprime en formato de ticket y "Nueva venta" despeja el aviso (también desaparece al escanear el siguiente producto). Más tarde "Reimprimir boleta" la vuelve a imprimir.',
         ],
-        tip: 'El catálogo se actualiza al volver a la pantalla y periódicamente. "Actualizar catálogo" permite consultarlo a mano; el servidor vuelve a validar precios y stock al cobrar. Si se corta la conexión al cobrar, conserva el carrito y reintenta la misma venta sin editarlo: no se duplica. No cierres la app hasta confirmar el resultado.',
+        tip: 'Con tarjeta o transferencia, cobra primero en el terminal de pagos y confirma aquí cuando salga aprobado: el sistema no se conecta al terminal. El catálogo se actualiza al volver a la pantalla y periódicamente; "Actualizar catálogo" permite consultarlo a mano y el servidor vuelve a validar precios y stock al cobrar. Si se corta la conexión al cobrar, conserva el carrito y reintenta la misma venta sin editarlo: no se duplica. No cierres la app hasta confirmar el resultado.',
+      },
+      {
+        id: 'espera-pos',
+        title: 'Dejar una venta en espera',
+        steps: [
+          'Con una venta en curso, presiona "Poner en espera" (F6): el carrito queda guardado y la pantalla se despeja para atender al siguiente cliente.',
+          'Para volver, presiona "En espera" (F7) y "Retomar" en la venta que corresponde. Si tienes otra venta a medias, pasa a espera en su lugar. "Descartar" borra una venta en espera.',
+          'Puedes dejar hasta 5 ventas en espera. Quedan guardadas solo en este equipo y no reservan stock hasta que se cobran; al retomarlas se actualizan los precios.',
+        ],
+      },
+      {
+        id: 'cajon-impresora',
+        title: 'Conectar el cajón de dinero y la impresora',
+        steps: [
+          'Presiona "Cajón e impresora" en la barra de acciones del mostrador. La configuración vale solo para este equipo: cada caja tiene la suya.',
+          'En "¿Cómo está conectado?" elige "Impresora del sistema" si tu impresora está instalada en Windows o Mac: el cajón se abre cuando la impresora imprime la boleta, siempre que en el controlador de la impresora esté activada la opción de abrir el cajón. Activa "Imprimir la boleta al cobrar".',
+          'Elige "Directo por puerto serie / USB-COM" o "Directo por USB" para que el POS mande la boleta y el pulso del cajón sin ventana de impresión. Presiona "Conectar", elige el dispositivo y usa "Probar el cajón" e "Imprimir hoja de prueba" para comprobarlo antes de vender. Si las tildes salen mal, cambia la "Tabla de caracteres".',
+          'Con "Abrir el cajón al cobrar en efectivo" el cajón se abre apenas queda emitida la boleta; con "Abrir el cajón en ingresos y retiros" también lo hace al registrar un movimiento de efectivo.',
+        ],
+        tip: 'Esto no se puede verificar sin el equipo conectado: prueba siempre con el cajón y la impresora reales antes de la primera venta. La conexión directa necesita Chrome o Edge. Si el cajón no responde, la venta igual queda cobrada y emitida: el POS solo avisa y puedes reintentar con "Abrir cajón".',
+      },
+      {
+        id: 'abrir-cajon-sin-venta',
+        title: 'Abrir el cajón sin una venta',
+        steps: [
+          'Presiona "Abrir cajón" (F8), elige el motivo ("Dar cambio", "Error de cobro", "Ingreso o retiro de efectivo" u "Otro motivo", que debes explicar) y confirma con "Abrir cajón".',
+          'Cada apertura queda registrada con tu nombre, la caja y el motivo, y un supervisor puede revisarla en la bitácora de auditoría.',
+        ],
       },
       {
         id: 'movimientos-caja',
