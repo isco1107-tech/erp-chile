@@ -431,7 +431,7 @@ export default function SellerCenterClient({
           )}
         </PublicCard>
 
-        <InstallApplication name="Seller Center" scope="/proveedor/cuenta" />
+        <InstallApplication />
         <PublicFooter>
           Datos al {dayTimeLabel(new Date(view.generatedAt))}. Solo lectura:
           para pedir un cambio, contacta a {account.company.name}
@@ -468,7 +468,8 @@ const STYLES = `
 .sc-nav a { display: flex; flex: 1 1 0; min-width: 0; min-height: 3rem; flex-direction: column; justify-content: center; align-items: center; gap: 0.25rem; padding: 0.3rem 0; border-radius: 12px; font-size: 0.72rem; color: var(--pub-ink); text-decoration: none; }
 .sc-nav a:hover, .sc-nav a:focus-visible { background: var(--pub-glass); color: var(--pub-a); }
 .sc-anchor { scroll-margin-top: 5rem; }
-.sc-stock { display: grid; gap: 1rem; min-width: 0; }
+/* minmax(0, 1fr): con una columna auto, la tabla de liquidaciones (ancho mínimo propio) ensanchaba la tarjeta más allá de la pantalla. */
+.sc-stock { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; min-width: 0; }
 .sc-sync { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.5rem; color: var(--pub-ink-dim); font-size: 0.78rem; }
 .sc-sync button { display: inline-flex; align-items: center; gap: 0.5rem; border: 1px solid var(--pub-line); border-radius: 12px; padding: 0 1rem; min-height: 2.75rem; color: var(--pub-ink); cursor: pointer; }
 .sc-sync button:disabled { opacity: 0.5; cursor: default; }

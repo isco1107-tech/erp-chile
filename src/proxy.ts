@@ -110,6 +110,10 @@ const PUBLIC_ROUTES = [
   // (`/bodega`) SÍ exige sesión y NO está en esta lista.
   '/bodega/manifest.webmanifest',
   '/bodega-sw.js',
+  // App del POS (`/pos`): igual que Bodega, el navegador pide su manifest y su
+  // service worker sin sesión garantizada. La pantalla (`/pos`) SÍ exige sesión.
+  '/pos/manifest.webmanifest',
+  '/pos/install-sw.js',
 ];
 
 /**

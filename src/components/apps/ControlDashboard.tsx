@@ -395,7 +395,7 @@ export default function ControlDashboard() {
           )}
         </section>
       </div>
-      <InstallApplication name="Aether Control" scope="/control" />
+      <InstallApplication />
     </div>
   );
 }
