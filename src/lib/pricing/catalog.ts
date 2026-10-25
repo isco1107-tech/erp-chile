@@ -138,6 +138,7 @@ export const PRICING_PLANS: readonly PricingPlan[] = [
  *   (`hasShrinkageLiability`, dentro de Inventario): sin precio hasta que se
  *   defina; la Supersuite las enciende por su nombre (`metricas_retail`,
  *   `stock_muerto`, `mermas_responsable`…). Igual el Seller Center
- *   (`hasSellerCenter`, `seller_center`).
+ *   (`hasSellerCenter`, `seller_center`). Igual la Mensajería interna (`hasMessaging`, `mensajeria`):
+ *   antes era transversal; quien ya la usaba la conserva.
  */
-export const UNPRICED_FEATURES: readonly FeatureKey[] = ['hasDteBilling', 'hasFeeDocuments', 'hasAcademy', 'hasEcommerce', 'hasRetailMetrics', 'hasDeadStock', 'hasRetailHeatmap', 'hasBasketAnalysis', 'hasSmartReorder', 'hasShrinkageLiability', 'hasSellerCenter'];
+export const UNPRICED_FEATURES: readonly FeatureKey[] = ['hasDteBilling', 'hasFeeDocuments', 'hasAcademy', 'hasEcommerce', 'hasRetailMetrics', 'hasDeadStock', 'hasRetailHeatmap', 'hasBasketAnalysis', 'hasSmartReorder', 'hasShrinkageLiability', 'hasSellerCenter', 'hasMessaging'];

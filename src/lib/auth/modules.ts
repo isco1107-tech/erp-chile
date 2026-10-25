@@ -57,6 +57,7 @@ export type FeatureKey = keyof Pick<
   | 'hasSmartReorder'
   | 'hasShrinkageLiability'
   | 'hasSellerCenter'
+  | 'hasMessaging'
 >;
 
 export type CompanyFeatureFlags = Record<FeatureKey, boolean>;
@@ -427,6 +428,14 @@ export const MODULES: ModuleDefinition[] = [
     routes: [],
     requires: 'hasInventory',
   },
+  {
+    key: 'hasMessaging',
+    label: 'Mensajería interna',
+    description:
+      'Chat cifrado entre las personas de la empresa, dentro del mismo panel: conversaciones directas y grupos, adjuntos y aviso de mensajes sin leer en la barra superior.',
+    permissions: ['messaging:use'],
+    routes: ['/dashboard/messaging'],
+  },
 ];
 
 export const MODULE_KEYS: FeatureKey[] = MODULES.map((m) => m.key);
@@ -480,6 +489,7 @@ export const DEFAULT_FEATURES: CompanyFeatureFlags = {
   hasSmartReorder: false,
   hasShrinkageLiability: false,
   hasSellerCenter: false,
+  hasMessaging: false,
 };
 
 /** Índice inverso permiso → módulo, construido una vez al cargar el módulo. */
@@ -556,6 +566,7 @@ export function toFeatureFlags(features: CompanyFeatures | null): CompanyFeature
     hasSmartReorder: features.hasSmartReorder,
     hasShrinkageLiability: features.hasShrinkageLiability,
     hasSellerCenter: features.hasSellerCenter,
+    hasMessaging: features.hasMessaging,
   };
 }
 

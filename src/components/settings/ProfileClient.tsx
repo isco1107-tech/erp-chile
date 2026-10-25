@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Laptop } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -24,10 +25,16 @@ const selectClass =
 async function uploadMyPhoto(file: File): Promise<string> {
   const form = new FormData();
   form.append('file', file);
-  const res = await fetch('/api/org-chart/photo-upload', { method: 'POST', body: form });
+  const res = await fetch('/api/profile/photo', { method: 'POST', body: form });
   const json = (await res.json()) as { success: boolean; data?: { url: string }; error?: string };
   if (!json.success || !json.data) throw new Error(json.error ?? 'No se pudo subir la foto');
   return json.data.url;
+}
+
+async function removeMyPhoto(): Promise<void> {
+  const res = await fetch('/api/profile/photo', { method: 'DELETE' });
+  const json = (await res.json()) as { success: boolean; error?: string };
+  if (!json.success) throw new Error(json.error ?? 'No se pudo quitar la foto');
 }
 
 function initials(name: string): string {
@@ -40,6 +47,7 @@ function initials(name: string): string {
 }
 
 export default function ProfileClient() {
+  const router = useRouter();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [phone, setPhone] = useState('');
@@ -47,6 +55,7 @@ export default function ProfileClient() {
 
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [removingPhoto, setRemovingPhoto] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const [jobPositions, setJobPositions] = useState<JobPositionWithUsage[]>([]);
@@ -83,11 +92,27 @@ export default function ProfileClient() {
       const url = await uploadMyPhoto(file);
       setPhotoUrl(url);
       toast.success('Foto actualizada');
+      // El menú lateral lee la foto en el servidor: sin esto seguiría mostrando la anterior.
+      router.refresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo subir la foto');
     } finally {
       setUploadingPhoto(false);
       if (photoInputRef.current) photoInputRef.current.value = '';
+    }
+  }
+
+  async function handleRemovePhoto() {
+    setRemovingPhoto(true);
+    try {
+      await removeMyPhoto();
+      setPhotoUrl(null);
+      toast.success('Foto eliminada');
+      router.refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo quitar la foto');
+    } finally {
+      setRemovingPhoto(false);
     }
   }
 
@@ -149,6 +174,44 @@ export default function ProfileClient() {
         </div>
 
         <div>
+          <Label>Mi foto</Label>
+          <div className="mt-1 flex items-center gap-3">
+            <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted/40">
+              {photoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={photoUrl} alt={profile.name} className="size-full object-cover" />
+              ) : (
+                <span className="text-sm font-bold text-muted-foreground">{initials(profile.name)}</span>
+              )}
+            </div>
+            <div className="space-y-1">
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={handlePhotoChange}
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={uploadingPhoto}
+                onClick={() => photoInputRef.current?.click()}
+              >
+                {uploadingPhoto ? 'Subiendo...' : photoUrl ? 'Cambiar foto' : 'Subir foto'}
+              </Button>
+              {photoUrl && (
+                <Button type="button" size="sm" variant="ghost" className="ml-1" disabled={removingPhoto || uploadingPhoto} onClick={handleRemovePhoto}>
+                  {removingPhoto ? 'Quitando...' : 'Quitar foto'}
+                </Button>
+              )}
+              <p className="text-xs text-muted-foreground">PNG, JPG o WEBP, hasta 5 MB.</p>
+            </div>
+          </div>
+        </div>
+
+        <div>
           <Label htmlFor="phone">Teléfono</Label>
           <div className="mt-1 flex gap-2">
             <Input
@@ -178,39 +241,6 @@ export default function ProfileClient() {
 
         {profile.orgChartEnabled && (
           <>
-            <div>
-              <Label>Mi foto</Label>
-              <div className="mt-1 flex items-center gap-3">
-                <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted/40">
-                  {photoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={photoUrl} alt={profile.name} className="size-full object-cover" />
-                  ) : (
-                    <span className="text-sm font-bold text-muted-foreground">{initials(profile.name)}</span>
-                  )}
-                </div>
-                <div className="space-y-1">
-                  <input
-                    ref={photoInputRef}
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp"
-                    className="hidden"
-                    onChange={handlePhotoChange}
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={uploadingPhoto}
-                    onClick={() => photoInputRef.current?.click()}
-                  >
-                    {uploadingPhoto ? 'Subiendo...' : photoUrl ? 'Cambiar foto' : 'Subir foto'}
-                  </Button>
-                  <p className="text-xs text-muted-foreground">PNG, JPG o WEBP, hasta 5 MB.</p>
-                </div>
-              </div>
-            </div>
-
             <div>
               <Label htmlFor="jobPosition">Mi cargo</Label>
               <div className="mt-1 flex gap-2">

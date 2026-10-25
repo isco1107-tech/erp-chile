@@ -632,6 +632,10 @@ model CompanyFeatures {
   /// Seller Center (dentro de Inventario, con interruptor propio): cuentas por
   /// persona del proveedor/productor con ventas en $, existencias y mermas.
   hasSellerCenter       Boolean  @default(false)
+  /// Mensajería interna (chat cifrado entre las personas de la empresa). Módulo
+  /// de pago: antes era transversal. Las empresas que ya tenían conversaciones
+  /// la conservan (ver la migración `messaging_module`).
+  hasMessaging          Boolean  @default(false)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 }

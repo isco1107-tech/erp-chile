@@ -60,6 +60,7 @@ export const FLAG_A_MODULO: Partial<Record<FeatureKey, string>> = {
   hasSmartReorder: 'reposicion_predictiva',
   hasShrinkageLiability: 'mermas_responsable',
   hasSellerCenter: 'seller_center',
+  hasMessaging: 'mensajeria',
 };
 
 /**
