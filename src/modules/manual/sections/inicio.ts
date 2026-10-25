@@ -139,7 +139,8 @@ export const INICIO_SECTIONS: ManualSection[] = [
         title: 'Actualizar mis datos y ver mi actividad',
         steps: [
           'Haz clic en tu nombre (abajo a la izquierda del menú) o ve a Configuración → Mi Perfil.',
-          'Actualiza tu teléfono de contacto y tu foto, y revisa tu actividad reciente en la plataforma.',
+          'Actualiza tu teléfono de contacto y revisa tu actividad reciente en la plataforma.',
+          'En "Mi foto" haz clic en "Subir foto" (PNG, JPG o WEBP, hasta 5 MB); con "Cambiar foto" la reemplazas y con "Quitar foto" vuelves a ver tus iniciales. Tu foto aparece en el menú lateral, la mensajería y el organigrama.',
         ],
       },
       {
