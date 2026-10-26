@@ -29,7 +29,7 @@ jest.setTimeout(120_000);
 
 describeDb('reseteo de datos de una empresa contra PostgreSQL', () => {
   let prisma: PrismaClient;
-  let reset: typeof import('../scripts/lib/company-reset');
+  let reset: typeof import('@/lib/company-erasure/core');
   let cash: typeof import('@/modules/pos/services/cash.service');
   let pos: typeof import('@/modules/pos/services/pos.service');
   let stock: typeof import('@/modules/inventory/services/stock.service');
@@ -42,7 +42,7 @@ describeDb('reseteo de datos de una empresa contra PostgreSQL', () => {
     process.env.DATABASE_URL = TEST_URL;
     (process.env as Record<string, string>).NODE_ENV = 'production';
     ({ prisma } = await import('@/lib/prisma'));
-    reset = await import('../scripts/lib/company-reset');
+    reset = await import('@/lib/company-erasure/core');
     cash = await import('@/modules/pos/services/cash.service');
     pos = await import('@/modules/pos/services/pos.service');
     stock = await import('@/modules/inventory/services/stock.service');

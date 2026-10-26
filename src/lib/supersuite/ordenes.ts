@@ -10,6 +10,8 @@ import { cleanRut, formatRut } from '@/lib/chile/rut';
 import { PLAN_NAMES, PLAN_PRESETS } from '@/lib/pricing/presets';
 import { companyCreateSchema, companyPlanUpdateSchema } from '@/modules/platform/schema';
 import * as platformService from '@/modules/platform/services/platform.service';
+import { cancelErasure, confirmErasure, requestErasure } from '@/modules/platform/services/company-erasure.service';
+import { whenLabel, type ErasureKind } from '@/lib/company-erasure/policy';
 import type { ManejadorOrdenes, OrdenRecibida } from './cliente';
 import { catalogoDeModulos, catalogoDePlanes, cuentaConPlan, fichaComercial, flagsDeLaBase, flagsDeModulo, flagsParaEncender, planDeAether } from './modulos';
 import { sincronizarEmpresaSupersuite, solicitudModulosAtendidaSupersuite } from './index';
@@ -26,6 +28,9 @@ import { sincronizarEmpresaSupersuite, solicitudModulosAtendidaSupersuite } from
  * `modules/platform` (validación incluida) y queda en la bitácora de la
  * empresa con `userEmail: 'supersuite'`. Esa misma bitácora hace que Aether
  * reenvíe la ficha de la empresa, así la Supersuite ve el resultado real.
+ *
+ * Reiniciar (`empresa.reiniciar.*`) y eliminar (`empresa.eliminar.*`) una empresa son
+ * irreversibles y van en dos pasos con código de un solo uso (ver `company-erasure.service.ts`).
  *
  * Un manejador que lanza informa la orden como fallida con su mensaje (se ve
  * en la bitácora de órdenes de la Supersuite). Todos son idempotentes: si la
@@ -132,6 +137,11 @@ async function cambiarEstado(orden: OrdenRecibida, status: 'ACTIVE' | 'SUSPENDED
     metadata: { origen: QUIEN, orden: orden.id, status, motivo: typeof orden.datos.motivo === 'string' ? orden.datos.motivo : null },
   });
   revalidar();
+  if (status === 'ACTIVE') {
+    // Una empresa que vuelve a operar ya no es candidata a eliminarse: se descartan sus solicitudes de eliminación pendientes.
+    const canceladas = await cancelErasure({ companyId: empresa.id, kind: 'DELETE', reason: 'la empresa volvió a operar' });
+    if (canceladas > 0) return { mensaje: `Cuenta reactivada. Se canceló ${canceladas === 1 ? 'su solicitud' : `sus ${canceladas} solicitudes`} de eliminación pendiente${canceladas === 1 ? '' : 's'}` };
+  }
   return { mensaje: status === 'SUSPENDED' ? 'Cuenta suspendida: sus usuarios pierden el acceso de inmediato' : 'Cuenta reactivada' };
 }
 
@@ -218,6 +228,66 @@ async function crearEmpresa(orden: OrdenRecibida) {
   };
 }
 
+const ACCION: Record<ErasureKind, string> = { RESET: 'reiniciar', DELETE: 'eliminar' };
+
+/** Paso 1 de reiniciar o eliminar: cuenta lo que se borraría y entrega el código. No borra nada. */
+async function solicitarBorrado(orden: OrdenRecibida, kind: ErasureKind) {
+  const empresa = await empresaDe(orden);
+  const r = await requestErasure({ companyId: empresa.id, kind, orderId: orden.id });
+  const tablas = Object.keys(r.preview.tables).length;
+  const avisos = r.preview.signals.map((s) => `${s.count} ${s.label}`);
+  const confirmar =
+    kind === 'DELETE'
+      ? `Se puede confirmar desde el ${whenLabel(r.notBefore)} y hasta el ${whenLabel(r.expiresAt)}.`
+      : `Confirma antes del ${whenLabel(r.expiresAt)}.`;
+  const alcance =
+    kind === 'DELETE'
+      ? `se borraría TODO de ${empresa.businessName} (${r.preview.rows} filas en ${tablas} tablas, con sus usuarios, módulos y archivos) y la empresa dejaría de existir`
+      : `se borrarían ${r.preview.rows} filas en ${tablas} tablas de ${empresa.businessName}; se conservan sus usuarios, módulos y configuración`;
+  return {
+    mensaje: `Código ${r.code}: ${alcance}. ${confirmar} Para ejecutarlo hay que enviar el código y la razón social escrita.${avisos.length ? ` Aviso: hay ${avisos.join('; ')} (la confirmación debe llevar aceptoDatosReales).` : ''}`,
+    datos: {
+      solicitudId: r.requestId,
+      codigo: r.code,
+      confirmarDesde: r.notBefore.toISOString(),
+      vence: r.expiresAt.toISOString(),
+      filas: r.preview.rows,
+      tablas: r.preview.tables,
+      advertencias: avisos,
+    },
+  };
+}
+
+/** Paso 2: ejecuta la solicitud con su código y la razón social escrita. Idempotente: reentregada, responde que ya estaba hecha. */
+async function confirmarBorrado(orden: OrdenRecibida, kind: ErasureKind) {
+  // No se busca la empresa antes: tras eliminarla ya no existe y la reentrega debe poder responder igual.
+  if (!orden.clienteId) throw new Error('La orden no indica la empresa');
+  const r = await confirmErasure({
+    companyId: orden.clienteId,
+    kind,
+    code: textoDe(orden.datos.codigo),
+    businessName: textoDe(orden.datos.razonSocial),
+    acceptRealData: orden.datos.aceptoDatosReales === true,
+  });
+  revalidar();
+  const archivos = r.files ? ` Archivos borrados: ${r.files.deleted}${r.files.failed ? ` (${r.files.failed} no se pudieron borrar)` : ''}.` : '';
+  const respaldo = r.backup ? ` Respaldo guardado (${Math.round(r.backup.bytes / 1024)} KB).` : '';
+  return {
+    mensaje: r.alreadyDone
+      ? `Ya estaba ${kind === 'DELETE' ? 'eliminada' : 'reiniciada'}.`
+      : kind === 'DELETE'
+        ? `Empresa eliminada: ${r.rows} filas en ${r.tables} tablas.${respaldo}${archivos}`
+        : `Empresa reiniciada: ${r.rows} filas en ${r.tables} tablas. Usuarios, módulos y configuración siguen igual${r.chartOfAccounts ? '; se volvió a sembrar el plan de cuentas' : ''}.${respaldo}`,
+    datos: { filas: r.rows, tablas: r.tables, ...(r.backup ? { respaldo: r.backup } : {}), ...(r.files ? { archivos: r.files } : {}), yaEstaba: r.alreadyDone },
+  };
+}
+
+async function cancelarBorrado(orden: OrdenRecibida, kind: ErasureKind) {
+  if (!orden.clienteId) throw new Error('La orden no indica la empresa');
+  const n = await cancelErasure({ companyId: orden.clienteId, kind });
+  return { mensaje: n === 0 ? `No había solicitudes de ${ACCION[kind]} pendientes` : `${n} ${n === 1 ? 'solicitud cancelada' : 'solicitudes canceladas'}`, datos: { canceladas: n } };
+}
+
 export const manejadoresOrdenes: ManejadorOrdenes = {
   'empresa.crear': crearEmpresa,
 
@@ -265,6 +335,15 @@ export const manejadoresOrdenes: ManejadorOrdenes = {
 
   'cuenta.suspender': (orden) => cambiarEstado(orden, 'SUSPENDED'),
   'cuenta.reactivar': (orden) => cambiarEstado(orden, 'ACTIVE'),
+
+  // Borrar los datos de la empresa (conserva usuarios, módulos y configuración) o la empresa entera. Irreversible:
+  // dos pasos con código, respaldo antes de borrar y, para eliminar, empresa suspendida y 7 días de espera.
+  'empresa.reiniciar.solicitar': (orden) => solicitarBorrado(orden, 'RESET'),
+  'empresa.reiniciar.confirmar': (orden) => confirmarBorrado(orden, 'RESET'),
+  'empresa.reiniciar.cancelar': (orden) => cancelarBorrado(orden, 'RESET'),
+  'empresa.eliminar.solicitar': (orden) => solicitarBorrado(orden, 'DELETE'),
+  'empresa.eliminar.confirmar': (orden) => confirmarBorrado(orden, 'DELETE'),
+  'empresa.eliminar.cancelar': (orden) => cancelarBorrado(orden, 'DELETE'),
 
   'seguridad.ip.liberar': async (orden) => {
     // Válvula de emergencia: la empresa activó su lista de IPs sin agregar la propia y nadie puede entrar a corregirla.

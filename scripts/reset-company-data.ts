@@ -3,7 +3,7 @@ import os from 'node:os';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { normalizeSslMode } from '../src/lib/prisma';
-import { seedChartOfAccounts } from '../src/modules/accounting/chart-of-accounts';
+import { reprovisionCompany } from '../src/modules/platform/company-reprovision';
 import { assertScriptCanRun } from './lib/guard-production';
 import {
   KEPT_TENANT_TABLES,
@@ -16,7 +16,7 @@ import {
   matchCompanies,
   parseResetArgs,
   runReset,
-} from './lib/company-reset';
+} from '@/lib/company-erasure/core';
 
 /**
  * Deja una empresa sin los datos que guardó (ventas, inventario, contabilidad,
@@ -159,12 +159,7 @@ async function main() {
         plan,
         facts,
         afterDelete: async (inner) => {
-          await inner.warehouse.create({ data: { companyId: company.id, name: 'Bodega Principal', code: 'PRINCIPAL', isDefault: true } });
-          const features = await inner.companyFeatures.findUnique({ where: { companyId: company.id }, select: { hasAccounting: true } });
-          if (features?.hasAccounting) {
-            const settings = await inner.companySettings.findUnique({ where: { companyId: company.id }, select: { industryType: true } });
-            await seedChartOfAccounts(inner, company.id, settings?.industryType ?? 'COMMERCE');
-          }
+          await reprovisionCompany(inner, company.id);
           await inner.platformAuditLog.create({
             data: {
               action: 'company.data_reset',

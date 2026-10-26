@@ -16,6 +16,9 @@ import { manejadoresOrdenes } from '@/lib/supersuite/ordenes';
  * Supersuite lo muestra en su bitácora. Un 401 (firma inválida) o un 5xx hacen
  * que la Supersuite reintente con espera creciente.
  */
+// Reiniciar o eliminar una empresa respalda, borra cientos de tablas y limpia archivos: puede pasar de los 10-15 s por defecto.
+export const maxDuration = 300;
+
 export async function POST(req: Request) {
   const secreto = process.env.SUPERSUITE_WEBHOOK_SECRET?.trim();
   if (!secreto) return NextResponse.json({ ok: false, mensaje: 'Las órdenes de la Supersuite no están configuradas en Aether' }, { status: 503 });

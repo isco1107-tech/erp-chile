@@ -30,6 +30,6 @@ Los plazos sugeridos del registro de actividades (`src/lib/privacy/processing-ac
 
 ## 4. Eliminación segura
 
-- Se elimina con las funciones de la plataforma (`platform-delete.service.ts`, purgas) que respetan el filtro por empresa.
+- Se elimina con las órdenes de la Supersuite `empresa.reiniciar.*` y `empresa.eliminar.*` (`company-erasure.service.ts`, ADR 0014) o con el script `scripts/reset-company-data.ts`, y con las purgas, que respetan el filtro por empresa.
 - Los respaldos de Neon expiran solos al pasar su ventana; no se conservan copias manuales de la base de producción en computadores personales.
-- **Pendiente:** al eliminar una empresa (`platform-delete.service.ts`) se borran sus datos de la base, pero **no** sus archivos (fotos, contratos, certificados) en R2 o Vercel Blob. Hasta automatizarlo, borrarlos a mano en el panel de R2 buscando las carpetas que contienen el id de la empresa (por ejemplo `candidates/<companyId>/`), para cumplir el plazo de 90 días de los términos.
+- Al ELIMINAR una empresa (orden `empresa.eliminar.confirmar`) se borran sus datos de la base y sus archivos (fotos, contratos, certificados) en R2 o Vercel Blob: los que sus filas referencian y que llevan el id de la empresa en la ruta (`<carpeta>/<companyId>/…`). Antes se guarda un respaldo completo en el almacenamiento privado (`platform-backups/<companyId>/`), que **no** se borra solo: eliminarlo a los 90 días de los términos es manual. Un archivo subido que nunca quedó referenciado en la base no se encuentra: revisar a mano las carpetas con el id de la empresa en el panel de R2.

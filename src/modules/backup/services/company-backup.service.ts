@@ -48,6 +48,8 @@ const EXCLUDED_MODELS = new Set([
   'AgentActionConfirmation',
   // Auditoría de plataforma: es de quien opera el SaaS, no del tenant.
   'PlatformAuditLog',
+  // Solicitudes de reinicio o eliminación de la empresa (Supersuite): también son de la plataforma.
+  'CompanyErasureRequest',
   // Contiene `encryptedXml`: el CAF cifrado, con la llave privada RSA que
   // timbra los DTE de la empresa. El nombre del campo no matchea
   // SENSITIVE_FIELD_PATTERN (no dice "secret"/"token"/etc.), así que sin esta

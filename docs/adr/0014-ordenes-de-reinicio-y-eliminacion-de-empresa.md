@@ -1,0 +1,45 @@
+# 0014 · Órdenes de la Supersuite para reiniciar y eliminar una empresa
+
+Fecha: 2026-10-25. Estado: aceptado. Continúa el 0013 (el script de reseteo) y la regla «Sin superusuarios en Aether» de CLAUDE.md.
+
+## Contexto
+
+El ADR 0013 dejó el reseteo de una empresa como un **script** que corre una persona, a mano, contra la base. Faltaba lo que el dueño pidió después: poder **empezar de cero** o **borrar definitivamente** una empresa desde la Supersuite, que es la única vía de administración de la plataforma (Aether no tiene superusuarios ni consola propia). El borrado permanente no tenía ninguna vía: la pantalla y su confirmación con TOTP se fueron con la consola, y `platform-delete.service.ts` quedó sin llamadores.
+
+Son las dos operaciones más destructivas que existen y la `DATABASE_URL` es la de producción (CLAUDE.md §5). Una orden firmada por la Supersuite basta para autenticar quién pide, pero no para protegerse de un clic equivocado, de una orden reentregada ni de un panel con un error. De ahí las condiciones de abajo.
+
+## Decisiones
+
+1. **Seis órdenes, tres por acción** (`src/lib/supersuite/ordenes.ts`): `empresa.reiniciar.solicitar|confirmar|cancelar` y `empresa.eliminar.solicitar|confirmar|cancelar`. No existe una orden «a secas» que borre: sin solicitud previa no hay nada que confirmar.
+2. **Dos pasos con un código de un solo uso** (`company-erasure.service.ts`, tabla `CompanyErasureRequest`). `solicitar` **no borra**: cuenta lo que se borraría y devuelve un código de 10 símbolos (sin los que se confunden; en la base solo vive su SHA-256). `confirmar` trae ese código **y la razón social escrita**; un código equivocado o una razón social que no calza cuentan como intento y a los 5 la solicitud se cancela. Pedir otra solicitud del mismo tipo invalida la anterior: nunca hay dos códigos vivos para lo mismo.
+3. **Ventanas de tiempo** (`policy.ts`, puro): reiniciar se puede confirmar de inmediato y el código vale 30 minutos; **eliminar exige esperar 7 días** entre pedirlo y confirmarlo, y la ventana para confirmar dura otros 7 (después hay que pedirlo de nuevo). La espera es el margen para arrepentirse y para que el dueño de la empresa se entere.
+4. **Eliminar exige la empresa suspendida** (`SUSPENDED` o `CANCELLED`; se revisa al pedir y otra vez al confirmar). Reactivarla (`cuenta.reactivar`) **cancela** las solicitudes de eliminar pendientes («la empresa volvió a operar»). Tampoco se puede eliminar una empresa cuyas cuentas de usuario también administran otras empresas (`CompanyMembership`): la orden dice a quiénes revocar primero (`acceso.revocar`).
+5. **Respaldo automático antes de borrar, en las dos.** Se arma el JSON de `backup/` (el mismo de `GET /api/backup/company`, que ya excluye credenciales), se guarda en el almacenamiento **privado** (`platform-backups/<companyId>/<fecha>-respaldo-<rut>-<día>.json`, `putPrivate`), se **lee de vuelta** y se compara tamaño y SHA-256. Sin almacenamiento privado configurado (`R2_PRIVATE_BUCKET_NAME` y las `R2_*`), con un respaldo que no calza o con una empresa de más de 200 MB (se arma en memoria), **no se borra nada** y la orden dice por qué. El respaldo es archivo y portabilidad, no restauración (CLAUDE.md §6).
+6. **Qué se borra** (`src/lib/company-erasure/core.ts`, el mismo núcleo del script del ADR 0013): el plan sale de la base (toda tabla con `companyId` y sus llaves foráneas), no de una lista escrita a mano. Dos modos:
+   - **Reiniciar** conserva la empresa, `CompanyFeatures` (módulos), `CompanySettings`, `CustomRole`, `User`, `UserSession`, `PushSubscription`, `Invitation`, `CompanyMembership`, `McpPersonalToken`, `PlatformAuditLog` y `CompanyErasureRequest`; borra todo lo demás y repone lo de una empresa recién creada (`reprovisionCompany`: «Bodega Principal» y, con Contabilidad, el plan de cuentas base). Deja una línea en la bitácora de la empresa que explica por qué el historial está vacío.
+   - **Eliminar** conserva solo `PlatformAuditLog` y `CompanyErasureRequest` y borra además la fila de `Company`, con sus usuarios y módulos. `CompanyErasureRequest` **no tiene llave foránea** a propósito: sobrevive a la empresa para que una orden reentregada sepa que ya estaba hecha.
+7. **Archivos: solo al eliminar, y solo los que son inequívocamente de la empresa** (`files.ts`). Antes de borrar las filas se buscan, por expresión regular sobre la fila completa en JSON, las direcciones a nuestro almacenamiento (R2 público, R2 privado `r2private:///…` y el Vercel Blob antiguo); después de que la transacción confirma se borran, y **solo** las que tienen la forma `<carpeta>/<companyId>/…` (toda subida de la aplicación la sigue). Una dirección sin el id de la empresa en ese lugar (un recurso compartido, una foto copiada de otra empresa) se deja intacta y se cuenta aparte (`notAttributed`). Un fallo al borrar un archivo se reintenta de a uno, se informa y **nunca deshace** el borrado de la base. Reiniciar **no** toca archivos.
+8. **Una sola transacción, y la huella confirma con ella.** El borrado, la fila de `PlatformAuditLog` (`COMPANY_DELETED` o `company.data_reset`, con filas, tablas y la referencia al respaldo) y la marca `DONE` de la solicitud confirman juntos o no confirma ninguno; cualquier falla hace rollback completo y libera la solicitud para reintentarla. Los triggers de inmutabilidad contable se suspenden y reactivan dentro de la misma transacción. Una verificación final exige cero filas en lo vaciado y las tablas conservadas sin cambios.
+9. **Idempotencia** (la Supersuite reentrega las órdenes cuya confirmación se pierde): quien gana la carrera es el `updateMany` que cambia `PENDING` (o un `RUNNING` de más de 15 minutos, cuya función murió) a `RUNNING`; una orden reentregada después de `DONE` responde «Ya estaba eliminada/reiniciada» aunque la empresa ya no exista (por eso `confirmar` no busca la empresa antes) y aunque la ventana haya vencido.
+10. **Datos que no parecen de prueba exigen aceptarlo.** Si la empresa tiene CAF cargados, documentos enviados al SII, cuotas pagadas por Khipu o pedidos de tienda con pago confirmado, `solicitar` los lista en `advertencias` y `confirmar` falla salvo que traiga `aceptoDatosReales: true`.
+11. **El uso de las órdenes**, para quien arme el panel de la Supersuite (repositorio aparte):
+    - `empresa.*.solicitar` (sin datos): devuelve `datos = { solicitudId, codigo, confirmarDesde, vence, filas, tablas, advertencias }`. El código **solo se muestra una vez**; mostrarlo a quien tiene que decidir, no guardarlo.
+    - `empresa.*.confirmar`: `datos = { codigo, razonSocial, aceptoDatosReales? }`. Responde `{ filas, tablas, respaldo: { ref, bytes, sha256 }, archivos?: { found, deleted, failed, notAttributed }, yaEstaba }`.
+    - `empresa.*.cancelar`: cancela las solicitudes pendientes de ese tipo; responde `{ canceladas }`.
+    - Los errores de negocio (código equivocado, aún no es la fecha, vencida, sin respaldo, empresa operando…) vuelven como orden fallida con un mensaje accionable en español.
+
+## Lo que esto NO hace
+
+- **No restaura ni deshace.** El respaldo en `platform-backups/<companyId>/` es un JSON de archivo, no una herramienta de restauración. La ventana de recuperación real, si el dueño la necesita, es el punto de restauración de Neon (su duración depende del plan contratado).
+- **No borra el respaldo ni sus archivos huérfanos.** El respaldo queda en el almacenamiento privado indefinidamente (política de conservación en `docs/legal/conservacion-y-respaldos.md`); los archivos que ninguna fila referenciaba no se pueden encontrar y quedan.
+- **No borra `SecurityEvent`** (intentos de ingreso, bloqueos, cambios de contraseña): la tabla no tiene `companyId` —solo correo, IP y tipo— y el plan de borrado solo alcanza tablas con `companyId`. Los correos de las personas eliminadas siguen apareciendo ahí. Tampoco toca `PlatformAuditLog`: la constancia de que la empresa existió y se borró es deliberada.
+- **No tiene interfaz en Aether**: es una capacidad de plataforma y, como toda, se opera desde la Supersuite. Mientras el panel de la Supersuite no tenga los botones, las órdenes se pueden enviar firmadas a mano y el camino manual sigue siendo `scripts/reset-company-data.ts`.
+- **No cambia el script del ADR 0013**: comparte el núcleo (`src/lib/company-erasure/core.ts`) pero conserva su propio camino de confirmación por línea de comandos.
+
+## Pruebas
+
+`tests/company-erasure-policy.test.ts` (código, ventanas, reglas de archivos; puro), `tests/company-erasure-db.test.ts` (Postgres real: recorrido completo de reiniciar y eliminar, respaldo, reentrega, carreras, suspensión, bloqueos, archivos; se niega a correr si la base no es local y `_test`), `tests/supersuite-ordenes.test.ts` (el protocolo de las órdenes) y `tests/company-reset-*.test.ts` (el núcleo compartido).
+
+## Todavía no
+
+Un panel en la Supersuite que muestre el código y la cuenta regresiva; borrar el respaldo a petición del cliente (derecho de supresión) con su propia orden; empresas de más de 200 MB (respaldo en streaming); aviso por correo al dueño de la empresa al pedir su eliminación.

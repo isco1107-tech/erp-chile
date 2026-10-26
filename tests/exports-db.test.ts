@@ -41,7 +41,7 @@ describeDb('Exportar datos contra PostgreSQL', () => {
   let sales: typeof import('@/modules/exports/services/sales-export.service');
   let moves: typeof import('@/modules/exports/services/movements-export.service');
   let stock: typeof import('@/modules/inventory/services/stock.service');
-  let reset: typeof import('../scripts/lib/company-reset');
+  let reset: typeof import('@/lib/company-erasure/core');
   const companyIds: string[] = [];
   const run = Math.random().toString(36).slice(2, 10);
   let counter = 0;
@@ -53,7 +53,7 @@ describeDb('Exportar datos contra PostgreSQL', () => {
     sales = await import('@/modules/exports/services/sales-export.service');
     moves = await import('@/modules/exports/services/movements-export.service');
     stock = await import('@/modules/inventory/services/stock.service');
-    reset = await import('../scripts/lib/company-reset');
+    reset = await import('@/lib/company-erasure/core');
   });
 
   afterAll(async () => {

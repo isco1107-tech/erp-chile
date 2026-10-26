@@ -3750,6 +3750,48 @@ model AgentActionConfirmation {
 // Bitácora de plataforma (superadmin)
 // ============================================================================
 
+/// Solicitud de borrado de los datos de UNA empresa, pedida por la Supersuite con las órdenes
+/// `empresa.reiniciar.*` (borra los datos y deja usuarios, módulos y configuración) y
+/// `empresa.eliminar.*` (borra todo, la empresa incluida). Se hace en dos pasos: la solicitud
+/// devuelve un código de un solo uso (aquí solo vive su SHA-256) y la confirmación lo trae junto con
+/// la razón social escrita. Eliminar además exige la empresa suspendida y una espera (`notBefore`).
+///
+/// SIN llave foránea a propósito, como `PlatformAuditLog`: al ELIMINAR la empresa esta fila debe
+/// sobrevivir, porque es la huella de qué se pidió y qué se hizo, y lo que responde una orden
+/// reentregada. Por tener `companyId` el reseteo la deja en su lugar (`KEPT_TENANT_TABLES`) y el
+/// respaldo de la empresa no la exporta (`EXCLUDED_MODELS`).
+model CompanyErasureRequest {
+  id             String    @id @default(cuid())
+  companyId      String
+  /// `RESET` o `DELETE`.
+  kind           String
+  /// `PENDING` → `RUNNING` → `DONE`, o `CANCELLED`. «Vencida» se calcula con `expiresAt`.
+  status         String    @default("PENDING")
+  /// Foto de la empresa al pedirlo: sigue siendo legible cuando la empresa ya no existe.
+  companyRut     String
+  companyName    String
+  /// SHA-256 del código de un solo uso; el código en claro solo viaja en la respuesta de la solicitud.
+  codeHash       String
+  /// Códigos equivocados: a los 5 la solicitud se cancela.
+  attempts       Int       @default(0)
+  /// Id de la orden de la Supersuite que la pidió.
+  requestedOrder Int?
+  requestedAt    DateTime  @default(now())
+  /// Antes de este instante no se puede confirmar (eliminar: 7 días; reiniciar: de inmediato).
+  notBefore      DateTime
+  /// Pasado este instante hay que pedirla de nuevo.
+  expiresAt      DateTime
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  /// Filas por tabla que se borrarían, tal como las vio la solicitud.
+  preview        Json?
+  /// Qué se hizo: filas borradas, respaldo, archivos.
+  result         Json?
+
+  @@index([companyId, kind, status])
+  @@index([codeHash])
+}
+
 /// Bitácora de acciones destructivas a nivel de plataforma (hoy: borrado
 /// permanente de un tenant). A propósito NO tiene relación FK hacia `Company`:
 /// todos los campos que identifican a la empresa son snapshots de texto plano

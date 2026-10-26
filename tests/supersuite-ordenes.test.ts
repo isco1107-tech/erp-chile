@@ -25,6 +25,11 @@ jest.mock('@/modules/platform/services/platform.service', () => ({
   grantCompanyMembership: jest.fn(),
   revokeCompanyMembership: jest.fn(),
 }));
+jest.mock('@/modules/platform/services/company-erasure.service', () => ({
+  requestErasure: jest.fn(),
+  confirmErasure: jest.fn(),
+  cancelErasure: jest.fn(),
+}));
 jest.mock('@/lib/prisma', () => ({
   prisma: {
     company: { findUnique: jest.fn(), findMany: jest.fn() },
@@ -39,6 +44,7 @@ import { createAuditLog } from '@/lib/auth/audit';
 import { notifyCompany } from '@/lib/notifications/company-notification';
 import { solicitudModulosAtendidaSupersuite } from '@/lib/supersuite';
 import * as platform from '@/modules/platform/services/platform.service';
+import * as erasure from '@/modules/platform/services/company-erasure.service';
 import { cuentaConPlan, flagsDeModulo, planDeAether } from '@/lib/supersuite/modulos';
 import { PLAN_PRESETS } from '@/lib/pricing/presets';
 import { DEFAULT_FEATURES } from '@/lib/auth/modules';
@@ -360,8 +366,127 @@ describe('webhook de órdenes', () => {
       expect(platform.revokeCompanyMembership).toHaveBeenCalledTimes(1);
     });
 
-    it('Aether no borra empresas por orden: ese tipo se informa como fallo', async () => {
+    it('eliminar o reiniciar «a secas» no existe: siempre va en dos pasos (solicitar y confirmar)', async () => {
       expect((await enviar('empresa.eliminar')).cuerpo.ok).toBe(false);
+      expect((await enviar('empresa.reiniciar')).cuerpo.ok).toBe(false);
+      expect(erasure.requestErasure).not.toHaveBeenCalled();
+      expect(erasure.confirmErasure).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('reiniciar y eliminar una empresa (dos pasos)', () => {
+    const solicitar = erasure.requestErasure as jest.Mock;
+    const confirmar = erasure.confirmErasure as jest.Mock;
+    const cancelar = erasure.cancelErasure as jest.Mock;
+    const pedida = (extra: Record<string, unknown> = {}) => ({
+      requestId: 'sol1',
+      code: 'ABCDE-FGHJK',
+      notBefore: new Date('2026-11-02T15:00:00Z'),
+      expiresAt: new Date('2026-11-09T15:00:00Z'),
+      preview: { rows: 321, tables: { Product: 12, SalesDocument: 40 }, signals: [] },
+      ...extra,
+    });
+
+    beforeEach(() => {
+      findUnique.mockResolvedValue(empresa({ businessName: 'Chakra SpA' }));
+    });
+
+    it('solicitar reiniciar entrega el código y lo que se borraría, y no borra nada', async () => {
+      solicitar.mockResolvedValue(pedida());
+      const r = await enviar('empresa.reiniciar.solicitar');
+      expect(solicitar).toHaveBeenCalledWith({ companyId: 'c1', kind: 'RESET', orderId: expect.any(Number) });
+      expect(confirmar).not.toHaveBeenCalled();
+      expect(r.cuerpo).toMatchObject({ ok: true });
+      const cuerpo = r.cuerpo as unknown as { mensaje: string; datos: Record<string, unknown> };
+      expect(cuerpo.mensaje).toContain('ABCDE-FGHJK');
+      expect(cuerpo.mensaje).toContain('321 filas');
+      expect(cuerpo.mensaje).toContain('se conservan sus usuarios, módulos y configuración');
+      expect(cuerpo.datos).toMatchObject({ solicitudId: 'sol1', codigo: 'ABCDE-FGHJK', filas: 321, tablas: { Product: 12, SalesDocument: 40 }, advertencias: [] });
+      expect(cuerpo.datos.vence).toBe('2026-11-09T15:00:00.000Z');
+    });
+
+    it('solicitar eliminar dice que se borra TODO, desde cuándo se puede confirmar y avisa de lo que no parece de prueba', async () => {
+      solicitar.mockResolvedValue(pedida({ preview: { rows: 500, tables: { User: 3 }, signals: [{ label: 'CAF cargados (folios autorizados por el SII)', count: 2 }] } }));
+      const r = await enviar('empresa.eliminar.solicitar');
+      expect(solicitar).toHaveBeenCalledWith({ companyId: 'c1', kind: 'DELETE', orderId: expect.any(Number) });
+      const cuerpo = r.cuerpo as unknown as { mensaje: string; datos: { advertencias: string[] } };
+      expect(cuerpo.mensaje).toContain('TODO de Chakra SpA');
+      expect(cuerpo.mensaje).toContain('dejaría de existir');
+      expect(cuerpo.mensaje).toContain('Se puede confirmar desde el');
+      expect(cuerpo.mensaje).toContain('aceptoDatosReales');
+      expect(cuerpo.datos.advertencias).toEqual(['2 CAF cargados (folios autorizados por el SII)']);
+    });
+
+    it('si la empresa no se puede borrar (opera, o tiene gente con acceso a otras empresas) la orden falla con el motivo', async () => {
+      solicitar.mockRejectedValue(new Error('Para eliminar una empresa primero hay que suspenderla (orden cuenta.suspender): mientras opera no se puede borrar.'));
+      const r = await enviar('empresa.eliminar.solicitar');
+      expect(r.cuerpo.ok).toBe(false);
+      expect(r.cuerpo.mensaje).toContain('suspenderla');
+    });
+
+    it('confirmar manda el código, la razón social escrita y la aceptación; no busca la empresa (tras eliminarla ya no existe)', async () => {
+      confirmar.mockResolvedValue({ kind: 'RESET', alreadyDone: false, rows: 321, tables: 30, backup: { ref: 'r2private:///x', bytes: 4096, sha256: 'h' }, chartOfAccounts: true });
+      findUnique.mockClear();
+      const r = await enviar('empresa.reiniciar.confirmar', { codigo: 'abcde fghjk', razonSocial: 'Chakra SpA', aceptoDatosReales: true });
+      expect(confirmar).toHaveBeenCalledWith({ companyId: 'c1', kind: 'RESET', code: 'abcde fghjk', businessName: 'Chakra SpA', acceptRealData: true });
+      expect(findUnique).not.toHaveBeenCalled();
+      expect(r.cuerpo.mensaje).toContain('Empresa reiniciada: 321 filas en 30 tablas');
+      expect(r.cuerpo.mensaje).toContain('plan de cuentas');
+      expect(r.cuerpo.mensaje).toContain('Respaldo guardado');
+    });
+
+    it('«aceptoDatosReales» solo vale si viene exactamente en true', async () => {
+      confirmar.mockResolvedValue({ kind: 'RESET', alreadyDone: false, rows: 1, tables: 1 });
+      await enviar('empresa.reiniciar.confirmar', { codigo: 'X', razonSocial: 'Y', aceptoDatosReales: 'si' });
+      expect(confirmar).toHaveBeenLastCalledWith(expect.objectContaining({ acceptRealData: false }));
+    });
+
+    it('confirmar eliminar informa filas, respaldo y archivos; reentregada responde que ya estaba eliminada', async () => {
+      confirmar.mockResolvedValueOnce({ kind: 'DELETE', alreadyDone: false, rows: 900, tables: 55, backup: { ref: 'r2private:///x', bytes: 2048, sha256: 'h' }, files: { found: 8, deleted: 7, failed: 1, notAttributed: 0 } });
+      const first = await enviar('empresa.eliminar.confirmar', { codigo: 'ABCDE-FGHJK', razonSocial: 'Chakra SpA' });
+      expect(first.cuerpo.mensaje).toContain('Empresa eliminada: 900 filas en 55 tablas');
+      expect(first.cuerpo.mensaje).toContain('Archivos borrados: 7 (1 no se pudieron borrar)');
+
+      confirmar.mockResolvedValueOnce({ kind: 'DELETE', alreadyDone: true, rows: 900, tables: 55 });
+      const again = await enviar('empresa.eliminar.confirmar', { codigo: 'ABCDE-FGHJK', razonSocial: 'Chakra SpA' });
+      expect(again.cuerpo).toMatchObject({ ok: true, mensaje: 'Ya estaba eliminada.' });
+    });
+
+    it('una confirmación que el servicio rechaza (código, razón social, espera) vuelve como fallo con su mensaje', async () => {
+      confirmar.mockRejectedValue(new Error('Todavía no se puede confirmar: la espera termina el lunes, 9 de noviembre de 2026, 12:00.'));
+      const r = await enviar('empresa.eliminar.confirmar', { codigo: 'ABCDE-FGHJK', razonSocial: 'Chakra SpA' });
+      expect(r.cuerpo.ok).toBe(false);
+      expect(r.cuerpo.mensaje).toContain('Todavía no se puede confirmar');
+    });
+
+    it('sin empresa en la orden no se hace nada', async () => {
+      for (const tipo of ['empresa.reiniciar.confirmar', 'empresa.eliminar.confirmar', 'empresa.reiniciar.cancelar', 'empresa.eliminar.cancelar']) {
+        expect((await enviar(tipo, { codigo: 'X', razonSocial: 'Y' }, null)).cuerpo.ok).toBe(false);
+      }
+      expect(confirmar).not.toHaveBeenCalled();
+      expect(cancelar).not.toHaveBeenCalled();
+    });
+
+    it('cancelar descarta las solicitudes pendientes del tipo pedido', async () => {
+      cancelar.mockResolvedValueOnce(2).mockResolvedValueOnce(0);
+      expect((await enviar('empresa.eliminar.cancelar')).cuerpo).toMatchObject({ ok: true, mensaje: '2 solicitudes canceladas' });
+      expect(cancelar).toHaveBeenLastCalledWith({ companyId: 'c1', kind: 'DELETE' });
+      expect((await enviar('empresa.reiniciar.cancelar')).cuerpo.mensaje).toBe('No había solicitudes de reiniciar pendientes');
+      expect(cancelar).toHaveBeenLastCalledWith({ companyId: 'c1', kind: 'RESET' });
+    });
+
+    it('reactivar una cuenta suspendida cancela sus eliminaciones pendientes', async () => {
+      findUnique.mockResolvedValue(empresa({ status: 'SUSPENDED' }));
+      cancelar.mockResolvedValue(1);
+      const r = await enviar('cuenta.reactivar');
+      expect(cancelar).toHaveBeenCalledWith({ companyId: 'c1', kind: 'DELETE', reason: 'la empresa volvió a operar' });
+      expect(r.cuerpo.mensaje).toContain('Se canceló su solicitud de eliminación pendiente');
+    });
+
+    it('suspender no cancela nada', async () => {
+      findUnique.mockResolvedValue(empresa({ status: 'ACTIVE' }));
+      await enviar('cuenta.suspender');
+      expect(cancelar).not.toHaveBeenCalled();
     });
   });
 
