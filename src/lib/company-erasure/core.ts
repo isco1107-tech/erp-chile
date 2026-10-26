@@ -1,13 +1,18 @@
 import type { Prisma } from '@prisma/client';
-import { rutKey } from '../../src/lib/chile/rut';
+import { rutKey } from '@/lib/chile/rut';
 
 /**
- * Núcleo del reseteo de datos de UNA empresa (`scripts/reset-company-data.ts`).
+ * Núcleo del borrado de los datos de UNA empresa. Lo usan el script
+ * `scripts/reset-company-data.ts` y las órdenes de la Supersuite
+ * `empresa.reiniciar` / `empresa.eliminar` (`company-erasure.service.ts`).
  *
- * Deja la empresa con su cuenta, sus usuarios y roles y sus módulos contratados,
- * y borra todo lo demás que guardó (ventas, inventario, contabilidad, contactos,
- * bodegas, cajas, sitios…). Sirve para sacar los datos de prueba antes de operar
- * de verdad, sin tener que crear la empresa de nuevo.
+ * Modo `reset`: deja la empresa con su cuenta, sus usuarios y roles y sus módulos
+ * contratados, y borra todo lo demás que guardó (ventas, inventario, contabilidad,
+ * contactos, bodegas, cajas, sitios…). Sirve para sacar los datos de prueba antes
+ * de operar de verdad, sin tener que crear la empresa de nuevo.
+ *
+ * Modo `delete`: borra TODO, usuarios y módulos incluidos, y la fila de la empresa;
+ * solo sobreviven la bitácora de la plataforma y las solicitudes de borrado.
  *
  * El plan de borrado NO es una lista escrita a mano: sale de lo que la base de
  * datos declara (toda tabla con `companyId` y las llaves foráneas entre ellas).
@@ -35,6 +40,7 @@ export const KEPT_TENANT_TABLES: readonly string[] = [
   'CompanyMembership',
   'McpPersonalToken',
   'PlatformAuditLog',
+  'CompanyErasureRequest',
 ];
 
 /**
@@ -42,6 +48,27 @@ export const KEPT_TENANT_TABLES: readonly string[] = [
  * se vayan con ello por cascada (los participantes de las conversaciones).
  */
 export const ALLOWED_CASCADE_INTO: readonly string[] = ['ConversationParticipant'];
+
+export type ErasureMode = 'reset' | 'delete';
+
+/**
+ * Al ELIMINAR la empresa solo sobreviven la bitácora de la plataforma y las
+ * solicitudes de borrado (guardan, sin llave foránea, qué se pidió y qué se hizo).
+ * Todo lo demás se va, usuarios y módulos incluidos.
+ */
+export const KEPT_WHEN_DELETING: readonly string[] = ['PlatformAuditLog', 'CompanyErasureRequest'];
+
+/**
+ * Al eliminar, también se van las credenciales de acceso de los usuarios que se
+ * borran (códigos de recuperación y de respaldo 2FA cuelgan de `User` por cascada).
+ */
+export const ALLOWED_CASCADE_WHEN_DELETING: readonly string[] = [...ALLOWED_CASCADE_INTO, 'PasswordResetToken', 'TotpBackupCode'];
+
+export function erasureSettings(mode: ErasureMode): { kept: readonly string[]; allowedCascade: readonly string[] } {
+  return mode === 'delete'
+    ? { kept: KEPT_WHEN_DELETING, allowedCascade: ALLOWED_CASCADE_WHEN_DELETING }
+    : { kept: KEPT_TENANT_TABLES, allowedCascade: ALLOWED_CASCADE_INTO };
+}
 
 /** Fila de `pg_constraint` de una llave foránea. `onDelete` es el código de una letra de Postgres. */
 export interface ForeignKey {
@@ -66,11 +93,13 @@ export class ResetPlanError extends Error {}
 export function buildResetPlan(input: {
   tenantTables: readonly string[];
   foreignKeys: readonly ForeignKey[];
+  mode?: ErasureMode;
   keptTables?: readonly string[];
   allowedCascadeInto?: readonly string[];
 }): ResetPlan {
-  const kept = new Set(input.keptTables ?? KEPT_TENANT_TABLES);
-  const allowedCascade = new Set(input.allowedCascadeInto ?? ALLOWED_CASCADE_INTO);
+  const defaults = erasureSettings(input.mode ?? 'reset');
+  const kept = new Set(input.keptTables ?? defaults.kept);
+  const allowedCascade = new Set(input.allowedCascadeInto ?? defaults.allowedCascade);
   const toDelete = new Set(input.tenantTables.filter((table) => !kept.has(table)));
 
   // Lo que se conserva no puede quedar bloqueando el borrado ni perder filas por cascada.
@@ -222,6 +251,12 @@ export interface ResetOutcome {
   keptAfter: Record<string, number>;
 }
 
+/** Las filas de `Company` que quedan con ese id (0 o 1): comprueba que la empresa sí desapareció. */
+export async function companyRowExists(db: Tx, companyId: string): Promise<boolean> {
+  const rows = await db.$queryRawUnsafe<Array<{ n: number }>>(`SELECT count(*)::int AS n FROM "Company" WHERE "id" = $1`, companyId);
+  return (rows[0]?.n ?? 0) > 0;
+}
+
 /**
  * Ejecuta el plan DENTRO de la transacción que recibe. Si algo no cuadra
  * (quedó una fila, cambió una tabla que se conserva) lanza, y quien llamó hace
@@ -236,12 +271,16 @@ export async function runReset(
     companyId: string;
     plan: ResetPlan;
     facts: SchemaFacts;
+    /** `delete` borra además la fila de la empresa (el plan debe haberse armado también en modo `delete`). */
+    mode?: ErasureMode;
     keptTables?: readonly string[];
-    afterDelete?: (tx: Tx) => Promise<void>;
+    /** Corre en la misma transacción, ya con todo borrado; recibe lo que se borró para dejar la huella. */
+    afterDelete?: (tx: Tx, summary: { deleted: Record<string, number>; totalRows: number }) => Promise<void>;
   }
 ): Promise<ResetOutcome> {
   const { companyId, plan, facts } = input;
-  const kept = input.keptTables ?? KEPT_TENANT_TABLES;
+  const mode = input.mode ?? 'reset';
+  const kept = input.keptTables ?? erasureSettings(mode).kept;
   const keptPresent = kept.filter((table) => facts.tenantTables.includes(table));
 
   const before = await countRows(tx, plan.deleteOrder, companyId);
@@ -293,9 +332,13 @@ export async function runReset(
     throw new Error(`Cambió una tabla que debía conservarse: ${changed.join(', ')}.`);
   }
 
-  if (input.afterDelete) await input.afterDelete(tx);
+  if (mode === 'delete') {
+    await tx.$executeRawUnsafe(`DELETE FROM "Company" WHERE "id" = $1`, companyId);
+    if (await companyRowExists(tx, companyId)) throw new Error('La empresa no se pudo eliminar: sigue existiendo su fila.');
+  }
 
   const totalRows = Object.values(before).reduce((sum, n) => sum + n, 0);
+  if (input.afterDelete) await input.afterDelete(tx, { deleted: before, totalRows });
   return { deleted: before, totalRows, keptBefore, keptAfter };
 }
 

@@ -192,7 +192,7 @@ function privateBucketName(): string | null {
   return process.env.R2_PRIVATE_BUCKET_NAME || null;
 }
 
-function privateStorageConfigured(): boolean {
+export function privateStorageConfigured(): boolean {
   return Boolean(
     privateBucketName() && process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY
   );

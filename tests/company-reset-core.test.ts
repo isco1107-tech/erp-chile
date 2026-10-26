@@ -7,7 +7,7 @@ import {
   parseResetArgs,
   quoteIdent,
   type ForeignKey,
-} from '../scripts/lib/company-reset';
+} from '@/lib/company-erasure/core';
 
 /**
  * Plan de borrado del reseteo de una empresa: orden de las tablas, lo que se
@@ -106,7 +106,7 @@ describe('buildResetPlan', () => {
 describe('qué se conserva', () => {
   it('son usuarios, roles, módulos, configuración y la bitácora de la plataforma', () => {
     expect([...KEPT_TENANT_TABLES].sort()).toEqual([
-      'CompanyFeatures', 'CompanyMembership', 'CompanySettings', 'CustomRole', 'Invitation', 'McpPersonalToken',
+      'CompanyErasureRequest', 'CompanyFeatures', 'CompanyMembership', 'CompanySettings', 'CustomRole', 'Invitation', 'McpPersonalToken',
       'PlatformAuditLog', 'PushSubscription', 'User', 'UserSession',
     ]);
   });
