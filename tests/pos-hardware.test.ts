@@ -52,6 +52,7 @@ const ticket: TicketData = {
   companyRut: '76.123.456-7',
   companyAddress: 'Av. Providencia 1234, Santiago',
   folio: 1523,
+  stamped: false,
   issuedAt: new Date('2026-10-25T18:30:00Z'),
   cashierName: 'María Pérez',
   customerName: 'Consumidor Final',
@@ -129,6 +130,18 @@ describe('ESC/POS: boleta', () => {
     // 18:30 UTC del 25-10-2026 es 15:30 en Santiago (UTC-3 en horario de verano).
     expect(text).toContain('Fecha: 25-10-2026 15:30');
     expect(text).not.toContain('?');
+  });
+
+  it('sin timbre no se presenta como boleta', () => {
+    expect(text).toContain('COMPROBANTE DE VENTA');
+    expect(text).toContain('Sin validez tributaria');
+    expect(text).not.toContain('BOLETA ELECTR');
+  });
+
+  it('timbrada se titula boleta y avisa que falta el envío al SII', () => {
+    const stamped = ascii(buildTicketEscPos({ ...ticket, stamped: true }, options));
+    expect(stamped).toContain('BOLETA ELECTR');
+    expect(stamped).toContain('Pendiente de env');
   });
 
   it('trae los datos de la venta', () => {

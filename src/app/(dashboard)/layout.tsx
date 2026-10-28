@@ -1,6 +1,9 @@
 import React from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
+import { verifySessionToken } from '@/lib/auth/session';
+import SessionExpiryNotice from '@/components/shared/SessionExpiryNotice';
 import {
   getAuthContext,
   can,
@@ -72,6 +75,17 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const allow = (permission: Parameters<typeof can>[1]) => can(context, permission);
   const { features } = context;
+
+  // Vencimiento de ESTA sesión (claim `exp` del JWT ya validado por
+  // `getAuthContext`), para avisar antes de que se corte.
+  let sessionExpiresAt: number | null = null;
+  try {
+    const token = (await cookies()).get('session')?.value;
+    const exp = token ? (await verifySessionToken(token)).exp : undefined;
+    sessionExpiresAt = exp ? exp * 1000 : null;
+  } catch {
+    sessionExpiresAt = null;
+  }
 
   // Registro único compartido con la paleta de comandos (⌘K): mismos módulos,
   // mismas condiciones de acceso. Ver `src/lib/navigation/workspace-nav.ts`.
@@ -254,6 +268,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           />
         )}
         <PresenceHeartbeat />
+        <SessionExpiryNotice expiresAt={sessionExpiresAt} />
         <ManualAssistantWidget userId={context.id} manualHints={manualHints} />
         <ModuleTutorial userId={context.id} manualHints={manualHints} />
       </ConfirmProvider>

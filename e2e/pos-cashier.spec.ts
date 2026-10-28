@@ -254,7 +254,7 @@ test.describe('cajero', () => {
     expect(job.slice(0, 5)).toEqual([0x1b, 0x40, 0x1b, 0x74, 19]); // inicializa y elige la tabla PC858
     expect(job.slice(5, 10)).toEqual(PULSE); // el cajón se abre mientras sale la boleta
     const text = Buffer.from(job).toString('latin1');
-    expect(text).toContain('BOLETA ELECTR');
+    expect(text).toContain('COMPROBANTE DE VENTA'); // la empresa de prueba no tiene CAF: sin timbre no es boleta
     expect(text).toContain('RUT: 66.666.666-6');
     expect(text).toContain('$2.380');
     expect(job.slice(-3)).toEqual([0x1d, 0x56, 0x01]); // corte

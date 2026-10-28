@@ -8,21 +8,31 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CurrencyInput } from '@/components/ui/CurrencyInput';
 import { MOVEMENT_TYPES, stockMovementSchema } from '@/modules/inventory/schema';
+import { WASTE_REASONS, WASTE_REASON_HINTS, WASTE_REASON_LABELS, type WasteReason } from '@/lib/warehouse-mobile/modes';
 import { registerStockMovementAction } from '@/modules/inventory/actions/inventory.actions';
 import type { ProductWithStock } from '@/modules/inventory/services/products.service';
 
 const MOVEMENT_LABELS: Record<(typeof MOVEMENT_TYPES)[number], string> = {
-  PURCHASE_IN: 'Entrada por Compra',
-  ADJUSTMENT_IN: 'Entrada por Ajuste',
-  SALE_OUT: 'Salida por Venta',
-  ADJUSTMENT_OUT: 'Salida por Ajuste',
-  TRANSFER: 'Transferencia entre Bodegas',
+  ADJUSTMENT_IN: 'Entrada por ajuste (sobrante, stock inicial)',
+  ADJUSTMENT_OUT: 'Salida por ajuste (merma, vencido, pérdida)',
+  TRANSFER: 'Traslado entre bodegas',
+  PURCHASE_IN: 'Entrada de mercadería comprada (sin factura)',
+};
+
+/** Qué hace cada movimiento, en una línea, para elegir bien. */
+const MOVEMENT_HINTS: Record<(typeof MOVEMENT_TYPES)[number], string> = {
+  ADJUSTMENT_IN: 'Para cargar el stock inicial o corregir un sobrante. Las ventas se registran en Ventas o en el Punto de Venta.',
+  ADJUSTMENT_OUT: 'Para lo que salió sin venderse. Elige el motivo: queda anotado en los movimientos de bodega.',
+  TRANSFER: 'Mueve unidades de una bodega a otra sin cambiar el total.',
+  PURCHASE_IN:
+    'Solo suma stock y actualiza el costo: NO registra la factura del proveedor ni la deuda. Si tienes la factura, regístrala en Compras.',
 };
 
 const EMPTY_FORM = {
   productId: '',
   warehouseId: '',
-  type: 'PURCHASE_IN' as (typeof MOVEMENT_TYPES)[number],
+  type: 'ADJUSTMENT_IN' as (typeof MOVEMENT_TYPES)[number],
+  reasonCode: '' as WasteReason | '',
   quantity: '',
   unitCost: '',
   targetWarehouseId: '',
@@ -70,6 +80,7 @@ export default function StockMovementForm({ products, warehouses, onSaved, onCan
       notes: form.notes || undefined,
       lotNumber: capturesLot ? form.lotNumber || undefined : undefined,
       expiryDate: capturesLot ? form.expiryDate || undefined : undefined,
+      reasonCode: form.type === 'ADJUSTMENT_OUT' ? form.reasonCode || undefined : undefined,
     };
 
     const parsed = stockMovementSchema.safeParse(payload);
@@ -114,7 +125,28 @@ export default function StockMovementForm({ products, warehouses, onSaved, onCan
               <option key={t} value={t}>{MOVEMENT_LABELS[t]}</option>
             ))}
           </select>
+          <p className="mt-1 text-xs text-muted-foreground">{MOVEMENT_HINTS[form.type]}</p>
         </div>
+
+        {form.type === 'ADJUSTMENT_OUT' && (
+          <div>
+            <Label htmlFor="mv-reason">Motivo de la salida</Label>
+            <select
+              id="mv-reason"
+              value={form.reasonCode}
+              onChange={(e) => update('reasonCode', e.target.value as FormState['reasonCode'])}
+              aria-invalid={!!errors.reasonCode}
+              className="h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
+            >
+              <option value="">Elige el motivo</option>
+              {WASTE_REASONS.map((reason) => (
+                <option key={reason} value={reason}>{WASTE_REASON_LABELS[reason]}</option>
+              ))}
+            </select>
+            {form.reasonCode && <p className="mt-1 text-xs text-muted-foreground">{WASTE_REASON_HINTS[form.reasonCode]}</p>}
+            {errors.reasonCode && <p className="mt-1 text-sm text-destructive">{errors.reasonCode}</p>}
+          </div>
+        )}
 
         <div>
           <Label htmlFor="mv-product">Producto</Label>
@@ -232,7 +264,8 @@ export default function StockMovementForm({ products, warehouses, onSaved, onCan
 
         <div className="sm:col-span-2">
           <Label htmlFor="mv-notes">Notas</Label>
-          <Input id="mv-notes" value={form.notes} onChange={(e) => update('notes', e.target.value)} />
+          <Input id="mv-notes" value={form.notes} onChange={(e) => update('notes', e.target.value)} aria-invalid={!!errors.notes} />
+          {errors.notes && <p className="mt-1 text-sm text-destructive">{errors.notes}</p>}
         </div>
       </div>
 

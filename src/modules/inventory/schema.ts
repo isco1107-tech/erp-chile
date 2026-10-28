@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { isAllowedBlobUrl } from '@/lib/security/blob-url';
 import { commissionBpsSchema } from '@/lib/consignment/commission';
+import { WASTE_REASONS, reasonRequiresNote } from '@/lib/warehouse-mobile/modes';
 
 /** Código de barras: lo que un lector puede escribir (ASCII imprimible, sin espacios a los lados). */
 const barcodeField = z
@@ -11,6 +12,16 @@ const barcodeField = z
   .optional();
 
 export const UNITS = ['UN', 'KG', 'MT', 'LTS', 'CJA', 'PAR'] as const;
+
+/** Nombre de cada unidad para mostrar; el código es lo que se guarda (y lo que va al DTE). */
+export const UNIT_LABELS: Record<(typeof UNITS)[number], string> = {
+  UN: 'Unidad',
+  KG: 'Kilo',
+  MT: 'Metro',
+  LTS: 'Litro',
+  CJA: 'Caja',
+  PAR: 'Par',
+};
 
 export const productCreateSchema = z.object({
   sku: z.string().min(1, 'El SKU es obligatorio'),
@@ -121,7 +132,12 @@ export type SettlementVoidInput = z.infer<typeof settlementVoidSchema>;
 export type ConsignmentReceiveInput = z.infer<typeof consignmentReceiveSchema>;
 export type ConsignmentReturnInput = z.infer<typeof consignmentReturnSchema>;
 
-export const MOVEMENT_TYPES = ['PURCHASE_IN', 'SALE_OUT', 'ADJUSTMENT_IN', 'ADJUSTMENT_OUT', 'TRANSFER'] as const;
+/**
+ * Movimientos que una persona puede registrar a mano. «Salida por venta» NO
+ * está: una venta sin boleta ni factura dejaba stock descontado sin ingreso,
+ * sin cobro y contada como vendida en Retail. Las ventas salen de Ventas o del POS.
+ */
+export const MOVEMENT_TYPES = ['ADJUSTMENT_IN', 'ADJUSTMENT_OUT', 'TRANSFER', 'PURCHASE_IN'] as const;
 
 export const stockMovementSchema = z
   .object({
@@ -136,6 +152,16 @@ export const stockMovementSchema = z
     /** Solo productos con lotes: lote y vencimiento de lo que entra. */
     lotNumber: z.string().trim().max(40, 'Máximo 40 caracteres').optional(),
     expiryDate: z.union([z.literal(''), z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha de vencimiento inválida')]).optional(),
+    /** Motivo de una salida por ajuste: la misma lista cerrada de la bodega móvil. */
+    reasonCode: z.enum(WASTE_REASONS, 'Elige el motivo de la salida').optional(),
+  })
+  .refine((data) => data.type !== 'ADJUSTMENT_OUT' || data.reasonCode !== undefined, {
+    message: 'Elige el motivo de la salida (vencido, dañado, pérdida…)',
+    path: ['reasonCode'],
+  })
+  .refine((data) => !reasonRequiresNote(data.reasonCode) || Boolean(data.notes?.trim()), {
+    message: 'Con «Otro motivo» cuenta en las notas qué pasó',
+    path: ['notes'],
   })
   .refine(
     (data) => !(data.type === 'PURCHASE_IN' || data.type === 'ADJUSTMENT_IN') || data.unitCost !== undefined,

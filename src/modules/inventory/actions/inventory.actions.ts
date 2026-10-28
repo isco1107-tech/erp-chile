@@ -95,7 +95,7 @@ export async function registerStockMovementAction(input: unknown): Promise<Actio
     const session = await requireAuthWithPermission('inventory:write');
     const parsed = stockMovementSchema.safeParse(input);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
-    const { type, productId, warehouseId, quantity, unitCost, targetWarehouseId, reference, notes, lotNumber, expiryDate } = parsed.data;
+    const { type, productId, warehouseId, quantity, unitCost, targetWarehouseId, reference, notes, lotNumber, expiryDate, reasonCode } = parsed.data;
 
     if (type === 'PURCHASE_IN' || type === 'ADJUSTMENT_IN') {
       // Solo pesa si el producto lleva lotes; si no, `applyStockIn` lo ignora.
@@ -130,6 +130,7 @@ export async function registerStockMovementAction(input: unknown): Promise<Actio
         reference,
         notes,
         userId: session.id,
+        reasonCode,
       });
     }
 

@@ -4,6 +4,7 @@ import { formatCurrency } from '@/lib/chile/tax';
 import { formatRut } from '@/lib/chile/rut';
 import { isBoleta, isDte } from '@/lib/chile/dte/codes';
 import { tedPdf417DataUri } from '@/lib/chile/dte/barcode';
+import { isSubmittedToSii } from '@/modules/sales/cancellation';
 
 /**
  * Leyenda del acuse de recibo (Ley 19.983). Va solo en la copia cedible de
@@ -26,6 +27,10 @@ export default function SalesDocumentPaper({ doc, esCedible = false }: { doc: Sa
   const docLabel = DTE_TYPE_LABELS[doc.dteType];
   const tributario = isDte(doc.dteType);
   const timbre = doc.status === 'ISSUED' && doc.tedXml ? tedPdf417DataUri(doc.tedXml) : null;
+  // Aether timbra pero todavía no envía al SII: mientras el documento no tenga
+  // envío registrado, invitar a verificarlo en sii.cl haría creer al receptor
+  // que el SII ya lo tiene.
+  const enviadoAlSii = isSubmittedToSii(doc);
   const emisorLocalidad = [doc.company.comuna, doc.company.ciudad].filter(Boolean).join(', ');
   const receptorEsConsumidorFinal = isBoleta(doc.dteType) && doc.contact.rut.replace(/\D/g, '').startsWith('66666666');
 
@@ -160,7 +165,7 @@ export default function SalesDocumentPaper({ doc, esCedible = false }: { doc: Sa
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={timbre} alt="Timbre electrónico SII (código PDF417)" className="h-auto w-[8cm] max-w-full" />
               <p className="mt-1.5 font-semibold">Timbre Electrónico SII</p>
-              <p>Verifique documento: www.sii.cl</p>
+              {enviadoAlSii ? <p>Verifique documento: www.sii.cl</p> : <p>Pendiente de envío al SII</p>}
             </>
           ) : tributario && doc.status === 'ISSUED' ? (
             <p className="rounded-md border border-dashed border-neutral-400 px-3 py-2 text-left text-neutral-600">

@@ -1,8 +1,11 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, ClipboardList, FileCheck2 } from 'lucide-react';
+import { ArrowLeft, ClipboardList, FileCheck2, FilePen, Undo2 } from 'lucide-react';
 import { getSalesDocumentAction } from '@/modules/sales/actions/sales.actions';
 import { isBoleta, isDte } from '@/lib/chile/dte/codes';
+import { getAuthContext, can } from '@/lib/auth/guards';
+import { isSubmittedToSii } from '@/modules/sales/cancellation';
+import { CREDITABLE_DTE_TYPES } from '@/modules/sales/schema';
 import PrintButton from '@/components/PrintButton';
 import SalesDocumentPaper from '@/components/sales/SalesDocumentPaper';
 import { buttonVariants } from '@/components/ui/button';
@@ -33,6 +36,11 @@ export default async function SalesDocumentDetailPage({
   // Copia cedible: facturas y guías, nunca boletas ni cotizaciones.
   const admiteCedible = tributario && !isBoleta(doc.dteType) && doc.dteType !== 'NOTA_CREDITO_61' && doc.dteType !== 'NOTA_DEBITO_56';
   const esCedible = admiteCedible && cedible === '1';
+  const context = await getAuthContext();
+  const canWrite = can(context, 'sales:write');
+  const puedeAcreditar = canWrite && doc.status === 'ISSUED' && doc.folio !== null && CREDITABLE_DTE_TYPES.has(doc.dteType);
+  // Timbrado con folio del SII pero sin envío: Aether todavía no despacha al SII.
+  const timbradoSinEnviar = doc.status === 'ISSUED' && Boolean(doc.tedXml) && !isSubmittedToSii(doc);
 
   return (
     <div className="space-y-5">
@@ -59,6 +67,16 @@ export default async function SalesDocumentDetailPage({
               <ClipboardList aria-hidden="true" /> Convertir en nota de venta
             </Link>
           )}
+          {doc.status === 'DRAFT' && canWrite && (
+            <Link href={`/dashboard/sales/new?borrador=${doc.id}`} className={buttonVariants()}>
+              <FilePen aria-hidden="true" /> Continuar y emitir
+            </Link>
+          )}
+          {puedeAcreditar && (
+            <Link href={`/dashboard/sales/new?corrige=${doc.id}`} className={buttonVariants({ variant: 'outline' })}>
+              <Undo2 aria-hidden="true" /> Emitir nota de crédito
+            </Link>
+          )}
           {doc.salesOrderId && (
             <Link href={`/dashboard/sales/orders/${doc.salesOrderId}`} className={buttonVariants({ variant: 'outline' })}>
               <ClipboardList aria-hidden="true" /> Ver nota de venta
@@ -73,6 +91,14 @@ export default async function SalesDocumentDetailPage({
           Borrador: no es un documento tributario válido hasta que se emita.
         </p>
       )}
+      {timbradoSinEnviar && (
+        <p className="mx-auto max-w-[210mm] rounded-lg border border-warning/30 bg-warning-soft px-4 py-3 text-sm text-warning print:hidden">
+          <span className="font-semibold">Timbrado, pero aún no enviado al SII.</span> Aether todavía no envía documentos al SII:
+          hasta que se envíe, el SII no lo conoce y tu cliente no podrá verificarlo en sii.cl. Consulta con tu contador cómo
+          informarlo.
+        </p>
+      )}
+
       {doc.status === 'CANCELLED' && (
         <p className="mx-auto max-w-[210mm] rounded-lg border border-danger/30 bg-danger-soft px-4 py-3 text-sm font-medium text-danger print:hidden">
           Documento anulado.

@@ -151,3 +151,25 @@ Los problemas que más pueden perjudicar a un usuario sin experiencia son:
 | 4 | M5–M8, B1–B3 | Pulido y consistencia |
 
 Cada cambio de las etapas 1 y 2 toca ventas, POS o inventario: deben pasar `npm run ci` y la revisión de `chile-tax-dte-specialist` antes de publicarse.
+
+---
+
+## Estado al 28-10-2026
+
+| Hallazgo | Estado | Qué se hizo |
+|---|---|---|
+| C1 | ✅ Corregido | El papel timbrado dice «Pendiente de envío al SII» mientras no haya envío (`SalesDocumentPaper.tsx`), y el detalle muestra un aviso para el equipo. |
+| C2 | ✅ Corregido | Sin timbre, el ticket del POS se titula «COMPROBANTE DE VENTA — Sin validez tributaria: no es boleta»; timbrado, «BOLETA ELECTRÓNICA — Timbrada. Pendiente de envío al SII» (`src/lib/pos/ticket.ts`, `ticketHeading`). |
+| C3 | ✅ Corregido | La forma de pago no viene elegida; si el cliente tiene días de crédito se propone «Crédito»; debajo se explica si quedará pagada o pendiente. |
+| A1 | ✅ Corregido | «Continuar y emitir» en el historial y en el detalle. El documento nuevo reemplaza al borrador en la misma transacción (`replacesDraftId`); dos emisiones del mismo borrador no pasan. |
+| A2 | ✅ Corregido | «Nota de crédito» en el historial y «Emitir nota de crédito» en el detalle: precarga cliente (fijo), folio, tipo de referencia y líneas. |
+| A3 | ✅ Corregido | Sin «Salida por venta» (también rechazada en el servidor), parte en «Entrada por ajuste», cada tipo explica qué hace y la salida por ajuste exige motivo (lista de la bodega móvil). |
+| A4 | ✅ Corregido | La confirmación muestra documento, cliente, total, forma de pago y bodega, y si quedará pagada o pendiente. |
+| A5 | 🟡 Parcial | El formulario de venta lista todos los problemas juntos arriba (no solo el primero). Falta marcar cada campo. |
+| A6 | 🟡 Parcial | Aviso 10 minutos antes del cierre y otro al cerrar, con «Volver a ingresar». No conserva el formulario a medio llenar. |
+| M2 | 🟡 Parcial | «Controlar el stock de este producto», unidades con nombre, explicación de «Exento de IVA». Queda: SKU automático y «PMP» en Compras. |
+| M3 | 🟡 Parcial | Un clic fuera ya no la descarta para siempre, el texto apunta al «Asistente» de la barra superior y no se pierde una bodega escrita. Queda: la lista de «Primeros pasos». |
+| M4 | 🟡 Parcial | Con 0 productos, Inicio dice «Todavía no tienes productos». Queda: la venta mensual de empresas que solo usan el POS. |
+| M1, M5–M8, B1–B3 | ⏳ Pendiente | — |
+
+Pruebas nuevas: `tests/sales-draft-and-manual-stock.test.ts` (borradores, forma de pago obligatoria, movimiento manual, aviso de sesión) y casos nuevos en `tests/pos-hardware.test.ts` (título del ticket).

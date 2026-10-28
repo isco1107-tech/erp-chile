@@ -54,8 +54,9 @@ export const INVENTARIO_SECTIONS: ManualSection[] = [
         route: '/dashboard/inventory',
         steps: [
           'En Inventario haz clic en "Ajuste de Stock / Entrada Directa".',
-          'Elige el tipo: Entrada por Ajuste, Salida por Ajuste o Transferencia entre Bodegas (con Multibodega).',
-          'Elige producto, bodega, cantidad y costo unitario (en las entradas), y escribe la referencia y el motivo real (merma, error de conteo, etc.).',
+          'Elige el tipo: "Entrada por ajuste (sobrante, stock inicial)", "Salida por ajuste (merma, vencido, pérdida)", "Traslado entre bodegas" (con Multibodega) o "Entrada de mercadería comprada (sin factura)". Debajo del tipo se explica qué hace cada uno.',
+          'Elige producto, bodega, cantidad y costo unitario (en las entradas), y escribe la referencia. En una salida elige el "Motivo de la salida"; con "Otro motivo" cuenta en las notas qué pasó.',
+          'Las ventas no se registran aquí: salen de Ventas o del Punto de Venta. Si tienes la factura del proveedor, regístrala en Compras para que quede la deuda y el IVA.',
           'Con Multibodega, "+ Bodega" crea una bodega nueva con nombre y código.',
         ],
         tip: 'Nunca edites el producto para "arreglar" el stock: corrige siempre con un ajuste, que queda en el Kardex y en Auditoría.',

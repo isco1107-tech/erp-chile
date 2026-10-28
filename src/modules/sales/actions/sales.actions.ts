@@ -114,7 +114,13 @@ export async function createSalesDocumentAction(
       action: status === 'ISSUED' ? 'ISSUE_DTE' : 'CREATE',
       entity: 'SalesDocument',
       entityId: data.id,
-      metadata: { dteType: data.dteType, folio: data.folio, totalAmount: data.totalAmount, status: data.status },
+      metadata: {
+        dteType: data.dteType,
+        folio: data.folio,
+        totalAmount: data.totalAmount,
+        status: data.status,
+        ...(parsed.data.replacesDraftId ? { replacedDraftId: parsed.data.replacesDraftId } : {}),
+      },
     });
     revalidatePath('/dashboard/sales');
     revalidatePath('/dashboard/inventory');
