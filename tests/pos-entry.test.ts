@@ -140,3 +140,15 @@ describe('sesión de cajero conserva el terminal elegido', () => {
     expect(response.cookies.get(ERP_ENTRY_COOKIE)?.value).toBe('pos');
   });
 });
+
+describe('cada persona vuelve a la app que estaba usando', () => {
+  it.each([
+    ['/bodega', 'bodega'], ['/bodega/x', 'bodega'], ['/pos', 'pos'], ['/control', 'control'],
+    ['/dashboard', 'erp'], ['/dashboard/inventory', 'erp'],
+  ])('con sesión, %s recuerda «%s» (para el selector de empresa y el cambio de contraseña)', async (path, entry) => {
+    jest.mocked(jwtVerify).mockResolvedValue({ payload: { purpose: 'session', userId: user.id } } as never);
+    const response = await proxy(request(path, 'session=token; aether-entry=control'));
+    expect(response.cookies.get(ERP_ENTRY_COOKIE)?.value).toBe(entry);
+  });
+});
+

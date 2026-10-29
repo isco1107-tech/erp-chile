@@ -102,6 +102,8 @@ export interface MobileSupplier {
 export interface BootstrapResponse {
   user: { id: string; name: string; roleLabel: string };
   company: { id: string; name: string };
+  /** Trabaja en más de una empresa con la misma cuenta: el menú ofrece «Cambiar de empresa». Opcional: un arranque guardado antes no lo trae. */
+  multiCompany?: boolean;
   warehouses: Array<{ id: string; name: string; code: string; isDefault: boolean }>;
   categories: Array<{ id: string; name: string }>;
   suppliers: MobileSupplier[];

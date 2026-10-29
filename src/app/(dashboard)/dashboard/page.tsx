@@ -29,6 +29,8 @@ import { getAuthContext, can } from '@/lib/auth/guards';
 import { MODULES } from '@/lib/auth/modules';
 import { prisma } from '@/lib/prisma';
 import { exportAccess } from '@/lib/exports/access';
+import { firstSteps, firstStepsPending, type FirstStep } from '@/lib/onboarding/first-steps';
+import FirstStepsCard from '@/components/dashboard/FirstStepsCard';
 import { formatCurrency } from '@/lib/chile/tax';
 import { addMonthsSantiago, santiagoDateParts, startOfMonthSantiago, startOfTodaySantiago, startOfTomorrowSantiago } from '@/lib/chile/timezone';
 import { KpiCard, type TrendDirection } from '@/components/ui/KpiCard';
@@ -195,6 +197,28 @@ export default async function DashboardPage() {
   // aviso hoy es el correo automático al cliente/candidata, ver
   // `overdue-reminder-cron.service.ts`) — el dashboard principal solo
   // miraba ventas/inventario.
+  // «Primeros pasos»: solo para quien configura la empresa, y solo mientras quede algo pendiente.
+  let onboardingSteps: FirstStep[] = [];
+  if (can(context, 'settings:company')) {
+    const [company, pricedProducts, issuedSales, cafs, users, invitations] = await Promise.all([
+      prisma.company.findUnique({ where: { id: context.companyId }, select: { address: true, giro: true, comuna: true } }),
+      context.features.hasInventory ? prisma.product.count({ where: { companyId: context.companyId, isActive: true, netPrice: { gt: 0 } } }) : Promise.resolve(0),
+      prisma.salesDocument.count({ where: { companyId: context.companyId, status: 'ISSUED' } }),
+      context.features.hasDteBilling ? prisma.dteCaf.count({ where: { companyId: context.companyId } }) : Promise.resolve(0),
+      prisma.user.count({ where: { companyId: context.companyId, id: { not: context.id } } }),
+      prisma.invitation.count({ where: { companyId: context.companyId } }),
+    ]);
+    const steps = firstSteps({
+      features: { hasInventory: context.features.hasInventory, hasPos: context.features.hasPos, hasDteBilling: context.features.hasDteBilling },
+      company: { address: company?.address ?? null, giro: company?.giro ?? null, comuna: company?.comuna ?? null },
+      pricedProducts,
+      issuedSales,
+      cafs,
+      teammates: users + invitations,
+    });
+    if (firstStepsPending(steps) > 0) onboardingSteps = steps;
+  }
+
   // Productos activos sin precio de venta: los crea así la bodega móvil (el bodeguero no sabe el precio) y,
   // hasta que alguien se lo pone, ni el POS ni la tienda pueden venderlos.
   const unpricedProducts = canReadInventory && can(context, 'products:write') && context.features.hasInventory
@@ -583,8 +607,8 @@ export default async function DashboardPage() {
     suggestedAction = {
       title: unpricedCount === 1 ? 'Un producto no tiene precio de venta' : `${unpricedCount} productos no tienen precio de venta`,
       description: `${names}${unpricedCount > unpricedProducts.length ? ' y otros' : ''}. Mientras no tengan precio no se pueden vender en caja ni en la tienda.`,
-      actionLabel: 'Ponerle precio',
-      href: `/dashboard/products?edit=${unpricedProducts[0].id}`,
+      actionLabel: unpricedCount === 1 ? 'Ponerle precio' : 'Ver productos sin precio',
+      href: unpricedCount === 1 ? `/dashboard/products?edit=${unpricedProducts[0].id}` : '/dashboard/products?sinPrecio=1',
       icon: PackagePlus,
     };
   } else if (criticalStockAll.length > 0 && hasInventoryModule && can(context, 'inventory:write')) {
@@ -673,6 +697,8 @@ export default async function DashboardPage() {
           </p>
         </div>
       </div>
+
+      {onboardingSteps.length > 0 && <FirstStepsCard steps={onboardingSteps} userId={context.id} />}
 
       {/* Alertas de hoy: mismo dato que el correo diario, en vivo — ver
           `todayAlerts` más arriba. Ausente por completo si no hay nada que

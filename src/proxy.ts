@@ -264,6 +264,11 @@ export async function proxy(req: NextRequest) {
     const response = NextResponse.next();
     if (pathname === '/control' || pathname.startsWith('/control/')) response.cookies.set(ERP_ENTRY_COOKIE,'control',ERP_ENTRY_COOKIE_OPTIONS);
     if (pathname === '/pos' || pathname.startsWith('/pos/')) response.cookies.set(ERP_ENTRY_COOKIE, 'pos', ERP_ENTRY_COOKIE_OPTIONS);
+    // Igual que POS y Control: quien abre la Bodega con la sesión ya iniciada vuelve a ella tras elegir empresa.
+    if (pathname === '/bodega' || pathname.startsWith('/bodega/')) response.cookies.set(ERP_ENTRY_COOKIE, 'bodega', ERP_ENTRY_COOKIE_OPTIONS);
+    // Y quien vuelve al panel vuelve a ser «del ERP»: cambiar de empresa desde la barra lateral no debe
+    // mandarlo a la última app que abrió en este navegador (Control, POS o Bodega).
+    if (pathname === '/dashboard' || pathname.startsWith('/dashboard/')) response.cookies.set(ERP_ENTRY_COOKIE, 'erp', ERP_ENTRY_COOKIE_OPTIONS);
     return response;
   } catch {
     const loginUrl = new URL(pathname === '/bodega' || pathname.startsWith('/bodega/') ? '/bodega/ingresar' : pathname === '/pos' || pathname.startsWith('/pos/') ? '/pos/ingresar' : pathname === '/control' || pathname.startsWith('/control/') ? '/control/ingresar' : '/login', req.url);

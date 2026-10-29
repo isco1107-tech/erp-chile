@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import type { ControlSnapshot } from '@/modules/control/service';
 import { formatCurrency } from '@/lib/chile/tax';
+import { santiagoDateTimeLabel, santiagoTimeLabel } from '@/lib/chile/timezone';
 import InstallApplication from './InstallApplication';
 import { useOnline } from './useOnline';
 const sections = [
@@ -85,13 +86,7 @@ export default function ControlDashboard() {
       document.removeEventListener('visibilitychange', resume);
     };
   }, [refresh]);
-  const clock = (at: string) =>
-    new Date(at).toLocaleTimeString('es-CL', {
-      timeZone: 'America/Santiago',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
+  const clock = (at: string) => santiagoTimeLabel(new Date(at));
   const metrics = data
     ? [
         {
@@ -274,9 +269,7 @@ export default function ControlDashboard() {
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
                   Abierta{' '}
-                  {new Date(register.openedAt).toLocaleString('es-CL', {
-                    timeZone: 'America/Santiago',
-                  })}
+                  {santiagoDateTimeLabel(new Date(register.openedAt))}
                 </p>
               </article>
             ))}
@@ -376,9 +369,7 @@ export default function ControlDashboard() {
                     className="text-xs text-muted-foreground"
                     dateTime={event.at}
                   >
-                    {new Date(event.at).toLocaleString('es-CL', {
-                      timeZone: 'America/Santiago',
-                    })}
+                    {santiagoDateTimeLabel(new Date(event.at))}
                   </time>
                 </div>
                 <p className="mt-1 break-words text-xs text-muted-foreground">

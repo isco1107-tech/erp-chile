@@ -10,6 +10,7 @@ import type { RecentOp } from '@/modules/warehouse-mobile/types';
 import { useConfirm } from '@/components/ui/confirm-provider';
 import { useBodega } from './BodegaProvider';
 import { BigButton, Pill, Spinner, formatQty } from './ui';
+import { santiagoClockLabel, santiagoDateTimeLabel } from '@/lib/chile/timezone';
 
 /**
  * Lo que se mandó (o está por mandarse) desde este teléfono. Es la respuesta a
@@ -18,7 +19,7 @@ import { BigButton, Pill, Spinner, formatQty } from './ui';
  */
 
 function clock(timestamp: number): string {
-  return new Date(timestamp).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Santiago' });
+  return santiagoClockLabel(new Date(timestamp));
 }
 
 function describe(entry: OutboxEntry): string {
@@ -207,7 +208,7 @@ export default function OutboxScreen({ onBack }: { onBack: () => void }) {
                     <p className="text-base font-medium break-words">{item.name}</p>
                     <p className="text-sm text-muted-foreground">
                       {MODE_DEFINITIONS[item.mode].label} · {formatQty(item.quantity)} {item.unit} ·{' '}
-                      {new Date(item.createdAt).toLocaleString('es-CL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'America/Santiago' })}
+                      {santiagoDateTimeLabel(new Date(item.createdAt))}
                     </p>
                   </li>
                 ))}

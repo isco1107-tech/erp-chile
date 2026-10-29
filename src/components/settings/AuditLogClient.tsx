@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { listAuditLogsAction } from '@/lib/actions/audit';
 import { ACTION_LABELS, ACTION_BADGE_CLASS } from '@/lib/auth/audit-labels';
+import { santiagoDateTimeLabel } from '@/lib/chile/timezone';
 
 const ACTIONS: AuditAction[] = ['CREATE', 'UPDATE', 'DELETE', 'ISSUE_DTE', 'CANCEL_DTE', 'STOCK_ADJUSTMENT', 'EXPORT'];
 
@@ -114,7 +115,7 @@ export default function AuditLogClient() {
             )}
             {!loading && logs.map((log) => (
               <tr key={log.id} className="border-t border-border">
-                <td className="p-2">{new Date(log.createdAt).toLocaleString('es-CL')}</td>
+                <td className="p-2">{santiagoDateTimeLabel(new Date(log.createdAt))}</td>
                 <td className="p-2">{log.userEmail}</td>
                 <td className="p-2">
                   <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${ACTION_BADGE_CLASS[log.action]}`}>
@@ -138,7 +139,7 @@ export default function AuditLogClient() {
           <DialogHeader>
             <DialogTitle>Detalle del evento</DialogTitle>
             <DialogDescription>
-              {selectedLog && `${selectedLog.entity} #${selectedLog.entityId} — ${new Date(selectedLog.createdAt).toLocaleString('es-CL')}`}
+              {selectedLog && `${selectedLog.entity} #${selectedLog.entityId} — ${santiagoDateTimeLabel(new Date(selectedLog.createdAt))}`}
             </DialogDescription>
           </DialogHeader>
           <pre className="max-h-96 overflow-auto rounded-lg bg-muted p-3 text-xs">{metadataPreview}</pre>

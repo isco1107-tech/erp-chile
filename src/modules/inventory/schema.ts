@@ -24,7 +24,8 @@ export const UNIT_LABELS: Record<(typeof UNITS)[number], string> = {
 };
 
 export const productCreateSchema = z.object({
-  sku: z.string().min(1, 'El SKU es obligatorio'),
+  /** Vacío = el sistema asigna el siguiente libre (`PRD-000123`), igual que la bodega móvil. */
+  sku: z.string().trim(),
   name: z.string().min(2, 'El nombre es obligatorio'),
   description: z.string().optional(),
   categoryId: z.string().optional(),
@@ -51,7 +52,10 @@ export const productCreateSchema = z.object({
   consignmentCommissionBps: commissionBpsSchema.nullable().optional(),
 });
 
-export const productUpdateSchema = productCreateSchema.partial();
+// Al editar, el SKU puede no venir, pero si viene no puede quedar vacío (el automático es solo al crear).
+export const productUpdateSchema = productCreateSchema.partial().extend({
+  sku: z.string().trim().min(1, 'El SKU no puede quedar vacío').optional(),
+});
 
 export type ProductCreateInput = z.infer<typeof productCreateSchema>;
 export type ProductUpdateInput = z.infer<typeof productUpdateSchema>;

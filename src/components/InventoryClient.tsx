@@ -21,6 +21,7 @@ import { formatCurrency } from '@/lib/chile/tax';
 import type { KardexRow } from '@/modules/inventory/services/stock.service';
 import { InfoTooltip } from '@/components/ui/InfoTooltip';
 import { TAX_GLOSSARY } from '@/lib/chile/glossary';
+import { santiagoDateTimeLabel } from '@/lib/chile/timezone';
 
 const MOVEMENT_LABELS: Record<InventoryMovement['type'], string> = {
   PURCHASE_IN: 'Entrada por Compra',
@@ -305,7 +306,7 @@ export default function InventoryClient() {
                 )}
                 {!loadingMovements && movements.map((m) => (
                   <tr key={m.id} className="border-t border-border">
-                    <td className="p-2">{new Date(m.createdAt).toLocaleString('es-CL')}</td>
+                    <td className="p-2">{santiagoDateTimeLabel(new Date(m.createdAt))}</td>
                     <td className="p-2">{MOVEMENT_LABELS[m.type]}</td>
                     <td className="p-2">{m.quantity}</td>
                     <td className="p-2">{formatCurrency(m.unitCost)}</td>

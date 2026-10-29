@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -30,6 +31,8 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
  */
 export default function HardwareDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const hardware = usePosHardware();
+  const pathname = usePathname();
+  const insidePosApp = pathname === '/pos' || pathname.startsWith('/pos/');
   const { config, update } = hardware;
   const [busy, setBusy] = useState<'pair' | 'drawer' | 'print' | null>(null);
   const direct = hardware.direct;
@@ -79,7 +82,16 @@ export default function HardwareDialog({ open, onClose }: { open: boolean; onClo
               <div className="mt-2 space-y-2 rounded-lg bg-muted p-3">
                 {config.mode === 'serial' && !hardware.supports.serial && <p role="alert" className="text-xs font-medium text-destructive">Este navegador no permite puerto serie. Usa Chrome o Edge, o la impresora del sistema.</p>}
                 {config.mode === 'usb' && !hardware.supports.usb && <p role="alert" className="text-xs font-medium text-destructive">Este navegador no permite USB directo. Usa Chrome o Edge, o la impresora del sistema.</p>}
-                {config.mode === 'usb' && <p className="text-xs text-muted-foreground">En Windows, el USB directo solo funciona si la impresora tiene el controlador genérico WinUSB; con el controlador del fabricante usa «Impresora del sistema». Se abre desde el POS independiente (/pos).</p>}
+                {config.mode === 'usb' && <p className="text-xs text-muted-foreground">En Windows, el USB directo solo funciona si la impresora tiene el controlador genérico WinUSB; con el controlador del fabricante usa «Impresora del sistema».</p>}
+                {/* El permiso de USB solo existe en el POS independiente (`/pos`, ver next.config.js): dentro del ERP el navegador lo bloquea. */}
+                {config.mode === 'usb' && !insidePosApp && (
+                  <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warning/30 bg-warning-soft p-2 text-xs text-warning">
+                    <p className="min-w-0 flex-1">Dentro del ERP el navegador no deja usar USB directo. Abre el POS independiente: es el mismo turno (las ventas en espera también se conservan).</p>
+                    {/* Carga completa a propósito: el permiso de USB llega con el documento nuevo de `/pos`. */}
+                    {/* eslint-disable-next-line @next/next/no-location-assign-relative-destination */}
+                    <Button type="button" size="sm" variant="outline" onClick={() => window.location.assign('/pos')}>Abrir el POS independiente</Button>
+                  </div>
+                )}
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-sm">
                     {config.device.vendorId !== undefined

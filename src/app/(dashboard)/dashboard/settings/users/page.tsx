@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { buttonVariants } from '@/components/ui/button';
 import TeamClient from '@/components/settings/TeamClient';
 import { can, getAuthContext } from '@/lib/auth/guards';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 export const metadata = { title: 'Equipo & Colaboradores' };
 
@@ -11,10 +12,11 @@ export default async function TeamSettingsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold" data-tutorial="module-header">Equipo & Colaboradores</h1>
-        <Link href="/dashboard/settings" className={buttonVariants({ variant: 'outline' })}>← Volver</Link>
-      </div>
+      <PageHeader
+        eyebrow="Configuración"
+        title="Equipo & Colaboradores"
+        actions={<Link href="/dashboard/settings" className={buttonVariants({ variant: 'outline' })}>← Volver</Link>}
+      />
 
       {!allowed && (
         <p className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">

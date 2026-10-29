@@ -439,6 +439,16 @@ describeDb('app del bodeguero contra PostgreSQL', () => {
       for (const [r] of results) expect(['APPLIED', 'RETRY']).toContain(r?.status);
     });
 
+    it('la ficha de producto del ERP sin SKU usa la misma numeración que la bodega', async () => {
+      const { createProduct } = await import('@/modules/inventory/services/products.service');
+      const [fromPhone] = await processOperations(actor(companyA), [{ kind: 'CREATE_PRODUCT', clientOpId: opId(), mode: 'RECEIVE', warehouseId: whA1, quantity: 1, product: { name: 'Té Supremo 20 bolsitas', unit: 'UN' } }]);
+      const fromDesk = await createProduct(companyA, { sku: '  ', name: 'Café de grano 250 g', unit: 'UN', netPrice: 3000 });
+      const phoneSku = fromPhone?.status === 'APPLIED' ? fromPhone.sku : '';
+      expect(phoneSku).toMatch(/^PRD-\d{6}$/);
+      expect(fromDesk.sku).toMatch(/^PRD-\d{6}$/);
+      expect(Number(fromDesk.sku.slice(4))).toBe(Number(phoneSku.slice(4)) + 1);
+    });
+
     it('un producto con el mismo código de barras se suma al existente en vez de duplicarse', async () => {
       const before = await stockOf(companyA, productA, whA1);
       const [result] = await processOperations(actor(companyA), [

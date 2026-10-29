@@ -21,6 +21,7 @@ import type { SiteQuota } from '@/lib/web-sites/quota';
 import { archiveWebSiteAction, deleteWebSiteAction, duplicateWebSiteAction, listWebSitesAction, unpublishWebSiteAction } from '@/modules/web-sites/actions/web-sites.actions';
 import type { WebSiteRow } from '@/modules/web-sites/services/web-sites.service';
 import WebSiteMessagesPanel from './WebSiteMessagesPanel';
+import { santiagoDateTimeLabel } from '@/lib/chile/timezone';
 
 type StatusFilter = 'ALL' | WebSiteStatus;
 
@@ -45,7 +46,7 @@ const MODE_LABEL: Record<WebSiteMode, string> = {
 const ACTION_ERROR = 'No pudimos completar la acción. Revisa tu conexión e intenta de nuevo.';
 
 function formatDateTime(value: Date | string): string {
-  return new Date(value).toLocaleString('es-CL', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'America/Santiago' });
+  return santiagoDateTimeLabel(new Date(value));
 }
 
 /** Dirección a la que abre "Ver sitio": el dominio propio solo si ya responde; si no, la de la plataforma. */

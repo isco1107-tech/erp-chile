@@ -122,3 +122,9 @@ export function santiagoTimeLabel(date: Date): string {
   const p = santiagoClockParts(date);
   return `${p.hour}:${p.minute}:${p.second}`;
 }
+
+/** `17:05` en hora de Chile (mismo cuidado que `santiagoDateTimeLabel`). */
+export function santiagoClockLabel(date: Date): string {
+  const p = santiagoClockParts(date);
+  return `${p.hour}:${p.minute}`;
+}

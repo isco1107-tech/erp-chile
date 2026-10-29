@@ -43,8 +43,9 @@ Continúa la auditoría del 27-10 (`2026-10-27-experiencia-de-uso.md`), que se c
 | Contra Postgres real (las 20 `*-db.test.ts`) | ✅ 346 pasan, 0 fallan | ✅ 347 pasan, 0 fallan |
 | Recorridos de punta a punta (Playwright, app compilada) | ✅ 223 pasan | ✅ 223 pasan (con un turno de caja abierto: ver el error #418 en §3) |
 | Tipos (`tsc`), lint, `prisma validate` | ✅ | ✅ (lint: 0 errores; las advertencias ya existían) |
+| **Segunda pasada** (pendientes, sección 5) | — | ✅ 4.105 unitarias · 349 contra Postgres · 223 e2e, 0 fallas |
 
-**Ojo:** que todo pase no significaba que la operación estuviera lista. Las pruebas no tenían escritos los casos que una persona real produce el primer día: escribir «50.000» con punto, vender un producto que llegó sin precio por la bodega, abrir el POS con un turno ya abierto o una empresa que vende solo por caja. El recorrido «como persona» encontró todos los problemas de la sección 3.
+**Ojo:** que todo pase no significaba que la operación estuviera lista. Las pruebas no tenían escritos los casos que una persona real produce el primer día: escribir «50.000» con punto, vender un producto que llegó sin precio por la bodega, abrir el POS con un turno ya abierto o una empresa que vende solo por caja. El recorrido «como persona» encontró todos los problemas de la sección 3. En la segunda pasada, los e2e encontraron uno más: con Mensajería apagada, su pantalla respondía «página no encontrada» (y un error de React #419); ahora explica qué falta, como el resto.
 
 ---
 
@@ -121,15 +122,22 @@ Cada fila es una persona real en su día de trabajo. ✅ = funciona bien; ⚠️
 
 ---
 
-## 5. Lo que queda pendiente (no se tocó)
+## 5. Pendientes: estado al cierre de la segunda pasada (29-10)
 
-Ordenados por impacto en la operación diaria:
-
-1. **Productos sin precio desde la Bodega**: hoy se avisa en Inicio y el POS los bloquea. Faltaría un filtro «sin precio» en el catálogo y que la tienda en línea los oculte explícitamente (revisar `store`).
-2. **La guía «Cómo usar» se abre sola en cada pantalla nueva** (6 pasos). Para alguien que trabaja todo el día es cansador en el celular. Propuesta: preguntar una sola vez «¿Quieres que te guiemos?» y no abrirla sola en celulares.
-3. **POS dentro del ERP (`/dashboard/pos`)**: ahí no funciona el USB directo (la política del documento solo lo abre en `/pos`); el diálogo lo dice en texto. Mejor un botón «Abrir el POS independiente».
-4. **Bodega para quien trabaja en varias empresas**: no tiene «Cambiar de empresa» (hay que cerrar sesión). El POS ya lo tiene.
-5. **Control** pide la cuenta del dueño (`OWNER`); un gerente con permisos de administración no puede usarlo. Es una decisión de producto.
-6. Pendientes de la auditoría anterior que siguen abiertos: A5 (marcar cada campo con error en el formulario de venta), A6 (conservar el formulario a medio llenar al vencer la sesión), M3 («Primeros pasos» en Inicio), M8 (menús por rol), B1 (fechas con `toLocaleString` en componentes de cliente), B2 (encabezados), B3 (motivo de «Anular» deshabilitado solo en `title`).
-7. **Hardware real**: cajón e impresora siguen probados solo con dispositivos simulados (ADR 0012). Antes de vender el POS a un cliente: «Probar el cajón» e «Imprimir hoja de prueba» con el equipo real.
-8. **Webpay Plus** sigue sin probarse con credenciales de integración de Transbank (ADR 0007).
+| # | Pendiente | Estado | Qué se hizo |
+|---|---|---|---|
+| 1 | Productos sin precio | ✅ | Filtro «Solo sin precio» en el Catálogo (`?sinPrecio=1`, el aviso de Inicio lleva ahí). La tienda en línea no deja **publicar** un producto sin precio y el pago rechaza uno que lo perdió después («no está disponible por ahora»), con prueba contra Postgres. Manual: «Poner precio a los productos que llegaron sin precio». |
+| 2 | La guía «Cómo usar» se abre sola en todas partes | ✅ | En el celular ya no se abre sola. En el computador, quien la omite en el primer paso de 3 pantallas deja de verla sola (aviso «No volveremos a abrir guías solas»). Sigue en «Cómo usar». |
+| 3 | USB dentro del POS del ERP | ✅ | Si se elige «USB directo» en `/dashboard/pos`, el diálogo lo explica y ofrece «Abrir el POS independiente» (el mismo turno; las ventas en espera se conservan). |
+| 4 | Bodega con varias empresas | ✅ | «Cambiar de empresa» en el menú (avisa si hay movimientos sin enviar, que quedan para cuando se vuelva). La cookie de «a qué app vuelvo» ahora también se marca al abrir `/bodega` con la sesión iniciada, y vuelve a «ERP» al navegar por `/dashboard`: antes, cambiar de empresa desde la barra lateral podía mandar al dueño a Control o al POS si los había abierto en ese navegador. |
+| 5 | Control solo para el dueño | ⏸️ Decisión de producto | Sin cambios: abrirlo a administradores expone cifras de dirección. Si se decide, basta cambiar la condición `role === 'OWNER'` en `control/(app)/page.tsx` y `api/control/route.ts`. |
+| 6 | A5 errores por campo en Ventas | ✅ | Cada campo con problema queda marcado en rojo con su mensaje (cliente, bodega, forma de pago, referencia y cada línea), además de la lista de arriba. |
+| 6 | A6 formulario al vencer la sesión | ✅ | «Volver a ingresar» abre el ingreso en **otra pestaña**: la pantalla con el formulario a medio llenar queda intacta; se vuelve y se guarda. Si el navegador bloquea la pestaña, se ingresa en la misma. |
+| 6 | M3 «Primeros pasos» | ✅ | Tarjeta en Inicio para quien configura la empresa: datos de la empresa, primer producto **con precio**, primera venta, folios del SII (con Facturación) y equipo. Cada paso se marca solo con datos reales; desaparece al completar y se puede «Ocultar». La guía de configuración sigue para empresas recién creadas. |
+| 6 | M8 menús por rol | ⏸️ Decisión de producto | La empresa ya puede apagar ítems del menú (Configuración → Módulos y menú) y cada rol solo ve lo que su permiso permite. Menús por rol (cajero, bodeguero, contador) requieren definir qué ve cada uno. |
+| 6 | B1 fechas con `toLocaleString` | ✅ | Las horas de los componentes de cliente (auditoría, sesiones, mensajería, acreditación, automatizaciones, Control, Bodega, sitios web, calidad, protección de datos y más) pasan a `santiagoDateTimeLabel`/`santiagoTimeLabel`/`santiagoClockLabel` (hora de Chile, 24 h). Una prueba recorre todos los componentes de cliente y falla si vuelve a aparecer una hora con «a. m./p. m.». |
+| 6 | B2 encabezados | 🟡 Parcial | `PageHeader` en Ventas, Nueva venta, Compras, Registrar factura de proveedor, Clientes & Proveedores, Catálogo de Productos, Perfil de Empresa y Equipo. Quedan ~45 pantallas de eventos, RR. HH. y configuración. |
+| 6 | B3 motivo de «Anular» | ✅ | Ya estaba resuelto (texto visible en vez de `title`). |
+| — | M2 jerga | ✅ | SKU vacío = automático (`PRD-000123`, la MISMA numeración y candado de la bodega móvil, prueba contra Postgres); «costo PMP» → «costo promedio» en Compras; precio unitario de Ventas y costo de Compras aceptan «12.990». |
+| 7 | Hardware real | ⏳ | Requiere el equipo físico. |
+| 8 | Webpay Plus | ⏳ | Requiere credenciales de integración de Transbank. |

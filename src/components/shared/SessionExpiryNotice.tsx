@@ -41,10 +41,22 @@ export default function SessionExpiryNotice({
       window.setTimeout(() => {
         toast.error('Tu sesión terminó', {
           id: 'session-expiry',
-          description: 'Por seguridad la sesión dura 8 horas. Lo que no alcanzaste a guardar no se envió.',
+          description:
+            'Por seguridad la sesión dura 8 horas. Ingresa de nuevo en la pestaña que se abre y vuelve a esta: lo que estabas escribiendo sigue aquí, sin guardar. Después guárdalo o emítelo.',
           duration: Infinity,
-          // Carga completa: el POS necesita su política de permisos (USB) y el login la suya.
-          action: { label: 'Volver a ingresar', onClick: () => (loginPath === '/login' ? router.push(loginPath) : window.location.assign(loginPath)) },
+          // En otra pestaña: navegar en esta borraba el formulario a medio llenar (A6 de la auditoría del 27-10).
+          // Si el navegador bloquea la ventana nueva, se ingresa en esta misma (carga completa: el POS necesita su
+          // política de permisos de USB).
+          action: {
+            label: 'Volver a ingresar',
+            onClick: () => {
+              const opened = window.open(loginPath, '_blank');
+              if (!opened) {
+                if (loginPath === '/login') router.push(loginPath);
+                else window.location.assign(loginPath);
+              }
+            },
+          },
         });
       }, expireInMs)
     );

@@ -18,12 +18,23 @@ export const INVENTARIO_SECTIONS: ManualSection[] = [
         permission: 'products:write',
         steps: [
           'Ve a Inventario → Catálogo de Productos y haz clic en "Nuevo producto".',
-          'Completa SKU, nombre, código de barras (escanéalo), marca, categoría, unidad y precio: escribe el neto o el «Precio al público (IVA 19% incluido)» y el otro se calcula solo. Un producto sin precio no se puede vender en caja: Inicio te avisa si hay alguno.',
+          'Completa SKU (si lo dejas vacío se asigna uno: PRD-000001, PRD-000002…), nombre, código de barras (escanéalo), marca, categoría, unidad y precio: escribe el neto o el «Precio al público (IVA 19% incluido)» y el otro se calcula solo. Un producto sin precio no se puede vender en caja: Inicio te avisa si hay alguno.',
           'Marca si es exento de IVA: sus líneas irán al total exento, tanto en ventas como en el Punto de Venta.',
           'Opcional: stock mínimo (para alertas), foto y "Maneja lotes y vencimiento" si necesitas trazabilidad por lote.',
           'Guarda. El stock inicial no se escribe en la ficha: se carga con una compra, una importación masiva o un ajuste de inventario.',
         ],
         tip: 'Para cargar muchos productos de una vez usa Configuración → Importación Masiva con la plantilla Excel.',
+      },
+      {
+        id: 'productos-sin-precio',
+        title: 'Poner precio a los productos que llegaron sin precio',
+        permission: 'products:write',
+        steps: [
+          'Los productos nuevos que crea la bodega móvil quedan sin precio de venta: no se pueden vender en caja ni publicar en la tienda hasta que tengan uno.',
+          'En Inicio aparece el aviso «N productos no tienen precio de venta»: haz clic en "Ver productos sin precio" (o en "Ponerle precio" si es uno solo).',
+          'También puedes ir a Inventario → Catálogo de Productos y marcar "Solo sin precio".',
+          'Abre cada producto con "Editar", escribe el precio neto o el precio al público y guarda.',
+        ],
       },
       {
         id: 'eliminar-archivar-producto',

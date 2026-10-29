@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { BookOpen, MessageCircleQuestion } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { findHintForPath, type ManualHint } from '@/modules/manual/hints';
@@ -45,6 +46,40 @@ function disableAutoOpen(userId: string): void {
   } catch {
     // Sin storage, se volverán a ofrecer: degradación aceptable.
   }
+}
+
+/**
+ * Quien cierra la guía en el primer paso de varias pantallas no la quiere: después de
+ * `SKIPS_BEFORE_STOP` se dejan de abrir solas (siguen en «Cómo usar»). Antes aparecía una guía
+ * de 4 a 6 pasos en cada pantalla nueva, también a quien trabaja todo el día en el sistema.
+ */
+const SKIPS_BEFORE_STOP = 3;
+
+function skipKey(userId: string): string {
+  return `tutorial-skips:${userId}`;
+}
+
+/** Suma un «Omitir» en el primer paso; devuelve true si con este ya no se abren solas. */
+function countSkip(userId: string): boolean {
+  try {
+    const skips = Number(window.localStorage.getItem(skipKey(userId)) ?? '0') + 1;
+    window.localStorage.setItem(skipKey(userId), String(skips));
+    if (skips >= SKIPS_BEFORE_STOP) {
+      disableAutoOpen(userId);
+      return true;
+    }
+  } catch {
+    // Sin storage no se cuenta: degradación aceptable.
+  }
+  return false;
+}
+
+/**
+ * En el celular la guía tapa casi toda la pantalla y se usa para tareas cortas (consultar,
+ * aprobar): ahí no se abre sola. El botón «Cómo usar» la sigue mostrando.
+ */
+function isSmallScreen(): boolean {
+  return typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 767px)').matches;
 }
 
 function hasSeen(userId: string, moduleKey: string): boolean {
@@ -151,7 +186,7 @@ export default function ModuleTutorial({ userId, manualHints }: ModuleTutorialPr
     // tapaba el aviso y explicaba botones que no existen. Tampoco se marca vista, así aparece el día que
     // la persona sí pueda usarla. Se mira en el siguiente cuadro, cuando la página nueva ya está montada.
     const frame = requestAnimationFrame(() => {
-      if (document.querySelector('[data-access-locked]')) {
+      if (isSmallScreen() || document.querySelector('[data-access-locked]')) {
         setOpen(false);
         return;
       }
@@ -177,6 +212,14 @@ export default function ModuleTutorial({ userId, manualHints }: ModuleTutorialPr
     if (moduleKey) markSeen(userId, moduleKey);
     setOpen(false);
   }, [moduleKey, userId]);
+
+  /** «Omitir» en el primer paso cuenta como «no quiero guías»; a la tercera vez se dejan de abrir solas. */
+  const skip = useCallback(() => {
+    if (step === 0 && countSkip(userId)) {
+      toast.info('No volveremos a abrir guías solas', { description: 'Cuando quieras una, usa «Cómo usar» en la barra superior.' });
+    }
+    close();
+  }, [close, step, userId]);
 
   const current = steps[step] as Required<TutorialStep> | undefined;
   const total = steps.length;
@@ -406,7 +449,7 @@ export default function ModuleTutorial({ userId, manualHints }: ModuleTutorialPr
         </div>
 
         <div className="mt-4 flex items-center justify-between gap-2">
-          <Button type="button" variant="ghost" size="sm" onClick={close}>Omitir</Button>
+          <Button type="button" variant="ghost" size="sm" onClick={skip}>Omitir</Button>
           <div className="flex gap-2">
             {step > 0 && (
               <Button type="button" variant="outline" size="sm" onClick={prev}>Anterior</Button>

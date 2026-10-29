@@ -8,9 +8,10 @@ import { Label } from '@/components/ui/label';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { createPrivacyIncidentAction, updatePrivacyIncidentAction } from '@/modules/data-protection/actions/data-protection.actions';
 import type { PrivacyIncident } from '@prisma/client';
+import { santiagoDateTimeLabel } from '@/lib/chile/timezone';
 
 const STATUS_LABELS = { OPEN: 'Abierto', CONTAINED: 'Contenido', CLOSED: 'Cerrado' } as const;
-const dateTimeLabel = (date: Date | string) => new Date(date).toLocaleString('es-CL', { timeZone: 'America/Santiago', dateStyle: 'medium', timeStyle: 'short' });
+const dateTimeLabel = (date: Date | string) => santiagoDateTimeLabel(new Date(date));
 
 /** Qué hacer ante una vulneración: la ley exige avisar a la Agencia sin dilaciones indebidas y, si hay riesgo, a los titulares. */
 function GuidanceBox({ incident }: { incident: PrivacyIncident }) {

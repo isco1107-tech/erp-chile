@@ -11,6 +11,7 @@ import {
   rejectAgentTaskAction,
 } from '@/modules/agents/actions/agent-tasks.actions';
 import { AGENT_ROLE_LABELS, EVENT_AGENT_ROLES } from '@/modules/agents/constants';
+import { santiagoDateTimeLabel } from '@/lib/chile/timezone';
 
 const RUN_STATUS_LABEL: Record<AgentRunStatus, string> = {
   RUNNING: 'Ejecutando',
@@ -97,7 +98,7 @@ export default function AgentsClient({ roles, canRunNow }: { roles: AgentRole[];
                   >
                     {RUN_STATUS_LABEL[run.status]}
                   </span>
-                  <p className="font-mono text-xs text-muted-foreground">{new Date(run.startedAt).toLocaleString('es-CL')}</p>
+                  <p className="font-mono text-xs text-muted-foreground">{santiagoDateTimeLabel(new Date(run.startedAt))}</p>
                   <p className="text-sm text-foreground">
                     {run.status === 'FAILED' ? (run.error ?? 'Falló sin detalle') : (run.summary ?? 'Sin resumen')}
                   </p>

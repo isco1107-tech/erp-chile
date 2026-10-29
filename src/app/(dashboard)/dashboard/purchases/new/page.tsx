@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { can, getAuthContext } from '@/lib/auth/guards';
 import PurchaseDocumentForm from '@/components/PurchaseDocumentForm';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 export const metadata = { title: 'Nueva Factura de Proveedor' };
 
@@ -13,8 +14,8 @@ export default async function NewPurchaseDocumentPage() {
   if (!can(context, 'purchases:write')) redirect('/dashboard/purchases');
 
   return (
-    <div>
-      <h1 className="mb-4 text-2xl font-bold">Registrar Factura de Proveedor</h1>
+    <div className="space-y-4">
+      <PageHeader eyebrow="Compras" title="Registrar Factura de Proveedor" description="Al registrarla entra la mercadería a bodega y se actualiza el costo promedio de cada producto." />
       <PurchaseDocumentForm />
     </div>
   );

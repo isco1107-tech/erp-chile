@@ -1,4 +1,5 @@
 import { can } from '@/lib/auth/guards';
+import { listAccessibleCompanies, selectableCount } from '@/lib/auth/accessible-companies';
 import { ROLE_LABELS } from '@/lib/auth/roles';
 import { UNITS } from '@/modules/inventory/schema';
 import { MAX_OPS_PER_BATCH } from '@/modules/warehouse-mobile/schema';
@@ -15,16 +16,18 @@ import type { BootstrapResponse } from '@/modules/warehouse-mobile/types';
 export async function GET() {
   return withBodegaAuth({ permission: 'products:read' }, async (context) => {
     const canMove = can(context, 'inventory:write');
-    const [warehouses, categories, suppliers] = await Promise.all([
+    const [warehouses, categories, suppliers, companies] = await Promise.all([
       listWarehouseOptions(context.companyId),
       listCategoryOptions(context.companyId),
       // Elegir de quién llega la mercadería es parte de recibirla: no depende de poder ver Contactos.
       canMove ? listSupplierOptions(context.companyId) : Promise.resolve([]),
+      listAccessibleCompanies(context.id),
     ]);
     if (warehouses.length === 0) return fail('La empresa no tiene bodegas creadas. Pide a un administrador que cree una.', 409);
     const data: BootstrapResponse = {
       user: { id: context.id, name: context.name, roleLabel: context.customRoleName ?? ROLE_LABELS[context.role] },
       company: { id: context.companyId, name: context.companyName },
+      multiCompany: selectableCount(companies) > 1,
       warehouses,
       categories,
       suppliers,

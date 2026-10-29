@@ -7,9 +7,9 @@ import { calculateGrossPrice } from '@/lib/chile/tax';
 import { blobPathnameStartsWith, isAllowedBlobUrl } from '@/lib/security/blob-url';
 import { normalizeLotNumber, parseExpiryDate } from '@/lib/inventory/lots';
 import { MODE_DEFINITIONS, buildMovementNote, type MobileMode } from '@/lib/warehouse-mobile/modes';
-import { nextAutoSku } from '@/lib/warehouse-mobile/sku';
 import { normalizeText, scoreTextMatch, searchTermsFor } from '@/lib/warehouse-mobile/match';
 import { registerStockInTx, registerStockOutTx, registerTransferTx, type TxClient } from '@/modules/inventory/services/stock.service';
+import { nextSkuFor } from '@/modules/inventory/services/auto-sku';
 import { syncOperationSchema, type CreateProductOp, type MoveOp, type SyncOperation } from '../schema';
 import type { AppliedOpResult, MobileProduct, OpRejectCode, OpResult } from '../types';
 import { findByCode, getMobileProduct } from './catalog.service';
@@ -277,13 +277,6 @@ async function resolveCategory(tx: TxClient, companyId: string, categoryId: stri
   await tx.category.createMany({ data: [{ companyId, name: categoryName }], skipDuplicates: true });
   const created = await tx.category.findFirst({ where: { companyId, name: categoryName }, select: { id: true } });
   return created?.id;
-}
-
-async function nextSkuFor(tx: TxClient, companyId: string): Promise<string> {
-  // Un candado por empresa: dos productos nuevos a la vez no pueden tomar el mismo número.
-  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`warehouse-sku:${companyId}`}))::text AS locked`;
-  const rows = await tx.product.findMany({ where: { companyId, sku: { startsWith: 'PRD-' } }, orderBy: { sku: 'desc' }, take: 200, select: { sku: true } });
-  return nextAutoSku(rows.map((row) => row.sku));
 }
 
 async function applyCreateProduct(actor: SyncActor, op: CreateProductOp): Promise<AppliedOpResult> {

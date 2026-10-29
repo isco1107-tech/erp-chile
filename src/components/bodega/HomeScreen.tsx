@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { ArrowLeftRight, CloudUpload, LogOut, PackageMinus, PackagePlus, Plus, Search, ClipboardList, Trash2, Undo2, TriangleAlert, WifiOff, X } from 'lucide-react';
 import { MODE_DEFINITIONS, MOBILE_MODES, type MobileMode } from '@/lib/warehouse-mobile/modes';
 import { useConfirm } from '@/components/ui/confirm-provider';
@@ -36,6 +37,7 @@ interface Props {
 
 export default function HomeScreen({ onStart, onContinue, onOutbox }: Props) {
   const confirm = useConfirm();
+  const router = useRouter();
   const { boot, draft, summary, online, syncing, persistent, auth, warehouseId, setWarehouseId, logout, discardDraft } = useBodega();
   const [looking, setLooking] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -70,6 +72,19 @@ export default function HomeScreen({ onStart, onContinue, onOutbox }: Props) {
       if (!ok) return;
     }
     await logout();
+  };
+
+  // Lo pendiente queda en el teléfono, guardado por persona y empresa: se envía al volver a esta empresa.
+  const askSwitchCompany = async () => {
+    if (summary.pending > 0) {
+      const ok = await confirm({
+        title: 'Tienes movimientos sin enviar',
+        description: `Hay ${summary.pending} de ${data.company.name} guardados en este teléfono. Se enviarán cuando vuelvas a esta empresa. ¿Cambiar igual?`,
+        confirmLabel: 'Cambiar de empresa',
+      });
+      if (!ok) return;
+    }
+    router.push('/seleccionar-empresa');
   };
 
   return (
@@ -218,6 +233,11 @@ export default function HomeScreen({ onStart, onContinue, onOutbox }: Props) {
 
       <Sheet open={menu} title="Menú" onClose={() => setMenu(false)}>
         <div className="space-y-2">
+          {data.multiCompany ? (
+            <button type="button" onClick={() => void askSwitchCompany()} className="flex min-h-12 w-full items-center rounded-xl border px-4 text-left font-medium">
+              Cambiar de empresa
+            </button>
+          ) : null}
           <a href="/apps" className="flex min-h-12 items-center rounded-xl border px-4 font-medium">Centro de aplicaciones</a>
           <p className="break-words font-semibold">{data.company.name}</p>
           <p className="text-sm text-muted-foreground">

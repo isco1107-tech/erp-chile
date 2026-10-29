@@ -223,7 +223,13 @@ export default function ProductForm({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <Label htmlFor="sku">SKU</Label>
-          <Input id="sku" value={form.sku} onChange={(e) => update('sku', e.target.value)} aria-invalid={!!errors.sku} />
+          <Input
+            id="sku"
+            value={form.sku}
+            onChange={(e) => update('sku', e.target.value)}
+            aria-invalid={!!errors.sku}
+            placeholder={editingProduct ? undefined : 'Vacío = se asigna uno (PRD-000001…)'}
+          />
           {errors.sku && <p className="mt-1 text-sm text-destructive">{errors.sku}</p>}
         </div>
 

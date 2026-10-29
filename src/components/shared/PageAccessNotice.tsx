@@ -7,11 +7,11 @@ import type { PageAccessDenial } from '@/lib/auth/guards';
 const COPY: Record<PageAccessDenial, { title: string; description: string }> = {
   module: {
     title: 'Módulo no incluido en tu plan',
-    description: 'Tu empresa no tiene contratado este módulo. Si lo necesitas, pide al dueño de la cuenta que lo active.',
+    description: 'Tu empresa no tiene contratado este módulo. Si lo necesitas, el dueño de la empresa puede pedirlo en Configuración → Planes y módulos.',
   },
   permission: {
     title: 'No tienes acceso a esta sección',
-    description: 'Tu rol no incluye el permiso para verla. Si lo necesitas, pídeselo a un administrador de tu empresa.',
+    description: 'Tu rol no incluye el permiso para verla. Si lo necesitas, pídeselo al dueño o a un administrador de tu empresa (Configuración → Equipo & Colaboradores).',
   },
 };
 
