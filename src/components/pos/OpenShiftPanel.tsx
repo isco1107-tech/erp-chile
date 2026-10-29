@@ -14,6 +14,7 @@ import {
 } from '@/modules/pos/actions/pos.actions';
 import type { CashRegisterStatus } from '@/modules/pos/services/cash.service';
 import { formatCurrency } from '@/lib/chile/tax';
+import { AmountInput } from '@/components/ui/AmountInput';
 import { PosDesktopDownload } from './PosDesktopDownload';
 
 const selectClass =
@@ -57,6 +58,8 @@ export default function OpenShiftPanel({ cashierName, cashierEmail, canManageReg
       const result = await listCashRegisterStatusesAction();
       if (result.success) {
         setRegisters(result.data);
+        // Primera vez: quien puede crear cajas no debería tener que descubrir el botón «+ Nueva caja».
+        if (result.data.length === 0 && canManageRegisters) setShowCreate(true);
         setCashRegisterId((previous) => result.data.some((register) => register.id === previous && !register.occupied)
           ? previous : result.data.find((register) => !register.occupied)?.id ?? '');
       } else {
@@ -69,7 +72,7 @@ export default function OpenShiftPanel({ cashierName, cashierEmail, canManageReg
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [canManageRegisters]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -144,7 +147,7 @@ export default function OpenShiftPanel({ cashierName, cashierEmail, canManageReg
         </div>
         <h1 className="text-2xl font-bold" data-tutorial="module-header">Abrir caja</h1>
         <p className="text-sm text-muted-foreground">
-          No tienes un turno abierto. Declara el fondo de cambio con el que partes para poder vender.
+          No tienes un turno abierto. Cuenta el efectivo con que partes (el fondo de cambio) y escríbelo: al cerrar, el sistema lo compara con lo que haya en el cajón.
         </p>
       </div>
 
@@ -184,7 +187,9 @@ export default function OpenShiftPanel({ cashierName, cashierEmail, canManageReg
           </select>
           <p className="mt-1 text-xs text-muted-foreground" role="status">
             {loadError ? 'No se pudo obtener el estado de las cajas. Presiona "Actualizar cajas".'
-              : !loading && registers.length === 0 ? 'No hay cajas ni bodega disponibles. Solicita al administrador configurar una bodega y una caja.'
+              : !loading && registers.length === 0 ? (canManageRegisters
+                ? 'Todavía no hay cajas. Crea la primera abajo, en «Cajas del local»: dale un nombre (ej. «Caja 1») y elige de qué bodega descuenta.'
+                : 'Todavía no hay cajas en este local. Pide al dueño o a un administrador que cree una (Punto de venta → Cajas del local).')
                 : !loading && availableCount === 0 ? 'Todas las cajas están ocupadas. Espera su cierre o solicita otra caja al administrador.'
                 : selectedRegister ? `Las ventas descontarán stock de ${selectedRegister.warehouse.name}.`
                   : 'Cada caja tiene un solo turno activo. Las demás pueden vender al mismo tiempo.'}
@@ -193,15 +198,11 @@ export default function OpenShiftPanel({ cashierName, cashierEmail, canManageReg
 
         <div>
           <Label htmlFor="initial">Monto inicial en caja</Label>
-          <Input
+          <AmountInput
             id="initial"
-            type="number"
-            min={0}
-            step={1}
             value={initialAmount}
-            onChange={(e) => setInitialAmount(e.target.value)}
+            onChange={setInitialAmount}
             className="h-12 text-lg"
-            inputMode="numeric"
             placeholder="Cuenta y escribe el efectivo inicial"
             required
           />

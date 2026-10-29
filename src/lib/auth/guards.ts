@@ -3,7 +3,7 @@ import { cookies, headers } from 'next/headers';
 import type { Role, TenantStatus } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { verifySessionToken, type SessionPayload } from './session';
-import type { Permission } from './permissions';
+import { missingPermissionMessage, type Permission } from './permissions';
 import {
   DEFAULT_FEATURES,
   moduleEnabled,
@@ -268,7 +268,7 @@ export async function requireAuthWithPermission(permission: Permission): Promise
   if (!can(context, permission)) {
     const moduleKey = moduleForPermission(permission);
     if (moduleKey && !context.features[moduleKey]) throw new ModuleNotEnabledError(moduleKey);
-    throw new AuthError('No autorizado para esta acción', 403);
+    throw new AuthError(missingPermissionMessage(permission), 403);
   }
   return context;
 }

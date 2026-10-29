@@ -8,6 +8,7 @@ import { listShiftsAction } from '@/modules/pos/actions/pos.actions';
 import type { ShiftHistoryItem } from '@/modules/pos/services/cash.service';
 import { formatCurrency } from '@/lib/chile/tax';
 import CashPanel from './CashPanel';
+import { santiagoDateTimeLabel } from '@/lib/chile/timezone';
 
 interface Props {
   currentUserId: string;
@@ -75,7 +76,7 @@ export default function ShiftHistoryPanel({ currentUserId, canSupervise }: Props
           {filtered.length === 0 && <tr><td colSpan={6} className="p-5 text-center text-muted-foreground">{loading ? 'Consultando turnos…' : 'No hay turnos para este filtro.'}</td></tr>}
           {filtered.map((shift) => <tr key={shift.id} className={`border-t border-border ${selectedId === shift.id ? 'bg-muted' : ''}`}>
             <td className="p-2"><p className="font-medium">{shift.cashRegister.name}</p><p className="text-xs text-muted-foreground">{shift.user?.name || shift.user?.email || 'Usuario eliminado'}</p></td>
-            <td className="p-2 tabular-nums">{new Date(shift.openedAt).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Santiago' })}</td>
+            <td className="p-2 tabular-nums">{santiagoDateTimeLabel(new Date(shift.openedAt))}</td>
             <td className="p-2"><span className={`rounded-full px-2 py-1 text-xs ${shift.status === 'OPEN' ? 'bg-success-soft text-success' : 'bg-muted text-muted-foreground'}`}>{shift.status === 'OPEN' ? 'Abierto' : 'Cerrado'}</span></td>
             <td className="p-2 text-right tabular-nums">{formatCurrency(shift.initialAmount)}</td>
             <td className={`p-2 text-right tabular-nums ${shift.difference ? 'text-warning' : 'text-muted-foreground'}`}>{shift.status === 'CLOSED' ? formatCurrency(shift.difference ?? 0) : 'Pendiente'}</td>

@@ -18,7 +18,7 @@ export const INVENTARIO_SECTIONS: ManualSection[] = [
         permission: 'products:write',
         steps: [
           'Ve a Inventario → Catálogo de Productos y haz clic en "Nuevo producto".',
-          'Completa SKU, nombre, código de barras (escanéalo), marca, categoría, unidad y precio neto.',
+          'Completa SKU, nombre, código de barras (escanéalo), marca, categoría, unidad y precio: escribe el neto o el «Precio al público (IVA 19% incluido)» y el otro se calcula solo. Un producto sin precio no se puede vender en caja: Inicio te avisa si hay alguno.',
           'Marca si es exento de IVA: sus líneas irán al total exento, tanto en ventas como en el Punto de Venta.',
           'Opcional: stock mínimo (para alertas), foto y "Maneja lotes y vencimiento" si necesitas trazabilidad por lote.',
           'Guarda. El stock inicial no se escribe en la ficha: se carga con una compra, una importación masiva o un ajuste de inventario.',

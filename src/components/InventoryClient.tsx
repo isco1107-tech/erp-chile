@@ -183,17 +183,18 @@ export default function InventoryClient() {
       )}
 
       <div className="overflow-x-auto rounded-lg border border-border bg-card shadow-card">
-        <table className="w-full min-w-[760px] table-auto text-sm">
+        {/* En el celular lo que importa es cuánto hay: producto y cantidad a la vista, sin desplazar la tabla. */}
+        <table className="w-full table-auto text-sm sm:min-w-[760px]">
           <thead className="bg-muted/50 text-left">
             <tr>
               <th scope="col" className="p-2 font-medium">Producto</th>
-              <th scope="col" className="p-2 font-medium">Bodega</th>
-              <th scope="col" className="p-2 font-medium">Cantidad</th>
-              <th scope="col" className="p-2 font-medium">
+              <th scope="col" className="hidden p-2 font-medium sm:table-cell">Bodega</th>
+              <th scope="col" className="p-2 text-right font-medium sm:text-left">Cantidad</th>
+              <th scope="col" className="hidden p-2 font-medium sm:table-cell">
                 PMP
                 <InfoTooltip text={TAX_GLOSSARY.pmp} />
               </th>
-              <th scope="col" className="p-2 font-medium">Valorizado</th>
+              <th scope="col" className="hidden p-2 font-medium sm:table-cell">Valorizado</th>
             </tr>
           </thead>
           <tbody>
@@ -227,13 +228,24 @@ export default function InventoryClient() {
               <tr
                 key={`${row.productId}-${row.warehouseId}`}
                 className={`cursor-pointer border-t border-border hover:bg-muted/40 ${selectedProduct?.id === row.productId ? 'bg-muted/30' : ''}`}
+                tabIndex={0}
+                aria-label={`Ver movimientos de ${row.productName} en ${row.warehouseName}`}
                 onClick={() => handleSelectProduct(row.productId, `${row.productSku} — ${row.productName}`)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    handleSelectProduct(row.productId, `${row.productSku} — ${row.productName}`);
+                  }
+                }}
               >
-                <td className="p-2">{row.productSku} — {row.productName}</td>
-                <td className="p-2">{row.warehouseName}</td>
-                <td className="p-2">{row.quantity}</td>
-                <td className="p-2">{formatCurrency(row.pmp)}</td>
-                <td className="p-2">{formatCurrency(row.valued)}</td>
+                <td className="min-w-0 p-2 [overflow-wrap:anywhere]">
+                  {row.productSku} — {row.productName}
+                  <span className="block text-xs text-muted-foreground sm:hidden">{row.warehouseName}</span>
+                </td>
+                <td className="hidden p-2 sm:table-cell">{row.warehouseName}</td>
+                <td className="p-2 text-right font-medium tabular-nums sm:text-left sm:font-normal">{row.quantity}</td>
+                <td className="hidden p-2 sm:table-cell">{formatCurrency(row.pmp)}</td>
+                <td className="hidden p-2 sm:table-cell">{formatCurrency(row.valued)}</td>
               </tr>
             ))}
           </tbody>

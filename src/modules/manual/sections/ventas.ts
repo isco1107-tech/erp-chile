@@ -131,7 +131,7 @@ export const VENTAS_SECTIONS: ManualSection[] = [
           'Elige el "Tipo de Documento" (Factura Electrónica, Boleta Electrónica, Guía de Despacho, etc.) y la bodega de salida.',
           'Busca el cliente por RUT o razón social. Si no existe, créalo ahí mismo con el botón de cliente rápido, sin salir del formulario.',
           'Agrega productos escaneando el código o buscando por SKU o nombre. Para un servicio sin ficha usa "+ Agregar línea libre". Puedes aplicar un % de descuento por línea.',
-          'Elige la forma de pago (Efectivo, Transferencia, Tarjeta de Débito o Crédito, o Crédito 30 días). Es obligatoria: si el cliente tiene días de crédito pactados, se propone "Crédito 30 días".',
+          'Elige la forma de pago (Efectivo, Transferencia, Tarjeta de Débito o Crédito, o Crédito (a plazo)). Es obligatoria: si el cliente tiene días de crédito pactados, se propone "Crédito (a plazo)".',
           'Revisa el resumen (neto, exento, IVA 19% y total) y presiona "Emitir Documento". Antes de emitir verás el tipo, el cliente, el total y si quedará pagada o pendiente; presiona "Sí, emitir" o "Revisar". Si aún no está listo, usa "Guardar Borrador".',
         ],
         tip: 'El IVA y la exención salen de la ficha de cada producto, no del formulario: si un producto debería ser exento, corrígelo en el Catálogo.',
@@ -160,7 +160,7 @@ export const VENTAS_SECTIONS: ManualSection[] = [
         id: 'venta-credito',
         title: 'Vender a crédito y controlar el límite',
         steps: [
-          'Elige "Crédito 30 días" como forma de pago: el documento queda pendiente en Finanzas → Cuentas por Cobrar hasta que registres el pago.',
+          'Elige "Crédito (a plazo)" como forma de pago: el documento queda pendiente en Finanzas → Cuentas por Cobrar hasta que registres el pago.',
           'Si el cliente tiene límite de crédito, el formulario muestra el crédito disponible y bloquea la venta si la deuda más el documento lo superan.',
           'Opcional: indica una fecha de vencimiento distinta en "Vencimiento".',
         ],

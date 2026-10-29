@@ -10,7 +10,16 @@ import { santiagoClock, sessionExpiryPlan, SESSION_WARNING_MINUTES } from '@/lib
  * volver a ingresar. Antes la sesión vencía en silencio y la siguiente acción
  * solo decía «Sesión inválida o expirada», con el formulario a medio llenar.
  */
-export default function SessionExpiryNotice({ expiresAt }: { expiresAt: number | null }) {
+export default function SessionExpiryNotice({
+  expiresAt,
+  loginPath = '/login',
+  warningHint = 'Guarda o emite lo que estés haciendo: después tendrás que volver a ingresar.',
+}: {
+  expiresAt: number | null;
+  /** El ingreso de la app donde está la persona (el POS tiene el suyo). */
+  loginPath?: '/login' | '/pos/ingresar';
+  warningHint?: string;
+}) {
   const router = useRouter();
 
   useEffect(() => {
@@ -22,7 +31,7 @@ export default function SessionExpiryNotice({ expiresAt }: { expiresAt: number |
         window.setTimeout(() => {
           toast.warning(`Tu sesión se cerrará a las ${santiagoClock(new Date(expiresAt))}`, {
             id: 'session-expiry',
-            description: `Faltan ${SESSION_WARNING_MINUTES} minutos o menos. Guarda o emite lo que estés haciendo: después tendrás que volver a ingresar.`,
+            description: `Faltan ${SESSION_WARNING_MINUTES} minutos o menos. ${warningHint}`,
             duration: Infinity,
           });
         }, warnInMs)
@@ -34,12 +43,13 @@ export default function SessionExpiryNotice({ expiresAt }: { expiresAt: number |
           id: 'session-expiry',
           description: 'Por seguridad la sesión dura 8 horas. Lo que no alcanzaste a guardar no se envió.',
           duration: Infinity,
-          action: { label: 'Volver a ingresar', onClick: () => router.push('/login') },
+          // Carga completa: el POS necesita su política de permisos (USB) y el login la suya.
+          action: { label: 'Volver a ingresar', onClick: () => (loginPath === '/login' ? router.push(loginPath) : window.location.assign(loginPath)) },
         });
       }, expireInMs)
     );
     return () => timers.forEach((timer) => window.clearTimeout(timer));
-  }, [expiresAt, router]);
+  }, [expiresAt, router, loginPath, warningHint]);
 
   return null;
 }

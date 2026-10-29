@@ -1,8 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { cookies } from 'next/headers';
-import { verifySessionToken } from '@/lib/auth/session';
+import { currentSessionExpiresAt } from '@/lib/auth/session-expires-at';
 import SessionExpiryNotice from '@/components/shared/SessionExpiryNotice';
 import {
   getAuthContext,
@@ -78,14 +77,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   // Vencimiento de ESTA sesión (claim `exp` del JWT ya validado por
   // `getAuthContext`), para avisar antes de que se corte.
-  let sessionExpiresAt: number | null = null;
-  try {
-    const token = (await cookies()).get('session')?.value;
-    const exp = token ? (await verifySessionToken(token)).exp : undefined;
-    sessionExpiresAt = exp ? exp * 1000 : null;
-  } catch {
-    sessionExpiresAt = null;
-  }
+  const sessionExpiresAt = await currentSessionExpiresAt();
 
   // Registro único compartido con la paleta de comandos (⌘K): mismos módulos,
   // mismas condiciones de acceso. Ver `src/lib/navigation/workspace-nav.ts`.

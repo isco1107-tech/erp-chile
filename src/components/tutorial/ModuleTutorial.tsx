@@ -147,8 +147,18 @@ export default function ModuleTutorial({ userId, manualHints }: ModuleTutorialPr
       setOpen(false);
       return;
     }
-    markSeen(userId, moduleKey);
-    setOpen(true);
+    // Una pantalla cerrada («Módulo no incluido en tu plan», «No tienes acceso») no se enseña: la guía
+    // tapaba el aviso y explicaba botones que no existen. Tampoco se marca vista, así aparece el día que
+    // la persona sí pueda usarla. Se mira en el siguiente cuadro, cuando la página nueva ya está montada.
+    const frame = requestAnimationFrame(() => {
+      if (document.querySelector('[data-access-locked]')) {
+        setOpen(false);
+        return;
+      }
+      markSeen(userId, moduleKey);
+      setOpen(true);
+    });
+    return () => cancelAnimationFrame(frame);
   }, [moduleKey, content, userId]);
 
   // Reapertura manual desde el botón "Cómo usar", sin importar si ya se vio.

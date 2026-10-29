@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CurrencyInput } from '@/components/ui/CurrencyInput';
-import { calculateGrossPrice, formatCurrency } from '@/lib/chile/tax';
+import { calculateGrossPrice, formatCurrency, netPriceForGross } from '@/lib/chile/tax';
 import { bpsToInput, formatCommission, parseCommissionPercent } from '@/lib/consignment/commission';
 import { nativeSelectClass } from '@/components/ui/field-classes';
 import { cn } from '@/lib/utils';
@@ -63,6 +63,9 @@ export default function ProductForm({
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  // Precio con IVA que la persona está escribiendo (mientras tiene el foco): no se reescribe a cada tecla.
+  const [grossTyped, setGrossTyped] = useState<number | null>(null);
+  const [grossNotExact, setGrossNotExact] = useState<number | null>(null);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [creatingCategory, setCreatingCategory] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -298,17 +301,33 @@ export default function ProductForm({
           <CurrencyInput
             id="netPrice"
             value={Number(form.netPrice) || 0}
-            onChange={(value) => update('netPrice', String(value))}
+            onChange={(value) => { update('netPrice', String(value)); setGrossNotExact(null); }}
             aria-invalid={!!errors.netPrice}
           />
           {errors.netPrice && <p className="mt-1 text-sm text-destructive">{errors.netPrice}</p>}
         </div>
 
         <div>
-          <Label>{form.isExempt ? 'Precio de Venta (exento de IVA)' : 'Precio Bruto (IVA 19% incluido)'}</Label>
-          <div className="flex h-8 items-center rounded-lg border border-input bg-muted/40 px-2.5 text-sm">
-            {grossPricePreview !== null ? formatCurrency(grossPricePreview) : '—'}
-          </div>
+          <Label htmlFor="grossPrice">{form.isExempt ? 'Precio de Venta (exento de IVA)' : 'Precio al público (IVA 19% incluido)'}</Label>
+          {/* Se puede escribir el precio final, como se piensa en el mesón: el neto se calcula solo. */}
+          <CurrencyInput
+            id="grossPrice"
+            value={grossTyped ?? grossPricePreview ?? 0}
+            onChange={(gross) => {
+              setGrossTyped(gross);
+              const { net, exact } = netPriceForGross(gross, form.isExempt);
+              update('netPrice', gross === 0 ? '' : String(net));
+              setGrossNotExact(exact ? null : gross);
+            }}
+            onBlur={() => setGrossTyped(null)}
+          />
+          {grossNotExact !== null && grossPricePreview !== null && grossTyped === null ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {formatCurrency(grossNotExact)} no calza exacto con IVA: quedó en {formatCurrency(grossPricePreview)} (el IVA se calcula sobre el neto).
+            </p>
+          ) : (
+            <p className="mt-1 text-xs text-muted-foreground">Escribe el neto o el precio final: el otro se calcula solo.</p>
+          )}
         </div>
 
         <div>
@@ -342,7 +361,7 @@ export default function ProductForm({
               type="checkbox"
               className="mt-0.5"
               checked={form.isExempt}
-              onChange={(e) => update('isExempt', e.target.checked)}
+              onChange={(e) => { update('isExempt', e.target.checked); setGrossNotExact(null); }}
             />
             <span>
               Exento de IVA

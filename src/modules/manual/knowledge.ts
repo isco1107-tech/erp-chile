@@ -349,7 +349,7 @@ export const WORKFLOWS: Workflow[] = [
     steps: [
       'Crea la cotización en Ventas → Nueva Venta (tipo Cotización) y envíasela al cliente.',
       'Cuando la acepte, ábrela y usa "Convertir en nota de venta"; desde la nota emite la factura (o la boleta) sin volver a tipear las líneas.',
-      'Elige "Crédito 30 días" como forma de pago: la factura queda en Finanzas → Cuentas por Cobrar.',
+      'Elige "Crédito (a plazo)" como forma de pago: la factura queda en Finanzas → Cuentas por Cobrar.',
       'Si el cliente se atrasa, regístralo en Finanzas → Cobranza (gestiones, promesas y recordatorios automáticos).',
       'Cuando pague, usa "Registrar pago" en Cuentas por Cobrar indicando la cuenta bancaria, para que se concilie sola con la cartola.',
       'Si hay que corregir la factura, se hace con una nota de crédito, nunca borrándola.',

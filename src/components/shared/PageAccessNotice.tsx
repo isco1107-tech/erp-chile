@@ -19,7 +19,7 @@ const COPY: Record<PageAccessDenial, { title: string; description: string }> = {
 export function PageAccessNotice({ denied }: { denied: PageAccessDenial }) {
   const copy = COPY[denied];
   return (
-    <div className="mx-auto flex max-w-md items-center justify-center py-16">
+    <div data-access-locked className="mx-auto flex max-w-md items-center justify-center py-16">
       <EmptyState
         icon={<Lock className="size-14 text-muted-foreground" strokeWidth={1.5} aria-hidden="true" />}
         title={copy.title}

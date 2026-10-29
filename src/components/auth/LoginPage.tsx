@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { offerPasswordSave, readRememberedLogin, rememberedLoginSnapshot, saveRememberedLogin, subscribeRememberedLogin } from '@/lib/auth/remembered-login';
+import { needsFullPageLoad } from '@/lib/auth/entry-preference';
 import TurnstileWidget, { isTurnstileConfigured } from '@/components/security/TurnstileWidget';
 
 const loginSchema = z.object({
@@ -36,7 +37,7 @@ function nextPath(json: { data?: { redirectTo?: unknown } }, callbackUrl: string
  * la política del login (sin cámara ni USB). Por eso a `/bodega` y `/pos` se entra con una carga completa.
  */
 function goTo(router: ReturnType<typeof useRouter>, path: string): void {
-  if (path === '/bodega' || path === '/pos') {
+  if (needsFullPageLoad(path)) {
     window.location.assign(path);
     return;
   }

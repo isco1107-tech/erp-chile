@@ -7,6 +7,7 @@ import { MODE_DEFINITIONS } from '@/lib/warehouse-mobile/modes';
 import type { OutboxEntry } from '@/lib/warehouse-mobile/outbox';
 import type { SyncOperation } from '@/modules/warehouse-mobile/schema';
 import type { RecentOp } from '@/modules/warehouse-mobile/types';
+import { useConfirm } from '@/components/ui/confirm-provider';
 import { useBodega } from './BodegaProvider';
 import { BigButton, Pill, Spinner, formatQty } from './ui';
 
@@ -38,6 +39,7 @@ function StatusPill({ entry, now }: { entry: OutboxEntry; now: number }) {
 
 export default function OutboxScreen({ onBack }: { onBack: () => void }) {
   const { outbox, summary, retryOutbox, discardOutboxEntry, enqueueOperation, api, online, syncing, auth } = useBodega();
+  const confirm = useConfirm();
   const [now, setNow] = useState(() => Date.now());
   const [history, setHistory] = useState<RecentOp[] | null>(null);
 
@@ -92,6 +94,17 @@ export default function OutboxScreen({ onBack }: { onBack: () => void }) {
     discardOutboxEntry(entry.id);
   };
 
+  /** Un toque en falso no debe borrar un movimiento (con su foto) que todavía no quedó en el sistema. */
+  const discard = async (entry: OutboxEntry) => {
+    const ok = await confirm({
+      title: '¿Descartar este movimiento?',
+      description: `«${entry.label.name}» (${describe(entry)}) NO quedó registrado en el sistema. Si lo descartas, se borra de este teléfono y habrá que hacerlo de nuevo.`,
+      confirmLabel: 'Descartar',
+      destructive: true,
+    });
+    if (ok) discardOutboxEntry(entry.id);
+  };
+
   const entryCard = (entry: OutboxEntry) => {
     const result = entry.result?.status === 'REJECTED' ? entry.result : null;
     return (
@@ -122,7 +135,7 @@ export default function OutboxScreen({ onBack }: { onBack: () => void }) {
                   Reintentar
                 </BigButton>
               ) : null}
-              <BigButton variant="danger" onClick={() => discardOutboxEntry(entry.id)}>
+              <BigButton variant="danger" onClick={() => void discard(entry)}>
                 Descartar
               </BigButton>
             </div>

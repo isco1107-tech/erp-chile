@@ -28,6 +28,7 @@ import {
 import { getAuthContext, can } from '@/lib/auth/guards';
 import { MODULES } from '@/lib/auth/modules';
 import { prisma } from '@/lib/prisma';
+import { exportAccess } from '@/lib/exports/access';
 import { formatCurrency } from '@/lib/chile/tax';
 import { addMonthsSantiago, santiagoDateParts, startOfMonthSantiago, startOfTodaySantiago, startOfTomorrowSantiago } from '@/lib/chile/timezone';
 import { KpiCard, type TrendDirection } from '@/components/ui/KpiCard';
@@ -110,6 +111,11 @@ export default async function DashboardPage() {
   const context = await getAuthContext();
   const contracted = MODULES.filter((mod) => context.features[mod.key]);
   const canReadSales = can(context, 'sales:read');
+  // Cifras de venta (mes, IVA, margen, gráfico): con Facturación o, en una empresa que vende solo por el POS,
+  // para quien consulta los turnos. Misma regla que «Exportar datos». La tabla de ventas recientes enlaza a la
+  // ficha del documento, que exige Facturación: esa sigue con la regla de antes.
+  const salesFiguresVisible = exportAccess(context).sales;
+  const hasDteSales = canReadSales && context.features.hasDteBilling;
   const canReadInventory = can(context, 'products:read');
   const canReadCosts = can(context, 'products:costs');
 
@@ -126,7 +132,7 @@ export default async function DashboardPage() {
   // meses iniciales del gráfico. `select` liviano (sin `contact`, sin más
   // campos de `items` que los que entran al costo) porque esta consulta ya
   // no está acotada y puede traer varios miles de filas en empresas grandes.
-  const salesAggregationQuery = canReadSales && context.features.hasDteBilling
+  const salesAggregationQuery = salesFiguresVisible
     ? prisma.salesDocument.findMany({
         where: {
           companyId: context.companyId,
@@ -148,7 +154,7 @@ export default async function DashboardPage() {
   // Tabla de "ventas recientes": solo necesita las últimas 5, con datos del
   // contacto — separada de la agregación de arriba para no cargar `contact`
   // en las miles de filas que esa consulta puede traer.
-  const recentSalesQuery = canReadSales && context.features.hasDteBilling
+  const recentSalesQuery = hasDteSales
     ? prisma.salesDocument.findMany({
         where: {
           companyId: context.companyId,
@@ -189,6 +195,20 @@ export default async function DashboardPage() {
   // aviso hoy es el correo automático al cliente/candidata, ver
   // `overdue-reminder-cron.service.ts`) — el dashboard principal solo
   // miraba ventas/inventario.
+  // Productos activos sin precio de venta: los crea así la bodega móvil (el bodeguero no sabe el precio) y,
+  // hasta que alguien se lo pone, ni el POS ni la tienda pueden venderlos.
+  const unpricedProducts = canReadInventory && can(context, 'products:write') && context.features.hasInventory
+    ? await prisma.product.findMany({
+        where: { companyId: context.companyId, isActive: true, netPrice: { lte: 0 } },
+        select: { id: true, name: true },
+        orderBy: { createdAt: 'desc' },
+        take: 3,
+      })
+    : [];
+  const unpricedCount = unpricedProducts.length === 0
+    ? 0
+    : await prisma.product.count({ where: { companyId: context.companyId, isActive: true, netPrice: { lte: 0 } } });
+
   const [overdueInstallments, overduePromissoryNotes] = await Promise.all([
     context.features.hasInstallmentPlans && can(context, 'paymentplans:read')
       ? prisma.paymentPlanInstallment.aggregate({
@@ -385,7 +405,7 @@ export default async function DashboardPage() {
   // entra al dashboard.
   const capitalizedName = context.name.trim().split(/\s+/)[0] || context.email.split('@')[0];
 
-  const hasSalesModule = canReadSales && context.features.hasDteBilling;
+  const hasSalesModule = salesFiguresVisible;
   const hasInventoryModule = canReadInventory && context.features.hasInventory;
   const hasCostsModule = canReadCosts && context.features.hasPmpCosting;
 
@@ -558,7 +578,16 @@ export default async function DashboardPage() {
   // módulos contratados y pagados.
   type SuggestedAction = { title: string; description: string; actionLabel: string; href: string; icon: typeof ShoppingCart };
   let suggestedAction: SuggestedAction | null = null;
-  if (criticalStockAll.length > 0 && hasInventoryModule && can(context, 'inventory:write')) {
+  if (unpricedCount > 0) {
+    const names = unpricedProducts.map((product) => `«${product.name}»`).join(', ');
+    suggestedAction = {
+      title: unpricedCount === 1 ? 'Un producto no tiene precio de venta' : `${unpricedCount} productos no tienen precio de venta`,
+      description: `${names}${unpricedCount > unpricedProducts.length ? ' y otros' : ''}. Mientras no tengan precio no se pueden vender en caja ni en la tienda.`,
+      actionLabel: 'Ponerle precio',
+      href: `/dashboard/products?edit=${unpricedProducts[0].id}`,
+      icon: PackagePlus,
+    };
+  } else if (criticalStockAll.length > 0 && hasInventoryModule && can(context, 'inventory:write')) {
     suggestedAction = {
       title: 'Reponer stock crítico',
       description: `${criticalStockAll.length} producto${criticalStockAll.length === 1 ? '' : 's'} bajo el mínimo de bodega`,
@@ -753,16 +782,16 @@ export default async function DashboardPage() {
       )}
 
       {/* Tabla reciente + actividad */}
-      {(hasSalesModule || hasInventoryModule) && (
+      {(hasDteSales || hasInventoryModule) && (
         <section className="grid grid-cols-12 gap-5">
-          {hasSalesModule && (
+          {hasDteSales && (
             <div className={hasInventoryModule ? 'col-span-12 lg:col-span-7' : 'col-span-12'}>
               <RecentSalesTable documents={latestSales} />
             </div>
           )}
 
           {hasInventoryModule && (
-            <div className={hasSalesModule ? 'col-span-12 lg:col-span-5' : 'col-span-12'}>
+            <div className={hasDteSales ? 'col-span-12 lg:col-span-5' : 'col-span-12'}>
               <div className="rounded-lg border border-border bg-card p-5 shadow-card">
                 <div className="flex items-start justify-between gap-3">
                   <div>
