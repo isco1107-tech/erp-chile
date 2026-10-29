@@ -208,7 +208,7 @@ const METHOD_LABELS: Record<string, string> = {
   TARJETA_DEBITO: 'Débito',
   TARJETA_CREDITO: 'Crédito',
   TRANSFERENCIA: 'Transferencia',
-  CREDITO_30: 'Crédito 30 días',
+  CREDITO_30: 'Crédito (a plazo)',
 };
 
 /**

@@ -2,6 +2,7 @@
 
 import { formatCurrency } from '@/lib/chile/tax';
 import { ticketHeading, type TicketData, type TicketLine } from '@/lib/pos/ticket';
+import { santiagoDateTimeLabel } from '@/lib/chile/timezone';
 
 export type { TicketData, TicketLine };
 
@@ -32,7 +33,7 @@ export default function PosTicket({ data }: { data: TicketData }) {
 
       <div className="ticket-divider" />
 
-      <p>Fecha: {data.issuedAt.toLocaleString('es-CL')}</p>
+      <p>Fecha: {santiagoDateTimeLabel(data.issuedAt)}</p>
       <p>Atiende: {data.cashierName}</p>
       <p>Cliente: {data.customerName}</p>
       <p>RUT: {data.customerRut}</p>

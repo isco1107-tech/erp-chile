@@ -1,5 +1,6 @@
 import SalesDocumentForm from '@/components/SalesDocumentForm';
 import { DTE_TYPES } from '@/modules/sales/schema';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 export const metadata = { title: 'Nueva Venta' };
 
@@ -20,8 +21,8 @@ export default async function NewSalesDocumentPage({
         ? 'Emitir nota de crédito'
         : 'Nueva Venta / Facturador';
   return (
-    <div>
-      <h1 className="mb-4 text-2xl font-bold">{title}</h1>
+    <div className="space-y-4">
+      <PageHeader eyebrow="Ventas" title={title} />
       <SalesDocumentForm orderId={orderId} initialType={initialType} draftId={borrador} creditFromId={corrige} />
     </div>
   );

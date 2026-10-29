@@ -76,6 +76,16 @@ export const INICIO_SECTIONS: ManualSection[] = [
         ],
       },
       {
+        id: 'primeros-pasos-inicio',
+        title: 'La lista «Primeros pasos» de Inicio',
+        permission: 'settings:company',
+        steps: [
+          'Mientras falte algo para operar, Inicio muestra «Primeros pasos»: datos de la empresa, el primer producto con precio, la primera venta, los folios del SII (si tienes Facturación) y tu equipo.',
+          'Cada paso se marca solo cuando de verdad está hecho; el botón de cada uno te lleva a la pantalla donde se hace.',
+          'Cuando todo está listo la lista desaparece. Si decides no hacer alguno (por ejemplo, trabajas solo), usa "Ocultar".',
+        ],
+      },
+      {
         id: 'buscador-global',
         title: 'Saltar a cualquier pantalla con el buscador (Ctrl+K)',
         steps: [
@@ -89,7 +99,7 @@ export const INICIO_SECTIONS: ManualSection[] = [
         id: 'ayuda-tres-niveles',
         title: 'Las tres formas de pedir ayuda: tutorial, manual y asistente',
         steps: [
-          'Tutorial guiado: la primera vez que entras a un módulo se abre solo un recorrido que resalta los botones importantes. Para volver a verlo, usa "Cómo usar" en la barra superior.',
+          'Tutorial guiado: la primera vez que entras a un módulo desde el computador se abre solo un recorrido que resalta los botones importantes (en el celular no se abre solo, y si lo omites en el primer paso tres veces deja de abrirse). Para verlo cuando quieras, usa "Cómo usar" en la barra superior.',
           'Manual de Usuario (menú Ayuda): todos los pasos por módulo, con buscador, capturas y descarga en Word para imprimir. Muestra solo los módulos de tu empresa.',
           'Asistente (barra superior): le escribes con tus palabras lo que necesitas. Te explica paso a paso, te lleva a la pantalla correcta con un enlace, responde cifras de tu empresa y puede hacer tareas por ti (crear un cliente, un producto, una tarea, una cotización en borrador…), siempre pidiéndote confirmar con un botón.',
         ],

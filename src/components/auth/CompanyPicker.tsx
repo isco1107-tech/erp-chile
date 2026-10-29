@@ -5,14 +5,17 @@ import { ChevronRight, Loader2 } from 'lucide-react';
 import { switchActiveCompanyAction, type SwitchableCompany } from '@/lib/auth/actions/switch-company.actions';
 import { AuthError } from '@/components/auth/AuthShell';
 import { cn } from '@/lib/utils';
+import { needsFullPageLoad } from '@/lib/auth/entry-preference';
 
 /**
  * Lista de empresas de `/seleccionar-empresa`. Elegir una llama a
  * `switchActiveCompanyAction`, que revalida el acceso, reemite la sesión y
- * redirige al panel. En la app móvil devuelve el resultado para abrir bodega
- * con un documento nuevo y su política de permisos de cámara.
+ * redirige a la app por la que entró la persona. Bodega y POS devuelven el
+ * resultado para abrirse con un documento nuevo: así llega la política de
+ * permisos de la cámara (Bodega) o del USB del cajón e impresora (POS).
  */
-export function CompanyPicker({ companies, warehouse = false }: { companies: SwitchableCompany[]; warehouse?: boolean }) {
+export function CompanyPicker({ companies, destination = '/dashboard' }: { companies: SwitchableCompany[]; destination?: string }) {
+  const fullLoad = needsFullPageLoad(destination);
   const [pending, startTransition] = useTransition();
   const [chosen, setChosen] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -21,13 +24,12 @@ export function CompanyPicker({ companies, warehouse = false }: { companies: Swi
     setChosen(companyId);
     setError(null);
     startTransition(async () => {
-      const result = await switchActiveCompanyAction(companyId, warehouse);
+      const result = await switchActiveCompanyAction(companyId, fullLoad);
       if (!result.success) {
         setError(result.error);
         setChosen(null);
-      } else if (warehouse) {
-        // A fresh document enables the warehouse camera Permissions-Policy.
-        window.location.assign('/bodega');
+      } else if (fullLoad) {
+        window.location.assign(destination);
       }
     });
   }

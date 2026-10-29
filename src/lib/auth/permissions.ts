@@ -425,3 +425,10 @@ export const CORE_PERMISSION_GROUP = {
   ] as Permission[],
 };
 
+/**
+ * Qué falta y a quién pedirlo. «No autorizado para esta acción» dejaba a la
+ * persona sin saber si era un error, qué le faltaba ni con quién hablar.
+ */
+export function missingPermissionMessage(permission: Permission): string {
+  return `Tu usuario no tiene el permiso «${PERMISSION_LABELS[permission]}». Pídeselo al dueño o a un administrador de tu empresa (Configuración → Equipo & Colaboradores).`;
+}

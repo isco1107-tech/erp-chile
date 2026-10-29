@@ -14,18 +14,26 @@ interface ModuleGateProps {
   children: React.ReactNode;
 }
 
-function LockedView({ title, message, hint }: { title: string; message: string; hint: string }) {
+function LockedView({ title, message, hint, plansLink = false }: { title: string; message: string; hint: string; plansLink?: boolean }) {
   return (
-    <div className="mx-auto flex max-w-lg flex-col items-center gap-3 rounded-xl border border-border bg-muted/30 p-8 text-center">
+    // `data-access-locked`: la guía «Cómo usar» no se abre sola sobre una pantalla cerrada.
+    <div data-access-locked className="mx-auto flex max-w-lg flex-col items-center gap-3 rounded-xl border border-border bg-muted/30 p-8 text-center">
       <div className="rounded-full bg-muted p-3">
         <Lock className="size-6 text-muted-foreground" />
       </div>
       <h1 className="text-xl font-bold">{title}</h1>
       <p className="text-sm text-muted-foreground">{message}</p>
       <p className="text-xs text-muted-foreground">{hint}</p>
-      <Link href="/dashboard" className={buttonVariants({ variant: 'outline' })}>
-        Volver al Dashboard
-      </Link>
+      <div className="flex flex-wrap justify-center gap-2">
+        {plansLink && (
+          <Link href="/dashboard/settings/plans" className={buttonVariants({ variant: 'default' })}>
+            Ver planes y módulos
+          </Link>
+        )}
+        <Link href="/dashboard" className={buttonVariants({ variant: 'outline' })}>
+          Volver al inicio
+        </Link>
+      </div>
     </div>
   );
 }
@@ -46,8 +54,14 @@ export default async function ModuleGate({ moduleKey, permission, children }: Mo
       return (
         <LockedView
           title="Módulo no incluido en tu plan actual"
-          message={`${mod.label} no está habilitado para ${context.companyName}. Contacta al administrador para habilitarlo.`}
+          message={
+            // El dueño es quien contrata: «contacta al administrador» lo mandaba a buscarse a sí mismo.
+            context.role === 'OWNER'
+              ? `${mod.label} no está contratado para ${context.companyName}. Puedes pedirlo en Planes y módulos: llega a nuestro equipo y te contactamos para activarlo.`
+              : `${mod.label} no está contratado para ${context.companyName}. Si lo necesitas, avísale al dueño de la empresa: él puede pedirlo.`
+          }
           hint={`Plan actual: ${context.planName}`}
+          plansLink={context.role === 'OWNER' && can(context, 'settings:company')}
         />
       );
     }
@@ -57,7 +71,7 @@ export default async function ModuleGate({ moduleKey, permission, children }: Mo
         <LockedView
           title="No tienes acceso a esta sección"
           message={`Tu rol no incluye el permiso necesario para ${mod.label.toLowerCase()}.`}
-          hint="Pide a un Administrador de tu empresa que ajuste tu rol."
+          hint="Pídeselo al dueño o a un administrador de tu empresa: se ajusta en Configuración → Equipo & Colaboradores."
         />
       );
     }

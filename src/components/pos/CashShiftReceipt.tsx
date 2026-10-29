@@ -6,6 +6,7 @@ import { Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatCurrency } from '@/lib/chile/tax';
 import type { ShiftSummary } from '@/modules/pos/services/cash.service';
+import { santiagoDateTimeLabel } from '@/lib/chile/timezone';
 
 interface Props {
   shiftId: string;
@@ -22,7 +23,7 @@ interface Props {
   };
 }
 
-const date = (value: string) => new Date(value).toLocaleString('es-CL', { timeZone: 'America/Santiago' });
+const date = (value: string) => santiagoDateTimeLabel(new Date(value));
 
 /** El comprobante vive fuera del panel: imprimir no incluye la última boleta del terminal. */
 export default function CashShiftReceipt(props: Props) {

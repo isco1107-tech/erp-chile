@@ -173,3 +173,9 @@ Cada cambio de las etapas 1 y 2 toca ventas, POS o inventario: deben pasar `npm 
 | M1, M5–M8, B1–B3 | ⏳ Pendiente | — |
 
 Pruebas nuevas: `tests/sales-draft-and-manual-stock.test.ts` (borradores, forma de pago obligatoria, movimiento manual, aviso de sesión) y casos nuevos en `tests/pos-hardware.test.ts` (título del ticket).
+
+## Estado al 29-10-2026
+
+Cerrados en la segunda pasada de `2026-10-29-apps-operacion-diaria.md` (detalle ahí, sección 5):
+A5, A6, M1, M2 (lo que quedaba), M3, M4, M5, M6, M7, B1 y B3 ✅ · B2 🟡 (pantallas de uso diario) · M8 ⏸️ (decisión de producto).
+

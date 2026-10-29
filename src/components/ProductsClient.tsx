@@ -35,6 +35,8 @@ export default function ProductsClient() {
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [includeArchived, setIncludeArchived] = useState(false);
+  // `?sinPrecio=1` llega desde el aviso de Inicio («N productos no tienen precio de venta»).
+  const [onlyUnpriced, setOnlyUnpriced] = useState(() => searchParams.get('sinPrecio') === '1');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSizeState] = useState<number>(DEFAULT_PAGE_SIZE);
   const [showForm, setShowForm] = useState(false);
@@ -47,11 +49,11 @@ export default function ProductsClient() {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedQuery, categoryId, includeArchived]);
+  }, [debouncedQuery, categoryId, includeArchived, onlyUnpriced]);
 
   async function loadProducts() {
     setLoading(true);
-    const result = await listProductsPageAction(debouncedQuery || undefined, categoryId || undefined, page, pageSize, includeArchived);
+    const result = await listProductsPageAction(debouncedQuery || undefined, categoryId || undefined, page, pageSize, includeArchived, onlyUnpriced);
     if (result.success) {
       setProducts(result.data.items);
       setTotal(result.data.total);
@@ -64,7 +66,7 @@ export default function ProductsClient() {
   useEffect(() => {
     loadProducts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedQuery, categoryId, page, pageSize, includeArchived]);
+  }, [debouncedQuery, categoryId, page, pageSize, includeArchived, onlyUnpriced]);
 
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
 
@@ -157,6 +159,10 @@ export default function ProductsClient() {
           <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <input type="checkbox" checked={includeArchived} onChange={(e) => setIncludeArchived(e.target.checked)} />
             Mostrar archivados
+          </label>
+          <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <input type="checkbox" checked={onlyUnpriced} onChange={(e) => setOnlyUnpriced(e.target.checked)} />
+            Solo sin precio
           </label>
         </div>
 

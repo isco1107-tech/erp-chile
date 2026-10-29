@@ -420,6 +420,16 @@ describeDb('tienda en línea contra PostgreSQL', () => {
       await expect(place({ lines: [{ productId: ids.archivado, quantity: 1 }] })).rejects.toMatchObject({ status: 409 });
     });
 
+    it('un producto sin precio de venta no se cobra por $0 ni se puede volver a publicar', async () => {
+      await prisma.product.updateMany({ where: { id: ids.servicio, companyId: ids.companyA }, data: { netPrice: 0, grossPrice: 0 } });
+      try {
+        await expect(place({ lines: [{ productId: ids.servicio, quantity: 1 }] })).rejects.toMatchObject({ status: 409, message: expect.stringMatching(/no está disponible/) });
+        await expect(catalog.setProductsPublished(ids.companyA, ids.siteA, [ids.servicio], true)).rejects.toThrow(/no tiene precio de venta/);
+      } finally {
+        await prisma.product.updateMany({ where: { id: ids.servicio, companyId: ids.companyA }, data: { netPrice: 4202, grossPrice: 5000 } });
+      }
+    });
+
     it('el despacho lo cobra la tarifa de la tienda, no el navegador', async () => {
       const address = { region: REGION_RM, comuna: 'Providencia', street: 'Los Aromos 123', extra: '' };
       const created = await place({ deliveryMethod: 'SHIPPING', address, shippingRateId: 'rm', lines: [lineAceite(1)] });

@@ -190,7 +190,7 @@ describeDb('Exportar datos contra PostgreSQL', () => {
     expect(byType['Nota de Crédito Electrónica'].total).toBe(-1190);
     expect(byType['Boleta Electrónica'].documents).toBe(2);
     const byPayment = Object.fromEntries(summary.byPayment.map((line) => [line.label, line.total]));
-    expect(byPayment['Crédito 30 días']).toBe(11_900);
+    expect(byPayment['Crédito (a plazo)']).toBe(11_900);
     expect(byPayment['Transferencia']).toBe(5950);
     expect(byPayment['Tarjeta de Débito']).toBe(2380);
   });

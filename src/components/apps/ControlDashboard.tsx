@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import type { ControlSnapshot } from '@/modules/control/service';
 import { formatCurrency } from '@/lib/chile/tax';
+import { santiagoDateTimeLabel, santiagoTimeLabel } from '@/lib/chile/timezone';
 import InstallApplication from './InstallApplication';
 import { useOnline } from './useOnline';
 const sections = [
@@ -27,6 +28,8 @@ export default function ControlDashboard() {
   const [query, setQuery] = useState('');
   const [data, setData] = useState<ControlSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Solo una sesión vencida se arregla volviendo a ingresar; un corte de red no.
+  const [sessionExpired, setSessionExpired] = useState(false);
   const [busy, setBusy] = useState(false);
   const [refresh, setRefresh] = useState(0);
   useEffect(() => {
@@ -45,6 +48,7 @@ export default function ControlDashboard() {
         if (!response.ok) {
           if (active && (response.status === 401 || response.status === 403))
             setData(null);
+          if (active) setSessionExpired(response.status === 401);
           throw new Error(
             response.status === 401
               ? 'Tu sesión venció. Vuelve a ingresar.'
@@ -57,6 +61,7 @@ export default function ControlDashboard() {
         if (active) {
           setData(snapshot);
           setError(null);
+          setSessionExpired(false);
         }
       } catch (cause) {
         if (active && !controller.signal.aborted)
@@ -81,13 +86,7 @@ export default function ControlDashboard() {
       document.removeEventListener('visibilitychange', resume);
     };
   }, [refresh]);
-  const clock = (at: string) =>
-    new Date(at).toLocaleTimeString('es-CL', {
-      timeZone: 'America/Santiago',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
+  const clock = (at: string) => santiagoTimeLabel(new Date(at));
   const metrics = data
     ? [
         {
@@ -195,12 +194,14 @@ export default function ControlDashboard() {
               ? 'Se conserva la última consulta; estos datos pueden estar desactualizados.'
               : 'No se mostrarán cifras hasta confirmar los datos.'}
           </p>
-          <Link
-            href="/control/ingresar"
-            className="mt-3 inline-block underline"
-          >
-            Revisar mi sesión
-          </Link>
+          {sessionExpired && (
+            <Link
+              href="/control/ingresar"
+              className="mt-3 inline-flex min-h-11 items-center rounded-xl bg-primary px-4 font-semibold text-primary-foreground"
+            >
+              Volver a ingresar
+            </Link>
+          )}
         </div>
       )}
       <section
@@ -268,9 +269,7 @@ export default function ControlDashboard() {
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
                   Abierta{' '}
-                  {new Date(register.openedAt).toLocaleString('es-CL', {
-                    timeZone: 'America/Santiago',
-                  })}
+                  {santiagoDateTimeLabel(new Date(register.openedAt))}
                 </p>
               </article>
             ))}
@@ -370,9 +369,7 @@ export default function ControlDashboard() {
                     className="text-xs text-muted-foreground"
                     dateTime={event.at}
                   >
-                    {new Date(event.at).toLocaleString('es-CL', {
-                      timeZone: 'America/Santiago',
-                    })}
+                    {santiagoDateTimeLabel(new Date(event.at))}
                   </time>
                 </div>
                 <p className="mt-1 break-words text-xs text-muted-foreground">

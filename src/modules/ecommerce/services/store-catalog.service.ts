@@ -248,9 +248,15 @@ export async function setProductsPublished(companyId: string, siteId: string, pr
   const ids = [...new Set(productIds)];
   const products = await prisma.product.findMany({
     where: { id: { in: ids }, companyId, isActive: true },
-    select: { id: true, name: true, imageUrl: true },
+    select: { id: true, name: true, imageUrl: true, netPrice: true },
   });
   if (products.length === 0) throw new StoreNotFoundError('No encontramos esos productos');
+  // Un producto sin precio (los crea así la bodega móvil) se vendería por $0 en la tienda.
+  const unpriced = published ? products.filter((product) => product.netPrice <= 0) : [];
+  if (unpriced.length > 0) {
+    const names = unpriced.slice(0, 3).map((product) => `«${product.name}»`).join(', ');
+    throw new StoreError(`${unpriced.length === 1 ? 'Este producto no tiene' : 'Estos productos no tienen'} precio de venta: ${names}${unpriced.length > 3 ? ' y otros' : ''}. Pónselo en Inventario → Productos y vuelve a publicarlo.`, 400);
+  }
 
   const existing = await prisma.storeProduct.findMany({ where: { companyId, siteId, productId: { in: products.map((product) => product.id) } }, select: { id: true, productId: true } });
   const existingBy = new Map(existing.map((row) => [row.productId, row.id]));

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import {
   AuthError,
+  IpNotAllowedError,
   TenantInactiveError,
   getAuthContext,
 } from '@/lib/auth/guards';
@@ -13,6 +14,8 @@ export default async function ControlPage() {
     context = await getAuthContext();
   } catch (error) {
     if (error instanceof TenantInactiveError) redirect('/suspended');
+    // Antes del `AuthError` genérico: sin el motivo, el dueño veía el login sin explicación y volvía a caer acá.
+    if (error instanceof IpNotAllowedError) redirect('/control/ingresar?reason=ip');
     if (error instanceof AuthError) redirect('/control/ingresar');
     throw error;
   }
@@ -33,8 +36,15 @@ export default async function ControlPage() {
             <h1 className="text-2xl font-semibold">Acceso del dueño</h1>
             <p className="mt-3 text-muted-foreground">
               Aether Control muestra información de dirección y necesita la
-              cuenta del dueño de esta empresa.
+              cuenta del dueño de esta empresa. Con tu cuenta puedes seguir
+              trabajando en el ERP.
             </p>
+            <Link
+              href="/dashboard"
+              className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-primary px-5 font-semibold text-primary-foreground"
+            >
+              Ir al ERP
+            </Link>
           </section>
         )}
       </main>

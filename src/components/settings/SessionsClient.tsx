@@ -9,6 +9,7 @@ import type { SessionWithUser } from '@/lib/services/sessions.service';
 import { formatRelative } from '@/lib/format';
 
 import { useConfirm } from '@/components/ui/confirm-provider';
+import { santiagoDateTimeLabel } from '@/lib/chile/timezone';
 /**
  * Lectura aproximada del user-agent para mostrar algo legible ("Chrome en
  * Windows") en vez del string crudo. No pretende ser exhaustiva — alcanza
@@ -138,7 +139,7 @@ export default function SessionsClient() {
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {session.ipAddress ?? 'IP desconocida'} · activo {formatRelative(new Date(session.lastSeenAt))} · inició{' '}
-                    {new Date(session.createdAt).toLocaleString('es-CL')}
+                    {santiagoDateTimeLabel(new Date(session.createdAt))}
                   </p>
                 </div>
               </div>

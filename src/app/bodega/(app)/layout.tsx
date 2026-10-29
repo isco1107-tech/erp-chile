@@ -1,16 +1,21 @@
 import { redirect } from 'next/navigation';
-import { Lock } from 'lucide-react';
+import { AppAccessNotice } from '@/components/apps/AppAccessNotice';
 import { AuthError, IpNotAllowedError, TenantInactiveError, can, getAuthContext } from '@/lib/auth/guards';
 
 export default async function BodegaLayout({ children }: { children: React.ReactNode }) {
   let allowed = true;
+  let missing: 'module' | 'permission' = 'permission';
+  let isOwner = false;
   try {
     const context = await getAuthContext();
     if (context.mustChangePassword) redirect('/change-password');
     allowed = can(context, 'products:read');
+    missing = context.features.hasInventory ? 'permission' : 'module';
+    isOwner = context.role === 'OWNER';
   } catch (error) {
     if (error instanceof TenantInactiveError) redirect('/suspended');
-    if (error instanceof IpNotAllowedError) redirect('/login?reason=ip');
+    // Dentro de la app: `/login` saca al bodeguero de Bodega y lo deja en el ingreso del ERP.
+    if (error instanceof IpNotAllowedError) redirect('/bodega/ingresar?reason=ip');
     if (error instanceof AuthError) redirect('/bodega/ingresar');
     throw error;
   }
@@ -21,10 +26,8 @@ export default async function BodegaLayout({ children }: { children: React.React
       {allowed ? (
         children
       ) : (
-        <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-          <Lock className="size-10 text-muted-foreground" />
-          <h1 className="text-xl font-semibold">Sin acceso a la bodega</h1>
-          <p className="max-w-xs text-base text-muted-foreground">Tu empresa no tiene el módulo de Inventario o tu rol no permite usarlo. Pide a un administrador que lo habilite.</p>
+        <div className="flex h-full items-center justify-center overflow-y-auto p-4">
+          <AppAccessNotice missing={missing} moduleName="Inventario" action="usar la bodega" isOwner={isOwner} />
         </div>
       )}
     </div>

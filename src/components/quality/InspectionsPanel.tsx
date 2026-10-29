@@ -11,6 +11,7 @@ import { evaluateInspection, type MeasuredValue, type QualityParameter } from '@
 import { createInspectionAction, listInspectionsAction, listSuppliersAction, listTemplatesAction } from '@/modules/quality/actions/quality.actions';
 import { INSPECTION_KIND_LABELS } from '@/modules/quality/schema';
 import type { InspectionRow, SupplierRow, TemplateRow } from '@/modules/quality/services/quality.service';
+import { santiagoDateTimeLabel } from '@/lib/chile/timezone';
 
 type Filter = 'ALL' | 'PASSED' | 'FAILED';
 const FILTERS: Array<{ value: Filter; label: string }> = [
@@ -21,7 +22,7 @@ const FILTERS: Array<{ value: Filter; label: string }> = [
 const fieldClass = 'w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none';
 
 function formatDateTime(value: Date | string): string {
-  return new Date(value).toLocaleString('es-CL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'America/Santiago' });
+  return santiagoDateTimeLabel(new Date(value));
 }
 
 function rangeHint(p: QualityParameter): string | null {

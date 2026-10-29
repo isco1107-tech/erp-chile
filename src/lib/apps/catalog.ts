@@ -37,39 +37,15 @@ export const APP_CATALOG = [
   {
     id: 'seller',
     name: 'Seller Center',
-    eyebrow: 'PROVEEDORES',
+    eyebrow: 'SELLERS EN CONSIGNACIÓN',
     href: '/proveedor/cuenta',
     description:
-      'La cuenta del proveedor: sus ventas, existencias y mermas, según los accesos que le otorgó cada empresa.',
-    format: 'Instalable con cuenta de proveedor',
+      'Para quien deja sus productos a la venta en tu tienda (consignación): sus ventas, existencias, mermas y liquidaciones, según los accesos que le dio cada empresa.',
+    format: 'Instalable · se entra con la invitación que envía la tienda',
     features: [
       'Identidad propia',
       'Datos de su empresa',
       'Consulta de consignación',
     ],
-  },
-] as const;
-
-export const APP_OPPORTUNITIES = [
-  {
-    name: 'Portal del trabajador',
-    reason:
-      'Liquidaciones, solicitudes y avisos recurrentes justifican un acceso móvil propio.',
-    prerequisite:
-      'Crear ingreso personal persistente antes de reemplazar los enlaces privados.',
-  },
-  {
-    name: 'Portal de clientes',
-    reason:
-      'Pedidos, documentos y pagos pueden reunirse en una app de autoservicio.',
-    prerequisite:
-      'Identidad de cliente y separación entre empresas; no instalar URLs con tokens como una app compartida.',
-  },
-  {
-    name: 'Eventos y jurado',
-    reason:
-      'Acreditación y evaluación se benefician de accesos rápidos durante una jornada.',
-    prerequisite:
-      'Instalación por evento y rol, caducidad y protección de evaluaciones.',
   },
 ] as const;
