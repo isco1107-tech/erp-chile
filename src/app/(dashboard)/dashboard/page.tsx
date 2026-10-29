@@ -787,7 +787,19 @@ export default async function DashboardPage() {
                       />
                     ))
                   ) : (
-                    <EmptyState title="Sin productos bajo el mínimo" description="Todo el catálogo está sobre su stock mínimo de bodega." />
+                    productCount === 0 ? (
+                      <EmptyState
+                        title="Todavía no tienes productos"
+                        description="Crea tu primer producto o importa tu catálogo desde Excel para empezar a vender."
+                        action={
+                          <Link href="/dashboard/products" className="text-sm font-medium text-primary underline underline-offset-2">
+                            Ir al catálogo
+                          </Link>
+                        }
+                      />
+                    ) : (
+                      <EmptyState title="Sin productos bajo el mínimo" description="Todo el catálogo está sobre su stock mínimo de bodega." />
+                    )
                   )}
                 </div>
               </div>

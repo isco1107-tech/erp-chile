@@ -14,7 +14,7 @@ import {
   duplicateSalesDocumentAction,
   listSalesDocumentsAction,
 } from '@/modules/sales/actions/sales.actions';
-import { DTE_TYPE_LABELS } from '@/modules/sales/schema';
+import { CREDITABLE_DTE_TYPES, DTE_TYPE_LABELS } from '@/modules/sales/schema';
 import { isSubmittedToSii } from '@/modules/sales/cancellation';
 import type { SalesDocumentListItem } from '@/modules/sales/services/sales.service';
 import { formatCurrency } from '@/lib/chile/tax';
@@ -230,18 +230,21 @@ export default function SalesHistoryClient() {
                       <Link href={`/dashboard/sales/${doc.id}`} className={buttonVariants({ variant: 'outline', size: 'sm' })}>
                         Ver / Imprimir
                       </Link>
+                      {doc.status === 'DRAFT' && (
+                        <Link href={`/dashboard/sales/new?borrador=${doc.id}`} className={buttonVariants({ size: 'sm' })}>
+                          Continuar y emitir
+                        </Link>
+                      )}
                       <Button type="button" size="sm" variant="outline" onClick={() => handleDuplicate(doc.id)}>Duplicar</Button>
+                      {doc.status === 'ISSUED' && doc.folio !== null && CREDITABLE_DTE_TYPES.has(doc.dteType) && (
+                        <Link href={`/dashboard/sales/new?corrige=${doc.id}`} className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+                          Nota de crédito
+                        </Link>
+                      )}
                       {doc.status === 'ISSUED' && (
                         isSubmittedToSii(doc) ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="destructive"
-                            disabled
-                            title="Ya enviado al SII: corrígelo emitiendo una Nota de Crédito"
-                          >
-                            Anular
-                          </Button>
+                          // Sin botón deshabilitado con `title`: en un celular el motivo no se veía.
+                          <span className="self-center text-xs text-muted-foreground">Ya enviado al SII: se corrige con nota de crédito</span>
                         ) : (
                           <Button type="button" size="sm" variant="destructive" onClick={() => handleCancel(doc.id)}>Anular</Button>
                         )

@@ -131,8 +131,8 @@ export const VENTAS_SECTIONS: ManualSection[] = [
           'Elige el "Tipo de Documento" (Factura Electrónica, Boleta Electrónica, Guía de Despacho, etc.) y la bodega de salida.',
           'Busca el cliente por RUT o razón social. Si no existe, créalo ahí mismo con el botón de cliente rápido, sin salir del formulario.',
           'Agrega productos escaneando el código o buscando por SKU o nombre. Para un servicio sin ficha usa "+ Agregar línea libre". Puedes aplicar un % de descuento por línea.',
-          'Elige la forma de pago (Efectivo, Transferencia, Tarjeta de Débito o Crédito, o Crédito 30 días).',
-          'Revisa el resumen (neto, exento, IVA 19% y total) y presiona "Emitir Documento". Si aún no está listo, usa "Guardar Borrador".',
+          'Elige la forma de pago (Efectivo, Transferencia, Tarjeta de Débito o Crédito, o Crédito 30 días). Es obligatoria: si el cliente tiene días de crédito pactados, se propone "Crédito 30 días".',
+          'Revisa el resumen (neto, exento, IVA 19% y total) y presiona "Emitir Documento". Antes de emitir verás el tipo, el cliente, el total y si quedará pagada o pendiente; presiona "Sí, emitir" o "Revisar". Si aún no está listo, usa "Guardar Borrador".',
         ],
         tip: 'El IVA y la exención salen de la ficha de cada producto, no del formulario: si un producto debería ser exento, corrígelo en el Catálogo.',
       },
@@ -141,7 +141,7 @@ export const VENTAS_SECTIONS: ManualSection[] = [
         title: 'Borradores: guardar ahora, emitir después',
         steps: [
           'Un borrador no tiene folio, no descuenta stock y no cuenta para el F29.',
-          'Ábrelo desde el listado ("Ver / Imprimir"), complétalo y emítelo cuando corresponda.',
+          'En el listado presiona "Continuar y emitir" (también está en el detalle del borrador): se abre con todo lo que guardaste. Complétalo y emítelo, o presiona "Guardar cambios del borrador" para seguir después; el borrador se reemplaza, no se duplica.',
           'Antes de cerrar el mes revisa que no queden borradores que en realidad debían emitirse.',
         ],
       },
@@ -172,6 +172,7 @@ export const VENTAS_SECTIONS: ManualSection[] = [
         steps: [
           'En el listado de Ventas & Facturación, usa "Anular" en el documento. Se repone el stock, se revierten sus pagos y el documento queda como anulado (nunca se borra).',
           'No se puede anular una boleta de un turno de caja ya cerrado ni un documento ya enviado al SII: en esos casos emite una Nota de Crédito.',
+          'Para la Nota de Crédito usa "Nota de crédito" en el listado o "Emitir nota de crédito" en el detalle del documento: se cargan el cliente, el folio de referencia y todas las líneas. Para una devolución parcial baja las cantidades o quita líneas antes de emitir.',
         ],
       },
       {

@@ -100,8 +100,9 @@ export default function OnboardingWizard({ companyId, hasPos, defaultWarehouseId
     setOpen(false);
   }
 
+  // Un clic fuera o Escape solo la cierra por ahora; no reaparecer queda para "Cerrar" o terminar.
   return (
-    <Dialog open={open} onOpenChange={(next: boolean) => { if (!next) dismiss(); }}>
+    <Dialog open={open} onOpenChange={(next: boolean) => { if (!next) setOpen(false); }}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>Configuremos tu empresa</DialogTitle>
@@ -280,7 +281,19 @@ function StepWarehousePos({ hasPos, defaultWarehouseId, onDone }: { hasPos: bool
         </div>
       )}
 
-      <Button type="button" onClick={onDone}>Continuar</Button>
+      <Button
+        type="button"
+        onClick={() => {
+          // Una bodega escrita pero no creada se perdía en silencio al continuar.
+          if (warehouseName.trim() && !extraWarehouseId) {
+            toast.error('Escribiste una bodega pero no la creaste: presiona «Crear bodega adicional» o borra el nombre');
+            return;
+          }
+          onDone();
+        }}
+      >
+        Continuar
+      </Button>
     </div>
   );
 }
@@ -357,7 +370,7 @@ function StepInvite({ onDone }: { onDone: () => void }) {
         <Button type="button" variant="outline" onClick={onDone}>Terminar sin invitar</Button>
       </div>
       <p className="border-t border-border pt-3 text-sm text-muted-foreground">
-        ¿Dudas más adelante? Usa el botón de ayuda flotante (ícono de interrogación, abajo a la izquierda) — te explica cómo hacer algo paso a paso, o lo hace por ti si se lo pides.
+        ¿Dudas más adelante? Usa el botón «Asistente» de la barra superior: te explica cómo hacer algo paso a paso, o lo hace por ti si se lo pides.
       </p>
     </div>
   );

@@ -1,6 +1,6 @@
 import { formatCurrency } from '@/lib/chile/tax';
 import { formatQuantity } from '../cart';
-import type { TicketData } from '../ticket';
+import { ticketHeading, type TicketData } from '../ticket';
 
 /**
  * ESC/POS: el lenguaje de casi todas las impresoras térmicas de boletas (Epson,
@@ -194,7 +194,9 @@ export function buildTicketEscPos(data: TicketData, options: TicketPrintOptions)
   if (data.companyAddress) for (const part of wrapText(data.companyAddress, width)) out.line(part);
   out.align('left').line(rule);
 
-  out.align('center').bold(true).line('BOLETA ELECTRÓNICA').bold(false).line(`N° ${data.folio ?? '-'}`);
+  const heading = ticketHeading(data);
+  out.align('center').bold(true).line(heading.title).bold(false).line(`N° ${data.folio ?? '-'}`);
+  for (const part of wrapText(heading.notice, width)) out.line(part);
   out.align('left').line(rule);
 
   for (const text of [`Fecha: ${when(data.issuedAt)}`, `Atiende: ${data.cashierName}`, `Cliente: ${data.customerName}`, `RUT: ${data.customerRut}`]) {

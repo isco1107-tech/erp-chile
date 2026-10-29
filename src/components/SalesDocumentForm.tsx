@@ -13,9 +13,15 @@ import { listContactsAction } from '@/modules/contacts/actions/contacts.actions'
 import { listWarehousesAction } from '@/modules/inventory/actions/inventory.actions';
 import { findProductByCodeAction, listProductsAction } from '@/modules/inventory/actions/products.actions';
 import type { ProductWithStock } from '@/modules/inventory/services/products.service';
-import { createSalesDocumentAction, getContactCreditStatusAction, type ContactCreditStatus } from '@/modules/sales/actions/sales.actions';
+import {
+  createSalesDocumentAction,
+  getContactCreditStatusAction,
+  getSalesDocumentAction,
+  type ContactCreditStatus,
+} from '@/modules/sales/actions/sales.actions';
 import { computeDocument, exceedsCreditLimit } from '@/modules/sales/calc';
 import {
+  CREDITABLE_DTE_TYPES,
   DTE_TYPES,
   DTE_TYPE_LABELS,
   PAYMENT_METHODS,
@@ -61,12 +67,23 @@ interface LineItemDraft {
 
 const REFERENCE_DTE_TYPES = new Set(['NOTA_CREDITO_61', 'NOTA_DEBITO_56', 'GUIA_DESPACHO_52']);
 
+type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+
 /** Cantidad que se propone desde la nota según el tipo de documento. */
 function orderQuantityFor(line: OrderDocumentPrefill['lines'][number], dteType: (typeof DTE_TYPES)[number]): number {
   return dteType === 'GUIA_DESPACHO_52' ? line.remainingToDispatch : line.remainingToInvoice;
 }
 
-export default function SalesDocumentForm({ orderId, initialType }: { orderId?: string; initialType?: (typeof DTE_TYPES)[number] } = {}) {
+interface SalesDocumentFormProps {
+  orderId?: string;
+  initialType?: (typeof DTE_TYPES)[number];
+  /** Borrador que se retoma: se carga, se puede editar y se emite (o se vuelve a guardar) en su lugar. */
+  draftId?: string;
+  /** Documento emitido que se corrige: precarga una Nota de Crédito con su cliente, referencia y líneas. */
+  creditFromId?: string;
+}
+
+export default function SalesDocumentForm({ orderId, initialType, draftId, creditFromId }: SalesDocumentFormProps = {}) {
   const confirm = useConfirm();
   const router = useRouter();
   const idempotency = useRef(createIdempotencyTracker());
@@ -78,7 +95,9 @@ export default function SalesDocumentForm({ orderId, initialType }: { orderId?: 
   const [dteType, setDteType] = useState<(typeof DTE_TYPES)[number]>('BOLETA_39');
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [warehouseId, setWarehouseId] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<(typeof PAYMENT_METHODS)[number]>('EFECTIVO');
+  // Sin forma de pago por defecto: con «Efectivo» preseleccionado, una factura
+  // a crédito emitida a la rápida quedaba pagada y nunca llegaba a cobranza.
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | ''>('');
   const [dueDate, setDueDate] = useState('');
   const [referenceFolio, setReferenceFolio] = useState('');
   const [referenceType, setReferenceType] = useState('');
@@ -94,6 +113,13 @@ export default function SalesDocumentForm({ orderId, initialType }: { orderId?: 
   const [pricing, setPricing] = useState<ContactPricing | null>(null);
   const [sellers, setSellers] = useState<{ id: string; name: string }[]>([]);
   const [sellerId, setSellerId] = useState('self');
+  const [formErrors, setFormErrors] = useState<string[]>([]);
+  /** Borrador que este formulario reemplaza al guardar o emitir. */
+  const [replacesDraftId, setReplacesDraftId] = useState<string | undefined>(undefined);
+  /** Nota de venta que traía el borrador retomado (sus líneas ya traen la línea de la nota). */
+  const [sourceSalesOrderId, setSourceSalesOrderId] = useState<string | undefined>(undefined);
+  /** Documento corregido por la Nota de Crédito precargada. */
+  const [creditSource, setCreditSource] = useState<{ label: string; folio: number } | null>(null);
 
   useEffect(() => {
     listSellersAction().then((r) => { if (r.success) setSellers(r.data); });
@@ -103,7 +129,8 @@ export default function SalesDocumentForm({ orderId, initialType }: { orderId?: 
       if (r.success) {
         setWarehouses(r.data);
         const defaultWarehouse = r.data.find((w) => w.isDefault) ?? r.data[0];
-        if (defaultWarehouse) setWarehouseId(defaultWarehouse.id);
+        // No pisa la bodega de un borrador o documento precargado que llegó antes.
+        if (defaultWarehouse) setWarehouseId((current) => current || defaultWarehouse.id);
       }
     });
   }, []);
@@ -143,6 +170,73 @@ export default function SalesDocumentForm({ orderId, initialType }: { orderId?: 
       );
     });
   }, [orderId, initialType]);
+
+  // Borrador retomado o Nota de Crédito desde el documento que corrige: se
+  // cargan cliente, bodega, forma de pago y líneas tal como quedaron. Precios
+  // y exención se vuelven a leer del catálogo en el servidor al emitir.
+  useEffect(() => {
+    const sourceId = draftId ?? creditFromId;
+    if (!sourceId || orderId) return;
+    let cancelled = false;
+    getSalesDocumentAction(sourceId).then((r) => {
+      if (cancelled) return;
+      if (!r.success) {
+        toast.error(r.error);
+        return;
+      }
+      const doc = r.data;
+      if (draftId && doc.status !== 'DRAFT') {
+        toast.error('Este documento ya no es un borrador. Revísalo en el historial de ventas');
+        return;
+      }
+      if (creditFromId && (doc.status !== 'ISSUED' || doc.folio === null || !CREDITABLE_DTE_TYPES.has(doc.dteType))) {
+        toast.error('Solo se puede emitir una Nota de Crédito sobre una factura, boleta o nota de débito emitida');
+        return;
+      }
+      setSelectedContact(doc.contact);
+      setWarehouseId(doc.warehouseId);
+      setPaymentMethod(doc.paymentMethod as PaymentMethod);
+      setItems(
+        doc.items.map((item) => ({
+          key: newKey(),
+          productId: item.productId ?? undefined,
+          sku: item.sku ?? undefined,
+          description: item.description,
+          quantity: String(item.quantity),
+          unitPrice: String(item.unitPrice),
+          isExempt: item.isExempt,
+          discountPercent: String(item.discountPercent),
+          salesOrderItemId: draftId ? item.salesOrderItemId ?? undefined : undefined,
+        }))
+      );
+      if (draftId) {
+        setReplacesDraftId(doc.id);
+        setDteType(doc.dteType as (typeof DTE_TYPES)[number]);
+        setDueDate(doc.dueDate ? new Date(doc.dueDate).toISOString().slice(0, 10) : '');
+        setReferenceFolio(doc.referenceFolio ? String(doc.referenceFolio) : '');
+        setReferenceType(doc.referenceType ?? '');
+        setNotes(doc.notes ?? '');
+        if (doc.sellerId) setSellerId(doc.sellerId);
+        setSourceSalesOrderId(doc.salesOrderId ?? undefined);
+      } else if (doc.folio !== null) {
+        const label = DTE_TYPE_LABELS[doc.dteType as (typeof DTE_TYPES)[number]] ?? 'Documento';
+        setDteType('NOTA_CREDITO_61');
+        setReferenceFolio(String(doc.folio));
+        setReferenceType(doc.dteType);
+        setNotes(`Corrige ${label} N° ${doc.folio}`);
+        setCreditSource({ label, folio: doc.folio });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [draftId, creditFromId, orderId]);
+
+  /** Elegir cliente: si tiene días de crédito pactados y aún no se eligió forma de pago, se propone crédito. */
+  function chooseContact(contact: Contact) {
+    setSelectedContact(contact);
+    if (!paymentMethod && contact.creditDays > 0) setPaymentMethod('CREDITO_30');
+  }
 
   // El cliente de la nota se selecciona cuando llega la lista de contactos.
   useEffect(() => {
@@ -317,8 +411,9 @@ export default function SalesDocumentForm({ orderId, initialType }: { orderId?: 
       referenceFolio: referenceFolio ? Number(referenceFolio) : undefined,
       referenceType: referenceType ? (referenceType as (typeof DTE_TYPES)[number]) : undefined,
       notes: notes || undefined,
-      salesOrderId: orderPrefill?.orderId,
+      salesOrderId: orderPrefill?.orderId ?? sourceSalesOrderId,
       sellerId: sellerId !== 'self' ? sellerId : undefined,
+      replacesDraftId,
       items: items.map((i) => ({
         salesOrderItemId: i.salesOrderItemId,
         productId: i.productId,
@@ -336,13 +431,52 @@ export default function SalesDocumentForm({ orderId, initialType }: { orderId?: 
     const payload = buildPayload();
     const parsed = salesDocumentCreateSchema.safeParse(payload);
     if (!parsed.success) {
-      toast.error(parsed.error.issues[0]?.message ?? 'Datos inválidos');
+      // Todos los problemas a la vista (no solo el primero), arriba del formulario.
+      const messages = [...new Set(parsed.error.issues.map((issue) => issue.message))];
+      setFormErrors(messages);
+      toast.error(messages[0] ?? 'Datos inválidos');
       return;
     }
+    setFormErrors([]);
     if (status === 'ISSUED') {
-      const confirmed = await confirm(
-        'Se asignará un folio correlativo y se descontará el stock de la bodega seleccionada. Esta acción no se puede deshacer (solo anular). ¿Continuar?'
-      );
+      const data = parsed.data;
+      const warehouseName = warehouses.find((w) => w.id === data.warehouseId)?.name ?? '—';
+      // Mismo criterio del servidor: todo lo emitido sin crédito queda pagado en el acto.
+      const paidOnIssue = data.paymentMethod !== 'CREDITO_30' && data.dteType !== 'NOTA_CREDITO_61';
+      const confirmed = await confirm({
+        title: `¿Emitir ${DTE_TYPE_LABELS[data.dteType]} por ${formatCurrency(documentTotals.totalAmount)}?`,
+        description: (
+          <div className="space-y-2 text-sm">
+            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+              <dt className="text-muted-foreground">Documento</dt>
+              <dd className="font-medium text-foreground">{DTE_TYPE_LABELS[data.dteType]}</dd>
+              <dt className="text-muted-foreground">Cliente</dt>
+              <dd className="font-medium text-foreground">{selectedContact ? `${selectedContact.razonSocial} (${selectedContact.rut})` : '—'}</dd>
+              <dt className="text-muted-foreground">Total</dt>
+              <dd className="font-medium text-foreground">{formatCurrency(documentTotals.totalAmount)}</dd>
+              <dt className="text-muted-foreground">Forma de pago</dt>
+              <dd className="font-medium text-foreground">{PAYMENT_METHOD_LABELS[data.paymentMethod]}</dd>
+              <dt className="text-muted-foreground">Bodega</dt>
+              <dd className="font-medium text-foreground">{warehouseName}</dd>
+            </dl>
+            {data.dteType !== 'COTIZACION' && (
+              <p>
+                {paidOnIssue
+                  ? 'Quedará registrada como PAGADA. Si el cliente te paga después, vuelve y elige «Crédito».'
+                  : data.paymentMethod === 'CREDITO_30' && data.dteType !== 'NOTA_CREDITO_61'
+                    ? 'Quedará pendiente de pago en Cuentas por Cobrar.'
+                    : null}
+              </p>
+            )}
+            <p className="text-muted-foreground">
+              Se asigna el folio y se mueve el stock. Después no se puede editar: solo anular o corregir con una nota de crédito.
+            </p>
+          </div>
+        ),
+        confirmLabel: 'Sí, emitir',
+        cancelLabel: 'Revisar',
+        destructive: false,
+      });
       if (!confirmed) return;
     }
 
@@ -369,6 +503,28 @@ export default function SalesDocumentForm({ orderId, initialType }: { orderId?: 
 
   return (
     <div className="space-y-4">
+      {replacesDraftId && (
+        <div className="rounded-xl border border-info/25 bg-info-soft px-4 py-3 text-sm">
+          Estás retomando un <span className="font-semibold">borrador</span>. Revisa los datos y emítelo, o guarda los cambios para
+          seguir después: el borrador anterior se reemplaza, no se duplica.
+        </div>
+      )}
+      {creditSource && (
+        <div className="rounded-xl border border-info/25 bg-info-soft px-4 py-3 text-sm">
+          Nota de Crédito que corrige la <span className="font-semibold">{creditSource.label} N° {creditSource.folio}</span>. Se cargaron
+          todas sus líneas: para una devolución parcial baja las cantidades o quita las líneas que no se devuelven.
+        </div>
+      )}
+      {formErrors.length > 0 && (
+        <div role="alert" className="rounded-xl border border-danger/30 bg-danger-soft px-4 py-3 text-sm text-danger">
+          <p className="font-semibold">Falta completar antes de continuar:</p>
+          <ul className="mt-1 list-disc pl-5">
+            {formErrors.map((message) => (
+              <li key={message}>{message}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       {orderPrefill && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-info/25 bg-info-soft px-4 py-3 text-sm">
           <span>
@@ -418,9 +574,9 @@ export default function SalesDocumentForm({ orderId, initialType }: { orderId?: 
 
         <div>
           <Label htmlFor="paymentMethod">Forma de pago</Label>
-          <Select items={PAYMENT_METHOD_LABELS} value={paymentMethod} onValueChange={(value) => setPaymentMethod(value as (typeof PAYMENT_METHODS)[number])}>
-            <SelectTrigger id="paymentMethod">
-              <SelectValue />
+          <Select items={PAYMENT_METHOD_LABELS} value={paymentMethod} onValueChange={(value) => setPaymentMethod(value as PaymentMethod)}>
+            <SelectTrigger id="paymentMethod" aria-invalid={formErrors.length > 0 && !paymentMethod}>
+              <SelectValue placeholder="Elige cómo te paga el cliente" />
             </SelectTrigger>
             <SelectContent>
               {PAYMENT_METHODS.map((p) => (
@@ -428,6 +584,13 @@ export default function SalesDocumentForm({ orderId, initialType }: { orderId?: 
               ))}
             </SelectContent>
           </Select>
+          {paymentMethod && dteType !== 'COTIZACION' && dteType !== 'NOTA_CREDITO_61' && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {paymentMethod === 'CREDITO_30'
+                ? 'Queda pendiente en Cuentas por Cobrar hasta que registres el pago.'
+                : 'Queda registrada como pagada al emitir.'}
+            </p>
+          )}
         </div>
 
         <div className="sm:col-span-2 lg:col-span-3">
@@ -436,7 +599,8 @@ export default function SalesDocumentForm({ orderId, initialType }: { orderId?: 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between rounded-lg border border-input px-2.5 py-1.5 text-sm">
                 <span>{selectedContact.rut} — {selectedContact.razonSocial}</span>
-                {!orderPrefill && (
+                {/* La nota de crédito acredita al cliente del documento original: no se cambia. */}
+                {!orderPrefill && !creditSource && (
                   <Button type="button" size="xs" variant="ghost" onClick={() => setSelectedContact(null)}>Cambiar</Button>
                 )}
               </div>
@@ -473,7 +637,7 @@ export default function SalesDocumentForm({ orderId, initialType }: { orderId?: 
                     <li
                       key={c.id}
                       className="cursor-pointer px-2.5 py-1.5 hover:bg-muted"
-                      onClick={() => { setSelectedContact(c); setContactQuery(''); }}
+                      onClick={() => { chooseContact(c); setContactQuery(''); }}
                     >
                       {c.rut} — {c.razonSocial}
                     </li>
@@ -488,7 +652,7 @@ export default function SalesDocumentForm({ orderId, initialType }: { orderId?: 
                   editingContact={null}
                   onSaved={(contact) => {
                     setContacts((prev) => [contact, ...prev]);
-                    setSelectedContact(contact);
+                    chooseContact(contact);
                     setShowQuickContact(false);
                     toast.success('Cliente creado y seleccionado');
                   }}
@@ -684,7 +848,7 @@ export default function SalesDocumentForm({ orderId, initialType }: { orderId?: 
 
       <div className="flex items-center gap-2">
         <Button type="button" variant="outline" disabled={saving} onClick={() => handleSave('DRAFT')}>
-          {saving ? 'Guardando...' : 'Guardar Borrador'}
+          {saving ? 'Guardando...' : replacesDraftId ? 'Guardar cambios del borrador' : 'Guardar Borrador'}
         </Button>
         <Button type="button" disabled={saving} onClick={() => handleSave('ISSUED')}>
           {saving ? 'Emitiendo...' : 'Emitir Documento (Descontar Stock y Asignar Folio)'}

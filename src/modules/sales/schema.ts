@@ -46,6 +46,9 @@ export const CASH_ELIGIBLE_DTE_TYPES: (typeof DTE_TYPES)[number][] = [
   'NOTA_DEBITO_56',
 ];
 
+/** Documentos que se corrigen con una Nota de Crédito desde su propio detalle. */
+export const CREDITABLE_DTE_TYPES: ReadonlySet<string> = new Set(['FACTURA_33', 'FACTURA_EXENTA_34', 'BOLETA_39', 'BOLETA_EXENTA_41', 'NOTA_DEBITO_56']);
+
 export const PAYMENT_METHODS = ['EFECTIVO', 'TRANSFERENCIA', 'TARJETA_DEBITO', 'TARJETA_CREDITO', 'CREDITO_30'] as const;
 
 export const PAYMENT_METHOD_LABELS: Record<(typeof PAYMENT_METHODS)[number], string> = {
@@ -84,6 +87,8 @@ export const salesDocumentCreateSchema = z.object({
   salesOrderId: z.string().optional(),
   /** Vendedor al que se atribuye la venta; por defecto, quien la emite. */
   sellerId: z.string().optional(),
+  /** Borrador que este documento reemplaza (se retoma, se edita y se emite o se vuelve a guardar). */
+  replacesDraftId: z.string().optional(),
   items: z.array(salesDocumentItemSchema).min(1, 'Agregue al menos un ítem'),
 }).superRefine((value, ctx) => {
   if ((value.dteType === 'NOTA_CREDITO_61' || value.dteType === 'NOTA_DEBITO_56') && (!value.referenceFolio || !value.referenceType)) {

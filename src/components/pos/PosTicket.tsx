@@ -1,7 +1,7 @@
 'use client';
 
 import { formatCurrency } from '@/lib/chile/tax';
-import type { TicketData, TicketLine } from '@/lib/pos/ticket';
+import { ticketHeading, type TicketData, type TicketLine } from '@/lib/pos/ticket';
 
 export type { TicketData, TicketLine };
 
@@ -25,8 +25,9 @@ export default function PosTicket({ data }: { data: TicketData }) {
       <div className="ticket-divider" />
 
       <div className="ticket-center">
-        <p className="ticket-strong">BOLETA ELECTRÓNICA</p>
+        <p className="ticket-strong">{ticketHeading(data).title}</p>
         <p>N° {data.folio ?? '-'}</p>
+        <p>{ticketHeading(data).notice}</p>
       </div>
 
       <div className="ticket-divider" />

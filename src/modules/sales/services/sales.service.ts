@@ -106,6 +106,19 @@ export async function createSalesDocument(
       }
     }
 
+    // Retomar un borrador: el documento nuevo lo reemplaza en la misma
+    // transacción, así un borrador nunca queda vivo junto a su emisión. Dos
+    // emisiones del mismo borrador compiten por la fila: la segunda ya no lo
+    // encuentra y se rechaza (un reintento con la misma clave sale arriba).
+    if (input.replacesDraftId) {
+      const removed = await tx.salesDocument.deleteMany({
+        where: { id: input.replacesDraftId, companyId, status: 'DRAFT' },
+      });
+      if (removed.count === 0) {
+        throw new Error('Este borrador ya fue emitido o eliminado. Revisa el historial de ventas');
+      }
+    }
+
     const contact = await tx.contact.findFirst({ where: { id: input.contactId, companyId } });
     if (!contact) throw new Error('Cliente no encontrado');
 

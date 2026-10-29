@@ -384,6 +384,7 @@ export default function PosTerminal(props: Props) {
       companyRut: props.companyRut,
       companyAddress: props.companyAddress,
       folio: sale.folio,
+      stamped: Boolean(sale.tedXml),
       issuedAt: new Date(sale.issueDate),
       cashierName: props.cashierName,
       customerName: rut ? (customer.name ?? `Cliente ${formatRut(rut)}`) : 'Consumidor Final',

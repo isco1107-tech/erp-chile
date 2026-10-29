@@ -11,7 +11,7 @@ import { calculateGrossPrice, formatCurrency } from '@/lib/chile/tax';
 import { bpsToInput, formatCommission, parseCommissionPercent } from '@/lib/consignment/commission';
 import { nativeSelectClass } from '@/components/ui/field-classes';
 import { cn } from '@/lib/utils';
-import { UNITS, productCreateSchema, productUpdateSchema } from '@/modules/inventory/schema';
+import { UNITS, UNIT_LABELS, productCreateSchema, productUpdateSchema } from '@/modules/inventory/schema';
 import {
   createCategoryAction,
   createProductAction,
@@ -288,7 +288,7 @@ export default function ProductForm({
             className="h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
           >
             {UNITS.map((u) => (
-              <option key={u} value={u}>{u}</option>
+              <option key={u} value={u}>{UNIT_LABELS[u]}</option>
             ))}
           </select>
         </div>
@@ -332,18 +332,24 @@ export default function ProductForm({
               checked={form.isTrackable}
               onChange={(e) => update('isTrackable', e.target.checked)}
             />
-            Producto trackeable (gestiona stock)
+            Controlar el stock de este producto (desmárcalo para servicios)
           </label>
         </div>
 
         <div className="flex items-end">
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-start gap-2 text-sm">
             <input
               type="checkbox"
+              className="mt-0.5"
               checked={form.isExempt}
               onChange={(e) => update('isExempt', e.target.checked)}
             />
-            Exento de IVA
+            <span>
+              Exento de IVA
+              <span className="block text-xs text-muted-foreground">
+                Solo si la ley lo declara exento. Marcarlo por error hace cobrar menos IVA del que corresponde.
+              </span>
+            </span>
           </label>
         </div>
 
