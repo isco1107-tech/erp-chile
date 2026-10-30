@@ -345,6 +345,19 @@ describe('webhook de órdenes', () => {
       expect((await enviar('empresa.crear', alta, null)).cuerpo).toMatchObject({ ok: false, mensaje: expect.stringContaining('Ya existe') });
     });
 
+    it('la referencia del lead que trajo a la empresa queda en la bitácora del alta (marketing propio, ADR 0015)', async () => {
+      findUnique.mockResolvedValue(null);
+      auditoria.mockResolvedValue(null);
+      createTenant.mockResolvedValue({ company: { id: 'nueva', businessName: 'Mi Empresa SpA' }, linkedExistingUser: false });
+      const r = await enviar('empresa.crear', { ...alta, leadRef: 'l-abcd2345' }, null);
+      expect(r.cuerpo).toMatchObject({ ok: true, datos: { empresaId: 'nueva', leadRef: 'L-ABCD2345' } });
+      expect((createAuditLog as jest.Mock).mock.calls[0][0].metadata).toMatchObject({ leadRef: 'L-ABCD2345' });
+      createTenant.mockClear();
+      // Una referencia mal copiada se informa antes de crear nada.
+      expect((await enviar('empresa.crear', { ...alta, leadRef: 'L-0000' }, null)).cuerpo).toMatchObject({ ok: false, mensaje: expect.stringContaining('L-ABCD2345') });
+      expect(createTenant).not.toHaveBeenCalled();
+    });
+
     it('libera la lista de IPs de una empresa bloqueada y lo deja en su bitácora', async () => {
       expect((await enviar('seguridad.ip.liberar')).cuerpo.ok).toBe(true);
       expect(platform.disableTenantIpAllowlist).toHaveBeenCalledWith('c1');
@@ -487,6 +500,42 @@ describe('webhook de órdenes', () => {
       findUnique.mockResolvedValue(empresa({ status: 'ACTIVE' }));
       await enviar('cuenta.suspender');
       expect(cancelar).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('marketing propio de Aether (ADR 0015)', () => {
+    type Revision = { id: string; aprobado: boolean; hallazgos: { regla: string }[] };
+
+    it('entrega el contexto del agente sin tocar ninguna empresa', async () => {
+      const r = await enviar('marketing.contexto', {}, null);
+      const datos = (r.cuerpo as unknown as { datos: { version: string; oferta: { modulos: unknown[] }; guia: unknown; afirmaciones: unknown[] } }).datos;
+      expect(r.cuerpo.ok).toBe(true);
+      expect(datos.version).toMatch(/^[0-9a-f]{16}$/);
+      expect(datos.oferta.modulos.length).toBeGreaterThan(10);
+      expect(datos.afirmaciones.length).toBeGreaterThan(5);
+      expect(findUnique).not.toHaveBeenCalled();
+      expect(createAuditLog).not.toHaveBeenCalled();
+    });
+
+    it('revisa un calendario completo y dice qué piezas pasan y por qué no las otras', async () => {
+      const r = await enviar('marketing.revisar', {
+        piezas: [
+          { id: 'p1', canal: 'linkedin', texto: 'Cerrar la caja no debería tomar media hora. Cada cajero ve la diferencia contra lo esperado al cerrar su turno.' },
+          { id: 'p2', canal: 'instagram', texto: 'Aether envía tus facturas al SII. ¡El mejor ERP de Chile!' },
+        ],
+      }, null);
+      const datos = (r.cuerpo as unknown as { datos: { aprobadas: number; total: number; revisiones: Revision[] } }).datos;
+      expect(r.cuerpo).toMatchObject({ ok: true, mensaje: '1 de 2 piezas aprobadas por la revisión automática' });
+      expect(datos.revisiones.map((x) => [x.id, x.aprobado])).toEqual([['p1', true], ['p2', false]]);
+      expect(datos.revisiones[1].hallazgos.map((h) => h.regla)).toEqual(expect.arrayContaining(['afirmacion:sii-envio', 'afirmacion:superlativos']));
+    });
+
+    it('una sola pieza también se revisa; canal inexistente, sin texto o demasiadas piezas fallan con un mensaje claro', async () => {
+      expect((await enviar('marketing.revisar', { canal: 'facebook', texto: 'Ordena tu bodega.' }, null)).cuerpo).toMatchObject({ ok: true, mensaje: '1 de 1 pieza aprobada por la revisión automática' });
+      expect((await enviar('marketing.revisar', { canal: 'myspace', texto: 'Hola' }, null)).cuerpo).toMatchObject({ ok: false, mensaje: expect.stringContaining('canal "myspace" no existe') });
+      expect((await enviar('marketing.revisar', { canal: 'facebook' }, null)).cuerpo).toMatchObject({ ok: false, mensaje: expect.stringContaining('falta el texto') });
+      const muchas = Array.from({ length: 51 }, (_, i) => ({ id: String(i), canal: 'facebook', texto: 'x' }));
+      expect((await enviar('marketing.revisar', { piezas: muchas }, null)).cuerpo).toMatchObject({ ok: false, mensaje: expect.stringContaining('hasta 50') });
     });
   });
 

@@ -2,7 +2,8 @@ import { createHmac } from 'node:crypto';
 
 /**
  * Parte pura de `scripts/enviar-orden-supersuite.ts`: arma, firma y describe las órdenes de la Supersuite
- * (`empresa.reiniciar.*` y `empresa.eliminar.*`) sin tocar red, base ni teclado, para poder probarla.
+ * (`empresa.reiniciar.*`, `empresa.eliminar.*` y las del marketing propio `marketing.contexto` y
+ * `marketing.revisar`, ADR 0015) sin tocar red, base ni teclado, para poder probarla.
  *
  * La firma es la que verifica `verificarFirma` (`src/lib/supersuite/cliente.ts`): cabecera
  * `X-Supersuite-Firma: t=<segundos unix>,v1=<HMAC-SHA256 hex de "<t>.<cuerpo>">` con el secreto compartido
@@ -10,7 +11,7 @@ import { createHmac } from 'node:crypto';
  */
 
 export type ErasureAction = 'reiniciar' | 'eliminar';
-export type Command = 'reiniciar' | 'eliminar' | 'confirmar' | 'cancelar' | 'ping';
+export type Command = 'reiniciar' | 'eliminar' | 'confirmar' | 'cancelar' | 'ping' | 'marketing-contexto' | 'marketing-revisar';
 
 export interface OrderArgs {
   command: Command | null;
@@ -23,11 +24,18 @@ export interface OrderArgs {
   acceptRealData: boolean;
   onlyRequest: boolean;
   help: boolean;
+  /** marketing-contexto: archivo donde guardar el contexto completo (JSON). */
+  outFile: string | null;
+  /** marketing-revisar: archivo JSON con `[{ id, canal, texto }]`. */
+  piecesFile: string | null;
+  /** marketing-revisar: una sola pieza. */
+  channel: string | null;
+  text: string | null;
 }
 
-const COMMANDS: readonly Command[] = ['reiniciar', 'eliminar', 'confirmar', 'cancelar', 'ping'];
+const COMMANDS: readonly Command[] = ['reiniciar', 'eliminar', 'confirmar', 'cancelar', 'ping', 'marketing-contexto', 'marketing-revisar'];
 const ACTIONS: readonly ErasureAction[] = ['reiniciar', 'eliminar'];
-const WITH_VALUE = ['--empresa', '--empresa-id', '--url', '--codigo', '--razon-social'] as const;
+const WITH_VALUE = ['--empresa', '--empresa-id', '--url', '--codigo', '--razon-social', '--salida', '--archivo', '--canal', '--texto'] as const;
 
 export function parseOrderArgs(argv: readonly string[]): OrderArgs {
   const args: OrderArgs = {
@@ -41,6 +49,10 @@ export function parseOrderArgs(argv: readonly string[]): OrderArgs {
     acceptRealData: false,
     onlyRequest: false,
     help: false,
+    outFile: null,
+    piecesFile: null,
+    channel: null,
+    text: null,
   };
   const positionals: string[] = [];
   for (let index = 0; index < argv.length; index += 1) {
@@ -55,6 +67,10 @@ export function parseOrderArgs(argv: readonly string[]): OrderArgs {
       else if (arg === '--empresa-id') args.companyId = value;
       else if (arg === '--url') args.url = value;
       else if (arg === '--codigo') args.code = value;
+      else if (arg === '--salida') args.outFile = value;
+      else if (arg === '--archivo') args.piecesFile = value;
+      else if (arg === '--canal') args.channel = value;
+      else if (arg === '--texto') args.text = value;
       else args.businessName = value;
       index += 1;
     } else if (arg.startsWith('-')) {
@@ -66,7 +82,7 @@ export function parseOrderArgs(argv: readonly string[]): OrderArgs {
   if (args.help) return args;
 
   const [command, action, ...extra] = positionals;
-  if (!command) throw new Error('Falta el comando (reiniciar, eliminar, confirmar, cancelar o ping). Usa --ayuda.');
+  if (!command) throw new Error('Falta el comando (reiniciar, eliminar, confirmar, cancelar, ping, marketing-contexto o marketing-revisar). Usa --ayuda.');
   if (!(COMMANDS as readonly string[]).includes(command)) throw new Error(`Comando desconocido: ${command}. Usa --ayuda.`);
   args.command = command as Command;
 
@@ -81,6 +97,13 @@ export function parseOrderArgs(argv: readonly string[]): OrderArgs {
   if (args.command === 'reiniciar' || args.command === 'eliminar') args.action = args.command;
 
   if (args.command === 'ping') return args;
+  if (args.command === 'marketing-contexto') return args;
+  if (args.command === 'marketing-revisar') {
+    const single = args.channel !== null || args.text !== null;
+    if (args.piecesFile && single) throw new Error('Usa --archivo o --canal con --texto, no los dos.');
+    if (!args.piecesFile && !(args.channel && args.text)) throw new Error('marketing-revisar necesita --archivo <piezas.json> o --canal <red> --texto "<texto>".');
+    return args;
+  }
 
   if (args.company && args.companyId) throw new Error('Usa --empresa o --empresa-id, no las dos.');
   if (!args.company && !args.companyId) throw new Error('Falta la empresa: --empresa "<RUT | razón social | id>" o --empresa-id <id>.');
@@ -145,7 +168,7 @@ export interface AetherReply {
 }
 
 /** Qué dice cada código HTTP, en palabras de quien opera el script. */
-export function describeHttpFailure(status: number, step: 'solicitar' | 'confirmar' | 'cancelar' | 'ping'): string {
+export function describeHttpFailure(status: number, step: 'solicitar' | 'confirmar' | 'cancelar' | 'ping' | 'marketing'): string {
   if (status === 401) {
     return 'Aether rechazó la firma. El secreto no coincide con SUPERSUITE_WEBHOOK_SECRET del servidor, o el reloj de este equipo está desfasado más de 5 minutos.';
   }
@@ -202,4 +225,42 @@ export function companySelector(args: Pick<OrderArgs, 'company' | 'companyId'>):
 /** La línea para ejecutar después un paso que hoy no se pudo (eliminar espera 7 días; reiniciar sin teclado). */
 export function confirmCommandHint(action: ErasureAction, selector: string, code: string, acceptRealData: boolean): string {
   return `npx tsx scripts/enviar-orden-supersuite.ts confirmar ${action} ${selector} --codigo ${code} --razon-social "<razón social>"${acceptRealData ? ' --acepto-datos-reales' : ''}`;
+}
+
+/**
+ * `datos` de `marketing.revisar`: una pieza (`--canal` + `--texto`) o el contenido de `--archivo`
+ * (`[{ id, canal, texto }]` o `{ piezas: [...] }`). La validación fina (canales, largo, tope de 50) la hace Aether.
+ */
+export function marketingReviewData(args: Pick<OrderArgs, 'channel' | 'text'>, fileContent?: string): Record<string, unknown> {
+  if (fileContent === undefined) return { canal: args.channel, texto: args.text };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fileContent);
+  } catch {
+    throw new Error('El archivo de piezas no es JSON válido.');
+  }
+  const pieces = Array.isArray(parsed) ? parsed : parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>).piezas : undefined;
+  if (!Array.isArray(pieces) || pieces.length === 0) throw new Error('El archivo debe traer una lista de piezas: [{ "id": "p1", "canal": "instagram", "texto": "…" }].');
+  return { piezas: pieces };
+}
+
+interface ReviewLine {
+  id: string;
+  canal: string;
+  aprobado: boolean;
+  puntaje: number;
+  hallazgos: { nivel: string; regla: string; mensaje: string; fragmento?: string }[];
+}
+
+/** Resultado de `marketing.revisar` en líneas legibles, sin confiar en su forma. */
+export function formatMarketingReview(datos: Record<string, unknown> | undefined): string[] {
+  const reviews = Array.isArray(datos?.revisiones) ? (datos.revisiones as ReviewLine[]) : [];
+  const lines: string[] = [];
+  for (const r of reviews) {
+    lines.push(`${r.aprobado ? '✔' : '✖'} ${r.id} · ${r.canal} · puntaje ${r.puntaje}`);
+    for (const h of Array.isArray(r.hallazgos) ? r.hallazgos : []) {
+      lines.push(`    ${h.nivel === 'bloquea' ? 'BLOQUEA ' : 'advierte'} ${h.regla}: ${h.mensaje}${h.fragmento ? ` («${h.fragmento}»)` : ''}`);
+    }
+  }
+  return lines;
 }

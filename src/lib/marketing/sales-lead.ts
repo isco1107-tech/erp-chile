@@ -35,7 +35,16 @@ export const salesLeadSchema = z.object({
 
 export type SalesLead = z.infer<typeof salesLeadSchema>;
 
-export function buildSalesLeadEmail(lead: SalesLead, receivedAt: Date = new Date()): { subject: string; text: string; html: string } {
+/**
+ * De dónde vino el lead (ADR 0015): la referencia opaca que ventas pega en la
+ * orden `empresa.crear` de la Supersuite y la campaña que lo trajo.
+ */
+export interface LeadOrigin {
+  ref: string;
+  campaign: string;
+}
+
+export function buildSalesLeadEmail(lead: SalesLead, receivedAt: Date = new Date(), origin?: LeadOrigin): { subject: string; text: string; html: string } {
   const company = lead.company?.trim() || 'Empresa sin indicar';
   const areas = lead.solutions.length ? lead.solutions.join(', ') : 'Necesita orientación';
   const when = receivedAt.toLocaleString('es-CL', { timeZone: 'America/Santiago', dateStyle: 'full', timeStyle: 'short' });
@@ -47,6 +56,7 @@ export function buildSalesLeadEmail(lead: SalesLead, receivedAt: Date = new Date
     ['Equipo', lead.teamSize],
     ['Áreas de interés', areas],
     ['Mensaje', lead.message?.trim() || '—'],
+    ...(origin ? ([['Origen', origin.campaign], ['Referencia', origin.ref]] as [string, string][]) : []),
   ];
 
   const text = [`Nueva solicitud de demo desde el sitio de Aether (${when}).`, '', ...rows.map(([label, value]) => `${label}: ${value}`), '', 'Responde directamente a este correo para contactar a la persona.'].join('\n');
@@ -69,5 +79,5 @@ ${rows
 <p style="margin:20px 0 0;font-size:13px;color:#65676e">Responde a este correo para escribirle directamente a ${escapeHtml(lead.name)}.</p>
 </td></tr></table></body></html>`;
 
-  return { subject: `Solicitud de demo: ${company} (${lead.teamSize})`, text, html };
+  return { subject: `Solicitud de demo: ${company} (${lead.teamSize})${origin ? ` · ${origin.ref}` : ''}`, text, html };
 }

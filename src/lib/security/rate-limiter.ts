@@ -334,6 +334,16 @@ export const SALES_LEAD_RATE_LIMIT: RateLimitConfig = {
   windowMs: 60 * 60_000,
 };
 
+/** Visita al landing desde una campaña del marketing propio de Aether
+ * (`POST /api/public/marketing/visit`, ADR 0015): el navegador avisa una vez
+ * por campaña y pestaña, así que 30 por hora alcanzan a una persona que abre
+ * varias publicaciones y frenan a quien quiera inflar las visitas. */
+export const MARKETING_VISIT_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'marketing-visit-ip',
+  limit: 30,
+  windowMs: 60 * 60_000,
+};
+
 /** Cotización de módulos desde la vitrina de la landing
  * (`POST /api/public/module-quote`): mismo criterio que el formulario
  * comercial, con su propio contador para que uno no agote al otro. */

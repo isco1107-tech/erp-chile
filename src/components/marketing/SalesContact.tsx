@@ -4,6 +4,7 @@ import { useState, type ReactNode } from 'react';
 import { ArrowUpRight, Check, CircleCheck, Mail, Send } from 'lucide-react';
 import s from './landing.module.css';
 import { SALES_LEAD_HONEYPOT_FIELD, SALES_LEAD_SOLUTIONS, SALES_LEAD_TEAM_SIZES } from '@/lib/marketing/sales-lead-options';
+import { currentAttribution } from '@/lib/marketing/attribution-browser';
 
 type Status = { kind: 'idle' } | { kind: 'sending' } | { kind: 'sent' } | { kind: 'error'; message: string };
 
@@ -52,6 +53,7 @@ export default function SalesContact({
           teamSize: team,
           solutions: selected,
           [SALES_LEAD_HONEYPOT_FIELD]: honeypot,
+          attribution: currentAttribution(),
         }),
       });
       const json: { success: boolean; error?: string } = await response.json();

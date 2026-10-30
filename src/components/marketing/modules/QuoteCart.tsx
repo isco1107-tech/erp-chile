@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ArrowUpRight, CircleCheck, ClipboardList, Send, X } from 'lucide-react';
 import { OPEN_QUOTE_EVENT, openQuoteDialog, useQuoteCart } from './quote-cart';
 import s from './modules.module.css';
+import { currentAttribution } from '@/lib/marketing/attribution-browser';
 
 /** Mismo nombre de campo trampa que valida el servidor (`MODULE_QUOTE_HONEYPOT_FIELD`). */
 const HONEYPOT_FIELD = 'website';
@@ -63,7 +64,7 @@ export default function QuoteCart({ modules, salesEmail }: { modules: QuotableMo
       const response = await fetch('/api/public/module-quote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, phone, company, message, moduleIds: selected.map((module) => module.id), [HONEYPOT_FIELD]: honeypot }),
+        body: JSON.stringify({ name, email, phone, company, message, moduleIds: selected.map((module) => module.id), [HONEYPOT_FIELD]: honeypot, attribution: currentAttribution() }),
       });
       const json: { success: boolean; error?: string } = await response.json();
       if (!json.success) {

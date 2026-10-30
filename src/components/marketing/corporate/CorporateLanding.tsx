@@ -9,6 +9,7 @@ import Implementation from './Implementation';
 import EventsSection from './EventsSection';
 import FaqSection from './FaqSection';
 import SalesContact from '../SalesContact';
+import CampaignAttributionTracker from '../CampaignAttributionTracker';
 import CorporateFooter from './CorporateFooter';
 import { contactForm } from './content';
 
@@ -30,6 +31,7 @@ export default function CorporateLanding({ salesEmail, salesWhatsapp, legalName,
   return (
     <div className={s.corporate}>
       <a className={s.skip} href="#contenido">Ir al contenido</a>
+      <CampaignAttributionTracker />
 
       <CorporateHeader />
       <Hero />

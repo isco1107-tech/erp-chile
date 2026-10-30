@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { readFile, writeFile } from 'node:fs/promises';
 import { createInterface } from 'node:readline/promises';
 import { assertScriptCanRun } from './lib/guard-production';
 import {
@@ -7,6 +8,8 @@ import {
   companySelector,
   confirmCommandHint,
   describeHttpFailure,
+  formatMarketingReview,
+  marketingReviewData,
   normalizeBaseUrl,
   orderType,
   parseOrderArgs,
@@ -23,6 +26,9 @@ import {
  * de un solo uso, razón social escrita, respaldo antes de borrar, empresa suspendida y 7 días de espera para
  * eliminar). El script no se las salta: solo habla con ellas.
  *
+ * También envía las dos órdenes del marketing propio de Aether (`marketing.contexto` y `marketing.revisar`,
+ * ADR 0015), que solo leen datos públicos y no tocan ninguna empresa.
+ *
  * Qué necesita:
  *  - SUPERSUITE_WEBHOOK_SECRET: el mismo secreto que tiene Aether en Vercel. En el `.env` o como variable de
  *    entorno; nunca como argumento (quedaría en el historial del terminal).
@@ -32,13 +38,18 @@ import {
  * Ojo: en la bitácora de Aether estas órdenes quedan como hechas por «supersuite», igual que las del panel.
  */
 
-const HELP = `Órdenes de la Supersuite: reiniciar o eliminar una empresa.
+const HELP = `Órdenes de la Supersuite: reiniciar o eliminar una empresa, y las del marketing propio.
 
   reiniciar  --empresa <…>                     borra los datos y conserva usuarios, módulos y configuración
   eliminar   --empresa <…>                     borra TODO, la empresa incluida (pide esperar 7 días)
   confirmar  reiniciar|eliminar --empresa <…> --codigo <código> [--razon-social "<…>"] [--acepto-datos-reales]
   cancelar   reiniciar|eliminar --empresa <…>  anula las solicitudes pendientes
   ping                                         prueba la conexión y la firma (no toca ninguna empresa)
+
+Marketing propio de Aether (ADR 0015; no tocan ninguna empresa):
+  marketing-contexto [--salida contexto.json]  lo que el agente puede decir y mostrar (versión, oferta, guía)
+  marketing-revisar --canal <red> --texto "<…>"           revisa una pieza
+  marketing-revisar --archivo piezas.json                  revisa un calendario: [{ "id", "canal", "texto" }]
 
 Empresa:
   --empresa "<RUT | razón social | id>"   la busca en la base (necesita DATABASE_URL, solo lectura)
@@ -67,7 +78,7 @@ const santiago = (iso: string | null): string =>
 async function send(
   baseUrl: string,
   secret: string,
-  step: 'solicitar' | 'confirmar' | 'cancelar' | 'ping',
+  step: 'solicitar' | 'confirmar' | 'cancelar' | 'ping' | 'marketing',
   order: { tipo: string; clienteId: string | null; datos?: Record<string, unknown> }
 ): Promise<AetherReply> {
   const { body, signature } = buildSignedOrder(secret, order);
@@ -237,6 +248,28 @@ async function main(): Promise<void> {
       const reply = await send(baseUrl, secret, 'ping', { tipo: 'ping', clienteId: null });
       console.log(reply.ok ? `\n✔ Conexión y firma correctas (${reply.mensaje ?? 'pong'}).` : `\n✖ ${reply.mensaje ?? 'Sin detalle'}`);
       if (!reply.ok) process.exit(1);
+      return;
+    }
+
+    if (args.command === 'marketing-contexto') {
+      const reply = await send(baseUrl, secret, 'marketing', { tipo: 'marketing.contexto', clienteId: null });
+      if (!reply.ok) return fail(reply.mensaje ?? 'Aether no entregó el contexto.');
+      console.log(`\n✔ ${reply.mensaje ?? 'Contexto recibido.'}`);
+      if (args.outFile) {
+        await writeFile(args.outFile, `${JSON.stringify(reply.datos ?? {}, null, 2)}\n`, 'utf8');
+        console.log(`  Guardado en ${args.outFile}`);
+      } else {
+        console.log('  Usa --salida contexto.json para guardarlo completo.');
+      }
+      return;
+    }
+
+    if (args.command === 'marketing-revisar') {
+      const datos = args.piecesFile ? marketingReviewData(args, await readFile(args.piecesFile, 'utf8')) : marketingReviewData(args);
+      const reply = await send(baseUrl, secret, 'marketing', { tipo: 'marketing.revisar', clienteId: null, datos });
+      if (!reply.ok) return fail(reply.mensaje ?? 'Aether no pudo revisar las piezas.');
+      console.log(`\n${reply.mensaje ?? ''}\n`);
+      for (const line of formatMarketingReview(reply.datos)) console.log(line);
       return;
     }
 
