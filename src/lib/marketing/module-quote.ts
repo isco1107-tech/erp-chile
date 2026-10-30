@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { escapeHtml } from '@/lib/email/templates';
 import { PRICED_MODULES, type PricedModule } from '@/lib/pricing/catalog';
 import { QUOTABLE_MODULE_IDS } from './module-showcase';
+import type { LeadOrigin } from './sales-lead';
 
 /**
  * Cotización desde la vitrina de módulos de la landing: la persona marca los
@@ -38,7 +39,8 @@ export function selectedModules(ids: readonly string[]): PricedModule[] {
 export function buildModuleQuoteEmail(
   request: ModuleQuoteRequest,
   modules: readonly PricedModule[],
-  receivedAt: Date = new Date()
+  receivedAt: Date = new Date(),
+  origin?: LeadOrigin
 ): { subject: string; text: string; html: string } {
   const when = receivedAt.toLocaleString('es-CL', { timeZone: 'America/Santiago', dateStyle: 'full', timeStyle: 'short' });
   const company = request.company?.trim() || '—';
@@ -48,6 +50,7 @@ export function buildModuleQuoteEmail(
     ['Correo', request.email],
     ['Teléfono', request.phone],
     ['Empresa', company],
+    ...(origin ? ([['Origen', origin.campaign], ['Referencia', origin.ref]] as [string, string][]) : []),
   ];
 
   const text = [
@@ -87,5 +90,5 @@ export function buildModuleQuoteEmail(
 </td></tr></table></body></html>`;
 
   const who = request.company?.trim() || request.name;
-  return { subject: `Cotización de módulos: ${who} (${modules.length})`, text, html };
+  return { subject: `Cotización de módulos: ${who} (${modules.length})${origin ? ` · ${origin.ref}` : ''}`, text, html };
 }

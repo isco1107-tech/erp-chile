@@ -7,4 +7,4 @@
  * aceptó y CUÁNDO. Súbela (YYYY-MM-DD) cada vez que cambie el contenido de
  * cualquiera de las dos páginas.
  */
-export const TERMS_VERSION = '2026-10-03';
+export const TERMS_VERSION = '2026-10-30';

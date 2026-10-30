@@ -4,6 +4,7 @@ import { after } from 'next/server';
 import { DteType, type AuditAction } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { captureException } from '@/lib/observability';
+import { ACCION_LEAD, ACCION_VISITA, CLIENTE_AETHER, MODULO_MARKETING } from '@/lib/marketing/supersuite-events';
 import { crearSupersuite, type ClienteSupersuite } from './cliente';
 import { accionDeAuditoria, alertaDeFolios, alertaDeSolicitud, CLAVE_SOLICITUD_MODULOS, empresaActiva, ENTIDADES_DE_EMPRESA, fichaDeEmpresa, MODULO_PLATAFORMA, moduloDeEntidad } from './modulos';
 
@@ -177,6 +178,22 @@ export function solicitudModulosSupersuite(
     enviarAlFinal(m);
   } catch (error) {
     captureException(error, { module: 'supersuite', companyId, extra: { step: 'solicitudModulos' } });
+  }
+}
+
+/**
+ * Marketing PROPIO de Aether (ADR 0015): una visita al landing desde una
+ * campaña o un lead recibido. Viaja con el `clienteId` reservado `aether` y
+ * solo con la campaña y fichas de listas cerradas: nunca datos de la persona.
+ */
+export function marketingSupersuite(accion: typeof ACCION_VISITA | typeof ACCION_LEAD, datos: Record<string, unknown>): void {
+  try {
+    const m = monitor();
+    if (!m) return;
+    m.evento(CLIENTE_AETHER, MODULO_MARKETING, accion, datos);
+    enviarAlFinal(m);
+  } catch (error) {
+    captureException(error, { module: 'supersuite', extra: { step: 'marketing', accion } });
   }
 }
 

@@ -5,12 +5,19 @@ import { captureException, captureMessage } from '@/lib/observability';
 import { sendEmail } from '@/lib/email/mailer';
 import { getSalesEmail } from '@/lib/marketing/sales-lead';
 import { buildModuleQuoteEmail, moduleQuoteSchema, MODULE_QUOTE_HONEYPOT_FIELD, selectedModules } from '@/lib/marketing/module-quote';
+import { attributionLabel, parseAttributionPayload } from '@/lib/marketing/attribution';
+import { ACCION_LEAD, datosDeLead, newLeadRef } from '@/lib/marketing/supersuite-events';
+import { marketingSupersuite } from '@/lib/supersuite';
 
 /**
  * Cotización de módulos desde la vitrina de la landing (carrito). Público y
  * sin sesión, igual que `/api/public/leads`: rate limit por IP + honeypot +
  * Zod. No toca la base de datos ni le escribe a la persona: el destino es el
  * correo de ventas, con `replyTo` para responderle directo.
+ *
+ * Marketing propio (ADR 0015): igual que `/api/public/leads`, lleva la campaña
+ * y una referencia opaca al correo y avisa `lead_recibido` a la Supersuite
+ * solo con la referencia, la campaña y los ids de módulo del tarifario.
  */
 
 function jsonError(message: string, status: number) {
@@ -51,13 +58,17 @@ export async function POST(req: Request) {
     return jsonError('Elige al menos un módulo para cotizar', 400);
   }
 
+  const attribution = parseAttributionPayload(body.attribution);
+  const ref = newLeadRef();
+
   try {
-    const email = buildModuleQuoteEmail(parsed.data, modules);
+    const email = buildModuleQuoteEmail(parsed.data, modules, new Date(), { ref, campaign: attributionLabel(attribution) });
     const result = await sendEmail({ to: getSalesEmail(), replyTo: parsed.data.email, ...email });
     if (result.status === 'failed') {
       captureMessage('marketing:cotizacion-modulos:envio-fallido', 'error', { module: 'marketing', extra: { provider: result.provider } });
       return jsonError('No pudimos registrar tu solicitud. Escríbenos directamente por correo.', 502);
     }
+    marketingSupersuite(ACCION_LEAD, datosDeLead({ ref, formulario: 'cotizacion-modulos', modulos: modules.map((m) => m.id), attribution }));
     return NextResponse.json({ success: true, data: { received: true } });
   } catch (error) {
     captureException(error, { module: 'marketing', extra: { route: 'public-module-quote' } });

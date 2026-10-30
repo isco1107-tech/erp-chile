@@ -1,5 +1,6 @@
 import type { DesktopRelease } from '../Landing';
 import QuoteCart from '../modules/QuoteCart';
+import CampaignAttributionTracker from '../CampaignAttributionTracker';
 import { getShowcaseCards } from '@/lib/marketing/module-showcase-content';
 import CinematicSequence from './CinematicSequence';
 import Downloads from './Downloads';
@@ -34,6 +35,7 @@ export default function CinematicLanding({ releases, salesEmail, legalName, lega
 
   return (
     <LandingShell className={className}>
+      <CampaignAttributionTracker />
       <CinematicSequence />
       <ModulesScene />
       <ProductScene />

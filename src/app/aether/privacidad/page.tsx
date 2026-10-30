@@ -21,7 +21,7 @@ export default function AetherPrivacidadPage() {
     <LegalDocumentLayout
       eyebrow="Aether ERP Solutions"
       title="Política de privacidad de la plataforma"
-      lastUpdated="3 de octubre de 2026"
+      lastUpdated="30 de octubre de 2026"
       backHref="/login"
       backLabel="Volver al inicio"
     >
@@ -56,6 +56,12 @@ export default function AetherPrivacidadPage() {
         <li>La fecha y la versión de los Términos de servicio y de esta política que cada persona aceptó al activar su cuenta, como prueba de esa aceptación.</li>
         <li>Registros de sesión: cookies de sesión cifradas, con una vigencia máxima de 8 horas.</li>
         <li>Estadística de visitas de las páginas propias de Aether (portada, ingreso y panel) con Vercel Web Analytics: no usa cookies ni identifica a la persona, y no se aplica a los micrositios, sitios web ni formularios públicos de las empresas usuarias.</li>
+        <li>
+          Origen de las visitas que llegan a las páginas propias de Aether desde nuestras publicaciones o anuncios (la red, la campaña y la pieza que
+          trae el enlace, la página de llegada y el dominio del sitio de origen). Se guarda en tu propio navegador, sin cookies, hasta 90 días, y
+          acompaña a una solicitud de demo o de cotización para saber qué campaña la trajo. No identifica a la persona: tus datos de contacto
+          llegan solo al equipo de ventas.
+        </li>
         <li>Bitácora de auditoría: qué acción se realizó, quién la realizó y cuándo, para trazabilidad y seguridad — nunca el contenido íntegro de los datos personales de terceros que gestiona cada empresa usuaria.</li>
         <li>Direcciones IP y metadatos técnicos de las solicitudes, con fines de seguridad (por ejemplo, limitar intentos de acceso automatizados a formularios públicos).</li>
       </ul>

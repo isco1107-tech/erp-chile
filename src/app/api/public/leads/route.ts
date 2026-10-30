@@ -4,11 +4,20 @@ import { checkRateLimit, SALES_LEAD_RATE_LIMIT } from '@/lib/security/rate-limit
 import { captureException, captureMessage } from '@/lib/observability';
 import { sendEmail } from '@/lib/email/mailer';
 import { buildSalesLeadEmail, getSalesEmail, salesLeadSchema, SALES_LEAD_HONEYPOT_FIELD } from '@/lib/marketing/sales-lead';
+import { attributionLabel, parseAttributionPayload } from '@/lib/marketing/attribution';
+import { ACCION_LEAD, datosDeLead, newLeadRef } from '@/lib/marketing/supersuite-events';
+import { marketingSupersuite } from '@/lib/supersuite';
 
 /**
  * Solicitud de demo/cotización del landing. Público y sin sesión (como el
  * resto de `/api/public/**`): rate limit por IP + honeypot + Zod. No toca la
  * base de datos — el destino es el correo de ventas (`AETHER_SALES_EMAIL`).
+ *
+ * Marketing propio (ADR 0015): el formulario trae la campaña que guardó el
+ * navegador (`attribution`, opcional; si no calza se descarta y el lead sigue).
+ * El correo lleva una referencia opaca `L-XXXXXXXX` y la campaña, y la
+ * Supersuite recibe el evento `lead_recibido` SOLO con esa referencia, la
+ * campaña y fichas de listas cerradas: nunca nombre, correo ni teléfono.
  */
 
 function jsonError(message: string, status: number) {
@@ -44,13 +53,17 @@ export async function POST(req: Request) {
     return jsonError(parsed.error.issues[0]?.message ?? 'Revisa los datos del formulario', 400);
   }
 
+  const attribution = parseAttributionPayload(body.attribution);
+  const ref = newLeadRef();
+
   try {
-    const email = buildSalesLeadEmail(parsed.data);
+    const email = buildSalesLeadEmail(parsed.data, new Date(), { ref, campaign: attributionLabel(attribution) });
     const result = await sendEmail({ to: getSalesEmail(), replyTo: parsed.data.email, ...email });
     if (result.status === 'failed') {
       captureMessage('marketing:lead:envio-fallido', 'error', { module: 'marketing', extra: { provider: result.provider } });
       return jsonError('No pudimos registrar tu solicitud. Escríbenos directamente por correo.', 502);
     }
+    marketingSupersuite(ACCION_LEAD, datosDeLead({ ref, formulario: 'demo', equipo: parsed.data.teamSize, areas: parsed.data.solutions, attribution }));
     return NextResponse.json({ success: true, data: { received: true } });
   } catch (error) {
     captureException(error, { module: 'marketing', extra: { route: 'public-leads' } });

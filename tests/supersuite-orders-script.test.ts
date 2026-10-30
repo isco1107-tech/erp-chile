@@ -50,6 +50,8 @@ import {
   normalizeBaseUrl,
   orderType,
   parseOrderArgs,
+  marketingReviewData,
+  formatMarketingReview,
   readRequestDetails,
 } from '../scripts/lib/supersuite-orders';
 
@@ -180,6 +182,13 @@ describe('argumentos', () => {
 
   it('ping no pide empresa y lo desconocido se rechaza', () => {
     expect(parseOrderArgs(['ping'])).toMatchObject({ command: 'ping' });
+    // Marketing propio (ADR 0015): sin empresa.
+    expect(parseOrderArgs(['marketing-contexto', '--salida', 'ctx.json'])).toMatchObject({ command: 'marketing-contexto', outFile: 'ctx.json' });
+    expect(parseOrderArgs(['marketing-revisar', '--canal', 'instagram', '--texto', 'Hola'])).toMatchObject({ command: 'marketing-revisar', channel: 'instagram', text: 'Hola' });
+    expect(parseOrderArgs(['marketing-revisar', '--archivo', 'piezas.json'])).toMatchObject({ piecesFile: 'piezas.json' });
+    expect(() => parseOrderArgs(['marketing-revisar'])).toThrow(/--archivo/);
+    expect(() => parseOrderArgs(['marketing-revisar', '--canal', 'instagram'])).toThrow(/--archivo/);
+    expect(() => parseOrderArgs(['marketing-revisar', '--archivo', 'a.json', '--texto', 'x'])).toThrow(/no los dos/);
     expect(parseOrderArgs(['--ayuda']).help).toBe(true);
     expect(() => parseOrderArgs([])).toThrow(/Falta el comando/);
     expect(() => parseOrderArgs(['borrar', '--empresa', 'x'])).toThrow(/desconocido/);
@@ -240,5 +249,28 @@ describe('lectura de la respuesta y mensajes', () => {
     expect(companySelector({ company: null, companyId: 'c1' })).toBe('--empresa-id c1');
     const args = parseOrderArgs(['confirmar', 'reiniciar', ...companySelector({ company: null, companyId: 'c1' }).split(' '), '--codigo', 'C']);
     expect(args).toMatchObject({ companyId: 'c1', company: null });
+  });
+});
+
+describe('marketing propio (ADR 0015)', () => {
+  it('arma los datos de una pieza o de un archivo de piezas', () => {
+    expect(marketingReviewData({ channel: 'linkedin', text: 'Hola' })).toEqual({ canal: 'linkedin', texto: 'Hola' });
+    const pieces = [{ id: 'p1', canal: 'facebook', texto: 'Hola' }];
+    expect(marketingReviewData({ channel: null, text: null }, JSON.stringify(pieces))).toEqual({ piezas: pieces });
+    expect(marketingReviewData({ channel: null, text: null }, JSON.stringify({ piezas: pieces }))).toEqual({ piezas: pieces });
+    expect(() => marketingReviewData({ channel: null, text: null }, '{roto')).toThrow(/JSON/);
+    expect(() => marketingReviewData({ channel: null, text: null }, '[]')).toThrow(/lista de piezas/);
+  });
+
+  it('muestra cada pieza con sus hallazgos, sin confiar en la forma de la respuesta', () => {
+    expect(
+      formatMarketingReview({
+        revisiones: [
+          { id: 'p1', canal: 'instagram', aprobado: false, puntaje: 70, hallazgos: [{ nivel: 'bloquea', regla: 'afirmacion:sii-envio', mensaje: 'No decir que envía al SII.', fragmento: 'envia al sii' }] },
+          { id: 'p2', canal: 'facebook', aprobado: true, puntaje: 100, hallazgos: [] },
+        ],
+      })
+    ).toEqual(['✖ p1 · instagram · puntaje 70', '    BLOQUEA  afirmacion:sii-envio: No decir que envía al SII. («envia al sii»)', '✔ p2 · facebook · puntaje 100']);
+    expect(formatMarketingReview(undefined)).toEqual([]);
   });
 });

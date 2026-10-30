@@ -12,6 +12,12 @@ import { companyCreateSchema, companyPlanUpdateSchema } from '@/modules/platform
 import * as platformService from '@/modules/platform/services/platform.service';
 import { cancelErasure, confirmErasure, requestErasure } from '@/modules/platform/services/company-erasure.service';
 import { whenLabel, type ErasureKind } from '@/lib/company-erasure/policy';
+import { platformBaseUrl } from '@/lib/hosting/custom-domain';
+import { getSalesEmail } from '@/lib/marketing/sales-lead';
+import { buildMarketingContext, copyReviewContext } from '@/lib/marketing/context';
+import { reviewMarketingCopy } from '@/lib/marketing/copy-review';
+import { MARKETING_CHANNELS, type MarketingChannel } from '@/lib/marketing/brand-voice';
+import { LEAD_REF_RE } from '@/lib/marketing/supersuite-events';
 import type { ManejadorOrdenes, OrdenRecibida } from './cliente';
 import { catalogoDeModulos, catalogoDePlanes, cuentaConPlan, fichaComercial, flagsDeLaBase, flagsDeModulo, flagsParaEncender, planDeAether } from './modulos';
 import { sincronizarEmpresaSupersuite, solicitudModulosAtendidaSupersuite } from './index';
@@ -184,6 +190,10 @@ async function crearEmpresa(orden: OrdenRecibida) {
     for (const flag of flags) features[flag] = true;
   }
 
+  // Referencia del lead que trajo a la empresa (marketing propio, ADR 0015): une la campaña con el cliente.
+  const leadRef = textoDe(d.leadRef).toUpperCase();
+  if (leadRef && !LEAD_REF_RE.test(leadRef)) throw new Error('La referencia del lead debe ser como L-ABCD2345 (viene en el correo de la solicitud de demo o cotización)');
+
   const estado = textoDe(d.estado) || 'ACTIVE';
   const parsed = companyCreateSchema.safeParse({
     rut: textoDe(d.rut),
@@ -218,13 +228,13 @@ async function crearEmpresa(orden: OrdenRecibida) {
     action: 'CREATE',
     entity: 'Company',
     entityId: company.id,
-    metadata: { origen: QUIEN, orden: orden.id, plan, adminEmail: parsed.data.adminEmail, adminVinculadoExistente: linkedExistingUser },
+    metadata: { origen: QUIEN, orden: orden.id, plan, adminEmail: parsed.data.adminEmail, adminVinculadoExistente: linkedExistingUser, ...(leadRef ? { leadRef } : {}) },
   });
   return {
     mensaje: linkedExistingUser
       ? `Empresa ${company.businessName} creada. ${parsed.data.adminEmail} ya tenía cuenta: entra con su contraseña de siempre y elige la empresa al iniciar sesión`
       : `Empresa ${company.businessName} creada`,
-    datos: { empresaId: company.id },
+    datos: { empresaId: company.id, ...(leadRef ? { leadRef } : {}) },
   };
 }
 
@@ -286,6 +296,29 @@ async function cancelarBorrado(orden: OrdenRecibida, kind: ErasureKind) {
   if (!orden.clienteId) throw new Error('La orden no indica la empresa');
   const n = await cancelErasure({ companyId: orden.clienteId, kind });
   return { mensaje: n === 0 ? `No había solicitudes de ${ACCION[kind]} pendientes` : `${n} ${n === 1 ? 'solicitud cancelada' : 'solicitudes canceladas'}`, datos: { canceladas: n } };
+}
+
+const MAX_PIEZAS = 50;
+const MAX_TEXTO = 10_000;
+
+/** Piezas a revisar: `piezas: [{ id, canal, texto }]` (un calendario completo) o una sola con `canal` y `texto`. */
+function piezasDe(orden: OrdenRecibida): { id: string; canal: MarketingChannel; texto: string }[] {
+  const d = orden.datos;
+  const lista: unknown[] = Array.isArray(d.piezas) ? d.piezas : [{ id: d.id, canal: d.canal, texto: d.texto }];
+  if (!lista.length) throw new Error('La orden no trae piezas que revisar');
+  if (lista.length > MAX_PIEZAS) throw new Error(`Se revisan hasta ${MAX_PIEZAS} piezas por orden (llegaron ${lista.length})`);
+  return lista.map((p, i) => {
+    const item = typeof p === 'object' && p !== null ? (p as Record<string, unknown>) : {};
+    const canal = textoDe(item.canal);
+    if (!(MARKETING_CHANNELS as readonly string[]).includes(canal)) throw new Error(`Pieza ${i + 1}: el canal "${canal}" no existe (canales: ${MARKETING_CHANNELS.join(', ')})`);
+    if (typeof item.texto !== 'string') throw new Error(`Pieza ${i + 1}: falta el texto`);
+    if (item.texto.length > MAX_TEXTO) throw new Error(`Pieza ${i + 1}: el texto supera los ${MAX_TEXTO} caracteres`);
+    return { id: textoDe(item.id) || String(i + 1), canal: canal as MarketingChannel, texto: item.texto };
+  });
+}
+
+function marketingInput() {
+  return { baseUrl: platformBaseUrl(), salesEmail: getSalesEmail() };
 }
 
 export const manejadoresOrdenes: ManejadorOrdenes = {
@@ -418,6 +451,24 @@ export const manejadoresOrdenes: ManejadorOrdenes = {
       await notifyCompany(companyId, { severity: SEVERIDAD[String(orden.datos.nivel)] ?? 'INFO', title: titulo, message: mensaje });
     }
     return { mensaje: `Aviso enviado a ${empresas.length} ${empresas.length === 1 ? 'empresa' : 'empresas'} (campanita y push)` };
+  },
+
+  // Marketing PROPIO de Aether (ADR 0015): lo que el agente de la Supersuite puede decir y mostrar, y la revisión de sus textos.
+  // Solo leen datos públicos (los del landing): no tocan la base ni ninguna empresa.
+  'marketing.contexto': async () => {
+    const contexto = buildMarketingContext(marketingInput());
+    return { mensaje: `Contexto de marketing ${contexto.version} · ${contexto.oferta.modulos.length} módulos`, datos: contexto };
+  },
+
+  'marketing.revisar': async (orden) => {
+    const piezas = piezasDe(orden);
+    const ctx = copyReviewContext(marketingInput());
+    const revisiones = piezas.map((p) => ({ id: p.id, canal: p.canal, ...reviewMarketingCopy(p.texto, p.canal, ctx) }));
+    const aprobadas = revisiones.filter((r) => r.aprobado).length;
+    return {
+      mensaje: `${aprobadas} de ${revisiones.length} ${revisiones.length === 1 ? 'pieza aprobada' : 'piezas aprobadas'} por la revisión automática`,
+      datos: { aprobadas, total: revisiones.length, revisiones },
+    };
   },
 
   'ficha.sincronizar': async (orden) => {

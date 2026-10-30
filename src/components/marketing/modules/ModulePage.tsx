@@ -6,6 +6,7 @@ import { displayFont } from '../cinematic/displayFont';
 import AddToQuote from './AddToQuote';
 import ModuleCard from './ModuleCard';
 import QuoteCart, { type QuotableModule } from './QuoteCart';
+import CampaignAttributionTracker from '../CampaignAttributionTracker';
 import m from './modules.module.css';
 import p from './module-page.module.css';
 
@@ -141,6 +142,7 @@ export default function ModulePage({ detail, related, quotable, salesEmail, lega
       </footer>
 
       <QuoteCart modules={quotable} salesEmail={salesEmail} />
+      <CampaignAttributionTracker />
     </div>
   );
 }
