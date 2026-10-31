@@ -252,6 +252,23 @@ export const VOTE_PURCHASE_RATE_LIMIT: RateLimitConfig = {
  * proveedor — limitar por IP ahí penalizaría a todas las empresas que usan
  * el mismo proveedor de automatización. 60/min alcanza sobrado para
  * conciliación bancaria real y frena un loop de reintentos descontrolado. */
+/** API para la caja de Hermes (`/api/hermes/v1/*`): por empresa (la llave la identifica). */
+export const HERMES_LINK_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'hermes-link-company',
+  limit: 120,
+  windowMs: 60_000,
+};
+
+/**
+ * Antes de buscar la llave: frena a quien prueba llaves al azar. Generoso porque todas las
+ * empresas de Hermes llegan desde los mismos servidores de su API.
+ */
+export const HERMES_LINK_IP_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'hermes-link-ip',
+  limit: 600,
+  windowMs: 60_000,
+};
+
 export const N8N_WEBHOOK_RATE_LIMIT: RateLimitConfig = {
   prefix: 'n8n-webhook-company',
   limit: 60,
