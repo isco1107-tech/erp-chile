@@ -6,10 +6,12 @@ import N8nWebhookForm from '@/components/settings/N8nWebhookForm';
 import McpConnectorForm from '@/components/settings/McpConnectorForm';
 import IntegrationsForm from '@/components/settings/IntegrationsForm';
 import CompanyBackupCard from '@/components/settings/CompanyBackupCard';
+import HermesLinkForm from '@/components/settings/HermesLinkForm';
 import { getCompanyProfileAction, getCompanySettingsAction } from '@/lib/actions/company';
 import { getN8nWebhookSecretAction } from '@/modules/webhooks/actions/n8n-secret.actions';
 import { getIntegrationsStatusAction } from '@/lib/actions/integrations';
 import { getMcpConnectorSettingsAction } from '@/modules/mcp/actions/mcp-settings.actions';
+import { getHermesLinkAction } from '@/modules/hermes/actions/hermes-link.actions';
 import { can, getAuthContext } from '@/lib/auth/guards';
 
 export const metadata = { title: 'Perfil de Empresa' };
@@ -17,9 +19,9 @@ export const metadata = { title: 'Perfil de Empresa' };
 export default async function CompanySettingsPage() {
   const context = await getAuthContext();
   const allowed = can(context, 'settings:company');
-  const [result, settingsResult, webhookSecretResult, mcpSettingsResult, integrationsResult] = allowed
-    ? await Promise.all([getCompanyProfileAction(), getCompanySettingsAction(), getN8nWebhookSecretAction(), getMcpConnectorSettingsAction(), getIntegrationsStatusAction()])
-    : [null, null, null, null, null];
+  const [result, settingsResult, webhookSecretResult, mcpSettingsResult, integrationsResult, hermesResult] = allowed
+    ? await Promise.all([getCompanyProfileAction(), getCompanySettingsAction(), getN8nWebhookSecretAction(), getMcpConnectorSettingsAction(), getIntegrationsStatusAction(), getHermesLinkAction()])
+    : [null, null, null, null, null, null];
 
   return (
     <div className="space-y-4">
@@ -43,6 +45,7 @@ export default async function CompanySettingsPage() {
           {integrationsResult?.success && <IntegrationsForm initial={integrationsResult.data} />}
           <N8nWebhookForm initialSecret={webhookSecretResult?.success ? webhookSecretResult.data : null} />
           <McpConnectorForm initialEnabled={mcpSettingsResult?.success ? mcpSettingsResult.data.enabled : false} />
+          {hermesResult?.success && context.features.hasInventory && <HermesLinkForm initial={hermesResult.data} />}
           {can(context, 'company:export') && <CompanyBackupCard />}
         </>
       )}
