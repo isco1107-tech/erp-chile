@@ -6,6 +6,7 @@ import type { Contact, Warehouse } from '@prisma/client';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { AmountInput } from '@/components/ui/AmountInput';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import ContactForm from './ContactForm';
@@ -114,6 +115,8 @@ export default function SalesDocumentForm({ orderId, initialType, draftId, credi
   const [sellers, setSellers] = useState<{ id: string; name: string }[]>([]);
   const [sellerId, setSellerId] = useState('self');
   const [formErrors, setFormErrors] = useState<string[]>([]);
+  // Además de la lista de arriba, cada campo con problema se marca donde está (A5 de la auditoría del 27-10).
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   /** Borrador que este formulario reemplaza al guardar o emitir. */
   const [replacesDraftId, setReplacesDraftId] = useState<string | undefined>(undefined);
   /** Nota de venta que traía el borrador retomado (sus líneas ya traen la línea de la nota). */
@@ -434,10 +437,12 @@ export default function SalesDocumentForm({ orderId, initialType, draftId, credi
       // Todos los problemas a la vista (no solo el primero), arriba del formulario.
       const messages = [...new Set(parsed.error.issues.map((issue) => issue.message))];
       setFormErrors(messages);
+      setFieldErrors(fieldErrorsFrom(parsed.error.issues));
       toast.error(messages[0] ?? 'Datos inválidos');
       return;
     }
     setFormErrors([]);
+    setFieldErrors({});
     if (status === 'ISSUED') {
       const data = parsed.data;
       const warehouseName = warehouses.find((w) => w.id === data.warehouseId)?.name ?? '—';
@@ -561,7 +566,7 @@ export default function SalesDocumentForm({ orderId, initialType, draftId, credi
             value={warehouseId}
             onValueChange={(value) => setWarehouseId(value as string)}
           >
-            <SelectTrigger id="warehouse">
+            <SelectTrigger id="warehouse" aria-invalid={Boolean(fieldErrors.warehouseId)}>
               <SelectValue placeholder="Seleccione bodega" />
             </SelectTrigger>
             <SelectContent>
@@ -575,7 +580,7 @@ export default function SalesDocumentForm({ orderId, initialType, draftId, credi
         <div>
           <Label htmlFor="paymentMethod">Forma de pago</Label>
           <Select items={PAYMENT_METHOD_LABELS} value={paymentMethod} onValueChange={(value) => setPaymentMethod(value as PaymentMethod)}>
-            <SelectTrigger id="paymentMethod" aria-invalid={formErrors.length > 0 && !paymentMethod}>
+            <SelectTrigger id="paymentMethod" aria-invalid={Boolean(fieldErrors.paymentMethod) || (formErrors.length > 0 && !paymentMethod)}>
               <SelectValue placeholder="Elige cómo te paga el cliente" />
             </SelectTrigger>
             <SelectContent>
@@ -630,7 +635,9 @@ export default function SalesDocumentForm({ orderId, initialType, draftId, credi
                 placeholder="Buscar cliente por RUT o Razón Social"
                 value={contactQuery}
                 onChange={(e) => setContactQuery(e.target.value)}
+                aria-invalid={Boolean(fieldErrors.contactId)}
               />
+              <FieldError message={fieldErrors.contactId} />
               {filteredContacts.length > 0 && (
                 <ul className="rounded-lg border border-border text-sm">
                   {filteredContacts.map((c) => (
@@ -667,12 +674,13 @@ export default function SalesDocumentForm({ orderId, initialType, draftId, credi
           <>
             <div>
               <Label htmlFor="referenceFolio">Folio de referencia</Label>
-              <Input id="referenceFolio" type="number" min={0} value={referenceFolio} onChange={(e) => setReferenceFolio(e.target.value)} />
+              <Input id="referenceFolio" type="number" min={0} value={referenceFolio} onChange={(e) => setReferenceFolio(e.target.value)} aria-invalid={Boolean(fieldErrors.referenceFolio)} />
+              <FieldError message={fieldErrors.referenceFolio} />
             </div>
             <div>
               <Label htmlFor="referenceType">Tipo de documento referenciado</Label>
               <Select items={DTE_TYPE_LABELS} value={referenceType} onValueChange={(value) => setReferenceType(value as string)}>
-                <SelectTrigger id="referenceType">
+                <SelectTrigger id="referenceType" aria-invalid={Boolean(fieldErrors.referenceType)}>
                   <SelectValue placeholder="Seleccione" />
                 </SelectTrigger>
                 <SelectContent>
@@ -766,7 +774,7 @@ export default function SalesDocumentForm({ orderId, initialType, draftId, credi
                   <td className="p-4 text-center text-muted-foreground" colSpan={10}>Sin ítems agregados</td>
                 </tr>
               )}
-              {computedItems.map((item) => (
+              {computedItems.map((item, index) => (
                 <tr key={item.key} className="border-t border-border">
                   <td className="p-2 font-mono text-xs">{item.sku ?? '—'}</td>
                   <td className="p-2">
@@ -774,7 +782,9 @@ export default function SalesDocumentForm({ orderId, initialType, draftId, credi
                       value={item.description}
                       onChange={(e) => updateItem(item.key, 'description', e.target.value)}
                       className="h-7 min-w-[160px]"
+                      aria-invalid={Boolean(fieldErrors[`items.${index}.description`])}
                     />
+                    <FieldError message={fieldErrors[`items.${index}.description`]} />
                   </td>
                   <td className="p-2">
                     <Input
@@ -786,7 +796,9 @@ export default function SalesDocumentForm({ orderId, initialType, draftId, credi
                       onChange={(e) => updateItem(item.key, 'quantity', e.target.value)}
                       className="h-7 w-20"
                       aria-describedby={item.maxQuantity !== undefined ? `${item.key}-max` : undefined}
+                      aria-invalid={Boolean(fieldErrors[`items.${index}.quantity`])}
                     />
+                    <FieldError message={fieldErrors[`items.${index}.quantity`]} />
                     {item.maxQuantity !== undefined && (
                       <p id={`${item.key}-max`} className="mt-0.5 text-[11px] text-muted-foreground">
                         Saldo: {item.maxQuantity}
@@ -794,14 +806,16 @@ export default function SalesDocumentForm({ orderId, initialType, draftId, credi
                     )}
                   </td>
                   <td className="p-2">
-                    <Input
-                      type="number"
-                      min={0}
-                      step={1}
-                      value={item.unitPrice}
-                      onChange={(e) => updateItem(item.key, 'unitPrice', e.target.value)}
-                      className="h-7 w-24"
+                    {/* Precio en pesos: «12.990» con punto de miles vale doce mil novecientos noventa, no 12,99. */}
+                    <AmountInput
+                      showSign={false}
+                      aria-label="Precio unitario neto"
+                      value={String(item.unitPrice ?? '')}
+                      onChange={(digits) => updateItem(item.key, 'unitPrice', digits)}
+                      className="h-7 w-28"
+                      aria-invalid={Boolean(fieldErrors[`items.${index}.unitPrice`])}
                     />
+                    <FieldError message={fieldErrors[`items.${index}.unitPrice`]} />
                   </td>
                   <td className="p-2">
                     <Input
@@ -857,3 +871,19 @@ export default function SalesDocumentForm({ orderId, initialType, draftId, credi
     </div>
   );
 }
+
+/** Ruta del problema → clave del campo: `contactId`, `items.2.quantity`… (la primera manda por campo). */
+function fieldErrorsFrom(issues: ReadonlyArray<{ path: ReadonlyArray<PropertyKey>; message: string }>): Record<string, string> {
+  const errors: Record<string, string> = {};
+  for (const issue of issues) {
+    const key = issue.path.map(String).join('.');
+    if (key && !errors[key]) errors[key] = issue.message;
+  }
+  return errors;
+}
+
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
+  return <p className="mt-0.5 text-[11px] text-destructive">{message}</p>;
+}
+

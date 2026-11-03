@@ -7,6 +7,7 @@ import {
   startOfTomorrowSantiago,
 } from '@/lib/chile/timezone';
 import type { DteType } from '@prisma/client';
+import { exportAccess } from '@/lib/exports/access';
 const MOVEMENT_LABELS = {
   PURCHASE_IN: 'Llegada de mercadería',
   SALE_OUT: 'Salida por venta',
@@ -27,7 +28,9 @@ export async function controlSnapshot(context: AuthContext) {
   const now = new Date();
   const today = startOfTodaySantiago(now);
   const tomorrow = startOfTomorrowSantiago(now);
-  const sales = context.permissions.includes('sales:read');
+  // Boletas del mostrador incluidas: una empresa que vende solo por el POS (sin Facturación, que hoy no se
+  // vende) quedaba sin «Ventas de hoy» en la app del dueño. Misma regla que «Exportar datos».
+  const sales = exportAccess(context).sales;
   const inventory = context.permissions.includes('products:read');
   const treasury = context.permissions.includes('treasury:read');
   const pos = context.permissions.includes('pos:operate');

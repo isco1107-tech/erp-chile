@@ -58,11 +58,12 @@ export async function listProductsPageAction(
   categoryId?: string,
   page = 1,
   pageSize = 25,
-  includeArchived = false
+  includeArchived = false,
+  onlyUnpriced = false
 ): Promise<ActionResult<ListProductsResult>> {
   try {
     const session = await requireAuthWithPermission('products:read');
-    const result = await productsService.listProductsPage(session.companyId, { query, categoryId, page, pageSize, includeArchived });
+    const result = await productsService.listProductsPage(session.companyId, { query, categoryId, page, pageSize, includeArchived, onlyUnpriced: onlyUnpriced === true });
     // Misma redacción de PMP que en `listProductsAction`.
     if (!can(session, 'products:costs')) {
       return { success: true, data: { items: result.items.map(redactCosts), total: result.total } };

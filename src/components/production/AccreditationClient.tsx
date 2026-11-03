@@ -31,6 +31,7 @@ import {
   BADGE_IMAGE_DISPLAY_MODES,
   BADGE_IMAGE_DISPLAY_MODE_LABELS,
 } from '@/modules/production/schema';
+import { santiagoClockLabel } from '@/lib/chile/timezone';
 
 const LEVEL_TONE: Record<AccreditationLevel, Tone> = { GENERAL: 'neutral', BACKSTAGE: 'info', VIP: 'accent', STAFF: 'success' };
 
@@ -279,7 +280,7 @@ export default function AccreditationClient({ canWrite, canDesign }: { canWrite:
       header: 'Ingreso',
       cell: (r) =>
         r.checkedInAt ? (
-          <StatusBadge tone="success">{new Date(r.checkedInAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</StatusBadge>
+          <StatusBadge tone="success">{santiagoClockLabel(new Date(r.checkedInAt))}</StatusBadge>
         ) : canWrite ? (
           <Button type="button" size="xs" variant="outline" disabled={busyId === r.id} onClick={() => handleCheckIn(r.id)}>
             <CheckCircle2 className="mr-1 size-3.5" /> Check-in

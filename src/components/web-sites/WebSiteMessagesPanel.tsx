@@ -31,6 +31,7 @@ import { DESTINATION_INFO, FORM_DESTINATIONS, FORM_PURPOSES, PURPOSE_LABELS, typ
 import { safeHref, whatsappHref } from '@/lib/web-sites/urls';
 import { useEditorRuntime } from './EditorRuntime';
 import type { FormMessageRow, FormMessagesPage } from '@/modules/web-sites/services/web-site-forms.service';
+import { santiagoDateTimeLabel } from '@/lib/chile/timezone';
 
 /**
  * Bandeja de formularios: lo que llega desde los formularios de los sitios
@@ -64,14 +65,7 @@ const STATUS_TABS: { value: StatusFilter; label: string }[] = [
 ];
 
 function formatAbsolute(value: Date | string): string {
-  return new Date(value).toLocaleString('es-CL', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'America/Santiago',
-  });
+  return santiagoDateTimeLabel(new Date(value));
 }
 
 const relativeFormat = new Intl.RelativeTimeFormat('es-CL', { numeric: 'auto' });

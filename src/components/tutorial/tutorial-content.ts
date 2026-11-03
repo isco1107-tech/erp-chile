@@ -165,7 +165,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       header('Emite un documento', 'Elige el tipo (factura, boleta, guía, nota o cotización) y la bodega de salida.'),
       note('Cliente', 'Búscalo por RUT o razón social. Si no existe, créalo ahí mismo con el botón de cliente rápido. Si tiene lista de precios, los precios se proponen solos.'),
       note('Productos y descuentos', 'Escanea o busca cada producto; para un servicio sin ficha usa "+ Agregar línea libre". El IVA sale de la ficha de cada producto.'),
-      note('Forma de pago y emisión', 'Con "Crédito 30 días" queda en Cuentas por Cobrar. Presiona "Emitir Documento" o guarda un borrador para después.'),
+      note('Forma de pago y emisión', 'Con "Crédito (a plazo)" queda en Cuentas por Cobrar. Presiona "Emitir Documento" o guarda un borrador para después.'),
     ],
   },
   'sales-orders': {

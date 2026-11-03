@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { ArrowDownCircle, ArrowUpCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { AmountInput } from '@/components/ui/AmountInput';
 import { Label } from '@/components/ui/label';
 import {
   closeShiftAction,
@@ -24,6 +25,7 @@ import { usePosHardware } from './hardware/PosHardwareProvider';
 import { POS_PAYMENT_METHOD_LABELS, type PosPaymentMethod } from '@/modules/pos/schema';
 
 import { useConfirm } from '@/components/ui/confirm-provider';
+import { santiagoDateTimeLabel, santiagoTimeLabel } from '@/lib/chile/timezone';
 interface Props {
   shiftId: string;
   cashierName: string;
@@ -218,7 +220,7 @@ export default function CashPanel(props: Props) {
         <div className="rounded-xl border border-border p-4">
           <h2 className="text-sm font-semibold">Resumen del turno</h2>
           <p className="text-xs text-muted-foreground">
-            {props.cashRegisterName} · {props.cashierName} · abierto {new Date(props.openedAt).toLocaleString('es-CL', { timeZone: 'America/Santiago' })}
+            {props.cashRegisterName} · {props.cashierName} · abierto {santiagoDateTimeLabel(new Date(props.openedAt))}
           </p>
 
           <table className="mt-3 w-full text-sm">
@@ -318,13 +320,10 @@ export default function CashPanel(props: Props) {
           <div className="mt-2 grid gap-2 sm:grid-cols-[140px_1fr_auto]">
             <div>
               <Label htmlFor="mov-amount">Monto</Label>
-              <Input
+              <AmountInput
                 id="mov-amount"
-                type="number"
-                min={1}
-                step={1}
                 value={movementAmount}
-                onChange={(e) => setMovementAmount(e.target.value)}
+                onChange={setMovementAmount}
               />
             </div>
             <div>
@@ -361,7 +360,7 @@ export default function CashPanel(props: Props) {
                     <span className="ml-2 break-words text-muted-foreground">{movement.reason}</span>
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    {new Date(movement.createdAt).toLocaleTimeString('es-CL', { timeZone: 'America/Santiago' })}
+                    {santiagoTimeLabel(new Date(movement.createdAt))}
                   </span>
                 </li>
               ))}
@@ -380,7 +379,7 @@ export default function CashPanel(props: Props) {
                 <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Efectivo contado</dt><dd>{formatCurrency(props.closedShift.actualAmount ?? 0)}</dd></div>
                 <div className="flex justify-between gap-3 border-t border-border pt-2 font-semibold"><dt>Diferencia</dt><dd>{formatCurrency(props.closedShift.difference ?? 0)}</dd></div>
               </dl>
-              {props.closedShift.closedAt && <p className="text-xs text-muted-foreground">Cerrado {new Date(props.closedShift.closedAt).toLocaleString('es-CL', { timeZone: 'America/Santiago' })}</p>}
+              {props.closedShift.closedAt && <p className="text-xs text-muted-foreground">Cerrado {santiagoDateTimeLabel(new Date(props.closedShift.closedAt))}</p>}
               {props.closedShift.closingNotes && <p className="break-words rounded-lg bg-muted p-3 text-sm">{props.closedShift.closingNotes}</p>}
               <CashShiftReceipt {...props} summary={summary} closedShift={props.closedShift} />
             </div>
@@ -393,14 +392,11 @@ export default function CashPanel(props: Props) {
               <p className="text-xs text-muted-foreground">Termina las ventas pendientes, cuenta el efectivo y declara lo que realmente hay. El sistema recalcula el esperado al cerrar.</p>
               <div>
                 <Label htmlFor="actual">Efectivo contado en el cajón</Label>
-                <Input
+                <AmountInput
                   id="actual"
-                  type="number"
-                  min={0}
-                  step={1}
                   placeholder="Cuenta el dinero antes de escribirlo"
                   value={actualAmount}
-                  onChange={(e) => setActualAmount(e.target.value)}
+                  onChange={setActualAmount}
                   className="h-12 text-lg"
                 />
               </div>
@@ -463,7 +459,7 @@ export default function CashPanel(props: Props) {
                 {sales.map((sale) => (
                   <tr key={sale.id} className="border-t border-border">
                     <td className="py-1.5">#{sale.folio}</td>
-                    <td className="py-1.5">{new Date(sale.createdAt).toLocaleTimeString('es-CL', { timeZone: 'America/Santiago' })}</td>
+                    <td className="py-1.5">{santiagoTimeLabel(new Date(sale.createdAt))}</td>
                     <td className="py-1.5">{POS_PAYMENT_METHOD_LABELS[sale.paymentMethod as PosPaymentMethod] ?? sale.paymentMethod}</td>
                     <td className="py-1.5 text-right">
                       {sale.status === 'CANCELLED' ? (

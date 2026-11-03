@@ -16,6 +16,7 @@ import {
 import type { ConversationSummary, MessageView, MessageAttachmentView } from '@/modules/messaging/services/messaging.service';
 import { ConfirmDialog } from '@/components/ui/alert-dialog';
 import NewConversationDialog from './NewConversationDialog';
+import { santiagoClockLabel } from '@/lib/chile/timezone';
 
 const POLL_MS = 4000;
 
@@ -26,7 +27,7 @@ function formatBytes(bytes: number): string {
 }
 
 function formatTime(date: Date): string {
-  return new Date(date).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+  return santiagoClockLabel(new Date(date));
 }
 
 interface PendingAttachment {

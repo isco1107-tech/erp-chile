@@ -143,6 +143,13 @@ export function toFriendlyErrorMessage(error: unknown): string {
     return 'Ocurrió un error inesperado. Si el problema persiste, contacta a soporte';
   }
 
+  // Los mensajes de negocio se lanzan con `new Error('…')` en español y llegan tal cual. Un TypeError o
+  // ReferenceError es una falla de programación («Cannot read properties of undefined…», o «fetch failed»
+  // de un servicio externo): en inglés técnico no le sirve a nadie y además debe quedar informada.
+  if (error instanceof TypeError || error instanceof ReferenceError || error instanceof RangeError || error instanceof SyntaxError) {
+    captureException(error, { module: 'server', extra: { reason: 'runtime-error-shown-to-user' } });
+    return 'Ocurrió un error inesperado y ya quedó informado. Intenta de nuevo; si se repite, avisa a soporte';
+  }
   if (error instanceof Error) return error.message;
   return 'Ocurrió un error inesperado';
 }

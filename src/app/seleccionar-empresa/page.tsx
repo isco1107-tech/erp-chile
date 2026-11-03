@@ -31,7 +31,8 @@ export default async function SelectCompanyPage() {
   if (context.mustChangePassword) redirect('/change-password');
 
   const companies = await listAccessibleCompanies(context.id);
-  if (selectableCount(companies) < 2) redirect(entryDestination((await cookies()).get(ERP_ENTRY_COOKIE)?.value));
+  const destination = entryDestination((await cookies()).get(ERP_ENTRY_COOKIE)?.value);
+  if (selectableCount(companies) < 2) redirect(destination);
 
   return (
     <AuthShell>
@@ -42,12 +43,16 @@ export default async function SelectCompanyPage() {
           description={
             <>
               Tu cuenta <span className="font-medium text-foreground">{context.email}</span> tiene acceso a varias empresas.
-              Podrás cambiar cuando quieras desde el menú lateral.
+              {destination === '/dashboard'
+                ? 'Podrás cambiar cuando quieras desde el menú lateral.'
+                : destination === '/pos'
+                  ? 'Podrás cambiar desde «Cambiar de empresa», arriba en el punto de venta.'
+                  : 'Para cambiar después, cierra sesión y vuelve a entrar.'}
             </>
           }
         />
         <CompanyPicker
-          warehouse={(await cookies()).get(ERP_ENTRY_COOKIE)?.value === 'bodega'}
+          destination={destination}
           companies={companies.map((company) => ({
             id: company.id,
             name: company.name,

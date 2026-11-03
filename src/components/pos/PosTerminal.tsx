@@ -43,6 +43,7 @@ import { heldSalesStoreFor, newHeldId } from '@/lib/pos/held-sales-store';
 import { parseQuantityPrefix, resolveScan, searchProducts, type ScanResolution } from '@/lib/pos/scan';
 import { playPosSound } from '@/lib/pos/sounds';
 import { useConfirm } from '@/components/ui/confirm-provider';
+import { santiagoDateTimeLabel } from '@/lib/chile/timezone';
 
 interface Props {
   shiftId: string;
@@ -252,6 +253,15 @@ export default function PosTerminal(props: Props) {
   }
 
   function addProduct(product: PosProduct, quantity = 1) {
+    // Sin precio no se vende: el servidor lo rechazaría al cobrar, mejor decirlo al escanear.
+    if (product.netPrice <= 0) {
+      playPosSound('error', sounds);
+      toast.error(`«${product.name}» no tiene precio de venta. Pide a un encargado que se lo ponga en Inventario → Productos.`);
+      setQuery('');
+      setActiveIndex(-1);
+      focusSearch();
+      return;
+    }
     const startsSale = cart.length === 0 && !customer.resolved;
     setCart((previous) => addUnits(previous, product, quantity));
     setQuery('');
@@ -687,7 +697,9 @@ export default function PosTerminal(props: Props) {
                       <span className={product.isTrackable && product.stock <= 0 ? 'text-destructive' : ''}>
                         Stock {formatQuantity(product.stock)}
                       </span>
-                      <span className="font-medium text-foreground">{formatCurrency(product.grossPrice)}</span>
+                      {product.netPrice > 0
+                        ? <span className="font-medium text-foreground">{formatCurrency(product.grossPrice)}</span>
+                        : <span className="font-medium text-destructive">Sin precio</span>}
                     </span>
                   </button>
                 </li>
@@ -894,7 +906,7 @@ export default function PosTerminal(props: Props) {
           <div className="ticket-divider" />
           <p>Caja: {props.cashRegisterName}</p>
           <p>Cajero: {props.cashierName}</p>
-          <p>Fecha: {slip.at.toLocaleString('es-CL', { timeZone: 'America/Santiago' })}</p>
+          <p>Fecha: {santiagoDateTimeLabel(slip.at)}</p>
           <p>Motivo: {slip.reason}</p>
         </div>
       ) : ticket && <PosTicket data={ticket} />}

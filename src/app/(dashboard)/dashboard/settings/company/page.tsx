@@ -13,6 +13,7 @@ import { getIntegrationsStatusAction } from '@/lib/actions/integrations';
 import { getMcpConnectorSettingsAction } from '@/modules/mcp/actions/mcp-settings.actions';
 import { getHermesLinkAction } from '@/modules/hermes/actions/hermes-link.actions';
 import { can, getAuthContext } from '@/lib/auth/guards';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 export const metadata = { title: 'Perfil de Empresa' };
 
@@ -25,10 +26,11 @@ export default async function CompanySettingsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold" data-tutorial="module-header">Perfil de Empresa</h1>
-        <Link href="/dashboard/settings" className={buttonVariants({ variant: 'outline' })}>← Volver</Link>
-      </div>
+      <PageHeader
+        eyebrow="Configuración"
+        title="Perfil de Empresa"
+        actions={<Link href="/dashboard/settings" className={buttonVariants({ variant: 'outline' })}>← Volver</Link>}
+      />
 
       {!allowed && (
         <p className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">

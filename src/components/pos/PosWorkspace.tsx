@@ -11,6 +11,7 @@ import { formatCurrency } from '@/lib/chile/tax';
 import { Button } from '@/components/ui/button';
 import { PosDesktopDownload } from './PosDesktopDownload';
 import { PosHardwareProvider } from './hardware/PosHardwareProvider';
+import { santiagoDateTimeLabel } from '@/lib/chile/timezone';
 
 /** Cada cuánto la caja avisa a la Supersuite que sigue viva (el umbral de "sin señal" allá es 2 minutos). */
 const LATIDO_MS = 60_000;
@@ -91,12 +92,12 @@ export default function PosWorkspace(props: Props) {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground" data-tutorial="module-header">Punto de Venta</h1>
           <p className="mt-0.5 flex items-center gap-2 text-sm text-muted-foreground">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-success-soft px-2 py-0.5 text-xs font-medium text-success">
-              <span className="size-1.5 rounded-full bg-success" aria-hidden="true" /> {shiftClosed ? 'Turno cerrado' : 'Turno abierto'}
+            <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${shiftClosed ? 'bg-warning-soft text-warning' : 'bg-success-soft text-success'}`}>
+              <span className={`size-1.5 rounded-full ${shiftClosed ? 'bg-warning' : 'bg-success'}`} aria-hidden="true" /> {shiftClosed ? 'Turno cerrado' : 'Turno abierto'}
             </span>
             <span className="min-w-0 break-words">{props.cashRegisterName} · Cajero: {props.cashierName}</span>
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">Apertura {new Date(props.openedAt).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Santiago' })} · Fondo inicial {formatCurrency(props.initialAmount)}</p>
+          <p className="mt-1 text-xs text-muted-foreground">Apertura {santiagoDateTimeLabel(new Date(props.openedAt))} · Fondo inicial {formatCurrency(props.initialAmount)}</p>
         </div>
         <PosDesktopDownload />
         <div role="tablist" aria-label="Vista del punto de venta" className="inline-flex max-w-full flex-wrap rounded-xl border border-border bg-card p-1 shadow-card">

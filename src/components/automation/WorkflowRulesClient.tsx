@@ -32,6 +32,7 @@ import type { WorkflowRuleRow, WorkflowExecutionRow } from '@/modules/automation
 import type { WorkflowRuleInput } from '@/modules/automation/schema';
 
 import { useConfirm } from '@/components/ui/confirm-provider';
+import { santiagoDateTimeLabel } from '@/lib/chile/timezone';
 const selectClass =
   'h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30';
 const textareaClass =
@@ -242,7 +243,7 @@ export default function WorkflowRulesClient() {
                     {rule.actions.length} acción(es)
                     {rule.lastExecution && (
                       <>
-                        <span>· última corrida {rule.lastExecution.createdAt.toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })} ·</span>
+                        <span>· última corrida {santiagoDateTimeLabel(rule.lastExecution.createdAt)} ·</span>
                         <StatusBadge tone={EXECUTION_STATUS_META[rule.lastExecution.status].tone}>{EXECUTION_STATUS_META[rule.lastExecution.status].label}</StatusBadge>
                       </>
                     )}
@@ -289,7 +290,7 @@ export default function WorkflowRulesClient() {
                             >
                               {expanded ? <ChevronDown className="size-3.5 shrink-0" /> : <ChevronRight className="size-3.5 shrink-0" />}
                               <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>
-                              <span className="text-muted-foreground">{execution.createdAt.toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                              <span className="text-muted-foreground">{santiagoDateTimeLabel(execution.createdAt)}</span>
                             </button>
                             {expanded && (
                               <div className="space-y-2 border-t border-border p-3 text-xs">

@@ -11,6 +11,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { exportPersonalDataAction, searchPersonalDataAction } from '@/modules/data-protection/actions/data-protection.actions';
 import type { PersonalDataResult } from '@/modules/data-protection/services/personal-data.service';
 import type { SearchSeed } from './RequestsPanel';
+import { santiagoDateTimeLabel } from '@/lib/chile/timezone';
 
 const RETENTION_TEXT = {
   ERASABLE: { tone: 'info' as const, label: 'Se puede eliminar a pedido', hint: 'Elimínalo desde su ficha una vez resuelta la solicitud.' },
@@ -21,7 +22,7 @@ const RETENTION_TEXT = {
 /** Valores que no conviene mostrar en pantalla (fechas ISO, booleans) con formato legible. */
 function show(value: unknown): string {
   if (value === null || value === undefined || value === '') return '—';
-  if (value instanceof Date) return value.toLocaleString('es-CL');
+  if (value instanceof Date) return santiagoDateTimeLabel(value);
   if (typeof value === 'boolean') return value ? 'Sí' : 'No';
   return String(value);
 }

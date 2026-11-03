@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { completeForcedPasswordChangeAction } from '@/lib/actions/change-password';
 import { PASSWORD_REQUIREMENTS, passwordPolicySchema } from '@/lib/auth/password-policy';
+import { needsFullPageLoad } from '@/lib/auth/entry-preference';
 
 interface ChangePasswordFormProps {
   email: string;
@@ -37,7 +38,8 @@ export default function ChangePasswordForm({ email, destination = '/dashboard' }
         return;
       }
       toast.success(result.message ?? 'Contraseña actualizada');
-      if (destination === '/bodega') { window.location.assign(destination); return; }
+      // Bodega (cámara) y POS (cajón e impresora USB) necesitan un documento nuevo con su política de permisos.
+      if (needsFullPageLoad(destination)) { window.location.assign(destination); return; }
       router.push(destination);
       router.refresh();
     } finally {

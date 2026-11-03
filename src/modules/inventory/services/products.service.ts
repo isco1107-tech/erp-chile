@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { nextSkuFor } from './auto-sku';
 import type { Category, Prisma, Product, ProductPackaging } from '@prisma/client';
 import { calculateGrossPrice } from '@/lib/chile/tax';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
@@ -84,10 +85,12 @@ const PRODUCTS_DEFAULT_PAGE_SIZE = 25;
  */
 export async function listProductsPage(
   companyId: string,
-  options?: { query?: string; categoryId?: string; page?: number; pageSize?: number; includeArchived?: boolean }
+  options?: { query?: string; categoryId?: string; page?: number; pageSize?: number; includeArchived?: boolean; onlyUnpriced?: boolean }
 ): Promise<ListProductsResult> {
   const where: Prisma.ProductWhereInput = { companyId };
   if (!options?.includeArchived) where.isActive = true;
+  // Los que llegaron sin precio (la bodega móvil los crea así): no se pueden vender hasta ponérselo.
+  if (options?.onlyUnpriced) where.netPrice = { lte: 0 };
   const trimmed = options?.query?.trim();
   if (trimmed) {
     const like: Prisma.StringFilter = { contains: trimmed, mode: 'insensitive' };
@@ -174,28 +177,29 @@ export async function createProduct(companyId: string, input: ProductCreateInput
   if (input.barcode) await assertBarcodeFree(companyId, input.barcode);
   if (input.consignorId) await assertConsignorInCompany(prisma, companyId, input.consignorId);
 
-  return prisma.product.create({
-    data: {
-      companyId,
-      sku: input.sku,
-      name: input.name,
-      description: input.description || undefined,
-      categoryId: input.categoryId || undefined,
-      unit: input.unit || 'UN',
-      isTrackable: input.isTrackable ?? true,
-      isExempt: input.isExempt ?? false,
-      netPrice: input.netPrice,
-      grossPrice: calculateGrossPrice(input.netPrice, input.isExempt ?? false),
-      minStock: input.minStock ?? 0,
-      barcode: input.barcode || undefined,
-      brand: input.brand || undefined,
-      imageUrl: input.imageUrl || undefined,
-      tracksLots: input.tracksLots ?? false,
-      // Un producto en consignación nace con costo 0: es del seller, no entra al valor de inventario.
-      consignorId: input.consignorId || undefined,
-      consignmentCommissionBps: input.consignorId ? input.consignmentCommissionBps ?? undefined : undefined,
-    },
-  });
+  const data = {
+    companyId,
+    name: input.name,
+    description: input.description || undefined,
+    categoryId: input.categoryId || undefined,
+    unit: input.unit || 'UN',
+    isTrackable: input.isTrackable ?? true,
+    isExempt: input.isExempt ?? false,
+    netPrice: input.netPrice,
+    grossPrice: calculateGrossPrice(input.netPrice, input.isExempt ?? false),
+    minStock: input.minStock ?? 0,
+    barcode: input.barcode || undefined,
+    brand: input.brand || undefined,
+    imageUrl: input.imageUrl || undefined,
+    tracksLots: input.tracksLots ?? false,
+    // Un producto en consignación nace con costo 0: es del seller, no entra al valor de inventario.
+    consignorId: input.consignorId || undefined,
+    consignmentCommissionBps: input.consignorId ? input.consignmentCommissionBps ?? undefined : undefined,
+  };
+  const sku = input.sku.trim();
+  if (sku) return prisma.product.create({ data: { ...data, sku } });
+  // Sin SKU, el siguiente automático en la misma transacción que crea el producto (candado por empresa).
+  return prisma.$transaction(async (tx) => tx.product.create({ data: { ...data, sku: await nextSkuFor(tx, companyId) } }));
 }
 
 export async function updateProduct(companyId: string, id: string, input: ProductUpdateInput): Promise<Product> {

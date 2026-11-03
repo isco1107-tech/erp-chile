@@ -17,6 +17,16 @@ export function entryDestination(value: string | undefined): '/bodega' | '/pos' 
   return value === 'bodega' ? '/bodega' : value === 'pos' ? '/pos' : value === 'control' ? '/control' : '/dashboard';
 }
 
+/**
+ * Las apps que abren hardware del teléfono o del mostrador (cámara en Bodega, USB del cajón e impresora en el
+ * POS) reciben ese permiso por la cabecera `Permissions-Policy` del DOCUMENTO (next.config.js). Una navegación
+ * interna desde el login, el selector de empresa o el cambio de contraseña conservaría la política de esa
+ * página (sin cámara ni USB), así que a estas rutas se entra con una carga completa.
+ */
+export function needsFullPageLoad(path: string): boolean {
+  return path === '/bodega' || path === '/pos';
+}
+
 export function posEntry(cookieHeader: string | null): boolean {
   return cookieHeader?.split(';').some((part) => part.trim() === `${ERP_ENTRY_COOKIE}=pos`) ?? false;
 }

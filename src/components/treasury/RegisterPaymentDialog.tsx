@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { AmountInput } from '@/components/ui/AmountInput';
 import { Label } from '@/components/ui/label';
 import { registerPurchasePaymentAction, registerSalesPaymentAction } from '@/modules/treasury/actions/treasury.actions';
 import { listBankAccountsAction } from '@/modules/treasury/actions/banks.actions';
@@ -143,13 +144,10 @@ export default function RegisterPaymentDialog({
 
             <div>
               <Label htmlFor="payment-amount">Monto a {kind === 'sales' ? 'cobrar' : 'pagar'}</Label>
-              <Input
+              <AmountInput
                 id="payment-amount"
-                type="number"
-                min={0}
-                max={pendingBalance}
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onChange={setAmount}
               />
               {parsedAmount > 0 && (
                 <p className="mt-1 text-xs text-muted-foreground">

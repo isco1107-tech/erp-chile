@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { AmountInput } from '@/components/ui/AmountInput';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { getPaymentBoardAction, listGroupsAction, setMonthPaidAction } from '@/modules/academy/actions/academy.actions';
@@ -83,7 +84,7 @@ export default function PaymentsPanel({ canWrite }: { canWrite: boolean }) {
                     <>
                       <StatusBadge tone="danger">Pendiente</StatusBadge>
                       {canWrite && row.suggestedAmount === null && (
-                        <Input aria-label={`Monto pagado por ${row.fullName}`} className="w-28" type="number" min={0} step={1} placeholder="Monto" value={amounts[row.studentId] ?? ''} onChange={(e) => setAmounts({ ...amounts, [row.studentId]: e.target.value })} />
+                        <AmountInput aria-label={`Monto pagado por ${row.fullName}`} className="w-32" placeholder="Monto" value={amounts[row.studentId] ?? ''} onChange={(digits) => setAmounts({ ...amounts, [row.studentId]: digits })} />
                       )}
                     </>
                   )}

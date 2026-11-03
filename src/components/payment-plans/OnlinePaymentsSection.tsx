@@ -11,6 +11,7 @@ import { refreshOnlinePaymentAction } from '@/modules/payment-plans/actions/onli
 import { ONLINE_PAYMENT_STATUS_LABELS } from '@/modules/payment-plans/schema';
 import type { OnlinePaymentRow } from '@/modules/payment-plans/services/online-payment.service';
 import { formatCurrency } from '@/lib/chile/tax';
+import { santiagoDateTimeLabel } from '@/lib/chile/timezone';
 
 const STATUS_TONE: Record<OnlinePaymentRow['status'], Tone> = {
   PENDING: 'info',
@@ -20,7 +21,7 @@ const STATUS_TONE: Record<OnlinePaymentRow['status'], Tone> = {
 };
 
 function formatDateTime(date: Date): string {
-  return new Date(date).toLocaleString('es-CL', { timeZone: 'America/Santiago', dateStyle: 'short', timeStyle: 'short' });
+  return santiagoDateTimeLabel(new Date(date));
 }
 
 /** Pagos hechos desde el portal público para este plan, con su comprobante. */

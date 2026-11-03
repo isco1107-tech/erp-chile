@@ -6,6 +6,7 @@ import type { Contact, Warehouse } from '@prisma/client';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { AmountInput } from '@/components/ui/AmountInput';
 import { Label } from '@/components/ui/label';
 import ContactForm from './ContactForm';
 import { listContactsAction } from '@/modules/contacts/actions/contacts.actions';
@@ -211,7 +212,8 @@ export default function PurchaseDocumentForm({ editingDocument }: Props) {
         quantity: '1',
         // El PMP vigente es solo una sugerencia: el costo real lo fija la
         // factura del proveedor y el usuario lo corrige aquí.
-        unitCost: String(product.costPricePMP),
+        // El PMP tiene decimales; el costo de una factura es en pesos enteros (es solo una sugerencia).
+        unitCost: String(Math.round(product.costPricePMP)),
         isExempt: false,
       },
     ]);
@@ -280,7 +282,7 @@ export default function PurchaseDocumentForm({ editingDocument }: Props) {
       const warehouseName = warehouses.find((w) => w.id === warehouseId)?.name ?? 'la bodega seleccionada';
       const confirmed = await confirm(
         stockDirection === 'IN'
-          ? `Se dará entrada al stock en ${warehouseName} y se recalculará el costo PMP de los productos incluidos. ¿Continuar?`
+          ? `Se dará entrada al stock en ${warehouseName} y se actualizará el costo promedio de los productos incluidos. ¿Continuar?`
           : `Se descontará el stock de ${warehouseName} al PMP vigente por devolución al proveedor. ¿Continuar?`
       );
       if (!confirmed) return;
@@ -540,13 +542,13 @@ export default function PurchaseDocumentForm({ editingDocument }: Props) {
                     />
                   </td>
                   <td className="p-2">
-                    <Input
-                      type="number"
-                      min={0}
-                      step={1}
-                      value={item.unitCost}
-                      onChange={(e) => updateItem(item.key, 'unitCost', e.target.value)}
-                      className="h-7 w-24"
+                    {/* «12.990» con punto de miles: doce mil novecientos noventa, no 12,99. */}
+                    <AmountInput
+                      showSign={false}
+                      aria-label="Costo unitario neto"
+                      value={String(Math.round(Number(item.unitCost) || 0))}
+                      onChange={(digits) => updateItem(item.key, 'unitCost', digits)}
+                      className="h-7 w-28"
                     />
                   </td>
                   <td className="p-2 text-center">

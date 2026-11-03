@@ -90,3 +90,41 @@ export function ageInSantiago(birthDate: Date, now: Date = new Date()): number {
   if (today.month < month || (today.month === month && today.day < day)) age -= 1;
   return age;
 }
+
+const SANTIAGO_CLOCK = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'America/Santiago',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hourCycle: 'h23',
+});
+
+function santiagoClockParts(date: Date): Record<'year' | 'month' | 'day' | 'hour' | 'minute' | 'second', string> {
+  const parts = Object.fromEntries(SANTIAGO_CLOCK.formatToParts(date).map((part) => [part.type, part.value]));
+  return { year: parts.year ?? '', month: parts.month ?? '', day: parts.day ?? '', hour: parts.hour ?? '', minute: parts.minute ?? '', second: parts.second ?? '' };
+}
+
+/**
+ * `29-10-2026 17:05` en hora de Chile, armado con dígitos. `toLocaleString('es-CL')` escribe «p. m.» con
+ * espacios distintos en Node y en Chromium, y esa diferencia rompe la hidratación de React (error #418)
+ * en cualquier pantalla que se dibuje primero en el servidor. Además, 24 horas se lee sin ambigüedad.
+ */
+export function santiagoDateTimeLabel(date: Date): string {
+  const p = santiagoClockParts(date);
+  return `${p.day}-${p.month}-${p.year} ${p.hour}:${p.minute}`;
+}
+
+/** `17:05:09` en hora de Chile (mismo cuidado que `santiagoDateTimeLabel`). */
+export function santiagoTimeLabel(date: Date): string {
+  const p = santiagoClockParts(date);
+  return `${p.hour}:${p.minute}:${p.second}`;
+}
+
+/** `17:05` en hora de Chile (mismo cuidado que `santiagoDateTimeLabel`). */
+export function santiagoClockLabel(date: Date): string {
+  const p = santiagoClockParts(date);
+  return `${p.hour}:${p.minute}`;
+}

@@ -56,7 +56,7 @@ export const PAYMENT_METHOD_LABELS: Record<(typeof PAYMENT_METHODS)[number], str
   TRANSFERENCIA: 'Transferencia',
   TARJETA_DEBITO: 'Tarjeta de Débito',
   TARJETA_CREDITO: 'Tarjeta de Crédito',
-  CREDITO_30: 'Crédito 30 días',
+  CREDITO_30: 'Crédito (a plazo)',
 };
 
 export const salesDocumentItemSchema = z.object({

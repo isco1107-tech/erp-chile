@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { ArrowUpRight, LayoutGrid, Monitor, ShieldCheck } from 'lucide-react';
-import { APP_CATALOG, APP_OPPORTUNITIES } from '@/lib/apps/catalog';
+import { APP_CATALOG } from '@/lib/apps/catalog';
 import { appIconPaths } from '@/lib/apps/registry';
 import { PosDesktopDownload } from '@/components/pos/PosDesktopDownload';
 import erpReleases from '../../../public/downloads/releases.json';
@@ -118,26 +118,6 @@ export default function AppsPage() {
                     ? 'Linux'
                     : `Mac ${release.architecture === 'arm64' ? 'Apple Silicon' : 'Intel'}`}
               </a>
-            ))}
-          </div>
-        </section>
-        <section>
-          <h2 className="text-2xl font-semibold">
-            Siguientes apps recomendadas
-          </h2>
-          <p className="mt-2 text-muted-foreground">
-            Evaluación de portales: estas propuestas todavía no tienen una
-            descarga publicada.
-          </p>
-          <div className="mt-5 grid gap-4 md:grid-cols-3">
-            {APP_OPPORTUNITIES.map((app) => (
-              <article key={app.name} className="rounded-2xl border p-5">
-                <h3 className="font-semibold">{app.name}</h3>
-                <p className="mt-3 text-sm text-muted-foreground">
-                  {app.reason}
-                </p>
-                <p className="mt-3 text-sm">{app.prerequisite}</p>
-              </article>
             ))}
           </div>
         </section>

@@ -108,6 +108,8 @@ export async function createStoreOrder(ctx: PublicStoreContext, input: CheckoutI
   for (const line of input.lines) {
     const listing = byProduct.get(line.productId);
     if (!listing) throw new StoreError('Un producto de tu carrito ya no está a la venta. Actualiza tu carrito.', 409);
+    // Sin precio en el ERP no se vende (sería un pedido por $0): para quien compra, está «no disponible».
+    if (listing.product.netPrice <= 0) throw new StoreError(`«${listing.title?.trim() || listing.product.name}» no está disponible por ahora. Quítalo del carrito para seguir.`, 409);
     if (listing.maxPerOrder && line.quantity > listing.maxPerOrder) {
       throw new StoreError(`De «${listing.title?.trim() || listing.product.name}» puedes llevar hasta ${listing.maxPerOrder} por pedido.`, 400);
     }

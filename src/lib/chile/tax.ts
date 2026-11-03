@@ -24,6 +24,24 @@ export function calculateGrossPrice(neto: number, isExempt: boolean): number {
   return isExempt ? neto : calculateTotal(neto);
 }
 
+/**
+ * Neto que hay que guardar para que el público pague el precio con IVA que se
+ * escribió. El IVA se calcula SOBRE el neto y se redondea, así que no todo
+ * precio final es alcanzable (con $1.990 sí: neto $1.672 → $1.990; hay montos
+ * que caen entre dos netos). Se busca un neto que dé exactamente ese precio y,
+ * si no existe, el más cercano, avisando con `exact: false`.
+ */
+export function netPriceForGross(gross: number, isExempt: boolean): { net: number; exact: boolean } {
+  if (!Number.isFinite(gross) || gross <= 0) return { net: 0, exact: gross === 0 };
+  const rounded = Math.round(gross);
+  if (isExempt) return { net: rounded, exact: rounded === gross };
+  const base = calculateNeto(rounded);
+  for (const candidate of [base, base - 1, base + 1]) {
+    if (candidate >= 0 && calculateTotal(candidate) === gross) return { net: candidate, exact: true };
+  }
+  return { net: base, exact: false };
+}
+
 export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('es-CL', {
     style: 'currency',

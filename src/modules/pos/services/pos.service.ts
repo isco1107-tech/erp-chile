@@ -191,6 +191,9 @@ export async function createPosSale(
     for (const item of input.items) {
       const product = await tx.product.findFirst({ where: { id: item.productId, companyId, isActive: true } });
       if (!product) throw new Error('Producto no encontrado en el catálogo');
+      // Un producto creado desde la bodega móvil llega sin precio (el bodeguero no lo conoce): venderlo
+      // emitía una boleta por $0 y la mercadería salía regalada sin que nadie lo notara.
+      if (product.netPrice <= 0) throw new Error(`«${product.name}» no tiene precio de venta. Pide a un encargado que se lo ponga en Inventario → Productos antes de venderlo.`);
       lines.push({
         productId: product.id,
         sku: product.sku,

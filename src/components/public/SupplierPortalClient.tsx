@@ -8,6 +8,7 @@ import { URGENCY } from '@/components/public/portal-format';
 import SellerConsignmentSection from '@/components/public/SellerConsignmentSection';
 import { PORTAL_STYLES } from '@/components/public/portal-styles';
 import type { SupplierPortalView } from '@/modules/inventory/services/supplier-portal.service';
+import { santiagoDateTimeLabel } from '@/lib/chile/timezone';
 
 type Filter = 'ALL' | 'OUT' | 'LOW';
 
@@ -107,7 +108,7 @@ export default function SupplierPortalClient({ code, view }: { code: string; vie
         {view.consignment && <SellerConsignmentSection consignment={view.consignment} companyName={view.company.name} showMovement={view.showMovement} windowDays={view.windowDays} />}
 
         <PublicFooter>
-          Existencias al {view.generatedAt.toLocaleString('es-CL', { timeZone: 'America/Santiago', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}. Solo lectura: para pedir un cambio, contacta a {view.company.name}
+          Existencias al {santiagoDateTimeLabel(view.generatedAt)}. Solo lectura: para pedir un cambio, contacta a {view.company.name}
           {view.company.email ? ` (${view.company.email})` : view.company.phone ? ` (${view.company.phone})` : ''}.
         </PublicFooter>
       </PublicShell>
