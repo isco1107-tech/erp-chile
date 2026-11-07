@@ -185,14 +185,14 @@ export default function CompanyProfileForm({ company, settings }: CompanyProfile
             <input
               ref={logoInputRef}
               type="file"
-              accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+              accept="image/png,image/jpeg,image/webp,image/gif"
               className="hidden"
               onChange={handleLogoChange}
             />
             <Button type="button" size="sm" variant="outline" disabled={uploadingLogo} onClick={() => logoInputRef.current?.click()}>
               {uploadingLogo ? 'Subiendo...' : logoUrl ? 'Cambiar logo' : 'Subir logo'}
             </Button>
-            <p className="text-xs text-muted-foreground">PNG, JPG, WEBP, GIF o SVG, hasta 5 MB. Se usa en el menú, documentos y como marca de agua del panel.</p>
+            <p className="text-xs text-muted-foreground">PNG, JPG, WEBP o GIF, hasta 5 MB. Se usa en el menú, documentos y como marca de agua del panel.</p>
             {brandPalette.length > 0 && (
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1">

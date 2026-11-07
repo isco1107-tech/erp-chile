@@ -507,6 +507,13 @@ export const STORE_GATEWAY_NOTIFY_RATE_LIMIT: RateLimitConfig = {
   windowMs: 10 * 60_000,
 };
 
+/** Portal de cuotas: aviso de Khipu por IP (mismo criterio que la tienda: cada aviso consulta a Khipu con la llave de la empresa). */
+export const INSTALLMENT_KHIPU_NOTIFY_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'installment-khipu-notify-ip',
+  limit: 600,
+  windowMs: 10 * 60_000,
+};
+
 export const STORE_GATEWAY_RETURN_RATE_LIMIT: RateLimitConfig = {
   prefix: 'store-gateway-return-ip',
   limit: 60,

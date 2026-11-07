@@ -1,3 +1,4 @@
+import { readTextWithLimit } from '@/lib/security/body-limit';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { claimWebhookEvent, markWebhookEventProcessed, markWebhookEventFailed } from '@/modules/webhooks/services/webhook-idempotency.service';
@@ -76,12 +77,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'El body supera el tamaño máximo permitido' }, { status: 413 });
     }
 
-    let body: Record<string, unknown>;
+    const raw = await readTextWithLimit(req, MAX_BODY_BYTES);
+    if (raw === null) {
+      return NextResponse.json({ success: false, error: 'El body supera el tamaño máximo permitido' }, { status: 413 });
+    }
+    let parsedBody: unknown;
     try {
-      body = await req.json();
+      parsedBody = JSON.parse(raw);
     } catch {
       return NextResponse.json({ success: false, error: 'Body inválido, se espera JSON' }, { status: 400 });
     }
+    if (!parsedBody || typeof parsedBody !== 'object' || Array.isArray(parsedBody)) {
+      return NextResponse.json({ success: false, error: 'Body inválido, se espera un objeto JSON' }, { status: 400 });
+    }
+    const body = parsedBody as Record<string, unknown>;
 
     const eventId = String(body.eventId ?? body.id ?? body.event_id ?? '').trim();
     const eventType = String(body.eventType ?? body.type ?? body.event_type ?? '').trim();

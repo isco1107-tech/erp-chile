@@ -124,8 +124,10 @@ const nextConfig = {
         headers: [
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           // ── CSP ──────────────────────────────────────────────────────────
-          // `unsafe-inline` y `unsafe-eval` son necesarios para Next.js sin
-          // nonce (la hidratación inyecta scripts inline). `base-uri 'self'`
+          // `unsafe-inline` es necesario para Next.js sin nonce (la hidratación
+          // inyecta scripts inline). `unsafe-eval` solo en desarrollo (lo usa
+          // la recarga en caliente de React): en producción no se necesita y
+          // quitarlo deja sin `eval`/`new Function` a un XSS. `base-uri 'self'`
           // y `form-action 'self'` son las directivas más valiosas que no
           // rompen compatibilidad: impiden ataques de base-tag hijacking y
           // data exfiltration vía forms respectivamente.
@@ -154,7 +156,7 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com",
+              `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'production' ? '' : " 'unsafe-eval'"} https://challenges.cloudflare.com`,
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob: https://*.public.blob.vercel-storage.com",
               "font-src 'self'",

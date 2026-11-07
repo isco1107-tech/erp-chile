@@ -101,7 +101,7 @@ export async function POST(req: Request) {
     // Defensa en profundidad: la URL viene de la respuesta de un tercero.
     const safe = isSafeOutboundWebhookUrl(status.signedFileUrl);
     if (!safe.ok) throw new Error(`URL del PDF firmado no permitida: ${safe.reason}`);
-    const fileResponse = await fetch(status.signedFileUrl);
+    const fileResponse = await fetch(status.signedFileUrl, { redirect: 'error' });
     if (!fileResponse.ok) {
       throw new Error(`No se pudo descargar el PDF firmado desde ZapSign (${fileResponse.status})`);
     }

@@ -29,6 +29,7 @@ jest.mock('next/cache', () => ({ revalidatePath: jest.fn() }));
 jest.mock('@/lib/auth/audit', () => ({ createAuditLog: jest.fn() }));
 jest.mock('@/lib/auth/guards', () => ({
   getAuthContext: jest.fn(),
+  assertPasswordChangeNotPending: jest.fn(),
   can: (context: { permissions: string[] }, permission: string) => context.permissions.includes(permission),
   AuthError: class AuthError extends Error {
     status: 401 | 403;

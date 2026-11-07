@@ -40,7 +40,10 @@ export async function POST(req: Request) {
     try {
       pending = verifyPendingActionToken(parsed.data.token);
     } catch (error) {
-      return NextResponse.json({ success: false, error: error instanceof Error ? error.message : 'Token inválido' }, { status: 400 });
+      // Solo el vencimiento se explica; cualquier otro fallo (firma, configuración) es «inválido».
+      const expired = error instanceof Error && error.message.startsWith('Esta acción expiró');
+      const message = expired ? (error as Error).message : 'Token de acción inválido';
+      return NextResponse.json({ success: false, error: message }, { status: 400 });
     }
 
     if (pending.companyId !== session.companyId || pending.userId !== session.id) {

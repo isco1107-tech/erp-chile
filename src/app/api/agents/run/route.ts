@@ -1,3 +1,4 @@
+import { isCronAuthorized } from '@/lib/security/cron-auth';
 import { NextResponse, type NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { runAgent } from '@/modules/agents/engine';
@@ -30,9 +31,7 @@ import { captureException } from '@/lib/observability';
  */
 
 export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+  if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   }
 

@@ -10,12 +10,9 @@ const maxWebSites = z.number().int().min(1, 'Debe permitir al menos 1 sitio web'
 
 export const TENANT_STATUSES = ['ACTIVE', 'TRIAL', 'SUSPENDED', 'CANCELLED'] as const;
 
-const featureShape = MODULE_KEYS.reduce<Record<string, z.ZodBoolean>>((shape, key) => {
-  shape[key] = z.boolean();
-  return shape;
-}, {});
+const featureShape = Object.fromEntries(MODULE_KEYS.map((key) => [key, z.boolean()])) as Record<FeatureKey, z.ZodBoolean>;
 
-export const companyFeaturesSchema = z.object(featureShape) as z.ZodType<Record<FeatureKey, boolean>>;
+export const companyFeaturesSchema: z.ZodType<Record<FeatureKey, boolean>> = z.object(featureShape);
 
 export const companyCreateSchema = z.object({
   rut: z.string().refine(validateRut, 'El RUT de la empresa no es válido'),

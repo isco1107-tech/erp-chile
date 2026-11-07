@@ -4,6 +4,9 @@ import { seedChartOfAccounts } from '../src/modules/accounting/chart-of-accounts
 import { createAndPostEntry, reverseEntry, resolveMappedAccountId, JournalError } from '../src/modules/accounting/services/journal.service';
 import { getAccountBalance, getTrialBalance } from '../src/modules/accounting/services/ledger.service';
 import { BATCH_TX_OPTIONS } from '../src/lib/prisma-tx';
+import { assertLocalDatabase } from './lib/guard-production';
+
+assertLocalDatabase('verify-accounting-engine');
 
 /**
  * Fase B.6 de PROMPT_ERP_V2.md — lo que `tests/accounting-core.test.ts` no

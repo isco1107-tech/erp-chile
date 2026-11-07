@@ -1,3 +1,5 @@
+import { safeEqual } from './cloudflare';
+
 /**
  * Autenticación de rutas de cron (`src/app/api/**\/cron/route.ts`). Falla
  * CERRADO si `CRON_SECRET` no está seteado en el entorno — la versión previa
@@ -10,5 +12,6 @@
 export function isCronAuthorized(req: Request): boolean {
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) return false;
-  return req.headers.get('authorization') === `Bearer ${cronSecret}`;
+  // Comparación en tiempo constante: no deja medir cuántos caracteres acertó.
+  return safeEqual(req.headers.get('authorization') ?? '', `Bearer ${cronSecret}`);
 }

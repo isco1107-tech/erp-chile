@@ -60,3 +60,39 @@ export const SNIFFED_CERTIFICATE_EXTENSION: Record<SniffedCertificateType, strin
   'image/webp': 'webp',
   'application/pdf': 'pdf',
 };
+
+// GIF: "GIF87a" o "GIF89a".
+const GIF_MAGIC_87 = [0x47, 0x49, 0x46, 0x38, 0x37, 0x61];
+const GIF_MAGIC_89 = [0x47, 0x49, 0x46, 0x38, 0x39, 0x61];
+
+export type SniffedUploadType = SniffedCertificateType | 'image/gif';
+
+/**
+ * Tipo real de un archivo subido por el panel (JPEG, PNG, WEBP, GIF o PDF), o
+ * `null` si no es ninguno. Nunca SVG ni HTML: se sirven desde el almacenamiento
+ * público y podrían ejecutar script si alguien abre la URL directo.
+ */
+export function sniffUploadType(bytes: Uint8Array): SniffedUploadType | null {
+  if (matchesMagic(bytes, GIF_MAGIC_87) || matchesMagic(bytes, GIF_MAGIC_89)) return 'image/gif';
+  return sniffCertificateType(bytes);
+}
+
+export const SNIFFED_UPLOAD_EXTENSION: Record<SniffedUploadType, string> = {
+  ...SNIFFED_CERTIFICATE_EXTENSION,
+  'image/gif': 'gif',
+};
+
+/**
+ * Lee la cabecera de `file` y devuelve su tipo REAL si está entre `allowed`.
+ * El `contentType` y la extensión con que se guarda el archivo deben salir de
+ * acá, nunca de `file.type` (lo declara quien sube el archivo).
+ */
+export async function sniffAllowedUpload(
+  file: Blob,
+  allowed: ReadonlySet<SniffedUploadType>,
+): Promise<{ contentType: SniffedUploadType; extension: string } | null> {
+  const head = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+  const sniffed = sniffUploadType(head);
+  if (!sniffed || !allowed.has(sniffed)) return null;
+  return { contentType: sniffed, extension: SNIFFED_UPLOAD_EXTENSION[sniffed] };
+}

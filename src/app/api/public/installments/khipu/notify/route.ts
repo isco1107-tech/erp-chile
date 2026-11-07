@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { handleKhipuNotification } from '@/modules/payment-plans/services/online-payment.service';
 import { captureException, captureMessage } from '@/lib/observability';
+import { INSTALLMENT_KHIPU_NOTIFY_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { limitByIp } from '@/modules/ecommerce/public-api';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +21,8 @@ const MAX_BODY_BYTES = 64 * 1024;
  * Khipu sí reintente.
  */
 export async function POST(req: Request) {
+  const limited = limitByIp(req, INSTALLMENT_KHIPU_NOTIFY_RATE_LIMIT);
+  if (limited) return limited;
   const contentLength = Number(req.headers.get('content-length') ?? NaN);
   if (Number.isFinite(contentLength) && contentLength > MAX_BODY_BYTES) {
     return NextResponse.json({ success: false, error: 'Body demasiado grande' }, { status: 413 });

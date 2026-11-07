@@ -6,6 +6,9 @@ import { createPurchaseDocument } from '../src/modules/purchases/services/purcha
 import { createSalesDocument } from '../src/modules/sales/services/sales.service';
 import { registerSalesPayment } from '../src/modules/treasury/services/treasury.service';
 import { calculateAndStoreF29 } from '../src/lib/chile/f29';
+import { assertLocalDatabase } from './lib/guard-production';
+
+assertLocalDatabase('verify-erp');
 
 /**
  * Simulación E2E de Dimensión 7: crea una empresa de prueba real, ejercita
