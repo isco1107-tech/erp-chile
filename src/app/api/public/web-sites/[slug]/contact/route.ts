@@ -1,8 +1,9 @@
+import { checkLayeredRateLimit } from '@/lib/security/durable-rate-limit';
 import { NextResponse, after } from 'next/server';
 import { extractClientIp } from '@/lib/auth/ip-allowlist';
 import { captureException } from '@/lib/observability';
 import { notifyCompany } from '@/lib/notifications/company-notification';
-import { checkRateLimit, WEB_SITE_CONTACT_RATE_LIMIT, WEB_SITE_CONTACT_SITE_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { WEB_SITE_CONTACT_RATE_LIMIT, WEB_SITE_CONTACT_SITE_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import { WEB_SITE_HONEYPOT_FIELD } from '@/lib/web-sites/constants';
 import { DESTINATION_INFO, PURPOSE_LABELS, destinationHref } from '@/lib/web-sites/forms';
@@ -54,7 +55,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
   const { slug } = await params;
 
   const clientIp = extractClientIp(req) ?? 'unknown';
-  const ipLimit = checkRateLimit(clientIp, WEB_SITE_CONTACT_RATE_LIMIT);
+  const ipLimit = await checkLayeredRateLimit(clientIp, WEB_SITE_CONTACT_RATE_LIMIT);
   if (!ipLimit.allowed) {
     const retryAfter = ipLimit.retryAfterMs ? Math.max(1, Math.ceil((ipLimit.retryAfterMs - Date.now()) / 1000)) : 3600;
     return jsonError('Recibimos varios envíos desde esta conexión. Intenta de nuevo más tarde.', 429, { 'Retry-After': String(retryAfter) });
@@ -88,7 +89,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
     const site = await getPublicWebSite(slug);
     if (!site || !site.acceptsMessages) return jsonError('Este formulario ya no está disponible', 404);
 
-    const siteLimit = checkRateLimit(site.id, WEB_SITE_CONTACT_SITE_RATE_LIMIT);
+    const siteLimit = await checkLayeredRateLimit(site.id, WEB_SITE_CONTACT_SITE_RATE_LIMIT);
     if (!siteLimit.allowed || (await countRecentMessages(site.companyId, site.id, 60)) >= MAX_MESSAGES_PER_SITE_PER_HOUR) {
       return jsonError('Este sitio recibió muchos envíos seguidos. Intenta de nuevo en un rato.', 429);
     }

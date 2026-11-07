@@ -202,7 +202,7 @@ export function privateStorageConfigured(): boolean {
 export async function putPrivate(
   pathname: string,
   body: Blob | Buffer | ArrayBuffer | Uint8Array,
-  options: { contentType: string }
+  options: { contentType: string; allowOverwrite?: boolean }
 ): Promise<PutBlobResult> {
   if (!privateStorageConfigured()) {
     captureMessage(
@@ -210,7 +210,7 @@ export async function putPrivate(
       'warn',
       { module: 'storage.blob' }
     );
-    return put(pathname, body, { access: 'public', contentType: options.contentType, addRandomSuffix: false });
+    return put(pathname, body, { access: 'public', contentType: options.contentType, addRandomSuffix: false, allowOverwrite: options.allowOverwrite });
   }
   const bytes = await toBuffer(body);
   await r2Client().send(

@@ -1,8 +1,9 @@
+import { checkLayeredRateLimit } from '@/lib/security/durable-rate-limit';
 import { NextResponse, after } from 'next/server';
 import { extractClientIp } from '@/lib/auth/ip-allowlist';
 import { captureException } from '@/lib/observability';
 import { notifyCompany } from '@/lib/notifications/company-notification';
-import { ACADEMY_APPLICATION_COMPANY_RATE_LIMIT, ACADEMY_APPLICATION_RATE_LIMIT, checkRateLimit } from '@/lib/security/rate-limiter';
+import { ACADEMY_APPLICATION_COMPANY_RATE_LIMIT, ACADEMY_APPLICATION_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { ACADEMY_HONEYPOT_FIELD, publicApplicationSchema } from '@/modules/academy/schema';
 import { countRecentApplications, resolveEnrollment, submitApplication } from '@/modules/academy/services/academy-enrollment.service';
 
@@ -27,7 +28,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   const { token } = await params;
 
   const clientIp = extractClientIp(req) ?? 'unknown';
-  const ipLimit = checkRateLimit(clientIp, ACADEMY_APPLICATION_RATE_LIMIT);
+  const ipLimit = await checkLayeredRateLimit(clientIp, ACADEMY_APPLICATION_RATE_LIMIT);
   if (!ipLimit.allowed) {
     const retryAfter = ipLimit.retryAfterMs ? Math.max(1, Math.ceil((ipLimit.retryAfterMs - Date.now()) / 1000)) : 3600;
     return jsonError('Recibimos varias inscripciones desde esta conexión. Intenta de nuevo más tarde.', 429, { 'Retry-After': String(retryAfter) });
@@ -56,7 +57,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     const resolved = await resolveEnrollment(token);
     if (!resolved) return jsonError('Este enlace de inscripción ya no está disponible', 404);
 
-    const companyLimit = checkRateLimit(resolved.companyId, ACADEMY_APPLICATION_COMPANY_RATE_LIMIT);
+    const companyLimit = await checkLayeredRateLimit(resolved.companyId, ACADEMY_APPLICATION_COMPANY_RATE_LIMIT);
     if (!companyLimit.allowed || (await countRecentApplications(resolved.companyId, 60)) >= MAX_APPLICATIONS_PER_COMPANY_PER_HOUR) {
       return jsonError('Recibimos muchas inscripciones seguidas. Intenta de nuevo en un rato.', 429);
     }

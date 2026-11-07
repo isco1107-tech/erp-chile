@@ -1,7 +1,9 @@
+import { allowVisitorConfirmationEmail, checkLayeredRateLimit } from '@/lib/security/durable-rate-limit';
+import { TURNSTILE_FIELD, verifyTurnstile } from '@/lib/security/turnstile';
 import { NextResponse, after } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { extractClientIp } from '@/lib/auth/ip-allowlist';
-import { checkRateLimit, SPONSOR_LEAD_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { SPONSOR_LEAD_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { captureException } from '@/lib/observability';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import { notifyCompany, type CompanyNotificationInput } from '@/lib/notifications/company-notification';
@@ -27,7 +29,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
   const { slug } = await params;
 
   const clientIp = extractClientIp(req) ?? 'unknown';
-  const rl = checkRateLimit(clientIp, SPONSOR_LEAD_RATE_LIMIT);
+  const rl = await checkLayeredRateLimit(clientIp, SPONSOR_LEAD_RATE_LIMIT);
   if (!rl.allowed) {
     const retryAfter = rl.retryAfterMs ? Math.ceil((rl.retryAfterMs - Date.now()) / 1000) : 3600;
     return NextResponse.json(
@@ -48,6 +50,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
   if (body && typeof body === 'object' && typeof (body as Record<string, unknown>)[SPONSOR_LEAD_HONEYPOT_FIELD] === 'string' && (body as Record<string, string>)[SPONSOR_LEAD_HONEYPOT_FIELD] !== '') {
     return NextResponse.json({ success: true, data: null });
   }
+
+  const human = await verifyTurnstile((body as Record<string, unknown> | null)?.[TURNSTILE_FIELD], clientIp !== 'unknown' ? clientIp : null, 'sponsor-lead');
+  if (!human.ok) return jsonError(human.error, 403);
 
   const parsed = publicSponsorLeadSchema.safeParse(body);
   if (!parsed.success) return jsonError(parsed.error.issues[0]?.message ?? 'Revisa los datos del formulario', 400);
@@ -151,6 +156,8 @@ async function notifyWithoutCrm(target: SponsorLeadTarget, lead: PublicSponsorLe
 function confirmToSponsor(target: SponsorLeadTarget, lead: PublicSponsorLeadInput, slug: string): void {
   after(async () => {
     try {
+      // La dirección la escribió el visitante: tope por destinatario (no es un buzón para mandar correo a terceros).
+      if (!(await allowVisitorConfirmationEmail(target.companyId, lead.email))) return;
       const pkg = lead.packageId
         ? await prisma.sponsorshipPackage.findFirst({
             where: { id: lead.packageId, companyId: target.companyId, projectId: target.project.id, isPublic: true },

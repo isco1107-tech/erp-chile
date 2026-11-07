@@ -21,7 +21,7 @@ interface WindowEntry {
   windowMs: number;
 }
 
-interface RateLimitResult {
+export interface RateLimitResult {
   allowed: boolean;
   /** Cuántos requests quedan en la ventana actual. */
   remaining: number;
@@ -378,6 +378,33 @@ export const INSTALLMENT_LOOKUP_RATE_LIMIT: RateLimitConfig = {
   prefix: 'installment-lookup-ip',
   limit: 30,
   windowMs: 15 * 60_000,
+};
+
+/** Portal de cuotas: consultas por RUT dentro de UN portal (impide adivinar la fecha de nacimiento de una candidata conocida). */
+/**
+ * Correos de confirmación que salen a la dirección que ESCRIBIÓ un visitante
+ * (postulación, "quiero auspiciar"): como máximo 2 al día por destinatario y
+ * empresa, aunque lleguen desde muchas IP. Sin esto, el formulario servía para
+ * mandar correo con el remitente de la empresa a cualquier víctima. La
+ * solicitud se registra igual; solo se omite el correo.
+ */
+export const VISITOR_CONFIRMATION_EMAIL_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'visitor-confirmation-email',
+  limit: 2,
+  windowMs: 24 * 60 * 60_000,
+};
+
+export const INSTALLMENT_LOOKUP_RUT_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'installment-lookup-rut',
+  limit: 10,
+  windowMs: 60 * 60_000,
+};
+
+/** Portal de cuotas: consultas totales por portal (un barrido de RUTs desde muchas IP choca acá). */
+export const INSTALLMENT_LOOKUP_TOKEN_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'installment-lookup-token',
+  limit: 300,
+  windowMs: 60 * 60_000,
 };
 
 /** Formulario público de solicitudes de derechos sobre datos personales: pocas por IP, es un trámite, no una consulta. */

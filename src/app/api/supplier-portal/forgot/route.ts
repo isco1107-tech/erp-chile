@@ -9,7 +9,7 @@ const schema = z.object({ email: accountEmailSchema }).strict();
 
 /** Pedir un enlace para elegir otra contraseña. La respuesta es la misma exista o no el correo. */
 export async function POST(req: Request) {
-  const blocked = limited(req, SUPPLIER_ACCOUNT_LINK_RATE_LIMIT, '/api/supplier-portal/forgot');
+  const blocked = await limited(req, SUPPLIER_ACCOUNT_LINK_RATE_LIMIT, '/api/supplier-portal/forgot');
   if (blocked) return blocked;
   const body = await readBody(req, schema);
   if (!body.ok) return body.response;

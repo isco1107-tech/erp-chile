@@ -169,17 +169,27 @@ export interface PublicLookupResult {
 
 /**
  * Paso 1 del portal. La respuesta es la MISMA para "no existe una candidata
- * con ese RUT" y "existe pero no tiene cuotas pendientes": el portal no sirve
- * para averiguar quién postuló a un certamen.
+ * con ese RUT", "la fecha de nacimiento no calza" y "existe pero no tiene
+ * cuotas pendientes": el portal no sirve para averiguar quién postuló a un
+ * certamen.
  */
-export async function lookupPublicInstallments(token: string, rut: string): Promise<PublicLookupResult> {
+export async function lookupPublicInstallments(token: string, rut: string, birthDate: string): Promise<PublicLookupResult> {
   const portal = await resolvePortal(token);
   if (!portal) throw new PortalNotFoundError('Link de pago inválido o expirado');
 
   const rutClean = cleanRut(rut);
   const now = new Date();
+  // La fecha de nacimiento se guarda como el día (UTC) que se escribió: se
+  // compara contra ese día completo. Una candidata sin fecha registrada sigue
+  // encontrándose solo por RUT (fichas anteriores a la regla).
+  const dayStart = new Date(`${birthDate}T00:00:00Z`);
+  const dayEnd = new Date(dayStart.getTime() + 86_400_000);
   const plans = await prisma.paymentPlan.findMany({
-    where: { companyId: portal.companyId, status: 'ACTIVE', candidate: { rutClean } },
+    where: {
+      companyId: portal.companyId,
+      status: 'ACTIVE',
+      candidate: { rutClean, OR: [{ birthDate: null }, { birthDate: { gte: dayStart, lt: dayEnd } }] },
+    },
     include: {
       candidate: { select: { fullName: true, project: { select: { name: true } } } },
       installments: {

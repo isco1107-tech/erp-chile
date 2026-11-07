@@ -114,7 +114,18 @@ const rutField = z
   .refine((value) => validateRut(value), 'El RUT no es válido. Revisa el dígito verificador.');
 
 /** Paso 1 del portal: la "credencial" es solo el RUT de la candidata. */
-export const publicInstallmentLookupSchema = z.object({ rut: rutField });
+/**
+ * Paso 1: RUT y fecha de nacimiento de la candidata. El RUT solo es fácil de
+ * recorrer; la fecha (que la familia conoce) es el segundo dato que impide
+ * armar la lista de quién debe y cuánto.
+ */
+export const publicInstallmentLookupSchema = z.object({
+  rut: rutField,
+  birthDate: z
+    .string({ error: 'Ingresa la fecha de nacimiento de la candidata' })
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Ingresa la fecha de nacimiento de la candidata')
+    .refine((value) => !Number.isNaN(Date.parse(`${value}T00:00:00Z`)), 'Fecha de nacimiento inválida'),
+});
 
 export type PublicInstallmentLookupInput = z.infer<typeof publicInstallmentLookupSchema>;
 

@@ -21,7 +21,7 @@ const MAX_BODY_BYTES = 64 * 1024;
  * Khipu sí reintente.
  */
 export async function POST(req: Request) {
-  const limited = limitByIp(req, INSTALLMENT_KHIPU_NOTIFY_RATE_LIMIT);
+  const limited = await limitByIp(req, INSTALLMENT_KHIPU_NOTIFY_RATE_LIMIT);
   if (limited) return limited;
   const contentLength = Number(req.headers.get('content-length') ?? NaN);
   if (Number.isFinite(contentLength) && contentLength > MAX_BODY_BYTES) {

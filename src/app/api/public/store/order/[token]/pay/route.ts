@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const limited = limitByIp(req, STORE_ORDER_RATE_LIMIT);
+  const limited = await limitByIp(req, STORE_ORDER_RATE_LIMIT);
   if (limited) return limited;
   if (!/^[a-f0-9]{64}$/.test(token)) return jsonError('No encontramos ese pedido.', 404);
 

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { del, put } from '@/lib/storage/blob';
+import { del, putPrivate } from '@/lib/storage/blob';
 import { AuthError, TenantInactiveError, requireAuthWithPermission } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 import { sniffCertificateType, SNIFFED_CERTIFICATE_EXTENSION } from '@/lib/security/file-signature';
@@ -59,7 +59,8 @@ export async function POST(req: Request) {
     if (!sniffed) return jsonError('Formato no admitido. Usa una foto JPG o PNG, o un PDF.', 400);
 
     const pathname = `invoice-archive/${session.companyId}/${crypto.randomUUID()}.${SNIFFED_CERTIFICATE_EXTENSION[sniffed]}`;
-    const blob = await put(pathname, Buffer.from(bytes), { access: 'public', contentType: sniffed, addRandomSuffix: false });
+    // Facturas con datos de proveedores: al bucket privado; se ven por /api/invoice-archive/[id]/file.
+    const blob = await putPrivate(pathname, Buffer.from(bytes), { contentType: sniffed });
 
     try {
       const invoice = await createArchivedInvoice(session.companyId, session.id, parsed.data, {

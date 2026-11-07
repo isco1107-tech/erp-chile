@@ -1,6 +1,7 @@
+import { checkLayeredRateLimit } from '@/lib/security/durable-rate-limit';
 import { NextResponse } from 'next/server';
 import { extractClientIp } from '@/lib/auth/ip-allowlist';
-import { checkRateLimit, MODULE_QUOTE_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { MODULE_QUOTE_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { captureException, captureMessage } from '@/lib/observability';
 import { sendEmail } from '@/lib/email/mailer';
 import { getSalesEmail } from '@/lib/marketing/sales-lead';
@@ -26,7 +27,7 @@ function jsonError(message: string, status: number) {
 
 export async function POST(req: Request) {
   const clientIp = extractClientIp(req) ?? 'unknown';
-  const rl = checkRateLimit(clientIp, MODULE_QUOTE_RATE_LIMIT);
+  const rl = await checkLayeredRateLimit(clientIp, MODULE_QUOTE_RATE_LIMIT);
   if (!rl.allowed) {
     const retryAfter = rl.retryAfterMs ? Math.ceil((rl.retryAfterMs - Date.now()) / 1000) : 3600;
     return NextResponse.json(

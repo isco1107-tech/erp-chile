@@ -8,7 +8,7 @@ const schema = z.object({ token: z.string().min(1).max(100), password: z.string(
 
 /** Nueva contraseña con el enlace del correo. Cierra todas las sesiones abiertas de la persona. */
 export async function POST(req: Request) {
-  const blocked = limited(req, SUPPLIER_ACCOUNT_LINK_RATE_LIMIT, '/api/supplier-portal/reset');
+  const blocked = await limited(req, SUPPLIER_ACCOUNT_LINK_RATE_LIMIT, '/api/supplier-portal/reset');
   if (blocked) return blocked;
   const body = await readBody(req, schema);
   if (!body.ok) return body.response;

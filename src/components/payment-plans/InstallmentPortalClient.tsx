@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { CreditCard, ShieldCheck } from 'lucide-react';
 import { formatCurrency } from '@/lib/chile/tax';
+import TurnstileWidget, { isTurnstileConfigured } from '@/components/security/TurnstileWidget';
 import { formatRut, validateRut } from '@/lib/chile/rut';
 import { INSTALLMENT_PORTAL_HONEYPOT_FIELD, publicInstallmentCheckoutSchema } from '@/modules/payment-plans/schema';
 import type { PublicLookupResult, PublicPortalInfo } from '@/modules/payment-plans/services/online-payment.service';
@@ -37,6 +38,9 @@ function formatDueDate(iso: string): string {
 
 export default function InstallmentPortalClient({ token, portal }: { token: string; portal: PublicPortalInfo }) {
   const [rut, setRut] = useState('');
+  const [birthDate, setBirthDate] = useState('');
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileKey, setTurnstileKey] = useState(0);
   const [lookup, setLookup] = useState<PublicLookupResult | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [payerName, setPayerName] = useState('');
@@ -54,15 +58,24 @@ export default function InstallmentPortalClient({ token, portal }: { token: stri
       setErrors({ rut: 'El RUT no es válido. Revisa el dígito verificador.' });
       return;
     }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
+      setErrors({ birthDate: 'Ingresa la fecha de nacimiento de la candidata.' });
+      return;
+    }
     setErrors({});
     setBusy(true);
     try {
       const res = await fetch(`/api/public/installments/${token}/lookup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rut }),
+        body: JSON.stringify({ rut, birthDate, ...(turnstileToken ? { 'cf-turnstile-response': turnstileToken } : {}) }),
       });
       const json = (await res.json()) as ApiResponse<PublicLookupResult>;
+      // Cada token de Turnstile sirve una sola vez: se pide otro para la próxima consulta.
+      if (isTurnstileConfigured) {
+        setTurnstileToken(null);
+        setTurnstileKey((key) => key + 1);
+      }
       if (!json.success || !json.data) {
         setErrors({ rut: json.error ?? 'No pudimos consultar las cuotas. Intenta de nuevo.' });
         return;
@@ -139,7 +152,7 @@ export default function InstallmentPortalClient({ token, portal }: { token: stri
                 icon={<CreditCard size={22} strokeWidth={1.6} />}
                 eyebrow="Cuotas y mensualidades"
                 title="Paga las cuotas de una candidata"
-                subtitle="Ingresa el RUT de la candidata para ver sus cuotas pendientes."
+                subtitle="Ingresa el RUT y la fecha de nacimiento de la candidata para ver sus cuotas pendientes."
               />
               <form onSubmit={handleLookup} className="pub-form" noValidate>
                 <PublicField id="rut" label="RUT de la candidata" error={errors.rut} hint="Ejemplo: 12.345.678-5">
@@ -153,7 +166,11 @@ export default function InstallmentPortalClient({ token, portal }: { token: stri
                     placeholder="12.345.678-5"
                   />
                 </PublicField>
-                <PublicButton type="submit" full disabled={busy || rut.trim().length < 3}>
+                <PublicField id="birthDate" label="Fecha de nacimiento de la candidata" error={errors.birthDate}>
+                  <input id="birthDate" type="date" autoComplete="off" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
+                </PublicField>
+                <TurnstileWidget key={turnstileKey} action="installment-lookup" onToken={setTurnstileToken} />
+                <PublicButton type="submit" full disabled={busy || rut.trim().length < 3 || !birthDate || (isTurnstileConfigured && !turnstileToken)}>
                   {busy ? 'Consultando…' : 'Ver cuotas'}
                 </PublicButton>
               </form>
@@ -164,7 +181,7 @@ export default function InstallmentPortalClient({ token, portal }: { token: stri
                 icon={<CreditCard size={22} strokeWidth={1.6} />}
                 eyebrow="Sin cuotas pendientes"
                 title="No encontramos cuotas por pagar"
-                subtitle={`No hay cuotas pendientes asociadas al RUT ${formatRut(rut)}. Si crees que es un error, contacta a la organización.`}
+                subtitle={`No hay cuotas pendientes para el RUT ${formatRut(rut)} con esa fecha de nacimiento. Revisa los datos o, si crees que es un error, contacta a la organización.`}
               />
               <PublicButton type="button" variant="ghost" full onClick={reset}>
                 Consultar otro RUT

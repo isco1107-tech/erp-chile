@@ -7,7 +7,7 @@ const schema = z.object({ token: z.string().min(1).max(100), password: z.string(
 
 /** Aceptar la invitación: crea la contraseña (o comprueba la que ya tiene) y deja la sesión abierta. */
 export async function POST(req: Request) {
-  const blocked = limited(req, SUPPLIER_ACCOUNT_LINK_RATE_LIMIT, '/api/supplier-portal/accept');
+  const blocked = await limited(req, SUPPLIER_ACCOUNT_LINK_RATE_LIMIT, '/api/supplier-portal/accept');
   if (blocked) return blocked;
   const body = await readBody(req, schema);
   if (!body.ok) return body.response;

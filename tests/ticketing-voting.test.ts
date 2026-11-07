@@ -55,6 +55,8 @@ function mockTicketTransaction(ticketType: TicketTypeStub | null) {
       $queryRaw: async () => [],
       ticketType: { findFirst: async () => ticketType },
       ticketSale: {
+        // Órdenes impagas vigentes del mismo correo (tope por persona): ninguna.
+        count: async () => 0,
         create: async ({ data }: { data: Record<string, unknown> }) => {
           created.push(data);
           return { id: 'venta_1', ...data };
@@ -209,6 +211,9 @@ describe('Confirmación de pago de entradas', () => {
       return { count: 1 };
     }) as never);
     jest.spyOn(prisma.company, 'findUnique').mockResolvedValue({ businessName: 'Productora' } as never);
+    // La confirmación corre en una transacción (revalida el cupo si la reserva venció): mismo cliente simulado.
+    jest.spyOn(prisma, '$transaction').mockImplementation((async (callback: unknown) =>
+      (callback as (client: unknown) => Promise<unknown>)(prisma)) as never);
 
     return actualizado;
   }

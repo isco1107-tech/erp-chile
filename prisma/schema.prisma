@@ -343,6 +343,10 @@ model User {
   /// fuerza-bruteable dentro de la ventana de 5 minutos del challenge token.
   totpFailedAttempts               Int                       @default(0)
   totpLockedUntil                  DateTime?
+  /// Último paso de tiempo TOTP (30 s) aceptado en el login. Un código ya
+  /// usado no vuelve a servir dentro de su ventana (±30 s): quien lo vio o lo
+  /// interceptó no puede canjearlo otra vez. `null` = ninguno todavía.
+  totpLastUsedStep                 Int?
   totpBackupCodes                  TotpBackupCode[]
   /// Intentos fallidos consecutivos de contraseña en el primer paso del login
   /// (antes de llegar siquiera al TOTP). Mismo mecanismo que `totpFailedAttempts`:
@@ -3650,6 +3654,11 @@ model TicketSale {
   paymentStatus PaymentStatus @default(UNPAID)
   qrCode        String        @unique
   checkedInAt   DateTime?
+  /// Hasta cuándo una orden pública IMPAGA reserva cupo. Vencida, deja de
+  /// contar como vendida (un bot no puede acaparar el cupo con correos falsos)
+  /// y confirmarla vuelve a exigir cupo. `null` = reserva sin vencimiento
+  /// (órdenes anteriores a esta regla y las creadas desde el panel).
+  reservedUntil DateTime?
   createdAt     DateTime      @default(now())
 
   @@index([companyId, projectId])
@@ -6897,4 +6906,17 @@ model AcademyApplication {
 
   @@index([companyId, status, createdAt])
   @@index([companyId, rutClean])
+}
+
+/// Contadores del límite de tasa compartidos por TODAS las instancias del
+/// servidor (`src/lib/security/durable-rate-limit.ts`): el limitador en memoria
+/// es por instancia y un atacante distribuido lo esquiva. De la plataforma, sin
+/// `companyId`. La clave lleva el SHA-256 del identificador (IP, correo, RUT),
+/// nunca el dato. Las filas vencidas se borran solas, de a poco.
+model RateLimitBucket {
+  key       String   @id
+  count     Int      @default(0)
+  expiresAt DateTime
+
+  @@index([expiresAt])
 }

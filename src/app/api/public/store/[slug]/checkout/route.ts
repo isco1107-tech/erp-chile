@@ -1,5 +1,6 @@
+import { checkLayeredRateLimit } from '@/lib/security/durable-rate-limit';
 import { checkoutFieldFor, checkoutSchema } from '@/lib/ecommerce/checkout';
-import { STORE_CHECKOUT_RATE_LIMIT, STORE_CHECKOUT_SITE_RATE_LIMIT, checkRateLimit } from '@/lib/security/rate-limiter';
+import { STORE_CHECKOUT_RATE_LIMIT, STORE_CHECKOUT_SITE_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { jsonError, jsonOk, limitByIp, readJsonBody, storeErrorResponse } from '@/modules/ecommerce/public-api';
 import { createStoreOrder } from '@/modules/ecommerce/services/store-checkout.service';
 import { countRecentOrders, resolvePublicStore } from '@/modules/ecommerce/services/store-public.service';
@@ -17,7 +18,7 @@ const MAX_ORDERS_PER_SITE_PER_HOUR = 300;
  */
 export async function POST(req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const limited = limitByIp(req, STORE_CHECKOUT_RATE_LIMIT, 'Hiciste varios intentos de compra seguidos. Espera un rato e intenta de nuevo.');
+  const limited = await limitByIp(req, STORE_CHECKOUT_RATE_LIMIT, 'Hiciste varios intentos de compra seguidos. Espera un rato e intenta de nuevo.');
   if (limited) return limited;
 
   const read = await readJsonBody(req, 16 * 1024);
@@ -40,7 +41,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
     const store = await resolvePublicStore(slug);
     if (!store) return jsonError('Esta tienda no está disponible en este momento.', 404);
 
-    const siteLimit = checkRateLimit(store.siteId, STORE_CHECKOUT_SITE_RATE_LIMIT);
+    const siteLimit = await checkLayeredRateLimit(store.siteId, STORE_CHECKOUT_SITE_RATE_LIMIT);
     if (!siteLimit.allowed || (await countRecentOrders(store.companyId, store.siteId, 60)) >= MAX_ORDERS_PER_SITE_PER_HOUR) {
       return jsonError('Esta tienda está recibiendo muchos pedidos a la vez. Intenta de nuevo en unos minutos.', 429);
     }

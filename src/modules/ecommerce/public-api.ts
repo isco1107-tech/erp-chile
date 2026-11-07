@@ -1,9 +1,10 @@
+import { checkLayeredRateLimit } from '@/lib/security/durable-rate-limit';
 import 'server-only';
 
 import { NextResponse } from 'next/server';
 import { extractClientIp } from '@/lib/auth/ip-allowlist';
 import { captureException } from '@/lib/observability';
-import { checkRateLimit, type RateLimitConfig } from '@/lib/security/rate-limiter';
+import { type RateLimitConfig } from '@/lib/security/rate-limiter';
 import { OutOfStockError, StoreError } from './errors';
 
 /**
@@ -24,8 +25,8 @@ export function jsonError(message: string, status: number, extra: Record<string,
 }
 
 /** Responde 429 si la IP superó el límite; `null` si puede seguir. */
-export function limitByIp(req: Request, config: RateLimitConfig, message = 'Demasiados intentos desde esta conexión. Espera unos minutos e intenta de nuevo.') {
-  const result = checkRateLimit(extractClientIp(req) ?? 'unknown', config);
+export async function limitByIp(req: Request, config: RateLimitConfig, message = 'Demasiados intentos desde esta conexión. Espera unos minutos e intenta de nuevo.') {
+  const result = await checkLayeredRateLimit(extractClientIp(req) ?? 'unknown', config);
   if (result.allowed) return null;
   const retryAfter = result.retryAfterMs ? Math.max(1, Math.ceil((result.retryAfterMs - Date.now()) / 1000)) : 600;
   return jsonError(message, 429, {}, { 'Retry-After': String(retryAfter) });

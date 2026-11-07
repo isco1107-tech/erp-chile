@@ -1,6 +1,7 @@
+import { checkLayeredRateLimit } from '@/lib/security/durable-rate-limit';
 import { NextResponse } from 'next/server';
 import { webpayBridgeHtml } from '@/lib/ecommerce/webpay-bridge';
-import { STORE_ORDER_RATE_LIMIT, checkRateLimit } from '@/lib/security/rate-limiter';
+import { STORE_ORDER_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { extractClientIp } from '@/lib/auth/ip-allowlist';
 import { captureException } from '@/lib/observability';
 import { getWebpayBridge } from '@/modules/ecommerce/services/store-payment.service';
@@ -21,7 +22,7 @@ function page(message: string, status: number) {
 }
 
 export async function GET(req: Request) {
-  if (!checkRateLimit(extractClientIp(req) ?? 'unknown', STORE_ORDER_RATE_LIMIT).allowed) return page('Demasiados intentos. Espera unos minutos y vuelve a abrir el enlace de tu pedido.', 429);
+  if (!(await checkLayeredRateLimit(extractClientIp(req) ?? 'unknown', STORE_ORDER_RATE_LIMIT)).allowed) return page('Demasiados intentos. Espera unos minutos y vuelve a abrir el enlace de tu pedido.', 429);
   const token = new URL(req.url).searchParams.get('o') ?? '';
   try {
     const bridge = await getWebpayBridge(token);
