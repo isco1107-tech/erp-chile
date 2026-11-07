@@ -33,6 +33,8 @@ const TUTORIAL_ROUTES: readonly (readonly [string, string])[] = [
   ['/dashboard/manual', 'manual'],
   ['/dashboard/pos', 'pos'],
   ['/dashboard/messaging', 'messaging'],
+  ['/dashboard/analytics', 'data-analytics'],
+  ['/dashboard/data-science', 'data-science'],
   ['/dashboard/intelligence', 'intelligence'],
   ['/dashboard/intelligence/cash-forecast', 'intelligence-cash'],
   ['/dashboard/intelligence/flows', 'intelligence-flows'],

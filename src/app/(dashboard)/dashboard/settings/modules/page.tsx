@@ -7,6 +7,7 @@ import { ALL_PERMISSIONS } from '@/lib/auth/permissions';
 import { buildAvailableWorkspaceNav } from '@/lib/navigation/workspace-nav';
 import { getDisabledNavItems } from '@/modules/workspace/services/workspace.service';
 import WorkspaceModulesClient from '@/components/settings/WorkspaceModulesClient';
+import AnalyticsModuleSettings from '@/components/analytics/AnalyticsModuleSettings';
 
 export const metadata = { title: 'Módulos y menú' };
 
@@ -34,7 +35,7 @@ export default async function WorkspaceModulesPage() {
     features: context.features,
   });
   const disabled = await getDisabledNavItems(context.companyId);
-  const uncontracted = MODULES.filter((mod) => !context.features[mod.key] && mod.routes.length > 0).map((mod) => ({
+  const uncontracted = MODULES.filter((mod) => !context.features[mod.key] && mod.routes.length > 0 && mod.key !== 'hasDataAnalytics' && mod.key !== 'hasDataScience').map((mod) => ({
     key: mod.key,
     label: mod.label,
     description: mod.description,
@@ -52,6 +53,9 @@ export default async function WorkspaceModulesPage() {
           </Link>
         }
       />
+      {(context.role === 'OWNER' || context.role === 'ADMIN') && (
+        <AnalyticsModuleSettings key={context.companyId} analytics={context.features.hasDataAnalytics} science={context.features.hasDataScience} />
+      )}
       <WorkspaceModulesClient groups={groups} initialDisabled={disabled} uncontracted={uncontracted} />
     </div>
   );

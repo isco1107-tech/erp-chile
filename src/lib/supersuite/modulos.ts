@@ -52,6 +52,8 @@ export const FLAG_A_MODULO: Partial<Record<FeatureKey, string>> = {
   hasLiveProduction: 'produccion_en_vivo',
   hasMultiCompany: 'multiempresa',
   hasIntelligence: 'inteligencia',
+  hasDataAnalytics: 'data_analytics',
+  hasDataScience: 'data_science',
   hasWebSites: 'sitios_web',
   hasRetailMetrics: 'metricas_retail',
   hasDeadStock: 'stock_muerto',

@@ -487,6 +487,25 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       note('Cuadraturas', 'Compara cada saldo contable con su fuente operativa: si algo no cuadra, hay un error real que revisar.'),
     ],
   },
+  'data-analytics': {
+    title: 'Data Analytics',
+    steps: [
+      header('Tu empresa en cifras', 'Ventas y compras netas, cobros y pagos de la empresa activa. Solo pueden entrar dueños y administradores.'),
+      note('Elige el período', 'En "Período" selecciona los últimos 7, 30 o 90 días. Las ventas y compras se muestran sin IVA y las notas de crédito restan.'),
+      note('Operación y actividad', '"Operación de la empresa" resume los módulos activos. "Actividad reciente" muestra lo que se registró en la bitácora.'),
+      note('Controla la actualización', 'La pantalla consulta cada 15 segundos mientras está visible y con conexión. Usa "Pausar", "Reanudar" o "Actualizar ahora" y revisa la hora de Santiago.'),
+    ],
+  },
+  'data-science': {
+    title: 'Data Science',
+    steps: [
+      header('Anticipar con datos reales', 'Proyección de ventas netas para los próximos 7 días de la empresa activa, exclusiva para dueños y administradores.'),
+      note('Historial suficiente', 'El modelo usa hasta 90 días completos: necesita al menos 28 días de historial y 8 días con ventas. Si faltan datos, no inventa una proyección.'),
+      note('Método y calidad del modelo', 'Promedia el mismo día de la semana de las últimas 8 semanas. La banda muestra mínimos y máximos observados, sin garantizar resultados; con 35 días de historial también evalúa el error absoluto medio (MAE).'),
+      note('Señales atípicas', 'Revisa los días que se apartan de lo habitual para investigar sus causas. El análisis por sí solo no explica por qué ocurrió un cambio.'),
+      note('Controla la actualización', 'El historial abarca hasta 90 días completos. La consulta se repite cada 15 segundos con la pestaña visible y conexión; "Pausar", "Reanudar" y "Actualizar ahora" te dan el control.'),
+    ],
+  },
   intelligence: {
     title: 'Radiografía 360',
     steps: [
@@ -802,6 +821,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
     steps: [
       header('Un menú a tu medida', 'Apaga las secciones que tu equipo no usa: desaparecen del menú y del buscador.'),
       note('Sin perder nada', 'Apagar no borra datos ni cambia permisos; al encender, vuelve igual.'),
+      note('Módulos de datos', 'Los dueños y administradores pueden usar "Activar Data Analytics" y "Activar Data Science" de forma independiente y confirmar con "Guardar módulos de datos". Solo esos roles pueden acceder a estos módulos.'),
     ],
   },
   'settings-plans': {

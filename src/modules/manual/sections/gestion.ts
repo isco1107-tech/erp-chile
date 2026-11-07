@@ -3,6 +3,83 @@ import type { ManualSection } from '../types';
 /** Inteligencia de negocio, CRM comercial, personas y sitios web. */
 export const GESTION_SECTIONS: ManualSection[] = [
   {
+    id: 'data-analytics',
+    key: 'hasDataAnalytics',
+    permission: 'analytics:view',
+    chapter: 'Inteligencia de Negocio',
+    title: 'Data Analytics',
+    summary:
+      'El monitoreo de la empresa activa: ventas y compras netas, cobros y pagos, indicadores de los módulos operativos y actividad reciente. Solo pueden entrar dueños y administradores, con actualización automática cada 15 segundos mientras la pestaña esté visible y tenga conexión.',
+    route: '/dashboard/analytics',
+    screenshot: null,
+    topics: [
+      {
+        id: 'activar-analytics',
+        title: 'Activar Data Analytics para tu empresa',
+        permission: 'settings:company',
+        steps: [
+          'Como dueño o administrador, ve a Configuración → Módulos y Menú.',
+          'Enciende "Activar Data Analytics" y presiona "Guardar módulos de datos". La activación corresponde solo a la empresa actual.',
+          'Abre Inteligencia de Negocio → Data Analytics. El módulo no da acceso a los datos de otras empresas ni a los demás roles.',
+        ],
+      },
+      {
+        id: 'monitorear-empresa',
+        title: 'Revisar ventas, caja y operación',
+        steps: [
+          'En "Período", elige "Últimos 7 días", "Últimos 30 días" o "Últimos 90 días".',
+          'Revisa las ventas y compras netas sin IVA; las notas de crédito restan. Los cobros y pagos muestran movimientos de dinero y no equivalen a venta o compra del período.',
+          'En "Operación de la empresa" revisa los indicadores disponibles según los módulos activos; en "Actividad reciente" ves las operaciones registradas en la bitácora de la empresa.',
+          'Verifica la fecha de actualización, expresada en hora de Santiago. "Pausar" detiene las consultas automáticas, "Reanudar" las retoma y "Actualizar ahora" solicita una lectura nueva.',
+        ],
+        tip: 'La pantalla consulta los datos cada 15 segundos mientras está visible y con conexión. No muestra hechos futuros ni operaciones que todavía no hayan sido registradas en el ERP.',
+      },
+    ],
+  },
+  {
+    id: 'data-science',
+    key: 'hasDataScience',
+    permission: 'science:view',
+    chapter: 'Inteligencia de Negocio',
+    title: 'Data Science',
+    summary:
+      'Proyección de ventas netas de los próximos 7 días y señales atípicas a partir del historial real de la empresa activa. Solo para dueños y administradores. Explica el método, la calidad y la variación observada: las estimaciones no garantizan resultados futuros.',
+    route: '/dashboard/data-science',
+    screenshot: null,
+    topics: [
+      {
+        id: 'activar-science',
+        title: 'Activar Data Science por separado',
+        permission: 'settings:company',
+        steps: [
+          'Como dueño o administrador, ve a Configuración → Módulos y Menú.',
+          'Enciende "Activar Data Science" y presiona "Guardar módulos de datos". Su interruptor es independiente del de Data Analytics.',
+          'Abre Inteligencia de Negocio → Data Science para analizar solo la empresa actual.',
+        ],
+      },
+      {
+        id: 'interpretar-proyeccion',
+        title: 'Leer una proyección y sus límites',
+        steps: [
+          'Revisa "Método y calidad del modelo": usa hasta 90 días completos de ventas netas, sin incluir el día de hoy, que todavía está en curso.',
+          'Se necesitan al menos 28 días de historial y 8 días con ventas para calcular la proyección; con historial insuficiente no se inventan estimaciones.',
+          'La proyección de cada uno de los próximos 7 días usa el promedio del mismo día de la semana de las últimas 8 semanas, con al menos 4 observaciones por día. La banda muestra el mínimo y el máximo observados: no es un intervalo de confianza ni una garantía.',
+          'Con al menos 35 días de historial, revisa el error absoluto medio (MAE): evalúa los últimos 7 días y expresa en pesos cuánto se separó la estimación de los valores reales. Un error mayor exige más cautela.',
+          'En "Señales atípicas" revisa los días que se apartan del comportamiento habitual. Son pistas para investigar, no pruebas de una causa.',
+        ],
+      },
+      {
+        id: 'actualizar-science',
+        title: 'Controlar la actualización del análisis',
+        steps: [
+          'El análisis usa una ventana fija de hasta 90 días completos para estimar los próximos 7 días. "Muestra utilizada" indica los días de historial disponibles.',
+          'La pantalla consulta de nuevo cada 15 segundos mientras esté visible y con conexión. Revisa la hora de actualización de Santiago antes de usar los resultados.',
+          'Usa "Pausar", "Reanudar" o "Actualizar ahora" para controlar las consultas.',
+        ],
+      },
+    ],
+  },
+  {
     id: 'inteligencia-360',
     key: 'hasIntelligence',
     permission: 'intelligence:view',
