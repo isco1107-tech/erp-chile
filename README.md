@@ -155,6 +155,36 @@ Los folios se administran en **Configuración → Folios del SII**.
 
 ---
 
+## Data Analytics y Data Science
+
+En **Configuración → Módulos y menú → Módulos de datos**, el dueño o un
+administrador puede activar cada módulo por separado para la empresa actual.
+Ambos comienzan apagados. Los roles operativos no pueden acceder, aunque un rol
+personalizado intente concederles estos permisos. Cada consulta revalida sesión,
+empresa, módulo y permisos de las fuentes operativas.
+
+- **Data Analytics** (`/dashboard/analytics`): ventas y compras netas de 7, 30 o
+  90 días, cobros y pagos, saldos pendientes, estado de los módulos disponibles y
+  las últimas 30 acciones auditadas. Las notas de crédito restan; cotizaciones,
+  guías y documentos anulados no se suman a las ventas. Las fuentes requieren sus
+  módulos y permisos habituales.
+- **Data Science** (`/dashboard/data-science`): proyección de ventas netas para
+  siete días, tendencia, señales atípicas y error histórico. Usa hasta 90 días
+  completos, exige al menos 28 días observados y ocho con venta neta positiva.
+  Explica el método y la variabilidad histórica; no garantiza resultados futuros.
+
+Ambos consultan datos de PostgreSQL cada **15 segundos con la pestaña visible**;
+permiten pausa y actualización manual. Muestran última lectura, desconexión y
+datos atrasados. No son un canal push ni mantienen datos privados en el navegador
+de forma persistente. Las fechas de negocio usan `America/Santiago` y los montos
+se muestran en CLP. La bitácora cubre las acciones que el ERP audita.
+
+La migración aditiva `20261107030000_data_analytics_science` agrega los dos
+interruptores. Debe acompañar el despliegue; no requiere activar empresas ni
+recalcular documentos históricos. Pruebas: `tests/analytics-*.test.ts`; la
+integración PostgreSQL usa `ANALYTICS_TEST_DATABASE_URL` y exige una base local
+con nombre terminado en `_test`.
+
 ## Observabilidad
 
 Sin configurar nada, cada error queda como una línea JSON en stdout con `companyId`, `module` y `level`, lista para cualquier drenaje de logs. Con `SENTRY_DSN` definido, además se envía a Sentry (cliente propio sobre su API de envelopes, sin el SDK).

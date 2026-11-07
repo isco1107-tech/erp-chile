@@ -580,6 +580,10 @@ model CompanyFeatures {
   /// proyecciones, RFM/ABC, caja a 13 semanas y flujos de negocio. No crea
   /// datos propios: todo se calcula sobre los documentos reales del tenant.
   hasIntelligence       Boolean  @default(false)
+  /// Panel ejecutivo de datos y actividad, exclusivo de administradores y dueños.
+  hasDataAnalytics      Boolean  @default(false)
+  /// Tendencias, anomalías y proyecciones estadísticas sobre datos propios.
+  hasDataScience        Boolean  @default(false)
   /// CRM comercial: embudo de oportunidades y actividades de seguimiento.
   /// (`hasCrm` es, por historia, el módulo de Agentes — ver arriba.)
   hasSalesPipeline      Boolean  @default(false)

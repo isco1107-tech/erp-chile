@@ -140,5 +140,8 @@ export const PRICING_PLANS: readonly PricingPlan[] = [
  *   `stock_muerto`, `mermas_responsable`…). Igual el Seller Center
  *   (`hasSellerCenter`, `seller_center`). Igual la Mensajería interna (`hasMessaging`, `mensajeria`):
  *   antes era transversal; quien ya la usaba la conserva.
+ * - Data Analytics y Data Science: sin tarifa definida. Sus interruptores
+ *   independientes se administran por empresa en Módulos y menú, solo por
+ *   dueños y administradores; no se agregan automáticamente a los planes.
  */
-export const UNPRICED_FEATURES: readonly FeatureKey[] = ['hasDteBilling', 'hasFeeDocuments', 'hasAcademy', 'hasEcommerce', 'hasRetailMetrics', 'hasDeadStock', 'hasRetailHeatmap', 'hasBasketAnalysis', 'hasSmartReorder', 'hasShrinkageLiability', 'hasSellerCenter', 'hasMessaging'];
+export const UNPRICED_FEATURES: readonly FeatureKey[] = ['hasDteBilling', 'hasFeeDocuments', 'hasAcademy', 'hasEcommerce', 'hasRetailMetrics', 'hasDeadStock', 'hasRetailHeatmap', 'hasBasketAnalysis', 'hasSmartReorder', 'hasShrinkageLiability', 'hasSellerCenter', 'hasMessaging', 'hasDataAnalytics', 'hasDataScience'];

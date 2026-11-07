@@ -33,6 +33,11 @@ export function resolvePermissions(input: ResolvePermissionsInput): Permission[]
     granted = permissionsForRole(role);
   }
 
+  // Estos módulos ejecutivos no se pueden delegar a un rol operativo mediante
+  // un CustomRole. Se aplica también al menú, además del guard del servidor.
+  if (role !== 'OWNER' && role !== 'ADMIN') {
+    granted = granted.filter((permission) => permission !== 'analytics:view' && permission !== 'science:view');
+  }
   return filterByFeatures(granted, features);
 }
 

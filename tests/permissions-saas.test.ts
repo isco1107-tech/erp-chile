@@ -46,6 +46,8 @@ const FULL: CompanyFeatureFlags = {
   hasTicketing: true,
   hasPublicVoting: true,
   hasIntelligence: true,
+  hasDataAnalytics: true,
+  hasDataScience: true,
   hasSalesPipeline: true,
   hasPayroll: true,
   hasFixedAssets: true,

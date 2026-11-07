@@ -48,6 +48,8 @@ export const SCREEN_PURPOSES: Record<string, string> = {
   home: 'Resumen del negocio al entrar: ventas, compras, IVA, stock crítico y accesos rápidos.',
   pos: 'Operar varias cajas con cajeros identificados: apertura con fondo inicial, venta con RUT del cliente y cobro por teclado, vuelto a la vista, cajón de dinero e impresora, ventas en espera, ingresos, retiros, cierre con arqueo y comprobante por turno.',
   messaging: 'Chat interno cifrado con el equipo de la empresa.',
+  'data-analytics': 'Monitorear ventas y compras netas, cobros y pagos, operación y actividad reciente de la empresa activa, con actualización cada 15 segundos y acceso exclusivo para dueños y administradores.',
+  'data-science': 'Proyectar ventas netas para los próximos 7 días con historial real, revisar señales atípicas y evaluar el método y su error; exclusivo para dueños y administradores de la empresa activa.',
   intelligence: 'Salud de la empresa, señales de alerta, clientes RFM, productos ABC y simulador de decisiones.',
   'intelligence-cash': 'Saldo de caja proyectado semana a semana con todos los compromisos con fecha.',
   'intelligence-flows': 'De cotización a cobro y de compra a pago, con tiempos y cuellos de botella.',

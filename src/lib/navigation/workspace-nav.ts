@@ -181,6 +181,12 @@ export function buildAvailableWorkspaceNav({ permissions, features }: Omit<NavAc
   // Inteligencia arriba a propósito: es la lectura de toda la empresa, no un
   // módulo operativo más.
   const inteligencia: NavLink[] = [];
+  if (features.hasDataAnalytics && allow('analytics:view')) {
+    inteligencia.push({ id: 'data-analytics', href: '/dashboard/analytics', label: 'Data Analytics', icon: 'reports', keywords: ['analitica', 'datos', 'indicadores', 'monitoreo', 'en vivo'] });
+  }
+  if (features.hasDataScience && allow('science:view')) {
+    inteligencia.push({ id: 'data-science', href: '/dashboard/data-science', label: 'Data Science', icon: 'forecast', keywords: ['ciencia de datos', 'prediccion', 'anomalias', 'tendencias'] });
+  }
   if (features.hasIntelligence && allow('intelligence:view')) {
     inteligencia.push(
       { id: 'intelligence', href: '/dashboard/intelligence', label: 'Radiografía 360', icon: 'intelligence', keywords: ['salud', 'score', 'analisis', 'kpi', 'rfm', 'abc', 'simulador', 'bi'] },

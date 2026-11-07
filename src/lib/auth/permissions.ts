@@ -174,6 +174,8 @@ export const PERMISSIONS = {
   // cumplimiento tributario de TODA la empresa — mismo criterio que
   // `reports:financial` (dirección y contabilidad), fuera de SALES/WAREHOUSE.
   'intelligence:view': ['OWNER', 'ADMIN', 'ACCOUNTANT'],
+  'analytics:view': ['OWNER', 'ADMIN'],
+  'science:view': ['OWNER', 'ADMIN'],
 
   // CRM comercial: lo opera el equipo de ventas, mismo criterio que sales:*.
   'crm:read': ['OWNER', 'ADMIN', 'SALES'],
@@ -367,6 +369,8 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'publicvoting:read': 'Ver órdenes y ranking de votación pagada',
   'publicvoting:write': 'Confirmar pagos de votación pagada',
   'intelligence:view': 'Ver el Centro de Inteligencia 360 (salud de la empresa, proyecciones y flujos)',
+  'analytics:view': 'Ver Data Analytics (solo dueños y administradores)',
+  'science:view': 'Ver Data Science (solo dueños y administradores)',
   'crm:read': 'Ver oportunidades y actividades del CRM',
   'crm:write': 'Crear oportunidades, moverlas de etapa y registrar actividades',
   'payroll:read': 'Ver trabajadores, sueldos y liquidaciones',

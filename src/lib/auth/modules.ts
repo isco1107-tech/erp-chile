@@ -38,6 +38,8 @@ export type FeatureKey = keyof Pick<
   | 'hasTicketing'
   | 'hasPublicVoting'
   | 'hasIntelligence'
+  | 'hasDataAnalytics'
+  | 'hasDataScience'
   | 'hasSalesPipeline'
   | 'hasPayroll'
   | 'hasFixedAssets'
@@ -80,6 +82,20 @@ export interface ModuleDefinition {
 }
 
 export const MODULES: ModuleDefinition[] = [
+  {
+    key: 'hasDataAnalytics',
+    label: 'Data Analytics',
+    description: 'Indicadores, tendencias y actividad de la empresa con actualización automática cada 15 segundos. Exclusivo para dueños y administradores.',
+    permissions: ['analytics:view'],
+    routes: ['/dashboard/analytics'],
+  },
+  {
+    key: 'hasDataScience',
+    label: 'Data Science',
+    description: 'Proyecciones de ventas a 7 días, variabilidad y detección de anomalías con historial real. Exclusivo para dueños y administradores.',
+    permissions: ['science:view'],
+    routes: ['/dashboard/data-science'],
+  },
   {
     key: 'hasInventory',
     label: 'Inventario y Catálogo',
@@ -470,6 +486,8 @@ export const DEFAULT_FEATURES: CompanyFeatureFlags = {
   hasTicketing: false,
   hasPublicVoting: false,
   hasIntelligence: false,
+  hasDataAnalytics: false,
+  hasDataScience: false,
   hasSalesPipeline: false,
   hasPayroll: false,
   hasFixedAssets: false,
@@ -547,6 +565,8 @@ export function toFeatureFlags(features: CompanyFeatures | null): CompanyFeature
     hasTicketing: features.hasTicketing,
     hasPublicVoting: features.hasPublicVoting,
     hasIntelligence: features.hasIntelligence,
+    hasDataAnalytics: features.hasDataAnalytics ?? false,
+    hasDataScience: features.hasDataScience ?? false,
     hasSalesPipeline: features.hasSalesPipeline,
     hasPayroll: features.hasPayroll,
     hasFixedAssets: features.hasFixedAssets,
