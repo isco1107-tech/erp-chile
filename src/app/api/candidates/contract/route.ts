@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
-import { put } from '@/lib/storage/blob';
+import { putPrivate } from '@/lib/storage/blob';
 import { AuthError, ModuleNotEnabledError, TenantInactiveError, requireAuthWithPermission } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
+import { Prisma } from '@prisma/client';
 import { captureException } from '@/lib/observability';
+import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import { renderCandidateContractPdf } from '@/modules/candidates/services/contract-pdf.service';
 import { upsertGeneratedContract } from '@/modules/candidates/services/documents.service';
 
@@ -26,11 +28,11 @@ export async function GET(req: Request) {
 
     const buffer = await renderCandidateContractPdf(session.companyId, candidateId);
 
-    // Auditoría 2026-09-27 (hallazgo A-5/SEG-04): el bucket sigue siendo
-    // público, pero la ruta ya no se puede adivinar por timestamp — agregar
-    // el bucket privado queda como decisión de producto pendiente.
+    // Contrato con datos personales: al bucket privado (sin él, URL pública
+    // con nombre impredecible). El panel lo abre por la ruta autenticada de
+    // documentos de la candidata, nunca por esta referencia.
     const pathname = `candidates/${session.companyId}/contracts/${candidateId}-${Date.now()}-${crypto.randomUUID()}.pdf`;
-    const blob = await put(pathname, buffer, { access: 'public', contentType: 'application/pdf', addRandomSuffix: false });
+    const blob = await putPrivate(pathname, buffer, { contentType: 'application/pdf' });
 
     const document = await upsertGeneratedContract(session.companyId, candidateId, blob.url);
 
@@ -62,8 +64,10 @@ export async function GET(req: Request) {
     if (error instanceof TenantInactiveError) {
       return NextResponse.json({ success: false, error: error.message }, { status: 403 });
     }
-    if (error instanceof Error) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+    // Errores de negocio (contrato ya firmado, candidata no encontrada) en
+    // español; los de Prisma u otros se traducen y van a observabilidad.
+    if (error instanceof Error && !(error instanceof Prisma.PrismaClientKnownRequestError)) {
+      return NextResponse.json({ success: false, error: toFriendlyErrorMessage(error) }, { status: 400 });
     }
     captureException(error, { module: 'candidates' });
     return NextResponse.json({ success: false, error: 'No se pudo generar el contrato' }, { status: 500 });

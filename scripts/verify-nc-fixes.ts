@@ -3,6 +3,9 @@ import { prisma } from '../src/lib/prisma';
 import { generateValidRutForTest } from './lib/test-rut';
 import { cleanRut } from '../src/lib/chile/rut';
 import { createSalesDocument, cancelSalesDocument } from '../src/modules/sales/services/sales.service';
+import { assertLocalDatabase } from './lib/guard-production';
+
+assertLocalDatabase('verify-nc-fixes');
 
 /**
  * Verifica las correcciones de la auditoría (Nota de Crédito y Guía de

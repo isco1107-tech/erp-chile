@@ -14,3 +14,23 @@ export function assertScriptCanRun(scriptName: string): void {
     process.exit(1);
   }
 }
+
+/**
+ * Para scripts de verificación que CREAN datos de prueba o desactivan los
+ * triggers de inmutabilidad del libro (afecta a todas las empresas mientras
+ * corren): solo contra una base en esta máquina. Como la `DATABASE_URL` del
+ * `.env` es la de producción, un `npx tsx` distraído escribiría ahí.
+ */
+export function assertLocalDatabase(scriptName: string): void {
+  assertScriptCanRun(scriptName);
+  let host = '';
+  try {
+    host = new URL(process.env.DATABASE_URL ?? '').hostname;
+  } catch {
+    // URL inválida: se trata igual que una remota.
+  }
+  if (!['localhost', '127.0.0.1', '::1'].includes(host)) {
+    console.error(`${scriptName}: solo corre contra una base local (DATABASE_URL apunta a "${host || 'desconocido'}"). Abortado.`);
+    process.exit(1);
+  }
+}

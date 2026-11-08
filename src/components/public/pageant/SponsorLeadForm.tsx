@@ -3,6 +3,7 @@
 import { useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { publicSponsorLeadSchema, SPONSOR_LEAD_HONEYPOT_FIELD } from '@/modules/crm/schema';
 import { Arrow, Check } from './icons';
+import TurnstileWidget, { isTurnstileConfigured } from '@/components/security/TurnstileWidget';
 
 /**
  * Formulario de sponsor (nombre y apellido, teléfono, correo, empresa, Instagram de la
@@ -41,6 +42,8 @@ export function SponsorLeadForm({
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
   const [serverError, setServerError] = useState('');
   const honeypot = useRef<HTMLInputElement>(null);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileKey, setTurnstileKey] = useState(0);
   const set = (key: keyof typeof values, value: string) => setValues((prev) => ({ ...prev, [key]: value }));
   const described = (key: string) => (errors[key] ? { 'aria-invalid': true, 'aria-describedby': `lead-${key}-error` } : {});
 
@@ -64,12 +67,17 @@ export function SponsorLeadForm({
       const response = await fetch(`/api/public/pageants/${encodeURIComponent(slug)}/sponsor-lead`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ...payload, ...(turnstileToken ? { 'cf-turnstile-response': turnstileToken } : {}) }),
       });
       const json = (await response.json()) as { success: boolean; error?: string };
       if (!json.success) {
         setServerError(json.error ?? 'No pudimos enviar tu solicitud');
         setStatus('idle');
+        // Cada token de Turnstile sirve una sola vez: se pide otro para reintentar.
+        if (isTurnstileConfigured) {
+          setTurnstileToken(null);
+          setTurnstileKey((key) => key + 1);
+        }
         return;
       }
       setStatus('sent');
@@ -124,12 +132,13 @@ export function SponsorLeadForm({
         <textarea id="lead-message" rows={3} value={values.message} onChange={(e) => set('message', e.target.value)} {...described('message')} />
       </Field>
       <input ref={honeypot} type="text" name={SPONSOR_LEAD_HONEYPOT_FIELD} tabIndex={-1} autoComplete="off" aria-hidden="true" className="pgs-hp" />
+      <TurnstileWidget key={turnstileKey} action="sponsor-lead" onToken={setTurnstileToken} />
       {serverError && (
         <p className="pgs-form-error" role="alert">
           {serverError}
         </p>
       )}
-      <button type="submit" className="pgs-btn is-ink" disabled={status === 'sending'}>
+      <button type="submit" className="pgs-btn is-ink" disabled={status === 'sending' || (isTurnstileConfigured && !turnstileToken)}>
         <span>{status === 'sending' ? 'Enviando…' : 'Enviar solicitud'}</span>
         <Arrow className="pgs-btn-icon" />
       </button>

@@ -3,6 +3,7 @@ import { put } from '@/lib/storage/blob';
 import { AuthError, ModuleNotEnabledError, TenantInactiveError, requireAuthWithPermission } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 import { captureException } from '@/lib/observability';
+import { sniffAllowedUpload, type SniffedUploadType } from '@/lib/security/file-signature';
 
 /**
  * Sube la imagen de fondo de una plantilla de credencial a Cloudflare R2 y
@@ -15,7 +16,7 @@ import { captureException } from '@/lib/observability';
  * hacer submit, igual que el logo de la empresa en `branding/upload`.
  */
 
-const ALLOWED_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
+const ALLOWED_TYPES: ReadonlySet<SniffedUploadType> = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
 export async function POST(req: Request) {
@@ -28,28 +29,23 @@ export async function POST(req: Request) {
     if (!(file instanceof File)) {
       return NextResponse.json({ success: false, error: 'Adjunte una imagen' }, { status: 400 });
     }
-    if (!ALLOWED_TYPES.has(file.type)) {
-      return NextResponse.json({ success: false, error: 'Formato no admitido. Use PNG, JPG, WEBP o GIF' }, { status: 400 });
-    }
     if (file.size === 0) {
       return NextResponse.json({ success: false, error: 'El archivo está vacío' }, { status: 400 });
     }
     if (file.size > MAX_FILE_BYTES) {
       return NextResponse.json({ success: false, error: 'La imagen supera los 5 MB' }, { status: 413 });
     }
+    const sniffed = await sniffAllowedUpload(file, ALLOWED_TYPES);
+    if (!sniffed) {
+      return NextResponse.json({ success: false, error: 'Formato no admitido. Use PNG, JPG, WEBP o GIF' }, { status: 400 });
+    }
 
-    const EXTENSION_BY_TYPE: Record<string, string> = {
-      'image/png': 'png',
-      'image/jpeg': 'jpg',
-      'image/webp': 'webp',
-      'image/gif': 'gif',
-    };
-    const extension = EXTENSION_BY_TYPE[file.type];
+    const { extension, contentType } = sniffed;
     const pathname = `badge-templates/${session.companyId}/${Date.now()}.${extension}`;
 
     const blob = await put(pathname, file, {
       access: 'public',
-      contentType: file.type,
+      contentType,
       addRandomSuffix: false,
     });
 

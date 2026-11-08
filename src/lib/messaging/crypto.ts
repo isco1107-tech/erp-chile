@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { decryptWithKeyring, domainKeyring } from '@/lib/security/keyring';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_BYTES = 12;
@@ -14,10 +15,10 @@ const AUTH_TAG_BYTES = 16;
  * aunque el secreto de origen sea el mismo. Se recomienda igual configurar
  * `MESSAGING_ENCRYPTION_KEY` por separado en producción.
  */
+const KEYS = domainKeyring('messaging', ['MESSAGING_ENCRYPTION_KEY', 'TOTP_ENCRYPTION_KEY'], 'MESSAGING_ENCRYPTION_KEY (o TOTP_ENCRYPTION_KEY) no está configurada');
+
 function getKey(): Buffer {
-  const secret = process.env.MESSAGING_ENCRYPTION_KEY || process.env.TOTP_ENCRYPTION_KEY;
-  if (!secret) throw new Error('MESSAGING_ENCRYPTION_KEY (o TOTP_ENCRYPTION_KEY) no está configurada');
-  return crypto.createHash('sha256').update(`messaging:${secret}`).digest();
+  return KEYS.encryptionKey();
 }
 
 /** Cifra el cuerpo de un mensaje. Formato "iv.authTag.ciphertext" en base64. */
@@ -32,9 +33,11 @@ export function encryptMessageText(plainText: string): string {
 export function decryptMessageText(stored: string): string {
   const [ivB64, tagB64, dataB64] = stored.split('.');
   if (!ivB64 || !tagB64 || !dataB64) throw new Error('Formato inválido de mensaje cifrado');
-  const decipher = crypto.createDecipheriv(ALGORITHM, getKey(), Buffer.from(ivB64, 'base64'));
-  decipher.setAuthTag(Buffer.from(tagB64, 'base64'));
-  const decrypted = Buffer.concat([decipher.update(Buffer.from(dataB64, 'base64')), decipher.final()]);
+  const decrypted = decryptWithKeyring(KEYS, (key) => {
+    const decipher = crypto.createDecipheriv(ALGORITHM, key, Buffer.from(ivB64, 'base64'));
+    decipher.setAuthTag(Buffer.from(tagB64, 'base64'));
+    return Buffer.concat([decipher.update(Buffer.from(dataB64, 'base64')), decipher.final()]);
+  });
   return decrypted.toString('utf8');
 }
 
@@ -55,7 +58,9 @@ export function decryptFileBuffer(stored: Buffer): Buffer {
   const iv = stored.subarray(0, IV_BYTES);
   const authTag = stored.subarray(IV_BYTES, IV_BYTES + AUTH_TAG_BYTES);
   const ciphertext = stored.subarray(IV_BYTES + AUTH_TAG_BYTES);
-  const decipher = crypto.createDecipheriv(ALGORITHM, getKey(), iv);
-  decipher.setAuthTag(authTag);
-  return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+  return decryptWithKeyring(KEYS, (key) => {
+    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+    decipher.setAuthTag(authTag);
+    return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+  });
 }

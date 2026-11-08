@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { captureException } from '@/lib/observability';
+import { readTextWithLimit } from '@/lib/security/body-limit';
 import { responderWebhook } from '@/lib/supersuite/cliente';
 import { manejadoresOrdenes } from '@/lib/supersuite/ordenes';
 
@@ -19,11 +20,16 @@ import { manejadoresOrdenes } from '@/lib/supersuite/ordenes';
 // Reiniciar o eliminar una empresa respalda, borra cientos de tablas y limpia archivos: puede pasar de los 10-15 s por defecto.
 export const maxDuration = 300;
 
+/** Una orden es un JSON chico: el tope evita leer en memoria un cuerpo enorme antes de verificar la firma. */
+const MAX_BODY_BYTES = 256 * 1024;
+
 export async function POST(req: Request) {
   const secreto = process.env.SUPERSUITE_WEBHOOK_SECRET?.trim();
   if (!secreto) return NextResponse.json({ ok: false, mensaje: 'Las órdenes de la Supersuite no están configuradas en Aether' }, { status: 503 });
   try {
-    const r = await responderWebhook(secreto, manejadoresOrdenes, req.headers.get('x-supersuite-firma'), await req.text());
+    const cuerpo = await readTextWithLimit(req, MAX_BODY_BYTES);
+    if (cuerpo === null) return NextResponse.json({ ok: false, mensaje: 'La orden supera el tamaño máximo' }, { status: 413 });
+    const r = await responderWebhook(secreto, manejadoresOrdenes, req.headers.get('x-supersuite-firma'), cuerpo);
     return NextResponse.json(r.cuerpo, { status: r.status });
   } catch (error) {
     captureException(error, { module: 'supersuite', extra: { step: 'ordenes' } });

@@ -6,7 +6,7 @@
  */
 
 jest.mock('@/lib/zapsign/client', () => ({ getDocumentStatus: jest.fn() }));
-jest.mock('@/lib/storage/blob', () => ({ put: jest.fn() }));
+jest.mock('@/lib/storage/blob', () => ({ putPrivate: jest.fn() }));
 jest.mock('@/lib/integrations/company-integrations', () => ({ getCompanyZapsignConfig: jest.fn() }));
 jest.mock('@/lib/auth/audit', () => ({ createAuditLog: jest.fn() }));
 jest.mock('@/lib/email/mailer', () => ({ sendEmail: jest.fn(), getAppUrl: () => 'https://app.test' }));
@@ -20,7 +20,7 @@ jest.mock('@/modules/candidates/services/documents.service', () => ({
 import { prisma } from '@/lib/prisma';
 import { getDocumentStatus } from '@/lib/zapsign/client';
 import { getCompanyZapsignConfig } from '@/lib/integrations/company-integrations';
-import { put } from '@/lib/storage/blob';
+import { putPrivate } from '@/lib/storage/blob';
 import { captureException } from '@/lib/observability';
 import {
   findCandidateDocumentByZapsignToken,
@@ -52,7 +52,7 @@ describe('Webhook de ZapSign — orden de validación (SEG-12)', () => {
     expect(response.status).toBe(200);
     expect(json.success).toBe(true);
     expect(getDocumentStatus).not.toHaveBeenCalled();
-    expect(put).not.toHaveBeenCalled();
+    expect(putPrivate).not.toHaveBeenCalled();
   });
 
   it('una falla transitoria al consultar ZapSign responde 5xx en vez de 200, para permitir reintento', async () => {
@@ -69,7 +69,7 @@ describe('Webhook de ZapSign — orden de validación (SEG-12)', () => {
 
     expect(response.status).toBeGreaterThanOrEqual(500);
     expect(json.success).toBe(false);
-    expect(put).not.toHaveBeenCalled();
+    expect(putPrivate).not.toHaveBeenCalled();
     expect(captureException).toHaveBeenCalled();
   });
 
@@ -99,7 +99,7 @@ describe('Webhook de ZapSign — orden de validación (SEG-12)', () => {
       zapsignSandbox: false,
     });
     (getDocumentStatus as jest.Mock).mockResolvedValue({ status: 'signed', signedFileUrl: 'https://zapsign.test/signed.pdf' });
-    (put as jest.Mock).mockResolvedValue({ url: 'https://blob.test/candidates/zapsign-signed/token-real.pdf' });
+    (putPrivate as jest.Mock).mockResolvedValue({ url: 'https://blob.test/candidates/zapsign-signed/token-real.pdf' });
     (markContractSignedByZapsignToken as jest.Mock).mockResolvedValue({
       document: { id: 'doc1', companyId: 'c1', candidateId: 'cand1', title: 'Contrato de imagen' },
       justSigned: true,
@@ -141,7 +141,7 @@ describe('Webhook de ZapSign — orden de validación (SEG-12)', () => {
       expect(response.status).toBe(200);
       expect(markTestSignatureByZapsignToken).toHaveBeenCalledWith('token-sandbox');
       expect(markContractSignedByZapsignToken).not.toHaveBeenCalled();
-      expect(put).not.toHaveBeenCalled();
+      expect(putPrivate).not.toHaveBeenCalled();
       expect(fetchSpy).not.toHaveBeenCalled();
     });
 

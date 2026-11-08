@@ -26,17 +26,20 @@ export function escapeHtml(value: string): string {
 
 /** `ctaLabel`/`ctaUrl` son opcionales: un acuse de recibo no necesita botón. */
 function layout(options: { title: string; body: string; ctaLabel?: string; ctaUrl?: string; footer: string }): string {
+  // El enlace siempre es http(s) y va escapado: un llamador futuro que arme la URL
+  // con texto del usuario no puede inyectar atributos ni `javascript:`.
+  const ctaUrl = options.ctaUrl && /^https?:\/\//i.test(options.ctaUrl) ? escapeHtml(options.ctaUrl) : null;
   const cta =
-    options.ctaLabel && options.ctaUrl
+    options.ctaLabel && ctaUrl
       ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0;">
                 <tr>
                   <td style="background:${BRAND};border-radius:8px;">
-                    <a href="${options.ctaUrl}" style="display:inline-block;padding:12px 22px;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;">${escapeHtml(options.ctaLabel)}</a>
+                    <a href="${ctaUrl}" style="display:inline-block;padding:12px 22px;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;">${escapeHtml(options.ctaLabel)}</a>
                   </td>
                 </tr>
               </table>
               <p style="margin:0 0 6px;color:#64748b;font-size:13px;">Si el botón no funciona, copia y pega este enlace:</p>
-              <p style="margin:0;word-break:break-all;"><a href="${options.ctaUrl}" style="color:${BRAND};font-size:13px;">${options.ctaUrl}</a></p>`
+              <p style="margin:0;word-break:break-all;"><a href="${ctaUrl}" style="color:${BRAND};font-size:13px;">${ctaUrl}</a></p>`
       : '';
   return `<!doctype html>
 <html lang="es">
@@ -1996,7 +1999,7 @@ export function buildAcademyMaterialEmail(input: AcademyMaterialEmailInput): { s
       </table>
     `,
     ctaLabel: isFile ? 'Descargar archivo' : 'Abrir enlace',
-    ctaUrl: escapeHtml(input.url),
+    ctaUrl: input.url,
     footer: `${escapeHtml(input.academyName)}. Recibes este correo porque estás inscrita en el grupo ${escapeHtml(input.groupName)} o eres apoderado de una alumna. Si no corresponde, avisa a la academia.`,
   });
 

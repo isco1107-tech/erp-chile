@@ -1,8 +1,11 @@
+import { checkLayeredRateLimit } from '@/lib/security/durable-rate-limit';
 import { NextResponse } from 'next/server';
 import { publicInstallmentLookupSchema } from '@/modules/payment-plans/schema';
 import { lookupPublicInstallments, PortalNotFoundError } from '@/modules/payment-plans/services/online-payment.service';
 import { extractClientIp } from '@/lib/auth/ip-allowlist';
-import { checkRateLimit, INSTALLMENT_LOOKUP_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { INSTALLMENT_LOOKUP_RATE_LIMIT, INSTALLMENT_LOOKUP_RUT_RATE_LIMIT, INSTALLMENT_LOOKUP_TOKEN_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { TURNSTILE_FIELD, verifyTurnstile } from '@/lib/security/turnstile';
+import { cleanRut } from '@/lib/chile/rut';
 import { captureException } from '@/lib/observability';
 
 /**
@@ -12,7 +15,8 @@ import { captureException } from '@/lib/observability';
 export async function POST(req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
 
-  const rl = checkRateLimit(extractClientIp(req) ?? 'unknown', INSTALLMENT_LOOKUP_RATE_LIMIT);
+  const clientIp = extractClientIp(req);
+  const rl = await checkLayeredRateLimit(clientIp ?? 'unknown', INSTALLMENT_LOOKUP_RATE_LIMIT);
   if (!rl.allowed) {
     const retryAfter = rl.retryAfterMs ? Math.max(1, Math.ceil((rl.retryAfterMs - Date.now()) / 1000)) : 900;
     return NextResponse.json(
@@ -28,13 +32,29 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     return NextResponse.json({ success: false, error: 'No se pudo leer la solicitud enviada' }, { status: 400 });
   }
 
+  const human = await verifyTurnstile((body as Record<string, unknown> | null)?.[TURNSTILE_FIELD], clientIp, 'installment-lookup');
+  if (!human.ok) return NextResponse.json({ success: false, error: human.error }, { status: 403 });
+
   const parsed = publicInstallmentLookupSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ success: false, error: parsed.error.issues[0]?.message ?? 'RUT inválido' }, { status: 400 });
   }
 
+  // Topes compartidos entre instancias: por portal (un barrido desde muchas IP)
+  // y por RUT dentro del portal (adivinar la fecha de nacimiento de alguien).
+  const [byToken, byRut] = await Promise.all([
+    checkLayeredRateLimit(token, INSTALLMENT_LOOKUP_TOKEN_RATE_LIMIT),
+    checkLayeredRateLimit(`${token}:${cleanRut(parsed.data.rut)}`, INSTALLMENT_LOOKUP_RUT_RATE_LIMIT),
+  ]);
+  if (!byToken.allowed || !byRut.allowed) {
+    return NextResponse.json(
+      { success: false, error: 'Se hicieron demasiadas consultas. Intenta de nuevo en una hora o contacta a la organización.' },
+      { status: 429, headers: { 'Retry-After': '3600' } }
+    );
+  }
+
   try {
-    const data = await lookupPublicInstallments(token, parsed.data.rut);
+    const data = await lookupPublicInstallments(token, parsed.data.rut, parsed.data.birthDate);
     return NextResponse.json({ success: true, data }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     if (error instanceof PortalNotFoundError) return NextResponse.json({ success: false, error: error.message }, { status: 404 });

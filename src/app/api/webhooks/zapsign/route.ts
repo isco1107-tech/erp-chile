@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { put } from '@/lib/storage/blob';
+import { putPrivate } from '@/lib/storage/blob';
 import { getDocumentStatus } from '@/lib/zapsign/client';
 import {
   findCandidateDocumentByZapsignToken,
@@ -101,7 +101,7 @@ export async function POST(req: Request) {
     // Defensa en profundidad: la URL viene de la respuesta de un tercero.
     const safe = isSafeOutboundWebhookUrl(status.signedFileUrl);
     if (!safe.ok) throw new Error(`URL del PDF firmado no permitida: ${safe.reason}`);
-    const fileResponse = await fetch(status.signedFileUrl);
+    const fileResponse = await fetch(status.signedFileUrl, { redirect: 'error' });
     if (!fileResponse.ok) {
       throw new Error(`No se pudo descargar el PDF firmado desde ZapSign (${fileResponse.status})`);
     }
@@ -111,7 +111,9 @@ export async function POST(req: Request) {
     // Misma ruta en cada reintento de ZapSign (respondemos 5xx ante fallas
     // transitorias para que reintente): sin sobrescribir, el fallback de
     // Vercel Blob lanzaría "ya existe" y el contrato nunca quedaría firmado.
-    const blob = await put(pathname, fileBuffer, { access: 'public', contentType: 'application/pdf', addRandomSuffix: false, allowOverwrite: true });
+    // Contrato firmado (datos personales): al bucket privado; se abre por la ruta autenticada de documentos.
+    // Misma ruta en cada reintento: se sobrescribe (el bucket privado siempre lo hace).
+    const blob = await putPrivate(pathname, fileBuffer, { contentType: 'application/pdf', allowOverwrite: true });
     blobUrl = blob.url;
   } catch (error) {
     captureException(error, { module: 'candidates', companyId: localDoc.companyId, extra: { reason: 'zapsign-webhook-download-upload', candidateId: localDoc.candidateId } });

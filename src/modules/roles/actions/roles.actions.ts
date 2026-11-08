@@ -7,12 +7,15 @@ import {
   ModuleNotEnabledError,
   TenantInactiveError,
   getAuthContext,
+  assertPasswordChangeNotPending,
   can,
   type AuthContext,
 } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import { excessPermissions } from '@/lib/auth/permissions';
+import { grantProblem, manageProblem } from '@/lib/auth/team-access';
+import { prisma } from '@/lib/prisma';
 import { customRoleCreateSchema, memberRoleAssignSchema } from '../schema';
 import * as rolesService from '../services/roles.service';
 import type { CustomRoleWithUsage } from '../services/roles.service';
@@ -42,6 +45,8 @@ function toErrorMessage(error: unknown): string {
 /** Solo quien puede gestionar el equipo puede tocar los roles. */
 async function requireRoleManager() {
   const context = await getAuthContext();
+  // Con una contraseña temporal pendiente de cambio no se administra nada.
+  assertPasswordChangeNotPending(context);
   if (!can(context, 'settings:users')) throw new AuthError('No autorizado para esta acción', 403);
   return context;
 }
@@ -147,10 +152,25 @@ export async function assignCustomRoleAction(input: unknown): Promise<ActionResu
     // Mismo criterio que crear/editar un rol (A-1): asignarle a otra persona
     // un rol YA existente con más permisos que los del actor sería la misma
     // escalada por otra puerta.
+    let newPermissions: string[] | null = null;
     if (parsed.data.customRoleId) {
       const targetRole = await rolesService.getCustomRole(context.companyId, parsed.data.customRoleId);
       if (!targetRole) return { success: false, error: 'Rol personalizado no encontrado' };
       assertPermissionsWithinActor(targetRole.permissions, context);
+      newPermissions = targetRole.permissions;
+    }
+    // Quitar o cambiar el rol personalizado de alguien con más permisos que el
+    // actor, o dejarlo con la matriz completa de su rol base (al quitárselo),
+    // sería la misma escalada por otra puerta.
+    const member = await prisma.user.findFirst({
+      where: { id: parsed.data.userId, companyId: context.companyId },
+      select: { role: true, customRole: { select: { permissions: true } } },
+    });
+    if (member) {
+      const problem =
+        manageProblem(context, { role: member.role, customRolePermissions: member.customRole?.permissions ?? null }) ??
+        grantProblem(context, { role: member.role, customRolePermissions: newPermissions });
+      if (problem) return { success: false, error: problem };
     }
 
     await rolesService.assignCustomRole(context.companyId, parsed.data.userId, parsed.data.customRoleId);

@@ -1,3 +1,4 @@
+import { checkLayeredRateLimit } from '@/lib/security/durable-rate-limit';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import type { Prisma } from '@prisma/client';
@@ -5,12 +6,12 @@ import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { verifyTotpChallengeToken } from '@/lib/auth/totp-challenge';
 import { decryptTotpSecret } from '@/lib/auth/totp-crypto';
-import { verifyTotpCode } from '@/lib/auth/totp';
+import { verifyTotpCodeOnce } from '@/lib/auth/totp';
 import { issueSession } from '@/lib/auth/issue-session';
 import { checkIpAllowlist } from '@/lib/auth/ip-allowlist-guard';
 import { extractClientIp } from '@/lib/auth/ip-allowlist';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
-import { checkRateLimit, TOTP_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { TOTP_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { logSecurityEvent, extractRequestInfo } from '@/lib/security/security-logger';
 
 const OPERATIONAL_STATUSES = ['ACTIVE', 'TRIAL'];
@@ -56,7 +57,7 @@ async function tryBackupCode(tx: Prisma.TransactionClient, userId: string, code:
 export async function POST(req: Request) {
   // ── Rate limit por IP: frena brute force de TOTP ──────────────────────
   const clientIp = extractClientIp(req) ?? 'unknown';
-  const rl = checkRateLimit(clientIp, TOTP_RATE_LIMIT);
+  const rl = await checkLayeredRateLimit(clientIp, TOTP_RATE_LIMIT);
   if (!rl.allowed) {
     const { userAgent } = extractRequestInfo(req);
     logSecurityEvent({
@@ -114,7 +115,9 @@ export async function POST(req: Request) {
       return { kind: 'locked', minutesLeft: Math.ceil((user.totpLockedUntil.getTime() - Date.now()) / 60000) };
     }
 
-    const validTotp = await verifyTotpCode(decryptTotpSecret(user.totpSecret), code);
+    // De un solo uso: un código ya aceptado (mismo paso de 30 s) no vuelve a servir.
+    const acceptedStep = await verifyTotpCodeOnce(decryptTotpSecret(user.totpSecret), code, user.totpLastUsedStep);
+    const validTotp = acceptedStep !== null;
     const validBackup = !validTotp && (await tryBackupCode(tx, user.id, code));
 
     if (!validTotp && !validBackup) {
@@ -129,8 +132,11 @@ export async function POST(req: Request) {
       return { kind: 'invalid' };
     }
 
-    if (user.totpFailedAttempts > 0 || user.totpLockedUntil) {
-      await tx.user.update({ where: { id: user.id }, data: { totpFailedAttempts: 0, totpLockedUntil: null } });
+    if (user.totpFailedAttempts > 0 || user.totpLockedUntil || acceptedStep !== null) {
+      await tx.user.update({
+        where: { id: user.id },
+        data: { totpFailedAttempts: 0, totpLockedUntil: null, ...(acceptedStep !== null ? { totpLastUsedStep: acceptedStep } : {}) },
+      });
     }
 
     return {

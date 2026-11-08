@@ -1,3 +1,5 @@
+import { isAllowedBlobUrl } from '@/lib/security/blob-url';
+
 /**
  * Descarga una fuente de Google Fonts recortada solo a los caracteres que se
  * van a dibujar (`text=`), para que `ImageResponse` (satori) la use en vez de
@@ -47,9 +49,10 @@ export function fetchGoogleFontSubset(family: string, text: string, variant: { w
  * `null` — la imagen se genera igual, sin ese elemento.
  */
 export async function fetchImageAsDataUrl(url: string | null): Promise<string | null> {
-  if (!url) return null;
+  // Solo nuestro almacenamiento: el servidor no descarga URLs arbitrarias.
+  if (!url || !isAllowedBlobUrl(url)) return null;
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { redirect: 'error' });
     if (!response.ok) return null;
     const type = response.headers.get('content-type') ?? 'image/jpeg';
     if (!/^image\/(jpeg|png|webp)/.test(type)) return null;

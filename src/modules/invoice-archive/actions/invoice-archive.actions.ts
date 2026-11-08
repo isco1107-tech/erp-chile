@@ -29,11 +29,20 @@ export async function getArchiveOverviewAction(): Promise<ActionResult<ArchiveOv
   }
 }
 
+/**
+ * La ubicación real del archivo nunca viaja al navegador: el panel lo abre por
+ * la ruta autenticada, que revisa sesión, permiso y empresa en cada descarga.
+ */
+function withProxyFileUrl(invoice: ArchivedInvoice): ArchivedInvoice {
+  return { ...invoice, fileUrl: `/api/invoice-archive/${encodeURIComponent(invoice.id)}/file` };
+}
+
 export async function listSupplierInvoicesAction(supplierKey: string): Promise<ActionResult<ArchivedInvoice[]>> {
   try {
     const session = await requireAuthWithPermission('invoicearchive:read');
     if (typeof supplierKey !== 'string' || supplierKey.length > 200) return { success: false, error: 'Proveedor inválido' };
-    return { success: true, data: await archiveService.listSupplierInvoices(session.companyId, supplierKey) };
+    const invoices = await archiveService.listSupplierInvoices(session.companyId, supplierKey);
+    return { success: true, data: invoices.map(withProxyFileUrl) };
   } catch (error) {
     return failure(error, 'No se pudo cargar el histórico del proveedor');
   }

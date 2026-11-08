@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Ticket, Minus, Plus, ShieldCheck } from 'lucide-react';
 import { formatCurrency } from '@/lib/chile/tax';
+import TurnstileWidget, { isTurnstileConfigured } from '@/components/security/TurnstileWidget';
 import { publicTicketPurchaseSchema, TICKET_PURCHASE_HONEYPOT_FIELD } from '@/modules/ticketing/schema';
 import { getPublicTicketingProjectAction } from '@/modules/ticketing/actions/public-ticketing.actions';
 import type { PublicTicketingProjectInfo } from '@/modules/ticketing/services/ticketing.service';
@@ -48,6 +49,8 @@ export default function TicketPurchaseClient({ token }: { token: string }) {
   const [saving, setSaving] = useState(false);
   const [confirmation, setConfirmation] = useState<{ ticketTypeName: string; quantity: number; totalAmount: number } | null>(null);
   const honeypotRef = useRef<HTMLInputElement>(null);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileKey, setTurnstileKey] = useState(0);
 
   useEffect(() => {
     (async () => {
@@ -87,7 +90,11 @@ export default function TicketPurchaseClient({ token }: { token: string }) {
       const res = await fetch(`/api/public/tickets/${token}/purchase`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...parsed.data, [TICKET_PURCHASE_HONEYPOT_FIELD]: honeypotRef.current?.value ?? '' }),
+        body: JSON.stringify({
+          ...parsed.data,
+          [TICKET_PURCHASE_HONEYPOT_FIELD]: honeypotRef.current?.value ?? '',
+          ...(turnstileToken ? { 'cf-turnstile-response': turnstileToken } : {}),
+        }),
       });
       const json = (await res.json()) as {
         success: boolean;
@@ -96,6 +103,11 @@ export default function TicketPurchaseClient({ token }: { token: string }) {
       };
       if (!json.success || !json.data) {
         setErrors({ form: json.error ?? 'No se pudo procesar tu compra. Intenta de nuevo.' });
+        // Cada token de Turnstile sirve una sola vez: se pide otro para reintentar.
+        if (isTurnstileConfigured) {
+          setTurnstileToken(null);
+          setTurnstileKey((key) => key + 1);
+        }
         return;
       }
       setConfirmation(json.data);
@@ -259,9 +271,15 @@ export default function TicketPurchaseClient({ token }: { token: string }) {
                 />
               )}
 
+              <TurnstileWidget key={turnstileKey} action="ticket-purchase" onToken={setTurnstileToken} />
+
               {errors.form && <p className="pub-error-form">{errors.form}</p>}
 
-              <PublicButton type="submit" full disabled={saving || !selectedType || selectedType.soldOut || !selectedType.salesOpen}>
+              <PublicButton
+                type="submit"
+                full
+                disabled={saving || !selectedType || selectedType.soldOut || !selectedType.salesOpen || (isTurnstileConfigured && !turnstileToken)}
+              >
                 {saving ? 'Procesando…' : 'Confirmar compra'}
               </PublicButton>
 

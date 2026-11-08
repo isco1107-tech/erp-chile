@@ -1,5 +1,8 @@
 import QRCode from 'qrcode';
 
+/** Solo códigos con la forma de los que genera la plataforma (UUID / cuid): el dominio no es un generador de QR para cualquier texto. */
+const CODE_PATTERN = /^[A-Za-z0-9-]{8,64}$/;
+
 /**
  * Sirve el PNG del QR de una entrada bajo una URL pública estable.
  *
@@ -16,6 +19,7 @@ import QRCode from 'qrcode';
  */
 export async function GET(_request: Request, { params }: { params: Promise<{ qrCode: string }> }) {
   const { qrCode } = await params;
+  if (!CODE_PATTERN.test(qrCode)) return new Response('No encontrado', { status: 404 });
   const buffer = await QRCode.toBuffer(qrCode, { width: 440, margin: 1 });
 
   return new Response(new Uint8Array(buffer), {

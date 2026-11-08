@@ -1,3 +1,4 @@
+import { allowVisitorConfirmationEmail, checkLayeredRateLimit } from '@/lib/security/durable-rate-limit';
 import { NextResponse, after } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { candidateSelfRegistrationSchema, CANDIDATE_HONEYPOT_FIELD } from '@/modules/candidates/schema';
@@ -11,7 +12,7 @@ import {
   DuplicateApplicationError,
 } from '@/modules/candidates/services/candidates.service';
 import { extractClientIp } from '@/lib/auth/ip-allowlist';
-import { checkRateLimit, peekRateLimit, CANDIDATE_APPLICATION_ATTEMPT_RATE_LIMIT, CANDIDATE_APPLICATION_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { peekRateLimit, CANDIDATE_APPLICATION_ATTEMPT_RATE_LIMIT, CANDIDATE_APPLICATION_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { sendEmail, getAppUrl } from '@/lib/email/mailer';
 import { pageantContact } from '@/lib/events/pageant-contact';
 import { buildCandidateApplicationConfirmationEmail, buildNewCandidateApplicationNoticeEmail } from '@/lib/email/templates';
@@ -40,7 +41,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   const clientIp = extractClientIp(req) ?? 'unknown';
   // Dos topes: intentos (holgado, cuenta todo) y postulaciones enviadas
   // (estricto, se consulta acá y se registra solo al tener éxito, más abajo).
-  const attempts = checkRateLimit(clientIp, CANDIDATE_APPLICATION_ATTEMPT_RATE_LIMIT);
+  const attempts = await checkLayeredRateLimit(clientIp, CANDIDATE_APPLICATION_ATTEMPT_RATE_LIMIT);
   const rl = attempts.allowed ? peekRateLimit(clientIp, CANDIDATE_APPLICATION_RATE_LIMIT) : attempts;
   if (!rl.allowed) {
     const retryAfter = rl.retryAfterMs ? Math.ceil((rl.retryAfterMs - Date.now()) / 1000) : 3600;
@@ -104,7 +105,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       userAgent: req.headers.get('user-agent') ?? undefined,
     });
 
-    checkRateLimit(clientIp, CANDIDATE_APPLICATION_RATE_LIMIT);
+    await checkLayeredRateLimit(clientIp, CANDIDATE_APPLICATION_RATE_LIMIT);
 
     // Fuera de la transacción a propósito: un fallo de SMTP no revierte la
     // postulación. Con `after()` para que Vercel no congele la función antes
@@ -154,7 +155,8 @@ async function sendConfirmationEmails(
   });
   if (!project) return;
 
-  if (candidate.email) {
+  // La dirección la escribió quien postula: tope por destinatario (no es un buzón para mandar correo a terceros).
+  if (candidate.email && (await allowVisitorConfirmationEmail(companyId, candidate.email))) {
     const contact = pageantContact(project);
     const confirmation = buildCandidateApplicationConfirmationEmail({
       fullName: candidate.fullName,

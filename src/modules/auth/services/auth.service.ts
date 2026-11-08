@@ -5,6 +5,7 @@ import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { sendEmail } from '@/lib/email/mailer';
 import { buildAccountLockedNoticeEmail } from '@/lib/email/templates';
 import { captureException } from '@/lib/observability';
+import { hitDurableRateLimit } from '@/lib/security/durable-rate-limit';
 
 /** Estados de tenant que permiten operar. Debe coincidir con `guards.ts`. */
 const OPERATIONAL_STATUSES = ['ACTIVE', 'TRIAL'];
@@ -18,6 +19,15 @@ const OPERATIONAL_STATUSES = ['ACTIVE', 'TRIAL'];
  */
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_MS = 15 * 60 * 1000;
+
+/**
+ * Bloqueo de un correo SIN cuenta activa, con el mismo umbral y duración que
+ * el de una cuenta real. Antes solo las cuentas reales se bloqueaban (429 con
+ * "Demasiados intentos…") y un correo inexistente respondía siempre 401: con
+ * 6 intentos se sabía si alguien tenía cuenta. Se cuenta en la base (compartido
+ * entre instancias) y con el SHA-256 del correo, nunca el correo.
+ */
+const UNKNOWN_EMAIL_LOCK = { prefix: 'login-unknown-email', limit: MAX_ATTEMPTS, windowMs: LOCKOUT_MS };
 
 export class SuspendedCompanyError extends Error {
   constructor() {
@@ -58,6 +68,7 @@ export async function verifyCredentials(email: string, password: string) {
   // fuera de la transacción) es un side-effect que de todas formas no debe
   // vivir dentro de una transacción de base de datos.
   let justLocked: { userId: string; companyId: string | null } | null = null;
+  let noAccount = false;
 
   const user = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.$queryRaw`SELECT id FROM "User" WHERE email = ${email} FOR UPDATE`;
@@ -72,6 +83,7 @@ export async function verifyCredentials(email: string, password: string) {
     // convertir el endpoint en un oráculo de qué correos existen.
     if (!user || !user.isActive) {
       await bcrypt.compare(password, DUMMY_HASH);
+      noAccount = true;
       return null;
     }
 
@@ -112,6 +124,13 @@ export async function verifyCredentials(email: string, password: string) {
   // del closure pasado a `$transaction`, TS angosta el tipo de `justLocked`
   // acá afuera a `null` en vez del union declarado — el cast es al mismo tipo
   // ya declarado arriba, no amplía nada.
+  if ((noAccount as boolean) && user === null) {
+    const hit = await hitDurableRateLimit(email.trim().toLowerCase(), UNKNOWN_EMAIL_LOCK);
+    if (!hit.allowed) {
+      throw new AccountLockedError(Math.max(1, Math.ceil(((hit.retryAfterMs ?? Date.now() + LOCKOUT_MS) - Date.now()) / 60000)));
+    }
+  }
+
   const lockedInfo = justLocked as { userId: string; companyId: string | null } | null;
   if (lockedInfo) {
     void notifyAccountLocked(lockedInfo.userId, lockedInfo.companyId);

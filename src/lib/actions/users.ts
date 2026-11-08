@@ -23,6 +23,7 @@ import type { CreateUserDirectResult } from '@/lib/services/users.service';
 import { getClientIp } from '@/lib/security/cloudflare';
 import { excessPermissions } from '@/lib/auth/permissions';
 import type { AuthContext } from '@/lib/auth/guards';
+import { grantProblem, manageProblem, type MemberAccess } from '@/lib/auth/team-access';
 
 /**
  * Auditoría 2026-09-27 (hallazgo A-1/SEG-02/PER-01): un ADMIN podía crear una
@@ -38,13 +39,37 @@ async function assertCanGrantRole(session: AuthContext, role: Role, customRoleId
   if (role === 'ADMIN' && session.role !== 'OWNER' && session.role !== 'ADMIN') {
     return 'Solo un Dueño o Administrador puede otorgar el rol Administrador';
   }
+  let customRolePermissions: string[] | null = null;
   if (customRoleId) {
     const customRole = await prisma.customRole.findFirst({ where: { id: customRoleId, companyId: session.companyId }, select: { permissions: true } });
     if (!customRole) return 'Rol personalizado no encontrado';
     const excess = excessPermissions(customRole.permissions, session.permissions);
     if (excess.length > 0) return `No puedes otorgar un rol con un permiso que tú mismo no tienes: ${excess.join(', ')}`;
+    customRolePermissions = customRole.permissions;
   }
-  return null;
+  // Rol base: un Administrador tampoco puede crear un Contador (tiene cierre
+  // contable y de remuneraciones, que al Administrador se le niegan).
+  return grantProblem(session, { role, customRolePermissions });
+}
+
+/** Rol y rol personalizado actuales de un usuario de la empresa, o `null`. */
+async function memberAccessOf(companyId: string, userId: string): Promise<MemberAccess | null> {
+  const user = await prisma.user.findFirst({
+    where: { id: userId, companyId },
+    select: { role: true, customRole: { select: { permissions: true } } },
+  });
+  return user ? { role: user.role, customRolePermissions: user.customRole?.permissions ?? null } : null;
+}
+
+/**
+ * Rechazo si quien actúa no puede administrar a `userId` (tiene permisos que
+ * el actor no tiene), o `null`. El propio usuario y uno inexistente pasan: el
+ * servicio ya responde por ellos.
+ */
+async function assertCanManageMember(session: AuthContext, userId: string): Promise<string | null> {
+  if (userId === session.id) return null;
+  const member = await memberAccessOf(session.companyId, userId);
+  return member ? manageProblem(session, member) : null;
 }
 
 export type ActionResult<T> =
@@ -265,6 +290,18 @@ export async function changeUserRoleAction(userId: string, role: Role): Promise<
     if (parsedRole.data === 'OWNER' && session.role !== 'OWNER') {
       return { success: false, error: 'Solo un Dueño (OWNER) puede asignar el rol de Dueño' };
     }
+    if (parsedRole.data === 'ADMIN' && session.role !== 'OWNER' && session.role !== 'ADMIN') {
+      return { success: false, error: 'Solo un Dueño o Administrador puede otorgar el rol Administrador' };
+    }
+    if (userId !== session.id) {
+      const member = await memberAccessOf(session.companyId, userId);
+      if (member) {
+        const problem =
+          manageProblem(session, member) ??
+          grantProblem(session, { role: parsedRole.data, customRolePermissions: member.customRolePermissions });
+        if (problem) return { success: false, error: problem };
+      }
+    }
     const data = await usersService.changeUserRole(session.companyId, session.id, userId, parsedRole.data, session.role);
     await createAuditLog({
       companyId: session.companyId,
@@ -285,6 +322,8 @@ export async function changeUserRoleAction(userId: string, role: Role): Promise<
 export async function toggleUserStatusAction(userId: string): Promise<ActionResult<SafeUser>> {
   try {
     const session = await requireAuthWithPermission('settings:users');
+    const manageError = await assertCanManageMember(session, userId);
+    if (manageError) return { success: false, error: manageError };
     const data = await usersService.toggleUserStatus(session.companyId, session.id, userId, session.role);
     await createAuditLog({
       companyId: session.companyId,
@@ -305,6 +344,8 @@ export async function toggleUserStatusAction(userId: string): Promise<ActionResu
 export async function deleteUserAction(userId: string): Promise<ActionResult<null>> {
   try {
     const session = await requireAuthWithPermission('settings:users');
+    const manageError = await assertCanManageMember(session, userId);
+    if (manageError) return { success: false, error: manageError };
     await usersService.deleteUser(session.companyId, session.id, userId, session.role);
     await createAuditLog({
       companyId: session.companyId,
@@ -326,6 +367,8 @@ export async function resetUserPasswordAction(
 ): Promise<ActionResult<CreateUserDirectResult & { isSelf: boolean }>> {
   try {
     const session = await requireAuthWithPermission('settings:users');
+    const manageError = await assertCanManageMember(session, userId);
+    if (manageError) return { success: false, error: manageError };
     const isSelf = userId === session.id;
     // Auto-reseteo: diferimos invalidar la sesión (ver
     // `resetUserTemporaryPassword`/`finalizeOwnPasswordResetAction`) para que

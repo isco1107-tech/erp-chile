@@ -3,6 +3,7 @@ import { put } from '@/lib/storage/blob';
 import { AuthError, ModuleNotEnabledError, TenantInactiveError, requireAuthWithPermission } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 import { captureException } from '@/lib/observability';
+import { sniffAllowedUpload, type SniffedUploadType } from '@/lib/security/file-signature';
 import { prisma } from '@/lib/prisma';
 
 /**
@@ -12,10 +13,10 @@ import { prisma } from '@/lib/prisma';
  * es de 1 MB, insuficiente para una imagen.
  */
 
-// SVG es seguro acá: se referencia siempre vía <img src> o CSS
-// background-image (nunca embebido inline ni por <object>/<iframe>), y los
-// navegadores no ejecutan <script> dentro de un SVG cargado por esas dos vías.
-const ALLOWED_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/svg+xml']);
+// Sin SVG: el panel lo muestra con <img> (inerte), pero el archivo queda en el
+// almacenamiento público y abierto directo ejecutaría su <script>. El tipo se
+// comprueba por la firma binaria, no por `file.type` (lo declara el cliente).
+const ALLOWED_TYPES: ReadonlySet<SniffedUploadType> = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const KIND_FIELD = new Set(['logo', 'background']);
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
@@ -35,29 +36,23 @@ export async function POST(req: Request) {
     if (!(file instanceof File)) {
       return NextResponse.json({ success: false, error: 'Adjunte una imagen' }, { status: 400 });
     }
-    if (!ALLOWED_TYPES.has(file.type)) {
-      return NextResponse.json({ success: false, error: 'Formato no admitido. Use PNG, JPG, WEBP, GIF o SVG' }, { status: 400 });
-    }
     if (file.size === 0) {
       return NextResponse.json({ success: false, error: 'El archivo está vacío' }, { status: 400 });
     }
     if (file.size > MAX_FILE_BYTES) {
       return NextResponse.json({ success: false, error: 'La imagen supera los 5 MB' }, { status: 413 });
     }
+    const sniffed = await sniffAllowedUpload(file, ALLOWED_TYPES);
+    if (!sniffed) {
+      return NextResponse.json({ success: false, error: 'Formato no admitido. Use PNG, JPG, WEBP o GIF' }, { status: 400 });
+    }
 
-    const EXTENSION_BY_TYPE: Record<string, string> = {
-      'image/png': 'png',
-      'image/jpeg': 'jpg',
-      'image/webp': 'webp',
-      'image/gif': 'gif',
-      'image/svg+xml': 'svg',
-    };
-    const extension = EXTENSION_BY_TYPE[file.type];
+    const { extension, contentType } = sniffed;
     const pathname = `branding/${session.companyId}/${kind}-${Date.now()}.${extension}`;
 
     const blob = await put(pathname, file, {
       access: 'public',
-      contentType: file.type,
+      contentType,
       // El nombre ya es único por companyId+kind+timestamp; un sufijo random
       // encima solo complica poder reconstruir la URL para borrar la anterior.
       addRandomSuffix: false,

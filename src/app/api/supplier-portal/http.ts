@@ -1,8 +1,9 @@
+import { checkLayeredRateLimit } from '@/lib/security/durable-rate-limit';
 import 'server-only';
 
 import { NextResponse } from 'next/server';
 import type { ZodType } from 'zod';
-import { checkRateLimit, type RateLimitConfig } from '@/lib/security/rate-limiter';
+import { type RateLimitConfig } from '@/lib/security/rate-limiter';
 import { extractRequestInfo, logSecurityEvent } from '@/lib/security/security-logger';
 import { captureException } from '@/lib/observability';
 import { SUPPLIER_SESSION_COOKIE, SUPPLIER_SESSION_COOKIE_OPTIONS, createSupplierSessionToken } from '@/lib/supplier-portal/session';
@@ -22,9 +23,9 @@ export function json(body: unknown, status = 200): NextResponse {
 }
 
 /** Límite por IP; `null` si pasa, o la respuesta 429. */
-export function limited(req: Request, config: RateLimitConfig, route: string): NextResponse | null {
+export async function limited(req: Request, config: RateLimitConfig, route: string): Promise<NextResponse | null> {
   const { ip, userAgent } = extractRequestInfo(req);
-  const result = checkRateLimit(ip ?? 'unknown', config);
+  const result = await checkLayeredRateLimit(ip ?? 'unknown', config);
   if (result.allowed) return null;
   logSecurityEvent({ type: 'RATE_LIMITED', ip, userAgent, metadata: { route, portal: 'seller-center' } });
   return json({ success: false, error: 'Demasiados intentos. Vuelve a intentar en unos minutos' }, 429);

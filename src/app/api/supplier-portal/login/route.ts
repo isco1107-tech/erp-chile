@@ -20,7 +20,7 @@ const schema = z.union([
 
 /** Ingreso al Seller Center con correo y contraseña. Nunca dice si el correo existe. */
 export async function POST(req: Request) {
-  const blocked = limited(
+  const blocked = await limited(
     req,
     SUPPLIER_ACCOUNT_LOGIN_RATE_LIMIT,
     '/api/supplier-portal/login',

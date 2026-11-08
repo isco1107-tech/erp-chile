@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && node scripts/migrate-deploy.mjs && next build && node scripts/check-function-storage.cjs",
+    "build": "prisma generate && node scripts/check-secrets.mjs && node scripts/migrate-deploy.mjs && next build && node scripts/check-function-storage.cjs",
     "typecheck": "tsc --noEmit",
     "test": "jest --runInBand",
     "test:e2e": "playwright test",
@@ -29,7 +29,7 @@
     "@base-ui/react": "^1.7.0",
     "@google/genai": "^2.18.0",
     "@mantine/form": "^9.5.1",
-    "@modelcontextprotocol/server": "^2.1.0",
+    "@modelcontextprotocol/server": "^2.4.0",
     "@prisma/client": "^7.9.1",
     "@tanstack/react-table": "^9.1.2",
     "@types/bcryptjs": "^2.4.6",
@@ -37,7 +37,7 @@
     "@types/papaparse": "^5.5.2",
     "@types/react": "^19.2.18",
     "@vercel/analytics": "^2.0.1",
-    "@vercel/blob": "^2.8.0",
+    "@vercel/blob": "^2.8.2",
     "@xmldom/xmldom": "^0.9.12",
     "@zxing/library": "0.23.0",
     "autoprefixer": "^10.5.4",
@@ -48,15 +48,15 @@
     "docx": "^9.8.1",
     "dotenv": "^17.4.2",
     "eslint": "^9.39.5",
-    "eslint-config-next": "^16.3.3",
+    "eslint-config-next": "^16.3.8",
     "exceljs": "^4.4.0",
     "jose": "^6.2.8",
     "jszip": "^3.10.2",
     "lucide-react": "^1.31.0",
     "mcp-handler": "^2.2.0",
-    "next": "^16.3.3",
+    "next": "^16.3.8",
     "next-themes": "^0.4.6",
-    "node-forge": "^1.4.0",
+    "node-forge": "^1.4.2",
     "otplib": "^13.4.1",
     "papaparse": "^5.6.0",
     "pdf-lib": "^1.17.1",
@@ -76,7 +76,7 @@
     "typescript": "^6.0.3",
     "web-push": "^3.6.7",
     "xml-crypto": "^6.3.2",
-    "zod": "^4.4.3"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
@@ -95,5 +95,10 @@
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"
+  },
+  "overrides": {
+    "@vercel/cli-config": {
+      "zod": "$zod"
+    }
   }
 }

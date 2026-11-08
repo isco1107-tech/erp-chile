@@ -1,5 +1,6 @@
 'use server';
 
+import { checkLayeredRateLimit } from '@/lib/security/durable-rate-limit';
 import { z } from 'zod';
 import { headers } from 'next/headers';
 import { getAppUrl, sendEmail } from '@/lib/email/mailer';
@@ -13,7 +14,7 @@ import {
   resetPasswordWithToken,
   type ResetTokenState,
 } from '@/lib/services/password-reset.service';
-import { checkRateLimit, RESET_RATE_LIMIT } from '@/lib/security/rate-limiter';
+import { RESET_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { logSecurityEvent } from '@/lib/security/security-logger';
 import { getClientIp } from '@/lib/security/cloudflare';
 
@@ -77,7 +78,7 @@ export async function requestPasswordResetAction(input: unknown): Promise<Action
 
   // ── Rate limit por IP: frena email bombing y enumeración masiva ──────
   const clientIp = await getServerActionIp();
-  const rl = checkRateLimit(clientIp, RESET_RATE_LIMIT);
+  const rl = await checkLayeredRateLimit(clientIp, RESET_RATE_LIMIT);
   if (!rl.allowed) {
     const userAgent = await getServerActionUserAgent();
     logSecurityEvent({

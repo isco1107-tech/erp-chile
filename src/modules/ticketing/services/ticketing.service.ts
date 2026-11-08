@@ -18,6 +18,27 @@ export class TicketSalesNotFoundError extends Error {}
 export class TicketTypeClosedError extends Error {}
 /** Cupo agotado — chequeo definitivo con lock de fila dentro de la transacción, mismo patrón que `RegistrationFullError`. */
 export class TicketSoldOutError extends Error {}
+export class TicketTooManyPendingError extends Error {}
+
+/**
+ * Una orden pública IMPAGA reserva cupo solo por este plazo (el pago es por
+ * transferencia y lo confirma el staff, así que el margen es holgado). Vencida,
+ * deja de contar: un bot con correos falsos ya no puede acaparar el cupo para
+ * siempre. Confirmarla después vuelve a exigir cupo (`confirmTicketPayment`).
+ */
+export const PUBLIC_TICKET_RESERVATION_HOURS = 72;
+/** Órdenes impagas vigentes que una misma persona (correo) puede tener por certamen. */
+export const MAX_OPEN_UNPAID_TICKET_ORDERS_PER_EMAIL = 3;
+
+/**
+ * ¿Ocupa cupo esta orden? Sí si tiene algún pago, si su reserva no vence
+ * (`reservedUntil` null: órdenes anteriores a la regla y las del panel) o si
+ * todavía no vence. Única regla: la usan el cupo público, la compra y el panel.
+ */
+export function holdsCapacity(sale: { paymentStatus: PaymentStatus; reservedUntil: Date | null }, now: Date): boolean {
+  if (sale.paymentStatus !== 'UNPAID') return true;
+  return sale.reservedUntil === null || sale.reservedUntil > now;
+}
 
 async function assertProjectOwnership(companyId: string, projectId: string): Promise<void> {
   const project = await prisma.project.findFirst({ where: { id: projectId, companyId }, select: { id: true } });
@@ -153,21 +174,20 @@ export interface TicketingSummaryRow {
 
 /**
  * Totales por tipo de entrada. El cupo (`quantityAvailable`) se descuenta
- * contra TODAS las órdenes, no solo las `PAID` — una orden `UNPAID` ya
- * reservó el cupo (evita sobreventa mientras el comprador todavía no
- * transfiere); si nunca paga, el staff debe eliminar/cancelar la orden a mano
- * para liberarlo. Este es el mismo criterio documentado en
- * `createPublicTicketOrder`.
+ * contra las órdenes que lo ocupan (`holdsCapacity`): las pagadas y las
+ * impagas con la reserva vigente — evita sobreventa mientras el comprador
+ * todavía no transfiere, sin que una orden abandonada lo retenga para siempre.
  */
 export async function getTicketingSummary(companyId: string, projectId: string): Promise<TicketingSummaryRow[]> {
   const ticketTypes = await prisma.ticketType.findMany({
     where: { companyId, projectId },
-    include: { sales: { select: { quantity: true, paymentStatus: true, totalAmount: true, checkedInAt: true } } },
+    include: { sales: { select: { quantity: true, paymentStatus: true, totalAmount: true, checkedInAt: true, reservedUntil: true } } },
     orderBy: { createdAt: 'asc' },
   });
 
+  const now = new Date();
   return ticketTypes.map((tt) => {
-    const quantitySold = tt.sales.reduce((sum, s) => sum + s.quantity, 0);
+    const quantitySold = tt.sales.filter((s) => holdsCapacity(s, now)).reduce((sum, s) => sum + s.quantity, 0);
     const paidSales = tt.sales.filter((s) => s.paymentStatus === 'PAID');
     const quantityConfirmed = paidSales.reduce((sum, s) => sum + s.quantity, 0);
     const revenueConfirmed = paidSales.reduce((sum, s) => sum + s.totalAmount, 0);
@@ -205,7 +225,7 @@ export async function getPublicTicketingProjectByToken(token: string): Promise<P
     where: { ticketSalesToken: token },
     include: {
       company: { select: { businessName: true, settings: { select: { bankTransferInfo: true } } } },
-      ticketTypes: { include: { sales: { select: { quantity: true } } }, orderBy: { createdAt: 'asc' } },
+      ticketTypes: { include: { sales: { select: { quantity: true, paymentStatus: true, reservedUntil: true } } }, orderBy: { createdAt: 'asc' } },
     },
   });
   if (!project) return null;
@@ -217,7 +237,8 @@ export async function getPublicTicketingProjectByToken(token: string): Promise<P
     companyName: project.company.businessName,
     bankTransferInfo: project.company.settings?.bankTransferInfo ?? null,
     ticketTypes: project.ticketTypes.map((tt) => {
-      const sold = tt.sales.reduce((sum, s) => sum + s.quantity, 0);
+      const now = new Date();
+      const sold = tt.sales.filter((s) => holdsCapacity(s, now)).reduce((sum, s) => sum + s.quantity, 0);
       return {
         id: tt.id,
         name: tt.name,
@@ -253,13 +274,29 @@ export async function createPublicTicketOrder(
 
       const ticketType = await tx.ticketType.findFirst({
         where: { id: data.ticketTypeId, companyId: project.companyId, projectId: project.id },
-        include: { sales: { select: { quantity: true } } },
+        include: { sales: { select: { quantity: true, paymentStatus: true, reservedUntil: true } } },
       });
       if (!ticketType) throw new TicketSalesNotFoundError('El tipo de entrada seleccionado no existe');
       if (!ticketType.salesOpen) throw new TicketTypeClosedError('Este tipo de entrada no está disponible por el momento');
 
+      const now = new Date();
+      const openUnpaid = await tx.ticketSale.count({
+        where: {
+          companyId: project.companyId,
+          projectId: project.id,
+          buyerEmail: { equals: data.buyerEmail, mode: 'insensitive' },
+          paymentStatus: 'UNPAID',
+          OR: [{ reservedUntil: null }, { reservedUntil: { gt: now } }],
+        },
+      });
+      if (openUnpaid >= MAX_OPEN_UNPAID_TICKET_ORDERS_PER_EMAIL) {
+        throw new TicketTooManyPendingError(
+          'Ya tienes varias compras pendientes de pago para este evento. Paga o espera la confirmación de alguna antes de hacer otra.'
+        );
+      }
+
       if (ticketType.quantityAvailable !== null) {
-        const sold = ticketType.sales.reduce((sum, s) => sum + s.quantity, 0);
+        const sold = ticketType.sales.filter((s) => holdsCapacity(s, now)).reduce((sum, s) => sum + s.quantity, 0);
         if (sold + data.quantity > ticketType.quantityAvailable) {
           throw new TicketSoldOutError('No quedan suficientes entradas disponibles de este tipo');
         }
@@ -276,6 +313,7 @@ export async function createPublicTicketOrder(
           quantity: data.quantity,
           totalAmount: ticketType.price * data.quantity,
           paymentStatus: 'UNPAID',
+          reservedUntil: new Date(now.getTime() + PUBLIC_TICKET_RESERVATION_HOURS * 3_600_000),
           qrCode: crypto.randomUUID(),
         },
       });
@@ -306,7 +344,30 @@ export async function confirmTicketPayment(companyId: string, id: string, data: 
 
   const wasAlreadyPaid = sale.paymentStatus === 'PAID';
 
-  await prisma.ticketSale.updateMany({ where: { id, companyId }, data: { paidAmount: data.paidAmount, paymentStatus } });
+  // Una orden impaga cuya reserva venció ya no ocupa cupo: confirmarla vuelve
+  // a exigirlo, bajo el mismo bloqueo de la compra pública (sin sobreventa).
+  // Con algún pago la reserva queda fija (`reservedUntil: null`).
+  const reservationExpired = sale.paymentStatus === 'UNPAID' && sale.reservedUntil !== null && sale.reservedUntil <= new Date();
+  await prisma.$transaction(async (tx) => {
+    if (paymentStatus !== 'UNPAID' && reservationExpired && sale.ticketType.quantityAvailable !== null) {
+      await tx.$queryRaw`SELECT id FROM "TicketType" WHERE id = ${sale.ticketTypeId} AND "companyId" = ${companyId} FOR UPDATE`;
+      const others = await tx.ticketSale.findMany({
+        where: { companyId, ticketTypeId: sale.ticketTypeId, id: { not: sale.id } },
+        select: { quantity: true, paymentStatus: true, reservedUntil: true },
+      });
+      const now = new Date();
+      const held = others.filter((s) => holdsCapacity(s, now)).reduce((sum, s) => sum + s.quantity, 0);
+      if (held + sale.quantity > sale.ticketType.quantityAvailable) {
+        throw new TicketSoldOutError(
+          'La reserva de esta orden venció y su cupo ya se vendió. Aumenta el cupo del tipo de entrada antes de confirmar el pago.'
+        );
+      }
+    }
+    await tx.ticketSale.updateMany({
+      where: { id, companyId },
+      data: { paidAmount: data.paidAmount, paymentStatus, ...(paymentStatus !== 'UNPAID' ? { reservedUntil: null } : {}) },
+    });
+  }, LOCKING_TX_OPTIONS);
   const updated = await prisma.ticketSale.findFirst({ where: { id, companyId } });
   if (!updated) throw new Error('Orden de compra no encontrada');
 

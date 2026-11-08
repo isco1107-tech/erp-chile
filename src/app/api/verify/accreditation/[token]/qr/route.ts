@@ -1,6 +1,9 @@
 import QRCode from 'qrcode';
 import { getAppUrl } from '@/lib/email/mailer';
 
+/** Solo códigos con la forma de los que genera la plataforma (UUID / cuid): el dominio no es un generador de QR para cualquier texto. */
+const CODE_PATTERN = /^[A-Za-z0-9-]{8,64}$/;
+
 /**
  * Sirve el PNG del QR de una acreditación bajo una URL pública estable.
  *
@@ -17,6 +20,7 @@ import { getAppUrl } from '@/lib/email/mailer';
  */
 export async function GET(_request: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
+  if (!CODE_PATTERN.test(token)) return new Response('No encontrado', { status: 404 });
   const verifyUrl = `${getAppUrl()}/verify/accreditation/${token}`;
   const buffer = await QRCode.toBuffer(verifyUrl, { width: 440, margin: 1 });
 

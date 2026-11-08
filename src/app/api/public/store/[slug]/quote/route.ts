@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const limited = limitByIp(req, STORE_QUOTE_RATE_LIMIT);
+  const limited = await limitByIp(req, STORE_QUOTE_RATE_LIMIT);
   if (limited) return limited;
 
   const read = await readJsonBody(req, 16 * 1024);

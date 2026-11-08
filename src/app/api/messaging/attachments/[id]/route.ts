@@ -4,6 +4,10 @@ import { decryptFileBuffer } from '@/lib/messaging/crypto';
 import { captureException } from '@/lib/observability';
 import { getAttachmentForDownload } from '@/modules/messaging/services/messaging.service';
 
+const INLINE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'application/pdf']);
+/** Errores de negocio del servicio: cualquier otro (blob, descifrado) va a observabilidad, nunca a la pantalla. */
+const NOT_FOUND_MESSAGES = new Set(['Archivo no encontrado', 'Conversación no encontrada']);
+
 /**
  * Único punto de descarga de un adjunto de mensajería. El blob de Vercel es
  * técnicamente público, pero su URL nunca sale del servidor: el cliente solo
@@ -22,10 +26,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const encryptedBuffer = Buffer.from(await blobResponse.arrayBuffer());
     const plainBuffer = decryptFileBuffer(encryptedBuffer);
 
+    // Se sirve desde el origen del panel: solo imágenes y PDF se abren en la
+    // pestaña; todo lo demás (texto, CSV, Office, ZIP) se descarga, y `nosniff`
+    // impide que el navegador lo interprete como HTML aunque lo parezca.
+    const inline = INLINE_TYPES.has(attachment.mimeType);
     return new NextResponse(new Uint8Array(plainBuffer), {
       headers: {
         'Content-Type': attachment.mimeType,
-        'Content-Disposition': `inline; filename="${encodeURIComponent(attachment.fileName)}"`,
+        'Content-Disposition': `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(attachment.fileName)}`,
+        'X-Content-Type-Options': 'nosniff',
         'Cache-Control': 'private, max-age=0, no-store',
       },
     });
@@ -39,8 +48,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     if (error instanceof TenantInactiveError) {
       return NextResponse.json({ success: false, error: error.message }, { status: 403 });
     }
-    if (error instanceof Error) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 404 });
+    if (error instanceof Error && NOT_FOUND_MESSAGES.has(error.message)) {
+      return NextResponse.json({ success: false, error: 'Archivo no encontrado' }, { status: 404 });
     }
     captureException(error, { module: 'messaging' });
     return NextResponse.json({ success: false, error: 'No se pudo descargar el archivo' }, { status: 500 });

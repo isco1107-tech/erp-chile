@@ -1,3 +1,5 @@
+import { assertResolvesToPublicAddress, isSafeOutboundWebhookUrl } from '@/lib/security/outbound-url';
+
 export type CompanySiiApiConfig = {
   enabled: boolean;
   baseUrl: string | null;
@@ -70,10 +72,17 @@ export async function pingSiiApi(companyId: string, endpoint = '/status'): Promi
   const url = buildSiiApiUrl(config.baseUrl, endpoint);
   const headers = buildSiiApiHeaders(config.apiKey, config.apiSecret);
 
+  // La URL la escribe cada empresa: sin esto, el servidor serviría de puente
+  // hacia la red interna o la metadata de la nube, y con la llave de la empresa.
+  const safe = isSafeOutboundWebhookUrl(url);
+  if (!safe.ok) throw new Error(`La URL de la API del SII no está permitida: ${safe.reason}`);
+  await assertResolvesToPublicAddress(new URL(url).hostname);
+
   const response = await fetch(url, {
     method: 'GET',
     headers,
     cache: 'no-store',
+    redirect: 'error',
   });
 
   const payload = await response.text();

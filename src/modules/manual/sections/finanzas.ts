@@ -339,7 +339,7 @@ export const FINANZAS_SECTIONS: ManualSection[] = [
         permission: 'paymentplans:write',
         steps: [
           'En "Pago en línea de cuotas", el Dueño o Administrador guarda la API key de Khipu de la empresa (define a qué cuenta llega el dinero).',
-          'Presiona "Generar link del portal" y compártelo: las familias ingresan el RUT de la candidata, eligen las cuotas y pagan por transferencia.',
+          'Presiona "Generar link del portal" y compártelo: las familias ingresan el RUT y la fecha de nacimiento de la candidata, eligen las cuotas y pagan por transferencia.',
           'Cuando Khipu confirma el pago, la cuota queda pagada sola y a quien pagó le llega el comprobante por correo.',
         ],
       },

@@ -8,7 +8,7 @@ import { createAuditLog } from '@/lib/auth/audit';
 import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import { prisma } from '@/lib/prisma';
 import { encryptTotpSecret, decryptTotpSecret } from '@/lib/auth/totp-crypto';
-import { generateTotpSecret, buildTotpUri, verifyTotpCode, generateBackupCodes } from '@/lib/auth/totp';
+import { generateTotpSecret, buildTotpUri, verifyTotpCodeOnce, generateBackupCodes } from '@/lib/auth/totp';
 
 export type ActionResult<T> =
   | { success: true; data: T; message?: string }
@@ -94,8 +94,9 @@ export async function confirmTotpSetupAction(input: unknown): Promise<ActionResu
     const user = await prisma.user.findUniqueOrThrow({ where: { id: context.id }, select: { totpSecret: true } });
     if (!user.totpSecret) return { success: false, error: 'Primero genera un código QR' };
 
-    const valid = await verifyTotpCode(decryptTotpSecret(user.totpSecret), parsed.data.code);
-    if (!valid) return { success: false, error: 'Código incorrecto. Verifica la hora de tu dispositivo e intenta de nuevo' };
+    // El código con que se activa queda marcado como usado: no sirve después para entrar.
+    const acceptedStep = await verifyTotpCodeOnce(decryptTotpSecret(user.totpSecret), parsed.data.code, null);
+    if (acceptedStep === null) return { success: false, error: 'Código incorrecto. Verifica la hora de tu dispositivo e intenta de nuevo' };
 
     const backupCodes = generateBackupCodes();
     const hashed = await Promise.all(backupCodes.map((c) => bcrypt.hash(c, 12)));
@@ -103,7 +104,7 @@ export async function confirmTotpSetupAction(input: unknown): Promise<ActionResu
     await prisma.$transaction([
       prisma.totpBackupCode.deleteMany({ where: { userId: context.id } }),
       prisma.totpBackupCode.createMany({ data: hashed.map((codeHash) => ({ userId: context.id, codeHash })) }),
-      prisma.user.update({ where: { id: context.id }, data: { totpEnabled: true } }),
+      prisma.user.update({ where: { id: context.id }, data: { totpEnabled: true, totpLastUsedStep: acceptedStep } }),
     ]);
 
     await createAuditLog({

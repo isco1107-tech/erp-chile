@@ -16,6 +16,11 @@ jest.mock('jose', () => ({ jwtVerify: jest.fn(), SignJWT: jest.fn() }));
 jest.mock('next/server', () => ({ ...jest.requireActual('next/server'), after: jest.fn() }));
 jest.mock('@/lib/email/mailer', () => ({ getAppUrl: () => 'https://app.test' }));
 jest.mock('@/lib/observability', () => ({ captureException: jest.fn() }));
+// El contador compartido del límite de tasa vive en Postgres; acá se prueba la ruta, con el de memoria.
+jest.mock('@/lib/security/durable-rate-limit', () => {
+  const { checkRateLimit } = jest.requireActual('@/lib/security/rate-limiter');
+  return { checkLayeredRateLimit: async (id: string, config: unknown) => checkRateLimit(id, config) };
+});
 jest.mock('@/lib/notifications/company-notification', () => ({ notifyCompany: jest.fn() }));
 jest.mock('@/lib/workflows/engine', () => ({ emitWorkflowEvent: jest.fn() }));
 jest.mock('@/lib/storage/blob', () => ({ put: jest.fn(), del: jest.fn() }));

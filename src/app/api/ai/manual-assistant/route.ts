@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { Content, FunctionDeclaration } from '@google/genai';
 import { AuthError, TenantInactiveError, getAuthContext } from '@/lib/auth/guards';
 import { captureException } from '@/lib/observability';
+import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import { generateAgentWithTools } from '@/modules/agents/services/gemini-agent';
 import { MANUAL_LOOKUP_TOOL, buildManualSystemPrompt, lookupManual } from '@/modules/manual/prompt';
 import { checkRateLimit, MANUAL_ASSISTANT_RATE_LIMIT } from '@/lib/security/rate-limiter';
@@ -155,7 +156,9 @@ export async function POST(req: Request) {
           pendingAction = { token, summary: resolved.summary };
           return { ok: true, summary: resolved.summary };
         } catch (error) {
-          return { error: error instanceof Error ? error.message : 'No se pudo procesar la acción' };
+          // Los errores de negocio (en español) pasan; los de Prisma u otros se
+          // traducen y van a observabilidad: el modelo los repite en pantalla.
+          return { error: toFriendlyErrorMessage(error) };
         }
       },
       [MANUAL_LOOKUP_TOOL]: async (args) => ({ manual: lookupManual(session.features, session.permissions, args) }),

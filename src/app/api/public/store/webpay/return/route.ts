@@ -1,8 +1,9 @@
+import { checkLayeredRateLimit } from '@/lib/security/durable-rate-limit';
 import { NextResponse } from 'next/server';
 import { getAppUrl } from '@/lib/email/mailer';
 import { captureException } from '@/lib/observability';
 import { extractClientIp } from '@/lib/auth/ip-allowlist';
-import { STORE_GATEWAY_RETURN_RATE_LIMIT, checkRateLimit } from '@/lib/security/rate-limiter';
+import { STORE_GATEWAY_RETURN_RATE_LIMIT } from '@/lib/security/rate-limiter';
 import { handleWebpayReturn } from '@/modules/ecommerce/services/store-payment.service';
 
 export const dynamic = 'force-dynamic';
@@ -15,7 +16,7 @@ export const dynamic = 'force-dynamic';
  */
 async function handle(req: Request, tokenWs: string | null, tbkToken: string | null) {
   // Cada regreso consulta a Transbank con la llave de la empresa: pasado el tope, el comprador vuelve a la plataforma y su pedido se resuelve con el aviso de la pasarela o el cron.
-  if (!checkRateLimit(extractClientIp(req) ?? 'unknown', STORE_GATEWAY_RETURN_RATE_LIMIT).allowed) return NextResponse.redirect(getAppUrl(), 303);
+  if (!(await checkLayeredRateLimit(extractClientIp(req) ?? 'unknown', STORE_GATEWAY_RETURN_RATE_LIMIT)).allowed) return NextResponse.redirect(getAppUrl(), 303);
   try {
     const destination = await handleWebpayReturn({ tokenWs, tbkToken });
     // Un token que no es de este sistema no revela nada: vuelve a la plataforma.

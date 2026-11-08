@@ -1,5 +1,8 @@
 import 'dotenv/config';
 import { prisma } from '../src/lib/prisma';
+import { assertLocalDatabase } from './lib/guard-production';
+
+assertLocalDatabase('verify-accounting-invariants');
 
 /**
  * Fase B.2 de PROMPT_ERP_V2.md: prueba que la base de datos rechaza cada
