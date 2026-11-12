@@ -192,6 +192,31 @@ export const INVENTARIO_SECTIONS: ManualSection[] = [
     ],
   },
   {
+    id: 'retiro-de-lote',
+    key: 'hasInventory',
+    permission: 'products:read',
+    chapter: 'Inventario',
+    title: 'Retiro de lote',
+    summary: 'La genealogía de un lote: de dónde vino, en qué se transformó, a qué clientes llegó y cuánto queda. Para un retiro del mercado o una auditoría.',
+    route: '/dashboard/inventory/retiro-de-lote',
+    // Sin captura hasta correr scripts/capture-manual-screenshots.ts contra una base local.
+    screenshot: null,
+    topics: [
+      {
+        id: 'rastrear-lote',
+        title: 'Rastrear un lote',
+        steps: [
+          'Ve a Inventario → Retiro de lote, busca el producto y elígelo.',
+          'Elige el lote de la lista (se ve su vencimiento y cuánto queda).',
+          'Arriba ves lo recibido, lo despachado, lo que queda en bodega y los clientes alcanzados. "De dónde vino" muestra el proveedor y el documento de entrada; si se fabricó, la orden de producción con los lotes de insumo.',
+          '"A quién llegó" lista los clientes con las unidades netas de devoluciones y sus documentos. Quien no tiene acceso a Ventas no ve esta parte.',
+          'Presiona "Descargar Excel" para el libro del retiro (resumen, origen, ventas, clientes, existencias).',
+        ],
+        tip: 'Solo se enlazan al documento los movimientos hechos después de esta versión; los anteriores aparecen con su referencia en texto. Si el lote no cuadra, la pantalla lo avisa. Para seguir un producto fabricado hasta el cliente, informa su lote al terminar la producción.',
+      },
+    ],
+  },
+  {
     id: 'etiquetas',
     key: 'hasInventory',
     permission: 'products:read',

@@ -179,6 +179,8 @@ function CompleteDialog({ order, showCosts, onClose, onDone }: { order: Producti
   const [consumed, setConsumed] = useState<Record<string, string>>(() => Object.fromEntries(order.components.map((component) => [component.id, String(component.plannedQuantity).replace('.', ',')])));
   const [additionalCost, setAdditionalCost] = useState(order.additionalCost);
   const [note, setNote] = useState(order.additionalCostNote ?? '');
+  const [outputLot, setOutputLot] = useState('');
+  const [outputExpiry, setOutputExpiry] = useState('');
   const [saving, setSaving] = useState(false);
 
   const preview = useMemo(() => {
@@ -195,6 +197,8 @@ function CompleteDialog({ order, showCosts, onClose, onDone }: { order: Producti
         consumed: Object.fromEntries(Object.entries(consumed).map(([id, value]) => [id, parseDecimal(value)])),
         additionalCost,
         additionalCostNote: note.trim() || undefined,
+        outputLotNumber: outputLot.trim() || undefined,
+        outputExpiryDate: outputExpiry || undefined,
       });
       if (!result.success) {
         toast.error(result.error);
@@ -239,6 +243,17 @@ function CompleteDialog({ order, showCosts, onClose, onDone }: { order: Producti
               <Input id="done-note" value={note} maxLength={200} onChange={(e) => setNote(e.target.value)} placeholder="Ej: 6 horas de cocina" />
             </div>
           </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="done-lot">Lote del producto terminado (opcional)</Label>
+              <Input id="done-lot" value={outputLot} maxLength={60} onChange={(e) => setOutputLot(e.target.value)} placeholder="Ej: L-2026-11-A" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="done-lot-exp">Vencimiento del lote</Label>
+              <Input id="done-lot-exp" type="date" value={outputExpiry} onChange={(e) => setOutputExpiry(e.target.value)} />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">Solo cuenta si el producto maneja lotes. Con el lote puedes seguir el producto terminado hasta cada venta en Trazabilidad.</p>
           {showCosts && preview && (
             <p className="rounded-md bg-muted px-3 py-2 text-sm">
               Costo estimado: <strong className="tabular-nums">{formatCurrency(preview.total)}</strong> · <strong className="tabular-nums">{money2(preview.unitCost)}</strong> por {order.unit}

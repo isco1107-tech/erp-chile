@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { prisma } from '@/lib/prisma';
 import type { Prisma, SalesDocument, SalesDocumentItem } from '@prisma/client';
 import { applyStockOut, type TxClient } from '@/modules/inventory/services/stock.service';
@@ -232,6 +233,8 @@ export async function createPosSale(
     // una compra confirmaba entre ambas lecturas.
     const costByProduct = new Map<string, number>();
     const costedItemsForAccounting: { unitCostPMP: number; quantity: number }[] = [];
+    // Id de la boleta antes de mover stock: el kardex guarda de qué documento nació cada movimiento.
+    const documentId = randomUUID();
     for (const item of computedItems) {
       if (!item.isTrackable) continue;
       const movement = await applyStockOut(tx, companyId, {
@@ -241,6 +244,7 @@ export async function createPosSale(
         quantity: item.quantity,
         reference,
         userId,
+        source: { kind: 'SALES_DOCUMENT', id: documentId },
       });
       costByProduct.set(item.productId, movement.unitCost);
       costedItemsForAccounting.push({ unitCostPMP: movement.unitCost, quantity: item.quantity });
@@ -312,6 +316,7 @@ export async function createPosSale(
 
     const document = await tx.salesDocument.create({
       data: {
+        id: documentId,
         companyId,
         contactId,
         warehouseId,

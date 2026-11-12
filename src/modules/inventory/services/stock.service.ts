@@ -5,6 +5,7 @@ import { calculateNewPmp } from '@/lib/inventory/pmp';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { postInventoryAdjustmentEntry } from '@/modules/accounting/posting-rules/inventory-posting';
 import { allocateFefo, normalizeLotNumber, NO_LOT, type LotAllocation } from '@/lib/inventory/lots';
+import type { MovementSource } from '@/lib/inventory/traceability-sources';
 import type { WarehouseCreateInput } from '../schema';
 
 /** Tope de la columna `InventoryMovement.totalCost` (Int de Postgres). */
@@ -38,6 +39,8 @@ export interface MovementAttribution {
   evidenceUrl?: string;
   /** Proveedor de quien llegó la mercadería (debe ser un contacto de la empresa). */
   supplierId?: string;
+  /** Documento que origina el movimiento (venta, recepción, producción…): lo lee la trazabilidad. */
+  source?: MovementSource;
 }
 
 export interface StockInLot {
@@ -177,6 +180,8 @@ export async function applyStockIn(tx: TxClient, companyId: string, params: Stoc
       reasonCode: params.reasonCode,
       evidenceUrl: params.evidenceUrl,
       supplierId,
+      sourceKind: params.source?.kind,
+      sourceId: params.source?.id,
     },
   });
 }
@@ -280,6 +285,8 @@ export async function applyStockOut(tx: TxClient, companyId: string, params: Sto
       reasonCode: params.reasonCode,
       evidenceUrl: params.evidenceUrl,
       supplierId: params.supplierId,
+      sourceKind: params.source?.kind,
+      sourceId: params.source?.id,
     },
   });
 }

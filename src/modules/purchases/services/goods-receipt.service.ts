@@ -112,6 +112,7 @@ export async function createGoodsReceipt(
         quantity: line.quantity,
         unitCost: orderItem.unitCost,
         reference: `Recepción #${receipt.folio} (OC #${order.folio})`,
+        source: { kind: 'GOODS_RECEIPT', id: receipt.id },
         lots:
           line.lotNumber || line.expiryDate
             ? [{ lotNumber: normalizeLotNumber(line.lotNumber), expiryDate: parseExpiryDate(line.expiryDate), quantity: line.quantity }]
@@ -180,6 +181,7 @@ export async function cancelGoodsReceipt(companyId: string, id: string): Promise
             quantity: line.quantity,
             reference: `Anulación Recepción #${receipt.folio}`,
             notes: 'Recepción de mercadería anulada',
+            source: { kind: 'GOODS_RECEIPT', id: receipt.id },
           });
         }
       }

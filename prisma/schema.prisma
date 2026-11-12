@@ -1140,11 +1140,17 @@ model InventoryMovement {
   supplier       Contact?            @relation("MovementSupplier", fields: [supplierId], references: [id], onDelete: SetNull)
   /// Quién responde por esta pérdida (solo salidas; ver `ShrinkageLiability`).
   liability      ShrinkageLiability?
+  /// Documento que originó el movimiento (`MovementSourceKind` en `traceability-sources.ts`)
+  /// y su id. Id simple, sin llave foránea: el documento puede ser de varios tipos. `null` en
+  /// ajustes manuales y en todo lo anterior a este campo (ahí solo queda `reference`, texto).
+  sourceKind     String?
+  sourceId       String?
   createdAt      DateTime            @default(now())
 
   @@index([companyId, productId, createdAt])
   @@index([companyId, warehouseId, createdAt])
   @@index([companyId, supplierId, createdAt])
+  @@index([companyId, sourceKind, sourceId])
 }
 
 /// Qué productos surte cada proveedor. La app del bodeguero lo anota sola cada

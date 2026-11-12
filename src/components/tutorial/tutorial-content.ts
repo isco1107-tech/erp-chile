@@ -150,6 +150,16 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       note('Series por unidad', 'En la vista Series registras números de serie y los mueves entre En bodega, Vendida, Perdida y Devuelta.'),
     ],
   },
+  'inventory-recall': {
+    title: 'Retiro de lote',
+    steps: [
+      header('Rastrea un lote completo', 'Busca el producto, elige el lote y ve de dónde vino y a quién llegó.'),
+      note('Hacia atrás', 'Proveedor, documento de entrada y, si se fabricó, la orden de producción con los lotes de insumo.'),
+      note('Hacia adelante', 'Ventas y clientes que lo recibieron (netos de devoluciones), pérdidas y lo que queda en cada bodega.'),
+      note('Cuadre', 'La pantalla avisa si lo recibido menos lo despachado no coincide con lo que hay en bodega.'),
+      note('Excel', '"Descargar Excel" arma el libro del retiro. Queda registrado en la bitácora porque trae nombres y RUT de clientes.'),
+    ],
+  },
   'inventory-labels': {
     title: 'Etiquetas',
     steps: [

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { prisma } from '@/lib/prisma';
 import { formatCurrency } from '@/lib/chile/tax';
 import type {
@@ -313,6 +314,8 @@ export async function createSalesDocument(
     // el reverso de `COSTO_VENTAS`/`EXISTENCIAS` que postea `postCreditNoteIssued`
     // — mismo costo que `applyStockIn` usa más abajo, capturado acá porque el
     // asiento se emite después de crear el documento.
+    // Id del documento ANTES de mover stock: el kardex guarda de qué documento nació cada movimiento (trazabilidad).
+    const documentId = randomUUID();
     const restockedForAccounting: { unitCostPMP: number; quantity: number }[] = [];
     // Costo de venta para la regla contable: solo las líneas que en verdad
     // descontaron Kardex (`isTrackable`), nunca todas las líneas del
@@ -383,6 +386,7 @@ export async function createSalesDocument(
             quantity: item.quantity,
             unitCost: restockUnitCost,
             reference: `DTE ${dteLabel} Folio #${folio ?? '-'}`,
+            source: { kind: 'SALES_DOCUMENT', id: documentId },
           });
           // El reverso contable usa el costo que de verdad quedó en el kardex (un producto de seller entra a costo 0), no el de la línea original.
           restockedForAccounting.push({ unitCostPMP: restocked.unitCost, quantity: item.quantity });
@@ -397,6 +401,7 @@ export async function createSalesDocument(
             type: 'SALE_OUT',
             quantity: item.quantity,
             reference: `DTE ${dteLabel} Folio #${folio ?? '-'}`,
+            source: { kind: 'SALES_DOCUMENT', id: documentId },
           });
           costByProduct.set(item.productId, movement.unitCost);
           costedItemsForAccounting.push({ unitCostPMP: movement.unitCost, quantity: item.quantity });
@@ -491,6 +496,7 @@ export async function createSalesDocument(
 
     const created = await tx.salesDocument.create({
       data: {
+        id: documentId,
         companyId,
         contactId: input.contactId,
         warehouseId: input.warehouseId,
@@ -728,6 +734,7 @@ export async function cancelSalesDocument(companyId: string, id: string, reason?
           quantity: item.quantity,
           unitCost: item.unitCostPMP,
           reference: cancellationNote,
+          source: { kind: 'SALES_DOCUMENT', id: document.id },
         });
       }
     } else if (document.dteType === 'NOTA_CREDITO_61') {
@@ -748,6 +755,7 @@ export async function cancelSalesDocument(companyId: string, id: string, reason?
           type: 'ADJUSTMENT_OUT',
           quantity: item.quantity,
           reference: cancellationNote,
+          source: { kind: 'SALES_DOCUMENT', id: document.id },
         });
       }
 
