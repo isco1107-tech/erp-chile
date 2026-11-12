@@ -1,3 +1,6 @@
+import { randomUUID } from 'node:crypto';
+import { normalizeSerial } from '@/lib/inventory/traceability';
+import { sellSerialsTx } from '@/modules/inventory/services/serial-flow.service';
 import { prisma } from '@/lib/prisma';
 import type { Prisma, SalesDocument, SalesDocumentItem } from '@prisma/client';
 import { applyStockOut, type TxClient } from '@/modules/inventory/services/stock.service';
@@ -232,6 +235,20 @@ export async function createPosSale(
     // una compra confirmaba entre ambas lecturas.
     const costByProduct = new Map<string, number>();
     const costedItemsForAccounting: { unitCostPMP: number; quantity: number }[] = [];
+    // Id de la boleta antes de mover stock: el kardex guarda de qué documento nació cada movimiento.
+    const documentId = randomUUID();
+    // Series indicadas por producto, en el orden de las líneas.
+    const serialQueue = new Map<string, string[]>();
+    for (const line of input.items) {
+      if (!line.serials?.length) continue;
+      const list = serialQueue.get(line.productId) ?? [];
+      for (const raw of line.serials) {
+        const serial = normalizeSerial(raw);
+        if (!serial) throw new Error(`La serie «${raw.slice(0, 40)}» no es válida`);
+        list.push(serial);
+      }
+      serialQueue.set(line.productId, list);
+    }
     for (const item of computedItems) {
       if (!item.isTrackable) continue;
       const movement = await applyStockOut(tx, companyId, {
@@ -241,9 +258,26 @@ export async function createPosSale(
         quantity: item.quantity,
         reference,
         userId,
+        source: { kind: 'SALES_DOCUMENT', id: documentId },
       });
       costByProduct.set(item.productId, movement.unitCost);
       costedItemsForAccounting.push({ unitCostPMP: movement.unitCost, quantity: item.quantity });
+
+      const queue = serialQueue.get(item.productId);
+      if (queue && queue.length > 0) {
+        const serialProduct = await tx.product.findFirst({ where: { id: item.productId, companyId }, select: { name: true, warrantyMonths: true } });
+        await sellSerialsTx(tx, companyId, userId, {
+          productId: item.productId,
+          productName: serialProduct?.name ?? item.productId,
+          warehouseId,
+          quantity: item.quantity,
+          serials: queue.splice(0, Math.max(0, Math.round(item.quantity))),
+          salesDocumentId: documentId,
+          warrantyMonths: serialProduct?.warrantyMonths ?? null,
+          at: new Date(),
+          reference,
+        });
+      }
     }
 
     // Timbrado electrónico — mismo bloque que `sales.service.ts`. Solo ocurre
@@ -312,6 +346,7 @@ export async function createPosSale(
 
     const document = await tx.salesDocument.create({
       data: {
+        id: documentId,
         companyId,
         contactId,
         warehouseId,
@@ -429,6 +464,8 @@ export interface PosProduct {
   stock: number;
   isTrackable: boolean;
   isExempt: boolean;
+  /** Se vende por número de serie: el cajero indica una serie por unidad antes de cobrar. */
+  tracksSerials: boolean;
   barcode: string | null;
   /** Códigos de empaques: escanear uno agrega `factor` unidades. */
   packagings: { barcode: string; factor: number; name: string }[];
@@ -466,6 +503,7 @@ export async function listPosProducts(companyId: string, warehouseId: string): P
     })(),
     isTrackable: product.isTrackable,
     isExempt: product.isExempt,
+    tracksSerials: product.tracksSerials,
   }));
 }
 

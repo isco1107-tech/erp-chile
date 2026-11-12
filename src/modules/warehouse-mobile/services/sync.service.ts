@@ -9,6 +9,8 @@ import { normalizeLotNumber, parseExpiryDate } from '@/lib/inventory/lots';
 import { MODE_DEFINITIONS, buildMovementNote, type MobileMode } from '@/lib/warehouse-mobile/modes';
 import { nextAutoSku } from '@/lib/warehouse-mobile/sku';
 import { normalizeText, scoreTextMatch, searchTermsFor } from '@/lib/warehouse-mobile/match';
+import { normalizeSerial } from '@/lib/inventory/traceability';
+import { SerialFlowError, dispatchSerialsTx, receiveSerialsTx, relocateSerialsTx } from '@/modules/inventory/services/serial-flow.service';
 import { registerStockInTx, registerStockOutTx, registerTransferTx, type TxClient } from '@/modules/inventory/services/stock.service';
 import { syncOperationSchema, type CreateProductOp, type MoveOp, type SyncOperation } from '../schema';
 import type { AppliedOpResult, MobileProduct, OpRejectCode, OpResult } from '../types';
@@ -105,6 +107,7 @@ interface MoveInput {
   lotNumber?: string;
   expiryDate?: string;
   capturedAt?: string;
+  serials?: string[];
 }
 
 /** Que el proveedor elegido sea un proveedor de ESTA empresa (el id llega del celular). */
@@ -131,6 +134,21 @@ function assertEvidenceUrl(companyId: string, evidenceUrl: string | undefined): 
   }
 }
 
+/** Series de la operación, normalizadas (el esquema ya comprobó que son válidas y no se repiten). */
+function normalizedSerials(raw: string[] | undefined): string[] {
+  return (raw ?? []).map((serial) => normalizeSerial(serial)).filter((serial): serial is string => serial !== null);
+}
+
+/** Un rechazo de negocio de las series es un rechazo de la operación (no deja nada a medias). */
+async function serialStep(step: () => Promise<void>): Promise<void> {
+  try {
+    await step();
+  } catch (error) {
+    if (error instanceof SerialFlowError) throw new OpReject('INVALID', error.message);
+    throw error;
+  }
+}
+
 /** El movimiento en sí, dentro de una transacción ya abierta. */
 async function moveInTx(tx: TxClient, actor: SyncActor, input: MoveInput): Promise<{ product: { id: string; sku: string; name: string; unit: string }; newStock: number }> {
   const def = MODE_DEFINITIONS[input.mode];
@@ -141,6 +159,7 @@ async function moveInTx(tx: TxClient, actor: SyncActor, input: MoveInput): Promi
     select: { id: true, sku: true, name: true, unit: true, costPricePMP: true, isActive: true, isTrackable: true },
   });
   if (!product) throw new OpReject('NOT_FOUND', 'El producto ya no está en el catálogo');
+  const serials = normalizedSerials(input.serials);
   if (!product.isTrackable) throw new OpReject('OTHER', 'Este producto no maneja stock');
   if (def.direction === 'in' && !product.isActive) {
     throw new OpReject('ARCHIVED_PRODUCT', `"${product.name}" está archivado. Restáuralo desde el Catálogo de Productos para recibir stock.`);
@@ -177,6 +196,22 @@ async function moveInTx(tx: TxClient, actor: SyncActor, input: MoveInput): Promi
       supplierId,
     });
     if (supplierId) await linkSupplier(tx, companyId, product.id, supplierId);
+    if (serials.length > 0) {
+      await serialStep(() =>
+        receiveSerialsTx(tx, companyId, actor.userId, {
+          productId: product.id,
+          productName: product.name,
+          warehouseId: input.warehouseId,
+          quantity: input.quantity,
+          serials,
+          supplierId: supplierId ?? null,
+          lotNumber: lots ? lots[0]!.lotNumber : null,
+          reference: reference ?? `Bodega móvil: ${def.label}`,
+          // Una devolución de cliente o un sobrante puede ser una serie que ya salió.
+          allowReopen: input.mode === 'RETURN' || input.mode === 'SURPLUS',
+        })
+      );
+    }
     return { product, newStock: movement.newStock };
   }
 
@@ -191,6 +226,21 @@ async function moveInTx(tx: TxClient, actor: SyncActor, input: MoveInput): Promi
       ...attribution,
       reasonCode: input.reason,
     });
+    if (serials.length > 0) {
+      await serialStep(() =>
+        dispatchSerialsTx(tx, companyId, actor.userId, {
+          productId: product.id,
+          productName: product.name,
+          warehouseId: input.warehouseId,
+          quantity: input.quantity,
+          serials,
+          // Devolver al proveedor no es perder: la serie queda como devuelta.
+          to: input.reason === 'SUPPLIER_RETURN' ? 'RETURNED' : 'LOST',
+          reference: reference ?? `Bodega móvil: ${def.label}`,
+          note: notes ?? null,
+        })
+      );
+    }
     return { product, newStock: movement.newStock };
   }
 
@@ -204,6 +254,19 @@ async function moveInTx(tx: TxClient, actor: SyncActor, input: MoveInput): Promi
     notes,
     ...attribution,
   });
+  if (serials.length > 0) {
+    await serialStep(() =>
+      relocateSerialsTx(tx, companyId, actor.userId, {
+        productId: product.id,
+        productName: product.name,
+        fromWarehouseId: input.warehouseId,
+        toWarehouseId: input.targetWarehouseId!,
+        quantity: input.quantity,
+        serials,
+        reference: reference ?? 'Bodega móvil: traslado',
+      })
+    );
+  }
   return { product, newStock: moved.out.newStock };
 }
 

@@ -279,6 +279,7 @@ export async function postInventoryCount(companyId: string, id: string, userId: 
           quantity: adjustment,
           unitCost,
           reference,
+          source: { kind: 'INVENTORY_COUNT', id: count.id },
         });
         await postInventoryAdjustmentEntry(tx, companyId, movement, true, { createdByUserId: userId });
         surplusValue += movement.totalCost;
@@ -290,6 +291,7 @@ export async function postInventoryCount(companyId: string, id: string, userId: 
           type: 'ADJUSTMENT_OUT',
           quantity: -adjustment,
           reference,
+          source: { kind: 'INVENTORY_COUNT', id: count.id },
         });
         await postInventoryAdjustmentEntry(tx, companyId, movement, false, { createdByUserId: userId });
         shortageValue += movement.totalCost;

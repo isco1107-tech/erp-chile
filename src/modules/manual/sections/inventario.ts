@@ -155,6 +155,90 @@ export const INVENTARIO_SECTIONS: ManualSection[] = [
     ],
   },
   {
+    id: 'trazabilidad',
+    key: 'hasInventory',
+    permission: 'products:read',
+    chapter: 'Inventario',
+    title: 'Trazabilidad de productos',
+    summary: 'El recorrido de un producto en un tablero (de la orden de compra a la venta o la pérdida), su línea de tiempo y el seguimiento de cada unidad por número de serie.',
+    route: '/dashboard/inventory/trazabilidad',
+    // Sin captura hasta correr scripts/capture-manual-screenshots.ts contra una base local.
+    screenshot: null,
+    topics: [
+      {
+        id: 'panel-trazabilidad',
+        title: 'Revisar el estado de la trazabilidad',
+        steps: [
+          'Ve a Inventario → Trazabilidad. Antes de buscar un producto verás el estado de toda la empresa: productos con lotes y con series, lotes vencidos o por vencer, órdenes de compra en camino y el porcentaje de ventas y llegadas con documento enlazado.',
+          '"Qué atender" lista lo que impide seguir bien el inventario (lotes vencidos, stock sin lote, series que no calzan con el stock, órdenes atrasadas). Cada fila lleva a la pantalla donde se resuelve.',
+          '"Stock sin lote" muestra los productos con lotes que tienen unidades en SIN-LOTE: en un retiro no se sabría de qué proveedor vinieron.',
+          'Presiona "Excel" para descargar el estado completo.',
+        ],
+      },
+      {
+        id: 'ver-recorrido',
+        title: 'Ver el recorrido de un producto',
+        steps: [
+          'Ve a Inventario → Trazabilidad, escribe el nombre, SKU o código de barras y presiona "Buscar".',
+          'Elige el producto de la lista. Se abre la vista "Flujo" con seis columnas: En camino, Recepcionado, En bodega, Trasladado, Vendido y Pérdidas y devoluciones.',
+          'Cambia el período (7, 30 o 90 días). "En camino" (órdenes de compra enviadas sin recibir completas) y "En bodega" muestran siempre lo de hoy.',
+          'En "En bodega" cada bodega indica sus lotes y si todas sus unidades tienen número de serie.',
+          'Más abajo, la línea de tiempo muestra cada movimiento con quién lo hizo, el documento de origen y la foto de respaldo si la hay.',
+        ],
+        tip: 'Una columna vacía significa que no hay nada registrado: la pantalla nunca rellena con datos inventados.',
+      },
+      {
+        id: 'series',
+        title: 'Seguir cada unidad por número de serie',
+        steps: [
+          'En el producto elegido abre la vista "Series".',
+          'Presiona "Registrar series", elige la bodega donde están y escribe una serie por línea (hasta 500 por vez). Opcionalmente indica lote, proveedor y una nota.',
+          'Cada serie aparece en la columna "En bodega". Desde su tarjeta puedes "Marcar vendida" (y asociarla a la venta), "Dar de baja (pérdida)" explicando qué pasó, o "Devolver al proveedor".',
+          'Una serie vendida, perdida o devuelta puede "Volver a bodega" (por ejemplo, una devolución de cliente).',
+          'Para cambiar series de bodega marca sus casillas y presiona "Trasladar seleccionadas": mueve también el stock, igual que un traslado normal.',
+        ],
+        tip: 'Registrar o cambiar de estado una serie no mueve el stock: la entrada de mercadería, las ventas y las mermas siguen su propio camino. Solo el traslado de series mueve stock.',
+      },
+      {
+        id: 'series-automaticas',
+        title: 'Series y garantía en la recepción y la venta',
+        steps: [
+          'En la ficha del producto (Catálogo de Productos) marca "Se controla por número de serie" y, si corresponde, escribe los meses de garantía.',
+          'Al confirmar una recepción de una orden de compra, los productos con serie piden las series: una por línea, tantas como unidades. Entran en la bodega de la recepción con su proveedor y su lote.',
+          'Al emitir un documento en Ventas, los productos con serie muestran bajo su línea un campo "Series" (una por línea). Las series indicadas quedan vendidas a ese documento y su garantía empieza ese día. Si anulas el documento, vuelven a la bodega.',
+          'Si anulas una recepción, sus series se retiran, siempre que sigan en bodega. Si alguna ya se vendió, la anulación se rechaza.',
+          'Para ver el recorrido de una unidad escribe su número en "Buscar un número de serie": muestra su origen, ubicación, venta, cliente (si tienes acceso a Ventas), garantía y órdenes de servicio técnico.',
+        ],
+        tip: 'Un producto con serie vendido sin indicar sus series no se bloquea: aparece en "Qué atender" como unidad vendida sin serie, para asignarla con "Marcar vendida". El Punto de Venta aún no pide las series por unidad en pantalla.',
+      },
+    ],
+  },
+  {
+    id: 'retiro-de-lote',
+    key: 'hasInventory',
+    permission: 'products:read',
+    chapter: 'Inventario',
+    title: 'Retiro de lote',
+    summary: 'La genealogía de un lote: de dónde vino, en qué se transformó, a qué clientes llegó y cuánto queda. Para un retiro del mercado o una auditoría.',
+    route: '/dashboard/inventory/retiro-de-lote',
+    // Sin captura hasta correr scripts/capture-manual-screenshots.ts contra una base local.
+    screenshot: null,
+    topics: [
+      {
+        id: 'rastrear-lote',
+        title: 'Rastrear un lote',
+        steps: [
+          'Ve a Inventario → Retiro de lote, busca el producto y elígelo.',
+          'Elige el lote de la lista (se ve su vencimiento y cuánto queda).',
+          'Arriba ves lo recibido, lo despachado, lo que queda en bodega y los clientes alcanzados. "De dónde vino" muestra el proveedor y el documento de entrada; si se fabricó, la orden de producción con los lotes de insumo.',
+          '"A quién llegó" lista los clientes con las unidades netas de devoluciones y sus documentos. Quien no tiene acceso a Ventas no ve esta parte.',
+          'Presiona "Descargar Excel" para el libro del retiro (resumen, origen, ventas, clientes, existencias).',
+        ],
+        tip: 'Solo se enlazan al documento los movimientos hechos después de esta versión; los anteriores aparecen con su referencia en texto. Si el lote no cuadra, la pantalla lo avisa. Para seguir un producto fabricado hasta el cliente, informa su lote al terminar la producción.',
+      },
+    ],
+  },
+  {
     id: 'etiquetas',
     key: 'hasInventory',
     permission: 'products:read',
@@ -210,6 +294,18 @@ export const INVENTARIO_SECTIONS: ManualSection[] = [
           'Toca "Enviar". Lo que aún se está reconociendo no impide seguir agregando, pero sí enviar: espera o elige el producto a mano.',
         ],
         tip: 'Una llegada con el mismo código de barras de un producto que ya existe se suma a ese producto: nunca se duplica. Si el proveedor no está en la lista, créalo en Clientes & Proveedores marcándolo como proveedor.',
+      },
+      {
+        id: 'series-celular',
+        title: 'Registrar series desde el celular',
+        permission: 'inventory:write',
+        steps: [
+          'Los productos marcados "Se controla por número de serie" muestran en su línea un cuadro "Series: N de M". Escribe o lee con el lector la serie de cada unidad y toca "Agregar" (o Enter): cada serie sube la cantidad sola. Con la X de cada serie puedes quitarla.',
+          'En "Llegada de mercadería" las series se dan de alta en la bodega, con el proveedor y el lote. En "Devolución de cliente" y "Sobrante", una serie que ya había salido (vendida, perdida o devuelta) vuelve a la bodega y pierde su garantía.',
+          'En "Salida o merma" y "Faltante" las series dejan la bodega como perdidas; con el motivo "Devolución al proveedor" quedan como devueltas. En "Traslado entre bodegas" las series cambian de bodega junto con el stock.',
+          'No se puede enviar si faltan o sobran series respecto de la cantidad. Si el servidor rechaza una serie (repetida, no registrada o de otra bodega), la operación entera se rechaza y no se mueve nada: corrige la serie y vuelve a enviar.',
+        ],
+        tip: 'Una operación guardada en el celular antes de que existieran las series se envía igual, sin ellas: el producto queda con "series parciales" en Trazabilidad para completarlas. El lector de la cámara de la app aún no lee series; usa un lector de mano o escríbelas.',
       },
       {
         id: 'merma-traslado-celular',

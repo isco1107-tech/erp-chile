@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { prisma } from '@/lib/prisma';
 import { formatCurrency } from '@/lib/chile/tax';
 import type {
@@ -238,6 +239,8 @@ export async function createPurchaseDocument(
     // cuando la factura referencia una OC: ese movimiento ya ocurrió al
     // confirmar la Recepción de Mercadería, y volver a aplicarlo aquí
     // duplicaría el stock y el PMP.
+    // Id del documento ANTES de mover stock: el kardex guarda de qué documento nació cada movimiento.
+    const documentId = randomUUID();
     if (finalStatus === 'ISSUED' && direction !== 'NONE' && !purchaseOrder) {
       const warehouseId = receptionWarehouseId;
       for (const item of computedItems) {
@@ -256,6 +259,7 @@ export async function createPurchaseDocument(
             quantity: item.quantity,
             unitCost: item.unitCost,
             reference,
+            source: { kind: 'PURCHASE_DOCUMENT', id: documentId },
           });
         } else {
           if (referencedDocument) {
@@ -276,6 +280,7 @@ export async function createPurchaseDocument(
             type: 'ADJUSTMENT_OUT',
             quantity: item.quantity,
             reference,
+            source: { kind: 'PURCHASE_DOCUMENT', id: documentId },
             notes: 'Devolución al proveedor (Nota de Crédito)',
           });
         }
@@ -359,6 +364,7 @@ export async function createPurchaseDocument(
 
     const created = await tx.purchaseDocument.create({
       data: {
+        id: documentId,
         companyId,
         contactId: input.contactId,
         documentType: input.documentType,
@@ -599,6 +605,7 @@ export async function enrichPurchaseDocumentWithItems(
           quantity: item.quantity,
           unitCost: item.unitCost,
           reference: `Detalle agregado: Compra ${doc.documentType} Folio ${doc.folio}`,
+          source: { kind: 'PURCHASE_DOCUMENT', id: doc.id },
         });
       }
     }
@@ -831,6 +838,7 @@ export async function issuePurchaseDocument(companyId: string, id: string): Prom
             quantity: item.quantity,
             unitCost: item.unitCost,
             reference,
+            source: { kind: 'PURCHASE_DOCUMENT', id: doc.id },
           });
         } else {
           if (referencedDocument) {
@@ -851,6 +859,7 @@ export async function issuePurchaseDocument(companyId: string, id: string): Prom
             type: 'ADJUSTMENT_OUT',
             quantity: item.quantity,
             reference,
+            source: { kind: 'PURCHASE_DOCUMENT', id: doc.id },
             notes: 'Devolución al proveedor (Nota de Crédito)',
           });
         }
@@ -968,6 +977,7 @@ export async function approvePurchaseDocument(
           quantity: item.quantity,
           unitCost: item.unitCost,
           reference: `Compra ${doc.documentType} Folio ${doc.folio}`,
+          source: { kind: 'PURCHASE_DOCUMENT', id: doc.id },
         });
       }
     }

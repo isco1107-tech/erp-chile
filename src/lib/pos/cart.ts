@@ -14,6 +14,10 @@ export interface CartLine {
   stock: number;
   isTrackable: boolean;
   isExempt: boolean;
+  /** El producto se vende por número de serie (una por unidad). */
+  tracksSerials?: boolean;
+  /** Series indicadas por el cajero, ya normalizadas. */
+  serials?: string[];
 }
 
 export interface CartProduct {
@@ -25,6 +29,7 @@ export interface CartProduct {
   stock: number;
   isTrackable: boolean;
   isExempt: boolean;
+  tracksSerials?: boolean;
 }
 
 /** Tope por línea: un código leído mal ("99999999") no debe armar una venta absurda. */
@@ -67,6 +72,7 @@ export function addUnits(cart: CartLine[], product: CartProduct, units: number):
       stock: product.stock,
       isTrackable: product.isTrackable,
       isExempt: product.isExempt,
+      tracksSerials: product.tracksSerials ?? false,
     },
   ];
 }
@@ -99,4 +105,36 @@ export function countUnits(cart: CartLine[]): number {
 /** Texto de cantidad con coma decimal chilena y sin ceros sobrantes: 1 → "1", 0,5 → "0,5". */
 export function formatQuantity(quantity: number): string {
   return String(roundQuantity(quantity)).replace('.', ',');
+}
+
+// ─── Series ──────────────────────────────────────────────────────────────────
+
+/** Qué le falta a una línea con serie para poder cobrarse, o `null` si está lista. */
+export function serialProblem(line: CartLine): string | null {
+  if (!line.tracksSerials) return null;
+  if (!Number.isInteger(line.quantity)) return `${line.name}: un producto con serie se vende en unidades enteras`;
+  const have = line.serials?.length ?? 0;
+  if (have < line.quantity) return `${line.name}: faltan ${line.quantity - have} ${line.quantity - have === 1 ? 'serie' : 'series'}`;
+  if (have > line.quantity) return `${line.name}: sobran ${have - line.quantity} ${have - line.quantity === 1 ? 'serie' : 'series'}`;
+  return null;
+}
+
+/** Líneas con serie que todavía no están completas. */
+export function linesPendingSerials(cart: CartLine[]): CartLine[] {
+  return cart.filter((line) => serialProblem(line) !== null);
+}
+
+/** Reemplaza las series de una línea. */
+export function setSerials(cart: CartLine[], productId: string, serials: string[]): CartLine[] {
+  return cart.map((line) => (line.productId === productId ? { ...line, serials } : line));
+}
+
+/** Agrega una serie a una línea; devuelve el motivo si no se puede (repetida o la línea ya está completa). */
+export function addSerial(cart: CartLine[], productId: string, serial: string): { cart: CartLine[]; error?: string } {
+  const line = cart.find((item) => item.productId === productId);
+  if (!line) return { cart };
+  const current = line.serials ?? [];
+  if (current.includes(serial)) return { cart, error: `La serie ${serial} ya está en la venta` };
+  if (current.length >= Math.round(line.quantity)) return { cart, error: 'Ya indicaste todas las series. Sube la cantidad para agregar otra' };
+  return { cart: setSerials(cart, productId, [...current, serial]) };
 }

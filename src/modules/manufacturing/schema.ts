@@ -40,6 +40,10 @@ export const completeProductionSchema = z.object({
   consumed: z.record(z.string(), z.number().min(0).max(10_000_000)).default({}),
   additionalCost: z.number().int('Monto en pesos enteros').min(0).max(10_000_000_000).default(0),
   additionalCostNote: z.string().trim().max(200).optional(),
+  /** Lote del producto terminado (solo si el producto lleva lotes): permite seguirlo hasta la venta. */
+  outputLotNumber: z.string().trim().max(60).optional(),
+  /** Vencimiento del lote terminado, `YYYY-MM-DD`. */
+  outputExpiryDate: z.string().trim().max(10).optional(),
 });
 
 export type CompleteProductionInput = z.infer<typeof completeProductionSchema>;

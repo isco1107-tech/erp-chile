@@ -19,6 +19,7 @@ const PRODUCT_SELECT = {
   barcode: true,
   imageUrl: true,
   tracksLots: true,
+  tracksSerials: true,
   isActive: true,
   stocks: { select: { warehouseId: true, quantity: true } },
 } satisfies Prisma.ProductSelect;
@@ -37,6 +38,7 @@ export function toMobileProduct(row: ProductRow, warehouseId?: string): MobilePr
     barcode: row.barcode,
     imageUrl: row.imageUrl,
     tracksLots: row.tracksLots,
+    tracksSerials: row.tracksSerials,
     isActive: row.isActive,
     stock,
     totalStock,

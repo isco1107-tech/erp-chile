@@ -129,6 +129,8 @@ model Company {
   salesCommissionRates      SalesCommissionRate[]
   productPackagings         ProductPackaging[]
   inventoryLots             InventoryLot[]
+  productSerials            ProductSerial[]
+  productSerialEvents       ProductSerialEvent[]
   inventoryCounts           InventoryCount[]
   inventoryCountLines       InventoryCountLine[]
   warehouseMobileOps        WarehouseMobileOp[]
@@ -1004,6 +1006,7 @@ model Warehouse {
   salesDocuments   SalesDocument[]
   salesOrders      SalesOrder[]
   inventoryLots    InventoryLot[]
+  productSerials   ProductSerial[]
   inventoryCounts  InventoryCount[]
   purchaseItems    PurchaseDocumentItem[]
   goodsReceipts    GoodsReceipt[]
@@ -1044,6 +1047,10 @@ model Product {
   /// Maneja lotes con vencimiento: las entradas registran lote y las salidas
   /// consumen primero el que vence antes (FEFO). Ver `InventoryLot`.
   tracksLots           Boolean                    @default(false)
+  /// Se vende y recibe por número de serie: la recepción y la venta exigen una serie por unidad.
+  tracksSerials        Boolean                    @default(false)
+  /// Meses de garantía desde la venta (aplica a las series). `null` = sin garantía definida.
+  warrantyMonths       Int?
   /// Archivado = `false`: sale del POS y de los selectores de venta/compra, pero
   /// conserva su historial. Es la salida para productos que ya no se pueden borrar.
   isActive             Boolean                    @default(true)
@@ -1057,6 +1064,7 @@ model Product {
   consignmentCommissionBps Int?
   packagings           ProductPackaging[]
   lots                 InventoryLot[]
+  serials              ProductSerial[]
   inventoryCountLines  InventoryCountLine[]
   stocks               Stock[]
   movements            InventoryMovement[]
@@ -1136,11 +1144,17 @@ model InventoryMovement {
   supplier       Contact?            @relation("MovementSupplier", fields: [supplierId], references: [id], onDelete: SetNull)
   /// Quién responde por esta pérdida (solo salidas; ver `ShrinkageLiability`).
   liability      ShrinkageLiability?
+  /// Documento que originó el movimiento (`MovementSourceKind` en `traceability-sources.ts`)
+  /// y su id. Id simple, sin llave foránea: el documento puede ser de varios tipos. `null` en
+  /// ajustes manuales y en todo lo anterior a este campo (ahí solo queda `reference`, texto).
+  sourceKind     String?
+  sourceId       String?
   createdAt      DateTime            @default(now())
 
   @@index([companyId, productId, createdAt])
   @@index([companyId, warehouseId, createdAt])
   @@index([companyId, supplierId, createdAt])
+  @@index([companyId, sourceKind, sourceId])
 }
 
 /// Qué productos surte cada proveedor. La app del bodeguero lo anota sola cada
@@ -4992,6 +5006,80 @@ model InventoryLot {
 
   @@unique([companyId, productId, warehouseId, lotNumber])
   @@index([companyId, expiryDate])
+}
+
+enum ProductSerialStatus {
+  IN_STOCK
+  SOLD
+  LOST
+  RETURNED
+}
+
+enum ProductSerialEventKind {
+  REGISTERED
+  TRANSFERRED
+  SOLD
+  LOST
+  RETURNED
+  REOPENED
+}
+
+/// Una unidad física identificada por su número de serie. Es una capa de
+/// seguimiento SOBRE el stock por cantidad: registrar o cambiar de estado una
+/// serie no mueve stock (lo mueven Ventas, Mermas y Traslados); solo el
+/// traslado de series pasa por `registerTransfer`. `warehouseId` es la bodega
+/// mientras está `IN_STOCK` y `null` cuando ya salió. `supplierId`, `salesDocumentId`
+/// y `createdById` son ids simples: el servicio los valida contra la empresa.
+model ProductSerial {
+  id              String              @id @default(cuid())
+  companyId       String
+  company         Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  productId       String
+  product         Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  serial          String
+  status          ProductSerialStatus @default(IN_STOCK)
+  warehouseId     String?
+  warehouse       Warehouse?          @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  lotNumber       String?
+  supplierId      String?
+  salesDocumentId String?
+  /// Recepción de mercadería en que entró (si entró por una); `null` = registrada a mano.
+  goodsReceiptId  String?
+  /// Fin de la garantía: fecha de venta + `Product.warrantyMonths`. `null` = sin garantía.
+  warrantyUntil   DateTime?
+  receivedAt      DateTime            @default(now())
+  soldAt          DateTime?
+  notes           String?
+  createdById     String?
+  events          ProductSerialEvent[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@unique([companyId, productId, serial])
+  @@index([companyId, status])
+  @@index([companyId, productId, status])
+  @@index([companyId, warehouseId, status])
+  @@index([companyId, goodsReceiptId])
+  @@index([companyId, salesDocumentId])
+}
+
+/// Historia de una serie: cada cambio de estado o de bodega, con quién y por qué.
+model ProductSerialEvent {
+  id          String                 @id @default(cuid())
+  companyId   String
+  company     Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  serialId    String
+  serial      ProductSerial          @relation(fields: [serialId], references: [id], onDelete: Cascade)
+  kind        ProductSerialEventKind
+  fromStatus  ProductSerialStatus?
+  toStatus    ProductSerialStatus
+  warehouseId String?
+  userId      String?
+  reference   String?
+  note        String?
+  createdAt   DateTime               @default(now())
+
+  @@index([companyId, serialId, createdAt])
 }
 
 enum InventoryCountStatus {

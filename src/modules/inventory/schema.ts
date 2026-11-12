@@ -45,6 +45,10 @@ export const productCreateSchema = z.object({
     .optional()
     .or(z.literal('')),
   tracksLots: z.boolean().optional(),
+  /** Se recibe y vende por número de serie (una serie por unidad). */
+  tracksSerials: z.boolean().optional(),
+  /** Meses de garantía desde la venta; `null` = sin garantía. */
+  warrantyMonths: z.number().int('Meses enteros').min(1, 'Mínimo 1 mes').max(240, 'Máximo 240 meses').nullable().optional(),
   /** Seller dueño del producto (consignación). Vacío o `null` = producto propio. */
   consignorId: z.string().min(1).nullable().optional(),
   /** Comisión propia del producto en puntos base. `null` = la del seller. */
@@ -202,3 +206,30 @@ export const inventoryCountEntriesSchema = z
     })
   )
   .max(20_000);
+
+// ─── Trazabilidad: series por unidad ─────────────────────────────────────────
+
+export const serialRegisterSchema = z.object({
+  productId: z.string().min(1, 'Selecciona un producto'),
+  warehouseId: z.string().min(1, 'Selecciona la bodega donde están'),
+  /** Texto pegado: una serie por línea (o separadas por coma o punto y coma). */
+  serialsText: z.string().min(1, 'Escribe al menos una serie').max(60_000, 'El texto es demasiado largo'),
+  lotNumber: z.string().trim().max(60, 'Máximo 60 caracteres').optional(),
+  supplierId: z.string().optional(),
+  notes: z.string().trim().max(500, 'Máximo 500 caracteres').optional(),
+});
+
+export const serialStatusChangeSchema = z.object({
+  serialId: z.string().min(1),
+  to: z.enum(['IN_STOCK', 'SOLD', 'LOST', 'RETURNED']),
+  note: z.string().trim().max(500, 'Máximo 500 caracteres').optional(),
+  salesDocumentId: z.string().optional(),
+  warehouseId: z.string().optional(),
+});
+
+export const serialTransferSchema = z.object({
+  productId: z.string().min(1),
+  serialIds: z.array(z.string().min(1)).min(1, 'Elige al menos una serie').max(500, 'Traslada hasta 500 series por vez'),
+  toWarehouseId: z.string().min(1, 'Elige la bodega de destino'),
+  note: z.string().trim().max(500, 'Máximo 500 caracteres').optional(),
+});

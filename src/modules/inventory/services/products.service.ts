@@ -57,6 +57,8 @@ export interface ProductListItem {
   brand: string | null;
   imageUrl: string | null;
   tracksLots: boolean;
+  tracksSerials: boolean;
+  warrantyMonths: number | null;
   isActive: boolean;
   /** Seller dueño del producto (consignación); `null` = producto propio. */
   consignorId: string | null;
@@ -119,6 +121,8 @@ export async function listProductsPage(
         brand: true,
         imageUrl: true,
         tracksLots: true,
+        tracksSerials: true,
+        warrantyMonths: true,
         isActive: true,
         consignorId: true,
         consignmentCommissionBps: true,
@@ -191,6 +195,8 @@ export async function createProduct(companyId: string, input: ProductCreateInput
       brand: input.brand || undefined,
       imageUrl: input.imageUrl || undefined,
       tracksLots: input.tracksLots ?? false,
+      tracksSerials: input.tracksSerials ?? false,
+      warrantyMonths: input.warrantyMonths ?? undefined,
       // Un producto en consignación nace con costo 0: es del seller, no entra al valor de inventario.
       consignorId: input.consignorId || undefined,
       consignmentCommissionBps: input.consignorId ? input.consignmentCommissionBps ?? undefined : undefined,
@@ -212,6 +218,8 @@ export async function updateProduct(companyId: string, id: string, input: Produc
     brand: input.brand === undefined ? undefined : input.brand || null,
     imageUrl: input.imageUrl === undefined ? undefined : input.imageUrl || null,
     tracksLots: input.tracksLots,
+    tracksSerials: input.tracksSerials,
+    warrantyMonths: input.warrantyMonths,
   };
   if (input.sku) data.sku = input.sku;
   if (input.barcode) await assertBarcodeFree(companyId, input.barcode, id);
@@ -409,6 +417,14 @@ export async function findProductByCode(companyId: string, code: string): Promis
   if (packaging) return { product: packaging.product, factor: packaging.factor, packagingName: packaging.name };
   const bySku = await prisma.product.findFirst({ where: { companyId, sku: { equals: value, mode: 'insensitive' } } });
   return bySku ? { product: bySku, factor: 1, packagingName: null } : null;
+}
+
+/** De una lista de productos, cuáles se controlan por serie (para pedir una serie por unidad al recibir). */
+export async function listSerialTrackedProductIds(companyId: string, productIds: readonly string[]): Promise<string[]> {
+  const ids = [...new Set(productIds)].slice(0, 500);
+  if (ids.length === 0) return [];
+  const rows = await prisma.product.findMany({ where: { companyId, id: { in: ids }, tracksSerials: true }, select: { id: true } });
+  return rows.map((row) => row.id);
 }
 
 /** De una lista de productos, cuáles llevan lotes (para pedir lote y vencimiento al recibir). */

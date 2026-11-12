@@ -44,6 +44,17 @@ export const VENTAS_SECTIONS: ManualSection[] = [
         tip: 'Con tarjeta o transferencia, cobra primero en el terminal de pagos y confirma aquí cuando salga aprobado: el sistema no se conecta al terminal. El catálogo se actualiza al volver a la pantalla y periódicamente; "Actualizar catálogo" permite consultarlo a mano y el servidor vuelve a validar precios y stock al cobrar. Si se corta la conexión al cobrar, conserva el carrito y reintenta la misma venta sin editarlo: no se duplica. No cierres la app hasta confirmar el resultado.',
       },
       {
+        id: 'series-pos',
+        title: 'Vender productos con número de serie',
+        steps: [
+          'Los productos marcados "Se controla por número de serie" en el catálogo piden una serie por cada unidad. En la línea del carrito verás una etiqueta roja "faltan N series".',
+          'Al presionar "Cobrar" se abre "Series de la venta" (también al tocar la etiqueta de la línea). Lee la serie con el lector o escríbela y presiona Enter: se agrega sola. Una serie repetida o de más se rechaza.',
+          'Con todas las series completas presiona "Seguir al cobro" y cobra como siempre. Cada serie queda vendida a la boleta, con su garantía si el producto la tiene.',
+          'Si cambias la cantidad de la línea, vuelve a faltar o sobrar una serie: ajústala en el mismo diálogo. Las series se guardan también al poner la venta en espera.',
+        ],
+        tip: 'Solo se pueden vender series registradas y que estén en la bodega de la caja (se registran al recibir la mercadería o en Inventario → Trazabilidad). Si el sistema responde que una serie no está registrada o está en otra bodega, no se cobra nada: corrige la serie o regístrala. Estos productos se venden en unidades enteras.',
+      },
+      {
         id: 'espera-pos',
         title: 'Dejar una venta en espera',
         steps: [

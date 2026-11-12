@@ -63,6 +63,10 @@ export const SCREEN_PURPOSES: Record<string, string> = {
   inventory: 'Existencias por bodega, Kardex de cada producto, ajustes de stock y transferencias.',
   'inventory-counts': 'Toma de inventario: contar la bodega (a mano o con lector) y ajustar el stock a lo contado.',
   'inventory-lots': 'Saldo por lote y fechas de vencimiento; las salidas consumen primero lo que vence antes.',
+  'inventory-traceability':
+    'Trazabilidad: el recorrido de un producto (en camino, recepcionado, en bodega, trasladado, vendido, pérdidas) en un tablero, su línea de tiempo con quién y por qué, y sus series por unidad (número de serie con su estado y su historia).',
+  'inventory-recall':
+    'Retiro de lote: la genealogía de un lote. De qué proveedor y documento vino, en qué producción se usó, a qué clientes llegó y cuánto queda en cada bodega, con descarga a Excel. Sirve para un retiro del mercado o una auditoría.',
   'inventory-movements':
     'Movimientos de bodega: el registro de lo que entró y salió de CADA bodega por separado, con el operario que hizo cada ajuste, el motivo (vencido, mal estado, degustación…), el proveedor de las llegadas y la foto de respaldo. Se filtra y se descarga a Excel.',
   'inventory-consignment':

@@ -61,7 +61,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
     steps: [
       header('Tu cuenta y tu caja', 'Ingresa con tu propia cuenta, verifica el cajero identificado, elige una caja disponible y declara el efectivo inicial. Cada caja tiene un turno y descuenta stock de su bodega.'),
       note('Arma la venta', 'En "Vender" escanea el código de barras o escribe el SKU o nombre y presiona Enter. Al primer producto el sistema pide el RUT del cliente: escríbelo y Enter, o Enter sin RUT para consumidor final. Para varias unidades escribe 3* y escanea.'),
-      note('Cobra con el teclado', 'Presiona "Cobrar" (F9 o Enter con el buscador vacío) y elige el medio con E, D, C o T. En efectivo escribe lo recibido o usa "Exacto": el vuelto se ve en grande y se abre el cajón si lo configuraste en "Cajón e impresora".'),
+      note('Cobra con el teclado', 'Presiona "Cobrar" (F9 o Enter con el buscador vacío); si hay productos con serie, antes se pide una serie por unidad (lector + Enter). Elige el medio con E, D, C o T. En efectivo escribe lo recibido o usa "Exacto": el vuelto se ve en grande y se abre el cajón si lo configuraste en "Cajón e impresora".'),
       note('Varios clientes a la vez', '"Poner en espera" (F6) deja la venta a un lado y "En espera" (F7) la retoma. "Abrir cajón" (F8) pide un motivo y queda registrado.'),
       note('Ingresos, retiros y cierre', 'En "Caja y arqueo" registra ingresos o retiros con monto y motivo. Al terminar actualiza el arqueo, cuenta el efectivo y presiona "Cerrar caja"; si hay diferencia, explícala.'),
       note('Historial y multicaja', 'En "Mis turnos" revisa e imprime comprobantes. Con permiso de supervisión verás "Turnos y multicaja" para consultar y cerrar las cajas de otros cajeros.'),
@@ -128,7 +128,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       header('La app de tu bodeguero', 'Recibe, descuenta y traslada productos desde el celular, aunque se vaya la señal. Todo llega solo al Kardex.'),
       note('Ábrela con el código QR', 'Escanéalo con el celular, inicia sesión y elige "Instalar app" (Android) o "Agregar a inicio" (iPhone).'),
       note('Cada llegada, con su proveedor', 'Al recibir mercadería el bodeguero elige de qué proveedor llega. Así cada proveedor queda ligado a sus productos.'),
-      note('Salidas con foto', 'Una merma, un producto en mal estado o una degustación se registra con su motivo y una foto del producto. Quedan en "Movimientos de bodega".'),
+      note('Salidas con foto y series', 'Una merma o un producto dañado se registra con su motivo y una foto. Los productos con número de serie piden una serie por unidad y dejan su historia. Todo queda en "Movimientos de bodega".'),
       note('Fotos con IA, cuidando la cuota', 'Si un producto no tiene código de barras, se le saca una foto. La IA lee primero el SKU impreso. Hay topes por minuto y, si se llega a uno, la foto espera sola su turno.'),
       note('Revisa lo que se creó', 'Los productos que el bodeguero da de alta desde el celular aparecen abajo: complétales precio y categoría en el Catálogo.'),
     ],
@@ -139,6 +139,27 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       header('Saldo por lote', 'Para productos con "Maneja lotes y vencimiento": cuánto queda de cada lote y cuándo vence.'),
       note('Filtra lo urgente', 'Usa Vencidos y Por vencer para decidir qué vender primero o dar de baja.'),
       note('FEFO automático', 'Las ventas consumen primero el lote que vence antes.'),
+    ],
+  },
+  'inventory-traceability': {
+    title: 'Trazabilidad',
+    steps: [
+      header('Estado de la trazabilidad', 'Al entrar ves cuánto de tu inventario se puede seguir y "Qué atender": lotes vencidos, stock sin lote, series desalineadas y órdenes atrasadas.'),
+      header('Sigue un producto de punta a punta', 'Busca un producto y mira su recorrido: en camino, recepcionado, en bodega, trasladado, vendido y pérdidas.'),
+      note('Elige el período', 'En la vista Flujo cambia entre 7, 30 y 90 días. "En camino" y "En bodega" siempre muestran lo de hoy.'),
+      note('Línea de tiempo', 'Debajo del tablero ves cada movimiento con quién lo hizo, el documento de origen y la foto de respaldo.'),
+      note('Series por unidad', 'En la vista Series registras números de serie y los mueves entre En bodega, Vendida, Perdida y Devuelta.'),
+      note('Buscar una serie', 'Escribe un número de serie para ver su origen, su venta, su garantía y su historia.'),
+    ],
+  },
+  'inventory-recall': {
+    title: 'Retiro de lote',
+    steps: [
+      header('Rastrea un lote completo', 'Busca el producto, elige el lote y ve de dónde vino y a quién llegó.'),
+      note('Hacia atrás', 'Proveedor, documento de entrada y, si se fabricó, la orden de producción con los lotes de insumo.'),
+      note('Hacia adelante', 'Ventas y clientes que lo recibieron (netos de devoluciones), pérdidas y lo que queda en cada bodega.'),
+      note('Cuadre', 'La pantalla avisa si lo recibido menos lo despachado no coincide con lo que hay en bodega.'),
+      note('Excel', '"Descargar Excel" arma el libro del retiro. Queda registrado en la bitácora porque trae nombres y RUT de clientes.'),
     ],
   },
   'inventory-labels': {

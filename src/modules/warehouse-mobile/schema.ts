@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { UNITS } from '@/modules/inventory/schema';
+import { normalizeSerial, serialCountProblem } from '@/lib/inventory/traceability';
 import { MAX_NOTE_LENGTH, MOBILE_MODES, WASTE_REASONS, isTransferMode, MODE_DEFINITIONS, reasonRequiresNote } from '@/lib/warehouse-mobile/modes';
 
 /**
@@ -100,10 +101,21 @@ export const moveOpSchema = z
     supplierId: idSchema.optional(),
     /** Foto del producto en cuestión (merma, daño, degustación): queda adjunta al movimiento. */
     evidenceUrl: evidenceUrlSchema.optional(),
+    /**
+     * Series de las unidades que se mueven (una por unidad), para productos que se controlan por serie.
+     * Opcional a propósito: un teléfono que guardó la operación antes de actualizar no las trae y no
+     * se rechaza para siempre; la app sí las exige para esos productos.
+     */
+    serials: z.array(z.string().trim().min(1).max(64)).max(500).optional(),
     ...lotFields,
     capturedAt: capturedAtSchema,
   })
   .superRefine((op, ctx) => {
+    if (op.serials && op.serials.length > 0) {
+      const problem = serialCountProblem(op.quantity, op.serials.map((serial) => normalizeSerial(serial) ?? serial));
+      if (problem) ctx.addIssue({ code: 'custom', path: ['serials'], message: problem });
+      else if (op.serials.some((serial) => normalizeSerial(serial) === null)) ctx.addIssue({ code: 'custom', path: ['serials'], message: 'Hay una serie con caracteres no válidos' });
+    }
     if (isTransferMode(op.mode)) {
       if (!op.targetWarehouseId) ctx.addIssue({ code: 'custom', path: ['targetWarehouseId'], message: 'Elige la bodega de destino' });
       else if (op.targetWarehouseId === op.warehouseId) {

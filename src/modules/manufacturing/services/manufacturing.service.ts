@@ -6,6 +6,7 @@ import { applyStockIn, applyStockOut } from '@/modules/inventory/services/stock.
 import { assertProductsNotConsigned } from '@/modules/inventory/services/consignment-guards';
 import { createAndPostEntry, resolveMappedAccountId } from '@/modules/accounting/services/journal.service';
 import { isLedgerActive } from '@/modules/accounting/posting-rules/shared';
+import { normalizeLotNumber, parseExpiryDate } from '@/lib/inventory/lots';
 import type { BomInput, CompleteProductionInput, ProductionOrderInput } from '../schema';
 
 /**
@@ -332,6 +333,7 @@ export async function completeProductionOrder(
             quantity,
             reference,
             notes: 'Consumo de producción',
+            source: { kind: 'PRODUCTION_ORDER', id },
           });
           totalCost = movement.totalCost;
         } catch (error) {
@@ -355,6 +357,11 @@ export async function completeProductionOrder(
       unitCost: cost.unitCost,
       reference,
       notes: 'Producto terminado',
+      source: { kind: 'PRODUCTION_ORDER', id },
+      lots:
+        input.outputLotNumber || input.outputExpiryDate
+          ? [{ lotNumber: normalizeLotNumber(input.outputLotNumber), expiryDate: parseExpiryDate(input.outputExpiryDate), quantity: input.producedQuantity }]
+          : undefined,
     });
 
     const now = new Date();

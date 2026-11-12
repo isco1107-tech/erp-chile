@@ -124,6 +124,8 @@ export const goodsReceiptItemSchema = z.object({
   /** Solo productos con lotes: lote y vencimiento de lo recibido. */
   lotNumber: z.string().trim().max(40, 'El lote admite máximo 40 caracteres').optional(),
   expiryDate: z.union([z.literal(''), z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha de vencimiento inválida')]).optional(),
+  /** Solo productos con serie: una por unidad recibida (una por línea o separadas por coma). */
+  serialsText: z.string().max(60_000, 'El texto de series es demasiado largo').optional(),
 });
 
 export type GoodsReceiptItemInput = z.infer<typeof goodsReceiptItemSchema>;

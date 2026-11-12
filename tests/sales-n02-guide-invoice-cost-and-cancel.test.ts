@@ -34,6 +34,8 @@ const STOP = 'STOP_ANTES_DE_CREAR';
 function fakeTx(overrides: Record<string, Record<string, jest.Mock>> = {}) {
   const tx = {
     $queryRaw: jest.fn().mockResolvedValue([]),
+    productSerial: { findMany: jest.fn().mockResolvedValue([]) },
+    inventoryMovement: { findMany: jest.fn().mockResolvedValue([]) },
     contact: { findFirst: jest.fn().mockResolvedValue({ id: 'cli1', creditLimit: null }) },
     warehouse: { findFirst: jest.fn().mockResolvedValue({ id: 'w1' }) },
     // `findMany` lo usa la consignación para ver si alguna línea es de un seller (aquí, ninguna).

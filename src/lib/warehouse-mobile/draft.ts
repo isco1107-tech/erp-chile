@@ -2,6 +2,7 @@ import type { NewProductInput, SyncOperation } from '@/modules/warehouse-mobile/
 import { MAX_QUANTITY } from '@/modules/warehouse-mobile/schema';
 import type { MobileCandidate, MobileProduct, VisionRead } from '@/modules/warehouse-mobile/types';
 import { MODE_DEFINITIONS, MAX_NOTE_LENGTH, isInboundMode, isTransferMode, reasonRequiresNote, type MobileMode, type WasteReason } from './modes';
+import { normalizeSerial } from '@/lib/inventory/traceability';
 import { skuForCatalog } from './codes';
 import { composeProductName } from './vision';
 
@@ -69,6 +70,8 @@ export interface DraftLine {
    * (ver `evidencePhotoOf`); esta es la que la persona saca a propósito.
    */
   evidencePhotoId: string | null;
+  /** Series de las unidades (productos que se controlan por serie), ya normalizadas. */
+  serials: string[];
   source: LineSource;
 }
 
@@ -96,7 +99,7 @@ export function upgradeDraft(saved: Draft): Draft {
   return {
     ...saved,
     supplierId: saved.supplierId ?? '',
-    lines: saved.lines.map((line) => ({ ...line, evidencePhotoId: line.evidencePhotoId ?? null })),
+    lines: saved.lines.map((line) => ({ ...line, evidencePhotoId: line.evidencePhotoId ?? null, serials: line.serials ?? [] })),
   };
 }
 
@@ -138,7 +141,7 @@ function withLines(draft: Draft, lines: DraftLine[]): Draft {
 }
 
 function newLine(id: string, now: number, quantity: number, source: LineSource): DraftLine {
-  return { id, createdAt: now, quantity, unitCost: '', lotNumber: '', expiryDate: '', note: '', evidencePhotoId: null, source };
+  return { id, createdAt: now, quantity, unitCost: '', lotNumber: '', expiryDate: '', note: '', evidencePhotoId: null, serials: [], source };
 }
 
 /** Dos líneas son "la misma" si apuntan al mismo producto y no llevan lote ni vencimiento propios. */
@@ -147,6 +150,8 @@ function mergeable(a: DraftLine, b: DraftLine): boolean {
     a.source.kind === 'product' &&
     b.source.kind === 'product' &&
     a.source.product.id === b.source.product.id &&
+    a.serials.length === 0 &&
+    b.serials.length === 0 &&
     !a.lotNumber &&
     !b.lotNumber &&
     !a.expiryDate &&
@@ -309,6 +314,33 @@ export function newProductFormFrom(options: { read?: VisionRead | null; code?: s
   };
 }
 
+// ─── Series ──────────────────────────────────────────────────────────────────
+
+/** ¿La línea es de un producto que se controla por serie? (un catálogo guardado antes no trae la marca: no). */
+export function lineNeedsSerials(line: DraftLine): boolean {
+  return line.source.kind === 'product' && line.source.product.tracksSerials === true;
+}
+
+/**
+ * Agrega una serie a la línea. La cantidad sube sola: leer la serie de cada unidad ES contarlas.
+ * Devuelve el motivo si no se puede (no válida, repetida en esta línea o en otra del mismo producto).
+ */
+export function addSerialToLine(draft: Draft, lineId: string, raw: string): { patch?: { serials: string[]; quantity: number }; error?: string } {
+  const line = draft.lines.find((item) => item.id === lineId);
+  if (!line || !lineNeedsSerials(line)) return { error: 'Este producto no se controla por serie.' };
+  const serial = normalizeSerial(raw);
+  if (!serial) return { error: 'Serie no válida: usa letras, números, punto, guion o barra (hasta 64 caracteres).' };
+  const productId = line.source.kind === 'product' ? line.source.product.id : '';
+  const taken = draft.lines.some((other) => other.source.kind === 'product' && other.source.product.id === productId && other.serials.includes(serial));
+  if (taken) return { error: `La serie ${serial} ya está en la lista.` };
+  const serials = [...line.serials, serial];
+  return { patch: { serials, quantity: Math.max(Math.round(line.quantity), serials.length) } };
+}
+
+export function removeSerialFromLine(line: DraftLine, serial: string): { serials: string[] } {
+  return { serials: line.serials.filter((item) => item !== serial) };
+}
+
 export interface DraftProblem {
   lineId?: string;
   message: string;
@@ -341,6 +373,13 @@ export function validateDraft(draft: Draft, context: ValidationContext): DraftPr
 
   for (const line of draft.lines) {
     const { source } = line;
+    if (lineNeedsSerials(line)) {
+      if (!Number.isInteger(line.quantity)) problems.push({ lineId: line.id, message: 'Un producto con serie se mueve en unidades enteras.' });
+      else if (line.serials.length !== line.quantity) {
+        const missing = line.quantity - line.serials.length;
+        problems.push({ lineId: line.id, message: missing > 0 ? `Falta${missing === 1 ? '' : 'n'} ${missing} ${missing === 1 ? 'serie' : 'series'}: lee o escribe la de cada unidad.` : `Sobra${missing === -1 ? '' : 'n'} ${-missing} ${missing === -1 ? 'serie' : 'series'}: quita las que no van.` });
+      }
+    }
     if (source.kind === 'code' || source.kind === 'identify') {
       problems.push({ lineId: line.id, message: 'Todavía se está identificando este producto. Espera un momento o búscalo a mano.' });
       continue;
@@ -451,6 +490,7 @@ export function toOperations(draft: Draft): BuiltOperations {
         mode: draft.mode,
         productId: source.product.id,
         ...common,
+        ...(lineNeedsSerials(line) && line.serials.length > 0 ? { serials: line.serials } : {}),
         ...(isTransferMode(draft.mode) ? { targetWarehouseId: draft.targetWarehouseId } : {}),
         ...(def.asksReason && draft.reason ? { reason: draft.reason } : {}),
       });

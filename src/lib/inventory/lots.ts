@@ -82,3 +82,20 @@ export function normalizeLotNumber(value: string | null | undefined): string {
   const lot = (value ?? '').trim().toUpperCase().replace(/\s+/g, ' ');
   return lot || NO_LOT;
 }
+
+/**
+ * Reparto por lote guardado en un movimiento (`lotAllocations`, Json) listo para volver a entrar
+ * al mismo lote. `undefined` si el movimiento no tiene reparto (producto sin lotes).
+ */
+export function lotsFromAllocations(raw: unknown): Array<{ lotNumber: string; expiryDate: Date | null; quantity: number }> | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const lots: Array<{ lotNumber: string; expiryDate: Date | null; quantity: number }> = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const record = item as Record<string, unknown>;
+    if (typeof record.lotNumber !== 'string' || typeof record.quantity !== 'number' || record.quantity <= 0) continue;
+    const expiry = typeof record.expiryDate === 'string' && record.expiryDate ? new Date(record.expiryDate) : null;
+    lots.push({ lotNumber: record.lotNumber, expiryDate: expiry && !Number.isNaN(expiry.getTime()) ? expiry : null, quantity: record.quantity });
+  }
+  return lots.length > 0 ? lots : undefined;
+}

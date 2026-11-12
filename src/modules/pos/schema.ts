@@ -62,6 +62,8 @@ export const posSaleItemSchema = z.object({
   quantity: z.number().positive('La cantidad debe ser mayor a cero'),
   unitPrice: z.number().int('El precio debe ser un número entero').min(0, 'El precio no puede ser negativo').optional(),
   discountPercent: z.number().min(0).max(100).optional(),
+  /** Series de las unidades vendidas (una por unidad) si el producto se controla por serie. */
+  serials: z.array(z.string().trim().min(1).max(64)).max(500).optional(),
 });
 
 export const posSaleSchema = z

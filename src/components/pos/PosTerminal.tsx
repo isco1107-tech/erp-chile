@@ -28,15 +28,20 @@ import { computeDocument } from '@/modules/sales/calc';
 import { formatCurrency } from '@/lib/chile/tax';
 import { formatRut } from '@/lib/chile/rut';
 import {
+  addSerial,
   addUnits,
   changeQuantity,
   countUnits,
   formatQuantity,
+  linesPendingSerials,
   normalizeQuantity,
   removeLine,
+  serialProblem,
   setQuantity,
+  setSerials,
   type CartLine,
 } from '@/lib/pos/cart';
+import PosSerialsDialog from './PosSerialsDialog';
 import { parseCashDigits } from '@/lib/pos/cash';
 import { holdSale, takeHeldSale, type HeldSale } from '@/lib/pos/held-sales';
 import { heldSalesStoreFor, newHeldId } from '@/lib/pos/held-sales-store';
@@ -100,6 +105,8 @@ export default function PosTerminal(props: Props) {
   const [customer, setCustomer] = useState<Customer>(NO_CUSTOMER);
   const [editingCustomer, setEditingCustomer] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
+  /** Diálogo de series: `true` = abierto; `focus` = línea con la que abre. */
+  const [serialsOpen, setSerialsOpen] = useState<{ focus?: string } | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PosPaymentMethod>('EFECTIVO');
   const [cashReceived, setCashReceived] = useState('');
   const [saving, setSaving] = useState(false);
@@ -157,7 +164,7 @@ export default function PosTerminal(props: Props) {
       // el carrito, pero actualiza su referencia de stock y precio del catálogo.
       setCart((previous) => previous.map((line) => {
         const product = result.data.find((item) => item.id === line.productId);
-        return product ? { ...line, stock: product.stock, netPrice: product.netPrice, grossPrice: product.grossPrice, isExempt: product.isExempt } : line;
+        return product ? { ...line, stock: product.stock, netPrice: product.netPrice, grossPrice: product.grossPrice, isExempt: product.isExempt, tracksSerials: product.tracksSerials } : line;
       }));
       setCatalogError(false);
       setLastRefresh(new Date());
@@ -368,6 +375,12 @@ export default function PosTerminal(props: Props) {
       toast.info('Primero el RUT del cliente: escríbelo o presiona Enter para consumidor final.');
       return;
     }
+    // Los productos con serie piden una serie por unidad antes de cobrar.
+    if (linesPendingSerials(cart).length > 0) {
+      playPosSound('error', sounds);
+      setSerialsOpen({ focus: linesPendingSerials(cart)[0]?.productId });
+      return;
+    }
     setPaymentOpen(true);
   }
 
@@ -429,6 +442,12 @@ export default function PosTerminal(props: Props) {
 
   async function handleCharge() {
     if (cart.length === 0 || charging.current || !online || (props.shiftClosed && !uncertain.current)) return;
+    // Red de seguridad: el cobro nunca sale con series incompletas aunque el diálogo se haya saltado.
+    if (linesPendingSerials(cart).length > 0) {
+      setPaymentOpen(false);
+      setSerialsOpen({ focus: linesPendingSerials(cart)[0]?.productId });
+      return;
+    }
     charging.current = true;
 
     const lowStock = cart.filter((line) => line.isTrackable && line.quantity > line.stock);
@@ -443,7 +462,7 @@ export default function PosTerminal(props: Props) {
     setSaving(true);
     try {
       const payload = {
-        items: cart.map((line) => ({ productId: line.productId, quantity: line.quantity })),
+        items: cart.map((line) => ({ productId: line.productId, quantity: line.quantity, serials: line.tracksSerials ? line.serials : undefined })),
         paymentMethod,
         cashReceived: isCash ? received : undefined,
         customerRut: customer.rut ?? undefined,
@@ -768,6 +787,19 @@ export default function PosTerminal(props: Props) {
                   <td className="p-2">
                     <p className="text-base font-medium">{line.name}</p>
                     <p className="text-xs text-muted-foreground">{line.sku}{line.isExempt ? ' · exento' : ''}</p>
+                    {cart.find((item) => item.productId === line.productId)?.tracksSerials && (() => {
+                      const cartLine = cart.find((item) => item.productId === line.productId)!;
+                      const problem = serialProblem(cartLine);
+                      return (
+                        <button
+                          type="button"
+                          className={`mt-1 rounded-md border px-2 py-0.5 text-xs ${problem ? 'border-destructive text-destructive' : 'border-border text-muted-foreground'}`}
+                          onClick={() => setSerialsOpen({ focus: line.productId })}
+                        >
+                          {problem ?? `Series: ${cartLine.serials?.join(', ')}`}
+                        </button>
+                      );
+                    })()}
                   </td>
                   <td className="p-2">
                     <div className="flex items-center gap-1">
@@ -875,6 +907,21 @@ export default function PosTerminal(props: Props) {
         onCharge={() => void handleCharge()}
         onClose={closePayment}
       />
+      {serialsOpen && (
+        <PosSerialsDialog
+          lines={cart.filter((line) => line.tracksSerials)}
+          focusProductId={serialsOpen.focus}
+          onAdd={(productId, serial) => {
+            const result = addSerial(cart, productId, serial);
+            if (result.error) return result.error;
+            setCart(result.cart);
+            return undefined;
+          }}
+          onRemove={(productId, serial) => setCart((previous) => setSerials(previous, productId, (previous.find((line) => line.productId === productId)?.serials ?? []).filter((item) => item !== serial)))}
+          onClose={() => { setSerialsOpen(null); focusSearch(); }}
+          onDone={() => { setSerialsOpen(null); setPaymentOpen(true); }}
+        />
+      )}
       <HeldSalesDialog
         open={heldOpen}
         held={held}
