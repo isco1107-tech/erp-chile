@@ -149,6 +149,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       note('Elige el período', 'En la vista Flujo cambia entre 7, 30 y 90 días. "En camino" y "En bodega" siempre muestran lo de hoy.'),
       note('Línea de tiempo', 'Debajo del tablero ves cada movimiento con quién lo hizo, el documento de origen y la foto de respaldo.'),
       note('Series por unidad', 'En la vista Series registras números de serie y los mueves entre En bodega, Vendida, Perdida y Devuelta.'),
+      note('Buscar una serie', 'Escribe un número de serie para ver su origen, su venta, su garantía y su historia.'),
     ],
   },
   'inventory-recall': {

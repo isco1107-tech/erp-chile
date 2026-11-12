@@ -37,6 +37,9 @@ const EMPTY_FORM = {
   brand: '',
   imageUrl: '',
   tracksLots: false,
+  tracksSerials: false,
+  /** Meses de garantía como los escribe la persona. Vacío = sin garantía. */
+  warrantyMonths: '',
   /** Vacío = producto propio; si no, el id del seller dueño (consignación). */
   consignorId: '',
   /** Comisión propia del producto en %, como la escribe la persona. Vacío = la del seller. */
@@ -110,6 +113,8 @@ export default function ProductForm({
         brand: editingProduct.brand ?? '',
         imageUrl: editingProduct.imageUrl ?? '',
         tracksLots: editingProduct.tracksLots,
+        tracksSerials: editingProduct.tracksSerials,
+        warrantyMonths: editingProduct.warrantyMonths == null ? '' : String(editingProduct.warrantyMonths),
         consignorId: editingProduct.consignorId ?? '',
         consignmentCommission: editingProduct.consignmentCommissionBps == null ? '' : bpsToInput(editingProduct.consignmentCommissionBps),
       });
@@ -179,6 +184,8 @@ export default function ProductForm({
       brand: form.brand.trim(),
       imageUrl: form.imageUrl,
       tracksLots: form.isTrackable && form.tracksLots,
+      tracksSerials: form.isTrackable && form.tracksSerials,
+      warrantyMonths: form.isTrackable && form.warrantyMonths.trim() !== '' ? Number(form.warrantyMonths) : null,
       consignorId: form.consignorId || null,
       consignmentCommissionBps,
     };
@@ -364,6 +371,32 @@ export default function ProductForm({
                 </span>
               </span>
             </label>
+          </div>
+        )}
+
+        {form.isTrackable && (
+          <div className="grid grid-cols-1 gap-4 sm:col-span-2 sm:grid-cols-2">
+            <label className="flex items-start gap-2 text-sm">
+              <input type="checkbox" className="mt-0.5" checked={form.tracksSerials} onChange={(e) => update('tracksSerials', e.target.checked)} />
+              <span>
+                Se controla por número de serie
+                <span className="block text-xs text-muted-foreground">
+                  La recepción y la venta piden una serie por cada unidad. Así sabes dónde está y a quién se vendió cada una.
+                </span>
+              </span>
+            </label>
+            <div>
+              <label htmlFor="product-warranty" className="text-sm font-medium">Garantía (meses)</label>
+              <input
+                id="product-warranty"
+                inputMode="numeric"
+                className="mt-1 h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+                value={form.warrantyMonths}
+                onChange={(e) => update('warrantyMonths', e.target.value.replace(/\D/g, '').slice(0, 3))}
+                placeholder="Sin garantía"
+              />
+              <span className="block text-xs text-muted-foreground">Cuenta desde la venta de cada serie.</span>
+            </div>
           </div>
         )}
 

@@ -272,3 +272,51 @@ export function describeLotAllocations(raw: unknown): string | null {
   }
   return parts.length ? parts.join(' · ') : null;
 }
+
+// ─── Series en el flujo y garantía ───────────────────────────────────────────
+
+/** Suma meses a una fecha sin pasarse de fin de mes (31-ene + 1 mes = 28/29-feb). */
+export function addMonths(date: Date, months: number): Date {
+  const result = new Date(date.getTime());
+  const day = result.getUTCDate();
+  result.setUTCDate(1);
+  result.setUTCMonth(result.getUTCMonth() + months);
+  const lastDay = new Date(Date.UTC(result.getUTCFullYear(), result.getUTCMonth() + 1, 0)).getUTCDate();
+  result.setUTCDate(Math.min(day, lastDay));
+  return result;
+}
+
+export type WarrantyState = 'NONE' | 'ACTIVE' | 'EXPIRED';
+
+export interface WarrantyStatus {
+  state: WarrantyState;
+  /** Días que le quedan (solo `ACTIVE`; 0 = vence hoy). */
+  daysLeft: number | null;
+}
+
+/** Estado de la garantía de una serie. Sin fecha de fin no hay garantía definida: no se inventa una. */
+export function warrantyStatus(until: Date | null, now: Date): WarrantyStatus {
+  if (!until) return { state: 'NONE', daysLeft: null };
+  const diff = Math.ceil((until.getTime() - now.getTime()) / 86_400_000);
+  return diff >= 0 ? { state: 'ACTIVE', daysLeft: diff } : { state: 'EXPIRED', daysLeft: null };
+}
+
+export const WARRANTY_LABELS: Record<WarrantyState, string> = {
+  NONE: 'Sin garantía definida',
+  ACTIVE: 'En garantía',
+  EXPIRED: 'Garantía vencida',
+};
+
+/**
+ * Una serie por unidad: la cantidad debe ser un entero y las series, tantas como
+ * unidades y sin repetirse. Devuelve el mensaje del problema o `null` si está bien.
+ */
+export function serialCountProblem(quantity: number, serials: readonly string[], productName?: string): string | null {
+  const label = productName ? ` de «${productName}»` : '';
+  if (!Number.isInteger(quantity) || quantity <= 0) return `Un producto con serie se mueve en unidades enteras${label}`;
+  if (serials.length !== quantity) {
+    return `Indica ${quantity === 1 ? 'la serie' : `las ${quantity} series`}${label}: llegaron ${serials.length}`;
+  }
+  if (new Set(serials).size !== serials.length) return `Hay series repetidas${label}`;
+  return null;
+}

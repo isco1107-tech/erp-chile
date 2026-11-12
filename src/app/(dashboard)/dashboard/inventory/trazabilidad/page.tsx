@@ -9,13 +9,14 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import TraceabilityBoard from '@/components/inventory/TraceabilityBoard';
 import TraceabilityTimeline from '@/components/inventory/TraceabilityTimeline';
+import SerialJourneyView from '@/components/inventory/SerialJourneyView';
 import SerialsPanel from '@/components/inventory/SerialsPanel';
 import TraceabilityOverviewPanel from '@/components/inventory/TraceabilityOverviewPanel';
 import { getTraceabilityOverview } from '@/modules/inventory/services/traceability-overview.service';
 import { cn } from '@/lib/utils';
 import { FLOW_WINDOW_DAYS, parseFlowWindow } from '@/lib/inventory/traceability';
 import { listWarehouses } from '@/modules/inventory/services/stock.service';
-import { getProductFlow, listSerials, searchTraceableProducts } from '@/modules/inventory/services/traceability.service';
+import { getProductFlow, listSerials, lookupSerial, searchTraceableProducts } from '@/modules/inventory/services/traceability.service';
 
 export const metadata = { title: 'Trazabilidad de productos' };
 export const dynamic = 'force-dynamic';
@@ -33,6 +34,7 @@ export default async function TraceabilityPage({ searchParams }: { searchParams:
   const context = await getAuthContext();
   const query = one(params.q) ?? '';
   const productId = one(params.producto);
+  const serialQuery = one(params.serie)?.trim();
   const days = parseFlowWindow(one(params.dias));
   const view = one(params.vista) === 'series' ? 'series' : 'flujo';
   const canWrite = can(context, 'inventory:write');
@@ -55,6 +57,32 @@ export default async function TraceabilityPage({ searchParams }: { searchParams:
     </form>
   );
 
+  const serialForm = (
+    <form method="get" className="flex flex-wrap items-end gap-2" role="search" aria-label="Buscar una serie">
+      <div className="relative min-w-0 flex-1 basis-64">
+        <Search className="pointer-events-none absolute left-2.5 top-2.5 size-4 text-muted-foreground" aria-hidden="true" />
+        <Input name="serie" defaultValue={serialQuery ?? ''} placeholder="Buscar un número de serie" className="pl-8" aria-label="Buscar un número de serie" />
+      </div>
+      <Button type="submit" variant="outline">Buscar serie</Button>
+    </form>
+  );
+
+  if (serialQuery) {
+    const journeys = await lookupSerial(context.companyId, serialQuery, { includeCustomer: can(context, 'sales:read') });
+    return (
+      <div className="space-y-6">
+        {header}
+        {serialForm}
+        {journeys.length === 0 ? (
+          <EmptyState title="No encontramos esa serie" description={`La serie «${serialQuery}» no está registrada. Puedes registrarla desde la vista Series de su producto.`} />
+        ) : (
+          <SerialJourneyView journeys={journeys} now={new Date()} />
+        )}
+        <Link href="/dashboard/inventory/trazabilidad" className="inline-block text-sm text-primary underline">Volver al estado de la trazabilidad</Link>
+      </div>
+    );
+  }
+
   if (!productId) {
     const results = query ? await searchTraceableProducts(context.companyId, query) : [];
     const overview = query ? null : await getTraceabilityOverview(context.companyId);
@@ -63,6 +91,7 @@ export default async function TraceabilityPage({ searchParams }: { searchParams:
         {header}
         {overview && <TraceabilityOverviewPanel overview={overview} />}
         {searchForm}
+        {!query && serialForm}
         {!query ? (
           <EmptyState title="Elige un producto" description="Búscalo por nombre, SKU o código de barras para ver su recorrido, su línea de tiempo y sus series." />
         ) : results.length === 0 ? (

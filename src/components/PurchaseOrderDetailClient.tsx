@@ -11,7 +11,7 @@ import { formatCurrency } from '@/lib/chile/tax';
 import { sendPurchaseOrderAction, cancelPurchaseOrderAction } from '@/modules/purchases/actions/purchase-order.actions';
 import { createGoodsReceiptAction, cancelGoodsReceiptAction } from '@/modules/purchases/actions/goods-receipt.actions';
 import { listWarehousesAction } from '@/modules/inventory/actions/inventory.actions';
-import { listLotTrackedProductIdsAction } from '@/modules/inventory/actions/products.actions';
+import { listLotTrackedProductIdsAction, listSerialTrackedProductIdsAction } from '@/modules/inventory/actions/products.actions';
 import type { PurchaseOrderWithRelations } from '@/modules/purchases/services/purchase-order.service';
 import type { GoodsReceiptWithRelations } from '@/modules/purchases/services/goods-receipt.service';
 import type { Warehouse } from '@prisma/client';
@@ -39,6 +39,8 @@ export default function PurchaseOrderDetailClient({
   const [quantities, setQuantities] = useState<Record<string, string>>({});
   const [lots, setLots] = useState<Record<string, { lotNumber: string; expiryDate: string }>>({});
   const [lotProductIds, setLotProductIds] = useState<Set<string>>(new Set());
+  const [serialProductIds, setSerialProductIds] = useState<Set<string>>(new Set());
+  const [serialTexts, setSerialTexts] = useState<Record<string, string>>({});
 
   const total = order.items.reduce((sum, i) => sum + i.quantity * i.unitCost, 0);
   const canReceive = order.status === 'SENT' || order.status === 'PARTIALLY_RECEIVED';
@@ -74,6 +76,8 @@ export default function PurchaseOrderDetailClient({
     if (productIds.length > 0) {
       const tracked = await listLotTrackedProductIdsAction(productIds);
       if (tracked.success) setLotProductIds(new Set(tracked.data));
+      const serialTracked = await listSerialTrackedProductIdsAction(productIds);
+      if (serialTracked.success) setSerialProductIds(new Set(serialTracked.data));
     }
     if (warehouses.length === 0) {
       const r = await listWarehousesAction();
@@ -92,6 +96,7 @@ export default function PurchaseOrderDetailClient({
         quantity: Number(quantities[item.id]) || 0,
         lotNumber: lots[item.id]?.lotNumber.trim() || undefined,
         expiryDate: lots[item.id]?.expiryDate || undefined,
+        serialsText: serialTexts[item.id]?.trim() || undefined,
       }))
       .filter((line) => line.quantity > 0);
     if (items.length === 0) { toast.error('Ingrese al menos una cantidad a recibir'); return; }
@@ -208,6 +213,18 @@ export default function PurchaseOrderDetailClient({
                       aria-label={`Vencimiento de ${item.description}`}
                       value={lots[item.id]?.expiryDate ?? ''}
                       onChange={(e) => setLots((prev) => ({ ...prev, [item.id]: { lotNumber: prev[item.id]?.lotNumber ?? '', expiryDate: e.target.value } }))}
+                    />
+                  </div>
+                )}
+                {item.productId && serialProductIds.has(item.productId) && (
+                  <div className="space-y-1 text-xs text-muted-foreground">
+                    <label htmlFor={`serials-${item.id}`}>Series (una por línea, tantas como unidades)</label>
+                    <textarea
+                      id={`serials-${item.id}`}
+                      className="min-h-16 w-full rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm text-foreground"
+                      value={serialTexts[item.id] ?? ''}
+                      onChange={(e) => setSerialTexts((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                      placeholder={'SN-0001\nSN-0002'}
                     />
                   </div>
                 )}

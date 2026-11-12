@@ -199,6 +199,18 @@ export const INVENTARIO_SECTIONS: ManualSection[] = [
         ],
         tip: 'Registrar o cambiar de estado una serie no mueve el stock: la entrada de mercadería, las ventas y las mermas siguen su propio camino. Solo el traslado de series mueve stock.',
       },
+      {
+        id: 'series-automaticas',
+        title: 'Series y garantía en la recepción y la venta',
+        steps: [
+          'En la ficha del producto (Catálogo de Productos) marca "Se controla por número de serie" y, si corresponde, escribe los meses de garantía.',
+          'Al confirmar una recepción de una orden de compra, los productos con serie piden las series: una por línea, tantas como unidades. Entran en la bodega de la recepción con su proveedor y su lote.',
+          'Al emitir un documento en Ventas, los productos con serie muestran bajo su línea un campo "Series" (una por línea). Las series indicadas quedan vendidas a ese documento y su garantía empieza ese día. Si anulas el documento, vuelven a la bodega.',
+          'Si anulas una recepción, sus series se retiran, siempre que sigan en bodega. Si alguna ya se vendió, la anulación se rechaza.',
+          'Para ver el recorrido de una unidad escribe su número en "Buscar un número de serie": muestra su origen, ubicación, venta, cliente (si tienes acceso a Ventas), garantía y órdenes de servicio técnico.',
+        ],
+        tip: 'Un producto con serie vendido sin indicar sus series no se bloquea: aparece en "Qué atender" como unidad vendida sin serie, para asignarla con "Marcar vendida". El Punto de Venta aún no pide las series por unidad en pantalla.',
+      },
     ],
   },
   {

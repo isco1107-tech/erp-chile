@@ -45,6 +45,10 @@ export const productCreateSchema = z.object({
     .optional()
     .or(z.literal('')),
   tracksLots: z.boolean().optional(),
+  /** Se recibe y vende por número de serie (una serie por unidad). */
+  tracksSerials: z.boolean().optional(),
+  /** Meses de garantía desde la venta; `null` = sin garantía. */
+  warrantyMonths: z.number().int('Meses enteros').min(1, 'Mínimo 1 mes').max(240, 'Máximo 240 meses').nullable().optional(),
   /** Seller dueño del producto (consignación). Vacío o `null` = producto propio. */
   consignorId: z.string().min(1).nullable().optional(),
   /** Comisión propia del producto en puntos base. `null` = la del seller. */

@@ -64,6 +64,8 @@ function mockCancelTransaction(document: DocStub) {
   jest.spyOn(prisma, '$transaction').mockImplementation((async (callback: unknown) => {
     const tx = {
       $queryRaw: async () => [],
+      productSerial: { findMany: async () => [] },
+      inventoryMovement: { findMany: async () => [] },
       salesDocument: {
         findFirst: async () => document,
         updateMany: async (args: { where: Record<string, unknown>; data: Record<string, unknown> }) => {

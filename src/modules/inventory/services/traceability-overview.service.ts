@@ -92,6 +92,18 @@ export async function getTraceabilityOverview(companyId: string, now: Date = new
   }
   const unlotProducts = [...unlotByProduct.values()].sort((a, b) => b.quantity - a.quantity);
 
+  const [serialSalesAgg, assignedSerials] = await Promise.all([
+    prisma.salesDocumentItem.aggregate({
+      _sum: { quantity: true },
+      where: {
+        companyId,
+        product: { tracksSerials: true },
+        document: { companyId, status: 'ISSUED', issueDate: { gte: since }, dteType: { notIn: ['NOTA_CREDITO_61', 'NOTA_DEBITO_56', 'COTIZACION'] } },
+      },
+    }),
+    prisma.productSerial.count({ where: { companyId, salesDocumentId: { not: null }, soldAt: { gte: since } } }),
+  ]);
+  const unassignedSerialSales = Math.max(0, Math.round(serialSalesAgg._sum.quantity ?? 0) - assignedSerials);
   const countOf = (status: string) => serialByStatus.find((g) => g.status === status)?._count._all ?? 0;
   const overdueCount = await prisma.purchaseOrder.count({ where: { companyId, status: { in: ['SENT', 'PARTIALLY_RECEIVED'] }, expectedDate: { lt: today } } });
   const sum = (rows: Array<{ quantity: number }>) => rows.reduce((total, row) => total + row.quantity, 0);
@@ -105,6 +117,7 @@ export async function getTraceabilityOverview(companyId: string, now: Date = new
     serialMismatches: mismatches,
     overdueOrders: overdueCount,
     lostSerials30d: lostEvents,
+    unassignedSerialSales,
     linkableMovements30d: linkTotal,
     linkedMovements30d: linkLinked,
     expiryDays: EXPIRY_SOON_DAYS,

@@ -122,3 +122,31 @@ describe('línea de tiempo', () => {
     expect(describeLotAllocations([{ nope: true }])).toBeNull();
   });
 });
+
+describe('garantía y series en el flujo', () => {
+  const { addMonths, warrantyStatus, serialCountProblem } = jest.requireActual('@/lib/inventory/traceability') as typeof import('@/lib/inventory/traceability');
+
+  it('suma meses sin pasarse de fin de mes', () => {
+    expect(addMonths(new Date('2026-01-31T12:00:00Z'), 1).toISOString().slice(0, 10)).toBe('2026-02-28');
+    expect(addMonths(new Date('2028-01-31T12:00:00Z'), 1).toISOString().slice(0, 10)).toBe('2028-02-29');
+    expect(addMonths(new Date('2026-11-15T12:00:00Z'), 12).toISOString().slice(0, 10)).toBe('2027-11-15');
+    expect(addMonths(new Date('2026-11-15T12:00:00Z'), 3).toISOString().slice(0, 10)).toBe('2027-02-15');
+  });
+
+  it('estado de la garantía', () => {
+    const now = new Date('2026-11-10T12:00:00Z');
+    expect(warrantyStatus(null, now)).toEqual({ state: 'NONE', daysLeft: null });
+    expect(warrantyStatus(new Date('2026-11-10T12:00:00Z'), now)).toEqual({ state: 'ACTIVE', daysLeft: 0 });
+    expect(warrantyStatus(new Date('2026-12-10T12:00:00Z'), now)).toEqual({ state: 'ACTIVE', daysLeft: 30 });
+    expect(warrantyStatus(new Date('2026-11-09T12:00:00Z'), now)).toEqual({ state: 'EXPIRED', daysLeft: null });
+  });
+
+  it('exige una serie por unidad entera y sin repetir', () => {
+    expect(serialCountProblem(2, ['A', 'B'])).toBeNull();
+    expect(serialCountProblem(1, ['A'])).toBeNull();
+    expect(serialCountProblem(2, ['A'], 'Notebook')).toContain('Notebook');
+    expect(serialCountProblem(2, ['A', 'A'])).toContain('repetidas');
+    expect(serialCountProblem(1.5, ['A'])).toContain('unidades enteras');
+    expect(serialCountProblem(0, [])).toContain('unidades enteras');
+  });
+});

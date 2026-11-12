@@ -9,6 +9,7 @@ const base: OverviewFacts = {
   serialMismatches: 0,
   overdueOrders: 0,
   lostSerials30d: 0,
+  unassignedSerialSales: 0,
   linkableMovements30d: 0,
   linkedMovements30d: 0,
   expiryDays: 30,
@@ -54,6 +55,12 @@ describe('qué atender', () => {
     const low = buildAttention({ ...base, linkableMovements30d: 100, linkedMovements30d: 50 });
     expect(low).toHaveLength(1);
     expect(low[0]!.title).toContain('50%');
+  });
+
+  it('avisa de las ventas sin serie asignada', () => {
+    const items = buildAttention({ ...base, unassignedSerialSales: 3 });
+    expect(items[0]!.title).toBe('3 unidades vendidas sin serie asignada');
+    expect(buildAttention({ ...base, unassignedSerialSales: 1 })[0]!.title).toBe('1 unidad vendida sin serie asignada');
   });
 
   it('menciona los días configurados de vencimiento', () => {

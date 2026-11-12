@@ -265,6 +265,17 @@ export async function findProductByCodeAction(code: string): Promise<ActionResul
   }
 }
 
+export async function listSerialTrackedProductIdsAction(productIds: string[]): Promise<ActionResult<string[]>> {
+  try {
+    const session = await requireAuthWithPermission('products:read');
+    const ids = Array.isArray(productIds) ? productIds.filter((id): id is string => typeof id === 'string') : [];
+    const data = await productsService.listSerialTrackedProductIds(session.companyId, ids);
+    return { success: true, data };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
 export async function listLotTrackedProductIdsAction(productIds: string[]): Promise<ActionResult<string[]>> {
   try {
     const session = await requireAuthWithPermission('products:read');

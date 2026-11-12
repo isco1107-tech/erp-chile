@@ -6,6 +6,8 @@ import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import { emitWorkflowEvent } from '@/lib/workflows/engine';
 import type { GoodsReceiptCreateInput } from '../schema';
 import { normalizeLotNumber, parseExpiryDate } from '@/lib/inventory/lots';
+import { parseSerialList } from '@/lib/inventory/traceability';
+import { registerReceiptSerialsTx, removeReceiptSerialsTx } from '@/modules/inventory/services/serial-flow.service';
 
 export type GoodsReceiptWithItems = GoodsReceipt & { items: GoodsReceiptItem[] };
 export type GoodsReceiptWithRelations = GoodsReceiptWithItems & {
@@ -118,6 +120,24 @@ export async function createGoodsReceipt(
             ? [{ lotNumber: normalizeLotNumber(line.lotNumber), expiryDate: parseExpiryDate(line.expiryDate), quantity: line.quantity }]
             : undefined,
       });
+
+      // Series: una por unidad recibida. Un producto que se controla por serie las exige.
+      const parsedSerials = parseSerialList(line.serialsText ?? '');
+      if (parsedSerials.invalid.length) throw new Error(`Series no válidas en «${orderItem.description}»: ${parsedSerials.invalid.slice(0, 3).join(', ')}`);
+      if (parsedSerials.duplicates.length) throw new Error(`Series repetidas en «${orderItem.description}»: ${parsedSerials.duplicates.slice(0, 3).join(', ')}`);
+      if (product.tracksSerials || parsedSerials.serials.length > 0) {
+        await registerReceiptSerialsTx(tx, companyId, null, {
+          productId: orderItem.productId,
+          productName: product.name,
+          warehouseId: input.warehouseId,
+          quantity: line.quantity,
+          serials: parsedSerials.serials,
+          goodsReceiptId: receipt.id,
+          supplierId: order.contactId,
+          lotNumber: line.lotNumber ? normalizeLotNumber(line.lotNumber) : null,
+          reference: `Recepción #${receipt.folio} (OC #${order.folio})`,
+        });
+      }
     }
 
     for (const line of input.items) {
@@ -168,6 +188,9 @@ export async function cancelGoodsReceipt(companyId: string, id: string): Promise
     if (alreadyInvoiced) {
       throw new Error('No se puede anular: uno o más productos de esta recepción ya fueron facturados');
     }
+
+    // Las series que entraron con esta recepción salen con ella (solo si siguen en bodega).
+    await removeReceiptSerialsTx(tx, companyId, receipt.id);
 
     for (const line of receipt.items) {
       if (line.productId) {

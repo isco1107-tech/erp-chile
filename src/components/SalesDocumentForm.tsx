@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { parseSerialList } from '@/lib/inventory/traceability';
 import { useRouter } from 'next/navigation';
 import type { Contact, Warehouse } from '@prisma/client';
 import { toast } from 'sonner';
@@ -63,6 +64,8 @@ interface LineItemDraft {
   maxQuantity?: number;
   /** El precio lo propuso la lista del cliente (se recalcula al cambiar la cantidad). */
   priceAuto?: boolean;
+  /** Series de las unidades que se venden, como las escribe la persona (una por línea). */
+  serialsText?: string;
 }
 
 const REFERENCE_DTE_TYPES = new Set(['NOTA_CREDITO_61', 'NOTA_DEBITO_56', 'GUIA_DESPACHO_52']);
@@ -423,6 +426,7 @@ export default function SalesDocumentForm({ orderId, initialType, draftId, credi
         unitPrice: Number(i.unitPrice) || 0,
         isExempt: i.isExempt,
         discountPercent: Number(i.discountPercent) || 0,
+        serials: i.serialsText ? parseSerialList(i.serialsText).serials : undefined,
       })),
     };
   }
@@ -767,7 +771,8 @@ export default function SalesDocumentForm({ orderId, initialType, draftId, credi
                 </tr>
               )}
               {computedItems.map((item) => (
-                <tr key={item.key} className="border-t border-border">
+                <Fragment key={item.key}>
+                <tr className="border-t border-border">
                   <td className="p-2 font-mono text-xs">{item.sku ?? '—'}</td>
                   <td className="p-2">
                     <Input
@@ -831,6 +836,22 @@ export default function SalesDocumentForm({ orderId, initialType, draftId, credi
                     <Button type="button" size="xs" variant="destructive" onClick={() => removeItem(item.key)}>✕</Button>
                   </td>
                 </tr>
+                {item.productId && products.find((p) => p.id === item.productId)?.tracksSerials && (
+                  <tr className="bg-muted/30">
+                    <td className="p-2" colSpan={10}>
+                      <label htmlFor={`serials-${item.key}`} className="block text-xs text-muted-foreground">
+                        Series de {item.description} (una por línea, tantas como unidades; opcional)
+                      </label>
+                      <textarea
+                        id={`serials-${item.key}`}
+                        className="mt-1 min-h-14 w-full rounded-lg border border-input bg-transparent px-2.5 py-1.5 font-mono text-xs"
+                        value={items.find((i) => i.key === item.key)?.serialsText ?? ''}
+                        onChange={(e) => updateItem(item.key, 'serialsText', e.target.value)}
+                      />
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>

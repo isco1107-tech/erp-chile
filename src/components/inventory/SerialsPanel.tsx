@@ -12,7 +12,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { nativeSelectClass, textareaClass } from '@/components/ui/field-classes';
 import { dayTimeLabel } from '@/lib/retail/live-metrics';
-import { parseSerialList, SERIAL_STATUSES, SERIAL_STATUS_LABELS, type SerialStatus } from '@/lib/inventory/traceability';
+import { parseSerialList, SERIAL_STATUSES, SERIAL_STATUS_LABELS, WARRANTY_LABELS, warrantyStatus, type SerialStatus } from '@/lib/inventory/traceability';
 import { changeSerialStatusAction, listSalesForProductAction, registerSerialsAction, transferSerialsAction } from '@/modules/inventory/actions/traceability.actions';
 import type { SaleOption, SerialRow } from '@/modules/inventory/services/traceability.service';
 import type { Tone } from '@/components/ui/tone';
@@ -117,6 +117,11 @@ export default function SerialsPanel({ productId, productName, serials, warehous
                             .filter(Boolean)
                             .join(' · ')}
                         </p>
+                        {row.warrantyUntil && (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {WARRANTY_LABELS[warrantyStatus(row.warrantyUntil, new Date()).state]} · hasta {row.warrantyUntil.toISOString().slice(0, 10)}
+                          </p>
+                        )}
                         {row.notes && <p className="mt-1 break-words text-xs text-muted-foreground">{row.notes}</p>}
                         {canWrite && (
                           <div className="mt-2 flex flex-wrap gap-1.5">

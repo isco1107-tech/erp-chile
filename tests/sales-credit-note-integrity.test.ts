@@ -47,6 +47,8 @@ const originalInvoice = {
 function fakeTx(overrides: Record<string, Record<string, jest.Mock>> = {}) {
   const tx = {
     $queryRaw: jest.fn().mockResolvedValue([]),
+    productSerial: { findMany: jest.fn().mockResolvedValue([]) },
+    inventoryMovement: { findMany: jest.fn().mockResolvedValue([]) },
     contact: { findFirst: jest.fn().mockResolvedValue({ id: 'cli1', creditLimit: null }) },
     warehouse: { findFirst: jest.fn().mockResolvedValue({ id: 'w1' }) },
     product: { findFirst: jest.fn().mockResolvedValue({ id: 'p1', costPricePMP: 1000, isExempt: false, isTrackable: true }) },

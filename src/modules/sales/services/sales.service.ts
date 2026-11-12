@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { normalizeSerial } from '@/lib/inventory/traceability';
+import { lotsFromAllocations } from '@/lib/inventory/lots';
+import { releaseSoldSerialsTx, sellSerialsTx } from '@/modules/inventory/services/serial-flow.service';
 import { prisma } from '@/lib/prisma';
 import { formatCurrency } from '@/lib/chile/tax';
 import type {
@@ -316,6 +319,18 @@ export async function createSalesDocument(
     // asiento se emite después de crear el documento.
     // Id del documento ANTES de mover stock: el kardex guarda de qué documento nació cada movimiento (trazabilidad).
     const documentId = randomUUID();
+    // Series que la persona indicó por producto, en el orden de las líneas: cada línea toma las suyas.
+    const serialQueue = new Map<string, string[]>();
+    for (const line of input.items) {
+      if (!line.productId || !line.serials?.length) continue;
+      const list = serialQueue.get(line.productId) ?? [];
+      for (const raw of line.serials) {
+        const serial = normalizeSerial(raw);
+        if (!serial) throw new Error(`La serie «${raw.slice(0, 40)}» no es válida`);
+        list.push(serial);
+      }
+      serialQueue.set(line.productId, list);
+    }
     const restockedForAccounting: { unitCostPMP: number; quantity: number }[] = [];
     // Costo de venta para la regla contable: solo las líneas que en verdad
     // descontaron Kardex (`isTrackable`), nunca todas las líneas del
@@ -405,6 +420,23 @@ export async function createSalesDocument(
           });
           costByProduct.set(item.productId, movement.unitCost);
           costedItemsForAccounting.push({ unitCostPMP: movement.unitCost, quantity: item.quantity });
+
+          // Series: si se indicaron, quedan vendidas a este documento (con su garantía). Un producto
+          // con serie vendido sin indicarlas no se rechaza: queda pendiente en Trazabilidad.
+          const queue = serialQueue.get(item.productId);
+          if (queue && queue.length > 0) {
+            await sellSerialsTx(tx, companyId, null, {
+              productId: item.productId,
+              productName: product.name,
+              warehouseId: input.warehouseId,
+              quantity: item.quantity,
+              serials: queue.splice(0, Math.max(0, Math.round(item.quantity))),
+              salesDocumentId: documentId,
+              warrantyMonths: product.warrantyMonths,
+              at: new Date(),
+              reference: `DTE ${dteLabel} Folio #${folio ?? '-'}`,
+            });
+          }
         }
       }
     }
@@ -721,10 +753,19 @@ export async function cancelSalesDocument(companyId: string, id: string, reason?
     }
 
     if (documentMovedStockOnIssue) {
+      // Lo que se devuelve vuelve al MISMO lote del que salió (no a «SIN-LOTE»): así la trazabilidad no pierde el lote.
+      const soldMovements = await tx.inventoryMovement.findMany({
+        where: { companyId, sourceKind: 'SALES_DOCUMENT', sourceId: document.id, type: 'SALE_OUT' },
+        select: { productId: true, quantity: true, lotAllocations: true },
+      });
+      const usedMovements = new Set<number>();
       for (const item of document.items) {
         if (!item.productId) continue;
         const product = await tx.product.findFirst({ where: { id: item.productId, companyId } });
         if (!product || !product.isTrackable) continue;
+        const movementIndex = soldMovements.findIndex((m, index) => !usedMovements.has(index) && m.productId === item.productId && Math.abs(m.quantity - item.quantity) < 1e-9);
+        if (movementIndex >= 0) usedMovements.add(movementIndex);
+        const originalLots = movementIndex >= 0 ? lotsFromAllocations(soldMovements[movementIndex]!.lotAllocations) : undefined;
         // Una guía no lleva la foto del seller (no es la venta): el control aplica a facturas y boletas.
         if (documentSign(document.dteType) !== 0) assertSameOwnerSinceSale(product, product.consignorId, item.consignorId, 'anular');
         await applyStockIn(tx, companyId, {
@@ -735,8 +776,11 @@ export async function cancelSalesDocument(companyId: string, id: string, reason?
           unitCost: item.unitCostPMP,
           reference: cancellationNote,
           source: { kind: 'SALES_DOCUMENT', id: document.id },
+          lots: originalLots,
         });
       }
+      // Las series que ese documento vendió vuelven a la bodega.
+      await releaseSoldSerialsTx(tx, companyId, null, { salesDocumentId: document.id, warehouseId: document.warehouseId, reference: cancellationNote });
     } else if (document.dteType === 'NOTA_CREDITO_61') {
       // La NC había reingresado stock (applyStockIn) al emitirse solo para las
       // líneas con `quantity > 0` (Caso B, ajuste de precio sin devolución

@@ -10,6 +10,7 @@ import {
   describeLotAllocations,
   eventKindForTransition,
   MAX_SERIALS_PER_BATCH,
+  normalizeSerial,
   pendingQuantity,
   SERIAL_EVENT_LABELS,
   SERIAL_STATUS_LABELS,
@@ -319,6 +320,7 @@ export interface SerialRow {
   receivedAt: Date;
   soldAt: Date | null;
   saleLabel: string | null;
+  warrantyUntil: Date | null;
   notes: string | null;
   allowedNext: SerialStatus[];
 }
@@ -354,6 +356,7 @@ export async function listSerials(companyId: string, productId: string, options:
     receivedAt: row.receivedAt,
     soldAt: row.soldAt,
     saleLabel: row.salesDocumentId ? (saleById.get(row.salesDocumentId) ?? null) : null,
+    warrantyUntil: row.warrantyUntil,
     notes: row.notes,
     allowedNext: [...allowedSerialTransitions(row.status)],
   }));
@@ -568,4 +571,92 @@ export async function transferSerials(companyId: string, userId: string, input: 
     });
   }, LOCKING_TX_OPTIONS);
   return { moved: ids.length, fromWarehouseId };
+}
+
+// ─── Búsqueda de una serie en toda la empresa ────────────────────────────────
+
+export interface SerialJourney {
+  id: string;
+  serial: string;
+  product: { id: string; sku: string; name: string };
+  status: SerialStatus;
+  statusLabel: string;
+  warehouse: string | null;
+  lotNumber: string | null;
+  supplier: string | null;
+  receivedAt: Date;
+  /** Recepción de mercadería por la que entró, si entró por una. */
+  receipt: string | null;
+  soldAt: Date | null;
+  sale: string | null;
+  customer: { name: string; rut: string } | null;
+  warrantyUntil: Date | null;
+  events: Array<{ id: string; at: Date; title: string; actor: string | null; reference: string | null; note: string | null }>;
+  tickets: Array<{ folio: number; status: string; equipment: string; receivedAt: Date; warranty: boolean }>;
+}
+
+/** Todo lo que se sabe de un número de serie: origen, ventas, garantía, historia y servicio técnico. */
+export async function lookupSerial(companyId: string, rawSerial: string, options: { includeCustomer: boolean }): Promise<SerialJourney[]> {
+  const serial = normalizeSerial(rawSerial);
+  if (!serial) return [];
+  const rows = await prisma.productSerial.findMany({
+    where: { companyId, serial },
+    take: 10,
+    include: {
+      product: { select: { id: true, sku: true, name: true } },
+      warehouse: { select: { name: true } },
+      events: { orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 50 },
+    },
+  });
+  if (rows.length === 0) return [];
+  const receiptIds = [...new Set(rows.map((r) => r.goodsReceiptId).filter((id): id is string => Boolean(id)))];
+  const saleIds = [...new Set(rows.map((r) => r.salesDocumentId).filter((id): id is string => Boolean(id)))];
+  const supplierIds = [...new Set(rows.map((r) => r.supplierId).filter((id): id is string => Boolean(id)))];
+  const userIds = [...new Set(rows.flatMap((r) => r.events.map((e) => e.userId)).filter((id): id is string => Boolean(id)))];
+  const [receipts, sales, suppliers, users, tickets] = await Promise.all([
+    receiptIds.length ? prisma.goodsReceipt.findMany({ where: { companyId, id: { in: receiptIds } }, select: { id: true, folio: true, order: { select: { folio: true } } } }) : [],
+    saleIds.length
+      ? prisma.salesDocument.findMany({ where: { companyId, id: { in: saleIds } }, select: { id: true, dteType: true, folio: true, contact: { select: { razonSocial: true, nombreFantasia: true, rut: true } } } })
+      : [],
+    supplierIds.length ? prisma.contact.findMany({ where: { companyId, id: { in: supplierIds } }, select: { id: true, razonSocial: true, nombreFantasia: true } }) : [],
+    userIds.length ? prisma.user.findMany({ where: { id: { in: userIds }, memberships: { some: { companyId } } }, select: { id: true, name: true } }) : [],
+    prisma.serviceTicket.findMany({
+      where: { companyId, serialNumber: { equals: serial, mode: 'insensitive' } },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      select: { folio: true, status: true, equipment: true, createdAt: true, warranty: true },
+    }),
+  ]);
+  const receiptLabel = new Map(receipts.map((r) => [r.id, `Recepción #${r.folio} (OC #${r.order.folio})`]));
+  const saleInfo = new Map(sales.map((s) => [s.id, s]));
+  const supplierLabel = new Map(suppliers.map((c) => [c.id, supplierName(c)]));
+  const userLabel = new Map(users.map((u) => [u.id, u.name]));
+  return rows.map((row) => {
+    const sale = row.salesDocumentId ? saleInfo.get(row.salesDocumentId) : undefined;
+    return {
+      id: row.id,
+      serial: row.serial,
+      product: row.product,
+      status: row.status,
+      statusLabel: SERIAL_STATUS_LABELS[row.status],
+      warehouse: row.warehouse?.name ?? null,
+      lotNumber: row.lotNumber,
+      supplier: row.supplierId ? (supplierLabel.get(row.supplierId) ?? null) : null,
+      receivedAt: row.receivedAt,
+      receipt: row.goodsReceiptId ? (receiptLabel.get(row.goodsReceiptId) ?? null) : null,
+      soldAt: row.soldAt,
+      sale: sale ? `${DTE_TYPE_LABELS[sale.dteType as keyof typeof DTE_TYPE_LABELS] ?? sale.dteType} #${sale.folio ?? '—'}` : null,
+      customer: sale && options.includeCustomer ? { name: supplierName(sale.contact) ?? '', rut: sale.contact.rut } : null,
+      warrantyUntil: row.warrantyUntil,
+      events: row.events.map((event) => ({
+        id: event.id,
+        at: event.createdAt,
+        title: SERIAL_EVENT_LABELS[event.kind],
+        actor: event.userId ? (userLabel.get(event.userId) ?? null) : null,
+        reference: event.reference,
+        note: event.note,
+      })),
+      tickets: tickets.map((t) => ({ folio: t.folio, status: t.status, equipment: t.equipment, receivedAt: t.createdAt, warranty: t.warranty })),
+    };
+  });
 }

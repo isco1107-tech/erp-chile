@@ -1047,6 +1047,10 @@ model Product {
   /// Maneja lotes con vencimiento: las entradas registran lote y las salidas
   /// consumen primero el que vence antes (FEFO). Ver `InventoryLot`.
   tracksLots           Boolean                    @default(false)
+  /// Se vende y recibe por número de serie: la recepción y la venta exigen una serie por unidad.
+  tracksSerials        Boolean                    @default(false)
+  /// Meses de garantía desde la venta (aplica a las series). `null` = sin garantía definida.
+  warrantyMonths       Int?
   /// Archivado = `false`: sale del POS y de los selectores de venta/compra, pero
   /// conserva su historial. Es la salida para productos que ya no se pueden borrar.
   isActive             Boolean                    @default(true)
@@ -5039,6 +5043,10 @@ model ProductSerial {
   lotNumber       String?
   supplierId      String?
   salesDocumentId String?
+  /// Recepción de mercadería en que entró (si entró por una); `null` = registrada a mano.
+  goodsReceiptId  String?
+  /// Fin de la garantía: fecha de venta + `Product.warrantyMonths`. `null` = sin garantía.
+  warrantyUntil   DateTime?
   receivedAt      DateTime            @default(now())
   soldAt          DateTime?
   notes           String?
@@ -5051,6 +5059,8 @@ model ProductSerial {
   @@index([companyId, status])
   @@index([companyId, productId, status])
   @@index([companyId, warehouseId, status])
+  @@index([companyId, goodsReceiptId])
+  @@index([companyId, salesDocumentId])
 }
 
 /// Historia de una serie: cada cambio de estado o de bodega, con quién y por qué.

@@ -69,6 +69,8 @@ export const salesDocumentItemSchema = z.object({
   discountPercent: z.number().min(0, 'El descuento no puede ser negativo').max(100, 'El descuento no puede superar 100%').optional(),
   /** Línea de la nota de venta que esta línea factura o despacha. */
   salesOrderItemId: z.string().optional(),
+  /** Series de las unidades que se venden (una por unidad) si el producto se controla por serie. */
+  serials: z.array(z.string().trim().min(1).max(64)).max(500).optional(),
 });
 
 export type SalesDocumentItemInput = z.infer<typeof salesDocumentItemSchema>;

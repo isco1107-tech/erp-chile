@@ -26,6 +26,8 @@ export interface OverviewFacts {
   serialMismatches: number;
   overdueOrders: number;
   lostSerials30d: number;
+  /** Unidades vendidas en 30 días de productos con serie a las que no se les asignó serie. */
+  unassignedSerialSales: number;
   /** Movimientos de venta y compra de los últimos 30 días y cuántos traen documento enlazado. */
   linkableMovements30d: number;
   linkedMovements30d: number;
@@ -90,6 +92,15 @@ export function buildAttention(facts: OverviewFacts): AttentionItem[] {
       title: `${plural(facts.overdueOrders, 'orden de compra atrasada', 'órdenes de compra atrasadas')}`,
       detail: 'Pasó la fecha esperada y aún no llega completa.',
       href: '/dashboard/purchases/orders',
+    });
+  }
+  if (facts.unassignedSerialSales > 0) {
+    items.push({
+      id: 'unassigned-serial-sales',
+      tone: 'warning',
+      title: `${plural(facts.unassignedSerialSales, 'unidad vendida', 'unidades vendidas')} sin serie asignada`,
+      detail: 'Son productos que se controlan por serie. Asígnalas en la vista Series (Marcar vendida) para tener su garantía y su recorrido.',
+      href: '/dashboard/inventory/trazabilidad',
     });
   }
   if (facts.lostSerials30d > 0) {
