@@ -464,6 +464,8 @@ export interface PosProduct {
   stock: number;
   isTrackable: boolean;
   isExempt: boolean;
+  /** Se vende por número de serie: el cajero indica una serie por unidad antes de cobrar. */
+  tracksSerials: boolean;
   barcode: string | null;
   /** Códigos de empaques: escanear uno agrega `factor` unidades. */
   packagings: { barcode: string; factor: number; name: string }[];
@@ -501,6 +503,7 @@ export async function listPosProducts(companyId: string, warehouseId: string): P
     })(),
     isTrackable: product.isTrackable,
     isExempt: product.isExempt,
+    tracksSerials: product.tracksSerials,
   }));
 }
 

@@ -61,7 +61,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
     steps: [
       header('Tu cuenta y tu caja', 'Ingresa con tu propia cuenta, verifica el cajero identificado, elige una caja disponible y declara el efectivo inicial. Cada caja tiene un turno y descuenta stock de su bodega.'),
       note('Arma la venta', 'En "Vender" escanea el código de barras o escribe el SKU o nombre y presiona Enter. Al primer producto el sistema pide el RUT del cliente: escríbelo y Enter, o Enter sin RUT para consumidor final. Para varias unidades escribe 3* y escanea.'),
-      note('Cobra con el teclado', 'Presiona "Cobrar" (F9 o Enter con el buscador vacío) y elige el medio con E, D, C o T. En efectivo escribe lo recibido o usa "Exacto": el vuelto se ve en grande y se abre el cajón si lo configuraste en "Cajón e impresora".'),
+      note('Cobra con el teclado', 'Presiona "Cobrar" (F9 o Enter con el buscador vacío); si hay productos con serie, antes se pide una serie por unidad (lector + Enter). Elige el medio con E, D, C o T. En efectivo escribe lo recibido o usa "Exacto": el vuelto se ve en grande y se abre el cajón si lo configuraste en "Cajón e impresora".'),
       note('Varios clientes a la vez', '"Poner en espera" (F6) deja la venta a un lado y "En espera" (F7) la retoma. "Abrir cajón" (F8) pide un motivo y queda registrado.'),
       note('Ingresos, retiros y cierre', 'En "Caja y arqueo" registra ingresos o retiros con monto y motivo. Al terminar actualiza el arqueo, cuenta el efectivo y presiona "Cerrar caja"; si hay diferencia, explícala.'),
       note('Historial y multicaja', 'En "Mis turnos" revisa e imprime comprobantes. Con permiso de supervisión verás "Turnos y multicaja" para consultar y cerrar las cajas de otros cajeros.'),

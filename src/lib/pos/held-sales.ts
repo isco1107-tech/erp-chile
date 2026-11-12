@@ -29,6 +29,8 @@ const lineSchema = z.object({
   stock: z.number(),
   isTrackable: z.boolean(),
   isExempt: z.boolean(),
+  tracksSerials: z.boolean().optional(),
+  serials: z.array(z.string().max(64)).max(500).optional(),
 });
 
 const heldSchema = z.object({

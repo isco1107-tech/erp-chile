@@ -261,7 +261,7 @@ export async function getProductFlow(companyId: string, productId: string, optio
 
   const userIds = [...new Set(serialEvents.map((event) => event.userId).filter((id): id is string => Boolean(id)))];
   const users = userIds.length
-    ? await prisma.user.findMany({ where: { id: { in: userIds }, memberships: { some: { companyId } } }, select: { id: true, name: true } })
+    ? await prisma.user.findMany({ where: { id: { in: userIds }, OR: [{ companyId }, { companyMemberships: { some: { companyId } } }] }, select: { id: true, name: true } })
     : [];
   const userName = new Map(users.map((user) => [user.id, user.name]));
 
@@ -619,7 +619,7 @@ export async function lookupSerial(companyId: string, rawSerial: string, options
       ? prisma.salesDocument.findMany({ where: { companyId, id: { in: saleIds } }, select: { id: true, dteType: true, folio: true, contact: { select: { razonSocial: true, nombreFantasia: true, rut: true } } } })
       : [],
     supplierIds.length ? prisma.contact.findMany({ where: { companyId, id: { in: supplierIds } }, select: { id: true, razonSocial: true, nombreFantasia: true } }) : [],
-    userIds.length ? prisma.user.findMany({ where: { id: { in: userIds }, memberships: { some: { companyId } } }, select: { id: true, name: true } }) : [],
+    userIds.length ? prisma.user.findMany({ where: { id: { in: userIds }, OR: [{ companyId }, { companyMemberships: { some: { companyId } } }] }, select: { id: true, name: true } }) : [],
     prisma.serviceTicket.findMany({
       where: { companyId, serialNumber: { equals: serial, mode: 'insensitive' } },
       orderBy: { createdAt: 'desc' },

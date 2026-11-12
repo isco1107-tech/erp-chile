@@ -31,6 +31,7 @@ describeDb('Trazabilidad contra PostgreSQL', () => {
   let prisma: PrismaClient;
   let receipts: typeof import('@/modules/purchases/services/goods-receipt.service');
   let sales: typeof import('@/modules/sales/services/sales.service');
+  let pos: typeof import('@/modules/pos/services/pos.service');
   let trace: typeof import('@/modules/inventory/services/traceability.service');
   let genealogy: typeof import('@/modules/inventory/services/genealogy.service');
   let overview: typeof import('@/modules/inventory/services/traceability-overview.service');
@@ -46,6 +47,7 @@ describeDb('Trazabilidad contra PostgreSQL', () => {
     ({ prisma } = await import('@/lib/prisma'));
     receipts = await import('@/modules/purchases/services/goods-receipt.service');
     sales = await import('@/modules/sales/services/sales.service');
+    pos = await import('@/modules/pos/services/pos.service');
     trace = await import('@/modules/inventory/services/traceability.service');
     genealogy = await import('@/modules/inventory/services/genealogy.service');
     overview = await import('@/modules/inventory/services/traceability-overview.service');
@@ -288,5 +290,33 @@ describeDb('Trazabilidad contra PostgreSQL', () => {
     // La venta de un producto con serie sin indicar series queda pendiente a la vista.
     expect(ids).toContain('unassigned-serial-sales');
     expect(ids).toContain('serial-mismatch');
+  });
+
+  it('el POS vende por serie: la boleta queda ligada a las series, con garantía, y un error no cobra nada', async () => {
+    const f = await fixture();
+    await receive(f, 'POS-1,POS-2,POS-3');
+    const register = await prisma.cashRegister.create({ data: { companyId: f.companyId, name: 'Caja 1', warehouseId: f.w1.id } });
+    const shift = await prisma.cashShift.create({ data: { companyId: f.companyId, cashRegisterId: register.id, userId: f.user.id, initialAmount: 0 } });
+
+    const catalog = await pos.listPosProducts(f.companyId, f.w1.id);
+    expect(catalog.find((p) => p.id === f.product.id)?.tracksSerials).toBe(true);
+
+    // Serie inexistente: se rechaza y no se mueve stock ni se emite nada.
+    await expect(pos.createPosSale(f.companyId, f.user.id, shift.id, { items: [{ productId: f.product.id, quantity: 1, serials: ['NO-ESTA'] }], paymentMethod: 'EFECTIVO', cashReceived: 5000, idempotencyKey: `k-${run}-1` })).rejects.toThrow(/no está registrada/);
+    expect(await prisma.salesDocument.count({ where: { companyId: f.companyId } })).toBe(0);
+    expect((await prisma.stock.findFirstOrThrow({ where: { companyId: f.companyId, productId: f.product.id } })).quantity).toBe(3);
+
+    const sale = await pos.createPosSale(f.companyId, f.user.id, shift.id, { items: [{ productId: f.product.id, quantity: 2, serials: ['pos-1', 'POS-3'] }], paymentMethod: 'EFECTIVO', cashReceived: 5000, idempotencyKey: `k-${run}-2` });
+    const sold = await prisma.productSerial.findMany({ where: { companyId: f.companyId, status: 'SOLD' }, orderBy: { serial: 'asc' } });
+    expect(sold.map((x) => x.serial)).toEqual(['POS-1', 'POS-3']);
+    expect(sold.every((x) => x.salesDocumentId === sale.id && x.warrantyUntil !== null)).toBe(true);
+    const events = await prisma.productSerialEvent.findMany({ where: { serialId: sold[0]!.id }, orderBy: { createdAt: 'asc' } });
+    expect(events.map((e) => e.kind)).toEqual(['REGISTERED', 'SOLD']);
+    const [journey] = await trace.lookupSerial(f.companyId, 'POS-3', { includeCustomer: true });
+    expect(journey!.sale).toContain('Boleta');
+    // Los eventos con operario (el cajero) muestran su nombre en la serie y en la línea de tiempo.
+    expect(journey!.events.find((e) => e.title === 'Vendida')?.actor).toBe('Bodeguero Beto');
+    const flow = await trace.getProductFlow(f.companyId, f.product.id, { days: 30 });
+    expect(flow!.timeline.some((entry) => entry.source === 'serial' && entry.actor === 'Bodeguero Beto')).toBe(true);
   });
 });
