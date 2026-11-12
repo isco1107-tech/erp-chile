@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
+  Route,
   ArrowLeftRight,
   PackageOpen,
   HeartHandshake,
@@ -150,6 +151,7 @@ export const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   commissions: BadgePercent,
   inventoryCount: ClipboardCheck,
   lots: Hourglass,
+  traceability: Route,
   labels: Barcode,
   mobile: Smartphone,
   movements: ArrowLeftRight,

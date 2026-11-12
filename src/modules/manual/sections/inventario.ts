@@ -155,6 +155,43 @@ export const INVENTARIO_SECTIONS: ManualSection[] = [
     ],
   },
   {
+    id: 'trazabilidad',
+    key: 'hasInventory',
+    permission: 'products:read',
+    chapter: 'Inventario',
+    title: 'Trazabilidad de productos',
+    summary: 'El recorrido de un producto en un tablero (de la orden de compra a la venta o la pérdida), su línea de tiempo y el seguimiento de cada unidad por número de serie.',
+    route: '/dashboard/inventory/trazabilidad',
+    // Sin captura hasta correr scripts/capture-manual-screenshots.ts contra una base local.
+    screenshot: null,
+    topics: [
+      {
+        id: 'ver-recorrido',
+        title: 'Ver el recorrido de un producto',
+        steps: [
+          'Ve a Inventario → Trazabilidad, escribe el nombre, SKU o código de barras y presiona "Buscar".',
+          'Elige el producto de la lista. Se abre la vista "Flujo" con seis columnas: En camino, Recepcionado, En bodega, Trasladado, Vendido y Pérdidas y devoluciones.',
+          'Cambia el período (7, 30 o 90 días). "En camino" (órdenes de compra enviadas sin recibir completas) y "En bodega" muestran siempre lo de hoy.',
+          'En "En bodega" cada bodega indica sus lotes y si todas sus unidades tienen número de serie.',
+          'Más abajo, la línea de tiempo muestra cada movimiento con quién lo hizo, el documento de origen y la foto de respaldo si la hay.',
+        ],
+        tip: 'Una columna vacía significa que no hay nada registrado: la pantalla nunca rellena con datos inventados.',
+      },
+      {
+        id: 'series',
+        title: 'Seguir cada unidad por número de serie',
+        steps: [
+          'En el producto elegido abre la vista "Series".',
+          'Presiona "Registrar series", elige la bodega donde están y escribe una serie por línea (hasta 500 por vez). Opcionalmente indica lote, proveedor y una nota.',
+          'Cada serie aparece en la columna "En bodega". Desde su tarjeta puedes "Marcar vendida" (y asociarla a la venta), "Dar de baja (pérdida)" explicando qué pasó, o "Devolver al proveedor".',
+          'Una serie vendida, perdida o devuelta puede "Volver a bodega" (por ejemplo, una devolución de cliente).',
+          'Para cambiar series de bodega marca sus casillas y presiona "Trasladar seleccionadas": mueve también el stock, igual que un traslado normal.',
+        ],
+        tip: 'Registrar o cambiar de estado una serie no mueve el stock: la entrada de mercadería, las ventas y las mermas siguen su propio camino. Solo el traslado de series mueve stock.',
+      },
+    ],
+  },
+  {
     id: 'etiquetas',
     key: 'hasInventory',
     permission: 'products:read',

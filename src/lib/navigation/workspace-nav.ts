@@ -77,6 +77,7 @@ export type NavIconKey =
   | 'commissions'
   | 'inventoryCount'
   | 'lots'
+  | 'traceability'
   | 'labels'
   | 'mobile'
   | 'movements'
@@ -205,6 +206,7 @@ export function buildAvailableWorkspaceNav({ permissions, features }: Omit<NavAc
       { id: 'inventory', href: '/dashboard/inventory', label: 'Inventario', icon: 'inventory', keywords: ['stock', 'bodega', 'kardex', 'existencias'] },
       { id: 'inventory-counts', href: '/dashboard/inventory/counts', label: 'Toma de inventario', icon: 'inventoryCount', keywords: ['conteo', 'inventario fisico', 'merma', 'ajuste', 'cuadratura'] },
       { id: 'inventory-lots', href: '/dashboard/inventory/lots', label: 'Lotes y vencimientos', icon: 'lots', keywords: ['lote', 'vencimiento', 'caducidad', 'fefo', 'expira'] },
+      { id: 'inventory-traceability', href: '/dashboard/inventory/trazabilidad', label: 'Trazabilidad', icon: 'traceability', keywords: ['trazabilidad', 'serie', 'numero de serie', 'recorrido', 'kanban', 'tablero', 'historial', 'unidad', 'donde esta', 'origen', 'lote'] },
       { id: 'inventory-labels', href: '/dashboard/inventory/labels', label: 'Etiquetas', icon: 'labels', keywords: ['codigo de barras', 'etiqueta', 'gondola', 'imprimir', 'ean'] },
       { id: 'inventory-movements', href: '/dashboard/inventory/movements', label: 'Movimientos de bodega', icon: 'movements', keywords: ['kardex', 'merma', 'salida', 'ajuste', 'operario', 'foto', 'respaldo', 'degustacion', 'bodega', 'registro', 'quien'] },
       { id: 'inventory-consignment', href: '/dashboard/inventory/consignment', label: 'Consignación', icon: 'consignment', keywords: ['seller', 'sellers', 'consignacion', 'comision', 'liquidacion', 'vendedor externo', 'marketplace', 'mercaderia de terceros', 'pagar a seller'] },

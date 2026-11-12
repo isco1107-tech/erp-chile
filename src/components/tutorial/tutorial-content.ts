@@ -141,6 +141,15 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       note('FEFO automático', 'Las ventas consumen primero el lote que vence antes.'),
     ],
   },
+  'inventory-traceability': {
+    title: 'Trazabilidad',
+    steps: [
+      header('Sigue un producto de punta a punta', 'Busca un producto y mira su recorrido: en camino, recepcionado, en bodega, trasladado, vendido y pérdidas.'),
+      note('Elige el período', 'En la vista Flujo cambia entre 7, 30 y 90 días. "En camino" y "En bodega" siempre muestran lo de hoy.'),
+      note('Línea de tiempo', 'Debajo del tablero ves cada movimiento con quién lo hizo, el documento de origen y la foto de respaldo.'),
+      note('Series por unidad', 'En la vista Series registras números de serie y los mueves entre En bodega, Vendida, Perdida y Devuelta.'),
+    ],
+  },
   'inventory-labels': {
     title: 'Etiquetas',
     steps: [
