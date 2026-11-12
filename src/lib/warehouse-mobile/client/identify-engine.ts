@@ -53,8 +53,8 @@ export interface IdentifyResult {
 }
 
 function toProduct(candidate: MobileCandidate): MobileProduct {
-  const { id, sku, name, brand, unit, barcode, imageUrl, tracksLots, isActive, stock, totalStock } = candidate;
-  return { id, sku, name, brand, unit, barcode, imageUrl, tracksLots, isActive, stock, totalStock };
+  const { id, sku, name, brand, unit, barcode, imageUrl, tracksLots, tracksSerials, isActive, stock, totalStock } = candidate;
+  return { id, sku, name, brand, unit, barcode, imageUrl, tracksLots, tracksSerials, isActive, stock, totalStock };
 }
 
 /** La línea que toca intentar ahora, o `null`. Códigos primero; fotos solo si ya pasó la espera de la IA. */

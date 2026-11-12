@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { AlertTriangle, Camera, ChevronDown, PackagePlus, RefreshCw, Search, Sparkles, Trash2 } from 'lucide-react';
-import { canCreateInMode, evidencePhotoOf, lineUnit, type Draft, type DraftLine } from '@/lib/warehouse-mobile/draft';
+import { useState, type FormEvent } from 'react';
+import { AlertTriangle, Camera, ChevronDown, PackagePlus, RefreshCw, Search, Sparkles, Trash2, X } from 'lucide-react';
+import { addSerialToLine, canCreateInMode, evidencePhotoOf, lineNeedsSerials, lineUnit, removeSerialFromLine, type Draft, type DraftLine } from '@/lib/warehouse-mobile/draft';
 import { MODE_DEFINITIONS, isInboundMode } from '@/lib/warehouse-mobile/modes';
 import type { MobileCandidate } from '@/modules/warehouse-mobile/types';
 import { useBodega } from './BodegaProvider';
@@ -31,6 +31,8 @@ interface Props {
 export default function LineCard({ line, draft, problem, onSearch, onCreate, onRetake, onEvidence }: Props) {
   const { boot, setLineQuantity, removeDraftLine, patchDraftLine, confirmDraftLine, resolveLine, retryIdentification } = useBodega();
   const [more, setMore] = useState(false);
+  const [serialText, setSerialText] = useState('');
+  const [serialError, setSerialError] = useState('');
   const data = boot.status === 'ready' ? boot.data : null;
   const { source } = line;
   const inbound = isInboundMode(draft.mode);
@@ -256,6 +258,50 @@ export default function LineCard({ line, draft, problem, onSearch, onCreate, onR
             {evidenceId ? 'Cambiar' : 'Sacar foto'}
           </button>
         </div>
+      ) : null}
+
+      {lineNeedsSerials(line) ? (
+        <form
+          className="mt-3 space-y-2 rounded-xl bg-muted p-2.5"
+          onSubmit={(event: FormEvent) => {
+            event.preventDefault();
+            const result = addSerialToLine(draft, line.id, serialText);
+            if (result.error || !result.patch) return setSerialError(result.error ?? 'No se pudo agregar la serie');
+            patchDraftLine(line.id, result.patch);
+            setSerialText('');
+            setSerialError('');
+          }}
+        >
+          <p className="text-sm font-medium">
+            Series: {line.serials.length} de {Math.round(line.quantity)}
+          </p>
+          <div className="flex gap-2">
+            <input
+              value={serialText}
+              onChange={(event) => { setSerialText(event.target.value); setSerialError(''); }}
+              className={inputClass}
+              placeholder="Lee o escribe la serie y Enter"
+              aria-label={`Serie de ${product.name}`}
+              autoComplete="off"
+              autoCapitalize="characters"
+              enterKeyHint="done"
+            />
+            <button type="submit" className="h-12 shrink-0 rounded-xl bg-card px-4 font-semibold active:bg-secondary">Agregar</button>
+          </div>
+          {serialError ? <p role="alert" className="text-sm text-danger">{serialError}</p> : null}
+          {line.serials.length > 0 ? (
+            <ul className="flex flex-wrap gap-1.5">
+              {line.serials.map((serial) => (
+                <li key={serial} className="flex items-center gap-1 rounded-lg bg-card px-2 py-1 font-mono text-xs">
+                  {serial}
+                  <button type="button" aria-label={`Quitar la serie ${serial}`} onClick={() => patchDraftLine(line.id, removeSerialFromLine(line, serial))} className="flex size-6 items-center justify-center rounded-md active:bg-muted">
+                    <X className="size-3.5" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </form>
       ) : null}
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">

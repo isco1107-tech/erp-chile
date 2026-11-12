@@ -128,7 +128,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
       header('La app de tu bodeguero', 'Recibe, descuenta y traslada productos desde el celular, aunque se vaya la señal. Todo llega solo al Kardex.'),
       note('Ábrela con el código QR', 'Escanéalo con el celular, inicia sesión y elige "Instalar app" (Android) o "Agregar a inicio" (iPhone).'),
       note('Cada llegada, con su proveedor', 'Al recibir mercadería el bodeguero elige de qué proveedor llega. Así cada proveedor queda ligado a sus productos.'),
-      note('Salidas con foto', 'Una merma, un producto en mal estado o una degustación se registra con su motivo y una foto del producto. Quedan en "Movimientos de bodega".'),
+      note('Salidas con foto y series', 'Una merma o un producto dañado se registra con su motivo y una foto. Los productos con número de serie piden una serie por unidad y dejan su historia. Todo queda en "Movimientos de bodega".'),
       note('Fotos con IA, cuidando la cuota', 'Si un producto no tiene código de barras, se le saca una foto. La IA lee primero el SKU impreso. Hay topes por minuto y, si se llega a uno, la foto espera sola su turno.'),
       note('Revisa lo que se creó', 'Los productos que el bodeguero da de alta desde el celular aparecen abajo: complétales precio y categoría en el Catálogo.'),
     ],

@@ -296,6 +296,18 @@ export const INVENTARIO_SECTIONS: ManualSection[] = [
         tip: 'Una llegada con el mismo código de barras de un producto que ya existe se suma a ese producto: nunca se duplica. Si el proveedor no está en la lista, créalo en Clientes & Proveedores marcándolo como proveedor.',
       },
       {
+        id: 'series-celular',
+        title: 'Registrar series desde el celular',
+        permission: 'inventory:write',
+        steps: [
+          'Los productos marcados "Se controla por número de serie" muestran en su línea un cuadro "Series: N de M". Escribe o lee con el lector la serie de cada unidad y toca "Agregar" (o Enter): cada serie sube la cantidad sola. Con la X de cada serie puedes quitarla.',
+          'En "Llegada de mercadería" las series se dan de alta en la bodega, con el proveedor y el lote. En "Devolución de cliente" y "Sobrante", una serie que ya había salido (vendida, perdida o devuelta) vuelve a la bodega y pierde su garantía.',
+          'En "Salida o merma" y "Faltante" las series dejan la bodega como perdidas; con el motivo "Devolución al proveedor" quedan como devueltas. En "Traslado entre bodegas" las series cambian de bodega junto con el stock.',
+          'No se puede enviar si faltan o sobran series respecto de la cantidad. Si el servidor rechaza una serie (repetida, no registrada o de otra bodega), la operación entera se rechaza y no se mueve nada: corrige la serie y vuelve a enviar.',
+        ],
+        tip: 'Una operación guardada en el celular antes de que existieran las series se envía igual, sin ellas: el producto queda con "series parciales" en Trazabilidad para completarlas. El lector de la cámara de la app aún no lee series; usa un lector de mano o escríbelas.',
+      },
+      {
         id: 'merma-traslado-celular',
         title: 'Dar de baja una merma, un producto en mal estado o una degustación',
         permission: 'inventory:write',

@@ -319,4 +319,60 @@ describeDb('Trazabilidad contra PostgreSQL', () => {
     const flow = await trace.getProductFlow(f.companyId, f.product.id, { days: 30 });
     expect(flow!.timeline.some((entry) => entry.source === 'serial' && entry.actor === 'Bodeguero Beto')).toBe(true);
   });
+
+  it('la bodega móvil mueve series: llegada, traslado, merma, devolución de cliente y rechazo sin efectos', async () => {
+    const f = await fixture();
+    const mobile = await import('@/modules/warehouse-mobile/services/sync.service');
+    const actor = { companyId: f.companyId, userId: f.user.id, userEmail: f.user.email, canMove: true, canCreateProduct: false, canSeeCosts: false };
+    let n = 0;
+    const op = (extra: Record<string, unknown>) => ({ kind: 'MOVE', clientOpId: `mob${run}${++n}x`, productId: f.product.id, warehouseId: f.w1.id, ...extra });
+    const stockOf = async (warehouseId: string) => (await prisma.stock.findFirst({ where: { companyId: f.companyId, productId: f.product.id, warehouseId } }))?.quantity ?? 0;
+    const serialOf = (serial: string) => prisma.productSerial.findFirstOrThrow({ where: { companyId: f.companyId, serial } });
+
+    // Llegada con series: entran al stock y se registran con su proveedor.
+    const [arrival] = await mobile.processOperations(actor, [op({ mode: 'RECEIVE', quantity: 3, supplierId: f.supplier.id, lotNumber: 'M-1', serials: ['m-1', 'M-2', 'M-3'] })]);
+    expect(arrival).toMatchObject({ status: 'APPLIED' });
+    expect(await stockOf(f.w1.id)).toBe(3);
+    expect(await serialOf('M-1')).toMatchObject({ status: 'IN_STOCK', warehouseId: f.w1.id, supplierId: f.supplier.id, lotNumber: 'M-1' });
+
+    // Una serie repetida rechaza TODA la operación: ni stock ni series quedan a medias.
+    const [dup] = await mobile.processOperations(actor, [op({ mode: 'RECEIVE', quantity: 2, serials: ['M-9', 'M-1'] })]);
+    expect(dup).toMatchObject({ status: 'REJECTED', code: 'INVALID' });
+    expect(await stockOf(f.w1.id)).toBe(3);
+    expect(await prisma.productSerial.count({ where: { companyId: f.companyId, serial: 'M-9' } })).toBe(0);
+
+    // Traslado: las series cambian de bodega junto con el stock.
+    const [moved] = await mobile.processOperations(actor, [op({ mode: 'TRANSFER', quantity: 2, targetWarehouseId: f.w2.id, serials: ['M-1', 'M-2'] })]);
+    expect(moved).toMatchObject({ status: 'APPLIED' });
+    expect([await stockOf(f.w1.id), await stockOf(f.w2.id)]).toEqual([1, 2]);
+    expect((await serialOf('M-2')).warehouseId).toBe(f.w2.id);
+
+    // Una serie que está en otra bodega no se puede dar de baja desde esta.
+    const [wrong] = await mobile.processOperations(actor, [op({ mode: 'SHORTAGE', quantity: 1, serials: ['M-2'] })]);
+    expect(wrong).toMatchObject({ status: 'REJECTED', code: 'INVALID' });
+    expect(await stockOf(f.w1.id)).toBe(1);
+
+    // Faltante: la serie queda perdida. Devolución al proveedor: queda devuelta.
+    const [lost] = await mobile.processOperations(actor, [op({ mode: 'SHORTAGE', quantity: 1, serials: ['M-3'] })]);
+    expect(lost).toMatchObject({ status: 'APPLIED' });
+    expect(await serialOf('M-3')).toMatchObject({ status: 'LOST', warehouseId: null });
+    const [back] = await mobile.processOperations(actor, [
+      op({ mode: 'WASTE', reason: 'SUPPLIER_RETURN', evidenceUrl: `https://abc123.public.blob.vercel-storage.com/inventory-evidence/${f.companyId}/bodega-${run}.jpg`, warehouseId: f.w2.id, quantity: 1, serials: ['M-1'] }),
+    ]);
+    expect(back).toMatchObject({ status: 'APPLIED' });
+    expect(await serialOf('M-1')).toMatchObject({ status: 'RETURNED', warehouseId: null });
+
+    // Devolución de cliente: una serie vendida vuelve a bodega, sin garantía.
+    const sold = await prisma.productSerial.update({ where: { id: (await serialOf('M-2')).id }, data: { status: 'SOLD', warehouseId: null, soldAt: new Date(), warrantyUntil: new Date(Date.now() + 86_400_000) } });
+    expect(sold.status).toBe('SOLD');
+    const [returned] = await mobile.processOperations(actor, [op({ mode: 'RETURN', warehouseId: f.w2.id, quantity: 1, serials: ['M-2'] })]);
+    expect(returned).toMatchObject({ status: 'APPLIED' });
+    expect(await serialOf('M-2')).toMatchObject({ status: 'IN_STOCK', warehouseId: f.w2.id, warrantyUntil: null, soldAt: null });
+    // …pero una llegada normal no puede "resucitar" una serie que ya existe fuera de bodega.
+    const [noReopen] = await mobile.processOperations(actor, [op({ mode: 'RECEIVE', quantity: 1, serials: ['M-3'] })]);
+    expect(noReopen).toMatchObject({ status: 'REJECTED', code: 'INVALID' });
+
+    const events = await prisma.productSerialEvent.findMany({ where: { serialId: (await serialOf('M-2')).id }, orderBy: { createdAt: 'asc' } });
+    expect(events.map((e) => e.kind)).toEqual(['REGISTERED', 'TRANSFERRED', 'REOPENED']);
+  });
 });

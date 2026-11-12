@@ -15,6 +15,8 @@ export interface MobileProduct {
   barcode: string | null;
   imageUrl: string | null;
   tracksLots: boolean;
+  /** Se controla por número de serie: la app pide una serie por unidad. Ausente en catálogos guardados antes. */
+  tracksSerials?: boolean;
   isActive: boolean;
   /** Existencias en la bodega pedida (o en todas si no se pidió una). */
   stock: number;
