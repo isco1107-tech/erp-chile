@@ -144,6 +144,7 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
   'inventory-traceability': {
     title: 'Trazabilidad',
     steps: [
+      header('Estado de la trazabilidad', 'Al entrar ves cuánto de tu inventario se puede seguir y "Qué atender": lotes vencidos, stock sin lote, series desalineadas y órdenes atrasadas.'),
       header('Sigue un producto de punta a punta', 'Busca un producto y mira su recorrido: en camino, recepcionado, en bodega, trasladado, vendido y pérdidas.'),
       note('Elige el período', 'En la vista Flujo cambia entre 7, 30 y 90 días. "En camino" y "En bodega" siempre muestran lo de hoy.'),
       note('Línea de tiempo', 'Debajo del tablero ves cada movimiento con quién lo hizo, el documento de origen y la foto de respaldo.'),

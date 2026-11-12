@@ -10,6 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import TraceabilityBoard from '@/components/inventory/TraceabilityBoard';
 import TraceabilityTimeline from '@/components/inventory/TraceabilityTimeline';
 import SerialsPanel from '@/components/inventory/SerialsPanel';
+import TraceabilityOverviewPanel from '@/components/inventory/TraceabilityOverviewPanel';
+import { getTraceabilityOverview } from '@/modules/inventory/services/traceability-overview.service';
 import { cn } from '@/lib/utils';
 import { FLOW_WINDOW_DAYS, parseFlowWindow } from '@/lib/inventory/traceability';
 import { listWarehouses } from '@/modules/inventory/services/stock.service';
@@ -55,12 +57,14 @@ export default async function TraceabilityPage({ searchParams }: { searchParams:
 
   if (!productId) {
     const results = query ? await searchTraceableProducts(context.companyId, query) : [];
+    const overview = query ? null : await getTraceabilityOverview(context.companyId);
     return (
       <div className="space-y-6">
         {header}
+        {overview && <TraceabilityOverviewPanel overview={overview} />}
         {searchForm}
         {!query ? (
-          <EmptyState title="Elige un producto" description="Búscalo por nombre, SKU o código de barras para ver su recorrido." />
+          <EmptyState title="Elige un producto" description="Búscalo por nombre, SKU o código de barras para ver su recorrido, su línea de tiempo y sus series." />
         ) : results.length === 0 ? (
           <EmptyState title="Sin resultados" description={`No hay productos que coincidan con «${query}».`} />
         ) : (

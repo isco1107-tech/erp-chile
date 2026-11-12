@@ -166,6 +166,16 @@ export const INVENTARIO_SECTIONS: ManualSection[] = [
     screenshot: null,
     topics: [
       {
+        id: 'panel-trazabilidad',
+        title: 'Revisar el estado de la trazabilidad',
+        steps: [
+          'Ve a Inventario → Trazabilidad. Antes de buscar un producto verás el estado de toda la empresa: productos con lotes y con series, lotes vencidos o por vencer, órdenes de compra en camino y el porcentaje de ventas y llegadas con documento enlazado.',
+          '"Qué atender" lista lo que impide seguir bien el inventario (lotes vencidos, stock sin lote, series que no calzan con el stock, órdenes atrasadas). Cada fila lleva a la pantalla donde se resuelve.',
+          '"Stock sin lote" muestra los productos con lotes que tienen unidades en SIN-LOTE: en un retiro no se sabría de qué proveedor vinieron.',
+          'Presiona "Excel" para descargar el estado completo.',
+        ],
+      },
+      {
         id: 'ver-recorrido',
         title: 'Ver el recorrido de un producto',
         steps: [
