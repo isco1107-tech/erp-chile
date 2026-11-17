@@ -24,6 +24,7 @@ function toErrorMessage(error: unknown): string {
   if (authMessage) return authMessage;
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === 'P2002' && constraintInvolves(error, 'barcode')) return 'Ese código de barras ya está asignado a otro producto o empaque';
+    if (error.code === 'P2002' && constraintInvolves(error, 'scaleCode')) return 'Ese PLU de balanza ya está asignado a otro producto';
     if (error.code === 'P2002') return 'Ya existe un producto con ese SKU en esta empresa';
     if (error.code === 'P2003') return 'No se puede eliminar: el producto tiene movimientos o stock asociado';
   }

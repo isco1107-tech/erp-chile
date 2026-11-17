@@ -67,6 +67,20 @@ export const IMPORT_COLUMNS: Record<ImportEntity, ColumnSpec[]> = {
     { key: 'categoryName', label: 'Categoría', required: false, aliases: ['categoria', 'category', 'familia'], hint: 'Se crea si no existe' },
     { key: 'isExempt', label: 'Exento IVA', required: false, aliases: ['exento', 'exento iva', 'isexempt', 'sin iva'], hint: 'si / no (por defecto: afecto)' },
     { key: 'description', label: 'Descripción', required: false, aliases: ['descripcion larga', 'detalle', 'description'] },
+    {
+      key: 'barcode',
+      label: 'Código de barras',
+      required: false,
+      aliases: ['codigo de barras', 'codigo barras', 'cod barras', 'barcode', 'ean', 'ean13', 'ean 13', 'upc', 'gtin'],
+      hint: 'EAN-13, UPC o interno. Único por empresa',
+    },
+    {
+      key: 'scaleCode',
+      label: 'PLU balanza',
+      required: false,
+      aliases: ['plu', 'plu balanza', 'codigo balanza', 'cod balanza', 'scalecode'],
+      hint: 'Solo números (hasta 6), para productos que se pesan en la balanza',
+    },
   ],
   contacts: [
     { key: 'rut', label: 'RUT', required: true, aliases: ['rut', 'r.u.t.', 'rut cliente', 'rut proveedor'], hint: 'Validado con Módulo 11' },

@@ -11,6 +11,7 @@ import { formatCurrency } from '@/lib/chile/tax';
 import { Button } from '@/components/ui/button';
 import { PosDesktopDownload } from './PosDesktopDownload';
 import { PosHardwareProvider } from './hardware/PosHardwareProvider';
+import type { ScaleLabelFormat } from '@/lib/pos/scale-label';
 
 /** Cada cuánto la caja avisa a la Supersuite que sigue viva (el umbral de "sin señal" allá es 2 minutos). */
 const LATIDO_MS = 60_000;
@@ -31,6 +32,8 @@ interface Props {
   companyAddress: string | null;
   /** true si la Supersuite está configurada: la caja reporta latidos mientras esta pantalla esté abierta. */
   reportarLatidos?: boolean;
+  /** Formato de las etiquetas de balanza de la empresa; `null` = el lector no las interpreta. */
+  scaleLabelFormat?: ScaleLabelFormat | null;
 }
 
 /**
@@ -137,6 +140,7 @@ export default function PosWorkspace(props: Props) {
           companyName={props.companyName}
           companyRut={props.companyRut}
           companyAddress={props.companyAddress}
+          scaleLabelFormat={props.scaleLabelFormat ?? null}
         />
       </div>
 

@@ -46,6 +46,7 @@ import { parseCashDigits } from '@/lib/pos/cash';
 import { holdSale, takeHeldSale, type HeldSale } from '@/lib/pos/held-sales';
 import { heldSalesStoreFor, newHeldId } from '@/lib/pos/held-sales-store';
 import { parseQuantityPrefix, resolveScan, searchProducts, type ScanResolution } from '@/lib/pos/scan';
+import type { ScaleLabelFormat } from '@/lib/pos/scale-label';
 import { playPosSound } from '@/lib/pos/sounds';
 import { useConfirm } from '@/components/ui/confirm-provider';
 
@@ -63,6 +64,8 @@ interface Props {
   companyName: string;
   companyRut: string;
   companyAddress: string | null;
+  /** Formato de las etiquetas de balanza de la empresa; `null` = el lector no las interpreta. */
+  scaleLabelFormat?: ScaleLabelFormat | null;
 }
 
 interface Customer {
@@ -273,6 +276,11 @@ export default function PosTerminal(props: Props) {
 
   function addResolved(resolution: Resolved) {
     if (resolution.via === 'packaging') toast.success(`${resolution.packName}: ${formatQuantity(resolution.units)} × ${resolution.product.name}`);
+    if (resolution.via === 'scale') {
+      // "Balanza 0,512 kg · Jamón"; si la cantidad no es la de la etiqueta (precio, o 2*etiqueta), también la cantidad agregada.
+      const sameAsLabel = resolution.scaleText === `${formatQuantity(resolution.units)} kg`;
+      toast.success(`Balanza ${resolution.scaleText ?? ''} · ${resolution.product.name}${sameAsLabel ? '' : ` (${formatQuantity(resolution.units)})`}`);
+    }
     addProduct(resolution.product, resolution.units);
   }
 
@@ -306,10 +314,13 @@ export default function PosTerminal(props: Props) {
     // El lector entrega el código exacto (de barras, de un empaque o el SKU):
     // esa coincidencia manda sobre la búsqueda parcial, para que escanear
     // nunca agregue el producto equivocado. Un empaque agrega sus unidades.
-    const resolution = resolveScan(products, text, matches);
+    const resolution = resolveScan(products, text, matches, props.scaleLabelFormat ?? null);
     if (resolution.kind === 'none') {
       playPosSound('error', sounds);
-      toast.error(resolution.invalidPrefix ? 'Cantidad inválida. Escribe, por ejemplo, 3*código' : `Sin resultados para "${prefix.code || text}"`);
+      toast.error(
+        resolution.scaleProblem ??
+          (resolution.invalidPrefix ? 'Cantidad inválida. Escribe, por ejemplo, 3*código' : `Sin resultados para "${prefix.code || text}"`),
+      );
       return;
     }
     addResolved(resolution);
@@ -749,6 +760,7 @@ export default function PosTerminal(props: Props) {
         {rutStepOpen && (
           <RutStep
             products={products}
+            scaleLabelFormat={props.scaleLabelFormat ?? null}
             initialRut={editingCustomer ? customer.rut : null}
             editing={editingCustomer}
             onConfirm={confirmRut}

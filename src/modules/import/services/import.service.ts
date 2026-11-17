@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { cleanRut, formatRut, validateRut } from '@/lib/chile/rut';
 import { calculateGrossPrice, calculateNeto } from '@/lib/chile/tax';
 import { BATCH_TX_OPTIONS } from '@/lib/prisma-tx';
+import { scaleCodeKey } from '@/lib/pos/scale-label';
 import { constraintInvolves, toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import { registerStockIn } from '@/modules/inventory/services/stock.service';
 import { createPurchaseDocument, enrichPurchaseDocumentWithItems } from '@/modules/purchases/services/purchases.service';
@@ -72,9 +73,69 @@ interface ValidationContext {
   companyId: string;
   existingKeys: Set<string>;
   seenKeys: Map<string, number>;
+  /** Solo productos: códigos de barras y PLU de balanza ya usados en el catálogo y en el archivo. */
+  codes?: ProductCodeContext;
 }
 
-function validateProductRow(values: Record<string, string>, rowNumber: number, ctx: ValidationContext): RowError[] {
+export interface ProductCodeContext {
+  /** Códigos de barras de productos y de empaques (un mismo código no puede ser de los dos). */
+  existingBarcodes: Set<string>;
+  /** PLU de balanza ya asignados, sin ceros a la izquierda. */
+  existingScaleCodes: Set<string>;
+  seenBarcodes: Map<string, number>;
+  seenScaleCodes: Map<string, number>;
+}
+
+/** Lo que un lector de códigos puede escribir: ASCII imprimible sin espacios, hasta 64 caracteres. */
+const BARCODE_PATTERN = /^[\x21-\x7e]{1,64}$/;
+
+async function loadProductCodeContext(companyId: string): Promise<ProductCodeContext> {
+  const [products, packagings] = await Promise.all([
+    prisma.product.findMany({ where: { companyId }, select: { barcode: true, scaleCode: true } }),
+    prisma.productPackaging.findMany({ where: { companyId, barcode: { not: null } }, select: { barcode: true } }),
+  ]);
+  return {
+    existingBarcodes: new Set(
+      [...products.map((product) => product.barcode), ...packagings.map((packaging) => packaging.barcode)].filter((code): code is string => !!code),
+    ),
+    existingScaleCodes: new Set(products.map((product) => scaleCodeKey(product.scaleCode)).filter((code): code is string => !!code)),
+    seenBarcodes: new Map(),
+    seenScaleCodes: new Map(),
+  };
+}
+
+function validateProductCodes(values: Record<string, string>, rowNumber: number, codes: ProductCodeContext): RowError[] {
+  const errors: RowError[] = [];
+  const barcode = values.barcode?.trim() ?? '';
+  if (barcode) {
+    if (!BARCODE_PATTERN.test(barcode)) {
+      errors.push({ column: 'Código de barras', message: 'Solo letras, números y símbolos, sin espacios (máximo 64)' });
+    } else if (codes.seenBarcodes.has(barcode)) {
+      errors.push({ column: 'Código de barras', message: `Código de barras duplicado dentro del archivo (ya aparece en la fila ${codes.seenBarcodes.get(barcode)})` });
+    } else if (codes.existingBarcodes.has(barcode)) {
+      errors.push({ column: 'Código de barras', message: 'Ese código de barras ya lo usa un producto o empaque de tu catálogo' });
+    } else {
+      codes.seenBarcodes.set(barcode, rowNumber);
+    }
+  }
+
+  const rawScale = values.scaleCode?.trim() ?? '';
+  if (rawScale) {
+    const key = scaleCodeKey(rawScale);
+    if (!key) {
+      errors.push({ column: 'PLU balanza', message: `"${rawScale}" no es un PLU válido: solo números, hasta 6, distinto de cero` });
+    } else if (codes.seenScaleCodes.has(key)) {
+      errors.push({ column: 'PLU balanza', message: `PLU duplicado dentro del archivo (ya aparece en la fila ${codes.seenScaleCodes.get(key)})` });
+    } else if (codes.existingScaleCodes.has(key)) {
+      errors.push({ column: 'PLU balanza', message: 'Ese PLU de balanza ya lo usa otro producto de tu catálogo' });
+    } else {
+      codes.seenScaleCodes.set(key, rowNumber);
+    }
+  }
+  return errors;
+}
+
+export function validateProductRow(values: Record<string, string>, rowNumber: number, ctx: ValidationContext): RowError[] {
   const errors: RowError[] = [];
 
   const sku = values.sku?.trim() ?? '';
@@ -121,6 +182,8 @@ function validateProductRow(values: Record<string, string>, rowNumber: number, c
   if (rawExempt && parseBoolean(rawExempt) === null) {
     errors.push({ column: 'Exento IVA', message: `"${rawExempt}" no se entiende. Use sí/no, 1/0 o true/false` });
   }
+
+  if (ctx.codes) errors.push(...validateProductCodes(values, rowNumber, ctx.codes));
 
   return errors;
 }
@@ -742,6 +805,7 @@ async function validateRows(
       companyId,
       existingKeys: await loadExistingKeys(companyId, entity),
       seenKeys: new Map(),
+      codes: entity === 'products' ? await loadProductCodeContext(companyId) : undefined,
     };
     const validator = entity === 'products' ? validateProductRow : validateContactRow;
     return rawRows.map((row) => ({ ...row, errors: validator(row.values, row.rowNumber, ctx) }));
@@ -1076,6 +1140,8 @@ export async function commitImport(
             grossPrice: calculateGrossPrice(netPrice, isExempt),
             costPricePMP: netPrice,
             minStock,
+            barcode: row.values.barcode?.trim() || undefined,
+            scaleCode: scaleCodeKey(row.values.scaleCode) ?? undefined,
           },
         });
       }

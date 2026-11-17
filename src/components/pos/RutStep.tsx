@@ -6,9 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { classifyRutEntry, type ScanProduct, type ScanResolution } from '@/lib/pos/scan';
+import type { ScaleLabelFormat } from '@/lib/pos/scale-label';
 
 interface Props<P extends ScanProduct> {
   products: P[];
+  /** Formato de las etiquetas de balanza de la empresa (`null` = no se leen). */
+  scaleLabelFormat?: ScaleLabelFormat | null;
   /** RUT con el que se abre al CAMBIAR el cliente de una venta ya en curso. */
   initialRut: string | null;
   /** Se está corrigiendo el cliente (no es el paso inicial): se puede cancelar sin tocar nada. */
@@ -40,7 +43,7 @@ export default function RutStep<P extends ScanProduct>(props: Props<P>) {
   }, []);
 
   function submit() {
-    const entry = classifyRutEntry(products, value);
+    const entry = classifyRutEntry(products, value, props.scaleLabelFormat ?? null);
     if (entry.kind === 'empty') return onConsumerFinal();
     if (entry.kind === 'rut') return onConfirm(entry.rut);
     if (entry.kind === 'product') {

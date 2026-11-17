@@ -469,6 +469,8 @@ export interface PosProduct {
   barcode: string | null;
   /** Códigos de empaques: escanear uno agrega `factor` unidades. */
   packagings: { barcode: string; factor: number; name: string }[];
+  /** PLU de balanza: una etiqueta de balanza con ese número agrega su peso (ver `src/lib/pos/scale-label.ts`). */
+  scaleCode: string | null;
 }
 
 /**
@@ -490,6 +492,7 @@ export async function listPosProducts(companyId: string, warehouseId: string): P
   return products.map((product) => ({
     barcode: product.barcode,
     packagings: product.packagings.map((p) => ({ barcode: p.barcode as string, factor: p.factor, name: p.name })),
+    scaleCode: product.scaleCode,
     id: product.id,
     sku: product.sku,
     name: product.name,

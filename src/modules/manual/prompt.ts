@@ -1,7 +1,7 @@
 import type { CompanyFeatureFlags } from '@/lib/auth/modules';
 import type { Permission } from '@/lib/auth/permissions';
 import { findManualSectionForPath, getVisibleManualSections, searchManual, type ManualSection } from './content';
-import { GLOSSARY, describeCurrentScreen, getVisibleNavigation, getVisibleTroubleshooting, getVisibleWorkflows } from './knowledge';
+import { GLOSSARY, describeCurrentScreen, getVisibleNavigation, getVisibleSupermarketGuide, getVisibleTroubleshooting, getVisibleWorkflows } from './knowledge';
 import { availableAgentActions } from '@/modules/agent-actions/registry';
 
 export interface ManualPromptContext {
@@ -109,6 +109,13 @@ export function buildManualSystemPrompt(context: ManualPromptContext): string {
     .map((workflow) => `### ${workflow.title}\n${workflow.steps.map((step) => `  - ${step}`).join('\n')}`)
     .join('\n\n');
 
+  const supermarketGuide = getVisibleSupermarketGuide(features, permissions);
+  const supermarketText = supermarketGuide.length
+    ? `\n\nGUÍA PARA SUPERMERCADOS, MINIMARKETS Y ALMACENES (úsala cuando pregunten cómo operar una tienda de autoservicio: caja, góndola, balanza, perecibles, proveedores, reposición, conteos, precios u ofertas; si la empresa no es de ese rubro, úsala solo si la pregunta calza):\n\n${supermarketGuide
+        .map((workflow) => `### ${workflow.title}\n${workflow.steps.map((step) => `  - ${step}`).join('\n')}`)
+        .join('\n\n')}`
+    : '';
+
   const troubleshootingText = getVisibleTroubleshooting(features, permissions)
     .map((item) => `### ${item.problem}\n${item.answer.map((line) => `  - ${line}`).join('\n')}`)
     .join('\n\n');
@@ -185,7 +192,7 @@ ${manualText}
 
 FLUJOS COMPLETOS (cruzan varios módulos):
 
-${workflowsText}
+${workflowsText}${supermarketText}
 
 PROBLEMAS FRECUENTES (síntoma → causa → qué hacer):
 

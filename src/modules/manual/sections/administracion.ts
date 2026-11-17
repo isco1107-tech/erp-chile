@@ -293,6 +293,7 @@ export const ADMINISTRACION_SECTIONS: ManualSection[] = [
         steps: [
           'Ve a Configuración → Importación Masiva y elige "¿Qué vas a importar?": productos, contactos, stock inicial, ventas o compras históricas (solo aparecen los que puedes crear).',
           'Descarga la "Plantilla Excel (.xlsx)" (o CSV) y llénala: la primera fila debe tener los encabezados. La tabla "Columnas reconocidas" muestra cuáles son obligatorias.',
+          'En productos puedes incluir además "Código de barras" (EAN-13, UPC o interno) y "PLU balanza" (el número del producto en la balanza, para fiambres, carnes o verduras). Un código repetido en el archivo o que ya usa otro producto se marca como error en la vista previa.',
           'Sube el archivo y revisa la vista previa: filas leídas, válidas y con errores.',
           'Confirma: se importan solo las filas válidas. Corrige las demás en el archivo y vuelve a subirlas.',
         ],
