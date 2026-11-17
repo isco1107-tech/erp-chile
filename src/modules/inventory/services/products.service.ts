@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import type { Category, Prisma, Product, ProductPackaging } from '@prisma/client';
 import { calculateGrossPrice } from '@/lib/chile/tax';
+import { scaleCodeKey } from '@/lib/pos/scale-label';
 import { LOCKING_TX_OPTIONS } from '@/lib/prisma-tx';
 import type { CategoryCreateInput, ProductCreateInput, ProductPackagingInput, ProductUpdateInput } from '../schema';
 
@@ -54,6 +55,8 @@ export interface ProductListItem {
   costPricePMP: number;
   totalStock: number;
   barcode: string | null;
+  /** PLU de balanza (sin ceros a la izquierda); `null` = no se vende por balanza. */
+  scaleCode: string | null;
   brand: string | null;
   imageUrl: string | null;
   tracksLots: boolean;
@@ -118,6 +121,7 @@ export async function listProductsPage(
         minStock: true,
         costPricePMP: true,
         barcode: true,
+        scaleCode: true,
         brand: true,
         imageUrl: true,
         tracksLots: true,
@@ -173,9 +177,27 @@ async function assertConsignorInCompany(db: Pick<Prisma.TransactionClient, 'cont
   if (!seller) throw new Error('El seller no existe o no está marcado como seller de consignación');
 }
 
+/**
+ * El PLU de balanza es único por empresa (la etiqueta solo trae ese número) y
+ * un producto con número de serie no se vende por balanza (una serie es una
+ * unidad, no un peso).
+ */
+async function assertScaleCodeFree(companyId: string, scaleCode: string, exceptProductId?: string): Promise<void> {
+  const other = await prisma.product.findFirst({
+    where: { companyId, scaleCode, ...(exceptProductId ? { id: { not: exceptProductId } } : {}) },
+    select: { name: true },
+  });
+  if (other) throw new Error(`El PLU de balanza ${scaleCode} ya lo usa el producto "${other.name}"`);
+}
+
+const SCALE_AND_SERIALS = 'Un producto con número de serie no se vende por balanza: quita el PLU de balanza o el control por serie';
+
 export async function createProduct(companyId: string, input: ProductCreateInput): Promise<Product> {
   if (input.categoryId) await assertCategoryBelongsToCompany(companyId, input.categoryId);
   if (input.barcode) await assertBarcodeFree(companyId, input.barcode);
+  const scaleCode = scaleCodeKey(input.scaleCode);
+  if (scaleCode && input.tracksSerials) throw new Error(SCALE_AND_SERIALS);
+  if (scaleCode) await assertScaleCodeFree(companyId, scaleCode);
   if (input.consignorId) await assertConsignorInCompany(prisma, companyId, input.consignorId);
 
   return prisma.product.create({
@@ -192,6 +214,7 @@ export async function createProduct(companyId: string, input: ProductCreateInput
       grossPrice: calculateGrossPrice(input.netPrice, input.isExempt ?? false),
       minStock: input.minStock ?? 0,
       barcode: input.barcode || undefined,
+      scaleCode: scaleCode ?? undefined,
       brand: input.brand || undefined,
       imageUrl: input.imageUrl || undefined,
       tracksLots: input.tracksLots ?? false,
@@ -223,6 +246,15 @@ export async function updateProduct(companyId: string, id: string, input: Produc
   };
   if (input.sku) data.sku = input.sku;
   if (input.barcode) await assertBarcodeFree(companyId, input.barcode, id);
+  const scaleCode = input.scaleCode === undefined ? undefined : scaleCodeKey(input.scaleCode);
+  if (scaleCode !== undefined) data.scaleCode = scaleCode;
+  if (scaleCode || input.tracksSerials) {
+    const current = await prisma.product.findFirst({ where: { companyId, id }, select: { scaleCode: true, tracksSerials: true } });
+    if (!current) throw new Error('Producto no encontrado');
+    const finalScaleCode = scaleCode !== undefined ? scaleCode : current.scaleCode;
+    if (finalScaleCode && (input.tracksSerials ?? current.tracksSerials)) throw new Error(SCALE_AND_SERIALS);
+  }
+  if (scaleCode) await assertScaleCodeFree(companyId, scaleCode, id);
   if (input.categoryId !== undefined) {
     if (input.categoryId === '') {
       data.categoryId = null;

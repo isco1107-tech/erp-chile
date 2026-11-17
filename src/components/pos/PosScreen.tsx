@@ -6,6 +6,7 @@ import OpenShiftPanel from '@/components/pos/OpenShiftPanel';
 import PosWorkspace from '@/components/pos/PosWorkspace';
 import ShiftHistoryPanel from '@/components/pos/ShiftHistoryPanel';
 import { supersuiteHabilitada } from '@/lib/supersuite';
+import { parseScaleLabelFormat } from '@/lib/pos/scale-label';
 
 export default async function PosScreen({ context }: { context: AuthContext }) {
   if (context.mustChangePassword || !can(context, 'pos:operate')) return null;
@@ -29,10 +30,14 @@ export default async function PosScreen({ context }: { context: AuthContext }) {
   // Datos del emisor para el ticket. Se leen en el servidor: el ticket es un
   // documento tributario y su encabezado no puede depender de lo que el cliente
   // tenga cargado en memoria.
-  const company = await prisma.company.findUnique({
-    where: { id: context.companyId },
-    select: { businessName: true, rut: true, address: true, comuna: true },
-  });
+  const [company, settings] = await Promise.all([
+    prisma.company.findUnique({
+      where: { id: context.companyId },
+      select: { businessName: true, rut: true, address: true, comuna: true },
+    }),
+    // Formato de las etiquetas de balanza: un JSON guardado se vuelve a validar al leerlo.
+    prisma.companySettings.findFirst({ where: { companyId: context.companyId }, select: { scaleLabelFormat: true } }),
+  ]);
 
   const address = [company?.address, company?.comuna].filter(Boolean).join(', ') || null;
 
@@ -52,6 +57,7 @@ export default async function PosScreen({ context }: { context: AuthContext }) {
       companyRut={company?.rut ?? ''}
       companyAddress={address}
       reportarLatidos={supersuiteHabilitada()}
+      scaleLabelFormat={parseScaleLabelFormat(settings?.scaleLabelFormat)}
     />
   );
 }

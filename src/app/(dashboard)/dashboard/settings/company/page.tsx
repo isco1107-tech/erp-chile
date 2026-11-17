@@ -7,11 +7,13 @@ import McpConnectorForm from '@/components/settings/McpConnectorForm';
 import IntegrationsForm from '@/components/settings/IntegrationsForm';
 import CompanyBackupCard from '@/components/settings/CompanyBackupCard';
 import HermesLinkForm from '@/components/settings/HermesLinkForm';
+import ScaleLabelForm from '@/components/settings/ScaleLabelForm';
 import { getCompanyProfileAction, getCompanySettingsAction } from '@/lib/actions/company';
 import { getN8nWebhookSecretAction } from '@/modules/webhooks/actions/n8n-secret.actions';
 import { getIntegrationsStatusAction } from '@/lib/actions/integrations';
 import { getMcpConnectorSettingsAction } from '@/modules/mcp/actions/mcp-settings.actions';
 import { getHermesLinkAction } from '@/modules/hermes/actions/hermes-link.actions';
+import { getScaleLabelFormatAction } from '@/modules/pos/actions/scale-label.actions';
 import { can, getAuthContext } from '@/lib/auth/guards';
 
 export const metadata = { title: 'Perfil de Empresa' };
@@ -19,9 +21,18 @@ export const metadata = { title: 'Perfil de Empresa' };
 export default async function CompanySettingsPage() {
   const context = await getAuthContext();
   const allowed = can(context, 'settings:company');
-  const [result, settingsResult, webhookSecretResult, mcpSettingsResult, integrationsResult, hermesResult] = allowed
-    ? await Promise.all([getCompanyProfileAction(), getCompanySettingsAction(), getN8nWebhookSecretAction(), getMcpConnectorSettingsAction(), getIntegrationsStatusAction(), getHermesLinkAction()])
-    : [null, null, null, null, null, null];
+  const showScaleLabels = allowed && context.features.hasPos;
+  const [result, settingsResult, webhookSecretResult, mcpSettingsResult, integrationsResult, hermesResult, scaleLabelResult] = allowed
+    ? await Promise.all([
+        getCompanyProfileAction(),
+        getCompanySettingsAction(),
+        getN8nWebhookSecretAction(),
+        getMcpConnectorSettingsAction(),
+        getIntegrationsStatusAction(),
+        getHermesLinkAction(),
+        showScaleLabels ? getScaleLabelFormatAction() : Promise.resolve(null),
+      ])
+    : [null, null, null, null, null, null, null];
 
   return (
     <div className="space-y-4">
@@ -46,6 +57,7 @@ export default async function CompanySettingsPage() {
           <N8nWebhookForm initialSecret={webhookSecretResult?.success ? webhookSecretResult.data : null} />
           <McpConnectorForm initialEnabled={mcpSettingsResult?.success ? mcpSettingsResult.data.enabled : false} />
           {hermesResult?.success && context.features.hasInventory && <HermesLinkForm initial={hermesResult.data} />}
+          {showScaleLabels && scaleLabelResult?.success && <ScaleLabelForm initial={scaleLabelResult.data} />}
           {can(context, 'company:export') && <CompanyBackupCard />}
         </>
       )}

@@ -55,6 +55,31 @@ export const VENTAS_SECTIONS: ManualSection[] = [
         tip: 'Solo se pueden vender series registradas y que estén en la bodega de la caja (se registran al recibir la mercadería o en Inventario → Trazabilidad). Si el sistema responde que una serie no está registrada o está en otra bodega, no se cobra nada: corrige la serie o regístrala. Estos productos se venden en unidades enteras.',
       },
       {
+        id: 'balanza-pos',
+        title: 'Vender productos de la balanza (fiambrería, carnicería, verdulería)',
+        steps: [
+          'La balanza imprime una etiqueta con un código de barras que empieza con 20 a 29 y que trae el número del producto (PLU) y su peso, o su precio. Para que la caja la entienda, tu empresa debe haber configurado "Etiquetas de balanza" en Configuración → Perfil de Empresa, y el producto debe tener su "PLU de balanza" en el Catálogo de Productos.',
+          'Escanea la etiqueta como cualquier código: el producto entra al carrito con su peso (por ejemplo 0,512) y aparece el aviso "Balanza 0,512 kg". Dos paquetes del mismo producto se suman en la misma línea.',
+          'Si son paquetes idénticos, escribe la cantidad y un asterisco antes de escanear una sola etiqueta (por ejemplo 2* y la etiqueta).',
+          'Si la caja responde que ningún producto tiene ese PLU, pide que se lo asignen en la ficha del producto y presiona "Actualizar catálogo". Si dice que la etiqueta no pasó el dígito verificador, vuelve a escanearla: un código mal leído nunca agrega un peso inventado.',
+        ],
+        tip: 'El precio lo pone siempre el catálogo, no la etiqueta: mantén en la balanza los mismos precios del catálogo. Con etiquetas que traen el precio, la caja calcula el peso con el precio del catálogo, al gramo, y el total puede diferir en unos pesos de lo impreso; si tu balanza puede imprimir el peso, prefiérelo.',
+      },
+      {
+        id: 'configurar-balanza',
+        title: 'Configurar las etiquetas de balanza',
+        permission: 'settings:company',
+        route: '/dashboard/settings/company',
+        steps: [
+          'Ve a Configuración → Perfil de Empresa y busca la tarjeta "Etiquetas de balanza (productos a granel)". Activa "Leer etiquetas de balanza en la caja".',
+          'En "Dígitos del PLU en la etiqueta" elige cómo está programada tu balanza (lo más común: 5 dígitos de PLU y 5 de peso o precio).',
+          'En "Prefijos que imprime la balanza" indica con qué dos dígitos empiezan sus etiquetas (por ejemplo 20) y si traen "Peso en gramos" o "Precio en pesos (con IVA)". "+ Agregar prefijo" suma otro si tu balanza usa más de uno.',
+          'Escanea una etiqueta real en "Probar una etiqueta": debe mostrar el PLU y el peso o precio correctos. Presiona "Guardar etiquetas de balanza". Las cajas lo usan al volver a abrir la pantalla de venta.',
+          'Escribe el PLU de cada producto pesable en su ficha (Inventario → Catálogo de Productos → "PLU de balanza (opcional)"), con el mismo número que tiene en la balanza.',
+        ],
+        tip: 'Un producto que ya tiene su propio código de barras que empieza con 2 se sigue encontrando por ese código: la etiqueta de balanza solo se interpreta si ningún producto tiene ese código exacto.',
+      },
+      {
         id: 'espera-pos',
         title: 'Dejar una venta en espera',
         steps: [

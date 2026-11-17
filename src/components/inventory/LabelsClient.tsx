@@ -24,6 +24,14 @@ const LAYOUTS: Record<Layout, { label: string; perPage: number; columns: number;
 
 const MAX_LABELS = 1000;
 
+
+/**
+ * Lo que se vende a granel lleva en la etiqueta de góndola a qué cantidad
+ * corresponde el precio ("por kilo"): el precio del catálogo es por unidad de
+ * medida, no por paquete.
+ */
+const PRICE_UNIT_SUFFIX: Record<string, string> = { KG: 'por kilo', LTS: 'por litro', MT: 'por metro' };
+
 interface LabelProduct {
   id: string;
   sku: string;
@@ -246,7 +254,12 @@ export default function LabelsClient() {
                     >
                       <div className="flex items-start justify-between gap-1">
                         <p className={cn('line-clamp-2 leading-tight font-semibold', compact ? 'text-[7pt]' : 'text-[8.5pt]')}>{product.name}</p>
-                        {showPrice && <p className={cn('shrink-0 font-bold tabular-nums', compact ? 'text-[9pt]' : 'text-[12pt]')}>{formatCurrency(product.grossPrice)}</p>}
+                        {showPrice && (
+                          <p className={cn('shrink-0 text-right font-bold tabular-nums', compact ? 'text-[9pt]' : 'text-[12pt]')}>
+                            {formatCurrency(product.grossPrice)}
+                            {PRICE_UNIT_SUFFIX[product.unit] && <span className="block text-[6.5pt] font-semibold leading-none">{PRICE_UNIT_SUFFIX[product.unit]}</span>}
+                          </p>
+                        )}
                       </div>
                       <div>
                         <BarcodeSvg value={labelCode(product)} className={cn('w-full', compact ? 'h-[8mm]' : 'h-[11mm]')} />

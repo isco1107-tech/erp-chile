@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { isAllowedBlobUrl } from '@/lib/security/blob-url';
 import { commissionBpsSchema } from '@/lib/consignment/commission';
 import { WASTE_REASONS, reasonRequiresNote } from '@/lib/warehouse-mobile/modes';
+import { SCALE_CODE_MAX_LENGTH, scaleCodeKey } from '@/lib/pos/scale-label';
 
 /** Código de barras: lo que un lector puede escribir (ASCII imprimible, sin espacios a los lados). */
 const barcodeField = z
@@ -9,6 +10,15 @@ const barcodeField = z
   .trim()
   .max(64, 'Máximo 64 caracteres')
   .regex(/^[\x21-\x7e]*$/, 'El código de barras solo admite letras, números y símbolos, sin espacios')
+  .optional();
+
+/** PLU de balanza: solo dígitos, hasta 6, distinto de cero. Vacío = el producto no se vende por balanza. */
+const scaleCodeField = z
+  .string()
+  .trim()
+  .max(SCALE_CODE_MAX_LENGTH, `El PLU de balanza tiene hasta ${SCALE_CODE_MAX_LENGTH} dígitos`)
+  .regex(/^\d*$/, 'El PLU de balanza solo admite números')
+  .refine((value) => value === '' || scaleCodeKey(value) !== null, 'El PLU de balanza no puede ser cero')
   .optional();
 
 export const UNITS = ['UN', 'KG', 'MT', 'LTS', 'CJA', 'PAR'] as const;
@@ -37,6 +47,8 @@ export const productCreateSchema = z.object({
     .min(0, 'El precio neto no puede ser negativo'),
   minStock: z.number().int('El stock mínimo debe ser un número entero').min(0).optional(),
   barcode: barcodeField,
+  /** PLU con que la balanza imprime su etiqueta de peso o precio (ver `src/lib/pos/scale-label.ts`). */
+  scaleCode: scaleCodeField,
   brand: z.string().trim().max(80, 'Máximo 80 caracteres').optional(),
   imageUrl: z
     .string()

@@ -746,6 +746,11 @@ model CompanySettings {
   /// conectar una IA personal saca datos de la empresa hacia la cuenta de
   /// Anthropic/OpenAI de esa persona, fuera del control de la empresa.
   mcpConnectorEnabled        Boolean      @default(false)
+  /// Formato de las etiquetas de balanza que lee el POS: largo del PLU y, por
+  /// prefijo (20–29), si el valor es peso en gramos o precio en pesos. JSON
+  /// validado con `scaleLabelFormatSchema` al guardar y al leer; `null` = el POS
+  /// no interpreta etiquetas de balanza. Ver `src/lib/pos/scale-label.ts`.
+  scaleLabelFormat           Json?
   createdAt                  DateTime     @default(now())
   updatedAt                  DateTime     @updatedAt
 }
@@ -1041,6 +1046,10 @@ model Product {
   minStock             Int                        @default(0)
   /// Código de barras principal (EAN-13, UPC o interno). Único por empresa.
   barcode              String?
+  /// PLU de balanza: el número con que la balanza imprime la etiqueta de peso o
+  /// precio variable (EAN-13 que empieza con 20–29). Solo dígitos y sin ceros a
+  /// la izquierda (`scaleCodeKey`). Único por empresa. Ver `src/lib/pos/scale-label.ts`.
+  scaleCode            String?
   brand                String?
   /// Foto del producto (Blob), para catálogo, POS y etiquetas.
   imageUrl             String?
@@ -1089,6 +1098,7 @@ model Product {
 
   @@unique([companyId, sku])
   @@unique([companyId, barcode])
+  @@unique([companyId, scaleCode])
   @@index([companyId, name])
   @@index([companyId, consignorId])
 }

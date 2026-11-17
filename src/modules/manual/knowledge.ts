@@ -46,7 +46,7 @@ export const SCREEN_PURPOSES: Record<string, string> = {
   exports:
     'Exportar datos: ver y descargar a Excel todas las boletas (y demás documentos de venta) y todos los movimientos de inventario de todas las bodegas, por fechas y con los mismos filtros en pantalla y en el archivo. Cada descarga queda en la bitácora.',
   home: 'Resumen del negocio al entrar: ventas, compras, IVA, stock crítico y accesos rápidos.',
-  pos: 'Operar varias cajas con cajeros identificados: apertura con fondo inicial, venta con RUT del cliente y cobro por teclado, vuelto a la vista, cajón de dinero e impresora, ventas en espera, ingresos, retiros, cierre con arqueo y comprobante por turno.',
+  pos: 'Operar varias cajas con cajeros identificados: apertura con fondo inicial, venta con RUT del cliente y cobro por teclado, etiquetas de balanza con el peso de fiambres, carnes y verduras, vuelto a la vista, cajón de dinero e impresora, ventas en espera, ingresos, retiros, cierre con arqueo y comprobante por turno.',
   messaging: 'Chat interno cifrado con el equipo de la empresa.',
   'data-analytics': 'Monitorear ventas y compras netas, cobros y pagos, operación y actividad reciente de la empresa activa, con actualización cada 15 segundos y acceso exclusivo para dueños y administradores.',
   'data-science': 'Proyectar ventas netas para los próximos 7 días con historial real, revisar señales atípicas y evaluar el método y su error; exclusivo para dueños y administradores de la empresa activa.',
@@ -59,7 +59,7 @@ export const SCREEN_PURPOSES: Record<string, string> = {
   'retail-basket': 'Qué productos se compran juntos en la misma boleta y qué pares valen como combo o promoción conjunta.',
   'retail-reorder': 'Cuándo se agota cada producto y cuánto pedir, según su venta, el día de la semana, los días de pago y el tiempo de entrega del proveedor.',
   agents: 'Recomendaciones de los agentes ejecutivos (CEO, CFO, COO, Ventas) sobre tus datos reales.',
-  products: 'Crear y editar productos, precios, códigos de barras, categorías, empaques y si son exentos de IVA.',
+  products: 'Crear y editar productos, precios, códigos de barras, PLU de balanza, categorías, empaques y si son exentos de IVA.',
   inventory: 'Existencias por bodega, Kardex de cada producto, ajustes de stock y transferencias.',
   'inventory-counts': 'Toma de inventario: contar la bodega (a mano o con lector) y ajustar el stock a lo contado.',
   'inventory-lots': 'Saldo por lote y fechas de vencimiento; las salidas consumen primero lo que vence antes.',
@@ -474,6 +474,110 @@ export const WORKFLOWS: Workflow[] = [
   },
 ];
 
+/**
+ * Guía por rubro: supermercados, minimarkets y almacenes. Son recetas como
+ * `WORKFLOWS`, pero agrupadas por cómo se opera una tienda de autoservicio
+ * (caja, góndola, bodega, perecibles, proveedores). Cada una exige sus
+ * módulos: una empresa sin Métricas de retail no ve la receta de reposición.
+ * Regla de siempre: todo botón y pantalla citado existe hoy; lo que todavía
+ * no existe (promociones automáticas en caja, puntos de fidelización,
+ * verificador de precios) vive en `docs/supermercado.md`, no aquí.
+ */
+export const SUPERMARKET_GUIDE: Workflow[] = [
+  {
+    title: 'Supermercado · Dejar la tienda lista antes de abrir',
+    requires: 'hasPos',
+    alsoRequires: ['hasInventory'],
+    steps: [
+      'Carga el catálogo con Configuración → Importación Masiva (SKU, nombre, precio neto, unidad, categoría, exento o afecto, código de barras y PLU de balanza): usa la categoría como sección o pasillo, porque las métricas y los filtros se agrupan por ella.',
+      'Revisa los exentos uno por uno: solo lo que la ley declara exento. Un producto marcado por error cobra menos IVA del que corresponde.',
+      'Para six-packs, cajas y packs agrega "Empaques" en la ficha del producto con su propio código: escanear el código del pack suma sus unidades.',
+      'Productos de balanza (fiambres, carnes, quesos, frutas y verduras): unidad Kilo y su "PLU de balanza" en la ficha; después configura "Etiquetas de balanza" en Configuración → Perfil de Empresa para que la caja lea la etiqueta con el peso.',
+      'Perecibles (lácteos, carnes, panadería envasada): marca "Maneja lotes y vencimiento" para que cada recepción registre lote y fecha y la venta descuente primero lo que vence antes.',
+      'Crea una caja por cada mesón en Punto de Venta ("+ Nueva caja") indicando la bodega de la sala de ventas, e invita a cada cajero con su propia cuenta: cada uno abre y cierra su turno.',
+      'Carga el stock inicial (Importación Masiva o una toma de inventario) ANTES de la primera venta, e imprime las etiquetas de góndola en Inventario → Etiquetas.',
+    ],
+  },
+  {
+    title: 'Supermercado · Un día en caja, de la apertura al cierre',
+    requires: 'hasPos',
+    steps: [
+      'Cada cajero entra con su usuario, abre su caja en Punto de Venta y declara el fondo inicial contado.',
+      'Escanea los productos. Al primero se pide el RUT: Enter sin escribir es consumidor final, para que la fila no se detenga. Las etiquetas de la balanza se escanean igual y entran con su peso.',
+      'Para varias unidades iguales escribe la cantidad, un asterisco y escanea (por ejemplo 6*). Si un cliente olvidó algo, "Poner en espera" (F6) y atiende al siguiente.',
+      'Cobra con F9: E efectivo, D débito, C crédito, T transferencia. Con tarjeta, cobra primero en el terminal de pagos y confirma en la caja cuando salga aprobado: el sistema no se conecta al terminal.',
+      'Durante el día registra los retiros a bóveda en "Caja y arqueo" → "Movimiento de efectivo": así el arqueo del cierre cuadra.',
+      'Al cerrar, cuenta el efectivo y cierra el turno con su diferencia explicada. El supervisor revisa todas las cajas en "Turnos y multicaja".',
+    ],
+  },
+  {
+    title: 'Supermercado · Recibir a los proveedores',
+    requires: 'hasInventory',
+    steps: [
+      'Si compraste con orden de compra (Compras → Órdenes de Compra), registra la recepción en la orden con las cantidades que llegaron de verdad: el stock sube y el costo PMP se recalcula.',
+      'Si el distribuidor llega en ruta sin orden, el bodeguero usa la app Bodega móvil → "Llegada de mercadería" con el proveedor, el lote y el vencimiento de los perecibles. La llegada no crea la factura del proveedor: regístrala después en Compras o desde DTE recibidos.',
+      'No registres la misma mercadería por los dos caminos (recepción de la orden y llegada en la app): el stock quedaría duplicado.',
+      'Guarda la factura o su foto en Archivo de facturas para tener el respaldo por proveedor.',
+    ],
+  },
+  {
+    title: 'Supermercado · Perecibles, vencimientos y mermas',
+    requires: 'hasInventory',
+    steps: [
+      'Revisa Inventario → Lotes y vencimientos para ver qué vence pronto en cada bodega y muévelo a la vista o a una oferta antes de que venza.',
+      'Lo que se bota (vencido, mal estado, roto) se registra como salida con su motivo: desde la app Bodega móvil → "Salida o merma", con foto de respaldo, o con un ajuste de stock en Inventario.',
+      'Con "Mermas y responsables" cada pérdida queda con quién responde (la tienda, el proveedor o el seller) según los acuerdos que guardaste por motivo, para descontárselo al proveedor sin discusión. Esa pantalla también avisa por la campanita de los lotes por vencer.',
+      'Revisa Movimientos de bodega para ver quién registró cada merma, con qué motivo y su foto.',
+    ],
+  },
+  {
+    title: 'Supermercado · Reponer la góndola y pedir a tiempo',
+    requires: 'hasRetailMetrics',
+    alsoRequires: ['hasInventory'],
+    steps: [
+      'Abre Métricas de retail → Retail en vivo en la bodega de la sala: muestra qué se agota pronto (días restantes) y qué quedó agotado aunque se seguía vendiendo.',
+      'Si hay stock en la bodega de reserva, trasládalo a la sala (Inventario → ajuste "Traslado entre bodegas", o la app Bodega móvil → "Traslado entre bodegas"): la caja solo descuenta de la bodega de su caja.',
+      'Para pedir al proveedor, Reposición predictiva calcula cuándo se agota cada producto y cuánto pedir con su ritmo, el día de la semana, los días de pago y el tiempo de entrega; "Crear solicitud de compra" deja el borrador en Compras.',
+      'Una vez al mes revisa Stock muerto (lo que no rota) y Canasta cruzada (qué se compra junto) para decidir ubicaciones, liquidaciones y combos.',
+    ],
+  },
+  {
+    title: 'Supermercado · Contar el inventario por sección',
+    requires: 'hasInventory',
+    steps: [
+      'Abre una toma de inventario por bodega en Inventario → Toma de inventario y escribe en la nota la sección o pasillo que vas a contar.',
+      'Cuenta con el lector: cada código suma una unidad, o las del empaque. Se puede seguir vendiendo mientras cuentas.',
+      'Revisa el filtro "Con diferencia" antes de "Contabilizar": el faltante queda como pérdida y, con "Mermas y responsables", también se puede asignar a quien responde.',
+      'Contar una sección distinta cada semana (en vez de todo una vez al año) detecta antes los robos, las mermas no registradas y los errores de recepción.',
+    ],
+  },
+  {
+    title: 'Supermercado · Cambiar precios y armar ofertas',
+    requires: 'hasPos',
+    alsoRequires: ['hasInventory'],
+    steps: [
+      'El precio que cobra la caja es siempre el del Catálogo de Productos: cámbialo ahí (precio neto; el sistema calcula el IVA). Al cobrar, el servidor vuelve a leer el precio del catálogo, así que el cambio vale desde la siguiente venta; la pantalla de la caja lo muestra al actualizar su catálogo.',
+      'Reimprime de inmediato la etiqueta de góndola del producto en Inventario → Etiquetas y, si se vende por balanza, actualiza también el precio en la balanza.',
+      'Hoy la caja no aplica promociones automáticas (2x1, segunda unidad a mitad de precio): una oferta se hace cambiando el precio del producto mientras dure, y volviéndolo a su precio al terminar.',
+      'Con Métricas de retail → Mapa de calor puedes ver después cómo reaccionó la venta a cada cambio de precio.',
+    ],
+  },
+  {
+    title: 'Supermercado · Cierre del día y del mes',
+    requires: 'hasPos',
+    steps: [
+      'Al cierre del día, verifica en "Turnos y multicaja" que todas las cajas cerraron su turno con su arqueo.',
+      'Para revisar o entregar las boletas del período usa Exportar datos (boletas por fecha, con la misma vista en pantalla y en Excel).',
+      'En el mes, concilia los abonos de las ventas con tarjeta en Finanzas → Bancos y conciliación y prepara el F29 en Reportes & SII si tienes esos módulos.',
+    ],
+  },
+];
+
+/** Recetas de la guía de supermercado cuyos módulos están contratados y a las que el usuario tiene acceso. */
+export function getVisibleSupermarketGuide(features: CompanyFeatureFlags, permissions: readonly Permission[]): Workflow[] {
+  return SUPERMARKET_GUIDE.filter((workflow) => isAvailable(workflow, features, permissions) && (workflow.alsoRequires ?? []).every((key) => features[key]));
+}
+
 export interface TroubleshootingItem extends Gated {
   problem: string;
   answer: string[];
@@ -541,6 +645,31 @@ export const TROUBLESHOOTING: TroubleshootingItem[] = [
       'El arqueo compara el efectivo esperado con lo contado. Débito, crédito y transferencias no cuentan para el cajón.',
       'Revisa las boletas anuladas (ya están descontadas: no registres además un retiro) y los pagos con el medio equivocado.',
       'Cierra igual el turno con la diferencia explicada: dejarlo abierto descuadra el día siguiente.',
+    ],
+  },
+  {
+    problem: 'La caja no reconoce la etiqueta de la balanza',
+    requires: 'hasPos',
+    answer: [
+      'La empresa debe tener activada la lectura en Configuración → Perfil de Empresa → "Etiquetas de balanza", con el mismo largo de PLU y los mismos prefijos con que imprime la balanza. Usa "Probar una etiqueta" con una etiqueta real para comprobarlo.',
+      'El producto debe tener su "PLU de balanza" en el Catálogo de Productos, igual al número que tiene en la balanza (los ceros a la izquierda no importan). Después presiona "Actualizar catálogo" en la caja.',
+      'Si dice que no pasó el dígito verificador, la etiqueta se leyó mal o está dañada: vuelve a escanearla o escribe el código completo.',
+    ],
+  },
+  {
+    problem: 'El total de un producto de balanza no calza con la etiqueta',
+    requires: 'hasPos',
+    answer: [
+      'La caja cobra el precio del catálogo por el peso, nunca el precio impreso. Si la balanza tiene otro precio, actualízala con el del catálogo.',
+      'Con etiquetas que traen el precio (no el peso), la caja calcula el peso con el precio del catálogo y lo redondea al gramo: puede diferir en unos pesos. Si tu balanza puede imprimir el peso, configúrala así.',
+    ],
+  },
+  {
+    problem: 'Hay stock en bodega pero la caja dice que no hay',
+    requires: 'hasPos',
+    answer: [
+      'Cada caja descuenta de UNA bodega (la que se eligió al crearla). Si la mercadería está en la bodega de reserva, trasládala a la bodega de la sala antes de venderla.',
+      'Las reservas de la tienda en línea y las notas de venta abiertas también descuentan del disponible de la caja.',
     ],
   },
   {
@@ -704,6 +833,21 @@ export const GLOSSARY: GlossaryTerm[] = [
     definition: 'Unidades reajustables chilenas. Se usan para topes previsionales, planes de salud y tramos del impuesto único; su valor se confirma cada mes.',
   },
   { term: 'Finiquito', definition: 'Documento que cierra la relación laboral con el cálculo de lo que se le debe al trabajador al término del contrato.' },
+  {
+    term: 'PLU de balanza',
+    definition: 'El número con que la balanza identifica un producto pesable. Se escribe en la ficha del producto para que la caja reconozca la etiqueta que imprime la balanza.',
+  },
+  {
+    term: 'Etiqueta de balanza',
+    definition:
+      'Código de barras EAN-13 que empieza con 20 a 29 (uso interno de cada tienda) y que trae el PLU del producto y su peso o su precio. La caja lo lee si la empresa configuró el formato.',
+  },
+  { term: 'Sell-through', definition: 'Qué parte del stock disponible en un período ya se vendió: lo vendido ÷ (stock al inicio + lo que entró).' },
+  { term: 'Días de inventario', definition: 'Para cuántos días alcanza el stock de un producto con su venta diaria reciente (contando solo días completos con stock).' },
+  { term: 'Merma', definition: 'Mercadería que se pierde: vencida, en mal estado, rota o faltante en un conteo. Se registra como salida con su motivo y no como venta.' },
+  { term: 'Quiebre de stock', definition: 'Cuando un producto que se vende se queda sin stock en la sala: es venta perdida, por eso se vigila en Retail en vivo y Reposición predictiva.' },
+  { term: 'Stock muerto', definition: 'Productos con stock que llevan muchos días sin venderse ni trasladarse: plata detenida en la bodega.' },
+  { term: 'Lift (canasta cruzada)', definition: 'Cuántas veces más de lo esperado por azar aparecen dos productos juntos en la misma boleta. Mayor que 1 = se compran juntos.' },
   { term: 'NPS / CSAT', definition: 'Indicadores de satisfacción: CSAT mide qué tan conforme quedó el cliente (1 a 5) y NPS cuánto te recomendaría (0 a 10).' },
   { term: 'RFM', definition: 'Segmentación de clientes por Recencia (cuándo compró), Frecuencia (cuántas veces) y Monto (cuánto).' },
   { term: 'Canje', definition: 'Aporte de un auspiciador en productos o servicios en vez de dinero; se valoriza y se reporta aparte del efectivo.' },
@@ -740,6 +884,21 @@ export function getKnowledgeAsManualSections(features: CompanyFeatureFlags, perm
       route: '/dashboard',
       screenshot: null,
       topics: workflows.map((workflow, index) => ({ id: `flujo-${index}`, title: workflow.title, steps: workflow.steps })),
+    });
+  }
+
+  const supermarket = getVisibleSupermarketGuide(features, effectivePermissions);
+  if (supermarket.length > 0) {
+    sections.push({
+      id: 'guia-supermercado',
+      key: 'always',
+      chapter: 'Referencia',
+      title: 'Guía para supermercados, minimarkets y almacenes',
+      summary:
+        'Cómo operar una tienda de autoservicio con los módulos que tienes: dejar la tienda lista, la caja del día, proveedores, perecibles y mermas, reposición, conteos, precios y cierre.',
+      route: '/dashboard',
+      screenshot: null,
+      topics: supermarket.map((workflow, index) => ({ id: `supermercado-${index}`, title: workflow.title.replace(/^Supermercado · /, ''), steps: workflow.steps })),
     });
   }
 

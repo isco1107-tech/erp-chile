@@ -34,6 +34,8 @@ const EMPTY_FORM = {
   netPrice: '',
   minStock: '0',
   barcode: '',
+  /** PLU de balanza como lo escribe la persona. Vacío = no se vende por balanza. */
+  scaleCode: '',
   brand: '',
   imageUrl: '',
   tracksLots: false,
@@ -110,6 +112,7 @@ export default function ProductForm({
         netPrice: String(editingProduct.netPrice),
         minStock: String(editingProduct.minStock),
         barcode: editingProduct.barcode ?? '',
+        scaleCode: editingProduct.scaleCode ?? '',
         brand: editingProduct.brand ?? '',
         imageUrl: editingProduct.imageUrl ?? '',
         tracksLots: editingProduct.tracksLots,
@@ -181,6 +184,7 @@ export default function ProductForm({
       netPrice: Number(form.netPrice),
       minStock: form.minStock === '' ? undefined : Number(form.minStock),
       barcode: form.barcode.trim(),
+      scaleCode: form.scaleCode.trim(),
       brand: form.brand.trim(),
       imageUrl: form.imageUrl,
       tracksLots: form.isTrackable && form.tracksLots,
@@ -358,6 +362,25 @@ export default function ProductForm({
               </span>
             </span>
           </label>
+        </div>
+
+        <div>
+          <Label htmlFor="scaleCode">PLU de balanza (opcional)</Label>
+          <Input
+            id="scaleCode"
+            value={form.scaleCode}
+            onChange={(e) => update('scaleCode', e.target.value)}
+            placeholder="Ej.: 123"
+            inputMode="numeric"
+            maxLength={6}
+            aria-invalid={!!errors.scaleCode}
+            aria-describedby="scaleCode-help"
+            autoComplete="off"
+          />
+          <p id="scaleCode-help" className="mt-1 text-xs text-muted-foreground">
+            El número del producto en la balanza. Con él, la caja lee la etiqueta de peso o precio que imprime la balanza. Se guarda sin ceros a la izquierda.
+          </p>
+          {errors.scaleCode && <p className="mt-1 text-sm text-destructive">{errors.scaleCode}</p>}
         </div>
 
         {form.isTrackable && (

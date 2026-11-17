@@ -7,8 +7,10 @@ import {
   describeCurrentScreen,
   getKnowledgeAsManualSections,
   getVisibleNavigation,
+  getVisibleSupermarketGuide,
   getVisibleTroubleshooting,
   getVisibleWorkflows,
+  SUPERMARKET_GUIDE,
 } from '@/modules/manual/knowledge';
 import { buildManualSystemPrompt } from '@/modules/manual/prompt';
 
@@ -128,6 +130,40 @@ describe('Flujos y problemas frecuentes', () => {
   it('el glosario siempre está disponible, incluso sin módulos', () => {
     const titles = getKnowledgeAsManualSections(NO_FEATURES, []).map((section) => section.title);
     expect(titles).toContain('Glosario');
+  });
+});
+
+describe('Guía para supermercados', () => {
+  it('sin Punto de Venta ni Inventario no aparece en el manual ni en el asistente', () => {
+    expect(getVisibleSupermarketGuide(NO_FEATURES, ALL_PERMISSIONS)).toEqual([]);
+    expect(getKnowledgeAsManualSections(NO_FEATURES).map((section) => section.id)).not.toContain('guia-supermercado');
+    const prompt = buildManualSystemPrompt({ companyName: 'X', userName: 'Y', features: NO_FEATURES, permissions: ALL_PERMISSIONS });
+    expect(prompt).not.toContain('GUÍA PARA SUPERMERCADOS');
+  });
+
+  it('cada receta exige sus módulos: la reposición necesita Métricas de retail', () => {
+    const tienda = features(['hasPos', 'hasInventory']);
+    const titles = getVisibleSupermarketGuide(tienda, ALL_PERMISSIONS).map((workflow) => workflow.title);
+    expect(titles).toContain('Supermercado · Dejar la tienda lista antes de abrir');
+    expect(titles).not.toContain('Supermercado · Reponer la góndola y pedir a tiempo');
+
+    const conRetail = features(['hasPos', 'hasInventory', 'hasRetailMetrics']);
+    expect(getVisibleSupermarketGuide(conRetail, ALL_PERMISSIONS).map((workflow) => workflow.title)).toContain(
+      'Supermercado · Reponer la góndola y pedir a tiempo',
+    );
+  });
+
+  it('con todo contratado está completa en el manual y en el asistente', () => {
+    const section = getKnowledgeAsManualSections(ALL_FEATURES).find((item) => item.id === 'guia-supermercado');
+    expect(section?.topics).toHaveLength(SUPERMARKET_GUIDE.length);
+    const prompt = buildManualSystemPrompt({ companyName: 'X', userName: 'Y', features: ALL_FEATURES, permissions: ALL_PERMISSIONS });
+    expect(prompt).toContain('GUÍA PARA SUPERMERCADOS');
+    expect(prompt).toContain('Etiquetas de balanza');
+  });
+
+  it('no promete funciones que la caja no tiene', () => {
+    const text = JSON.stringify(SUPERMARKET_GUIDE).toLowerCase();
+    expect(text).not.toMatch(/puntos de fidelizaci|verificador de precios|autoservicio de pago|self.?checkout/);
   });
 });
 

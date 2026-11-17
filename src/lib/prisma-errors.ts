@@ -68,6 +68,7 @@ export function constraintInvolves(error: unknown, ...columns: string[]): boolea
 
 /** Nombres de columna → etiqueta en español, para el mensaje genérico de constraint única. */
 const FIELD_LABELS: Record<string, string> = {
+  scaleCode: 'PLU de balanza',
   rutClean: 'RUT',
   rut: 'RUT',
   email: 'correo electrónico',
