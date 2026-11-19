@@ -476,6 +476,14 @@ export function audienceHero(
  * nombres cortos, y uno de 80 letras o una palabra de 20 no cabe en una
  * columna. Devuelve `''` si el tamaño normal alcanza.
  */
+/** Párrafos de «Sobre el certamen»: una línea en blanco separa uno de otro (el primero va destacado). */
+export function splitDescription(text: string | null | undefined): string[] {
+  return (text ?? '')
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+}
+
 export function headingSize(text: string | null | undefined): '' | 'is-long' | 'is-xlong' {
   const clean = (text ?? '').trim();
   const longestWord = clean.split(/[\s/]+/).reduce((max, word) => Math.max(max, word.length), 0);

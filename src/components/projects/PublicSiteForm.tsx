@@ -21,6 +21,13 @@ import { pageantSiteDesignSchema, parsePageantSiteDesign } from '@/lib/events/pa
 import { SiteDesignAssistant } from '@/components/web-sites/SiteDesignAssistant';
 import { CustomDomainSection } from './CustomDomainSection';
 import { PageantFooterFields } from './PageantFooterFields';
+import { TypographyPicker } from './TypographyPicker';
+import { effectiveFont, pageantFontInfo, parsePageantTypography } from '@/lib/events/pageant-typography';
+import { PAGEANT_FONT_CLASSES } from '@/components/public/pageant/fonts';
+import { SITE_FONT_CLASSES } from '@/components/web-sites/site-fonts';
+import { AboutTextPreview } from './AboutTextPreview';
+import { FooterPartnersEditor, type FooterPartnersDraft } from './FooterPartnersEditor';
+import { parseFooterPartners } from '@/lib/events/pageant-partners';
 
 type Toggle = 'showCandidatesPublic' | 'showSponsorsPublic' | 'showVoteRankingPublic' | 'showResultsPublic' | 'sponsorLeadFormEnabled';
 
@@ -41,6 +48,7 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
     publicTagline: project.publicTagline ?? '',
     publicDescription: project.publicDescription ?? '',
     coverImageUrl: project.coverImageUrl ?? '',
+    publicTypography: parsePageantTypography(project.publicTypography),
     publicAccent: ((PUBLIC_ACCENTS as readonly string[]).includes(project.publicAccent) ? project.publicAccent : 'gold') as PublicAccentKey,
     instagramHandle: formatInstagramHandlesForForm(project.instagramHandle),
     publicContactEmail: project.publicContactEmail ?? '',
@@ -59,6 +67,11 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
     sponsorExclusivityNote: project.sponsorExclusivityNote ?? '',
   }));
   const { footer, ...creative } = values.publicSiteDesign;
+  // Logos del pie: el enlace queda como se escribió y se normaliza al guardar.
+  const [partners, setPartners] = useState<FooterPartnersDraft>(() => {
+    const saved = parseFooterPartners(project.footerPartners);
+    return { title: saved.title ?? '', items: saved.items.map((item) => ({ id: item.id, name: item.name, logoUrl: item.logoUrl, href: item.href ?? '' })) };
+  });
   // La trayectoria se edita como texto, un logro por línea.
   const [highlightsText, setHighlightsText] = useState(project.directorHighlights.join('\n'));
   const [uploadingDirector, setUploadingDirector] = useState(false);
@@ -144,7 +157,7 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
   async function save() {
     setSaving(true);
     try {
-      const result = await updatePublicSiteAction(project.id, { ...values, directorHighlights: highlightsText.split('\n') });
+      const result = await updatePublicSiteAction(project.id, { ...values, directorHighlights: highlightsText.split('\n'), footerPartners: partners });
       if (!result.success) {
         toast.error(result.error);
         return;
@@ -254,11 +267,28 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
           </div>
           <div>
             <Label htmlFor="site-tagline">Frase principal</Label>
-            <Input id="site-tagline" value={values.publicTagline} onChange={(e) => set('publicTagline', e.target.value)} placeholder="La belleza con propósito vuelve a Viña del Mar" disabled={!canWrite} />
+            <Input
+              id="site-tagline"
+              className={cn(PAGEANT_FONT_CLASSES, SITE_FONT_CLASSES, 'text-base italic md:text-base')}
+              style={{ fontFamily: pageantFontInfo(effectiveFont(values.publicTypography, 'tagline')).css }}
+              value={values.publicTagline} onChange={(e) => set('publicTagline', e.target.value)} placeholder="La belleza con propósito vuelve a Viña del Mar" disabled={!canWrite} />
           </div>
           <div>
             <Label htmlFor="site-description">Sobre el certamen</Label>
-            <textarea id="site-description" className={cn(textareaClass, 'min-h-32')} value={values.publicDescription} onChange={(e) => set('publicDescription', e.target.value)} placeholder="Historia del certamen, qué se busca en una reina, causa social, premios…" disabled={!canWrite} />
+            {/* Con la letra del primer párrafo del sitio (cambia al elegir otra en «Tipografía»). */}
+            <textarea
+              id="site-description"
+              className={cn(textareaClass, PAGEANT_FONT_CLASSES, SITE_FONT_CLASSES, 'min-h-32 text-lg leading-relaxed md:text-lg')}
+              style={{ fontFamily: pageantFontInfo(effectiveFont(values.publicTypography, 'lead')).css }}
+              value={values.publicDescription}
+              onChange={(e) => set('publicDescription', e.target.value)}
+              placeholder="Historia del certamen, qué se busca en una reina, causa social, premios…"
+              disabled={!canWrite}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">Deja una línea en blanco para empezar otro párrafo. El primero va destacado y con letra capital.</p>
+            <div className="mt-3">
+              <AboutTextPreview name={project.name} description={values.publicDescription} typography={values.publicTypography} accent={values.publicAccent} />
+            </div>
           </div>
           <div>
             <Label>Color de acento</Label>
@@ -295,6 +325,13 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
           </div>
           <p className="text-xs text-muted-foreground">El mismo contacto aparece en el formulario de postulación del certamen.</p>
         </section>
+
+        <TypographyPicker
+          value={values.publicTypography}
+          onChange={(typography) => set('publicTypography', typography)}
+          disabled={!canWrite}
+          texts={{ name: project.name, tagline: values.publicTagline, description: values.publicDescription }}
+        />
 
         <section className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-card">
           <div>
@@ -420,6 +457,8 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
           disabled={!canWrite || saving}
           onChange={(footer) => setValues((previous) => ({ ...previous, publicSiteDesign: { ...previous.publicSiteDesign, footer } }))}
         />
+
+        <FooterPartnersEditor projectId={project.id} value={partners} onChange={setPartners} disabled={!canWrite || saving} />
 
         {canWrite && (
           <div className="flex gap-2">

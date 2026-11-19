@@ -6,6 +6,7 @@ import { captureException } from '@/lib/observability';
 import { sniffImageType, SNIFFED_IMAGE_EXTENSION } from '@/lib/security/file-signature';
 import { readImageSize } from '@/lib/images/dimensions';
 import { prisma } from '@/lib/prisma';
+import { FOOTER_PARTNERS_FOLDER } from '@/lib/events/pageant-partners';
 
 /**
  * Sube la imagen de portada del micrositio de un certamen. Route Handler por
@@ -30,6 +31,8 @@ const MIN_SIZE = {
   // Afiches: la foto principal llena buena parte del afiche; un logo puede ser chico y alargado.
   'poster-photo': { width: 600, height: 600, label: 'La foto', hint: 'de al menos 1080 × 1080 px' },
   'poster-logo': { width: 80, height: 40, label: 'El logo', hint: 'de al menos 300 px de ancho, ideal PNG con fondo transparente' },
+  // Logos del pie de página (municipalidad, organizadores…): chicos y a veces alargados.
+  partner: { width: 80, height: 40, label: 'El logo', hint: 'de al menos 300 px de ancho, ideal PNG con fondo transparente' },
 } as const;
 
 type Purpose = keyof typeof MIN_SIZE;
@@ -80,6 +83,8 @@ export async function POST(req: Request) {
         ? `pageant-site/${session.companyId}/${projectId}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${SNIFFED_IMAGE_EXTENSION[sniffed]}`
         : purpose === 'poster-photo' || purpose === 'poster-logo'
         ? `pageant-posters/${session.companyId}/${projectId}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${SNIFFED_IMAGE_EXTENSION[sniffed]}`
+        : purpose === 'partner'
+        ? `${FOOTER_PARTNERS_FOLDER}/${session.companyId}/${projectId}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${SNIFFED_IMAGE_EXTENSION[sniffed]}`
         : purpose === 'favicon'
         ? `pageant-favicons/${session.companyId}/${projectId}-${Date.now()}.${SNIFFED_IMAGE_EXTENSION[sniffed]}`
         : purpose === 'winner'
@@ -94,7 +99,7 @@ export async function POST(req: Request) {
       action: 'UPDATE',
       entity: 'Project',
       entityId: projectId,
-      metadata: { field: purpose === 'winner' ? 'pastWinnerPhoto' : purpose === 'favicon' ? 'faviconUrl' : purpose.startsWith('poster') ? 'posterImage' : 'coverImageUrl', url: blob.url },
+      metadata: { field: purpose === 'winner' ? 'pastWinnerPhoto' : purpose === 'partner' ? 'footerPartnerLogo' : purpose === 'favicon' ? 'faviconUrl' : purpose.startsWith('poster') ? 'posterImage' : 'coverImageUrl', url: blob.url },
     });
 
     return NextResponse.json({ success: true, data: { url: blob.url } });

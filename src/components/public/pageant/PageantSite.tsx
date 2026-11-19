@@ -9,6 +9,7 @@ import {
   ribbonLoop,
   initials,
   registrationProcess,
+  splitDescription,
   splitPackageBenefits,
   sponsorProcess,
   whatsappGreeting,
@@ -21,10 +22,13 @@ import { safeHref } from '@/lib/web-sites/urls';
 import type { PublicPageantCandidate, PublicPageantSite } from '@/modules/projects/services/public-site.service';
 import { Arrow, Calendar, Check, Chevron, Close, Crown, Diamond, Instagram, Mail, Pin, Plus, Ticket, Tiara, Whatsapp } from './icons';
 import { PAGEANT_FONT_CLASSES } from './fonts';
+import { SITE_FONT_CLASSES } from '@/components/web-sites/site-fonts';
+import { PAGEANT_TYPOGRAPHY_CLASS, pageantTypographyCss } from '@/lib/events/pageant-typography';
+import { DEFAULT_FOOTER_PARTNERS_TITLE } from '@/lib/events/pageant-partners';
 import { FitText } from './FitText';
 import { HallOfFame } from './HallOfFame';
 import { startReveal } from './reveal';
-import { HeroSky, Kicker, pad } from './parts';
+import { AboutHeading, AboutProse, HeroSky, Kicker, pad } from './parts';
 import { SponsorLeadForm } from './SponsorLeadForm';
 import { CandidateApplicationForm } from './CandidateApplicationForm';
 import { WhatsappFloat } from './WhatsappFloat';
@@ -346,12 +350,17 @@ export function PageantSite({ site, view, afterHero = null }: { site: PublicPage
     formatMoney: formatCurrency,
   });
 
+  const aboutParagraphs = useMemo(() => splitDescription(site.description), [site.description]);
+  const typographyCss = useMemo(() => pageantTypographyCss(site.typography), [site.typography]);
+
   // --pgs-lead-fit: "MISS UNIVERSO" crece hasta llenar el ancho sin desbordar en teléfonos.
   const titleFit = { '--pgs-fit': Math.max(title.main.length, 6) * 0.64, '--pgs-lead-fit': Math.max(title.lead.length, 8) * 0.9 } as CSSProperties;
 
   return (
-    <div ref={rootRef} className={`pgs ${PAGEANT_FONT_CLASSES}`} data-accent={site.accent}>
+    <div ref={rootRef} className={`pgs ${PAGEANT_FONT_CLASSES}${typographyCss ? ` ${SITE_FONT_CLASSES} ${PAGEANT_TYPOGRAPHY_CLASS}` : ''}`} data-accent={site.accent}>
       <style>{PAGEANT_SITE_STYLES}</style>
+      {/* Tipografía elegida por bloque: después de la hoja base y solo con claves de la lista cerrada. */}
+      {typographyCss && <style>{typographyCss}</style>}
       <a className="pgs-skip" href="#contenido">
         Saltar al contenido
       </a>
@@ -636,33 +645,8 @@ export function PageantSite({ site, view, afterHero = null }: { site: PublicPage
         {shows('certamen') && (
           <section id="certamen" className="pgs-section is-paper" aria-labelledby="pgs-about-title">
             <div className="pgs-wrap pgs-about">
-              <div className="pgs-about-head" data-reveal>
-                <Kicker index={numberOf('certamen')} tone="paper">
-                  El certamen
-                </Kicker>
-                <h2 id="pgs-about-title" className={`pgs-h2 is-ink ${headingSize(shortName)}`.trim()}>
-                  {title.lead ? (
-                    <>
-                      {title.lead} <em>{title.main}</em>
-                    </>
-                  ) : (
-                    <em>{title.main}</em>
-                  )}
-                </h2>
-              </div>
-              {site.description && (
-                <div className="pgs-prose" data-reveal>
-                  {site.description
-                    .split(/\n{2,}/)
-                    .map((paragraph) => paragraph.trim())
-                    .filter(Boolean)
-                    .map((paragraph, i) => (
-                      <p key={i} className={i === 0 ? 'is-lead' : undefined}>
-                        {paragraph}
-                      </p>
-                    ))}
-                </div>
-              )}
+              <AboutHeading title={title} index={numberOf('certamen')} titleId="pgs-about-title" reveal />
+              {aboutParagraphs.length > 0 && <AboutProse paragraphs={aboutParagraphs} reveal />}
             </div>
             {view.highlights.length > 0 && (
               <div className="pgs-wrap">
@@ -1320,6 +1304,30 @@ export function PageantSite({ site, view, afterHero = null }: { site: PublicPage
             </div>
           )}
         </div>
+        {site.footerPartners.items.length > 0 && (
+          <div className="pgs-wrap pgs-partners" data-reveal>
+            <p className="pgs-partners-title">{site.footerPartners.title ?? DEFAULT_FOOTER_PARTNERS_TITLE}</p>
+            <ul className="pgs-partners-list">
+              {site.footerPartners.items.map((partner) => {
+                // eslint-disable-next-line @next/next/no-img-element
+                const logo = <img src={partner.logoUrl} alt={partner.name} loading="lazy" decoding="async" />;
+                return (
+                  <li key={partner.id}>
+                    {partner.href ? (
+                      <a className="pgs-partner" href={partner.href} target="_blank" rel="noopener noreferrer" title={partner.name}>
+                        {logo}
+                      </a>
+                    ) : (
+                      <span className="pgs-partner" title={partner.name}>
+                        {logo}
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
         <div className="pgs-wrap pgs-footer-legal">
           <p>
             {footer?.copyright || <>© {title.edition ?? ''} {shortName}</>}

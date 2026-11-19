@@ -4,6 +4,8 @@ import { contactEmailField, contactWhatsappField, instagramHandleField } from '@
 import type { ProjectStatus } from '@prisma/client';
 import { publicSlugProblem } from '@/lib/events/public-slug';
 import { DIRECTOR_TITLES } from '@/lib/events/pageant-site';
+import { pageantTypographySchema } from '@/lib/events/pageant-typography';
+import { footerPartnersSchema } from '@/lib/events/pageant-partners';
 
 /** Las columnas de monto son INT de PostgreSQL (32 bits): un valor mayor revienta al guardar en vez de avisar. */
 const MAX_CLP_INT = 2_147_483_647;
@@ -101,6 +103,10 @@ export const projectPublicSiteSchema = z
       .or(z.literal(''))
       .transform((value) => (value ? value : null)),
     publicAccent: z.enum(PUBLIC_ACCENTS).default('gold'),
+    // Tipografía por familia y por bloque de texto (vacío = la de fábrica).
+    publicTypography: pageantTypographySchema.default({}),
+    // Logos del pie de página con su enlace (vacío = sin logos).
+    footerPartners: footerPartnersSchema.default({ title: null, items: [] }),
     instagramHandle: instagramHandleField,
     publicContactEmail: contactEmailField,
     publicWhatsapp: contactWhatsappField,

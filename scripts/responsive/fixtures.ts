@@ -44,6 +44,8 @@ export function baseSite(overrides: Partial<PublicPageantSite> = {}): PublicPage
     coverImageUrl: null,
     faviconUrl: null,
     accent: 'gold',
+    typography: {},
+    footerPartners: { title: null, items: [] },
     instagramHandles: ['missuniversotemuco', 'miss.universo.araucania'],
     contactEmail: 'contacto@missuniversotemuco.cl',
     whatsapp: { href: 'https://wa.me/56912345678', label: '+56 9 1234 5678' },
@@ -105,6 +107,10 @@ export const FIXTURES: Record<string, PublicPageantSite> = {
   unaPalabra: baseSite({ name: 'Aurora', slug: 'aurora' }),
   sinEdicion: baseSite({ name: 'Reina de la Primavera', slug: 'primavera' }),
   estres: baseSite({
+    footerPartners: {
+      title: 'Con el apoyo de las instituciones y empresas de toda la Región de La Araucanía',
+      items: Array.from({ length: 6 }, (_, n) => ({ id: `p${n}`, name: `Institución con un nombre larguísimo número ${n + 1}`, logoUrl: `https://img.test/logo-${n % 2 ? 1 : 3}.svg`, href: n % 2 ? 'https://www.instagram.com/cuenta/' : null })),
+    },
     name: 'Reina Internacional de la Solidaridad y el Turismo Sustentable de Sudamérica/Cono Sur 2026',
     slug: 'estres',
     organizer: 'Corporación Cultural y Deportiva Municipal de la Comuna de Pucón y Villarrica',
@@ -210,10 +216,29 @@ export const FIXTURES: Record<string, PublicPageantSite> = {
     name: 'Fiesta de la Primavera Temuco',
     slug: 'fiesta-primavera',
     accent: 'primavera',
+    footerPartners: {
+      title: 'Organizan',
+      items: [
+        { id: 'muni', name: 'Ilustre Municipalidad de Temuco', logoUrl: 'https://img.test/logo-1.svg', href: 'https://www.instagram.com/cuenta_municipal/' },
+        { id: 'cr', name: 'CR Producciones', logoUrl: 'https://img.test/logo-2.svg', href: null },
+      ],
+    },
     creative: withPhotos(
       buildFiestaDesign(
         ['Panadería Temuco/Longuimay', 'Supercalifragilisticoespialidoso', 'Banco', 'Radio', 'Ferretería del Sur', 'Clínica'].map((name, i) => ({ name, url: `https://img.test/logo-${i}.svg` }))
       )
     ),
+  }),
+  // Tipografía elegida por bloque (más anchas que las de fábrica): nada debe desbordar.
+  tipografia: baseSite({
+    name: 'Miss Universo Temuco/Longuimay 2026',
+    slug: 'tipografia',
+    typography: { display: 'playfair', serif: 'lora', sans: 'raleway', heroTitle: 'cinzel', names: 'cinzel' },
+  }),
+  // Lo más ancho del catálogo en cada familia y bloque: la compensación de ancho tiene que bastar.
+  tipografiaAncha: baseSite({
+    name: 'Concurso Nacional de Belleza, Elegancia y Talento de la Región de La Araucanía 2026',
+    slug: 'tipografia-ancha',
+    typography: { display: 'unbounded', serif: 'libre-baskerville', sans: 'montserrat', heroTitle: 'cinzel', titleAccent: 'abril', dropCap: 'unbounded', names: 'cinzel', numbers: 'unbounded', kickers: 'work-sans', lead: 'merriweather', quotes: 'fraunces' },
   }),
 };

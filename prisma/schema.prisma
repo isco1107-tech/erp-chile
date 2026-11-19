@@ -2507,6 +2507,14 @@ model Project {
   /// `emerald` — los de `PublicShell`). Texto y no enum para poder sumar
   /// acentos sin migración; Zod valida los permitidos.
   publicAccent            String    @default("gold")
+  /// Tipografía del micrositio por familia y por bloque de texto
+  /// (`src/lib/events/pageant-typography.ts`, validada con Zod al guardar y al
+  /// leer). `null` o una clave ausente = la tipografía de fábrica.
+  publicTypography        Json?
+  /// Logos del pie del micrositio (organizadores e instituciones que apoyan) con su
+  /// enlace: `{ title, items: [{ id, name, logoUrl, href }] }`, validado con Zod al
+  /// guardar y al leer (`src/lib/events/pageant-partners.ts`). `null` = sin logos.
+  footerPartners          Json?
   instagramHandle         String?
   publicContactEmail      String?
   /// WhatsApp de contacto del certamen (solo dígitos, formato wa.me: 56912345678).

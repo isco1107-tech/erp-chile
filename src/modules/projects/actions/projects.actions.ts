@@ -9,6 +9,7 @@ import { toFriendlyErrorMessage } from '@/lib/prisma-errors';
 import { getProjectFinancialSummary, type ProjectFinancialSummary } from '@/lib/services/projects';
 import { projectCreateSchema, projectPublicSiteSchema, projectUpdateSchema } from '../schema';
 import { publicSlugProblem } from '@/lib/events/public-slug';
+import { FOOTER_PARTNERS_FOLDER } from '@/lib/events/pageant-partners';
 import { blobPathnameStartsWith, isAllowedBlobUrl } from '@/lib/security/blob-url';
 import { getPageantHub, type PageantHub } from '../services/hub.service';
 import * as projectsService from '../services/projects.service';
@@ -143,6 +144,10 @@ export async function updatePublicSiteAction(id: string, input: unknown): Promis
     // El logo de la pestaña tiene que haberlo subido esta empresa desde el panel (no se acepta una URL cualquiera).
     if (parsed.data.faviconUrl && !(isAllowedBlobUrl(parsed.data.faviconUrl) && blobPathnameStartsWith(parsed.data.faviconUrl, `pageant-favicons/${session.companyId}/`))) {
       return { success: false, error: 'El logo de la pestaña debe subirse desde este panel (PNG, JPG o WEBP)' };
+    }
+    // Los logos del pie tienen que haberlos subido esta empresa desde este panel.
+    if (parsed.data.footerPartners.items.some((p) => !(isAllowedBlobUrl(p.logoUrl) && blobPathnameStartsWith(p.logoUrl, `${FOOTER_PARTNERS_FOLDER}/${session.companyId}/`)))) {
+      return { success: false, error: 'Los logos del pie de página deben subirse desde este panel (PNG, JPG o WEBP)' };
     }
     if (parsed.data.publicSlug && !(await projectsService.isPublicSlugAvailable(session.companyId, id, parsed.data.publicSlug))) {
       return { success: false, error: 'Esa dirección ya la usa otro certamen. Prueba agregando el año o la ciudad.' };

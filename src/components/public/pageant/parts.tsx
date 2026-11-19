@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
+import { headingSize, type PageantTitle } from '@/lib/events/pageant-site';
 
 /**
  * Piezas visuales compartidas por el micrositio del certamen y su página de
@@ -85,4 +86,41 @@ export function Kicker({ index, children, tone = 'night' }: { index?: string; ch
 
 export function pad(value: number): string {
   return String(value).padStart(2, '0');
+}
+
+/**
+ * Encabezado y texto de «El certamen». Los usan el micrositio y la vista previa
+ * del panel (Sitio público → «Sobre el certamen»): así lo que se ve al escribir
+ * es exactamente lo que se publica.
+ */
+export function AboutHeading({ title, index, titleId, reveal = false }: { title: PageantTitle; index?: string; titleId?: string; reveal?: boolean }) {
+  const shortName = [title.lead, title.main].filter(Boolean).join(' ');
+  return (
+    <div className="pgs-about-head" data-reveal={reveal ? '' : undefined}>
+      <Kicker index={index} tone="paper">
+        El certamen
+      </Kicker>
+      <h2 id={titleId} className={`pgs-h2 is-ink ${headingSize(shortName)}`.trim()}>
+        {title.lead ? (
+          <>
+            {title.lead} <em>{title.main}</em>
+          </>
+        ) : (
+          <em>{title.main}</em>
+        )}
+      </h2>
+    </div>
+  );
+}
+
+export function AboutProse({ paragraphs, reveal = false }: { paragraphs: string[]; reveal?: boolean }) {
+  return (
+    <div className="pgs-prose" data-reveal={reveal ? '' : undefined}>
+      {paragraphs.map((paragraph, i) => (
+        <p key={i} className={i === 0 ? 'is-lead' : undefined}>
+          {paragraph}
+        </p>
+      ))}
+    </div>
+  );
 }

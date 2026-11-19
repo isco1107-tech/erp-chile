@@ -92,9 +92,9 @@ const { FIXTURE_NAMES } = require(bundle);
 
 // 2) Fuentes reales (las mismas que next/font descarga en producción), guardadas en local.
 async function loadFonts() {
-  const cssPath = path.join(out, 'fonts', 'fonts-v2.css');
+  const cssPath = path.join(out, 'fonts', 'fonts-v4.css');
   if (fs.existsSync(cssPath)) return fs.readFileSync(cssPath, 'utf8');
-  const url = 'https://fonts.googleapis.com/css2?family=Italiana&family=Karla:wght@300;400;500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=Raleway:wght@400;600&family=Playfair+Display:wght@700&display=swap';
+  const url = 'https://fonts.googleapis.com/css2?family=Italiana&family=Karla:wght@300;400;500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=Raleway:wght@400;600&family=Playfair+Display:wght@400;700&family=Unbounded:wght@400&family=Cinzel:wght@400&family=Lora:ital,wght@0,400;1,400&family=Libre+Baskerville:wght@400;700&family=Montserrat:wght@400;500;600;700&family=Abril+Fatface&family=Work+Sans:wght@400;600&family=Merriweather:wght@400&family=Fraunces:wght@400&display=swap';
   const ua = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36';
   const css = execFileSync('curl', ['-sS', '-m', '30', '-A', ua, url], { encoding: 'utf8' });
   let result = '';
@@ -132,7 +132,7 @@ const wrapper = () => `<!doctype html><html lang="es-CL"><head><meta charset="ut
 <style>${fontCss}
 html,body{margin:0}
 .pgs{--pgs-display:'Italiana';--pgs-body:'Karla';--pgs-serif:'Cormorant Garamond'}
-:root{--wsf-raleway:'Raleway';--wsf-playfair:'Playfair Display'}
+:root{--wsf-raleway:'Raleway';--wsf-playfair:'Playfair Display';--wsf-unbounded:'Unbounded';--wsf-cinzel:'Cinzel';--wsf-lora:'Lora';--wsf-libre-baskerville:'Libre Baskerville';--wsf-montserrat:'Montserrat';--wsf-abril:'Abril Fatface';--wsf-work-sans:'Work Sans';--wsf-merriweather:'Merriweather';--wsf-fraunces:'Fraunces'}
 ${tailwindCss}
 </style></head><body><div id="root"></div></body></html>`;
 
@@ -163,9 +163,9 @@ for (const name of fixtures) {
     // parecería corta) y su aparición va atada al scroll (`animation-timeline: view()`), que una captura de página
     // completa no recorre. Se cargan las imágenes y se muestra todo antes de medir.
     await page.evaluate(async () => {
-      document.querySelectorAll('.ws-root img[loading=lazy]').forEach((img) => img.setAttribute('loading', 'eager'));
+      document.querySelectorAll('.ws-root img[loading=lazy], .pgs img[loading=lazy]').forEach((img) => img.setAttribute('loading', 'eager'));
       document.querySelectorAll('.ws-root').forEach((el) => el.setAttribute('data-still', ''));
-      await Promise.all([...document.querySelectorAll('.ws-root img')].map((img) => (img.complete ? null : new Promise((r) => { img.onload = img.onerror = r; }))));
+      await Promise.all([...document.querySelectorAll('.ws-root img, .pgs-partners img')].map((img) => (img.complete ? null : new Promise((r) => { img.onload = img.onerror = r; }))));
     });
     await page.waitForTimeout(100);
     const problems = await page.evaluate(collectProblems, '.pgs');

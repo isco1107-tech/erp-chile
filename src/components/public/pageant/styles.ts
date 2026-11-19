@@ -4,7 +4,21 @@
  * (dorado champaña por defecto). Los colores son variables del contenedor
  * `.pgs`, así cada certamen puede tener su acento sin tocar el resto.
  */
-export const PAGEANT_SITE_STYLES = `
+/**
+ * Cada familia (`--display`, `--serif`, `--numeric`, `--sans`) viaja con su
+ * compensación de ancho (`--display-adjust`, …): sin tipografía elegida no
+ * existe y vale `none` (el sitio se ve como siempre); con una fuente más ancha
+ * que la de fábrica, `pageantTypographyCss` la define para que ocupe lo mismo
+ * (ver `src/lib/events/pageant-typography.ts`).
+ */
+function withFontAdjust(css: string): string {
+  return css
+    .replace(/font-family: var\(--(display|serif|numeric|sans)\);/g, 'font-family: var(--$1); font-size-adjust: var(--$1-adjust, none);')
+    // El atajo `font:` reinicia `font-size-adjust` a `none`: se vuelve a poner después.
+    .replace(/(font: [^;{}]*var\(--(display|serif|numeric|sans)\);)/g, '$1 font-size-adjust: var(--$2-adjust, none);');
+}
+
+export const PAGEANT_SITE_STYLES = withFontAdjust(`
 .pgs {
   --night: #070a1c;
   --night-2: #0c1130;
@@ -53,7 +67,8 @@ export const PAGEANT_SITE_STYLES = `
 .pgs[data-accent='violet'] { --a: #d8cbf7; --a-bright: #eee8fd; --a-mid: #7a5bc7; --a-deep: #5b3fa8; }
 .pgs[data-accent='cyan'] { --a: #bde7ef; --a-bright: #e3f6f9; --a-mid: #2e8a9e; --a-deep: #1e6475; }
 .pgs[data-accent='emerald'] { --a: #c4e6d2; --a-bright: #e6f5ec; --a-mid: #2f7d5b; --a-deep: #245f45; }
-/* Primavera: noche verde bosque, acento dorado y halos rosados (verde + dorado + rosado juntos). */
+/* Primavera: verde bosque, dorado y rosado. Para que no quede todo verde, las secciones profundas
+   (inscripción, ranking, directora) y el pie van en vino de copihue (más abajo). */
 .pgs[data-accent='primavera'] {
   --night: #06190f; --night-2: #0a2418; --night-3: #0f3021;
   --night-rgb: 6, 25, 15; --glow-rgb: 226, 92, 150; --glow-2-rgb: 236, 120, 168; --glow-3-rgb: 214, 69, 122;
@@ -61,6 +76,13 @@ export const PAGEANT_SITE_STYLES = `
   --paper: #fdf7f4; --paper-2: #f7ebe7; --ink: #10261b; --ink-soft: #4b5f54;
   --line-night: rgba(234, 211, 154, 0.2); --copihue: #c2386f;
   --a: #ead39a; --a-bright: #f7e8c2; --a-mid: #a8823f; --a-deep: #7a5c22;
+}
+/* Vino de copihue: misma luz dorada, halos durazno; se alterna con el verde bosque. */
+.pgs[data-accent='primavera'] .pgs-section.is-deep, .pgs[data-accent='primavera'] .pgs-footer {
+  --night: #1c0915; --night-2: #2a0e20; --night-3: #3b142d;
+  --night-rgb: 28, 9, 21; --glow-rgb: 236, 150, 110; --glow-2-rgb: 242, 172, 128; --glow-3-rgb: 226, 92, 150;
+  --panel-rgb: 34, 11, 26; --panel-2-rgb: 58, 20, 45; --panel-3-rgb: 48, 16, 37;
+  --line-night: rgba(240, 205, 160, 0.2);
 }
 .pgs *, .pgs *::before, .pgs *::after { box-sizing: border-box; }
 .pgs ::selection { background: var(--a); color: var(--ink); }
@@ -196,7 +218,7 @@ export const PAGEANT_SITE_STYLES = `
 .pgs-count { position: relative; min-width: clamp(4.4rem, 12vw, 7rem); padding: 0 clamp(0.4rem, 1.5vw, 1.2rem); display: flex; flex-direction: column; align-items: center; }
 .pgs-count + .pgs-count::before { content: ''; position: absolute; left: 0; top: 12%; bottom: 22%; width: 1px; background: linear-gradient(180deg, transparent, var(--line-night) 20%, color-mix(in srgb, var(--a) 45%, transparent), var(--line-night) 80%, transparent); }
 .pgs-count-value { font-size: clamp(2.4rem, 5.4vw, 3.6rem); font-weight: 400; line-height: 1; font-variant-numeric: tabular-nums; color: var(--on-night); }
-.pgs-count-label { margin-top: 0.55rem; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.3em; text-transform: uppercase; color: var(--a); }
+.pgs-count-label { margin-top: 0.55rem; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.3em; text-transform: uppercase; color: var(--a); white-space: nowrap; }
 .pgs-hero-ctas { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.8rem; margin-top: 1.8rem; }
 .pgs-hero-note { display: inline-flex; align-items: center; gap: 0.6rem; margin: 1.4rem 0 0; font-size: 0.82rem; letter-spacing: 0.04em; color: var(--on-night-dim); }
 .pgs-live-dot { position: relative; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: #e0455f; flex: none; }
@@ -719,6 +741,14 @@ export const PAGEANT_SITE_STYLES = `
 .pgs-footer-contact .pgs-inline-icon { color: var(--a); }
 .pgs-footer-legal { color: color-mix(in srgb, var(--on-night) 70%, transparent); }
 
+/* Logos del pie (organizadores e instituciones que apoyan): sobre una tarjeta clara, así cualquier logo se lee en la noche. */
+.pgs-partners { margin-top: clamp(2.5rem, 6vw, 3.5rem); padding-top: 2rem; border-top: 1px solid color-mix(in srgb, var(--a) 22%, transparent); display: flex; flex-direction: column; align-items: center; gap: 1.2rem; text-align: center; }
+.pgs-partners-title { margin: 0; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.3em; text-transform: uppercase; color: var(--a); }
+.pgs-partners-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 1rem; max-width: 100%; }
+.pgs-partner { display: flex; align-items: center; justify-content: center; width: clamp(8.5rem, 30vw, 12rem); height: clamp(4.5rem, 14vw, 6rem); padding: 0.8rem 1.1rem; border-radius: 18px; background: linear-gradient(160deg, #fffdf8, var(--paper-2)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--a) 45%, transparent), 0 18px 40px -24px rgba(0, 0, 0, 0.85); transition: transform 0.4s var(--ease), box-shadow 0.4s var(--ease); }
+a.pgs-partner:hover { transform: translateY(-3px); box-shadow: 0 0 0 1px var(--a), 0 24px 50px -24px color-mix(in srgb, var(--a) 70%, transparent); }
+.pgs-partner img { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
+
 /* "MISS UNIVERSO": protagonista junto al nombre, en la tipografía de display y a escala del ancho. */
 .pgs-title-lead { font-family: var(--display); font-weight: 400; font-size: clamp(0.85rem, calc(80vw / var(--pgs-lead-fit, 12)), 3.1rem); max-width: 100%; text-align: center; white-space: normal; text-wrap: balance; letter-spacing: 0.2em; margin-right: -0.2em; gap: clamp(0.7rem, 2vw, 1.4rem); color: var(--on-night); text-shadow: 0 0 28px color-mix(in srgb, var(--a) 35%, transparent); }
 .pgs-title-rule:last-child { margin-left: -0.2em; }
@@ -842,4 +872,4 @@ export const PAGEANT_SITE_STYLES = `
 .pgs-beam { filter: none; mix-blend-mode: normal; clip-path: none; -webkit-mask-image: none; mask-image: none; height: 110%;
   background: conic-gradient(from 170deg at 50% 0%, transparent 0deg, color-mix(in srgb, var(--a-bright) 30%, transparent) 10deg, transparent 20deg, transparent 360deg); }
 .pgs-beam.is-left, .pgs-beam.is-right { opacity: 0.3; }
-`;
+`);
