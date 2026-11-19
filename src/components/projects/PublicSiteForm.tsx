@@ -21,7 +21,10 @@ import { parseCreativeSite } from '@/lib/web-sites/creative';
 import { SiteDesignAssistant } from '@/components/web-sites/SiteDesignAssistant';
 import { CustomDomainSection } from './CustomDomainSection';
 import { TypographyPicker } from './TypographyPicker';
-import { parsePageantTypography } from '@/lib/events/pageant-typography';
+import { effectiveFont, pageantFontInfo, parsePageantTypography } from '@/lib/events/pageant-typography';
+import { PAGEANT_FONT_CLASSES } from '@/components/public/pageant/fonts';
+import { SITE_FONT_CLASSES } from '@/components/web-sites/site-fonts';
+import { AboutTextPreview } from './AboutTextPreview';
 
 type Toggle = 'showCandidatesPublic' | 'showSponsorsPublic' | 'showVoteRankingPublic' | 'showResultsPublic' | 'sponsorLeadFormEnabled';
 
@@ -255,11 +258,28 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
           </div>
           <div>
             <Label htmlFor="site-tagline">Frase principal</Label>
-            <Input id="site-tagline" value={values.publicTagline} onChange={(e) => set('publicTagline', e.target.value)} placeholder="La belleza con propósito vuelve a Viña del Mar" disabled={!canWrite} />
+            <Input
+              id="site-tagline"
+              className={cn(PAGEANT_FONT_CLASSES, SITE_FONT_CLASSES, 'text-base italic md:text-base')}
+              style={{ fontFamily: pageantFontInfo(effectiveFont(values.publicTypography, 'tagline')).css }}
+              value={values.publicTagline} onChange={(e) => set('publicTagline', e.target.value)} placeholder="La belleza con propósito vuelve a Viña del Mar" disabled={!canWrite} />
           </div>
           <div>
             <Label htmlFor="site-description">Sobre el certamen</Label>
-            <textarea id="site-description" className={cn(textareaClass, 'min-h-32')} value={values.publicDescription} onChange={(e) => set('publicDescription', e.target.value)} placeholder="Historia del certamen, qué se busca en una reina, causa social, premios…" disabled={!canWrite} />
+            {/* Con la letra del primer párrafo del sitio (cambia al elegir otra en «Tipografía»). */}
+            <textarea
+              id="site-description"
+              className={cn(textareaClass, PAGEANT_FONT_CLASSES, SITE_FONT_CLASSES, 'min-h-32 text-lg leading-relaxed md:text-lg')}
+              style={{ fontFamily: pageantFontInfo(effectiveFont(values.publicTypography, 'lead')).css }}
+              value={values.publicDescription}
+              onChange={(e) => set('publicDescription', e.target.value)}
+              placeholder="Historia del certamen, qué se busca en una reina, causa social, premios…"
+              disabled={!canWrite}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">Deja una línea en blanco para empezar otro párrafo. El primero va destacado y con letra capital.</p>
+            <div className="mt-3">
+              <AboutTextPreview name={project.name} description={values.publicDescription} typography={values.publicTypography} accent={values.publicAccent} />
+            </div>
           </div>
           <div>
             <Label>Color de acento</Label>

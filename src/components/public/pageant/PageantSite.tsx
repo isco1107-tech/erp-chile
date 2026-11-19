@@ -9,6 +9,7 @@ import {
   ribbonLoop,
   initials,
   registrationProcess,
+  splitDescription,
   splitPackageBenefits,
   sponsorProcess,
   whatsappGreeting,
@@ -25,7 +26,7 @@ import { PAGEANT_TYPOGRAPHY_CLASS, pageantTypographyCss } from '@/lib/events/pag
 import { FitText } from './FitText';
 import { HallOfFame } from './HallOfFame';
 import { startReveal } from './reveal';
-import { HeroSky, Kicker, pad } from './parts';
+import { AboutHeading, AboutProse, HeroSky, Kicker, pad } from './parts';
 import { SponsorLeadForm } from './SponsorLeadForm';
 import { CandidateApplicationForm } from './CandidateApplicationForm';
 import { WhatsappFloat } from './WhatsappFloat';
@@ -339,6 +340,7 @@ export function PageantSite({ site, view, afterHero = null }: { site: PublicPage
     formatMoney: formatCurrency,
   });
 
+  const aboutParagraphs = useMemo(() => splitDescription(site.description), [site.description]);
   const typographyCss = useMemo(() => pageantTypographyCss(site.typography), [site.typography]);
 
   // --pgs-lead-fit: "MISS UNIVERSO" crece hasta llenar el ancho sin desbordar en teléfonos.
@@ -633,33 +635,8 @@ export function PageantSite({ site, view, afterHero = null }: { site: PublicPage
         {shows('certamen') && (
           <section id="certamen" className="pgs-section is-paper" aria-labelledby="pgs-about-title">
             <div className="pgs-wrap pgs-about">
-              <div className="pgs-about-head" data-reveal>
-                <Kicker index={numberOf('certamen')} tone="paper">
-                  El certamen
-                </Kicker>
-                <h2 id="pgs-about-title" className={`pgs-h2 is-ink ${headingSize(shortName)}`.trim()}>
-                  {title.lead ? (
-                    <>
-                      {title.lead} <em>{title.main}</em>
-                    </>
-                  ) : (
-                    <em>{title.main}</em>
-                  )}
-                </h2>
-              </div>
-              {site.description && (
-                <div className="pgs-prose" data-reveal>
-                  {site.description
-                    .split(/\n{2,}/)
-                    .map((paragraph) => paragraph.trim())
-                    .filter(Boolean)
-                    .map((paragraph, i) => (
-                      <p key={i} className={i === 0 ? 'is-lead' : undefined}>
-                        {paragraph}
-                      </p>
-                    ))}
-                </div>
-              )}
+              <AboutHeading title={title} index={numberOf('certamen')} titleId="pgs-about-title" reveal />
+              {aboutParagraphs.length > 0 && <AboutProse paragraphs={aboutParagraphs} reveal />}
             </div>
             {view.highlights.length > 0 && (
               <div className="pgs-wrap">
