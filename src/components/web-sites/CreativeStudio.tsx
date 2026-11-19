@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { creativeSiteSchema, type CreativeSite } from '@/lib/web-sites/creative';
+import { CREATIVE_PLACEMENT_LABELS, CREATIVE_PLACEMENTS, creativeSiteSchema, type CreativeSite } from '@/lib/web-sites/creative';
 import { documentFromBlocks, homeOf } from '@/lib/web-sites/site';
 import { blockImageUrls } from '@/lib/web-sites/blocks';
 import { GuidedEditor } from './GuidedEditor';
@@ -54,7 +54,7 @@ export function CreativeStudio({ target, resourceId, name, value, disabled, imag
     <div className="space-y-4 border-t border-border p-4">
       <p className="text-xs text-muted-foreground">Agrega composiciones propias al sitio. Los formularios de inscripción y los datos del sistema siguen disponibles en el diseño principal.</p>
       <SwitchRow label="Mostrar las secciones personalizadas" checked={design.enabled} disabled={disabled} onChange={(enabled) => change({ ...design, enabled })} />
-      <label className="block text-sm">Ubicación<select className="ml-2 rounded border border-border bg-background p-2" disabled={disabled} value={design.placement} onChange={(e) => change({ ...design, placement: e.target.value as CreativeSite['placement'] })}><option value="before">Antes del sitio principal</option><option value="after">Después del sitio principal</option></select></label>
+      <label className="block text-sm">Ubicación<select className="ml-2 rounded border border-border bg-background p-2" disabled={disabled} value={design.placement} onChange={(e) => change({ ...design, placement: e.target.value as CreativeSite['placement'] })}>{CREATIVE_PLACEMENTS.map((placement) => <option key={placement} value={placement}>{CREATIVE_PLACEMENT_LABELS[placement]}</option>)}</select></label>
       <div className="flex gap-2"><Button type="button" size="sm" variant="outline" disabled={disabled || !past.length} onClick={() => { const previous = past[past.length - 1]; if (!previous) return; setPast(past.slice(0, -1)); setFuture([...future, design]); onChange(previous); }}>Deshacer</Button><Button type="button" size="sm" variant="outline" disabled={disabled || !future.length} onClick={() => { const next = future[future.length - 1]; if (!next) return; setFuture(future.slice(0, -1)); setPast([...past, design]); onChange(next); }}>Rehacer</Button></div>
       <SiteDesignAssistant disabled={disabled} context={target === 'academy' ? { target: 'academy-studio', current: { blocks: design.blocks, theme: design.theme } } : { target: 'event-studio', resourceId, current: { blocks: design.blocks, theme: design.theme } }} onApply={(proposal) => { if ('blocks' in proposal.design) change({ ...design, ...proposal.design, enabled: true }); }} />
       <EditorAssetsContext.Provider value={{ siteId: resourceId, assets, readOnly: disabled, addAsset: (asset) => setUploaded((previous) => [...previous, asset]), uploadAsset }}>

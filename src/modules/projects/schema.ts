@@ -50,7 +50,7 @@ export type ProjectUpdateInput = z.infer<typeof projectUpdateSchema>;
 // Micrositio público del certamen (`/certamen/{publicSlug}`)
 // ---------------------------------------------------------------------------
 
-export const PUBLIC_ACCENTS = ['gold', 'violet', 'rose', 'cyan', 'emerald'] as const;
+export const PUBLIC_ACCENTS = ['gold', 'violet', 'rose', 'cyan', 'emerald', 'primavera'] as const;
 export type PublicAccentKey = (typeof PUBLIC_ACCENTS)[number];
 
 export const PUBLIC_ACCENT_LABELS: Record<PublicAccentKey, string> = {
@@ -59,6 +59,7 @@ export const PUBLIC_ACCENT_LABELS: Record<PublicAccentKey, string> = {
   rose: 'Rosa',
   cyan: 'Turquesa',
   emerald: 'Esmeralda',
+  primavera: 'Primavera (verde, dorado y rosado)',
 };
 
 /** Muestras de color de los acentos del sistema público (los mismos de `PublicShell`). Compartido entre el formulario del sitio y el generador de afiches. */
@@ -68,6 +69,7 @@ export const PUBLIC_ACCENT_SWATCH: Record<PublicAccentKey, string> = {
   rose: 'linear-gradient(135deg, #fda4b4, #be123c)',
   cyan: 'linear-gradient(135deg, #67e8f9, #0e7490)',
   emerald: 'linear-gradient(135deg, #6ee7b7, #047857)',
+  primavera: 'linear-gradient(135deg, #f4a3c4 0%, #ead39a 48%, #1f5a3c 100%)',
 };
 
 const optionalText = (max: number) =>

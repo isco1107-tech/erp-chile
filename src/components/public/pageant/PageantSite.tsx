@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { formatCurrency } from '@/lib/chile/tax';
 import {
   audienceHero,
@@ -202,7 +202,8 @@ function CandidateDialog({
   );
 }
 
-export function PageantSite({ site, view }: { site: PublicPageantSite; view: PageantView }) {
+/** `afterHero`: secciones del estudio visual que van justo después de la portada (ver `CREATIVE_PLACEMENTS`). */
+export function PageantSite({ site, view, afterHero = null }: { site: PublicPageantSite; view: PageantView; afterHero?: ReactNode }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const galaCountdown = useCountdown(site.results ? null : site.galaDate);
   const closeCountdown = useCountdown(site.registration?.closesAt ?? null);
@@ -588,6 +589,7 @@ export function PageantSite({ site, view }: { site: PublicPageantSite; view: Pag
       )}
 
       <main id="contenido" tabIndex={-1}>
+        {afterHero}
         {/* ── Resultados ───────────────────────────────────────────────── */}
         {shows('resultados') && winner && (
           <section id="resultados" className="pgs-section is-night pgs-results" aria-labelledby="pgs-results-title">

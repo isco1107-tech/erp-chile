@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import CanvasScene from './CanvasScene';
+import PetalField from './PetalField';
 import { BLOCK_INFO, type SectionShape, type WebSiteBlock } from '@/lib/web-sites/blocks';
 import type { RenderCtx } from './context';
 import { cx, Img } from './parts';
@@ -79,7 +80,8 @@ export default function SectionFrame({ ctx, block, anchor, look, align, bleed = 
       {glow && !look.image && !look.fx && (
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_50%_0%,color-mix(in_srgb,var(--ws-accent)_38%,transparent),transparent_70%)] opacity-70" />
       )}
-      {pattern !== 'none' && !look.image && <div aria-hidden="true" className={cx('ws-pattern', `ws-pat-${pattern}`)} />}
+      {pattern === 'petals' && !look.image && <PetalField />}
+      {pattern !== 'none' && pattern !== 'petals' && !look.image && <div aria-hidden="true" className={cx('ws-pattern', `ws-pat-${pattern}`)} />}
       <div className={cx('ws-reveal relative mx-auto w-full', bleed ? 'px-0' : cx(WIDTH_CLASS[width], 'px-5 @2xl:px-8'), align === 'center' && 'text-center')}>{!block.style.canvas?.enabled || !block.style.canvas.replaceContent ? children : null}{block.style.canvas?.enabled && <CanvasScene canvas={block.style.canvas} ctx={ctx} />}</div>
       {shaped && (
         <div aria-hidden="true" className={cx('ws-shape', `ws-tone-${nextTone}`)}>

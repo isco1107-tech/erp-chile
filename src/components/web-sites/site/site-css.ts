@@ -86,6 +86,19 @@ export const SITE_CSS = `
 .ws-pat-grid{background-image:linear-gradient(color-mix(in srgb,var(--s-fg) 9%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--s-fg) 9%,transparent) 1px,transparent 1px);background-size:44px 44px}
 .ws-pat-diagonal{background-image:repeating-linear-gradient(45deg,color-mix(in srgb,var(--s-fg) 8%,transparent) 0 1px,transparent 1px 14px)}
 .ws-pat-rings{background-image:repeating-radial-gradient(circle at 100% 0%,transparent 0 26px,color-mix(in srgb,var(--s-fg) 9%,transparent) 26px 27px)}
+.ws-petals{position:absolute;inset:0;overflow:hidden;pointer-events:none;container-type:size}
+.ws-petal{position:absolute;left:var(--x);top:-6%;width:var(--s);height:calc(var(--s)*0.82);border-radius:100% 0 100% 0;opacity:0;will-change:transform,opacity;animation:ws-petal-fall var(--t) linear var(--d) infinite}
+.ws-petal-0{background-image:linear-gradient(135deg,color-mix(in srgb,var(--ws-accent) 85%,#fff),color-mix(in srgb,var(--ws-accent) 55%,#fff))}
+.ws-petal-1{background-image:linear-gradient(135deg,#fde2ec,color-mix(in srgb,var(--ws-accent) 40%,#fff))}
+.ws-petal-2{background-image:linear-gradient(135deg,#f6e3a8,#d9b45a)}
+.ws-glint{position:absolute;left:var(--x);top:var(--y);width:5px;height:5px;border-radius:50%;background:#f3d98b;box-shadow:0 0 8px 2px color-mix(in srgb,#e8c463 70%,transparent);opacity:0;animation:ws-glint 4.2s ease-in-out var(--d) infinite}
+.ws-petals[data-offscreen] .ws-petal,.ws-petals[data-offscreen] .ws-glint,.ws-root[data-still] .ws-petal,.ws-root[data-still] .ws-glint{animation-play-state:paused}
+@keyframes ws-petal-fall{0%{opacity:0;transform:translate3d(0,0,0) rotate(0deg)}8%{opacity:.85}50%{transform:translate3d(var(--dx),56cqh,0) rotate(200deg)}92%{opacity:.75}100%{opacity:0;transform:translate3d(0,112cqh,0) rotate(400deg)}}
+@keyframes ws-glint{0%,100%{opacity:0;transform:scale(.4)}50%{opacity:.95;transform:scale(1.15)}}
+@media (prefers-reduced-motion:reduce){
+.ws-petal{animation:none;opacity:.55;top:calc(var(--y)*1%)}
+.ws-glint{animation:none;opacity:.6}
+}
 .ws-shape{position:absolute;left:0;right:0;bottom:-1px;height:2.6rem;line-height:0;pointer-events:none;z-index:1}
 .ws-shape svg{display:block;width:100%;height:100%;fill:var(--s-bg)}
 @container (min-width:42rem){
@@ -190,6 +203,7 @@ textarea.ws-field{resize:vertical;min-height:7rem}
 .ws-root[data-anim=rise] .ws-reveal{animation:ws-rise linear both;animation-timeline:view();animation-range:entry 0% entry 40%}
 .ws-root[data-anim=zoom] .ws-reveal{animation:ws-zoom linear both;animation-timeline:view();animation-range:entry 0% entry 40%}
 .ws-root[data-anim=slide] .ws-reveal{animation:ws-slide linear both;animation-timeline:view();animation-range:entry 0% entry 40%}
+.ws-root[data-still] .ws-reveal{animation:none}
 }
 }
 @media (prefers-reduced-motion:reduce){
