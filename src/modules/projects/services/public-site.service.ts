@@ -8,6 +8,8 @@ import { domainOwner } from '@/lib/hosting/domain-lifecycle';
 import { pageantContact } from '@/lib/events/pageant-contact';
 import { shortDate, type DirectorTitle } from '@/lib/events/pageant-site';
 import { parsePageantTypography, type PageantTypography } from '@/lib/events/pageant-typography';
+import { FOOTER_PARTNERS_FOLDER, parseFooterPartners } from '@/lib/events/pageant-partners';
+import { blobPathnameStartsWith, isAllowedBlobUrl } from '@/lib/security/blob-url';
 import { decodeVoteToken } from '@/modules/public-voting/schema';
 import { SPONSORSHIP_TIER_LABELS, SPONSORSHIP_TIERS } from '@/modules/sponsorships/schema';
 import type { PublicAccentKey } from '../schema';
@@ -54,6 +56,8 @@ export interface PublicPageantSite {
   accent: PublicAccentKey;
   /** Tipografía elegida por familia y bloque (vacío = la de fábrica). */
   typography: PageantTypography;
+  /** Logos del pie (organizadores e instituciones que apoyan), con su enlace si lo tienen. */
+  footerPartners: { title: string | null; items: Array<{ id: string; name: string; logoUrl: string; href: string | null }> };
   /** Cuentas de Instagram del certamen, sin «@» (vacío = ninguna). */
   instagramHandles: string[];
   contactEmail: string | null;
@@ -251,6 +255,16 @@ async function assemblePageantSite(project: ProjectWithCompany, slug: string): P
     faviconUrl: project.faviconUrl,
     accent: isAccent(project.publicAccent) ? project.publicAccent : 'gold',
     typography: parsePageantTypography(project.publicTypography),
+    // Campo por campo: solo nombre, logo y enlace (lo público que escribió el equipo); un logo que no es de nuestro almacenamiento no sale.
+    footerPartners: (() => {
+      const partners = parseFooterPartners(project.footerPartners);
+      return {
+        title: partners.title,
+        items: partners.items
+          .filter((p) => isAllowedBlobUrl(p.logoUrl) && blobPathnameStartsWith(p.logoUrl, `${FOOTER_PARTNERS_FOLDER}/${project.companyId}/`))
+          .map((p) => ({ id: p.id, name: p.name, logoUrl: p.logoUrl, href: p.href })),
+      };
+    })(),
     instagramHandles: contact.instagrams.map((i) => i.handle),
     contactEmail: contact.email,
     whatsapp: contact.whatsapp,

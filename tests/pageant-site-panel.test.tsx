@@ -33,3 +33,19 @@ describe('selector de tipografía del sitio del certamen', () => {
     expect(hero).toContain('Dancing Script');
   });
 });
+
+describe('logos del pie en el micrositio', () => {
+  it('cada logo con enlace se abre en otra pestaña y sin enlace no se puede tocar', async () => {
+    const { PageantSite } = await import('@/components/public/pageant/PageantSite');
+    const { buildPageantView } = await import('@/lib/events/pageant-site');
+    const { posterSite } = await import('./helpers/poster-site');
+    const site = { ...posterSite(), footerPartners: { title: 'Organizan', items: [
+      { id: 'a', name: 'Municipalidad', logoUrl: 'https://x.public.blob.vercel-storage.com/pageant-partners/co1/a.png', href: 'https://www.instagram.com/cuenta/' },
+      { id: 'b', name: 'Productora', logoUrl: 'https://x.public.blob.vercel-storage.com/pageant-partners/co1/b.png', href: null },
+    ] } };
+    const html = renderToStaticMarkup(<PageantSite site={site} view={buildPageantView(site, new Date('2026-11-01T12:00:00Z'), 'https://ejemplo.cl', (n: number) => String(n))} />);
+    expect(html).toContain('Organizan');
+    expect(html).toMatch(/<a class="pgs-partner" href="https:\/\/www.instagram.com\/cuenta\/" target="_blank" rel="noopener noreferrer"[^>]*><img src="[^"]*a.png" alt="Municipalidad"/);
+    expect(html).toMatch(/<span class="pgs-partner"[^>]*><img src="[^"]*b.png" alt="Productora"/);
+  });
+});

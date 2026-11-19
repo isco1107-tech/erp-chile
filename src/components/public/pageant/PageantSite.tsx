@@ -23,6 +23,7 @@ import { Arrow, Calendar, Check, Chevron, Close, Crown, Diamond, Instagram, Mail
 import { PAGEANT_FONT_CLASSES } from './fonts';
 import { SITE_FONT_CLASSES } from '@/components/web-sites/site-fonts';
 import { PAGEANT_TYPOGRAPHY_CLASS, pageantTypographyCss } from '@/lib/events/pageant-typography';
+import { DEFAULT_FOOTER_PARTNERS_TITLE } from '@/lib/events/pageant-partners';
 import { FitText } from './FitText';
 import { HallOfFame } from './HallOfFame';
 import { startReveal } from './reveal';
@@ -1287,6 +1288,30 @@ export function PageantSite({ site, view, afterHero = null }: { site: PublicPage
             {site.registration && <a href={site.registration.href}>Postula al certamen</a>}
           </div>
         </div>
+        {site.footerPartners.items.length > 0 && (
+          <div className="pgs-wrap pgs-partners" data-reveal>
+            <p className="pgs-partners-title">{site.footerPartners.title ?? DEFAULT_FOOTER_PARTNERS_TITLE}</p>
+            <ul className="pgs-partners-list">
+              {site.footerPartners.items.map((partner) => {
+                // eslint-disable-next-line @next/next/no-img-element
+                const logo = <img src={partner.logoUrl} alt={partner.name} loading="lazy" decoding="async" />;
+                return (
+                  <li key={partner.id}>
+                    {partner.href ? (
+                      <a className="pgs-partner" href={partner.href} target="_blank" rel="noopener noreferrer" title={partner.name}>
+                        {logo}
+                      </a>
+                    ) : (
+                      <span className="pgs-partner" title={partner.name}>
+                        {logo}
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
         <div className="pgs-wrap pgs-footer-legal">
           <p>
             © {title.edition ?? ''} {shortName}

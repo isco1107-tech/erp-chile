@@ -15,6 +15,7 @@ export function posterSite(overrides: Partial<PublicPageantSite> = {}): PublicPa
     faviconUrl: null,
     accent: 'gold',
     typography: {},
+    footerPartners: { title: null, items: [] },
     instagramHandles: ['misssur'],
     contactEmail: 'hola@misssur.cl',
     whatsapp: { href: 'https://wa.me/56911112222', label: '+56 9 1111 2222' },

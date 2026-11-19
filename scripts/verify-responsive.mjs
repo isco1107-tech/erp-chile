@@ -163,9 +163,9 @@ for (const name of fixtures) {
     // parecería corta) y su aparición va atada al scroll (`animation-timeline: view()`), que una captura de página
     // completa no recorre. Se cargan las imágenes y se muestra todo antes de medir.
     await page.evaluate(async () => {
-      document.querySelectorAll('.ws-root img[loading=lazy]').forEach((img) => img.setAttribute('loading', 'eager'));
+      document.querySelectorAll('.ws-root img[loading=lazy], .pgs img[loading=lazy]').forEach((img) => img.setAttribute('loading', 'eager'));
       document.querySelectorAll('.ws-root').forEach((el) => el.setAttribute('data-still', ''));
-      await Promise.all([...document.querySelectorAll('.ws-root img')].map((img) => (img.complete ? null : new Promise((r) => { img.onload = img.onerror = r; }))));
+      await Promise.all([...document.querySelectorAll('.ws-root img, .pgs-partners img')].map((img) => (img.complete ? null : new Promise((r) => { img.onload = img.onerror = r; }))));
     });
     await page.waitForTimeout(100);
     const problems = await page.evaluate(collectProblems, '.pgs');

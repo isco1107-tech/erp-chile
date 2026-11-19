@@ -25,6 +25,8 @@ import { effectiveFont, pageantFontInfo, parsePageantTypography } from '@/lib/ev
 import { PAGEANT_FONT_CLASSES } from '@/components/public/pageant/fonts';
 import { SITE_FONT_CLASSES } from '@/components/web-sites/site-fonts';
 import { AboutTextPreview } from './AboutTextPreview';
+import { FooterPartnersEditor, type FooterPartnersDraft } from './FooterPartnersEditor';
+import { parseFooterPartners } from '@/lib/events/pageant-partners';
 
 type Toggle = 'showCandidatesPublic' | 'showSponsorsPublic' | 'showVoteRankingPublic' | 'showResultsPublic' | 'sponsorLeadFormEnabled';
 
@@ -62,6 +64,11 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
     directorPhotoUrl: project.directorPhotoUrl ?? '',
     faviconUrl: project.faviconUrl ?? '',
     sponsorExclusivityNote: project.sponsorExclusivityNote ?? '',
+  });
+  // Logos del pie: el enlace queda como se escribió y se normaliza al guardar.
+  const [partners, setPartners] = useState<FooterPartnersDraft>(() => {
+    const saved = parseFooterPartners(project.footerPartners);
+    return { title: saved.title ?? '', items: saved.items.map((item) => ({ id: item.id, name: item.name, logoUrl: item.logoUrl, href: item.href ?? '' })) };
   });
   // La trayectoria se edita como texto, un logro por línea.
   const [highlightsText, setHighlightsText] = useState(project.directorHighlights.join('\n'));
@@ -148,7 +155,7 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
   async function save() {
     setSaving(true);
     try {
-      const result = await updatePublicSiteAction(project.id, { ...values, directorHighlights: highlightsText.split('\n') });
+      const result = await updatePublicSiteAction(project.id, { ...values, directorHighlights: highlightsText.split('\n'), footerPartners: partners });
       if (!result.success) {
         toast.error(result.error);
         return;
@@ -427,6 +434,8 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
             disabled={!canWrite}
           />
         </section>
+
+        <FooterPartnersEditor projectId={project.id} value={partners} onChange={setPartners} disabled={!canWrite || saving} />
 
         <section className="rounded-lg border border-border bg-card p-5 shadow-card">
           <h2 className="text-base font-semibold">Secciones</h2>

@@ -66,6 +66,7 @@ export const EVENTOS_SECTIONS: ManualSection[] = [
           'Define la dirección (/certamen/tu-certamen; "Usar el nombre" la arma sola), sube la portada (horizontal, idealmente 1600 × 900 px) y el logo de la pestaña del navegador.',
           'Escribe la frase principal y el texto "Sobre el certamen", elige el color de acento y completa Instagram, WhatsApp y correo públicos.',
           'En "Tipografía" elige la letra de "Todo el sitio" (Títulos; Cursivas y frases; Texto, botones y menú). Abre "Por bloque de texto" para darle una distinta al nombre de la portada, los títulos de sección, la palabra en cursiva, el primer párrafo, la letra capital, los nombres, las cifras y los demás bloques; "Igual que…" deja el bloque con su letra general y "Volver a la de fábrica" deshace todo.',
+          'En "Logos en el pie de página" usa "Agregar logo" para los organizadores o instituciones que apoyan (por ejemplo, la municipalidad): escribe su nombre y, en "Enlace al tocar el logo", su cuenta de Instagram (@cuenta) o su sitio web. Con "Título sobre los logos" cambias el «Con el apoyo de».',
           'Elige qué secciones mostrar. Los botones de entradas, votación y postulación aparecen solos cuando cada enlace está activo, y los planes de auspicio salen del tarifario (solo los marcados como públicos).',
           'Activa "Sitio publicado" y guarda. El día de la coronación enciende los resultados oficiales para revelar ganadora y podio.',
         ],
