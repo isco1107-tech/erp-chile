@@ -83,6 +83,18 @@ export function baseSite(overrides: Partial<PublicPageantSite> = {}): PublicPage
 
 const LONG_WORD = 'Superextraordinariamente';
 
+/** La galería del certamen con fotos de prueba (`img.test/foto-N.svg`), para ver cómo luce con imágenes. */
+function withPhotos(design: ReturnType<typeof buildFiestaDesign>): ReturnType<typeof buildFiestaDesign> {
+  return {
+    ...design,
+    blocks: design.blocks.map((block) =>
+      block.type === 'gallery'
+        ? { ...block, images: [0, 1, 2, 3, 4, 5].map((i) => ({ url: `https://img.test/foto-${i}.svg`, alt: `Foto ${i + 1}`, caption: i === 0 ? 'Carro alegórico en Temuco/Longuimay' : '' })) }
+        : block
+    ),
+  };
+}
+
 export const FIXTURES: Record<string, PublicPageantSite> = {
   normal: baseSite(),
   // Caso real que se cortaba: nombre de una sola palabra con "/".
@@ -191,8 +203,10 @@ export const FIXTURES: Record<string, PublicPageantSite> = {
     name: 'Fiesta de la Primavera Temuco',
     slug: 'fiesta-primavera',
     accent: 'primavera',
-    creative: buildFiestaDesign(
-      ['Panadería Temuco/Longuimay', 'Supercalifragilisticoespialidoso', 'Banco', 'Radio', 'Ferretería del Sur', 'Clínica'].map((name, i) => ({ name, url: `https://img.test/logo-${i}.svg` }))
+    creative: withPhotos(
+      buildFiestaDesign(
+        ['Panadería Temuco/Longuimay', 'Supercalifragilisticoespialidoso', 'Banco', 'Radio', 'Ferretería del Sur', 'Clínica'].map((name, i) => ({ name, url: `https://img.test/logo-${i}.svg` }))
+      )
     ),
   }),
 };

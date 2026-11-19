@@ -1,6 +1,6 @@
 import { buildFiestaDesign, FIESTA, logoNameFromFile } from '../scripts/lib/fiesta-primavera';
 import { creativeSiteSchema, parseCreativeSite } from '@/lib/web-sites/creative';
-import { SECTION_PATTERNS } from '@/lib/web-sites/blocks';
+import { isBlockEmpty, LOGOS_VARIANTS, SECTION_PATTERNS } from '@/lib/web-sites/blocks';
 import { kitTheme, THEME_KITS, themeProblems, themeSchema } from '@/lib/web-sites/theme';
 import { projectPublicSiteSchema, PUBLIC_ACCENTS } from '@/modules/projects/schema';
 import { POSTER_PALETTES } from '@/lib/posters/palettes';
@@ -15,12 +15,16 @@ describe('Fiesta de la Primavera de Temuco (contenido del script)', () => {
     expect(themeProblems(design.theme)).toEqual([]);
   });
 
-  it('sin logos el carrusel de auspiciadores queda oculto; con logos se muestra en movimiento', () => {
-    const hiddenLogos = buildFiestaDesign([]).blocks.find((b) => b.type === 'logos');
-    expect(hiddenLogos?.hidden).toBe(true);
+  it('el carrusel de auspiciadores está listo en el editor; sin logos (ni la galería sin fotos) no sale al público', () => {
+    const empty = buildFiestaDesign([]);
+    const emptyLogos = empty.blocks.find((b) => b.type === 'logos');
+    expect(emptyLogos?.hidden).toBe(false);
+    expect(emptyLogos && isBlockEmpty(emptyLogos)).toBe(true);
+    const gallery = empty.blocks.find((b) => b.type === 'gallery');
+    expect(gallery && isBlockEmpty(gallery)).toBe(true);
     const shown = buildFiestaDesign([{ url: 'https://example.com/a.png', name: 'Marca Uno' }]).blocks.find((b) => b.type === 'logos');
-    expect(shown?.hidden).toBe(false);
-    expect(shown?.type === 'logos' && shown.variant).toBe('marquee');
+    expect(shown && isBlockEmpty(shown)).toBe(false);
+    expect(shown?.type === 'logos' && shown.variant).toBe('carousel');
     expect(shown?.type === 'logos' && shown.items[0]?.alt).toBe('Marca Uno');
   });
 
@@ -65,6 +69,7 @@ describe('Motor de páginas: primavera y movimiento', () => {
 
   it('textura de pétalos y estilo completo «Fiesta de primavera» legibles', () => {
     expect(SECTION_PATTERNS).toContain('petals');
+    expect(LOGOS_VARIANTS).toEqual(expect.arrayContaining(['cards', 'carousel']));
     const kit = THEME_KITS.find((k) => k.id === 'spring-fest');
     expect(kit).toBeDefined();
     expect(themeProblems(themeSchema.parse(kitTheme(kit!)))).toEqual([]);

@@ -87,7 +87,7 @@ const browserScript = fs.readFileSync(browserBundle, 'utf8');
 // Tailwind de las secciones del estudio visual (mismo motor que el build), solo con las clases del renderizador.
 const tailwindCss = (await postcss([tailwind({ base: root })]).process(`@import "tailwindcss" source(none);\n@source "${path.join(root, 'src/components/web-sites').replace(/\\/g, '/')}";\n`, { from: path.join(root, 'src/app/pageant-check.css') })).css;
 /** Logos de prueba del carrusel de auspiciadores (`https://img.test/logo-N.svg`), sin red. */
-const logoSvg = (name) => `<svg xmlns="http://www.w3.org/2000/svg" width="${name.endsWith('1.svg') ? 520 : 240}" height="120"><rect width="100%" height="100%" rx="18" fill="#1f5a3c"/><circle cx="60" cy="60" r="34" fill="#e3c46f"/><rect x="110" y="44" width="${name.endsWith('1.svg') ? 380 : 100}" height="32" rx="8" fill="#f6c9da"/></svg>`;
+const logoSvg = (name) => name.includes('foto-') ? `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1f5a3c"/><stop offset=".6" stop-color="#e9a3c0"/><stop offset="1" stop-color="#e3c46f"/></linearGradient></defs><rect width="100%" height="100%" fill="url(#g)"/><circle cx="840" cy="280" r="150" fill="#fff" fill-opacity=".35"/></svg>` : `<svg xmlns="http://www.w3.org/2000/svg" width="${name.endsWith('1.svg') ? 520 : 240}" height="120"><rect width="100%" height="100%" rx="18" fill="#1f5a3c"/><circle cx="60" cy="60" r="34" fill="#e3c46f"/><rect x="110" y="44" width="${name.endsWith('1.svg') ? 380 : 100}" height="32" rx="8" fill="#f6c9da"/></svg>`;
 const { FIXTURE_NAMES } = require(bundle);
 
 // 2) Fuentes reales (las mismas que next/font descarga en producción), guardadas en local.
