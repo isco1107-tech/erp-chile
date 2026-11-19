@@ -4,7 +4,21 @@
  * (dorado champaña por defecto). Los colores son variables del contenedor
  * `.pgs`, así cada certamen puede tener su acento sin tocar el resto.
  */
-export const PAGEANT_SITE_STYLES = `
+/**
+ * Cada familia (`--display`, `--serif`, `--numeric`, `--sans`) viaja con su
+ * compensación de ancho (`--display-adjust`, …): sin tipografía elegida no
+ * existe y vale `none` (el sitio se ve como siempre); con una fuente más ancha
+ * que la de fábrica, `pageantTypographyCss` la define para que ocupe lo mismo
+ * (ver `src/lib/events/pageant-typography.ts`).
+ */
+function withFontAdjust(css: string): string {
+  return css
+    .replace(/font-family: var\(--(display|serif|numeric|sans)\);/g, 'font-family: var(--$1); font-size-adjust: var(--$1-adjust, none);')
+    // El atajo `font:` reinicia `font-size-adjust` a `none`: se vuelve a poner después.
+    .replace(/(font: [^;{}]*var\(--(display|serif|numeric|sans)\);)/g, '$1 font-size-adjust: var(--$2-adjust, none);');
+}
+
+export const PAGEANT_SITE_STYLES = withFontAdjust(`
 .pgs {
   --night: #070a1c;
   --night-2: #0c1130;
@@ -196,7 +210,7 @@ export const PAGEANT_SITE_STYLES = `
 .pgs-count { position: relative; min-width: clamp(4.4rem, 12vw, 7rem); padding: 0 clamp(0.4rem, 1.5vw, 1.2rem); display: flex; flex-direction: column; align-items: center; }
 .pgs-count + .pgs-count::before { content: ''; position: absolute; left: 0; top: 12%; bottom: 22%; width: 1px; background: linear-gradient(180deg, transparent, var(--line-night) 20%, color-mix(in srgb, var(--a) 45%, transparent), var(--line-night) 80%, transparent); }
 .pgs-count-value { font-size: clamp(2.4rem, 5.4vw, 3.6rem); font-weight: 400; line-height: 1; font-variant-numeric: tabular-nums; color: var(--on-night); }
-.pgs-count-label { margin-top: 0.55rem; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.3em; text-transform: uppercase; color: var(--a); }
+.pgs-count-label { margin-top: 0.55rem; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.3em; text-transform: uppercase; color: var(--a); white-space: nowrap; }
 .pgs-hero-ctas { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.8rem; margin-top: 1.8rem; }
 .pgs-hero-note { display: inline-flex; align-items: center; gap: 0.6rem; margin: 1.4rem 0 0; font-size: 0.82rem; letter-spacing: 0.04em; color: var(--on-night-dim); }
 .pgs-live-dot { position: relative; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: #e0455f; flex: none; }
@@ -841,4 +855,4 @@ export const PAGEANT_SITE_STYLES = `
 .pgs-beam { filter: none; mix-blend-mode: normal; clip-path: none; -webkit-mask-image: none; mask-image: none; height: 110%;
   background: conic-gradient(from 170deg at 50% 0%, transparent 0deg, color-mix(in srgb, var(--a-bright) 30%, transparent) 10deg, transparent 20deg, transparent 360deg); }
 .pgs-beam.is-left, .pgs-beam.is-right { opacity: 0.3; }
-`;
+`);

@@ -43,6 +43,7 @@ export function baseSite(overrides: Partial<PublicPageantSite> = {}): PublicPage
     coverImageUrl: null,
     faviconUrl: null,
     accent: 'gold',
+    typography: {},
     instagramHandles: ['missuniversotemuco', 'miss.universo.araucania'],
     contactEmail: 'contacto@missuniversotemuco.cl',
     whatsapp: { href: 'https://wa.me/56912345678', label: '+56 9 1234 5678' },
@@ -208,5 +209,17 @@ export const FIXTURES: Record<string, PublicPageantSite> = {
         ['Panadería Temuco/Longuimay', 'Supercalifragilisticoespialidoso', 'Banco', 'Radio', 'Ferretería del Sur', 'Clínica'].map((name, i) => ({ name, url: `https://img.test/logo-${i}.svg` }))
       )
     ),
+  }),
+  // Tipografía elegida por bloque (más anchas que las de fábrica): nada debe desbordar.
+  tipografia: baseSite({
+    name: 'Miss Universo Temuco/Longuimay 2026',
+    slug: 'tipografia',
+    typography: { display: 'playfair', serif: 'lora', sans: 'raleway', heroTitle: 'cinzel', names: 'cinzel' },
+  }),
+  // Lo más ancho del catálogo en cada familia y bloque: la compensación de ancho tiene que bastar.
+  tipografiaAncha: baseSite({
+    name: 'Concurso Nacional de Belleza, Elegancia y Talento de la Región de La Araucanía 2026',
+    slug: 'tipografia-ancha',
+    typography: { display: 'unbounded', serif: 'libre-baskerville', sans: 'montserrat', heroTitle: 'cinzel', titleAccent: 'abril', dropCap: 'unbounded', names: 'cinzel', numbers: 'unbounded', kickers: 'work-sans', lead: 'merriweather', quotes: 'fraunces' },
   }),
 };

@@ -20,6 +20,8 @@ import {
 import type { PublicPageantCandidate, PublicPageantSite } from '@/modules/projects/services/public-site.service';
 import { Arrow, Calendar, Check, Chevron, Close, Crown, Diamond, Instagram, Mail, Pin, Plus, Ticket, Tiara, Whatsapp } from './icons';
 import { PAGEANT_FONT_CLASSES } from './fonts';
+import { SITE_FONT_CLASSES } from '@/components/web-sites/site-fonts';
+import { PAGEANT_TYPOGRAPHY_CLASS, pageantTypographyCss } from '@/lib/events/pageant-typography';
 import { FitText } from './FitText';
 import { HallOfFame } from './HallOfFame';
 import { startReveal } from './reveal';
@@ -337,12 +339,16 @@ export function PageantSite({ site, view, afterHero = null }: { site: PublicPage
     formatMoney: formatCurrency,
   });
 
+  const typographyCss = useMemo(() => pageantTypographyCss(site.typography), [site.typography]);
+
   // --pgs-lead-fit: "MISS UNIVERSO" crece hasta llenar el ancho sin desbordar en teléfonos.
   const titleFit = { '--pgs-fit': Math.max(title.main.length, 6) * 0.64, '--pgs-lead-fit': Math.max(title.lead.length, 8) * 0.9 } as CSSProperties;
 
   return (
-    <div ref={rootRef} className={`pgs ${PAGEANT_FONT_CLASSES}`} data-accent={site.accent}>
+    <div ref={rootRef} className={`pgs ${PAGEANT_FONT_CLASSES}${typographyCss ? ` ${SITE_FONT_CLASSES} ${PAGEANT_TYPOGRAPHY_CLASS}` : ''}`} data-accent={site.accent}>
       <style>{PAGEANT_SITE_STYLES}</style>
+      {/* Tipografía elegida por bloque: después de la hoja base y solo con claves de la lista cerrada. */}
+      {typographyCss && <style>{typographyCss}</style>}
       <a className="pgs-skip" href="#contenido">
         Saltar al contenido
       </a>

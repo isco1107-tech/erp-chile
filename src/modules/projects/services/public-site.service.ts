@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma';
 import { domainOwner } from '@/lib/hosting/domain-lifecycle';
 import { pageantContact } from '@/lib/events/pageant-contact';
 import { shortDate, type DirectorTitle } from '@/lib/events/pageant-site';
+import { parsePageantTypography, type PageantTypography } from '@/lib/events/pageant-typography';
 import { decodeVoteToken } from '@/modules/public-voting/schema';
 import { SPONSORSHIP_TIER_LABELS, SPONSORSHIP_TIERS } from '@/modules/sponsorships/schema';
 import type { PublicAccentKey } from '../schema';
@@ -51,6 +52,8 @@ export interface PublicPageantSite {
   /** Logo de la pestaña del navegador (favicon); `null` = el de la plataforma. */
   faviconUrl: string | null;
   accent: PublicAccentKey;
+  /** Tipografía elegida por familia y bloque (vacío = la de fábrica). */
+  typography: PageantTypography;
   /** Cuentas de Instagram del certamen, sin «@» (vacío = ninguna). */
   instagramHandles: string[];
   contactEmail: string | null;
@@ -247,6 +250,7 @@ async function assemblePageantSite(project: ProjectWithCompany, slug: string): P
     coverImageUrl: project.coverImageUrl,
     faviconUrl: project.faviconUrl,
     accent: isAccent(project.publicAccent) ? project.publicAccent : 'gold',
+    typography: parsePageantTypography(project.publicTypography),
     instagramHandles: contact.instagrams.map((i) => i.handle),
     contactEmail: contact.email,
     whatsapp: contact.whatsapp,

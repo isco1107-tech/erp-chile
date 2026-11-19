@@ -20,6 +20,8 @@ import { CreativeStudio } from '@/components/web-sites/CreativeStudio';
 import { parseCreativeSite } from '@/lib/web-sites/creative';
 import { SiteDesignAssistant } from '@/components/web-sites/SiteDesignAssistant';
 import { CustomDomainSection } from './CustomDomainSection';
+import { TypographyPicker } from './TypographyPicker';
+import { parsePageantTypography } from '@/lib/events/pageant-typography';
 
 type Toggle = 'showCandidatesPublic' | 'showSponsorsPublic' | 'showVoteRankingPublic' | 'showResultsPublic' | 'sponsorLeadFormEnabled';
 
@@ -40,6 +42,7 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
     publicTagline: project.publicTagline ?? '',
     publicDescription: project.publicDescription ?? '',
     coverImageUrl: project.coverImageUrl ?? '',
+    publicTypography: parsePageantTypography(project.publicTypography),
     publicAccent: ((PUBLIC_ACCENTS as readonly string[]).includes(project.publicAccent) ? project.publicAccent : 'gold') as PublicAccentKey,
     instagramHandle: formatInstagramHandlesForForm(project.instagramHandle),
     publicContactEmail: project.publicContactEmail ?? '',
@@ -293,6 +296,13 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
           </div>
           <p className="text-xs text-muted-foreground">El mismo contacto aparece en el formulario de postulación del certamen.</p>
         </section>
+
+        <TypographyPicker
+          value={values.publicTypography}
+          onChange={(typography) => set('publicTypography', typography)}
+          disabled={!canWrite}
+          texts={{ name: project.name, tagline: values.publicTagline, description: values.publicDescription }}
+        />
 
         <section className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-card">
           <div>
