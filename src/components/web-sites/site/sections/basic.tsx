@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
+import { FONT_STACKS, headingFitFactor, type WebSiteTheme } from '@/lib/web-sites/theme';
 import { cx, Fit, hasPhoto, Photo, RichText, SectionHeading, HeadingTag } from '../parts';
 import type { SectionLook } from '../tone';
 import { ActionButtons, type SectionProps } from './shared';
@@ -153,18 +154,28 @@ export function HeroSection({ block, ctx, center }: SectionProps<'hero'> & { loo
 // Texto
 // ---------------------------------------------------------------------------
 
-export function TextSection({ block, ctx, center }: SectionProps<'text'>) {
+export function TextSection({ block, ctx, center, theme }: SectionProps<'text'> & { theme: WebSiteTheme }) {
+  const { font } = block.style;
+  let style: CSSProperties | undefined;
+  if (font) {
+    const fontFamily = FONT_STACKS[font].css;
+    style = {
+      fontFamily,
+      '--ws-heading-font': fontFamily,
+      '--ws-fit': headingFitFactor(font, theme.headingCase === 'uppercase', theme.headingWeight),
+    } as CSSProperties;
+  }
   switch (block.variant) {
     case 'columns':
       return (
-        <div className="mx-auto max-w-5xl">
+        <div className="mx-auto max-w-5xl" style={style}>
           <SectionHeading ctx={ctx} blockId={block.id} center={center} title={block.heading} className="mb-8" />
           <RichText ctx={ctx} text={block.body} className="gap-12 @3xl:columns-2 [&>*]:break-inside-avoid" />
         </div>
       );
     case 'sidebar':
       return (
-        <div className="grid gap-6 @3xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] @3xl:gap-14">
+        <div className="grid gap-6 @3xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] @3xl:gap-14" style={style}>
           {block.heading ? (
             <HeadingTag ctx={ctx} blockId={block.id} className="ws-t-2">
               {block.heading}
@@ -177,7 +188,7 @@ export function TextSection({ block, ctx, center }: SectionProps<'text'>) {
       );
     case 'lead':
       return (
-        <div className={cx('max-w-3xl', center && 'mx-auto')}>
+        <div className={cx('max-w-3xl', center && 'mx-auto')} style={style}>
           {block.heading && (
             <HeadingTag ctx={ctx} blockId={block.id} className={cx('ws-eyebrow mb-5', center && 'text-center')}>
               {block.heading}
@@ -188,7 +199,7 @@ export function TextSection({ block, ctx, center }: SectionProps<'text'>) {
       );
     case 'card':
       return (
-        <div className="ws-card relative mx-auto max-w-3xl overflow-hidden p-7 @2xl:p-12">
+        <div className="ws-card relative mx-auto max-w-3xl overflow-hidden p-7 @2xl:p-12" style={style}>
           <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-[color:var(--s-mark)]" />
           <SectionHeading ctx={ctx} blockId={block.id} center={center} title={block.heading} className="mb-6" />
           <RichText ctx={ctx} text={block.body} />
@@ -196,7 +207,7 @@ export function TextSection({ block, ctx, center }: SectionProps<'text'>) {
       );
     case 'standard':
       return (
-        <div className={cx('max-w-3xl', center && 'mx-auto')}>
+        <div className={cx('max-w-3xl', center && 'mx-auto')} style={style}>
           <SectionHeading ctx={ctx} blockId={block.id} center={center} title={block.heading} className="mb-6 @2xl:mb-8" />
           <RichText ctx={ctx} text={block.body} />
         </div>

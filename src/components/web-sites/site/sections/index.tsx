@@ -1,4 +1,5 @@
 import type { WebSiteBlock } from '@/lib/web-sites/blocks';
+import type { WebSiteTheme } from '@/lib/web-sites/theme';
 import type { RenderCtx } from '../context';
 import type { SectionLook } from '../tone';
 import { DividerSection, HeroSection, ImageSection, SplitSection, TextSection } from './basic';
@@ -10,12 +11,12 @@ import { BeforeAfterSection, EmbedSection, GallerySection, MapSection, VideoSect
 import { FaqSection, LogosSection, QuoteSection, TestimonialsSection } from './social';
 
 /** Contenido de una sección según su tipo. La franja (fondo, espaciado) la pone `SectionFrame`. */
-export function renderSection(block: WebSiteBlock, ctx: RenderCtx, center: boolean, look: SectionLook) {
+export function renderSection(block: WebSiteBlock, ctx: RenderCtx, center: boolean, look: SectionLook, theme: WebSiteTheme) {
   switch (block.type) {
     case 'hero':
       return <HeroSection block={block} ctx={ctx} center={center} look={look} />;
     case 'text':
-      return <TextSection block={block} ctx={ctx} center={center} />;
+      return <TextSection block={block} ctx={ctx} center={center} theme={theme} />;
     case 'split':
       return <SplitSection block={block} ctx={ctx} center={center} />;
     case 'image':

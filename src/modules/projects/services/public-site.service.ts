@@ -1,4 +1,5 @@
-import { parseCreativeSite } from '@/lib/web-sites/creative';
+import { parsePageantSiteDesign, type PageantFooter } from '@/lib/events/pageant-site-design';
+import type { CreativeSite } from '@/lib/web-sites/creative';
 import { requirementsFromProject, type RegistrationRequirements } from '@/lib/events/registration-requirements';
 import 'server-only';
 
@@ -38,7 +39,7 @@ export interface PublicPageantCandidate {
 }
 
 export interface PublicPageantSite {
-  creative?: import('@/lib/web-sites/creative').CreativeSite;
+  creative?: CreativeSite & { footer?: PageantFooter };
   slug: string;
   name: string;
   organizer: string;
@@ -238,7 +239,7 @@ async function assemblePageantSite(project: ProjectWithCompany, slug: string): P
     slug,
     name: project.name,
     organizer: company.businessName,
-    creative: parseCreativeSite(project.publicSiteDesign),
+    creative: parsePageantSiteDesign(project.publicSiteDesign),
     tagline: project.publicTagline,
     description: project.publicDescription,
     galaDate: project.galaDate?.toISOString() ?? null,

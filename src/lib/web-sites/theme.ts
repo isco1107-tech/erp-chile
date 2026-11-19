@@ -55,6 +55,7 @@ export const FONT_OPTIONS = [
   'dancing',
 ] as const;
 export type SiteFont = (typeof FONT_OPTIONS)[number];
+export const fontOverrideSchema = z.enum(FONT_OPTIONS).optional().catch(undefined);
 
 export interface FontInfo {
   label: string;
