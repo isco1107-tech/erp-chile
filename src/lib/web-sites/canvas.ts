@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { CSSProperties } from 'react';
+import { FONT_STACKS, fontOverrideSchema } from './theme';
 
 export const CANVAS_MAX_ELEMENTS = 40;
 export const CANVAS_MOTIONS = ['none', 'fade', 'rise', 'zoom', 'float'] as const;
@@ -25,6 +26,7 @@ export const canvasElementSchema = z.object({
   transparent: z.boolean().default(true),
   mobileFontSize: z.number().finite().min(10).max(160).optional(), tabletFontSize: z.number().finite().min(10).max(160).optional(),
   fontSize: number(10, 160, 32), fontWeight: z.enum(['400', '500', '600', '700', '800', '900']).default('700'),
+  font: fontOverrideSchema,
   align: z.enum(['left', 'center', 'right']).default('left'),
   radius: number(0, 100, 0), rotation: number(-180, 180, 0), opacity: number(0, 100, 100),
   shadow: z.enum(['none', 'soft', 'strong']).default('none'),
@@ -65,6 +67,7 @@ export function canvasFontSize(element: CanvasElement, device: CanvasDevice): nu
 export function canvasElementStyle(element: CanvasElement): CSSProperties {
   return {
     color: element.color, backgroundColor: element.transparent ? 'transparent' : element.background,
+    fontFamily: element.kind === 'text' && element.font ? FONT_STACKS[element.font].css : undefined,
     fontWeight: element.fontWeight, textAlign: element.align, borderRadius: element.radius,
     transform: `rotate(${element.rotation}deg)`, opacity: element.opacity / 100,
     boxShadow: element.shadow === 'soft' ? '0 12px 35px #00000020' : element.shadow === 'strong' ? '0 18px 50px #00000045' : undefined,

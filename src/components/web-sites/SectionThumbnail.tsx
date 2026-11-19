@@ -64,7 +64,7 @@ function SectionThumbnailInner({ block, theme, document, height = 150, className
       <div className={cx('ws-root pointer-events-none absolute top-0 left-0', SITE_FONT_CLASSES)} style={rootStyle} data-btn={theme.buttonStyle} data-card={theme.cardStyle} data-anim="none" data-still="">
         <div className="@container">
           <SectionFrame ctx={ctx} block={block} anchor={`${block.id}-${block.variant}`} look={look} align={align} bleed={block.type === 'image' && block.size === 'full'} glow={block.type === 'hero' && (block.variant === 'center' || block.variant === 'full' || block.variant === 'card')} nextTone="default">
-            {renderSection(block, ctx, align === 'center', look)}
+            {renderSection(block, ctx, align === 'center', look, theme)}
           </SectionFrame>
         </div>
       </div>

@@ -5,14 +5,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '@/components/ui/button';
 import { CANVAS_MAX_ELEMENTS, CANVAS_MOTIONS, canvasElementSchema, canvasElementStyle, canvasFontSize, canvasPosition, canvasSchema, constrainPosition, type CanvasDevice, type CanvasElement, type CanvasPosition, type SiteCanvas } from '@/lib/web-sites/canvas';
 import type { SiteDocument } from '@/lib/web-sites/site';
+import { FONT_STACKS, type SiteFont } from '@/lib/web-sites/theme';
 import { CanvasContent } from './site/CanvasScene';
 import { TextField, SwitchRow } from './fields';
+import { FontSelect } from './FontSelect';
 import { ImagePicker } from './ImagePicker';
 import { LinkField } from './LinkField';
+import { SITE_FONT_CLASSES } from './site-fonts';
 
 interface Props {
   value?: SiteCanvas;
   background?: string;
+  font?: SiteFont;
   disabled: boolean;
   onChange: (value: SiteCanvas) => void;
   document: SiteDocument;
@@ -30,7 +34,7 @@ function NumberField({ label, value, min, max, onChange }: { label: string; valu
   return <label className="block space-y-1 text-xs font-medium">{label}<input className="h-9 w-full rounded-md border border-border bg-background px-2" type="number" min={min} max={max} step={1} value={Math.round(value * 100) / 100} onChange={(event) => { const n = event.currentTarget.valueAsNumber; if (Number.isFinite(n)) onChange(Math.max(min, Math.min(max, n))); }} /></label>;
 }
 
-export function CanvasEditor({ value, background = '#ffffff', disabled, onChange, document, pageId }: Props) {
+export function CanvasEditor({ value, background = '#ffffff', font, disabled, onChange, document, pageId }: Props) {
   const canvas = value ?? canvasSchema.parse({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [device, setDevice] = useState<CanvasDevice>('desktop');
@@ -123,7 +127,7 @@ export function CanvasEditor({ value, background = '#ffffff', disabled, onChange
             <p className="text-xs text-muted-foreground">Arrastra para mover; usa la esquina para cambiar el tamaño. Las flechas mueven la capa seleccionada; Mayús mueve más. Tablet y móvil heredan escritorio hasta que ajustes su composición.</p>
             <div className={expanded ? 'grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]' : 'space-y-4'}>
               <div className="min-w-0 overflow-auto rounded-lg border border-border bg-muted/30 p-2">
-                <div data-canvas-board className="relative mx-auto overflow-hidden bg-background" style={{ width: '100%', maxWidth: artboardWidth, aspectRatio: `${artboardWidth} / ${height}`, containerType: 'inline-size', backgroundColor: background, backgroundImage: snap ? 'linear-gradient(#88888815 1px,transparent 1px),linear-gradient(90deg,#88888815 1px,transparent 1px)' : undefined, backgroundSize: '5% 5%' }}>
+                <div data-canvas-board className={`relative mx-auto overflow-hidden bg-background ${SITE_FONT_CLASSES}`} style={{ width: '100%', maxWidth: artboardWidth, aspectRatio: `${artboardWidth} / ${height}`, containerType: 'inline-size', fontFamily: font ? FONT_STACKS[font].css : undefined, backgroundColor: background, backgroundImage: snap ? 'linear-gradient(#88888815 1px,transparent 1px),linear-gradient(90deg,#88888815 1px,transparent 1px)' : undefined, backgroundSize: '5% 5%' }}>
                   {canvas.elements.filter((el) => !el.hidden && !(device === 'mobile' && el.mobileHidden)).map((el, index) => {
                     const p = draft && selectedId === el.id ? draft : canvasPosition(el, device);
                     return <div key={el.id} role="button" tabIndex={0} aria-label={`${el.name}${el.locked ? ', bloqueado' : ', mover con las flechas'}`} aria-pressed={selectedId === el.id} onClick={() => setSelectedId(el.id)} onKeyDown={(e) => keyMove(e, el)} onPointerDown={(e) => begin(e, el, 'move')} onPointerMove={move} onPointerUp={finish} onPointerCancel={(e) => finish(e, true)} onLostPointerCapture={(e) => finish(e, true)} className="absolute select-none focus-visible:outline-2 focus-visible:outline-primary" style={{ ...canvasElementStyle(el), left: `${p.x}%`, top: `${p.y}%`, width: `${p.width}%`, height: `${p.height}%`, zIndex: index + 1, fontSize: `clamp(10px,${canvasFontSize(el, device) / (artboardWidth / 100)}cqw,160px)`, lineHeight: 1.2, display: 'flex', alignItems: 'center', cursor: disabled || el.locked ? 'default' : 'move', touchAction: 'none', outline: selectedId === el.id ? '2px solid #6366f1' : undefined }}>
@@ -149,6 +153,7 @@ export function CanvasEditor({ value, background = '#ffffff', disabled, onChange
                   <div className="flex flex-wrap gap-2"><Button type="button" size="xs" variant="outline" disabled={disabled || selected.locked} onClick={() => setPosition(selected, { x: (100 - canvasPosition(selected, device).width) / 2 })}>Centrar horizontal</Button><Button type="button" size="xs" variant="outline" disabled={disabled || selected.locked} onClick={() => setPosition(selected, { y: (100 - canvasPosition(selected, device).height) / 2 })}>Centrar vertical</Button></div>
                   {device !== 'desktop' && <Button type="button" size="sm" variant="outline" onClick={() => update(selected.id, { [device]: undefined })}>Heredar posición de escritorio</Button>}
                   {(selected.kind === 'text' || selected.kind === 'button') && <TextField label="Contenido" value={selected.text} max={2000} multiline disabled={disabled} onChange={(text) => update(selected.id, { text })} />}
+                  {selected.kind === 'text' && <FontSelect value={selected.font} disabled={disabled} onChange={(font) => update(selected.id, { font })} />}
                   {selected.kind === 'image' && <><ImagePicker label="Imagen del lienzo" value={selected.imageUrl} onChange={(imageUrl, asset) => update(selected.id, { imageUrl, alt: asset?.alt ?? selected.alt })} /><TextField label="Descripción de la imagen" value={selected.alt} max={160} disabled={disabled} onChange={(alt) => update(selected.id, { alt })} /></>}
                   {selected.kind !== 'shape' && <LinkField label="Enlace (opcional)" value={selected.href} onChange={(href) => update(selected.id, { href })} disabled={disabled} document={document} pageId={pageId} />}
                   <div className="grid grid-cols-2 gap-2">

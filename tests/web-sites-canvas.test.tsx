@@ -1,8 +1,9 @@
 import { renderToStaticMarkup } from 'react-dom/server';
+import { CreativeSiteSections } from '@/components/web-sites/CreativeSiteSections';
 import SiteRenderer from '@/components/web-sites/SiteRenderer';
 import { canvasSchema, canvasElementSchema, canvasPosition, constrainPosition } from '@/lib/web-sites/canvas';
 import { createBlock, blockImageUrls, blockLinks, blockSchema, isBlockEmpty, parseBlocks } from '@/lib/web-sites/blocks';
-import { creativeSiteSchema } from '@/lib/web-sites/creative';
+import { creativeSiteSchema, parseCreativeSite } from '@/lib/web-sites/creative';
 import { academySiteContentSchema, academySiteImageUrls } from '@/lib/academy/site';
 import { DEFAULT_THEME } from '@/lib/web-sites/theme';
 
@@ -88,5 +89,22 @@ describe('Lienzo de sitios web', () => {
   it('los estudios integrados conservan los formularios nativos', () => {
     expect(creativeSiteSchema.safeParse({ blocks: [createBlock('contact')] }).success).toBe(false);
     expect(creativeSiteSchema.safeParse({ blocks: [{ ...createBlock('contact'), showForm: false }] }).success).toBe(true);
+  });
+  it('publica tipografías independientes en secciones y capas de texto después de guardar el diseño', () => {
+    const stored = JSON.stringify(creativeSiteSchema.parse({ enabled: true, blocks: [
+      { id: 'about', type: 'text', heading: 'Sobre el certamen', style: { font: 'montserrat' } },
+      { id: 'invitation', type: 'text', style: { canvas: { enabled: true, replaceContent: true, elements: [
+        element({ font: 'cinzel' }),
+        element({ id: 'legacy', text: 'Invitación', font: 'tipografía desconocida' }),
+      ] } } },
+    ] }));
+    const html = renderToStaticMarkup(<CreativeSiteSections design={parseCreativeSite(JSON.parse(stored))} name="Certamen" slug="certamen" basePath="/certamen/certamen" />);
+
+    expect(html).toContain('font-family:var(--wsf-montserrat)');
+    expect(html).toContain('--ws-heading-font:var(--wsf-montserrat)');
+    expect(html).toContain('--ws-fit:0.9');
+    expect(html).toContain('font-family:var(--wsf-cinzel)');
+    expect(html).toContain('Invitación');
+    expect(html).not.toContain('tipografía desconocida');
   });
 });

@@ -18,6 +18,7 @@ import {
   type PageantAudience,
   type PageantView,
 } from '@/lib/events/pageant-site';
+import { safeHref } from '@/lib/web-sites/urls';
 import type { PublicPageantCandidate, PublicPageantSite } from '@/modules/projects/services/public-site.service';
 import { Arrow, Calendar, Check, Chevron, Close, Crown, Diamond, Instagram, Mail, Pin, Plus, Ticket, Tiara, Whatsapp } from './icons';
 import { PAGEANT_FONT_CLASSES } from './fonts';
@@ -287,6 +288,14 @@ export function PageantSite({ site, view, afterHero = null }: { site: PublicPage
   const shows = (id: string) => sections.some((s) => s.id === id);
   const numberOf = (id: string) => pad(sections.findIndex((s) => s.id === id) + 1);
   const navItems = sections.filter((s) => !['camino', 'preguntas'].includes(s.id)).slice(0, 6);
+  const footer = site.creative?.footer;
+  const footerMenu = footer?.showMenu !== false && navItems.length > 0 ? sections : [];
+  const footerLinks = footer?.links.flatMap((link) => {
+    const href = safeHref(link.href);
+    return link.label && href ? [{ ...link, href }] : [];
+  }) ?? [];
+  const showFooterContact = footer?.showContact !== false;
+  const footerInstagram = showFooterContact ? site.instagramHandles : [];
   const active = useScrollSpy(sections.map((s) => s.id));
 
   const primaryCta = showAudienceSwitch
@@ -1241,7 +1250,7 @@ export function PageantSite({ site, view, afterHero = null }: { site: PublicPage
 
       {/* ── Pie ────────────────────────────────────────────────────────── */}
       <footer className="pgs-footer">
-        {site.instagramHandles.map((handle) => (
+        {footerInstagram.map((handle) => (
           <a key={handle} className="pgs-follow" href={`https://instagram.com/${handle}`} target="_blank" rel="noopener noreferrer" data-reveal>
             <span className="pgs-follow-label">
               <Instagram className="pgs-inline-icon" />
@@ -1254,39 +1263,46 @@ export function PageantSite({ site, view, afterHero = null }: { site: PublicPage
           <div className="pgs-footer-brand">
             <Crown className="pgs-brand-mark" />
             <p className="pgs-footer-name">
-              {shortName}
-              {title.edition && <span className="pgs-footer-edition">{title.edition}</span>}
+              {footer?.title || <>{shortName}{title.edition && <span className="pgs-footer-edition">{title.edition}</span>}</>}
             </p>
+            {footer?.description && <p className="pgs-muted pgs-footer-description">{footer.description}</p>}
           </div>
-          {navItems.length > 0 && (
-            <nav className="pgs-footer-nav" aria-label="Secciones (pie)">
-              {sections.map((item) => (
+          {(footerMenu.length > 0 || footerLinks.length > 0) && (
+            <nav className="pgs-footer-nav" aria-label="Enlaces del pie de página">
+              {footerMenu.map((item) => (
                 <a key={item.id} href={`#${item.id}`}>
                   {item.label}
                 </a>
               ))}
+              {footerLinks.map((link) => (
+                <a key={link.id} href={link.href} target={link.newTab ? '_blank' : undefined} rel={link.newTab ? 'noopener noreferrer' : undefined}>
+                  {link.label}
+                </a>
+              ))}
             </nav>
           )}
-          <div className="pgs-footer-contact">
-            {site.whatsapp && (
-              <a href={site.whatsapp.href} target="_blank" rel="noopener noreferrer">
-                <Whatsapp className="pgs-inline-icon" />
-                {site.whatsapp.label}
-              </a>
-            )}
-            {site.contactEmail && (
-              <a href={`mailto:${site.contactEmail}`}>
-                <Mail className="pgs-inline-icon" />
-                {site.contactEmail}
-              </a>
-            )}
-            {site.instagramHandles.map((handle) => (
-              <a key={handle} href={`https://instagram.com/${handle}`} target="_blank" rel="noopener noreferrer">
-                <Instagram className="pgs-inline-icon" />@{handle}
-              </a>
-            ))}
-            {site.registration && <a href={site.registration.href}>Postula al certamen</a>}
-          </div>
+          {(showFooterContact || site.registration) && (
+            <div className="pgs-footer-contact">
+              {showFooterContact && site.whatsapp && (
+                <a href={site.whatsapp.href} target="_blank" rel="noopener noreferrer">
+                  <Whatsapp className="pgs-inline-icon" />
+                  {site.whatsapp.label}
+                </a>
+              )}
+              {showFooterContact && site.contactEmail && (
+                <a href={`mailto:${site.contactEmail}`}>
+                  <Mail className="pgs-inline-icon" />
+                  {site.contactEmail}
+                </a>
+              )}
+              {footerInstagram.map((handle) => (
+                <a key={handle} href={`https://instagram.com/${handle}`} target="_blank" rel="noopener noreferrer">
+                  <Instagram className="pgs-inline-icon" />@{handle}
+                </a>
+              ))}
+              {site.registration && <a href={site.registration.href}>Postula al certamen</a>}
+            </div>
+          )}
         </div>
         {site.footerPartners.items.length > 0 && (
           <div className="pgs-wrap pgs-partners" data-reveal>
@@ -1314,7 +1330,7 @@ export function PageantSite({ site, view, afterHero = null }: { site: PublicPage
         )}
         <div className="pgs-wrap pgs-footer-legal">
           <p>
-            © {title.edition ?? ''} {shortName}
+            {footer?.copyright || <>© {title.edition ?? ''} {shortName}</>}
           </p>
           <p>
             <a href="/politica-privacidad">Privacidad</a>
