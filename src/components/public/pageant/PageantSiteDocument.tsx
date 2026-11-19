@@ -58,6 +58,8 @@ function eventJsonLd(site: PublicPageantSite, siteUrl: string): Record<string, u
 export function PageantSiteDocument({ site }: { site: PublicPageantSite }) {
   const view = buildPageantView(site, new Date(), getAppUrl(), formatCurrency);
   const jsonLd = eventJsonLd(site, view.siteUrl);
+  const placement = site.creative?.placement ?? 'after';
+  const creative = <CreativeSiteSections design={site.creative} name={site.name} slug={site.slug} basePath={site.customDomain ? '' : `/certamen/${site.slug}`} />;
   return (
     <>
       {jsonLd && (
@@ -67,9 +69,9 @@ export function PageantSiteDocument({ site }: { site: PublicPageantSite }) {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }}
         />
       )}
-      {site.creative?.placement === 'before' && <CreativeSiteSections design={site.creative} name={site.name} slug={site.slug} basePath={site.customDomain ? '' : `/certamen/${site.slug}`} />}
-      <PageantSite site={site} view={view} />
-      {site.creative?.placement !== 'before' && <CreativeSiteSections design={site.creative} name={site.name} slug={site.slug} basePath={site.customDomain ? '' : `/certamen/${site.slug}`} />}
+      {placement === 'before' && creative}
+      <PageantSite site={site} view={view} afterHero={placement === 'afterHero' ? creative : null} />
+      {placement === 'after' && creative}
     </>
   );
 }

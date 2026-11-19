@@ -33,6 +33,8 @@ function organizationJsonLd(site: PublicAcademySite): Record<string, unknown> {
 }
 
 export function AcademySiteDocument({ site }: { site: PublicAcademySite }) {
+  const placement = site.creative?.placement ?? 'after';
+  const creative = <CreativeSiteSections design={site.creative} name={site.name} slug={site.slug} basePath={site.customDomain ? '' : `/academia/${site.slug}`} />;
   return (
     <>
       <script
@@ -40,9 +42,9 @@ export function AcademySiteDocument({ site }: { site: PublicAcademySite }) {
         // JSON.stringify no escapa "<": se neutraliza para que un texto de la academia no pueda cerrar el <script>.
         dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd(site)).replace(/</g, '\\u003c') }}
       />
-      {site.creative?.placement === 'before' && <CreativeSiteSections design={site.creative} name={site.name} slug={site.slug} basePath={site.customDomain ? '' : `/academia/${site.slug}`} />}
-      <AcademySite site={site} />
-      {site.creative?.placement !== 'before' && <CreativeSiteSections design={site.creative} name={site.name} slug={site.slug} basePath={site.customDomain ? '' : `/academia/${site.slug}`} />}
+      {placement === 'before' && creative}
+      <AcademySite site={site} afterHero={placement === 'afterHero' ? creative : null} />
+      {placement === 'after' && creative}
     </>
   );
 }

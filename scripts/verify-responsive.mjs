@@ -21,6 +21,8 @@ import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
 import esbuild from 'esbuild';
+import postcss from 'postcss';
+import tailwind from '@tailwindcss/postcss';
 import { chromium } from 'playwright';
 
 const require = createRequire(import.meta.url);
@@ -50,12 +52,19 @@ export const DEVICES = [
 ];
 
 // 1) Empaqueta los componentes reales (sin Next ni base de datos): uno para Node (lista de casos) y otro para el navegador.
+const siteFontNames = [...fs.readFileSync(path.join(root, 'src/components/web-sites/site-fonts.ts'), 'utf8').matchAll(/^\s+([A-Z][A-Za-z_]+),$/gm)].map((m) => m[1]);
 const stubs = {
   name: 'stubs',
   setup(build) {
     // next/font/google necesita el compilador de Next: las fuentes reales se cargan abajo con @font-face.
     build.onResolve({ filter: /\/fonts$/ }, (a) => (a.importer.includes('components/public/pageant') ? { path: 'fonts-stub', namespace: 'stub' } : null));
-    build.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({ contents: "export const PAGEANT_FONT_CLASSES = '';", loader: 'js' }));
+    // Las secciones del estudio visual (constructor de sitios) usan `next/font/google`, que necesita el compilador de Next.
+    build.onResolve({ filter: /^next\/font\/google$/ }, () => ({ path: 'next-font-stub', namespace: 'stub' }));
+    build.onLoad({ filter: /^fonts-stub$/, namespace: 'stub' }, () => ({ contents: "export const PAGEANT_FONT_CLASSES = '';", loader: 'js' }));
+    build.onLoad({ filter: /^next-font-stub$/, namespace: 'stub' }, () => ({
+      contents: `const f = () => ({ className: '', variable: '', style: {} });\n${siteFontNames.map((n) => `export const ${n} = f;`).join('\n')}`,
+      loader: 'js',
+    }));
   },
 };
 const bundle = path.join(out, 'pageant-entry.cjs');
@@ -75,13 +84,17 @@ await esbuild.build({
   plugins: [stubs],
 });
 const browserScript = fs.readFileSync(browserBundle, 'utf8');
+// Tailwind de las secciones del estudio visual (mismo motor que el build), solo con las clases del renderizador.
+const tailwindCss = (await postcss([tailwind({ base: root })]).process(`@import "tailwindcss" source(none);\n@source "${path.join(root, 'src/components/web-sites').replace(/\\/g, '/')}";\n`, { from: path.join(root, 'src/app/pageant-check.css') })).css;
+/** Logos de prueba del carrusel de auspiciadores (`https://img.test/logo-N.svg`), sin red. */
+const logoSvg = (name) => `<svg xmlns="http://www.w3.org/2000/svg" width="${name.endsWith('1.svg') ? 520 : 240}" height="120"><rect width="100%" height="100%" rx="18" fill="#1f5a3c"/><circle cx="60" cy="60" r="34" fill="#e3c46f"/><rect x="110" y="44" width="${name.endsWith('1.svg') ? 380 : 100}" height="32" rx="8" fill="#f6c9da"/></svg>`;
 const { FIXTURE_NAMES } = require(bundle);
 
 // 2) Fuentes reales (las mismas que next/font descarga en producción), guardadas en local.
 async function loadFonts() {
-  const cssPath = path.join(out, 'fonts', 'fonts.css');
+  const cssPath = path.join(out, 'fonts', 'fonts-v2.css');
   if (fs.existsSync(cssPath)) return fs.readFileSync(cssPath, 'utf8');
-  const url = 'https://fonts.googleapis.com/css2?family=Italiana&family=Karla:wght@300;400;500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400;1,500&display=swap';
+  const url = 'https://fonts.googleapis.com/css2?family=Italiana&family=Karla:wght@300;400;500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=Raleway:wght@400;600&family=Playfair+Display:wght@700&display=swap';
   const ua = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36';
   const css = execFileSync('curl', ['-sS', '-m', '30', '-A', ua, url], { encoding: 'utf8' });
   let result = '';
@@ -119,6 +132,8 @@ const wrapper = () => `<!doctype html><html lang="es-CL"><head><meta charset="ut
 <style>${fontCss}
 html,body{margin:0}
 .pgs{--pgs-display:'Italiana';--pgs-body:'Karla';--pgs-serif:'Cormorant Garamond'}
+:root{--wsf-raleway:'Raleway';--wsf-playfair:'Playfair Display'}
+${tailwindCss}
 </style></head><body><div id="root"></div></body></html>`;
 
 const only = args.get('only');
@@ -135,6 +150,7 @@ for (const name of fixtures) {
   const html = wrapper();
   for (const device of devices) {
     const context = await browser.newContext({ viewport: { width: device.width, height: device.height }, isMobile: device.mobile, hasTouch: device.mobile, deviceScaleFactor: 1, locale: 'es-CL' });
+    await context.route('https://img.test/**', (route) => route.fulfill({ status: 200, contentType: 'image/svg+xml', body: logoSvg(new URL(route.request().url()).pathname) }));
     const page = await context.newPage();
     await page.setContent(html, { waitUntil: 'load' });
     await page.addScriptTag({ content: browserScript });
@@ -143,6 +159,14 @@ for (const name of fixtures) {
     // Deja que los efectos (ajuste de títulos, revelado) corran con la fuente real.
     await page.waitForTimeout(250);
     await page.evaluate(() => document.querySelectorAll('[data-reveal]').forEach((el) => el.setAttribute('data-in', '')));
+    // Secciones del estudio visual: sus fotos y logos cargan en diferido (un logo sin cargar mide 0 px y la cinta
+    // parecería corta) y su aparición va atada al scroll (`animation-timeline: view()`), que una captura de página
+    // completa no recorre. Se cargan las imágenes y se muestra todo antes de medir.
+    await page.evaluate(async () => {
+      document.querySelectorAll('.ws-root img[loading=lazy]').forEach((img) => img.setAttribute('loading', 'eager'));
+      document.querySelectorAll('.ws-root').forEach((el) => el.setAttribute('data-still', ''));
+      await Promise.all([...document.querySelectorAll('.ws-root img')].map((img) => (img.complete ? null : new Promise((r) => { img.onload = img.onerror = r; }))));
+    });
     await page.waitForTimeout(100);
     const problems = await page.evaluate(collectProblems, '.pgs');
     // La cinta tiene que estar girando de verdad (no solo existir): la posición cambia y la animación corre.

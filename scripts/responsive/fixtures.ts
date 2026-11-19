@@ -1,4 +1,5 @@
 import type { PublicPageantSite } from '@/modules/projects/services/public-site.service';
+import { buildFiestaDesign } from '../lib/fiesta-primavera';
 
 /**
  * Datos de prueba para el verificador de responsividad del micrositio de
@@ -185,4 +186,13 @@ export const FIXTURES: Record<string, PublicPageantSite> = {
     ],
   }),
   convocatoriaCerrada: baseSite({ registration: null, registrationNotice: { state: 'soon', opensAtLabel: '19 de octubre' } }),
+  // Acento Primavera + estudio visual después de la portada (pétalos, historia, carrusel de logos). Logos servidos por `img.test`.
+  primavera: baseSite({
+    name: 'Fiesta de la Primavera Temuco',
+    slug: 'fiesta-primavera',
+    accent: 'primavera',
+    creative: buildFiestaDesign(
+      ['Panadería Temuco/Longuimay', 'Supercalifragilisticoespialidoso', 'Banco', 'Radio', 'Ferretería del Sur', 'Clínica'].map((name, i) => ({ name, url: `https://img.test/logo-${i}.svg` }))
+    ),
+  }),
 };

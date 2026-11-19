@@ -97,6 +97,7 @@ const PATTERN_OPTIONS: { value: SectionPattern; label: string; description: stri
   { value: 'grid', label: 'Cuadrícula', description: 'Líneas finas, estilo técnico.' },
   { value: 'diagonal', label: 'Diagonales', description: 'Rayas diagonales muy tenues.' },
   { value: 'rings', label: 'Ondas', description: 'Círculos desde una esquina.' },
+  { value: 'petals', label: 'Pétalos en movimiento', description: 'Pétalos que caen y destellos dorados, con el color de acento.' },
 ];
 
 const PATTERN_PREVIEW: Record<SectionPattern, string> = {
@@ -105,6 +106,7 @@ const PATTERN_PREVIEW: Record<SectionPattern, string> = {
   grid: 'bg-[linear-gradient(currentColor_1px,transparent_1px),linear-gradient(90deg,currentColor_1px,transparent_1px)] bg-[length:12px_12px]',
   diagonal: 'bg-[repeating-linear-gradient(45deg,currentColor_0_1px,transparent_1px_6px)]',
   rings: 'bg-[repeating-radial-gradient(circle_at_100%_0%,transparent_0_8px,currentColor_8px_9px)]',
+  petals: 'bg-[radial-gradient(ellipse_3px_5px_at_30%_30%,currentColor_90%,transparent),radial-gradient(ellipse_4px_3px_at_70%_65%,currentColor_90%,transparent),radial-gradient(circle_1.5px_at_55%_20%,currentColor_90%,transparent)] bg-[length:16px_16px]',
 };
 
 const SHAPE_OPTIONS: { value: SectionShape; label: string; description: string }[] = [

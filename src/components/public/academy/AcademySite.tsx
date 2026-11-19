@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { formatCurrency } from '@/lib/chile/tax';
 import type { PublicAcademySite } from '@/modules/academy/services/academy-site.service';
 import { Arrow, Instagram, Mail, Pin, Whatsapp } from '@/components/public/pageant/icons';
@@ -49,7 +49,8 @@ function useOffscreenPause(rootRef: React.RefObject<HTMLDivElement | null>) {
   }, [rootRef]);
 }
 
-export function AcademySite({ site }: { site: PublicAcademySite }) {
+/** `afterHero`: secciones del estudio visual que van justo después de la portada (ver `CREATIVE_PLACEMENTS`). */
+export function AcademySite({ site, afterHero = null }: { site: PublicAcademySite; afterHero?: ReactNode }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [solid, setSolid] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -214,6 +215,7 @@ export function AcademySite({ site }: { site: PublicAcademySite }) {
             </div>
           )}
         </section>
+        {afterHero}
 
         {/* ── Cinta de disciplinas (decorativa) ── */}
         {ribbonItems.length > 0 && (

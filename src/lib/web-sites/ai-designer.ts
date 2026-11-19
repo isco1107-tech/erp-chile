@@ -2,13 +2,14 @@ import { z } from 'zod';
 import { academySiteContentSchema } from '@/lib/academy/site';
 import { blocksSchema, blockImageUrls, BLOCK_INFO, BLOCK_TYPES, type WebSiteBlock } from './blocks';
 import { themeSchema } from './theme';
+import { PUBLIC_ACCENTS } from '@/modules/projects/schema';
 
 /** Solo campos de presentación: la IA nunca publica, cambia dominios o revela resultados. */
 export const eventDesignSchema = z
   .object({
     publicTagline: z.string().trim().max(160),
     publicDescription: z.string().trim().max(4000),
-    publicAccent: z.enum(['gold', 'violet', 'rose', 'cyan', 'emerald']),
+    publicAccent: z.enum(PUBLIC_ACCENTS),
     sponsorExclusivityNote: z.string().trim().max(800),
   })
   .strict();

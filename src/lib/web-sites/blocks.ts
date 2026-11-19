@@ -97,7 +97,8 @@ export type SectionSpacing = (typeof SECTION_SPACINGS)[number];
 export const SECTION_ALIGNS = ['auto', 'left', 'center'] as const;
 export type SectionAlign = (typeof SECTION_ALIGNS)[number];
 /** Textura suave sobre el fondo de la franja (puntos, cuadrícula, líneas): CSS fijo, nunca una imagen. */
-export const SECTION_PATTERNS = ['none', 'dots', 'grid', 'diagonal', 'rings'] as const;
+/** `petals` es la única animada: pétalos que caen y destellos dorados (se pausa fuera de pantalla). */
+export const SECTION_PATTERNS = ['none', 'dots', 'grid', 'diagonal', 'rings', 'petals'] as const;
 export type SectionPattern = (typeof SECTION_PATTERNS)[number];
 /** Forma del borde inferior de la franja (se dibuja con el color de la sección siguiente). */
 export const SECTION_SHAPES = ['none', 'wave', 'curve', 'slant', 'zigzag', 'triangle', 'steps'] as const;

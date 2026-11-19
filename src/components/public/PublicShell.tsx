@@ -24,7 +24,7 @@ import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from 'react';
  * el diseño público completamente aislado del tema interno.
  */
 
-export type PublicAccent = 'gold' | 'violet' | 'rose' | 'cyan' | 'emerald';
+export type PublicAccent = 'gold' | 'violet' | 'rose' | 'cyan' | 'emerald' | 'primavera';
 
 /** Raíz de una página pública: pinta el fondo, fija el acento y aísla el tema. */
 export function PublicPage({
@@ -363,6 +363,7 @@ const PUBLIC_STYLES = `
 .pub-root[data-accent="rose"]    { --pub-a: #fda4b4; --pub-b: #be123c; --pub-on-accent: #2a0512; }
 .pub-root[data-accent="cyan"]    { --pub-a: #67e8f9; --pub-b: #0e7490; --pub-on-accent: #04171c; }
 .pub-root[data-accent="emerald"] { --pub-a: #6ee7b7; --pub-b: #047857; --pub-on-accent: #032018; }
+.pub-root[data-accent="primavera"] { --pub-a: #ead39a; --pub-b: #c2386f; --pub-on-accent: #10261b; }
 
 /* ── Fondo ────────────────────────────────────────────────────────────── */
 .pub-backdrop { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }

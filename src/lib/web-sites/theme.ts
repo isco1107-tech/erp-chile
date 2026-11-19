@@ -273,6 +273,7 @@ export const THEME_PALETTES: ThemePalette[] = [
   { id: 'cobalt', label: 'Cobalto', mood: 'Tecnología, software, educación', colors: { primary: '#1e1b4b', accent: '#4338ca', background: '#f7f7ff', text: '#1e1b4b' } },
   { id: 'olive', label: 'Oliva', mood: 'Gourmet, aceites, campo', colors: { primary: '#3a3d1f', accent: '#6b7a1f', background: '#fafaf2', text: '#262817' } },
   { id: 'sunflower', label: 'Girasol', mood: 'Infantil, panadería, colegios', colors: { primary: '#2d2a1f', accent: '#b45309', background: '#fffbea', text: '#22201a' } },
+  { id: 'primavera', label: 'Primavera', mood: 'Verde, dorado y rosado: fiestas de primavera, jardines, flores', colors: { primary: '#1f5a3c', accent: '#c2386f', background: '#fffaf5', text: '#1c2b22' } },
   { id: 'ice', label: 'Glaciar', mood: 'Salud, dental, laboratorios', colors: { primary: '#0b3954', accent: '#087e8b', background: '#f5fbfc', text: '#0b2533' } },
   { id: 'plum', label: 'Ciruela', mood: 'Arte, música, eventos creativos', colors: { primary: '#2d0a31', accent: '#a21caf', background: '#fdf7fe', text: '#25102a' } },
   { id: 'graphite', label: 'Grafito', mood: 'Minimalista, diseño, arquitectura', colors: { primary: '#18181b', accent: '#71717a', background: '#fafafa', text: '#18181b' } },
@@ -361,6 +362,7 @@ export const THEME_KITS: ThemeKit[] = [
   { id: 'heritage', label: 'Tradición', description: 'Serifas clásicas y tonos vino. Viñas, notarías, hoteles históricos.', palette: 'wine', style: { font: 'eb-garamond', headingFont: 'cinzel', buttonStyle: 'outline', radius: 'none', cardStyle: 'bordered', headingWeight: 'regular', headingCase: 'normal', spacing: 'airy', animation: 'fade', width: 'normal' } },
   { id: 'espresso', label: 'Barra oscura', description: 'Café oscuro y dorado. Barberías, bares, cafeterías de especialidad.', palette: 'espresso', style: { font: 'dm-sans', headingFont: 'fraunces', buttonStyle: 'solid', radius: 'soft', cardStyle: 'flat', headingWeight: 'bold', headingCase: 'normal', spacing: 'normal', animation: 'rise', width: 'normal' } },
   { id: 'press', label: 'Prensa', description: 'Para leer mucho y bien. Blogs, medios, abogados, escritores.', palette: 'slate', style: { font: 'merriweather', headingFont: 'same', buttonStyle: 'solid', radius: 'none', cardStyle: 'bordered', headingWeight: 'black', headingCase: 'normal', spacing: 'normal', animation: 'none', width: 'narrow' } },
+  { id: 'spring-fest', label: 'Fiesta de primavera', description: 'Verde bosque, rosado y destellos dorados. Fiestas de primavera, reinas, carros alegóricos.', palette: 'primavera', style: { font: 'raleway', headingFont: 'playfair', buttonStyle: 'pill', radius: 'round', cardStyle: 'shadow', headingWeight: 'bold', headingCase: 'normal', spacing: 'airy', animation: 'rise', width: 'normal' } },
 ];
 
 /** Tema que deja un estilo completo (los colores salen de su paleta). */
