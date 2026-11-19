@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { creativeSiteSchema } from '@/lib/web-sites/creative';
 import { MAX_FOOTER_LINKS, menuLinkSchema } from '@/lib/web-sites/site';
 import { safeHref } from '@/lib/web-sites/urls';
+import { pageantLayoutSchema, pageantOptionsSchema, pageantSectionsSchema } from './pageant-layout';
 
 const footerLinkSchema = menuLinkSchema.superRefine(({ label, href }, ctx) => {
   if (!label && !href) return;
@@ -19,8 +20,20 @@ const pageantFooterSchema = z.object({
 });
 export type PageantFooter = z.infer<typeof pageantFooterSchema>;
 
+/**
+ * Diseño del micrositio: el estudio visual (bloques y tema) más lo propio del
+ * certamen. `layout`, `sections` y `options` son el diseño libre del editor
+ * visual (ver `pageant-layout.ts`); se leen con tolerancia y un diseño guardado
+ * antes de que existieran se ve igual que siempre.
+ */
 export const pageantSiteDesignSchema = creativeSiteSchema.safeExtend({
   footer: pageantFooterSchema.prefault({}),
+  /** Orden de todo el sitio (secciones propias + bloques del estudio). Ausente = el de siempre. */
+  layout: pageantLayoutSchema,
+  /** Textos, fondo, espaciado y visibilidad por sección propia. */
+  sections: pageantSectionsSchema,
+  /** Piezas globales: numeración, cinta, WhatsApp flotante, cuenta regresiva, datos clave. */
+  options: pageantOptionsSchema,
 });
 export type PageantSiteDesign = z.infer<typeof pageantSiteDesignSchema>;
 

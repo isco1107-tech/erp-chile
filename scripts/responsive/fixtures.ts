@@ -229,6 +229,33 @@ export const FIXTURES: Record<string, PublicPageantSite> = {
       )
     ),
   }),
+  // Diseño libre del editor visual: un bloque ANTES de la portada, secciones reordenadas, bloques intercalados,
+  // textos propios larguísimos, fondos y espaciados cambiados, secciones ocultas y piezas globales apagadas.
+  disenoLibre: baseSite({
+    name: 'Fiesta de la Primavera Temuco',
+    slug: 'diseno-libre',
+    accent: 'primavera',
+    creative: (() => {
+      const design = withPhotos(buildFiestaDesign(['Panadería Temuco/Longuimay', 'Banco', 'Radio'].map((name, i) => ({ name, url: `https://img.test/logo-${i}.svg` }))));
+      const ids = design.blocks.map((block) => block.id);
+      const block = (index: number) => ({ kind: 'block' as const, id: ids[index % ids.length]! });
+      const section = (id: 'inicio' | 'candidatas' | 'certamen' | 'gala' | 'auspicios' | 'postula' | 'director' | 'ganadoras') => ({ kind: 'section' as const, id });
+      return pageantSiteDesignSchema.parse({
+        ...design,
+        layout: [block(1), section('inicio'), section('candidatas'), block(2), block(3), section('certamen'), section('gala'), block(4), section('postula'), section('auspicios'), section('ganadoras'), section('director'), ...ids.slice(5).map((id) => ({ kind: 'block', id }))],
+        sections: {
+          candidatas: { kicker: 'Candidatas de todas las comunas de La Araucanía', title: 'Conoce a todas', titleAccent: 'las candidatas de esta edición Temuco/Longuimay', tone: 'deep', spacing: 'compact', navLabel: 'Reinas' },
+          certamen: { tone: 'soft', spacing: 'airy', kicker: '' },
+          gala: { title: 'La gran noche', titleAccent: 'Supercalifragilisticoespialidoso', tone: 'soft' },
+          auspicios: { tone: 'deep', title: '', titleAccent: 'Paquetes' },
+          director: { tone: 'night', spacing: 'compact' },
+          preguntas: { hidden: true },
+          inicio: { kicker: 'Vuelve la fiesta más esperada del sur de Chile', title: 'Temuco vuelve a florecer con su reina, sus carros alegóricos y toda la ciudad' },
+        },
+        options: { ribbon: false, numbers: false, pills: false },
+      });
+    })(),
+  }),
   // Tipografía elegida por bloque (más anchas que las de fábrica): nada debe desbordar.
   tipografia: baseSite({
     name: 'Miss Universo Temuco/Longuimay 2026',

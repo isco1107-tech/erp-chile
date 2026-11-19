@@ -73,14 +73,29 @@ export function HeroSky() {
   );
 }
 
-/** Encabezado de sección: "01 —— EL CERTAMEN". */
-export function Kicker({ index, children, tone = 'night' }: { index?: string; children: ReactNode; tone?: 'night' | 'paper' }) {
+/** Encabezado de sección: "01 —— EL CERTAMEN". En el editor visual el texto se puede editar con doble clic (`editable`). */
+export function Kicker({ index, children, tone = 'night', editable = false }: { index?: string; children: ReactNode; tone?: 'night' | 'paper'; editable?: boolean }) {
   return (
     <p className={`pgs-kicker is-${tone}`}>
       {index && <span className="pgs-kicker-index">{index}</span>}
       {index && <span className="pgs-kicker-rule" aria-hidden="true" />}
-      {children}
+      {editable ? <span data-edit-field="kicker">{children}</span> : children}
     </p>
+  );
+}
+
+/**
+ * Título de dos partes de las secciones del micrositio: la normal y la palabra
+ * en cursiva («Conoce a *las candidatas*»). Cualquiera puede venir vacía. En el
+ * editor visual cada parte se marca para editarla con doble clic.
+ */
+export function HeadingText({ lead, accent, editable = false }: { lead: string; accent: string; editable?: boolean }) {
+  return (
+    <>
+      {lead ? editable ? <span data-edit-field="title">{lead}</span> : lead : null}
+      {lead && accent ? ' ' : null}
+      {accent ? <em {...(editable ? { 'data-edit-field': 'titleAccent' } : {})}>{accent}</em> : null}
+    </>
   );
 }
 
@@ -93,29 +108,47 @@ export function pad(value: number): string {
  * del panel (Sitio público → «Sobre el certamen»): así lo que se ve al escribir
  * es exactamente lo que se publica.
  */
-export function AboutHeading({ title, index, titleId, reveal = false }: { title: PageantTitle; index?: string; titleId?: string; reveal?: boolean }) {
-  const shortName = [title.lead, title.main].filter(Boolean).join(' ');
+export function AboutHeading({
+  title,
+  index,
+  titleId,
+  reveal = false,
+  kicker = 'El certamen',
+  lead,
+  accent,
+  editable = false,
+}: {
+  title: PageantTitle;
+  index?: string;
+  titleId?: string;
+  reveal?: boolean;
+  /** Textos propios del editor visual; sin ellos, «El certamen» y el nombre del certamen. */
+  kicker?: string;
+  lead?: string;
+  accent?: string;
+  editable?: boolean;
+}) {
+  const shownLead = lead ?? title.lead;
+  const shownAccent = accent ?? title.main;
   return (
     <div className="pgs-about-head" data-reveal={reveal ? '' : undefined}>
-      <Kicker index={index} tone="paper">
-        El certamen
-      </Kicker>
-      <h2 id={titleId} className={`pgs-h2 is-ink ${headingSize(shortName)}`.trim()}>
-        {title.lead ? (
-          <>
-            {title.lead} <em>{title.main}</em>
-          </>
-        ) : (
-          <em>{title.main}</em>
-        )}
-      </h2>
+      {(index || kicker) && (
+        <Kicker index={index} tone="paper" editable={editable}>
+          {kicker}
+        </Kicker>
+      )}
+      {(shownLead || shownAccent) && (
+        <h2 id={titleId} className={`pgs-h2 is-ink ${headingSize([shownLead, shownAccent].filter(Boolean).join(' '))}`.trim()}>
+          <HeadingText lead={shownLead} accent={shownAccent} editable={editable} />
+        </h2>
+      )}
     </div>
   );
 }
 
-export function AboutProse({ paragraphs, reveal = false }: { paragraphs: string[]; reveal?: boolean }) {
+export function AboutProse({ paragraphs, reveal = false, editable = false }: { paragraphs: string[]; reveal?: boolean; editable?: boolean }) {
   return (
-    <div className="pgs-prose" data-reveal={reveal ? '' : undefined}>
+    <div className="pgs-prose" data-reveal={reveal ? '' : undefined} {...(editable ? { 'data-edit-field': 'description' } : {})}>
       {paragraphs.map((paragraph, i) => (
         <p key={i} className={i === 0 ? 'is-lead' : undefined}>
           {paragraph}

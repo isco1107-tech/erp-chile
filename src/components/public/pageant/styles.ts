@@ -266,6 +266,12 @@ export const PAGEANT_SITE_STYLES = withFontAdjust(`
 .pgs-section.is-night + .pgs-section.is-night { border-top: 1px solid var(--line-night); }
 .pgs-section.is-deep { background: radial-gradient(90% 70% at 85% 10%, var(--night-3), var(--night) 70%); }
 .pgs-section.is-paper { background: var(--paper); color: var(--ink); }
+.pgs-section.is-paper.is-soft { background: var(--paper-2); }
+/* Espaciado elegido en el editor visual (sobre el de cada sección). */
+.pgs-section.is-compact { padding-top: clamp(3rem, 7vw, 5rem); padding-bottom: clamp(3rem, 7vw, 5rem); }
+.pgs-section.is-airy { padding-top: clamp(6.5rem, 15vw, 12rem); padding-bottom: clamp(6.5rem, 15vw, 12rem); }
+/* Si el sitio no empieza con la portada, deja el alto de la barra superior (fija y transparente) sobre fondo de noche. */
+.pgs-top-space { height: 4.75rem; background: var(--night); }
 .pgs-section-head { margin-bottom: clamp(2.5rem, 6vw, 4rem); max-width: 44rem; }
 .pgs-section-head.is-split { max-width: none; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 1.5rem 3rem; }
 .pgs-section-head.is-center { margin-left: auto; margin-right: auto; text-align: center; display: flex; flex-direction: column; align-items: center; }

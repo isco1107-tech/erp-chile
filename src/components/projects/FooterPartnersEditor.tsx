@@ -82,7 +82,7 @@ export function FooterPartnersEditor({
   const full = value.items.length >= MAX_FOOTER_PARTNERS;
 
   return (
-    <section className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-card">
+    <section className="@container space-y-4 rounded-lg border border-border bg-card p-5 shadow-card">
       <div>
         <h2 className="text-base font-semibold">Logos en el pie de página</h2>
         <p className="text-xs text-muted-foreground">
@@ -102,12 +102,12 @@ export function FooterPartnersEditor({
           {value.items.map((item, index) => {
             const link = normalizePartnerLink(item.href);
             return (
-              <li key={item.id} className="grid grid-cols-1 gap-3 p-3 sm:grid-cols-[8rem_minmax(0,1fr)_auto] sm:items-start">
+              <li key={item.id} className="grid grid-cols-1 gap-3 p-3 @lg:grid-cols-[8rem_minmax(0,1fr)_auto] @lg:items-start">
                 <div className="flex h-16 w-32 items-center justify-center rounded-md border border-border bg-white p-2">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={item.logoUrl} alt={item.name || 'Logo'} className="max-h-full max-w-full object-contain" />
                 </div>
-                <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-2">
+                <div className="grid min-w-0 grid-cols-1 gap-2 @2xl:grid-cols-2">
                   <div className="min-w-0">
                     <Label htmlFor={`partner-name-${item.id}`}>Nombre</Label>
                     <Input id={`partner-name-${item.id}`} value={item.name} onChange={(e) => update(item.id, { name: e.target.value })} placeholder="Municipalidad de Temuco" maxLength={80} disabled={disabled} />
@@ -121,7 +121,7 @@ export function FooterPartnersEditor({
                   </div>
                 </div>
                 {!disabled && (
-                  <div className="flex flex-wrap gap-1 sm:flex-col">
+                  <div className="flex flex-wrap gap-1 @lg:flex-col">
                     <Button type="button" size="sm" variant="outline" disabled={uploadingId !== null} onClick={() => pickFile(item.id)}>
                       <ImagePlus aria-hidden="true" />
                       {uploadingId === item.id ? 'Subiendo…' : 'Cambiar logo'}
