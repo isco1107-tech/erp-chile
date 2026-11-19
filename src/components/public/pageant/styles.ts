@@ -498,7 +498,8 @@ export const PAGEANT_SITE_STYLES = `
 @media (min-width: 900px) { .pgs-footer-grid { grid-template-columns: 5fr 4fr 3fr; } }
 .pgs-footer-brand { display: flex; flex-direction: column; gap: 0.5rem; }
 .pgs-footer-brand .pgs-muted { margin: 0; font-size: 0.9rem; }
-.pgs-footer-name { margin: 0.6rem 0 0; font-family: var(--display); font-size: 2rem; line-height: 1.1; }
+.pgs-footer-name { margin: 0.6rem 0 0; font-family: var(--display); font-size: clamp(1.5rem, 5vw, 2rem); line-height: 1.1; }
+.pgs-footer-description { white-space: pre-line; }
 .pgs-footer-edition { margin-left: 0.5rem; font-size: 0.85em; color: var(--a); }
 .pgs-footer-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem 1.5rem; align-content: start; }
 .pgs-footer-nav a, .pgs-footer-contact a { font-size: 0.9rem; color: var(--on-night-dim); text-decoration: none; transition: color 0.3s; }

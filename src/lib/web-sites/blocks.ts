@@ -3,6 +3,7 @@ import { canvasSchema } from './canvas';
 import { FORM_CONSENTS, FORM_DEAL_TYPES, FORM_DESTINATIONS, FORM_PURPOSES, contactPresetFields, formFieldsSchema, normalizeTag } from './forms';
 import { SITE_ICONS } from './icons';
 import { richTextLinks } from './rich-text';
+import { fontOverrideSchema } from './theme';
 import { slugify } from './urls';
 
 /**
@@ -117,6 +118,7 @@ export const blockStyleSchema = z.object({
   overlay: z.number().int().min(0).max(90).default(55).catch(55),
   spacing: choice(SECTION_SPACINGS, 'auto'),
   align: choice(SECTION_ALIGNS, 'auto'),
+  font: fontOverrideSchema,
   pattern: choice(SECTION_PATTERNS, 'none'),
   shape: choice(SECTION_SHAPES, 'none'),
   width: choice(SECTION_WIDTHS, 'auto'),

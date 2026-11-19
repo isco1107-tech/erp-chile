@@ -702,6 +702,7 @@ const SectionCard = memo(function SectionCard({
             )}
             <CanvasEditor
               background={theme?.background}
+              font={theme?.font ?? DEFAULT_THEME.font}
               value={block.style.canvas}
               disabled={readOnly}
               document={document}

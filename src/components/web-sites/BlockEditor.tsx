@@ -43,6 +43,7 @@ import {
 import { ButtonFields, Notice, Optional, PHOTO_TIP, Tip, type FieldsProps } from './block-fields-shared';
 import { ContactFormDestination, FormFields } from './FormBlockFields';
 import { ChoiceGroup, SwitchRow, TextField } from './fields';
+import { FontSelect } from './FontSelect';
 import { IconPicker } from './IconPicker';
 import { ImagePicker } from './ImagePicker';
 import { LinkField } from './LinkField';
@@ -278,6 +279,7 @@ function TextFields({ block, disabled, onChange, document, pageId }: FieldsProps
         placeholder="Ej.: Quiénes somos"
         hint="Este título también aparece en el menú del sitio."
       />
+      <FontSelect value={block.style.font} disabled={disabled} onChange={(font) => set({ style: { ...block.style, font } })} />
       <RichTextField
         label="Texto"
         value={block.body}

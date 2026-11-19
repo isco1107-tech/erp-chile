@@ -173,7 +173,7 @@ export default function SiteRenderer({
                   onSelect={selectable ? onSelectBlock : undefined}
                   selected={selectable && selectedBlockId === block.id}
                 >
-                  {empty ? <EmptyBlock block={block} /> : renderSection(block, bodyCtx, resolveAlign(block) === 'center', look)}
+                  {empty ? <EmptyBlock block={block} /> : renderSection(block, bodyCtx, resolveAlign(block) === 'center', look, theme)}
                 </SectionFrame>
               );
             })}

@@ -1,3 +1,4 @@
+import { pageantSiteDesignSchema } from '@/lib/events/pageant-site-design';
 import type { PublicPageantSite } from '@/modules/projects/services/public-site.service';
 import { buildFiestaDesign } from '../lib/fiesta-primavera';
 
@@ -112,6 +113,12 @@ export const FIXTURES: Record<string, PublicPageantSite> = {
     venueAddress: 'Avenida Libertador Bernardo O’Higgins 12345, Oficina 678, Pucón, Región de La Araucanía',
     contactEmail: 'contacto.institucional.certamen.internacional@corporacionculturalmunicipal.example.cl',
     instagramHandles: ['certamen_internacional_reina_solidaridad_turismo_sudamerica', 'otra_cuenta_oficial'],
+    creative: pageantSiteDesignSchema.parse({ footer: {
+      title: 'Corporación Cultural de Turismo Sustentable de Sudamérica',
+      description: 'Organización del certamen internacional de la solidaridad.\nPromovemos la participación de las comunidades en todas las regiones.',
+      copyright: '© 2026 Corporación Cultural de Turismo Sustentable de Sudamérica',
+      links: [{ id: 'rules', label: 'Bases oficiales del certamen', href: 'https://example.cl/bases' }],
+    } }),
     candidates: candidates(
       ['María de los Ángeles Fernández-Villanueva de la Barra', 'Constanza Alejandra Valenzuela Rodríguez', 'Su', 'Ana', 'Florencia Belén Hernández Castillo-Larraín'],
       ['Región Metropolitana de Santiago y alrededores', null, 'Pucón']

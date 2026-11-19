@@ -17,9 +17,10 @@ import { checkPublicSlugAction, updatePublicSiteAction } from '@/modules/project
 import { PUBLIC_ACCENT_LABELS, PUBLIC_ACCENT_SWATCH, PUBLIC_ACCENTS, type PublicAccentKey } from '@/modules/projects/schema';
 import { cn } from '@/lib/utils';
 import { CreativeStudio } from '@/components/web-sites/CreativeStudio';
-import { parseCreativeSite } from '@/lib/web-sites/creative';
+import { pageantSiteDesignSchema, parsePageantSiteDesign } from '@/lib/events/pageant-site-design';
 import { SiteDesignAssistant } from '@/components/web-sites/SiteDesignAssistant';
 import { CustomDomainSection } from './CustomDomainSection';
+import { PageantFooterFields } from './PageantFooterFields';
 
 type Toggle = 'showCandidatesPublic' | 'showSponsorsPublic' | 'showVoteRankingPublic' | 'showResultsPublic' | 'sponsorLeadFormEnabled';
 
@@ -33,8 +34,8 @@ const TOGGLES: Array<{ key: Toggle; label: string; hint: string }> = [
 
 export function PublicSiteForm({ project, canWrite }: { project: Project; canWrite: boolean }) {
   const router = useRouter();
-  const [values, setValues] = useState({
-    publicSiteDesign: parseCreativeSite(project.publicSiteDesign),
+  const [values, setValues] = useState(() => ({
+    publicSiteDesign: parsePageantSiteDesign(project.publicSiteDesign) ?? pageantSiteDesignSchema.parse({}),
     publicSlug: project.publicSlug ?? '',
     publicSiteEnabled: project.publicSiteEnabled,
     publicTagline: project.publicTagline ?? '',
@@ -56,7 +57,8 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
     directorPhotoUrl: project.directorPhotoUrl ?? '',
     faviconUrl: project.faviconUrl ?? '',
     sponsorExclusivityNote: project.sponsorExclusivityNote ?? '',
-  });
+  }));
+  const { footer, ...creative } = values.publicSiteDesign;
   // La trayectoria se edita como texto, un logro por línea.
   const [highlightsText, setHighlightsText] = useState(project.directorHighlights.join('\n'));
   const [uploadingDirector, setUploadingDirector] = useState(false);
@@ -159,7 +161,7 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
   return (
     <div className="grid grid-cols-1 gap-5 xl:grid-cols-[2fr_1fr]">
       <div className="space-y-5">
-        <CreativeStudio target="event" resourceId={project.id} name={project.name} value={values.publicSiteDesign} disabled={!canWrite || saving} images={[values.coverImageUrl, values.directorPhotoUrl, values.faviconUrl].filter(Boolean)} onChange={(design) => set('publicSiteDesign', design)} />
+        <CreativeStudio target="event" resourceId={project.id} name={project.name} value={creative} disabled={!canWrite || saving} images={[values.coverImageUrl, values.directorPhotoUrl, values.faviconUrl].filter(Boolean)} onChange={(design) => setValues((previous) => ({ ...previous, publicSiteDesign: { ...design, footer: previous.publicSiteDesign.footer } }))} />
         <SiteDesignAssistant disabled={!canWrite || saving} context={{ target: 'event', resourceId: project.id, current: { publicTagline: values.publicTagline, publicDescription: values.publicDescription, publicAccent: values.publicAccent, sponsorExclusivityNote: values.sponsorExclusivityNote } }} onApply={(proposal) => { if (proposal.target === 'event') { setValues((previous) => ({ ...previous, ...proposal.design })); toast.success('Propuesta aplicada: revisa y guarda los cambios'); } }} />
         <section className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-card">
           <div className="flex items-center justify-between gap-3">
@@ -412,6 +414,12 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
             ))}
           </ul>
         </section>
+
+        <PageantFooterFields
+          value={footer}
+          disabled={!canWrite || saving}
+          onChange={(footer) => setValues((previous) => ({ ...previous, publicSiteDesign: { ...previous.publicSiteDesign, footer } }))}
+        />
 
         {canWrite && (
           <div className="flex gap-2">
