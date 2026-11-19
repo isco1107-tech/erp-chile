@@ -61,6 +61,13 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
   const fingerprint = useMemo(() => stateFingerprint(editorState), [editorState]);
   const [savedFingerprint, setSavedFingerprint] = useState(fingerprint);
   const dirty = fingerprint !== savedFingerprint;
+  // Cerrar la pestaña o recargar con cambios sin guardar pide confirmación (el navegador muestra su aviso).
+  useEffect(() => {
+    if (!dirty || !canWrite) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty, canWrite]);
   const [editorHost, setEditorHost] = useState<Element | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const savingRef = useRef(false);

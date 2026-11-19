@@ -282,7 +282,7 @@ export function EditOverlay({
 
   if (typeof document === 'undefined') return null;
   return createPortal(
-    <div ref={layerRef} data-edit-layer="" className="pointer-events-none absolute inset-x-0 top-0 z-[2147483000]" style={{ height: layout.height }}>
+    <div ref={layerRef} data-edit-layer="" className="pointer-events-none absolute inset-x-0 top-0 z-[2147483000] font-sans" style={{ height: layout.height }}>
       {hoveredBox && (
         <div className="absolute rounded-sm ring-2 ring-primary/70 ring-inset" style={{ top: hoveredBox.top, left: hoveredBox.left, width: hoveredBox.width, height: hoveredBox.height }}>
           <span className="absolute left-2 top-2 rounded bg-primary/90 px-2 py-0.5 text-[11px] font-semibold text-primary-foreground shadow">{info(hovered!).label}</span>
