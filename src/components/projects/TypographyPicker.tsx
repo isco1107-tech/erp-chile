@@ -85,7 +85,7 @@ function FontRow({
 }) {
   const style: CSSProperties = { fontFamily: pageantFontInfo(previewFont).css, fontStyle: italic ? 'italic' : 'normal' };
   return (
-    <li className="grid grid-cols-1 gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,15rem)] sm:items-start">
+    <li className="grid grid-cols-1 gap-2 py-3 @md:grid-cols-[minmax(0,1fr)_minmax(0,15rem)] @md:items-start">
       <div className="min-w-0">
         <Label htmlFor={id}>{label}</Label>
         <p className="text-xs text-muted-foreground">{hint}</p>
@@ -137,7 +137,7 @@ export function TypographyPicker({
   const hasChanges = Object.keys(value).length > 0;
 
   return (
-    <section className={cn('space-y-4 rounded-lg border border-border bg-card p-5 shadow-card', PAGEANT_FONT_CLASSES, SITE_FONT_CLASSES)}>
+    <section className={cn('@container space-y-4 rounded-lg border border-border bg-card p-5 shadow-card', PAGEANT_FONT_CLASSES, SITE_FONT_CLASSES)}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold">Tipografía</h2>

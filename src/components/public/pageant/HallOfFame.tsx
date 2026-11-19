@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PublicPageantSite } from '@/modules/projects/services/public-site.service';
 import { Chevron, Crown } from './icons';
-import { Kicker } from './parts';
+import { HeadingText, Kicker } from './parts';
 
 type Winner = PublicPageantSite['pastWinners'][number];
 
@@ -47,7 +47,18 @@ function FeaturedCaption({ winner }: { winner: Winner }) {
   );
 }
 
-export function HallOfFame({ winners, index }: { winners: Winner[]; index: string }) {
+export interface HallOfFameLook {
+  /** Textos propios del editor visual (ausente = el automático; '' = sin texto). */
+  kicker?: string;
+  lead?: string;
+  accent?: string;
+  /** Clases de fondo y espaciado (`sectionToneClasses`). */
+  toneClass?: string;
+  /** Solo en el editor visual: marcas para seleccionar y editar textos. */
+  editable?: boolean;
+}
+
+export function HallOfFame({ winners, index, look = {} }: { winners: Winner[]; index?: string; look?: HallOfFameLook }) {
   // Las "recientes" (marcadas en el panel) van con foto completa y TODAS con el mismo formato; el resto, en el carrusel.
   const featured = winners.filter((w) => w.featured);
   const others = winners.filter((w) => !w.featured);
@@ -81,14 +92,25 @@ export function HallOfFame({ winners, index }: { winners: Winner[]; index: strin
   };
 
   return (
-    <section id="ganadoras" className="pgs-section is-night is-deep pgs-hof" aria-labelledby="pgs-hof-title">
+    <section
+      id="ganadoras"
+      className={`pgs-section ${look.toneClass ?? 'is-night is-deep'} pgs-hof`}
+      aria-labelledby="pgs-hof-title"
+      {...(look.editable ? { 'data-edit-key': 'section:ganadoras' } : {})}
+    >
       <div className="pgs-wrap">
         <div className={`pgs-section-head ${winners.length === 1 ? 'is-center' : 'is-split'}`} data-reveal>
           <div>
-            <Kicker index={index}>Salón de la fama</Kicker>
-            <h2 id="pgs-hof-title" className="pgs-h2">
-              Nuestras <em>{winners.length === 1 ? 'ganadora' : 'ganadoras'}</em>
-            </h2>
+            {(index || look.kicker !== '') && (
+              <Kicker index={index} editable={look.editable}>
+                {look.kicker ?? 'Salón de la fama'}
+              </Kicker>
+            )}
+            {(look.lead !== '' || look.accent !== '') && (
+              <h2 id="pgs-hof-title" className="pgs-h2">
+                <HeadingText lead={look.lead ?? 'Nuestras'} accent={look.accent ?? (winners.length === 1 ? 'ganadora' : 'ganadoras')} editable={look.editable} />
+              </h2>
+            )}
           </div>
           {span && <p className="pgs-hof-span">{span}</p>}
         </div>

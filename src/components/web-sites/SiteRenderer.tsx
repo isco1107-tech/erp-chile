@@ -64,6 +64,8 @@ export interface SiteRendererProps {
   commerce?: RenderCtx['commerce'];
   rootClassName?: string;
   extraCss?: string;
+  /** `false` cuando quien lo incrusta ya puso la hoja (`SITE_CSS`) una vez: el micrositio intercala varios tramos. */
+  withCss?: boolean;
 }
 
 export default function SiteRenderer({
@@ -85,6 +87,7 @@ export default function SiteRenderer({
   commerce,
   rootClassName,
   extraCss = '',
+  withCss = true,
 }: SiteRendererProps) {
   const preview = mode === 'preview';
   const source = document ?? documentFromBlocks(blocks ?? [], theme);
@@ -144,7 +147,7 @@ export default function SiteRenderer({
       data-card={theme.cardStyle}
       data-anim={preview ? 'none' : theme.animation}
     >
-      <style>{SITE_CSS + extraCss}</style>
+      {withCss && <style>{SITE_CSS + extraCss}</style>}
       <div className={cx('@container flex flex-col', !preview && !embedded && 'min-h-dvh')}>
         {!preview && !embedded && (
           <a href={`#${mainId}`} className="ws-skip">

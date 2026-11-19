@@ -1,33 +1,33 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { CheckCircle2, ExternalLink, ImagePlus, Wand2, XCircle } from 'lucide-react';
+import { CheckCircle2, ExternalLink, ImagePlus, Maximize2, MousePointerClick, Wand2, XCircle } from 'lucide-react';
 import type { Project } from '@prisma/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { textareaClass } from '@/components/ui/field-classes';
-import { formatInstagramHandlesForForm, formatWhatsappNumber } from '@/lib/events/pageant-contact';
 import { slugify } from '@/lib/events/public-slug';
-import { DIRECTOR_TITLES, directorCopy, type DirectorTitle } from '@/lib/events/pageant-site';
+import { DIRECTOR_TITLES, directorCopy } from '@/lib/events/pageant-site';
 import { checkPublicSlugAction, updatePublicSiteAction } from '@/modules/projects/actions/projects.actions';
-import { PUBLIC_ACCENT_LABELS, PUBLIC_ACCENT_SWATCH, PUBLIC_ACCENTS, type PublicAccentKey } from '@/modules/projects/schema';
+import { PUBLIC_ACCENT_LABELS, PUBLIC_ACCENT_SWATCH, PUBLIC_ACCENTS } from '@/modules/projects/schema';
 import { cn } from '@/lib/utils';
 import { CreativeStudio } from '@/components/web-sites/CreativeStudio';
-import { pageantSiteDesignSchema, parsePageantSiteDesign } from '@/lib/events/pageant-site-design';
 import { SiteDesignAssistant } from '@/components/web-sites/SiteDesignAssistant';
 import { CustomDomainSection } from './CustomDomainSection';
 import { PageantFooterFields } from './PageantFooterFields';
 import { TypographyPicker } from './TypographyPicker';
-import { effectiveFont, pageantFontInfo, parsePageantTypography } from '@/lib/events/pageant-typography';
+import { effectiveFont, pageantFontInfo } from '@/lib/events/pageant-typography';
 import { PAGEANT_FONT_CLASSES } from '@/components/public/pageant/fonts';
 import { SITE_FONT_CLASSES } from '@/components/web-sites/site-fonts';
 import { AboutTextPreview } from './AboutTextPreview';
 import { FooterPartnersEditor, type FooterPartnersDraft } from './FooterPartnersEditor';
-import { parseFooterPartners } from '@/lib/events/pageant-partners';
+import { PageantVisualEditor } from './site-editor/PageantVisualEditor';
+import { initialPartners, initialSiteFormValues, stateFingerprint, type SiteEditorState } from './site-editor/site-draft';
 
 type Toggle = 'showCandidatesPublic' | 'showSponsorsPublic' | 'showVoteRankingPublic' | 'showResultsPublic' | 'sponsorLeadFormEnabled';
 
@@ -41,37 +41,10 @@ const TOGGLES: Array<{ key: Toggle; label: string; hint: string }> = [
 
 export function PublicSiteForm({ project, canWrite }: { project: Project; canWrite: boolean }) {
   const router = useRouter();
-  const [values, setValues] = useState(() => ({
-    publicSiteDesign: parsePageantSiteDesign(project.publicSiteDesign) ?? pageantSiteDesignSchema.parse({}),
-    publicSlug: project.publicSlug ?? '',
-    publicSiteEnabled: project.publicSiteEnabled,
-    publicTagline: project.publicTagline ?? '',
-    publicDescription: project.publicDescription ?? '',
-    coverImageUrl: project.coverImageUrl ?? '',
-    publicTypography: parsePageantTypography(project.publicTypography),
-    publicAccent: ((PUBLIC_ACCENTS as readonly string[]).includes(project.publicAccent) ? project.publicAccent : 'gold') as PublicAccentKey,
-    instagramHandle: formatInstagramHandlesForForm(project.instagramHandle),
-    publicContactEmail: project.publicContactEmail ?? '',
-    publicWhatsapp: project.publicWhatsapp ? formatWhatsappNumber(project.publicWhatsapp) : '',
-    showCandidatesPublic: project.showCandidatesPublic,
-    showSponsorsPublic: project.showSponsorsPublic,
-    showVoteRankingPublic: project.showVoteRankingPublic,
-    showResultsPublic: project.showResultsPublic,
-    sponsorLeadFormEnabled: project.sponsorLeadFormEnabled,
-    directorName: project.directorName ?? '',
-    directorTitle: (project.directorTitle === 'Directora' ? 'Directora' : 'Director') as DirectorTitle,
-    directorRole: project.directorRole ?? '',
-    directorBio: project.directorBio ?? '',
-    directorPhotoUrl: project.directorPhotoUrl ?? '',
-    faviconUrl: project.faviconUrl ?? '',
-    sponsorExclusivityNote: project.sponsorExclusivityNote ?? '',
-  }));
+  const [values, setValues] = useState(() => initialSiteFormValues(project));
   const { footer, ...creative } = values.publicSiteDesign;
   // Logos del pie: el enlace queda como se escribió y se normaliza al guardar.
-  const [partners, setPartners] = useState<FooterPartnersDraft>(() => {
-    const saved = parseFooterPartners(project.footerPartners);
-    return { title: saved.title ?? '', items: saved.items.map((item) => ({ id: item.id, name: item.name, logoUrl: item.logoUrl, href: item.href ?? '' })) };
-  });
+  const [partners, setPartners] = useState<FooterPartnersDraft>(() => initialPartners(project));
   // La trayectoria se edita como texto, un logro por línea.
   const [highlightsText, setHighlightsText] = useState(project.directorHighlights.join('\n'));
   const [uploadingDirector, setUploadingDirector] = useState(false);
@@ -83,6 +56,14 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const set = <K extends keyof typeof values>(key: K, value: (typeof values)[K]) => setValues((prev) => ({ ...prev, [key]: value }));
+  // Editor visual: edita ESTE mismo borrador, así que cerrar el editor no pierde nada.
+  const editorState: SiteEditorState = useMemo(() => ({ values, partners, highlightsText }), [values, partners, highlightsText]);
+  const fingerprint = useMemo(() => stateFingerprint(editorState), [editorState]);
+  const [savedFingerprint, setSavedFingerprint] = useState(fingerprint);
+  const dirty = fingerprint !== savedFingerprint;
+  const [editorHost, setEditorHost] = useState<Element | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const savingRef = useRef(false);
 
   // Verificación de la dirección mientras se escribe (espera 400 ms entre teclas).
   useEffect(() => {
@@ -98,18 +79,23 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
     return () => window.clearTimeout(timer);
   }, [values.publicSlug, project.id, project.publicSlug]);
 
-  async function uploadImage(file: File, purpose: 'cover' | 'director' | 'favicon' = 'cover'): Promise<string | null> {
+  async function uploadImage(file: File, purpose: 'cover' | 'director' | 'favicon' | 'studio' = 'cover'): Promise<string | null> {
     const form = new FormData();
     form.append('projectId', project.id);
     form.append('purpose', purpose);
     form.append('file', file);
-    const res = await fetch('/api/projects/cover-upload', { method: 'POST', body: form });
-    const json = (await res.json()) as { success: boolean; data?: { url: string }; error?: string };
-    if (!json.success || !json.data) {
-      toast.error(json.error ?? 'No se pudo subir la imagen');
+    try {
+      const res = await fetch('/api/projects/cover-upload', { method: 'POST', body: form });
+      const json = (await res.json()) as { success: boolean; data?: { url: string }; error?: string };
+      if (!json.success || !json.data) {
+        toast.error(json.error ?? 'No se pudo subir la imagen');
+        return null;
+      }
+      return json.data.url;
+    } catch {
+      toast.error('No se pudo conectar con el almacenamiento. Intenta nuevamente.');
       return null;
     }
-    return json.data.url;
   }
 
   async function uploadDirectorPhoto(file: File) {
@@ -154,27 +140,62 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
     }
   }
 
-  async function save() {
+  /** Guarda lo que hay en pantalla (formulario y editor visual comparten el borrador). */
+  async function save(): Promise<boolean> {
+    if (!canWrite || savingRef.current) return false;
+    savingRef.current = true;
     setSaving(true);
+    const sent = fingerprint;
     try {
       const result = await updatePublicSiteAction(project.id, { ...values, directorHighlights: highlightsText.split('\n'), footerPartners: partners });
       if (!result.success) {
         toast.error(result.error);
-        return;
+        return false;
       }
+      setSavedFingerprint(sent);
       toast.success(result.message ?? 'Guardado');
       router.refresh();
+      return true;
+    } catch {
+      toast.error('No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.');
+      return false;
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
+  }
+
+  function openEditor() {
+    // Dentro del tema del panel (y de su paleta de marca), fuera de cualquier contenedor con scroll.
+    setEditorHost(rootRef.current?.closest('.theme-saas-light') ?? document.body);
+  }
+
+  function closeEditor() {
+    setEditorHost(null);
+    if (dirty && canWrite) toast.info('Tus cambios siguen aquí, sin guardar: usa «Guardar» para no perderlos.');
   }
 
   const sitePath = values.publicSlug ? `/certamen/${values.publicSlug}` : null;
 
   return (
-    <div className="grid grid-cols-1 gap-5 xl:grid-cols-[2fr_1fr]">
+    <div ref={rootRef} className="grid grid-cols-1 gap-5 xl:grid-cols-[2fr_1fr]">
       <div className="space-y-5">
-        <CreativeStudio target="event" resourceId={project.id} name={project.name} value={creative} disabled={!canWrite || saving} images={[values.coverImageUrl, values.directorPhotoUrl, values.faviconUrl].filter(Boolean)} onChange={(design) => setValues((previous) => ({ ...previous, publicSiteDesign: { ...design, footer: previous.publicSiteDesign.footer } }))} />
+        <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-card sm:flex-row sm:items-center">
+          <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground" aria-hidden="true">
+            <MousePointerClick className="size-6" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-base font-semibold">Editor visual</h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Edita el sitio sobre la página real y en grande: agrega secciones donde quieras, cambia el orden arrastrando, escribe los títulos con doble clic y elige el fondo de cada sección.
+            </p>
+          </div>
+          <Button type="button" onClick={openEditor} className="shrink-0">
+            <Maximize2 aria-hidden="true" />
+            Abrir editor visual
+          </Button>
+        </section>
+        <CreativeStudio target="event" resourceId={project.id} name={project.name} value={creative} disabled={!canWrite || saving} images={[values.coverImageUrl, values.directorPhotoUrl, values.faviconUrl].filter(Boolean)} onChange={(design) => setValues((previous) => ({ ...previous, publicSiteDesign: { ...previous.publicSiteDesign, ...design } }))} orderNote={values.publicSiteDesign.layout ? 'El orden de todo el sitio se definió en el editor visual: las secciones nuevas aparecen al final y ahí puedes moverlas.' : undefined} />
         <SiteDesignAssistant disabled={!canWrite || saving} context={{ target: 'event', resourceId: project.id, current: { publicTagline: values.publicTagline, publicDescription: values.publicDescription, publicAccent: values.publicAccent, sponsorExclusivityNote: values.sponsorExclusivityNote } }} onApply={(proposal) => { if (proposal.target === 'event') { setValues((previous) => ({ ...previous, ...proposal.design })); toast.success('Propuesta aplicada: revisa y guarda los cambios'); } }} />
         <section className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-card">
           <div className="flex items-center justify-between gap-3">
@@ -461,13 +482,40 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
         <FooterPartnersEditor projectId={project.id} value={partners} onChange={setPartners} disabled={!canWrite || saving} />
 
         {canWrite && (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-3">
             <Button type="button" onClick={() => void save()} disabled={saving}>
               {saving ? 'Guardando…' : values.publicSiteEnabled ? 'Guardar y publicar' : 'Guardar'}
             </Button>
+            {dirty && !saving && <span className="text-xs font-medium text-warning">Cambios sin guardar</span>}
           </div>
         )}
       </div>
+
+      {editorHost &&
+        createPortal(
+          <PageantVisualEditor
+            project={{
+              id: project.id,
+              name: project.name,
+              publicSlug: project.publicSlug,
+              publicSiteEnabled: project.publicSiteEnabled,
+              publicUrl: project.publicSlug ? (project.customDomain && project.customDomainVerifiedAt ? `https://${project.customDomain}` : `/certamen/${project.publicSlug}`) : null,
+            }}
+            state={editorState}
+            onChange={(next) => {
+              setValues(next.values);
+              setPartners(next.partners);
+              setHighlightsText(next.highlightsText);
+            }}
+            onSave={save}
+            saving={saving}
+            dirty={dirty}
+            canWrite={canWrite}
+            upload={uploadImage}
+            onClose={closeEditor}
+          />,
+          editorHost
+        )}
 
       <aside className="space-y-4">
         <section className="rounded-lg border border-border bg-card p-5 shadow-card">

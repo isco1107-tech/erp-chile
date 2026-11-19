@@ -73,6 +73,21 @@ export const EVENTOS_SECTIONS: ManualSection[] = [
         tip: 'Nunca se publica RUT, edad, contacto ni la ficha de postulación: de cada candidata oficial solo sale nombre artístico, número, a quién representa, foto y la bio que el equipo escribe en el Tablero de casting.',
       },
       {
+        id: 'editor-visual',
+        title: 'Diseñar el sitio en el editor visual',
+        steps: [
+          'En "Sitio público" haz clic en "Abrir editor visual": el sitio se abre en grande, tal como lo verá el público.',
+          'Arriba elige el dispositivo (escritorio, notebook, tableta o celular) y el zoom; "Candidata" y "Sponsor" muestran cada cara del sitio.',
+          'Haz clic sobre cualquier sección para seleccionarla: el panel "Sección" muestra sus textos, su contenido y su apariencia ("Fondo" y "Espacio arriba y abajo"). Con "Mostrar en el sitio" la ocultas sin perder nada.',
+          'Haz doble clic sobre un título, una etiqueta, la frase principal o el texto "Sobre el certamen" para escribir ahí mismo: Enter guarda el cambio (en "Sobre el certamen", Ctrl + Enter) y Esc lo cancela.',
+          'Para agregar algo donde quieras, pasa el mouse entre dos secciones y usa "Agregar sección aquí" (o "Agregar debajo" en la barra de la sección seleccionada): textos, fotos, galerías, videos, cifras, testimonios, lienzos libres y más, cada uno con varios diseños.',
+          'En "Estructura" está todo el sitio en orden: arrastra las filas o usa las flechas para cambiar el orden, el ojo para ocultar y "Agregar aquí" para insertar entre dos filas. "Sin datos" marca las secciones que aparecen solas cuando el dato existe, y "Texto de ejemplo", lo que todavía falta escribir.',
+          'En "Diseño" eliges el color de acento, la tipografía, en "Piezas del sitio" qué se ve (la numeración, el botón de WhatsApp, la cinta, la cuenta regresiva y los datos clave de la portada) y los colores de las secciones del estudio.',
+          'Usa "Probar" para recorrer el sitio como un visitante, y Ctrl + Z / Ctrl + Shift + Z para deshacer y rehacer. "Guardar y publicar" (o "Guardar", si el sitio aún no está publicado) guarda todo, también con Ctrl + S; "Cerrar" vuelve al formulario sin perder lo que cambiaste.',
+        ],
+        tip: 'El editor visual y el formulario de "Sitio público" editan lo mismo y se guardan con el mismo botón: lo que cambies en uno ya está en el otro.',
+      },
+      {
         id: 'salon-fama',
         title: 'Salón de la fama (ganadoras anteriores)',
         steps: [

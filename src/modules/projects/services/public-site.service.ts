@@ -1,4 +1,4 @@
-import { parsePageantSiteDesign, type PageantFooter } from '@/lib/events/pageant-site-design';
+import { parsePageantSiteDesign, type PageantSiteDesign } from '@/lib/events/pageant-site-design';
 import type { CreativeSite } from '@/lib/web-sites/creative';
 import { requirementsFromProject, type RegistrationRequirements } from '@/lib/events/registration-requirements';
 import 'server-only';
@@ -42,7 +42,8 @@ export interface PublicPageantCandidate {
 }
 
 export interface PublicPageantSite {
-  creative?: CreativeSite & { footer?: PageantFooter };
+  /** Diseño del estudio y del sitio (orden libre, ajustes por sección); los campos propios del certamen pueden faltar en datos de prueba. */
+  creative?: CreativeSite & Partial<Pick<PageantSiteDesign, 'footer' | 'layout' | 'sections' | 'options'>>;
   slug: string;
   name: string;
   organizer: string;
@@ -127,7 +128,28 @@ export async function getPageantSitePreview(companyId: string, projectId: string
   return assemblePageantSite(project, project.publicSlug ?? 'vista-previa');
 }
 
-async function assemblePageantSite(project: ProjectWithCompany, slug: string): Promise<PublicPageantSite | null> {
+/**
+ * Base del lienzo del editor visual (`/preview/certamen/[id]/editor`): el mismo
+ * sitio, pero con los datos de TODAS las secciones aunque su interruptor esté
+ * apagado (candidatas, sponsors, ranking, resultados), para que el editor las
+ * prenda y apague en vivo con el borrador (`applyDraftToSite`). Las candidatas
+ * siguen siendo solo las oficiales marcadas para el sitio. Solo para el equipo,
+ * con el `companyId` de la sesión; nunca desde una ruta pública.
+ */
+export async function getPageantSiteEditorBase(companyId: string, projectId: string): Promise<PublicPageantSite | null> {
+  const project = await prisma.project.findFirst({ where: { id: projectId, companyId }, include: WITH_COMPANY });
+  if (!project) return null;
+  return assemblePageantSite(project, project.publicSlug ?? 'vista-previa', { forceSections: true });
+}
+
+async function assemblePageantSite(project: ProjectWithCompany, slug: string, opts: { forceSections?: boolean } = {}): Promise<PublicPageantSite | null> {
+  // Qué secciones con interruptor se publican (el editor las trae todas y decide con su borrador).
+  const show = {
+    candidates: opts.forceSections || project.showCandidatesPublic,
+    sponsors: opts.forceSections || project.showSponsorsPublic,
+    results: opts.forceSections || project.showResultsPublic,
+    ranking: opts.forceSections || project.showVoteRankingPublic,
+  };
   const { company } = project;
   if (company.status === 'SUSPENDED' || company.status === 'CANCELLED') return null;
   const features = company.features;
@@ -138,14 +160,14 @@ async function assemblePageantSite(project: ProjectWithCompany, slug: string): P
   const now = new Date();
 
   const [candidates, contracts, packages, ticketTypes, finalRound, pastWinners] = await Promise.all([
-    features.hasCandidates && project.showCandidatesPublic
+    features.hasCandidates && show.candidates
       ? prisma.candidate.findMany({
           where: { ...where, status: { in: PUBLIC_CANDIDATE_STATUSES }, showOnPublicSite: true },
           select: { id: true, fullName: true, stageName: true, candidateNumber: true, representing: true, photoUrl: true, publicBio: true, status: true },
           orderBy: [{ candidateNumber: { sort: 'asc', nulls: 'last' } }, { fullName: 'asc' }],
         })
       : Promise.resolve([]),
-    features.hasSponsorships && project.showSponsorsPublic
+    features.hasSponsorships && show.sponsors
       ? prisma.sponsorshipContract.findMany({
           where: { ...where, status: { in: ['CONFIRMED', 'COMPLETED'] } },
           select: { tier: true, contact: { select: { razonSocial: true, nombreFantasia: true } } },
@@ -171,7 +193,7 @@ async function assemblePageantSite(project: ProjectWithCompany, slug: string): P
     features.hasTicketing && project.ticketSalesToken
       ? prisma.ticketType.findMany({ where: { ...where, salesOpen: true }, select: { price: true } })
       : Promise.resolve([]),
-    features.hasJudging && project.showResultsPublic
+    features.hasJudging && show.results
       ? prisma.competitionRound.findFirst({
           where: { ...where, isFinalRound: true, status: 'COMPLETED' },
           select: {
@@ -194,7 +216,7 @@ async function assemblePageantSite(project: ProjectWithCompany, slug: string): P
 
   // Ranking de votos: solo órdenes pagadas, solo si producción decidió mostrarlo.
   let voteRanking: PublicPageantSite['voteRanking'] = null;
-  if (features.hasPublicVoting && project.showVoteRankingPublic) {
+  if (features.hasPublicVoting && show.ranking) {
     const rows = await prisma.voteOrder.groupBy({
       by: ['candidateId'],
       where: { ...where, paymentStatus: 'PAID' },
@@ -277,8 +299,8 @@ async function assemblePageantSite(project: ProjectWithCompany, slug: string): P
       photoUrl: c.photoUrl,
       bio: c.publicBio,
       // Finalista/ganadora solo se revelan si producción publicó resultados.
-      isFinalist: project.showResultsPublic && (c.status === 'FINALIST' || c.status === 'WINNER'),
-      isWinner: project.showResultsPublic && c.status === 'WINNER',
+      isFinalist: show.results && (c.status === 'FINALIST' || c.status === 'WINNER'),
+      isWinner: show.results && c.status === 'WINNER',
     })),
     sponsorsByTier,
     packages: packages.map((p) => ({

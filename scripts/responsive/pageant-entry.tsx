@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { PageantSite } from '@/components/public/pageant/PageantSite';
+import { PageantPage } from '@/components/public/pageant/PageantPage';
 import { formatCurrency } from '@/lib/chile/tax';
 import { buildPageantView } from '@/lib/events/pageant-site';
 import { FIXTURES } from './fixtures';
@@ -9,7 +9,7 @@ export function renderPageant(name: string): string {
   const site = FIXTURES[name];
   if (!site) throw new Error(`No existe el caso "${name}"`);
   const view = buildPageantView(site, new Date('2026-09-30T12:00:00Z'), 'https://ejemplo.cl', formatCurrency);
-  return renderToStaticMarkup(<PageantSite site={site} view={view} />);
+  return renderToStaticMarkup(<PageantPage site={site} view={view} />);
 }
 
 export const FIXTURE_NAMES = Object.keys(FIXTURES);

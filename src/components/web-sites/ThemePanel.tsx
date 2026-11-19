@@ -267,7 +267,7 @@ export function ThemePanel({ theme, onChange, disabled }: ThemePanelProps) {
   const textFonts = FONT_OPTIONS.filter((font) => !FONT_STACKS[font].headingOnly || font === theme.font);
 
   return (
-    <div className={cn('space-y-6', SITE_FONT_CLASSES)}>
+    <div className={cn('@container space-y-6', SITE_FONT_CLASSES)}>
       {problems.length > 0 ? (
         <div role="status" className="space-y-1.5 rounded-lg bg-warning-soft px-4 py-3 text-sm text-warning">
           <p className="flex items-center gap-2 font-semibold">
@@ -315,7 +315,7 @@ export function ThemePanel({ theme, onChange, disabled }: ThemePanelProps) {
       </Section>
 
       <Section title="Colores personalizados" description="Si ya tienes los colores de tu marca (los de tu logo), escríbelos aquí. Si no, quédate con una paleta lista.">
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 @md:grid-cols-2">
           {COLOR_FIELDS.map((field) => (
             <ColorField key={field.key} label={field.label} hint={field.hint} value={theme[field.key]} disabled={disabled} onChange={(hex) => onChange({ [field.key]: hex })} />
           ))}

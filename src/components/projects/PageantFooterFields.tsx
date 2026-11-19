@@ -16,7 +16,7 @@ export function PageantFooterFields({ value, disabled, onChange }: Props) {
   const set = (patch: Partial<PageantFooter>) => onChange({ ...value, ...patch });
 
   return (
-    <section className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-card" aria-labelledby="pageant-footer-title">
+    <section className="@container space-y-4 rounded-lg border border-border bg-card p-5 shadow-card" aria-labelledby="pageant-footer-title">
       <h2 id="pageant-footer-title" className="text-base font-semibold">Pie de página</h2>
       <TextField label="Título del pie" value={value.title} max={120} disabled={disabled} onChange={(title) => set({ title })} placeholder="Nombre del certamen" />
       <TextField label="Descripción del pie" value={value.description} max={300} disabled={disabled} onChange={(description) => set({ description })} multiline />
@@ -36,7 +36,7 @@ export function PageantFooterFields({ value, disabled, onChange }: Props) {
         summary={(link) => link.label}
         renderItem={(link, update) => (
           <div className="space-y-3">
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 @md:grid-cols-2">
               <TextField label="Texto del enlace" value={link.label} max={40} disabled={disabled} onChange={(label) => update({ label })} />
               <TextField label="Dirección del enlace" value={link.href} max={500} disabled={disabled} onChange={(href) => update({ href })} placeholder="https://ejemplo.cl" error={link.href.trim() && !safeHref(link.href) ? 'Escribe una dirección válida.' : undefined} />
             </div>
