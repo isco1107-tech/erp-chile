@@ -70,6 +70,7 @@ export const SITE_CSS = `
 .ws-star-off{color:color-mix(in srgb,var(--s-fg) 25%,transparent)}
 .ws-logo{filter:grayscale(1);opacity:.65;transition:filter .2s ease,opacity .2s ease}
 .ws-logo-link:hover .ws-logo,.ws-logo-link:focus-visible .ws-logo,.ws-logo:hover{filter:none;opacity:1}
+.ws-logo.ws-logo-color{filter:none;opacity:1}
 .ws-carousel{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--s-fg) 35%,transparent) transparent}
 
 .ws-root[data-card=shadow] .ws-card{border-color:transparent;box-shadow:0 1px 2px rgb(0 0 0 / .06),0 14px 34px -16px rgb(0 0 0 / .3)}

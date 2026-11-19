@@ -304,7 +304,8 @@ export const quoteBlockSchema = z.object({
   variant: choice(QUOTE_VARIANTS, 'plain'),
 });
 
-export const LOGOS_VARIANTS = ['row', 'grid', 'marquee'] as const;
+/** `cards` y `carousel` muestran el nombre de la marca bajo el logo y a todo color (auspiciadores). */
+export const LOGOS_VARIANTS = ['row', 'grid', 'marquee', 'cards', 'carousel'] as const;
 export const logoItemSchema = z.object({ imageUrl: link, alt: text(160), href: link });
 export const logosBlockSchema = z.object({
   ...base,

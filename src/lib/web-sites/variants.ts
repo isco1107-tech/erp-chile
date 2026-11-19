@@ -201,6 +201,8 @@ export const BLOCK_LAYOUTS: LayoutRegistry = {
       { value: 'row', label: 'En fila', description: 'Logos en gris que toman color al pasar el mouse.', photos: true },
       { value: 'grid', label: 'Cuadrícula', description: 'Cada logo en su casilla.', photos: true },
       { value: 'marquee', label: 'En movimiento', description: 'Una cinta que desfila sola.', photos: true },
+      { value: 'cards', label: 'Tarjetas con nombre', description: 'Cada logo a todo color en su tarjeta, con el nombre de la marca debajo.', photos: true },
+      { value: 'carousel', label: 'Carrusel con nombres', description: 'Tarjetas con logo y nombre que desfilan solas, a todo color.', photos: true },
     ],
   },
   pricelist: {

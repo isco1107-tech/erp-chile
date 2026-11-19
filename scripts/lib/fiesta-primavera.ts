@@ -76,6 +76,19 @@ export function buildFiestaDesign(logos: FiestaLogo[]): CreativeSite {
         style: { background: 'soft', pattern: 'petals', spacing: 'md', shape: 'wave' },
       },
       {
+        id: 'cifras',
+        type: 'stats',
+        variant: 'cards',
+        heading: 'Una tradición con historia',
+        style: { background: 'default', spacing: 'md' },
+        items: [
+          { value: '1913', label: 'Nace la idea de celebrar la primavera' },
+          { value: '1914', label: 'Primeros Juegos Florales' },
+          { value: '1928', label: 'La fiesta de Temuco queda en el cine' },
+          { value: '+100', label: 'Años de historia' },
+        ],
+      },
+      {
         id: 'historia',
         type: 'timeline',
         variant: 'alternating',
@@ -136,13 +149,21 @@ export function buildFiestaDesign(logos: FiestaLogo[]): CreativeSite {
         ],
       },
       {
+        id: 'galeria',
+        type: 'gallery',
+        variant: 'carousel',
+        heading: 'La fiesta en imágenes',
+        // Sin fotos la sección no se publica (el sitio público omite las secciones vacías); se suben en el estudio.
+        images: [],
+        style: { background: 'default', spacing: 'lg' },
+      },
+      {
         id: 'auspiciadores',
         type: 'logos',
-        variant: 'marquee',
-        heading: 'Nos acompañan en esta primavera',
-        // Sin logos subidos la sección queda oculta (nunca un logo inventado): se suben en el estudio y se muestra.
-        hidden: logos.length === 0,
-        style: { background: 'soft', spacing: 'md' },
+        variant: 'carousel',
+        heading: 'Auspiciadores de la Fiesta de la Primavera',
+        // Visible en el editor desde el inicio: sin logos el sitio público la omite (nunca un logo inventado).
+        style: { background: 'soft', pattern: 'petals', spacing: 'lg' },
         items: logos.slice(0, 16).map((logo) => ({ imageUrl: logo.url, alt: logo.name, href: '' })),
       },
       {

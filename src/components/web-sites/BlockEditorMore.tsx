@@ -233,7 +233,7 @@ export function LogosFields({ block, disabled, onChange, document, pageId }: Fie
   return (
     <div className="space-y-4">
       <TextField label="Título de la sección (opcional)" value={block.heading} onChange={(heading) => onChange({ ...block, heading })} max={120} disabled={disabled} placeholder="Ej.: Han confiado en nosotros" />
-      <Tip>Muestra con quién has trabajado o qué te respalda. Usa logos con fondo transparente (PNG) y pide permiso a las marcas.</Tip>
+      <Tip>Muestra con quién has trabajado o qué te respalda. Usa logos con fondo transparente (PNG) y pide permiso a las marcas. Los diseños «Tarjetas con nombre» y «Carrusel con nombres» muestran el nombre de cada marca bajo su logo.</Tip>
       <div className="space-y-2">
         <p className="text-sm font-medium">
           Logos ({block.items.length}/{MAX_LOGOS})

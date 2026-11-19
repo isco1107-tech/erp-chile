@@ -246,7 +246,46 @@ export function LogosSection({ block, ctx, center }: SectionProps<'logos'>) {
   };
   const heading = block.heading ? <h2 className={cx('ws-eyebrow mb-8', center && 'text-center', ctx.h1BlockId === block.id && 'sr-only')}>{block.heading}</h2> : null;
 
+  // Tarjeta de auspiciador: logo a todo color y el nombre de la marca debajo.
+  const sponsorCard = (item: LogoItem, className?: string) => (
+    <div className={cx('ws-card flex h-full flex-col items-center justify-center gap-3 p-5 text-center @2xl:p-6', className)}>
+      <span className="flex h-16 w-full items-center justify-center @2xl:h-20">{logo(item, 'ws-logo-color h-full max-h-16 max-w-full @2xl:max-h-20')}</span>
+      {item.alt.trim() && <span className="ws-h block w-full min-w-0 text-sm leading-snug [overflow-wrap:anywhere] @2xl:text-base">{item.alt}</span>}
+    </div>
+  );
+
   switch (block.variant) {
+    case 'cards':
+      return (
+        <div>
+          {heading}
+          <ul className="grid grid-cols-2 gap-3 @md:grid-cols-3 @3xl:grid-cols-4 @2xl:gap-5">
+            {items.map((item, index) => (
+              <li key={index} className="min-w-0">
+                {sponsorCard(item)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      );
+    case 'carousel':
+      return (
+        <div>
+          {heading}
+          <Marquee
+            // Una tarjeta mide 12–14 rem más el espacio: con 14 por grupo se cubre una pantalla de 2560 px.
+            repeat={Math.ceil(14 / Math.max(1, items.length))}
+            seconds={Math.max(32, items.length * 6)}
+            className="-mx-5 py-2 @2xl:mx-0"
+            groupClassName="gap-4 pr-4 @2xl:gap-6 @2xl:pr-6"
+            items={items.map((item, index) => (
+              <span key={index} className="block w-48 shrink-0 @2xl:w-56">
+                {sponsorCard(item, 'h-40 @2xl:h-44')}
+              </span>
+            ))}
+          />
+        </div>
+      );
     case 'grid':
       return (
         <div>
