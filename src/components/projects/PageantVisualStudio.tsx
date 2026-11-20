@@ -14,7 +14,7 @@ import { SiteDesignAssistant } from '@/components/web-sites/SiteDesignAssistant'
 import { ThemePanel } from '@/components/web-sites/ThemePanel';
 import { EditorAssetsContext, blockSummary, uploadCreativeAsset, type EditorAsset } from '@/components/web-sites/editor-shared';
 import { canRedo, canUndo, emptyHistory, recordChange, redoStep, undoStep } from '@/components/web-sites/editor-history';
-import { PAGEANT_INSERTIONS, PAGEANT_INSERTION_POINTS, PAGEANT_REGIONS, pageantBlockPlacement, pageantDesignForDisplay, pageantDesignImageUrls, pageantItemKeySchema, pageantRegionSchema, placePageantBlock, type PageantBlockTarget, type PageantInsertion, type PageantSiteDesign } from '@/lib/events/pageant-site-design';
+import { PAGEANT_INSERTIONS, PAGEANT_INSERTION_POINTS, PAGEANT_REGIONS, pageantBlockPlacement, pageantDesignForDisplay, pageantDesignImageUrls, pageantHeroImageIds, pageantItemKeySchema, pageantRegionSchema, placePageantBlock, type PageantBlockTarget, type PageantInsertion, type PageantSiteDesign } from '@/lib/events/pageant-site-design';
 import { compositionsFit, createPageantComposition, MAX_PAGEANT_COMPOSITIONS, pageantCompositions, placePageantComposition, type PageantComposition } from '@/lib/events/pageant-compositions';
 import { PAGEANT_LAYER_LABELS, pageantStudioShortcut, type PageantCanvasPoint, type PageantCanvasRef, type PageantLayerCommand, type PageantLayerKind, type PageantStudioCommand, type PageantStudioState, type PageantPreviewContent, type PreviewToStudio } from '@/lib/events/pageant-studio';
 import { alignLayers, copyLayers, deleteLayers, distributeLayers, duplicateLayers, moveLayers, pasteLayers } from '@/lib/events/pageant-layer-operations';
@@ -713,6 +713,7 @@ function StudioEditor({ projectId, design, content, nativeText, onNativeTextChan
                 <div key={selectedRegion} className="space-y-4">
                   <h3 className="text-sm font-semibold">Capas sobre {PAGEANT_REGIONS[selectedRegion]}</h3>
                   <CanvasEditor value={selectedOverlay} disabled={disabled} document={doc} pageId={pageId} fitSection
+                    responsiveImageIds={selectedRegion === 'inicio' ? pageantHeroImageIds(design) : undefined}
                     liveSelection={canvasControls}
                     onChange={(canvas) => updateCanvas({ region: selectedRegion }, canvas)}
                   />

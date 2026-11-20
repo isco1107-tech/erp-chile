@@ -102,6 +102,35 @@ function withPhotos(design: ReturnType<typeof buildFiestaDesign>): ReturnType<ty
 
 export const FIXTURES: Record<string, PublicPageantSite> = {
   normal: baseSite(),
+  portadaLogos: baseSite({
+    name: 'Fiesta de la Primavera Temuco',
+    slug: 'portada-logos',
+    accent: 'primavera',
+    creative: pageantSiteDesignSchema.parse({
+      enabled: true,
+      overlays: { inicio: { enabled: true, elements: [
+        {
+          id: 'portada-municipio', kind: 'image', imageUrl: 'https://img.test/logo-1.svg', alt: 'Municipalidad de Temuco',
+          href: 'https://example.cl/municipalidad', desktop: { x: 6, y: 40, width: 19, height: 26 },
+        },
+        {
+          id: 'portada-produccion', kind: 'image', imageUrl: 'https://img.test/logo-cuadrado.svg', alt: 'CR Producciones',
+          desktop: { x: 78, y: 36, width: 15, height: 34 },
+        },
+        {
+          id: 'portada-ajuste-manual', kind: 'image', imageUrl: 'https://img.test/logo-2.svg', alt: 'Organización invitada',
+          desktop: { x: 90, y: 84, width: 8, height: 10 },
+          tablet: { x: 4, y: 8, width: 10, height: 7 },
+          mobile: { x: 4, y: 8, width: 12, height: 7 },
+        },
+        {
+          id: 'portada-oculto-movil', kind: 'image', imageUrl: 'https://img.test/logo-2.svg', alt: 'Patrocinador',
+          desktop: { x: 22, y: 80, width: 12, height: 10 }, mobileHidden: true,
+        },
+      ] } },
+      options: { ribbon: false, countdown: false, pills: false },
+    }),
+  }),
   lienzoVisual: baseSite({
     creative: pageantSiteDesignSchema.parse({
       enabled: true,

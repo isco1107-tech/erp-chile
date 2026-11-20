@@ -7,7 +7,7 @@ import { SITE_FONT_CLASSES } from '@/components/web-sites/site-fonts';
 import type { CanvasElement } from '@/lib/web-sites/canvas';
 import { themeVariables } from '@/lib/web-sites/theme';
 import { documentFromBlocks, homeOf } from '@/lib/web-sites/site';
-import { pageantRegionSchema, type PageantBlockTarget, type PageantRegion } from '@/lib/events/pageant-site-design';
+import { pageantHeroImageIds, pageantRegionSchema, type PageantBlockTarget, type PageantRegion } from '@/lib/events/pageant-site-design';
 import type { PageantNativeTextField } from '@/lib/events/pageant-native-text';
 import type { PublicPageantSite } from '@/modules/projects/services/public-site.service';
 
@@ -35,7 +35,7 @@ export function pageantLayerOverlays(site: PublicPageantSite, editor?: PageantLa
     if (!canvas?.enabled || !canvas.elements.some((layer) => !layer.hidden)) return [];
     return [[region, (
       <div key={region} className={`pgs-canvas-overlay ${SITE_FONT_CLASSES}`} data-pageant-overlay={region} style={style}>
-        <CanvasScene canvas={canvas} blockId={region} ctx={{
+        <CanvasScene canvas={canvas} blockId={region} responsiveImageIds={region === 'inicio' ? pageantHeroImageIds(design) : undefined} ctx={{
           ...ctx,
           renderCanvasLayer: editor?.renderNativeLayer ? (_, ...layer) => editor.renderNativeLayer?.(region, ...layer) : undefined,
         }} />

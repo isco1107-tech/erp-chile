@@ -3,7 +3,7 @@ import { blockImageUrls, type WebSiteBlock } from '@/lib/web-sites/blocks';
 import { canvasSchema } from '@/lib/web-sites/canvas';
 import { creativeSiteSchema } from '@/lib/web-sites/creative';
 import { MAX_FOOTER_LINKS, menuLinkSchema } from '@/lib/web-sites/site';
-import { safeHref } from '@/lib/web-sites/urls';
+import { safeHref, safeImageSrc } from '@/lib/web-sites/urls';
 import { compositionsFit, MAX_PAGEANT_COMPOSITIONS, pageantCompositionSchema } from './pageant-compositions';
 import { insertBlockAt, PAGEANT_SECTIONS, pageantLayoutSchema, pageantOptionsSchema, pageantSectionsSchema, resolveLayout, type LayoutItem, type PageantSectionId, type ResolvedLayout } from './pageant-layout';
 
@@ -68,6 +68,14 @@ export const pageantRegionSchema = z.enum(Object.keys(PAGEANT_REGIONS) as (keyof
 export type PageantRegion = z.infer<typeof pageantRegionSchema>;
 export const pageantItemKeySchema = z.string().regex(/^[a-z][a-z0-9_.-]{0,119}$/);
 export const pageantLayerIdSchema = z.string().regex(/^[a-zA-Z0-9_-]{1,40}$/);
+export const PAGEANT_HERO_MOBILE_WIDTH = 600;
+export const PAGEANT_HERO_TABLET_WIDTH = 1024;
+
+export function pageantHeroImageIds(design: Pick<PageantSiteDesign, 'overlays' | 'relocated'>): ReadonlySet<string> {
+  const coverId = design.relocated?.['inicio.cover-photo'];
+  const layers = design.overlays?.inicio?.elements ?? [];
+  return new Set(layers.filter((layer) => layer.kind === 'image' && layer.id !== coverId && safeImageSrc(layer.imageUrl)).map(({ id }) => id));
+}
 
 export function pageantNamedItem(prefix: string, name: string) {
   let hash = 2166136261;

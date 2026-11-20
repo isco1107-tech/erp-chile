@@ -17,11 +17,11 @@ function Slider({ label, value, min, max, step = 1, onChange, suffix = '' }: {
 
 const DEFAULT_IMAGE_FRAME = { fit: 'cover', x: 50, y: 50, zoom: 100 } as const;
 
-export function CanvasImageFrameEditor({ element, onChange }: {
-  element: CanvasElement; onChange: (patch: Partial<CanvasElement>) => void;
+export function CanvasImageFrameEditor({ element, defaultFit = 'cover', onChange }: {
+  element: CanvasElement; defaultFit?: (typeof CANVAS_IMAGE_FITS)[number]; onChange: (patch: Partial<CanvasElement>) => void;
 }) {
   const src = safeImageSrc(element.imageUrl);
-  const frame = element.imageFrame ?? DEFAULT_IMAGE_FRAME;
+  const frame = element.imageFrame ?? { ...DEFAULT_IMAGE_FRAME, fit: defaultFit };
   const update = (patch: Partial<NonNullable<CanvasElement['imageFrame']>>) => onChange({ imageFrame: { ...frame, ...patch } });
   if (!src) return null;
 

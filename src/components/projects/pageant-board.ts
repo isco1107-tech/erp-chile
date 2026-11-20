@@ -1,8 +1,12 @@
-import { pageantItemKeySchema, pageantRegionSchema } from '@/lib/events/pageant-site-design';
+import { PAGEANT_HERO_MOBILE_WIDTH, PAGEANT_HERO_TABLET_WIDTH, pageantItemKeySchema, pageantRegionSchema } from '@/lib/events/pageant-site-design';
 import type { PageantCanvasRef } from '@/lib/events/pageant-studio';
 import { CANVAS_TEXT_LIMIT, type CanvasDevice, type CanvasElement } from '@/lib/web-sites/canvas';
 
 export function pageantCanvasDevice(board: HTMLElement): CanvasDevice {
+  if (board.closest('.pgs-hero')) {
+    if (window.matchMedia(`(max-width: ${PAGEANT_HERO_MOBILE_WIDTH}px)`).matches) return 'mobile';
+    return window.matchMedia(`(max-width: ${PAGEANT_HERO_TABLET_WIDTH}px)`).matches ? 'tablet' : 'desktop';
+  }
   return board.clientWidth <= 600 ? 'mobile' : board.clientWidth <= 900 ? 'tablet' : 'desktop';
 }
 

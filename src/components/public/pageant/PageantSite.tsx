@@ -462,7 +462,6 @@ export function PageantSite({ site, view, editing, layerEditor, layout: orderedI
     inicio: () => (
       <>
         <section id="inicio" className={`pgs-hero${site.coverImageUrl ? ' has-cover' : ''}`} aria-labelledby="pgs-title" {...editKey('inicio')}>
-          {overlays.inicio}
           {site.coverImageUrl && (
             <div className="pgs-hero-cover" aria-hidden="true">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -607,6 +606,7 @@ export function PageantSite({ site, view, editing, layerEditor, layout: orderedI
               </a>
             )}
           </div>
+          {overlays.inicio}
           <a className="pgs-scroll-cue" href="#pgs-tras-portada" aria-label="Bajar al contenido">
             <span />
           </a>
