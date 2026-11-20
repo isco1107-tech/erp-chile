@@ -308,6 +308,17 @@ export const quoteBlockSchema = z.object({
 
 /** `cards` y `carousel` muestran el nombre de la marca bajo el logo y a todo color (auspiciadores). */
 export const LOGOS_VARIANTS = ['row', 'grid', 'marquee', 'cards', 'carousel'] as const;
+/**
+ * Fondo de las tarjetas de `cards` y `carousel`: el de las tarjetas del sitio,
+ * un poco más oscuro o oscuro, para que un logo claro (o recién pasado a PNG
+ * sin fondo) no se confunda con su tarjeta. El primero es el de fábrica.
+ */
+export const LOGO_BACKDROPS = ['card', 'shade', 'dark'] as const;
+export type LogoBackdrop = (typeof LOGO_BACKDROPS)[number];
+/** Los diseños de logos que se dibujan en tarjetas y por eso admiten `backdrop`. */
+export function logosUseBackdrop(variant: (typeof LOGOS_VARIANTS)[number]): boolean {
+  return variant === 'cards' || variant === 'carousel';
+}
 export const logoItemSchema = z.object({ imageUrl: link, alt: text(160), href: link });
 export const logosBlockSchema = z.object({
   ...base,
@@ -315,6 +326,7 @@ export const logosBlockSchema = z.object({
   heading: text(120),
   items: z.array(logoItemSchema).max(MAX_LOGOS).default([]),
   variant: choice(LOGOS_VARIANTS, 'row'),
+  backdrop: choice(LOGO_BACKDROPS, 'card'),
 });
 
 export const PRICELIST_VARIANTS = ['columns', 'menu', 'cards', 'photos'] as const;

@@ -382,6 +382,7 @@ export const GESTION_SECTIONS: ManualSection[] = [
           'En la pestaña Imágenes, o al editar una sección, sube JPG, PNG o WEBP (máx. 4 MB, hasta 60 por sitio).',
           'Escribe una descripción (alt) para cada imagen: la usan lectores de pantalla y buscadores.',
           'Una imagen en uso no se puede eliminar: primero quítala de las secciones.',
+          'En la sección "Clientes y marcas", si un logo viene con fondo blanco pulsa "Quitar fondo (PNG)" bajo el logo: ajusta la "Intensidad" mirando la vista previa y pulsa "Usar este PNG" (el original queda en la biblioteca). Con los diseños "Tarjetas con nombre" y "Carrusel con nombres", si un logo se confunde con su tarjeta, en "Fondo de las tarjetas" elige "Un poco más oscuro" u "Oscuro".',
         ],
       },
       {

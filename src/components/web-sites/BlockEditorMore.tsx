@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import {
   catalogItemSchema,
   logoItemSchema,
+  logosUseBackdrop,
   MAX_CATALOG_ITEMS,
   MAX_LIST_ITEMS,
   MAX_LOGOS,
@@ -28,6 +29,7 @@ import {
 } from '@/lib/web-sites/blocks';
 import { mapLinkUrl, videoEmbed, whatsappHref } from '@/lib/web-sites/urls';
 import { ImagePicker } from './ImagePicker';
+import { LogoBackgroundTool } from './LogoBackgroundTool';
 import { LinkField } from './LinkField';
 import { ListEditor } from './ListEditor';
 import { ProductImportDialog } from './ProductImportDialog';
@@ -235,6 +237,20 @@ export function LogosFields({ block, disabled, onChange, document, pageId }: Fie
       <TextField label="Título de la sección (opcional)" value={block.heading} onChange={(heading) => onChange({ ...block, heading })} max={120} disabled={disabled} placeholder="Ej.: Han confiado en nosotros" />
       <Tip>Muestra con quién has trabajado o qué te respalda. Usa logos con fondo transparente (PNG) y pide permiso a las marcas. Los diseños «Tarjetas con nombre» y «Carrusel con nombres» muestran el nombre de cada marca bajo su logo.</Tip>
       {block.variant === 'marquee' || block.variant === 'carousel' ? <MotionPreferenceTip /> : null}
+      {logosUseBackdrop(block.variant) ? (
+        <ChoiceGroup
+          label="Fondo de las tarjetas"
+          value={block.backdrop}
+          onChange={(backdrop) => onChange({ ...block, backdrop })}
+          disabled={disabled}
+          options={[
+            { value: 'card', label: 'Normal', description: 'El de las tarjetas del sitio.' },
+            { value: 'shade', label: 'Un poco más oscuro', description: 'Para logos claros que se confunden con su tarjeta.' },
+            { value: 'dark', label: 'Oscuro', description: 'Para logos blancos o muy claros.' },
+          ]}
+          hint="Si un logo se pierde en su tarjeta, oscurécela. Para quitarle el fondo blanco a un logo, usa «Quitar fondo (PNG)» bajo el logo."
+        />
+      ) : null}
       <div className="space-y-2">
         <p className="text-sm font-medium">
           Logos ({block.items.length}/{MAX_LOGOS})
@@ -252,6 +268,9 @@ export function LogosFields({ block, disabled, onChange, document, pageId }: Fie
           renderItem={(item, update) => (
             <>
               <ImagePicker label="Logo" value={item.imageUrl} onChange={(imageUrl, asset) => update({ imageUrl, ...(asset && !item.alt.trim() ? { alt: asset.alt } : {}) })} />
+              {item.imageUrl ? (
+                <LogoBackgroundTool url={item.imageUrl} alt={item.alt} disabled={disabled} backdropHint={logosUseBackdrop(block.variant)} onDone={(imageUrl) => update({ imageUrl })} />
+              ) : null}
               <TextField label="Nombre de la marca" value={item.alt} onChange={(alt) => update({ alt })} max={160} disabled={disabled} placeholder="Ej.: Panadería Sol" warning={item.imageUrl && !item.alt.trim() ? 'Falta el nombre: lo leen los lectores de pantalla.' : null} />
               <Optional title="Enlace del logo (opcional)" filled={Boolean(item.href.trim())}>
                 <LinkField label="Al tocar el logo lleva a…" value={item.href} onChange={(href) => update({ href })} document={document} pageId={pageId} disabled={disabled} />

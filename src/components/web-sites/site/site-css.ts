@@ -78,6 +78,8 @@ export const SITE_CSS = `
 .ws-root[data-card=brutal] .ws-card{border:2px solid var(--s-fg);box-shadow:5px 5px 0 var(--s-fg)}
 .ws-root[data-card=brutal] .ws-card-hover:hover{transform:translate(-2px,-2px);box-shadow:7px 7px 0 var(--s-fg)}
 .ws-root[data-card=glass] .ws-card{background-color:color-mix(in srgb,var(--s-fg) 6%,transparent);border-color:color-mix(in srgb,var(--s-fg) 16%,transparent);box-shadow:inset 0 1px 0 color-mix(in srgb,var(--s-fg) 10%,transparent)}
+.ws-root .ws-card.ws-backdrop-shade{background-color:color-mix(in srgb,var(--s-card) 78%,#000)}
+.ws-root .ws-card.ws-backdrop-dark{background-color:#15171c;color:#f4f4f5}
 
 .ws-fx{position:absolute;inset:0;pointer-events:none}
 .ws-fx-gradient{background-image:radial-gradient(55% 75% at 0% 0%,color-mix(in srgb,var(--ws-accent) 34%,transparent),transparent 70%),radial-gradient(50% 70% at 100% 100%,color-mix(in srgb,var(--ws-accent) 26%,transparent),transparent 70%),linear-gradient(140deg,color-mix(in oklab,var(--s-bg) 88%,var(--ws-accent)),var(--s-bg) 60%)}

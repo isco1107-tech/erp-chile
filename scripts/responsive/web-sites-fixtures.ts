@@ -63,7 +63,8 @@ function stress(type: BlockType, variant: string, index: number): WebSiteBlock {
       case 'quote':
         return { quote: `${LONG_TEXT.slice(0, 180)} ${HUGE_WORD}`, author: 'Pedro Muñoz Fuenzalida', role: 'Chef y dueño', photoUrl: IMG.square };
       case 'logos':
-        return { heading: 'Confían en nosotros', items: [1, 2, 3, 4, 5, 6, 7].map((n) => ({ imageUrl: IMG.logo, alt: `Logo ${n}`, href: n === 1 ? URL : '' })) };
+        // Las tarjetas prueban el fondo oscurecido (carrusel oscuro, tarjetas un poco más oscuras).
+        return { heading: 'Confían en nosotros', backdrop: variant === 'carousel' ? 'dark' : variant === 'cards' ? 'shade' : 'card', items: [1, 2, 3, 4, 5, 6, 7].map((n) => ({ imageUrl: IMG.logo, alt: `Logo ${n}`, href: n === 1 ? URL : '' })) };
       case 'pricelist':
         return { heading: 'Lista de precios', categories: [1, 2, 3].map((c) => ({ title: c === 1 ? HUGE_WORD : `Categoría ${c}`, items: [1, 2, 3].map((n) => ({ name: n === 1 ? `Corte + barba + lavado ${HUGE_WORD}` : `Servicio ${n}`, description: LONG_TEXT.slice(0, 100), price: '$1.249.990', tag: n === 2 ? 'Nuevo' : '', imageUrl: n === 3 ? '' : IMG.square })) })), note: 'Precios con IVA incluido.' };
       case 'catalog':

@@ -246,9 +246,10 @@ export function LogosSection({ block, ctx, center }: SectionProps<'logos'>) {
   };
   const heading = block.heading ? <h2 className={cx('ws-eyebrow mb-8', center && 'text-center', ctx.h1BlockId === block.id && 'sr-only')}>{block.heading}</h2> : null;
 
-  // Tarjeta de auspiciador: logo a todo color y el nombre de la marca debajo.
+  // Tarjeta de auspiciador: logo a todo color y el nombre de la marca debajo (fondo normal, más oscuro u oscuro).
+  const backdrop = block.backdrop === 'card' ? null : `ws-backdrop-${block.backdrop}`;
   const sponsorCard = (item: LogoItem, className?: string) => (
-    <div className={cx('ws-card flex h-full flex-col items-center justify-center gap-3 p-5 text-center @2xl:p-6', className)}>
+    <div className={cx('ws-card flex h-full flex-col items-center justify-center gap-3 p-5 text-center @2xl:p-6', backdrop, className)}>
       <span className="flex h-16 w-full items-center justify-center @2xl:h-20">{logo(item, 'ws-logo-color h-full max-h-16 max-w-full @2xl:max-h-20')}</span>
       {item.alt.trim() && <span className="ws-h block w-full min-w-0 text-sm leading-snug [overflow-wrap:anywhere] @2xl:text-base">{item.alt}</span>}
     </div>

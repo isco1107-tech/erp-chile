@@ -145,6 +145,27 @@ describe('secciones nuevas', () => {
     expect(visible.match(/Hecho a mano/g)).toHaveLength(1);
   });
 
+  it('logos en tarjetas: el fondo de las tarjetas se puede oscurecer; un sitio guardado antes se ve igual', () => {
+    const logos = (extra: Record<string, unknown>) => blockSchema.parse({ ...createBlock('logos'), items: [{ imageUrl: PHOTO, alt: 'Panadería Sol', href: '' }], ...extra }) as WebSiteBlock;
+    // Guardado antes de existir la opción (sin `backdrop`) o con un valor desconocido: el de fábrica.
+    const before = logos({ variant: 'carousel' });
+    expect(before.type === 'logos' && before.backdrop).toBe('card');
+    const unknown = logos({ variant: 'cards', backdrop: 'neon' });
+    expect(unknown.type === 'logos' && unknown.backdrop).toBe('card');
+    // Clases de las tarjetas (la hoja de estilos que va en la página también nombra las clases: se mira solo `class="…"`).
+    const backdrops = (block: WebSiteBlock) => [...render([block]).matchAll(/class="[^"]*\b(ws-backdrop-[a-z]+)/g)].map((m) => m[1]);
+    expect(backdrops(before)).toEqual([]);
+    for (const variant of ['cards', 'carousel'] as const) {
+      expect(new Set(backdrops(logos({ variant, backdrop: 'shade' })))).toEqual(new Set(['ws-backdrop-shade']));
+      expect(new Set(backdrops(logos({ variant, backdrop: 'dark' })))).toEqual(new Set(['ws-backdrop-dark']));
+    }
+    // Los diseños sin tarjetas no lo usan.
+    expect(backdrops(logos({ variant: 'row', backdrop: 'dark' }))).toEqual([]);
+    // El tono oscuro gana a los estilos de tarjeta del tema (vidrio, sombra…) y deja el nombre legible.
+    expect(SITE_CSS).toContain('.ws-root .ws-card.ws-backdrop-dark{background-color:#15171c;color:#f4f4f5}');
+    expect(SITE_CSS.indexOf('.ws-backdrop-shade')).toBeGreaterThan(SITE_CSS.indexOf('.ws-root[data-card=glass] .ws-card'));
+  });
+
   it('la cinta no se detiene con solo tener el mouse encima (en el computador se veía quieta): solo al apuntar a un enlace o con el foco del teclado', () => {
     const pauses = [...SITE_CSS.matchAll(/([^{}]+)\{animation-play-state:paused\}/g)].map((m) => m[1]!).join(',').split(',').map((s) => s.trim()).filter((s) => s.includes('.ws-marquee-track'));
     expect(pauses.length).toBeGreaterThan(0);
