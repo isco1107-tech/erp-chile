@@ -35,6 +35,7 @@ interface Props {
     onDeviceChange?: (device: CanvasDevice) => void;
   };
   fitSection?: boolean;
+  responsiveImageIds?: ReadonlySet<string>;
 }
 interface Gesture {
   id: string; pointerId: number; device: CanvasDevice;
@@ -71,7 +72,7 @@ function LayerDetails({ title, children }: { title: string; children: ReactNode 
   </details>;
 }
 
-export function CanvasEditor({ value, background = '#ffffff', font, disabled, onChange, document, pageId, liveSelection, fitSection }: Props) {
+export function CanvasEditor({ value, background = '#ffffff', font, disabled, onChange, document, pageId, liveSelection, fitSection, responsiveImageIds }: Props) {
   const canvas = value ?? canvasSchema.parse({});
   const [localSelection, setLocalSelection] = useState<string | null>(null);
   const selectedId = liveSelection ? liveSelection.id : localSelection;
@@ -87,6 +88,8 @@ export function CanvasEditor({ value, background = '#ffffff', font, disabled, on
   const gesture = useRef<Gesture | null>(null);
   const selectionIds = liveSelection?.ids ?? (selectedId ? [selectedId] : []);
   const selected = selectionIds.length === 1 ? canvas.elements.find((el) => el.id === selectedId) : undefined;
+  const responsiveImage = selected ? responsiveImageIds?.has(selected.id) : false;
+  const automaticPosition = responsiveImage && device !== 'desktop' && !selected?.[device];
   const textLayer = selected?.kind === 'text' || selected?.kind === 'button';
   const filteredLayers = liveSelection && canvas.elements.length >= 8
     ? canvas.elements.filter((layer) => (layer.name || KIND_LABELS[layer.kind]).toLocaleLowerCase('es').includes(layerFilter.toLocaleLowerCase('es').trim()))
@@ -246,7 +249,7 @@ export function CanvasEditor({ value, background = '#ffffff', font, disabled, on
                   {selected.kind === 'image' && <>
                     <ImagePicker label="Imagen del lienzo" value={selected.imageUrl}
                       onChange={(imageUrl, asset) => update(selected.id, { imageUrl, alt: asset?.alt ?? selected.alt, imageFrame: imageUrl === selected.imageUrl ? selected.imageFrame : undefined })} />
-                    <CanvasImageFrameEditor element={selected} onChange={(patch) => update(selected.id, patch)} />
+                    <CanvasImageFrameEditor element={selected} defaultFit={responsiveImage ? 'contain' : 'cover'} onChange={(patch) => update(selected.id, patch)} />
                     <TextField label="Descripción de la imagen" value={selected.alt} max={160} disabled={disabled} onChange={(alt) => update(selected.id, { alt })} />
                   </>}
                   {textLayer && <LayerDetails title="Tipografía">
@@ -299,20 +302,26 @@ export function CanvasEditor({ value, background = '#ffffff', font, disabled, on
                       <SwitchRow label="Ocultar capa" checked={selected.hidden} onChange={(hidden) => update(selected.id, { hidden })} />
                     </>}
                     <SwitchRow label="Ocultar en móvil" checked={selected.mobileHidden} onChange={(mobileHidden) => update(selected.id, { mobileHidden })} />
-                    <fieldset disabled={disabled || selected.locked} className="grid grid-cols-2 gap-2">
+                    {automaticPosition ? (
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground">La imagen se ubica automáticamente debajo del contenido de la portada.</p>
+                        <Button type="button" size="sm" variant="outline" disabled={disabled || selected.locked}
+                          onClick={() => setPosition(selected, {})}>Ajustar posición manualmente</Button>
+                      </div>
+                    ) : <fieldset disabled={disabled || selected.locked} className="grid grid-cols-2 gap-2">
                       {(['x', 'y', 'width', 'height'] as const).map((key) => (
                         <NumberField key={key} label={{ x: 'X (%)', y: 'Y (%)', width: 'Ancho (%)', height: 'Alto (%)' }[key]}
                           value={canvasPosition(selected, device)[key]} min={key === 'width' || key === 'height' ? 2 : 0} max={100}
                           onChange={(n) => setPosition(selected, { [key]: n })} />
                       ))}
-                    </fieldset>
+                    </fieldset>}
                     <NumberField label="Rotación (°)" value={selected.rotation} min={-180} max={180} onChange={(rotation) => update(selected.id, { rotation })} />
-                    {!liveSelection?.tools && <div className="flex flex-wrap gap-2">
+                    {!automaticPosition && !liveSelection?.tools && <div className="flex flex-wrap gap-2">
                       <Button type="button" size="xs" variant="outline" disabled={selected.locked} onClick={() => setPosition(selected, { x: (100 - canvasPosition(selected, device).width) / 2 })}>Centrar horizontal</Button>
                       <Button type="button" size="xs" variant="outline" disabled={selected.locked} onClick={() => setPosition(selected, { y: (100 - canvasPosition(selected, device).height) / 2 })}>Centrar vertical</Button>
                     </div>}
-                    {device !== 'desktop' && <Button type="button" size="sm" variant="outline" disabled={selected.locked || !selected[device]}
-                      onClick={() => update(selected.id, { [device]: undefined })}>Heredar posición de escritorio</Button>}
+                    {device !== 'desktop' && !automaticPosition && <Button type="button" size="sm" variant="outline" disabled={selected.locked || !selected[device]}
+                      onClick={() => update(selected.id, { [device]: undefined })}>{responsiveImage ? 'Usar posición automática' : 'Heredar posición de escritorio'}</Button>}
                   </LayerDetails>
                   {selected.kind !== 'shape' && <LayerDetails title="Enlace">
                     <LinkField label="Destino (opcional)" value={selected.href} onChange={(href) => update(selected.id, { href })} disabled={disabled} document={document} pageId={pageId} />

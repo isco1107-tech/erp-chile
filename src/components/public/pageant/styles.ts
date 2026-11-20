@@ -1,3 +1,5 @@
+import { PAGEANT_HERO_MOBILE_WIDTH, PAGEANT_HERO_TABLET_WIDTH } from '@/lib/events/pageant-site-design';
+
 /**
  * Hoja de estilos del micrositio del certamen. Paleta "gala nocturna": noche
  * índigo + papel marfil + un acento metálico que sale de `publicAccent`
@@ -17,6 +19,38 @@ function withFontAdjust(css: string): string {
     // El atajo `font:` reinicia `font-size-adjust` a `none`: se vuelve a poner después.
     .replace(/(font: [^;{}]*var\(--(display|serif|numeric|sans)\);)/g, '$1 font-size-adjust: var(--$2-adjust, none);');
 }
+
+// El lienzo abarca toda la portada para las posiciones manuales y comparte la fila de las imágenes automáticas.
+const heroCanvasBreakpoints = (['tablet', 'mobile'] as const).map((device) => {
+  const query = device === 'tablet'
+    ? `(${PAGEANT_HERO_MOBILE_WIDTH}px < width <= ${PAGEANT_HERO_TABLET_WIDTH}px)`
+    : `(max-width: ${PAGEANT_HERO_MOBILE_WIDTH}px)`;
+  const slot = `.ws-canvas-image-slot[data-auto-${device}]`;
+  const hero = `.pgs-hero:has(${slot})`;
+  return `
+@media ${query} {
+  .pgs-hero .pgs-canvas-overlay .ws-canvas-element {
+    left: var(--${device}-x); top: var(--${device}-y); width: var(--${device}-width); height: var(--${device}-height);
+    font-size: clamp(10px, var(--${device}-font), 160px);
+  }
+  .pgs-hero .pgs-canvas-overlay .ws-canvas-element[data-mobile-hidden] { display: ${device === 'mobile' ? 'none' : 'block'}; }
+  ${hero} { container-type: inline-size; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 1fr auto auto 1fr; }
+  ${hero} > .pgs-frame { display: contents; }
+  ${hero} > .pgs-hero-inner { grid-area: 2 / 1; justify-self: center; padding-bottom: 1.25rem; }
+  ${hero} > .pgs-canvas-overlay {
+    position: relative; inset: auto; grid-area: 1 / 1 / -1; align-self: stretch; display: grid; grid-template-rows: subgrid;
+  }
+  ${hero} .ws-canvas { container-type: normal; grid-row: 1 / -1; display: grid; grid-template-rows: subgrid; height: auto; }
+  ${hero} .ws-canvas-image-row {
+    grid-row: 3; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.75rem 1rem;
+    padding: 0.25rem var(--gutter) ${device === 'mobile' ? '2rem' : '4.5rem'};
+  }
+  .pgs-hero ${slot} { display: block; flex: 0 1 clamp(6.5rem, 28vw, 10rem); height: clamp(4.25rem, 16vw, 7rem); }
+  .pgs-hero .pgs-canvas-overlay ${slot} > .ws-canvas-element { position: relative; inset: auto; width: 100%; height: 100%; }
+  .pgs-hero ${slot} [data-studio-layer] { cursor: pointer !important; touch-action: auto !important; }
+  .pgs-hero ${slot} [data-studio-resize] { display: none; }
+}`;
+}).join('\n');
 
 export const PAGEANT_SITE_STYLES = withFontAdjust(`
 .pgs {
@@ -265,6 +299,8 @@ export const PAGEANT_SITE_STYLES = withFontAdjust(`
 .pgs-canvas-overlay { position: absolute; inset: 0; z-index: 9; pointer-events: none; overflow: hidden; font-family: var(--ws-font); }
 .pgs-canvas-overlay .ws-canvas { height: 100%; }
 .pgs-canvas-overlay .ws-canvas-link, .pgs-canvas-overlay [data-studio-layer] { pointer-events: auto; }
+.pgs-hero .ws-canvas-image-row, .pgs-hero .ws-canvas-image-slot { display: contents; }
+${heroCanvasBreakpoints}
 .pgs-section.is-night { background: var(--night); color: var(--on-night); }
 .pgs-section.is-night + .pgs-section.is-night { border-top: 1px solid var(--line-night); }
 .pgs-section.is-deep { background: radial-gradient(90% 70% at 85% 10%, var(--night-3), var(--night) 70%); }

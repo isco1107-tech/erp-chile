@@ -150,7 +150,13 @@ for (const name of fixtures) {
   const html = wrapper();
   for (const device of devices) {
     const context = await browser.newContext({ viewport: { width: device.width, height: device.height }, isMobile: device.mobile, hasTouch: device.mobile, deviceScaleFactor: 1, locale: 'es-CL' });
-    await context.route('https://img.test/**', (route) => route.fulfill({ status: 200, contentType: 'image/svg+xml', body: logoSvg(new URL(route.request().url()).pathname) }));
+    await context.route('https://img.test/**', (route) => {
+      const name = new URL(route.request().url()).pathname;
+      const body = name === '/logo-cuadrado.svg'
+        ? '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240"><circle cx="120" cy="120" r="116" fill="#e3c46f"/><path d="M60 170l60-100 60 100z" fill="#1f5a3c"/></svg>'
+        : logoSvg(name);
+      return route.fulfill({ status: 200, contentType: 'image/svg+xml', body });
+    });
     const page = await context.newPage();
     await page.setContent(html, { waitUntil: 'load' });
     await page.addScriptTag({ content: browserScript });
@@ -165,10 +171,52 @@ for (const name of fixtures) {
     await page.evaluate(async () => {
       document.querySelectorAll('.ws-root img[loading=lazy], .pgs img[loading=lazy]').forEach((img) => img.setAttribute('loading', 'eager'));
       document.querySelectorAll('.ws-root').forEach((el) => el.setAttribute('data-still', ''));
-      await Promise.all([...document.querySelectorAll('.ws-root img, .pgs-partners img')].map((img) => (img.complete ? null : new Promise((r) => { img.onload = img.onerror = r; }))));
+      await Promise.all([...document.querySelectorAll('.ws-root img, .pgs-partners img, .pgs-canvas-overlay img')].map((img) => (img.complete ? null : new Promise((r) => { img.onload = img.onerror = r; }))));
     });
     await page.waitForTimeout(100);
     const problems = await page.evaluate(collectProblems, '.pgs');
+    if (name === 'portadaLogos') {
+      const logoProblems = await page.evaluate(({ width }) => {
+        const layer = (id) => document.querySelector(`[data-pageant-layer="portada-${id}"]`);
+        const hero = document.querySelector('#inicio').getBoundingClientRect();
+        const content = document.querySelector('.pgs-hero-inner').getBoundingClientRect();
+        const compact = width <= 1024;
+        const errors = [];
+        const manual = layer('ajuste-manual').getBoundingClientRect();
+        if (Math.abs(manual.left - hero.left - hero.width * (compact ? 0.04 : 0.9)) > 1) {
+          errors.push('Se perdió la posición del logo ajustado manualmente');
+        }
+        const hidden = layer('oculto-movil');
+        if ((getComputedStyle(hidden).display === 'none') !== (width <= 600)) {
+          errors.push('No se respetó la visibilidad del logo oculto en móvil');
+        }
+        const logos = [layer('municipio'), layer('produccion'), ...(width > 600 ? [hidden] : [])];
+        const boxes = logos.map((node) => node.getBoundingClientRect());
+        logos.forEach((node, index) => {
+          const box = boxes[index];
+          const img = node.querySelector('img');
+          if (!img.naturalWidth || getComputedStyle(img).objectFit !== 'contain') {
+            errors.push(`El logo ${img.alt} no se muestra completo`);
+          }
+          if (compact && (box.width < 70 || box.height < 48 || box.top < content.bottom - 1 || box.bottom > hero.bottom)) {
+            errors.push(`El logo ${img.alt} no tiene espacio propio debajo del contenido`);
+          }
+        });
+        if (boxes.some((box, index) => boxes.slice(index + 1).some((other) =>
+          box.left < other.right - 1 && other.left < box.right - 1 &&
+          box.top < other.bottom - 1 && other.top < box.bottom - 1
+        ))) errors.push('Los logos se enciman');
+        if (!compact && (Math.abs(boxes[0].left - hero.left - hero.width * 0.06) > 1 ||
+          Math.abs(boxes[1].left - hero.left - hero.width * 0.78) > 1)) {
+          errors.push('Se perdió la posición de escritorio');
+        }
+        if (!layer('municipio').querySelector('a[href="https://example.cl/municipalidad"]')) {
+          errors.push('Se perdió el enlace del logo');
+        }
+        return errors;
+      }, device);
+      problems.push(...logoProblems.map((detail) => ({ kind: 'logos-portada', detail })));
+    }
     // La cinta tiene que estar girando de verdad (no solo existir): la posición cambia y la animación corre.
     const ribbon = await page.evaluate(async () => {
       const track = document.querySelector('.pgs-ribbon-track');

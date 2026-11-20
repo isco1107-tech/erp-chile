@@ -36,6 +36,12 @@ function clearGroupTranslation(board: HTMLElement) {
   board.style.removeProperty('--studio-group-dy');
 }
 
+function usesAutomaticPosition(owner: HTMLElement, board: HTMLElement, grouped: boolean) {
+  if (!board.querySelector('.ws-canvas-image-row')) return false;
+  const layers = grouped ? Array.from(board.querySelectorAll<HTMLElement>('[data-studio-layer][data-studio-selected]')) : [owner];
+  return layers.some((layer) => getComputedStyle(layer).position === 'relative');
+}
+
 export function PageantCanvasLayer({ target, layer, style, children, selection, placing, snap, send }: {
   target: PageantCanvasRef; layer: CanvasElement; style: CSSProperties; children: ReactNode;
   selection: CanvasElement[]; placing: boolean; snap: boolean; send: (message: PreviewToStudio) => void;
@@ -68,7 +74,7 @@ export function PageantCanvasLayer({ target, layer, style, children, selection, 
       return;
     }
     if (!selected) select(owner);
-    if (layer.locked) return;
+    if (layer.locked || usesAutomaticPosition(owner, board, grouped)) return;
     const rect = board.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
     const device = pageantCanvasDevice(board);
@@ -189,7 +195,7 @@ export function PageantCanvasLayer({ target, layer, style, children, selection, 
         const offsets: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
         const offset = offsets[event.key];
         const board = event.currentTarget.closest<HTMLElement>('.ws-canvas');
-        if (!offset || !board || layer.locked || event.altKey || event.ctrlKey || event.metaKey) return;
+        if (!offset || !board || layer.locked || event.altKey || event.ctrlKey || event.metaKey || usesAutomaticPosition(event.currentTarget, board, grouped)) return;
         event.preventDefault();
         if (!selected) select(event.currentTarget);
         const device = pageantCanvasDevice(board);
@@ -224,7 +230,7 @@ export function PageantCanvasLayer({ target, layer, style, children, selection, 
         draft.board,
       )}
       {selected && !grouped && !layer.locked && !placing && !editingText && (
-        <button type="button" aria-label={`Redimensionar ${layer.name}`} title="Arrastra para redimensionar"
+        <button type="button" data-studio-resize aria-label={`Redimensionar ${layer.name}`} title="Arrastra para redimensionar"
           tabIndex={-1}
           className="absolute right-0 bottom-0 size-4 translate-x-1/2 translate-y-1/2 cursor-nwse-resize rounded border-2 border-white bg-sky-600"
           style={{ touchAction: 'none' }}
