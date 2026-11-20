@@ -291,6 +291,45 @@ await Promise.all(Array.from({ length: workers }, async () => {
       if (before !== null && after !== null && after <= before) problems.push({ kind: 'carrusel-quieto', detail: 'La flecha «Siguiente» no avanzó el carrusel' });
     }
 
+    // Cintas que desfilan (frases, logos, carrusel con nombres): siguen moviéndose con el
+    // mouse encima (en el computador se veían quietas porque se pausaban al pasar el puntero)
+    // y, con «reducir movimiento», quedan quietas sin cortar ningún elemento.
+    const marquees = page.locator('.ws-marquee');
+    for (let i = 0; i < (await marquees.count()); i++) {
+      const band = marquees.nth(i);
+      await band.scrollIntoViewIfNeeded();
+      const box = await band.boundingBox();
+      if (!box) continue;
+      // Un punto de la cinta sin enlace debajo: sobre un enlace sí se pausa (para poder tocarlo).
+      const spot = await band.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        for (let x = r.left + 8; x < r.right - 8; x += 12) {
+          const y = r.top + r.height / 2;
+          if (!document.elementFromPoint(x, y)?.closest('a')) return { x, y };
+        }
+        return null;
+      });
+      if (!spot) continue;
+      await page.mouse.move(spot.x, spot.y);
+      const offset = () => band.evaluate((el) => new DOMMatrix(getComputedStyle(el.querySelector('.ws-marquee-track')).transform).m41);
+      const before = await offset();
+      await page.waitForTimeout(350);
+      if ((await offset()) === before) problems.push({ kind: 'cinta-quieta', detail: `La cinta ${i + 1} se detuvo con el mouse encima (sin apuntar a un enlace)` });
+    }
+    await page.mouse.move(0, 0);
+    if (await marquees.count()) {
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      const cut = await page.evaluate(() =>
+        [...document.querySelectorAll('.ws-marquee')].flatMap((band, i) => {
+          const box = band.getBoundingClientRect();
+          const items = [...band.querySelectorAll('.ws-marquee-group:not(.ws-marquee-dup) > :not(.ws-marquee-dup)')];
+          return items.some((el) => { const r = el.getBoundingClientRect(); return r.left < box.left - 1 || r.right > box.right + 1; }) ? [i + 1] : [];
+        })
+      );
+      if (cut.length) problems.push({ kind: 'cinta-cortada', detail: `Con «reducir movimiento», la cinta ${cut.join(', ')} deja elementos cortados o fuera de la vista` });
+      await page.emulateMedia({ reducedMotion: 'no-preference' });
+    }
+
     // Comparador antes/después: el teclado mueve la línea.
     const range = page.locator('input.ws-ba-range').first();
     if (await range.count()) {

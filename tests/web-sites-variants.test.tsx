@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import SiteRenderer from '@/components/web-sites/SiteRenderer';
+import { SITE_CSS } from '@/components/web-sites/site/site-css';
 import { SITE_FONT_CLASSES } from '@/components/web-sites/site-fonts';
 import { BLOCK_INFO, BLOCK_TYPES, blockImageUrls, blockLinks, blockSchema, comparisonMark, createBlock, isBlockEmpty, parseBlocks, type HoursDay, type WebSiteBlock } from '@/lib/web-sites/blocks';
 import { dayHoursText, groupWeek, hoursStatus } from '@/lib/web-sites/hours';
@@ -142,6 +143,21 @@ describe('secciones nuevas', () => {
     const main = /<main[\s\S]*<\/main>/.exec(html)?.[0] ?? '';
     const visible = main.split('ws-marquee-dup')[0]!;
     expect(visible.match(/Hecho a mano/g)).toHaveLength(1);
+  });
+
+  it('la cinta no se detiene con solo tener el mouse encima (en el computador se veía quieta): solo al apuntar a un enlace o con el foco del teclado', () => {
+    const pauses = [...SITE_CSS.matchAll(/([^{}]+)\{animation-play-state:paused\}/g)].map((m) => m[1]!).join(',').split(',').map((s) => s.trim()).filter((s) => s.includes('.ws-marquee-track'));
+    expect(pauses.length).toBeGreaterThan(0);
+    for (const selector of pauses) expect(selector).not.toMatch(/\.ws-marquee:hover/);
+    expect(pauses).toEqual(expect.arrayContaining(['.ws-marquee:has(a:hover) .ws-marquee-track', '.ws-marquee:has(:focus-visible) .ws-marquee-track']));
+  });
+
+  it('con «reducir movimiento» la cinta queda quieta pero con todos sus elementos a la vista, en varias líneas', () => {
+    const reduced = [...SITE_CSS.matchAll(/@media \(prefers-reduced-motion:reduce\)\{([\s\S]*?)\n\}/g)].map((m) => m[1]!).join('\n');
+    expect(reduced).toMatch(/\.ws-marquee-track\{animation:none;[^}]*flex-wrap:wrap/);
+    // Cada grupo también se parte en líneas: si no, lo que no cabe queda cortado por el `overflow:hidden` de la cinta.
+    expect(reduced).toMatch(/\.ws-marquee-group\{[^}]*flex-wrap:wrap[^}]*\}/);
+    expect(reduced).toMatch(/\.ws-marquee-group\{[^}]*max-width:100%[^}]*\}/);
   });
 
   it('las pestañas son accesibles: lista de pestañas, una activa y los demás paneles ocultos pero presentes', () => {

@@ -6,10 +6,14 @@ import { cx } from './parts';
 /**
  * Cinta que desfila sola (frases o logos). Solo se anima `transform` y la
  * animación se pausa fuera de la pantalla (`data-offscreen`, como el
- * micrositio de certámenes), al pasar el mouse y si la persona pidió menos
- * movimiento (entonces las frases quedan quietas en varias líneas). Cada
- * grupo repite los elementos `repeat` veces (el que llama calcula cuántas
- * hacen falta para cubrir una pantalla de 2560 px); las repeticiones y la
+ * micrositio de certámenes), al apuntar a un enlace (para poder tocarlo) o con
+ * el foco del teclado dentro. NO se pausa con solo tener el mouse encima: en
+ * un computador el puntero descansa sobre la cinta casi siempre (el carrusel
+ * con nombres es alto y ocupa todo el ancho) y se veía quieta. Si la persona
+ * pidió menos movimiento queda quieta con TODOS sus elementos a la vista, en
+ * varias líneas (`site-css.ts`). Cada grupo repite los elementos `repeat`
+ * veces (el que llama calcula cuántas hacen falta para cubrir una pantalla de
+ * 2560 px); las repeticiones y la
  * copia que hace continuo el giro van con `aria-hidden` e `inert`: un lector
  * de pantalla lee cada elemento una vez y el teclado no pasa por enlaces
  * repetidos.
@@ -20,7 +24,9 @@ export default function Marquee({ items, repeat, seconds, className, groupClassN
   useEffect(() => {
     const el = root.current;
     if (!el || typeof IntersectionObserver === 'undefined') return;
-    const observer = new IntersectionObserver(([entry]) => {
+    const observer = new IntersectionObserver((entries) => {
+      // Si llegan varios cambios juntos (un scroll rápido), vale el último.
+      const entry = entries[entries.length - 1];
       if (entry?.isIntersecting) el.removeAttribute('data-offscreen');
       else el.setAttribute('data-offscreen', '');
     });
