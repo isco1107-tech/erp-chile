@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useState, useSyncExternalStore, type ReactNode } from 'react';
 import { AlertTriangle, ChevronDown, Lightbulb } from 'lucide-react';
 import type { WebSiteBlock } from '@/lib/web-sites/blocks';
 import type { SiteDocument } from '@/lib/web-sites/site';
@@ -27,6 +27,29 @@ export function Tip({ children }: { children: ReactNode }) {
       <Lightbulb className="mt-0.5 size-3.5 shrink-0 text-accent-foreground" aria-hidden="true" />
       <span>{children}</span>
     </p>
+  );
+}
+
+const REDUCED_MOTION = '(prefers-reduced-motion: reduce)';
+function subscribeReducedMotion(onChange: () => void) {
+  const query = window.matchMedia(REDUCED_MOTION);
+  query.addEventListener('change', onChange);
+  return () => query.removeEventListener('change', onChange);
+}
+
+/**
+ * Las cintas que desfilan (cinta de frases, logos «En movimiento» y «Carrusel
+ * con nombres») quedan quietas si el equipo pidió menos movimiento. Quien edita
+ * en un computador con las animaciones apagadas la veía quieta y en el teléfono
+ * moverse, y parecía una falla: este consejo lo explica, solo en ese caso.
+ */
+export function MotionPreferenceTip() {
+  const reduced = useSyncExternalStore(subscribeReducedMotion, () => window.matchMedia(REDUCED_MOTION).matches, () => false);
+  if (!reduced) return null;
+  return (
+    <Tip>
+      Este equipo tiene las animaciones desactivadas, por eso aquí la cinta se ve quieta (con todo a la vista). Quien no tenga esa opción la ve desfilar. Para verla moverse: en Windows, Configuración → Accesibilidad → Efectos visuales → «Efectos de animación»; en Mac, Accesibilidad → Pantalla → desmarca «Reducir movimiento».
+    </Tip>
   );
 }
 

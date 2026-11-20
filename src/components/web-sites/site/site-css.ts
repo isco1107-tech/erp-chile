@@ -120,13 +120,15 @@ export const SITE_CSS = `
 
 .ws-marquee{position:relative;overflow:hidden}
 .ws-marquee-track{display:flex;width:max-content;animation:ws-marquee var(--ws-mq,38s) linear infinite}
-.ws-marquee:hover .ws-marquee-track,.ws-marquee[data-offscreen] .ws-marquee-track{animation-play-state:paused}
+.ws-marquee:has(a:hover) .ws-marquee-track,.ws-marquee:has(:focus-visible) .ws-marquee-track,.ws-marquee[data-offscreen] .ws-marquee-track{animation-play-state:paused}
 .ws-marquee-fade{position:absolute;top:0;bottom:0;width:12%;pointer-events:none;z-index:1}
 .ws-marquee-fade-l{left:0;background-image:linear-gradient(90deg,var(--s-bg),transparent)}
 .ws-marquee-fade-r{right:0;background-image:linear-gradient(270deg,var(--s-bg),transparent)}
 @keyframes ws-marquee{from{transform:translate3d(0,0,0)}to{transform:translate3d(-50%,0,0)}}
 @media (prefers-reduced-motion:reduce){
 .ws-marquee-track{animation:none;width:auto;flex-wrap:wrap;justify-content:center}
+.ws-marquee-group{flex-wrap:wrap;justify-content:center;flex-shrink:1;min-width:0;max-width:100%;padding-right:0;row-gap:1.5rem}
+.ws-marquee-group>*{max-width:100%;white-space:normal;overflow-wrap:anywhere}
 .ws-marquee-dup,.ws-marquee-fade{display:none}
 }
 .ws-root[data-still] .ws-marquee-track{animation:none}

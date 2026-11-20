@@ -33,7 +33,7 @@ import { ListEditor } from './ListEditor';
 import { ProductImportDialog } from './ProductImportDialog';
 import { SwitchRow, TextField, ChoiceGroup } from './fields';
 import { VariantSketch } from './block-sketches';
-import { ButtonFields, countLines, Notice, Optional, PHOTO_TIP, Tip, type FieldsProps } from './block-fields-shared';
+import { ButtonFields, countLines, MotionPreferenceTip, Notice, Optional, PHOTO_TIP, Tip, type FieldsProps } from './block-fields-shared';
 
 const COLUMN_OPTIONS = [
   { value: '2' as const, label: '2 columnas', description: 'Fichas grandes.', preview: <VariantSketch id="cols:2" /> },
@@ -234,6 +234,7 @@ export function LogosFields({ block, disabled, onChange, document, pageId }: Fie
     <div className="space-y-4">
       <TextField label="Título de la sección (opcional)" value={block.heading} onChange={(heading) => onChange({ ...block, heading })} max={120} disabled={disabled} placeholder="Ej.: Han confiado en nosotros" />
       <Tip>Muestra con quién has trabajado o qué te respalda. Usa logos con fondo transparente (PNG) y pide permiso a las marcas. Los diseños «Tarjetas con nombre» y «Carrusel con nombres» muestran el nombre de cada marca bajo su logo.</Tip>
+      {block.variant === 'marquee' || block.variant === 'carousel' ? <MotionPreferenceTip /> : null}
       <div className="space-y-2">
         <p className="text-sm font-medium">
           Logos ({block.items.length}/{MAX_LOGOS})

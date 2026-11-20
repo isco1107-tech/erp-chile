@@ -29,7 +29,7 @@ import { DAY_NAMES, dayHoursText } from '@/lib/web-sites/hours';
 import { embedFrom, EMBED_PROVIDER_LABELS } from '@/lib/web-sites/urls';
 import { cn } from '@/lib/utils';
 import { VariantSketch } from './block-sketches';
-import { ButtonFields, Notice, PHOTO_TIP, Tip, type FieldsProps } from './block-fields-shared';
+import { ButtonFields, MotionPreferenceTip, Notice, PHOTO_TIP, Tip, type FieldsProps } from './block-fields-shared';
 import { ChoiceGroup, SwitchRow, TextField } from './fields';
 import { IconPicker } from './IconPicker';
 import { ImagePicker } from './ImagePicker';
@@ -329,6 +329,7 @@ export function MarqueeFields({ block, disabled, onChange }: FieldsProps<BlockOf
           ]}
         />
       ) : null}
+      {block.variant !== 'static' ? <MotionPreferenceTip /> : null}
     </div>
   );
 }
