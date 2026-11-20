@@ -1,4 +1,4 @@
-import { DEFAULT_LOGO_BACKGROUND, detectBackground, processingSize, removeLogoBackground, strengthThreshold, transparentLogoFileName } from '@/lib/web-sites/logo-background';
+import { DEFAULT_LOGO_BACKGROUND, detectBackground, looksLikeLetterFill, processingSize, removeLogoBackground, strengthThreshold, transparentLogoFileName } from '@/lib/web-sites/logo-background';
 import { editorImageFolder, EDITOR_IMAGE_FOLDERS } from '@/lib/web-sites/image-source';
 
 /**
@@ -71,30 +71,100 @@ describe('quitar el fondo de un logo', () => {
     expect(edge[3]).toBeLessThan(145);
   });
 
-  it('sin «fondo encerrado» respeta el blanco dentro de una «O»; con él, también lo quita', () => {
-    // Anillo azul con blanco adentro.
-    const ring = image(60, 60, (x, y) => {
-      const d = Math.hypot(x - 30, y - 30);
-      return d >= 12 && d <= 20 ? NAVY : WHITE;
-    });
+  /** Anillo azul con blanco adentro: una «O». */
+  const ring = image(60, 60, (x, y) => {
+    const d = Math.hypot(x - 30, y - 30);
+    return d >= 12 && d <= 20 ? NAVY : WHITE;
+  });
+  /** Círculo rojo con una «S» blanca adentro (trazo de 3 px): parte del dibujo, no relleno. */
+  const badge = image(80, 80, (x, y) => {
+    if (Math.hypot(x - 40, y - 40) > 30) return WHITE;
+    const inS = x >= 30 && x <= 50 && ((y >= 24 && y <= 26) || (y >= 39 && y <= 41) || (y >= 54 && y <= 56) || (x <= 32 && y >= 24 && y <= 41) || (x >= 48 && y >= 39 && y <= 56));
+    return inS ? WHITE : RED;
+  });
+  const center = (r: ReturnType<typeof removeLogoBackground>) => pixel(r.data, r.width, r.width >> 1, r.height >> 1);
+  /** Un punto de la «S» del círculo, en coordenadas de la imagen original. */
+  const S_POINT = { x: 40, y: 40 };
+
+  it('el relleno de las letras (la «O») se quita por defecto; apagado, se conserva', () => {
+    const removed = removeLogoBackground(ring, 60, 60);
+    expect(removed.status).toBe('ok');
+    expect(center(removed)[3]).toBe(0);
+    expect(removed.holes).toEqual({ total: 1, removed: 1 });
     const kept = removeLogoBackground(ring, 60, 60, { ...DEFAULT_LOGO_BACKGROUND, holes: false });
-    const center = (r: typeof kept) => pixel(r.data, r.width, r.width >> 1, r.height >> 1);
-    expect(kept.status).toBe('ok');
     expect(center(kept)).toEqual(WHITE);
-    const holes = removeLogoBackground(ring, 60, 60, { ...DEFAULT_LOGO_BACKGROUND, holes: true });
-    expect(holes.status).toBe('ok');
-    expect(center(holes)[3]).toBe(0);
+    expect(kept.holes).toEqual({ total: 1, removed: 0 });
   });
 
-  it('las letras blancas dentro de un círculo de color se conservan con el ajuste de fábrica', () => {
-    const badge = image(60, 60, (x, y) => {
-      const d = Math.hypot(x - 30, y - 30);
-      if (d > 22) return WHITE;
-      return x >= 26 && x < 34 && y >= 20 && y < 40 ? WHITE : RED;
-    });
-    const result = removeLogoBackground(badge, 60, 60);
+  it('una letra blanca dentro de un círculo de color es parte del dibujo y se conserva', () => {
+    const result = removeLogoBackground(badge, 80, 80);
     expect(result.status).toBe('ok');
-    expect(pixel(result.data, result.width, result.width >> 1, result.height >> 1)).toEqual(WHITE);
+    expect(result.holes).toEqual({ total: 1, removed: 0 });
+    expect(pixel(result.data, result.width, S_POINT.x - result.offset.x, S_POINT.y - result.offset.y)).toEqual(WHITE);
+  });
+
+  it('un toque en la vista previa cambia lo decidido para ese hueco (el último toque manda)', () => {
+    // Quitar la «S» del círculo…
+    const removedS = removeLogoBackground(badge, 80, 80, { ...DEFAULT_LOGO_BACKGROUND, toggles: [{ ...S_POINT, remove: true }] });
+    expect(removedS.holes).toEqual({ total: 1, removed: 1 });
+    expect(pixel(removedS.data, removedS.width, S_POINT.x - removedS.offset.x, S_POINT.y - removedS.offset.y)[3]).toBe(0);
+    // …y devolverla con otro toque.
+    const back = removeLogoBackground(badge, 80, 80, { ...DEFAULT_LOGO_BACKGROUND, toggles: [{ ...S_POINT, remove: true }, { ...S_POINT, remove: false }] });
+    expect(back.holes.removed).toBe(0);
+    // Conservar el relleno de la «O» aunque el ajuste lo quite; un toque fuera de un hueco no hace nada.
+    const keptO = removeLogoBackground(ring, 60, 60, { ...DEFAULT_LOGO_BACKGROUND, toggles: [{ x: 30, y: 30, remove: false }, { x: 1, y: 1, remove: false }, { x: 999, y: -4, remove: true }] });
+    expect(center(keptO)).toEqual(WHITE);
+    // El hueco se ubica con `holeLabels` + `offset` y su estado con `holeRemoved`.
+    const label = removedS.holeLabels[S_POINT.y * 80 + S_POINT.x]!;
+    expect(label).toBeGreaterThan(0);
+    expect(removedS.holeRemoved[label]).toBe(1);
+    expect(removedS.holeLabels[0]).toBe(0);
+  });
+
+  it('en un cartel, una letra blanca simple (una «L») sigue a sus vecinas y no se borra', () => {
+    // Cartel rojo con una «S» blanca en zigzag, una barra blanca (la «L»: por sí sola parece relleno) y una «E» en peineta.
+    const sign = image(240, 120, (x, y) => {
+      if (x < 20 || x >= 220 || y < 20 || y >= 100) return WHITE;
+      const s = x >= 40 && x <= 70 && ((y >= 35 && y <= 38) || (y >= 58 && y <= 61) || (y >= 82 && y <= 85) || (x <= 43 && y >= 35 && y <= 61) || (x >= 67 && y >= 58 && y <= 85));
+      const l = x >= 100 && x <= 112 && y >= 35 && y <= 85;
+      const e = (x >= 150 && x <= 153 && y >= 35 && y <= 85) || (x >= 150 && x <= 180 && ((y >= 35 && y <= 38) || (y >= 58 && y <= 61) || (y >= 82 && y <= 85)));
+      return s || l || e ? WHITE : RED;
+    });
+    const result = removeLogoBackground(sign, 240, 120);
+    expect(result.status).toBe('ok');
+    expect(result.holes).toEqual({ total: 3, removed: 0 });
+    expect(pixel(result.data, result.width, 106 - result.offset.x, 60 - result.offset.y)).toEqual(WHITE);
+  });
+
+  it('un emblema (disco con texto blanco de trazos simples) conserva su texto', () => {
+    const emblem = image(240, 240, (x, y) => {
+      if (Math.hypot(x - 120, y - 120) > 100) return WHITE;
+      const bar = y >= 105 && y <= 135 && [80, 110, 140].some((left) => x >= left && x < left + 10);
+      return bar ? WHITE : RED;
+    });
+    const result = removeLogoBackground(emblem, 240, 240);
+    expect(result.holes).toEqual({ total: 3, removed: 0 });
+  });
+
+  it('letras muy gruesas que se tocan siguen perdiendo su relleno', () => {
+    // Tres anillos gruesos encadenados («ooo» de una fuente negra con las letras pegadas): una sola pieza.
+    const chain = image(220, 80, (x, y) => ([45, 100, 155].some((cx) => Math.hypot(x - cx, y - 40) <= 30) && ![45, 100, 155].some((cx) => Math.hypot(x - cx, y - 40) < 9) ? NAVY : WHITE));
+    const result = removeLogoBackground(chain, 220, 80);
+    expect(result.holes).toEqual({ total: 3, removed: 3 });
+  });
+
+  it('relleno de letra o trazo del dibujo: por la forma del hueco', () => {
+    // Círculo de radio 10 (como el centro de una «O») y un cuadrado: compactos.
+    expect(looksLikeLetterFill(314, 80)).toBe(true);
+    expect(looksLikeLetterFill(400, 80)).toBe(true);
+    // La mitad de un círculo (la «e») y una elipse alargada (un rulo de letra cursiva).
+    expect(looksLikeLetterFill(157, 60)).toBe(true);
+    expect(looksLikeLetterFill(628, 160)).toBe(true);
+    // El trazo de una «S» o de una «E» blancas: largo y delgado.
+    expect(looksLikeLetterFill(180, 160)).toBe(false);
+    expect(looksLikeLetterFill(300, 260)).toBe(false);
+    // Un puntito siempre se quita.
+    expect(looksLikeLetterFill(6, 10)).toBe(true);
   });
 
   it('funciona con un fondo de color que no es blanco', () => {
