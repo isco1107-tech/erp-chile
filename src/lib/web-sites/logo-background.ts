@@ -12,25 +12,42 @@
  *    ya es transparente, el logo ya está listo (`already-transparent`).
  * 2. Es fondo todo píxel que se parece a ese color (distancia por canal ≤ un
  *    umbral que sube con la intensidad) y que toca el borde por un camino de
- *    píxeles parecidos. Con `holes`, también los encerrados (el blanco dentro
- *    de una «O»); sin él, un texto blanco sobre un círculo rojo queda intacto.
- * 3. El contorno del logo (la primera fila de píxeles junto al fondo) se
+ *    píxeles parecidos.
+ * 3. Lo parecido al fondo pero ENCERRADO por el logo son «huecos». Un hueco
+ *    compacto es el relleno de una letra (la «O», la «A», la «e») y se quita
+ *    (`holes`, encendido de fábrica); uno alargado o enrevesado, como una «S»
+ *    blanca dentro de un círculo de color, es parte del dibujo y se conserva
+ *    (`looksLikeLetterFill`). Los huecos de una misma pieza de tinta se
+ *    deciden juntos por mayoría: en un cartel rojo con «SALE» en blanco, la
+ *    «L» (un trazo simple que por sí solo parece relleno) sigue a la S, la A
+ *    y la E. La persona corrige cualquier hueco tocándolo en la vista previa
+ *    (`toggles`): manda sobre lo decidido.
+ * 4. El contorno del logo (la primera fila de píxeles junto al fondo) se
  *    «desmezcla» del fondo: queda semitransparente con su color real, así no
  *    deja un halo blanco sobre una tarjeta oscura.
- * 4. Se recortan los márgenes vacíos (con un respiro mínimo) para que el logo
+ * 5. Se recortan los márgenes vacíos (con un respiro mínimo) para que el logo
  *    ocupe su espacio en la tarjeta.
  */
 
 export type Rgb = readonly [number, number, number];
 
+/** Un toque de la persona sobre un hueco (en píxeles de la imagen de trabajo): quitarlo o conservarlo. */
+export interface HoleToggle {
+  x: number;
+  y: number;
+  remove: boolean;
+}
+
 export interface LogoBackgroundOptions {
   /** 0–100: cuánto puede alejarse un color del fondo y seguir contando como fondo. */
   strength: number;
-  /** Quitar también el fondo encerrado (dentro de letras como la «O»), no solo el que toca los bordes. */
+  /** Quitar el relleno de las letras (los huecos compactos que encierra el logo). Apagado, se conservan todos. */
   holes: boolean;
+  /** Huecos que la persona tocó: el último toque dentro de un hueco decide. */
+  toggles?: readonly HoleToggle[];
 }
 
-export const DEFAULT_LOGO_BACKGROUND: LogoBackgroundOptions = { strength: 25, holes: false };
+export const DEFAULT_LOGO_BACKGROUND: LogoBackgroundOptions = { strength: 25, holes: true };
 
 export type LogoBackgroundStatus =
   /** Se quitó el fondo. */
@@ -54,6 +71,31 @@ export interface LogoBackgroundResult {
   uneven: boolean;
   /** Fracción de la imagen que pasó a transparente (0–1). */
   removed: number;
+  /** Dónde empieza el recorte dentro de la imagen de trabajo (para ubicar un toque en la vista previa). */
+  offset: { x: number; y: number };
+  /** Huecos encerrados por el logo: cuántos hay y cuántos quedaron transparentes. */
+  holes: { total: number; removed: number };
+  /** Hueco al que pertenece cada píxel de la imagen de trabajo (0 = ninguno; vacío si no se procesó). */
+  holeLabels: Int32Array;
+  /** Por hueco (el índice es su número en `holeLabels`): 1 si quedó transparente. */
+  holeRemoved: Uint8Array;
+}
+
+/**
+ * Compacidad mínima (4π·área / perímetro², con el perímetro contado en bordes
+ * de píxel: un círculo da ~0,62 y un cuadrado ~0,79) para que un hueco cuente
+ * como relleno de letra. La «O», la «A» o la «e» pasan de 0,45; el trazo de
+ * una letra blanca (una «S», una «E») queda bajo 0,2.
+ */
+export const HOLE_COMPACTNESS = 0.3;
+/** Huecos de hasta este tamaño (en píxeles) son relleno o ruido: siempre se quitan. */
+const TINY_HOLE = 12;
+
+/** ¿Este hueco es el relleno de una letra (y no un trazo blanco del dibujo)? */
+export function looksLikeLetterFill(area: number, perimeter: number): boolean {
+  if (area <= TINY_HOLE) return true;
+  if (perimeter <= 0) return false;
+  return (4 * Math.PI * area) / (perimeter * perimeter) >= HOLE_COMPACTNESS;
 }
 
 /** Bajo este alfa un píxel ya cuenta como transparente. */
@@ -152,7 +194,135 @@ function unmix(data: Uint8ClampedArray, offset: number, background: Rgb, out: nu
 }
 
 function unchanged(status: LogoBackgroundStatus, data: Uint8ClampedArray, width: number, height: number, background: Rgb | null, uneven: boolean): LogoBackgroundResult {
-  return { status, data, width, height, background, uneven, removed: 0 };
+  return { status, data, width, height, background, uneven, removed: 0, offset: { x: 0, y: 0 }, holes: { total: 0, removed: 0 }, holeLabels: new Int32Array(0), holeRemoved: new Uint8Array(0) };
+}
+
+/**
+ * Cartel o emblema con texto encima (un disco rojo con «TIL 1» en blanco), no
+ * letras con relleno: una pieza con al menos 3 huecos, con este múltiplo de
+ * tinta respecto de ellos (`EMBLEM_INK_RATIO`) y cuya tinta es mucho más
+ * profunda que sus huecos (`EMBLEM_DEPTH_RATIO`: la superficie del disco se
+ * aleja de todo borde, mientras que letras muy gruesas que se tocan siguen
+ * siendo trazos cerca de sus rellenos).
+ */
+const EMBLEM_INK_RATIO = 6;
+const EMBLEM_DEPTH_RATIO = 3;
+
+/** Distancia (en pasos de 8 vecinos) de cada píxel `inside` al píxel más cercano que no lo es. */
+function depthMap(inside: (index: number) => boolean, width: number, height: number): Uint16Array {
+  const total = width * height;
+  const depth = new Uint16Array(total);
+  const queue = new Int32Array(total);
+  let head = 0;
+  let tail = 0;
+  for (let index = 0; index < total; index++) {
+    if (inside(index)) depth[index] = 65535;
+    else queue[tail++] = index;
+  }
+  while (head < tail) {
+    const index = queue[head++]!;
+    const x = index % width;
+    const y = (index - x) / width;
+    const next = depth[index]! + 1;
+    for (let dy = -1; dy <= 1; dy++) {
+      const ny = y + dy;
+      if (ny < 0 || ny >= height) continue;
+      for (let dx = -1; dx <= 1; dx++) {
+        const nx = x + dx;
+        if ((!dx && !dy) || nx < 0 || nx >= width) continue;
+        const neighbor = ny * width + nx;
+        if (depth[neighbor]! <= next) continue;
+        depth[neighbor] = next;
+        queue[tail++] = neighbor;
+      }
+    }
+  }
+  return depth;
+}
+
+/**
+ * Decide juntos los huecos de una misma pieza de tinta (8 vecinos). Si la
+ * pieza es un cartel o emblema (`EMBLEM_*`), sus huecos son dibujo y
+ * se conservan. Si no, manda la mayoría: si la mayoría parece trazo del dibujo
+ * (las letras blancas de un cartel), todos se conservan; si parece relleno,
+ * todos se quitan. Con empate, o un solo hueco en la pieza, queda lo que dijo
+ * su forma. El píxel a la izquierda del primero de cada hueco siempre es tinta
+ * (si fuera parecido al fondo, sería del mismo hueco o del fondo de afuera).
+ */
+function voteByInk(near: Uint8Array, holeLabels: Int32Array, width: number, height: number, holeSeed: readonly number[], holeArea: readonly number[], removeHole: boolean[]): void {
+  const total = width * height;
+  const ink = new Int32Array(total);
+  const queue = new Int32Array(total);
+  let label = 0;
+  const inkArea: number[] = [0];
+  const needed = new Set<number>();
+  for (let hole = 1; hole < holeSeed.length; hole++) needed.add(holeSeed[hole]! - 1);
+  for (const start of needed) {
+    if (start < 0 || near[start] || ink[start]) continue;
+    label++;
+    let head = 0;
+    let tail = 0;
+    ink[start] = label;
+    queue[tail++] = start;
+    while (head < tail) {
+      const index = queue[head++]!;
+      const x = index % width;
+      const y = (index - x) / width;
+      for (let dy = -1; dy <= 1; dy++) {
+        const ny = y + dy;
+        if (ny < 0 || ny >= height) continue;
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx;
+          if ((!dx && !dy) || nx < 0 || nx >= width) continue;
+          const next = ny * width + nx;
+          if (near[next] || ink[next]) continue;
+          ink[next] = label;
+          queue[tail++] = next;
+        }
+      }
+    }
+    inkArea.push(tail);
+  }
+  const votes = new Map<number, { fill: number; detail: number; area: number; holes: number[] }>();
+  for (let hole = 1; hole < holeSeed.length; hole++) {
+    const piece = ink[holeSeed[hole]! - 1] ?? 0;
+    if (!piece) continue;
+    const vote = votes.get(piece) ?? { fill: 0, detail: 0, area: 0, holes: [] };
+    if (removeHole[hole]) vote.fill++;
+    else vote.detail++;
+    vote.area += holeArea[hole]!;
+    vote.holes.push(hole);
+    votes.set(piece, vote);
+  }
+  // Profundidad de la tinta de cada pieza y de cada hueco, solo si alguna pieza puede ser un emblema.
+  const candidates = [...votes].filter(([piece, vote]) => vote.holes.length >= 3 && inkArea[piece]! >= EMBLEM_INK_RATIO * vote.area);
+  const emblems = new Set<number>();
+  if (candidates.length > 0) {
+    const inkDepth = depthMap((index) => !near[index], width, height);
+    const holeDepth = depthMap((index) => holeLabels[index]! > 0, width, height);
+    const deepestInk = new Map<number, number>();
+    for (let index = 0; index < total; index++) {
+      const piece = ink[index]!;
+      if (piece) deepestInk.set(piece, Math.max(deepestInk.get(piece) ?? 0, inkDepth[index]!));
+    }
+    const deepestHole = new Array<number>(holeSeed.length).fill(0);
+    for (let index = 0; index < total; index++) {
+      const hole = holeLabels[index]!;
+      if (hole) deepestHole[hole] = Math.max(deepestHole[hole]!, holeDepth[index]!);
+    }
+    for (const [piece, vote] of candidates) {
+      const holes = Math.max(1, ...vote.holes.map((hole) => deepestHole[hole]!));
+      if ((deepestInk.get(piece) ?? 0) >= EMBLEM_DEPTH_RATIO * holes) emblems.add(piece);
+    }
+  }
+  for (const [piece, vote] of votes) {
+    if (emblems.has(piece)) {
+      for (const hole of vote.holes) removeHole[hole] = false;
+      continue;
+    }
+    if (vote.holes.length < 2 || vote.fill === vote.detail) continue;
+    for (const hole of vote.holes) removeHole[hole] = vote.fill > vote.detail;
+  }
 }
 
 export function removeLogoBackground(source: Uint8ClampedArray, width: number, height: number, options: LogoBackgroundOptions = DEFAULT_LOGO_BACKGROUND): LogoBackgroundResult {
@@ -165,40 +335,92 @@ export function removeLogoBackground(source: Uint8ClampedArray, width: number, h
   const uneven = detected.share < EVEN_BORDER_SHARE;
   const threshold = strengthThreshold(options.strength);
 
-  // 1 = fondo. Un píxel que ya era transparente también cuenta como fondo.
-  const isNear = (index: number) => source[index * 4 + 3]! < TRANSPARENT_ALPHA || distance(source, index * 4, background) <= threshold;
+  // Parecido al fondo (un píxel que ya era transparente también cuenta).
+  const near = new Uint8Array(total);
+  for (let index = 0; index < total; index++) {
+    if (source[index * 4 + 3]! < TRANSPARENT_ALPHA || distance(source, index * 4, background) <= threshold) near[index] = 1;
+  }
+
+  // 1 = fondo. Primero el que toca los bordes por un camino de píxeles parecidos.
   const mask = new Uint8Array(total);
-  if (options.holes) {
-    for (let index = 0; index < total; index++) if (isNear(index)) mask[index] = 1;
-  } else {
-    const queue = new Int32Array(total);
-    let head = 0;
-    let tail = 0;
-    for (const index of borderPixels(width, height)) {
-      if (mask[index] || !isNear(index)) continue;
-      mask[index] = 1;
-      queue[tail++] = index;
-    }
-    const visit = (next: number) => {
-      if (mask[next] || !isNear(next)) return;
-      mask[next] = 1;
-      queue[tail++] = next;
-    };
+  const queue = new Int32Array(total);
+  let head = 0;
+  let tail = 0;
+  const visitOuter = (next: number) => {
+    if (mask[next] || !near[next]) return;
+    mask[next] = 1;
+    queue[tail++] = next;
+  };
+  for (const index of borderPixels(width, height)) visitOuter(index);
+  while (head < tail) {
+    const index = queue[head++]!;
+    const x = index % width;
+    if (x > 0) visitOuter(index - 1);
+    if (x < width - 1) visitOuter(index + 1);
+    if (index >= width) visitOuter(index - width);
+    if (index + width < total) visitOuter(index + width);
+  }
+
+  // Huecos: lo parecido al fondo que el logo encierra, cada uno con su área y su perímetro.
+  const holeLabels = new Int32Array(total);
+  const holeArea: number[] = [0];
+  const holePerimeter: number[] = [0];
+  const holeSeed: number[] = [-1];
+  let label = 0;
+  const visitHole = (next: number) => {
+    if (!near[next] || mask[next] || holeLabels[next]) return;
+    holeLabels[next] = label;
+    queue[tail++] = next;
+  };
+  for (let seed = 0; seed < total; seed++) {
+    if (!near[seed] || mask[seed] || holeLabels[seed]) continue;
+    label = holeArea.length;
+    head = 0;
+    tail = 0;
+    visitHole(seed);
     while (head < tail) {
       const index = queue[head++]!;
       const x = index % width;
-      if (x > 0) visit(index - 1);
-      if (x < width - 1) visit(index + 1);
-      if (index >= width) visit(index - width);
-      if (index + width < total) visit(index + width);
+      if (x > 0) visitHole(index - 1);
+      if (x < width - 1) visitHole(index + 1);
+      if (index >= width) visitHole(index - width);
+      if (index + width < total) visitHole(index + width);
     }
+    holeArea.push(tail);
+    holePerimeter.push(0);
+    holeSeed.push(seed);
   }
+  for (let index = 0; index < total; index++) {
+    const own = holeLabels[index]!;
+    if (!own) continue;
+    const x = index % width;
+    if (x === 0 || holeLabels[index - 1] !== own) holePerimeter[own]!++;
+    if (x === width - 1 || holeLabels[index + 1] !== own) holePerimeter[own]!++;
+    if (index < width || holeLabels[index - width] !== own) holePerimeter[own]!++;
+    if (index + width >= total || holeLabels[index + width] !== own) holePerimeter[own]!++;
+  }
+
+  // Qué hueco se quita: el relleno de letras (si está encendido) y lo que la persona tocó.
+  const removeHole = holeArea.map((area, hole) => hole > 0 && options.holes && looksLikeLetterFill(area, holePerimeter[hole]!));
+  if (options.holes && holeArea.length > 2) voteByInk(near, holeLabels, width, height, holeSeed, holeArea, removeHole);
+  for (const toggle of options.toggles ?? []) {
+    const x = Math.floor(toggle.x);
+    const y = Math.floor(toggle.y);
+    if (x < 0 || y < 0 || x >= width || y >= height) continue;
+    const hole = holeLabels[y * width + x]!;
+    if (hole) removeHole[hole] = toggle.remove;
+  }
+  let holesRemoved = 0;
+  for (let hole = 1; hole < holeArea.length; hole++) if (removeHole[hole]) holesRemoved++;
+  for (let index = 0; index < total; index++) if (holeLabels[index] && removeHole[holeLabels[index]!]) mask[index] = 1;
+  const holes = { total: holeArea.length - 1, removed: holesRemoved };
+  const holeRemoved = Uint8Array.from(removeHole, (remove) => (remove ? 1 : 0));
 
   let removedCount = 0;
   for (let index = 0; index < total; index++) removedCount += mask[index]!;
   const removed = removedCount / total;
   if (removedCount === 0 || removed < 0.01) return unchanged('nothing-removed', source, width, height, background, uneven);
-  if (removedCount === total) return { ...unchanged('nothing-left', source, width, height, background, uneven), removed };
+  if (removedCount === total) return { ...unchanged('nothing-left', source, width, height, background, uneven), removed, holes, holeLabels, holeRemoved };
 
   const data = new Uint8ClampedArray(source);
   const color = [0, 0, 0];
@@ -246,7 +468,7 @@ export function removeLogoBackground(source: Uint8ClampedArray, width: number, h
       if (y > bottom) bottom = y;
     }
   }
-  if (right < 0 || visible < total * 0.002) return { ...unchanged('nothing-left', source, width, height, background, uneven), removed };
+  if (right < 0 || visible < total * 0.002) return { ...unchanged('nothing-left', source, width, height, background, uneven), removed, holes, holeLabels, holeRemoved };
   const pad = Math.max(2, Math.round(Math.max(right - left + 1, bottom - top + 1) * 0.02));
   left = Math.max(0, left - pad);
   top = Math.max(0, top - pad);
@@ -259,7 +481,7 @@ export function removeLogoBackground(source: Uint8ClampedArray, width: number, h
     const from = ((top + y) * width + left) * 4;
     cropped.set(data.subarray(from, from + cropWidth * 4), y * cropWidth * 4);
   }
-  return { status: 'ok', data: cropped, width: cropWidth, height: cropHeight, background, uneven, removed };
+  return { status: 'ok', data: cropped, width: cropWidth, height: cropHeight, background, uneven, removed, offset: { x: left, y: top }, holes, holeLabels, holeRemoved };
 }
 
 /** Lado más largo con que se procesa un logo: se muestra a lo más a ~220 px, así que 1200 sobra y el PNG queda liviano. */
