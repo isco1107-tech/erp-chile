@@ -1,6 +1,6 @@
 'use server';
 
-import { blockImageUrls } from '@/lib/web-sites/blocks';
+import { pageantDesignImageUrls } from '@/lib/events/pageant-site-design';
 import { revalidatePath } from 'next/cache';
 import { Prisma, type Project } from '@prisma/client';
 import { requireAuthWithPermission, authErrorMessage } from '@/lib/auth/guards';
@@ -138,7 +138,7 @@ export async function updatePublicSiteAction(id: string, input: unknown): Promis
     const session = await requireAuthWithPermission('projects:write');
     const parsed = projectPublicSiteSchema.safeParse(input);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
-    const creativeImages = parsed.data.publicSiteDesign?.blocks.flatMap(blockImageUrls) ?? [];
+    const creativeImages = pageantDesignImageUrls(parsed.data.publicSiteDesign);
     const prefixes = [`pageant-covers/${session.companyId}/`, `pageant-winners/${session.companyId}/`, `pageant-favicons/${session.companyId}/`, `pageant-site/${session.companyId}/`];
     if (creativeImages.some((url) => url && (!isAllowedBlobUrl(url) || !prefixes.some((prefix) => blobPathnameStartsWith(url, prefix))))) return { success: false, error: 'Las imágenes del estudio deben subirse desde este certamen o evento.' };
     // El logo de la pestaña tiene que haberlo subido esta empresa desde el panel (no se acepta una URL cualquiera).

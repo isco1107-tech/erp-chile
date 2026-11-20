@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import { pageantContact } from './pageant-contact';
-import { editableLayout } from './pageant-layout';
+import { designLayout } from './pageant-design-ops';
 import { normalizePartnerLink } from './pageant-partners';
 import { DIRECTOR_TITLES } from './pageant-site';
-import { parsePageantSiteDesign } from './pageant-site-design';
+import { pageantSiteDesignSchema, parsePageantSiteDesign } from './pageant-site-design';
 import { parsePageantTypography } from './pageant-typography';
 import { PUBLIC_ACCENTS, type PublicAccentKey } from '@/modules/projects/schema';
 import type { PublicPageantSite } from '@/modules/projects/services/public-site.service';
@@ -74,12 +74,12 @@ const textOrNull = (value: string) => value.trim() || null;
  * (armada en el servidor con todas las secciones, `getPageantSiteEditorBase`)
  * y lo editable sale del borrador. Pura: el lienzo la llama en cada cambio.
  */
-export function applyDraftToSite(base: PublicPageantSite, draft: PageantEditorDraft): PublicPageantSite {
+export function applyDraftToSite(base: PublicPageantSite, draft: PageantEditorDraft, convertLayout = true): PublicPageantSite {
   const contact = pageantContact({ publicContactEmail: textOrNull(draft.email), publicWhatsapp: textOrNull(draft.whatsapp), instagramHandle: draft.instagram });
-  const design = parsePageantSiteDesign(draft.design) ?? base.creative;
+  const design = parsePageantSiteDesign(draft.design) ?? (base.creative ? pageantSiteDesignSchema.parse(base.creative) : undefined);
   // El editor siempre trabaja con una sola lista: un diseño anterior se ve ya convertido (lo mismo que mostrará al guardar un cambio de orden).
   const creative = design
-    ? { ...design, layout: design.layout ?? editableLayout({ blockIds: design.blocks.map((block) => block.id), placement: design.placement }) }
+    ? { ...design, layout: convertLayout ? designLayout(design) : design.layout }
     : undefined;
   const { toggles } = draft;
   const directorName = draft.director.name.trim();

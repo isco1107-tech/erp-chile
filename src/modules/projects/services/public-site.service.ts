@@ -1,4 +1,4 @@
-import { parsePageantSiteDesign, type PageantSiteDesign } from '@/lib/events/pageant-site-design';
+import { pageantDesignForDisplay, parsePageantSiteDesign, type PageantSiteDesign } from '@/lib/events/pageant-site-design';
 import type { CreativeSite } from '@/lib/web-sites/creative';
 import { requirementsFromProject, type RegistrationRequirements } from '@/lib/events/registration-requirements';
 import 'server-only';
@@ -42,8 +42,7 @@ export interface PublicPageantCandidate {
 }
 
 export interface PublicPageantSite {
-  /** Diseño del estudio y del sitio (orden libre, ajustes por sección); los campos propios del certamen pueden faltar en datos de prueba. */
-  creative?: CreativeSite & Partial<Pick<PageantSiteDesign, 'footer' | 'layout' | 'sections' | 'options'>>;
+  creative?: CreativeSite & Partial<Omit<PageantSiteDesign, keyof CreativeSite | 'compositions'>>;
   slug: string;
   name: string;
   organizer: string;
@@ -263,12 +262,13 @@ async function assemblePageantSite(project: ProjectWithCompany, slug: string, op
         : { state: 'soon', opensAtLabel: opensLater && project.registrationOpensAt ? shortDate(project.registrationOpensAt.toISOString()) : null };
 
   const contact = pageantContact(project);
+  const creative = parsePageantSiteDesign(project.publicSiteDesign);
 
   return {
     slug,
     name: project.name,
     organizer: company.businessName,
-    creative: parsePageantSiteDesign(project.publicSiteDesign),
+    creative: creative && pageantDesignForDisplay(creative),
     tagline: project.publicTagline,
     description: project.publicDescription,
     galaDate: project.galaDate?.toISOString() ?? null,

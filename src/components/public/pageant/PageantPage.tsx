@@ -1,26 +1,49 @@
-import { CreativeSiteSections } from '@/components/web-sites/CreativeSiteSections';
-import { resolveLayout } from '@/lib/events/pageant-layout';
+import SiteRenderer from '@/components/web-sites/SiteRenderer';
+import { SITE_CSS } from '@/components/web-sites/site/site-css';
+import { pageantRelocatedCss, resolvePageantDesignLayout, type PageantInsertion } from '@/lib/events/pageant-site-design';
+import { documentFromBlocks } from '@/lib/web-sites/site';
 import type { PageantView } from '@/lib/events/pageant-site';
 import type { PublicPageantSite } from '@/modules/projects/services/public-site.service';
 import { PageantSite, type PageantSiteEditing } from './PageantSite';
+import { pageantLayerOverlays, type PageantLayerEditor } from './PageantSiteLayout';
 
-/**
- * El micrositio completo: `PageantSite` con las secciones propias y las del
- * estudio en el orden del diseño. Solo un diseño anterior al orden libre puede
- * tener estudio «antes de todo el sitio» o «después del pie»: esos tramos van
- * por fuera, exactamente como se veían. Lo usan la página pública, la vista
- * previa, el lienzo del editor visual y el verificador de responsividad.
- */
-export function PageantPage({ site, view, editing }: { site: PublicPageantSite; view: PageantView; editing?: PageantSiteEditing }) {
+/** El mismo micrositio para el visitante, la vista previa y ambos editores. */
+export function PageantPage({ site, view, editing, layerEditor }: {
+  site: PublicPageantSite; view: PageantView; editing?: PageantSiteEditing; layerEditor?: PageantLayerEditor;
+}) {
   const design = site.creative;
-  const { leading, trailing } = resolveLayout({ layout: design?.layout, blockIds: design?.blocks.map((block) => block.id) ?? [], placement: design?.placement, enabled: design?.enabled });
+  const layout = resolvePageantDesignLayout(design, layerEditor ? true : design?.enabled);
   const basePath = site.customDomain ? '' : `/certamen/${site.slug}`;
-  const only = (ids: string[]) => (design ? { ...design, blocks: design.blocks.filter((block) => ids.includes(block.id)) } : undefined);
+  const doc = design && documentFromBlocks(design.blocks, design.theme);
+  const overlays = pageantLayerOverlays(site, layerEditor);
+  const withStudio = Boolean(design && (design.enabled || layerEditor) && (design.blocks.length || Object.keys(overlays).length));
+  const exterior = (ids: string[], slot: PageantInsertion) => {
+    if (!design || !doc) return null;
+    const blocks = ids.flatMap((id) => {
+      const block = design.blocks.find((item) => item.id === id);
+      return block ? [block] : [];
+    });
+    const content = blocks.length > 0 && <SiteRenderer name={site.name} logoUrl={null} theme={design.theme} slug={site.slug} basePath={basePath}
+      document={doc} embedded embeddedSection={{ id: slot, blocks }} mode={layerEditor ? 'preview' : 'public'} withCss={false}
+      onSelectBlock={layerEditor?.onSelect} selectedBlockId={layerEditor?.selectedId} renderCanvasLayer={layerEditor?.renderCanvasLayer}
+      beforeBlock={layerEditor ? (block) => layerEditor.renderInsertion({ slot, beforeId: block.id }, block) : undefined} />;
+    if (!layerEditor) return content;
+    // Con orden explícito el pie es el último destino de los dos editores.
+    if (design.layout) return null;
+    return (
+      <div data-pageant-insertion={slot}>
+        {content}
+        {layerEditor.renderInsertion({ slot })}
+      </div>
+    );
+  };
   return (
     <>
-      {leading.length > 0 && <CreativeSiteSections design={only(leading)} name={site.name} slug={site.slug} basePath={basePath} />}
-      <PageantSite site={site} view={view} editing={editing} />
-      {trailing.length > 0 && <CreativeSiteSections design={only(trailing)} name={site.name} slug={site.slug} basePath={basePath} />}
+      {withStudio && <style>{SITE_CSS}</style>}
+      {design?.relocated && <style>{pageantRelocatedCss(layerEditor ? { ...design, enabled: true } : design)}</style>}
+      {exterior(layout.leading, 'before')}
+      <PageantSite site={site} view={view} editing={editing} layerEditor={layerEditor} layout={layout.items} overlays={overlays} omitStudioStyles />
+      {exterior(layout.trailing, 'after')}
     </>
   );
 }

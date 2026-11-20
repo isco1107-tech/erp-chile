@@ -1,3 +1,5 @@
+import type { CSSProperties, ReactNode } from 'react';
+import type { CanvasElement } from '@/lib/web-sites/canvas';
 import { pageLink, resolveLink, type ResolvedLink, type SiteDocument, type SitePage } from '@/lib/web-sites/site';
 
 /**
@@ -14,6 +16,8 @@ export interface RenderCtx {
   /** Dirección del sitio (la usa el formulario de contacto). */
   slug: string;
   preview: boolean;
+  pageantBlockId?: string;
+  renderCanvasLayer?: (blockId: string, element: CanvasElement, style: CSSProperties, content: ReactNode) => ReactNode;
   /** Prefijo de los ids de sección: `wsp-` en la vista previa para no chocar con el DOM del panel. */
   idPrefix: string;
   /** Vista previa: pasar a otra página del sitio (y a un ancla de ella). */

@@ -19,8 +19,12 @@ import {
   type PageantView,
 } from '@/lib/events/pageant-site';
 import { safeHref } from '@/lib/web-sites/urls';
+import { pageantNamedItem, pageantSlotAfter, resolvePageantDesignLayout, type PageantRegion } from '@/lib/events/pageant-site-design';
+import { documentFromBlocks } from '@/lib/web-sites/site';
+import type { PageantNativeTextField } from '@/lib/events/pageant-native-text';
+import type { PageantLayerEditor } from './PageantSiteLayout';
 import type { WebSiteBlock } from '@/lib/web-sites/blocks';
-import { DEFAULT_PAGEANT_OPTIONS, PAGEANT_SECTION_INFO, overrideOr, resolveLayout, sectionSettings, sectionToneClasses, type PageantSectionId } from '@/lib/events/pageant-layout';
+import { DEFAULT_PAGEANT_OPTIONS, PAGEANT_SECTION_INFO, overrideOr, sectionSettings, sectionToneClasses, type LayoutItem, type PageantSectionId } from '@/lib/events/pageant-layout';
 import SiteRenderer from '@/components/web-sites/SiteRenderer';
 import { SITE_CSS } from '@/components/web-sites/site/site-css';
 import type { PublicPageantCandidate, PublicPageantSite } from '@/modules/projects/services/public-site.service';
@@ -232,7 +236,11 @@ const D = Object.fromEntries(Object.entries(PAGEANT_SECTION_INFO).map(([id, info
  * diseño (`resolveLayout`): un diseño anterior al orden libre se ve como
  * siempre. Cada sección propia aparece solo si tiene su dato y no está oculta.
  */
-export function PageantSite({ site, view, editing }: { site: PublicPageantSite; view: PageantView; editing?: PageantSiteEditing }) {
+export function PageantSite({ site, view, editing, layerEditor, layout: orderedItems, overlays = {}, omitStudioStyles }: {
+  site: PublicPageantSite; view: PageantView; editing?: PageantSiteEditing; layerEditor?: PageantLayerEditor;
+  layout?: LayoutItem[]; overlays?: Partial<Record<PageantRegion, ReactNode>>; omitStudioStyles?: boolean;
+}) {
+  const nativeText = (field: PageantNativeTextField, content: ReactNode) => layerEditor?.renderNativeText ? layerEditor.renderNativeText(field, content) : content;
   const rootRef = useRef<HTMLDivElement>(null);
   const isEditing = Boolean(editing);
   const design = site.creative;
@@ -297,17 +305,18 @@ export function PageantSite({ site, view, editing }: { site: PublicPageantSite; 
   // ── Diseño libre: orden, ajustes por sección y bloques del estudio ──────────
   const blocks = design?.blocks;
   const blocksById = useMemo(() => new Map((blocks ?? []).map((block) => [block.id, block])), [blocks]);
-  const layout = useMemo(
-    () => resolveLayout({ layout: design?.layout, blockIds: (blocks ?? []).map((block) => block.id), placement: design?.placement, enabled: design?.enabled }).items,
-    [design?.layout, blocks, design?.placement, design?.enabled]
-  );
+  const layout = useMemo(() => orderedItems ?? resolvePageantDesignLayout(design).items, [design, orderedItems]);
+  const studioDocument = useMemo(() => design && documentFromBlocks(design.blocks, design.theme), [design]);
+  const director = site.director ?? (layerEditor?.renderNativeText ? {
+    name: '', title: null, role: null, bio: null, photoUrl: null, highlights: [],
+  } : null);
   const conf = (id: PageantSectionId) => sectionSettings(design?.sections, id);
 
   // Cuándo existe cada sección propia (sin su dato no se dibuja, esté donde esté en el orden).
   const candidateSide = !isSponsorView;
   const available: Record<ContentSection, boolean> = {
     resultados: candidateSide && Boolean(winner),
-    certamen: Boolean(site.description) || view.highlights.length > 0,
+    certamen: Boolean(site.description) || view.highlights.length > 0 || Boolean(layerEditor?.renderNativeText),
     // Salón de la fama: prueba de trayectoria para la candidata (a quién puede llegar a ser) y para la marca (dónde se asocia).
     ganadoras: site.pastWinners.length > 0,
     // Con la convocatoria abierta, "Así es el proceso" de la inscripción reemplaza al recorrido general.
@@ -317,7 +326,7 @@ export function PageantSite({ site, view, editing }: { site: PublicPageantSite; 
     votacion: candidateSide && Boolean(site.voteRanking && site.voteRanking.length > 0),
     gala: hasGala,
     auspicios: hasSponsorSection && (isSponsorView || !showAudienceSwitch),
-    director: Boolean(site.director),
+    director: Boolean(director),
     preguntas: candidateSide && view.faq.length > 0,
   };
   const isShown = (id: PageantSectionId) => (id === 'inicio' || available[id]) && !conf(id).hidden;
@@ -453,10 +462,11 @@ export function PageantSite({ site, view, editing }: { site: PublicPageantSite; 
     inicio: () => (
       <>
         <section id="inicio" className={`pgs-hero${site.coverImageUrl ? ' has-cover' : ''}`} aria-labelledby="pgs-title" {...editKey('inicio')}>
+          {overlays.inicio}
           {site.coverImageUrl && (
             <div className="pgs-hero-cover" aria-hidden="true">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={site.coverImageUrl} alt="" fetchPriority="high" />
+              <img data-pageant-item="inicio.cover-photo" src={site.coverImageUrl} alt="" fetchPriority="high" />
             </div>
           )}
           <HeroSky />
@@ -464,34 +474,34 @@ export function PageantSite({ site, view, editing }: { site: PublicPageantSite; 
           <div className="pgs-hero-inner">
             <Tiara className="pgs-tiara" />
             {heroKicker && (
-              <p className="pgs-hero-eyebrow pgs-rise" style={{ animationDelay: '0.2s' }}>
+              <p data-pageant-item="inicio.kicker" className="pgs-hero-eyebrow pgs-rise" style={{ animationDelay: '0.2s' }}>
                 {isEditing ? <span data-edit-field="kicker">{heroKicker}</span> : heroKicker}
               </p>
             )}
             <h1 id="pgs-title" className="pgs-title" style={titleFit}>
               {title.lead && (
-                <span className="pgs-title-lead pgs-rise" style={{ animationDelay: '0.3s' }}>
+                <span data-pageant-item="inicio.title-lead" className="pgs-title-lead pgs-rise" style={{ animationDelay: '0.3s' }}>
                   <span className="pgs-title-rule" aria-hidden="true" />
                   {title.lead}
                   <span className="pgs-title-rule" aria-hidden="true" />
                 </span>
               )}
-              <FitText className="pgs-title-main pgs-foil pgs-rise" style={{ animationDelay: '0.42s' }}>
+              <FitText data-pageant-item="inicio.title" className="pgs-title-main pgs-foil pgs-rise" style={{ animationDelay: '0.42s' }}>
                 {title.main}
               </FitText>
               {title.edition && (
-                <span className="pgs-title-edition pgs-rise" style={{ animationDelay: '0.56s' }}>
+                <span data-pageant-item="inicio.edition" className="pgs-title-edition pgs-rise" style={{ animationDelay: '0.56s' }}>
                   {title.edition}
                 </span>
               )}
             </h1>
             {heroCall && (
-              <p className="pgs-hero-call pgs-rise" style={{ animationDelay: '0.62s' }}>
+              <p data-pageant-item="inicio.heading" className="pgs-hero-call pgs-rise" style={{ animationDelay: '0.62s' }}>
                 {isEditing ? <span data-edit-field="title">{heroCall}</span> : heroCall}
               </p>
             )}
-            <p className="pgs-tagline pgs-rise" style={{ animationDelay: '0.7s' }}>
-              {taglineEditable ? <span data-edit-field="tagline">{hero.lead}</span> : hero.lead}
+            <p data-pageant-item="inicio.tagline" className="pgs-tagline pgs-rise" style={{ animationDelay: '0.7s' }}>
+              {taglineEditable ? <span data-edit-field="tagline">{hero.lead}</span> : isSponsorView ? hero.lead : nativeText('publicTagline', hero.lead)}
             </p>
             {options.pills && hero.pills.length > 0 && (
               <ul className="pgs-pills pgs-rise" style={{ animationDelay: '0.74s' }} aria-label="Datos clave">
@@ -504,7 +514,7 @@ export function PageantSite({ site, view, editing }: { site: PublicPageantSite; 
               </ul>
             )}
             {(view.gala || site.venueName) && (
-              <p className="pgs-hero-meta pgs-rise" style={{ animationDelay: '0.76s' }}>
+              <p data-pageant-item="inicio.details" className="pgs-hero-meta pgs-rise" style={{ animationDelay: '0.76s' }}>
                 {view.gala && (
                   <span>
                     <Calendar className="pgs-inline-icon" />
@@ -627,6 +637,7 @@ export function PageantSite({ site, view, editing }: { site: PublicPageantSite; 
     resultados: () =>
       winner && (
         <section id="resultados" className={sectionClass('resultados', 'pgs-results')} aria-labelledby="pgs-results-title" {...editKey('resultados')}>
+          {overlays.resultados}
           <div className="pgs-wrap">
             {sectionKicker('resultados', D.resultados.kicker!)}
             <div className="pgs-winner" data-reveal>
@@ -636,7 +647,7 @@ export function PageantSite({ site, view, editing }: { site: PublicPageantSite; 
               </div>
               <div className="pgs-winner-body">
                 {hasHeading('resultados', D.resultados.lead!, D.resultados.accent!) && (
-                  <h2 id="pgs-results-title" className="pgs-h2">
+                  <h2 data-pageant-item="heading.results-title" id="pgs-results-title" className="pgs-h2">
                     {heading('resultados', D.resultados.lead!, D.resultados.accent!)}
                   </h2>
                 )}
@@ -663,6 +674,7 @@ export function PageantSite({ site, view, editing }: { site: PublicPageantSite; 
       const parts = headingOf('certamen', title.lead, title.main);
       return (
         <section id="certamen" className={sectionClass('certamen')} aria-labelledby="pgs-about-title" {...editKey('certamen')}>
+          {overlays.certamen}
           <div className="pgs-wrap pgs-about">
             <AboutHeading
               title={title}
@@ -674,7 +686,9 @@ export function PageantSite({ site, view, editing }: { site: PublicPageantSite; 
               accent={parts.accent}
               editable={isEditing}
             />
-            {aboutParagraphs.length > 0 && <AboutProse paragraphs={aboutParagraphs} reveal editable={isEditing} />}
+            {layerEditor?.renderNativeText
+              ? <div data-pageant-item="certamen.description">{nativeText('publicDescription', aboutParagraphs.length > 0 && <AboutProse paragraphs={aboutParagraphs} reveal />)}</div>
+              : <AboutProse paragraphs={aboutParagraphs} reveal editable={isEditing} movable="certamen.description" />}
           </div>
           {view.highlights.length > 0 && (
             <div className="pgs-wrap">
@@ -697,6 +711,7 @@ export function PageantSite({ site, view, editing }: { site: PublicPageantSite; 
       return (
         <HallOfFame
           winners={site.pastWinners}
+          overlay={overlays.ganadoras}
           index={numberOf('ganadoras')}
           look={{ kicker: c.kicker ?? undefined, lead: c.title ?? undefined, accent: c.titleAccent ?? undefined, toneClass: sectionToneClasses(c.tone, c.spacing), editable: isEditing }}
         />
@@ -705,11 +720,12 @@ export function PageantSite({ site, view, editing }: { site: PublicPageantSite; 
 
     camino: () => (
       <section id="camino" className={sectionClass('camino')} aria-labelledby="pgs-journey-title" {...editKey('camino')}>
+        {overlays.camino}
         <div className="pgs-wrap">
           <div className="pgs-section-head" data-reveal>
             {sectionKicker('camino', D.camino.kicker!)}
             {hasHeading('camino', D.camino.lead!, D.camino.accent!) && (
-              <h2 id="pgs-journey-title" className="pgs-h2">
+              <h2 data-pageant-item="heading.journey-title" id="pgs-journey-title" className="pgs-h2">
                 {heading('camino', D.camino.lead!, D.camino.accent!)}
               </h2>
             )}
@@ -736,6 +752,7 @@ export function PageantSite({ site, view, editing }: { site: PublicPageantSite; 
     postula: () =>
       site.registration ? (
         <section id="postula" className={sectionClass('postula')} aria-labelledby="pgs-apply-title" {...editKey('postula')}>
+          {overlays.postula}
           <div className="pgs-wrap">
             <div className="pgs-callout" data-reveal>
               <span className="pgs-callout-mark" aria-hidden="true">
@@ -757,7 +774,7 @@ export function PageantSite({ site, view, editing }: { site: PublicPageantSite; 
             <div className="pgs-section-head is-center pgs-subhead" data-reveal>
               {sectionKicker('postula', D.postula.kicker!)}
               {hasHeading('postula', D.postula.lead!, D.postula.accent!) && (
-                <h2 id="pgs-apply-title" className="pgs-h2">
+                <h2 data-pageant-item="heading.apply-title" id="pgs-apply-title" className="pgs-h2">
                   {heading('postula', D.postula.lead!, D.postula.accent!)}
                 </h2>
               )}
@@ -824,10 +841,11 @@ export function PageantSite({ site, view, editing }: { site: PublicPageantSite; 
         site.registrationNotice && (
           // Inscripción aún sin abrir (o ya cerrada): el título es el aviso automático del estado.
           <section id="postula" className={sectionClass('postula')} aria-labelledby="pgs-apply-title" {...editKey('postula')}>
+            {overlays.postula}
             <div className="pgs-wrap">
               <div className="pgs-section-head is-center" data-reveal>
                 {sectionKicker('postula', D.postula.kicker!)}
-                <h2 id="pgs-apply-title" className="pgs-h2">
+                <h2 data-pageant-item="heading.apply-title" id="pgs-apply-title" className="pgs-h2">
                   {site.registrationNotice.state === 'closed' ? (
                     <>
                       Las postulaciones <em>ya cerraron</em>
@@ -866,12 +884,13 @@ export function PageantSite({ site, view, editing }: { site: PublicPageantSite; 
 
     candidatas: () => (
       <section id="candidatas" className={sectionClass('candidatas')} aria-labelledby="pgs-candidates-title" {...editKey('candidatas')}>
+        {overlays.candidatas}
         <div className="pgs-wrap">
           <div className="pgs-section-head is-split" data-reveal>
             <div>
               {sectionKicker('candidatas', site.candidates.length === 1 ? 'Candidata oficial' : `${site.candidates.length} candidatas oficiales`)}
               {hasHeading('candidatas', D.candidatas.lead!, D.candidatas.accent!) && (
-                <h2 id="pgs-candidates-title" className="pgs-h2">
+                <h2 data-pageant-item="heading.candidates-title" id="pgs-candidates-title" className="pgs-h2">
                   {heading('candidatas', D.candidatas.lead!, D.candidatas.accent!)}
                 </h2>
               )}
@@ -916,11 +935,12 @@ export function PageantSite({ site, view, editing }: { site: PublicPageantSite; 
       site.voteRanking &&
       site.voteRanking.length > 0 && (
         <section id="votacion" className={sectionClass('votacion')} aria-labelledby="pgs-ranking-title" {...editKey('votacion')}>
+          {overlays.votacion}
           <div className="pgs-wrap pgs-vote">
             <div className="pgs-vote-head" data-reveal>
               {sectionKicker('votacion', D.votacion.kicker!)}
               {hasHeading('votacion', D.votacion.lead!, D.votacion.accent!) && (
-                <h2 id="pgs-ranking-title" className="pgs-h2">
+                <h2 data-pageant-item="heading.ranking-title" id="pgs-ranking-title" className="pgs-h2">
                   {heading('votacion', D.votacion.lead!, D.votacion.accent!)}
                 </h2>
               )}
@@ -960,6 +980,7 @@ export function PageantSite({ site, view, editing }: { site: PublicPageantSite; 
       const parts = headingOf('gala', site.venueName ?? 'Una noche', site.venueName ? '' : 'para recordar');
       return (
         <section id="gala" className={sectionClass('gala')} aria-labelledby="pgs-gala-title" {...editKey('gala')}>
+          {overlays.gala}
           <div className="pgs-wrap pgs-gala">
             <div className="pgs-gala-date" data-reveal>
               {sectionKicker('gala', D.gala.kicker!, 'paper')}
@@ -979,7 +1000,7 @@ export function PageantSite({ site, view, editing }: { site: PublicPageantSite; 
             </div>
             <div className="pgs-gala-info" data-reveal>
               {(parts.lead || parts.accent) && (
-                <h2 id="pgs-gala-title" className={`pgs-h2 is-ink ${headingSize([parts.lead, parts.accent].filter(Boolean).join(' '))}`.trim()}>
+                <h2 data-pageant-item="heading.gala-title" id="pgs-gala-title" className={`pgs-h2 is-ink ${headingSize([parts.lead, parts.accent].filter(Boolean).join(' '))}`.trim()}>
                   <HeadingText lead={parts.lead} accent={parts.accent} editable={isEditing} />
                 </h2>
               )}
@@ -1019,6 +1040,7 @@ export function PageantSite({ site, view, editing }: { site: PublicPageantSite; 
 
     auspicios: () => (
       <section id="auspicios" className={sectionClass('auspicios')} aria-label="Sponsors" {...editKey('auspicios')}>
+        {overlays.auspicios}
         <div className="pgs-wrap">
           {showAudienceSwitch && (
             <>
@@ -1062,7 +1084,7 @@ export function PageantSite({ site, view, editing }: { site: PublicPageantSite; 
                       <button type="button" className="pgs-package-toggle" aria-expanded={openPackages.has(p.id)} aria-controls={`paquete-${p.id}`} onClick={() => togglePackage(p.id)}>
                         <span className="pgs-package-head">
                           <span className="pgs-eyebrow">{i === 0 && site.packages.length > 1 ? 'Más exclusivo' : p.tierLabel}</span>
-                          <span className="pgs-package-name">{p.name}</span>
+                          <span data-pageant-item={`auspicios.name-${p.id}`} className="pgs-package-name">{p.name}</span>
                           {p.price != null && (
                             <span className="pgs-package-price">
                               {formatCurrency(p.price)}
@@ -1071,7 +1093,7 @@ export function PageantSite({ site, view, editing }: { site: PublicPageantSite; 
                         </span>
                         <Chevron direction="down" className="pgs-package-chevron" />
                       </button>
-                      {p.description && <p className="pgs-package-desc">{p.description}</p>}
+                      {p.description && <p data-pageant-item={`auspicios.description-${p.id}`} className="pgs-package-desc">{p.description}</p>}
                       <div id={`paquete-${p.id}`} className="pgs-package-body" hidden={!openPackages.has(p.id)}>
                         {packageBenefits.common.length > 0 && (
                           <>
@@ -1124,14 +1146,14 @@ export function PageantSite({ site, view, editing }: { site: PublicPageantSite; 
             </>
           )}
 
-          {site.sponsorNote && (
+          {(site.sponsorNote || layerEditor?.renderNativeText) && (
             <div className="pgs-callout pgs-callout-note" data-reveal>
               <span className="pgs-callout-mark" aria-hidden="true">
                 <Crown />
               </span>
               <div>
                 <p className="pgs-callout-title">Exclusividad por categoría</p>
-                <p>{site.sponsorNote}</p>
+                <p data-pageant-item="auspicios.note">{nativeText('sponsorExclusivityNote', site.sponsorNote)}</p>
               </div>
             </div>
           )}
@@ -1198,38 +1220,39 @@ export function PageantSite({ site, view, editing }: { site: PublicPageantSite; 
     ),
 
     director: () => {
-      if (!site.director) return null;
-      const copy = directorCopy(site.director.title);
+      if (!director) return null;
+      const copy = directorCopy(director.title);
       return (
         <section id="director" className={sectionClass('director')} aria-labelledby="pgs-director-title" {...editKey('director')}>
+          {overlays.director}
           <div className="pgs-wrap">
             <div className="pgs-director" data-reveal>
-              {site.director.photoUrl ? (
+              {director.photoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img className="pgs-director-photo" src={site.director.photoUrl} alt={site.director.name} loading="lazy" decoding="async" />
+                <img data-pageant-item="director.photo" className="pgs-director-photo" src={director.photoUrl} alt={director.name} loading="lazy" decoding="async" />
               ) : (
-                <span className="pgs-director-photo pgs-monogram" role="img" aria-label={site.director.name}>
-                  <span>{initials(site.director.name)}</span>
+                <span data-pageant-item="director.photo" className="pgs-director-photo pgs-monogram" role="img" aria-label={director.name}>
+                  <span>{initials(director.name)}</span>
                 </span>
               )}
               <div className="pgs-director-body">
                 {sectionKicker('director', D.director.kicker!)}
                 {hasHeading('director', copy.lead, copy.word) && (
-                  <h2 id="pgs-director-title" className="pgs-h2">
+                  <h2 data-pageant-item="heading.director-title" id="pgs-director-title" className="pgs-h2">
                     {heading('director', copy.lead, copy.word)}
                   </h2>
                 )}
-                <p className="pgs-director-name">{site.director.name}</p>
-                {site.director.role && <p className="pgs-director-role">{site.director.role}</p>}
-                {site.director.bio && <p className="pgs-director-bio">{site.director.bio}</p>}
-                {site.director.highlights.length > 0 && (
+                <p data-pageant-item="director.name" className="pgs-director-name">{nativeText('directorName', director.name)}</p>
+                {(director.role || layerEditor?.renderNativeText) && <p data-pageant-item="director.role" className="pgs-director-role">{nativeText('directorRole', director.role)}</p>}
+                {(director.bio || layerEditor?.renderNativeText) && <p data-pageant-item="director.bio" className="pgs-director-bio">{nativeText('directorBio', director.bio)}</p>}
+                {director.highlights.length > 0 && (
                   <div className="pgs-director-career">
                     <button type="button" className="pgs-director-toggle" aria-expanded={directorOpen} aria-controls="pgs-director-highlights" onClick={() => setDirectorOpen((v) => !v)}>
                       <span>Trayectoria</span>
                       <Chevron direction="down" className="pgs-package-chevron" />
                     </button>
                     <ul id="pgs-director-highlights" className="pgs-director-highlights" hidden={!directorOpen}>
-                      {site.director.highlights.map((item) => (
+                      {director.highlights.map((item) => (
                         <li key={item}>
                           <Diamond className="pgs-benefit-mark" />
                           {item}
@@ -1258,11 +1281,12 @@ export function PageantSite({ site, view, editing }: { site: PublicPageantSite; 
 
     preguntas: () => (
       <section id="preguntas" className={sectionClass('preguntas')} aria-labelledby="pgs-faq-title" {...editKey('preguntas')}>
+        {overlays.preguntas}
         <div className="pgs-wrap pgs-faq">
           <div className="pgs-faq-head" data-reveal>
             {sectionKicker('preguntas', D.preguntas.kicker!, 'paper')}
             {hasHeading('preguntas', D.preguntas.lead!, D.preguntas.accent!) && (
-              <h2 id="pgs-faq-title" className="pgs-h2 is-ink">
+              <h2 data-pageant-item="heading.faq-title" id="pgs-faq-title" className="pgs-h2 is-ink">
                 {heading('preguntas', D.preguntas.lead!, D.preguntas.accent!)}
               </h2>
             )}
@@ -1287,10 +1311,10 @@ export function PageantSite({ site, view, editing }: { site: PublicPageantSite; 
             {view.faq.map((item) => (
               <details key={item.q} className="pgs-faq-item">
                 <summary>
-                  {item.q}
+                  <span data-pageant-item={pageantNamedItem('preguntas.question', item.q)}>{item.q}</span>
                   <Plus className="pgs-faq-icon" />
                 </summary>
-                <p>{item.a}</p>
+                <p data-pageant-item={pageantNamedItem('preguntas.answer', item.q)}>{item.a}</p>
               </details>
             ))}
           </div>
@@ -1302,9 +1326,11 @@ export function PageantSite({ site, view, editing }: { site: PublicPageantSite; 
   // ── Recorrido del orden: las secciones del estudio seguidas van en un solo tramo ──
   const body: ReactNode[] = [];
   let run: WebSiteBlock[] = [];
+  let slot: ReturnType<typeof pageantSlotAfter> = 'before';
   const flushRun = () => {
     if (run.length === 0 || !design) return;
     const tramo = run;
+    const destination = slot;
     run = [];
     body.push(
       <SiteRenderer
@@ -1313,11 +1339,16 @@ export function PageantSite({ site, view, editing }: { site: PublicPageantSite; 
         withCss={false}
         name={site.name}
         logoUrl={null}
-        blocks={tramo}
+        document={studioDocument}
+        embeddedSection={{ id: tramo[0]!.id, blocks: tramo }}
+        onSelectBlock={layerEditor?.onSelect}
+        selectedBlockId={layerEditor?.selectedId}
+        renderCanvasLayer={layerEditor?.renderCanvasLayer}
+        beforeBlock={layerEditor ? (block) => layerEditor.renderInsertion({ slot: destination, beforeId: block.id }, block) : undefined}
         theme={design.theme}
         slug={site.slug}
         basePath={studioBase}
-        mode={isEditing ? 'preview' : 'public'}
+        mode={isEditing || layerEditor ? 'preview' : 'public'}
       />
     );
   };
@@ -1328,7 +1359,11 @@ export function PageantSite({ site, view, editing }: { site: PublicPageantSite; 
       continue;
     }
     flushRun();
-    body.push(<Fragment key={item.id}>{renderers[item.id]()}</Fragment>);
+    slot = pageantSlotAfter(item.id);
+    body.push(<Fragment key={item.id}>
+      {renderers[item.id]()}
+      {layerEditor && <div data-pageant-insertion={slot}>{layerEditor.renderInsertion({ slot })}</div>}
+    </Fragment>);
   }
   flushRun();
 
@@ -1338,7 +1373,7 @@ export function PageantSite({ site, view, editing }: { site: PublicPageantSite; 
       {/* Tipografía elegida por bloque: después de la hoja base y solo con claves de la lista cerrada. */}
       {typographyCss && <style>{typographyCss}</style>}
       {/* Hoja de las secciones del estudio visual: una vez para todos sus tramos. */}
-      {hasStudio && <style>{SITE_CSS}</style>}
+      {!omitStudioStyles && (hasStudio || Object.keys(overlays).length > 0) && <style>{SITE_CSS}</style>}
       <a className="pgs-skip" href={startsWithHero ? '#pgs-tras-portada' : '#contenido'}>
         Saltar al contenido
       </a>
@@ -1425,10 +1460,12 @@ export function PageantSite({ site, view, editing }: { site: PublicPageantSite; 
         {/* La barra superior es fija y transparente: si el sitio no abre con la portada, se le deja su alto. */}
         {!startsWithHero && <div className="pgs-top-space" aria-hidden="true" />}
         {body}
+        {layerEditor && <div data-pageant-insertion="beforeFooter">{layerEditor.renderInsertion({ slot: 'beforeFooter' })}</div>}
       </main>
 
       {/* ── Pie ────────────────────────────────────────────────────────── */}
       <footer className="pgs-footer" {...(isEditing ? { 'data-edit-key': 'footer' } : {})}>
+        {overlays.footer}
         {footerInstagram.map((handle) => (
           <a key={handle} className="pgs-follow" href={`https://instagram.com/${handle}`} target="_blank" rel="noopener noreferrer" data-reveal>
             <span className="pgs-follow-label">
@@ -1441,10 +1478,10 @@ export function PageantSite({ site, view, editing }: { site: PublicPageantSite; 
         <div className="pgs-wrap pgs-footer-grid">
           <div className="pgs-footer-brand">
             <Crown className="pgs-brand-mark" />
-            <p className="pgs-footer-name">
+            <p data-pageant-item="footer.title" className="pgs-footer-name">
               {footer?.title || <>{shortName}{title.edition && <span className="pgs-footer-edition">{title.edition}</span>}</>}
             </p>
-            {footer?.description && <p className="pgs-muted pgs-footer-description">{footer.description}</p>}
+            {footer?.description && <p data-pageant-item="footer.description" className="pgs-muted pgs-footer-description">{footer.description}</p>}
           </div>
           {(footerMenu.length > 0 || footerLinks.length > 0) && (
             <nav className="pgs-footer-nav" aria-label="Enlaces del pie de página">

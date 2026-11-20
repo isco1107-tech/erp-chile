@@ -138,7 +138,7 @@ export function AboutHeading({
         </Kicker>
       )}
       {(shownLead || shownAccent) && (
-        <h2 id={titleId} className={`pgs-h2 is-ink ${headingSize([shownLead, shownAccent].filter(Boolean).join(' '))}`.trim()}>
+        <h2 id={titleId} data-pageant-item={titleId ? 'certamen.about-title' : undefined} className={`pgs-h2 is-ink ${headingSize([shownLead, shownAccent].filter(Boolean).join(' '))}`.trim()}>
           <HeadingText lead={shownLead} accent={shownAccent} editable={editable} />
         </h2>
       )}
@@ -146,9 +146,9 @@ export function AboutHeading({
   );
 }
 
-export function AboutProse({ paragraphs, reveal = false, editable = false }: { paragraphs: string[]; reveal?: boolean; editable?: boolean }) {
+export function AboutProse({ paragraphs, reveal = false, editable = false, movable }: { paragraphs: string[]; reveal?: boolean; editable?: boolean; movable?: string }) {
   return (
-    <div className="pgs-prose" data-reveal={reveal ? '' : undefined} {...(editable ? { 'data-edit-field': 'description' } : {})}>
+    <div className="pgs-prose" data-pageant-item={movable} data-reveal={reveal ? '' : undefined} {...(editable ? { 'data-edit-field': 'description' } : {})}>
       {paragraphs.map((paragraph, i) => (
         <p key={i} className={i === 0 ? 'is-lead' : undefined}>
           {paragraph}

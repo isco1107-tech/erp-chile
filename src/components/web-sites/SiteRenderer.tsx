@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react';
+import { Fragment, type CSSProperties, type ReactNode } from 'react';
 import { isBlockEmpty, type WebSiteBlock } from '@/lib/web-sites/blocks';
 import { documentFromBlocks, findPage, homeOf, pageBlockAnchors, publishedPages, type SiteDocument } from '@/lib/web-sites/site';
 import { themeVariables, type WebSiteTheme } from '@/lib/web-sites/theme';
@@ -39,6 +39,10 @@ export interface SiteRendererProps {
   name: string;
   /** Secciones integradas en academia o certamen, sin otro encabezado, pie ni main. */
   embedded?: boolean;
+  /** Pinta un tramo, conservando los enlaces y anclas del documento completo. */
+  embeddedSection?: { id?: string; blocks: WebSiteBlock[] };
+  beforeBlock?: (block: WebSiteBlock) => ReactNode;
+  renderCanvasLayer?: RenderCtx['renderCanvasLayer'];
   logoUrl: string | null;
   theme: WebSiteTheme;
   /** Sitio completo. */
@@ -70,6 +74,9 @@ export interface SiteRendererProps {
 
 export default function SiteRenderer({
   embedded = false,
+  embeddedSection,
+  beforeBlock,
+  renderCanvasLayer,
   name,
   logoUrl,
   theme,
@@ -99,7 +106,7 @@ export default function SiteRenderer({
   const selectable = preview && Boolean(onSelectBlock);
 
   // Se pintan las secciones visibles con contenido; en la vista previa, las vacías salen como marcador para poder elegirlas.
-  const shown = page.blocks.filter((block) => !block.hidden && (preview || !isBlockEmpty(block)));
+  const shown = (embeddedSection?.blocks ?? page.blocks).filter((block) => beforeBlock || (!block.hidden && (preview || !isBlockEmpty(block))));
   const anchors = pageBlockAnchors(page);
   const renderedAnchors = new Set(shown.flatMap((block) => (anchors.get(block.id) ? [anchors.get(block.id) as string] : [])));
 
@@ -117,6 +124,7 @@ export default function SiteRenderer({
     siteWidth: theme.width,
     store: preview && !commerce ? undefined : store,
     commerce,
+    renderCanvasLayer,
   };
   const bodyCtx: RenderCtx = selectable ? { ...ctx, navigate: false } : ctx;
 
@@ -127,7 +135,7 @@ export default function SiteRenderer({
   const items = doc.header.enabled || doc.footer.enabled ? buildNavItems(ctx, renderedAnchors) : [];
 
   const rootStyle = { ...themeVariables(theme), ...toneVariables(theme) } as CSSProperties;
-  const mainId = `${ctx.idPrefix}${embedded ? 'creative-main' : 'main'}`;
+  const mainId = `${ctx.idPrefix}${embedded ? 'creative-main' : 'main'}${embeddedSection?.id ? `-${embeddedSection.id}` : ''}`;
   const MainTag = embedded ? 'div' : 'main';
   const looks = shown.map((block) => sectionLook(block));
   // Lo que viene después de cada sección (para pintar su borde con forma): la siguiente o el pie.
@@ -162,22 +170,24 @@ export default function SiteRenderer({
               const look = looks[index]!;
               const empty = isBlockEmpty(block);
               return (
-                <SectionFrame
-                  key={block.id}
-                  ctx={bodyCtx}
-                  block={block}
-                  anchor={anchors.get(block.id) ?? block.id}
-                  look={look}
-                  align={resolveAlign(block)}
-                  bleed={block.type === 'image' && block.size === 'full'}
-                  glow={block.type === 'hero' && (block.variant === 'center' || block.variant === 'full' || block.variant === 'card')}
-                  underHeader={overlay && index === 0}
-                  nextTone={nextTones[index]}
-                  onSelect={selectable ? onSelectBlock : undefined}
-                  selected={selectable && selectedBlockId === block.id}
-                >
-                  {empty ? <EmptyBlock block={block} /> : renderSection(block, bodyCtx, resolveAlign(block) === 'center', look, theme)}
-                </SectionFrame>
+                <Fragment key={block.id}>
+                  {beforeBlock?.(block)}
+                  <SectionFrame
+                    ctx={bodyCtx}
+                    block={block}
+                    anchor={anchors.get(block.id) ?? block.id}
+                    look={look}
+                    align={resolveAlign(block)}
+                    bleed={block.type === 'image' && block.size === 'full'}
+                    glow={block.type === 'hero' && (block.variant === 'center' || block.variant === 'full' || block.variant === 'card')}
+                    underHeader={overlay && index === 0}
+                    nextTone={nextTones[index]}
+                    onSelect={selectable ? onSelectBlock : undefined}
+                    selected={selectable && selectedBlockId === block.id}
+                  >
+                    {empty ? <EmptyBlock block={block} /> : renderSection(block, embeddedSection ? { ...bodyCtx, pageantBlockId: block.id } : bodyCtx, resolveAlign(block) === 'center', look, theme)}
+                  </SectionFrame>
+                </Fragment>
               );
             })}
         </MainTag>
