@@ -314,3 +314,18 @@ export function useEditorAssets(): EditorAssetsContextValue {
   if (!value) throw new Error('useEditorAssets debe usarse dentro del editor de sitios web');
   return value;
 }
+
+export async function uploadCreativeAsset(target: 'academy' | 'event', resourceId: string, file: File, alt = ''): Promise<UploadOutcome> {
+  const body = new FormData();
+  body.append('file', file);
+  body.append('purpose', target === 'academy' ? 'card' : 'studio');
+  if (target === 'event') body.append('projectId', resourceId);
+  try {
+    const response = await fetch(target === 'academy' ? '/api/academy/site-upload' : '/api/projects/cover-upload', { method: 'POST', body });
+    const json: { success: boolean; data?: { url: string }; error?: string } = await response.json();
+    if (!response.ok || !json.success || !json.data) return { ok: false, error: json.error ?? 'No se pudo subir la imagen' };
+    return { ok: true, asset: { id: crypto.randomUUID(), url: json.data.url, fileName: file.name, mimeType: file.type, sizeBytes: file.size, alt } };
+  } catch {
+    return { ok: false, error: 'No se pudo conectar con el almacenamiento. Intenta nuevamente.' };
+  }
+}

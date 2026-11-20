@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PAGEANT_NATIVE_TEXT } from '@/lib/events/pageant-native-text';
 import { pageantSiteDesignSchema } from '@/lib/events/pageant-site-design';
 import { contactEmailField, contactWhatsappField, instagramHandleField } from '@/lib/events/pageant-contact';
 import type { ProjectStatus } from '@prisma/client';
@@ -92,8 +93,8 @@ export const projectPublicSiteSchema = z
       .transform((value) => (value ? value : null)),
     publicSiteEnabled: z.boolean(),
     publicSiteDesign: pageantSiteDesignSchema.optional(),
-    publicTagline: optionalText(160),
-    publicDescription: optionalText(4000),
+    publicTagline: optionalText(PAGEANT_NATIVE_TEXT.publicTagline.max),
+    publicDescription: optionalText(PAGEANT_NATIVE_TEXT.publicDescription.max),
     coverImageUrl: z
       .string()
       .trim()
@@ -116,13 +117,13 @@ export const projectPublicSiteSchema = z
     showResultsPublic: z.boolean(),
     sponsorLeadFormEnabled: z.boolean(),
     // "Conoce al Director" (sin nombre, la sección no aparece).
-    directorName: optionalText(120),
+    directorName: optionalText(PAGEANT_NATIVE_TEXT.directorName.max),
     directorTitle: z
       .enum(DIRECTOR_TITLES, 'Elige Director o Directora')
       .nullish()
       .transform((value) => value ?? null),
-    directorRole: optionalText(160),
-    directorBio: optionalText(1500),
+    directorRole: optionalText(PAGEANT_NATIVE_TEXT.directorRole.max),
+    directorBio: optionalText(PAGEANT_NATIVE_TEXT.directorBio.max),
     directorPhotoUrl: z
       .string()
       .trim()
@@ -145,7 +146,7 @@ export const projectPublicSiteSchema = z
       (value) => (Array.isArray(value) ? [...new Set(value.map((item) => (typeof item === 'string' ? item.trim() : item)).filter((item) => item !== ''))] : value),
       z.array(z.string().max(200, 'Cada logro de la trayectoria tiene un máximo de 200 caracteres')).max(40, 'Máximo 40 logros en la trayectoria').default([])
     ),
-    sponsorExclusivityNote: optionalText(800),
+    sponsorExclusivityNote: optionalText(PAGEANT_NATIVE_TEXT.sponsorExclusivityNote.max),
   })
   .superRefine((data, ctx) => {
     if (data.publicSlug) {

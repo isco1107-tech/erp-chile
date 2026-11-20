@@ -4,6 +4,7 @@ import { parseRichText, type RichInline } from '@/lib/web-sites/rich-text';
 import { safeImageSrc } from '@/lib/web-sites/urls';
 import { resolveIn, type RenderCtx } from './context';
 import SiteLink from './SiteLink';
+import { pageantNamedItem } from '@/lib/events/pageant-site-design';
 
 /** Piezas pequeñas que comparten las secciones. Todo texto pasa como texto de React (escapado). */
 
@@ -12,11 +13,11 @@ export function cx(...parts: (string | false | null | undefined)[]): string {
 }
 
 /** Imagen remota del almacenamiento del cliente: solo https, sin `next/image`. */
-export function Img({ src, alt, className, eager = false }: { src: string | null | undefined; alt: string; className?: string; eager?: boolean }) {
+export function Img({ src, alt, className, eager = false, movable }: { src: string | null | undefined; alt: string; className?: string; eager?: boolean; movable?: string }) {
   const safe = safeImageSrc(src);
   if (!safe) return null;
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={safe} alt={alt} loading={eager ? 'eager' : 'lazy'} decoding="async" className={className} />;
+  return <img data-pageant-item={movable} src={safe} alt={alt} loading={eager ? 'eager' : 'lazy'} decoding="async" className={className} />;
 }
 
 /** ¿Hay foto para pintar? En las miniaturas de diseños, un marcador cuenta como foto. */
@@ -26,7 +27,8 @@ export function hasPhoto(ctx: RenderCtx, src: string | null | undefined): boolea
 
 /** Foto de una sección; en las miniaturas de diseños, sin foto se dibuja un marcador del mismo tamaño. */
 export function Photo({ ctx, src, alt, className, eager = false }: { ctx: RenderCtx; src: string | null | undefined; alt: string; className?: string; eager?: boolean }) {
-  if (safeImageSrc(src)) return <Img src={src} alt={alt} className={className} eager={eager} />;
+  if (safeImageSrc(src)) return <Img src={src} alt={alt} className={className} eager={eager}
+    movable={ctx.pageantBlockId && pageantNamedItem('block.photo', ctx.pageantBlockId + ':' + src)} />;
   if (!ctx.placeholders) return null;
   return (
     <span aria-hidden="true" className={cx('ws-ph', className)}>
@@ -103,7 +105,7 @@ export function RichText({ ctx, text, className }: { ctx: RenderCtx; text: strin
   const blocks = parseRichText(text);
   if (blocks.length === 0) return null;
   return (
-    <div className={cx('space-y-4 text-[1.0625rem] leading-relaxed break-words', className)}>
+    <div data-pageant-item={ctx.pageantBlockId && pageantNamedItem('block.text', ctx.pageantBlockId + ':' + text)} className={cx('space-y-4 text-[1.0625rem] leading-relaxed break-words', className)}>
       {blocks.map((block, index) => {
         switch (block.kind) {
           case 'p':
@@ -160,15 +162,16 @@ interface HeadingProps {
 export function SectionHeading({ ctx, blockId, center, eyebrow, title, intro, size = 'md', className }: HeadingProps) {
   if (!eyebrow && !title && !intro) return null;
   const Tag = ctx.h1BlockId === blockId ? 'h1' : 'h2';
+  const movable = (field: string) => ctx.pageantBlockId && pageantNamedItem(`block.${field}`, blockId);
   return (
     <header className={cx('mb-10 max-w-2xl @2xl:mb-12', center && 'mx-auto text-center', className)}>
-      {eyebrow && <p className="ws-eyebrow mb-3">{eyebrow}</p>}
+      {eyebrow && <p data-pageant-item={movable('eyebrow')} className="ws-eyebrow mb-3">{eyebrow}</p>}
       {title && (
         <Fit>
-          <Tag className={cx('ws-h', size === 'lg' ? 'ws-t-lg' : 'ws-t-2')}>{title}</Tag>
+          <Tag data-pageant-item={movable('title')} className={cx('ws-h', size === 'lg' ? 'ws-t-lg' : 'ws-t-2')}>{title}</Tag>
         </Fit>
       )}
-      {intro && <p className="ws-muted mt-4 text-lg leading-relaxed">{intro}</p>}
+      {intro && <p data-pageant-item={movable('intro')} className="ws-muted mt-4 text-lg leading-relaxed">{intro}</p>}
     </header>
   );
 }
@@ -188,7 +191,7 @@ export function HeadingTag({ ctx, blockId, className, children }: { ctx: RenderC
   const Tag = ctx.h1BlockId === blockId ? 'h1' : 'h2';
   return (
     <Fit>
-      <Tag className={cx('ws-h', className)}>{children}</Tag>
+      <Tag data-pageant-item={ctx.pageantBlockId && pageantNamedItem('block.title', blockId)} className={cx('ws-h', className)}>{children}</Tag>
     </Fit>
   );
 }

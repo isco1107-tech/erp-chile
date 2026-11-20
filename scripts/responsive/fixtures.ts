@@ -1,4 +1,5 @@
 import { pageantSiteDesignSchema } from '@/lib/events/pageant-site-design';
+import { pageantCompositions } from '@/lib/events/pageant-compositions';
 import type { PublicPageantSite } from '@/modules/projects/services/public-site.service';
 import { buildFiestaDesign } from '../lib/fiesta-primavera';
 
@@ -11,6 +12,7 @@ import { buildFiestaDesign } from '../lib/fiesta-primavera';
 
 const LOREM =
   'Una noche de gala para celebrar el talento, la elegancia y el compromiso de mujeres que representan a sus comunidades. Cada edición reúne a candidatas, auspiciadores y público en un espectáculo pensado para recordarse.';
+const invitation = pageantCompositions('#b89a5c').find(({ id }) => id === 'cta')!;
 
 const PHOTO =
   'data:image/svg+xml;utf8,' +
@@ -100,6 +102,47 @@ function withPhotos(design: ReturnType<typeof buildFiestaDesign>): ReturnType<ty
 
 export const FIXTURES: Record<string, PublicPageantSite> = {
   normal: baseSite(),
+  lienzoVisual: baseSite({
+    creative: pageantSiteDesignSchema.parse({
+      enabled: true,
+      blocks: [
+        { id: 'studio-statement', type: 'text', heading: 'Información para las delegaciones', body: LOREM },
+        { id: 'studio-canvas', type: 'text', style: { spacing: 'none', canvas: {
+          enabled: true, replaceContent: true, height: 240, mobileHeight: 260,
+          elements: [{ id: 'studio-note', text: 'Certamen Temuco/Longuimay', desktop: { x: 10, y: 10, width: 70, height: 40 }, mobile: { x: 10, y: 20, width: 80, height: 50 } }],
+        } } },
+        { id: 'studio-invitation', type: 'text', style: { spacing: 'none', canvas: {
+          enabled: true, replaceContent: true, height: invitation.height, mobileHeight: invitation.mobileHeight,
+          elements: invitation.elements,
+        } } },
+      ],
+      blockPlacements: { 'studio-statement': 'certamen', 'studio-canvas': 'gala', 'studio-invitation': 'beforeFooter' },
+      relocated: { 'inicio.tagline': 'studio-tagline' },
+      overlays: {
+        inicio: { enabled: true, elements: [{
+          id: 'studio-tagline',
+          text: 'Un certamen para toda la región',
+          color: '#ffffff',
+          desktop: { x: 16, y: 63, width: 68, height: 12 },
+          mobile: { x: 10, y: 60, width: 80, height: 10 },
+          fontSize: 23, mobileFontSize: 16,
+        }] },
+        gala: { enabled: true, elements: [{
+          id: 'gala-overlay',
+          text: 'Una noche especial',
+          richText: [{ text: 'Una noche ' }, { text: 'especial', bold: true, italic: true }],
+          desktop: { x: 8, y: 4, width: 65, height: 10 },
+          mobile: { x: 8, y: 2, width: 84, height: 8 },
+          fontSize: 24,
+        }, {
+          id: 'gala-photo', kind: 'image', imageUrl: 'https://img.test/gala.png', alt: 'Logo de la gala',
+          desktop: { x: 80, y: 4, width: 12, height: 14 },
+          mobile: { x: 74, y: 10, width: 20, height: 10 },
+          imageFrame: { fit: 'cover', x: 72, y: 45, zoom: 130 }, radius: 8,
+        }] },
+      },
+    }),
+  }),
   // Caso real que se cortaba: nombre de una sola palabra con "/".
   slash: baseSite({ name: 'Miss Universo Temuco/Longuimay 2026', slug: 'slash' }),
   palabraLarga: baseSite({ name: `Miss Universo Panamericana ${LONG_WORD} 2026`, slug: 'larga' }),

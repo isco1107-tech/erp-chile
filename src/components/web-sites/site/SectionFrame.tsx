@@ -58,9 +58,11 @@ interface FrameProps {
  * teclado, la etiqueta es un botón real al que se llega con Tab.
  */
 export default function SectionFrame({ ctx, block, anchor, look, align, bleed = false, glow = false, underHeader = false, nextTone, onSelect, selected = false, children }: FrameProps) {
-  const label = BLOCK_INFO[block.type].label;
+  const label = block.style.canvas?.enabled && block.style.canvas.replaceContent ? 'Lienzo libre' : BLOCK_INFO[block.type].label;
   const { pattern, shape, width } = block.style;
   const shaped = shape !== 'none' && nextTone !== undefined;
+  const canvas = block.style.canvas;
+  const canvasOverlay = canvas?.enabled && canvas.fitContent && !canvas.replaceContent;
   return (
     <section
       id={`${ctx.idPrefix}${anchor}`}
@@ -82,7 +84,11 @@ export default function SectionFrame({ ctx, block, anchor, look, align, bleed = 
       )}
       {pattern === 'petals' && !look.image && <PetalField />}
       {pattern !== 'none' && pattern !== 'petals' && !look.image && <div aria-hidden="true" className={cx('ws-pattern', `ws-pat-${pattern}`)} />}
-      <div className={cx('ws-reveal relative mx-auto w-full', bleed ? 'px-0' : cx(WIDTH_CLASS[width], 'px-5 @2xl:px-8'), align === 'center' && 'text-center')}>{!block.style.canvas?.enabled || !block.style.canvas.replaceContent ? children : null}{block.style.canvas?.enabled && <CanvasScene canvas={block.style.canvas} ctx={ctx} />}</div>
+      <div className={cx('ws-reveal relative mx-auto w-full', bleed ? 'px-0' : cx(WIDTH_CLASS[width], 'px-5 @2xl:px-8'), align === 'center' && 'text-center')}>
+        {(!canvas?.enabled || !canvas.replaceContent) && children}
+        {canvas?.enabled && !canvasOverlay && <CanvasScene canvas={canvas} ctx={ctx} blockId={block.id} />}
+      </div>
+      {canvasOverlay && <div className="pgs-canvas-overlay"><CanvasScene canvas={canvas} ctx={ctx} blockId={block.id} /></div>}
       {shaped && (
         <div aria-hidden="true" className={cx('ws-shape', `ws-tone-${nextTone}`)}>
           <svg viewBox="0 0 1200 120" preserveAspectRatio="none" focusable="false">

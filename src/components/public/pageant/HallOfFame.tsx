@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { PublicPageantSite } from '@/modules/projects/services/public-site.service';
 import { Chevron, Crown } from './icons';
 import { HeadingText, Kicker } from './parts';
@@ -58,7 +58,7 @@ export interface HallOfFameLook {
   editable?: boolean;
 }
 
-export function HallOfFame({ winners, index, look = {} }: { winners: Winner[]; index?: string; look?: HallOfFameLook }) {
+export function HallOfFame({ winners, index, look = {}, overlay }: { winners: Winner[]; index?: string; look?: HallOfFameLook; overlay?: ReactNode }) {
   // Las "recientes" (marcadas en el panel) van con foto completa y TODAS con el mismo formato; el resto, en el carrusel.
   const featured = winners.filter((w) => w.featured);
   const others = winners.filter((w) => !w.featured);
@@ -98,6 +98,7 @@ export function HallOfFame({ winners, index, look = {} }: { winners: Winner[]; i
       aria-labelledby="pgs-hof-title"
       {...(look.editable ? { 'data-edit-key': 'section:ganadoras' } : {})}
     >
+      {overlay}
       <div className="pgs-wrap">
         <div className={`pgs-section-head ${winners.length === 1 ? 'is-center' : 'is-split'}`} data-reveal>
           <div>
@@ -107,7 +108,7 @@ export function HallOfFame({ winners, index, look = {} }: { winners: Winner[]; i
               </Kicker>
             )}
             {(look.lead !== '' || look.accent !== '') && (
-              <h2 id="pgs-hof-title" className="pgs-h2">
+            <h2 data-pageant-item="ganadoras.title" id="pgs-hof-title" className="pgs-h2">
                 <HeadingText lead={look.lead ?? 'Nuestras'} accent={look.accent ?? (winners.length === 1 ? 'ganadora' : 'ganadoras')} editable={look.editable} />
               </h2>
             )}

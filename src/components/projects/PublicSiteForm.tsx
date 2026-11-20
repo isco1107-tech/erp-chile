@@ -17,6 +17,9 @@ import { checkPublicSlugAction, updatePublicSiteAction } from '@/modules/project
 import { PUBLIC_ACCENT_LABELS, PUBLIC_ACCENT_SWATCH, PUBLIC_ACCENTS } from '@/modules/projects/schema';
 import { cn } from '@/lib/utils';
 import { CreativeStudio } from '@/components/web-sites/CreativeStudio';
+import { PageantVisualStudio } from './PageantVisualStudio';
+import { PageantDraftNotice, usePageantDraft } from './PageantDraftRecovery';
+import { pageantNativeTextOf } from '@/lib/events/pageant-native-text';
 import { SiteDesignAssistant } from '@/components/web-sites/SiteDesignAssistant';
 import { CustomDomainSection } from './CustomDomainSection';
 import { PageantFooterFields } from './PageantFooterFields';
@@ -27,7 +30,7 @@ import { SITE_FONT_CLASSES } from '@/components/web-sites/site-fonts';
 import { AboutTextPreview } from './AboutTextPreview';
 import { FooterPartnersEditor, type FooterPartnersDraft } from './FooterPartnersEditor';
 import { PageantVisualEditor } from './site-editor/PageantVisualEditor';
-import { initialPartners, initialSiteFormValues, stateFingerprint, type SiteEditorState } from './site-editor/site-draft';
+import { initialPartners, initialSiteFormValues, stateFingerprint, toCanvasDraft, type SiteEditorState } from './site-editor/site-draft';
 
 type Toggle = 'showCandidatesPublic' | 'showSponsorsPublic' | 'showVoteRankingPublic' | 'showResultsPublic' | 'sponsorLeadFormEnabled';
 
@@ -39,10 +42,11 @@ const TOGGLES: Array<{ key: Toggle; label: string; hint: string }> = [
   { key: 'showResultsPublic', label: 'Resultados oficiales', hint: 'Revela ganadora, finalistas y podio cuando la ronda final esté completada. Actívalo al coronar.' },
 ];
 
-export function PublicSiteForm({ project, canWrite }: { project: Project; canWrite: boolean }) {
+export function PublicSiteForm({ project, canWrite, userId }: { project: Project; canWrite: boolean; userId: string }) {
   const router = useRouter();
   const [values, setValues] = useState(() => initialSiteFormValues(project));
   const { footer, ...creative } = values.publicSiteDesign;
+  const draft = usePageantDraft({ project, canWrite, userId, values });
   // Logos del pie: el enlace queda como se escribió y se normaliza al guardar.
   const [partners, setPartners] = useState<FooterPartnersDraft>(() => initialPartners(project));
   // La trayectoria se edita como texto, un logro por línea.
@@ -160,6 +164,7 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
         return false;
       }
       setSavedFingerprint(sent);
+      draft.markSaved(values);
       toast.success(result.message ?? 'Guardado');
       router.refresh();
       return true;
@@ -202,6 +207,16 @@ export function PublicSiteForm({ project, canWrite }: { project: Project; canWri
             Abrir editor visual
           </Button>
         </section>
+        <PageantDraftNotice draft={draft} onRestore={(restored) => setValues((previous) => ({ ...previous, ...restored }))} />
+        <PageantVisualStudio
+          projectId={project.id} design={values.publicSiteDesign}
+          content={toCanvasDraft(editorState, false)}
+          nativeText={pageantNativeTextOf(values)} onNativeTextChange={(text) => setValues((previous) => ({ ...previous, ...text }))}
+          images={[values.coverImageUrl, values.directorPhotoUrl, values.faviconUrl].filter(Boolean)}
+          galaDate={project.galaDate?.toISOString() ?? null} venueName={project.venueName}
+          canWrite={canWrite} saving={saving} publishOnSave={values.publicSiteEnabled}
+          onChange={(design) => set('publicSiteDesign', design)} onSave={async () => { await save(); }}
+        />
         <CreativeStudio target="event" resourceId={project.id} name={project.name} value={creative} disabled={!canWrite || saving} images={[values.coverImageUrl, values.directorPhotoUrl, values.faviconUrl].filter(Boolean)} onChange={(design) => setValues((previous) => ({ ...previous, publicSiteDesign: { ...previous.publicSiteDesign, ...design } }))} orderNote={values.publicSiteDesign.layout ? 'El orden de todo el sitio se definió en el editor visual: las secciones nuevas aparecen al final y ahí puedes moverlas.' : undefined} />
         <SiteDesignAssistant disabled={!canWrite || saving} context={{ target: 'event', resourceId: project.id, current: { publicTagline: values.publicTagline, publicDescription: values.publicDescription, publicAccent: values.publicAccent, sponsorExclusivityNote: values.sponsorExclusivityNote } }} onApply={(proposal) => { if (proposal.target === 'event') { setValues((previous) => ({ ...previous, ...proposal.design })); toast.success('Propuesta aplicada: revisa y guarda los cambios'); } }} />
         <section className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-card">

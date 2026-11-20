@@ -64,7 +64,7 @@ export function stateFingerprint(state: SiteEditorState): string {
 }
 
 /** Lo que el lienzo necesita para pintar el borrador (`applyDraftToSite`). */
-export function toCanvasDraft(state: SiteEditorState): PageantEditorDraft {
+export function toCanvasDraft(state: SiteEditorState, includeDesign = true): PageantEditorDraft {
   const { values, partners, highlightsText } = state;
   return {
     tagline: values.publicTagline,
@@ -92,6 +92,6 @@ export function toCanvasDraft(state: SiteEditorState): PageantEditorDraft {
       sponsorLead: values.sponsorLeadFormEnabled,
     },
     partners: { title: partners.title, items: partners.items },
-    design: values.publicSiteDesign,
+    ...(includeDesign && { design: values.publicSiteDesign }),
   };
 }

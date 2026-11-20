@@ -31,7 +31,7 @@ export default async function ProjectPublicSitePage({ params }: { params: Promis
         title="Sitio público del certamen"
         description="La página oficial del certamen para el público, las marcas y las postulantes: portada con cuenta regresiva, candidatas, auspiciadores, entradas, votación y resultados."
       />
-      <PublicSiteForm project={project} canWrite={can(context, 'projects:write')} />
+      <PublicSiteForm key={`${context.id}:${project.id}`} project={project} userId={context.id} canWrite={can(context, 'projects:write')} />
       <DevicePreview projectId={project.id} />
       <PastWinnersEditor
         projectId={project.id}

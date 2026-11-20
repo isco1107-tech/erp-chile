@@ -262,6 +262,9 @@ export const PAGEANT_SITE_STYLES = withFontAdjust(`
 
 /* ── Secciones ── */
 .pgs-section { position: relative; padding: clamp(5rem, 12vw, 9rem) 0; }
+.pgs-canvas-overlay { position: absolute; inset: 0; z-index: 9; pointer-events: none; overflow: hidden; font-family: var(--ws-font); }
+.pgs-canvas-overlay .ws-canvas { height: 100%; }
+.pgs-canvas-overlay .ws-canvas-link, .pgs-canvas-overlay [data-studio-layer] { pointer-events: auto; }
 .pgs-section.is-night { background: var(--night); color: var(--on-night); }
 .pgs-section.is-night + .pgs-section.is-night { border-top: 1px solid var(--line-night); }
 .pgs-section.is-deep { background: radial-gradient(90% 70% at 85% 10%, var(--night-3), var(--night) 70%); }

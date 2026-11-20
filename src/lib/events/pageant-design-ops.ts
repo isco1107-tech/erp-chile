@@ -2,7 +2,6 @@ import { MAX_BLOCKS, blockTexts, cloneBlock, type WebSiteBlock } from '@/lib/web
 import { isSampleText } from '@/lib/web-sites/templates';
 import type { EditorKey, InlineField } from './pageant-editor-protocol';
 import {
-  editableLayout,
   indexOfKey,
   insertBlockAt,
   itemKey,
@@ -15,7 +14,7 @@ import {
   type PageantSectionId,
   type SectionSettings,
 } from './pageant-layout';
-import type { PageantSiteDesign } from './pageant-site-design';
+import { resolvePageantDesignLayout, type PageantSiteDesign } from './pageant-site-design';
 
 /**
  * Lo que hace el editor visual con el diseño del micrositio, como funciones
@@ -29,7 +28,8 @@ export type DesignResult = { ok: true; design: PageantSiteDesign } | { ok: false
 
 /** El orden que se edita: el guardado o, en un diseño anterior, el equivalente. */
 export function designLayout(design: PageantSiteDesign): LayoutItem[] {
-  return design.layout ?? editableLayout({ blockIds: design.blocks.map((block) => block.id), placement: design.placement });
+  const { leading, items, trailing } = resolvePageantDesignLayout(design, true);
+  return [...leading.map((id): LayoutItem => ({ kind: 'block', id })), ...items, ...trailing.map((id): LayoutItem => ({ kind: 'block', id }))];
 }
 
 /** Escribe el orden y acomoda los bloques del estudio a ese mismo orden. */
