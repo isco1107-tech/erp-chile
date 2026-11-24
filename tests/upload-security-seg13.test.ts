@@ -132,9 +132,9 @@ describe('SEG-13 — messaging/attachments/upload autoriza ANTES de subir al sto
     jest.dontMock('@/modules/messaging/services/messaging.service');
   });
 
-  function formDataRequest(conversationId: string) {
+  function formDataRequest(conversationId: string, bytes: number[] = [0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34], type = 'application/pdf') {
     const form = new FormData();
-    const file = new File([new Uint8Array([1, 2, 3, 4])], 'archivo.pdf', { type: 'application/pdf' });
+    const file = new File([new Uint8Array(bytes)], 'archivo.pdf', { type });
     form.append('file', file);
     form.append('conversationId', conversationId);
     return new Request('https://aether.example/api/messaging/attachments/upload', {
@@ -176,5 +176,28 @@ describe('SEG-13 — messaging/attachments/upload autoriza ANTES de subir al sto
     const assertOrder = mockAssertParticipant.mock.invocationCallOrder[0];
     const putOrder = mockPut.mock.invocationCallOrder[0];
     expect(assertOrder).toBeLessThan(putOrder);
+  });
+
+  it('rechaza un archivo cuyo contenido no corresponde al tipo declarado (ejecutable rotulado como PDF)', async () => {
+    mockAssertParticipant.mockResolvedValue({ id: 'participant-1' });
+
+    // "MZ\x90\x00": cabecera de un ejecutable de Windows declarado como PDF.
+    const res = await POST(formDataRequest('conv-1', [0x4d, 0x5a, 0x90, 0x00, 0x03, 0x00]));
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.success).toBe(false);
+    expect(mockPut).not.toHaveBeenCalled();
+    expect(mockCreatePendingAttachment).not.toHaveBeenCalled();
+  });
+
+  it('rechaza HTML declarado como imagen', async () => {
+    mockAssertParticipant.mockResolvedValue({ id: 'participant-1' });
+    const html = Array.from(Buffer.from('<html><script>alert(1)</script></html>'));
+
+    const res = await POST(formDataRequest('conv-1', html, 'image/png'));
+
+    expect(res.status).toBe(400);
+    expect(mockPut).not.toHaveBeenCalled();
   });
 });

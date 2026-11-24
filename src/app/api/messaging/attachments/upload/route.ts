@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { put } from '@/lib/storage/blob';
 import { AuthError, ModuleNotEnabledError, TenantInactiveError, requireAuthWithPermission } from '@/lib/auth/guards';
 import { encryptFileBuffer } from '@/lib/messaging/crypto';
+import { ATTACHMENT_SNIFF_BYTES, matchesDeclaredAttachmentType } from '@/lib/security/file-signature';
 import { captureException } from '@/lib/observability';
 import { assertParticipant, createPendingAttachment } from '@/modules/messaging/services/messaging.service';
 
@@ -58,6 +59,12 @@ export async function POST(req: Request) {
     }
     if (file.size > MAX_FILE_BYTES) {
       return NextResponse.json({ success: false, error: 'El archivo supera los 20 MB' }, { status: 413 });
+    }
+    // `file.type` lo declara quien sube: se contrasta con los primeros bytes reales para que un
+    // ejecutable o un HTML no viaje rotulado como PDF o imagen. Se guarda y se sirve ese mismo tipo.
+    const head = new Uint8Array(await file.slice(0, ATTACHMENT_SNIFF_BYTES).arrayBuffer());
+    if (!matchesDeclaredAttachmentType(head, file.type)) {
+      return NextResponse.json({ success: false, error: 'El contenido del archivo no corresponde a su formato' }, { status: 400 });
     }
 
     // SEG-13: autorizar ANTES de cifrar/subir. El código anterior subía el

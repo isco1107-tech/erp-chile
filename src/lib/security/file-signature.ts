@@ -96,3 +96,62 @@ export async function sniffAllowedUpload(
   if (!sniffed || !allowed.has(sniffed)) return null;
   return { contentType: sniffed, extension: SNIFFED_UPLOAD_EXTENSION[sniffed] };
 }
+
+// ─── Adjuntos de mensajería ──────────────────────────────────────────────────
+//
+// Mensajería admite más formatos que las fotos y PDF del resto del panel (Office, ZIP, texto, CSV).
+// El tipo que declara el navegador (`file.type`) lo controla quien sube, así que cada tipo declarado
+// se contrasta con los primeros bytes reales: un ejecutable o un HTML no puede viajar rotulado como PDF.
+
+const ZIP_MAGIC = [0x50, 0x4b, 0x03, 0x04]; // "PK\x03\x04": .docx, .xlsx y .zip son contenedores ZIP
+const OLE_MAGIC = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]; // .doc y .xls antiguos (OLE2)
+
+/** Cuántos bytes de cabecera hay que leer para `matchesDeclaredAttachmentType`. */
+export const ATTACHMENT_SNIFF_BYTES = 4096;
+
+type AttachmentFamily = SniffedUploadType | 'zip' | 'ole' | 'text';
+
+const ATTACHMENT_FAMILY_BY_MIME: Record<string, AttachmentFamily> = {
+  'image/png': 'image/png',
+  'image/jpeg': 'image/jpeg',
+  'image/webp': 'image/webp',
+  'image/gif': 'image/gif',
+  'application/pdf': 'application/pdf',
+  'application/msword': 'ole',
+  'application/vnd.ms-excel': 'ole',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'zip',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'zip',
+  'application/zip': 'zip',
+  'text/plain': 'text',
+  'text/csv': 'text',
+};
+
+/** Texto plano o CSV: sin bytes nulos ni caracteres de control (un binario los trae enseguida). */
+function looksLikeText(bytes: Uint8Array): boolean {
+  // UTF-16 con BOM (el «Texto Unicode» de Excel) trae bytes nulos a propósito.
+  if (bytes.length >= 2 && ((bytes[0] === 0xff && bytes[1] === 0xfe) || (bytes[0] === 0xfe && bytes[1] === 0xff))) return true;
+  for (const byte of bytes) {
+    if (byte === 0) return false;
+    if (byte < 0x20 && byte !== 0x09 && byte !== 0x0a && byte !== 0x0d && byte !== 0x0c) return false;
+  }
+  return true;
+}
+
+/**
+ * ¿Los primeros bytes de un adjunto corresponden al tipo que declaró quien lo sube?
+ * `false` si el tipo declarado no es uno de los que admite mensajería.
+ */
+export function matchesDeclaredAttachmentType(head: Uint8Array, declaredMime: string): boolean {
+  const family = ATTACHMENT_FAMILY_BY_MIME[declaredMime];
+  if (!family) return false;
+  switch (family) {
+    case 'zip':
+      return matchesMagic(head, ZIP_MAGIC);
+    case 'ole':
+      return matchesMagic(head, OLE_MAGIC);
+    case 'text':
+      return head.length > 0 && looksLikeText(head);
+    default:
+      return sniffUploadType(head) === family;
+  }
+}

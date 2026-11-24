@@ -252,6 +252,9 @@ export const personFieldsSchema = z.object({
     .string()
     .trim()
     .url('El enlace de LinkedIn no es una URL válida')
+    // `.url()` acepta cualquier esquema (`javascript:`, `data:`…) y este campo se pinta como `<a href>`
+    // en la ficha de la oportunidad: solo se guardan enlaces web.
+    .refine((value) => /^https?:\/\//i.test(value), 'El enlace de LinkedIn debe empezar con https://')
     .max(300)
     .optional()
     .or(z.literal('').transform(() => undefined)),

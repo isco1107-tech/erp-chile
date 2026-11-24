@@ -14,6 +14,7 @@ import { useConfirm } from '@/components/ui/confirm-provider';
 import { formatCurrency } from '@/lib/chile/tax';
 import { formatShortDate } from '@/lib/intelligence/format';
 import { toWhatsappDigits } from '@/lib/phone';
+import { isExternalHref, safeHref } from '@/lib/web-sites/urls';
 import {
   addActivityAction,
   deleteActivityAction,
@@ -167,6 +168,9 @@ export function OpportunityDetailDialog({ opportunityId, canWrite, canConvert, o
   const now = loadedAt;
   const phone = detail?.person?.phone ?? detail?.prospectPhone ?? detail?.contact?.phone ?? null;
   const email = detail?.person?.email ?? detail?.prospectEmail ?? detail?.contact?.email ?? null;
+  // Solo enlaces web: un `javascript:` guardado antes de validarlo en el servidor no debe llegar al `href`.
+  const linkedinHrefRaw = safeHref(detail?.person?.linkedinUrl);
+  const linkedinHref = linkedinHrefRaw && isExternalHref(linkedinHrefRaw) ? linkedinHrefRaw : null;
   const canShowConvert = Boolean(detail && canWrite && canConvert && detail.stage === 'WON' && detail.dealType === 'SPONSORSHIP' && !detail.sponsorshipContract);
 
   return (
@@ -274,8 +278,8 @@ export function OpportunityDetailDialog({ opportunityId, canWrite, canConvert, o
                       <AtSign className="size-3.5" aria-hidden="true" />@{detail.person.instagram.replace(/^@/, '')}
                     </a>
                   )}
-                  {detail.person?.linkedinUrl && (
-                    <a href={detail.person.linkedinUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-muted">
+                  {linkedinHref && (
+                    <a href={linkedinHref} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-muted">
                       <Briefcase className="size-3.5" aria-hidden="true" />
                       LinkedIn
                     </a>
