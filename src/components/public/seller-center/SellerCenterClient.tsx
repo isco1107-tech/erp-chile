@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   Download,
   HandCoins,
@@ -432,6 +433,7 @@ export default function SellerCenterClient({
         </PublicCard>
 
         <InstallApplication />
+        <Link href="/apps" className="sc-apps-link">Centro de aplicaciones</Link>
         <PublicFooter>
           Datos al {dayTimeLabel(new Date(view.generatedAt))}. Solo lectura:
           para pedir un cambio, contacta a {account.company.name}
@@ -465,8 +467,10 @@ const STYLES = `
 .sc-app .pub-title { font-size: clamp(1.3rem, 3vw, 2rem); }
 .sc-app .pub-card-head { text-align: left; align-items: flex-start; }
 .sc-nav { position: sticky; top: 0; z-index: 10; display: flex; gap: 0.2rem; padding: 0.3rem; border: 1px solid var(--pub-line); border-radius: 16px; background: var(--pub-bg); }
-.sc-nav a { display: flex; flex: 1 1 0; min-width: 0; min-height: 3rem; flex-direction: column; justify-content: center; align-items: center; gap: 0.25rem; padding: 0.3rem 0; border-radius: 12px; font-size: 0.72rem; color: var(--pub-ink); text-decoration: none; }
+.sc-nav a { display: flex; flex: 1 1 0; min-width: 0; min-height: 3rem; flex-direction: column; justify-content: center; align-items: center; gap: 0.25rem; padding: 0.3rem 0; border-radius: 12px; font-size: 0.72rem; text-align: center; color: var(--pub-ink); text-decoration: none; }
 .sc-nav a:hover, .sc-nav a:focus-visible { background: var(--pub-glass); color: var(--pub-a); }
+.sc-apps-link { display: inline-flex; align-items: center; min-height: 2.75rem; padding: 0 0.5rem; color: var(--pub-a); }
+.sc-app :is(a, button, select):focus-visible { outline: 2px solid var(--pub-a); outline-offset: 2px; }
 .sc-anchor { scroll-margin-top: 5rem; }
 /* minmax(0, 1fr): con una columna auto, la tabla de liquidaciones (ancho mínimo propio) ensanchaba la tarjeta más allá de la pantalla. */
 .sc-stock { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; min-width: 0; }

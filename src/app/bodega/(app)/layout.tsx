@@ -17,7 +17,7 @@ export default async function BodegaLayout({ children }: { children: React.React
 
   // `theme-saas-light` + `bodega-app`: mismo tema claro del panel, y la firma flotante «Hecho con Aether» se oculta (ver globals.css).
   return (
-    <div className="theme-saas-light bodega-app fixed inset-0 overflow-hidden bg-background text-foreground">
+    <div className="theme-saas-light bodega-app fixed inset-0 overflow-hidden bg-background pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)] text-foreground">
       {allowed ? (
         children
       ) : (

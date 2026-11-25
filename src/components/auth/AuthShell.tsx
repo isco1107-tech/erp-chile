@@ -29,7 +29,7 @@ const HIGHLIGHTS = [
 
 export function AuthShell({ children }: { children: ReactNode }) {
   return (
-    <div className="auth-shell relative flex min-h-screen">
+    <div className="auth-shell relative flex min-h-dvh">
       <AuthSky />
       <LogoBackdrop />
 
@@ -100,19 +100,13 @@ export function AuthShell({ children }: { children: ReactNode }) {
   );
 }
 
-/**
- * Marco del login: el video de Aether (v1 + v2 de la landing) de fondo en su
- * propio panel, a la izquierda en escritorio y arriba en el teléfono, y el
- * formulario en un panel aparte. Así el video nunca pasa por encima de los
- * campos, y la imagen final "AETHER · ERP SOLUTIONS", que queda fija, se ve
- * entera en vez de quedar cortada detrás de la tarjeta.
- */
+/** El acceso queda a la vista en teléfonos. El video acompaña el formulario en escritorio. */
 export function LoginShell({ children }: { children: ReactNode }) {
   const year = new Date().getFullYear();
   return (
-    <div className="auth-shell flex min-h-screen flex-col bg-[#10131a] lg:flex-row">
+    <div className="auth-shell flex min-h-dvh flex-col bg-[#10131a] lg:flex-row">
       {/* Video */}
-      <section className="relative h-[44vh] min-h-[280px] shrink-0 lg:sticky lg:top-0 lg:h-screen lg:flex-1" aria-label="Aether ERP Solutions">
+      <section className="relative hidden shrink-0 lg:sticky lg:top-0 lg:block lg:h-dvh lg:flex-1" aria-label="Aether ERP Solutions">
         <LoginVideo className="absolute inset-0" />
         <Link
           href="/"
@@ -136,13 +130,17 @@ export function LoginShell({ children }: { children: ReactNode }) {
 
       {/* Formulario */}
       <main className="relative z-[2] flex flex-1 flex-col border-white/[0.06] bg-[#10131a] lg:w-[500px] lg:flex-none lg:border-l xl:w-[560px]">
-        <div className="flex items-center justify-end p-5 lg:p-8">
-          <Link href="/conoce-aether" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground">
-            ¿Aún no usas Aether? <span className="font-medium text-foreground">Conócelo</span>
-            <ArrowUpRight className="size-3.5" aria-hidden="true" />
+        <div className="flex flex-wrap items-center justify-between gap-x-4 px-4 py-3 sm:px-6 lg:justify-end lg:p-8">
+          <Link href="/" className="inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-semibold text-white focus-visible:outline-2 focus-visible:outline-ring lg:hidden">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/branding/logo-on-dark.png" alt="" width={28} height={28} className="size-7 object-contain" />
+            Aether ERP
+          </Link>
+          <Link href="/conoce-aether" className="inline-flex min-h-11 items-center gap-1.5 rounded-lg text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring">
+            Conoce Aether <ArrowUpRight className="size-4" aria-hidden="true" />
           </Link>
         </div>
-        <div className="flex flex-1 items-start justify-center px-4 pb-10 sm:items-center">{children}</div>
+        <div className="flex flex-1 items-start justify-center px-3 pb-8 sm:items-center sm:px-6 lg:pb-10">{children}</div>
         <div className="flex items-center justify-between gap-4 px-5 pb-6 text-xs text-white/50 lg:px-8">
           <p className="lg:hidden">© {year} Aether ERP Solutions</p>
           <Link href="/aether/privacidad" className="ml-auto transition-colors hover:text-white">
@@ -158,7 +156,7 @@ export function LoginShell({ children }: { children: ReactNode }) {
 export function AuthCard({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
     <div
-      className={`w-full max-w-[420px] rounded-2xl border border-white/[0.08] bg-card p-8 shadow-[0_32px_80px_-40px_rgba(0,0,0,0.9)] sm:p-9 ${className}`}
+      className={`w-full max-w-[420px] rounded-2xl border border-white/[0.08] bg-card p-5 shadow-[0_32px_80px_-40px_rgba(0,0,0,0.9)] sm:p-9 ${className}`}
     >
       {children}
     </div>

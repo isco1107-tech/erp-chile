@@ -217,8 +217,9 @@ test('dos cajeros venden en paralelo, registran efectivo, cierran su turno y el 
     // deben impedir cobrar en el turno que el supervisor acaba de cerrar.
     await expect(second.getByText(/Este turno fue cerrado desde otro equipo/).or(second.getByRole('heading', { name: 'Abrir caja', exact: true }))).toBeVisible({ timeout: 20_000 });
     const chargeButton = second.getByRole('button', { name: /^Cobrar / });
-    if (await chargeButton.count()) await expect(chargeButton).toBeDisabled();
-    else await expect(second.getByRole('button', { name: 'Abrir caja y comenzar a vender' })).toBeDisabled();
+    const openShiftButton = second.getByRole('button', { name: 'Abrir caja y comenzar a vender' });
+    // La vista puede cambiar entre la comprobación del aviso y la del botón.
+    await expect(chargeButton.or(openShiftButton).and(second.locator(':disabled')).first()).toBeVisible();
   } finally {
     await firstContext.close(); await secondContext.close(); await supervisorContext.close();
   }

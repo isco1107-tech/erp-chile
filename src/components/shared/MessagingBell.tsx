@@ -104,7 +104,7 @@ export default function MessagingBell() {
   return (
     <Link
       href="/dashboard/messaging"
-      className="relative flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      className="relative flex size-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
       aria-label="Mensajería"
     >
       <MessageSquare className="size-5" />

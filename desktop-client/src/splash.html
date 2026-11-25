@@ -52,6 +52,12 @@
     opacity: 0;
     animation: fade-in 0.5s ease 0.3s forwards, spin 0.9s linear infinite;
   }
+  @media (prefers-reduced-motion: reduce) {
+    .splash img, .splash .brand, .spinner {
+      opacity: 1;
+      animation: none;
+    }
+  }
   @keyframes fade-in {
     to { opacity: 1; }
   }
@@ -62,9 +68,9 @@
 </head>
 <body>
   <div class="splash">
-    <img src="assets/aether-mark.png" alt="Aether" />
+    <img src="assets/aether-mark.png" alt="" />
     <div class="brand">Aether</div>
-    <div class="spinner"></div>
+    <div class="spinner" role="status" aria-label="Abriendo la aplicación"></div>
   </div>
   <script src="network-check.js"></script>
   <script>

@@ -1,4 +1,6 @@
 import { Suspense } from 'react';
+import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
 import { redirect } from 'next/navigation';
 import { LoginForm } from '@/components/auth/LoginPage';
 import { PosDesktopDownload } from '@/components/pos/PosDesktopDownload';
@@ -18,11 +20,13 @@ export default async function PosLoginPage() {
   return (
     <main className="flex min-h-dvh items-center justify-center px-4 py-8">
       <div className="w-full max-w-sm">
-        <p className="mb-6 text-center text-sm font-semibold tracking-wide">AETHER · PUNTO DE VENTA</p>
+        <Link href="/apps" className="mb-3 inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring">
+          <ArrowLeft className="size-4" aria-hidden="true" /> Centro de aplicaciones
+        </Link>
         <Suspense fallback={<p role="status">Preparando el ingreso…</p>}><LoginForm pos /></Suspense>
         <p className="mt-6 text-center text-sm text-muted-foreground">Caja, ventas e inventario conectados al ERP. Cada cajero usa su propia cuenta.</p>
         <div className="mt-4"><InstallApplication /></div>
-        <div className="mt-4 flex justify-center"><PosDesktopDownload /></div>
+        <div className="mt-4 flex justify-center"><PosDesktopDownload className="min-h-11" /></div>
       </div>
     </main>
   );

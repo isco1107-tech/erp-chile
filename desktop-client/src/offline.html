@@ -22,14 +22,14 @@
     -webkit-app-region: drag;
   }
   .wrap {
-    height: calc(100% - 36px);
+    min-height: calc(100% - 36px);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 14px;
+    gap: 12px;
     text-align: center;
-    padding: 0 32px;
+    padding: 16px clamp(12px, 5vw, 40px) 32px;
   }
   .wrap img {
     width: 52px;
@@ -38,8 +38,10 @@
     opacity: 0.9;
   }
   h1 {
-    font-size: 18px;
-    font-weight: 600;
+    font-size: clamp(1.25rem, 4vw, 1.75rem);
+    font-weight: 650;
+    line-height: 1.15;
+    text-wrap: balance;
     margin: 8px 0 0;
   }
   p {
@@ -51,12 +53,14 @@
   }
   button {
     margin-top: 10px;
+    min-height: 44px;
     padding: 10px 22px;
-    border-radius: 8px;
-    border: 1px solid #dbc076;
-    background: transparent;
-    color: #dbc076;
-    font-size: 14px;
+    border-radius: 12px;
+    border: 1px solid transparent;
+    background: #dbc076;
+    color: #12161f;
+    font: inherit;
+    font-weight: 600;
     cursor: pointer;
     -webkit-app-region: no-drag;
   }
@@ -65,24 +69,28 @@
     cursor: default;
   }
   button:hover:not(:disabled) {
-    background: rgba(219, 192, 118, 0.1);
+    background: #f1d893;
+  }
+  button:focus-visible {
+    outline: 2px solid #dbc076;
+    outline-offset: 4px;
   }
   .status {
     font-size: 12px;
-    color: #8b8779;
+    color: #b7b2a4;
     min-height: 16px;
   }
 </style>
 </head>
 <body>
   <div class="titlebar"></div>
-  <div class="wrap">
-    <img src="assets/aether-mark.png" alt="Aether" />
+  <main class="wrap">
+    <img src="assets/aether-mark.png" alt="" />
     <h1>Sin conexión a internet</h1>
-    <p>Aether necesita conexión para abrir la caja y confirmar ventas en el ERP. Apenas vuelva la conexión, la app se abre sola.</p>
-    <button id="retry">Reintentar ahora</button>
-    <div class="status" id="status"></div>
-  </div>
+    <p>Comprueba tu conexión. Aether se abrirá automáticamente en cuanto pueda conectarse al ERP.</p>
+    <button id="retry" type="button">Reintentar ahora</button>
+    <p class="status" id="status" role="status"></p>
+  </main>
   <script src="network-check.js"></script>
   <script>
     const statusEl = document.getElementById('status');

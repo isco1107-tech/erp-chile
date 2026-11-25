@@ -1,7 +1,8 @@
 'use client';
 
+import { useEffect, useId, useRef, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { MoreHorizontal } from 'lucide-react';
+import { ArrowLeftRight, MoreHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Pagination } from './pagination';
 import { Skeleton } from './skeleton';
@@ -29,7 +30,7 @@ export interface DataTableProps<T> {
   columns: DataTableColumn<T>[];
   data: T[];
   getRowId: (row: T) => string;
-  /** Menú "···" que aparece en hover, al final de la fila. Omitir si la tabla no tiene acciones. */
+  /** Acciones al final de cada fila. Omitir si la tabla no tiene acciones. */
   rowActions?: (row: T) => React.ReactNode;
   loading?: boolean;
   emptyTitle?: string;
@@ -66,26 +67,53 @@ export function DataTable<T>({
   className,
 }: DataTableProps<T>) {
   const hasToolbar = Boolean(searchSlot || filterSlot || exportSlot);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
+  const scrollHintId = useId();
+  const [overflowing, setOverflowing] = useState(false);
+
+  useEffect(() => {
+    const container = scrollRef.current;
+    const table = tableRef.current;
+    if (!container || !table) return;
+    const observer = new ResizeObserver(() => setOverflowing(container.scrollWidth > container.clientWidth));
+    observer.observe(container);
+    observer.observe(table);
+    return () => observer.disconnect();
+  }, []);
 
   return (
-    <div className={cn('overflow-hidden rounded-lg border border-border bg-card shadow-card', className)}>
+    <div className={cn('min-w-0 rounded-2xl border border-border bg-card shadow-card', className)}>
       {hasToolbar && (
-        <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3">
+        <div className="flex flex-wrap items-center gap-3 border-b border-border px-3 py-3 sm:px-4">
           {searchSlot}
           {filterSlot && <div className="flex flex-wrap items-center gap-2">{filterSlot}</div>}
           {exportSlot && <div className="ml-auto">{exportSlot}</div>}
         </div>
       )}
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] border-collapse text-left">
+      {overflowing && (
+        <p id={scrollHintId} className="flex items-center gap-2 border-b border-border px-3 py-2 text-xs text-muted-foreground print:hidden">
+          <ArrowLeftRight className="size-4 shrink-0" aria-hidden="true" /> Desplázate para ver más columnas
+        </p>
+      )}
+      <div
+        ref={scrollRef}
+        role={overflowing ? 'region' : undefined}
+        aria-label={overflowing ? 'Tabla con desplazamiento horizontal' : undefined}
+        aria-describedby={overflowing ? scrollHintId : undefined}
+        tabIndex={overflowing ? 0 : undefined}
+        className="overflow-x-auto rounded-[inherit] overscroll-x-contain focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+      >
+        <table ref={tableRef} aria-busy={loading} className="w-full min-w-[30rem] border-collapse text-left md:min-w-[40rem]">
           <thead>
             <tr className="h-11 bg-muted">
               {columns.map((column) => (
                 <th
                   key={column.id}
+                  scope="col"
                   className={cn(
-                    'px-4 text-xs font-semibold text-muted-foreground',
+                    'px-3 text-xs font-semibold text-muted-foreground sm:px-4',
                     column.align === 'right' && 'text-right',
                     column.className
                   )}
@@ -93,7 +121,7 @@ export function DataTable<T>({
                   {column.header}
                 </th>
               ))}
-              {rowActions && <th className="w-10 px-4" aria-hidden />}
+              {rowActions && <th scope="col" className="w-10 px-3"><span className="sr-only">Acciones</span></th>}
             </tr>
           </thead>
           <tbody>
@@ -111,23 +139,17 @@ export function DataTable<T>({
 
             {!loading &&
               data.map((row) => (
-                <tr key={getRowId(row)} className="group/row h-14 border-b border-border transition-colors duration-150 hover:bg-muted/60">
+                <tr key={getRowId(row)} className="h-14 border-b border-border transition-colors last:border-b-0 hover:bg-muted/60 focus-within:bg-muted/60">
                   {columns.map((column) => (
                     <td
                       key={column.id}
-                      className={cn('px-4 text-sm text-foreground', column.align === 'right' && 'text-right tabular-nums', column.className)}
+                      className={cn('px-3 py-2 text-sm text-foreground sm:px-4', column.align === 'right' && 'text-right tabular-nums', column.className)}
                     >
                       {column.cell(row)}
                     </td>
                   ))}
                   {rowActions && (
-                    <td className="px-4 text-right">
-                      {/* Visible siempre bajo `sm` (no hay hover real en touch) — el
-                          hover-reveal solo aplica desde `sm:` en adelante. */}
-                      <div className="opacity-100 transition-opacity duration-150 sm:opacity-0 sm:group-hover/row:opacity-100 sm:focus-within:opacity-100">
-                        {rowActions(row)}
-                      </div>
-                    </td>
+                    <td className="px-3 text-right">{rowActions(row)}</td>
                   )}
                 </tr>
               ))}
@@ -161,7 +183,7 @@ export function DataTableRowMenuTrigger({ onClick, className }: { onClick?: () =
       onClick={onClick}
       aria-label="Más acciones"
       className={cn(
-        'inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+        'inline-flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 pointer-coarse:size-11',
         className
       )}
     >

@@ -25,10 +25,10 @@ const systems = [
 ];
 
 /** Only verified POS releases appear here; the general ERP installer is separate. */
-export function PosDesktopDownload() {
+export function PosDesktopDownload({ className }: { className?: string }) {
   const [open, setOpen] = useState(false);
   return <>
-    <Button type="button" variant="outline" size="sm" onClick={() => { if (document.querySelector('[data-pos-pending="true"]')) { toast.warning('Confirma la operación pendiente antes de abrir las descargas.'); return; } setOpen(true); }}>
+    <Button type="button" variant="outline" size="sm" className={className} onClick={() => { if (document.querySelector('[data-pos-pending="true"]')) { toast.warning('Confirma la operación pendiente antes de abrir las descargas.'); return; } setOpen(true); }}>
       <Download className="size-4" aria-hidden="true" /> Descargar app POS
     </Button>
     <Dialog open={open} onOpenChange={setOpen}>
@@ -43,7 +43,7 @@ export function PosDesktopDownload() {
             return <div key={`${system.platform}-${system.architecture}`} className="flex flex-wrap items-center gap-3 rounded-lg border border-border p-3">
               <Monitor className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
               <div className="min-w-0 flex-1"><p className="text-sm font-medium">{system.label}</p><p className="text-xs text-muted-foreground">{system.detail}{release ? ` · v${release.version} · ${(release.size / 1024 / 1024).toFixed(1)} MB` : ''}</p></div>
-              {release ? <a href={`/downloads/${release.file}`} download className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground" aria-label={`Descargar Aether POS para ${system.label}`}><Download className="size-4" aria-hidden="true" />Descargar</a> : <span className="text-xs text-muted-foreground">En preparación</span>}
+              {release ? <a href={`/downloads/${release.file}`} download className="inline-flex items-center min-h-11 gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" aria-label={`Descargar Aether POS para ${system.label}`}><Download className="size-4" aria-hidden="true" />Descargar</a> : <span className="text-xs text-muted-foreground">En preparación</span>}
             </div>;
           })}
         </div>

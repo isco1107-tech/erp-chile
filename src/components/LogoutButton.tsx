@@ -28,6 +28,7 @@ export default function LogoutButton({ variant = 'text', className, destination 
       router.push(destination);
       router.refresh();
     } catch (e) {
+      toast.error('No se pudo cerrar la sesión. Vuelve a intentarlo.');
       captureException(e, { module: 'auth', extra: { reason: 'logout-button' } });
     } finally {
       setLoading(false);
@@ -43,7 +44,7 @@ export default function LogoutButton({ variant = 'text', className, destination 
         aria-label="Cerrar sesión"
         title="Cerrar sesión"
         className={cn(
-          'flex size-8 shrink-0 items-center justify-center rounded-lg text-sidebar-foreground transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-2 focus-visible:outline-sidebar-ring disabled:opacity-50',
+          'flex size-11 shrink-0 items-center justify-center rounded-lg text-sidebar-foreground transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-2 focus-visible:outline-sidebar-ring disabled:opacity-50',
           className
         )}
       >
@@ -57,7 +58,7 @@ export default function LogoutButton({ variant = 'text', className, destination 
       type="button"
       onClick={handleLogout}
       disabled={loading}
-      className={cn('rounded-lg px-3 py-1.5 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50', className)}
+      className={cn('min-h-11 rounded-xl px-3 py-2 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50', className)}
     >
       {loading ? 'Saliendo…' : 'Cerrar sesión'}
     </button>

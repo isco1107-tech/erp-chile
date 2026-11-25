@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowLeftRight, CloudUpload, LogOut, PackageMinus, PackagePlus, Plus, Search, ClipboardList, Trash2, Undo2, TriangleAlert, WifiOff, X } from 'lucide-react';
+import { ArrowLeftRight, CloudUpload, LogOut, PackageMinus, PackagePlus, Plus, Search, ClipboardList, Trash2, Undo2, TriangleAlert, WifiOff } from 'lucide-react';
 import { MODE_DEFINITIONS, MOBILE_MODES, type MobileMode } from '@/lib/warehouse-mobile/modes';
 import { useConfirm } from '@/components/ui/confirm-provider';
 import InstallApp from './InstallApp';
@@ -73,7 +73,7 @@ export default function HomeScreen({ onStart, onContinue, onOutbox }: Props) {
   };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="mx-auto flex h-full w-full max-w-5xl flex-col sm:border-x sm:border-border">
       <header className="flex flex-wrap items-center gap-3 border-b border-border bg-card px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))]">
         <div className="min-w-0 flex-1">
           <p data-truncate className="truncate text-xs text-muted-foreground">{data.company.name}</p>
@@ -97,10 +97,9 @@ export default function HomeScreen({ onStart, onContinue, onOutbox }: Props) {
         </button>
       </header>
 
-      <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-3 py-4 sm:px-6 lg:px-8">
         <section className="rounded-2xl bg-primary p-4 text-primary-foreground" aria-label="Estado de tu trabajo">
-          <p className="text-xs font-semibold tracking-widest opacity-70">BODEGA MÓVIL</p>
-          <h2 className="mt-1 text-lg font-semibold">¿Qué vas a mover hoy?</h2>
+          <h2 className="text-lg font-semibold">Estado de tu bodega</h2>
           <div className="mt-3 grid grid-cols-3 gap-2 text-center">
             <button type="button" onClick={onContinue} disabled={!draft} className="min-h-14 rounded-xl border border-current/20 p-2 disabled:opacity-50"><strong className="block text-xl">{draft?.lines.length ?? 0}</strong><span className="text-xs">En tu lista</span></button>
             <button type="button" onClick={onOutbox} className="min-h-14 rounded-xl border border-current/20 p-2"><strong className="block text-xl">{summary.pending}</strong><span className="text-xs">Por enviar</span></button>
@@ -156,12 +155,12 @@ export default function HomeScreen({ onStart, onContinue, onOutbox }: Props) {
         {data.can.move ? (
           <section aria-label="¿Qué vas a hacer?">
             <h2 className="mb-2 text-sm font-semibold text-muted-foreground">¿Qué vas a hacer?</h2>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
               {MOBILE_MODES.filter((mode) => mode !== 'TRANSFER' || data.warehouses.length > 1).map((mode) => {
                 const Icon = MODE_ICONS[mode];
                 const def = MODE_DEFINITIONS[mode];
                 return (
-                  <button key={mode} type="button" onClick={() => void start(mode)} className="flex min-h-32 flex-col items-start justify-between gap-2 rounded-2xl border border-border bg-card p-3 text-left shadow-card active:bg-muted">
+                  <button key={mode} type="button" onClick={() => void start(mode)} className="flex min-h-32 flex-col items-start justify-between gap-2 rounded-2xl border border-border bg-card p-3 text-left shadow-card hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring active:bg-muted">
                     <span className={`flex size-11 items-center justify-center rounded-xl ${MODE_TONE[mode]}`}>
                       <Icon className="size-6" />
                     </span>
@@ -178,8 +177,6 @@ export default function HomeScreen({ onStart, onContinue, onOutbox }: Props) {
           <p className="rounded-2xl bg-muted p-4 text-sm text-muted-foreground">Tu rol solo permite consultar productos. Pide a un administrador que te habilite para registrar movimientos.</p>
         )}
 
-        <InstallApp />
-
         <button type="button" onClick={() => setLooking(true)} className="flex min-h-14 w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 text-left active:bg-muted">
           <Search className="size-5 text-muted-foreground" />
           <span className="flex-1 text-base font-medium">Consultar cuánto hay de un producto</span>
@@ -191,6 +188,8 @@ export default function HomeScreen({ onStart, onContinue, onOutbox }: Props) {
           {summary.rejected > 0 ? <Pill tone="danger">{summary.rejected} con problema</Pill> : null}
           {summary.pending > 0 ? <Pill tone={summary.stalled > 0 ? 'warning' : 'info'}>{summary.pending} por enviar</Pill> : null}
         </button>
+
+        <InstallApp />
       </div>
 
       <nav aria-label="Acciones rápidas de bodega" className="grid shrink-0 grid-cols-3 gap-1 border-t bg-card px-3 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
@@ -225,9 +224,6 @@ export default function HomeScreen({ onStart, onContinue, onOutbox }: Props) {
           </p>
           <button type="button" onClick={() => void askLogout()} className="flex h-14 w-full items-center gap-3 rounded-xl bg-danger-soft px-4 text-base font-medium text-danger active:opacity-85">
             <LogOut className="size-5" /> Cerrar sesión
-          </button>
-          <button type="button" onClick={() => setMenu(false)} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl text-base font-medium active:bg-muted">
-            <X className="size-5" /> Cerrar menú
           </button>
         </div>
       </Sheet>

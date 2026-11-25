@@ -1,75 +1,45 @@
-/** `id` es también el id de la app en `registry.ts` (de ahí salen su ícono y su nombre en el teléfono). */
+import type { AppId } from './registry';
+
+interface CatalogEntry {
+  id: AppId;
+  name: string;
+  audience: string;
+  description: string;
+  devices: string;
+  action: string;
+}
+
 export const APP_CATALOG = [
   {
     id: 'control',
     name: 'Aether Control',
-    eyebrow: 'DIRECCIÓN',
-    href: '/control',
-    description:
-      'Tu empresa de un vistazo: ventas, cobros, cajas y actividad reciente. Acceso exclusivo del dueño.',
-    format: 'Instalable en teléfono y computador',
-    features: [
-      'Indicadores reales',
-      'Actualización automática',
-      'Cajas y movimientos',
-    ],
+    audience: 'Para dueños de empresa',
+    description: 'Consulta las ventas, los cobros y las cajas abiertas de tu empresa.',
+    devices: 'Celular, tablet y computador',
+    action: 'Abrir Control',
   },
   {
     id: 'pos',
     name: 'Aether POS',
-    eyebrow: 'MOSTRADOR',
-    href: '/pos',
-    description:
-      'Un espacio de trabajo para cada cajero: apertura, venta, ingresos, retiros y cierre conectado al ERP.',
-    format: 'Windows, Mac y Linux · también instalable en tablet y teléfono',
-    features: ['Multicaja', 'Boletas e inventario', 'Arqueo por cajero'],
+    audience: 'Para cajeros',
+    description: 'Abre tu caja, registra ventas e imprime boletas. Revisa tus ingresos y retiros antes de cerrar el turno.',
+    devices: 'Computador, tablet y celular',
+    action: 'Abrir POS',
   },
   {
     id: 'bodega',
     name: 'Bodega móvil',
-    eyebrow: 'OPERACIONES',
-    href: '/bodega',
-    description:
-      'Recibe, identifica y mueve mercadería con el teléfono. Conserva los movimientos pendientes hasta confirmarlos.',
-    format: 'Instalable en Android y iPhone',
-    features: ['Cámara y códigos', 'Cola de envíos', 'Stock compartido'],
+    audience: 'Para equipos de bodega',
+    description: 'Escanea productos, recibe mercadería y traslada stock. Los envíos pendientes se guardan si pierdes conexión.',
+    devices: 'Android y iPhone · también en navegador',
+    action: 'Abrir Bodega',
   },
   {
     id: 'seller',
     name: 'Seller Center',
-    eyebrow: 'PROVEEDORES',
-    href: '/proveedor/cuenta',
-    description:
-      'La cuenta del proveedor: sus ventas, existencias y mermas, según los accesos que le otorgó cada empresa.',
-    format: 'Instalable con cuenta de proveedor',
-    features: [
-      'Identidad propia',
-      'Datos de su empresa',
-      'Consulta de consignación',
-    ],
+    audience: 'Para proveedores',
+    description: 'Consulta ventas, existencias y mermas de los productos que entregas en consignación.',
+    devices: 'Celular, tablet y computador',
+    action: 'Abrir Seller Center',
   },
-] as const;
-
-export const APP_OPPORTUNITIES = [
-  {
-    name: 'Portal del trabajador',
-    reason:
-      'Liquidaciones, solicitudes y avisos recurrentes justifican un acceso móvil propio.',
-    prerequisite:
-      'Crear ingreso personal persistente antes de reemplazar los enlaces privados.',
-  },
-  {
-    name: 'Portal de clientes',
-    reason:
-      'Pedidos, documentos y pagos pueden reunirse en una app de autoservicio.',
-    prerequisite:
-      'Identidad de cliente y separación entre empresas; no instalar URLs con tokens como una app compartida.',
-  },
-  {
-    name: 'Eventos y jurado',
-    reason:
-      'Acreditación y evaluación se benefician de accesos rápidos durante una jornada.',
-    prerequisite:
-      'Instalación por evento y rol, caducidad y protección de evaluaciones.',
-  },
-] as const;
+] as const satisfies readonly CatalogEntry[];

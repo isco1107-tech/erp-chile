@@ -18,11 +18,17 @@ export default async function PosTerminalLayout({ children }: { children: ReactN
   const allowed = can(context, 'pos:operate');
   return (
     <ConfirmProvider>
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b bg-card px-4 py-3 print:hidden sm:px-6">
-        <div className="min-w-0 flex-1 basis-64 [overflow-wrap:anywhere]"><p className="font-semibold">Aether POS · {context.companyName}</p><p className="text-sm text-muted-foreground">Cajero: {context.name} · {context.email}</p></div>
-        <LogoutButton destination="/pos/ingresar" />
+      <a href="#contenido-principal" className="skip-link">Ir al contenido</a>
+      <header className="border-b border-border bg-card pt-[env(safe-area-inset-top)] print:hidden">
+        <div className="mx-auto flex min-h-16 max-w-[1600px] items-center justify-between gap-3 px-3 py-2 sm:px-6">
+          <div className="min-w-0 [overflow-wrap:anywhere]">
+            <p className="text-sm font-semibold">Aether POS · {context.companyName}</p>
+            <p className="text-sm text-muted-foreground">{context.name}</p>
+          </div>
+          <LogoutButton destination="/pos/ingresar" className="shrink-0" />
+        </div>
       </header>
-      <main className="mx-auto max-w-[1600px] p-3 sm:p-6 print:p-0">
+      <main id="contenido-principal" tabIndex={-1} className="mx-auto max-w-[1600px] p-3 outline-none sm:p-6 print:p-0">
         {allowed ? children : <section className="mx-auto max-w-lg rounded-xl border bg-card p-8 text-center"><h1 className="text-xl font-semibold">Sin acceso al Punto de Venta</h1><p className="mt-3 text-muted-foreground">Pide al administrador que habilite el módulo y el permiso de operación para tu usuario.</p></section>}
       </main>
     </ConfirmProvider>

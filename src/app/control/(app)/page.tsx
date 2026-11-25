@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { LayoutGrid } from 'lucide-react';
 import { redirect } from 'next/navigation';
 import {
   AuthError,
@@ -19,13 +20,16 @@ export default async function ControlPage() {
   if (context.mustChangePassword) redirect('/change-password');
   return (
     <>
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b bg-card px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))]">
-        <Link href="/apps" className="font-semibold">
-          Aether · Aplicaciones
-        </Link>
-        <LogoutButton destination="/control/ingresar" />
+      <a href="#contenido-principal" className="skip-link">Ir al contenido</a>
+      <header className="border-b border-border bg-card pt-[env(safe-area-inset-top)]">
+        <div className="mx-auto flex min-h-16 max-w-7xl flex-wrap items-center justify-between gap-2 px-3 sm:px-6">
+          <Link href="/apps" className="inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-medium hover:text-accent-foreground focus-visible:outline-2 focus-visible:outline-ring">
+            <LayoutGrid className="size-4" aria-hidden="true" /> Aplicaciones
+          </Link>
+          <LogoutButton destination="/control/ingresar" />
+        </div>
       </header>
-      <main className="mx-auto max-w-7xl p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:p-6">
+      <main id="contenido-principal" tabIndex={-1} className="mx-auto max-w-7xl px-3 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))] outline-none sm:p-6">
         {context.role === 'OWNER' ? (
           <ControlDashboard />
         ) : (

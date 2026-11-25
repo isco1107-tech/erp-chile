@@ -33,7 +33,7 @@ function AlertDialogContent({ className, children, ...props }: React.ComponentPr
       <AlertDialogPrimitive.Popup
         data-slot="alert-dialog-content"
         className={cn(
-          'fixed top-1/2 left-1/2 z-50 max-h-[85vh] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-border bg-card p-6 text-card-foreground shadow-lg outline-none transition-all data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0',
+          'fixed top-1/2 left-1/2 z-50 max-h-[calc(100dvh-2rem)] w-[calc(100%-1rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto overscroll-contain rounded-2xl border border-border bg-card p-4 text-card-foreground shadow-popover outline-none motion-safe:transition-[scale,opacity] sm:w-[calc(100%-2rem)] sm:p-6 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0',
           className
         )}
         {...props}
@@ -49,7 +49,7 @@ function AlertDialogHeader({ className, ...props }: React.ComponentProps<'div'>)
 }
 
 function AlertDialogTitle({ className, ...props }: React.ComponentProps<typeof AlertDialogPrimitive.Title>) {
-  return <AlertDialogPrimitive.Title data-slot="alert-dialog-title" className={cn('text-base font-semibold', className)} {...props} />;
+  return <AlertDialogPrimitive.Title data-slot="alert-dialog-title" className={cn('text-lg leading-snug font-semibold', className)} {...props} />;
 }
 
 function AlertDialogDescription({ className, ...props }: React.ComponentProps<typeof AlertDialogPrimitive.Description>) {
@@ -63,7 +63,7 @@ function AlertDialogDescription({ className, ...props }: React.ComponentProps<ty
 }
 
 function AlertDialogFooter({ className, ...props }: React.ComponentProps<'div'>) {
-  return <div data-slot="alert-dialog-footer" className={cn('mt-6 flex items-center justify-end gap-2', className)} {...props} />;
+  return <div data-slot="alert-dialog-footer" className={cn('mt-6 flex flex-wrap items-center justify-end gap-2', className)} {...props} />;
 }
 
 function AlertDialogClose({ className, ...props }: React.ComponentProps<typeof AlertDialogPrimitive.Close>) {

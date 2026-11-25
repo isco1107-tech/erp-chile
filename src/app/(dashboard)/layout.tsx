@@ -1,5 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
+import { ArrowUpRight, LayoutGrid } from 'lucide-react';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { verifySessionToken } from '@/lib/auth/session';
@@ -22,7 +23,7 @@ import CommandMenu from '@/components/shared/CommandMenu';
 import NotificationBell from '@/components/shared/NotificationBell';
 import MessagingBell from '@/components/shared/MessagingBell';
 import HeaderAssistantButtons from '@/components/shared/HeaderAssistantButtons';
-import { MobileNavProvider, MobileNavToggle, MobileNavBackdrop, MobileNavDrawer } from '@/components/shared/MobileNav';
+import { MobileNavProvider, MobileNavToggle, MobileNavContent, MobileNavDrawer } from '@/components/shared/MobileNav';
 import { SidebarNav } from '@/components/shared/SidebarNav';
 import { CompanySwitcher } from '@/components/shared/CompanySwitcher';
 import { ConfirmProvider } from '@/components/ui/confirm-provider';
@@ -97,7 +98,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
     features,
   });
   const groups = applyDisabledNavItems(availableGroups, disabledNavItems);
-  const visibleIds = new Set(groups.flatMap((group) => group.links.map((link) => link.id)));
+  const visibleLinks = groups.flatMap((group) => group.links);
+  const appDirectory = visibleLinks.find((link) => link.id === 'apps');
+  const sidebarGroups = groups
+    .map((group) => ({ ...group, links: group.links.filter((link) => link.id !== 'apps') }))
+    .filter((group) => group.links.length > 0);
+  const visibleIds = new Set(visibleLinks.map((link) => link.id));
   const gateSections: GateSection[] = availableGroups.flatMap((group) =>
     group.links.map((link) => ({ id: link.id, href: link.href, label: link.label, exact: link.exact, disabled: !visibleIds.has(link.id) }))
   );
@@ -149,37 +155,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
   );
 
   return (
-    <div className="theme-saas-light min-h-screen bg-background text-foreground" style={brandThemeStyle}>
+    <div className="theme-saas-light min-h-dvh bg-background text-foreground" style={brandThemeStyle}>
       <AppWindowMarker app="erp" />
-      <a
-        href="#contenido-principal"
-        className="sr-only z-50 rounded-lg bg-card px-4 py-2 text-sm font-medium text-foreground shadow-popover focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
-      >
-        Ir al contenido
-      </a>
-
-      {/*
-        Firma de marca de la empresa (`Company.logoUrl`, el mismo que sube en
-        Configuración). Antes cubría todo el viewport al centro y cruzaba
-        tablas y gráficos en todas las pantallas; ahora es una firma discreta
-        en la esquina, solo en escritorio y nunca al imprimir.
-      */}
-      {context.companyLogoUrl && (
-        <div
-          aria-hidden
-          className="pointer-events-none fixed right-8 bottom-8 hidden size-40 bg-contain bg-right-bottom bg-no-repeat opacity-[0.05] print:hidden xl:block"
-          style={{ backgroundImage: `url(${context.companyLogoUrl})` }}
-        />
-      )}
-
       <ConfirmProvider>
         <MobileNavProvider>
-          <MobileNavBackdrop />
           <MobileNavDrawer>
             {/* Sidebar: única superficie oscura del tema claro, a propósito (acento de marca). */}
-            <aside aria-label="Navegación principal" className="flex h-full w-full flex-col overflow-hidden bg-sidebar print:hidden">
+            <aside aria-label="Navegación principal" className="flex h-full w-full flex-col overflow-hidden border-r border-sidebar-border bg-sidebar">
               <div className="shrink-0 px-4 pt-5 pb-4">
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-2.5 pr-10 xl:pr-0">
                   {context.companyLogoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -193,7 +177,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
                   )}
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-white">{context.companyName}</p>
-                    <p className="truncate text-xs text-sidebar-foreground">Aether ERP</p>
+                    <p className="truncate text-xs font-medium text-sidebar-foreground">Aether ERP</p>
                   </div>
                 </div>
 
@@ -207,10 +191,23 @@ export default async function DashboardLayout({ children }: { children: React.Re
               </div>
 
               <div className="flex min-h-0 flex-1 flex-col px-2">
-                <SidebarNav groups={groups} />
+                <SidebarNav groups={sidebarGroups} />
               </div>
 
-              <div className="flex shrink-0 items-center gap-2.5 border-t border-white/[0.06] px-4 py-3">
+              {appDirectory && (
+                <div className="shrink-0 border-t border-sidebar-border px-2 py-2">
+                  <Link
+                    href={appDirectory.href}
+                    className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-white focus-visible:outline-2 focus-visible:outline-sidebar-ring"
+                  >
+                    <LayoutGrid className="size-[17px] text-sidebar-primary" aria-hidden="true" />
+                    <span className="flex-1">{appDirectory.label}</span>
+                    <ArrowUpRight className="size-4" aria-hidden="true" />
+                  </Link>
+                </div>
+              )}
+
+              <div className="flex shrink-0 items-center gap-2.5 border-t border-sidebar-border px-4 py-3">
                 <Link
                   href="/dashboard/settings/profile"
                   className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg p-1 -m-1 transition-colors hover:bg-white/[0.04] focus-visible:outline-2 focus-visible:outline-sidebar-ring"
@@ -226,8 +223,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
             </aside>
           </MobileNavDrawer>
 
-          <div className="flex min-h-screen flex-col lg:pl-[260px]">
-            <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-2 border-b border-border bg-card/85 px-4 backdrop-blur-md print:hidden lg:px-8">
+          <MobileNavContent>
+            <a href="#contenido-principal" className="skip-link">Ir al contenido</a>
+            <header className="sticky top-0 z-10 flex min-h-16 shrink-0 items-center gap-0.5 border-b border-border bg-card/95 px-1.5 backdrop-blur-md print:hidden sm:gap-2 sm:px-6 xl:px-8">
               <MobileNavToggle />
               <CommandMenu
                 permissions={context.permissions}
@@ -242,21 +240,21 @@ export default async function DashboardLayout({ children }: { children: React.Re
               <Link
                 href="/dashboard/settings/profile"
                 aria-label={`Mi perfil: ${displayName}`}
-                className="ml-1 hidden items-center gap-2 rounded-[10px] px-2 py-1.5 text-sm text-foreground transition-colors duration-150 hover:bg-muted sm:flex"
+                className="ml-1 hidden min-h-11 items-center gap-2 rounded-xl px-2 text-sm text-foreground transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring sm:flex"
               >
                 {avatar('size-7')}
                 <span className="hidden max-w-[12rem] truncate text-muted-foreground md:inline">{displayName}</span>
               </Link>
             </header>
 
-            <main id="contenido-principal" tabIndex={-1} className="flex-1 outline-none print:p-0">
-              <div className="mx-auto max-w-[1440px] p-4 sm:p-6 lg:p-8 print:p-0">
+            <main id="contenido-principal" tabIndex={-1} className="min-w-0 flex-1 scroll-mt-20 outline-none">
+              <div className="mx-auto max-w-[1440px] px-3 py-5 sm:p-6 xl:p-8 print:p-0">
                 <DisabledSectionGate sections={gateSections} canConfigure={allow('settings:company')}>
                   {children}
                 </DisabledSectionGate>
               </div>
             </main>
-          </div>
+          </MobileNavContent>
         </MobileNavProvider>
 
         {context.role === 'OWNER' && (

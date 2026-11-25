@@ -141,18 +141,10 @@ select option {
   --sidebar-ring: #dbc076;
 }
 
-/*
- * Tema claro tipo dashboard SaaS moderno: fondo gris muy claro, tarjetas
- * blancas, sombras suaves, acento emerald. A propósito NO vive en `:root`
- * (eso rompía login/POS/el resto de la app, que comparten las mismas
- * utilidades `bg-background`/`bg-card` de shadcn — un cambio en `:root` es
- * global e ineludible). Vive en esta clase de scope, aplicada solo al div
- * raíz de `src/app/(dashboard)/layout.tsx` — así el AppShell y el Dashboard
- * se ven en este tema claro, y todo lo demás (login, POS, el resto de los
- * módulos hasta que se apruebe replicar el patrón) sigue viendo exactamente
- * los valores de `:root` de arriba, sin cambios.
- */
-.theme-saas-light {
+/* Los diálogos se montan en un portal al lado de la app y comparten su tema. */
+.theme-saas-light,
+body:has(> .theme-saas-light) > :is([data-slot="dialog-portal"], [data-slot="alert-dialog-portal"], [data-slot="workspace-popover"]) {
+  color-scheme: light;
   /* Neutros cálidos (los mismos del landing) + tinta como acción principal +
      dorado como acento. Contrastes verificados AA: texto secundario #65676e
      sobre blanco 5.6:1, sobre el fondo 5.2:1; dorado oscuro sobre su tinte
@@ -213,12 +205,17 @@ select option {
   --info: #3538cd;
   --info-soft: #eef2ff;
 
-  /* El div raíz del AppShell pinta un fondo opaco encima del gradiente HUD del
-     <body> (que sigue existiendo para el resto de la app) — sin esto el
-     rediseño se vería sobre el fondo oscuro del body en vez del gris claro. */
-  background-color: var(--background);
-  color: var(--foreground);
-  min-height: 100%;
+}
+
+@layer components {
+  .theme-saas-light {
+    background-color: var(--background);
+    color: var(--foreground);
+  }
+
+  .skip-link {
+    @apply sr-only z-[60] rounded-lg bg-card px-4 py-3 text-sm font-semibold text-foreground shadow-popover focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:outline-2 focus:outline-ring print:hidden;
+  }
 }
 
 .theme-saas-light ::selection {

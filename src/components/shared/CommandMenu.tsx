@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import type { Contact } from '@prisma/client';
-import { CreditCard, Package, PackagePlus, ReceiptText, Search, Target, UserPlus, Users, type LucideIcon } from 'lucide-react';
+import { CreditCard, Package, PackagePlus, ReceiptText, Search, Target, UserPlus, Users, X, type LucideIcon } from 'lucide-react';
 import { Dialog, DialogBackdrop, DialogDescription, DialogPortal, DialogTitle } from '@/components/ui/dialog';
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { cn } from '@/lib/utils';
@@ -168,21 +168,18 @@ export default function CommandMenu({ permissions, features, disabledNavItems }:
   React.useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       const isShortcut = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k';
-      if (!isShortcut) return;
+      if (!isShortcut || (!open && document.querySelector('[aria-modal="true"]'))) return;
       event.preventDefault();
       setOpen((prev) => !prev);
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [open]);
 
   // Limpia el estado al cerrar, para que la próxima apertura empiece en blanco
   // y no muestre resultados de la búsqueda anterior por una fracción de segundo.
   React.useEffect(() => {
-    if (open) {
-      const timer = setTimeout(() => inputRef.current?.focus(), 30);
-      return () => clearTimeout(timer);
-    }
+    if (open) return;
     setQuery('');
     setContactResults([]);
     setProductResults([]);
@@ -193,7 +190,7 @@ export default function CommandMenu({ permissions, features, disabledNavItems }:
   // Búsqueda en vivo de contactos y productos, debounced. Con menos de 2
   // caracteres no dispara nada: evita listar "todo" apenas se abre la paleta.
   React.useEffect(() => {
-    if (trimmedQuery.length < 2) {
+    if (!open || trimmedQuery.length < 2 || (!canSearchContacts && !canSearchProducts)) {
       setContactResults([]);
       setProductResults([]);
       setSearching(false);
@@ -203,6 +200,7 @@ export default function CommandMenu({ permissions, features, disabledNavItems }:
 
     let cancelled = false;
     setSearching(true);
+    setSearchFailed(false);
     const timer = setTimeout(async () => {
       try {
         const [contactsResult, productsResult] = await Promise.all([
@@ -212,7 +210,7 @@ export default function CommandMenu({ permissions, features, disabledNavItems }:
         if (cancelled) return;
         setContactResults(contactsResult?.success ? contactsResult.data.slice(0, MAX_LIVE_RESULTS) : []);
         setProductResults(productsResult?.success ? productsResult.data.slice(0, MAX_LIVE_RESULTS) : []);
-        setSearchFailed(false);
+        setSearchFailed(contactsResult?.success === false || productsResult?.success === false);
       } catch {
         // Red caída o despliegue en curso: los módulos siguen funcionando,
         // solo se avisa que la búsqueda de registros no respondió.
@@ -226,7 +224,7 @@ export default function CommandMenu({ permissions, features, disabledNavItems }:
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [trimmedQuery, canSearchContacts, canSearchProducts]);
+  }, [open, trimmedQuery, canSearchContacts, canSearchProducts]);
 
   const flatItems: FlatItem[] = React.useMemo(() => {
     const items: FlatItem[] = [];
@@ -260,6 +258,7 @@ export default function CommandMenu({ permissions, features, disabledNavItems }:
   }
 
   function handleInputKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.nativeEvent.isComposing) return;
     if (event.key === 'ArrowDown') {
       event.preventDefault();
       setActiveIndex((i) => Math.min(i + 1, Math.max(flatItems.length - 1, 0)));
@@ -273,8 +272,8 @@ export default function CommandMenu({ permissions, features, disabledNavItems }:
     }
   }
 
-  const showEmptyHint = trimmedQuery.length > 0 && trimmedQuery.length < 2;
-  const showNoResults = trimmedQuery.length >= 2 && !searching && !searchFailed && flatItems.length === 0;
+  const showEmptyHint = (canSearchContacts || canSearchProducts) && trimmedQuery.length === 1;
+  const showNoResults = !!trimmedQuery && !showEmptyHint && !searching && !searchFailed && flatItems.length === 0;
 
   // Índices estables por fila (antes un contador mutable hacía que el hover
   // activara siempre la última fila construida, y Enter abría otro destino).
@@ -293,112 +292,126 @@ export default function CommandMenu({ permissions, features, disabledNavItems }:
   }
 
   return (
-    <>
-      <button
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogPrimitive.Trigger
         type="button"
-        onClick={() => setOpen(true)}
         aria-label="Buscar clientes, productos o módulos (Ctrl+K)"
+        aria-keyshortcuts="Control+K Meta+K"
         data-tutorial="command-search"
-        className="flex h-10 w-full max-w-[360px] items-center gap-2 rounded-[10px] border border-transparent bg-muted px-3 text-sm text-muted-foreground transition-colors duration-150 hover:border-border hover:bg-muted/80 focus-visible:outline-2 focus-visible:outline-ring"
+        className="flex min-h-11 min-w-11 max-w-[380px] flex-1 items-center gap-2 rounded-xl border border-transparent bg-muted px-2.5 text-sm text-muted-foreground transition-colors hover:border-border hover:bg-muted/80 focus-visible:outline-2 focus-visible:outline-ring sm:px-3"
       >
         <Search className="size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-        <span className="hidden truncate sm:inline">Buscar clientes, productos, módulos…</span>
-        <kbd className="ml-auto hidden shrink-0 rounded-md border border-border bg-card px-1.5 py-0.5 font-sans text-[0.7rem] text-muted-foreground sm:inline-block">
+        <span className="truncate font-medium">Buscar<span className="hidden md:inline"> en el ERP</span></span>
+        <kbd className="ml-auto hidden shrink-0 rounded-md border border-border bg-card px-1.5 py-0.5 font-sans text-[0.7rem] text-muted-foreground pointer-fine:sm:inline-block">
           Ctrl K
         </kbd>
-      </button>
+      </DialogPrimitive.Trigger>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogPortal>
-          <DialogBackdrop />
-          <DialogPrimitive.Popup className="fixed top-[12%] left-1/2 z-50 w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-popover outline-none transition-all data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0">
-            <DialogTitle className="sr-only">Buscar en Aether</DialogTitle>
-            <DialogDescription className="sr-only">
-              Busca módulos, clientes, productos o ejecuta una acción rápida. Usa las flechas para moverte y Enter para abrir.
-            </DialogDescription>
+      <DialogPortal>
+        <DialogBackdrop />
+        <DialogPrimitive.Popup
+          initialFocus={inputRef}
+          className="fixed top-[max(0.5rem,env(safe-area-inset-top))] left-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100%-1rem)] max-w-2xl -translate-x-1/2 flex-col overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-popover outline-none motion-safe:transition-opacity data-[ending-style]:opacity-0 data-[starting-style]:opacity-0 sm:top-[8dvh] sm:max-h-[82dvh] sm:w-[calc(100%-2rem)]"
+        >
+          <DialogTitle className="sr-only">Buscar en Aether</DialogTitle>
+          <DialogDescription className="sr-only">
+            Busca módulos, clientes, productos o ejecuta una acción rápida. Usa las flechas para moverte y Enter para abrir.
+          </DialogDescription>
 
-            <div className="flex items-center gap-2 border-b border-border px-4">
-              <Search className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-              <input
-                ref={inputRef}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={handleInputKeyDown}
-                placeholder="Buscar módulos, clientes, productos o acciones…"
-                autoComplete="off"
-                role="combobox"
-                aria-label="Buscar"
-                aria-expanded={flatItems.length > 0}
-                aria-controls="command-menu-list"
-                aria-activedescendant={flatItems.length > 0 ? `${OPTION_ID_PREFIX}${activeIndex}` : undefined}
-                className="h-14 w-full border-0 bg-transparent text-base outline-none placeholder:text-muted-foreground"
-              />
-              {searching && <span className="shrink-0 text-xs text-muted-foreground">Buscando…</span>}
-            </div>
+          <div className="flex items-center gap-2 border-b border-border px-4">
+            <Search className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={(event) => {
+                if (query.trim() !== event.target.value.trim()) {
+                  setContactResults([]);
+                  setProductResults([]);
+                  setActiveIndex(0);
+                }
+                setQuery(event.target.value);
+              }}
+              onKeyDown={handleInputKeyDown}
+              placeholder="Módulos, clientes, productos…"
+              autoComplete="off"
+              role="combobox"
+              aria-label="Buscar"
+              aria-expanded={flatItems.length > 0}
+              aria-controls="command-menu-list"
+              aria-activedescendant={flatItems.length > 0 ? `${OPTION_ID_PREFIX}${activeIndex}` : undefined}
+              className="h-14 min-w-0 flex-1 border-0 bg-transparent text-base outline-none placeholder:text-muted-foreground"
+            />
+            <DialogPrimitive.Close
+              aria-label="Cerrar búsqueda"
+              className="flex size-11 shrink-0 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
+            >
+              <X className="size-5" aria-hidden="true" />
+            </DialogPrimitive.Close>
+          </div>
+          {searching && <p role="status" className="px-4 py-2 text-xs text-muted-foreground">Buscando registros…</p>}
 
-            <div ref={listRef} id="command-menu-list" role="listbox" aria-label="Resultados" className="max-h-[60vh] overflow-y-auto p-2">
-              {showEmptyHint && (
-                <p className="px-3 py-6 text-center text-sm text-muted-foreground">
-                  Escribe al menos 2 caracteres para buscar clientes o productos
-                </p>
-              )}
+          <div ref={listRef} id="command-menu-list" role="listbox" aria-label="Resultados" className="min-h-0 overflow-y-auto overscroll-contain p-2">
+            {showEmptyHint && (
+              <p className="px-3 py-6 text-center text-sm text-muted-foreground">
+                Escribe al menos 2 caracteres para buscar clientes o productos
+              </p>
+            )}
 
-              {sections.map(
-                (section) =>
-                  section.rows.length > 0 && (
-                    <div key={section.heading} role="group" aria-label={section.heading} className="mb-1">
-                      <p className="px-3 pt-2 pb-1 text-xs font-medium text-muted-foreground">{section.heading}</p>
-                      {section.rows.map(({ item, index }) => {
-                        const { icon: Icon, label, hint } = rowProps(item);
-                        const active = index === activeIndex;
-                        return (
-                          <button
-                            key={`${item.kind}-${index}`}
-                            id={`${OPTION_ID_PREFIX}${index}`}
-                            type="button"
-                            role="option"
-                            aria-selected={active}
-                            tabIndex={-1}
-                            onClick={() => goTo(hrefFor(item))}
-                            onMouseMove={() => {
-                              if (!active) setActiveIndex(index);
-                            }}
-                            className={cn(
-                              'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition-colors',
-                              active ? 'bg-accent text-accent-foreground' : 'text-foreground'
-                            )}
-                          >
-                            <Icon className={cn('size-4 shrink-0', active ? 'text-accent-foreground' : 'text-muted-foreground')} aria-hidden="true" />
-                            <span className="flex-1 truncate">{label}</span>
-                            {hint && <span className="shrink-0 truncate text-xs text-muted-foreground">{hint}</span>}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )
-              )}
+            {sections.map(
+              (section) =>
+                section.rows.length > 0 && (
+                  <div key={section.heading} role="group" aria-label={section.heading} className="mb-1">
+                    <p className="px-3 pt-2 pb-1 text-xs font-medium text-muted-foreground">{section.heading}</p>
+                    {section.rows.map(({ item, index }) => {
+                      const { icon: Icon, label, hint } = rowProps(item);
+                      const active = index === activeIndex;
+                      return (
+                        <button
+                          key={`${item.kind}-${index}`}
+                          id={`${OPTION_ID_PREFIX}${index}`}
+                          type="button"
+                          role="option"
+                          aria-selected={active}
+                          tabIndex={-1}
+                          onClick={() => goTo(hrefFor(item))}
+                          onMouseMove={() => {
+                            if (!active) setActiveIndex(index);
+                          }}
+                          className={cn(
+                            'flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition-colors',
+                            active ? 'bg-accent text-accent-foreground' : 'text-foreground'
+                          )}
+                        >
+                          <Icon className={cn('size-4 shrink-0', active ? 'text-accent-foreground' : 'text-muted-foreground')} aria-hidden="true" />
+                          <span className="min-w-0 flex-1 break-words">{label}</span>
+                          {hint && <span className="hidden max-w-[35%] truncate text-xs text-muted-foreground sm:inline">{hint}</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )
+            )}
 
-              {searchFailed && (
-                <p className="px-3 py-4 text-center text-sm text-muted-foreground">
-                  No se pudo buscar clientes ni productos. Revisa tu conexión e inténtalo otra vez.
-                </p>
-              )}
+            {searchFailed && (
+              <p className="px-3 py-4 text-center text-sm text-muted-foreground">
+                No se pudo buscar clientes ni productos. Revisa tu conexión e inténtalo otra vez.
+              </p>
+            )}
 
-              {showNoResults && (
-                <p className="px-3 py-6 text-center text-sm text-muted-foreground">
-                  Sin resultados para &ldquo;{trimmedQuery}&rdquo;
-                </p>
-              )}
-            </div>
+            {showNoResults && (
+              <p className="px-3 py-6 text-center text-sm text-muted-foreground">
+                Sin resultados para &ldquo;{trimmedQuery}&rdquo;
+              </p>
+            )}
+          </div>
 
-            <div className="flex items-center gap-4 border-t border-border bg-muted/40 px-4 py-2 text-[11px] text-muted-foreground">
-              <span><kbd className="font-sans font-semibold">↑↓</kbd> moverse</span>
-              <span><kbd className="font-sans font-semibold">Enter</kbd> abrir</span>
-              <span><kbd className="font-sans font-semibold">Esc</kbd> cerrar</span>
-            </div>
-          </DialogPrimitive.Popup>
-        </DialogPortal>
-      </Dialog>
-    </>
+          <div className="hidden items-center gap-4 border-t border-border bg-muted/40 px-4 py-2 text-xs text-muted-foreground pointer-fine:sm:flex">
+            <span><kbd className="font-sans font-semibold">↑↓</kbd> moverse</span>
+            <span><kbd className="font-sans font-semibold">Enter</kbd> abrir</span>
+            <span><kbd className="font-sans font-semibold">Esc</kbd> cerrar</span>
+          </div>
+        </DialogPrimitive.Popup>
+      </DialogPortal>
+    </Dialog>
   );
 }

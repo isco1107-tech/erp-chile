@@ -186,6 +186,7 @@ export default function InstallApplication() {
   const context = useApplicationInstall();
   const { app } = context;
   const id = useId();
+  const installButton = useRef<HTMLButtonElement>(null);
   const [guide, setGuide] = useState(false);
   const [device, setDevice] = useState<Device>('android');
   const [busy, setBusy] = useState(false);
@@ -210,7 +211,7 @@ export default function InstallApplication() {
     }
   }
   return (
-    <div className="rounded-2xl border border-border bg-card p-4 text-foreground">
+    <section aria-labelledby={`${id}-title`} className="rounded-2xl border border-border bg-card p-3 text-foreground sm:p-4">
       <div className="mb-3 flex items-center gap-3">
         {/* El ícono real de la app: es el que quedará en la pantalla de inicio. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -221,17 +222,19 @@ export default function InstallApplication() {
           height={44}
           className="size-11 shrink-0 rounded-xl"
         />
-        <p className="text-sm">
-          Tu acceso directo a <strong>{app.name}</strong>
-        </p>
+        <div className="min-w-0">
+          <p id={`${id}-title`} className="text-sm font-semibold">Instalación de {app.name}</p>
+          <p className="text-sm text-muted-foreground">Abre la app desde su ícono.</p>
+        </div>
       </div>
       <button
+        ref={installButton}
         type="button"
         onClick={() => void install()}
         disabled={busy || done}
         aria-expanded={guide && !done}
         aria-controls={id}
-        className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-semibold text-primary-foreground disabled:opacity-60"
+        className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-center text-sm font-semibold text-primary-foreground hover:bg-primary/85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-60"
       >
         {done ? (
           <Check className="size-5 shrink-0" aria-hidden="true" />
@@ -252,58 +255,59 @@ export default function InstallApplication() {
           pantalla completa.
         </p>
       )}
-      {guide && !done && (
-        <div id={id} className="mt-4 text-sm leading-relaxed">
-          <div className="flex items-start justify-between gap-2">
-            <p className="font-semibold">Agregar a la pantalla de inicio</p>
-            <button
-              type="button"
-              onClick={() => setGuide(false)}
-              aria-label="Cerrar instrucciones de instalación"
-              className="flex size-11 shrink-0 items-center justify-center rounded-xl hover:bg-muted"
-            >
-              <X className="size-4" />
-            </button>
-          </div>
-          <div
-            className="my-2 flex flex-wrap gap-2"
-            aria-label="Tu dispositivo"
+      <div id={id} hidden={!guide || done} className="mt-3 rounded-xl bg-muted p-3 text-sm leading-relaxed">
+        <div className="flex items-start justify-between gap-2">
+          <p className="font-semibold">Agregar a la pantalla de inicio</p>
+          <button
+            type="button"
+            onClick={() => {
+              setGuide(false);
+              installButton.current?.focus();
+            }}
+            aria-label="Cerrar instrucciones de instalación"
+            className="flex size-11 shrink-0 items-center justify-center rounded-xl hover:bg-card focus-visible:outline-2 focus-visible:outline-ring"
           >
-            {(Object.keys(devices) as Device[]).map((key) => (
-              <button
-                key={key}
-                type="button"
-                aria-pressed={device === key}
-                onClick={() => setDevice(key)}
-                className={`min-h-11 rounded-xl border px-3 ${device === key ? 'bg-primary text-primary-foreground' : 'bg-background'}`}
-              >
-                {devices[key]}
-              </button>
-            ))}
-          </div>
-          <ol className="list-decimal space-y-2 pl-5">
-            <li>
-              {device === 'iphone'
-                ? 'Abre esta página en Safari.'
-                : device === 'android'
-                  ? 'Abre esta página en Chrome.'
-                  : 'Abre esta página en Chrome o Edge.'}
-            </li>
-            <li>
-              {device === 'iphone'
-                ? 'Toca Compartir y luego Agregar a pantalla de inicio.'
-                : 'Abre el menú del navegador y elige Instalar aplicación o Agregar a pantalla de inicio.'}
-            </li>
-            <li>Confirma el nombre y abre {app.name} desde su nuevo icono.</li>
-          </ol>
-          <p className="mt-3 text-muted-foreground">
-            Cada app de Aether se instala por separado y tiene su propio ícono:
-            tener otra instalada no cambia este paso. Si abriste el enlace desde
-            WhatsApp u otra app, usa primero «Abrir en el navegador». Necesitas
-            conexión para consultar datos actualizados.
-          </p>
+            <X className="size-4" />
+          </button>
         </div>
-      )}
-    </div>
+        <div
+          className="my-2 flex flex-wrap gap-2"
+          role="group"
+          aria-label="Tu dispositivo"
+        >
+          {(Object.keys(devices) as Device[]).map((key) => (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={device === key}
+              onClick={() => setDevice(key)}
+              className={`min-h-11 rounded-lg border px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-ring ${device === key ? 'bg-primary text-primary-foreground' : 'bg-card hover:bg-secondary'}`}
+            >
+              {devices[key]}
+            </button>
+          ))}
+        </div>
+        <ol className="list-decimal space-y-2 pl-5">
+          <li>
+            {device === 'iphone'
+              ? 'Abre esta página en Safari.'
+              : device === 'android'
+                ? 'Abre esta página en Chrome.'
+                : 'Abre esta página en Chrome, Edge o Safari.'}
+          </li>
+          <li>
+            {device === 'iphone'
+              ? 'Toca Compartir y luego Agregar a pantalla de inicio.'
+              : device === 'android'
+                ? 'Abre el menú de Chrome y elige Instalar aplicación o Agregar a pantalla de inicio.'
+                : 'En Chrome o Edge, busca Instalar en la barra de direcciones o en el menú. En Safari, usa Archivo y luego Agregar al Dock.'}
+          </li>
+          <li>Confirma la instalación y abre {app.name} desde su ícono.</li>
+        </ol>
+        <p className="mt-3 text-muted-foreground">
+          Si llegaste desde WhatsApp u otra app, selecciona «Abrir en el navegador» antes de instalar.
+        </p>
+      </div>
+    </section>
   );
 }

@@ -45,7 +45,7 @@ export default function PaymentDialog(props: Props) {
   const change = changeFor(total, received);
 
   useEffect(() => {
-    if (!props.open) return;
+    if (!props.open || window.matchMedia('(pointer: coarse)').matches) return;
     const timer = window.setTimeout(() => (isCash ? cashInput.current : confirmButton.current)?.focus(), 30);
     return () => window.clearTimeout(timer);
   }, [props.open, isCash]);
@@ -74,13 +74,13 @@ export default function PaymentDialog(props: Props) {
 
   return (
     <Dialog open={props.open} onOpenChange={(next) => { if (!next && !props.saving) onClose(); }}>
-      <DialogContent className="theme-saas-light max-w-xl" showClose={false} onKeyDown={handleKeyDown} initialFocus={isCash ? cashInput : confirmButton}>
+      <DialogContent className="theme-saas-light max-w-xl" showClose={false} onKeyDown={handleKeyDown} initialFocus={() => window.matchMedia('(pointer: coarse)').matches ? true : (isCash ? cashInput : confirmButton).current}>
         <DialogTitle className="sr-only">Cobrar la venta</DialogTitle>
         <DialogDescription className="sr-only">Elige el medio de pago, ingresa el efectivo recibido y confirma el cobro.</DialogDescription>
 
         <div className="rounded-2xl bg-primary p-5 text-primary-foreground">
           <p className="text-[11px] font-medium tracking-wide uppercase opacity-70">Total a pagar · {props.itemCount} {props.itemCount === '1' ? 'unidad' : 'unidades'}</p>
-          <p className="mt-1 text-5xl font-semibold tracking-tight tabular-nums" aria-live="polite">{formatCurrency(total)}</p>
+          <p className="mt-1 text-3xl font-semibold tracking-tight tabular-nums [overflow-wrap:anywhere] sm:text-5xl" aria-live="polite">{formatCurrency(total)}</p>
         </div>
 
         <div role="radiogroup" aria-label="Medio de pago" className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -96,7 +96,7 @@ export default function PaymentDialog(props: Props) {
               onClick={() => onMethodChange(item)}
             >
               {POS_PAYMENT_METHOD_LABELS[item]}
-              <kbd className="text-[10px] font-normal opacity-70">{METHOD_KEYS[item]}</kbd>
+              <kbd className="text-[10px] font-normal opacity-70 pointer-coarse:hidden">{METHOD_KEYS[item]}</kbd>
             </Button>
           ))}
         </div>
@@ -121,7 +121,7 @@ export default function PaymentDialog(props: Props) {
             />
             <div className="flex flex-wrap gap-2">
               <Button type="button" variant="outline" disabled={props.saving} onClick={() => onCashChange(String(total))}>
-                Exacto <kbd className="ml-2 text-[10px] opacity-70">X</kbd>
+                Exacto <kbd className="ml-2 text-[10px] opacity-70 pointer-coarse:hidden">X</kbd>
               </Button>
               {suggestTenders(total).map((amount) => (
                 <Button key={amount} type="button" variant="outline" disabled={props.saving} onClick={() => onCashChange(String(amount))}>
@@ -142,12 +142,12 @@ export default function PaymentDialog(props: Props) {
               </div>
             </details>
             <div
-              className={`flex items-baseline justify-between rounded-2xl border px-4 py-4 ${
+              className={`flex flex-wrap items-baseline justify-between gap-2 rounded-2xl border px-4 py-4 ${
                 change < 0 ? 'border-danger/25 bg-danger-soft text-danger' : 'border-success/25 bg-success-soft text-success'
               }`}
             >
               <span className="text-lg font-semibold">{change < 0 ? 'Falta' : 'Vuelto'}</span>
-              <span className="text-5xl font-bold tabular-nums" aria-live="polite">{formatCurrency(Math.abs(change))}</span>
+              <span className="text-3xl font-bold tabular-nums [overflow-wrap:anywhere] sm:text-5xl" aria-live="polite">{formatCurrency(Math.abs(change))}</span>
             </div>
           </div>
         ) : (
@@ -160,11 +160,11 @@ export default function PaymentDialog(props: Props) {
 
         <div className="mt-5 grid grid-cols-[auto_1fr] gap-2">
           <Button type="button" variant="outline" className="h-14" disabled={props.saving} onClick={onClose}>
-            Volver <kbd className="ml-2 text-[10px] opacity-70">Esc</kbd>
+            Volver <kbd className="ml-2 text-[10px] opacity-70 pointer-coarse:hidden">Esc</kbd>
           </Button>
-          <Button ref={confirmButton} type="button" className="h-14 text-lg" disabled={!props.canCharge} onClick={onCharge}>
+          <Button ref={confirmButton} type="button" className="min-h-14 whitespace-normal text-base sm:text-lg" disabled={!props.canCharge} onClick={onCharge}>
             {props.saving ? 'Emitiendo boleta…' : `Cobrar ${formatCurrency(total)}`}
-            {!props.saving && <kbd className="ml-3 rounded border border-primary-foreground/40 px-1 text-[10px]">Enter</kbd>}
+            {!props.saving && <kbd className="ml-3 rounded border border-primary-foreground/40 px-1 text-[10px] pointer-coarse:hidden">Enter</kbd>}
           </Button>
         </div>
       </DialogContent>

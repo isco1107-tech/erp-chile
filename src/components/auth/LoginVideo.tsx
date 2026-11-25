@@ -1,13 +1,18 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import manifest from '../../../public/marketing/cinematic/seq/manifest.json';
 import { isLightweightDevice } from '@/components/marketing/cinematic/device';
 import { frameUrl } from '@/components/marketing/cinematic/sequence';
 import { LOAD_CONCURRENCY, STALL_JUMP_MS, coverRect, loadOrder, positionAt, videoFrames } from './login-video-timeline';
 
-/** Mismo corte que la landing: en teléfono, el recorte vertical (y 4 veces más liviano). */
-const MOBILE_QUERY = '(max-width: 760px)';
+const VIDEO_QUERY = '(min-width: 64rem) and (prefers-reduced-motion: no-preference)';
+
+function subscribeToVideoPreference(update: () => void) {
+  const media = window.matchMedia(VIDEO_QUERY);
+  media.addEventListener('change', update);
+  return () => media.removeEventListener('change', update);
+}
 
 /**
  * Video de fondo del login: las secuencias v1 + v2 de la landing en un canvas
@@ -18,11 +23,7 @@ const MOBILE_QUERY = '(max-width: 760px)';
  * - Empieza apenas llega el primer fotograma y avanza al ritmo de lo que se
  *   descarga (si un fotograma no llegó, espera, como un video que carga).
  * - Si se queda esperando demasiado, salta a la imagen final.
- * - Se reproduce siempre, también con "reducir movimiento" activo en el
- *   sistema (Windows lo activa al apagar "Efectos de animación", y así el
- *   video no se veía nunca): es un video lento dentro de su propio panel, no
- *   mueve la página, y el botón "Saltar video" lo detiene en cualquier
- *   momento (WCAG 2.2.2).
+ * - Si se prefiere reducir movimiento, muestra un fotograma estático.
  * - Suelta de memoria los fotogramas ya mostrados: decodificados a 1920×1080
  *   los 288 pesarían más de 2 GB.
  */
@@ -31,22 +32,24 @@ export default function LoginVideo({ className = 'relative' }: { className?: str
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const skipRef = useRef<() => void>(() => {});
   const [playing, setPlaying] = useState(false);
+  const canPlay = useSyncExternalStore(
+    subscribeToVideoPreference,
+    () => window.matchMedia(VIDEO_QUERY).matches,
+    () => false,
+  );
 
   const skip = useCallback(() => skipRef.current(), []);
 
   useEffect(() => {
+    if (!canPlay) return;
     const container = containerRef.current;
     const canvas = canvasRef.current;
     const context = canvas?.getContext('2d');
     if (!container || !canvas || !context) return;
     const ctx: CanvasRenderingContext2D = context;
 
-    const mobile = window.matchMedia(MOBILE_QUERY).matches;
-    const set = mobile ? manifest.clips.v1.mobile : manifest.clips.v1.desktop;
-    const counts: [number, number] = mobile
-      ? [manifest.clips.v1.mobile.count, manifest.clips.v2.mobile.count]
-      : [manifest.clips.v1.desktop.count, manifest.clips.v2.desktop.count];
-    const prefix = mobile ? 'm' : 'd';
+    const set = manifest.clips.v1.desktop;
+    const counts: [number, number] = [set.count, manifest.clips.v2.desktop.count];
     const stride = isLightweightDevice() ? 3 : 1;
     const frames = videoFrames(counts, stride);
     const last = frames.length - 1;
@@ -157,7 +160,7 @@ export default function LoginVideo({ className = 'relative' }: { className?: str
       image.onload = done;
       // Un fotograma caído no congela el video: se marca listo y se salta.
       image.onerror = done;
-      image.src = frameUrl(frame.clip, prefix, frame.index);
+      image.src = frameUrl(frame.clip, 'd', frame.index);
     }
 
     resize();
@@ -175,12 +178,14 @@ export default function LoginVideo({ className = 'relative' }: { className?: str
         image.onerror = null;
       }
     };
-  }, []);
+  }, [canPlay]);
 
   return (
     <div ref={containerRef} className={`overflow-hidden bg-[#070910] ${className}`}>
-      <canvas ref={canvasRef} aria-hidden="true" className="absolute inset-0 size-full" />
-      {playing && (
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={frameUrl(0, 'd', 0)} alt="" loading="lazy" className="absolute inset-0 size-full object-cover" />
+      <canvas ref={canvasRef} aria-hidden="true" hidden={!canPlay} className="absolute inset-0 size-full" />
+      {canPlay && playing && (
         <button
           type="button"
           onClick={skip}

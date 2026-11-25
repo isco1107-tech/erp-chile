@@ -28,11 +28,12 @@ export default function HowToUseButton() {
       type="button"
       variant="ghost"
       size="sm"
-      className="gap-1.5 text-muted-foreground"
+      className="min-h-11 min-w-11 gap-1.5 px-2 text-muted-foreground"
+      aria-label="Cómo usar"
       data-tutorial="module-help-button"
       onClick={handleClick}
     >
-      <HelpCircle className="size-4" />
+      <HelpCircle className="size-4" aria-hidden="true" />
       <span className="hidden sm:inline">Cómo usar</span>
     </Button>
   );

@@ -4,7 +4,7 @@ import { MessageCircleQuestion } from 'lucide-react';
 import { openAssistant } from './assistant-events';
 
 const buttonClass =
-  'flex h-9 items-center gap-1.5 rounded-[10px] px-2.5 text-sm text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring';
+  'flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-xl px-2 text-sm text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring';
 
 /**
  * Acceso al Asistente desde la barra superior (reemplaza a los botones

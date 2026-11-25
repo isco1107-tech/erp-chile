@@ -149,7 +149,9 @@ export default function PosTerminal(props: Props) {
   const focusSearch = useCallback(() => {
     // En el siguiente frame: si se llama en medio del render, React todavía no
     // montó el input tras cerrar un diálogo o cambiar de vista.
-    requestAnimationFrame(() => searchRef.current?.focus());
+    if (window.matchMedia('(pointer: fine)').matches) {
+      requestAnimationFrame(() => searchRef.current?.focus({ preventScroll: true }));
+    }
   }, []);
 
   const refreshProducts = useCallback(async (showError = true) => {
@@ -178,7 +180,7 @@ export default function PosTerminal(props: Props) {
   }, [props.warehouseId]);
 
   useEffect(() => {
-    void refreshProducts().then(focusSearch);
+    void refreshProducts();
     const onOnline = () => { setOnline(true); if (!charging.current) void refreshProducts(false); };
     const onOffline = () => setOnline(false);
     const onVisible = () => { if (document.visibilityState === 'visible' && !charging.current && navigator.onLine) void refreshProducts(false); };
@@ -193,7 +195,11 @@ export default function PosTerminal(props: Props) {
       document.removeEventListener('visibilitychange', onVisible);
       window.clearInterval(timer);
     };
-  }, [refreshProducts, focusSearch]);
+  }, [refreshProducts]);
+
+  useEffect(() => {
+    if (terminalActive) focusSearch();
+  }, [terminalActive, focusSearch]);
 
   // Solo la venta en curso se perdería al salir: las ventas en espera se guardan solas en este equipo.
   useEffect(() => {
@@ -682,13 +688,12 @@ export default function PosTerminal(props: Props) {
           <Input
             id="pos-search"
             ref={searchRef}
-            autoFocus={terminalActive}
             autoComplete="off"
-            placeholder="Código de barras, SKU o nombre — Enter para agregar"
+            placeholder="Código de barras, SKU o nombre"
             value={query}
             onChange={(event) => { setQuery(event.target.value); setActiveIndex(-1); }}
             onKeyDown={handleSearchKeyDown}
-            className="h-14 text-xl"
+            className="h-14 text-base sm:text-xl"
             aria-describedby="pos-search-hint"
             aria-controls={matches.length > 0 ? 'pos-search-results' : undefined}
           />
@@ -726,15 +731,15 @@ export default function PosTerminal(props: Props) {
           )}
         </div>
 
-        <div className="flex flex-wrap gap-2" role="toolbar" aria-label="Acciones del mostrador">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Acciones del mostrador">
           <Button type="button" variant="outline" size="sm" onClick={handleHold} disabled={cart.length === 0}>
-            <Clock3 className="mr-1.5 size-4" aria-hidden="true" /> Poner en espera <kbd className="ml-2 text-[10px] opacity-60">F6</kbd>
+            <Clock3 className="mr-1.5 size-4" aria-hidden="true" /> Poner en espera <kbd className="ml-2 text-[10px] opacity-60 pointer-coarse:hidden">F6</kbd>
           </Button>
           <Button type="button" variant="outline" size="sm" onClick={openHeldList}>
-            En espera ({held.length}) <kbd className="ml-2 text-[10px] opacity-60">F7</kbd>
+            En espera ({held.length}) <kbd className="ml-2 text-[10px] opacity-60 pointer-coarse:hidden">F7</kbd>
           </Button>
           <Button type="button" variant="outline" size="sm" onClick={handleDrawerButton}>
-            <Unlock className="mr-1.5 size-4" aria-hidden="true" /> Abrir cajón <kbd className="ml-2 text-[10px] opacity-60">F8</kbd>
+            <Unlock className="mr-1.5 size-4" aria-hidden="true" /> Abrir cajón <kbd className="ml-2 text-[10px] opacity-60 pointer-coarse:hidden">F8</kbd>
           </Button>
           <Button type="button" variant="ghost" size="sm" onClick={() => setHardwareOpen(true)}>
             <Settings2 className="mr-1.5 size-4" aria-hidden="true" /> Cajón e impresora · {hardwareLabel}
@@ -770,21 +775,21 @@ export default function PosTerminal(props: Props) {
           />
         )}
 
-        <div className="rounded-2xl border border-border bg-card shadow-card overflow-x-auto">
-          <table className="w-full min-w-[340px] table-auto text-sm">
-            <thead className="bg-muted/50 text-left">
-              <tr>
-                <th className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase p-3 text-left">Producto</th>
-                <th className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase p-3 text-left">Cantidad</th>
-                <th className="hidden text-[11px] font-semibold tracking-wide text-muted-foreground uppercase p-3 text-right md:table-cell">Precio c/IVA</th>
-                <th className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase p-3 text-right">Total</th>
-                <th className="p-2"></th>
+        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
+          <table role="table" aria-label="Productos de la venta" className="block w-full table-auto text-sm sm:table">
+            <thead role="rowgroup" className="sr-only bg-muted/50 text-left sm:not-sr-only sm:table-header-group">
+              <tr role="row">
+                <th role="columnheader" scope="col" className="p-3 text-left text-xs font-semibold text-muted-foreground">Producto</th>
+                <th role="columnheader" scope="col" className="p-3 text-left text-xs font-semibold text-muted-foreground">Cantidad</th>
+                <th role="columnheader" scope="col" className="hidden p-3 text-right text-xs font-semibold text-muted-foreground md:table-cell">Precio c/IVA</th>
+                <th role="columnheader" scope="col" className="p-3 text-right text-xs font-semibold text-muted-foreground">Total</th>
+                <th role="columnheader" scope="col" className="p-2"><span className="sr-only">Acciones</span></th>
               </tr>
             </thead>
-            <tbody>
+            <tbody role="rowgroup" className="block sm:table-row-group">
               {cart.length === 0 && (
-                <tr>
-                  <td className="p-12 text-center text-sm text-muted-foreground" colSpan={5}>
+                <tr role="row" className="block sm:table-row">
+                  <td role="cell" className="block p-8 text-center text-sm text-muted-foreground sm:table-cell sm:p-12" colSpan={5}>
                     <Package className="mx-auto mb-2 size-7 text-muted-foreground/60" aria-hidden="true" />
                     Escanea o busca un producto para comenzar la venta
                   </td>
@@ -793,11 +798,12 @@ export default function PosTerminal(props: Props) {
               {computed.items.map((line) => (
                 <tr
                   key={line.productId}
+                  role="row"
                   id={`pos-line-${line.productId}`}
-                  className={`border-t border-border transition-colors hover:bg-muted/50 ${line.productId === lastAdded ? 'bg-accent/60' : ''}`}
+                  className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 border-t border-border p-3 first:border-t-0 sm:table-row sm:p-0 sm:first:border-t sm:hover:bg-muted/50 ${line.productId === lastAdded ? 'bg-accent/60' : ''}`}
                 >
-                  <td className="p-2">
-                    <p className="text-base font-medium">{line.name}</p>
+                  <td role="cell" className="min-w-0 [overflow-wrap:anywhere] sm:p-2">
+                    <p className="text-base leading-snug font-medium">{line.name}</p>
                     <p className="text-xs text-muted-foreground">{line.sku}{line.isExempt ? ' · exento' : ''}</p>
                     {cart.find((item) => item.productId === line.productId)?.tracksSerials && (() => {
                       const cartLine = cart.find((item) => item.productId === line.productId)!;
@@ -813,9 +819,9 @@ export default function PosTerminal(props: Props) {
                       );
                     })()}
                   </td>
-                  <td className="p-2">
+                  <td role="cell" className="col-start-1 row-start-2 sm:p-2">
                     <div className="flex items-center gap-1">
-                      <Button type="button" size="sm" variant="outline" aria-label={`Quitar una unidad de ${line.name}`} onClick={() => handleChangeQuantity(line.productId, -1)}>
+                      <Button type="button" size="sm" variant="outline" className="h-10 min-w-9 pointer-coarse:h-11 pointer-coarse:min-w-10" aria-label={`Quitar una unidad de ${line.name}`} onClick={() => handleChangeQuantity(line.productId, -1)}>
                         −
                       </Button>
                       <input
@@ -824,12 +830,12 @@ export default function PosTerminal(props: Props) {
                         aria-label={`Cantidad de ${line.name}`}
                         inputMode="decimal"
                         autoComplete="off"
-                        className="h-8 w-16 rounded-lg border border-input bg-muted text-center text-base font-semibold tabular-nums outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
+                        className="h-10 w-14 rounded-lg border border-input bg-muted text-center pointer-coarse:h-11 text-base font-semibold tabular-nums outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
                         onFocus={(event) => event.currentTarget.select()}
                         onBlur={(event) => commitQuantity(event.currentTarget, line)}
                         onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } }}
                       />
-                      <Button type="button" size="sm" variant="outline" aria-label={`Agregar una unidad de ${line.name}`} onClick={() => handleChangeQuantity(line.productId, 1)}>
+                      <Button type="button" size="sm" variant="outline" className="h-10 min-w-9 pointer-coarse:h-11 pointer-coarse:min-w-10" aria-label={`Agregar una unidad de ${line.name}`} onClick={() => handleChangeQuantity(line.productId, 1)}>
                         +
                       </Button>
                     </div>
@@ -837,10 +843,12 @@ export default function PosTerminal(props: Props) {
                       <p className="mt-1 text-xs text-destructive">Sobre stock ({formatQuantity(line.stock)})</p>
                     )}
                   </td>
-                  <td className="hidden p-2 text-right tabular-nums text-muted-foreground md:table-cell">{formatCurrency(line.grossPrice)}</td>
-                  <td className="p-2 text-right text-base font-semibold tabular-nums">{formatCurrency(line.total)}</td>
-                  <td className="p-2">
-                    <Button type="button" size="xs" variant="ghost" aria-label={`Quitar ${line.name}`} onClick={() => { setCart((previous) => removeLine(previous, line.productId)); focusSearch(); }}>
+                  <td role="cell" className="hidden p-2 text-right tabular-nums text-muted-foreground md:table-cell">{formatCurrency(line.grossPrice)}</td>
+                  <td role="cell" className="col-start-2 row-start-1 text-right text-base font-semibold tabular-nums sm:p-2">
+                    {formatCurrency(line.total)}
+                  </td>
+                  <td role="cell" className="col-start-2 row-start-2 text-right sm:p-2">
+                    <Button type="button" size="icon" variant="ghost" className="size-10 text-muted-foreground pointer-coarse:size-11" aria-label={`Quitar ${line.name}`} onClick={() => { setCart((previous) => removeLine(previous, line.productId)); focusSearch(); }}>
                       <Trash2 className="size-4" />
                     </Button>
                   </td>
@@ -856,11 +864,11 @@ export default function PosTerminal(props: Props) {
           <p className="text-[11px] font-medium tracking-wide uppercase opacity-70">
             {props.cashRegisterName} · {props.warehouseName}
           </p>
-          <div className="mt-2 flex items-baseline justify-between gap-3">
+          <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
             <span className="text-sm opacity-80">Total a pagar</span>
-            <span className="text-5xl font-semibold tracking-tight tabular-nums" aria-live="polite">{formatCurrency(total)}</span>
+            <span className="max-w-full text-3xl font-semibold tracking-tight tabular-nums [overflow-wrap:anywhere] sm:text-5xl" aria-live="polite">{formatCurrency(total)}</span>
           </div>
-          <div className="mt-2 flex justify-between text-xs tabular-nums opacity-70">
+          <div className="mt-2 flex flex-wrap justify-between gap-1 text-xs tabular-nums opacity-80">
             <span>{formatQuantity(units)} {units === 1 ? 'unidad' : 'unidades'}</span>
             <span>Neto {formatCurrency(computed.totals.netAmount)} · IVA {formatCurrency(computed.totals.ivaAmount)}</span>
           </div>
@@ -875,13 +883,13 @@ export default function PosTerminal(props: Props) {
             </div>
           </div>
           <Button type="button" variant="outline" size="sm" onClick={editCustomer} disabled={cart.length === 0}>
-            Cambiar <kbd className="ml-2 text-[10px] opacity-60">F4</kbd>
+            Cambiar <kbd className="ml-2 text-[10px] opacity-60 pointer-coarse:hidden">F4</kbd>
           </Button>
         </div>
 
         <div className="rounded-2xl border bg-card p-3 shadow-card">
-          <Button type="button" className="h-16 w-full text-xl" disabled={cart.length === 0 || saving || props.shiftClosed} onClick={openPayment}>
-            Cobrar {formatCurrency(total)} <kbd className="ml-3 rounded border border-primary-foreground/40 px-1.5 text-[10px]">F9</kbd>
+          <Button type="button" className="min-h-14 w-full whitespace-normal py-2 text-lg sm:h-16 sm:text-xl" disabled={cart.length === 0 || saving || props.shiftClosed} onClick={openPayment}>
+            Cobrar {formatCurrency(total)} <kbd className="ml-3 rounded border border-primary-foreground/40 px-1.5 text-[10px] pointer-coarse:hidden">F9</kbd>
           </Button>
           <Button type="button" variant="ghost" className="mt-2 w-full" onClick={clearAll} disabled={cart.length === 0}>
             Cancelar venta

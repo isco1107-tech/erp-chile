@@ -126,9 +126,9 @@ export default function ControlDashboard() {
     ) ?? [];
   return (
     <div className="space-y-6">
-      <section className="rounded-3xl bg-primary p-5 text-primary-foreground sm:p-8">
+      <section className="rounded-2xl bg-primary p-4 text-primary-foreground sm:rounded-3xl sm:p-7">
         <p className="text-xs font-medium tracking-widest opacity-70">
-          AETHER CONTROL · DIRECCIÓN
+          Aether Control
         </p>
         <h1 className="mt-3 break-words text-2xl font-semibold [overflow-wrap:anywhere] sm:text-4xl">
           {data?.company ?? 'Tu empresa, en movimiento'}
@@ -153,7 +153,7 @@ export default function ControlDashboard() {
           <button
             onClick={() => setRefresh((value) => value + 1)}
             disabled={busy || !online}
-            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-current px-4 text-sm disabled:opacity-50"
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-current/55 px-4 text-sm hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50"
           >
             <RefreshCw className={`size-4 ${busy ? 'animate-spin' : ''}`} />
             Actualizar ahora
@@ -168,7 +168,7 @@ export default function ControlDashboard() {
           <a
             key={href}
             href={href}
-            className="flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-xs font-semibold hover:bg-muted focus-visible:outline-2 focus-visible:outline-primary sm:flex-row sm:text-sm"
+            className="flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-xs font-semibold hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring sm:flex-row sm:text-sm"
           >
             <Icon className="size-4" aria-hidden="true" />
             {label}

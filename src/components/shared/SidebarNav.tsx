@@ -23,6 +23,7 @@ import {
   FileCheck2,
   Send,
   Home,
+  LayoutGrid,
   ScanBarcode,
   CreditCard,
   ShoppingCart,
@@ -103,6 +104,7 @@ import { findNavLinkForPath, type NavGroup, type NavIconKey, type NavLink } from
  */
 export const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   home: Home,
+  apps: LayoutGrid,
   pos: ScanBarcode,
   sales: CreditCard,
   purchases: ShoppingCart,
@@ -211,6 +213,7 @@ export function SidebarNav({ groups }: { groups: NavGroup[] }) {
   const isLinkActive = (link: NavLink) => link.href === activeHref;
 
   // Grupos abiertos/cerrados a mano por el usuario, recordados en este navegador.
+  const [collapsedActivePath, setCollapsedActivePath] = useState<string | null>(null);
   const [manualState, setManualState] = useState<Record<string, boolean>>({});
   useEffect(() => {
     try {
@@ -220,6 +223,8 @@ export function SidebarNav({ groups }: { groups: NavGroup[] }) {
       // Sin almacenamiento (modo privado): los grupos parten en su estado por defecto.
     }
   }, []);
+  useEffect(() => setCollapsedActivePath(null), [pathname]);
+
   const toggleGroup = (label: string, expanded: boolean) =>
     setManualState((prev) => {
       const next = { ...prev, [label]: !expanded };
@@ -232,13 +237,13 @@ export function SidebarNav({ groups }: { groups: NavGroup[] }) {
     });
 
   return (
-    <nav aria-label="Módulos" data-tutorial="sidebar-nav" className="hud-scroll -mr-2 flex-1 space-y-2 overflow-y-auto pr-2">
+    <nav aria-label="Módulos" data-tutorial="sidebar-nav" className="hud-scroll -mr-2 flex-1 space-y-1.5 overflow-y-auto overscroll-contain pr-2">
       {groups.map((group, index) => {
         const groupHasActiveLink = group.links.some(isLinkActive);
-        // Por defecto solo quedan abiertos "Principal" y el grupo de la pantalla actual;
-        // el grupo activo nunca se esconde, aunque el usuario lo haya cerrado antes.
-        const expanded = groupHasActiveLink || (manualState[group.label] ?? (index === 0 && !group.collapsedByDefault));
-        const listId = `nav-group-${group.label.replace(/\W+/g, '-').toLowerCase()}`;
+        const expanded = groupHasActiveLink
+          ? collapsedActivePath !== pathname
+          : manualState[group.label] ?? (index === 0 && !group.collapsedByDefault);
+        const listId = `nav-group-${index}`;
 
         return (
           <div key={group.label}>
@@ -246,45 +251,46 @@ export function SidebarNav({ groups }: { groups: NavGroup[] }) {
               type="button"
               aria-expanded={expanded}
               aria-controls={listId}
-              onClick={() => toggleGroup(group.label, expanded)}
-              className="group flex w-full items-center justify-between rounded-md px-3 py-1 text-[11px] font-medium tracking-[0.06em] text-sidebar-foreground/60 uppercase transition-colors hover:text-sidebar-foreground focus-visible:outline-2 focus-visible:outline-sidebar-ring"
+              onClick={() => {
+                if (groupHasActiveLink) setCollapsedActivePath(expanded ? pathname : null);
+                else toggleGroup(group.label, expanded);
+              }}
+              className={cn(
+                'flex min-h-10 w-full items-center justify-between gap-2 rounded-lg px-3 py-1.5 text-left text-xs font-medium transition-colors hover:bg-sidebar-accent hover:text-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-sidebar-ring xl:min-h-8 pointer-coarse:min-h-11',
+                groupHasActiveLink ? 'text-sidebar-primary' : 'text-sidebar-foreground',
+              )}
             >
               <span className="truncate">{group.label}</span>
-              <span className="flex items-center gap-1.5">
-                {!expanded && <span className="rounded-full bg-white/[0.06] px-1.5 text-[10px] tracking-normal">{group.links.length}</span>}
-                <ChevronDown className={cn('size-3.5 transition-transform', expanded ? 'rotate-180' : '')} aria-hidden="true" />
-              </span>
+              <ChevronDown className={cn('size-4 shrink-0 motion-safe:transition-transform', expanded && 'rotate-180')} aria-hidden="true" />
             </button>
-            {expanded && (
-              <ul id={listId} className="space-y-0.5 pb-2">
-                {group.links.map((link) => {
-                  const Icon = NAV_ICONS[link.icon];
-                  const active = isLinkActive(link);
+            <ul id={listId} hidden={!expanded} className="space-y-0.5 pb-1">
+              {expanded && group.links.map((link) => {
+                const Icon = NAV_ICONS[link.icon];
+                const active = isLinkActive(link);
 
-                  return (
-                    <li key={link.href}>
-                      <Link
-                        href={link.href}
-                        aria-current={active ? 'page' : undefined}
-                        className={cn(
-                          'flex h-9 items-center gap-3 rounded-[10px] border-l-[3px] pr-3 pl-[9px] text-[13.5px] transition-colors duration-150 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-sidebar-ring',
-                          active
-                            ? 'border-l-sidebar-primary bg-sidebar-accent font-medium text-white'
-                            : 'border-l-transparent text-sidebar-foreground hover:bg-white/[0.04] hover:text-white'
-                        )}
-                      >
-                        <Icon
-                          className={cn('size-[17px] shrink-0', active ? 'text-sidebar-primary' : 'text-sidebar-foreground')}
-                          strokeWidth={1.75}
-                          aria-hidden="true"
-                        />
-                        <span className="truncate">{link.label}</span>
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
+                return (
+                  <li key={link.href}>
+                    <Link
+                      href={link.href}
+                      aria-current={active ? 'page' : undefined}
+                      className={cn(
+                        'flex min-h-11 items-center gap-3 rounded-[10px] border-l-[3px] py-1.5 pr-3 pl-[9px] text-sm leading-snug transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-sidebar-ring xl:min-h-9 pointer-coarse:min-h-11',
+                        active
+                          ? 'border-l-sidebar-primary bg-sidebar-accent font-medium text-white'
+                          : 'border-l-transparent text-sidebar-foreground hover:bg-white/[0.04] hover:text-white'
+                      )}
+                    >
+                      <Icon
+                        className={cn('size-[17px] shrink-0', active ? 'text-sidebar-primary' : 'text-sidebar-foreground')}
+                        strokeWidth={1.75}
+                        aria-hidden="true"
+                      />
+                      <span>{link.label}</span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         );
       })}

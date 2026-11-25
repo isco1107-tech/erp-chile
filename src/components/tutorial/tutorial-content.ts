@@ -37,7 +37,7 @@ const search = (title: string, description: string): TutorialStep => ({ title, d
 const note = (title: string, description: string): TutorialStep => ({ title, description });
 
 export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
-  apps: {title: 'Aplicaciones Aether', steps: [header('Cada tarea en su app', 'Elige Control, POS, Bodega móvil o Seller Center según tu trabajo.'), note('Instalar y entrar', 'Usa Descargar app POS para el computador o Abrir e instalar para el teléfono. Cada app valida su propia cuenta y permisos.')]},
+  apps: {title: 'Aplicaciones Aether', steps: [header('Elige tu aplicación', 'Abre el ERP, Control, POS, Bodega móvil o Seller Center según tu trabajo.'), note('Instalar y entrar', 'Encuentra los instaladores de escritorio en Descargas o abre una aplicación para ver sus instrucciones de instalación en el celular.')]},
   exports: {
     title: 'Exportar datos',
     steps: [

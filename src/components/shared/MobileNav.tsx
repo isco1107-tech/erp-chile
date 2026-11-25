@@ -1,131 +1,154 @@
 'use client';
 
-import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 import { Menu, X } from 'lucide-react';
 
 const DRAWER_ID = 'workspace-sidebar';
-/** Mismo corte que `lg:` de Tailwind: desde ahí el sidebar es fijo y siempre visible. */
-const DESKTOP_QUERY = '(min-width: 1024px)';
+const DESKTOP_QUERY = '(min-width: 80rem)';
+const FOCUSABLE = 'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex="0"]';
+
+function subscribeToDesktop(update: () => void) {
+  const media = window.matchMedia(DESKTOP_QUERY);
+  media.addEventListener('change', update);
+  return () => media.removeEventListener('change', update);
+}
 
 interface MobileNavState {
   open: boolean;
-  setOpen: (open: boolean) => void;
   isDesktop: boolean;
   toggleRef: React.RefObject<HTMLButtonElement | null>;
+  show: () => void;
+  close: () => void;
 }
 
 const MobileNavContext = createContext<MobileNavState | null>(null);
 
-/**
- * El toggle (header) y el drawer (sidebar) son elementos hermanos en el
- * layout, no anidados — comparten estado vía contexto en vez de levantar el
- * open/close a un solo componente que tendría que envolver a ambos.
- */
-export function MobileNavProvider({ children }: { children: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
-  // Arranca en `true` para que el HTML del servidor no marque el sidebar como
-  // `inert` en escritorio (el caso común); en móvil se corrige al montar.
-  const [isDesktop, setIsDesktop] = useState(true);
-  const toggleRef = useRef<HTMLButtonElement>(null);
+export function MobileNavProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const isDesktop = useSyncExternalStore(
+    subscribeToDesktop,
+    () => window.matchMedia(DESKTOP_QUERY).matches,
+    () => true,
+  );
+  const [openedOn, setOpenedOn] = useState<string | null>(null);
+  const open = !isDesktop && openedOn !== null && openedOn === pathname;
+  const toggleRef = useRef<HTMLButtonElement>(null);
 
-  // Cierra el drawer al navegar: el layout no se remonta entre rutas del
-  // dashboard, así que sin esto quedaría abierto tapando la página nueva.
   useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
+    setOpenedOn(null);
+  }, [isDesktop, pathname]);
 
   useEffect(() => {
-    const media = window.matchMedia(DESKTOP_QUERY);
-    const update = () => setIsDesktop(media.matches);
-    update();
-    media.addEventListener('change', update);
-    return () => media.removeEventListener('change', update);
-  }, []);
-
-  // Escape cierra y devuelve el foco al botón que lo abrió; mientras está
-  // abierto en móvil, el fondo no hace scroll.
-  useEffect(() => {
-    if (!open || isDesktop) return;
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key !== 'Escape') return;
-      setOpen(false);
-      toggleRef.current?.focus();
-    }
+    if (!open) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    document.addEventListener('keydown', onKeyDown);
     return () => {
       document.body.style.overflow = previousOverflow;
-      document.removeEventListener('keydown', onKeyDown);
     };
-  }, [open, isDesktop]);
+  }, [open]);
 
-  return <MobileNavContext.Provider value={{ open, setOpen, isDesktop, toggleRef }}>{children}</MobileNavContext.Provider>;
+  function close() {
+    setOpenedOn(null);
+    // El botón vuelve a participar en el foco después de quitar `inert`.
+    requestAnimationFrame(() => toggleRef.current?.focus());
+  }
+
+  return (
+    <MobileNavContext.Provider value={{ open, isDesktop, toggleRef, show: () => setOpenedOn(pathname), close }}>
+      {children}
+    </MobileNavContext.Provider>
+  );
 }
 
 function useMobileNav() {
-  const ctx = useContext(MobileNavContext);
-  if (!ctx) throw new Error('useMobileNav debe usarse dentro de MobileNavProvider');
-  return ctx;
+  const context = useContext(MobileNavContext);
+  if (!context) throw new Error('useMobileNav debe usarse dentro de MobileNavProvider');
+  return context;
 }
 
 export function MobileNavToggle() {
-  const { open, setOpen, toggleRef } = useMobileNav();
+  const { open, show, toggleRef } = useMobileNav();
   return (
     <button
       ref={toggleRef}
       type="button"
-      onClick={() => setOpen(!open)}
-      aria-label={open ? 'Cerrar menú' : 'Abrir menú'}
+      onClick={show}
+      aria-label="Abrir menú"
       aria-expanded={open}
       aria-controls={DRAWER_ID}
-      className="flex size-9 shrink-0 items-center justify-center rounded-[10px] text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground lg:hidden"
+      aria-haspopup="dialog"
+      className="flex size-11 shrink-0 items-center justify-center rounded-xl text-foreground transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring xl:hidden"
     >
-      {open ? <X className="size-[18px]" strokeWidth={1.75} /> : <Menu className="size-[18px]" strokeWidth={1.75} />}
+      <Menu className="size-5" aria-hidden="true" />
     </button>
   );
 }
 
-export function MobileNavBackdrop() {
-  const { open, setOpen, toggleRef } = useMobileNav();
-  if (!open) return null;
+export function MobileNavContent({ children }: { children: ReactNode }) {
+  const { open } = useMobileNav();
   return (
-    <div
-      role="presentation"
-      onClick={() => {
-        setOpen(false);
-        toggleRef.current?.focus();
-      }}
-      className="fixed inset-0 z-20 bg-neutral-950/40 backdrop-blur-[2px] lg:hidden"
-    />
+    <div inert={open} aria-hidden={open || undefined} className="flex min-h-dvh min-w-0 flex-col xl:pl-[17rem] print:pl-0">
+      {children}
+    </div>
   );
 }
 
-export function MobileNavDrawer({ children }: { children: React.ReactNode }) {
-  const { open, isDesktop } = useMobileNav();
-  const hidden = !isDesktop && !open;
-  const drawerRef = useRef<HTMLDivElement>(null);
+export function MobileNavDrawer({ children }: { children: ReactNode }) {
+  const { open, isDesktop, close } = useMobileNav();
+  const closeRef = useRef<HTMLButtonElement>(null);
 
-  // Al abrir en móvil, el foco entra al menú (primer enlace) en vez de
-  // quedarse detrás, en el botón del header.
   useEffect(() => {
-    if (open && !isDesktop) drawerRef.current?.querySelector<HTMLElement>('a[href]')?.focus();
-  }, [open, isDesktop]);
+    if (open) closeRef.current?.focus();
+  }, [open]);
+
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (!open || event.defaultPrevented) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      close();
+    }
+    if (event.key !== 'Tab') return;
+    const stops = Array.from(event.currentTarget.querySelectorAll<HTMLElement>(FOCUSABLE))
+      .filter((element) => element.tabIndex >= 0 && element.getClientRects().length > 0);
+    const first = stops[0];
+    const last = stops.at(-1);
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last?.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first?.focus();
+    }
+  }
 
   return (
-    <div
-      id={DRAWER_ID}
-      ref={drawerRef}
-      // Cerrado en móvil: fuera de pantalla Y fuera del orden de tabulación /
-      // del árbol accesible. Sin `inert`, Tab recorría enlaces invisibles.
-      inert={hidden}
-      className={`fixed inset-y-0 left-0 z-30 w-[260px] transition-transform duration-200 ease-out lg:translate-x-0 ${
-        open ? 'translate-x-0' : '-translate-x-full'
-      }`}
-    >
-      {children}
-    </div>
+    <>
+      {open && <div role="presentation" onClick={close} className="fixed inset-0 z-30 bg-brand-ink/60 xl:hidden print:hidden" />}
+      <div
+        id={DRAWER_ID}
+        role={open ? 'dialog' : undefined}
+        aria-modal={open || undefined}
+        aria-label={open ? 'Menú principal' : undefined}
+        inert={!isDesktop && !open}
+        onKeyDown={handleKeyDown}
+        onClickCapture={(event) => {
+          if (open && !event.defaultPrevented && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey
+            && (event.target as HTMLElement).closest('a[href]:not([target="_blank"])')) close();
+        }}
+        className={`fixed inset-y-0 left-0 z-40 w-[min(20rem,calc(100%-2rem))] motion-safe:transition-transform motion-safe:duration-200 xl:visible xl:w-[17rem] xl:translate-x-0 print:hidden ${open ? 'visible translate-x-0 shadow-2xl' : 'invisible -translate-x-full'}`}
+      >
+        <button
+          ref={closeRef}
+          type="button"
+          aria-label="Cerrar menú"
+          onClick={close}
+          className="absolute top-2 right-2 z-10 flex size-11 items-center justify-center rounded-xl text-sidebar-foreground hover:bg-sidebar-accent hover:text-white focus-visible:outline-2 focus-visible:outline-sidebar-ring xl:hidden"
+        >
+          <X className="size-5" aria-hidden="true" />
+        </button>
+        {children}
+      </div>
+    </>
   );
 }

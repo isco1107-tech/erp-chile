@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Loader2, Minus, Plus, X } from 'lucide-react';
+import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
+import { Dialog, DialogBackdrop, DialogClose, DialogPortal, DialogTitle } from '@/components/ui/dialog';
 import { allowsDecimals, clampQuantity } from '@/lib/warehouse-mobile/draft';
 import { cn } from '@/lib/utils';
 import { useBodega } from './BodegaProvider';
@@ -11,50 +13,30 @@ export function formatQty(value: number): string {
   return value.toLocaleString('es-CL', { maximumFractionDigits: 3 });
 }
 
-/**
- * Hoja que sube desde abajo (el patrón de un teléfono): cierra con la X, con
- * Esc o tocando fuera, y deja la pantalla de atrás quieta mientras está abierta.
- */
+/** Hoja inferior en móvil y diálogo centrado en pantallas amplias. */
 export function Sheet({ open, title, onClose, children, footer }: { open: boolean; title: string; onClose: () => void; children: ReactNode; footer?: ReactNode }) {
-  const panel = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    panel.current?.focus();
-    return () => {
-      document.body.style.overflow = previous;
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [open, onClose]);
-
-  if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-end bg-black/50" onClick={onClose}>
-      <div
-        ref={panel}
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        tabIndex={-1}
-        className="flex max-h-[92dvh] w-full flex-col rounded-t-3xl bg-card shadow-popover outline-none"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-center justify-between gap-3 px-4 pt-4 pb-2">
-          <h2 className="text-lg font-semibold">{title}</h2>
-          <button type="button" onClick={onClose} aria-label="Cerrar" className="flex size-11 items-center justify-center rounded-full bg-muted text-foreground">
-            <X className="size-5" />
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-4">{children}</div>
-        {footer ? <div className="border-t border-border px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">{footer}</div> : <div className="pb-[env(safe-area-inset-bottom)]" />}
-      </div>
-    </div>
+    <Dialog open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
+      <DialogPortal>
+        <DialogBackdrop />
+        <DialogPrimitive.Popup
+          className="fixed inset-x-0 bottom-0 z-50 flex max-h-[92dvh] min-h-0 flex-col rounded-t-3xl bg-card pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)] text-card-foreground shadow-popover outline-none motion-safe:transition-[translate,opacity] data-[ending-style]:translate-y-6 data-[ending-style]:opacity-0 data-[starting-style]:translate-y-6 data-[starting-style]:opacity-0 sm:inset-x-auto sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:w-[calc(100%-2rem)] sm:max-w-xl sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-3xl sm:px-0"
+        >
+          <div className="flex shrink-0 items-center justify-between gap-3 px-4 pt-3 pb-2">
+            <DialogTitle className="text-lg leading-snug font-semibold [overflow-wrap:anywhere]">{title}</DialogTitle>
+            <DialogClose aria-label="Cerrar" className="flex size-11 shrink-0 items-center justify-center rounded-full bg-muted text-foreground hover:bg-secondary focus-visible:outline-2 focus-visible:outline-ring">
+              <X className="size-5" aria-hidden="true" />
+            </DialogClose>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">{children}</div>
+          {footer ? (
+            <div className="shrink-0 border-t border-border px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:pb-4">{footer}</div>
+          ) : (
+            <div className="pb-[env(safe-area-inset-bottom)] sm:pb-0" />
+          )}
+        </DialogPrimitive.Popup>
+      </DialogPortal>
+    </Dialog>
   );
 }
 
