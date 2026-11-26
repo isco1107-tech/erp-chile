@@ -7,12 +7,14 @@
  *  - el QR solo sirve el día de la clase (día de Santiago, lo decide el
  *    servidor) y vence a la hora elegida, nunca después de la medianoche;
  *  - solo llena una marca VACÍA: lo que ya marcó la profesora no se cambia;
+ *  - desde la hora que elige la profesora (`lateAfter`), queda «Atrasada»;
  *  - a la alumna solo se le muestra su primer nombre.
  */
 
 import { cleanRut } from '@/lib/chile/rut';
 import { santiagoDateParts, startOfTomorrowSantiago } from '@/lib/chile/timezone';
 import type { AttendanceStatus } from './billing';
+import { isTime, timeToMinutes } from './calendar';
 
 /** 24 bytes aleatorios en hexadecimal. */
 export const CHECK_IN_TOKEN_BYTES = 24;
@@ -87,9 +89,24 @@ export function firstName(fullName: string): string {
   return first.slice(0, 40);
 }
 
+/** Minutos desde la medianoche, en la hora de Santiago. */
+export function santiagoMinutesOfDay(date: Date): number {
+  return timeToMinutes(santiagoTimeLabel(date));
+}
+
+/**
+ * Con qué estado queda quien escanea: «Atrasada» desde la hora elegida por la
+ * profesora (esa hora incluida: «desde las 10:10» y escanear a las 10:10 es
+ * atraso) y «Presente» antes. Sin hora (o una hora mal formada), siempre presente.
+ */
+export function checkInStatus(now: Date, lateAfter: string | null): 'PRESENT' | 'LATE' {
+  if (!lateAfter || !isTime(lateAfter)) return 'PRESENT';
+  return santiagoMinutesOfDay(now) >= timeToMinutes(lateAfter) ? 'LATE' : 'PRESENT';
+}
+
 /** Lo que vuelve la página pública después de escribir el RUT. */
 export type CheckInOutcome =
-  | { kind: 'CREATED'; firstName: string; at: string }
+  | { kind: 'CREATED'; firstName: string; at: string; status: 'PRESENT' | 'LATE' }
   | { kind: 'ALREADY_PRESENT'; firstName: string }
   | { kind: 'MARKED_BY_TEACHER'; firstName: string }
   | { kind: 'NOT_FOUND' }

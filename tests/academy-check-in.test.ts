@@ -2,6 +2,7 @@
  * Asistencia con QR de la academia:
  *  - el QR solo sirve para la clase de HOY (día de Santiago) y vence antes de medianoche;
  *  - solo llena una marca vacía: nunca pisa lo que marcó la profesora;
+ *  - desde la hora que elige la profesora, quien escanea queda «Atrasada»;
  *  - la empresa, el grupo y el día salen del token; toda consulta lleva `companyId`;
  *  - un RUT de otro grupo responde igual que uno inexistente;
  *  - con aprobación automática, la inscripción pública crea la ficha en la misma transacción.
@@ -24,6 +25,7 @@ import {
   CHECK_IN_TOKEN_PATTERN,
   checkInExpiry,
   checkInState,
+  checkInStatus,
   classDayLabel,
   decideCheckIn,
   firstName,
@@ -33,9 +35,9 @@ import {
   santiagoTimeLabel,
 } from '@/lib/academy/check-in';
 import { academySlugProblem } from '@/lib/academy/site';
-import { checkInOpenSchema, publicCheckInSchema } from '@/modules/academy/schema';
+import { checkInLateSchema, checkInOpenSchema, publicCheckInSchema } from '@/modules/academy/schema';
 import { AcademyError } from '@/modules/academy/services/academy.service';
-import { closeCheckIn, openCheckIn, resolveCheckIn, submitCheckIn, type PublicCheckInInfo } from '@/modules/academy/services/academy-check-in.service';
+import { closeCheckIn, getClassStartTime, openCheckIn, resolveCheckIn, setCheckInLateAfter, submitCheckIn, type PublicCheckInInfo } from '@/modules/academy/services/academy-check-in.service';
 import { submitApplication } from '@/modules/academy/services/academy-enrollment.service';
 
 const CO = 'emp-1';
@@ -81,6 +83,27 @@ describe('reglas puras', () => {
     expect(decideCheckIn('JUSTIFIED')).toBe('MARKED_BY_TEACHER');
   });
 
+  it('atrasada desde la hora elegida (esa hora incluida), con la hora de Santiago', () => {
+    // NOW = 10:00 en Santiago.
+    expect(checkInStatus(NOW, '10:00')).toBe('LATE');
+    expect(checkInStatus(NOW, '10:01')).toBe('PRESENT');
+    expect(checkInStatus(NOW, '09:59')).toBe('LATE');
+    expect(checkInStatus(new Date('2026-11-26T13:09:59Z'), '10:10')).toBe('PRESENT');
+    expect(checkInStatus(new Date('2026-11-26T13:10:00Z'), '10:10')).toBe('LATE');
+    // Sin hora, o una mal formada, nadie queda atrasada.
+    expect(checkInStatus(NOW, null)).toBe('PRESENT');
+    expect(checkInStatus(NOW, '25:00')).toBe('PRESENT');
+  });
+
+  it('la hora de atraso: vacía = ninguna; mal escrita se rechaza; al abrir, sin ella se deja como estaba', () => {
+    expect(checkInLateSchema.parse({ groupId: 'g1', date: TODAY, lateAfter: '' }).lateAfter).toBeNull();
+    expect(checkInLateSchema.parse({ groupId: 'g1', date: TODAY, lateAfter: null }).lateAfter).toBeNull();
+    expect(checkInLateSchema.parse({ groupId: 'g1', date: TODAY, lateAfter: '10:15' }).lateAfter).toBe('10:15');
+    expect(checkInLateSchema.safeParse({ groupId: 'g1', date: TODAY, lateAfter: '10.15' }).success).toBe(false);
+    expect(checkInOpenSchema.parse({ groupId: 'g1', date: TODAY }).lateAfter).toBeUndefined();
+    expect(checkInOpenSchema.parse({ groupId: 'g1', date: TODAY, lateAfter: '' }).lateAfter).toBeNull();
+  });
+
   it('busca el RUT con y sin ceros a la izquierda, y muestra solo el primer nombre', () => {
     expect(rutLookupKeys('09.876.543-2')).toEqual(['098765432', '98765432']);
     expect(rutLookupKeys('12.345.678-5')).toEqual(['123456785']);
@@ -109,7 +132,7 @@ describe('reglas puras', () => {
 });
 
 describe('abrir y cerrar el QR (panel)', () => {
-  const link = { token: TOKEN, date: new Date(`${TODAY}T12:00:00Z`), expiresAt: new Date('2026-11-26T14:00:00Z'), closedAt: null };
+  const link = { token: TOKEN, date: new Date(`${TODAY}T12:00:00Z`), expiresAt: new Date('2026-11-26T14:00:00Z'), closedAt: null, lateAfter: null };
 
   it('solo para la clase de hoy', async () => {
     mockPrisma.academyGroup.findFirst.mockResolvedValue({ name: 'Juvenil', isActive: true });
@@ -127,10 +150,10 @@ describe('abrir y cerrar el QR (panel)', () => {
     mockPrisma.academyGroup.findFirst.mockResolvedValue({ name: 'Juvenil', isActive: true });
     mockPrisma.academySession.findFirst.mockResolvedValue(null);
     mockPrisma.academyCheckInLink.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(link);
-    const view = await openCheckIn(CO, 'u1', { groupId: 'g1', date: TODAY, minutes: 60, renew: false }, NOW);
+    const view = await openCheckIn(CO, 'u1', { groupId: 'g1', date: TODAY, minutes: 60, renew: false, lateAfter: '10:10' }, NOW);
     expect(view.state).toBe('OPEN');
     const data = mockPrisma.academyCheckInLink.create.mock.calls[0]![0].data;
-    expect(data).toMatchObject({ companyId: CO, groupId: 'g1', createdById: 'u1' });
+    expect(data).toMatchObject({ companyId: CO, groupId: 'g1', createdById: 'u1', lateAfter: '10:10' });
     expect(CHECK_IN_TOKEN_PATTERN.test(data.token)).toBe(true);
   });
 
@@ -143,6 +166,8 @@ describe('abrir y cerrar el QR (panel)', () => {
     expect(reopened.where).toEqual({ id: 'l1', companyId: CO });
     expect(reopened.data.token).toBeUndefined();
     expect(reopened.data.closedAt).toBeNull();
+    // Extender sin hora de atraso no la borra.
+    expect('lateAfter' in reopened.data).toBe(false);
 
     await openCheckIn(CO, 'u1', { groupId: 'g1', date: TODAY, minutes: 30, renew: true }, NOW);
     expect(CHECK_IN_TOKEN_PATTERN.test(mockPrisma.academyCheckInLink.updateMany.mock.calls[1]![0].data.token)).toBe(true);
@@ -152,6 +177,26 @@ describe('abrir y cerrar el QR (panel)', () => {
     mockPrisma.academyGroup.findFirst.mockResolvedValue({ name: 'Juvenil', isActive: true });
     mockPrisma.academySession.findFirst.mockResolvedValue({ id: 's1' });
     await expect(openCheckIn(CO, 'u1', { groupId: 'g1', date: TODAY, minutes: 60, renew: false }, NOW)).rejects.toThrow('cancelada');
+  });
+
+  it('cambiar la hora de atraso: filtra por empresa y exige un QR abierto antes', async () => {
+    mockPrisma.academyCheckInLink.updateMany.mockResolvedValue({ count: 1 });
+    mockPrisma.academyCheckInLink.findFirst.mockResolvedValue({ ...link, lateAfter: '10:15' });
+    expect((await setCheckInLateAfter(CO, 'g1', TODAY, '10:15', NOW)).lateAfter).toBe('10:15');
+    const call = mockPrisma.academyCheckInLink.updateMany.mock.calls[0]![0];
+    expect(call.where).toMatchObject({ companyId: CO, groupId: 'g1' });
+    expect(call.data).toEqual({ lateAfter: '10:15' });
+
+    mockPrisma.academyCheckInLink.updateMany.mockResolvedValue({ count: 0 });
+    await expect(setCheckInLateAfter(CO, 'g1', TODAY, null, NOW)).rejects.toThrow('Primero abre');
+  });
+
+  it('la hora de inicio de la clase del calendario se ofrece como hora de atraso', async () => {
+    mockPrisma.academySession.findFirst.mockResolvedValue({ startTime: '10:00' });
+    expect(await getClassStartTime(CO, 'g1', TODAY)).toBe('10:00');
+    expect(mockPrisma.academySession.findFirst.mock.calls[0]![0].where).toMatchObject({ companyId: CO, groupId: 'g1', isCancelled: false });
+    mockPrisma.academySession.findFirst.mockResolvedValue(null);
+    expect(await getClassStartTime(CO, 'g1', TODAY)).toBeNull();
   });
 
   it('cerrar filtra por empresa', async () => {
@@ -170,15 +215,16 @@ describe('página pública', () => {
     date: new Date(`${TODAY}T12:00:00Z`),
     expiresAt: new Date('2026-11-26T14:00:00Z'),
     closedAt: null,
+    lateAfter: '10:10',
     group: { name: 'Juvenil', isActive: true, companyId: CO },
     company: { businessName: 'Academia CR', status: 'ACTIVE', features: { hasAcademy: true } },
   };
-  const info: PublicCheckInInfo = { linkId: 'l1', companyId: CO, companyName: 'Academia CR', groupId: 'g1', groupName: 'Juvenil', date: TODAY, expiresAt: stored.expiresAt, state: 'OPEN' };
+  const info: PublicCheckInInfo = { linkId: 'l1', companyId: CO, companyName: 'Academia CR', groupId: 'g1', groupName: 'Juvenil', date: TODAY, expiresAt: stored.expiresAt, lateAfter: null, state: 'OPEN' };
 
   it('la empresa y el grupo salen del token', async () => {
     mockPrisma.academyCheckInLink.findUnique.mockResolvedValue(stored);
     const resolved = await resolveCheckIn(TOKEN, NOW);
-    expect(resolved).toMatchObject({ companyId: CO, groupId: 'g1', groupName: 'Juvenil', state: 'OPEN' });
+    expect(resolved).toMatchObject({ companyId: CO, groupId: 'g1', groupName: 'Juvenil', state: 'OPEN', lateAfter: '10:10' });
   });
 
   it('token mal formado, empresa suspendida o sin el módulo: no existe', async () => {
@@ -200,11 +246,24 @@ describe('página pública', () => {
     mockPrisma.academyStudent.findFirst.mockResolvedValue({ id: 'st1', fullName: 'Camila Rojas' });
     mockPrisma.academyAttendance.createMany.mockResolvedValue({ count: 1 });
     const outcome = await submitCheckIn(info, '12.345.678-5', NOW);
-    expect(outcome).toEqual({ kind: 'CREATED', firstName: 'Camila', at: '10:00' });
+    expect(outcome).toEqual({ kind: 'CREATED', firstName: 'Camila', at: '10:00', status: 'PRESENT' });
     expect(mockPrisma.academyStudent.findFirst.mock.calls[0]![0].where).toMatchObject({ companyId: CO, groupId: 'g1', isActive: true, rutClean: { in: ['123456785'] } });
     const created = mockPrisma.academyAttendance.createMany.mock.calls[0]![0];
     expect(created.skipDuplicates).toBe(true);
     expect(created.data[0]).toMatchObject({ companyId: CO, studentId: 'st1', status: 'PRESENT', selfCheckInAt: NOW });
+  });
+
+  it('desde la hora de atraso queda «Atrasada»; antes, «Presente»', async () => {
+    mockPrisma.academySession.findFirst.mockResolvedValue(null);
+    mockPrisma.academyStudent.findFirst.mockResolvedValue({ id: 'st1', fullName: 'Camila Rojas' });
+    mockPrisma.academyAttendance.createMany.mockResolvedValue({ count: 1 });
+    const late = await submitCheckIn({ ...info, lateAfter: '09:45' }, '12.345.678-5', NOW);
+    expect(late).toEqual({ kind: 'CREATED', firstName: 'Camila', at: '10:00', status: 'LATE' });
+    expect(mockPrisma.academyAttendance.createMany.mock.calls[0]![0].data[0].status).toBe('LATE');
+
+    const onTime = await submitCheckIn({ ...info, lateAfter: '10:15' }, '12.345.678-5', NOW);
+    expect(onTime).toMatchObject({ kind: 'CREATED', status: 'PRESENT' });
+    expect(mockPrisma.academyAttendance.createMany.mock.calls[1]![0].data[0].status).toBe('PRESENT');
   });
 
   it('no pisa lo que marcó la profesora, pero deja constancia de que escaneó', async () => {

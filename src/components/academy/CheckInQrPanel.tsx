@@ -1,13 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import { toast } from 'sonner';
 import { Copy, Maximize2, QrCode, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useConfirm } from '@/components/ui/confirm-provider';
 import { CHECK_IN_DURATIONS, CHECK_IN_DURATION_LABELS, DEFAULT_CHECK_IN_MINUTES, classDayLabel, santiagoTimeLabel, type CheckInDuration } from '@/lib/academy/check-in';
-import { closeCheckInAction, getCheckInAction, openCheckInAction, type CheckInPanelView } from '@/modules/academy/actions/academy-check-in.actions';
+import { closeCheckInAction, getCheckInAction, openCheckInAction, setCheckInLateAfterAction, type CheckInPanelView } from '@/modules/academy/actions/academy-check-in.actions';
 import { fieldClass } from './shared';
 
 interface CheckInQrPanelProps {
@@ -21,8 +22,9 @@ interface CheckInQrPanelProps {
 
 /**
  * QR de asistencia de una clase: la alumna lo escanea, escribe su RUT y queda
- * presente. Vive dentro de la lista («Pasar lista» y la clase del calendario),
- * así que ambas muestran el mismo QR del grupo y el día.
+ * presente (o atrasada, desde la hora que elige la profesora). Vive dentro de
+ * la lista («Pasar lista» y la clase del calendario), así que ambas muestran
+ * el mismo QR del grupo y el día.
  */
 export default function CheckInQrPanel({ groupId, date, groupName, onLiveChange }: CheckInQrPanelProps) {
   const confirm = useConfirm();
@@ -32,13 +34,18 @@ export default function CheckInQrPanel({ groupId, date, groupName, onLiveChange 
   const [minutes, setMinutes] = useState<CheckInDuration>(DEFAULT_CHECK_IN_MINUTES);
   const [big, setBig] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  /** "HH:MM" o '' (nadie queda atrasada). Se prellena con la hora de inicio de la clase del calendario. */
+  const [lateAfter, setLateAfter] = useState('');
+  const lateHintId = useId();
 
   useEffect(() => {
     let active = true;
     void getCheckInAction({ groupId, date }).then((result) => {
       if (!active) return;
       setLoading(false);
-      if (result.success) setView(result.data);
+      if (!result.success) return;
+      setView(result.data.view);
+      setLateAfter(result.data.view ? (result.data.view.lateAfter ?? '') : (result.data.classStartTime ?? ''));
     });
     return () => {
       active = false;
@@ -57,22 +64,34 @@ export default function CheckInQrPanel({ groupId, date, groupName, onLiveChange 
   }, [open, onLiveChange]);
   useEffect(() => () => onLiveChange?.(false), [onLiveChange]);
 
+  /** Al abrir se manda la hora de atraso elegida; al extender o renovar un QR abierto, se deja como está. */
   const start = useCallback(
-    async (renew: boolean) => {
+    async (renew: boolean, withLateAfter: boolean) => {
       setBusy(true);
-      const result = await openCheckInAction({ groupId, date, minutes, renew });
+      const result = await openCheckInAction({ groupId, date, minutes, renew, ...(withLateAfter ? { lateAfter } : {}) });
       setBusy(false);
       if (!result.success) return void toast.error(result.error);
       setNow(Date.now());
       setView(result.data);
+      setLateAfter(result.data.lateAfter ?? '');
       toast.success(result.message ?? 'Registro con QR abierto');
     },
-    [groupId, date, minutes]
+    [groupId, date, minutes, lateAfter]
   );
+
+  async function saveLateAfter() {
+    setBusy(true);
+    const result = await setCheckInLateAfterAction({ groupId, date, lateAfter });
+    setBusy(false);
+    if (!result.success) return void toast.error(result.error);
+    setView(result.data);
+    setLateAfter(result.data.lateAfter ?? '');
+    toast.success(result.message ?? 'Hora de atraso guardada');
+  }
 
   async function renew() {
     if (!(await confirm({ title: '¿Generar un QR nuevo?', description: 'El QR anterior deja de funcionar al instante. Úsalo si alguien compartió el QR con quien no está en la sala.', confirmLabel: 'Generar QR nuevo' }))) return;
-    await start(true);
+    await start(true, false);
   }
 
   async function close() {
@@ -106,9 +125,22 @@ export default function CheckInQrPanel({ groupId, date, groupName, onLiveChange 
     </label>
   );
 
+  const lateField = (
+    <label className="space-y-1 text-xs font-medium text-muted-foreground">
+      Atrasada desde las
+      <Input type="time" value={lateAfter} onChange={(e) => setLateAfter(e.target.value)} disabled={busy} className="w-32" aria-describedby={lateHintId} />
+    </label>
+  );
+  const lateHint = (
+    <p id={lateHintId} className="text-xs text-muted-foreground">
+      {lateAfter ? `Quien escanee desde las ${lateAfter} queda como Atrasada; antes, Presente.` : 'Sin hora de atraso: todas las que escaneen quedan como Presente.'}
+    </p>
+  );
+
   if (loading) return null;
 
   const until = view ? santiagoTimeLabel(new Date(view.expiresAt)) : null;
+  const savedLate = view?.lateAfter ?? '';
 
   if (!open) {
     return (
@@ -126,10 +158,12 @@ export default function CheckInQrPanel({ groupId, date, groupName, onLiveChange 
         </div>
         <div className="flex flex-wrap items-end gap-2">
           {durationSelect}
-          <Button size="sm" disabled={busy} onClick={() => void start(false)}>
+          {lateField}
+          <Button size="sm" disabled={busy} onClick={() => void start(false, true)}>
             <QrCode aria-hidden="true" /> {view ? 'Volver a abrir el QR' : 'Mostrar QR de asistencia'}
           </Button>
         </div>
+        {lateHint}
       </section>
     );
   }
@@ -144,7 +178,9 @@ export default function CheckInQrPanel({ groupId, date, groupName, onLiveChange 
         <div className="min-w-0 flex-1 space-y-2">
           <div>
             <h3 className="text-sm font-semibold">Registro con QR abierto</h3>
-            <p className="text-xs text-muted-foreground">Recibe asistencia hasta las {until}. Las alumnas escanean, escriben su RUT y aparecen como presentes en la lista. Lo que ya marcaste a mano no se cambia.</p>
+            <p className="text-xs text-muted-foreground">
+              Recibe asistencia hasta las {until}. Las alumnas escanean, escriben su RUT y aparecen en la lista {savedLate ? `como presentes, o atrasadas desde las ${savedLate}` : 'como presentes'}. Lo que ya marcaste a mano no se cambia.
+            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" onClick={() => setBig(true)}><Maximize2 aria-hidden="true" /> Pantalla completa</Button>
@@ -153,8 +189,13 @@ export default function CheckInQrPanel({ groupId, date, groupName, onLiveChange 
             <Button size="sm" variant="ghost" disabled={busy} onClick={() => void close()}>Cerrar registro</Button>
           </div>
           <div className="flex flex-wrap items-end gap-2">
+            {lateField}
+            <Button size="sm" variant="outline" disabled={busy || lateAfter === savedLate} onClick={() => void saveLateAfter()}>Guardar hora</Button>
+          </div>
+          {lateHint}
+          <div className="flex flex-wrap items-end gap-2">
             {durationSelect}
-            <Button size="sm" variant="outline" disabled={busy} onClick={() => void start(false)}>Extender desde ahora</Button>
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => void start(false, false)}>Extender desde ahora</Button>
           </div>
         </div>
       </div>
@@ -166,6 +207,7 @@ export default function CheckInQrPanel({ groupId, date, groupName, onLiveChange 
             <DialogDescription>
               {groupName ? `${groupName} · ` : ''}
               {classDayLabel(date)} · abierto hasta las {until}
+              {savedLate ? ` · desde las ${savedLate} cuenta como atraso` : ''}
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col items-center gap-3">

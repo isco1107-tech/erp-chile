@@ -298,8 +298,9 @@ export const OPERACIONES_SECTIONS: ManualSection[] = [
         title: 'Que cada alumna registre su asistencia con un QR',
         steps: [
           'El día de la clase, abre "Pasar lista" (desde la clase del Calendario o desde la pestaña "Pasar lista", con la fecha de hoy).',
-          'En "Asistencia con QR" elige cuánto tiempo queda abierto en "Abierto durante" y haz clic en "Mostrar QR de asistencia". Con "Pantalla completa" lo muestras en grande para proyectarlo o dejarlo a la entrada.',
-          'Cada alumna escanea el QR con la cámara del celular, escribe su RUT y queda Presente. La lista se actualiza sola cada pocos segundos y muestra "Con QR a las…" bajo su nombre.',
+          'En "Asistencia con QR" elige cuánto tiempo queda abierto en "Abierto durante" y, en "Atrasada desde las", la hora desde la que se considera atraso (viene con la hora de inicio de la clase si está en el calendario; déjala vacía para que todas queden presentes). Haz clic en "Mostrar QR de asistencia". Con "Pantalla completa" lo muestras en grande para proyectarlo o dejarlo a la entrada.',
+          'Cada alumna escanea el QR con la cámara del celular y escribe su RUT: antes de la hora de atraso queda Presente y desde esa hora (incluida) queda Atrasada. La lista se actualiza sola cada pocos segundos y muestra "Con QR a las…" bajo su nombre.',
+          'Para cambiar la hora de atraso con el QR abierto, edita "Atrasada desde las" y haz clic en "Guardar hora": vale para quienes escaneen desde ese momento; las marcas que ya llegaron no cambian.',
           'Lo que ya marcaste a mano no se cambia: si marcaste Ausente a alguien que después escanea, se le pide que te avise y tú corriges la marca. Guarda los cambios que hagas con "Guardar lista".',
           '"Extender desde ahora" lo deja abierto más tiempo con el mismo QR, "QR nuevo" invalida el anterior (por si alguien lo compartió con quien no está en la sala) y "Cerrar registro" deja de recibir asistencia.',
         ],

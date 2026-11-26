@@ -29,5 +29,5 @@ export default async function AcademyCheckInPage({ params }: { params: Promise<{
     );
   }
 
-  return <AcademyCheckInForm token={token} companyName={info.companyName} groupName={info.groupName} dayLabel={classDayLabel(info.date)} />;
+  return <AcademyCheckInForm token={token} companyName={info.companyName} groupName={info.groupName} dayLabel={classDayLabel(info.date)} lateAfter={info.lateAfter} />;
 }

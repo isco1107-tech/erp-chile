@@ -219,8 +219,21 @@ export const checkInTargetSchema = z.object({
   date: isoDay.refine(isIsoDay, 'Fecha inválida'),
 });
 
-/** Abrir (o extender) el QR; con `renew` se genera uno nuevo y el anterior deja de servir. */
+/** Hora (de Chile) desde la que quien escanea queda «Atrasada». Vacío o `null` = nunca. */
+const lateAfterSchema = z
+  .union([z.literal(''), z.string().trim().refine(isTime, 'Hora de atraso inválida: usa el formato 10:15')])
+  .nullable()
+  .transform((value) => (value ? value : null));
+
+/** Cambiar solo la hora de atraso de un QR ya abierto. */
+export const checkInLateSchema = checkInTargetSchema.extend({ lateAfter: lateAfterSchema });
+
+/**
+ * Abrir (o extender) el QR; con `renew` se genera uno nuevo y el anterior deja
+ * de servir. Sin `lateAfter` la hora de atraso queda como estaba.
+ */
 export const checkInOpenSchema = checkInTargetSchema.extend({
+  lateAfter: lateAfterSchema.optional(),
   minutes: z
     .number()
     .default(DEFAULT_CHECK_IN_MINUTES)

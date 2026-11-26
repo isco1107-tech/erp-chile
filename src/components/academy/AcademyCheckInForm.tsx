@@ -24,9 +24,11 @@ interface Props {
   companyName: string;
   groupName: string;
   dayLabel: string;
+  /** "HH:MM" desde la que se registra como atraso; `null` = nunca. */
+  lateAfter: string | null;
 }
 
-export default function AcademyCheckInForm({ token, companyName, groupName, dayLabel }: Props) {
+export default function AcademyCheckInForm({ token, companyName, groupName, dayLabel, lateAfter }: Props) {
   const [rut, setRut] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -74,7 +76,16 @@ export default function AcademyCheckInForm({ token, companyName, groupName, dayL
     switch (outcome.kind) {
       case 'CREATED':
         return (
-          <PublicStatus accent="gold" variant="success" title={`¡Listo, ${outcome.firstName}!`} message={`Quedaste presente en ${groupName} hoy, ${dayLabel}, a las ${outcome.at}.`}>
+          <PublicStatus
+            accent="gold"
+            variant="success"
+            title={`¡Listo, ${outcome.firstName}!`}
+            message={
+              outcome.status === 'LATE'
+                ? `Quedaste registrada con atraso en ${groupName} hoy, ${dayLabel}, a las ${outcome.at}.`
+                : `Quedaste presente en ${groupName} hoy, ${dayLabel}, a las ${outcome.at}.`
+            }
+          >
             {anotherButton}
           </PublicStatus>
         );
@@ -104,7 +115,7 @@ export default function AcademyCheckInForm({ token, companyName, groupName, dayL
       <PublicTopBar brand={companyName} right="Asistencia" />
       <PublicShell>
         <PublicCard glow>
-          <PublicCardHeader icon={<CalendarCheck size={22} strokeWidth={1.6} />} eyebrow={groupName} title="Registra tu asistencia" subtitle={`Clase de hoy, ${dayLabel}. Escribe tu RUT para quedar presente.`} />
+          <PublicCardHeader icon={<CalendarCheck size={22} strokeWidth={1.6} />} eyebrow={groupName} title="Registra tu asistencia" subtitle={`Clase de hoy, ${dayLabel}. Escribe tu RUT para quedar presente.${lateAfter ? ` Desde las ${lateAfter} se registra como atraso.` : ''}`} />
           <form onSubmit={submit} className="pub-form" noValidate>
             <input ref={honeypotRef} type="text" tabIndex={-1} autoComplete="off" aria-hidden="true" className="pub-honeypot" name={ACADEMY_HONEYPOT_FIELD} />
             <PublicField id="rut" label="Tu RUT" error={error ?? undefined} hint="Ejemplo: 12.345.678-5">

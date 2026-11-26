@@ -6885,6 +6885,9 @@ model AcademyCheckInLink {
   token       String       @unique
   expiresAt   DateTime
   closedAt    DateTime?
+  /// Hora de Chile ("HH:MM", 24 h) desde la que quien escanea queda «Atrasada»
+  /// en vez de «Presente». La elige la profesora; `null` = nunca atrasada.
+  lateAfter   String?
   /// Quién lo abrió (solo auditoría, sin llave foránea).
   createdById String?
   createdAt   DateTime     @default(now())

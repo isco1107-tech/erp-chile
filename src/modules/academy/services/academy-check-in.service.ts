@@ -7,6 +7,7 @@ import {
   CHECK_IN_TOKEN_PATTERN,
   checkInExpiry,
   checkInState,
+  checkInStatus,
   decideCheckIn,
   firstName,
   rutLookupKeys,
@@ -23,7 +24,8 @@ import { AcademyError } from './academy.service';
  * día (solo el de hoy en Santiago); la alumna escanea el QR y escribe su RUT
  * en `/academia/asistencia/[token]`. La empresa, el grupo y el día salen
  * SIEMPRE del token; del navegador solo llega el RUT. El QR solo llena una
- * marca vacía: nunca pisa lo que ya marcó la profesora.
+ * marca vacía: nunca pisa lo que ya marcó la profesora. Desde la hora que
+ * ella eligió (`lateAfter`), quien escanea queda «Atrasada».
  */
 
 function newToken(): string {
@@ -36,16 +38,25 @@ export interface CheckInLinkView {
   date: string;
   expiresAt: Date;
   closedAt: Date | null;
+  /** "HH:MM" desde la que cuenta como atraso; `null` = nunca. */
+  lateAfter: string | null;
   state: CheckInState;
 }
 
-type LinkRow = { token: string; date: Date; expiresAt: Date; closedAt: Date | null };
+type LinkRow = { token: string; date: Date; expiresAt: Date; closedAt: Date | null; lateAfter: string | null };
 
 function toView(link: LinkRow, now: Date): CheckInLinkView {
-  return { token: link.token, date: link.date.toISOString().slice(0, 10), expiresAt: link.expiresAt, closedAt: link.closedAt, state: checkInState(link, now) };
+  return {
+    token: link.token,
+    date: link.date.toISOString().slice(0, 10),
+    expiresAt: link.expiresAt,
+    closedAt: link.closedAt,
+    lateAfter: link.lateAfter,
+    state: checkInState(link, now),
+  };
 }
 
-const LINK_SELECT = { token: true, date: true, expiresAt: true, closedAt: true } as const;
+const LINK_SELECT = { token: true, date: true, expiresAt: true, closedAt: true, lateAfter: true } as const;
 
 async function assertActiveGroup(companyId: string, groupId: string): Promise<{ name: string }> {
   const group = await prisma.academyGroup.findFirst({ where: { id: groupId, companyId }, select: { name: true, isActive: true } });
@@ -60,6 +71,12 @@ export async function getCheckInLink(companyId: string, groupId: string, date: s
   return link ? toView(link, now) : null;
 }
 
+/** Hora de inicio de la clase del calendario (si está programada y no cancelada): se ofrece como hora de atraso. */
+export async function getClassStartTime(companyId: string, groupId: string, date: string): Promise<string | null> {
+  const session = await prisma.academySession.findFirst({ where: { companyId, groupId, date: dayToDate(date), isCancelled: false }, select: { startTime: true } });
+  return session?.startTime ?? null;
+}
+
 /**
  * Abre (o reabre y extiende) el registro con QR de la clase de hoy. Reabrir
  * conserva el mismo QR, así el que ya está proyectado sigue sirviendo; con
@@ -69,7 +86,8 @@ export async function getCheckInLink(companyId: string, groupId: string, date: s
 export async function openCheckIn(
   companyId: string,
   userId: string,
-  input: { groupId: string; date: string; minutes: CheckInDuration; renew: boolean },
+  /** `lateAfter`: `undefined` deja la hora de atraso como estaba; `null` la quita. */
+  input: { groupId: string; date: string; minutes: CheckInDuration; renew: boolean; lateAfter?: string | null },
   now: Date = new Date()
 ): Promise<CheckInLinkView> {
   await assertActiveGroup(companyId, input.groupId);
@@ -85,11 +103,16 @@ export async function openCheckIn(
     if (existing) {
       await prisma.academyCheckInLink.updateMany({
         where: { id: existing.id, companyId },
-        data: { expiresAt, closedAt: null, ...(input.renew ? { token: newToken() } : {}) },
+        data: {
+          expiresAt,
+          closedAt: null,
+          ...(input.renew ? { token: newToken() } : {}),
+          ...(input.lateAfter !== undefined ? { lateAfter: input.lateAfter } : {}),
+        },
       });
     } else {
       try {
-        await prisma.academyCheckInLink.create({ data: { ...where, token: newToken(), expiresAt, createdById: userId } });
+        await prisma.academyCheckInLink.create({ data: { ...where, token: newToken(), expiresAt, lateAfter: input.lateAfter ?? null, createdById: userId } });
       } catch (error) {
         // Dos personas abrieron el QR a la vez: la otra ya lo creó; se reabre el suyo.
         if (isUniqueConstraintError(error) && attempt === 0) continue;
@@ -100,6 +123,16 @@ export async function openCheckIn(
     if (link) return toView(link, now);
   }
   throw new AcademyError('No se pudo abrir el registro con QR. Intenta de nuevo');
+}
+
+/** Cambia la hora desde la que cuenta como atraso (`null` = nadie queda atrasada). Rige para lo que se escanee desde ahora. */
+export async function setCheckInLateAfter(companyId: string, groupId: string, date: string, lateAfter: string | null, now: Date = new Date()): Promise<CheckInLinkView> {
+  const where = { companyId, groupId, date: dayToDate(date) };
+  const updated = await prisma.academyCheckInLink.updateMany({ where, data: { lateAfter } });
+  if (updated.count === 0) throw new AcademyError('Primero abre el registro con QR de esta clase');
+  const link = await prisma.academyCheckInLink.findFirst({ where, select: LINK_SELECT });
+  if (!link) throw new AcademyError('Primero abre el registro con QR de esta clase');
+  return toView(link, now);
 }
 
 /** Cierra el registro antes de tiempo: el QR deja de aceptar RUT. */
@@ -121,6 +154,8 @@ export interface PublicCheckInInfo {
   /** "YYYY-MM-DD". */
   date: string;
   expiresAt: Date;
+  /** "HH:MM" desde la que cuenta como atraso; `null` = nunca. */
+  lateAfter: string | null;
   state: CheckInState;
 }
 
@@ -140,6 +175,7 @@ export async function resolveCheckIn(token: string, now: Date = new Date()): Pro
       date: true,
       expiresAt: true,
       closedAt: true,
+      lateAfter: true,
       group: { select: { name: true, isActive: true, companyId: true } },
       company: { select: { businessName: true, status: true, features: { select: { hasAcademy: true } } } },
     },
@@ -159,6 +195,7 @@ export async function resolveCheckIn(token: string, now: Date = new Date()): Pro
     groupName: link.group.name,
     date: day,
     expiresAt: link.expiresAt,
+    lateAfter: link.lateAfter,
     state,
   };
 }
@@ -181,23 +218,19 @@ export async function submitCheckIn(info: PublicCheckInInfo, rut: string, now: D
   });
   if (!student) return { kind: 'NOT_FOUND' };
   const name = firstName(student.fullName);
+  const status = checkInStatus(now, info.lateAfter);
+  const mark = { companyId: info.companyId, studentId: student.id, date, status, selfCheckInAt: now };
 
   // `skipDuplicates` sobre (alumna, día): dos envíos a la vez dejan una sola marca.
-  const created = await prisma.academyAttendance.createMany({
-    data: [{ companyId: info.companyId, studentId: student.id, date, status: 'PRESENT', selfCheckInAt: now }],
-    skipDuplicates: true,
-  });
-  if (created.count === 1) return { kind: 'CREATED', firstName: name, at: santiagoTimeLabel(now) };
+  const created = await prisma.academyAttendance.createMany({ data: [mark], skipDuplicates: true });
+  if (created.count === 1) return { kind: 'CREATED', firstName: name, at: santiagoTimeLabel(now), status };
 
   const existing = await prisma.academyAttendance.findFirst({ where: { companyId: info.companyId, studentId: student.id, date }, select: { status: true } });
   const decision = decideCheckIn((existing?.status as AttendanceStatus | undefined) ?? null);
   if (decision === 'CREATE') {
     // La profesora borró la marca justo entremedio: se vuelve a intentar una vez.
-    const retried = await prisma.academyAttendance.createMany({
-      data: [{ companyId: info.companyId, studentId: student.id, date, status: 'PRESENT', selfCheckInAt: now }],
-      skipDuplicates: true,
-    });
-    return retried.count === 1 ? { kind: 'CREATED', firstName: name, at: santiagoTimeLabel(now) } : { kind: 'ALREADY_PRESENT', firstName: name };
+    const retried = await prisma.academyAttendance.createMany({ data: [mark], skipDuplicates: true });
+    return retried.count === 1 ? { kind: 'CREATED', firstName: name, at: santiagoTimeLabel(now), status } : { kind: 'ALREADY_PRESENT', firstName: name };
   }
   // Constancia para la profesora: se registró con el QR aunque ya tuviera marca.
   await prisma.academyAttendance.updateMany({ where: { companyId: info.companyId, studentId: student.id, date, selfCheckInAt: null }, data: { selfCheckInAt: now } });
