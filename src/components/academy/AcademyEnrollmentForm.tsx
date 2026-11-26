@@ -25,7 +25,7 @@ interface ApiResponse {
   error?: string;
 }
 
-export default function AcademyEnrollmentForm({ token, companyName, groups }: { token: string; companyName: string; groups: Group[] }) {
+export default function AcademyEnrollmentForm({ token, companyName, groups, autoApprove = false }: { token: string; companyName: string; groups: Group[]; autoApprove?: boolean }) {
   const [fullName, setFullName] = useState('');
   const [rut, setRut] = useState('');
   const [birthDate, setBirthDate] = useState('');
@@ -111,8 +111,12 @@ export default function AcademyEnrollmentForm({ token, companyName, groups }: { 
       <PublicStatus
         accent="gold"
         variant="success"
-        title="¡Recibimos tu inscripción!"
-        message={`${companyName} la revisará y se pondrá en contacto contigo para confirmar el grupo y el inicio de clases.`}
+        title={autoApprove ? '¡Listo, tus datos quedaron registrados!' : '¡Recibimos tu inscripción!'}
+        message={
+          autoApprove
+            ? `${companyName} ya tiene tu ficha. Si necesitas cambiar algún dato, avísale a la academia.`
+            : `${companyName} la revisará y se pondrá en contacto contigo para confirmar el grupo y el inicio de clases.`
+        }
       />
     );
   }
@@ -126,7 +130,7 @@ export default function AcademyEnrollmentForm({ token, companyName, groups }: { 
             icon={<GraduationCap size={22} strokeWidth={1.6} />}
             eyebrow="Academia"
             title="Inscríbete en la academia"
-            subtitle="Completa tus datos. Revisaremos tu inscripción y te contactaremos para confirmarla."
+            subtitle={autoApprove ? 'Completa tus datos y quedarán registrados en la academia.' : 'Completa tus datos. Revisaremos tu inscripción y te contactaremos para confirmarla.'}
           />
           <form onSubmit={submit} className="pub-form" noValidate>
             <input ref={honeypotRef} type="text" tabIndex={-1} autoComplete="off" aria-hidden="true" className="pub-honeypot" name={ACADEMY_HONEYPOT_FIELD} />

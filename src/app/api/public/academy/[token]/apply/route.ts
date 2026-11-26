@@ -70,13 +70,24 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     if (result.created) {
       after(async () => {
         try {
-          await notifyCompany(resolved.companyId, {
-            severity: 'INFO',
-            title: 'Nueva inscripción a la academia',
-            message: `${parsed.data.fullName} se inscribió desde el formulario. Revísala en Academia → Inscripciones.`,
-            pushMessage: 'Llegó una nueva inscripción a la academia.',
-            href: '/dashboard/academy',
-          });
+          await notifyCompany(
+            resolved.companyId,
+            result.studentId
+              ? {
+                  severity: 'INFO',
+                  title: 'Nueva alumna inscrita',
+                  message: `${parsed.data.fullName} se inscribió desde el link y su ficha ya está creada en Academia → Alumnas.`,
+                  pushMessage: 'Una nueva alumna se inscribió en la academia.',
+                  href: '/dashboard/academy',
+                }
+              : {
+                  severity: 'INFO',
+                  title: 'Nueva inscripción a la academia',
+                  message: `${parsed.data.fullName} se inscribió desde el formulario. Revísala en Academia → Inscripciones.`,
+                  pushMessage: 'Llegó una nueva inscripción a la academia.',
+                  href: '/dashboard/academy',
+                }
+          );
         } catch (error) {
           captureException(error, { module: 'academia', companyId: resolved.companyId, extra: { reason: 'application-notification' } });
         }

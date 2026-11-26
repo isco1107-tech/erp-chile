@@ -10,6 +10,7 @@ import {
   pendingMonths,
   type AttendanceStatus,
 } from '@/lib/academy/billing';
+import { santiagoTimeLabel } from '@/lib/academy/check-in';
 import type { AttendanceInput, GroupInput, MonthPaymentInput, StudentInput } from '../schema';
 
 /**
@@ -265,6 +266,8 @@ export interface AttendanceSheetRow {
   studentId: string;
   fullName: string;
   status: AttendanceStatus | null;
+  /** Hora ("HH:MM", Santiago) en que se registró con el QR; `null` si no lo usó. */
+  qrTime: string | null;
 }
 
 export async function getAttendanceSheet(companyId: string, groupId: string, date: string): Promise<AttendanceSheetRow[]> {
@@ -272,9 +275,17 @@ export async function getAttendanceSheet(companyId: string, groupId: string, dat
   const students = await prisma.academyStudent.findMany({
     where: { companyId, groupId, isActive: true },
     orderBy: { fullName: 'asc' },
-    select: { id: true, fullName: true, attendance: { where: { date: dayToDate(date) }, select: { status: true } } },
+    select: { id: true, fullName: true, attendance: { where: { date: dayToDate(date) }, select: { status: true, selfCheckInAt: true } } },
   });
-  return students.map((s) => ({ studentId: s.id, fullName: s.fullName, status: (s.attendance[0]?.status as AttendanceStatus | undefined) ?? null }));
+  return students.map((s) => {
+    const mark = s.attendance[0];
+    return {
+      studentId: s.id,
+      fullName: s.fullName,
+      status: (mark?.status as AttendanceStatus | undefined) ?? null,
+      qrTime: mark?.selfCheckInAt ? santiagoTimeLabel(mark.selfCheckInAt) : null,
+    };
+  });
 }
 
 /** Guarda la lista del día. `status: null` borra la marca de esa alumna. */

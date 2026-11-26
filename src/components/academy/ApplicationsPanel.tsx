@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Copy, Link2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -12,13 +11,12 @@ import {
   approveApplicationAction,
   listApplicationsAction,
   listGroupsAction,
-  regenerateEnrollmentLinkAction,
   rejectApplicationAction,
-  shareEnrollmentLinkAction,
 } from '@/modules/academy/actions/academy.actions';
 import type { ApplicationRow } from '@/modules/academy/services/academy-enrollment.service';
 import type { GroupRow } from '@/modules/academy/services/academy.service';
 import { currentPeriod, fieldClass } from './shared';
+import EnrollmentLinkCard from './EnrollmentLinkCard';
 
 interface Review {
   groupId: string;
@@ -31,7 +29,6 @@ export default function ApplicationsPanel({ canWrite, canManage, onChanged }: { 
   const [reviewed, setReviewed] = useState<ApplicationRow[]>([]);
   const [groups, setGroups] = useState<GroupRow[]>([]);
   const [reviews, setReviews] = useState<Record<string, Review>>({});
-  const [link, setLink] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -46,33 +43,6 @@ export default function ApplicationsPanel({ canWrite, canManage, onChanged }: { 
   useEffect(() => {
     void load();
   }, [load]);
-
-  async function showLink() {
-    setBusy('link');
-    const result = await shareEnrollmentLinkAction();
-    setBusy(null);
-    if (!result.success) return void toast.error(result.error);
-    setLink(result.data);
-  }
-
-  async function copy(value: string) {
-    try {
-      await navigator.clipboard.writeText(value);
-      toast.success('Link copiado');
-    } catch {
-      toast.error('No se pudo copiar. Selecciona el link y cópialo a mano');
-    }
-  }
-
-  async function regenerate() {
-    if (!(await confirm({ title: '¿Generar un link nuevo?', description: 'El link anterior dejará de funcionar para quien ya lo tenga. Tendrás que compartir el nuevo.', confirmLabel: 'Generar link nuevo' }))) return;
-    setBusy('link');
-    const result = await regenerateEnrollmentLinkAction();
-    setBusy(null);
-    if (!result.success) return void toast.error(result.error);
-    toast.success(result.message ?? 'Link nuevo generado');
-    setLink(result.data);
-  }
 
   const reviewOf = (row: ApplicationRow): Review => reviews[row.id] ?? { groupId: row.preferredGroupId ?? '', startMonth: currentPeriod() };
 
@@ -100,32 +70,7 @@ export default function ApplicationsPanel({ canWrite, canManage, onChanged }: { 
 
   return (
     <div className="space-y-4">
-      {canWrite && (
-        <section className="space-y-3 rounded-lg border border-border bg-card p-4" aria-label="Link de inscripción">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h3 className="text-sm font-semibold">Link de inscripción</h3>
-              <p className="text-xs text-muted-foreground">Compártelo por WhatsApp, Instagram o tu sitio web. Las inscripciones llegan aquí para que las revises.</p>
-            </div>
-            <Button size="sm" variant="outline" disabled={busy === 'link'} onClick={showLink}>
-              <Link2 aria-hidden="true" /> {link ? 'Actualizar' : 'Ver link de inscripción'}
-            </Button>
-          </div>
-          {link && (
-            <div className="flex flex-wrap items-center gap-2">
-              <Input readOnly aria-label="Link de inscripción" value={link} onFocus={(e) => e.currentTarget.select()} className="min-w-0 flex-1" />
-              <Button size="sm" onClick={() => void copy(link)}>
-                <Copy aria-hidden="true" /> Copiar
-              </Button>
-              {canManage && (
-                <Button size="sm" variant="ghost" disabled={busy === 'link'} onClick={regenerate}>
-                  Generar link nuevo
-                </Button>
-              )}
-            </div>
-          )}
-        </section>
-      )}
+      {canWrite && <EnrollmentLinkCard canManage={canManage} onChanged={onChanged} />}
 
       <section className="rounded-lg border border-border bg-card" aria-label="Inscripciones por revisar">
         {loading ? (

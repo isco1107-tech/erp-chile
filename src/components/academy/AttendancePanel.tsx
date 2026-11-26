@@ -34,7 +34,7 @@ export default function AttendancePanel({ canWrite }: { canWrite: boolean }) {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">Para las clases del calendario, abre la clase y usa «Pasar lista». Aquí puedes pasar lista de cualquier fecha.</p>
+      <p className="text-sm text-muted-foreground">Para las clases del calendario, abre la clase y usa «Pasar lista». Aquí puedes pasar lista de cualquier fecha; para la clase de hoy también puedes mostrar un QR para que cada alumna registre su asistencia con su RUT.</p>
       <div className="flex flex-wrap items-end gap-4">
         <label className="space-y-1 text-sm font-medium">Grupo
           <select className={fieldClass} value={groupId} onChange={(e) => setGroupId(e.target.value)}>
@@ -43,7 +43,7 @@ export default function AttendancePanel({ canWrite }: { canWrite: boolean }) {
         </label>
         <label className="space-y-1 text-sm font-medium">Fecha de la clase<Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
       </div>
-      {groupId && date && <AttendanceSheet key={`${groupId}|${date}`} groupId={groupId} date={date} canWrite={canWrite} />}
+      {groupId && date && <AttendanceSheet key={`${groupId}|${date}`} groupId={groupId} groupName={groups.find((g) => g.id === groupId)?.name} date={date} canWrite={canWrite} />}
     </div>
   );
 }

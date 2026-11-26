@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { cleanRut, formatRut } from '@/lib/chile/rut';
 import { isUniqueConstraintError } from '@/lib/prisma-errors';
 import { dayToDate, monthStart } from '@/lib/academy/billing';
+import { santiagoIsoDay } from '@/lib/academy/check-in';
 import { AcademyError } from './academy.service';
 import type { PublicApplicationInput } from '../schema';
 
@@ -10,7 +11,9 @@ import type { PublicApplicationInput } from '../schema';
  * Inscripción pública a la academia. El enlace lleva un token por empresa
  * (`CompanySettings.academyEnrollmentToken`): la empresa sale SIEMPRE del
  * token, nunca del cuerpo. Una inscripción queda `PENDING` hasta que el
- * equipo la aprueba; solo entonces se crea la ficha de alumna.
+ * equipo la aprueba; solo entonces se crea la ficha de alumna. Si la empresa
+ * activó la aprobación automática (`academyAutoApproveEnrollments`), la ficha
+ * se crea al instante y la inscripción queda en el historial como aprobada.
  */
 
 const TOKEN_PATTERN = /^[a-f0-9]{64}$/;
@@ -36,6 +39,20 @@ export async function regenerateEnrollmentToken(companyId: string): Promise<stri
   return token;
 }
 
+/** ¿Las inscripciones crean la ficha al instante? Por defecto, no: se revisan antes. */
+export async function getAutoApproveEnrollments(companyId: string): Promise<boolean> {
+  const settings = await prisma.companySettings.findUnique({ where: { companyId }, select: { academyAutoApproveEnrollments: true } });
+  return settings?.academyAutoApproveEnrollments === true;
+}
+
+export async function setAutoApproveEnrollments(companyId: string, value: boolean): Promise<void> {
+  await prisma.companySettings.upsert({
+    where: { companyId },
+    update: { academyAutoApproveEnrollments: value },
+    create: { companyId, academyAutoApproveEnrollments: value },
+  });
+}
+
 export interface ResolvedEnrollment {
   companyId: string;
   companyName: string;
@@ -57,6 +74,8 @@ export async function resolveEnrollment(token: string): Promise<ResolvedEnrollme
 
 export interface PublicEnrollmentInfo {
   companyName: string;
+  /** La ficha se crea al instante (cambia solo los textos de la página). */
+  autoApprove: boolean;
   /** Solo nombre y horario: la mensualidad no se publica. */
   groups: Array<{ id: string; name: string; schedule: string | null }>;
 }
@@ -64,12 +83,15 @@ export interface PublicEnrollmentInfo {
 export async function getPublicEnrollmentInfo(token: string): Promise<PublicEnrollmentInfo | null> {
   const resolved = await resolveEnrollment(token);
   if (!resolved) return null;
-  const groups = await prisma.academyGroup.findMany({
-    where: { companyId: resolved.companyId, isActive: true },
-    orderBy: { name: 'asc' },
-    select: { id: true, name: true, schedule: true },
-  });
-  return { companyName: resolved.companyName, groups };
+  const [groups, autoApprove] = await Promise.all([
+    prisma.academyGroup.findMany({
+      where: { companyId: resolved.companyId, isActive: true },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, schedule: true },
+    }),
+    getAutoApproveEnrollments(resolved.companyId),
+  ]);
+  return { companyName: resolved.companyName, autoApprove, groups };
 }
 
 export async function countRecentApplications(companyId: string, minutes: number): Promise<number> {
@@ -80,14 +102,62 @@ export interface SubmittedApplication {
   /** `false` si no se creó nada (ya era alumna o ya tenía una pendiente): la persona ve igual el éxito, para no revelar quién está inscrita. */
   created: boolean;
   id: string | null;
+  /** Ficha creada al instante (aprobación automática); `null` si quedó pendiente de revisión. */
+  studentId: string | null;
+}
+
+/** Datos de la ficha de alumna a partir de una inscripción (al aprobarla o, con aprobación automática, al recibirla). */
+interface ApplicationFields {
+  rut: string;
+  rutClean: string;
+  fullName: string;
+  birthDate: Date;
+  email: string | null;
+  phone: string;
+  address: string | null;
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
+  pantsSize: string | null;
+  shirtSize: string | null;
+  shoeSize: string | null;
+  guardianName: string | null;
+  guardianPhone: string | null;
+  guardianEmail: string | null;
+  photoConsent: boolean;
+  message: string | null;
+}
+
+function studentData(companyId: string, app: ApplicationFields, groupId: string | null, startMonth: string) {
+  return {
+    companyId,
+    groupId,
+    rut: app.rut,
+    rutClean: app.rutClean,
+    fullName: app.fullName,
+    birthDate: app.birthDate,
+    email: app.email,
+    phone: app.phone,
+    address: app.address,
+    emergencyContactName: app.emergencyContactName,
+    emergencyContactPhone: app.emergencyContactPhone,
+    pantsSize: app.pantsSize,
+    shirtSize: app.shirtSize,
+    shoeSize: app.shoeSize,
+    guardianName: app.guardianName,
+    guardianPhone: app.guardianPhone,
+    guardianEmail: app.guardianEmail,
+    photoConsent: app.photoConsent,
+    notes: app.message ? `Mensaje al inscribirse: ${app.message}` : null,
+    startMonth: monthStart(startMonth),
+  };
 }
 
 export async function submitApplication(resolved: ResolvedEnrollment, data: PublicApplicationInput, now: Date = new Date()): Promise<SubmittedApplication> {
   const rutClean = cleanRut(data.rut);
   const alreadyStudent = await prisma.academyStudent.findFirst({ where: { companyId: resolved.companyId, rutClean }, select: { id: true } });
-  if (alreadyStudent) return { created: false, id: null };
+  if (alreadyStudent) return { created: false, id: null, studentId: null };
   const pending = await prisma.academyApplication.findFirst({ where: { companyId: resolved.companyId, rutClean, status: 'PENDING' }, select: { id: true } });
-  if (pending) return { created: false, id: null };
+  if (pending) return { created: false, id: null, studentId: null };
 
   // El grupo se valida contra la empresa del token: un id de otra empresa se descarta.
   let preferredGroupId: string | null = null;
@@ -96,32 +166,51 @@ export async function submitApplication(resolved: ResolvedEnrollment, data: Publ
     preferredGroupId = group?.id ?? null;
   }
 
-  const created = await prisma.academyApplication.create({
-    data: {
-      companyId: resolved.companyId,
-      fullName: data.fullName,
-      rut: formatRut(data.rut),
-      rutClean,
-      birthDate: dayToDate(data.birthDate),
-      phone: data.phone,
-      address: data.address ?? null,
-      emergencyContactName: data.emergencyContactName ?? null,
-      emergencyContactPhone: data.emergencyContactPhone ?? null,
-      pantsSize: data.pantsSize ?? null,
-      shirtSize: data.shirtSize ?? null,
-      shoeSize: data.shoeSize ?? null,
-      email: data.email || null,
-      guardianName: data.guardianName ?? null,
-      guardianPhone: data.guardianPhone ?? null,
-      guardianEmail: data.guardianEmail || null,
-      photoConsent: data.photoConsent,
-      consentAt: now,
-      preferredGroupId,
-      message: data.message ?? null,
-    },
-    select: { id: true },
-  });
-  return { created: true, id: created.id };
+  const fields: ApplicationFields = {
+    fullName: data.fullName,
+    rut: formatRut(data.rut),
+    rutClean,
+    birthDate: dayToDate(data.birthDate),
+    phone: data.phone,
+    address: data.address ?? null,
+    emergencyContactName: data.emergencyContactName ?? null,
+    emergencyContactPhone: data.emergencyContactPhone ?? null,
+    pantsSize: data.pantsSize ?? null,
+    shirtSize: data.shirtSize ?? null,
+    shoeSize: data.shoeSize ?? null,
+    email: data.email || null,
+    guardianName: data.guardianName ?? null,
+    guardianPhone: data.guardianPhone ?? null,
+    guardianEmail: data.guardianEmail || null,
+    photoConsent: data.photoConsent,
+    message: data.message ?? null,
+  };
+  const applicationData = { companyId: resolved.companyId, ...fields, consentAt: now, preferredGroupId };
+
+  if (!(await getAutoApproveEnrollments(resolved.companyId))) {
+    const created = await prisma.academyApplication.create({ data: applicationData, select: { id: true } });
+    return { created: true, id: created.id, studentId: null };
+  }
+
+  // Aprobación automática: la ficha (en el grupo que eligió, cobrando desde el
+  // mes en curso) y la inscripción ya aprobada, en una sola transacción.
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const student = await tx.academyStudent.create({
+        data: studentData(resolved.companyId, fields, preferredGroupId, santiagoIsoDay(now).slice(0, 7)),
+        select: { id: true },
+      });
+      const application = await tx.academyApplication.create({
+        data: { ...applicationData, status: 'APPROVED', reviewedAt: now, studentId: student.id },
+        select: { id: true },
+      });
+      return { created: true, id: application.id, studentId: student.id };
+    });
+  } catch (error) {
+    // Dos envíos simultáneos con el mismo RUT: la ficha ya existe, no se duplica.
+    if (isUniqueConstraintError(error)) return { created: false, id: null, studentId: null };
+    throw error;
+  }
 }
 
 // ── Revisión por el equipo ───────────────────────────────────────────────────
@@ -193,28 +282,7 @@ export async function approveApplication(companyId: string, id: string, input: {
       const app = await tx.academyApplication.findFirst({ where: { id, companyId } });
       if (!app) throw new AcademyError('La inscripción no existe');
       const student = await tx.academyStudent.create({
-        data: {
-          companyId,
-          groupId: input.groupId ?? null,
-          rut: app.rut,
-          rutClean: app.rutClean,
-          fullName: app.fullName,
-          birthDate: app.birthDate,
-          email: app.email,
-          phone: app.phone,
-          address: app.address,
-          emergencyContactName: app.emergencyContactName,
-          emergencyContactPhone: app.emergencyContactPhone,
-          pantsSize: app.pantsSize,
-          shirtSize: app.shirtSize,
-          shoeSize: app.shoeSize,
-          guardianName: app.guardianName,
-          guardianPhone: app.guardianPhone,
-          guardianEmail: app.guardianEmail,
-          photoConsent: app.photoConsent,
-          notes: app.message ? `Mensaje al inscribirse: ${app.message}` : null,
-          startMonth: monthStart(input.startMonth),
-        },
+        data: studentData(companyId, app, input.groupId ?? null, input.startMonth),
         select: { id: true },
       });
       await tx.academyApplication.updateMany({ where: { id, companyId }, data: { studentId: student.id } });
