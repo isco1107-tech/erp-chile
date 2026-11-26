@@ -97,7 +97,7 @@ const ENTIDAD_A_MODULO: Record<string, string> = {
   CustomerSurvey: 'fidelizacion', CustomerFollowUp: 'fidelizacion', CustomerCareSettings: 'fidelizacion',
   Procedure: 'calidad', QualityInspection: 'calidad', QualityTemplate: 'calidad', SupplierProfile: 'calidad',
   TeamTask: 'tareas', DelegationRule: 'tareas',
-  AcademyStudent: 'academia', AcademyGroup: 'academia', AcademyAttendance: 'academia', AcademyMonthlyPayment: 'academia', AcademyApplication: 'academia', AcademySite: 'academia', AcademyEnrollmentLink: 'academia', AcademySession: 'academia', AcademyMaterial: 'academia',
+  AcademyStudent: 'academia', AcademyGroup: 'academia', AcademyAttendance: 'academia', AcademyMonthlyPayment: 'academia', AcademyApplication: 'academia', AcademySite: 'academia', AcademyEnrollmentLink: 'academia', AcademySession: 'academia', AcademyMaterial: 'academia', AcademyCheckInLink: 'academia',
   StoreOrder: 'tienda_en_linea', StoreProduct: 'tienda_en_linea', WebSiteStore: 'tienda_en_linea',
   RetailMetrics: 'metricas_retail', RetailSettings: 'metricas_retail',
   ShrinkageLiability: 'mermas_responsable', ShrinkageSettings: 'mermas_responsable',

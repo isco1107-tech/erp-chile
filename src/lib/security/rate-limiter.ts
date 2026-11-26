@@ -565,7 +565,34 @@ export const SURVEY_SUBMIT_RATE_LIMIT: RateLimitConfig = {
  * a unas pocas hermanas desde la misma conexión; más es spam. */
 export const ACADEMY_APPLICATION_RATE_LIMIT: RateLimitConfig = {
   prefix: 'academy-application-ip',
-  limit: 5,
+  // Un curso completo puede inscribirse en clase escaneando el QR desde el
+  // mismo Wi-Fi (una sola IP). El tope por empresa y por hora sigue en 60.
+  limit: 20,
+  windowMs: 60 * 60_000,
+};
+
+/** Asistencia con QR, por IP: un curso entero suele compartir el Wi-Fi de la academia. */
+export const ACADEMY_CHECK_IN_IP_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'academy-check-in-ip',
+  limit: 60,
+  windowMs: 10 * 60_000,
+};
+
+/**
+ * RUT válidos que no están en el grupo, por IP: frena a quien prueba RUT para
+ * saber quién es alumna. Un RUT mal escrito casi nunca cuenta (lo ataja el
+ * dígito verificador antes), y el curso comparte la IP: por eso no es menor.
+ */
+export const ACADEMY_CHECK_IN_MISS_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'academy-check-in-miss',
+  limit: 30,
+  windowMs: 10 * 60_000,
+};
+
+/** Por QR: tope total, para que un QR que circuló no sirva para probar RUT en masa. */
+export const ACADEMY_CHECK_IN_LINK_RATE_LIMIT: RateLimitConfig = {
+  prefix: 'academy-check-in-link',
+  limit: 400,
   windowMs: 60 * 60_000,
 };
 

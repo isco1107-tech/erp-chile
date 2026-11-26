@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import QRCode from 'qrcode';
 import { authErrorMessage, requireAuthWithPermission } from '@/lib/auth/guards';
 import { createAuditLog } from '@/lib/auth/audit';
 import { captureException } from '@/lib/observability';
@@ -249,6 +250,57 @@ export async function regenerateEnrollmentLinkAction(): Promise<ActionResult<str
     return { success: true, data: enrollmentUrl(token), message: 'Link nuevo generado: el anterior ya no funciona' };
   } catch (error) {
     return fail(error, companyId, { action: 'regenerateEnrollmentLink' });
+  }
+}
+
+export interface EnrollmentLinkView {
+  url: string;
+  /** PNG del QR del link, para mostrarlo en la sala o imprimirlo. */
+  qrDataUrl: string;
+}
+
+/** Link y su QR. Crea el link si no existía (no invalida uno que ya circula). */
+export async function getEnrollmentLinkAction(): Promise<ActionResult<EnrollmentLinkView>> {
+  let companyId: string | undefined;
+  try {
+    const session = await requireAuthWithPermission('academy:write');
+    companyId = session.companyId;
+    const url = enrollmentUrl(await enrollment.getOrCreateEnrollmentToken(session.companyId));
+    const qrDataUrl = await QRCode.toDataURL(url, { margin: 1, width: 640, errorCorrectionLevel: 'M' });
+    return { success: true, data: { url, qrDataUrl } };
+  } catch (error) {
+    return fail(error, companyId, { action: 'getEnrollmentLink' });
+  }
+}
+
+export async function getAutoApproveEnrollmentsAction(): Promise<ActionResult<boolean>> {
+  try {
+    const session = await requireAuthWithPermission('academy:read');
+    return { success: true, data: await enrollment.getAutoApproveEnrollments(session.companyId) };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+/** Aprobación automática: decide quién entra a la lista de alumnas sin revisión, por eso es de quien administra. */
+export async function setAutoApproveEnrollmentsAction(value: boolean): Promise<ActionResult<boolean>> {
+  let companyId: string | undefined;
+  try {
+    const session = await requireAuthWithPermission('academy:manage');
+    companyId = session.companyId;
+    const parsed = z.boolean().safeParse(value);
+    if (!parsed.success) return { success: false, error: 'Valor inválido' };
+    const enabled = parsed.data;
+    await enrollment.setAutoApproveEnrollments(session.companyId, enabled);
+    await createAuditLog({ companyId: session.companyId, userId: session.id, userEmail: session.email, action: 'UPDATE', entity: 'AcademyEnrollmentLink', entityId: 'enrollment-link', metadata: { autoApprove: enabled } });
+    revalidate();
+    return {
+      success: true,
+      data: enabled,
+      message: enabled ? 'Las inscripciones crearán la ficha de la alumna al instante' : 'Las inscripciones quedarán pendientes hasta que las revises',
+    };
+  } catch (error) {
+    return fail(error, companyId, { action: 'setAutoApproveEnrollments' });
   }
 }
 

@@ -184,6 +184,7 @@ model Company {
   academyPayments           AcademyMonthlyPayment[]
   academyApplications       AcademyApplication[]
   academySessions           AcademySession[]
+  academyCheckInLinks       AcademyCheckInLink[]
   academyMaterials          AcademyMaterial[]
   academySite               AcademySite?
   delegationRules           DelegationRule[]
@@ -721,6 +722,10 @@ model CompanySettings {
   /// (`/academia/inscripcion/[token]`). El token resuelve la empresa; el
   /// visitante nunca manda un `companyId`.
   academyEnrollmentToken     String?      @unique
+  /// Inscripciones del link público: `true` crea la ficha de la alumna al
+  /// instante (queda igual en el historial de Inscripciones, como aprobada);
+  /// `false` (por defecto) la deja pendiente hasta que el equipo la revise.
+  academyAutoApproveEnrollments Boolean   @default(false)
   /// API key de la cuenta de cobro de Khipu de ESTA empresa, cifrada con
   /// AES-256-GCM (`src/lib/payments/crypto.ts`). Decide a qué cuenta llega el
   /// dinero, por eso solo se edita con `settings:company`. El nombre termina
@@ -6786,19 +6791,20 @@ enum AcademyAttendanceStatus {
 
 /// Curso o grupo de clases ("Modelaje juvenil – sábados").
 model AcademyGroup {
-  id         String            @id @default(cuid())
-  companyId  String
-  company    Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  name       String
-  schedule   String?
+  id           String               @id @default(cuid())
+  companyId    String
+  company      Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  name         String
+  schedule     String?
   /// Mensualidad sugerida (CLP entero); `null` = se indica al marcar el pago.
-  monthlyFee Int?
-  isActive   Boolean           @default(true)
-  students   AcademyStudent[]
-  sessions   AcademySession[]
-  materials  AcademyMaterial[]
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
+  monthlyFee   Int?
+  isActive     Boolean              @default(true)
+  students     AcademyStudent[]
+  sessions     AcademySession[]
+  materials    AcademyMaterial[]
+  checkInLinks AcademyCheckInLink[]
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
 
   @@index([companyId, isActive])
 }
@@ -6844,17 +6850,50 @@ model AcademyStudent {
 }
 
 model AcademyAttendance {
-  id        String                  @id @default(cuid())
-  companyId String
-  company   Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  studentId String
-  student   AcademyStudent          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  id            String                  @id @default(cuid())
+  companyId     String
+  company       Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  studentId     String
+  student       AcademyStudent          @relation(fields: [studentId], references: [id], onDelete: Cascade)
   /// Día de la clase (12:00 UTC).
-  date      DateTime
-  status    AcademyAttendanceStatus
-  createdAt DateTime                @default(now())
+  date          DateTime
+  status        AcademyAttendanceStatus
+  /// Cuándo la alumna marcó su asistencia con el QR de la clase (`null` = la
+  /// marcó la profesora). Se conserva aunque la profesora cambie el estado.
+  selfCheckInAt DateTime?
+  createdAt     DateTime                @default(now())
 
   @@unique([studentId, date])
+  @@index([companyId, date])
+}
+
+/// Registro de asistencia con QR (`/academia/asistencia/[token]`): una ventana
+/// por grupo y día. La alumna escanea el QR, escribe su RUT y queda «Presente».
+/// La empresa, el grupo y el día salen SIEMPRE del token, nunca del navegador.
+/// El token se guarda en claro (como `academyEnrollmentToken`) porque la
+/// profesora debe poder volver a mostrar el mismo QR: vence el mismo día de la
+/// clase (`expiresAt`), se puede cerrar antes (`closedAt`) y solo marca a
+/// alumnas activas de ese grupo que aún no tenían marca.
+model AcademyCheckInLink {
+  id          String       @id @default(cuid())
+  companyId   String
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  groupId     String
+  group       AcademyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  /// Día de la clase (12:00 UTC), igual que `AcademyAttendance.date`.
+  date        DateTime
+  token       String       @unique
+  expiresAt   DateTime
+  closedAt    DateTime?
+  /// Hora de Chile ("HH:MM", 24 h) desde la que quien escanea queda «Atrasada»
+  /// en vez de «Presente». La elige la profesora; `null` = nunca atrasada.
+  lateAfter   String?
+  /// Quién lo abrió (solo auditoría, sin llave foránea).
+  createdById String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([groupId, date])
   @@index([companyId, date])
 }
 

@@ -322,9 +322,9 @@ export const TUTORIAL_CONTENT: Record<string, TutorialModuleContent> = {
     steps: [
       header('Tu academia en un lugar', 'Calendario de clases, lista de asistencia, material para las alumnas y mensualidades.'),
       note('Calendario', 'Mira el mes o la semana con sus horas y programa clases (también repetidas cada semana) con "Programar clase".'),
-      note('Pasar lista', 'Abre una clase del calendario y marca presente, atrasada, ausente o justificada. Las clases sin lista aparecen avisadas.'),
+      note('Pasar lista', 'Abre una clase del calendario y marca presente, atrasada, ausente o justificada, o muestra un QR para que cada alumna registre su asistencia con su RUT.'),
       note('Material', 'Sube documentos o presentaciones a una clase o a un grupo y envíalos al correo de las alumnas y sus apoderados.'),
-      note('Alumnas e inscripciones', 'Crea la ficha de cada alumna y aprueba lo que llega por el link de inscripción.'),
+      note('Alumnas e inscripciones', 'Crea la ficha de cada alumna o comparte el link (y su QR) para que ellas mismas ingresen sus datos.'),
       note('Mensualidad y sitio web', 'Marca cada mes como pagado y arma la página pública de tu academia.'),
     ],
   },

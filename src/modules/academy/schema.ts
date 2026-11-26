@@ -4,6 +4,7 @@ import { ATTENDANCE_STATUSES, dayToDate, isMonthKey } from '@/lib/academy/billin
 import { ADULT_AGE, MAX_AGE, MIN_AGE, ageOn } from '@/lib/academy/enrollment';
 import { MAX_RANGE_DAYS, daysBetween, isIsoDay, isTime, isValidTimeRange } from '@/lib/academy/calendar';
 import { safeMaterialLink } from '@/lib/academy/materials';
+import { DEFAULT_CHECK_IN_MINUTES, isCheckInDuration } from '@/lib/academy/check-in';
 
 /** Máximo de una columna `Int` de Postgres (int4). */
 const MAX_INT4 = 2_147_483_647;
@@ -209,5 +210,41 @@ export const materialLinkSchema = z.object({
   send: z.boolean().default(false),
 });
 export type MaterialLinkInput = z.infer<typeof materialLinkSchema>;
+
+// ── Asistencia con QR ────────────────────────────────────────────────────────
+
+/** Grupo y día del registro con QR. */
+export const checkInTargetSchema = z.object({
+  groupId: z.string().trim().min(1, 'Elige un grupo').max(64),
+  date: isoDay.refine(isIsoDay, 'Fecha inválida'),
+});
+
+/** Hora (de Chile) desde la que quien escanea queda «Atrasada». Vacío o `null` = nunca. */
+const lateAfterSchema = z
+  .union([z.literal(''), z.string().trim().refine(isTime, 'Hora de atraso inválida: usa el formato 10:15')])
+  .nullable()
+  .transform((value) => (value ? value : null));
+
+/** Cambiar solo la hora de atraso de un QR ya abierto. */
+export const checkInLateSchema = checkInTargetSchema.extend({ lateAfter: lateAfterSchema });
+
+/**
+ * Abrir (o extender) el QR; con `renew` se genera uno nuevo y el anterior deja
+ * de servir. Sin `lateAfter` la hora de atraso queda como estaba.
+ */
+export const checkInOpenSchema = checkInTargetSchema.extend({
+  lateAfter: lateAfterSchema.optional(),
+  minutes: z
+    .number()
+    .default(DEFAULT_CHECK_IN_MINUTES)
+    .refine(isCheckInDuration, 'Elige cuánto tiempo queda abierto el registro')
+    .transform((value) => (isCheckInDuration(value) ? value : DEFAULT_CHECK_IN_MINUTES)),
+  renew: z.boolean().default(false),
+});
+
+/** Lo único que manda la alumna desde la página pública: su RUT. */
+export const publicCheckInSchema = z.object({
+  rut: z.string().trim().min(1, 'Escribe tu RUT').max(20, 'RUT inválido').refine(validateRut, 'Revisa tu RUT: no es válido'),
+});
 
 export { periodSchema, isoDay };

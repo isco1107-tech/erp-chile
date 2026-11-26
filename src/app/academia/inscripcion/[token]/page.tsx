@@ -24,7 +24,7 @@ export default async function AcademyEnrollmentPage({ params }: { params: Promis
 
   return (
     <>
-      <AcademyEnrollmentForm token={token} companyName={info.companyName} groups={info.groups} />
+      <AcademyEnrollmentForm token={token} companyName={info.companyName} groups={info.groups} autoApprove={info.autoApprove} />
       <PublicPrivacyFooter flow="academia" token={token} />
     </>
   );

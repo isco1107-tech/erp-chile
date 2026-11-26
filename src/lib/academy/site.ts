@@ -124,9 +124,12 @@ export function starterAcademyContent(): AcademySiteContent {
   });
 }
 
-/** Dirección pública: como la de un certamen, pero `inscripcion` queda reservada para el formulario de inscripción. */
+/** Direcciones de `/academia/…` que usa el sistema: el formulario de inscripción y el registro de asistencia con QR. */
+export const RESERVED_ACADEMY_SLUGS = ['inscripcion', 'asistencia'] as const;
+
+/** Dirección pública: como la de un certamen, pero las de `RESERVED_ACADEMY_SLUGS` quedan para el sistema. */
 export function academySlugProblem(slug: string): string | null {
-  if (slug === 'inscripcion') return 'Esa dirección está reservada por el sistema; elige otra';
+  if ((RESERVED_ACADEMY_SLUGS as readonly string[]).includes(slug)) return 'Esa dirección está reservada por el sistema; elige otra';
   return publicSlugProblem(slug);
 }
 

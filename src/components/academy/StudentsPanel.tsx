@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
-import { Plus } from 'lucide-react';
+import { Link2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { RutInput } from '@/components/ui/RutInput';
@@ -13,6 +13,7 @@ import { ATTENDANCE_LABELS } from '@/lib/academy/billing';
 import { deleteStudentAction, getStudentAction, listGroupsAction, listStudentsAction, saveStudentAction, setStudentActiveAction } from '@/modules/academy/actions/academy.actions';
 import type { GroupRow, StudentDetail, StudentRow } from '@/modules/academy/services/academy.service';
 import { currentPeriod, fieldClass, periodLabel } from './shared';
+import EnrollmentLinkCard from './EnrollmentLinkCard';
 
 interface Draft {
   id: string | null;
@@ -53,6 +54,7 @@ export default function StudentsPanel({ canWrite, canManage }: { canWrite: boole
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [detail, setDetail] = useState<StudentDetail | null>(null);
+  const [showLink, setShowLink] = useState(false);
 
   useEffect(() => {
     void listGroupsAction().then((result) => {
@@ -140,8 +142,15 @@ export default function StudentsPanel({ canWrite, canManage }: { canWrite: boole
           </label>
           <label className="flex items-center gap-2 pb-2 text-sm"><input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} /> Ver dadas de baja</label>
         </div>
-        {canWrite && !draft && <Button size="sm" onClick={() => { setDetail(null); setDraft(emptyDraft()); }}><Plus aria-hidden="true" /> Nueva alumna</Button>}
+        {canWrite && !draft && (
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" aria-expanded={showLink} onClick={() => setShowLink((v) => !v)}><Link2 aria-hidden="true" /> Link para que se inscriban</Button>
+            <Button size="sm" onClick={() => { setDetail(null); setDraft(emptyDraft()); }}><Plus aria-hidden="true" /> Nueva alumna</Button>
+          </div>
+        )}
       </div>
+
+      {canWrite && showLink && !draft && <EnrollmentLinkCard canManage={canManage} onChanged={() => void load()} />}
 
       {draft && (
         <form onSubmit={save} className="space-y-4 rounded-lg border border-border bg-card p-4">

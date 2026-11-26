@@ -140,6 +140,7 @@ export default function SessionDialog({ sessionId, initialTab, today, groups, to
               <AttendanceSheet
                 key={`${session.groupId}|${session.date}`}
                 groupId={session.groupId}
+                groupName={session.groupName}
                 date={session.date}
                 canWrite={canWrite}
                 lockedReason={session.isCancelled ? 'Esta clase está cancelada, así que no se pasa lista. Reactívala desde «Detalles» si se hace.' : relation === 'future' ? 'Esta clase aún no ocurre. Podrás pasar lista desde el día de la clase.' : undefined}

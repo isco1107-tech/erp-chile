@@ -202,7 +202,7 @@ async function executePlan(companyId: string, plan: Exclude<RoutePlan, { kind: '
       }
       const result = await submitApplication({ companyId, companyName: '' }, { ...plan.input, preferredGroupId });
       return result.created
-        ? { kind: 'academy', id: result.id, note: null }
+        ? { kind: 'academy', id: result.id, note: result.studentId ? 'Con la aprobación automática de la academia, la ficha de la alumna ya quedó creada (sin grupo, hasta que el equipo se lo asigne).' : null }
         : { kind: 'academy', id: null, note: 'Esa persona ya es alumna o tiene una inscripción pendiente: no se duplicó.' };
     }
     case 'tasks': {
