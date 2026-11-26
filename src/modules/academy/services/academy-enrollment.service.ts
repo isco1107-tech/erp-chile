@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { cleanRut, formatRut } from '@/lib/chile/rut';
 import { isUniqueConstraintError } from '@/lib/prisma-errors';
@@ -127,7 +128,7 @@ interface ApplicationFields {
   message: string | null;
 }
 
-function studentData(companyId: string, app: ApplicationFields, groupId: string | null, startMonth: string) {
+function studentData(companyId: string, app: ApplicationFields, groupId: string | null, startMonth: string): Prisma.AcademyStudentUncheckedCreateInput {
   return {
     companyId,
     groupId,
@@ -192,19 +193,26 @@ export async function submitApplication(resolved: ResolvedEnrollment, data: Publ
     return { created: true, id: created.id, studentId: null };
   }
 
-  // Aprobación automática: la ficha (en el grupo que eligió, cobrando desde el
-  // mes en curso) y la inscripción ya aprobada, en una sola transacción.
+  // Aprobación automática: la ficha (cobrando desde el mes en curso) y la
+  // inscripción ya aprobada, en una sola transacción. La ficha queda SIN GRUPO:
+  // el link es público, y un grupo trae su lista, su QR de asistencia y el
+  // material que se envía por correo; lo asigna alguien del equipo. El grupo
+  // que eligió queda en la inscripción (historial) y en la nota de la ficha.
+  let preferredGroupName: string | null = null;
+  if (preferredGroupId) {
+    const group = await prisma.academyGroup.findFirst({ where: { id: preferredGroupId, companyId: resolved.companyId }, select: { name: true } });
+    preferredGroupName = group?.name ?? null;
+  }
+  const student = studentData(resolved.companyId, fields, null, santiagoIsoDay(now).slice(0, 7));
+  if (preferredGroupName) student.notes = [`Grupo de interés al inscribirse: ${preferredGroupName}.`, student.notes].filter(Boolean).join(' ');
   try {
     return await prisma.$transaction(async (tx) => {
-      const student = await tx.academyStudent.create({
-        data: studentData(resolved.companyId, fields, preferredGroupId, santiagoIsoDay(now).slice(0, 7)),
-        select: { id: true },
-      });
+      const created = await tx.academyStudent.create({ data: student, select: { id: true } });
       const application = await tx.academyApplication.create({
-        data: { ...applicationData, status: 'APPROVED', reviewedAt: now, studentId: student.id },
+        data: { ...applicationData, status: 'APPROVED', reviewedAt: now, studentId: created.id },
         select: { id: true },
       });
-      return { created: true, id: application.id, studentId: student.id };
+      return { created: true, id: application.id, studentId: created.id };
     });
   } catch (error) {
     // Dos envíos simultáneos con el mismo RUT: la ficha ya existe, no se duplica.

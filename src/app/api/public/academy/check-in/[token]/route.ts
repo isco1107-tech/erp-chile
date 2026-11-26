@@ -58,7 +58,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     const info = await resolveCheckIn(token);
     if (!info) return jsonError('Este QR ya no está disponible. Pídele a tu profesora que muestre el de hoy.', 404);
 
-    const linkLimit = await checkLayeredRateLimit(info.linkId, ACADEMY_CHECK_IN_LINK_RATE_LIMIT);
+    // Por token, no por fila: «QR nuevo» cambia el token y así reinicia el cupo de un QR que circuló.
+    const linkLimit = await checkLayeredRateLimit(token, ACADEMY_CHECK_IN_LINK_RATE_LIMIT);
     if (!linkLimit.allowed) return jsonError('Este QR recibió demasiados intentos. Pídele a tu profesora que genere uno nuevo.', 429);
 
     const outcome = await submitCheckIn(info, parsed.data.rut);

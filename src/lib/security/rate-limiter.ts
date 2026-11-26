@@ -578,10 +578,14 @@ export const ACADEMY_CHECK_IN_IP_RATE_LIMIT: RateLimitConfig = {
   windowMs: 10 * 60_000,
 };
 
-/** RUT que no están en el grupo, por IP: frena a quien prueba RUT para saber quién es alumna. */
+/**
+ * RUT válidos que no están en el grupo, por IP: frena a quien prueba RUT para
+ * saber quién es alumna. Un RUT mal escrito casi nunca cuenta (lo ataja el
+ * dígito verificador antes), y el curso comparte la IP: por eso no es menor.
+ */
 export const ACADEMY_CHECK_IN_MISS_RATE_LIMIT: RateLimitConfig = {
   prefix: 'academy-check-in-miss',
-  limit: 20,
+  limit: 30,
   windowMs: 10 * 60_000,
 };
 

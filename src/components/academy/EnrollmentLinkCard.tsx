@@ -80,7 +80,7 @@ export default function EnrollmentLinkCard({ canManage, onChanged }: EnrollmentL
       value &&
       !(await confirm({
         title: '¿Crear la ficha al instante?',
-        description: 'Cada persona que complete el formulario quedará como alumna sin que la revises, en el grupo que elija y cobrando desde el mes en curso. Podrás editarla o darla de baja después.',
+        description: 'El link es público: cualquiera que lo tenga y complete el formulario quedará como alumna sin que la revises, cobrando desde el mes en curso. Su ficha queda sin grupo (con el grupo que eligió anotado) hasta que se lo asignes, así no recibe el material ni entra a una lista sin tu visto bueno.',
         confirmLabel: 'Activar',
       }))
     ) {
@@ -145,7 +145,7 @@ export default function EnrollmentLinkCard({ canManage, onChanged }: EnrollmentL
             <p className="font-medium">Crear la ficha de la alumna al instante</p>
             <p className="text-xs text-muted-foreground">
               {autoApprove
-                ? 'Activado: cada inscripción queda directo en Alumnas (y en el historial de Inscripciones como aprobada).'
+                ? 'Activado: cada inscripción queda directo en Alumnas, sin grupo hasta que se lo asignes (y en el historial de Inscripciones como aprobada).'
                 : 'Desactivado: cada inscripción espera en Inscripciones hasta que la apruebes.'}
               {!canManage && ' Solo quien administra la academia puede cambiarlo.'}
             </p>

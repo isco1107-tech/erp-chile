@@ -76,7 +76,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
               ? {
                   severity: 'INFO',
                   title: 'Nueva alumna inscrita',
-                  message: `${parsed.data.fullName} se inscribió desde el link y su ficha ya está creada en Academia → Alumnas.`,
+                  message: `${parsed.data.fullName} se inscribió desde el link y su ficha ya está creada en Academia → Alumnas. Asígnale un grupo desde su ficha.`,
                   pushMessage: 'Una nueva alumna se inscribió en la academia.',
                   href: '/dashboard/academy',
                 }

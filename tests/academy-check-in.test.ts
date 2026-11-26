@@ -262,18 +262,22 @@ describe('inscripción pública con aprobación automática', () => {
     expect(mockPrisma.academyApplication.create.mock.calls[0]![0].data.status).toBeUndefined();
   });
 
-  it('activada, crea la ficha (mes en curso de Santiago) y la inscripción aprobada', async () => {
+  it('activada, crea la ficha SIN grupo (mes en curso de Santiago) y la inscripción aprobada', async () => {
     mockPrisma.academyStudent.findFirst.mockResolvedValue(null);
     mockPrisma.academyApplication.findFirst.mockResolvedValue(null);
-    mockPrisma.academyGroup.findFirst.mockResolvedValue({ id: 'g1' });
+    mockPrisma.academyGroup.findFirst.mockResolvedValueOnce({ id: 'g1' }).mockResolvedValueOnce({ name: 'Juvenil' });
     mockPrisma.companySettings.findUnique.mockResolvedValue({ academyAutoApproveEnrollments: true });
     mockPrisma.academyStudent.create.mockResolvedValue({ id: 'st1' });
     mockPrisma.academyApplication.create.mockResolvedValue({ id: 'a1' });
     const result = await submitApplication({ companyId: CO, companyName: 'X' }, { ...input, preferredGroupId: 'g1' }, NOW);
     expect(result).toEqual({ created: true, id: 'a1', studentId: 'st1' });
     expect(mockPrisma.$transaction).toHaveBeenCalled();
-    expect(mockPrisma.academyStudent.create.mock.calls[0]![0].data).toMatchObject({ companyId: CO, groupId: 'g1', rutClean: '123456785', startMonth: new Date('2026-11-01T12:00:00Z') });
-    expect(mockPrisma.academyApplication.create.mock.calls[0]![0].data).toMatchObject({ companyId: CO, status: 'APPROVED', studentId: 'st1' });
+    // El link es público: sin grupo no recibe el material ni entra a una lista hasta que el equipo la asigne.
+    const student = mockPrisma.academyStudent.create.mock.calls[0]![0].data;
+    expect(student).toMatchObject({ companyId: CO, groupId: null, rutClean: '123456785', startMonth: new Date('2026-11-01T12:00:00Z') });
+    expect(student.notes).toContain('Grupo de interés al inscribirse: Juvenil');
+    expect(mockPrisma.academyGroup.findFirst.mock.calls[1]![0].where).toEqual({ id: 'g1', companyId: CO });
+    expect(mockPrisma.academyApplication.create.mock.calls[0]![0].data).toMatchObject({ companyId: CO, status: 'APPROVED', studentId: 'st1', preferredGroupId: 'g1' });
   });
 
   it('quien ya es alumna no se duplica', async () => {

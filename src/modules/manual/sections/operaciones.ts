@@ -238,7 +238,7 @@ export const OPERACIONES_SECTIONS: ManualSection[] = [
           'Con "Copiar" llevas el link al portapapeles para compartirlo por WhatsApp, Instagram o tu sitio web; con "Descargar QR" guardas el QR para imprimirlo o mostrarlo en la sala, y con "Abrir formulario" ves lo que verá la alumna.',
           'Quien se inscribe llena sus datos (y los de su apoderado si es menor de edad), elige un grupo de interés si quiere y acepta el aviso de privacidad.',
           'Por defecto la inscripción queda pendiente: te llega un aviso a la campanita y la pestaña muestra "Inscripciones" con el número por revisar. En cada una elige el grupo y el primer mes de cobro, y haz clic en "Aprobar" para crear su ficha de alumna, o en "Rechazar".',
-          'Si prefieres que la ficha se cree sola, activa "Crear la ficha de la alumna al instante" (solo dueño y administradores): cada inscripción queda directo en Alumnas, en el grupo que eligió y cobrando desde el mes en curso, y aparece en el historial de Inscripciones como aprobada.',
+          'Si prefieres que la ficha se cree sola, activa "Crear la ficha de la alumna al instante" (solo dueño y administradores): cada inscripción queda directo en Alumnas, cobrando desde el mes en curso y sin grupo hasta que se lo asignes desde su ficha (el grupo que eligió queda anotado en la observación), y aparece en el historial de Inscripciones como aprobada.',
           'Si el link se difundió donde no debía, "Generar link nuevo" (solo dueño y administradores) invalida el anterior y su QR.',
         ],
         tip: 'El link solo funciona con el módulo Academia activo. Quien ya es alumna o ya tiene una inscripción pendiente no genera un duplicado.',

@@ -288,7 +288,9 @@ export async function setAutoApproveEnrollmentsAction(value: boolean): Promise<A
   try {
     const session = await requireAuthWithPermission('academy:manage');
     companyId = session.companyId;
-    const enabled = value === true;
+    const parsed = z.boolean().safeParse(value);
+    if (!parsed.success) return { success: false, error: 'Valor inválido' };
+    const enabled = parsed.data;
     await enrollment.setAutoApproveEnrollments(session.companyId, enabled);
     await createAuditLog({ companyId: session.companyId, userId: session.id, userEmail: session.email, action: 'UPDATE', entity: 'AcademyEnrollmentLink', entityId: 'enrollment-link', metadata: { autoApprove: enabled } });
     revalidate();
