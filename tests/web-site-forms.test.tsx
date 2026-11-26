@@ -318,6 +318,7 @@ const MODEL_METHODS = {
   academyStudent: ['findFirst'],
   academyApplication: ['findFirst', 'create'],
   academyGroup: ['findFirst'],
+  companySettings: ['findUnique'],
 } as const;
 
 function installDb(): Record<keyof typeof MODEL_METHODS, Mocks> {
@@ -466,6 +467,8 @@ describe('submitPublicForm', () => {
     db.academyStudent.findFirst.mockResolvedValue(null);
     db.academyApplication.findFirst.mockResolvedValue(null);
     db.academyApplication.create.mockResolvedValue({ id: 'insc-1' });
+    // Sin aprobación automática (la opción por defecto): queda pendiente.
+    db.companySettings.findUnique.mockResolvedValue({ academyAutoApproveEnrollments: false });
     db.academyGroup.findFirst.mockResolvedValueOnce({ id: 'grupo-1' }).mockResolvedValueOnce({ id: 'grupo-1' });
     const fields = presetFields(FORM_PRESETS.find((preset) => preset.id === 'academy')!).map((item) => (item.role === 'group' ? { ...item, options: ['Aún no lo sé', 'Pasarela Inicial'] } : item));
     const pick = (role: string) => fields.find((item) => item.role === role)!.id;
