@@ -2516,6 +2516,11 @@ model Project {
   /// (`src/lib/events/pageant-typography.ts`, validada con Zod al guardar y al
   /// leer). `null` o una clave ausente = la tipografía de fábrica.
   publicTypography        Json?
+  /// Paleta del micrositio: tres colores (`base`, `accent`, `highlight`) detectados de la
+  /// portada o elegidos a mano, con los que se pinta todo el sitio
+  /// (`src/lib/events/pageant-palette.ts`, validada con Zod al guardar y al leer).
+  /// `null` o `{}` = sin paleta: vale el acento prediseñado (`publicAccent`).
+  publicPalette           Json?
   /// Logos del pie del micrositio (organizadores e instituciones que apoyan) con su
   /// enlace: `{ title, items: [{ id, name, logoUrl, href }] }`, validado con Zod al
   /// guardar y al leer (`src/lib/events/pageant-partners.ts`). `null` = sin logos.

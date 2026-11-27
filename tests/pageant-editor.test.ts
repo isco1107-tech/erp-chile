@@ -124,6 +124,7 @@ describe('borrador del editor sobre los datos reales', () => {
       publicDescription: 'Sobre',
       coverImageUrl: '',
       publicTypography: {},
+      publicPalette: null,
       publicAccent: 'rose' as const,
       instagramHandle: '@cuenta',
       publicContactEmail: 'hola@ejemplo.cl',

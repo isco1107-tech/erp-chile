@@ -33,7 +33,9 @@ import { PUBLIC_ACCENT_LABELS, PUBLIC_ACCENT_SWATCH, PUBLIC_ACCENTS } from '@/mo
 import { cn } from '@/lib/utils';
 import { FooterPartnersEditor, type FooterPartnersDraft } from '../FooterPartnersEditor';
 import { PageantFooterFields } from '../PageantFooterFields';
+import { PalettePicker } from '../PalettePicker';
 import { TypographyPicker } from '../TypographyPicker';
+import { paletteAfterNewCover, type PageantPalette } from '@/lib/events/pageant-palette';
 import type { SiteEditorState, SiteFormValues } from './site-draft';
 
 export type UploadPurpose = 'cover' | 'director' | 'favicon';
@@ -49,7 +51,7 @@ export interface PanelApi {
   changeValues: (patch: Partial<SiteFormValues>, boundary?: boolean) => void;
   changePartners: (partners: FooterPartnersDraft) => void;
   changeHighlights: (text: string) => void;
-  upload: (file: File, purpose: UploadPurpose) => Promise<string | null>;
+  upload: (file: File, purpose: UploadPurpose, options?: { onPalette?: (palette: PageantPalette | null) => void }) => Promise<string | null>;
   reloadCanvas: () => void;
 }
 
@@ -261,10 +263,13 @@ function SectionContent({ id, api, setOption, options }: { id: PageantSectionId;
   const { state, readOnly } = api;
   const { values } = state;
   const uploadTo = (purpose: UploadPurpose, field: 'coverImageUrl' | 'directorPhotoUrl') => async (file: File) => {
-    const url = await api.upload(file, purpose);
+    // La portada trae sus tres colores: pintan el sitio salvo que la persona ya los haya ajustado a mano.
+    let detected: PageantPalette | null = null;
+    const url = await api.upload(file, purpose, purpose === 'cover' ? { onPalette: (palette) => (detected = palette) } : undefined);
     if (url) {
-      api.changeValues({ [field]: url } as Partial<SiteFormValues>, true);
-      toast.success('Imagen cargada: guarda para publicarla');
+      const { palette, applied } = paletteAfterNewCover(values.publicPalette, detected);
+      api.changeValues({ [field]: url, ...(purpose === 'cover' ? { publicPalette: palette } : {}) } as Partial<SiteFormValues>, true);
+      toast.success(applied ? 'Portada cargada y colores del sitio detectados: guarda para publicarlos' : 'Imagen cargada: guarda para publicarla');
     }
   };
 
@@ -427,7 +432,7 @@ export function DesignPanel({ api }: { api: PanelApi }) {
   const setOption = (patch: Partial<PageantSiteDesign['options']>) => api.changeDesign((current) => ({ ...current, options: { ...current.options, ...patch } }), true);
   return (
     <div className="space-y-5">
-      <Group title="Color de acento" hint="El tono metálico de títulos, botones y detalles de todo el sitio.">
+      <Group title="Color de acento" hint={values.publicPalette ? 'Con los colores del sitio activos (más abajo) este acento no se usa.' : 'El tono metálico de títulos, botones y detalles de todo el sitio.'}>
         <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Color de acento">
           {PUBLIC_ACCENTS.map((accent) => (
             <button
@@ -445,6 +450,14 @@ export function DesignPanel({ api }: { api: PanelApi }) {
           ))}
         </div>
       </Group>
+
+      <PalettePicker
+        projectId={api.projectId}
+        value={values.publicPalette}
+        onChange={(publicPalette) => api.changeValues({ publicPalette }, true)}
+        coverImageUrl={values.coverImageUrl}
+        disabled={readOnly}
+      />
 
       <Group title="Piezas del sitio">
         <SwitchRow label="Numeración de secciones (01, 02…)" checked={design.options.numbers} disabled={readOnly} onChange={(numbers) => setOption({ numbers })} />

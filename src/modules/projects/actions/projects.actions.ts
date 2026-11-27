@@ -10,6 +10,9 @@ import { getProjectFinancialSummary, type ProjectFinancialSummary } from '@/lib/
 import { projectCreateSchema, projectPublicSiteSchema, projectUpdateSchema } from '../schema';
 import { publicSlugProblem } from '@/lib/events/public-slug';
 import { FOOTER_PARTNERS_FOLDER } from '@/lib/events/pageant-partners';
+import { paletteFromStoredImage } from '@/lib/events/pageant-palette-image';
+import type { PageantPalette } from '@/lib/events/pageant-palette';
+import { prisma } from '@/lib/prisma';
 import { blobPathnameStartsWith, isAllowedBlobUrl } from '@/lib/security/blob-url';
 import { getPageantHub, type PageantHub } from '../services/hub.service';
 import * as projectsService from '../services/projects.service';
@@ -128,6 +131,29 @@ export async function getPageantHubAction(id: string): Promise<ActionResult<Page
     const hub = await getPageantHub(session.companyId, id, session.features);
     if (!hub) return { success: false, error: 'Proyecto no encontrado' };
     return { success: true, data: hub };
+  } catch (error) {
+    return { success: false, error: toErrorMessage(error) };
+  }
+}
+
+/**
+ * Los tres colores principales de la portada de un certamen (el botón «Detectar
+ * desde la portada»). No guarda nada: devuelve la paleta para que la persona la
+ * vea, la ajuste y la guarde con el resto del sitio. La imagen tiene que ser una
+ * portada que subió ESTA empresa desde el panel (nuestro almacenamiento, su
+ * carpeta): el servidor no descarga direcciones arbitrarias.
+ */
+export async function detectCoverPaletteAction(projectId: string, coverImageUrl: string): Promise<ActionResult<PageantPalette>> {
+  try {
+    const session = await requireAuthWithPermission('projects:write');
+    const project = await prisma.project.findFirst({ where: { id: projectId, companyId: session.companyId }, select: { id: true } });
+    if (!project) return { success: false, error: 'Proyecto no encontrado' };
+    if (!(isAllowedBlobUrl(coverImageUrl) && blobPathnameStartsWith(coverImageUrl, `pageant-covers/${session.companyId}/`))) {
+      return { success: false, error: 'La portada debe subirse desde este panel. Sube la imagen y vuelve a intentarlo.' };
+    }
+    const palette = await paletteFromStoredImage(coverImageUrl);
+    if (!palette) return { success: false, error: 'No se pudieron detectar colores en esta portada. Elígelos a mano o prueba con otra imagen.' };
+    return { success: true, data: palette };
   } catch (error) {
     return { success: false, error: toErrorMessage(error) };
   }

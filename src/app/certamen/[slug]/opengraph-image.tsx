@@ -1,4 +1,5 @@
 import { ImageResponse } from 'next/og';
+import { derivePaletteTokens } from '@/lib/events/pageant-palette';
 import { galaDateParts, splitPageantTitle } from '@/lib/events/pageant-site';
 import { captureException } from '@/lib/observability';
 import { fetchGoogleFontSubset, fetchImageAsDataUrl } from '@/lib/images/subset-font';
@@ -29,7 +30,10 @@ export default async function OpengraphImage({ params }: { params: Promise<{ slu
     return null;
   });
   const title = splitPageantTitle(site?.name ?? 'Certamen');
-  const accent = ACCENTS[site?.accent ?? 'gold'] ?? ACCENTS.gold;
+  // Con los colores de la portada, la imagen para compartir lleva los mismos que el sitio.
+  const palette = site?.palette ? derivePaletteTokens(site.palette).main : null;
+  const accent = palette ? { a: palette['--a'], mid: palette['--a-mid'] } : (ACCENTS[site?.accent ?? 'gold'] ?? ACCENTS.gold);
+  const night = palette ? { c1: palette['--night-3'], c2: palette['--night-2'], c3: palette['--night'], rgb: palette['--night-rgb'] } : { c1: '#111841', c2: '#0c1130', c3: '#070a1c', rgb: '7, 10, 28' };
   const gala = site?.galaDate ? galaDateParts(site.galaDate) : null;
   const meta = [gala ? `${gala.day} de ${gala.month} · ${gala.time} h` : null, site?.venueName ?? null].filter(Boolean).join('   ·   ');
   // Todo el texto de la imagen va en el recorte de la fuente: si falta un carácter, se mezclaría con la de respaldo.
@@ -48,7 +52,7 @@ export default async function OpengraphImage({ params }: { params: Promise<{ slu
           alignItems: 'center',
           justifyContent: 'center',
           position: 'relative',
-          background: 'radial-gradient(circle at 50% 0%, #111841 0%, #0c1130 45%, #070a1c 100%)',
+          background: `radial-gradient(circle at 50% 0%, ${night.c1} 0%, ${night.c2} 45%, ${night.c3} 100%)`,
           color: '#f5f1e8',
           fontFamily: font ? 'Italiana' : undefined,
         }}
@@ -56,7 +60,7 @@ export default async function OpengraphImage({ params }: { params: Promise<{ slu
         {cover && (
           <img src={cover} alt="" width={1200} height={630} style={{ position: 'absolute', inset: 0, width: 1200, height: 630, objectFit: 'cover' }} />
         )}
-        {cover && <div style={{ position: 'absolute', inset: 0, display: 'flex', background: 'linear-gradient(180deg, rgba(7,10,28,0.55) 0%, rgba(7,10,28,0.72) 60%, rgba(7,10,28,0.92) 100%)' }} />}
+        {cover && <div style={{ position: 'absolute', inset: 0, display: 'flex', background: `linear-gradient(180deg, rgba(${night.rgb},0.55) 0%, rgba(${night.rgb},0.72) 60%, rgba(${night.rgb},0.92) 100%)` }} />}
         <div style={{ position: 'absolute', top: 36, left: 36, width: 70, height: 70, display: 'flex', borderTop: `1px solid ${accent.a}`, borderLeft: `1px solid ${accent.a}`, opacity: 0.6 }} />
         <div style={{ position: 'absolute', bottom: 36, right: 36, width: 70, height: 70, display: 'flex', borderBottom: `1px solid ${accent.a}`, borderRight: `1px solid ${accent.a}`, opacity: 0.6 }} />
 

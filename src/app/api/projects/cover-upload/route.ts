@@ -7,12 +7,15 @@ import { sniffImageType, SNIFFED_IMAGE_EXTENSION } from '@/lib/security/file-sig
 import { readImageSize } from '@/lib/images/dimensions';
 import { prisma } from '@/lib/prisma';
 import { FOOTER_PARTNERS_FOLDER } from '@/lib/events/pageant-partners';
+import { paletteFromImageBytes } from '@/lib/events/pageant-palette-image';
 
 /**
  * Sube la imagen de portada del micrositio de un certamen. Route Handler por
  * el límite de 1 MB de las Server Actions (mismo motivo que `branding/upload`).
  * El tipo se valida por los primeros bytes del archivo, no por lo que declara
- * el navegador: esta imagen queda publicada en internet.
+ * el navegador: esta imagen queda publicada en internet. Con la portada devuelve
+ * además los tres colores principales de la imagen (`palette`, ver
+ * `pageant-palette.ts`) para pintar el sitio con ellos.
  */
 
 const MAX_FILE_BYTES = 6 * 1024 * 1024;
@@ -102,7 +105,9 @@ export async function POST(req: Request) {
       metadata: { field: purpose === 'winner' ? 'pastWinnerPhoto' : purpose === 'partner' ? 'footerPartnerLogo' : purpose === 'favicon' ? 'faviconUrl' : purpose.startsWith('poster') ? 'posterImage' : 'coverImageUrl', url: blob.url },
     });
 
-    return NextResponse.json({ success: true, data: { url: blob.url } });
+    // La portada trae sus tres colores: con ellos se pinta el sitio. Si no se pueden leer, la subida igual vale (el sitio sigue con su acento).
+    const palette = purpose === 'cover' ? await paletteFromImageBytes(bytes) : null;
+    return NextResponse.json({ success: true, data: { url: blob.url, palette } });
   } catch (error) {
     if (error instanceof AuthError) return NextResponse.json({ success: false, error: error.message }, { status: error.status });
     if (error instanceof ModuleNotEnabledError) return NextResponse.json({ success: false, error: 'Módulo no incluido en tu plan actual' }, { status: 403 });

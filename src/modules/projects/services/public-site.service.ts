@@ -8,6 +8,7 @@ import { prisma } from '@/lib/prisma';
 import { domainOwner } from '@/lib/hosting/domain-lifecycle';
 import { pageantContact } from '@/lib/events/pageant-contact';
 import { shortDate, type DirectorTitle } from '@/lib/events/pageant-site';
+import { parsePageantPalette, type PageantPalette } from '@/lib/events/pageant-palette';
 import { parsePageantTypography, type PageantTypography } from '@/lib/events/pageant-typography';
 import { FOOTER_PARTNERS_FOLDER, parseFooterPartners } from '@/lib/events/pageant-partners';
 import { blobPathnameStartsWith, isAllowedBlobUrl } from '@/lib/security/blob-url';
@@ -55,6 +56,8 @@ export interface PublicPageantSite {
   /** Logo de la pestaña del navegador (favicon); `null` = el de la plataforma. */
   faviconUrl: string | null;
   accent: PublicAccentKey;
+  /** Paleta de tres colores sacada de la portada (o elegida a mano); `null` = vale el acento prediseñado. */
+  palette: PageantPalette | null;
   /** Tipografía elegida por familia y bloque (vacío = la de fábrica). */
   typography: PageantTypography;
   /** Logos del pie (organizadores e instituciones que apoyan), con su enlace si lo tienen. */
@@ -277,6 +280,7 @@ async function assemblePageantSite(project: ProjectWithCompany, slug: string, op
     coverImageUrl: project.coverImageUrl,
     faviconUrl: project.faviconUrl,
     accent: isAccent(project.publicAccent) ? project.publicAccent : 'gold',
+    palette: parsePageantPalette(project.publicPalette),
     typography: parsePageantTypography(project.publicTypography),
     // Campo por campo: solo nombre, logo y enlace (lo público que escribió el equipo); un logo que no es de nuestro almacenamiento no sale.
     footerPartners: (() => {

@@ -31,6 +31,7 @@ import type { PublicPageantCandidate, PublicPageantSite } from '@/modules/projec
 import { Arrow, Calendar, Check, Chevron, Close, Crown, Diamond, Instagram, Mail, Pin, Plus, Ticket, Tiara, Whatsapp } from './icons';
 import { PAGEANT_FONT_CLASSES } from './fonts';
 import { SITE_FONT_CLASSES } from '@/components/web-sites/site-fonts';
+import { pageantPaletteCss } from '@/lib/events/pageant-palette';
 import { PAGEANT_TYPOGRAPHY_CLASS, pageantTypographyCss } from '@/lib/events/pageant-typography';
 import { DEFAULT_FOOTER_PARTNERS_TITLE } from '@/lib/events/pageant-partners';
 import { FitText } from './FitText';
@@ -451,6 +452,7 @@ export function PageantSite({ site, view, editing, layerEditor, layout: orderedI
 
   const aboutParagraphs = useMemo(() => splitDescription(site.description), [site.description]);
   const typographyCss = useMemo(() => pageantTypographyCss(site.typography), [site.typography]);
+  const paletteCss = useMemo(() => pageantPaletteCss(site.palette), [site.palette]);
 
   // --pgs-lead-fit: "MISS UNIVERSO" crece hasta llenar el ancho sin desbordar en teléfonos.
   const titleFit = { '--pgs-fit': Math.max(title.main.length, 6) * 0.64, '--pgs-lead-fit': Math.max(title.lead.length, 8) * 0.9 } as CSSProperties;
@@ -1368,10 +1370,12 @@ export function PageantSite({ site, view, editing, layerEditor, layout: orderedI
   flushRun();
 
   return (
-    <div ref={rootRef} className={`pgs ${PAGEANT_FONT_CLASSES}${typographyCss ? ` ${SITE_FONT_CLASSES} ${PAGEANT_TYPOGRAPHY_CLASS}` : ''}`} data-accent={site.accent}>
+    <div ref={rootRef} className={`pgs ${PAGEANT_FONT_CLASSES}${typographyCss ? ` ${SITE_FONT_CLASSES} ${PAGEANT_TYPOGRAPHY_CLASS}` : ''}`} data-accent={site.accent} data-palette={paletteCss ? 'custom' : undefined}>
       <style>{PAGEANT_SITE_STYLES}</style>
       {/* Tipografía elegida por bloque: después de la hoja base y solo con claves de la lista cerrada. */}
       {typographyCss && <style>{typographyCss}</style>}
+      {/* Colores de la portada: después de la hoja base (y de un acento prediseñado), solo con colores #rrggbb validados. */}
+      {paletteCss && <style>{paletteCss}</style>}
       {/* Hoja de las secciones del estudio visual: una vez para todos sus tramos. */}
       {!omitStudioStyles && (hasStudio || Object.keys(overlays).length > 0) && <style>{SITE_CSS}</style>}
       <a className="pgs-skip" href={startsWithHero ? '#pgs-tras-portada' : '#contenido'}>

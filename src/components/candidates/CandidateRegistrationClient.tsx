@@ -9,6 +9,7 @@ import { PAGEANT_FONT_CLASSES } from '@/components/public/pageant/fonts';
 import { Arrow, Calendar, Check, Crown, Instagram, Mail, Tiara, Whatsapp } from '@/components/public/pageant/icons';
 import { HeroSky, pad } from '@/components/public/pageant/parts';
 import { PAGEANT_SITE_STYLES } from '@/components/public/pageant/styles';
+import { pageantPaletteCss, type PageantPalette } from '@/lib/events/pageant-palette';
 import { startReveal } from '@/components/public/pageant/reveal';
 import { CandidateApplicationForm } from '@/components/public/pageant/CandidateApplicationForm';
 import { WhatsappFloat } from '@/components/public/pageant/WhatsappFloat';
@@ -80,10 +81,11 @@ export default function CandidateRegistrationClient({ token }: { token: string }
   useScrollReveal(!loading && Boolean(project?.isOpen));
 
   const accent = project?.accent ?? 'gold';
+  const palette = project?.palette ?? null;
 
   if (loading) {
     return (
-      <RegistrationShell accent={accent}>
+      <RegistrationShell accent={accent} palette={palette}>
         <main className="cand-screen" role="status">
           <span className="cand-spinner" aria-hidden="true" />
           <p className="cand-screen-text">Cargando la convocatoria…</p>
@@ -94,7 +96,7 @@ export default function CandidateRegistrationClient({ token }: { token: string }
 
   if (notFound || !project) {
     return (
-      <RegistrationShell accent={accent}>
+      <RegistrationShell accent={accent} palette={palette}>
         <main className="cand-screen">
           <HeroSky />
           <div className="cand-screen-inner">
@@ -118,7 +120,7 @@ export default function CandidateRegistrationClient({ token }: { token: string }
 
   if (!project.isOpen) {
     return (
-      <RegistrationShell accent={accent}>
+      <RegistrationShell accent={accent} palette={palette}>
         <main className="cand-screen">
           <HeroSky />
           <div className="cand-screen-inner">
@@ -139,7 +141,7 @@ export default function CandidateRegistrationClient({ token }: { token: string }
   const steps = registrationProcess({ name: project.projectName, maxCandidates: project.maxCandidates });
 
   return (
-    <RegistrationShell accent={accent}>
+    <RegistrationShell accent={accent} palette={palette}>
       <a className="pgs-skip" href="#inscripcion">
         Ir al formulario
       </a>
@@ -382,11 +384,14 @@ export default function CandidateRegistrationClient({ token }: { token: string }
 }
 
 /** Contenedor con la identidad del certamen (mismas fuentes y estilos que su micrositio). */
-function RegistrationShell({ accent, children }: { accent: string; children: ReactNode }) {
+function RegistrationShell({ accent, palette, children }: { accent: string; palette: PageantPalette | null; children: ReactNode }) {
+  // Los colores de la portada del certamen: los mismos que su micrositio, para que la postulante no vea otra marca.
+  const paletteCss = pageantPaletteCss(palette);
   return (
-    <div className={`pgs cand ${PAGEANT_FONT_CLASSES}`} data-accent={accent}>
+    <div className={`pgs cand ${PAGEANT_FONT_CLASSES}`} data-accent={accent} data-palette={paletteCss ? 'custom' : undefined}>
       <style>{PAGEANT_SITE_STYLES}</style>
       <style>{REGISTRATION_STYLES}</style>
+      {paletteCss && <style>{paletteCss}</style>}
       {children}
     </div>
   );
