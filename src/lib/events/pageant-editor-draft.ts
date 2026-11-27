@@ -4,6 +4,7 @@ import { designLayout } from './pageant-design-ops';
 import { normalizePartnerLink } from './pageant-partners';
 import { DIRECTOR_TITLES } from './pageant-site';
 import { pageantSiteDesignSchema, parsePageantSiteDesign } from './pageant-site-design';
+import { parsePageantPalette } from './pageant-palette';
 import { parsePageantTypography } from './pageant-typography';
 import { PUBLIC_ACCENTS, type PublicAccentKey } from '@/modules/projects/schema';
 import type { PublicPageantSite } from '@/modules/projects/services/public-site.service';
@@ -26,6 +27,8 @@ export const pageantEditorDraftSchema = z.object({
   description: text(8000),
   coverImageUrl: text(1000),
   accent: z.enum(PUBLIC_ACCENTS).catch('gold'),
+  /** Paleta de la portada (se valida con su esquema al aplicar); ausente = sin paleta. */
+  palette: z.unknown().optional(),
   typography: z.unknown().optional(),
   instagram: text(400),
   email: text(160),
@@ -90,6 +93,7 @@ export function applyDraftToSite(base: PublicPageantSite, draft: PageantEditorDr
     description: textOrNull(draft.description),
     coverImageUrl: httpsOrNull(draft.coverImageUrl),
     accent: draft.accent as PublicAccentKey,
+    palette: parsePageantPalette(draft.palette),
     typography: parsePageantTypography(draft.typography),
     instagramHandles: contact.instagrams.map((entry) => entry.handle),
     contactEmail: contact.email,

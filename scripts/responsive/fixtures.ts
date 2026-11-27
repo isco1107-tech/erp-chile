@@ -46,6 +46,7 @@ export function baseSite(overrides: Partial<PublicPageantSite> = {}): PublicPage
     coverImageUrl: null,
     faviconUrl: null,
     accent: 'gold',
+    palette: null,
     typography: {},
     footerPartners: { title: null, items: [] },
     instagramHandles: ['missuniversotemuco', 'miss.universo.araucania'],
@@ -340,4 +341,8 @@ export const FIXTURES: Record<string, PublicPageantSite> = {
     slug: 'tipografia-ancha',
     typography: { display: 'unbounded', serif: 'libre-baskerville', sans: 'montserrat', heroTitle: 'cinzel', titleAccent: 'abril', dropCap: 'unbounded', names: 'cinzel', numbers: 'unbounded', kickers: 'work-sans', lead: 'merriweather', quotes: 'fraunces' },
   }),
+  // Colores sacados de una portada (fondo vino, acento dorado, destaque rosa): el sitio se pinta con ellos.
+  paleta: baseSite({ slug: 'paleta', palette: { base: '#4e2336', accent: '#f7cf6f', highlight: '#db3770', source: 'portada' } }),
+  // Una portada clara (casi blanca): el fondo se oscurece y el acento se aclara solos, el sitio no queda ilegible.
+  paletaClara: baseSite({ slug: 'paleta-clara', palette: { base: '#f2f2f2', accent: '#ffffff', highlight: '#fff200', source: 'manual' } }),
 };

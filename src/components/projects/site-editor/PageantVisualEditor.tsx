@@ -22,6 +22,7 @@ import {
 } from '@/lib/events/pageant-design-ops';
 import type { EditorAction, EditorKey, ToEditorMessage } from '@/lib/events/pageant-editor-protocol';
 import { parseItemKey } from '@/lib/events/pageant-layout';
+import type { PageantPalette } from '@/lib/events/pageant-palette';
 import type { PageantSiteDesign } from '@/lib/events/pageant-site-design';
 import { blockImageUrls, createBlock, type BlockType, type WebSiteBlock } from '@/lib/web-sites/blocks';
 import { sampleBlock } from '@/lib/web-sites/section-samples';
@@ -79,7 +80,7 @@ export function PageantVisualEditor({
   saving: boolean;
   dirty: boolean;
   canWrite: boolean;
-  upload: (file: File, purpose: UploadPurpose | 'studio') => Promise<string | null>;
+  upload: (file: File, purpose: UploadPurpose | 'studio', options?: { onPalette?: (palette: PageantPalette | null) => void }) => Promise<string | null>;
   onClose: () => void;
 }) {
   const readOnly = !canWrite;
@@ -347,7 +348,7 @@ export function PageantVisualEditor({
     changeValues,
     changePartners,
     changeHighlights,
-    upload: (file, purpose) => upload(file, purpose),
+    upload: (file, purpose, options) => upload(file, purpose, options),
     reloadCanvas: () => setReloadKey((n) => n + 1),
   };
 

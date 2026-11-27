@@ -14,6 +14,7 @@ export function posterSite(overrides: Partial<PublicPageantSite> = {}): PublicPa
     coverImageUrl: 'https://x.public.blob.vercel-storage.com/pageant-covers/co1/portada.jpg',
     faviconUrl: null,
     accent: 'gold',
+    palette: null,
     typography: {},
     footerPartners: { title: null, items: [] },
     instagramHandles: ['misssur'],

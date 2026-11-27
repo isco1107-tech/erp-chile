@@ -1,4 +1,5 @@
 import { formatInstagramHandlesForForm, formatWhatsappNumber, pageantContact, type PageantContact } from '@/lib/events/pageant-contact';
+import { parsePageantPalette, type PageantPalette } from '@/lib/events/pageant-palette';
 import crypto from 'crypto';
 import { applicationPhotoPrefix, checkRegistrationRequirements, requirementsFromProject, type RegistrationRequirements } from '@/lib/events/registration-requirements';
 import { blobPathnameStartsWith } from '@/lib/security/blob-url';
@@ -778,6 +779,8 @@ export interface RegistrationProjectInfo {
   venueName: string | null;
   /** Acento visual del certamen (el mismo del micrositio). */
   accent: string;
+  /** Colores de la portada del certamen (los mismos de su micrositio); `null` = vale el acento. */
+  palette: PageantPalette | null;
   /** Bajada del certamen (la misma del micrositio), si la organización la escribió. */
   tagline: string | null;
   /** Contacto del certamen para las postulantes: nunca datos fijos de la plataforma. */
@@ -819,6 +822,7 @@ export async function getRegistrationProjectByToken(token: string): Promise<Regi
     galaDate: project.galaDate,
     venueName: project.venueName,
     accent: project.publicAccent,
+    palette: parsePageantPalette(project.publicPalette),
     tagline: project.publicTagline,
     contact: pageantContact(project),
     maxCandidates: project.maxCandidates,

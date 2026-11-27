@@ -23,7 +23,9 @@ import { pageantNativeTextOf } from '@/lib/events/pageant-native-text';
 import { SiteDesignAssistant } from '@/components/web-sites/SiteDesignAssistant';
 import { CustomDomainSection } from './CustomDomainSection';
 import { PageantFooterFields } from './PageantFooterFields';
+import { PalettePicker } from './PalettePicker';
 import { TypographyPicker } from './TypographyPicker';
+import { derivePaletteTokens, paletteAfterNewCover, parsePageantPalette, type PageantPalette } from '@/lib/events/pageant-palette';
 import { effectiveFont, pageantFontInfo } from '@/lib/events/pageant-typography';
 import { PAGEANT_FONT_CLASSES } from '@/components/public/pageant/fonts';
 import { SITE_FONT_CLASSES } from '@/components/web-sites/site-fonts';
@@ -90,18 +92,20 @@ export function PublicSiteForm({ project, canWrite, userId }: { project: Project
     return () => window.clearTimeout(timer);
   }, [values.publicSlug, project.id, project.publicSlug]);
 
-  async function uploadImage(file: File, purpose: 'cover' | 'director' | 'favicon' | 'studio' = 'cover'): Promise<string | null> {
+  async function uploadImage(file: File, purpose: 'cover' | 'director' | 'favicon' | 'studio' = 'cover', options?: { onPalette?: (palette: PageantPalette | null) => void }): Promise<string | null> {
     const form = new FormData();
     form.append('projectId', project.id);
     form.append('purpose', purpose);
     form.append('file', file);
     try {
       const res = await fetch('/api/projects/cover-upload', { method: 'POST', body: form });
-      const json = (await res.json()) as { success: boolean; data?: { url: string }; error?: string };
+      const json = (await res.json()) as { success: boolean; data?: { url: string; palette?: unknown }; error?: string };
       if (!json.success || !json.data) {
         toast.error(json.error ?? 'No se pudo subir la imagen');
         return null;
       }
+      // La portada trae sus tres colores: quien sube decide qué hacer con ellos (el borrador del formulario o el del editor).
+      options?.onPalette?.(parsePageantPalette(json.data.palette));
       return json.data.url;
     } catch {
       toast.error('No se pudo conectar con el almacenamiento. Intenta nuevamente.');
@@ -140,10 +144,18 @@ export function PublicSiteForm({ project, canWrite, userId }: { project: Project
   async function uploadCover(file: File) {
     setUploading(true);
     try {
-      const url = await uploadImage(file);
+      let detected: PageantPalette | null = null;
+      const url = await uploadImage(file, 'cover', { onPalette: (palette) => (detected = palette) });
       if (url) {
-        set('coverImageUrl', url);
-        toast.success('Portada cargada: guarda para publicarla');
+        const { applied } = paletteAfterNewCover(values.publicPalette, detected);
+        setValues((previous) => ({ ...previous, coverImageUrl: url, publicPalette: paletteAfterNewCover(previous.publicPalette, detected).palette }));
+        toast.success(
+          applied
+            ? 'Portada cargada y colores del sitio detectados: revisa cómo queda y guarda los cambios'
+            : detected
+              ? 'Portada cargada: tus colores ajustados a mano se conservaron (usa «Detectar desde la portada» para cambiarlos). Guarda para publicarla'
+              : 'Portada cargada: guarda para publicarla'
+        );
       }
     } finally {
       setUploading(false);
@@ -335,6 +347,7 @@ export function PublicSiteForm({ project, canWrite, userId }: { project: Project
           </div>
           <div>
             <Label>Color de acento</Label>
+            {values.publicPalette && <p className="text-xs text-muted-foreground">Con los colores del sitio activos (más abajo) este acento no se usa.</p>}
             <div className="mt-1 flex flex-wrap gap-2" role="radiogroup" aria-label="Color de acento">
               {PUBLIC_ACCENTS.map((accent) => (
                 <button
@@ -368,6 +381,8 @@ export function PublicSiteForm({ project, canWrite, userId }: { project: Project
           </div>
           <p className="text-xs text-muted-foreground">El mismo contacto aparece en el formulario de postulación del certamen.</p>
         </section>
+
+        <PalettePicker projectId={project.id} value={values.publicPalette} onChange={(palette) => set('publicPalette', palette)} coverImageUrl={values.coverImageUrl} disabled={!canWrite} />
 
         <TypographyPicker
           value={values.publicTypography}
@@ -548,7 +563,7 @@ export function PublicSiteForm({ project, canWrite, userId }: { project: Project
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={values.coverImageUrl} alt="" className="absolute inset-0 size-full object-cover opacity-60" aria-hidden="true" />
               )}
-              <span className="absolute inset-x-0 bottom-0 h-1" style={{ background: PUBLIC_ACCENT_SWATCH[values.publicAccent] }} aria-hidden="true" />
+              <span className="absolute inset-x-0 bottom-0 h-1" style={{ background: values.publicPalette ? derivePaletteTokens(values.publicPalette).swatches.accent : PUBLIC_ACCENT_SWATCH[values.publicAccent] }} aria-hidden="true" />
             </div>
             <div className="p-4">
               <p className="text-lg font-semibold">{project.name}</p>

@@ -1,16 +1,37 @@
 import SiteRenderer from '@/components/web-sites/SiteRenderer';
 import { SITE_CSS } from '@/components/web-sites/site/site-css';
 import { pageantRelocatedCss, resolvePageantDesignLayout, type PageantInsertion } from '@/lib/events/pageant-site-design';
+import { applyPaletteToStudioTheme } from '@/lib/events/pageant-palette';
 import { documentFromBlocks } from '@/lib/web-sites/site';
 import type { PageantView } from '@/lib/events/pageant-site';
 import type { PublicPageantSite } from '@/modules/projects/services/public-site.service';
 import { PageantSite, type PageantSiteEditing } from './PageantSite';
 import { pageantLayerOverlays, type PageantLayerEditor } from './PageantSiteLayout';
 
+const painted = new WeakMap<PublicPageantSite, PublicPageantSite>();
+
+/**
+ * Con paleta, las secciones del estudio visual (claras, con su propio tema) toman
+ * los mismos colores que el resto del sitio: los tramos de afuera, los de adentro
+ * y los lienzos leen todos `creative.theme`, así que se pinta una sola vez acá.
+ * Sin hooks (esta página también corre en el servidor) y con una caché por objeto
+ * para que el sitio pintado conserve su identidad entre renders.
+ */
+function withPalette(site: PublicPageantSite): PublicPageantSite {
+  if (!site.creative || !site.palette) return site;
+  let result = painted.get(site);
+  if (!result) {
+    result = { ...site, creative: { ...site.creative, theme: applyPaletteToStudioTheme(site.creative.theme, site.palette) } };
+    painted.set(site, result);
+  }
+  return result;
+}
+
 /** El mismo micrositio para el visitante, la vista previa y ambos editores. */
-export function PageantPage({ site, view, editing, layerEditor }: {
+export function PageantPage({ site: source, view, editing, layerEditor }: {
   site: PublicPageantSite; view: PageantView; editing?: PageantSiteEditing; layerEditor?: PageantLayerEditor;
 }) {
+  const site = withPalette(source);
   const design = site.creative;
   const layout = resolvePageantDesignLayout(design, layerEditor ? true : design?.enabled);
   const basePath = site.customDomain ? '' : `/certamen/${site.slug}`;

@@ -5,6 +5,7 @@ import { contactEmailField, contactWhatsappField, instagramHandleField } from '@
 import type { ProjectStatus } from '@prisma/client';
 import { publicSlugProblem } from '@/lib/events/public-slug';
 import { DIRECTOR_TITLES } from '@/lib/events/pageant-site';
+import { pageantPaletteSchema } from '@/lib/events/pageant-palette';
 import { pageantTypographySchema } from '@/lib/events/pageant-typography';
 import { footerPartnersSchema } from '@/lib/events/pageant-partners';
 
@@ -104,6 +105,8 @@ export const projectPublicSiteSchema = z
       .or(z.literal(''))
       .transform((value) => (value ? value : null)),
     publicAccent: z.enum(PUBLIC_ACCENTS).default('gold'),
+    // Paleta de tres colores (fondo, acento y destaque) detectada de la portada o elegida a mano; vacía = vale el acento.
+    publicPalette: pageantPaletteSchema,
     // Tipografía por familia y por bloque de texto (vacío = la de fábrica).
     publicTypography: pageantTypographySchema.default({}),
     // Logos del pie de página con su enlace (vacío = sin logos).

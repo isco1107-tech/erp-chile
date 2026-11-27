@@ -159,6 +159,9 @@ export const PAGEANT_SITE_STYLES = withFontAdjust(`
 .pgs-btn.is-ghost { background: rgba(var(--night-rgb), 0.35); color: var(--on-night); border-color: color-mix(in srgb, var(--a) 55%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
 .pgs-btn.is-ghost:hover { border-color: var(--a); color: var(--a-bright); }
 .pgs-btn.is-ink { background: var(--ink); color: var(--paper); }
+/* La regla de los enlaces (más arriba, .pgs a:not(.ws-root a)) pesa más que .pgs-btn.is-gold: sin esto, el texto de un botón dorado que es un enlace heredaba el marfil del sitio y quedaba ilegible sobre el dorado. */
+.pgs a.pgs-btn.is-gold { color: var(--ink); }
+.pgs a.pgs-btn.is-ink { color: var(--paper); }
 .pgs-btn.is-ink:hover { background: var(--night-3); box-shadow: 0 18px 40px -18px rgba(23, 19, 38, 0.7); }
 .pgs-btn.is-small { min-height: 2.5rem; padding: 0.55rem 1.15rem; font-size: 0.72rem; }
 .pgs-btn-icon { width: 1.15rem; height: 1.15rem; transition: transform 0.4s var(--ease); }

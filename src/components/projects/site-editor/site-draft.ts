@@ -4,6 +4,7 @@ import type { PageantEditorDraft } from '@/lib/events/pageant-editor-draft';
 import { parseFooterPartners } from '@/lib/events/pageant-partners';
 import type { DirectorTitle } from '@/lib/events/pageant-site';
 import { pageantSiteDesignSchema, parsePageantSiteDesign } from '@/lib/events/pageant-site-design';
+import { parsePageantPalette } from '@/lib/events/pageant-palette';
 import { parsePageantTypography } from '@/lib/events/pageant-typography';
 import { PUBLIC_ACCENTS, type PublicAccentKey } from '@/modules/projects/schema';
 import type { FooterPartnersDraft } from '../FooterPartnersEditor';
@@ -23,6 +24,8 @@ export function initialSiteFormValues(project: Project) {
     publicDescription: project.publicDescription ?? '',
     coverImageUrl: project.coverImageUrl ?? '',
     publicTypography: parsePageantTypography(project.publicTypography),
+    // Tres colores de la portada (o a mano); `null` = sin paleta, vale el acento de abajo.
+    publicPalette: parsePageantPalette(project.publicPalette),
     publicAccent: ((PUBLIC_ACCENTS as readonly string[]).includes(project.publicAccent) ? project.publicAccent : 'gold') as PublicAccentKey,
     instagramHandle: formatInstagramHandlesForForm(project.instagramHandle),
     publicContactEmail: project.publicContactEmail ?? '',
@@ -71,6 +74,7 @@ export function toCanvasDraft(state: SiteEditorState, includeDesign = true): Pag
     description: values.publicDescription,
     coverImageUrl: values.coverImageUrl,
     accent: values.publicAccent,
+    palette: values.publicPalette,
     typography: values.publicTypography,
     instagram: values.instagramHandle,
     email: values.publicContactEmail,
