@@ -326,6 +326,47 @@ describe('webhook de órdenes', () => {
       expect(createTenant).not.toHaveBeenCalled();
     });
 
+    it('un dominio ya comprado se guarda normalizado como el predeterminado de la empresa y la respuesta dice qué DNS falta', async () => {
+      findUnique.mockResolvedValue(null);
+      auditoria.mockResolvedValue(null);
+      createTenant.mockResolvedValue({ company: { id: 'nueva', businessName: 'Mi Empresa SpA' }, linkedExistingUser: false });
+      const r = await enviar('empresa.crear', { ...alta, dominio: 'https://www.MiEmpresa.CL/' }, null);
+      expect(createTenant.mock.calls[0][0].defaultDomain).toBe('miempresa.cl');
+      expect(r.cuerpo).toMatchObject({ ok: true, datos: { empresaId: 'nueva', dominio: 'miempresa.cl' } });
+      // Lo único que falta, fuera de Aether: el comodín en el DNS de la empresa.
+      expect(r.cuerpo.mensaje).toContain('nacerán en miempresa.cl');
+      expect(r.cuerpo.mensaje).toContain('CNAME «*» → cname.vercel-dns.com');
+      expect((createAuditLog as jest.Mock).mock.calls[0][0].metadata).toMatchObject({ dominio: 'miempresa.cl' });
+    });
+
+    it('sin dominio la empresa nace como siempre: sus páginas usan la dirección de la plataforma', async () => {
+      findUnique.mockResolvedValue(null);
+      auditoria.mockResolvedValue(null);
+      createTenant.mockResolvedValue({ company: { id: 'nueva', businessName: 'Mi Empresa SpA' }, linkedExistingUser: false });
+      const r = await enviar('empresa.crear', alta, null);
+      expect(createTenant.mock.calls[0][0].defaultDomain).toBeUndefined();
+      expect(r.cuerpo.mensaje).toBe('Empresa Mi Empresa SpA creada');
+      expect(r.cuerpo).not.toHaveProperty('datos.dominio');
+      createTenant.mockClear();
+      await enviar('empresa.crear', { ...alta, dominio: '   ' }, null);
+      expect(createTenant.mock.calls[0][0].defaultDomain).toBeUndefined();
+    });
+
+    it('un dominio que no sirve (IP, localhost, el de la plataforma) rechaza el alta con el motivo, sin crear nada', async () => {
+      findUnique.mockResolvedValue(null);
+      expect((await enviar('empresa.crear', { ...alta, dominio: '203.0.113.5' }, null)).cuerpo).toMatchObject({ ok: false, mensaje: expect.stringContaining('dirección IP') });
+      expect((await enviar('empresa.crear', { ...alta, dominio: 'mi-sitio.vercel.app' }, null)).cuerpo.ok).toBe(false);
+      expect((await enviar('empresa.crear', { ...alta, dominio: 'localhost' }, null)).cuerpo.ok).toBe(false);
+      expect(createTenant).not.toHaveBeenCalled();
+    });
+
+    it('un dominio que ya es de otra empresa falla el alta con ese mensaje', async () => {
+      findUnique.mockResolvedValue(null);
+      auditoria.mockResolvedValue(null);
+      createTenant.mockRejectedValue(new Error('Ese dominio ya lo usa otra empresa de la plataforma'));
+      expect((await enviar('empresa.crear', { ...alta, dominio: 'miempresa.cl' }, null)).cuerpo).toMatchObject({ ok: false, mensaje: expect.stringContaining('otra empresa') });
+    });
+
     it('rechaza datos inválidos, planes o módulos inexistentes y estados que no sirven para un alta, sin crear nada', async () => {
       findUnique.mockResolvedValue(null);
       expect((await enviar('empresa.crear', { ...alta, rut: '11.111.111-2' }, null)).cuerpo).toMatchObject({ ok: false, mensaje: expect.stringContaining('RUT') });

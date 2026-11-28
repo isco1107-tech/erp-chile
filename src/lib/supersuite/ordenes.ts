@@ -13,6 +13,8 @@ import * as platformService from '@/modules/platform/services/platform.service';
 import { cancelErasure, confirmErasure, requestErasure } from '@/modules/platform/services/company-erasure.service';
 import { whenLabel, type ErasureKind } from '@/lib/company-erasure/policy';
 import { platformBaseUrl } from '@/lib/hosting/custom-domain';
+import { wildcardRecordName } from '@/lib/hosting/default-domain';
+import { DEFAULT_CNAME } from '@/lib/hosting/vercel-domains';
 import { getSalesEmail } from '@/lib/marketing/sales-lead';
 import { buildMarketingContext, copyReviewContext } from '@/lib/marketing/context';
 import { reviewMarketingCopy } from '@/lib/marketing/copy-review';
@@ -167,9 +169,11 @@ const numeroDe = (valor: unknown): number | undefined => (typeof valor === 'numb
 /**
  * Alta de una empresa nueva: plan, módulos extra, límites y su primer Dueño.
  * El plan trae sus módulos y topes (`PLAN_PRESETS`); `modulos` suma otros por
- * su nombre en la Supersuite. La clave inicial viaja en la orden, así que el
- * Dueño queda obligado a cambiarla en su primer ingreso, y la bitácora
- * guarda solo el correo.
+ * su nombre en la Supersuite. `dominio` (opcional) es el que la empresa ya
+ * compró: con él nacen sus páginas nuevas (`<dirección>.<dominio>`) en vez de
+ * la dirección de la plataforma; se guarda en `CompanySettings.defaultDomain`.
+ * La clave inicial viaja en la orden, así que el Dueño queda obligado a
+ * cambiarla en su primer ingreso, y la bitácora guarda solo el correo.
  *
  * Idempotente: si el RUT ya existe y fue esta misma vía quien lo creó, la
  * reentrega de la orden responde como aplicada en vez de fallar.
@@ -205,6 +209,7 @@ async function crearEmpresa(orden: OrdenRecibida) {
     maxWebSites: numeroDe(d.sitiosMax),
     status: estado,
     features,
+    defaultDomain: textoDe(d.dominio),
     adminName: textoDe(d.adminNombre),
     adminEmail: textoDe(d.adminCorreo),
     adminPassword: textoDe(d.adminClave) || undefined,
@@ -221,6 +226,7 @@ async function crearEmpresa(orden: OrdenRecibida) {
     if (creadaPorOrden) return { mensaje: 'La empresa ya estaba creada', datos: { empresaId: existente.id } };
   }
 
+  const dominio = parsed.data.defaultDomain;
   const { company, linkedExistingUser } = await platformService.createTenant(parsed.data, { mustChangePassword: true });
   await createAuditLog({
     companyId: company.id,
@@ -228,13 +234,15 @@ async function crearEmpresa(orden: OrdenRecibida) {
     action: 'CREATE',
     entity: 'Company',
     entityId: company.id,
-    metadata: { origen: QUIEN, orden: orden.id, plan, adminEmail: parsed.data.adminEmail, adminVinculadoExistente: linkedExistingUser, ...(leadRef ? { leadRef } : {}) },
+    metadata: { origen: QUIEN, orden: orden.id, plan, adminEmail: parsed.data.adminEmail, adminVinculadoExistente: linkedExistingUser, ...(dominio ? { dominio } : {}), ...(leadRef ? { leadRef } : {}) },
   });
+  const creada = linkedExistingUser
+    ? `Empresa ${company.businessName} creada. ${parsed.data.adminEmail} ya tenía cuenta: entra con su contraseña de siempre y elige la empresa al iniciar sesión`
+    : `Empresa ${company.businessName} creada`;
   return {
-    mensaje: linkedExistingUser
-      ? `Empresa ${company.businessName} creada. ${parsed.data.adminEmail} ya tenía cuenta: entra con su contraseña de siempre y elige la empresa al iniciar sesión`
-      : `Empresa ${company.businessName} creada`,
-    datos: { empresaId: company.id, ...(leadRef ? { leadRef } : {}) },
+    // Con dominio: sus páginas nuevas nacen en él. Falta una sola cosa, fuera de Aether: el comodín en el DNS de la empresa.
+    mensaje: dominio ? `${creada}. Sus páginas nuevas nacerán en ${dominio}: la empresa debe crear en el DNS de ese dominio un registro CNAME «${wildcardRecordName(dominio)}» → ${DEFAULT_CNAME}` : creada,
+    datos: { empresaId: company.id, ...(dominio ? { dominio } : {}), ...(leadRef ? { leadRef } : {}) },
   };
 }
 

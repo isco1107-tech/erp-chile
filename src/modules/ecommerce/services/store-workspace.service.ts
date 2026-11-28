@@ -11,6 +11,7 @@ import { StoreError, StoreNotFoundError } from '../errors';
 import { publicSiteUrl } from '@/modules/web-sites/services/web-sites.service';
 import { ownImageOrNull } from './store-catalog.service';
 import { storefrontDesign } from '@/lib/ecommerce/storefront-design';
+import { assignDefaultDomain } from '@/lib/hosting/default-domain.service';
 
 export const storefrontSchema = z.object({
   name: z.string().trim().min(2, 'Escribe el nombre de tu tienda').max(80),
@@ -33,7 +34,7 @@ export async function createStorefront(companyId: string, actorName: string, inp
   if (problem) throw new StoreError(problem);
   const companyContact = await prisma.company.findUnique({ where: { id: companyId }, select: { email: true, phone: true } });
   const { document, theme } = storefrontDesign(input.name, input.template, companyContact ?? {});
-  return prisma.$transaction(async (tx) => {
+  const created = await prisma.$transaction(async (tx) => {
     // Serializes quota checks, including concurrent store creations for this company.
     await tx.$queryRaw`SELECT id FROM "Company" WHERE id = ${companyId} FOR UPDATE`;
     const company = await tx.company.findUnique({ where: { id: companyId }, select: { maxWebSites: true } });
@@ -64,6 +65,9 @@ export async function createStorefront(companyId: string, actorName: string, inp
     });
     return site;
   });
+  // Tienda nueva: nace en el dominio predeterminado de la empresa, si lo tiene (nunca falla la creación).
+  await assignDefaultDomain(companyId, { kind: 'webSite', id: created.id }, created.slug);
+  return created;
 }
 
 export async function getStoreBrand(companyId: string, siteId: string) {

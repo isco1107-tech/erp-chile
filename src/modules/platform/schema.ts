@@ -4,11 +4,30 @@ import { MODULE_KEYS, type FeatureKey } from '@/lib/auth/modules';
 import { passwordPolicySchema } from '@/lib/auth/password-policy';
 import { MAX_WAREHOUSES, PLAN_NAMES } from '@/lib/pricing/presets';
 import { MAX_WEB_SITES_CEILING } from '@/lib/web-sites/constants';
+import { parseDefaultDomain } from '@/lib/hosting/default-domain';
 
 /** Tope de sitios web de la empresa: opcional para no obligar a los llamadores anteriores; sin valor no se toca. */
 const maxWebSites = z.number().int().min(1, 'Debe permitir al menos 1 sitio web').max(MAX_WEB_SITES_CEILING, `El máximo de sitios web es ${MAX_WEB_SITES_CEILING}`).optional();
 
 export const TENANT_STATUSES = ['ACTIVE', 'TRIAL', 'SUSPENDED', 'CANCELLED'] as const;
+
+/**
+ * Dominio que la empresa ya compró (opcional): con él nacen sus páginas nuevas. Vacío = ninguno.
+ * Sale normalizado ("https://www.MiEmpresa.cl/" → "miempresa.cl") o el alta se rechaza con el motivo.
+ */
+const defaultDomain = z
+  .string()
+  .trim()
+  .transform((value, ctx): string | undefined => {
+    if (!value) return undefined;
+    const parsed = parseDefaultDomain(value);
+    if ('problem' in parsed) {
+      ctx.addIssue({ code: 'custom', message: parsed.problem });
+      return z.NEVER;
+    }
+    return parsed.domain;
+  })
+  .optional();
 
 const featureShape = Object.fromEntries(MODULE_KEYS.map((key) => [key, z.boolean()])) as Record<FeatureKey, z.ZodBoolean>;
 
@@ -26,6 +45,7 @@ export const companyCreateSchema = z.object({
   maxWebSites,
   status: z.enum(TENANT_STATUSES, 'Selecciona un estado de cuenta'),
   features: companyFeaturesSchema,
+  defaultDomain,
   // Primer usuario administrador del tenant. Sin él la empresa nace inaccesible.
   adminName: z.string().min(1, 'Ingrese el nombre del administrador'),
   adminEmail: z.string().email('Correo del administrador inválido'),

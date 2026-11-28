@@ -35,6 +35,8 @@ jest.mock('@/lib/security/outbound-url', () => ({
 }));
 jest.mock('jose', () => ({ jwtVerify: jest.fn(), SignJWT: jest.fn() }));
 jest.mock('@/lib/auth/audit', () => ({ createAuditLog: jest.fn() }));
+// El dominio predeterminado de la empresa se prueba en `default-domain.test.ts`; acá solo se comprueba que se pide.
+jest.mock('@/lib/hosting/default-domain.service', () => ({ assignDefaultDomain: jest.fn().mockResolvedValue(null) }));
 jest.mock('@/lib/storage/blob', () => ({ del: jest.fn() }));
 jest.mock('next/cache', () => ({ revalidatePath: jest.fn() }));
 jest.mock('@/lib/auth/guards', () => {
@@ -46,6 +48,7 @@ import { resolve4, resolveCname } from 'node:dns/promises';
 import { Prisma, type Role } from '@prisma/client';
 import { resolvePermissions, sanitizePermissions } from '@/lib/auth/effective-permissions';
 import { createAuditLog } from '@/lib/auth/audit';
+import { assignDefaultDomain } from '@/lib/hosting/default-domain.service';
 import { AuthError, requireAuthWithPermission } from '@/lib/auth/guards';
 import { DEFAULT_FEATURES, availablePermissionGroups, blockedModuleForRoute, moduleForPermission, type CompanyFeatureFlags } from '@/lib/auth/modules';
 import { ALL_PERMISSIONS, checkPermission, permissionsForRole, rolesWithPermission, type Permission } from '@/lib/auth/permissions';
@@ -956,6 +959,23 @@ describe('createWebSite', () => {
     expect(db.webSite.create).not.toHaveBeenCalled();
   });
 
+  it('el sitio nuevo se publica por defecto en el dominio de la empresa: se le pide su dominio con SU dirección', async () => {
+    happyPath();
+
+    await createWebSite(COMPANY, { name: 'Ana' }, { ...base, slug: 'taller' });
+
+    expect(assignDefaultDomain).toHaveBeenCalledTimes(1);
+    expect(assignDefaultDomain).toHaveBeenCalledWith(COMPANY, { kind: 'webSite', id: 'new-site' }, 'taller');
+  });
+
+  it('un sitio que no llegó a crearse (dirección tomada) no recibe dominio', async () => {
+    db.webSite.count.mockResolvedValue(0);
+    db.webSite.findFirst.mockResolvedValue({ id: 'otro' });
+
+    await expect(createWebSite(COMPANY, { name: 'Ana' }, { ...base, slug: 'taller' })).rejects.toThrow();
+    expect(assignDefaultDomain).not.toHaveBeenCalled();
+  });
+
   it('sin slug genera uno desde el nombre (sin tildes ni símbolos)', async () => {
     happyPath();
 
@@ -1105,6 +1125,8 @@ describe('duplicateWebSite', () => {
     expect(data).not.toHaveProperty('customDomain');
     expect(data).not.toHaveProperty('publishedBlocks');
     expect((data.assets as { create: Row[] }).create[0]).toMatchObject({ companyId: COMPANY, url: ASSET_URL });
+    // La copia nunca hereda el dominio propio del original: nace en el predeterminado de la empresa, con su propia dirección.
+    expect(assignDefaultDomain).toHaveBeenCalledWith(COMPANY, { kind: 'webSite', id: 'copia' }, 'solar-sur-copia');
   });
 });
 

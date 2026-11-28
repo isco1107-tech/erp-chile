@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { constraintInvolves } from '@/lib/prisma-errors';
+import { assignDefaultDomain } from '@/lib/hosting/default-domain.service';
 import { isAllowedBlobUrl, blobPathnameStartsWith } from '@/lib/security/blob-url';
 import { formatWhatsappNumber, storedInstagramHandles, formatInstagramHandlesForForm } from '@/lib/events/pageant-contact';
 import {
@@ -124,6 +125,9 @@ export async function saveAcademySite(companyId: string, input: AcademySiteInput
   const previous = await prisma.academySite.findFirst({ where: { companyId }, select: { slug: true } });
   try {
     const saved = await prisma.academySite.upsert({ where: { companyId }, create: { companyId, ...data }, update: data, select: { id: true } });
+    // Sitio recién creado: nace en el dominio predeterminado de la empresa, si lo tiene (nunca falla el guardado).
+    // Solo al crearlo: quien después le quitó el dominio, o le puso uno comprado aparte, no lo recupera al guardar.
+    if (!previous) await assignDefaultDomain(companyId, { kind: 'academySite', id: saved.id }, input.slug);
     return { id: saved.id, previousSlug: previous?.slug ?? null };
   } catch (error) {
     if (constraintInvolves(error, 'slug')) throw new AcademyError('Esa dirección ya la usa otro sitio. Elige otra.');

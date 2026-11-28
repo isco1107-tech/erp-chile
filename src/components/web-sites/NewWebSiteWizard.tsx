@@ -5,6 +5,7 @@ import type { FormEvent, ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { defaultSiteDomain } from '@/lib/hosting/default-domain';
 import {
   ArrowLeft,
   ArrowRight,
@@ -64,6 +65,8 @@ interface Props {
   contactsTruncated?: boolean;
   /** Dirección base de la plataforma (`https://…`), para la vista previa de la dirección pública. */
   baseUrl: string;
+  /** Dominio predeterminado de la empresa: si lo tiene, el sitio nuevo nace en `<dirección>.<dominio>`. */
+  defaultDomain?: string | null;
 }
 
 const KIND_ICON: Record<WebSiteKind, LucideIcon> = {
@@ -161,7 +164,7 @@ function ChoiceCard({
   );
 }
 
-export default function NewWebSiteWizard({ contacts = [], contactsTruncated = false, baseUrl }: Props) {
+export default function NewWebSiteWizard({ contacts = [], contactsTruncated = false, baseUrl, defaultDomain = null }: Props) {
   const router = useRouter();
   const uid = useId();
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -198,6 +201,8 @@ export default function NewWebSiteWizard({ contacts = [], contactsTruncated = fa
   const slugError = trimmedName || slugTouched ? siteSlugProblem(effectiveSlug) : null;
   const showNameError = (nameTouched || submitted) && nameError;
   const base = baseUrl.replace(/\/$/, '');
+  // Sin dominio propio escrito, el sitio nace en el predeterminado de la empresa (si lo tiene y la dirección sirve).
+  const defaultAddress = !domain.trim() && defaultDomain && effectiveSlug ? defaultSiteDomain(defaultDomain, effectiveSlug) : null;
 
   const headingId = `${uid}-heading`;
   const nameId = `${uid}-name`;
@@ -579,7 +584,7 @@ export default function NewWebSiteWizard({ contacts = [], contactsTruncated = fa
                 />
               </div>
               <p id={`${slugId}-preview`} className="text-sm">
-                <span className="text-muted-foreground">Tu sitio se verá en:</span> <span className="font-mono break-all">{`${base}/web/${effectiveSlug || '…'}`}</span>
+                <span className="text-muted-foreground">Tu sitio se verá en:</span> <span className="font-mono break-all">{defaultAddress ? `https://${defaultAddress}` : `${base}/web/${effectiveSlug || '…'}`}</span>
               </p>
               <p id={`${slugId}-hint`} className="text-xs text-muted-foreground">
                 {slugTouched
@@ -608,6 +613,7 @@ export default function NewWebSiteWizard({ contacts = [], contactsTruncated = fa
               />
               <p id={`${domainId}-hint`} className="text-xs text-muted-foreground">
                 Escríbelo sin https:// y lo conectamos al crear el sitio; en el editor verás los registros DNS que debes crear en tu proveedor. Si aún no lo compras, déjalo vacío y agrégalo después.
+                {defaultDomain && ` Si lo dejas vacío, el sitio se publicará en tu dominio de empresa (${defaultDomain}).`}
               </p>
             </div>
 

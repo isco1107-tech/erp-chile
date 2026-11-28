@@ -5,6 +5,7 @@ import { cleanRut, formatRut } from '@/lib/chile/rut';
 import { DEFAULT_FEATURES } from '@/lib/auth/modules';
 import { ensureChartOfAccounts } from '@/modules/accounting/services/chart-setup.service';
 import { setDisabledNavItems } from '@/modules/workspace/services/workspace.service';
+import { assertDefaultDomainAvailable } from '@/lib/hosting/default-domain.service';
 import type { CompanyCreateInput, CompanyPlanUpdateInput } from '../schema';
 
 /**
@@ -41,6 +42,10 @@ export async function createTenant(
   }
   if (!existingUser && !input.adminPassword) throw new Error('Ingresa la contraseña inicial del administrador');
 
+  // El dominio ya comprado con el que nacerán sus páginas: no puede ser de otra empresa (ni de una de sus páginas).
+  // El índice único de la base respalda esta revisión si dos altas lo piden a la vez.
+  if (input.defaultDomain) await assertDefaultDomainAvailable(input.defaultDomain, null);
+
   const passwordHash = existingUser ? null : await bcrypt.hash(input.adminPassword!, 12);
   const features = existingUser ? { ...input.features, hasMultiCompany: true } : input.features;
 
@@ -62,8 +67,8 @@ export async function createTenant(
         // cualquier lectura que asumiera la fila existente (el wizard de
         // onboarding, `getCompanySettings`) fallaba o tenía que manejar el
         // caso nulo a mano. Todos los campos tienen default en el schema, así
-        // que un `create: {}` basta.
-        settings: { create: {} },
+        // que un `create: {}` basta. El dominio predeterminado (si lo tiene) nace con ella.
+        settings: { create: input.defaultDomain ? { defaultDomain: input.defaultDomain } : {} },
       },
     });
 

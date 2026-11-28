@@ -19,6 +19,7 @@ import { findIndustry, industryDocument } from '@/lib/web-sites/industries';
 import { starterDocument, starterHtml } from '@/lib/web-sites/templates';
 import { NEW_SITE_THEME, parseTheme, type WebSiteTheme } from '@/lib/web-sites/theme';
 import { slugify } from '@/lib/web-sites/urls';
+import { assignDefaultDomain } from '@/lib/hosting/default-domain.service';
 import type { CreateWebSiteInput, SaveWebSiteContentInput, WebSiteSettingsInput } from '../schema';
 
 /**
@@ -390,6 +391,8 @@ export async function createWebSite(
       },
       select: { id: true, slug: true },
     });
+    // Sitio nuevo: nace en el dominio predeterminado de la empresa, si lo tiene (nunca falla la creación).
+    await assignDefaultDomain(companyId, { kind: 'webSite', id: site.id }, site.slug);
     return site;
   } catch (error) {
     if (isUniqueConstraintError(error)) throw new WebSiteError('Esa dirección ya la usa otro sitio. Prueba con otra.');
@@ -561,6 +564,8 @@ export async function duplicateWebSite(companyId: string, actor: { name: string 
     },
     select: { id: true },
   });
+  // La copia es un sitio nuevo: nace en el dominio predeterminado, nunca con el dominio propio del original.
+  await assignDefaultDomain(companyId, { kind: 'webSite', id: copy.id }, slug);
   return copy;
 }
 

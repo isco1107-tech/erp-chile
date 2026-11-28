@@ -1,7 +1,15 @@
 import { expect, test } from '@playwright/test';
+import { disableGuidedTour } from './db';
 import { OWNER_STATE } from './support';
 
 test.use({ storageState: OWNER_STATE });
+
+// La guía «Cómo usar» de cada pantalla se abre sola la primera vez, como un diálogo modal que tapa el menú y el
+// buscador y se queda con el foco: estos recorridos prueban justamente el menú y la búsqueda, así que la apagan
+// (igual que el resto de los specs). La guía sigue disponible desde «Cómo usar».
+test.beforeEach(async ({ context }) => {
+  await disableGuidedTour(context);
+});
 
 test('el menú móvil mantiene el foco, se cierra al navegar y deja espacio al panel', async ({ page }) => {
   await page.setViewportSize({ width: 280, height: 650 });

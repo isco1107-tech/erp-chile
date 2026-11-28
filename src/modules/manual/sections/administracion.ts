@@ -147,6 +147,7 @@ export const ADMINISTRACION_SECTIONS: ManualSection[] = [
           'Completa razón social, RUT, giro, dirección, comuna, ciudad, teléfono, código de actividad económica y sube el logo (también colorea el panel con los tonos de tu marca).',
           'En parámetros tributarios revisa la industria, la tasa de PPM, la retención de honorarios y el año fiscal.',
           'Define si permites ventas con stock negativo y el umbral de aprobación de compras.',
+          'Si ya compraste un dominio y tienes sitios web, tienda, certámenes o academia, escríbelo en "Dominio predeterminado de la empresa": tus páginas nuevas se publicarán en él en vez de en la dirección de la plataforma.',
         ],
         tip: 'Estos datos salen impresos en tus facturas y boletas: revísalos antes de emitir el primer documento.',
       },
