@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { buildAppManifest } from '@/lib/apps/manifest';
+import { PLATFORM_FAVICON, buildAppManifest, platformIcons } from '@/lib/apps/manifest';
 import { installWorkerSource } from '@/lib/apps/install-worker';
 import { APP_IDS, APP_LIST, APPS, appForPath, appIconPaths, pathInScope } from '@/lib/apps/registry';
 
@@ -99,6 +99,46 @@ describe('apps instalables: cada una es independiente', () => {
       // Es JavaScript válido.
       expect(() => new Function(source)).not.toThrow();
     }
+  });
+
+  it('el logo de la pestaña (favicon) es SIEMPRE el de Aether: el layout raíz declara `icon` y los archivos existen', () => {
+    // Regresión: el layout raíz declaraba solo `icons.apple`, y Next ignora `src/app/icon.png` cuando el
+    // mismo segmento exporta `metadata.icons`; la pestaña del panel quedaba con el globo del navegador.
+    const layout = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'layout.tsx'), 'utf8');
+    expect(layout).toMatch(/icons:\s*platformIcons\(\)/);
+
+    const icons = platformIcons();
+    expect(icons.icon.length).toBeGreaterThan(0);
+    expect(icons.apple[0].url).toBe(appIconPaths('erp').apple180);
+    for (const icon of icons.icon) {
+      expect(icon.url.startsWith('/')).toBe(true);
+    }
+
+    // El PNG de pestaña es un PNG de 192 × 192, existe en `public` y es el mismo dibujo que `src/app/icon.png`.
+    const png = read(PLATFORM_FAVICON.png192);
+    expect(png.subarray(1, 4).toString()).toBe('PNG');
+    expect(png.readUInt32BE(16)).toBe(192);
+    expect(png.readUInt32BE(20)).toBe(192);
+    expect(png.equals(fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'icon.png')))).toBe(true);
+
+    // `favicon.ico` va en `public/` y NO en `src/app/`: Next antepone el de `src/app` a los íconos de
+    // toda página y pisaría el logo propio de los certámenes y sitios web de clientes.
+    expect(fs.existsSync(path.join(__dirname, '..', 'src', 'app', 'favicon.ico'))).toBe(false);
+    // Cabecera ICO con las tres medidas de pestaña.
+    const ico = read(PLATFORM_FAVICON.ico);
+    expect(ico.readUInt16LE(0)).toBe(0); // reservado
+    expect(ico.readUInt16LE(2)).toBe(1); // tipo: ícono
+    const count = ico.readUInt16LE(4);
+    const widths = Array.from({ length: count }, (_, i) => ico[6 + i * 16] || 256).sort((a, b) => a - b);
+    expect(widths).toEqual([16, 32, 48]);
+  });
+
+  it('los archivos del logo de la pestaña los deja pasar la proxy sin sesión (login incluido)', () => {
+    const proxy = fs.readFileSync(path.join(__dirname, '..', 'src', 'proxy.ts'), 'utf8');
+    // `/favicon.ico` está en la lista pública y fuera del matcher; `/branding` es público.
+    expect(proxy).toContain("'/favicon.ico'");
+    expect(proxy).toContain("'/branding'");
+    expect(PLATFORM_FAVICON.png192.startsWith('/branding/')).toBe(true);
   });
 
   it('cada ruta de manifest y service worker de las apps existe y la proxy la deja pasar sin sesión', () => {
