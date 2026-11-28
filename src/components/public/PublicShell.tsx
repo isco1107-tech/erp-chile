@@ -624,20 +624,42 @@ const PUBLIC_STYLES = `
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--pub-a) 14%, transparent);
 }
 .pub-option.is-disabled { opacity: 0.45; cursor: not-allowed; }
+/* El control tiene SIEMPRE el mismo tamaño, también dentro de un .pub-field
+   (que da alto mínimo y relleno a las cajas de texto), y se ve marcado por su
+   estado real (:checked), no solo por la clase .is-selected de la tarjeta. */
 .pub-option > input {
   appearance: none;
-  width: 1.15rem; height: 1.15rem; flex-shrink: 0;
+  -webkit-appearance: none;
+  width: 1.15rem; height: 1.15rem; min-width: 1.15rem; min-height: 0; flex-shrink: 0;
+  padding: 0;
   border-radius: 50%;
   border: 1.5px solid var(--pub-line);
   background: transparent;
   margin: 0;
-  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
 }
-.pub-option.is-selected > input {
+.pub-option.is-selected > input,
+.pub-option > input:checked {
   border-color: var(--pub-a);
   box-shadow: inset 0 0 0 4px color-mix(in oklab, var(--pub-a) 90%, transparent);
 }
-.pub-option > input[type="checkbox"] { border-radius: 5px; }
+.pub-option > input[type="checkbox"] {
+  border-radius: 5px;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 0.8rem;
+}
+.pub-option > input[type="checkbox"]:checked {
+  border-color: var(--pub-a);
+  background-color: var(--pub-a);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-7' fill='none' stroke='%2312161f' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  box-shadow: none;
+}
+.pub-option:has(> input:checked):not(.is-disabled) {
+  border-color: color-mix(in oklab, var(--pub-a) 65%, transparent);
+  background: color-mix(in oklab, var(--pub-a) 10%, rgba(255,255,255,0.03));
+}
 .pub-option > input:focus-visible { outline: 2px solid var(--pub-a); outline-offset: 2px; }
 .pub-option-body { flex: 1; display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
 .pub-option-name { font-size: 0.93rem; font-weight: 600; }
