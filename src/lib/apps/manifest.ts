@@ -63,6 +63,45 @@ export function appManifestResponse(id: AppId, request: Request): Response {
 }
 
 /**
+ * Íconos de la plataforma: lo que se ve en la pestaña del navegador (y en
+ * favoritos, el historial y la pantalla de inicio de iOS) en TODA página de
+ * Aether que no declare el suyo — el panel, el login, la landing, los accesos
+ * públicos. Siempre es el logo de Aether.
+ *
+ * Los dos archivos de pestaña son el logo recortado (sin el aire del ícono de
+ * app: a 16–32 px el logo completo se ve diminuto) y se mantienen juntos:
+ * `public/branding/favicon-192.png` es el mismo dibujo que `src/app/icon.png` y
+ * `public/favicon.ico` (16, 32 y 48 px).
+ *
+ * El `.ico` va en `public/`, NO en `src/app/favicon.ico`: Next antepone un
+ * `favicon.ico` de la raíz de `src/app` a los íconos de TODA página, incluso a
+ * las que declaran el suyo, y competiría con el logo propio de un certamen o
+ * sitio web de cliente (`faviconUrl`), que debe reemplazar al de Aether.
+ *
+ * POR QUÉ SE DECLARA `icon` AQUÍ y no basta `src/app/icon.png`: Next.js ignora
+ * los íconos de archivo del segmento si ese mismo segmento exporta
+ * `metadata.icons`, y el layout raíz ya declara el de iOS. Con solo `apple`
+ * la página no llevaba ningún `<link rel="icon">` y la pestaña mostraba el
+ * globo por defecto del navegador. Las páginas con logo propio (certámenes,
+ * sitios web) y las apps instaladas (`appMetadata`) lo reemplazan a propósito.
+ */
+export const PLATFORM_FAVICON = {
+  ico: '/favicon.ico',
+  png192: '/branding/favicon-192.png',
+} as const;
+
+export function platformIcons() {
+  return {
+    icon: [
+      { url: PLATFORM_FAVICON.ico, sizes: '48x48' },
+      { url: PLATFORM_FAVICON.png192, sizes: '192x192', type: 'image/png' },
+    ],
+    shortcut: [{ url: PLATFORM_FAVICON.ico }],
+    apple: [{ url: appIconPaths('erp').apple180, sizes: '180x180', type: 'image/png' }],
+  };
+}
+
+/**
  * Metadatos del layout de una app: su manifest, su ícono en la pestaña y el de
  * iOS («Agregar a pantalla de inicio»), y el nombre que iOS pone bajo el ícono.
  * Cada app tiene los suyos: ninguna hereda el logo de otra.
