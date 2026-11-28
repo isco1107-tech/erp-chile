@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import type { Project } from '@prisma/client';
+import { assignDefaultDomain } from '@/lib/hosting/default-domain.service';
 import type { ProjectCreateInput, ProjectPublicSiteInput, ProjectUpdateInput } from '../schema';
 
 export async function createProject(companyId: string, data: ProjectCreateInput): Promise<Project> {
@@ -112,10 +113,18 @@ export async function deleteProject(companyId: string, id: string): Promise<void
  * traduce a un mensaje accionable.
  */
 export async function updatePublicSite(companyId: string, id: string, data: ProjectPublicSiteInput): Promise<Project> {
+  const before = await prisma.project.findFirst({ where: { id, companyId }, select: { publicSlug: true } });
   const result = await prisma.project.updateMany({ where: { id, companyId }, data });
   if (result.count === 0) throw new Error('Proyecto no encontrado');
   const project = await prisma.project.findFirst({ where: { id, companyId } });
   if (!project) throw new Error('Proyecto no encontrado');
+  // El certamen recién tiene página pública (primera vez que se le pone dirección): nace en el dominio
+  // predeterminado de la empresa, si lo tiene. Solo esa primera vez: quien después le quitó el dominio a
+  // propósito, o le puso uno comprado aparte, no lo recupera al guardar otra vez. Nunca falla el guardado.
+  if (before && !before.publicSlug && project.publicSlug && !project.customDomain) {
+    const domain = await assignDefaultDomain(companyId, { kind: 'project', id }, project.publicSlug);
+    if (domain) return { ...project, customDomain: domain, customDomainVerifiedAt: null };
+  }
   return project;
 }
 

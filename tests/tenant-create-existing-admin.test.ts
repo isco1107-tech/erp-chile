@@ -104,3 +104,66 @@ describe('grantCompanyMembership (superadmin)', () => {
     expect(result.userEmail).toBe('Pancho@Gmail.com');
   });
 });
+
+describe('createTenant con dominio predeterminado', () => {
+  const withPassword = { ...base, adminPassword: 'Clave1234' };
+
+  /** Las cuatro consultas con que se revisa que el dominio no sea de otra empresa (ni de una de sus páginas). */
+  function spyDomainChecks(taken: 'settings' | 'project' | 'webSite' | 'academySite' | null = null) {
+    const answer = (name: string) => (taken === name ? { id: 'ajeno' } : null);
+    return {
+      settings: jest.spyOn(prisma.companySettings, 'findFirst').mockResolvedValue(answer('settings') as never),
+      project: jest.spyOn(prisma.project, 'findFirst').mockResolvedValue(answer('project') as never),
+      webSite: jest.spyOn(prisma.webSite, 'findFirst').mockResolvedValue(answer('webSite') as never),
+      academySite: jest.spyOn(prisma.academySite, 'findFirst').mockResolvedValue(answer('academySite') as never),
+    };
+  }
+
+  function mockCompanyTransaction() {
+    jest.spyOn(prisma.company, 'findUnique').mockResolvedValue(null);
+    jest.spyOn(prisma.user, 'findFirst').mockResolvedValue(null);
+    return mockTransaction();
+  }
+
+  it('la configuración de la empresa nace con su dominio', async () => {
+    const tx = mockCompanyTransaction();
+    const checks = spyDomainChecks();
+
+    await createTenant({ ...withPassword, defaultDomain: 'miempresa.cl' });
+
+    const data = tx.company.create.mock.calls[0]![0].data as unknown as { settings: { create: unknown } };
+    expect(data.settings.create).toEqual({ defaultDomain: 'miempresa.cl' });
+    // La empresa aún no existe: el dominio se revisa contra TODAS.
+    expect(checks.settings).toHaveBeenCalledWith({ where: { defaultDomain: 'miempresa.cl' }, select: { id: true } });
+  });
+
+  it('sin dominio la configuración nace vacía y no se consulta nada de dominios', async () => {
+    const tx = mockCompanyTransaction();
+    const checks = spyDomainChecks();
+
+    await createTenant(withPassword);
+
+    const data = tx.company.create.mock.calls[0]![0].data as unknown as { settings: { create: unknown } };
+    expect(data.settings.create).toEqual({});
+    expect(checks.settings).not.toHaveBeenCalled();
+    expect(checks.webSite).not.toHaveBeenCalled();
+  });
+
+  it.each(['settings', 'project', 'webSite', 'academySite'] as const)('no se crea la empresa si el dominio ya lo usa otra (%s)', async (taken) => {
+    const tx = mockCompanyTransaction();
+    spyDomainChecks(taken);
+
+    await expect(createTenant({ ...withPassword, defaultDomain: 'miempresa.cl' })).rejects.toThrow('otra empresa');
+    expect(tx.company.create).not.toHaveBeenCalled();
+  });
+
+  it('el esquema normaliza el dominio, acepta vacío y rechaza lo que no es un dominio público', () => {
+    const input = { ...base, adminPassword: '' };
+    expect(companyCreateSchema.parse({ ...input, defaultDomain: 'https://www.MiEmpresa.CL/' }).defaultDomain).toBe('miempresa.cl');
+    expect(companyCreateSchema.parse({ ...input, defaultDomain: '' }).defaultDomain).toBeUndefined();
+    expect(companyCreateSchema.parse(input).defaultDomain).toBeUndefined();
+    const bad = companyCreateSchema.safeParse({ ...input, defaultDomain: '203.0.113.5' });
+    expect(bad.success).toBe(false);
+    if (!bad.success) expect(bad.error.issues[0]?.message).toContain('dirección IP');
+  });
+});

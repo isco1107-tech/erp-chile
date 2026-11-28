@@ -59,7 +59,7 @@ async function copyToClipboard(value: string): Promise<void> {
   }
 }
 
-function CopyButton({ value, label }: { value: string; label: string }) {
+export function CopyButton({ value, label }: { value: string; label: string }) {
   return (
     <button
       type="button"

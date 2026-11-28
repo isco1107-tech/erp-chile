@@ -10,6 +10,7 @@ import { getAppUrl } from '@/lib/email/mailer';
 import { quotaReachedMessage } from '@/lib/web-sites/quota';
 import { listContactsPage } from '@/modules/contacts/services/contacts.service';
 import { getSiteQuota } from '@/modules/web-sites/services/web-sites.service';
+import { getDefaultDomain } from '@/lib/hosting/default-domain.service';
 
 export const metadata = { title: 'Nuevo sitio' };
 
@@ -53,7 +54,7 @@ export default async function NewWebSitePage() {
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Sitios web" title="Nuevo sitio" description="Tres pasos: tu rubro, cómo lo quieres armar y cómo se va a llamar. Te lo entregamos armado; después lo ajustas con calma antes de publicarlo." />
-      <NewWebSiteWizard contacts={contacts} contactsTruncated={contactsTruncated} baseUrl={getAppUrl()} />
+      <NewWebSiteWizard contacts={contacts} contactsTruncated={contactsTruncated} baseUrl={getAppUrl()} defaultDomain={await getDefaultDomain(context.companyId)} />
     </div>
   );
 }

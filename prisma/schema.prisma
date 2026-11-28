@@ -756,6 +756,14 @@ model CompanySettings {
   /// validado con `scaleLabelFormatSchema` al guardar y al leer; `null` = el POS
   /// no interpreta etiquetas de balanza. Ver `src/lib/pos/scale-label.ts`.
   scaleLabelFormat           Json?
+  /// Dominio que la empresa ya compró (ej. `miempresa.cl`, minúsculas y sin
+  /// `www.`) y con el que se publican por defecto sus páginas nuevas: cada
+  /// certamen, sitio web, tienda o academia que se crea nace en
+  /// `<dirección>.<dominio>` en vez de la dirección de la plataforma. Es solo la
+  /// base: cada página guarda su propio dominio (`customDomain`) y una página con
+  /// dominio comprado aparte lo conserva. Único en la plataforma. `null` = las
+  /// páginas nacen en la dirección de la plataforma. Ver `src/lib/hosting/default-domain.ts`.
+  defaultDomain              String?      @unique
   createdAt                  DateTime     @default(now())
   updatedAt                  DateTime     @updatedAt
 }

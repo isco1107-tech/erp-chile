@@ -461,6 +461,19 @@ export const GESTION_SECTIONS: ManualSection[] = [
         ],
       },
       {
+        id: 'dominio-predeterminado',
+        title: 'Publicar tus páginas en el dominio de tu empresa',
+        permission: 'settings:company',
+        route: '/dashboard/settings/company',
+        steps: [
+          'Si ya compraste un dominio para tu empresa, ve a Configuración → Perfil de Empresa, baja hasta "Dominio predeterminado de la empresa", escríbelo (ej. miempresa.cl) y haz clic en "Guardar dominio".',
+          'En el panel donde compraste el dominio crea el registro DNS que aparece ahí (un CNAME con nombre * hacia cname.vercel-dns.com). Se crea una sola vez y sirve para todas tus páginas. Después haz clic en "Revisar DNS"; puede tardar hasta 24 horas.',
+          'Desde ese momento, cada sitio web, tienda, certamen o academia que crees nace en su propio subdominio (por ejemplo mi-sitio.miempresa.cl) en vez de en la dirección de la plataforma. El certamen lo recibe la primera vez que le pones dirección pública.',
+          'Si compras un dominio solo para una página, ponlo en el "Dominio propio" de esa página: ese manda sobre el de la empresa y no se cambia solo.',
+        ],
+        tip: 'Las páginas que ya existían no cambian de dirección al guardar el dominio, y quitarlo no las toca: solo cambia dónde nacen las nuevas. Si tu proveedor de DNS no acepta comodines (*), conecta el dominio de cada página desde su propio panel de "Dominio propio".',
+      },
+      {
         id: 'armar-sitio-cliente',
         title: 'Armar el sitio para un cliente',
         permission: 'websites:write',
